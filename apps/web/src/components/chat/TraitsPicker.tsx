@@ -22,7 +22,7 @@ import {
   SPEED_TOGGLE_LABELS,
   type SpeedToggle,
 } from "@supaterm/client-runtime/provider-speed-toggle";
-import { memo, useCallback } from "react";
+import { memo } from "react";
 import { BrainIcon, ZapIcon } from "lucide-react";
 import { UltrafastIcon } from "../Icons";
 import {
@@ -282,24 +282,21 @@ function useUpdateModelOptions(
   persistence: TraitsPersistence,
 ) {
   const setProviderModelOptions = useComposerDraftStore((store) => store.setProviderModelOptions);
-  return useCallback(
-    (nextOptions: ProviderOptions | undefined) => {
-      if ("onModelOptionsChange" in persistence) {
-        persistence.onModelOptionsChange(nextOptions);
-        return;
-      }
-      const threadTarget = persistence.threadRef ?? persistence.draftId;
-      if (!threadTarget) {
-        return;
-      }
-      setProviderModelOptions(threadTarget, provider, nextOptions, {
-        ...(instanceId ? { instanceId } : {}),
-        model,
-        persistSticky: true,
-      });
-    },
-    [instanceId, model, persistence, provider, setProviderModelOptions],
-  );
+  return (nextOptions: ProviderOptions | undefined) => {
+    if ("onModelOptionsChange" in persistence) {
+      persistence.onModelOptionsChange(nextOptions);
+      return;
+    }
+    const threadTarget = persistence.threadRef ?? persistence.draftId;
+    if (!threadTarget) {
+      return;
+    }
+    setProviderModelOptions(threadTarget, provider, nextOptions, {
+      ...(instanceId ? { instanceId } : {}),
+      model,
+      persistSticky: true,
+    });
+  };
 }
 
 export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
