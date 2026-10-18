@@ -56,6 +56,7 @@ export const REACT_COMPILED_FILES = [
   "apps/web/src/components/settings/ProjectFaviconPickerDialog.tsx",
   "apps/web/src/components/settings/SourceControlHostSettings.tsx",
   "apps/web/src/components/settings/ThemeEditorPanel.tsx",
+  "apps/web/src/components/settings/UsageProviderSettings.tsx",
   "apps/web/src/components/sidebar/SidebarUpdatePill.tsx",
   "apps/web/src/components/terminal/**",
   "apps/web/src/components/ui/toggle-group.tsx",
