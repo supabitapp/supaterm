@@ -56,8 +56,6 @@ const KNOWN_BAILOUTS: Record<string, string> = {
   "src/features/threads/ThreadSettingsSheet.tsx": "try without catch",
   "src/features/threads/UsageLimitRecoveryCard.tsx": "throw inside try, try/finally",
   "src/features/threads/new-task-flow-provider.tsx": "try without catch",
-  "src/features/usage/UsageLimitsSection.tsx": "try without catch",
-  "src/features/usage/UsageRouteScreen.tsx": "try without catch",
   "src/lib/attachmentDocument.ts": "try/finally",
   "src/native/SupatermComposerEditor.ios.tsx": "ref read during render",
   "src/native/SupatermComposerEditor.native.tsx": "ref read during render",
