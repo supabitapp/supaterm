@@ -76,6 +76,9 @@ internal class TerminalCanvasView(context: Context) : View(context) {
     const val FLAG_UNDERLINE = 1 shl 7
     const val FLAG_SELECTED = 1 shl 8
 
+    private const val TEXT_STYLE_MASK =
+      FLAG_BOLD or FLAG_ITALIC or FLAG_INVISIBLE or FLAG_UNDERLINE or FLAG_STRIKETHROUGH or
+        FLAG_OVERLINE
     private const val MENU_COPY = 1
     private const val MENU_SELECT_ALL = 2
     private const val HANDLE_COLOR = 0xFF7AA2F7.toInt()
@@ -253,9 +256,6 @@ internal class TerminalCanvasView(context: Context) : View(context) {
   private fun drawTextRow(canvas: Canvas, currentFrame: TerminalFrame, row: Int, top: Float) {
     val rowStart = row * currentFrame.cols
     var column = 0
-    val styleMask =
-      FLAG_BOLD or FLAG_ITALIC or FLAG_INVISIBLE or FLAG_UNDERLINE or FLAG_STRIKETHROUGH or
-        FLAG_OVERLINE
     while (column < currentFrame.cols) {
       val index = rowStart + column
       val flags = currentFrame.cellFlags[index]
@@ -265,20 +265,7 @@ internal class TerminalCanvasView(context: Context) : View(context) {
         continue
       }
       val color = currentFrame.cellForegrounds[index]
-      var end = column + 1
-      if (first.length == 1 && first[0] in ' '..'~') {
-        while (end < currentFrame.cols) {
-          val nextIndex = rowStart + end
-          val next = currentFrame.cellText[nextIndex]
-          if (next.length != 1 || next[0] !in ' '..'~' ||
-            (currentFrame.cellFlags[nextIndex] and styleMask) != (flags and styleMask) ||
-            currentFrame.cellForegrounds[nextIndex] != color
-          ) {
-            break
-          }
-          end += 1
-        }
-      }
+      val end = findTextRunEnd(currentFrame, rowStart, column)
       val text = if (end == column + 1) {
         first
       } else {
@@ -298,6 +285,24 @@ internal class TerminalCanvasView(context: Context) : View(context) {
       column = end
     }
   }
+
+  private fun findTextRunEnd(currentFrame: TerminalFrame, rowStart: Int, column: Int): Int {
+    val index = rowStart + column
+    var end = column + 1
+    if (!isAsciiCell(currentFrame.cellText[index])) return end
+    while (end < currentFrame.cols && cellsShareTextRun(currentFrame, index, rowStart + end)) {
+      end += 1
+    }
+    return end
+  }
+
+  private fun cellsShareTextRun(currentFrame: TerminalFrame, first: Int, next: Int): Boolean =
+    isAsciiCell(currentFrame.cellText[next]) &&
+      (currentFrame.cellFlags[next] and TEXT_STYLE_MASK) ==
+      (currentFrame.cellFlags[first] and TEXT_STYLE_MASK) &&
+      currentFrame.cellForegrounds[next] == currentFrame.cellForegrounds[first]
+
+  private fun isAsciiCell(text: String): Boolean = text.length == 1 && text[0] in ' '..'~'
 
   override fun onTouchEvent(event: MotionEvent): Boolean {
     if (event.actionMasked == MotionEvent.ACTION_DOWN) {

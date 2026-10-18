@@ -98,7 +98,7 @@
       // Fonts are configured as asset paths; Expo autolinks the native packages.
       "ignoreDependencies": [
         "@supaterm/mobile-relay-tunnel",
-        "@expo-google-fonts/dm-sans",
+        "@expo-google-fonts/jetbrains-mono",
         "@supaterm/mobile-review-diff-native",
         "@supaterm/mobile-terminal-native",
       ],
