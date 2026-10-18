@@ -1348,6 +1348,7 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
   canInterrupt: boolean;
   followUpBehavior: "queue" | "steer";
   keybindings: ResolvedKeybindingsConfig;
+  canSteer: boolean;
   isSendBusy: boolean;
   sendDisabledReason: string | null;
   isConnecting: boolean;
@@ -1378,6 +1379,7 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
         canInterrupt={props.canInterrupt}
         followUpBehavior={props.followUpBehavior}
         keybindings={props.keybindings}
+        canSteer={props.canSteer}
         isSendBusy={props.isSendBusy}
         sendDisabledReason={props.sendDisabledReason}
         isConnecting={props.isConnecting}
@@ -1493,6 +1495,7 @@ export interface ChatComposerProps {
   isRevertingCheckpoint?: boolean;
   sendDisabledReason: string | null;
   isPreparingWorktree: boolean;
+  isCompacting: boolean;
   bannerItems: readonly ComposerBannerStackItem[];
 
   onUsageLimitsCommand?: (() => void) | undefined;
@@ -1648,6 +1651,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     isRevertingCheckpoint = false,
     sendDisabledReason: externalSendDisabledReason,
     isPreparingWorktree,
+    isCompacting,
     environmentUnavailable,
     activePendingApproval: incomingPendingApproval,
     pendingApprovals,
@@ -3961,6 +3965,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               running: phase === "running",
               alternateModifier: false,
               activeTurnDefault: settings.followUpBehavior,
+              canSteer: !isCompacting,
             }),
           submissionIntent,
         );
@@ -3983,6 +3988,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         running: phase === "running",
         alternateModifier: event.metaKey || event.ctrlKey,
         activeTurnDefault: settings.followUpBehavior,
+        canSteer: !isCompacting,
       }),
     );
   };
@@ -3994,6 +4000,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         running: phase === "running",
         alternateModifier: false,
         activeTurnDefault: settings.followUpBehavior,
+        canSteer: !isCompacting,
       }),
     );
   };
@@ -4159,6 +4166,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           running: phase === "running",
           alternateModifier: submissionIntent === "alternate",
           activeTurnDefault: settings.followUpBehavior,
+          canSteer: !isCompacting,
         }),
         submissionIntent,
       );
@@ -7231,6 +7239,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     canInterrupt={canInterrupt}
                     followUpBehavior={settings.followUpBehavior}
                     keybindings={keybindings}
+                    canSteer={!isCompacting}
                     isSendBusy={isSendBusy}
                     sendDisabledReason={sendDisabledReason}
                     isConnecting={isConnecting}

@@ -41,6 +41,7 @@ interface ComposerPrimaryActionsProps {
   isRunning: boolean;
   canInterrupt: boolean;
   followUpBehavior?: "queue" | "steer";
+  canSteer?: boolean;
   isSendBusy: boolean;
   sendDisabledReason: string | null;
   isConnecting: boolean;
@@ -106,10 +107,11 @@ function SendActionsTooltip(props: {
   isRunning: boolean;
   sendShortcut: ClientSettings["sendShortcut"];
   followUpBehavior: ClientSettings["followUpBehavior"];
+  canSteer: boolean;
   isDraftThread: boolean;
   hasMultilinePrompt: boolean;
 }) {
-  const { isRunning, followUpBehavior, isDraftThread } = props;
+  const { isRunning, followUpBehavior, canSteer, isDraftThread } = props;
   const isMobileViewport = useMediaQuery("max-sm");
   const shortcuts = composerSendShortcutLabels({
     ...props,
@@ -117,7 +119,9 @@ function SendActionsTooltip(props: {
     isMobileViewport,
   });
   const labels: Record<ComposerSendAction, string> = {
-    foreground: isRunning ? FOLLOW_UP_ACTION_LABELS[followUpBehavior] : "Send message",
+    foreground: isRunning
+      ? FOLLOW_UP_ACTION_LABELS[canSteer ? followUpBehavior : "queue"]
+      : "Send message",
     newLine: "New line",
     alternate: FOLLOW_UP_ACTION_LABELS[alternateComposerDispatchAction(followUpBehavior)],
     background: isDraftThread ? "Send in background" : "Send and start new thread",
@@ -126,7 +130,8 @@ function SendActionsTooltip(props: {
   return (
     <div className="grid gap-1.5 py-0.5">
       {SEND_ACTION_ORDER.flatMap((action) =>
-        action === "foreground" || shortcuts[action] !== undefined
+        action === "foreground" ||
+        (shortcuts[action] !== undefined && (action !== "alternate" || canSteer))
           ? [
               <TooltipShortcutLabel key={action} shortcut={shortcuts[action] ?? null}>
                 {action === "foreground" ? (
@@ -151,6 +156,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   isRunning,
   canInterrupt,
   followUpBehavior = "steer",
+  canSteer = true,
   isSendBusy,
   sendDisabledReason,
   isConnecting,
@@ -178,6 +184,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
     resolveComposerDispatchMode({
       running: isRunning,
       activeTurnDefault: followUpBehavior,
+      canSteer,
       alternateModifier: shortcutModifiers.metaKey || shortcutModifiers.ctrlKey,
     }) === "queue";
   const showStageBackdrop = useSidebarStageBackdrop(environmentIdentificationMode === "artwork");
@@ -355,6 +362,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
               isRunning={isRunning}
               sendShortcut={sendShortcut}
               followUpBehavior={followUpBehavior}
+              canSteer={canSteer}
               isDraftThread={isDraftThread}
               hasMultilinePrompt={hasMultilinePrompt}
             />
