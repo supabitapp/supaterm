@@ -27,6 +27,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     permissions:
+      actions: read
       contents: read
       pull-requests: write
       deployments: write
@@ -35,6 +36,7 @@ jobs:
       NODE_OPTIONS: --max-old-space-size=8192
       MOBILE_VERSION_POLICY: fingerprint
       MOBILE_PLATFORM: ${{ matrix.platform }}
+      MOBILE_ARTIFACT_RETENTION_DAYS: "14"
       PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     steps:
@@ -88,17 +90,19 @@ jobs:
         with:
           platform: ${{ matrix.platform }}
           profile: preview:dev
-      - name: Save signed preview binary
+      - id: artifact
+        name: Save signed preview binary
         if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v7
         with:
           name: mobile-preview-${{ matrix.platform }}-${{ github.run_attempt }}
           path: ${{ steps.build.outputs.binary }}
           if-no-files-found: error
-          retention-days: 14
+          retention-days: ${{ env.MOBILE_ARTIFACT_RETENTION_DAYS }}
       - id: upload
         name: Share the locally built preview
         if: steps.build.outcome == 'success'
+        continue-on-error: true
         working-directory: apps/mobile
         env:
           MOBILE_BINARY: ${{ steps.build.outputs.binary }}
@@ -106,13 +110,17 @@ jobs:
         run: |
           url=$(eas upload --platform "$MOBILE_PLATFORM" --build-path "$MOBILE_BINARY" --fingerprint "$MOBILE_FINGERPRINT" --json --non-interactive | jq -er '.url')
           echo "url=$url" >> "$GITHUB_OUTPUT"
+      - name: Report preview download fallback
+        if: steps.upload.outcome == 'failure'
+        run: echo "::warning::EAS sharing failed. The signed preview is available as a GitHub artifact."
       - name: Record completed preview build
-        if: steps.upload.outcome == 'success'
+        if: steps.artifact.outcome == 'success'
         uses: actions/github-script@v8
         env:
           MOBILE_VERSION: ${{ steps.config.outputs.version }}
           MOBILE_FINGERPRINT: ${{ steps.build.outputs.fingerprint }}
-          MOBILE_BUILD_URL: ${{ steps.upload.outputs.url }}
+          MOBILE_BUILD_URL: ${{ steps.upload.outputs.url || steps.artifact.outputs.artifact-url }}
+          MOBILE_BUILD_ARTIFACT_ID: ${{ steps.upload.outcome != 'success' && steps.artifact.outputs.artifact-id || '' }}
         with:
           script: |
             const { recordBuild } = require('./.github/scripts/mobile-build-history.cjs');
@@ -120,6 +128,7 @@ jobs:
               github, context, profile: 'preview:dev', platform: process.env.MOBILE_PLATFORM,
               version: process.env.MOBILE_VERSION, fingerprint: process.env.MOBILE_FINGERPRINT,
               sha: process.env.PR_HEAD_SHA, url: process.env.MOBILE_BUILD_URL,
+              artifactId: process.env.MOBILE_BUILD_ARTIFACT_ID ? Number(process.env.MOBILE_BUILD_ARTIFACT_ID) : undefined,
             });
       - id: update
         name: Publish PR update
@@ -142,13 +151,21 @@ jobs:
         if: steps.update.outcome == 'success'
         uses: actions/github-script@v8
         env:
-          MOBILE_BUILD_URL: ${{ steps.upload.outputs.url || steps.history.outputs.url }}
+          MOBILE_BUILD_URL: ${{ steps.upload.outputs.url || steps.artifact.outputs.artifact-url || steps.history.outputs.url }}
           MOBILE_UPDATE_GROUP: ${{ steps.update.outputs.group }}
         with:
           script: |
             const platform = process.env.MOBILE_PLATFORM;
             const marker = `### Mobile preview: ${platform}`;
-            const body = `${marker}\n\n[Install the development build](${process.env.MOBILE_BUILD_URL}), then open the PR update from the [update page](https://expo.dev/accounts/supabitapp/projects/supaterm/updates/${process.env.MOBILE_UPDATE_GROUP}).\n\nBuilt for ${process.env.PR_HEAD_SHA}. New commits generate previews automatically.`;
+            const artifactDownload = process.env.MOBILE_BUILD_URL.startsWith(`${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/`);
+            let downloadInstructions = '';
+            if (artifactDownload) {
+              const installation = platform === 'ios'
+                ? 'On a Mac, extract the IPA and install it on a registered device using [Apple Configurator](https://support.apple.com/guide/apple-configurator-mac/add-apps-to-a-device-cad4cd08c03/mac).'
+                : 'Extract the archive, then open the APK on your Android device to install it.';
+              downloadInstructions = `GitHub artifact downloads require sign-in and expire ${process.env.MOBILE_ARTIFACT_RETENTION_DAYS} days after the build. Push a new commit to this PR if the download has expired. ${installation}\n\n`;
+            }
+            const body = `${marker}\n\n[Download the development build](${process.env.MOBILE_BUILD_URL}), then open the PR update from the [update page](https://expo.dev/accounts/supabitapp/projects/supaterm/updates/${process.env.MOBILE_UPDATE_GROUP}).\n\n${downloadInstructions}Built for ${process.env.PR_HEAD_SHA}. New commits generate previews automatically.`;
             const comments = await github.paginate(github.rest.issues.listComments, {
               ...context.repo, issue_number: context.issue.number, per_page: 100,
             });
