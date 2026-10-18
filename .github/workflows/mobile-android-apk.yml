@@ -45,6 +45,7 @@ jobs:
         if: steps.credentials.outputs.present == 'true'
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           sparse-checkout: .github/scripts
 
       - name: Mirror the newest APK

@@ -40,7 +40,7 @@ jobs:
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 30
     container:
-      image: archlinux:base-devel
+      image: archlinux:base-devel@sha256:061679925e5d5028f2df9395d441ce6c4b9accf0157ff3486c06b6962e014ef1
 
     steps:
       - name: Install Arch packaging tools
@@ -48,6 +48,8 @@ jobs:
 
       - name: Checkout packaging sources
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Create unprivileged build user
         run: |

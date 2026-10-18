@@ -1,8 +1,13 @@
 name: Setup Mise
 description: Install the project runtime tools through Mise
+inputs:
+  cache:
+    description: Restore and save the Mise tool cache. Release jobs turn it off so a poisoned cache entry cannot reach published artifacts.
+    default: "true"
 runs:
   using: composite
   steps:
     - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
       with:
+        cache: ${{ inputs.cache }}
         install_args: --locked node pnpm github:voidzero-dev/vite-plus hk

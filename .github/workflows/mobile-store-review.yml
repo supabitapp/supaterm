@@ -32,6 +32,7 @@ permissions:
 jobs:
   prepare:
     runs-on: depot-ubuntu-24.04
+    timeout-minutes: 10
     if: github.ref == 'refs/heads/main'
     outputs:
       enabled: ${{ steps.matrix.outputs.enabled }}
@@ -39,6 +40,8 @@ jobs:
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-mise
       - id: artifacts
         name: Verify the production workflow and available builds
@@ -110,6 +113,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          persist-credentials: false
           ref: ${{ inputs.review_ref || inputs.source_sha }}
       - uses: ./.github/actions/setup-mise
       - name: Install asset tooling
@@ -125,7 +129,7 @@ jobs:
         env:
           MOBILE_PLATFORM: ${{ matrix.platform }}
         run: node scripts/mobile-store-assets.ts "$MOBILE_PLATFORM"
-      - uses: ruby/setup-ruby@v1
+      - uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1.329.0
         with:
           ruby-version: "3.4.8"
           working-directory: apps/mobile

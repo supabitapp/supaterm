@@ -62,6 +62,7 @@ jobs:
         if: steps.expo-token.outputs.present == 'true'
         working-directory: apps/mobile
         run: |
+          set -o pipefail
           version=$(npx expo config --json --type public | jq -er '.version')
           fingerprint=$(eas fingerprint:generate --platform "$MOBILE_PLATFORM" --environment preview --json --non-interactive | sed -n '/^{/,$p' | jq -er '.hash')
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -104,6 +105,7 @@ jobs:
           MOBILE_BINARY: ${{ steps.build.outputs.binary }}
           MOBILE_FINGERPRINT: ${{ steps.build.outputs.fingerprint }}
         run: |
+          set -o pipefail
           url=$(eas upload --platform "$MOBILE_PLATFORM" --build-path "$MOBILE_BINARY" --fingerprint "$MOBILE_FINGERPRINT" --json --non-interactive | jq -er '.url')
           echo "url=$url" >> "$GITHUB_OUTPUT"
       - name: Record completed preview build
