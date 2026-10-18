@@ -43,6 +43,7 @@ export const REACT_COMPILED_FILES = [
   "apps/web/src/components/terminal/**",
   "apps/web/src/components/ui/toggle-group.tsx",
   "apps/web/src/components/ui/tooltip.tsx",
+  "apps/web/src/components/usage/UsagePage.tsx",
   "apps/web/src/hooks/useCopyToClipboard.ts",
   "apps/web/src/hooks/useLiveRefresh.ts",
   "apps/web/src/hooks/useLocalStorage.ts",
