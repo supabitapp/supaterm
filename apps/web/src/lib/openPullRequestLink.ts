@@ -14,8 +14,9 @@ import { stackedThreadToast, toastManager } from "../components/ui/toast";
 import { useRightPanelStore } from "../rightPanelStore";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
 
-import { useProjects, useServerConfigs } from "../state/entities";
-import { serverEnvironment } from "../state/server";
+import { appAtomRegistry } from "../rpc/atomRegistry";
+import { useProjects } from "../state/entities";
+import { environmentServerConfigsAtom, serverEnvironment } from "../state/server";
 import { usePrimaryEnvironmentId } from "../state/environments";
 
 export {
@@ -121,11 +122,13 @@ export function useOpenChangeRequestLink(
 ) => boolean {
   const navigate = useNavigate();
   const allProjects = useProjects();
-  const serverConfigs = useServerConfigs();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const openInApp = useClientSettings((settings) => settings.pullRequestLinksOpenInApp);
   return useCallback(
     (event, targetUrl, targetThreadRef, targetEnvironmentId) => {
+      // Read at click time: every provider status push replaces the config map, and
+      // subscribing would hand every rendered link a new handler.
+      const serverConfigs = appAtomRegistry.get(environmentServerConfigsAtom);
       if (!openInApp || shouldOpenPullRequestExternally(event)) return false;
       const resolvedThreadRef = targetThreadRef ?? threadRef;
       const resolvedPanelRef = panelRef ?? resolvedThreadRef;
@@ -207,7 +210,7 @@ export function useOpenChangeRequestLink(
       });
       return true;
     },
-    [allProjects, navigate, openInApp, panelRef, primaryEnvironmentId, serverConfigs, threadRef],
+    [allProjects, navigate, openInApp, panelRef, primaryEnvironmentId, threadRef],
   );
 }
 

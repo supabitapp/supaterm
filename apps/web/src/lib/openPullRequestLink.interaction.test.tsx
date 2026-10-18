@@ -32,8 +32,16 @@ vi.mock("../state/entities", () => ({
       },
     },
   ],
-  useServerConfigs: () => new Map([["environment-1", { environment: { capabilities: {} } }]]),
 }));
+vi.mock("../state/server", async (importOriginal) => {
+  const { Atom } = await import("effect/reactivity");
+  return {
+    ...(await importOriginal<typeof import("../state/server")>()),
+    environmentServerConfigsAtom: Atom.make(
+      new Map([["environment-1", { environment: { capabilities: {} } }]]),
+    ),
+  };
+});
 vi.mock("../state/environments", () => ({ usePrimaryEnvironmentId: () => "environment-1" }));
 vi.mock("~/localApi", () => ({
   readLocalApi: () => ({ shell: { openExternal: state.openExternal } }),
