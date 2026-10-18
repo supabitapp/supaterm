@@ -2,19 +2,13 @@ import { filePreviewDelimiter } from "@supaterm/shared/delimitedPreview";
 import type { EnvironmentId, ScopedThreadRef } from "@supaterm/contracts";
 import { formatAttachmentSize } from "@supaterm/client-runtime/state/attachments";
 import { readFilePreviewResponse } from "@supaterm/client-runtime/file-preview";
+import { settlePromise } from "@supaterm/client-runtime/state/runtime";
+import * as AsyncResult from "effect/reactivity/AsyncResult";
+import * as Cause from "effect/Cause";
 import { filePreviewKind, FILE_TEXT_PREVIEW_MAX_BYTES } from "@supaterm/shared/filePreview";
 import { ChevronRightIcon, DownloadIcon, Trash2Icon, WrapTextIcon, XIcon } from "lucide-react";
 import { Check, Code2, Copy, Eye, Table2 } from "lucide";
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { useAssetUrlRefresh } from "~/assets/assetUrls";
 import ChatMarkdown from "~/components/ChatMarkdown";
@@ -63,6 +57,24 @@ function readObjectUrl(blob: Blob | null | undefined): string | null {
   return blob ? (objectUrlLeases.get(blob)?.url ?? null) : null;
 }
 
+// useSyncExternalStore resubscribes whenever the subscribe identity changes, and a
+// resubscribe revokes the lease, so each Blob keeps one subscribe function.
+const objectUrlSubscribers = new WeakMap<Blob, (onChange: () => void) => () => void>();
+
+function subscribeToObjectUrl(blob: Blob | null | undefined) {
+  if (!blob) return subscribeToNothing;
+  let subscribe = objectUrlSubscribers.get(blob);
+  if (!subscribe) {
+    subscribe = (onChange) => leaseObjectUrl(blob, onChange);
+    objectUrlSubscribers.set(blob, subscribe);
+  }
+  return subscribe;
+}
+
+function subscribeToNothing() {
+  return () => {};
+}
+
 export function ReadOnlySourcePreview(props: { name: string; text: string }) {
   return (
     <Suspense fallback={<FileSurfaceLoading className="p-4" />}>
@@ -95,35 +107,27 @@ export function AttachmentFilePreview(props: {
     kind === "markdown" ? "markdown" : kind === "html" ? "html" : delimiter ? "table" : null;
   const attachmentId = props.asset?.attachmentId;
   const { copyToClipboard, isCopied } = useCopyToClipboard({ target: props.name });
-  const resource = useMemo(
-    () =>
-      attachmentId
-        ? {
-            _tag: "attachment" as const,
-            attachmentId,
-            fileName: props.name,
-            mimeType: props.mimeType,
-            disposition: "inline" as const,
-          }
-        : null,
-    [attachmentId, props.name, props.mimeType],
-  );
+  // useAssetUrlRefresh keys its callback on these objects, so they must stay cached.
+  const resource = attachmentId
+    ? {
+        _tag: "attachment" as const,
+        attachmentId,
+        fileName: props.name,
+        mimeType: props.mimeType,
+        disposition: "inline" as const,
+      }
+    : null;
+  const downloadResource = resource ? { ...resource, disposition: "attachment" as const } : null;
   const refresh = useAssetUrlRefresh(
     props.file ? null : (props.asset?.environmentId ?? null),
     props.file ? null : resource,
   );
-  const downloadResource = useMemo(
-    () => (resource ? { ...resource, disposition: "attachment" as const } : null),
-    [resource],
-  );
   const prepareDownload = useAssetUrlRefresh(props.asset?.environmentId ?? null, downloadResource);
   const [saving, setSaving] = useState(false);
   const localFile = props.file;
-  const subscribeToLocalUrl = useCallback(
-    (onChange: () => void) => (localFile ? leaseObjectUrl(localFile, onChange) : () => {}),
-    [localFile],
+  const localUrl = useSyncExternalStore(subscribeToObjectUrl(localFile), () =>
+    readObjectUrl(localFile),
   );
-  const localUrl = useSyncExternalStore(subscribeToLocalUrl, () => readObjectUrl(localFile));
   const [remoteUrl, setRemoteUrl] = useState<string | null>(null);
   const [rendered, setRendered] = useState(true);
   const [revision, setRevision] = useState(0);
@@ -241,37 +245,35 @@ export function AttachmentFilePreview(props: {
 
   const save = () => {
     setSaving(true);
-    void (async () => {
-      try {
-        let file = props.file;
-        if (!file) {
-          const target = await prepareDownload();
-          if (!target) throw new Error("Reconnect to the environment and try again.");
-          const response = await fetch(target);
-          if (!response.ok) throw new Error("The file could not be loaded. Try again.");
-          file = await response.blob();
-        }
-        // A Blob keeps cross-origin downloads inside the desktop client instead of
-        // navigating its custom app scheme to an external browser.
-        const downloadUrl = URL.createObjectURL(file);
-        try {
-          const anchor = document.createElement("a");
-          anchor.href = downloadUrl;
-          anchor.download = props.name;
-          anchor.click();
-        } finally {
-          setTimeout(() => URL.revokeObjectURL(downloadUrl), 30_000);
-        }
-      } catch (cause) {
+    void settlePromise(async () => {
+      let file = props.file;
+      if (!file) {
+        const target = await prepareDownload();
+        if (!target) throw new Error("Reconnect to the environment and try again.");
+        const response = await fetch(target);
+        if (!response.ok) throw new Error("The file could not be loaded. Try again.");
+        file = await response.blob();
+      }
+      // A Blob keeps cross-origin downloads inside the desktop client instead of
+      // navigating its custom app scheme to an external browser.
+      const downloadUrl = URL.createObjectURL(file);
+      // Scheduled before the click so the URL is revoked even if the click throws.
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 30_000);
+      const anchor = document.createElement("a");
+      anchor.href = downloadUrl;
+      anchor.download = props.name;
+      anchor.click();
+    }).then((result) => {
+      if (!AsyncResult.isSuccess(result)) {
+        const cause = Cause.squash(result.cause);
         toastManager.add({
           type: "error",
           title: "Could not save file",
           description: cause instanceof Error ? cause.message : "Please try again.",
         });
-      } finally {
-        setSaving(false);
       }
-    })();
+      setSaving(false);
+    });
   };
 
   const body = failure ? (
