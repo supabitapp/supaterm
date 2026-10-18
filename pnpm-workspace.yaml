@@ -18,7 +18,7 @@ allowBuilds:
   msgpackr-extract: true
   msw: false
   node-pty: true
-  "react-native-enriched-markdown@file:apps/mobile/deps/react-native-enriched-markdown-1.2.0-supacode.13.tgz": true
+  "react-native-enriched-markdown@file:apps/mobile/deps/react-native-enriched-markdown-1.2.0-supacode.15.tgz": true
   sharp: true
   tsc-rs: true
   utf-8-validate: false
