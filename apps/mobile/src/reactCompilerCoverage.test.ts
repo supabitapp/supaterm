@@ -20,7 +20,6 @@ const KNOWN_BAILOUTS: Record<string, string> = {
     "throw inside try, try without catch, try/finally",
   "src/components/ComposerEditor.tsx": "try/finally",
   "src/components/ui/OverlayPortal.tsx": "unsupported syntax",
-  "src/features/devices/DevicePreviewRouteScreen.tsx": "try without catch",
   "src/features/files/FileMarkdownPreview.tsx": "try without catch",
   "src/features/files/SourceFileSurface.tsx": "try without catch",
   "src/features/files/useFileTreeEntries.ts": "manual memo not preserved",
