@@ -4,7 +4,7 @@ import { Tooltip, TooltipTrigger, TooltipPopup } from "./ui/tooltip";
 import type { EnvironmentId } from "@supaterm/contracts";
 import { ScaleIcon } from "lucide-react";
 import { useAtomValue } from "@effect/atom-react";
-import { memo, useMemo, useState } from "react";
+import { memo, useState } from "react";
 
 import type { EnvironmentOption } from "./BranchToolbar.logic";
 import { cn } from "../lib/utils";
@@ -53,25 +53,20 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const hostFilter = useComboboxFilter();
-  const activeEnvironment = useMemo(() => {
-    return availableEnvironments.find((env) => env.environmentId === environmentId) ?? null;
-  }, [availableEnvironments, environmentId]);
+  const activeEnvironment =
+    availableEnvironments.find((env) => env.environmentId === environmentId) ?? null;
 
-  const environmentItems = useMemo(
-    () => [
-      ...(onAutoEnvironment
-        ? [{ value: "auto", label: autoEnvironmentLabel ?? "Auto balance" }]
-        : []),
-      ...availableEnvironments.map((env) => ({
-        value: env.environmentId,
-        label: env.label,
-      })),
-    ],
-    [availableEnvironments, autoEnvironmentLabel, onAutoEnvironment],
-  );
-  const filteredEnvironmentItems = useMemo(
-    () => environmentItems.filter((item) => hostFilter.contains(item.label, query)),
-    [environmentItems, hostFilter, query],
+  const environmentItems = [
+    ...(onAutoEnvironment
+      ? [{ value: "auto", label: autoEnvironmentLabel ?? "Auto balance" }]
+      : []),
+    ...availableEnvironments.map((env) => ({
+      value: env.environmentId,
+      label: env.label,
+    })),
+  ];
+  const filteredEnvironmentItems = environmentItems.filter((item) =>
+    hostFilter.contains(item.label, query),
   );
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
