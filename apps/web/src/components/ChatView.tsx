@@ -13,6 +13,7 @@ import { THREAD_FIND_BAR_RESERVED_HEIGHT } from "./chat/ThreadFindBar";
 import { usageLimitRecoveryBannerItem } from "./chat/UsageLimitRecoveryBanner";
 import {
   isThreadWokeUnseen,
+  mergeDirectPreviewAnnotation,
   resolveDraftHeroState,
   shouldDockDraftHeroForSubmission,
 } from "./ChatView.logic";
@@ -6831,36 +6832,13 @@ export default function ChatView(props: ChatViewProps) {
       selectedModelSelection: ctxSelectedModelSelection,
       interactionMode: sendInteractionMode,
     } = sendCtx;
-    const annotationImageAlreadyAttached =
-      directAnnotation?.image !== undefined &&
-      sendContextImages.some((image) => image.id === directAnnotation.image?.id);
-    // A full composer (e.g. 8 files) cannot take the annotation screenshot;
-    // over the cap the server rejects the whole turn.
-    const annotationImageAppended =
-      directAnnotation?.image !== undefined &&
-      !annotationImageAlreadyAttached &&
-      sendContextImages.length + composerFiles.length < PROVIDER_SEND_TURN_MAX_ATTACHMENTS;
-    const composerImages =
-      directAnnotation?.image && annotationImageAppended
-        ? [...sendContextImages, directAnnotation.image]
-        : sendContextImages;
-    const composerPreviewAnnotations =
-      directAnnotation &&
-      !sendContextPreviewAnnotations.some(
-        (annotation) => annotation.id === directAnnotation.annotation.id,
-      )
-        ? [
-            ...sendContextPreviewAnnotations,
-            {
-              ...directAnnotation.annotation,
-              screenshot:
-                directAnnotation.annotation.screenshot &&
-                (annotationImageAppended || annotationImageAlreadyAttached)
-                  ? { ...directAnnotation.annotation.screenshot, dataUrl: "" }
-                  : null,
-            },
-          ]
-        : sendContextPreviewAnnotations;
+    const { images: composerImages, previewAnnotations: composerPreviewAnnotations } =
+      mergeDirectPreviewAnnotation({
+        images: sendContextImages,
+        fileCount: composerFiles.length,
+        previewAnnotations: sendContextPreviewAnnotations,
+        direct: directAnnotation,
+      });
     // A direct "send annotation" writes the draft and sends in the same tick; the reference
     // must be in the text now, not after the next render.
     const promptForSend = directAnnotation
