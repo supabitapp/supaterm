@@ -55,6 +55,7 @@ export const REACT_COMPILED_FILES = [
   "apps/web/src/components/settings/GitHubTokenSettings.tsx",
   "apps/web/src/components/settings/NotificationSettings.tsx",
   "apps/web/src/components/settings/ProjectFaviconPickerDialog.tsx",
+  "apps/web/src/components/settings/ProviderSetupSection.tsx",
   "apps/web/src/components/settings/SnapShotSetupDialog.tsx",
   "apps/web/src/components/settings/SourceControlHostSettings.tsx",
   "apps/web/src/components/settings/TelemetryExportSettings.tsx",
