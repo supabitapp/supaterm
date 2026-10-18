@@ -57,6 +57,7 @@ interface DraftProjectPickerProps {
   readonly draftId: DraftId | null;
   readonly activeProjectRef: ScopedProjectRef | null;
   readonly activeProjectTitle: string | null;
+  readonly isSendInFlight: () => boolean;
 }
 
 /** The composer strip's project control for a new draft; it retargets the draft in place. */
@@ -64,6 +65,7 @@ export function DraftProjectPicker({
   draftId,
   activeProjectRef,
   activeProjectTitle,
+  isSendInFlight,
 }: DraftProjectPickerProps) {
   const projects = useProjects();
   const threads = useThreadShells();
@@ -175,8 +177,8 @@ export function DraftProjectPicker({
   const isScratchDraft =
     activeProject !== null && isScratchProject(activeProject, scratchWorkspaceRoot);
 
-  // The picker can change the draft's target while the no-project home is
-  // still being opened; a stale continuation must not retarget it again.
+  // The draft can move elsewhere while the no-project home is still being
+  // opened; a stale continuation must not retarget it again.
   const latestTargetRef = useRef({ draftId, activeProjectKey, scratchTargetEnvironmentId });
   useEffect(() => {
     latestTargetRef.current = { draftId, activeProjectKey, scratchTargetEnvironmentId };
@@ -185,17 +187,13 @@ export function DraftProjectPicker({
   // prompt stays in the same composer session, so the sidebar only gets a
   // draft row if the user later navigates away.
   const openProjectDraft = useNewThreadHandler();
-  // A pick still waiting on its project's defaults yields to a later one.
+  // Each choice takes a new request, so one still waiting on its project's
+  // defaults or folder yields to a later choice.
   const moveRequestRef = useRef(0);
   const selectProject = (project: (typeof projects)[number], logicalProjectKey: string) => {
     if (!draftId) {
       return;
     }
-    latestTargetRef.current = {
-      draftId,
-      activeProjectKey: logicalProjectKey,
-      scratchTargetEnvironmentId: project.environmentId,
-    };
     const moveRequest = ++moveRequestRef.current;
     const projectRef = scopeProjectRef(project.environmentId, project.id);
     if (
@@ -209,7 +207,8 @@ export function DraftProjectPicker({
       (environment) => environment.environmentId === project.environmentId,
     )?.serverConfig;
     void resolveNewDraftWorkspace(projectRef, serverConfig).then((workspace) => {
-      if (moveRequestRef.current !== moveRequest) {
+      // A send that started meanwhile goes to the project still shown.
+      if (moveRequestRef.current !== moveRequest || isSendInFlight()) {
         return;
       }
       moveDraftToProject({
@@ -228,10 +227,12 @@ export function DraftProjectPicker({
       return;
     }
     const requested = { draftId, activeProjectKey, scratchTargetEnvironmentId };
+    const moveRequest = ++moveRequestRef.current;
     const project = await openScratchProject(scratchTargetEnvironmentId);
     const latest = latestTargetRef.current;
     if (
       !project ||
+      moveRequestRef.current !== moveRequest ||
       latest.draftId !== requested.draftId ||
       latest.activeProjectKey !== requested.activeProjectKey ||
       latest.scratchTargetEnvironmentId !== requested.scratchTargetEnvironmentId
