@@ -87,8 +87,8 @@ function SubagentMetadata(props: {
   readonly presentation: Pick<SubagentRowPresentation, "statusLabel" | "tone">;
 }) {
   const { environmentId, subagent, presentation } = props;
-  const config = useEnvironmentServerConfig(environmentId);
-  const provider = config?.providers.find(
+  const providers = useEnvironmentServerConfig(environmentId)?.providers ?? [];
+  const provider = providers.find(
     (candidate) => candidate.instanceId === subagent.providerInstanceId,
   );
   const parent = useThreadShell(scopeThreadRef(environmentId, subagent.threadId))?.source;
@@ -114,7 +114,7 @@ function SubagentMetadata(props: {
         driverKind: provider.driver,
         accentColor: normalizeProviderAccentColor(provider.accentColor),
       },
-      config?.providers.map((candidate) => ({ driverKind: candidate.driver })) ?? [],
+      providers.map((candidate) => ({ driverKind: candidate.driver })),
     );
   return (
     <View className="min-w-0 flex-row items-center gap-1.5">
