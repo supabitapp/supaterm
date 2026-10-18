@@ -233,7 +233,6 @@ import { BrowserSettingsReadError, openUrlInPreview } from "../browser/openFileI
 import { resolveDiscoveredServerUrl } from "../browser/browserTargetResolver";
 import { previewRuntimeTabId } from "../browser/previewRuntimeTabId";
 import { addBrowserSurface } from "./preview/addBrowserSurface";
-import { closePreviewSession } from "./preview/closePreviewSession";
 import { ThreadPreviewMiniPlayer } from "./preview/ThreadPreviewMiniPlayer";
 import { usePreviewSession } from "./preview/usePreviewSession";
 import { subscribePreviewAction } from "./preview/previewActionBus";
@@ -324,7 +323,6 @@ import {
   getComposerProviderState,
 } from "./chat/composerProviderState";
 import { confirmTerminalClose, isTerminalCloseConfirmPending } from "../lib/terminalCloseConfirm";
-import { confirmRightPanelSurfacesClose } from "../lib/rightPanelCloseConfirm";
 import { isPreviewFocused } from "../lib/previewFocus";
 import { getTerminalFocusOwner } from "../lib/terminalFocus";
 import {
@@ -457,6 +455,7 @@ import {
 } from "./chat/QueuedRunsControl";
 import { useThreadLinkedPullRequest } from "./pullRequest/useThreadLinkedPullRequest";
 import { useProactivePanels } from "../hooks/useProactivePanels";
+import { useRightPanelSurfaceClose } from "../hooks/useRightPanelSurfaceClose";
 import { useAgentOpenedPreviews } from "./preview/useAgentOpenedPreviews";
 import type { ComposerBannerStackItem } from "./chat/ComposerBannerStack";
 import { ThreadStatusLine } from "./chat/ThreadStatusLine";
@@ -1045,7 +1044,6 @@ export default function ChatView(props: ChatViewProps) {
     reportFailure: false,
   });
   const openPreview = useAtomCommand(previewEnvironment.open, { reportFailure: false });
-  const closePreview = useAtomCommand(previewEnvironment.close, "preview close");
   const { environments } = useEnvironments();
   const primaryEnvironment = usePrimaryEnvironment();
   const retryEnvironment = useAtomCommand(environmentCatalog.retryNow, { reportFailure: false });
@@ -4364,86 +4362,17 @@ export default function ChatView(props: ChatViewProps) {
     useRightPanelStore.getState().setMaximized(activeThreadRef, !rightPanelMaximized);
   };
   const toggleRightPanelMaximizedStable = useStableCallback(toggleRightPanelMaximized);
-  const cleanupRightPanelSurfaces = (surfaces: readonly RightPanelSurface[]) => {
-    if (!activeThreadRef) return;
-    for (const surface of surfaces) {
-      if (canOperatePreview && surface.kind === "preview" && surface.resourceId) {
-        void closePreviewSession({
-          closePreview,
-          snapshot: activePreviewState.sessions[surface.resourceId] ?? null,
-          tabId: surface.resourceId,
-          threadRef: activeThreadRef,
-        });
-      }
-      if (
-        surface.kind === "terminal" &&
-        readEnvironmentScope(activeThreadRef.environmentId, AuthTerminalOperateScope)
-      ) {
-        for (const terminalId of surface.terminalIds) {
-          storeCloseTerminal(activeThreadRef, terminalId);
-          terminalActions.closeTerminalSession(terminalId);
-        }
-      }
-    }
-  };
-  const syncActivePreviewSurface = () => {
-    if (!activeThreadRef) return;
-    const nextActiveSurface = selectActiveRightPanelSurface(
-      useRightPanelStore.getState().byThreadKey,
-      activeThreadRef,
-    );
-    if (nextActiveSurface?.kind === "preview" && nextActiveSurface.resourceId) {
-      setActivePreviewTab(activeThreadRef, nextActiveSurface.resourceId);
-    }
-  };
-  const finishRightPanelSurfaceClose = (surfaces: readonly RightPanelSurface[]) => {
-    if (!activeThreadRef) return;
-    const store = useRightPanelStore.getState();
-    const activeId = selectThreadRightPanelState(
-      store.byThreadKey,
-      activeThreadRef,
-    ).activeSurfaceId;
-    const ordered = surfaces.toSorted(
-      (left, right) => Number(left.id === activeId) - Number(right.id === activeId),
-    );
-    for (const surface of ordered) {
-      cleanupRightPanelSurfaces([surface]);
-      store.closeSurface(activeThreadRef, surface.id);
-    }
-    syncActivePreviewSurface();
-  };
-  const closeRightPanelSurfaces = (surfaces: readonly RightPanelSurface[]) => {
-    if (!activeThreadRef) return;
-    void confirmRightPanelSurfacesClose(
-      surfaces.filter(
-        (surface) =>
-          surface.kind !== "terminal" ||
-          readEnvironmentScope(activeThreadRef.environmentId, AuthTerminalOperateScope),
-      ),
-      {
-        desktopByTabId: activePreviewState.desktopByTabId,
-        terminalCloseTarget,
-      },
-    ).then((confirmed) => {
-      if (confirmed) finishRightPanelSurfaceClose(surfaces);
-    });
-  };
-  const closeRightPanelSurface = (surface: RightPanelSurface) => closeRightPanelSurfaces([surface]);
-  const closeRightPanelSurfaceStable = useStableCallback(closeRightPanelSurface);
-  const closeOtherRightPanelSurfaces = (surface: RightPanelSurface) => {
-    closeRightPanelSurfaces(rightPanelState.surfaces.filter((entry) => entry.id !== surface.id));
-  };
-  const closeOtherRightPanelSurfacesStable = useStableCallback(closeOtherRightPanelSurfaces);
-  const closeRightPanelSurfacesToRight = (surface: RightPanelSurface) => {
-    const surfaceIndex = rightPanelState.surfaces.findIndex((entry) => entry.id === surface.id);
-    if (surfaceIndex < 0) return;
-    closeRightPanelSurfaces(rightPanelState.surfaces.slice(surfaceIndex + 1));
-  };
-  const closeRightPanelSurfacesToRightStable = useStableCallback(closeRightPanelSurfacesToRight);
-  const closeAllRightPanelSurfaces = () => {
-    closeRightPanelSurfaces(rightPanelState.surfaces);
-  };
-  const closeAllRightPanelSurfacesStable = useStableCallback(closeAllRightPanelSurfaces);
+  const {
+    closeSurface: closeRightPanelSurfaceStable,
+    closeOtherSurfaces: closeOtherRightPanelSurfacesStable,
+    closeSurfacesToRight: closeRightPanelSurfacesToRightStable,
+    closeAllSurfaces: closeAllRightPanelSurfacesStable,
+    closeSurfacesNow: closeRightPanelSurfacesNow,
+  } = useRightPanelSurfaceClose({
+    threadRef: activeThreadRef,
+    terminalLabelsById: activeTerminalLabelsById,
+    terminalHasRunningSubprocessById: activeTerminalHasRunningSubprocessById,
+  });
   const moveRightPanelSurface = (surfaceId: string, toIndex: number) => {
     if (activeThreadRef)
       useRightPanelStore.getState().moveSurface(activeThreadRef, surfaceId, toIndex);
@@ -7810,7 +7739,7 @@ export default function ChatView(props: ChatViewProps) {
           surface={renderedRightPanelSurface}
           visible={rightPanelOpen}
           onDismissSetup={() => {
-            finishRightPanelSurfaceClose([renderedRightPanelSurface]);
+            closeRightPanelSurfacesNow([renderedRightPanelSurface]);
             useRightPanelStore.getState().show(activeThreadRef);
           }}
         />
