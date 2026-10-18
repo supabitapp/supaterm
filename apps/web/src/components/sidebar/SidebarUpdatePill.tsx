@@ -1,7 +1,8 @@
 import type { DesktopBridge, DesktopUpdateState } from "@supaterm/contracts";
 import { TriangleAlertIcon } from "lucide-react";
-import { type ComponentProps, useCallback, useEffect, useId, useRef, useState } from "react";
+import { type ComponentProps, useEffect, useId, useRef, useState } from "react";
 import { flushSync } from "react-dom";
+import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { isElectron } from "../../env";
 import { useMediaQuery } from "../../hooks/useMediaQuery";
 import { cn } from "../../lib/utils";
@@ -250,7 +251,7 @@ function SidebarUpdateControl() {
     }
   }, [releaseNotesPopoverHandle, releaseNotesTriggerId, showReleaseNotesPopover]);
 
-  const handleAction = useCallback(async () => {
+  const handleAction = async () => {
     const bridge = window.desktopBridge;
     if (isInteractionDisabled) return;
 
@@ -321,14 +322,14 @@ function SidebarUpdateControl() {
         );
       })
       .finally(() => setIsActionPending(false));
-  }, [action, isInteractionDisabled, prefersReducedMotion, runsEverything, state]);
+  };
 
-  const runEverything = useCallback(async () => {
+  const runEverything = async () => {
     const bridge = window.desktopBridge;
     setIsConfirmingEverything(false);
     setIsActionPending(true);
-    try {
-      await everything.run({
+    const result = await settlePromise(() =>
+      everything.run({
         ...(bridge && action === "download"
           ? {
               downloadLocal: (reportError) =>
@@ -338,8 +339,10 @@ function SidebarUpdateControl() {
         ...(bridge && action !== "none"
           ? { installLocal: (reportError) => installLocalUpdate(bridge, reportError) }
           : {}),
-      });
-    } catch (error) {
+      }),
+    );
+    if (result._tag === "Failure") {
+      const error = squashAtomCommandFailure(result);
       toastManager.add(
         stackedThreadToast({
           type: "error",
@@ -347,19 +350,18 @@ function SidebarUpdateControl() {
           description: error instanceof Error ? error.message : "An unexpected error occurred.",
         }),
       );
-    } finally {
-      setIsActionPending(false);
     }
-  }, [action, everything]);
+    setIsActionPending(false);
+  };
 
-  const handleCheckAnimationIteration = useCallback(() => {
+  const handleCheckAnimationIteration = () => {
     setIsCheckAnimationLatched(
       shouldContinueDesktopUpdateCheckAnimation({
         isChecking: state?.status === "checking",
         prefersReducedMotion,
       }),
     );
-  }, [prefersReducedMotion, state?.status]);
+  };
 
   if (!showUpdateDetails && !showCheckIcon) return null;
 
