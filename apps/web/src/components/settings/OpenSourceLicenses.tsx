@@ -1,5 +1,5 @@
 import { ChevronRightIcon, ExternalLinkIcon, SearchIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   decodeThirdPartyLicenseManifest,
@@ -216,30 +216,31 @@ export function OpenSourceLicensesPanel() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [openEntryKey, setOpenEntryKey] = useState<string | null>(null);
 
-  const load = useCallback(() => {
+  const loading = state.status === "loading";
+
+  useEffect(() => {
+    if (!loading) return;
+    let cancelled = false;
     void loadLicenseManifest().then(
-      (manifest) => setState({ status: "ready", manifest }),
-      (error: unknown) =>
+      (manifest) => {
+        if (!cancelled) setState({ status: "ready", manifest });
+      },
+      (error: unknown) => {
+        if (cancelled) return;
         setState({
           status: "error",
           message: error instanceof Error ? error.message : "The license manifest could not load.",
-        }),
+        });
+      },
     );
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+    return () => {
+      cancelled = true;
+    };
+  }, [loading]);
 
   const entries = state.status === "ready" ? state.manifest.entries : [];
-  const filteredEntries = useMemo(
-    () => filterThirdPartyLicenseEntries(entries, query),
-    [entries, query],
-  );
-  const retry = useCallback(() => {
-    setState({ status: "loading" });
-    load();
-  }, [load]);
+  const filteredEntries = filterThirdPartyLicenseEntries(entries, query);
+  const retry = () => setState({ status: "loading" });
 
   return (
     <SettingsPageContainer>
