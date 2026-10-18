@@ -29,6 +29,7 @@
     "src",
     "vite",
     "vite.config.ts",
+    "reactCompiledFiles.ts",
     "cloudflare",
     "test",
     "scripts/warm-dep-cache.ts",

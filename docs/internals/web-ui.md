@@ -53,3 +53,18 @@ Calls inside the component keep the plain function, so work that resumes after a
 acts on the render it started in. A function that a child calls during render, or after an
 `await`, comes from a module-level factory memoized on its inputs, so its closure keeps only
 those inputs.
+
+## React Compiler
+
+The compiler memoizes a component or hook only when it can prove the code follows React's rules.
+Anything it can't prove, such as reading a ref during render or calling `setState` from an effect,
+makes it skip the whole function without a build error. Lint reports most skips as `react(...)`
+errors, but a disable comment silences the report without making the function compile.
+
+Files listed in [`reactCompiledFiles.ts`](../../apps/web/reactCompiledFiles.ts) must compile.
+Lint keeps those rules errors there, and `supaterm/no-manual-memo` rejects `useMemo` and
+`useCallback`, which the compiler makes redundant. Lint misses some bailouts, notably `try` with
+`finally` and `throw` inside `try`, so [`reactCompiledFiles.test.ts`](../../apps/web/src/reactCompiledFiles.test.ts)
+compiles each listed file and fails on any skip. `useStableCallback` still marks handlers that
+leave a large component, as described above. Add a file to the list once it compiles cleanly, and
+drop its manual memoization in the same change.
