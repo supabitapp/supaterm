@@ -63,8 +63,11 @@ errors, but a disable comment silences the report without making the function co
 
 Files listed in [`reactCompiledFiles.ts`](../../apps/web/reactCompiledFiles.ts) must compile.
 Lint keeps those rules errors there, and `supaterm/no-manual-memo` rejects `useMemo` and
-`useCallback`, which the compiler makes redundant. Lint misses some bailouts, notably `try` with
-`finally` and `throw` inside `try`, so [`reactCompiledFiles.test.ts`](../../apps/web/src/reactCompiledFiles.test.ts)
+`useCallback`, which the compiler makes redundant. It also rejects `"use memo"`. The compiler
+withholds a cache scope when a value reaches plain function calls on both sides of a hook call. A
+`"use memo"` helper forces one, but hides the ordering problem. Fix the order instead: plain uses
+of a value go before the hook, or the helper is inlined. Lint misses some bailouts, notably `try`
+with `finally` and `throw` inside `try`, so [`reactCompiledFiles.test.ts`](../../apps/web/src/reactCompiledFiles.test.ts)
 compiles each listed file and fails on any skip. `useStableCallback` still marks handlers that
 leave a large component, as described above. Add a file to the list once it compiles cleanly, and
 drop its manual memoization in the same change.
