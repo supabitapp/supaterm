@@ -58,6 +58,7 @@ export const REACT_COMPILED_FILES = [
   "apps/web/src/components/settings/ProviderSetupSection.tsx",
   "apps/web/src/components/settings/SnapShotSetupDialog.tsx",
   "apps/web/src/components/settings/SourceControlHostSettings.tsx",
+  "apps/web/src/components/settings/StorageSettings.tsx",
   "apps/web/src/components/settings/TelemetryExportSettings.tsx",
   "apps/web/src/components/settings/ThemeEditorPanel.tsx",
   "apps/web/src/components/settings/UsageProviderSettings.tsx",

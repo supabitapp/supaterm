@@ -4,7 +4,7 @@ import type {
   WorktreeCleanupRules,
 } from "@supaterm/contracts";
 import { resolveWorktreeCleanup } from "@supaterm/shared/projectSettings";
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
 import {
@@ -205,31 +205,27 @@ function CleanupSection() {
   const run = useAtomCommand(serverEnvironment.runStorageCleanup);
   const supported = connectedEnvironments.filter((environment) => environment.serverConfig != null);
   const state = useAtomValue(
-    useMemo(
-      () =>
-        Atom.make((get) =>
-          connectedEnvironments.flatMap((environment) => {
-            if (environment.serverConfig == null) return [];
-            const query = get(
-              serverEnvironment.storageCleanupReport({
-                environmentId: environment.environmentId,
-                input: {},
-              }),
-            );
-            return [
-              {
-                environmentId: environment.environmentId,
-                allowed: get(
-                  serverEnvironment.runStorageCleanup.permissionAtom(environment.environmentId),
-                ),
-                report: query._tag === "Success" ? query.value : null,
-                loading: query.waiting,
-                failed: query._tag === "Failure",
-              },
-            ];
+    Atom.make((get) =>
+      connectedEnvironments.flatMap((environment) => {
+        if (environment.serverConfig == null) return [];
+        const query = get(
+          serverEnvironment.storageCleanupReport({
+            environmentId: environment.environmentId,
+            input: {},
           }),
-        ),
-      [connectedEnvironments],
+        );
+        return [
+          {
+            environmentId: environment.environmentId,
+            allowed: get(
+              serverEnvironment.runStorageCleanup.permissionAtom(environment.environmentId),
+            ),
+            report: query._tag === "Success" ? query.value : null,
+            loading: query.waiting,
+            failed: query._tag === "Failure",
+          },
+        ];
+      }),
     ),
   );
   const hasRules = supported.some((environment) => {
@@ -274,36 +270,30 @@ function CleanupSection() {
   const deleteNow = async () => {
     if (pending) return;
     setPending(true);
-    try {
-      await Promise.all(
-        supported
-          .filter((environment) =>
-            state.some(
-              (entry) => entry.environmentId === environment.environmentId && entry.allowed,
-            ),
-          )
-          .map(async (environment) => {
-            const result = await run({ environmentId: environment.environmentId, input: {} });
-            if (result._tag === "Success") {
-              const failures = result.value.entries.filter((entry) => entry.outcome === "failed");
-              if (failures.length > 0)
-                toastManager.add({
-                  type: "error",
-                  title: `Cleanup failed on ${environment.label}`,
-                  description: failures[0]!.reason,
-                });
-            } else if (!isAtomCommandInterrupted(result)) {
+    await Promise.all(
+      supported
+        .filter((environment) =>
+          state.some((entry) => entry.environmentId === environment.environmentId && entry.allowed),
+        )
+        .map(async (environment) => {
+          const result = await run({ environmentId: environment.environmentId, input: {} });
+          if (result._tag === "Success") {
+            const failures = result.value.entries.filter((entry) => entry.outcome === "failed");
+            if (failures.length > 0)
               toastManager.add({
                 type: "error",
-                title: `Could not run cleanup on ${environment.label}`,
-                description: String(squashAtomCommandFailure(result)),
+                title: `Cleanup failed on ${environment.label}`,
+                description: failures[0]!.reason,
               });
-            }
-          }),
-      );
-    } finally {
-      setPending(false);
-    }
+          } else if (!isAtomCommandInterrupted(result)) {
+            toastManager.add({
+              type: "error",
+              title: `Could not run cleanup on ${environment.label}`,
+              description: String(squashAtomCommandFailure(result)),
+            });
+          }
+        }),
+    ).finally(() => setPending(false));
   };
   return (
     <SettingsSection id="storage-cleanup" title="Cleanup" variant="plain">
