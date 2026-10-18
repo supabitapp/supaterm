@@ -26,7 +26,7 @@ import { EditorId, FileManagerRevealKind, RemoteOpenTarget } from "./editor.ts";
 import { ModelCapabilities } from "./model.ts";
 import { RuntimeMode } from "./providerPolicy.ts";
 import { ProviderDriverKind, ProviderInstanceId } from "./providerInstance.ts";
-import { ServerProviderUsageLimits, UsageLimitSourceSnapshots } from "./providerUsageLimits.ts";
+import { ServerProviderUsageLimits } from "./providerUsageLimits.ts";
 import { ServerSettings } from "./settings.ts";
 import { RelayConnectionInfo } from "./relay.ts";
 
@@ -624,11 +624,6 @@ export const ServerConfig = Schema.Struct({
    * subscriber the same array twice per connect.
    */
   environmentThemes: Schema.optional(Schema.Array(EnvironmentTheme)),
-  /**
-   * Like themes, never in a snapshot: the source stream emits the current set
-   * on subscribe, and it stays absent for subscribers that did not opt in.
-   */
-  usageLimitSources: Schema.optional(UsageLimitSourceSnapshots),
 });
 export type ServerConfig = typeof ServerConfig.Type;
 
@@ -744,19 +739,15 @@ export const ServerConfigStreamEnvironmentThemesUpdatedEvent = Schema.Struct({
 export type ServerConfigStreamEnvironmentThemesUpdatedEvent =
   typeof ServerConfigStreamEnvironmentThemesUpdatedEvent.Type;
 
-export const ServerConfigUsageLimitSourcesUpdatedPayload = Schema.Struct({
-  sources: UsageLimitSourceSnapshots,
-});
-export type ServerConfigUsageLimitSourcesUpdatedPayload =
-  typeof ServerConfigUsageLimitSourcesUpdatedPayload.Type;
-
+/**
+ * Servers that still had usage-limit hubs send this on every connect. Clients
+ * decode and drop it so the config stream survives an older server.
+ */
 export const ServerConfigStreamUsageLimitSourcesUpdatedEvent = Schema.Struct({
   version: Schema.Literal(1),
   type: Schema.Literal("usageLimitSourcesUpdated"),
-  payload: ServerConfigUsageLimitSourcesUpdatedPayload,
+  payload: Schema.Unknown,
 });
-export type ServerConfigStreamUsageLimitSourcesUpdatedEvent =
-  typeof ServerConfigStreamUsageLimitSourcesUpdatedEvent.Type;
 
 export const ServerConfigStreamRelayAdvertisementUpdatedEvent = Schema.Struct({
   version: Schema.Literal(1),

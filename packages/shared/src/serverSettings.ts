@@ -315,8 +315,6 @@ export function applyServerSettingsPatch(
     backgroundActivityProfile,
     backgroundActivity,
     worktreeCleanup: worktreeCleanupPatch,
-    // Merged per entry below; its `null` removals must not reach deepMerge.
-    usageLimitSources: usageLimitSourcesPatch,
     sourceControlHosts: hostSettingsPatch,
     usagePriceOverrides: usagePriceOverridesPatch,
     usageModelAliases: usageModelAliasesPatch,
@@ -489,14 +487,6 @@ export function applyServerSettingsPatch(
       : {}),
     ...(patch.defaultProjectScripts !== undefined
       ? { defaultProjectScripts: patch.defaultProjectScripts }
-      : {}),
-    ...(usageLimitSourcesPatch !== undefined
-      ? {
-          usageLimitSources: mergeSettingsEntries(
-            current.usageLimitSources,
-            usageLimitSourcesPatch,
-          ),
-        }
       : {}),
     ...(usagePriceOverridesPatch !== undefined
       ? {

@@ -240,13 +240,9 @@ import * as SourceControlRepositoryService from "./sourceControl/SourceControlRe
 import * as PairingGrantStore from "./auth/PairingGrantStore.ts";
 import * as SessionStore from "./auth/SessionStore.ts";
 import { failEnvironmentAuthInvalid, failEnvironmentInternal } from "./auth/http.ts";
-import {
-  sameUsageLimitCommandCoverage,
-  withUsageLimitsCommands,
-} from "@supaterm/shared/usageLimits";
+import { withUsageLimitsCommands } from "@supaterm/shared/usageLimits";
 import * as AgentSessionScanner from "./project/AgentSessionScanner.ts";
 import * as AgentSessionImporter from "./project/AgentSessionImporter.ts";
-import * as UsageLimitSources from "./usage/UsageLimitSources.ts";
 
 const CONFIG_DISCOVERY_TIMEOUT = Duration.seconds(5);
 const isProviderUploadFeedbackError = Schema.is(ProviderUploadFeedbackError);
@@ -359,8 +355,8 @@ export const withLateEditorConfig = <E, R>(
               },
               [event],
             ];
-          // Themes and usage-limit sources never ride in a snapshot; clients
-          // carry their projected values across one.
+          // Themes never ride in a snapshot; clients carry their projected
+          // values across one.
           default:
             return [current, [event]];
         }
@@ -1228,7 +1224,6 @@ const layerWsRpc = (
               Effect.orElseSucceed(() => null),
             );
       const usage = yield* UsageService.UsageService;
-      const usageLimitSources = yield* UsageLimitSources.UsageLimitSources;
       const worktreeSetupTracker = yield* WorktreeSetupTracker.WorktreeSetupTracker;
       const projectCloneTracker = yield* ProjectCloneTracker.ProjectCloneTracker;
       const repositoryIdentityResolver =
@@ -1655,7 +1650,7 @@ const layerWsRpc = (
           const keybindingsConfig = yield* keybindings.loadConfigState;
           const currentProviders = yield* providerRegistry.getProviders;
           const providers = options.usageLimitsCommand
-            ? withUsageLimitsCommands(currentProviders, yield* usageLimitSources.current)
+            ? withUsageLimitsCommands(currentProviders)
             : currentProviders;
           const settings = ServerSettings.redactServerSettingsForClient(
             yield* serverSettings.getSettings,
@@ -2162,11 +2157,6 @@ const layerWsRpc = (
                 { concurrency: "unbounded", discard: true },
               );
             }
-            // Awaited, not forked: the RPC scope closes on return and would
-            // interrupt a fork before the hub answered.
-            if (input.instanceId === undefined) {
-              yield* usageLimitSources.refresh;
-            }
             let providers = yield* input.cwd !== undefined && input.instanceId !== undefined
               ? providerRegistry.refreshWorkspaceSnapshot({
                   instanceId: input.instanceId,
@@ -2262,7 +2252,6 @@ const layerWsRpc = (
           providerMaintenanceRunner.updateProvider(input),
         [WS_METHODS.providerConsumeResetCredit]: (input) =>
           Effect.gen(function* () {
-            if ("sourceId" in input) return yield* usageLimitSources.consumeResetCredit(input);
             const instance = yield* providerInstances.getInstance(input.instanceId);
             if (instance === undefined || !instance.enabled) {
               return yield* new ProviderSetupError({
@@ -2905,23 +2894,15 @@ const layerWsRpc = (
                   },
                 })),
               );
-              const providerStatuses = Stream.zipLatestWith(
-                // The registry stream carries changes only. Seed it with the current
-                // providers so a source refresh that lands before any provider change
-                // still pairs up and reaches the client.
-                Stream.concat(
-                  Stream.fromEffect(providerRegistry.getProviders),
-                  providerRegistry.streamChanges,
-                ),
-                usageLimitSources.streamChanges.pipe(
-                  Stream.changesWith(sameUsageLimitCommandCoverage),
-                ),
-                (providers, sources) => withUsageLimitsCommands(providers, sources),
+              // The registry stream carries changes only. Seed it with the current
+              // providers, then compare against the snapshot the client already
+              // holds: a refresh that landed between the snapshot and the
+              // subscription still goes out.
+              const providerStatuses = Stream.concat(
+                Stream.fromEffect(providerRegistry.getProviders),
+                providerRegistry.streamChanges,
               ).pipe(
-                // Both sides replay their current value, so the first pairing normally
-                // repeats the snapshot the client already holds. Compare against that
-                // snapshot rather than dropping blindly: a refresh that landed between
-                // the snapshot and the subscription still goes out.
+                Stream.map(withUsageLimitsCommands),
                 (updates) => Stream.concat(rpcInitialItems([config.providers]), updates),
                 Stream.changesWith(
                   (previous, next) => JSON.stringify(previous) === JSON.stringify(next),
@@ -2948,13 +2929,6 @@ const layerWsRpc = (
                       })),
                     )
                   : Stream.empty;
-              const usageLimitSourceUpdates = usageLimitSources.streamChanges.pipe(
-                Stream.map((sources) => ({
-                  version: 1 as const,
-                  type: "usageLimitSourcesUpdated" as const,
-                  payload: { sources },
-                })),
-              );
               const settingsUpdates = serverSettings.streamChanges.pipe(
                 Stream.map((settings) => ServerSettings.redactServerSettingsForClient(settings)),
                 Stream.map((settings) => ({
@@ -2975,7 +2949,6 @@ const layerWsRpc = (
                   providerStatuses,
                   settingsUpdates,
                   environmentThemeUpdates,
-                  usageLimitSourceUpdates,
                   relayAdvertisements,
                 ],
                 { concurrency: "unbounded" },

@@ -424,16 +424,11 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
   const { onSendMessage, onChangeDraftMessage, onShowUsageLimits } = props;
   const usageLimitsOffered =
     selectedProviderStatus !== null &&
-    hasProviderUsageLimits(
-      selectedProviderStatus.driver,
-      props.serverConfig?.providers ?? [],
-      props.serverConfig?.usageLimitSources ?? [],
-    );
+    hasProviderUsageLimits(selectedProviderStatus.driver, props.serverConfig?.providers ?? []);
   const openUsageLimits = useCallback(() => {
     const report = collectProviderUsageLimits(
       currentModelSelection.instanceId,
       props.serverConfig?.providers ?? [],
-      props.serverConfig?.usageLimitSources ?? [],
       Date.now(),
     );
     onShowUsageLimits(report);

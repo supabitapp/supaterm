@@ -40,7 +40,6 @@ import {
   latestExecutedRun,
   latestRootProviderFailure,
 } from "@supaterm/shared/orchestrationV2ThreadError";
-import type { UsageLimitSourceSnapshots } from "@supaterm/contracts";
 import {
   collectProviderUsageLimits,
   hasProviderUsageLimits,
@@ -621,7 +620,6 @@ import { observeResize } from "~/lib/observeResize";
 
 const EMPTY_PROVIDERS: ServerProvider[] = [];
 const EMPTY_PROVIDER_MODELS: ServerProvider["models"] = [];
-const EMPTY_USAGE_LIMIT_SOURCES: UsageLimitSourceSnapshots = [];
 import type { CodexArtifactTemplate } from "@supaterm/shared/codexArtifactTemplates";
 
 const TIMELINE_SCROLL_CANCEL_SENTINEL = Object.freeze({});
@@ -3597,7 +3595,6 @@ export default function ChatView(props: ChatViewProps) {
   ) {
     setUsageLimitsPanel(null);
   }
-  const usageLimitSources = serverConfig?.usageLimitSources ?? EMPTY_USAGE_LIMIT_SOURCES;
   const usageLimitsReport = useMemo(
     () =>
       usageLimitsPanel !== null &&
@@ -3607,17 +3604,10 @@ export default function ChatView(props: ChatViewProps) {
         ? collectProviderUsageLimits(
             activeProviderInstanceId,
             providerStatuses,
-            usageLimitSources,
             usageLimitsPanel.now,
           )
         : null,
-    [
-      activeProviderInstanceId,
-      providerStatuses,
-      usageLimitSources,
-      usageLimitsKey,
-      usageLimitsPanel,
-    ],
+    [activeProviderInstanceId, providerStatuses, usageLimitsKey, usageLimitsPanel],
   );
   const usageLimitsBanner = useMemo(
     () =>
@@ -3636,17 +3626,12 @@ export default function ChatView(props: ChatViewProps) {
   // elsewhere the name stays the provider's own and is sent through untouched.
   const usageLimitsOffered =
     activeProviderStatus !== null &&
-    hasProviderUsageLimits(activeProviderStatus.driver, providerStatuses, usageLimitSources);
+    hasProviderUsageLimits(activeProviderStatus.driver, providerStatuses);
   const openUsageLimits = () => {
     const now = Date.now();
     const report =
       activeProviderInstanceId !== null && usageLimitsKey !== null
-        ? collectProviderUsageLimits(
-            activeProviderInstanceId,
-            providerStatuses,
-            usageLimitSources,
-            now,
-          )
+        ? collectProviderUsageLimits(activeProviderInstanceId, providerStatuses, now)
         : null;
     if (report && usageLimitsKey !== null) {
       setUsageLimitsPanel({ key: usageLimitsKey, threadKey: routeThreadKey, now });

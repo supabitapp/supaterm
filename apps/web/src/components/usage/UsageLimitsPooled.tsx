@@ -69,24 +69,19 @@ function AccountAvatar({
   readonly account: LimitAccount;
   readonly className?: string;
 }) {
-  if (account.redeem) {
-    return (
-      <ProviderInstanceIcon
-        driverKind={account.driver}
-        displayName={
-          account.displayName ??
-          providerClients.get(account.driver)?.label ??
-          String(account.driver)
-        }
-        accentColor={account.accentColor}
-        showBadge={Boolean(account.displayName)}
-        indicatorBackground="var(--popover)"
-        className={cn("size-5", className)}
-        iconClassName="size-4 text-foreground/80"
-      />
-    );
-  }
-  return account.email ? <AccountChip email={account.email} /> : null;
+  return (
+    <ProviderInstanceIcon
+      driverKind={account.driver}
+      displayName={
+        account.displayName ?? providerClients.get(account.driver)?.label ?? String(account.driver)
+      }
+      accentColor={account.accentColor}
+      showBadge={Boolean(account.displayName)}
+      indicatorBackground="var(--popover)"
+      className={cn("size-5", className)}
+      iconClassName="size-4 text-foreground/80"
+    />
+  );
 }
 
 function AccountName({
@@ -133,18 +128,13 @@ function SegmentPopover({
   readonly reset: LimitPoolWindow["resets"][number] | undefined;
   readonly now: number;
   /** Redeem state owned by the segment, since the outcome shows after this popover closes. */
-  readonly redeem: ReturnType<typeof useResetCredit> | null;
+  readonly redeem: ReturnType<typeof useResetCredit>;
   readonly onRedeem: () => void;
 }) {
   const timestampFormat = usePrimarySettings((settings) => settings.timestampFormat);
   const remaining = remainingPercent(window);
   const resetsIn = formatResetsIn(window, now);
-  const where =
-    account.environments.length > 0
-      ? account.environments.map((environment) => environment.label).join(", ")
-      : account.sourceLabel;
-  const credits =
-    redeem && account.limits.resetCredits?.availableCount ? account.limits.resetCredits : null;
+  const credits = account.limits.resetCredits?.availableCount ? account.limits.resetCredits : null;
   return (
     <div className="flex w-72 max-w-[calc(100vw-3rem)] flex-col gap-2.5 text-xs">
       <div className="flex min-w-0 flex-col gap-0.5">
@@ -166,9 +156,9 @@ function SegmentPopover({
       </div>
       <div className="flex flex-col gap-1 border-t border-border/60 pt-2.5">
         {account.plan ? <Row label="Plan">{account.plan}</Row> : null}
-        {where ? (
-          <Row label={account.environments.length > 0 ? "Signed in" : "Via"}>{where}</Row>
-        ) : null}
+        <Row label="Signed in">
+          {account.environments.map((environment) => environment.label).join(", ")}
+        </Row>
       </div>
       <div className="flex flex-col gap-1 border-t border-border/60 pt-2.5">
         <Row label="Left">{remaining}%</Row>
@@ -182,7 +172,7 @@ function SegmentPopover({
           <Row label="Restores">+{reset.restoresPercent}% of pool</Row>
         ) : null}
       </div>
-      {credits && redeem ? (
+      {credits ? (
         <div className="border-t border-border/60 pt-2.5 text-muted-foreground">
           <span className="flex items-center justify-between gap-3">
             <span className="tabular-nums">{resetCreditsSummary(credits, now, true)}</span>
@@ -284,27 +274,13 @@ function PoolSegment({
         </div>
       </PopoverTrigger>
       <LegendRow account={account} window={window} color={color} now={now} index={index} />
-      {account.redeem ? (
-        <RedeemableSegmentPopup
-          account={account}
-          window={window}
-          reset={reset}
-          now={now}
-          redeemAt={account.redeem}
-          closePopover={() => setOpen(false)}
-        />
-      ) : (
-        <PopoverPopup side="top" sideOffset={6}>
-          <SegmentPopover
-            account={account}
-            window={window}
-            reset={reset}
-            now={now}
-            redeem={null}
-            onRedeem={() => {}}
-          />
-        </PopoverPopup>
-      )}
+      <SegmentPopup
+        account={account}
+        window={window}
+        reset={reset}
+        now={now}
+        closePopover={() => setOpen(false)}
+      />
     </Popover>
   );
 }
@@ -364,22 +340,20 @@ function LegendRow({
   );
 }
 
-function RedeemableSegmentPopup({
+function SegmentPopup({
   account,
   window,
   reset,
   now,
-  redeemAt,
   closePopover,
 }: {
   readonly account: LimitAccount;
   readonly window: LimitPoolMember["window"];
   readonly reset: LimitPoolWindow["resets"][number] | undefined;
   readonly now: number;
-  readonly redeemAt: NonNullable<LimitAccount["redeem"]>;
   readonly closePopover: () => void;
 }) {
-  const redeem = useResetCredit(redeemAt.environmentId, redeemAt.input);
+  const redeem = useResetCredit(account.redeem.environmentId, account.redeem.input);
   return (
     <>
       <PopoverPopup side="top" sideOffset={6}>

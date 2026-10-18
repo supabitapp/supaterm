@@ -530,7 +530,6 @@ export function NewTaskDraftScreen(props: {
     hasProviderUsageLimits(
       flow.selectedProviderStatus.driver,
       selectedEnvironmentServerConfig?.providers ?? [],
-      selectedEnvironmentServerConfig?.usageLimitSources ?? [],
     );
   const composerWorkspaceCwd =
     (flow.workspaceMode === "worktree"

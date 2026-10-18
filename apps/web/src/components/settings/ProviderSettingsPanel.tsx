@@ -339,14 +339,14 @@ function ProviderSettingsPanelContent(target: ProviderSettingsTarget) {
   )?.environmentId;
   const searchEnvironmentId =
     !target.scoped &&
-    searchTargetId === searchableSetting("cursor-keychain-usage").id &&
+    (searchTargetId === searchableSetting("cursor-keychain-usage").id ||
+      searchTargetId === searchableSetting("usage-providers").id) &&
     (!selectedEnvironmentCanRenderSettings ||
       selectedEnvironment?.serverConfig?.environment.platform.os !== "darwin") &&
     searchableCursorEnvironmentId !== undefined
       ? searchableCursorEnvironmentId
       : !target.scoped &&
-          (searchTargetId === searchableSetting("provider-health-check-interval").id ||
-            searchTargetId === searchableSetting("usage-providers").id) &&
+          searchTargetId === searchableSetting("provider-health-check-interval").id &&
           !selectedEnvironmentCanRenderSettings
         ? searchableEnvironmentId
         : undefined;
@@ -1207,8 +1207,6 @@ export function EnvironmentProviderSettings({
       <UsageProviderSettings
         key={environmentId}
         environmentId={environmentId}
-        environmentLabel={environmentLabel}
-        sources={settings.usageLimitSources}
         cursorKeychainUsageEnabled={settings.cursorKeychainUsageEnabled}
         readOnly={readOnly}
       />
