@@ -21,7 +21,7 @@ export function RenameEnvironmentDialog({
   environment,
   onClose,
 }: {
-  readonly environment: Pick<EnvironmentPresentation, "environmentId" | "label">;
+  readonly environment: Pick<EnvironmentPresentation, "environmentId" | "label" | "entry">;
   readonly onClose: () => void;
 }) {
   const rename = useAtomCommand(environmentCatalog.rename, { reportFailure: false });
@@ -31,11 +31,11 @@ export function RenameEnvironmentDialog({
   const labelId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function save() {
-    if (pending || label.trim() === "") return;
+  async function save(nextLabel: string | null) {
+    if (pending || nextLabel?.trim() === "") return;
     setPending(true);
     setError(null);
-    const result = await rename({ environmentId: environment.environmentId, label });
+    const result = await rename({ environmentId: environment.environmentId, label: nextLabel });
     setPending(false);
     if (result._tag === "Success") {
       onClose();
@@ -59,7 +59,7 @@ export function RenameEnvironmentDialog({
           <form
             onSubmit={(event) => {
               event.preventDefault();
-              void save();
+              void save(label);
             }}
           />
         }
@@ -91,6 +91,16 @@ export function RenameEnvironmentDialog({
           </div>
         </DialogPanel>
         <DialogFooter>
+          {environment.entry.defaultLabel !== undefined && (
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={pending}
+              onClick={() => void save(null)}
+            >
+              Reset to default
+            </Button>
+          )}
           <DialogClose render={<Button variant="outline" disabled={pending} />}>Cancel</DialogClose>
           <Button type="submit" disabled={pending || label.trim() === ""}>
             {pending ? "Saving…" : "Save"}

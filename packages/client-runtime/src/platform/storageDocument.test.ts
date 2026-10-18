@@ -28,6 +28,7 @@ import {
   removeConnectionFromCatalog,
   setRoutesInCatalog,
   setConnectionEnabledInCatalog,
+  setPlatformLabelInCatalog,
 } from "./storageDocument.ts";
 
 const decodeConnectionCatalogDocument = Schema.decodeUnknownEffect(ConnectionCatalogDocument);
@@ -63,6 +64,35 @@ const SSH_PROFILE = new SshConnectionProfile({
 });
 
 describe("ConnectionCatalogDocument", () => {
+  it("persists local labels without saving platform connections or replacing remote labels", () => {
+    const initial = registerConnectionInCatalog(
+      EMPTY_CONNECTION_CATALOG_DOCUMENT,
+      new BearerConnectionRegistration({
+        target: BEARER_TARGET,
+        profile: BEARER_PROFILE,
+        credential: BEARER_CREDENTIAL,
+      }),
+    );
+    const localId = EnvironmentId.make("local");
+    const otherId = EnvironmentId.make("other-local");
+    const named = setPlatformLabelInCatalog(
+      setPlatformLabelInCatalog(initial, localId, "My workstation"),
+      otherId,
+      "Other workstation",
+    );
+    const restored = decodeCatalogDocument(JSON.parse(JSON.stringify(named)));
+    expect(restored.targets).toEqual(initial.targets);
+    expect(restored.profiles).toEqual(initial.profiles);
+    expect(restored.credentials).toEqual(initial.credentials);
+    expect(restored.platformLabels).toEqual([
+      { environmentId: localId, label: "My workstation" },
+      { environmentId: otherId, label: "Other workstation" },
+    ]);
+    const renamed = setPlatformLabelInCatalog(restored, localId, "Build machine");
+    const reset = setPlatformLabelInCatalog(renamed, localId, null);
+    expect(reset.platformLabels).toEqual([{ environmentId: otherId, label: "Other workstation" }]);
+  });
+
   it("persists learned relay metadata with its routes and keeps the paired credential", () => {
     const initial = registerConnectionInCatalog(
       EMPTY_CONNECTION_CATALOG_DOCUMENT,

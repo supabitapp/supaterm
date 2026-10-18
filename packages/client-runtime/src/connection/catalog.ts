@@ -46,6 +46,7 @@ export interface ConnectionRoute {
 
 export interface ConnectionCatalogEntry {
   readonly target: ConnectionTarget;
+  readonly defaultLabel?: string;
   readonly profile: Option.Option<ConnectionProfile>;
   /** Additional direct or SSH routes, in fallback order. */
   readonly alternateRoutes?: ReadonlyArray<ConnectionRoute>;

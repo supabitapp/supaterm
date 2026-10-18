@@ -55,6 +55,8 @@ import * as Persistence from "../platform/persistence.ts";
 import {
   ConnectionCatalogDocument,
   EMPTY_CONNECTION_CATALOG_DOCUMENT,
+  type StoredPlatformLabel,
+  setPlatformLabelInCatalog,
   setRoutesInCatalog,
 } from "../platform/storageDocument.ts";
 import * as ConnectionProfileStore from "./profileStore.ts";
@@ -68,6 +70,8 @@ import * as EnvironmentSupervisor from "./supervisor.ts";
 import * as ConnectionWakeups from "./wakeups.ts";
 import { runDesktopCommitWithReconnectObserver } from "../state/server.ts";
 import { v2ShellSnapshot } from "../state/orchestrationV2TestFixtures.ts";
+
+const decodeConnectionCatalogDocument = Schema.decodeEffect(ConnectionCatalogDocument);
 
 const TARGET = new PrimaryConnectionTarget({
   environmentId: EnvironmentId.make("environment-1"),
@@ -180,6 +184,8 @@ const makeHarness = Effect.fn("TestEnvironmentRegistry.makeHarness")(function* (
       target: ConnectionTarget,
     ) => Effect.Effect<void, Persistence.ConnectionPersistenceError>;
     readonly initialDisabled?: ReadonlyArray<EnvironmentId>;
+    readonly initialPlatformLabels?: ReadonlyArray<StoredPlatformLabel>;
+    readonly setPlatformLabel?: Persistence.ConnectionRegistrationStore["Service"]["setPlatformLabel"];
 
     readonly directEndpoints?: ServerConfig["directEndpoints"];
   },
@@ -202,11 +208,26 @@ const makeHarness = Effect.fn("TestEnvironmentRegistry.makeHarness")(function* (
   const storedDisabled = yield* Ref.make<ReadonlySet<EnvironmentId>>(
     new Set(options?.initialDisabled ?? []),
   );
+  const storedPlatformLabels = yield* Ref.make(options?.initialPlatformLabels ?? []);
   const targetStore = Persistence.ConnectionTargetStore.of({
     list: Ref.get(storedTargets).pipe(Effect.map((targets) => [...targets.values()])),
     listDisabled: Ref.get(storedDisabled).pipe(Effect.map((ids) => [...ids])),
+    listPlatformLabels: Ref.get(storedPlatformLabels),
   });
   const registrationStore = Persistence.ConnectionRegistrationStore.of({
+    setPlatformLabel: (environmentId, label) =>
+      Effect.gen(function* () {
+        yield* options?.setPlatformLabel?.(environmentId, label) ?? Effect.void;
+        yield* Ref.update(
+          storedPlatformLabels,
+          (platformLabels) =>
+            setPlatformLabelInCatalog(
+              { ...EMPTY_CONNECTION_CATALOG_DOCUMENT, platformLabels },
+              environmentId,
+              label,
+            ).platformLabels,
+        );
+      }),
     setRoutes: options?.setRoutes ?? (() => Effect.void),
     register: (registration) =>
       Effect.gen(function* () {
@@ -432,6 +453,7 @@ const makeHarness = Effect.fn("TestEnvironmentRegistry.makeHarness")(function* (
     profileReadCount,
     storedCredentials,
     storedDisabled,
+    storedPlatformLabels,
     disconnectedSshTargets,
     networkStatus,
   };
@@ -538,7 +560,132 @@ describe("EnvironmentRegistry", () => {
       }),
   );
 
-  it.effect("keeps the current label when saving fails and rejects blank or managed labels", () =>
+  it.effect.each([
+    {
+      name: "primary",
+      registration: new PrimaryConnectionRegistration({ target: TARGET }),
+    },
+    {
+      name: "secondary local",
+      registration: new BearerConnectionRegistration({
+        target: BEARER_TARGET,
+        profile: BEARER_PROFILE,
+        credential: BEARER_CREDENTIAL,
+      }),
+    },
+  ])("persists and resets a $name label without replacing its connection", ({ registration }) =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness([]);
+      const environmentId = registration.target.environmentId;
+      yield* Effect.gen(function* () {
+        const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
+        yield* registry.reconcilePlatform([registration]);
+        yield* awaitConnectionState(
+          registry,
+          environmentId,
+          (state) => state.phase === "connected",
+        );
+        const state = yield* registry.state(environmentId);
+        yield* registry.rename(environmentId, "  My workstation  ");
+        yield* registry.reconcilePlatform([registration]);
+        expect((yield* SubscriptionRef.get(registry.entries)).get(environmentId)).toMatchObject({
+          target: { ...registration.target, label: "My workstation" },
+          defaultLabel: registration.target.label,
+        });
+        expect(yield* registry.state(environmentId)).toEqual(state);
+        expect(yield* Ref.get(harness.releasedSessions)).toBe(0);
+        expect(yield* Ref.get(harness.sessions)).toHaveLength(1);
+        expect(yield* Ref.get(harness.storedTargets)).toEqual(new Map());
+      }).pipe(Effect.provide(harness.layer), Effect.scoped);
+
+      const persisted = yield* decodeConnectionCatalogDocument({
+        ...EMPTY_CONNECTION_CATALOG_DOCUMENT,
+        platformLabels: yield* Ref.get(harness.storedPlatformLabels),
+      });
+      const reloaded = yield* makeHarness([], [], [], {
+        initialPlatformLabels: persisted.platformLabels,
+      });
+      yield* Effect.gen(function* () {
+        const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
+        yield* registry.reconcilePlatform([registration]);
+        yield* awaitConnectionState(
+          registry,
+          environmentId,
+          (state) => state.phase === "connected",
+        );
+        expect(
+          (yield* SubscriptionRef.get(registry.entries)).get(environmentId)?.target.label,
+        ).toBe("My workstation");
+        const state = yield* registry.state(environmentId);
+        yield* registry.rename(environmentId, null);
+        expect(
+          (yield* SubscriptionRef.get(registry.entries)).get(environmentId)?.target.label,
+        ).toBe(registration.target.label);
+        expect(yield* registry.state(environmentId)).toEqual(state);
+        expect(yield* Ref.get(reloaded.storedPlatformLabels)).toEqual([]);
+        yield* registry.reconcilePlatform([registration]);
+        expect(
+          (yield* SubscriptionRef.get(registry.entries)).get(environmentId)?.target.label,
+        ).toBe(registration.target.label);
+      }).pipe(Effect.provide(reloaded.layer), Effect.scoped);
+    }),
+  );
+
+  it.effect("keeps the current local label when saving or resetting fails", () =>
+    Effect.gen(function* () {
+      const failure = new Persistence.ConnectionPersistenceError({
+        operation: "set-platform-label",
+        message: "Storage unavailable",
+      });
+      const harness = yield* makeHarness([], [], [], {
+        initialPlatformLabels: [{ environmentId: TARGET.environmentId, label: "My workstation" }],
+        setPlatformLabel: () => Effect.fail(failure),
+      });
+      yield* Effect.gen(function* () {
+        const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
+        yield* registry.registerPlatform(new PrimaryConnectionRegistration({ target: TARGET }));
+        const before = yield* SubscriptionRef.get(registry.entries);
+        for (const label of ["Build Mac", null]) {
+          expect(yield* Effect.flip(registry.rename(TARGET.environmentId, label))).toBe(failure);
+          expect(yield* SubscriptionRef.get(registry.entries)).toBe(before);
+        }
+        yield* registry.registerPlatform(new PrimaryConnectionRegistration({ target: TARGET }));
+        expect(
+          (yield* SubscriptionRef.get(registry.entries)).get(TARGET.environmentId)?.target.label,
+        ).toBe("My workstation");
+      }).pipe(Effect.provide(harness.layer), Effect.scoped);
+    }),
+  );
+
+  it.effect("keeps automatic naming when saving the detected name", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness([]);
+      yield* Effect.gen(function* () {
+        const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
+        yield* registry.registerPlatform(new PrimaryConnectionRegistration({ target: TARGET }));
+        yield* registry.rename(TARGET.environmentId, TARGET.label);
+        expect(yield* Ref.get(harness.storedPlatformLabels)).toEqual([]);
+        yield* registry.rename(TARGET.environmentId, "My workstation");
+        const renamedTarget = new PrimaryConnectionTarget({
+          ...TARGET,
+          label: "New computer name",
+        });
+        const renamedRegistration = new PrimaryConnectionRegistration({ target: renamedTarget });
+        yield* registry.registerPlatform(renamedRegistration);
+        expect(
+          (yield* SubscriptionRef.get(registry.entries)).get(TARGET.environmentId)?.target.label,
+        ).toBe("My workstation");
+        yield* registry.rename(TARGET.environmentId, renamedTarget.label);
+        expect(yield* Ref.get(harness.storedPlatformLabels)).toEqual([]);
+        yield* registry.registerPlatform(new PrimaryConnectionRegistration({ target: TARGET }));
+        expect(
+          (yield* SubscriptionRef.get(registry.entries)).get(TARGET.environmentId)?.target.label,
+        ).toBe(TARGET.label);
+      }).pipe(Effect.provide(harness.layer), Effect.scoped);
+    }),
+  );
+
+  it.effect("keeps the current label when saving fails and rejects blank labels", () =>
     Effect.gen(function* () {
       const failure = new Persistence.ConnectionPersistenceError({
         operation: "set-connection-routes",
@@ -563,11 +710,11 @@ describe("EnvironmentRegistry", () => {
           _tag: "ConnectionBlockedError",
           detail: "Environment label cannot be empty.",
         });
-        yield* registry.registerPlatform(new PrimaryConnectionRegistration({ target: TARGET }));
         expect(
-          yield* Effect.flip(registry.rename(TARGET.environmentId, "Build Mac")),
+          yield* Effect.flip(registry.rename(BEARER_TARGET.environmentId, null)),
         ).toMatchObject({
           _tag: "ConnectionBlockedError",
+          detail: "Only local environments can reset their label.",
         });
       }).pipe(Effect.provide(harness.layer), Effect.scoped);
     }),

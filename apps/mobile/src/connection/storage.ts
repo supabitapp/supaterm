@@ -2,6 +2,7 @@ import {
   registerConnectionInCatalog,
   removeConnectionFromCatalog,
   setConnectionEnabledInCatalog,
+  setPlatformLabelInCatalog,
   setRoutesInCatalog,
   removeCatalogValue,
   replaceCatalogValue,
@@ -25,10 +26,12 @@ function targetPersistenceError(
   operation:
     | "list-targets"
     | "list-disabled-targets"
+    | "list-platform-labels"
     | "register-connection"
     | "set-connection-routes"
     | "remove-connection"
-    | "set-connection-enabled",
+    | "set-connection-enabled"
+    | "set-platform-label",
   error: ConnectionTransientError,
 ) {
   return new Persistence.ConnectionPersistenceError({
@@ -55,8 +58,16 @@ export const layer = Layer.effectContext(
         Effect.map((document) => document.disabledEnvironmentIds),
         Effect.mapError((error) => targetPersistenceError("list-disabled-targets", error)),
       ),
+      listPlatformLabels: catalog.read.pipe(
+        Effect.map((document) => document.platformLabels),
+        Effect.mapError((error) => targetPersistenceError("list-platform-labels", error)),
+      ),
     });
     const registrationStore = Persistence.ConnectionRegistrationStore.of({
+      setPlatformLabel: (environmentId, label) =>
+        catalog
+          .update((document) => setPlatformLabelInCatalog(document, environmentId, label))
+          .pipe(Effect.mapError((error) => targetPersistenceError("set-platform-label", error))),
       register: (registration, routes) =>
         catalog
           .update((document) => registerConnectionInCatalog(document, registration, routes))

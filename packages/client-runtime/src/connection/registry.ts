@@ -23,7 +23,6 @@ import {
   type ConnectionRoute,
   type PlatformConnectionRegistration,
   type PrimaryConnectionRegistration,
-  BearerConnectionProfile,
   SshConnectionProfile,
   connectionRegistrationCatalogEntry,
 } from "./catalog.ts";
@@ -37,11 +36,12 @@ import type {
   NetworkStatus,
   SupervisorConnectionState,
 } from "./model.ts";
-import { BearerConnectionTarget, ConnectionBlockedError, SshConnectionTarget } from "./model.ts";
+import { ConnectionBlockedError } from "./model.ts";
 import * as Persistence from "../platform/persistence.ts";
 import * as EnvironmentSupervisor from "./supervisor.ts";
 import * as ConnectionDriver from "./driver.ts";
 import * as ConnectionWakeups from "./wakeups.ts";
+import { withEnvironmentLabel } from "./labels.ts";
 import type * as RpcSession from "../rpc/session.ts";
 import {
   GitHubRoutingPermissions,
@@ -146,7 +146,7 @@ export class EnvironmentRegistry extends Context.Service<
     readonly retryNow: (environmentId: EnvironmentId) => Effect.Effect<void>;
     readonly rename: (
       environmentId: EnvironmentId,
-      label: string,
+      label: string | null,
     ) => Effect.Effect<
       void,
       | EnvironmentNotRegisteredError
@@ -257,6 +257,9 @@ export const make = Effect.gen(function* () {
   });
   const persistedTargets = yield* storage.list;
   const disabledEnvironmentIds = new Set(yield* storage.listDisabled);
+  const platformLabels = new Map(
+    (yield* storage.listPlatformLabels).map(({ environmentId, label }) => [environmentId, label]),
+  );
   const loadRoute = Effect.fn("EnvironmentRegistry.loadRoute")(function* (
     target: ConnectionTarget,
   ) {
@@ -653,11 +656,17 @@ export const make = Effect.gen(function* () {
 
   const installPlatformRegistration = Effect.fn("EnvironmentRegistry.installPlatformRegistration")(
     function* (registration: PlatformConnectionRegistration) {
-      const registered = connectionRegistrationCatalogEntry(registration);
-      const target = registered.target;
       yield* withLeaseLock(
-        target.environmentId,
+        registration.target.environmentId,
         Effect.gen(function* () {
+          const registered = withEnvironmentLabel(
+            {
+              ...connectionRegistrationCatalogEntry(registration),
+              defaultLabel: registration.target.label,
+            },
+            platformLabels.get(registration.target.environmentId) ?? registration.target.label,
+          );
+          const target = registered.target;
           const previous = (yield* SubscriptionRef.get(entries)).get(target.environmentId);
           const entry: ConnectionCatalogEntry =
             previous?.unsupportedReason !== undefined &&
@@ -1026,10 +1035,10 @@ export const make = Effect.gen(function* () {
 
   const rename = Effect.fn("EnvironmentRegistry.rename")(function* (
     environmentId: EnvironmentId,
-    input: string,
+    input: string | null,
   ) {
-    const label = input.trim();
-    if (label === "") {
+    const requestedLabel = input?.trim() ?? null;
+    if (requestedLabel === "") {
       return yield* new ConnectionBlockedError({
         reason: "configuration",
         detail: "Environment label cannot be empty.",
@@ -1039,35 +1048,26 @@ export const make = Effect.gen(function* () {
       environmentId,
       Effect.gen(function* () {
         const entry = yield* getEntry(environmentId);
-        if (
-          entry.target._tag === "PrimaryConnectionTarget" ||
-          (yield* Ref.get(platformEnvironmentIds)).has(environmentId)
-        ) {
+        const label = requestedLabel === entry.defaultLabel ? null : requestedLabel;
+        const nextLabel = label ?? entry.defaultLabel;
+        if (nextLabel === undefined) {
           return yield* new ConnectionBlockedError({
             reason: "configuration",
-            detail: "Only saved remote environments can be renamed.",
+            detail: "Only local environments can reset their label.",
           });
         }
-        const routes = connectionRoutes(entry).map((route) => {
-          if (route.target._tag === "PrimaryConnectionTarget") return route;
-          return {
-            target:
-              route.target._tag === "SshConnectionTarget"
-                ? new SshConnectionTarget({ ...route.target, label })
-                : new BearerConnectionTarget({ ...route.target, label }),
-            profile: Option.map(route.profile, (profile) =>
-              profile._tag === "SshConnectionProfile"
-                ? new SshConnectionProfile({ ...profile, label })
-                : new BearerConnectionProfile({ ...profile, label }),
-            ),
-          };
-        });
-        const next = entryWithRoutes(entry, routes);
-        yield* registrations.setRoutes(
-          environmentId,
-          persistedRoutes(next),
-          routes.flatMap((route) => Option.toArray(route.profile)),
-        );
+        const next = withEnvironmentLabel(entry, nextLabel);
+        if (entry.defaultLabel !== undefined) {
+          yield* registrations.setPlatformLabel(environmentId, label);
+          if (label === null) platformLabels.delete(environmentId);
+          else platformLabels.set(environmentId, label);
+        } else {
+          yield* registrations.setRoutes(
+            environmentId,
+            persistedRoutes(next),
+            connectionRoutes(next).flatMap((route) => Option.toArray(route.profile)),
+          );
+        }
         const lease = (yield* SubscriptionRef.get(serviceScopes)).get(environmentId);
         if (lease !== undefined) {
           yield* Ref.set(lease.entry, next);

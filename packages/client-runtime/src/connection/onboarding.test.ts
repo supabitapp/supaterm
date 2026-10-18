@@ -296,6 +296,7 @@ function layerPairingOnboarding(options?: Parameters<typeof pairingServer>[0]) {
     Layer.mock(Persistence.ConnectionTargetStore)({
       list: Effect.succeed([]),
       listDisabled: Effect.succeed([]),
+      listPlatformLabels: Effect.succeed([]),
     }),
     Layer.mock(Persistence.ConnectionRegistrationStore)({
       register: () => Effect.void,

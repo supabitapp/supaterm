@@ -4,7 +4,11 @@ import {
   PrimaryConnectionTarget,
 } from "@supaterm/client-runtime/connection";
 import { EnvironmentId, ThreadId } from "@supaterm/contracts";
-import { ConnectionCatalogDocument, Persistence } from "@supaterm/client-runtime/platform";
+import {
+  ConnectionCatalogDocument,
+  EMPTY_CONNECTION_CATALOG_DOCUMENT,
+  Persistence,
+} from "@supaterm/client-runtime/platform";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Deferred from "effect/Deferred";
@@ -15,13 +19,7 @@ import { afterEach, vi } from "vite-plus/test";
 
 import * as ConnectionStorage from "./storage";
 
-const emptyCatalog = {
-  schemaVersion: 1,
-  targets: [],
-  profiles: [],
-  credentials: [],
-  disabledEnvironmentIds: [],
-} as const;
+const emptyCatalog = EMPTY_CONNECTION_CATALOG_DOCUMENT;
 const decodeCatalog = Schema.decodeUnknownSync(Schema.fromJsonString(ConnectionCatalogDocument));
 const encodeCatalog = Schema.encodeSync(Schema.fromJsonString(ConnectionCatalogDocument));
 const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));

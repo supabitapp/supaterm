@@ -173,7 +173,10 @@ export function createEnvironmentCatalogAtoms<R, E>(
     label: "environment-catalog:rename",
     scheduler: commandScheduler,
     concurrency: serial,
-    execute: (input: { readonly environmentId: EnvironmentIdType; readonly label: string }) =>
+    execute: (input: {
+      readonly environmentId: EnvironmentIdType;
+      readonly label: string | null;
+    }) =>
       EnvironmentRegistry.EnvironmentRegistry.pipe(
         Effect.flatMap((registry) => registry.rename(input.environmentId, input.label)),
       ),

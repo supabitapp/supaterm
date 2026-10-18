@@ -16,12 +16,21 @@ export const StoredConnectionCredential = Schema.Struct({
 });
 export type StoredConnectionCredential = typeof StoredConnectionCredential.Type;
 
+export const StoredPlatformLabel = Schema.Struct({
+  environmentId: EnvironmentId,
+  label: Schema.String,
+});
+export type StoredPlatformLabel = typeof StoredPlatformLabel.Type;
+
 export const ConnectionCatalogDocument = Schema.Struct({
   schemaVersion: Schema.Literal(1),
   targets: ForwardCompatibleArray(PersistedConnectionTarget),
   profiles: Schema.Array(ConnectionProfile),
   credentials: Schema.Array(StoredConnectionCredential),
   githubRoutingPermissions: Schema.optionalKey(Schema.Array(StoredGitHubRoutingPermission)),
+  platformLabels: Schema.Array(StoredPlatformLabel).pipe(
+    Schema.withDecodingDefaultKey(Effect.succeed([])),
+  ),
   disabledEnvironmentIds: Schema.Array(EnvironmentId).pipe(
     Schema.withDecodingDefaultKey(Effect.succeed([])),
   ),
@@ -33,6 +42,7 @@ export const EMPTY_CONNECTION_CATALOG_DOCUMENT: ConnectionCatalogDocument = Obje
   targets: [],
   profiles: [],
   credentials: [],
+  platformLabels: [],
   disabledEnvironmentIds: [],
 });
 
@@ -51,6 +61,21 @@ export function removeCatalogValue<A>(
   removedKey: string,
 ): ReadonlyArray<A> {
   return values.filter((value) => key(value) !== removedKey);
+}
+
+export function setPlatformLabelInCatalog(
+  document: ConnectionCatalogDocument,
+  environmentId: EnvironmentId,
+  label: string | null,
+): ConnectionCatalogDocument {
+  const labels = document.platformLabels;
+  return {
+    ...document,
+    platformLabels:
+      label === null
+        ? removeCatalogValue(labels, (value) => value.environmentId, environmentId)
+        : replaceCatalogValue(labels, (value) => value.environmentId, { environmentId, label }),
+  };
 }
 
 function connectionIdOf(target: ConnectionTarget): string | null {

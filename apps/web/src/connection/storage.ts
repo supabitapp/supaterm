@@ -11,6 +11,7 @@ import {
   removeCatalogValue,
   removeConnectionFromCatalog,
   setConnectionEnabledInCatalog,
+  setPlatformLabelInCatalog,
   setRoutesInCatalog,
   replaceCatalogValue,
   Persistence,
@@ -85,10 +86,12 @@ function persistenceError(
   operation:
     | "list-targets"
     | "list-disabled-targets"
+    | "list-platform-labels"
     | "register-connection"
     | "set-connection-routes"
     | "remove-connection"
     | "set-connection-enabled"
+    | "set-platform-label"
     | "load-shell"
     | "save-shell"
     | "load-thread"
@@ -636,8 +639,16 @@ export const layer = Layer.effectContext(
         Effect.map((document) => document.disabledEnvironmentIds),
         Effect.mapError((cause) => persistenceError("list-disabled-targets", cause)),
       ),
+      listPlatformLabels: catalog.read.pipe(
+        Effect.map((document) => document.platformLabels),
+        Effect.mapError((cause) => persistenceError("list-platform-labels", cause)),
+      ),
     });
     const registrationStore = Persistence.ConnectionRegistrationStore.of({
+      setPlatformLabel: (environmentId, label) =>
+        catalog
+          .update((document) => setPlatformLabelInCatalog(document, environmentId, label))
+          .pipe(Effect.mapError((cause) => persistenceError("set-platform-label", cause))),
       register: (registration, routes) =>
         catalog
           .update((document) => registerConnectionInCatalog(document, registration, routes))

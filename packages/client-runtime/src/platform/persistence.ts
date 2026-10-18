@@ -14,6 +14,7 @@ import * as Schema from "effect/Schema";
 import type { ConnectionProfile, ConnectionRegistration } from "../connection/catalog.ts";
 import type { DeferredShellSnapshot } from "../state/shellPullRequests.ts";
 import type { ConnectionTarget, PersistedConnectionTarget } from "../connection/model.ts";
+import type { StoredPlatformLabel } from "./storageDocument.ts";
 
 export class ConnectionPersistenceError extends Schema.TaggedError<ConnectionPersistenceError>()(
   "ConnectionPersistenceError",
@@ -21,10 +22,12 @@ export class ConnectionPersistenceError extends Schema.TaggedError<ConnectionPer
     operation: Schema.Literals([
       "list-targets",
       "list-disabled-targets",
+      "list-platform-labels",
       "register-connection",
       "set-connection-routes",
       "remove-connection",
       "set-connection-enabled",
+      "set-platform-label",
       "load-shell",
       "save-shell",
       "load-thread",
@@ -47,6 +50,10 @@ export class ConnectionTargetStore extends Context.Service<
   {
     readonly list: Effect.Effect<ReadonlyArray<ConnectionTarget>, ConnectionPersistenceError>;
     readonly listDisabled: Effect.Effect<ReadonlyArray<EnvironmentId>, ConnectionPersistenceError>;
+    readonly listPlatformLabels: Effect.Effect<
+      ReadonlyArray<StoredPlatformLabel>,
+      ConnectionPersistenceError
+    >;
   }
 >()("@supaterm/client-runtime/platform/persistence/ConnectionTargetStore") {}
 
@@ -66,6 +73,10 @@ export class ConnectionRegistrationStore extends Context.Service<
     readonly setEnabled: (
       environmentId: EnvironmentId,
       enabled: boolean,
+    ) => Effect.Effect<void, ConnectionPersistenceError>;
+    readonly setPlatformLabel: (
+      environmentId: EnvironmentId,
+      label: string | null,
     ) => Effect.Effect<void, ConnectionPersistenceError>;
   }
 >()("@supaterm/client-runtime/platform/persistence/ConnectionRegistrationStore") {}
