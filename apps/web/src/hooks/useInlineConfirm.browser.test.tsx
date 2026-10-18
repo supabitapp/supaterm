@@ -1,9 +1,8 @@
-// @vitest-environment jsdom
-
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+import { clickOnFakeClock } from "~/test/inlineConfirm";
 import { useInlineConfirm } from "./useInlineConfirm";
 
 type Bound = ReturnType<ReturnType<typeof useInlineConfirm<"merge">>["bind"]>;
@@ -39,7 +38,7 @@ const run = vi.fn();
 const render = (props: Partial<Parameters<typeof Harness>[0]> = {}) =>
   act(() => root.render(<Harness run={run} {...props} />));
 const button = () => container.querySelector("button")!;
-const press = () => act(() => button().click());
+const press = () => act(() => clickOnFakeClock(button()));
 const elapse = (ms: number) => act(() => vi.advanceTimersByTime(ms));
 
 beforeEach(() => {

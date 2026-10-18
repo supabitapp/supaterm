@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-
 import { EnvironmentId } from "@supaterm/contracts";
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@supaterm/shared/keybindings";
 import { act, Fragment, useState, type ReactNode } from "react";
@@ -10,12 +8,19 @@ import { BranchToolbarEnvironmentSelector } from "./BranchToolbarEnvironmentSele
 import { BranchPicker } from "./BranchPicker";
 import { ComboboxItem, ComboboxTrigger } from "./ui/combobox";
 
-vi.mock("~/env", () => ({ isElectron: true }));
-vi.mock("../state/server", () => ({ primaryServerKeybindingsAtom: {} }));
-vi.mock("@effect/atom-react", () => ({ useAtomValue: () => DEFAULT_RESOLVED_KEYBINDINGS }));
+vi.mock(import("~/env"), async (original) => ({ ...(await original()), isElectron: true }));
+vi.mock(import("../state/server"), async (original) => ({
+  ...(await original()),
+  primaryServerKeybindingsAtom: {} as never,
+}));
+vi.mock(import("@effect/atom-react"), async (original) => ({
+  ...(await original()),
+  useAtomValue: (() => DEFAULT_RESOLVED_KEYBINDINGS) as never,
+}));
 // Layout and scrolling belong to the virtualizer; exercise real combobox rows and keyboard handling.
-vi.mock("@legendapp/list/react", () => ({
-  LegendList: ({
+vi.mock(import("@legendapp/list/react"), async (original) => ({
+  ...(await original()),
+  LegendList: (({
     data,
     renderItem,
   }: {
@@ -27,7 +32,7 @@ vi.mock("@legendapp/list/react", () => ({
         <Fragment key={item}>{renderItem({ item, index })}</Fragment>
       ))}
     </div>
-  ),
+  )) as never,
 }));
 
 const environments = [

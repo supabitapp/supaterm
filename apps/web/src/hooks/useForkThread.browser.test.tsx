@@ -1,9 +1,7 @@
 import { EnvironmentId, RunId, ThreadId } from "@supaterm/contracts";
 import { act, useEffect } from "react";
-import { create, type ReactTestRenderer } from "react-test-renderer";
+import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
-
-import { useForkThread } from "./useForkThread";
 
 const state = vi.hoisted(() => ({
   connected: true,
@@ -13,15 +11,30 @@ const state = vi.hoisted(() => ({
   navigate: vi.fn(async (_input: unknown) => undefined),
 }));
 
-vi.mock("@tanstack/react-router", () => ({ useNavigate: () => state.navigate }));
-vi.mock("../state/environments", () => ({
-  useEnvironment: () => ({ connection: { phase: state.connected ? "connected" : "disconnected" } }),
+vi.mock(import("@tanstack/react-router"), async (original) => ({
+  ...(await original()),
+  useNavigate: (() => state.navigate) as never,
 }));
-vi.mock("../state/session", () => ({ useEnvironmentScope: () => state.permitted }));
-vi.mock("../state/threads", () => ({ threadEnvironment: { forkFromRun: {} } }));
-vi.mock("../state/use-atom-command", () => ({ useAtomCommand: () => state.fork }));
-vi.mock("../state/entities", () => ({ waitForThreadShell: state.ready }));
-vi.mock("../lib/utils", () => ({ newThreadId: () => "target" }));
+vi.mock(import("../state/environments"), async (original) => ({
+  ...(await original()),
+  useEnvironment: (() => ({
+    connection: { phase: state.connected ? "connected" : "disconnected" },
+  })) as never,
+}));
+vi.mock(import("../state/session"), async (original) => ({
+  ...(await original()),
+  useEnvironmentScope: () => state.permitted,
+}));
+vi.mock(import("../state/use-atom-command"), async (original) => ({
+  ...(await original()),
+  useAtomCommand: (() => state.fork) as never,
+}));
+vi.mock(import("../state/entities"), async (original) => ({
+  ...(await original()),
+  waitForThreadShell: state.ready as never,
+}));
+
+import { useForkThread } from "./useForkThread";
 
 const thread = {
   environmentId: EnvironmentId.make("ssh-environment"),
@@ -29,7 +42,7 @@ const thread = {
   title: "A conversation",
 };
 const source = { sourceThreadId: ThreadId.make("inherited-source"), runId: RunId.make("run") };
-let renderer: ReactTestRenderer | null = null;
+let root: Root | null = null;
 let action: ReturnType<typeof useForkThread>;
 
 function Probe({ disabled }: { disabled: boolean }) {
@@ -41,10 +54,8 @@ function Probe({ disabled }: { disabled: boolean }) {
 }
 
 async function render(disabled = false) {
-  await act(() => {
-    if (renderer) renderer.update(<Probe disabled={disabled} />);
-    else renderer = create(<Probe disabled={disabled} />);
-  });
+  root ??= createRoot(document.createElement("div"));
+  await act(async () => root!.render(<Probe disabled={disabled} />));
 }
 
 beforeEach(() => {
@@ -57,8 +68,8 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  await act(() => renderer?.unmount());
-  renderer = null;
+  await act(async () => root?.unmount());
+  root = null;
   vi.unstubAllGlobals();
 });
 
@@ -75,15 +86,16 @@ it("forks inherited history in the viewed environment and waits before navigatio
     expect(state.fork).toHaveBeenCalledTimes(1);
     expect(state.fork).toHaveBeenCalledWith({
       environmentId: thread.environmentId,
-      input: { ...source, targetThreadId: "target", title: "A conversation fork" },
+      input: { ...source, targetThreadId: expect.any(String), title: "A conversation fork" },
     });
     expect(state.navigate).not.toHaveBeenCalled();
     resolveReady(true);
     await pending;
   });
+  const [{ input }] = state.fork.mock.calls[0] as [{ input: { targetThreadId: string } }];
   expect(state.navigate).toHaveBeenCalledWith({
     to: "/$environmentId/$threadId",
-    params: { environmentId: thread.environmentId, threadId: "target" },
+    params: { environmentId: thread.environmentId, threadId: input.targetThreadId },
   });
   expect(action.disabled).toBe(false);
 });

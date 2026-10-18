@@ -1,12 +1,16 @@
-import { useState } from "react";
-import { act, create, type ReactTestRenderer } from "react-test-renderer";
+import { act, useState } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vite-plus/test";
 
 import { useAttachmentExits, useAttachmentTrayMotion } from "./composerAttachmentMotion";
 
-let renderer: ReactTestRenderer;
+let root: Root | undefined;
+let container: HTMLDivElement;
 afterEach(async () => {
-  if (renderer) await act(() => renderer.unmount());
+  if (root) await act(async () => root!.unmount());
+  root = undefined;
+  container?.remove();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -47,32 +51,27 @@ async function mountTray(initial: string[]) {
     }
     return exit;
   };
-  await act(() => {
-    renderer = create(<Tray initial={initial} />, {
-      createNodeMock: () => ({
-        getAnimations: () => [],
-        getBoundingClientRect: () => ({ height: 0 }),
-        querySelectorAll: () =>
-          renderer.root.findAllByType("button").map((button) => {
-            const id = button.props["data-composer-attachment"];
-            return {
-              dataset: { composerAttachment: id },
-              getAnimations: () => [{ finished: exitOf(id).finished, effect: null }],
-            };
-          }),
-      }),
-    });
+  // Each attachment's exit animation finishes when the test says so.
+  vi.spyOn(Element.prototype, "getAnimations").mockImplementation(function (this: Element) {
+    const id = this instanceof HTMLElement ? this.dataset.composerAttachment : undefined;
+    return id === undefined ? [] : [{ finished: exitOf(id).finished, effect: null } as never];
   });
+  container = document.body.appendChild(document.createElement("div"));
+  root = createRoot(container);
+  await act(async () => root!.render(<Tray initial={initial} />));
+  const buttons = () => [...container.querySelectorAll("button")];
   const shown = () =>
-    renderer.root
-      .findAllByType("button")
-      .map((button) => [
-        button.props.children,
-        button.props["data-ending-style"] === "" && button.props.inert ? "exiting" : "shown",
-      ]);
+    buttons().map((button) => [
+      button.textContent,
+      button.getAttribute("data-ending-style") === "" && button.inert ? "exiting" : "shown",
+    ]);
   const remove = (id: string) =>
-    act(() => renderer.root.findByProps({ children: id, type: "button" }).props.onClick());
-  const draft = () => renderer.root.findByType("div").props["data-draft"];
+    act(async () =>
+      buttons()
+        .find((button) => button.textContent === id)!
+        .click(),
+    );
+  const draft = () => container.querySelector("div")!.dataset.draft;
   const finishExit = (id: string) => act(async () => exitOf(id).finish());
   return { draft, shown, remove, finishExit };
 }

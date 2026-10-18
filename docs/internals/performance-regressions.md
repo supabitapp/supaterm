@@ -117,4 +117,4 @@ continuous traffic during an outage.
 
 Focused coverage: `ProjectionDone.test.ts`, `ThreadDoneService.test.ts`,
 `runtimeLayer.test.ts`, `AgentAwarenessRelay.test.ts`, `GitVcsDriverCore.test.ts`,
-`ThreadStatusIndicators.subscriptions.test.tsx`, and `desktopLocal.test.ts`.
+`ThreadStatusIndicators.subscriptions.browser.test.tsx`, and `desktopLocal.test.ts`.

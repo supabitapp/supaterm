@@ -1,10 +1,10 @@
 import { act, useLayoutEffect } from "react";
-import { create, type ReactTestRenderer } from "react-test-renderer";
+import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
 import { useThreadOutboxVisibility } from "./useThreadOutboxVisibility";
 
-let renderer: ReactTestRenderer;
+let root: Root;
 let open = false;
 
 function Probe({
@@ -26,13 +26,12 @@ function Probe({
 beforeEach(() => {
   vi.useFakeTimers();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  act(() => {
-    renderer = create(<Probe />);
-  });
+  root = createRoot(document.createElement("div"));
+  act(() => root.render(<Probe />));
 });
 
 afterEach(() => {
-  act(() => renderer.unmount());
+  act(() => root.unmount());
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -41,14 +40,14 @@ it("never opens for a message delivered within one second", () => {
   expect(open).toBe(false);
   act(() => vi.advanceTimersByTime(999));
   expect(open).toBe(false);
-  act(() => renderer.update(<Probe hasPending={false} />));
+  act(() => root.render(<Probe hasPending={false} />));
   act(() => vi.runAllTimers());
   expect(open).toBe(false);
 });
 
 it("shows a delayed message without restarting the grace period on updates", () => {
   act(() => vi.advanceTimersByTime(500));
-  act(() => renderer.update(<Probe />));
+  act(() => root.render(<Probe />));
   act(() => vi.advanceTimersByTime(499));
   expect(open).toBe(false);
   act(() => vi.advanceTimersByTime(1));
@@ -58,9 +57,9 @@ it("shows a delayed message without restarting the grace period on updates", () 
 it("closes on delivery and gives the next message a fresh grace period", () => {
   act(() => vi.advanceTimersByTime(1_000));
   expect(open).toBe(true);
-  act(() => renderer.update(<Probe hasPending={false} />));
+  act(() => root.render(<Probe hasPending={false} />));
   expect(open).toBe(false);
-  act(() => renderer.update(<Probe />));
+  act(() => root.render(<Probe />));
   expect(open).toBe(false);
   act(() => vi.advanceTimersByTime(999));
   expect(open).toBe(false);
@@ -69,23 +68,23 @@ it("closes on delivery and gives the next message a fresh grace period", () => {
 });
 
 it("shows failures immediately and keeps the drawer open while retrying or editing", () => {
-  act(() => renderer.update(<Probe needsAttention />));
+  act(() => root.render(<Probe needsAttention />));
   expect(open).toBe(true);
-  act(() => renderer.update(<Probe />));
+  act(() => root.render(<Probe />));
   expect(open).toBe(true);
-  act(() => renderer.update(<Probe hasPending={false} />));
+  act(() => root.render(<Probe hasPending={false} />));
   expect(open).toBe(false);
-  act(() => renderer.update(<Probe />));
+  act(() => root.render(<Probe />));
   expect(open).toBe(false);
 });
 
 it("does not carry visibility or elapsed time to another thread or environment", () => {
   act(() => vi.advanceTimersByTime(1_000));
   expect(open).toBe(true);
-  act(() => renderer.update(<Probe scope="another-environment:thread" />));
+  act(() => root.render(<Probe scope="another-environment:thread" />));
   expect(open).toBe(false);
   act(() => vi.advanceTimersByTime(500));
-  act(() => renderer.update(<Probe scope="another-environment:another-thread" />));
+  act(() => root.render(<Probe scope="another-environment:another-thread" />));
   act(() => vi.advanceTimersByTime(999));
   expect(open).toBe(false);
   act(() => vi.advanceTimersByTime(1));
@@ -93,6 +92,6 @@ it("does not carry visibility or elapsed time to another thread or environment",
 });
 
 it("shows an existing failure immediately when visiting its thread", () => {
-  act(() => renderer.update(<Probe scope="environment:failed-thread" needsAttention />));
+  act(() => root.render(<Probe scope="environment:failed-thread" needsAttention />));
   expect(open).toBe(true);
 });

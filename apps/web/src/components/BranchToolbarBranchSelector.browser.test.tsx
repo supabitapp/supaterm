@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-
 import { scopeProjectRef } from "@supaterm/client-runtime/environment";
 import { EnvironmentId, ProjectId, ThreadId } from "@supaterm/contracts";
 import { act, type ComponentProps } from "react";
@@ -11,37 +9,57 @@ const commands = vi.hoisted(() => ({
   createRef: vi.fn(),
 }));
 
-vi.mock("../hooks/useShortcutLabel", () => ({ useShortcutLabel: () => null }));
+vi.mock(import("../hooks/useShortcutLabel"), async (original) => ({
+  ...(await original()),
+  useShortcutLabel: () => null,
+}));
 vi.mock(import("../state/session"), async (importOriginal) => ({
   ...(await importOriginal()),
   useEnvironmentScope: () => true,
   readEnvironmentScope: () => true,
 }));
-vi.mock("../state/entities", () => ({
-  useQuietThreadShell: () => null,
-  useProject: (ref: { projectId: string } | null) =>
-    ref ? { id: ref.projectId, workspaceRoot: `/tmp/${ref.projectId}` } : null,
+vi.mock(import("../state/entities"), async (original) => ({
+  ...(await original()),
+  useQuietThreadShell: (() => null) as never,
+  useProject: ((ref: { projectId: string } | null) =>
+    ref ? { id: ref.projectId, workspaceRoot: `/tmp/${ref.projectId}` } : null) as never,
 }));
-vi.mock("../state/threads", () => ({
-  threadEnvironment: { stopSession: "stop", updateMetadata: "update" },
+vi.mock(import("../state/threads"), async (original) => {
+  const actual = await original();
+  return {
+    ...actual,
+    threadEnvironment: {
+      ...actual.threadEnvironment,
+      stopSession: "stop",
+      updateMetadata: "update",
+    } as never,
+  };
+});
+vi.mock(import("../state/vcs"), async (original) => {
+  const actual = await original();
+  return {
+    ...actual,
+    vcsEnvironment: {
+      ...actual.vcsEnvironment,
+      switchRef: "switch",
+      createRef: "create",
+      status: () => null,
+      listRefs: () => null,
+    } as never,
+  };
+});
+vi.mock(import("../state/use-atom-command"), async (original) => ({
+  ...(await original()),
+  useAtomCommand: ((command: string) =>
+    command === "switch" ? commands.switchRef : commands.createRef) as never,
 }));
-vi.mock("../state/vcs", () => ({
-  vcsEnvironment: {
-    switchRef: "switch",
-    createRef: "create",
-    status: () => null,
-    listRefs: () => null,
-  },
+vi.mock(import("../state/query"), async (original) => ({
+  ...(await original()),
+  useEnvironmentQuery: (() => ({ data: null, refresh: vi.fn() })) as never,
 }));
-vi.mock("../state/use-atom-command", () => ({
-  useAtomCommand: (command: string) =>
-    command === "switch" ? commands.switchRef : commands.createRef,
-}));
-vi.mock("../state/query", () => ({
-  useEnvironmentQuery: () => ({ data: null, refresh: vi.fn() }),
-}));
-vi.mock("../state/queries", () => ({
-  usePaginatedBranches: () => ({
+vi.mock(import("../state/queries"), async (original) => ({
+  ...(await original()),
+  usePaginatedBranches: (() => ({
     refs: [
       {
         name: "feature/selected",
@@ -55,21 +73,30 @@ vi.mock("../state/queries", () => ({
     isFetchingNextPage: false,
     loadNext: vi.fn(),
     refresh: vi.fn(),
-  }),
+  })) as never,
 }));
-vi.mock("./ThreadStatusIndicators", () => ({
+vi.mock(import("./ThreadStatusIndicators"), async (original) => ({
+  ...(await original()),
   ThreadPullRequestBadgeControl: () => null,
   prStatusIndicator: () => null,
   resolveThreadPullRequestBadge: () => null,
   useLinkedThreadPullRequest: () => null,
 }));
-vi.mock("../lib/openPullRequestLink", () => ({ useOpenPrLink: () => vi.fn() }));
-vi.mock("./ui/toast", () => ({
-  toastManager: { add: vi.fn() },
-  stackedThreadToast: (toast: unknown) => toast,
+vi.mock(import("../lib/openPullRequestLink"), async (original) => ({
+  ...(await original()),
+  useOpenPrLink: () => vi.fn(),
 }));
-vi.mock("./BranchPicker", () => ({
-  BranchPicker: (props: ComponentProps<typeof import("./BranchPicker").BranchPicker>) => (
+vi.mock(import("./ui/toast"), async (original) => {
+  const actual = await original();
+  return {
+    ...actual,
+    toastManager: { ...actual.toastManager, add: vi.fn() },
+    stackedThreadToast: ((toast: unknown) => toast) as never,
+  };
+});
+vi.mock(import("./BranchPicker"), async (original) => ({
+  ...(await original()),
+  BranchPicker: ((props: ComponentProps<typeof import("./BranchPicker").BranchPicker>) => (
     <div>
       <input
         aria-label="Search branches"
@@ -82,7 +109,7 @@ vi.mock("./BranchPicker", () => ({
         </button>
       ))}
     </div>
-  ),
+  )) as never,
 }));
 
 import { useComposerDraftStore, type DraftId } from "../composerDraftStore";

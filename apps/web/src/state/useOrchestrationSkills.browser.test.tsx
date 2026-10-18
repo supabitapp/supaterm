@@ -1,6 +1,6 @@
 import { EnvironmentId, type OrchestrationSkillsStatus } from "@supaterm/contracts";
 import { act, useLayoutEffect } from "react";
-import { create, type ReactTestRenderer } from "react-test-renderer";
+import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { useOrchestrationSkills } from "./useOrchestrationSkills";
@@ -12,19 +12,21 @@ const testState = vi.hoisted(() => ({
   revokeDuringAction: null as string | null,
 }));
 
-vi.mock("./session", () => ({
-  useEnvironmentsWithScope: (environments: ReadonlyArray<{ environmentId: string }>) =>
+vi.mock(import("./session"), async (original) => ({
+  ...(await original()),
+  useEnvironmentsWithScope: ((environments: ReadonlyArray<{ environmentId: string }>) =>
     new Set(
       environments.flatMap(({ environmentId }) => {
         const id = String(environmentId);
         return testState.permissions.has(id) ? [id] : [];
       }),
-    ),
-  readEnvironmentScope: (environmentId: string) => testState.permissions.has(String(environmentId)),
+    )) as never,
+  readEnvironmentScope: (environmentId) => testState.permissions.has(String(environmentId)),
 }));
 
-vi.mock("./use-atom-command", () => ({
-  useAtomCommand: (command: unknown) => command,
+vi.mock(import("./use-atom-command"), async (original) => ({
+  ...(await original()),
+  useAtomCommand: ((command: unknown) => command) as never,
 }));
 
 const local = { label: "Local", environmentId: EnvironmentId.make("local") };
@@ -79,7 +81,7 @@ let statusCommand: ReturnType<typeof makeCommand>;
 let installCommand: ReturnType<typeof makeCommand>;
 let uninstallCommand: ReturnType<typeof makeCommand>;
 let commands: Parameters<typeof useOrchestrationSkills>[1];
-let renderer: ReactTestRenderer | undefined;
+let root: Root | undefined;
 const latest: { current: ReturnType<typeof useOrchestrationSkills> | undefined } = {
   current: undefined,
 };
@@ -102,9 +104,8 @@ async function mount() {
   const initialStatus = new Promise<void>((resolve) => {
     resolveInitialStatus = resolve;
   });
-  await act(() => {
-    renderer = create(<Probe />);
-  });
+  root = createRoot(document.createElement("div"));
+  await act(async () => root!.render(<Probe />));
   await act(async () => initialStatus);
   resolveInitialStatus = undefined;
 }
@@ -127,8 +128,8 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  await act(() => renderer?.unmount());
-  renderer = undefined;
+  await act(async () => root?.unmount());
+  root = undefined;
   vi.unstubAllGlobals();
 });
 
@@ -173,7 +174,7 @@ describe("orchestration skill permissions", () => {
     expect(current().installed).toBe(true);
     expect(current().error).toBe(false);
 
-    await act(() => renderer?.update(<Probe />));
+    await act(async () => root?.render(<Probe />));
     expect(current().canUninstall).toBe(false);
     expect(current().notices).toContain(
       "Local: This connection does not have permission to manage provider skills.",

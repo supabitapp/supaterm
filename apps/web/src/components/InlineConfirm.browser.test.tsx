@@ -1,9 +1,8 @@
-// @vitest-environment jsdom
-
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+import { clickOnFakeClock } from "~/test/inlineConfirm";
 import { InlineConfirmButton } from "./InlineConfirm";
 
 let root: Root;
@@ -26,7 +25,7 @@ const render = (required: boolean) =>
     ),
   );
 const button = () => container.querySelector("button")!;
-const press = () => act(() => button().click());
+const press = () => act(() => clickOnFakeClock(button()));
 
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
