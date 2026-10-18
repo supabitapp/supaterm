@@ -1168,3 +1168,21 @@ export function shouldRefocusComposerOnWindowFocus(
     ) === null
   );
 }
+
+/**
+ * Whether a woken thread woke after the user last saw it. A run that completed
+ * after the last visit counts as seeing it, since the user watched it finish.
+ */
+export function isThreadWokeUnseen(input: {
+  readonly wokeAt: string | null;
+  readonly done: boolean;
+  readonly lastVisitedAt: string | null | undefined;
+  readonly latestRunCompletedAt: string | null;
+}): boolean {
+  if (input.wokeAt === null || input.done) return false;
+  const wokeAtMs = Date.parse(input.wokeAt);
+  if (Number.isNaN(wokeAtMs)) return false;
+  const seenSinceWake = (at: string | null | undefined) =>
+    at ? Date.parse(at) >= wokeAtMs : false;
+  return !seenSinceWake(input.lastVisitedAt) && !seenSinceWake(input.latestRunCompletedAt);
+}

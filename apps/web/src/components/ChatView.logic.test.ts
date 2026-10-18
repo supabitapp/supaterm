@@ -1,4 +1,8 @@
-import { findRecordedWorktreeSetup, resolveVisibleWorktreeSetup } from "./ChatView.logic";
+import {
+  findRecordedWorktreeSetup,
+  isThreadWokeUnseen,
+  resolveVisibleWorktreeSetup,
+} from "./ChatView.logic";
 import {
   recallCheckoutIsRepo,
   rememberCheckoutIsRepo,
@@ -2124,5 +2128,31 @@ describe("waitForRevertedMessage", () => {
     await vi.advanceTimersByTimeAsync(50);
     await settled;
     vi.useRealTimers();
+  });
+});
+
+describe("isThreadWokeUnseen", () => {
+  const base = {
+    wokeAt: "2026-10-16T10:00:00.000Z",
+    done: false,
+    lastVisitedAt: null,
+    latestRunCompletedAt: null,
+  };
+
+  it("shows a wake the user has not seen", () => {
+    expect(isThreadWokeUnseen({ ...base, lastVisitedAt: "2026-10-16T09:00:00.000Z" })).toBe(true);
+    expect(isThreadWokeUnseen(base)).toBe(true);
+  });
+
+  it("hides a wake seen by a later visit or a later completed run", () => {
+    expect(isThreadWokeUnseen({ ...base, lastVisitedAt: "2026-10-16T11:00:00.000Z" })).toBe(false);
+    expect(isThreadWokeUnseen({ ...base, latestRunCompletedAt: "2026-10-16T11:00:00.000Z" })).toBe(
+      false,
+    );
+  });
+
+  it("hides done threads and unparseable wake times", () => {
+    expect(isThreadWokeUnseen({ ...base, done: true })).toBe(false);
+    expect(isThreadWokeUnseen({ ...base, wokeAt: "not a date" })).toBe(false);
   });
 });

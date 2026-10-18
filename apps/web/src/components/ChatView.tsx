@@ -12,6 +12,7 @@ import { ThreadFind, ThreadFindCanvas, type ThreadFindControls } from "./chat/Th
 import { THREAD_FIND_BAR_RESERVED_HEIGHT } from "./chat/ThreadFindBar";
 import { usageLimitRecoveryBannerItem } from "./chat/UsageLimitRecoveryBanner";
 import {
+  isThreadWokeUnseen,
   resolveDraftHeroState,
   shouldDockDraftHeroForSubmission,
   resolveVisibleWorktreeSetup,
@@ -6996,25 +6997,12 @@ export default function ChatView(props: ChatViewProps) {
   };
   const acknowledgeActiveThreadWokeStable = useStableCallback(acknowledgeActiveThreadWoke);
   const activeThreadLastVisitedAt = activeThreadShell?.lastVisitedAt;
-  const activeLatestRunCompletedAt = activeLatestRun?.completedAt;
-  const activeThreadWokeVisible = useMemo(() => {
-    if (activeThreadWokeAt === null) return false;
-    if (activeThreadShell?.doneOverride === "done") return false;
-    const wokeAtMs = Date.parse(activeThreadWokeAt);
-    if (Number.isNaN(wokeAtMs)) return false;
-    const storedVisitMs = activeThreadLastVisitedAt ? Date.parse(activeThreadLastVisitedAt) : NaN;
-    const completedAtMs = activeLatestRunCompletedAt ? Date.parse(activeLatestRunCompletedAt) : NaN;
-    const lastVisitedMs = Math.max(
-      Number.isNaN(storedVisitMs) ? -Infinity : storedVisitMs,
-      Number.isNaN(completedAtMs) ? -Infinity : completedAtMs,
-    );
-    return lastVisitedMs < wokeAtMs;
-  }, [
-    activeLatestRunCompletedAt,
-    activeThreadLastVisitedAt,
-    activeThreadShell,
-    activeThreadWokeAt,
-  ]);
+  const activeThreadWokeVisible = isThreadWokeUnseen({
+    wokeAt: activeThreadWokeAt,
+    done: activeThreadShell?.doneOverride === "done",
+    lastVisitedAt: activeThreadLastVisitedAt,
+    latestRunCompletedAt: activeLatestRun?.completedAt ?? null,
+  });
   const activeThreadDone =
     supportsMarkDone && !activeThreadSnoozed && activeThreadShell?.doneOverride === "done";
   const reopenThreadMutation = useOrchestrationCommand(threadEnvironment.reopen, {
