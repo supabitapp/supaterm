@@ -129,7 +129,7 @@ export function applyServerConfigProjection(
         latestEvent: event,
         source: "live",
       }));
-    case "usageLimitSourcesUpdated":
+    case "unknown-event":
       return Option.none();
   }
 }

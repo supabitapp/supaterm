@@ -6,6 +6,7 @@ import {
   OtlpEndpointCheckInput,
   resolveEnvironmentMachineKind,
   ServerConfig,
+  ServerConfigStreamEvent,
   ServerConfigStreamSettingsUpdatedEvent,
   ServerConfigUpdatedPayload,
   ServerObservability,
@@ -167,6 +168,34 @@ describe("server config forward compatibility", () => {
       expect(settingsUpdate.payload.settings.autoDismissQuestions).toBe(autoDismissQuestions);
     },
   );
+
+  it("decodes config event types from a newer server as skippable events", () => {
+    const codec = Schema.toCodecJson(ServerConfigStreamEvent);
+    const decodeEvent = Schema.decodeUnknownSync(codec);
+    const keybindingsUpdated = {
+      version: 1,
+      type: "keybindingsUpdated",
+      payload: { keybindings: [], issues: [] },
+    };
+
+    expect(
+      decodeEvent({ version: 1, type: "workspaceIndexUpdated", payload: { files: 12 } }),
+    ).toEqual({ type: "unknown-event", eventType: "workspaceIndexUpdated" });
+    expect(decodeEvent({ version: 1, type: "usageLimitSourcesUpdated", payload: {} })).toEqual({
+      type: "unknown-event",
+      eventType: "usageLimitSourcesUpdated",
+    });
+    expect(() => decodeEvent({ version: 1, type: "settingsUpdated", payload: {} })).toThrow();
+    expect(Schema.encodeUnknownSync(codec)(decodeEvent(keybindingsUpdated))).toEqual(
+      keybindingsUpdated,
+    );
+    expect(() =>
+      Schema.encodeUnknownSync(codec)({
+        type: "unknown-event",
+        eventType: "workspaceIndexUpdated",
+      }),
+    ).toThrow();
+  });
 
   it("drops config issues with kinds this build does not know", () => {
     const parsed = decodeUpsertKeybindingResult({

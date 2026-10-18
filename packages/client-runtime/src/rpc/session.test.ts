@@ -490,7 +490,7 @@ describe("RpcSessionFactory", () => {
       ),
   );
 
-  it.effect("drops usage-source events from older servers without ending the subscription", () =>
+  it.effect("skips config events this build does not know without ending the subscription", () =>
     Effect.scoped(
       Effect.gen(function* () {
         const { factory, sockets } = yield* makeFactory();
@@ -511,24 +511,32 @@ describe("RpcSessionFactory", () => {
           type: "keybindingsUpdated",
           payload: { keybindings: [], issues: [] },
         };
-        yield* publishConfigEvents(socket, [
-          {
-            version: 1,
-            type: "usageLimitSourcesUpdated",
-            payload: {
-              sources: [
-                {
-                  id: "proxy",
-                  kind: "cliproxy",
-                  label: "Proxy",
-                  checkedAt: "2026-09-04T00:00:00Z",
-                  accounts: [],
+        const request = yield* awaitRequest(socket);
+        socket.serverMessage(
+          encodeJson({
+            _tag: "Chunk",
+            requestId: request.id,
+            values: [
+              {
+                version: 1,
+                type: "usageLimitSourcesUpdated",
+                payload: {
+                  sources: [
+                    {
+                      id: "proxy",
+                      kind: "cliproxy",
+                      label: "Proxy",
+                      checkedAt: "2026-09-04T00:00:00Z",
+                      accounts: [],
+                    },
+                  ],
                 },
-              ],
-            },
-          },
-          marker,
-        ]);
+              },
+              { version: 1, type: "workspaceIndexUpdated", payload: { files: 12 } },
+              encodeServerConfigStreamEvent(marker),
+            ],
+          }),
+        );
         expect(yield* Queue.take(observed)).toEqual(marker);
       }),
     ),
