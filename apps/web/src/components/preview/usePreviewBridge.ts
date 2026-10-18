@@ -6,9 +6,8 @@ import type {
   ScopedThreadRef,
   ThreadId,
 } from "@supaterm/contracts";
-import { parseScopedThreadKey, scopedThreadKey } from "@supaterm/client-runtime/environment";
 import * as Option from "effect/Option";
-import { useEffect, useEffectEvent, useMemo, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 
 import {
   flushPendingFaviconsForThread,
@@ -43,13 +42,10 @@ export function usePreviewBridge(input: {
   const { threadRef, tabId, runtimeTabId, serverDriven = false } = input;
   const clearBrowserPointer = useBrowserPointerStore((state) => state.clear);
   const reportStatus = useAtomCommand(previewEnvironment.reportStatus, "preview status report");
-  const bridge = previewBridge;
-  const threadKey = scopedThreadKey(threadRef);
-  const stableThreadRef = useMemo(() => {
-    const parsed = parseScopedThreadKey(threadKey);
-    if (!parsed) throw new Error(`Invalid scoped thread key: ${threadKey}`);
-    return parsed;
-  }, [threadKey]);
+  // Callers pass a fresh threadRef each render; rebuilding it from its ids keeps the ref
+  // stable for the effects.
+  const { environmentId, threadId } = threadRef;
+  const stableThreadRef: ScopedThreadRef = { environmentId, threadId };
   const projectRef = useFaviconProjectRefForThread(stableThreadRef);
   const preparedConnection = usePreparedConnection(stableThreadRef.environmentId);
   const environmentHostname = Option.isSome(preparedConnection)
@@ -87,11 +83,11 @@ export function usePreviewBridge(input: {
     },
   );
   useEffect(() => {
-    if (!bridge || typeof window === "undefined") return;
+    if (!previewBridge || typeof window === "undefined") return;
     lastReportedUrl.current = null;
     lastReportedKind.current = null;
     lastDesktopNavStatus.current = null;
-    return bridge.onStateChange((changedTabId, state) => {
+    return previewBridge.onStateChange((changedTabId, state) => {
       if (changedTabId === runtimeTabId) handleStateChange(changedTabId, state);
     });
   }, [runtimeTabId]);
