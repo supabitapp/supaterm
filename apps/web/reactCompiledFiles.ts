@@ -91,6 +91,7 @@ export const REACT_COMPILED_FILES = [
   "apps/web/src/hooks/useTheme.ts",
   "apps/web/src/hooks/useThreadActions.ts",
   "apps/web/src/panelAnimations.ts",
+  "apps/web/src/routes/_chat.pull-requests.tsx",
   "apps/web/src/state/queries.ts",
   "apps/web/src/state/sourceControlActions.ts",
 ] as const;
