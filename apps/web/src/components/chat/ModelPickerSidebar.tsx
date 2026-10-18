@@ -1,6 +1,6 @@
 import { Toolbar } from "@base-ui/react/toolbar";
 import { type ProviderInstanceId } from "@supaterm/contracts";
-import { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useLayoutEffect, useRef, useState } from "react";
 import { SparklesIcon, StarIcon } from "lucide-react";
 import { ProviderInstanceIcon } from "./ProviderInstanceIcon";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -52,14 +52,6 @@ export const ModelPickerSidebar = memo(function ModelPickerSidebar(props: {
   const [hoveredInstanceId, setHoveredInstanceId] = useState<ProviderInstanceId | null>(null);
   const sidebarContentRef = useRef<HTMLDivElement>(null);
   const [selectedIndicatorTop, setSelectedIndicatorTop] = useState<number | null>(null);
-  const selectedIndicatorLayout = useMemo(
-    () => ({
-      selectedInstanceId: props.selectedInstanceId,
-      instanceEntries: props.instanceEntries,
-      showFavorites,
-    }),
-    [props.instanceEntries, props.selectedInstanceId, showFavorites],
-  );
   useLayoutEffect(() => {
     const content = sidebarContentRef.current;
     if (!content) {
@@ -67,15 +59,18 @@ export const ModelPickerSidebar = memo(function ModelPickerSidebar(props: {
     }
     const selectedItem = Array.from(
       content.querySelectorAll<HTMLElement>("[data-model-picker-provider]"),
-    ).find(
-      (item) => item.dataset.modelPickerProvider === selectedIndicatorLayout.selectedInstanceId,
-    );
+    ).find((item) => item.dataset.modelPickerProvider === props.selectedInstanceId);
     if (!selectedItem) {
       setSelectedIndicatorTop(null);
       return;
     }
     setSelectedIndicatorTop(selectedItem.offsetTop + selectedItem.offsetHeight / 2 - 10);
-  }, [selectedIndicatorLayout]);
+  }, [
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Adding, removing or reordering providers moves the selected item, so the indicator re-measures.
+    props.instanceEntries,
+    props.selectedInstanceId,
+    showFavorites,
+  ]);
 
   return (
     <Toolbar.Root
