@@ -108,7 +108,7 @@ import {
 import { DraftInput } from "../ui/draft-input";
 import { Input } from "../ui/input";
 import {
-  DEFAULT_CODE_FONT_STACK,
+  DEFAULT_CODE_FONT_FAMILY,
   DEFAULT_SANS_FONT_STACK,
   isFontFamilyAvailable,
   isMonospaceFamily,
@@ -1292,7 +1292,7 @@ function useFontDefaultFamilies() {
   const defaults = useMemo(
     () => ({
       sans: resolveDefaultFamilyLabel(DEFAULT_SANS_FONT_STACK) ?? "System default",
-      code: resolveDefaultFamilyLabel(DEFAULT_CODE_FONT_STACK) ?? "System monospace",
+      code: DEFAULT_CODE_FONT_FAMILY,
     }),
     [],
   );

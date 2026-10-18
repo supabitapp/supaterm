@@ -13,10 +13,11 @@ import {
 export const DEFAULT_SANS_FONT_STACK =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
 
+export const DEFAULT_CODE_FONT_FAMILY = "JetBrains Mono";
+
 // Concrete names first: some engines alias `ui-monospace` to the
 // proportional system UI font, which would break every code surface.
-export const DEFAULT_CODE_FONT_STACK =
-  '"JetBrains Mono", "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace';
+export const DEFAULT_CODE_FONT_STACK = `"${DEFAULT_CODE_FONT_FAMILY}", "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace`;
 
 export const TYPOGRAPHY_ADVANCED_STORAGE_KEY = "supaterm:typography-advanced";
 
