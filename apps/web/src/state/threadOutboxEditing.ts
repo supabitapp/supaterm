@@ -8,7 +8,7 @@ import {
   collectComposerContextReferences,
 } from "@supaterm/shared/composerContextReferences";
 import * as Schema from "effect/Schema";
-import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { DraftId, useComposerDraftStore } from "../composerDraftStore";
 import { removeInlineContextReference } from "../lib/composerContextReferences";
@@ -194,7 +194,16 @@ export function createThreadOutboxEditor(routeKey: string) {
 }
 
 export function useThreadOutboxEditor(routeKey: string) {
-  const editor = useMemo(() => createThreadOutboxEditor(routeKey), [routeKey]);
+  // The editor holds the edit session, so it is replaced only when the route changes.
+  const [current, setCurrent] = useState(() => ({
+    routeKey,
+    editor: createThreadOutboxEditor(routeKey),
+  }));
+  let editor = current.editor;
+  if (current.routeKey !== routeKey) {
+    editor = createThreadOutboxEditor(routeKey);
+    setCurrent({ routeKey, editor });
+  }
   const editing = useSyncExternalStore(editor.subscribe, editor.getSnapshot);
   const entry = editing?.entry;
   const editingId = entry?.id;
@@ -213,20 +222,29 @@ export function useThreadOutboxEditor(routeKey: string) {
   return { editor, editing, attachments };
 }
 
+function threadOutboxAttachmentPreviews(entry: PendingThreadTurn | undefined) {
+  return entry
+    ? threadOutboxEditAttachments(entry).map((item) => ({
+        attachment: item.attachment,
+        url:
+          item.attachment.type === "image" && item.bytes
+            ? URL.createObjectURL(item.bytes)
+            : item.url,
+      }))
+    : [];
+}
+
 export function useThreadOutboxAttachments(entry: PendingThreadTurn | undefined) {
-  const previews = useMemo(
-    () =>
-      entry
-        ? threadOutboxEditAttachments(entry).map((item) => ({
-            attachment: item.attachment,
-            url:
-              item.attachment.type === "image" && item.bytes
-                ? URL.createObjectURL(item.bytes)
-                : item.url,
-          }))
-        : [],
-    [entry],
-  );
+  // The effect revokes each preview set's object URLs, so a set is rebuilt only for a new entry.
+  const [current, setCurrent] = useState(() => ({
+    entry,
+    previews: threadOutboxAttachmentPreviews(entry),
+  }));
+  let previews = current.previews;
+  if (current.entry !== entry) {
+    previews = threadOutboxAttachmentPreviews(entry);
+    setCurrent({ entry, previews });
+  }
   useEffect(
     () => () => {
       for (const item of previews) if (item.url?.startsWith("blob:")) URL.revokeObjectURL(item.url);

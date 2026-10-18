@@ -19,7 +19,7 @@ import { resolveDefaultWorktreeBaseBranch } from "@supaterm/shared/git";
 import { resolveAssetUrl } from "@supaterm/client-runtime/state/assets";
 import * as Schema from "effect/Schema";
 import { Atom } from "effect/reactivity";
-import { useCallback, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import {
@@ -379,16 +379,13 @@ export function useThreadOutbox() {
 
 export function usePendingThreadCreation(ref: ScopedThreadRef | null) {
   const scope = ref ? scopedThreadKey(ref) : null;
-  const snapshot = useCallback(
-    () =>
-      webThreadOutbox
-        .getSnapshot()
-        .find(
-          (entry) =>
-            entry.scope === scope && entry.payload.input.bootstrap?.createThread !== undefined,
-        ) ?? null,
-    [scope],
-  );
+  const snapshot = () =>
+    webThreadOutbox
+      .getSnapshot()
+      .find(
+        (entry) =>
+          entry.scope === scope && entry.payload.input.bootstrap?.createThread !== undefined,
+      ) ?? null;
   return useSyncExternalStore(webThreadOutbox.subscribe, snapshot);
 }
 

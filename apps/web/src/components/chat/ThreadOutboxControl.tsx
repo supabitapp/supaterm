@@ -5,6 +5,7 @@ import { CircleAlertIcon, Clock3Icon, PencilIcon, RotateCwIcon, XIcon } from "lu
 import { type ReactNode, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";
+import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 
 import { newThreadId } from "../../lib/utils";
 import {
@@ -69,13 +70,12 @@ export function ThreadOutboxControl(props: {
   async function act(action: () => Promise<void>) {
     setBusy(true);
     setError(null);
-    try {
-      await action();
-    } catch (cause) {
+    const result = await settlePromise(action);
+    if (result._tag === "Failure") {
+      const cause = squashAtomCommandFailure(result);
       setError(cause instanceof Error ? cause.message : "Could not update the pending message.");
-    } finally {
-      setBusy(false);
     }
+    setBusy(false);
   }
 
   return (
