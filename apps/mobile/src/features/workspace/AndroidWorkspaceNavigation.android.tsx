@@ -10,10 +10,7 @@ import { useWorkspaceTabs } from "./WorkspaceTabsContext";
 import type { WorkspaceTab } from "./workspace-tabs-state";
 import { useWorkspaceTabSelection } from "./useWorkspaceTabSelection";
 
-export const ANDROID_WORKSPACE_RAIL_WIDTH = 80;
-
 interface NativeNavigationProps extends ViewProps {
-  readonly rail: boolean;
   readonly dock: boolean;
   readonly showTabs: boolean;
   readonly filterCustomized: boolean;
@@ -37,8 +34,6 @@ function nativeColor(value: string) {
 }
 
 export function AndroidWorkspaceNavigation(props: {
-  readonly rail?: boolean;
-  readonly onSelect?: () => void;
   readonly dock?: {
     readonly showTabs: boolean;
     readonly filterCustomized: boolean;
@@ -52,27 +47,18 @@ export function AndroidWorkspaceNavigation(props: {
   const keyboardVisible = useKeyboardState((state) => state.isVisible);
   const { themeAppearance, themeVariables: colors } = useAppearancePreferences();
   const { scale } = useAndroidControlSizing();
-  const rail = Boolean(props.rail);
   const { containerColor, indicatorColor, selectedColor, unselectedColor } =
-    androidWorkspaceNavigationColors(colors, rail);
-  if (!rail && keyboardVisible) return null;
+    androidWorkspaceNavigationColors(colors);
+  if (keyboardVisible) return null;
 
   return (
     <View
       style={{
         backgroundColor: containerColor,
-        ...(rail
-          ? {
-              flex: 1,
-              width: ANDROID_WORKSPACE_RAIL_WIDTH * Math.max(1, scale),
-              paddingTop: insets.top,
-              paddingBottom: insets.bottom,
-            }
-          : { paddingBottom: props.dock ? 0 : insets.bottom }),
+        paddingBottom: props.dock ? 0 : insets.bottom,
       }}
     >
       <NativeNavigation
-        rail={rail}
         dock={props.dock !== undefined}
         showTabs={props.dock?.showTabs ?? true}
         filterCustomized={props.dock?.filterCustomized ?? false}
@@ -83,13 +69,10 @@ export function AndroidWorkspaceNavigation(props: {
         selectedColor={nativeColor(selectedColor)}
         indicatorColor={nativeColor(indicatorColor)}
         unselectedColor={nativeColor(unselectedColor)}
-        onTabSelected={(event) => {
-          selectTab(event.nativeEvent.tab);
-          props.onSelect?.();
-        }}
+        onTabSelected={(event) => selectTab(event.nativeEvent.tab)}
         onFilterPressed={props.dock?.onFilter}
         onCompose={props.dock?.onCompose}
-        style={rail ? { flex: 1 } : { height: 80 * Math.max(1, scale) }}
+        style={{ height: 80 * Math.max(1, scale) }}
       />
     </View>
   );

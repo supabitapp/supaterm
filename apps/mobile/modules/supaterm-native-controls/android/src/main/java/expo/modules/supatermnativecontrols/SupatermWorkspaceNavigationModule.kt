@@ -14,9 +14,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
-import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -52,7 +49,6 @@ class SupatermWorkspaceNavigationModule : Module() {
       Prop("filterCustomized") { view: SupatermWorkspaceNavigationView, value: Boolean ->
         view.filterCustomized = value
       }
-      Prop("rail") { view: SupatermWorkspaceNavigationView, value: Boolean -> view.rail = value }
       Prop("dark") { view: SupatermWorkspaceNavigationView, value: Boolean -> view.dark = value }
       Prop("textScale") { view: SupatermWorkspaceNavigationView, value: Float ->
         view.textScale = value
@@ -74,7 +70,7 @@ class SupatermWorkspaceNavigationModule : Module() {
   }
 }
 
-/** One Material3 selection surface moves from below the list to its leading edge. */
+/** Material3 workspace tabs, alone or in the dock between filter and compose. */
 class SupatermWorkspaceNavigationView(
   context: Context,
   appContext: AppContext
@@ -89,7 +85,6 @@ class SupatermWorkspaceNavigationView(
   var showTabs by mutableStateOf(true)
   var filterCustomized by mutableStateOf(false)
   var selectedTab by mutableStateOf("threads")
-  var rail by mutableStateOf(false)
   var dark by mutableStateOf(false)
   var textScale by mutableStateOf(1f)
   var containerColor by mutableStateOf(0)
@@ -127,7 +122,6 @@ class SupatermWorkspaceNavigationView(
         )
         setContent {
           MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme()) {
-            val tabs = listOf("threads", "pullRequests")
             if (dock) {
               Row(
                 modifier = Modifier.fillMaxSize(),
@@ -154,33 +148,6 @@ class SupatermWorkspaceNavigationView(
                 dockButton(R.drawable.supaterm_compose, "New chat") {
                   onCompose(emptyMap<String, String>())
                 }
-              }
-            } else if (rail) {
-              NavigationRail(
-                modifier = Modifier.fillMaxSize(),
-                containerColor = Color(containerColor),
-                windowInsets = WindowInsets(0),
-              ) {
-                Spacer(Modifier.weight(1f))
-                tabs.forEach { tab ->
-                  NavigationRailItem(
-                    selected = selectedTab == tab,
-                    onClick = { onTabSelected(mapOf("tab" to tab)) },
-                    icon = { tabIcon(tab) },
-                    label = {
-                      val title = if (tab == "threads") "Chats" else "PRs"
-                      Text(title, fontSize = (12 * textScale).sp)
-                    },
-                    colors = NavigationRailItemDefaults.colors(
-                      selectedIconColor = Color(selectedColor),
-                      selectedTextColor = Color(selectedColor),
-                      indicatorColor = Color(indicatorColor),
-                      unselectedIconColor = Color(unselectedColor),
-                      unselectedTextColor = Color(unselectedColor),
-                    ),
-                  )
-                }
-                Spacer(Modifier.weight(1f))
               }
             } else {
               tabBar(Modifier.fillMaxSize())

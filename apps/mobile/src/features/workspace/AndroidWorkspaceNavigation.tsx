@@ -1,6 +1,4 @@
 export function AndroidWorkspaceNavigation(_props: {
-  readonly rail?: boolean;
-  readonly onSelect?: () => void;
   readonly dock?: {
     readonly showTabs: boolean;
     readonly filterCustomized: boolean;
@@ -10,5 +8,3 @@ export function AndroidWorkspaceNavigation(_props: {
 }) {
   return null;
 }
-
-export const ANDROID_WORKSPACE_RAIL_WIDTH = 80;
