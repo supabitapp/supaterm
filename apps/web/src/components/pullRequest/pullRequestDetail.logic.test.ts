@@ -1632,13 +1632,8 @@ describe("when the source branch can be deleted", () => {
     overrides: { deleteBranch?: boolean; allowed?: boolean } = {},
   ) => ({
     state,
-    capabilities: {
-      deleteBranch: overrides.deleteBranch ?? true,
-      actions: ["delete-branch" as const],
-    },
-    viewerPermissions: {
-      actions: overrides.allowed === false ? [] : (["delete-branch"] as const),
-    },
+    capabilities: { deleteBranch: overrides.deleteBranch ?? true },
+    viewerPermissions: { deleteBranch: overrides.allowed ?? true },
   });
 
   it("offers it only after the pull request is merged or closed", () => {

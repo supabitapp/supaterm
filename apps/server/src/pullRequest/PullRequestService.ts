@@ -23,6 +23,8 @@ import * as SubscriptionRef from "effect/SubscriptionRef";
 import {
   PullRequestOperationError,
   PullRequestUnavailableError,
+  pullRequestActionOffered,
+  pullRequestActionPermitted,
   pullRequestHostOf,
   pullRequestProviderRequirement,
   resolvePullRequestAuthorFilter,
@@ -1830,7 +1832,7 @@ export const make = Effect.gen(function* () {
             }),
           );
         }
-        if (!project.api.capabilities.actions.includes(input.action)) {
+        if (!pullRequestActionOffered(project.api.capabilities, input.action)) {
           return Effect.fail(
             new PullRequestOperationError({
               operation: "runAction",
@@ -1872,7 +1874,9 @@ export const make = Effect.gen(function* () {
           Effect.flatMap((viewer): Effect.Effect<string, PullRequestError> => {
             const stackRebase = input.stackNumber !== undefined && input.action === "update-branch";
             if (
-              stackRebase ? viewer.stackRebase !== true : !viewer.actions.includes(input.action)
+              stackRebase
+                ? viewer.stackRebase !== true
+                : !pullRequestActionPermitted(viewer, input.action)
             ) {
               return Effect.fail(
                 new PullRequestOperationError({

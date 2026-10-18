@@ -2594,7 +2594,7 @@ layer("GitHubPullRequestApi.layer", (it) => {
         number: 7,
       });
       expect(detail.headRepositoryNameWithOwner).toBe("contributor/web-fork");
-      expect(detail.viewerPermissions.actions).toContain("delete-branch");
+      expect(detail.viewerPermissions.deleteBranch).toBe(true);
       expect(queryAt(0)).toContain("headRepository{nameWithOwner viewerPermission}");
     }),
   );

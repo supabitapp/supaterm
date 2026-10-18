@@ -1,3 +1,4 @@
+import { PullRequestListedAction } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 import {
   allowedMergeMethods,
@@ -5,8 +6,9 @@ import {
   canPerformPullRequestAction,
   mergeSummary,
   mergeUnavailableReason,
-  ALL_PR_ACTIONS,
 } from "./pullRequestActions";
+
+const LISTED_ACTIONS = PullRequestListedAction.literals;
 
 type Detail = Parameters<typeof allowedMergeMethods>[0];
 
@@ -17,11 +19,11 @@ function detail(overrides: Partial<Detail> = {}): Detail {
     mergeability: "mergeable",
     autoMergeEnabled: false,
     capabilities: {
-      actions: ALL_PR_ACTIONS,
+      actions: LISTED_ACTIONS,
       mergeMethods: ["merge", "squash", "rebase"],
       updateMethods: ["merge", "rebase"],
     },
-    viewerPermissions: { actions: ALL_PR_ACTIONS, updateMethods: ["merge"] },
+    viewerPermissions: { actions: LISTED_ACTIONS, updateMethods: ["merge"] },
     mergeCapabilities: { merge: true, squash: true, rebase: false },
     ...overrides,
   };
@@ -31,12 +33,12 @@ describe("mobile pull request actions", () => {
   it("offers branch updates only through strategies supported by the provider and account", () => {
     expect(allowedUpdateMethods(detail())).toEqual(["merge"]);
     expect(canPerformPullRequestAction(detail(), "update-branch")).toBe(true);
-    const unsupported = detail({ viewerPermissions: { actions: ALL_PR_ACTIONS } });
+    const unsupported = detail({ viewerPermissions: { actions: LISTED_ACTIONS } });
     expect(allowedUpdateMethods(unsupported)).toEqual([]);
     expect(canPerformPullRequestAction(unsupported, "update-branch")).toBe(false);
     const disallowed = detail({
-      viewerPermissions: { actions: ALL_PR_ACTIONS, updateMethods: ["rebase"] },
-      capabilities: { actions: ALL_PR_ACTIONS, mergeMethods: ["squash"], updateMethods: ["merge"] },
+      viewerPermissions: { actions: LISTED_ACTIONS, updateMethods: ["rebase"] },
+      capabilities: { actions: LISTED_ACTIONS, mergeMethods: ["squash"], updateMethods: ["merge"] },
     });
     expect(canPerformPullRequestAction(disallowed, "update-branch")).toBe(false);
   });
@@ -51,7 +53,7 @@ describe("mobile pull request actions", () => {
   });
   it("offers only merge strategies allowed by both the provider and repository", () => {
     expect(allowedMergeMethods(detail())).toEqual(["merge", "squash"]);
-    const pr = detail({ capabilities: { actions: ALL_PR_ACTIONS, mergeMethods: ["merge"] } });
+    const pr = detail({ capabilities: { actions: LISTED_ACTIONS, mergeMethods: ["merge"] } });
     expect(allowedMergeMethods(pr)).toEqual(["merge"]);
     expect(mergeSummary(pr, true)).toBe("Merge · auto-merge off");
   });
@@ -114,14 +116,22 @@ describe("mobile pull request actions", () => {
 
   it("offers deleting the source branch only once merged or closed on a host that supports it", () => {
     const capabilities = { ...detail().capabilities, deleteBranch: true };
-    expect(canPerformPullRequestAction(detail({ capabilities }), "delete-branch")).toBe(false);
+    const viewerPermissions = { ...detail().viewerPermissions, deleteBranch: true };
+    expect(
+      canPerformPullRequestAction(detail({ capabilities, viewerPermissions }), "delete-branch"),
+    ).toBe(false);
     for (const state of ["merged", "closed"] as const) {
-      expect(canPerformPullRequestAction(detail({ state, capabilities }), "delete-branch")).toBe(
-        true,
-      );
-      expect(canPerformPullRequestAction(detail({ state }), "delete-branch")).toBe(false);
+      expect(
+        canPerformPullRequestAction(
+          detail({ state, capabilities, viewerPermissions }),
+          "delete-branch",
+        ),
+      ).toBe(true);
+      expect(
+        canPerformPullRequestAction(detail({ state, viewerPermissions }), "delete-branch"),
+      ).toBe(false);
     }
-    const refused = detail({ state: "merged", capabilities, viewerPermissions: { actions: [] } });
+    const refused = detail({ state: "merged", capabilities });
     expect(canPerformPullRequestAction(refused, "delete-branch")).toBe(false);
   });
 

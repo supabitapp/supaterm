@@ -3,6 +3,7 @@ import * as HttpServerRespondable from "effect/http/HttpServerRespondable";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 
 import {
+  ForwardCompatibleArray,
   IsoDateTime,
   NonNegativeInt,
   PositiveInt,
@@ -73,6 +74,27 @@ export const PullRequestAction = Schema.Literals([
   "approve-workflows",
 ]);
 export type PullRequestAction = typeof PullRequestAction.Type;
+
+/**
+ * The actions a server may name in `capabilities.actions`, `viewerPermissions.actions`, and a
+ * provider summary. Frozen at the v26.10.1 set: that build rejects a whole pull request payload
+ * over one action it does not know. A newer action is offered through its own flags instead, the
+ * way `delete-branch` is through `deleteBranch`.
+ */
+export const PullRequestListedAction = PullRequestAction.pick([
+  "merge",
+  "ready",
+  "draft",
+  "close",
+  "reopen",
+  "update-branch",
+  "enable-auto-merge",
+  "disable-auto-merge",
+  "revert",
+  "approve-workflows",
+]);
+export type PullRequestListedAction = typeof PullRequestListedAction.Type;
+const PullRequestListedActions = ForwardCompatibleArray(PullRequestListedAction);
 
 export const PullRequestUpdateMethod = Schema.Literals(["merge", "rebase"]);
 export type PullRequestUpdateMethod = typeof PullRequestUpdateMethod.Type;
@@ -262,7 +284,7 @@ export type PullRequestViewedFilesStore = typeof PullRequestViewedFilesStore.Typ
 export const PullRequestCapabilities = Schema.Struct({
   diff: Schema.Boolean,
   comment: Schema.Boolean,
-  actions: Schema.Array(PullRequestAction),
+  actions: PullRequestListedActions,
   mergeMethods: Schema.Array(PullRequestMergeMethod),
   deleteBranch: Schema.optional(Schema.Boolean),
   /**
@@ -287,7 +309,9 @@ export type PullRequestCapabilities = typeof PullRequestCapabilities.Type;
  */
 export const PullRequestViewerPermissions = Schema.Struct({
   stackRebase: Schema.optional(Schema.Boolean),
-  actions: Schema.Array(PullRequestAction),
+  actions: PullRequestListedActions,
+  /** Unlike the rest, absent is withheld, as it was while this lived in `actions`. */
+  deleteBranch: Schema.optional(Schema.Boolean),
   comment: Schema.Boolean,
   resolve: Schema.Boolean,
   verdicts: Schema.Array(PullRequestReviewVerdict),
@@ -368,7 +392,7 @@ export const PullRequestProviderSummary = Schema.Struct({
   host: TrimmedNonEmptyString,
   kind: SourceControlProviderKind,
   searchesOnHost: Schema.Boolean,
-  actions: Schema.optional(Schema.Array(PullRequestAction)),
+  actions: Schema.optional(PullRequestListedActions),
   projectCount: PositiveInt,
   configured: Schema.Boolean,
   detail: Schema.NullOr(TrimmedNonEmptyString),
@@ -914,6 +938,24 @@ const PROVIDER_REQUIREMENT = new Map<
     },
   ],
 ]);
+
+export function pullRequestActionOffered(
+  capabilities: Pick<PullRequestCapabilities, "actions" | "deleteBranch">,
+  action: PullRequestAction,
+): boolean {
+  return action === "delete-branch"
+    ? capabilities.deleteBranch === true
+    : capabilities.actions.includes(action);
+}
+
+export function pullRequestActionPermitted(
+  permissions: Pick<PullRequestViewerPermissions, "actions" | "deleteBranch">,
+  action: PullRequestAction,
+): boolean {
+  return action === "delete-branch"
+    ? permissions.deleteBranch === true
+    : permissions.actions.includes(action);
+}
 
 export function pullRequestHostOf(
   identity:

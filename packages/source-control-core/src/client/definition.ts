@@ -1,5 +1,5 @@
 import {
-  type PullRequestAction,
+  type PullRequestListedAction,
   pullRequestHostOf,
   type PullRequestReviewVerdict,
   type RepositoryIdentity,
@@ -50,7 +50,7 @@ export interface SourceControlClientDefinition {
    * The actions this host can take on a change request, the same list its server provider
    * declares in `capabilities.actions`.
    */
-  readonly changeRequestActions: ReadonlySet<PullRequestAction>;
+  readonly changeRequestActions: ReadonlySet<PullRequestListedAction>;
   readonly checkoutCommand: (changeRequest: ChangeRequestCheckoutInput) => string | null;
   readonly authorProfileUrl: (login: string, repositoryUrl: string) => string | null;
   readonly referenceAutolinkRepositoryUrl: (repositoryUrl: string) => string | null;

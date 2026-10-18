@@ -78,7 +78,7 @@ it.effect("advertises standalone branch deletion for source repository writers",
       ),
     );
     expect(provider.capabilities.deleteBranch).toBe(true);
-    expect(provider.capabilities.actions).toContain("delete-branch");
+    expect(provider.capabilities.actions).not.toContain("delete-branch");
     yield* provider.runAction({
       cwd: "/w",
       repository: "acme/web",
@@ -94,15 +94,15 @@ it.effect("advertises standalone branch deletion for source repository writers",
       didAuthor: false,
       canDeleteBranch: true,
     };
-    expect(gitHubViewerPermissions(access).actions).toContain("delete-branch");
+    expect(gitHubViewerPermissions(access).deleteBranch).toBe(true);
     expect(
       gitHubViewerPermissions({
         ...access,
         canWrite: true,
         didAuthor: true,
         canDeleteBranch: false,
-      }).actions,
-    ).not.toContain("delete-branch");
+      }).deleteBranch,
+    ).toBeUndefined();
   }),
 );
 
@@ -267,7 +267,6 @@ describe("gitHubViewerPermissions", () => {
       }),
     ).toEqual({
       actions: [
-        "delete-branch",
         "merge",
         "enable-auto-merge",
         "disable-auto-merge",
@@ -281,6 +280,7 @@ describe("gitHubViewerPermissions", () => {
       comment: true,
       resolve: true,
       stackRebase: true,
+      deleteBranch: true,
       verdicts: ["comment", "approve", "request-changes"],
       requestReviewers: true,
       labels: true,

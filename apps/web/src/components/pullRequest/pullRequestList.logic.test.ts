@@ -2,7 +2,7 @@ import { SourceControlProviderKind } from "@supaterm/contracts";
 import type {
   EnvironmentId,
   ProjectId,
-  PullRequestAction,
+  PullRequestListedAction,
   PullRequestListEntry,
 } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
@@ -1564,7 +1564,11 @@ describe("pull request list override settlement", () => {
 });
 
 describe("pull request quick actions", () => {
-  const summary = (host: string, kind: string, actions?: ReadonlyArray<PullRequestAction>) => ({
+  const summary = (
+    host: string,
+    kind: string,
+    actions?: ReadonlyArray<PullRequestListedAction>,
+  ) => ({
     host,
     kind: SourceControlProviderKind.make(kind),
     searchesOnHost: true,

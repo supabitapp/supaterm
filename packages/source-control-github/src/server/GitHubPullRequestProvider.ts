@@ -53,8 +53,8 @@ const CAPABILITIES: PullRequestCapabilities = {
 export function gitHubViewerPermissions(access: GitHubViewerAccess): PullRequestViewerPermissions {
   return {
     ...(access.canWrite ? { stackRebase: true } : {}),
+    ...(access.canDeleteBranch === true ? { deleteBranch: true } : {}),
     actions: [
-      ...(access.canDeleteBranch === true ? (["delete-branch"] as const) : []),
       // Arming a merge and taking the arming back are the merge, deferred: whoever may not
       // merge here may not leave an instruction to merge later either.
       ...(access.canWrite

@@ -4,6 +4,8 @@ import * as Schema from "effect/Schema";
 import {
   PullRequestDetail,
   PullRequestOperationError,
+  pullRequestActionOffered,
+  pullRequestActionPermitted,
   pullRequestHostOf,
   type PullRequestAction,
   type PullRequestActor,
@@ -307,8 +309,8 @@ function canPerformPullRequestAction(
 ): boolean {
   return (
     detail !== null &&
-    detail.capabilities.actions.includes(action) &&
-    detail.viewerPermissions.actions.includes(action)
+    pullRequestActionOffered(detail.capabilities, action) &&
+    pullRequestActionPermitted(detail.viewerPermissions, action)
   );
 }
 
@@ -1143,15 +1145,14 @@ export function pullRequestActionNeedsHostRefresh(action: PullRequestAction): bo
 
 export function canDeletePullRequestBranch(
   detail: Pick<PullRequestDetail, "state"> & {
-    readonly capabilities: Pick<PullRequestDetail["capabilities"], "actions" | "deleteBranch">;
-    readonly viewerPermissions: Pick<PullRequestDetail["viewerPermissions"], "actions">;
+    readonly capabilities: Pick<PullRequestDetail["capabilities"], "deleteBranch">;
+    readonly viewerPermissions: Pick<PullRequestDetail["viewerPermissions"], "deleteBranch">;
   },
 ): boolean {
   return (
     detail.state !== "open" &&
     detail.capabilities.deleteBranch === true &&
-    detail.capabilities.actions.includes("delete-branch") &&
-    detail.viewerPermissions.actions.includes("delete-branch")
+    detail.viewerPermissions.deleteBranch === true
   );
 }
 
