@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowDownIcon, ArrowUpIcon, PencilIcon, PlusIcon, StarIcon, XIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ProviderDriverKind,
   type ProviderInstanceId,
@@ -137,24 +137,17 @@ export function ProviderModelsSection({
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const scrollToSlugRef = useRef<string | null>(null);
-  const hiddenModelSet = useMemo(() => new Set(hiddenModels), [hiddenModels]);
-  const favoriteModelSet = useMemo(() => new Set(favoriteModels), [favoriteModels]);
-  const displayModels = useMemo(
-    () =>
-      groupModelsForDisplay(models, {
-        favoriteModels: favoriteModelSet,
-        hiddenModels: hiddenModelSet,
-        modelOrder,
-      }),
-    [favoriteModelSet, hiddenModelSet, modelOrder, models],
-  );
+  const hiddenModelSet = new Set(hiddenModels);
+  const favoriteModelSet = new Set(favoriteModels);
+  const displayModels = groupModelsForDisplay(models, {
+    favoriteModels: favoriteModelSet,
+    hiddenModels: hiddenModelSet,
+    modelOrder,
+  });
   const favoriteCount = displayModels.filter((model) => favoriteModelSet.has(model.slug)).length;
   const hiddenCount = displayModels.filter(
     (model) => !model.isCustom && hiddenModelSet.has(model.slug),
   ).length;
-  const builtInModels = useMemo(() => models.filter((model) => !model.isCustom), [models]);
-  const allBuiltInModelsHidden =
-    builtInModels.length > 0 && builtInModels.every((model) => hiddenModelSet.has(model.slug));
   const showFilter = models.length > FILTER_THRESHOLD;
   const normalizedFilter = filter.trim().toLowerCase();
   const isFiltering = showFilter && normalizedFilter.length > 0;
@@ -176,6 +169,12 @@ export function ProviderModelsSection({
     scrollToSlugRef.current = null;
     row.scrollIntoView({ block: "nearest" });
   }, [displayModels]);
+
+  // CustomModelEditor keys its option list on this array. Derived after the effect and
+  // checked against `hiddenModels` rather than the set built above it, so it stays cached.
+  const builtInModels = models.filter((model) => !model.isCustom);
+  const allBuiltInModelsHidden =
+    builtInModels.length > 0 && builtInModels.every((model) => hiddenModels.includes(model.slug));
 
   const handleAdd = () => {
     if (!canManageCustomModels || driverKind === "antigravity") return;
