@@ -40,6 +40,8 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   canSnooze,
   effectiveSnoozed,
+  hasQueuedTurnStart,
+  QUEUED_TURN_START_GRACE_MS,
   threadWokeAt,
 } from "@supaterm/client-runtime/state/thread-snooze";
 import { createInboxReturnTracker } from "@supaterm/client-runtime/state/thread-inbox";
@@ -825,17 +827,19 @@ function compactSidebarTimeLabel(label: string): string {
   return label.endsWith(" ago") ? label.slice(0, -4) : label;
 }
 
-function threadTimeLabel(thread: SidebarThreadSummary): string {
-  const timestamp = thread.latestUserMessageAt ?? thread.updatedAt;
-  return compactSidebarTimeLabel(formatRelativeTimeLabel(timestamp));
+function threadTimeTimestamp(thread: SidebarThreadSummary): string {
+  return thread.latestUserMessageAt ?? thread.updatedAt;
 }
 
-// Done rows read "how long ago did this wrap up", matching their sort
-// key: both go through resolveDoneThreadTimestamp so label and order can't
-// disagree.
-function doneTimeLabel(thread: SidebarThreadSummary): string {
-  const timestamp = resolveDoneThreadTimestamp(thread);
-  return timestamp === null ? "" : compactSidebarTimeLabel(formatRelativeTimeLabel(timestamp));
+// Subscribes to the minute tick itself, so the label keeps counting while the
+// memoized row stays cached on its thread.
+function CompactRelativeTimeLabel(props: { timestamp: string | null }) {
+  const nowMinute = useNowMinute();
+  return props.timestamp === null
+    ? null
+    : compactSidebarTimeLabel(
+        formatRelativeTimeLabel(props.timestamp, Date.parse(`${nowMinute}:00Z`)),
+      );
 }
 
 // Floats at the row's right edge, vertically centered, while the jump
@@ -1984,11 +1988,34 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const handlePin = () => onPin(threadRef);
   const handleSnoozePreset = (preset: Pick<SnoozePreset, "snoozedUntil">) =>
     onSnooze(threadRef, preset);
+  // The React Compiler caches render results on their inputs, so a clock read
+  // here would stay frozen until `thread` changes and a queued-turn gate would
+  // never reopen. The gate's clock is state, reset with the thread.
+  const [snoozeGateClock, setSnoozeGateClock] = useState(() => ({
+    thread,
+    now: new Date().toISOString(),
+  }));
+  if (snoozeGateClock.thread !== thread) {
+    setSnoozeGateClock({ thread, now: new Date().toISOString() });
+  }
+  const snoozeGateNow = snoozeGateClock.now;
+  const snoozeGateExpiryMs = hasQueuedTurnStart(thread, { now: snoozeGateNow })
+    ? Date.parse(thread.latestUserMessageAt ?? "") + QUEUED_TURN_START_GRACE_MS
+    : Number.NaN;
+  useEffect(() => {
+    // A gate still closed past its expiry is held by runtime status, not time,
+    // so no clock tick can open it.
+    if (!Number.isFinite(snoozeGateExpiryMs) || snoozeGateExpiryMs <= Date.parse(snoozeGateNow)) {
+      return;
+    }
+    const id = window.setTimeout(
+      () => setSnoozeGateClock({ thread, now: new Date().toISOString() }),
+      Math.min(Math.max(0, snoozeGateExpiryMs - Date.now()) + 50, 2_147_483_647),
+    );
+    return () => window.clearTimeout(id);
+  }, [snoozeGateExpiryMs, snoozeGateNow, thread]);
   const showSnoozeButton =
-    canOperateThread &&
-    !isParked &&
-    snoozeSupported &&
-    canSnooze(thread, { now: new Date().toISOString() });
+    canOperateThread && !isParked && snoozeSupported && canSnooze(thread, { now: snoozeGateNow });
   const [snoozeMenuOpenRaw, setSnoozeMenuOpen] = useState(false);
   const snoozeMenuOpen = snoozeMenuOpenRaw && showSnoozeButton;
   // A newly blocked thread unmounts the menu without an onOpenChange callback.
@@ -2282,7 +2309,14 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                     </Tooltip>
                   ) : (
                     <span className="text-xs">
-                      {variantAction === "reopen" ? doneTimeLabel(thread) : threadTimeLabel(thread)}
+                      {/* Done rows read how long ago the thread wrapped up, matching their sort key. */}
+                      <CompactRelativeTimeLabel
+                        timestamp={
+                          variantAction === "reopen"
+                            ? resolveDoneThreadTimestamp(thread)
+                            : threadTimeTimestamp(thread)
+                        }
+                      />
                     </span>
                   )}
                 </span>

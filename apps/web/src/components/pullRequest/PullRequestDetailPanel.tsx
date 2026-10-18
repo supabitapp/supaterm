@@ -95,7 +95,7 @@ import { PullRequestStackMenu } from "./PullRequestStackMenu";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { PullRequestThreadLinks } from "./PullRequestThreadLinks";
 import { vcsEnvironment } from "~/state/vcs";
-import { formatRelativeTimeLabel } from "~/timestampFormat";
+import { RelativeTime } from "~/components/RelativeTime";
 import { useUiStateStore } from "~/uiStateStore";
 
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
@@ -2345,7 +2345,9 @@ export function PullRequestDetailPanel({
                       variant="avatar"
                       className="shrink-0"
                     />
-                    <span className="shrink-0">{formatRelativeTimeLabel(detail.updatedAt)}</span>
+                    <span className="shrink-0">
+                      <RelativeTime timestamp={detail.updatedAt} />
+                    </span>
                   </span>
                   <span aria-hidden className="h-3 w-px shrink-0 bg-border/70" />
                   <span className="flex min-w-0 flex-1 items-center gap-1.5 font-mono text-2xs text-muted-foreground/65">
@@ -2516,7 +2518,11 @@ export function PullRequestDetailPanel({
                 author={
                   <PullRequestActorLabel actor={detail.author} profileUrl={authorProfileUrl} />
                 }
-                updated={<span>updated {formatRelativeTimeLabel(detail.updatedAt)}</span>}
+                updated={
+                  <span>
+                    updated <RelativeTime timestamp={detail.updatedAt} />
+                  </span>
+                }
                 checkout={
                   checkoutCommand ? (
                     <PullRequestCopyableCode
