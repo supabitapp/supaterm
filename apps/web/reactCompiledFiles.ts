@@ -36,6 +36,7 @@ export const REACT_COMPILED_FILES = [
   "apps/web/src/components/files/AttachmentFilePreview.tsx",
   "apps/web/src/components/files/FileBrowserPanel.tsx",
   "apps/web/src/components/files/useDirectoryEntries.ts",
+  "apps/web/src/components/media/MediaActions.tsx",
   "apps/web/src/components/media/MediaVideoPlayer.tsx",
   "apps/web/src/components/onboarding/WelcomeWizard.tsx",
   "apps/web/src/components/preview/PreviewView.tsx",
