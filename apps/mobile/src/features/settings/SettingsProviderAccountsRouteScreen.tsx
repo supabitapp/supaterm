@@ -5,6 +5,7 @@ import {
   type AtomCommandResult,
 } from "@supaterm/client-runtime/state/runtime";
 import type { ProviderAuthResponse, ServerProvider } from "@supaterm/contracts";
+import { useAtomValue } from "@effect/atom-react";
 import { useRef, useState } from "react";
 import { Linking, Pressable, ScrollView, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,6 +16,7 @@ import { Button } from "../../components/ui/Button";
 import { ProviderIcon } from "../../components/ProviderIcon";
 import { ScreenScrollView } from "../../components/ui/ScreenScrollView";
 import { cn } from "../../lib/cn";
+import { environmentPresentations } from "../../state/presentation";
 import { useEnvironmentQuery } from "../../state/query";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -34,6 +36,7 @@ const TERMINAL_CONTROL_SEQUENCE = new RegExp(
 
 export function SettingsProviderAccountsRouteScreen() {
   const { selectedTargets } = useSettingsEnvironmentFilter();
+  const providersByEnvironment = useAtomValue(environmentPresentations.providersByEnvironmentAtom);
   const insets = useSafeAreaInsets();
   return (
     <>
@@ -54,7 +57,9 @@ export function SettingsProviderAccountsRouteScreen() {
             </Text>
           ) : (
             selectedTargets.map((environment) => {
-              const providers = environment.serverConfig.providers.filter(
+              const providers = (
+                providersByEnvironment.get(environment.environmentId) ?? []
+              ).filter(
                 (provider) =>
                   provider.setup?.canAuthenticate ||
                   (provider.driver === "acpRegistry" && provider.installed),

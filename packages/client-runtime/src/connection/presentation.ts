@@ -27,10 +27,17 @@ export interface EnvironmentConnectionPresentation {
   readonly traceId: string | null;
 }
 
+/**
+ * Provider statuses are pushed every few minutes with fresh `checkedAt` stamps, and every root
+ * coordinator reads environment presentations. Leaving them out keeps a presentation stable
+ * across those pushes; provider readers subscribe to the server's providers atom instead.
+ */
+export type EnvironmentServerConfig = Omit<ServerConfig, "providers">;
+
 export interface EnvironmentPresentation {
   readonly entry: ConnectionCatalogEntry;
   readonly connection: EnvironmentConnectionPresentation;
-  readonly serverConfig: ServerConfig | null;
+  readonly serverConfig: EnvironmentServerConfig | null;
 }
 
 export function isEnvironmentConnected(environment: EnvironmentPresentation | null): boolean {
