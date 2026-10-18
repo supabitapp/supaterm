@@ -2,6 +2,7 @@ import {
   CustomModelSetting,
   makeBinaryPathSetting,
   makeProviderSettingsSchema,
+  secretSetting,
   TrimmedString,
 } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
@@ -35,10 +36,11 @@ export const OpenCodeSettings = makeProviderSettingsSchema(
       }),
     ),
     serverPassword: TrimmedString.pipe(
+      secretSetting,
       Schema.withDecodingDefault(Effect.succeed("")),
       Schema.annotateKey({
         title: "Server password",
-        description: "Stored in plain text on disk.",
+        description: "Stored separately on the host.",
         providerSettingsForm: {
           control: "password",
           placeholder: "Optional",
