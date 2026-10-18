@@ -18,7 +18,7 @@ import {
   type McpAppReference,
 } from "@supaterm/shared/mcpApp";
 import { Minimize2Icon } from "lucide-react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 
 import { useAssetUrlRefresh, useAssetUrlState } from "~/assets/assetUrls";
@@ -85,17 +85,14 @@ export function McpAppFrame(props: {
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Closing and reopening replaces the box.
   }, [closed]);
 
-  const resource = useMemo(
-    () => ({
-      _tag: "attachment" as const,
-      attachmentId: app.attachmentId,
-      fileName: mcpAppFileName(app),
-      mimeType: "text/html",
-      disposition: "inline" as const,
-      renderIntent: "mcp-app" as const,
-    }),
-    [app],
-  );
+  const resource = {
+    _tag: "attachment" as const,
+    attachmentId: app.attachmentId,
+    fileName: mcpAppFileName(app),
+    mimeType: "text/html",
+    disposition: "inline" as const,
+    renderIntent: "mcp-app" as const,
+  };
   const asset = useAssetUrlState(props.environmentId, resource);
   const refreshAsset = useAssetUrlRefresh(props.environmentId, resource);
 
@@ -125,12 +122,16 @@ export function McpAppFrame(props: {
     revision: props.revision,
   });
   const storedItem = detail.data?.item;
-  const toolCall = useMemo(() => {
-    if (storedItem?.type !== "dynamic_tool") return undefined;
-    const output = storedItem.output as { readonly result?: unknown } | undefined;
-    const result = output?.result as McpAppCallToolResult | undefined;
-    return { arguments: storedItem.input, result };
-  }, [storedItem]);
+  // The host gets the tool call pushed by an effect keyed on it, so it must stay cached.
+  const toolCall =
+    storedItem?.type === "dynamic_tool"
+      ? {
+          arguments: storedItem.input,
+          result: (storedItem.output as { readonly result?: unknown } | undefined)?.result as
+            | McpAppCallToolResult
+            | undefined,
+        }
+      : undefined;
 
   const callTool = useAtomCommand(mcpAppEnvironment.callTool, { reportFailure: false });
   const toolInfo = useAtomCommand(mcpAppEnvironment.toolInfo, { reportFailure: false });
