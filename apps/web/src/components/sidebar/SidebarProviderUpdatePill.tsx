@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "@effect/atom-react";
 import type { ServerProvider } from "@supaterm/contracts";
 import { CircleCheckIcon, DownloadIcon, TriangleAlertIcon, XIcon } from "lucide-react";
-import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useEffectEvent, useState, type CSSProperties } from "react";
 
 import { primaryServerProvidersAtom } from "../../state/server";
 import {
@@ -60,9 +60,9 @@ export function SidebarProviderUpdatePill() {
     setVisibleAfterIso(effectiveVisibleAfterIso);
   }
 
-  const openProviderSettings = useCallback(() => {
+  const openProviderSettings = () => {
     void navigate({ to: "/settings/providers" });
-  }, [navigate]);
+  };
   const displayedView = renderedView ?? view;
   const dismissAfterVisibleMs = displayedView?.dismissAfterVisibleMs;
   const viewKey = displayedView?.key ?? null;
@@ -71,17 +71,18 @@ export function SidebarProviderUpdatePill() {
     displayedView?.tone !== "loading" &&
     exitingKey !== viewKey;
 
-  const startExit = useCallback(
-    (key: string, nextView: ProviderUpdateSidebarPillView | null, dismissKey?: string) => {
-      if (exitingKey === key) {
-        return;
-      }
-      setPendingView(nextView);
-      setExitingKey(key);
-      setDismissAfterExitKey(dismissKey ?? null);
-    },
-    [exitingKey],
-  );
+  const startExit = (
+    key: string,
+    nextView: ProviderUpdateSidebarPillView | null,
+    dismissKey?: string,
+  ) => {
+    if (exitingKey === key) {
+      return;
+    }
+    setPendingView(nextView);
+    setExitingKey(key);
+    setDismissAfterExitKey(dismissKey ?? null);
+  };
 
   if (exitingKey === null) {
     if (!renderedView) {
@@ -95,6 +96,8 @@ export function SidebarProviderUpdatePill() {
     }
   }
 
+  const exitAfterVisible = useEffectEvent((key: string) => startExit(key, null, key));
+
   useEffect(() => {
     if (!dismissAfterVisibleMs || !viewKey) {
       return;
@@ -103,11 +106,11 @@ export function SidebarProviderUpdatePill() {
       return;
     }
     const timeoutId = window.setTimeout(() => {
-      startExit(viewKey, null, viewKey);
+      exitAfterVisible(viewKey);
     }, dismissAfterVisibleMs);
 
     return () => window.clearTimeout(timeoutId);
-  }, [dismissAfterVisibleMs, exitingKey, startExit, viewKey]);
+  }, [dismissAfterVisibleMs, exitingKey, viewKey]);
 
   if (!displayedView) {
     return null;
