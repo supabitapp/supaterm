@@ -917,8 +917,9 @@ export const ProjectSettingsOverrides = Schema.Struct({
 export type ProjectSettingsOverrides = typeof ProjectSettingsOverrides.Type;
 
 /**
- * An override entry as a settings patch carries it. Clients built before `worktreeKeepWhen` send
- * custom worktree rules without it, so it is optional here and the stored rule fills it in.
+ * An override entry as a settings patch carries it. Clients built before `worktreeKeepWhen` or
+ * `worktreeDoneAfterDays` send custom worktree rules without them, so they are optional here and
+ * the stored rule fills them in.
  */
 export const ProjectSettingsOverridesPatchEntry = Schema.Struct({
   ...ProjectSettingsOverrides.fields,
@@ -931,6 +932,7 @@ export const ProjectSettingsOverridesPatchEntry = Schema.Struct({
           rules: Schema.Struct({
             ...WorktreeCleanupRules.fields,
             worktreeKeepWhen: Schema.optionalKey(WorktreeKeepWhen),
+            worktreeDoneAfterDays: Schema.optionalKey(DoneWorktreeRetentionDays),
           }),
         }),
       ]),
@@ -1350,10 +1352,11 @@ export const ServerSettingsPatch = Schema.Struct({
    * override set and `null` removes it.
    *
    * Keys added after clients already resent whole entries are the exception:
-   * an entry that omits `providerInstances`, `reviewGuideModelSelection` or
-   * `reviewGuideInstructions` keeps the stored value, and custom worktree
-   * rules without `worktreeKeepWhen` keep the stored rule, so a client built
-   * before those fields cannot wipe them by editing another key. Clearing
+   * an entry that omits `providerInstances`, `reviewGuideModelSelection`,
+   * `reviewGuideInstructions` or `sidebarAutoMarkDoneKeepPullRequests` keeps
+   * the stored value, and custom worktree rules without `worktreeKeepWhen` or
+   * `worktreeDoneAfterDays` keep the stored rule, so a client built before
+   * those fields cannot wipe them by editing another key. Clearing
    * every provider override for a project means sending `providerInstances:
    * {}`; clearing any other key means listing it in
    * `projectSettingsOverrideRemovals` as well.

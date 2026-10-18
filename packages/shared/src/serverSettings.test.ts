@@ -2,8 +2,10 @@ import {
   DEFAULT_SERVER_SETTINGS,
   ProjectId,
   ProviderDriverKind,
+  ProjectSettingsOverrides,
   ProviderInstanceId,
   ServerSettingsPatch,
+  WorktreeCleanupRules,
   type ServerProvider,
 } from "@supaterm/contracts";
 import * as Duration from "effect/Duration";
@@ -693,16 +695,23 @@ describe("serverSettings helpers", () => {
       ProviderInstanceId.make("codex"),
       "gpt-5.4",
     );
+    const addedSinceV26_10_1 = {
+      sidebarAutoMarkDoneKeepPullRequests: true,
+    } satisfies ProjectSettingsOverrides;
+    const rulesAddedSinceV26_10_1 = {
+      worktreeDoneAfterDays: 3,
+    } satisfies Partial<WorktreeCleanupRules>;
     const stored = {
       defaultAutoPull: false,
       reviewGuideModelSelection,
       reviewGuideInstructions: "Lead with the migration.",
+      ...addedSinceV26_10_1,
       worktreeCleanup: {
         mode: "custom" as const,
         rules: {
           worktreeKeepWhen: "any-local-files" as const,
           worktreeAfterDays: 7,
-          worktreeDoneAfterDays: null,
+          ...rulesAddedSinceV26_10_1,
           worktreeOnMerge: true,
           worktreeOnDelete: false,
           worktreeUnchanged: false,
@@ -713,6 +722,51 @@ describe("serverSettings helpers", () => {
       ...DEFAULT_SERVER_SETTINGS,
       projectSettingsOverrides: { [projectId]: stored },
     };
+
+    it("covers every key v26.10.1 clients leave out of the entries they resend", () => {
+      const v26_10_1Keys = new Set([
+        "worktreeCleanup",
+        "defaultModelSelection",
+        "defaultRuntimeMode",
+        "defaultThreadEnvMode",
+        "newWorktreesStartFromOrigin",
+        "worktreeSubmodules",
+        "defaultAutoPull",
+        "defaultProjectScripts",
+        "enableAgentBrowserAccess",
+        "enableAgentDeviceAccess",
+        "textGenerationModelSelection",
+        "sourceControlWriterModelSelection",
+        "reviewGuideModelSelection",
+        "reviewGuideInstructions",
+        "sourceControlWritingStyle",
+        "removeAgentCreditsOnMerge",
+        "branchNamingMode",
+        "branchNamePrefix",
+        "branchNamePrefixFromRepository",
+        "branchNameInstructions",
+        "pullRequestMergeMethod",
+        "sidebarAutoMarkDoneOnMerge",
+        "sidebarAutoMarkDoneAfterDays",
+        "continueThreadsAfterServerUpdate",
+        "responseStreamingMode",
+        "providerInstances",
+      ]);
+      const v26_10_1RuleKeys = new Set([
+        "worktreeKeepWhen",
+        "worktreeAfterDays",
+        "worktreeOnMerge",
+        "worktreeOnDelete",
+        "worktreeUnchanged",
+      ]);
+
+      expect(
+        Object.keys(ProjectSettingsOverrides.fields).filter((key) => !v26_10_1Keys.has(key)),
+      ).toEqual(Object.keys(addedSinceV26_10_1));
+      expect(
+        Object.keys(WorktreeCleanupRules.fields).filter((key) => !v26_10_1RuleKeys.has(key)),
+      ).toEqual(Object.keys(rulesAddedSinceV26_10_1));
+    });
 
     it("keeps them when the client resends the entry to edit another key", () => {
       // Decoded the way the server receives it, from a client whose schema predates the keys.
@@ -754,6 +808,28 @@ describe("serverSettings helpers", () => {
       });
 
       expect(patched.projectSettingsOverrides[projectId]).toEqual(rest);
+    });
+
+    it("clears a done-worktree rule a current client sends as null", () => {
+      const patch = decodeServerSettingsPatch({
+        projectSettingsOverrides: {
+          [projectId]: {
+            ...stored,
+            worktreeCleanup: {
+              mode: "custom",
+              rules: { ...stored.worktreeCleanup.rules, worktreeDoneAfterDays: null },
+            },
+          },
+        },
+      });
+
+      expect(
+        applyServerSettingsPatch(current, patch).projectSettingsOverrides[projectId]
+          ?.worktreeCleanup,
+      ).toEqual({
+        mode: "custom",
+        rules: { ...stored.worktreeCleanup.rules, worktreeDoneAfterDays: null },
+      });
     });
   });
 

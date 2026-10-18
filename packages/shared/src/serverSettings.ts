@@ -248,17 +248,22 @@ const OVERRIDE_KEYS_OLDER_CLIENTS_OMIT = [
   "providerInstances",
   "reviewGuideModelSelection",
   "reviewGuideInstructions",
+  "sidebarAutoMarkDoneKeepPullRequests",
 ] as const;
 
-function withStoredWorktreeKeepWhen(
+function withStoredWorktreeRules(
   incoming: NonNullable<ProjectSettingsOverridesPatchEntry["worktreeCleanup"]> | null,
   stored: ProjectSettingsOverrides["worktreeCleanup"],
 ): NonNullable<ProjectSettingsOverrides["worktreeCleanup"]> | null {
   if (incoming === null || incoming.mode === "off") return incoming;
+  const storedRules = stored?.mode === "custom" ? stored.rules : undefined;
   const worktreeKeepWhen =
-    incoming.rules.worktreeKeepWhen ??
-    (stored?.mode === "custom" ? stored.rules.worktreeKeepWhen : "uncommitted-changes");
-  return { mode: "custom", rules: { ...incoming.rules, worktreeKeepWhen } };
+    incoming.rules.worktreeKeepWhen ?? storedRules?.worktreeKeepWhen ?? "uncommitted-changes";
+  const worktreeDoneAfterDays =
+    incoming.rules.worktreeDoneAfterDays === undefined
+      ? (storedRules?.worktreeDoneAfterDays ?? null)
+      : incoming.rules.worktreeDoneAfterDays;
+  return { mode: "custom", rules: { ...incoming.rules, worktreeKeepWhen, worktreeDoneAfterDays } };
 }
 
 /**
@@ -289,7 +294,7 @@ function mergeProjectSettingsOverridesPatch(
       ...(worktreeCleanup === undefined
         ? {}
         : {
-            worktreeCleanup: withStoredWorktreeKeepWhen(worktreeCleanup, stored?.worktreeCleanup),
+            worktreeCleanup: withStoredWorktreeRules(worktreeCleanup, stored?.worktreeCleanup),
           }),
     });
   }
