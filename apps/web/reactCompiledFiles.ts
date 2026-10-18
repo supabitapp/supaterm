@@ -25,6 +25,7 @@ export const REACT_COMPILED_FILES = [
   "apps/web/src/components/chat/useQueuedRunEdit.ts",
   "apps/web/src/components/chat/useUsageLimitsPanel.ts",
   "apps/web/src/components/chat/useWorktreeSetup.ts",
+  "apps/web/src/components/desktop/SnapShotCoordinator.tsx",
   "apps/web/src/components/preview/useAgentOpenedPreviews.ts",
   "apps/web/src/components/pullRequest/usePullRequestFilesViewed.ts",
   "apps/web/src/components/pullRequest/useThreadLinkedPullRequest.ts",
