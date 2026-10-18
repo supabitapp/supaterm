@@ -6,7 +6,7 @@ import {
 } from "@supaterm/client-runtime/thread-history-prefetch";
 import { shallow } from "zustand/vanilla/shallow";
 import { shouldPreserveAssistantLineBreaks } from "@supaterm/shared/markdownPipeline";
-import { MarkdownFindContext, useFindRevealRef } from "./markdownFindContext";
+import { MarkdownFindContext, findRevealRef } from "./markdownFindContext";
 import { useChatCanvas } from "./ChatCanvasContext";
 import { ThreadTimelineLoading } from "./ThreadTimelineLoading";
 import { WorkLogBlock, WorkLogButton, WorkLogDetails, WorkLogList, WorkLogRow } from "./WorkLog";
@@ -4609,14 +4609,14 @@ const CollapsibleUserMessageBody = memo(function CollapsibleUserMessageBody(prop
 }) {
   const [expanded, toggleExpanded, setExpanded] = useTimelineDisclosure();
   const revealForFind = () => setExpanded(true);
-  const findRevealRef = useFindRevealRef(revealForFind);
+  const revealRef = findRevealRef(revealForFind);
   const hasVisibleBody = props.text.trim().length > 0;
   const canCollapse = hasVisibleBody && shouldCollapseUserMessage(props.text);
   const isCollapsed = canCollapse && !expanded;
   const showCollapseControl = canCollapse;
   const body = hasVisibleBody ? (
     <div
-      ref={findRevealRef}
+      ref={revealRef}
       data-thread-find-text="true"
       data-thread-find-fold={isCollapsed ? "" : undefined}
       className={cn("relative", isCollapsed && "max-h-44 overflow-hidden")}

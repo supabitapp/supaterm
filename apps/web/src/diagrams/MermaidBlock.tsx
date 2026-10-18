@@ -5,7 +5,7 @@ import { Button } from "../components/ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../components/ui/tooltip";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 import { renderMermaidDiagram } from "./mermaidRenderer";
-import { MarkdownFindContext, useFindRevealRef } from "../components/chat/markdownFindContext";
+import { MarkdownFindContext, findRevealRef } from "../components/chat/markdownFindContext";
 
 export function MermaidBlock({
   source,
@@ -22,7 +22,7 @@ export function MermaidBlock({
   const [showSource, setShowSource] = useState(false);
   const searching = use(MarkdownFindContext);
   const revealSource = useCallback(() => setShowSource(true), []);
-  const sourceRevealRef = useFindRevealRef(revealSource);
+  const sourceRevealRef = findRevealRef(revealSource);
   const [copiedText, setCopiedText] = useState<string | null>(null);
   const { copyToClipboard, isCopied } = useCopyToClipboard<string>({
     timeout: 1200,

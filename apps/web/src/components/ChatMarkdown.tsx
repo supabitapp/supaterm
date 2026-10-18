@@ -1,4 +1,4 @@
-import { MarkdownFindContext, useFindRevealRef } from "./chat/markdownFindContext";
+import { MarkdownFindContext, findRevealRef } from "./chat/markdownFindContext";
 import {
   buildFileLinkParentSuffixByPath,
   fileLinkLabel,
@@ -670,7 +670,7 @@ function MarkdownDetails({
   const searching = use(MarkdownFindContext);
   const expanded = isOpen;
   const revealForFind = useCallback(() => setIsOpen(true), [setIsOpen]);
-  const findRevealRef = useFindRevealRef(revealForFind);
+  const revealRef = findRevealRef(revealForFind);
   const childNodes = Children.toArray(children);
   const summaryIndex = childNodes.findIndex(
     (child) => isValidElement(child) && child.type === "summary",
@@ -699,7 +699,7 @@ function MarkdownDetails({
           </span>
           <span>{summary}</span>
         </CollapsibleTrigger>
-        <CollapsiblePanel ref={findRevealRef} hiddenUntilFound={searching}>
+        <CollapsiblePanel ref={revealRef} hiddenUntilFound={searching}>
           <div
             className="pb-3 ps-6 text-foreground/[calc(80%+var(--appearance-contrast-boost)/5)]"
             data-markdown-details-content=""
