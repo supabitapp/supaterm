@@ -3365,20 +3365,20 @@ export default function Sidebar() {
         event.activatorEvent instanceof PointerEvent ? event.activatorEvent.clientY : null,
     });
   };
+  const sidebarHasThreadSections =
+    pinnedThreads.length +
+      activeThreads.length +
+      workingThreads.length +
+      snoozedThreads.length +
+      doneThreads.length >
+    0;
   const sidebarListItemsFresh = ((): readonly SidebarListItem[] => {
     const rowsOf = (
       list: readonly EnvironmentThreadShell[],
       section: SidebarSection,
     ): SidebarListItem[] =>
       list.map((thread) => ({ kind: "thread", key: threadShellKey(thread), section }));
-    if (
-      pinnedThreads.length +
-        activeThreads.length +
-        workingThreads.length +
-        snoozedThreads.length +
-        doneThreads.length ===
-      0
-    ) {
+    if (!sidebarHasThreadSections) {
       return [{ kind: "marker", marker: "drafts-block" }];
     }
     const items: SidebarListItem[] = [{ kind: "marker", marker: "pinned-header" }];
@@ -3428,11 +3428,6 @@ export default function Sidebar() {
       cancelThreadDrag();
     }
   }, [cancelThreadDrag, dragState, sidebarListItems]);
-  // Reads the fresh list: calling `.some` on the state copy makes the compiler
-  // drop the memo scopes of the drag handlers and the motion pass.
-  const sidebarHasThreadSections = sidebarListItemsFresh.some(
-    (item) => item.kind === "marker" && item.marker === "pinned-header",
-  );
   // Every shell event rebuilds sidebarListItems, but rows only move when the
   // rendered order, a row's section, the draft block, the pending rows, the
   // undo notice or a shelf toggle changes. Keying the motion pass on those

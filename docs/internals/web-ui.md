@@ -66,7 +66,10 @@ Every file under `apps/web/src` must compile. Lint keeps those rules errors ther
 no built-in oxlint rule bans them outright. It also rejects `"use memo"`. The compiler
 withholds a cache scope when a value reaches plain function calls on both sides of a hook call. A
 `"use memo"` helper forces one, but hides the ordering problem. Fix the order instead: plain uses
-of a value go before the hook, or the helper is inlined. A `use*` helper that calls no hook is
+of a value go before the hook, or the helper is inlined. Even a boolean counts when it comes from a
+method call on a value the compiler cannot type, such as state, props or a reassigned `let`. Once
+it reaches a method on a ref, every closure using that ref can lose its scope too, with no
+diagnostic. Compute such flags with operators, like `items.length > 0`. A `use*` helper that calls no hook is
 compiled as a plain function and caches nothing, so a derived-value helper reads its source hook
 itself instead of taking the value as an argument. Lint misses some bailouts, notably `try`
 with `finally` and `throw` inside `try`, so [`reactCompilerCoverage.test.ts`](../../apps/web/src/reactCompilerCoverage.test.ts)
