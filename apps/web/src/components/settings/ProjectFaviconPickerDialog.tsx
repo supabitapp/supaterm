@@ -1,7 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import type { EnvironmentId } from "@supaterm/contracts";
 import { isWindowsAbsolutePath } from "@supaterm/shared/path";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { primaryServerKeybindingsAtom } from "~/state/server";
 import { useTheme } from "~/hooks/useTheme";
@@ -48,24 +48,22 @@ export function ProjectFaviconPickerDialog(props: {
   );
   const { resolvedTheme } = useTheme();
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
-  const pickExternal = props.onPickExternal;
-  const selectFavicon = props.onSelect;
+  const { onPickExternal: pickExternal, onSelect } = props;
   const fileManagerName = getLocalFileManagerName(
     typeof navigator === "undefined" ? "" : navigator.platform,
   );
-  const items = useMemo<CommandPaletteActionItem[]>(
-    () =>
-      getProjectFilePickerMatches(result.entries, result.matchedQuery).map((match) => ({
-        kind: "action",
-        value: `project-favicon:${match.path}`,
-        searchTerms: [match.name, match.path],
-        title: match.name,
-        description: match.path,
-        icon: <PierreEntryIcon pathValue={match.path} kind="file" theme={resolvedTheme} />,
-        run: async () => selectFavicon(match.path),
-      })),
-    [resolvedTheme, result.entries, result.matchedQuery, selectFavicon],
-  );
+  const items: CommandPaletteActionItem[] = getProjectFilePickerMatches(
+    result.entries,
+    result.matchedQuery,
+  ).map((match) => ({
+    kind: "action",
+    value: `project-favicon:${match.path}`,
+    searchTerms: [match.name, match.path],
+    title: match.name,
+    description: match.path,
+    icon: <PierreEntryIcon pathValue={match.path} kind="file" theme={resolvedTheme} />,
+    run: async () => onSelect(match.path),
+  }));
 
   return (
     <CommandDialog open={props.open} onOpenChange={props.onOpenChange}>
@@ -90,7 +88,7 @@ export function ProjectFaviconPickerDialog(props: {
                       .then((path) => {
                         if (!path) return;
                         props.onOpenChange(false);
-                        props.onSelect(path);
+                        onSelect(path);
                       })
                       .catch((error: unknown) => {
                         toastManager.add({
