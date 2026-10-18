@@ -1,8 +1,7 @@
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import {
   type PullRequestAction,
-  pullRequestActionOffered,
-  pullRequestActionPermitted,
+  pullRequestActionAllowed,
   type PullRequestDetail,
   type PullRequestMergeMethod,
   type SourceControlProviderKind,
@@ -74,8 +73,8 @@ export function allowedUpdateMethods(pr: ActionDetail) {
 
 export function canPerformPullRequestAction(pr: ActionDetail, action: PullRequestAction) {
   if (
-    !pullRequestActionOffered(pr.capabilities, action) ||
-    !pullRequestActionPermitted(pr.viewerPermissions, action)
+    !pullRequestActionAllowed(pr.capabilities, action) ||
+    !pullRequestActionAllowed(pr.viewerPermissions, action)
   )
     return false;
   if (action === "reopen") return pr.state === "closed";

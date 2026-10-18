@@ -23,8 +23,7 @@ import * as SubscriptionRef from "effect/SubscriptionRef";
 import {
   PullRequestOperationError,
   PullRequestUnavailableError,
-  pullRequestActionOffered,
-  pullRequestActionPermitted,
+  pullRequestActionAllowed,
   pullRequestHostOf,
   pullRequestProviderRequirement,
   resolvePullRequestAuthorFilter,
@@ -1832,7 +1831,7 @@ export const make = Effect.gen(function* () {
             }),
           );
         }
-        if (!pullRequestActionOffered(project.api.capabilities, input.action)) {
+        if (!pullRequestActionAllowed(project.api.capabilities, input.action)) {
           return Effect.fail(
             new PullRequestOperationError({
               operation: "runAction",
@@ -1876,7 +1875,7 @@ export const make = Effect.gen(function* () {
             if (
               stackRebase
                 ? viewer.stackRebase !== true
-                : !pullRequestActionPermitted(viewer, input.action)
+                : !pullRequestActionAllowed(viewer, input.action)
             ) {
               return Effect.fail(
                 new PullRequestOperationError({

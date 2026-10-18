@@ -12,8 +12,7 @@ import {
   PullRequestReviewerRequestInput,
   PullRequestSetFilesViewedInput,
   PullRequestViewerPermissions,
-  pullRequestActionOffered,
-  pullRequestActionPermitted,
+  pullRequestActionAllowed,
   pullRequestHostOf,
   resolvePullRequestAuthorFilter,
 } from "./pullRequest.ts";
@@ -331,13 +330,13 @@ describe("action lists from a newer server", () => {
 
   it("reads branch deletion from its flags, not from the lists", () => {
     const listed = { ...decodeCapabilities(capabilities), actions: ["merge"] as const };
-    expect(pullRequestActionOffered(listed, "delete-branch")).toBe(false);
-    expect(pullRequestActionOffered({ ...listed, deleteBranch: true }, "delete-branch")).toBe(true);
-    expect(pullRequestActionOffered(listed, "merge")).toBe(true);
+    expect(pullRequestActionAllowed(listed, "delete-branch")).toBe(false);
+    expect(pullRequestActionAllowed({ ...listed, deleteBranch: true }, "delete-branch")).toBe(true);
+    expect(pullRequestActionAllowed(listed, "merge")).toBe(true);
     const viewer = decodePermissions({ ...permissions, deleteBranch: true });
-    expect(pullRequestActionPermitted(viewer, "delete-branch")).toBe(true);
-    expect(pullRequestActionPermitted(decodePermissions(permissions), "delete-branch")).toBe(false);
-    expect(pullRequestActionPermitted(viewer, "merge")).toBe(false);
+    expect(pullRequestActionAllowed(viewer, "delete-branch")).toBe(true);
+    expect(pullRequestActionAllowed(decodePermissions(permissions), "delete-branch")).toBe(false);
+    expect(pullRequestActionAllowed(viewer, "merge")).toBe(false);
   });
 });
 

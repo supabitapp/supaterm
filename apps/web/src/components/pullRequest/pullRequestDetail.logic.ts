@@ -4,8 +4,7 @@ import * as Schema from "effect/Schema";
 import {
   PullRequestDetail,
   PullRequestOperationError,
-  pullRequestActionOffered,
-  pullRequestActionPermitted,
+  pullRequestActionAllowed,
   pullRequestHostOf,
   type PullRequestAction,
   type PullRequestActor,
@@ -309,8 +308,8 @@ function canPerformPullRequestAction(
 ): boolean {
   return (
     detail !== null &&
-    pullRequestActionOffered(detail.capabilities, action) &&
-    pullRequestActionPermitted(detail.viewerPermissions, action)
+    pullRequestActionAllowed(detail.capabilities, action) &&
+    pullRequestActionAllowed(detail.viewerPermissions, action)
   );
 }
 

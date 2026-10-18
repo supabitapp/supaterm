@@ -19,8 +19,7 @@ import {
   type PullRequestUpdateMethod,
   type PullRequestRef,
   type PullRequestReviewGuideStop,
-  pullRequestActionOffered,
-  pullRequestActionPermitted,
+  pullRequestActionAllowed,
   resolveEnvironmentMachineKind,
   type ScopedThreadRef,
 } from "@supaterm/contracts";
@@ -1478,8 +1477,8 @@ export function PullRequestDetailPanel({
   if (tab !== "summary" && !visibleTabs.some((item) => item.value === tab)) setTab("summary");
   const can = (action: PullRequestAction) =>
     detail !== null &&
-    pullRequestActionOffered(detail.capabilities, action) &&
-    pullRequestActionPermitted(detail.viewerPermissions, action);
+    pullRequestActionAllowed(detail.capabilities, action) &&
+    pullRequestActionAllowed(detail.viewerPermissions, action);
   const detailChecksState = detail ? pullRequestChecksState(detail.checks) : null;
   const latestChecksState =
     sharedSummary?.checksState === undefined ? detailChecksState : sharedSummary.checksState;

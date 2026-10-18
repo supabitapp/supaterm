@@ -939,22 +939,11 @@ const PROVIDER_REQUIREMENT = new Map<
   ],
 ]);
 
-export function pullRequestActionOffered(
-  capabilities: Pick<PullRequestCapabilities, "actions" | "deleteBranch">,
+export function pullRequestActionAllowed(
+  grant: Pick<PullRequestCapabilities | PullRequestViewerPermissions, "actions" | "deleteBranch">,
   action: PullRequestAction,
 ): boolean {
-  return action === "delete-branch"
-    ? capabilities.deleteBranch === true
-    : capabilities.actions.includes(action);
-}
-
-export function pullRequestActionPermitted(
-  permissions: Pick<PullRequestViewerPermissions, "actions" | "deleteBranch">,
-  action: PullRequestAction,
-): boolean {
-  return action === "delete-branch"
-    ? permissions.deleteBranch === true
-    : permissions.actions.includes(action);
+  return action === "delete-branch" ? grant.deleteBranch === true : grant.actions.includes(action);
 }
 
 export function pullRequestHostOf(
