@@ -21,8 +21,6 @@
     "icons:export": "node scripts/export-brand-icons.ts",
     "icons:check": "node scripts/export-brand-icons.ts --check",
     "licenses:sync": "node scripts/sync-third-party-license-notices.ts",
-    "icons:export:android": "node scripts/export-android-icons.ts",
-    "icons:variants": "node scripts/export-icon-variants.ts",
     "build": "vp run --filter './apps/*' build",
     "build:marketing": "vp run --filter @supaterm/marketing build",
     "build:desktop": "vp run --filter @supaterm/desktop --filter supaterm build",
