@@ -373,7 +373,7 @@ import { ChatComposer, type ChatComposerHandle } from "./chat/ChatComposer";
 import { createPageScrollController, type PageScrollKey } from "./chat/pageScrollController";
 import { isTimelineScrollTarget } from "./chat/timelineScrollTarget";
 import { DraftProjectPicker } from "./chat/DraftProjectPicker";
-import { ExpandedImageDialog } from "./chat/ExpandedImageDialog";
+import { ExpandedImageDialogHost, openExpandedImagePreview } from "./chat/ExpandedImageDialog";
 import {
   DeviceSetupDialogHost,
   openDeviceSetupDialog,
@@ -402,7 +402,7 @@ import {
   type PanelLayoutControlsProps,
   RightPanelMaximizeControl,
 } from "./chat/PanelLayoutControls";
-import { expandedImageKey, type ExpandedImagePreview } from "./chat/ExpandedImagePreview";
+import type { ExpandedImagePreview } from "./chat/ExpandedImagePreview";
 import { ThreadDetailsPanel, type ThreadDetailsPanelProps } from "./chat/ThreadDetailsPanel";
 import { NoActiveThreadState } from "./NoActiveThreadState";
 import {
@@ -1202,13 +1202,6 @@ export default function ChatView(props: ChatViewProps) {
     () => readTimelinePosition(routeThreadKey)?.atEnd === false,
   );
   const [isWorkspaceFileDragActive, setIsWorkspaceFileDragActive] = useState(false);
-  const [expandedImage, setExpandedImage] = useState<ExpandedImagePreview | null>(null);
-  useEffect(() => {
-    const item = expandedImage?.images[expandedImage.index];
-    if (item?.type !== "video" || item.src === null || !item.src.startsWith("blob:")) return;
-    const src = item.src;
-    return () => revokeBlobPreviewUrl(src);
-  }, [expandedImage]);
   const [optimisticUserMessages, setOptimisticUserMessages] = useState<ChatMessage[]>([]);
   const [workLocallyResendDraftId, setWorkLocallyResendDraftId] = useState<DraftId | null>(null);
   if (workLocallyResendDraftId !== null && workLocallyResendDraftId !== draftId) {
@@ -4557,13 +4550,7 @@ export default function ChatView(props: ChatViewProps) {
       return [];
     });
     resetLocalDispatch();
-    setExpandedImage(null);
   }
-
-  const closeExpandedImage = () => {
-    setExpandedImage(null);
-  };
-  const closeExpandedImageStable = useStableCallback(closeExpandedImage);
 
   const activeWorktreePath = activeThread?.worktreePath ?? null;
   const envMode: DraftThreadEnvMode = resolveEffectiveEnvMode({
@@ -6674,7 +6661,7 @@ export default function ChatView(props: ChatViewProps) {
   };
 
   const onExpandTimelineImage = (preview: ExpandedImagePreview) => {
-    setExpandedImage(preview);
+    openExpandedImagePreview(routeThreadKey, preview);
   };
   const onExpandTimelineImageStable = useStableCallback(onExpandTimelineImage);
   const onOpenTurnDiff = (runId: RunId, filePath?: string) => {
@@ -7635,13 +7622,7 @@ export default function ChatView(props: ChatViewProps) {
 
       <RevertConfirmHost threadKey={routeThreadKey} onConfirm={onConfirmRevertStable} />
       <LinkPullRequestDialogHost />
-      {expandedImage && (
-        <ExpandedImageDialog
-          key={expandedImageKey(expandedImage)}
-          preview={expandedImage}
-          onClose={closeExpandedImageStable}
-        />
-      )}
+      <ExpandedImageDialogHost threadKey={routeThreadKey} />
     </div>
   );
   return (
