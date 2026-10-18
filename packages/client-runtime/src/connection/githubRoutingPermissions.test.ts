@@ -53,20 +53,20 @@ describe("GitHub routing trust across routes", () => {
   });
   it("retains a paired route's grant when learned LAN addresses change", () => {
     const learned = mergeLearnedRoutes({
-      entry: tailnet,
-      activeRoute: tailnet,
-      reported: [{ httpBaseUrl: "http://192.168.1.20:4389" }],
+      entry: lan,
+      activeRoute: lan,
+      reported: [{ httpBaseUrl: "http://192.168.1.21:4389" }],
       allowInsecure: true,
     })!;
-    const entry = entryWithRoutes(tailnet, learned);
-    expect(gitHubRoutingPermissionFor(entry, grant(tailnet))).toBe("read-write");
+    const entry = entryWithRoutes(lan, learned);
+    expect(gitHubRoutingPermissionFor(entry, grant(lan))).toBe("read-write");
     const changed = mergeLearnedRoutes({
       entry,
-      activeRoute: tailnet,
+      activeRoute: lan,
       reported: [{ httpBaseUrl: "http://192.168.1.30:4389" }],
       allowInsecure: true,
     })!;
-    expect(gitHubRoutingPermissionFor(entryWithRoutes(entry, changed), grant(tailnet))).toBe(
+    expect(gitHubRoutingPermissionFor(entryWithRoutes(entry, changed), grant(lan))).toBe(
       "read-write",
     );
   });

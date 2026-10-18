@@ -86,6 +86,8 @@ export class SshConnectionRegistration extends Schema.TaggedClass<SshConnectionR
   {
     target: SshConnectionTarget,
     profile: SshConnectionProfile,
+    /** The token from pairing over SSH, which later connects reuse. */
+    credential: BearerConnectionCredential,
   },
 ) {}
 

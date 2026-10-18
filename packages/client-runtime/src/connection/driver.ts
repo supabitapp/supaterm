@@ -18,7 +18,13 @@ import type {
 } from "./model.ts";
 import { ConnectionTransientError } from "./model.ts";
 import * as ConnectionResolver from "./resolver.ts";
-import { connectionRoutes, routeEntry, routeHttpBaseUrl } from "./routes.ts";
+import {
+  connectionRoutes,
+  routeEntry,
+  routeHttpBaseUrl,
+  sendsTokenInClear,
+  usableRoutes,
+} from "./routes.ts";
 import * as RpcSession from "../rpc/session.ts";
 import { fetchRemoteEnvironmentDescriptor } from "../environment/descriptor.ts";
 import { leaseRelayOrigin } from "../relay/gateway.ts";
@@ -139,7 +145,7 @@ const selectAndConnect = Effect.fnUntraced(function* <R>(
   checkRoute: CheckRoute,
   connectRoute: ConnectRoute<R>,
 ) {
-  const routes = connectionRoutes(entry);
+  const routes = usableRoutes(entry);
   const checks =
     routes.length === 1
       ? []
@@ -307,7 +313,10 @@ export const make = Effect.gen(function* () {
   });
 
   const preflight = (entry: ConnectionCatalogEntry, route: ConnectionRoute) =>
-    checkRoute(entry, route, ROUTE_CHECK_TIMEOUT_MS).pipe(
+    (sendsTokenInClear(connectionRoutes(entry), route)
+      ? Effect.succeed("silent" as const)
+      : checkRoute(entry, route, ROUTE_CHECK_TIMEOUT_MS)
+    ).pipe(
       Effect.flatMap((check) =>
         check === "answered"
           ? Effect.gen(function* () {

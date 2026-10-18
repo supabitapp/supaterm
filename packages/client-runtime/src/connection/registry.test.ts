@@ -218,6 +218,7 @@ const makeHarness = Effect.fn("TestEnvironmentRegistry.makeHarness")(function* (
         });
         switch (registration._tag) {
           case "BearerConnectionRegistration":
+          case "SshConnectionRegistration":
             yield* Ref.update(storedProfiles, (current) => {
               const next = new Map(current);
               next.set(registration.profile.connectionId, registration.profile);
@@ -229,12 +230,6 @@ const makeHarness = Effect.fn("TestEnvironmentRegistry.makeHarness")(function* (
               return next;
             });
             return;
-          case "SshConnectionRegistration":
-            yield* Ref.update(storedProfiles, (current) => {
-              const next = new Map(current);
-              next.set(registration.profile.connectionId, registration.profile);
-              return next;
-            });
         }
       }),
     remove: (target) =>

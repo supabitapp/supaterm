@@ -237,12 +237,18 @@ describe("ConnectionCatalogDocument", () => {
     );
     const ssh = registerConnectionInCatalog(
       bearer,
-      new SshConnectionRegistration({ target: SSH_TARGET, profile: SSH_PROFILE }),
+      new SshConnectionRegistration({
+        target: SSH_TARGET,
+        profile: SSH_PROFILE,
+        credential: BEARER_CREDENTIAL,
+      }),
     );
 
     expect(ssh.targets).toEqual([SSH_TARGET]);
     expect(ssh.profiles).toEqual([SSH_PROFILE]);
-    expect(ssh.credentials).toEqual([]);
+    expect(ssh.credentials).toEqual([
+      { connectionId: SSH_TARGET.connectionId, credential: BEARER_CREDENTIAL },
+    ]);
   });
 
   it("removes every catalog record owned by an explicit disconnect", () => {
@@ -380,7 +386,7 @@ describe("ConnectionCatalogDocument", () => {
     expect(removeConnectionFromCatalog(disabled, BEARER_TARGET).disabledEnvironmentIds).toEqual([]);
   });
 
-  it("persists the normalized SSH profile beside its target", () => {
+  it("persists the normalized SSH profile and its paired token beside its target", () => {
     const target = new SshConnectionTarget({
       environmentId: ENVIRONMENT_ID,
       label: "SSH",
@@ -399,11 +405,15 @@ describe("ConnectionCatalogDocument", () => {
     });
     const document = registerConnectionInCatalog(
       EMPTY_CONNECTION_CATALOG_DOCUMENT,
-      new SshConnectionRegistration({ target, profile }),
+      new SshConnectionRegistration({ target, profile, credential: BEARER_CREDENTIAL }),
     );
 
     expect(document.targets).toEqual([target]);
     expect(document.profiles).toEqual([profile]);
-    expect(document.credentials).toEqual([]);
+    expect(document.credentials).toEqual([
+      { connectionId: target.connectionId, credential: BEARER_CREDENTIAL },
+    ]);
+    // Removing the route forgets its token too.
+    expect(removeConnectionFromCatalog(document, ENVIRONMENT_ID).credentials).toEqual([]);
   });
 });

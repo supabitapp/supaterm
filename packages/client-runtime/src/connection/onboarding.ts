@@ -371,6 +371,7 @@ export const prepareSshRegistration = Effect.fn(
       label,
       target: provisioned.bootstrap.target,
     }),
+    credential: new BearerConnectionCredential({ token: provisioned.bearerToken }),
   });
 });
 
