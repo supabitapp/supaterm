@@ -3,7 +3,7 @@ import { connectionStatusTitle } from "@supaterm/client-runtime/connection";
 import * as Option from "effect/Option";
 import { AsyncResult, Atom } from "effect/reactivity";
 import { CircleAlertIcon, Clock3Icon, PlusIcon } from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { getRouteApi } from "@tanstack/react-router";
 import type { EnvironmentId, ScheduledTask } from "@supaterm/contracts";
 import { AuthOrchestrationOperateScope, resolveEnvironmentMachineKind } from "@supaterm/contracts";
@@ -52,18 +52,12 @@ export function AutomationsPage() {
   const groups = useSettingsProjectGroups();
   const { environments: availableEnvironments } = useEnvironments();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
-  const scope = useMemo(
-    () => resolveSettingsScope(search, groups, availableEnvironments),
-    [availableEnvironments, groups, search],
-  );
+  const scope = resolveSettingsScope(search, groups, availableEnvironments);
   const {
     environments,
     connectedEnvironments,
     environment: defaultEnvironment,
-  } = useMemo(
-    () => selectScopedSettingsEnvironments(scope, availableEnvironments, primaryEnvironmentId),
-    [availableEnvironments, primaryEnvironmentId, scope],
-  );
+  } = selectScopedSettingsEnvironments(scope, availableEnvironments, primaryEnvironmentId);
   const writableEnvironmentIds = useEnvironmentsWithScope(
     connectedEnvironments,
     AuthOrchestrationOperateScope,
@@ -75,27 +69,23 @@ export function AutomationsPage() {
     writableEnvironments.find(
       (entry) => entry.environmentId === defaultEnvironment?.environmentId,
     ) ?? writableEnvironments[0];
-  const projectNameByKey = useMemo(
-    () =>
-      new Map(
-        groups.flatMap((group) =>
-          [...projectGroupMemberKeys(group)].map((key) => [key, group.displayName] as const),
-        ),
-      ),
-    [groups],
+  const projectNameByKey = new Map(
+    groups.flatMap((group) =>
+      [...projectGroupMemberKeys(group)].map((key) => [key, group.displayName] as const),
+    ),
   );
   const [editor, setEditor] = useState<{
     environmentId: EnvironmentId;
     task: ScheduledTask | null;
   } | null>(null);
-  const openForEdit = useCallback((environmentId: EnvironmentId, task: ScheduledTask) => {
+  const openForEdit = (environmentId: EnvironmentId, task: ScheduledTask) => {
     setEditor({ environmentId, task });
-  }, []);
-  const openForCreate = useCallback((environmentId: EnvironmentId) => {
+  };
+  const openForCreate = (environmentId: EnvironmentId) => {
     if (readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) {
       setEditor({ environmentId, task: null });
     }
-  }, []);
+  };
   const hasTaskLink = search.environmentId !== undefined || search.taskId !== undefined;
   const closeEditor = () => {
     setEditor(null);
@@ -216,32 +206,28 @@ function useAutomationEnvironmentStates(
   scope: ResolvedSettingsScope,
 ) {
   return useAtomValue(
-    useMemo(
-      () =>
-        Atom.make((get) =>
-          environments.map((environment): AutomationEnvironmentState => {
-            const connected =
-              environment.connection.phase === "connected" && environment.serverConfig !== null;
-            const query = connected
-              ? get(
-                  serverEnvironment.scheduledTasksLive({
-                    environmentId: environment.environmentId,
-                    input: {},
-                  }),
-                )
-              : null;
-            const data = query === null ? null : Option.getOrNull(AsyncResult.value(query));
-            return {
-              environment,
-              connected,
-              tasks: data?.tasks.filter((task) =>
-                matchesAutomationScope(scope, environment.environmentId, task.projectId),
-              ),
-              error: query?._tag === "Failure" ? formatEnvironmentQueryError(query.cause) : null,
-            };
-          }),
-        ),
-      [environments, scope],
+    Atom.make((get) =>
+      environments.map((environment): AutomationEnvironmentState => {
+        const connected =
+          environment.connection.phase === "connected" && environment.serverConfig !== null;
+        const query = connected
+          ? get(
+              serverEnvironment.scheduledTasksLive({
+                environmentId: environment.environmentId,
+                input: {},
+              }),
+            )
+          : null;
+        const data = query === null ? null : Option.getOrNull(AsyncResult.value(query));
+        return {
+          environment,
+          connected,
+          tasks: data?.tasks.filter((task) =>
+            matchesAutomationScope(scope, environment.environmentId, task.projectId),
+          ),
+          error: query?._tag === "Failure" ? formatEnvironmentQueryError(query.cause) : null,
+        };
+      }),
     ),
   );
 }

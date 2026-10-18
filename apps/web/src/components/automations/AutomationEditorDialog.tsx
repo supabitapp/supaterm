@@ -1,5 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
-import { type ReactNode, useMemo, useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import type {
   EnvironmentId,
   ModelSelection,
@@ -165,14 +165,10 @@ export function AutomationEditorDialog({
     connected ? serverEnvironment.scheduledTasksLive({ environmentId, input: {} }) : null,
   );
   const allProjects = useProjects();
-  const projects = useMemo(
-    () =>
-      allProjects.filter(
-        (project) =>
-          project.environmentId === environmentId &&
-          matchesAutomationScope(scope, environmentId, project.id),
-      ),
-    [allProjects, environmentId, scope],
+  const projects = allProjects.filter(
+    (project) =>
+      project.environmentId === environmentId &&
+      matchesAutomationScope(scope, environmentId, project.id),
   );
   const settings = useEnvironmentSettings(environmentId);
   const providers =
@@ -191,16 +187,12 @@ export function AutomationEditorDialog({
     !tasksQuery.data.tasks.some((entry) => entry.id === draft.editingId);
   const selectedProjectId = draft.projectId || projects[0]?.id || "";
   const selectedProject = projects.find((project) => project.id === selectedProjectId);
-  const instanceEntries = useMemo(
-    () =>
-      sortProviderInstanceEntries(
-        applyProviderInstanceSettings(
-          deriveProviderInstanceEntries(providers),
-          settings,
-          selectedProject?.id ?? null,
-        ),
-      ),
-    [providers, settings, selectedProject?.id],
+  const instanceEntries = sortProviderInstanceEntries(
+    applyProviderInstanceSettings(
+      deriveProviderInstanceEntries(providers),
+      settings,
+      selectedProject?.id ?? null,
+    ),
   );
 
   // The real model picker is keyed by a `${instanceId}:${model}` string, which
@@ -215,9 +207,11 @@ export function AutomationEditorDialog({
   const activeInstanceId =
     activeSelection?.instanceId ?? firstInstance?.instanceId ?? ("" as ProviderInstanceId);
   const activeModel = activeSelection?.model ?? "";
-  const modelOptionsByInstance = useMemo(
-    () => getCustomModelOptionsByInstance(settings, providers, activeInstanceId, activeModel),
-    [settings, providers, activeInstanceId, activeModel],
+  const modelOptionsByInstance = getCustomModelOptionsByInstance(
+    settings,
+    providers,
+    activeInstanceId,
+    activeModel,
   );
 
   const reportFailure = (title: string, error: unknown) => {

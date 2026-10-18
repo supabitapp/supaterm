@@ -22,6 +22,8 @@ export const REACT_COMPILED_FILES = [
   "apps/web/src/components/ThreadNotificationCoordinator.tsx",
   "apps/web/src/components/ThreadTerminalDrawer.tsx",
   "apps/web/src/components/auth/PairingRouteSurface.tsx",
+  "apps/web/src/components/automations/AutomationEditorDialog.tsx",
+  "apps/web/src/components/automations/AutomationsPage.tsx",
   "apps/web/src/components/chat/ChatComposer.tsx",
   "apps/web/src/components/chat/MessagesTimeline.tsx",
   "apps/web/src/components/chat/QueuedRunsControl.tsx",
