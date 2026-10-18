@@ -29,7 +29,11 @@ const state = vi.hoisted(() => ({
   linked: false,
 }));
 
-vi.mock("@effect/atom-react", () => ({ useAtomValue: () => serverConfig }));
+vi.mock("@effect/atom-react", async () => {
+  const { AtomRegistry } = await import("effect/reactivity");
+  const registry = AtomRegistry.make();
+  return { useAtomValue: (atom: never) => registry.get(atom) };
+});
 vi.mock("../hooks/useTheme", () => ({ useTheme: () => ({ resolvedTheme: "dark" }) }));
 vi.mock("../hooks/useFileMetadata", () => ({ useFileMetadata: () => undefined }));
 vi.mock("../hooks/useSettings", () => ({
@@ -76,18 +80,23 @@ vi.mock("../state/session", async () => {
         },
         () => readEnvironmentScope(id, scope),
       ),
-    usePreparedConnection: () => ({ _tag: "None" }),
   };
 });
-vi.mock("../state/server", () => ({
-  serverEnvironment: { configValueAtom: () => "config" },
-}));
+vi.mock("../state/server", async () => {
+  const { Atom } = await import("effect/reactivity");
+  const config = Atom.make(() => serverConfig);
+  return {
+    serverEnvironment: { configValueAtom: () => config },
+    environmentServerConfigsAtom: Atom.make(
+      () => new Map([[threadRef.environmentId, serverConfig]]),
+    ),
+  };
+});
 vi.mock("../state/threads", () => ({
   threadEnvironment: { linkPullRequest: "linkPullRequest", unlinkPullRequest: "unlinkPullRequest" },
 }));
 vi.mock("../state/entities", () => ({
   readEnvironmentSupportsServerBrowser: () => false,
-  useServerConfigs: () => new Map([[threadRef.environmentId, serverConfig]]),
   readThreadShell: () => ({ pullRequests: state.linked ? [pullRequestLink] : [] }),
   useProjects: () => [{ id: linkedPullRequest.projectId, environmentId: threadRef.environmentId }],
 }));

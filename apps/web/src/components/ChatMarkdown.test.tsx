@@ -19,7 +19,25 @@ import { Button } from "./ui/button";
 import { setMarkdownTaskChecked } from "./files/filePreviewMode";
 
 vi.mock("../hooks/useFileMetadata", () => ({ useFileMetadata: () => null }));
-vi.mock("@effect/atom-react", () => ({ useAtomValue: () => null }));
+// Atoms derived from the server config run in a real registry over a missing
+// config; every other subscription reads nothing.
+vi.mock("@effect/atom-react", async () => {
+  const { AtomRegistry } = await import("effect/reactivity");
+  const registry = AtomRegistry.make();
+  const derived = new Set(["markdown-server-config-fields", "pull-request-link-supported"]);
+  return {
+    useAtomValue: (atom: { readonly label?: readonly [string, ...unknown[]] }) =>
+      derived.has(atom.label?.[0] ?? "") ? registry.get(atom as never) : null,
+  };
+});
+vi.mock("../state/server", async () => {
+  const { Atom } = await import("effect/reactivity");
+  const noConfig = Atom.make(null);
+  return {
+    serverEnvironment: { configValueAtom: () => noConfig },
+    environmentServerConfigsAtom: Atom.make(new Map()),
+  };
+});
 vi.mock("../diagrams/mermaidRenderer", () => ({ renderMermaidDiagram: vi.fn() }));
 vi.mock("../hooks/useTheme", () => ({ useTheme: () => ({ resolvedTheme: "dark" }) }));
 vi.mock("../hooks/useSettings", async (importOriginal) => {
@@ -57,7 +75,6 @@ vi.mock("../state/session", async (importOriginal) => {
     ...actual,
     useEnvironmentScope: hasScope,
     readEnvironmentScope: hasScope,
-    usePreparedConnection: () => ({ _tag: "Loading" }),
   };
 });
 vi.mock("../state/entities", () => ({

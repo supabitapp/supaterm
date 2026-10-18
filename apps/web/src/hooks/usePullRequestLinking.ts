@@ -9,14 +9,24 @@ import {
   visibleThreadPullRequests,
 } from "@supaterm/shared/threadPullRequests";
 import { parseChangeRequestUrl } from "~/lib/openPullRequestLink";
-import { useServerConfigs } from "~/state/entities";
+import { useAtomValue } from "@effect/atom-react";
+import { Atom } from "effect/reactivity";
+import { environmentServerConfigsAtom } from "~/state/server";
 import { threadEnvironment } from "~/state/threads";
 import { useAtomCommand } from "~/state/use-atom-command";
 
+// A boolean, so provider status pushes and snapshots that keep the environment's
+// config present don't re-render every link renderer.
+const linkSupportedAtom = Atom.family((environmentId: EnvironmentId | null) =>
+  Atom.make(
+    (get) =>
+      environmentId !== null && get(environmentServerConfigsAtom).get(environmentId) !== undefined,
+  ).pipe(Atom.withLabel("pull-request-link-supported")),
+);
+
 /** Links and unlinks pull requests on the threads of one connected environment. */
 export function usePullRequestLinking(environmentId: EnvironmentId | null | undefined) {
-  const configs = useServerConfigs();
-  const supported = environmentId != null && configs.get(environmentId) !== undefined;
+  const supported = useAtomValue(linkSupportedAtom(environmentId ?? null));
   const link = useAtomCommand(threadEnvironment.linkPullRequest, { reportFailure: false });
   const unlink = useAtomCommand(threadEnvironment.unlinkPullRequest, { reportFailure: false });
   const canLink = (url: string) => supported && parseChangeRequestUrl(url) !== null;
