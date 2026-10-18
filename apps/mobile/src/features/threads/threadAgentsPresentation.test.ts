@@ -48,7 +48,7 @@ describe("resolveSubagentRowPresentation", () => {
     const titled = resolveSubagentRowPresentation({ ...base, title: "Subagent: /root/my_worker" });
 
     expect(long.title).toHaveLength(80);
-    expect(long.title.endsWith("...")).toBe(true);
+    expect(long.title.endsWith("…")).toBe(true);
     expect(titled.title).toBe("My Worker");
   });
 

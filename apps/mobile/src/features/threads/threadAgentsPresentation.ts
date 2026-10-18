@@ -24,7 +24,7 @@ function rowTitle(subagent: Pick<OrchestrationV2Subagent, "title" | "prompt">): 
   const prompt = subagent.prompt.trim();
   if (prompt.length === 0) return "Subagent";
   return prompt.length > PROMPT_TITLE_LIMIT
-    ? `${prompt.slice(0, PROMPT_TITLE_LIMIT - 3)}...`
+    ? `${prompt.slice(0, PROMPT_TITLE_LIMIT - 1).trimEnd()}…`
     : prompt;
 }
 

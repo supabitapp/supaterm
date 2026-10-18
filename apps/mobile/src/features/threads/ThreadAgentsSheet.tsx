@@ -61,20 +61,20 @@ export function ThreadAgentsSheet({ route }: StaticScreenProps<AgentsTarget>) {
       // The iOS header is translucent and floats over this view; UIKit has to
       // inset the content or the first row sits underneath the title.
       contentInsetAdjustmentBehavior={Platform.OS === "ios" ? "automatic" : "never"}
-      contentContainerClassName="px-5 pb-6"
       contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 8 }}
     >
       {subagents.length === 0 ? (
-        <Text className="pt-6 text-center text-sm text-foreground-muted">
+        <Text className="px-5 pt-6 text-center text-sm text-foreground-muted">
           No agents in this turn.
         </Text>
       ) : (
-        subagents.map((subagent) => (
+        subagents.map((subagent, index) => (
           <AgentRow
             key={subagent.id}
             subagent={subagent}
             environmentId={target.environmentId}
             tickSeconds={hasLiveAgent}
+            isLast={index === subagents.length - 1}
             onOpen={openChildThread}
           />
         ))
@@ -127,18 +127,24 @@ function AgentRow(props: {
   readonly environmentId: EnvironmentId;
   readonly subagent: OrchestrationV2Subagent;
   readonly tickSeconds: boolean;
+  readonly isLast: boolean;
   readonly onOpen: (childThreadId: ThreadId) => void;
 }) {
   const { subagent } = props;
   const childThreadId = subagent.childThreadId;
 
   const row = (
-    <View className="border-b border-border py-3.5">
+    <View className="px-5 py-3.5">
       <SubagentRow
         environmentId={props.environmentId}
         subagent={subagent}
         elapsed={<AgentElapsed subagent={subagent} tickSeconds={props.tickSeconds} />}
       />
+      {props.isLast ? null : (
+        // left-10 is this row's padding plus SubagentRow's status dot and gap,
+        // so the rule starts at the text column and the dots sit in a gutter.
+        <View className="absolute right-0 bottom-0 left-10 h-px bg-border" />
+      )}
     </View>
   );
 
@@ -158,7 +164,7 @@ function AgentRow(props: {
       accessibilityRole="link"
       accessibilityHint="Opens this agent's thread"
       onPress={() => props.onOpen(childThreadId)}
-      className="active:opacity-70"
+      className="active:bg-subtle"
     >
       {row}
     </Pressable>
