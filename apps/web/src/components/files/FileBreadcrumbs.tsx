@@ -2,7 +2,7 @@ import { RefreshIcon } from "~/components/ui/refresh-icon";
 import { Spinner } from "~/components/ui/spinner";
 import type { EnvironmentId } from "@supaterm/contracts";
 import { ArrowLeftIcon, ChevronRightIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { PierreEntryIcon } from "~/components/chat/PierreEntryIcon";
 import {
@@ -94,10 +94,7 @@ function BreadcrumbMenuContent(props: {
   const { resolvedTheme } = useTheme();
   const entries = entriesQuery.data?.entries ?? [];
   const entriesTruncated = entriesQuery.data?.truncated ?? false;
-  const children = useMemo(
-    () => fileBreadcrumbChildren(entries, props.directoryPath),
-    [entries, props.directoryPath],
-  );
+  const children = fileBreadcrumbChildren(entries, props.directoryPath);
   const directoryAvailable = entriesQuery.data !== null;
   const parentPath = fileBreadcrumbParent(props.directoryPath);
   const canGoBack =
@@ -306,10 +303,7 @@ function FolderBreadcrumb(props: {
  */
 export function FileBreadcrumbs(props: FileBreadcrumbsProps) {
   const hostPath = isAbsolutePath(props.relativePath);
-  const breadcrumbs = useMemo(
-    () => fileBreadcrumbs(props.projectName, props.trail),
-    [props.projectName, props.trail],
-  );
+  const breadcrumbs = fileBreadcrumbs(props.projectName, props.trail);
   const currentPath = breadcrumbPathOf(props.relativePath);
   const currentIndex = breadcrumbs.findIndex((crumb) => crumb.path === currentPath);
 
