@@ -1,5 +1,4 @@
 import type { EnvironmentId, PullRequestRef } from "@supaterm/contracts";
-import { useMemo } from "react";
 import {
   savedPullRequestStack,
   pullRequestStackView,
@@ -13,20 +12,17 @@ export function usePullRequestStack(
   reference: PullRequestRef | null,
 ) {
   const threads = useThreadShells();
-  const saved = useMemo(
-    () =>
-      reference === null
-        ? null
-        : savedPullRequestStack(
-            threads
-              .filter((thread) => thread.environmentId === environmentId)
-              .flatMap((thread) => thread.pullRequests ?? []),
-            reference,
-          ),
-    [environmentId, reference, threads],
-  );
   const query = useEnvironmentQuery(
     reference === null ? null : pullRequestStackAtom({ environmentId, input: reference }),
   );
+  const saved =
+    reference === null
+      ? null
+      : savedPullRequestStack(
+          threads
+            .filter((thread) => thread.environmentId === environmentId)
+            .flatMap((thread) => thread.pullRequests ?? []),
+          reference,
+        );
   return { ...query, ...pullRequestStackView(query, saved) };
 }
