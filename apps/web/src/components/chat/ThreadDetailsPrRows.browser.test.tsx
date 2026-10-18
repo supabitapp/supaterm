@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-
 import { EnvironmentId, ThreadId, type ThreadPullRequestLink } from "@supaterm/contracts";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -7,27 +5,28 @@ import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
 const watchCommand = vi.hoisted(() => vi.fn());
 
-vi.mock("./ThreadDetailsPrRow", () => ({
+// The row queries its own pull request; this test covers only which rows the list shows.
+vi.mock(import("./ThreadDetailsPrRow"), async (importOriginal) => ({
+  ...(await importOriginal()),
   ThreadDetailsPrRow: ({
     number,
     onStopWatching,
   }: {
     number: number;
-    onStopWatching?: () => void;
+    onStopWatching?: (() => void) | undefined;
   }) => (
-    <span
-      data-row={String(number)}
-      data-watched={onStopWatching ? "" : undefined}
-      onClick={onStopWatching}
-    />
+    <div data-row={String(number)}>
+      {onStopWatching ? <button onClick={onStopWatching}>Stop watching #{number}</button> : null}
+    </div>
   ),
 }));
-vi.mock("~/state/entities", () => ({ useProjects: () => [] }));
-vi.mock("~/state/threads", () => ({ threadEnvironment: {} }));
-vi.mock("~/state/use-atom-command", () => ({ useAtomCommand: () => watchCommand }));
-vi.mock("~/lib/openPullRequestLink", () => ({
-  parseChangeRequestUrl: () => null,
-  findProjectOnChangeRequestHost: () => undefined,
+vi.mock(import("~/state/entities"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  useProjects: () => [],
+}));
+vi.mock(import("~/state/use-atom-command"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  useAtomCommand: (() => watchCommand) as never,
 }));
 
 import { ThreadDetailsPrRows } from "./ThreadDetailsPrRows";
@@ -102,27 +101,27 @@ function render(links: ReadonlyArray<ThreadPullRequestLink>, current: ThreadPull
 }
 
 const rows = () =>
-  Array.from(container.querySelectorAll("[data-row]"), (node) => node.getAttribute("data-row"));
-const toggleButton = () => Array.from(container.querySelectorAll("button")).at(-1);
-const toggleLabel = () => toggleButton()?.textContent;
+  [...container.querySelectorAll("[data-row]")].map((node) => node.getAttribute("data-row"));
+const toggleButton = () =>
+  [...container.querySelectorAll("button")].find((button) =>
+    /^(Show \d+ more|Show less)$/.test(button.textContent?.trim() ?? ""),
+  );
+const toggleLabel = () => toggleButton()?.textContent?.trim();
 
-async function toggle() {
-  await act(async () => {
-    toggleButton()!.click();
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-  });
+function toggle() {
+  act(() => toggleButton()!.click());
 }
 
-it("shows only the current pull request until the rest are asked for", async () => {
+it("shows only the current pull request until the rest are asked for", () => {
   render([other, bottom, top], top);
   expect(rows()).toEqual(["2"]);
   expect(toggleLabel()).toBe("Show 2 more");
 
-  await toggle();
+  toggle();
   expect(rows()).toEqual(["2", "1", "3"]);
   expect(toggleLabel()).toBe("Show less");
 
-  await toggle();
+  toggle();
   expect(rows()).toEqual(["2"]);
   expect(toggleLabel()).toBe("Show 2 more");
 });
@@ -133,7 +132,7 @@ it("keeps the single row untouched when the thread links one pull request", () =
   expect(toggleLabel()).toBeUndefined();
 });
 
-it("lets only watched pull requests stop their watch", async () => {
+it("lets only watched pull requests stop their watch", () => {
   const watched: ThreadPullRequestLink = {
     ...bottom,
     watch: {
@@ -149,14 +148,13 @@ it("lets only watched pull requests stop their watch", async () => {
     },
   };
   render([other, watched, top], top);
-  await toggle();
-  expect(
-    Array.from(container.querySelectorAll("[data-watched]"), (node) =>
-      node.getAttribute("data-row"),
-    ),
-  ).toEqual(["1"]);
+  toggle();
+  const stopButtons = [...container.querySelectorAll("button")].filter((button) =>
+    button.textContent?.startsWith("Stop watching"),
+  );
+  expect(stopButtons.map((button) => button.textContent)).toEqual(["Stop watching #1"]);
 
-  act(() => container.querySelector<HTMLElement>('[data-row="1"]')!.click());
+  act(() => stopButtons[0]!.click());
   expect(watchCommand).toHaveBeenCalledWith({
     environmentId: EnvironmentId.make("environment"),
     input: {

@@ -81,7 +81,7 @@ export function resolveThreadLineageWindow<Row>(
   return { visibleRows, hiddenCount: rows.length - visibleRows.length };
 }
 
-export function ThreadLineageRowList(props: {
+function ThreadLineageRowList(props: {
   readonly label?: string;
   readonly hiddenCount: number;
   readonly onShowMore: () => void;
