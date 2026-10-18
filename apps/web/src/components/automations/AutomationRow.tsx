@@ -10,7 +10,7 @@ import {
   SendIcon,
   Trash2Icon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { EnvironmentId, ScheduledTask } from "@supaterm/contracts";
 import { AuthOrchestrationOperateScope } from "@supaterm/contracts";
@@ -55,10 +55,7 @@ export function AutomationRow({
 }) {
   const navigate = useNavigate();
   const canOperate = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
-  const threadRef = useMemo(
-    () => (task.threadId ? scopeThreadRef(environmentId, task.threadId) : null),
-    [environmentId, task.threadId],
-  );
+  const threadRef = task.threadId ? scopeThreadRef(environmentId, task.threadId) : null;
   const thread = useThreadShell(threadRef);
   const [busy, setBusy] = useState(false);
   const confirm = useInlineConfirm<"delete">();
