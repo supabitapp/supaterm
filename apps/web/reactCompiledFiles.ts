@@ -79,6 +79,7 @@ export const REACT_COMPILED_FILES = [
   "apps/web/src/components/settings/useProjectScriptSettings.ts",
   "apps/web/src/components/sidebar/SidebarUpdatePill.tsx",
   "apps/web/src/components/terminal/**",
+  "apps/web/src/components/ui/combobox.tsx",
   "apps/web/src/components/ui/toggle-group.tsx",
   "apps/web/src/components/ui/tooltip.tsx",
   "apps/web/src/components/usage/UsagePage.tsx",
