@@ -14,6 +14,7 @@ export const REACT_COMPILED_FILES = [
   "apps/web/src/components/ComposerPromptEditorTiptap.tsx",
   "apps/web/src/components/DiffPanel.tsx",
   "apps/web/src/components/PersistentThreadTerminals.tsx",
+  "apps/web/src/components/ServerUpdateAction.tsx",
   "apps/web/src/components/Sidebar.logic.ts",
   "apps/web/src/components/Sidebar.tsx",
   "apps/web/src/components/ThreadNotificationCoordinator.tsx",
