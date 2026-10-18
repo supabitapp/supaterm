@@ -6,6 +6,7 @@
  */
 export const REACT_COMPILED_FILES = [
   "apps/web/src/components/ChatView.tsx",
+  "apps/web/src/components/ComposerPromptEditorTiptap.tsx",
   "apps/web/src/components/PersistentThreadTerminals.tsx",
   "apps/web/src/components/Sidebar.tsx",
   "apps/web/src/components/chat/ChatComposer.tsx",
