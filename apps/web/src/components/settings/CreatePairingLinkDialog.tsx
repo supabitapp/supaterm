@@ -11,7 +11,7 @@ import {
   type AuthPairingCredentialResult,
   type RelayConnectionInfo,
 } from "@supaterm/contracts";
-import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
+import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { AUTH_SCOPE_OPTIONS } from "@supaterm/shared/authScopeOptions";
 import { LinkIcon, PlusIcon } from "lucide-react";
 import { type RefObject, useId, useRef, useState } from "react";
@@ -115,7 +115,7 @@ export function CreatePairingLinkDialog({
     )
       return;
     setStage(relayEnabled ? "relay" : "creating");
-    try {
+    const result = await settlePromise(async () => {
       let relay: RelayConnectionInfo | undefined;
       if (relayEnabled) {
         const prepared = await prepareRelay({ environmentId: primaryEnvironmentId, input: {} });
@@ -126,7 +126,9 @@ export function CreatePairingLinkDialog({
       const created = await createServerPairingCredential({ label, scopes: selectedScopes });
       setOpen(false);
       onPairingLinkCreated(created, relay);
-    } catch (error) {
+    });
+    if (result._tag === "Failure") {
+      const error = squashAtomCommandFailure(result);
       toastManager.add(
         stackedThreadToast({
           type: "error",
@@ -134,9 +136,8 @@ export function CreatePairingLinkDialog({
           description: error instanceof Error ? error.message : "Try creating the link again.",
         }),
       );
-    } finally {
-      setStage("idle");
     }
+    setStage("idle");
   };
 
   return (

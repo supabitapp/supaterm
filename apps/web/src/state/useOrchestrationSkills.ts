@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AuthProvidersManageScope } from "@supaterm/contracts";
 import type { createServerEnvironmentAtoms } from "@supaterm/client-runtime/state/server";
+import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { useAtomCommand } from "./use-atom-command";
 import { readEnvironmentScope, useEnvironmentsWithScope } from "./session";
 import {
@@ -31,30 +32,25 @@ export function useOrchestrationSkills(
     if (busy.current) return;
     busy.current = true;
     setPending(action);
-    try {
-      const execute = action === "Status" ? read : action === "Install" ? install : uninstall;
-      setResults(
-        await runOrchestrationSkillsAction(selection, async (environmentId) => {
-          const previousStatus =
-            results.find((entry) => entry.environmentId === environmentId)?.status ?? null;
-          if (
-            action !== "Status" &&
-            !readEnvironmentScope(environmentId, AuthProvidersManageScope)
-          ) {
-            return previousStatus;
-          }
-          const result = await execute({ environmentId, input: {} });
-          if (result._tag === "Success") return result.value;
-          return action !== "Status" &&
-            !readEnvironmentScope(environmentId, AuthProvidersManageScope)
-            ? previousStatus
-            : null;
-        }),
-      );
-    } finally {
-      busy.current = false;
-      setPending(null);
-    }
+    const execute = action === "Status" ? read : action === "Install" ? install : uninstall;
+    const settled = await settlePromise(() =>
+      runOrchestrationSkillsAction(selection, async (environmentId) => {
+        const previousStatus =
+          results.find((entry) => entry.environmentId === environmentId)?.status ?? null;
+        if (action !== "Status" && !readEnvironmentScope(environmentId, AuthProvidersManageScope)) {
+          return previousStatus;
+        }
+        const result = await execute({ environmentId, input: {} });
+        if (result._tag === "Success") return result.value;
+        return action !== "Status" && !readEnvironmentScope(environmentId, AuthProvidersManageScope)
+          ? previousStatus
+          : null;
+      }),
+    );
+    busy.current = false;
+    setPending(null);
+    if (settled._tag === "Failure") throw squashAtomCommandFailure(settled);
+    setResults(settled.value);
   };
   useEffect(() => {
     let active = true;

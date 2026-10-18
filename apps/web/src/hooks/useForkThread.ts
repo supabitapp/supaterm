@@ -2,6 +2,7 @@ import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import {
   isAtomCommandInterrupted,
+  settlePromise,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
 import { AuthOrchestrationOperateScope, type RunId, type ThreadId } from "@supaterm/contracts";
@@ -41,7 +42,7 @@ export function useForkThread(
     if (pendingForks.has(key)) return;
     pendingForks.add(key);
     setBusy(true);
-    try {
+    const settled = await settlePromise(async () => {
       const targetThreadId = newThreadId();
       const targetThreadRef = scopeThreadRef(environmentId, targetThreadId);
       const result = await forkFromRun({
@@ -61,10 +62,10 @@ export function useForkThread(
         to: "/$environmentId/$threadId",
         params: buildThreadRouteParams(targetThreadRef),
       });
-    } finally {
-      pendingForks.delete(key);
-      setBusy(false);
-    }
+    });
+    pendingForks.delete(key);
+    setBusy(false);
+    if (settled._tag === "Failure") throw squashAtomCommandFailure(settled);
   };
   return { onForkFromRun, disabled: !available || busy };
 }
