@@ -20,6 +20,18 @@ public final class SupatermNativeControlsModule: Module {
       }
       return ["supportsWorkspaceColumns": false]
     }
+    View(SupatermSegmentedControlView.self) {
+      ViewName("SegmentedControl")
+      Events("onSelectionChange")
+      Prop("labels") { (view: SupatermSegmentedControlView, value: [String]) in view.labels = value }
+      Prop("selectedIndex") { (view: SupatermSegmentedControlView, value: Int) in view.selectedIndex = value }
+      Prop("trackColor") { (view: SupatermSegmentedControlView, value: UIColor) in view.trackColor = value }
+      Prop("selectedColor") { (view: SupatermSegmentedControlView, value: UIColor) in view.selectedColor = value }
+      Prop("textColor") { (view: SupatermSegmentedControlView, value: UIColor) in view.textColor = value }
+      Prop("mutedColor") { (view: SupatermSegmentedControlView, value: UIColor) in view.mutedColor = value }
+      Prop("appearance") { (view: SupatermSegmentedControlView, value: String) in view.appearance = value }
+    }
+
     View(SupatermLayoutMetricsView.self) {
       ViewName("LayoutMetrics")
       Events("onMetricsChange")
