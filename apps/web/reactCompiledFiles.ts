@@ -62,6 +62,7 @@ export const REACT_COMPILED_FILES = [
   "apps/web/src/components/settings/ProjectFaviconPickerDialog.tsx",
   "apps/web/src/components/settings/ProjectSettingsPanel.tsx",
   "apps/web/src/components/settings/ProviderSetupSection.tsx",
+  "apps/web/src/components/settings/SnapShotSettings.tsx",
   "apps/web/src/components/settings/SnapShotSetupDialog.tsx",
   "apps/web/src/components/settings/SourceControlHostSettings.tsx",
   "apps/web/src/components/settings/StorageSettings.tsx",
