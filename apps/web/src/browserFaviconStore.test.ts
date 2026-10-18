@@ -2,7 +2,7 @@ import { scopeProjectRef } from "@supaterm/client-runtime/environment";
 import { EnvironmentId, ProjectId, ThreadId } from "@supaterm/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-vi.mock("~/state/entities", () => ({ useThreadShell: () => null }));
+vi.mock("~/state/entities", () => ({ useQuietThreadShell: () => null }));
 vi.mock("~/state/session", () => ({ usePreparedConnection: () => ({ _tag: "None" }) }));
 
 import {

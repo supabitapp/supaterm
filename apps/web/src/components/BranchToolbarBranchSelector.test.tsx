@@ -18,7 +18,7 @@ vi.mock(import("../state/session"), async (importOriginal) => ({
   readEnvironmentScope: () => true,
 }));
 vi.mock("../state/entities", () => ({
-  useThreadShell: () => null,
+  useQuietThreadShell: () => null,
   useProject: (ref: { projectId: string } | null) =>
     ref ? { id: ref.projectId, workspaceRoot: `/tmp/${ref.projectId}` } : null,
 }));
