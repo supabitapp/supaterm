@@ -1,5 +1,5 @@
 import {
-  AuthAdministrativeScopes,
+  AuthStandardClientScopes,
   CommandId,
   EnvironmentHttpApi,
   EnvironmentHttpCommonError,
@@ -221,7 +221,7 @@ const withProjectCliSessionToken = <A, E, R>(
 ) =>
   Effect.acquireUseRelease(
     environmentAuth.issueSession({
-      scopes: AuthAdministrativeScopes,
+      scopes: AuthStandardClientScopes,
       label: "supaterm project cli",
     }),
     (issued) => run(issued.token),

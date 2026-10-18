@@ -1,8 +1,4 @@
-import {
-  AuthAdministrativeScopes,
-  AuthSessionId,
-  AuthStandardClientScopes,
-} from "@supaterm/contracts";
+import { AuthSessionId, AuthStandardClientScopes } from "@supaterm/contracts";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -163,7 +159,7 @@ const pairingCommand = Command.make("pairing").pipe(
 
 const sessionIssueCommand = Command.make("issue", {
   ...authLocationFlags,
-  scopes: authScopesFlag(AuthAdministrativeScopes),
+  scopes: authScopesFlag(AuthStandardClientScopes),
   ttl: ttlFlag,
   label: labelFlag,
   subject: subjectFlag,

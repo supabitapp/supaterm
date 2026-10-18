@@ -41,7 +41,6 @@ import { togglePairingScopeSelection } from "./ConnectionsSettings.logic";
 
 const PERMISSION_SCOPES = {
   standard: AuthStandardClientScopes,
-  "full-access": AuthGrantScope.literals,
   "read-only": [
     AuthOrchestrationReadScope,
     AuthFilesystemReadScope,
@@ -55,12 +54,7 @@ const PERMISSION_PRESETS = [
     value: "standard",
     label: "Standard",
     description:
-      "Run agents, work with files, and use terminals with the permissions you can share.",
-  },
-  {
-    value: "full-access",
-    label: "Full access",
-    description: "Share every permission you can grant, including device access management.",
+      "Run agents, work with files, use terminals, and manage device access with the permissions you can share.",
   },
   {
     value: "read-only",

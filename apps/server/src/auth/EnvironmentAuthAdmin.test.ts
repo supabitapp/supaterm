@@ -1,4 +1,4 @@
-import { AuthAdministrativeScopes } from "@supaterm/contracts";
+import { AuthStandardClientScopes } from "@supaterm/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
@@ -80,11 +80,11 @@ it.layer(NodeServices.layer)("EnvironmentAuth administrative operations", (it) =
       const listedAfterRevoke = yield* environmentAuth.listSessions();
 
       expect(issued.method).toBe("bearer-access-token");
-      expect(issued.scopes).toEqual(AuthAdministrativeScopes);
+      expect(issued.scopes).toEqual(AuthStandardClientScopes);
       expect(issued.client.deviceType).toBe("bot");
       expect(issued.client.label).toBe("deploy-bot");
       expect(verified.sessionId).toBe(issued.sessionId);
-      expect(verified.scopes).toEqual(AuthAdministrativeScopes);
+      expect(verified.scopes).toEqual(AuthStandardClientScopes);
       expect(verified.method).toBe("bearer-access-token");
       expect(listedBeforeRevoke).toHaveLength(1);
       expect(listedBeforeRevoke[0]?.sessionId).toBe(issued.sessionId);
