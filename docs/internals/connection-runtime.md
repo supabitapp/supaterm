@@ -60,7 +60,8 @@ mismatched version with HTTP 426 (`orchestration_protocol_incompatible`) before 
 work runs. The client checks the environment descriptor the same way. Either direction blocks the
 connection as `unsupported` with a message naming the machine to update rather than running
 half-upgraded. See `packages/client-runtime/src/connection/compatibility.ts` and
-`apps/server/src/ws.ts`.
+`apps/server/src/ws.ts`. The descriptor is decoded before the comparison, so it must read any newer
+server's descriptor: a decode failure there replaces the update message with a generic error.
 
 ## HTTP authorization
 
