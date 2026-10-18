@@ -1,3 +1,4 @@
+import { CODE_FONT_FAMILY } from "../lib/fonts";
 import { useEffect, useState } from "react";
 import { Platform, Pressable, ScrollView, Text, View } from "react-native";
 
@@ -101,7 +102,7 @@ export function NativeMermaidBlock({
           selectionColor={textStyle.selectionColor}
           style={{
             color: textStyle.codeColor,
-            fontFamily: Platform.OS === "ios" ? "ui-monospace" : "monospace",
+            fontFamily: CODE_FONT_FAMILY,
             fontSize,
             lineHeight: fontSize + 6,
           }}

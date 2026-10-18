@@ -1,4 +1,5 @@
-import { Platform, ScrollView, type StyleProp, type TextStyle, View } from "react-native";
+import { CODE_FONT_FAMILY } from "../../../../lib/fonts";
+import { ScrollView, type StyleProp, type TextStyle, View } from "react-native";
 
 import { AppText as Text } from "../../../../components/ui/AppText";
 import {
@@ -7,12 +8,6 @@ import {
 } from "../../../../lib/appearancePreferences";
 import { getMobileTerminalTheme } from "../../../terminal/terminalTheme";
 import { useAppearancePreferences } from "../AppearancePreferencesProvider";
-
-const CODE_FONT_FAMILY = Platform.select({
-  ios: "ui-monospace",
-  android: "monospace",
-  default: "monospace",
-});
 
 export function AppearancePreviewSeparator() {
   return <View className="h-px bg-separator" />;
@@ -44,7 +39,7 @@ export function TerminalAppearancePreview(props: { readonly fontSize: number }) 
   const theme = getMobileTerminalTheme(themeId, scheme);
   const lineHeight = Math.round(props.fontSize * 1.6);
   const lineStyle = {
-    fontFamily: "Menlo",
+    fontFamily: CODE_FONT_FAMILY,
     fontSize: props.fontSize,
     lineHeight,
   } as const;

@@ -47,7 +47,7 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { ControlPill } from "../../components/ui/ControlPill";
 import { cn } from "../../lib/cn";
 import { playDecisionHaptic } from "../../lib/decisionHaptic";
-import { useFontFamily } from "../../lib/useFontFamily";
+import { SYSTEM_FONT_FAMILY } from "../../lib/fonts";
 import { SelectableMarkdownText } from "../../native/SelectableMarkdownText";
 import { useOpenPullRequest } from "../../native/useOpenPullRequest";
 import { useMarkdownPreviewStyles } from "../files/FileMarkdownPreview";
@@ -168,11 +168,10 @@ function QuestionPage(props: {
 
 function QuestionText(props: { readonly markdown: string }) {
   const styles = useMarkdownPreviewStyles();
-  const mediumFontFamily = useFontFamily("medium");
   const openLink = useOpenPullRequest();
   const textStyle = useMemo(
-    () => ({ ...styles.nativeTextStyle, fontFamily: mediumFontFamily }),
-    [styles.nativeTextStyle, mediumFontFamily],
+    () => ({ ...styles.nativeTextStyle, fontFamily: SYSTEM_FONT_FAMILY, fontWeight: "500" }),
+    [styles.nativeTextStyle],
   );
   return (
     <SelectableMarkdownText

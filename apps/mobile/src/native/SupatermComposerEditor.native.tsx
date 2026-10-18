@@ -21,7 +21,7 @@ import { composerChipSizeSuffix, contextChipPresentation } from "../lib/composer
 import { resolveMarkdownFileIcon } from "../lib/markdownLinks";
 import { MOBILE_TYPOGRAPHY } from "../lib/typography";
 import { useNativePaste } from "../lib/useNativePaste";
-import { useFontFamily } from "../lib/useFontFamily";
+import { SYSTEM_FONT_FAMILY } from "../lib/fonts";
 import { useAppearancePreferences } from "../features/settings/appearance/AppearancePreferencesProvider";
 import { useUniwindTheme } from "../lib/useUniwindTheme";
 import { createNativeComposerTheme } from "../lib/nativeComposerTheme";
@@ -269,7 +269,6 @@ export function ComposerEditor({
     selection: Platform.OS === "android" || systemColorsActive ? theme["--color-focus"] : null,
   });
   const resolvedTextStyle = StyleSheet.flatten(textStyle) ?? {};
-  const regularFontFamily = useFontFamily("regular");
   return (
     <TextInputWrapper onPaste={handlePaste} style={[{ minHeight: 0 }, style]}>
       <NativeView
@@ -281,7 +280,7 @@ export function ComposerEditor({
         fontFamily={
           typeof resolvedTextStyle.fontFamily === "string"
             ? resolvedTextStyle.fontFamily
-            : regularFontFamily
+            : SYSTEM_FONT_FAMILY
         }
         fontSize={
           typeof resolvedTextStyle.fontSize === "number"

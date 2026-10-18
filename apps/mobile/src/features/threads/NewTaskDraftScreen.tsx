@@ -40,7 +40,7 @@ import Animated, { FadeOut } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NATIVE_LIQUID_GLASS_SUPPORTED } from "../../native/native-glass";
 import { useUniwindTheme } from "../../lib/useUniwindTheme";
-import { useFontFamily } from "../../lib/useFontFamily";
+import { SYSTEM_FONT_FAMILY } from "../../lib/fonts";
 import {
   AuthOrchestrationOperateScope,
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
@@ -728,7 +728,6 @@ export function NewTaskDraftScreen(props: {
 
   const theme = useUniwindTheme();
   const foregroundColor = theme["--color-foreground"];
-  const regularFontFamily = useFontFamily("regular");
   const bodyText = useScaledTextRole("body");
 
   const lastInitialProjectRefRef = useRef(props.initialProjectRef);
@@ -1500,7 +1499,7 @@ export function NewTaskDraftScreen(props: {
           maxHeight: 160,
           paddingVertical: 4,
         }}
-        textStyle={{ ...bodyText, color: foregroundColor, fontFamily: regularFontFamily }}
+        textStyle={{ ...bodyText, color: foregroundColor, fontFamily: SYSTEM_FONT_FAMILY }}
       />
     </>
   );

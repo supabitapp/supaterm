@@ -1,16 +1,13 @@
-import { Platform, Text as NativeText, View } from "react-native";
+import { Text as NativeText, View } from "react-native";
 
 import { cn } from "../../lib/cn";
+import { CODE_FONT_FAMILY } from "../../lib/fonts";
 import { MOBILE_CODE_SURFACE } from "../../lib/typography";
 
 import type { ReviewRenderableLineRow } from "./reviewModel";
 import type { ReviewHighlightedToken } from "./reviewHighlightedToken.types";
 
-export const REVIEW_MONO_FONT_FAMILY = Platform.select({
-  ios: "ui-monospace",
-  android: "monospace",
-  default: "monospace",
-});
+export const REVIEW_MONO_FONT_FAMILY = CODE_FONT_FAMILY;
 
 export const REVIEW_DIFF_LINE_HEIGHT = MOBILE_CODE_SURFACE.rowHeight;
 

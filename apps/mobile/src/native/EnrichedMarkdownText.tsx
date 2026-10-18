@@ -1,3 +1,4 @@
+import { CODE_FONT_FAMILY } from "../lib/fonts";
 import { decodeComposerContextFragment } from "@supaterm/shared/composerContextClipboard";
 import {
   collectComposerContextReferences,
@@ -35,7 +36,6 @@ function enrichedStyle(
   style: SelectableMarkdownTextProps["textStyle"],
   dark: boolean,
 ): MarkdownStyle {
-  const monospace = Platform.OS === "ios" ? "Menlo" : "monospace";
   // Keep the radius modest: iOS clips square table-cell borders without stroking the corner arcs.
   const block = {
     marginTop: 4,
@@ -47,6 +47,7 @@ function enrichedStyle(
   const body = {
     color: style.color,
     fontFamily: style.fontFamily,
+    fontWeight: style.fontWeight,
     fontSize: style.fontSize,
     lineHeight: style.lineHeight,
     marginTop: 0,
@@ -58,6 +59,7 @@ function enrichedStyle(
       ...body,
       color: style.strongColor,
       fontFamily: style.headingFontFamily,
+      fontWeight: "bold",
       fontSize,
       lineHeight: fontSize * 1.35,
       marginTop: 8,
@@ -71,10 +73,10 @@ function enrichedStyle(
     h4: heading(4),
     h5: heading(5),
     h6: heading(6),
-    strong: { color: style.strongColor, fontFamily: style.boldFontFamily, fontWeight: "normal" },
+    strong: { color: style.strongColor, fontFamily: style.boldFontFamily, fontWeight: "bold" },
     link: { color: style.linkColor, underline: true },
     code: {
-      fontFamily: monospace,
+      fontFamily: CODE_FONT_FAMILY,
       color: style.inlineCodeColor,
       backgroundColor: "transparent",
       borderColor: "transparent",
@@ -84,7 +86,7 @@ function enrichedStyle(
       ...body,
       color: style.codeColor,
       backgroundColor: style.codeBlockBackgroundColor,
-      fontFamily: monospace,
+      fontFamily: CODE_FONT_FAMILY,
       fontSize: style.fontSize * 0.9,
       ...block,
       padding: 12,
@@ -127,7 +129,6 @@ function enrichedStyle(
     table: {
       ...body,
       ...block,
-      headerFontFamily: style.boldFontFamily,
       headerTextColor: style.strongColor,
       headerBackgroundColor: style.codeBlockBackgroundColor,
       rowEvenBackgroundColor: "transparent",

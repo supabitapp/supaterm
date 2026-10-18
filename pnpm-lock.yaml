@@ -437,9 +437,9 @@ importers:
       '@effect/atom-react':
         specifier: 4.0.5
         version: 4.0.5(@types/react@19.3.0)(@types/scheduler@0.16.8)(effect@4.0.5)(react@19.3.0)(scheduler@0.28.0)
-      '@expo-google-fonts/dm-sans':
-        specifier: ^0.4.2
-        version: 0.4.2
+      '@expo-google-fonts/jetbrains-mono':
+        specifier: ^0.4.1
+        version: 0.4.1
       '@expo/metro-runtime':
         specifier: ~58.0.14
         version: 58.0.14(@expo/log-box@58.0.12)(@types/react@19.3.0)(expo@58.0.11)(react-dom@19.3.0(react@19.3.0))(react-native@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
@@ -910,6 +910,9 @@ importers:
       '@effect/atom-react':
         specifier: 4.0.5
         version: 4.0.5(@types/react@19.3.0)(@types/scheduler@0.16.8)(effect@4.0.5)(react@19.3.0)(scheduler@0.28.0)
+      '@fontsource/jetbrains-mono':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@legendapp/list':
         specifier: 'catalog:'
         version: 3.3.5(patch_hash=1414adb25f1e998d23e488a8cc1b7e0692c9243eb3e8afd721a7c1c12b044119)(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react-native@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
@@ -3126,8 +3129,8 @@ packages:
   '@exodus/schemasafe@1.3.0':
     resolution: {integrity: sha512-5Aap/GaRupgNx/feGBwLLTVv8OQFfv3pq2lPRzPg9R+IOBnDgghTGW7l7EuVXOvg5cc/xSAlRW8rBrjIC3Nvqw==}
 
-  '@expo-google-fonts/dm-sans@0.4.2':
-    resolution: {integrity: sha512-e/fLH5aCJzkEenz7axvEn8N7IJAKhUwNjIxS75h9j+Ip1M9S7d22M19gJN3A7QW4egVkBJRyQh1hQFhngQn9yA==}
+  '@expo-google-fonts/jetbrains-mono@0.4.1':
+    resolution: {integrity: sha512-CslACrtMOcRwoWXCO7OMEI+9w3fukWSoBtvNz46OqPoogEuuoY0tkDY1O8sFumk8t0pC6Cx0Xr95O0TOQhpkug==}
 
   '@expo-google-fonts/material-symbols@0.4.38':
     resolution: {integrity: sha512-IJkBtN1o8u9BW5fvSii1MyHPQ7Q0HxbWcVBvOrOzgMLpVtZw7R2w94wBTVR7kZwv3w1JNTESMmLA5Sqn1+Z36A==}
@@ -3427,6 +3430,9 @@ packages:
 
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
+
+  '@fontsource/jetbrains-mono@5.3.0':
+    resolution: {integrity: sha512-fqDfB5I9f1p1TV486aUgB9t8zP84P0O1FtQR5Ol9vjwPy+S+EIGlVYm1cvj2W5shcZMTg2nZFdVMoH5wFu8a1A==}
 
   '@hono/node-server@1.19.17':
     resolution: {integrity: sha512-dSneS5qhiauZWGDCeK4o695Xd9nUNjviSZCMQrj10eetr8Uln1ucn6bbphOM6UynAMMtNIzZNSpL9vnASJwrPQ==}
@@ -12542,7 +12548,7 @@ snapshots:
 
   '@exodus/schemasafe@1.3.0': {}
 
-  '@expo-google-fonts/dm-sans@0.4.2': {}
+  '@expo-google-fonts/jetbrains-mono@0.4.1': {}
 
   '@expo-google-fonts/material-symbols@0.4.38': {}
 
@@ -13074,6 +13080,8 @@ snapshots:
       react-dom: 19.3.0(react@19.3.0)
 
   '@floating-ui/utils@0.2.11': {}
+
+  '@fontsource/jetbrains-mono@5.3.0': {}
 
   '@hono/node-server@1.19.17(hono@4.13.7)':
     dependencies:

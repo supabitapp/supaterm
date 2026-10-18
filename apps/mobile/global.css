@@ -6,17 +6,20 @@
 @layer theme {
   :root {
     @variant android {
-      --font-mono: "monospace";
+      --font-sans: "sans-serif";
+      --font-medium: "sans-serif";
+      --font-bold: "sans-serif";
+      --font-mono: "JetBrainsMono";
     }
   }
 }
 
 /* ─── Typography ────────────────────────────────────────────────────── */
 @theme {
-  /* Keep these native family names aligned with app.config.ts. */
-  --font-sans: "DMSans-Regular";
-  --font-medium: "DMSans-Medium";
-  --font-bold: "DMSans-Bold";
+  --font-sans: "System";
+  --font-medium: "System";
+  --font-bold: "System";
+  --font-mono: "JetBrainsMono-Regular";
 
   /* Keep this scale aligned with src/lib/typography.ts for native style props. */
   --text-3xs: 11px;
@@ -42,10 +45,12 @@
 /* ─── Custom utilities ──────────────────────────────────────────────── */
 @utility font-supaterm-medium {
   font-family: var(--font-medium);
+  font-weight: 500;
 }
 
 @utility font-supaterm-bold {
   font-family: var(--font-bold);
+  font-weight: 700;
 }
 
 @utility font-supaterm-extrabold {

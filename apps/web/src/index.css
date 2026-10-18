@@ -156,7 +156,7 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
 @theme {
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-mono:
-    ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+    "JetBrains Mono", "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
 }
 
 @theme inline {
@@ -1490,8 +1490,10 @@ body {
 }
 
 pre,
-code {
+code,
+.font-mono {
   font-family: var(--font-mono);
+  font-variant-ligatures: common-ligatures contextual;
 }
 
 /* Code blocks in chat carry the size preference. Scoped to chat markdown
@@ -1511,6 +1513,7 @@ code {
    appearance font tokens. */
 :root {
   --diffs-font-family: var(--font-mono);
+  --diffs-font-features: "liga" 1, "calt" 1;
   --diffs-header-font-family: var(--font-sans);
 }
 

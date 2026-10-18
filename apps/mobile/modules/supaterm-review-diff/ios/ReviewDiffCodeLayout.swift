@@ -116,7 +116,7 @@ private final class ReviewDiffTextLayout {
     paragraph.defaultTabInterval = characterWidth * 4
     container.size = CGSize(width: max(1, width), height: .greatestFiniteMagnitude)
     storage.setAttributedString(NSAttributedString(string: text, attributes: [
-      .font: font, .ligature: 0, .paragraphStyle: paragraph,
+      .font: font, .ligature: 1, .paragraphStyle: paragraph,
     ]))
     manager.ensureLayout(for: container)
   }

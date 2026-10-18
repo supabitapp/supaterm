@@ -50,7 +50,7 @@ const DIFF_PREVIEW_PATCH = [
   "--- a/src/formatUser.ts",
   "+++ b/src/formatUser.ts",
   "@@ -1,3 +1,3 @@",
-  " export function formatUser(user: User) {",
+  " export const formatUser = (user: User) => {",
   "-  return user.name.toUpperCase();",
   "+  return `${user.name} <${user.email}>`; // 0O 1lI",
   " }",

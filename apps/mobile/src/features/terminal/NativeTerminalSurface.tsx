@@ -1,3 +1,4 @@
+import { CODE_FONT_FAMILY } from "../../lib/fonts";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
   Pressable,
@@ -125,7 +126,7 @@ const FallbackTerminalSurface = memo(function FallbackTerminalSurface(
             selectable
             style={{
               color: theme.foreground,
-              fontFamily: "Menlo",
+              fontFamily: CODE_FONT_FAMILY,
               fontSize,
               lineHeight: Math.round(fontSize * 1.35),
             }}
@@ -153,7 +154,7 @@ const FallbackTerminalSurface = memo(function FallbackTerminalSurface(
           style={{
             color: theme.foreground,
             flex: 1,
-            fontFamily: "Menlo",
+            fontFamily: CODE_FONT_FAMILY,
             padding: 0,
           }}
           onSubmitEditing={(event) => {

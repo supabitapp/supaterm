@@ -741,8 +741,7 @@ public final class SupatermTerminalView: ExpoView, UITextFieldDelegate {
   }
 
   private func writeThemeConfigFile() -> String? {
-    guard !themeConfig.isEmpty else { return nil }
-    let configContents = themeConfig
+    let configContents = "font-family = JetBrains Mono\nfont-feature = calt\nfont-feature = liga\n" + themeConfig
     let url = URL(fileURLWithPath: NSTemporaryDirectory())
       .appendingPathComponent("supaterm-terminal-theme-\(appearance.rawValue).ghostty")
 

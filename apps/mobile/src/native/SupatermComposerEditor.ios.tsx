@@ -20,7 +20,7 @@ import { composerChipSizeSuffix, contextChipPresentation } from "../lib/composer
 import { resolveMarkdownFileIcon } from "../lib/markdownLinks";
 import { useUniwindTheme } from "../lib/useUniwindTheme";
 import { createNativeComposerTheme } from "../lib/nativeComposerTheme";
-import { useFontFamily } from "../lib/useFontFamily";
+import { SYSTEM_FONT_FAMILY } from "../lib/fonts";
 import { useScaledTextRole } from "../features/settings/appearance/useScaledTextRole";
 import {
   acknowledgeComposerNativeEvent,
@@ -151,7 +151,6 @@ export function ComposerEditor({
   }
   const bodyText = useScaledTextRole("body");
   const theme = useUniwindTheme();
-  const fontFamily = useFontFamily("regular");
 
   useImperativeHandle(
     ref,
@@ -276,7 +275,9 @@ export function ComposerEditor({
       themeJson={themeJson}
       placeholder={props.placeholder ?? ""}
       fontFamily={
-        typeof resolvedTextStyle.fontFamily === "string" ? resolvedTextStyle.fontFamily : fontFamily
+        typeof resolvedTextStyle.fontFamily === "string"
+          ? resolvedTextStyle.fontFamily
+          : SYSTEM_FONT_FAMILY
       }
       fontSize={
         typeof resolvedTextStyle.fontSize === "number"

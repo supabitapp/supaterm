@@ -104,10 +104,10 @@ const iosBundleIdentifier = isIosPersonalTeamBuild
   ? personalTeamBundleIdentifier!
   : variant.iosBundleIdentifier;
 
-const dmSansFonts = {
-  regular: "@expo-google-fonts/dm-sans/400Regular/DMSans_400Regular.ttf",
-  medium: "@expo-google-fonts/dm-sans/500Medium/DMSans_500Medium.ttf",
-  bold: "@expo-google-fonts/dm-sans/700Bold/DMSans_700Bold.ttf",
+const codeFonts = {
+  regular: "@expo-google-fonts/jetbrains-mono/400Regular/JetBrainsMono_400Regular.ttf",
+  medium: "@expo-google-fonts/jetbrains-mono/500Medium/JetBrainsMono_500Medium.ttf",
+  bold: "@expo-google-fonts/jetbrains-mono/700Bold/JetBrainsMono_700Bold.ttf",
 } as const;
 
 const widgetsPlugin: NonNullable<ExpoConfig["plugins"]>[number] = [
@@ -197,10 +197,6 @@ const sharingPlugin: NonNullable<ExpoConfig["plugins"]>[number] = [
     },
   },
 ];
-
-// These aliases match the fonts' PostScript names on iOS. Register the same
-// names on Android so React Native and the native composer use one set of
-// family names without waiting for runtime font loading.
 
 const config: ExpoConfig = {
   name: variant.appName,
@@ -301,21 +297,17 @@ const config: ExpoConfig = {
       "expo-font",
       {
         ios: {
-          fonts: [dmSansFonts.regular, dmSansFonts.medium, dmSansFonts.bold],
+          fonts: [codeFonts.regular, codeFonts.medium, codeFonts.bold],
         },
         android: {
           fonts: [
             {
-              fontFamily: "DMSans-Regular",
-              fontDefinitions: [{ path: dmSansFonts.regular, weight: 400 }],
-            },
-            {
-              fontFamily: "DMSans-Medium",
-              fontDefinitions: [{ path: dmSansFonts.medium, weight: 500 }],
-            },
-            {
-              fontFamily: "DMSans-Bold",
-              fontDefinitions: [{ path: dmSansFonts.bold, weight: 700 }],
+              fontFamily: "JetBrainsMono",
+              fontDefinitions: [
+                { path: codeFonts.regular, weight: 400 },
+                { path: codeFonts.medium, weight: 500 },
+                { path: codeFonts.bold, weight: 700 },
+              ],
             },
           ],
         },

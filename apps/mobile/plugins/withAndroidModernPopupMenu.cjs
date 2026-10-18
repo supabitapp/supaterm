@@ -126,7 +126,7 @@ function withPopupMenuStyles(config) {
         item: [
           { _: "15sp", $: { name: "android:textSize" } },
           { _: "@color/popup_menu_item_text", $: { name: "android:textColor" } },
-          { _: "@font/xml_dm_sans_regular", $: { name: "android:fontFamily" } },
+          { _: "sans-serif", $: { name: "android:fontFamily" } },
         ],
       },
       {
@@ -137,7 +137,7 @@ function withPopupMenuStyles(config) {
         item: [
           { _: "15sp", $: { name: "android:textSize" } },
           { _: "@color/popup_menu_item_text", $: { name: "android:textColor" } },
-          { _: "@font/xml_dm_sans_regular", $: { name: "android:fontFamily" } },
+          { _: "sans-serif", $: { name: "android:fontFamily" } },
         ],
       },
       // The framework default (Widget.Material.ListMenuView) only carries

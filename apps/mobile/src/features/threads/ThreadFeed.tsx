@@ -126,7 +126,7 @@ import { useReducedMotionPreference } from "../../lib/useReducedMotionPreference
 import { isKeyboardMotionSuppressed } from "../../lib/motionInput";
 import { MOTION_ENTER_DURATION_MS } from "../../lib/motionTiming";
 import { IOS_NAV_BAR_HEIGHT } from "../../lib/layoutMetrics";
-import { useFontFamily } from "../../lib/useFontFamily";
+import { SYSTEM_FONT_FAMILY } from "../../lib/fonts";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import { copyTextWithHaptic } from "../../lib/copyTextWithHaptic";
 
@@ -874,8 +874,6 @@ function useMarkdownStyles(): MarkdownStyleSets {
   const markdownUserFenceBg = theme["--color-md-user-fence-bg"];
   const inlineSkillForeground = theme["--color-inline-skill-foreground"];
   const userBubbleSkillForeground = theme["--color-user-bubble-skill-foreground"];
-  const regularFontFamily = useFontFamily("regular");
-  const boldFontFamily = useFontFamily("bold");
 
   return useMemo(() => {
     return {
@@ -897,9 +895,9 @@ function useMarkdownStyles(): MarkdownStyleSets {
           fontSize: nativeMarkdownTypography.fontSize,
           lineHeight: nativeMarkdownTypography.lineHeight,
           headingFontSizes: nativeMarkdownTypography.headingFontSizes,
-          fontFamily: regularFontFamily,
-          headingFontFamily: boldFontFamily,
-          boldFontFamily,
+          fontFamily: SYSTEM_FONT_FAMILY,
+          headingFontFamily: SYSTEM_FONT_FAMILY,
+          boldFontFamily: SYSTEM_FONT_FAMILY,
         },
       },
       assistant: {
@@ -920,14 +918,13 @@ function useMarkdownStyles(): MarkdownStyleSets {
           fontSize: nativeMarkdownTypography.fontSize,
           lineHeight: nativeMarkdownTypography.lineHeight,
           headingFontSizes: nativeMarkdownTypography.headingFontSizes,
-          fontFamily: regularFontFamily,
-          headingFontFamily: boldFontFamily,
-          boldFontFamily,
+          fontFamily: SYSTEM_FONT_FAMILY,
+          headingFontFamily: SYSTEM_FONT_FAMILY,
+          boldFontFamily: SYSTEM_FONT_FAMILY,
         },
       },
     };
   }, [
-    boldFontFamily,
     contextChipBorderColor,
     inlineSkillForeground,
     markdownBlockquoteBorder,
@@ -944,7 +941,6 @@ function useMarkdownStyles(): MarkdownStyleSets {
     markdownUserFenceBg,
     markdownUserInlineCodeText,
     nativeMarkdownTypography,
-    regularFontFamily,
     userBubbleSkillForeground,
   ]);
 }

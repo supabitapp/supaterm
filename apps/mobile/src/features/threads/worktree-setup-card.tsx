@@ -366,8 +366,8 @@ function OutputTail({ lines, failed }: { lines: ReadonlyArray<string>; failed: b
           numberOfLines={1}
           className={
             failed
-              ? "text-2xs leading-5 text-danger-foreground ios:font-[family-name:Menlo] android:font-mono"
-              : "text-2xs leading-5 text-foreground-secondary ios:font-[family-name:Menlo] android:font-mono"
+              ? "text-2xs leading-5 text-danger-foreground font-mono"
+              : "text-2xs leading-5 text-foreground-secondary font-mono"
           }
         >
           {lines[lines.length - OUTPUT_TAIL_SLOTS.length + slot] || "\u00a0"}

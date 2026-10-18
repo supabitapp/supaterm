@@ -17,6 +17,7 @@ export interface NativeMarkdownTextStyle {
   readonly fontSize: number;
   readonly lineHeight: number;
   readonly fontFamily: string;
+  readonly fontWeight?: string;
   readonly headingFontFamily: string;
   readonly boldFontFamily: string;
   readonly headingFontSizes?: ReadonlyArray<number>;

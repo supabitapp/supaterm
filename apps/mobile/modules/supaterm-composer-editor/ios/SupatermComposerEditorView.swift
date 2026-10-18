@@ -455,7 +455,7 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
     skillText: "#a21caf",
     fileTint: "#737373"
   )
-  private var fontFamily = "DMSans-Regular"
+  private var fontFamily = "System"
   private var fontSize: CGFloat = 14
   private var lineHeight: CGFloat = 20
   private var contentInsetVertical: CGFloat = 0
@@ -976,8 +976,7 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
     // Kept in step with `SupatermContextChipVectorIcon` in the markdown module: a chip drawn here and
     // the same chip drawn in a sent message have to be the same picture.
     let chipFontSize = fontSize * 0.86
-    let font = UIFont(name: "DMSans-Medium", size: chipFontSize)
-      ?? UIFont.systemFont(ofSize: chipFontSize, weight: .medium)
+    let font = UIFont.systemFont(ofSize: chipFontSize, weight: .medium)
     let fallbackIcon = Self.vectorIcon(named: iconName, size: 14, color: style.textColor)
       ?? UIImage(
         systemName: iconName,
@@ -988,8 +987,7 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
     // label the way the web chip does.
     let paragraph = NSMutableParagraphStyle()
     paragraph.alignment = .left
-    let detailFont = UIFont(name: "DMSans-Medium", size: chipFontSize * 0.84)
-      ?? UIFont.systemFont(ofSize: chipFontSize * 0.84, weight: .medium)
+    let detailFont = UIFont.systemFont(ofSize: chipFontSize * 0.84, weight: .medium)
     let attributedLabel = NSMutableAttributedString(
       string: label,
       attributes: [.font: font, .foregroundColor: style.textColor, .paragraphStyle: paragraph]

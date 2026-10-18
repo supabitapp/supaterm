@@ -5,7 +5,7 @@ import { useCallback, useMemo, useState } from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
 
 import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
-import { useFontFamily } from "../../lib/useFontFamily";
+import { SYSTEM_FONT_FAMILY } from "../../lib/fonts";
 import { resolveNativeMarkdownTypography } from "../../lib/appearancePreferences";
 import { useUniwindTheme } from "../../lib/useUniwindTheme";
 import {
@@ -45,8 +45,6 @@ export function useMarkdownPreviewStyles(): MarkdownPreviewStyles {
   const codeBackground = theme["--color-md-code-bg"];
   const codeText = theme["--color-md-code-text"];
   const horizontalRule = theme["--color-md-hr"];
-  const regularFontFamily = useFontFamily("regular");
-  const boldFontFamily = useFontFamily("bold");
 
   return useMemo(() => {
     return {
@@ -66,9 +64,9 @@ export function useMarkdownPreviewStyles(): MarkdownPreviewStyles {
         fontSize: nativeMarkdownTypography.fontSize,
         lineHeight: nativeMarkdownTypography.lineHeight,
         headingFontSizes: nativeMarkdownTypography.headingFontSizes,
-        fontFamily: regularFontFamily,
-        headingFontFamily: boldFontFamily,
-        boldFontFamily,
+        fontFamily: SYSTEM_FONT_FAMILY,
+        headingFontFamily: SYSTEM_FONT_FAMILY,
+        boldFontFamily: SYSTEM_FONT_FAMILY,
       },
     };
   }, [
@@ -79,9 +77,7 @@ export function useMarkdownPreviewStyles(): MarkdownPreviewStyles {
     horizontalRule,
     link,
     nativeMarkdownTypography,
-    regularFontFamily,
     strong,
-    boldFontFamily,
   ]);
 }
 
