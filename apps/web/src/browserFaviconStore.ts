@@ -5,7 +5,6 @@ import {
 } from "@supaterm/client-runtime/environment";
 import type { DesktopPreviewFavicon, ScopedProjectRef, ScopedThreadRef } from "@supaterm/contracts";
 import * as Option from "effect/Option";
-import { useMemo } from "react";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
@@ -198,10 +197,8 @@ export function registerFaviconProjectForThread(
 export function useFaviconProjectRefForThread(threadRef: ScopedThreadRef): ScopedProjectRef | null {
   const shell = useThreadShell(threadRef);
   const shellProjectId = shell?.projectId ?? null;
-  const shellProjectRef = useMemo(
-    () => (shellProjectId ? scopeProjectRef(threadRef.environmentId, shellProjectId) : null),
-    [shellProjectId, threadRef.environmentId],
-  );
+  const environmentId = threadRef.environmentId;
+  const shellProjectRef = shellProjectId ? scopeProjectRef(environmentId, shellProjectId) : null;
   const registered = useBrowserFaviconStore(
     (state) => state.projectRefByThreadKey[scopedThreadKey(threadRef)] ?? null,
   );
