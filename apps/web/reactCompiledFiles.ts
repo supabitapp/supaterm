@@ -5,6 +5,7 @@
  * to catch the bailouts lint cannot see.
  */
 export const REACT_COMPILED_FILES = [
+  "apps/web/src/assets/assetUrls.ts",
   "apps/web/src/browser/ServerBrowserSurface.tsx",
   "apps/web/src/components/ChatView.tsx",
   "apps/web/src/components/ComposerPromptEditorTiptap.tsx",
