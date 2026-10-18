@@ -1,6 +1,7 @@
 import { DownloadIcon, PlusIcon } from "lucide-react";
 import type { ChangeEvent, DragEvent, UIEvent } from "react";
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { settlePromise } from "@supaterm/client-runtime/state/runtime";
+import { useLayoutEffect, useRef, useState } from "react";
 import { cn } from "../../lib/utils";
 import {
   getCustomThemes,
@@ -96,17 +97,14 @@ function ThemeJsonEditor({
 }) {
   const highlightRef = useRef<HTMLPreElement>(null);
   const isPlainText = value.length > MAX_HIGHLIGHTED_JSON_LENGTH;
-  const highlightedJson = useMemo(
-    () => (value.length > MAX_HIGHLIGHTED_JSON_LENGTH ? "" : highlightJson(value)),
-    [value],
-  );
+  const highlightedJson = isPlainText ? "" : highlightJson(value);
 
-  const syncScroll = useCallback((event: UIEvent<HTMLTextAreaElement>) => {
+  const syncScroll = (event: UIEvent<HTMLTextAreaElement>) => {
     const highlightElement = highlightRef.current;
     if (!highlightElement) return;
     highlightElement.scrollTop = event.currentTarget.scrollTop;
     highlightElement.scrollLeft = event.currentTarget.scrollLeft;
-  }, []);
+  };
 
   return (
     <div className="relative overflow-hidden rounded-xl border border-input bg-background shadow-xs/5 focus-within:border-ring focus-within:ring-3 focus-within:ring-inset focus-within:ring-ring/24">
@@ -206,7 +204,7 @@ export function ThemeImportDialog({
     importRequestRef.current += 1;
   }, [open]);
 
-  const readThemeFile = useCallback(async (file: ImportableThemeFile) => {
+  const readThemeFile = async (file: ImportableThemeFile) => {
     const oversized = describeOversizedThemeFile(file.size);
     if (oversized) {
       setError(oversized);
@@ -215,87 +213,79 @@ export function ThemeImportDialog({
 
     const requestId = ++importRequestRef.current;
     setIsReading(true);
-    try {
-      const fileText = await file.text();
-      if (requestId !== importRequestRef.current) return;
-      setJson(fileText);
-      setFileName(file.name);
-      setError(null);
-    } catch {
-      if (requestId !== importRequestRef.current) return;
+    const fileText = await settlePromise(() => file.text());
+    if (requestId !== importRequestRef.current) return;
+    setIsReading(false);
+    if (fileText._tag === "Failure") {
       setError("Could not read that file. Paste the JSON below instead.");
-    } finally {
-      if (requestId === importRequestRef.current) setIsReading(false);
+      return;
     }
-  }, []);
+    setJson(fileText.value);
+    setFileName(file.name);
+    setError(null);
+  };
 
-  const readThemeBatch = useCallback(
-    async (files: ReadonlyArray<ImportableThemeFile>) => {
-      const requestId = ++importRequestRef.current;
-      setIsReading(true);
-      const failures: string[] = [];
-      const parsed: Array<{ theme: ThemeDefinition; sourceName: string }> = [];
-      const importFiles = async () => {
-        for (const file of files) {
-          const oversized = describeOversizedThemeFile(file.size);
-          if (oversized) {
-            failures.push(`${file.name}: too large`);
-            continue;
-          }
-          try {
-            const value: unknown = JSON.parse(await file.text());
-            parsed.push({
-              sourceName: file.name,
-              theme: isVsCodeThemeFile(value) ? parseVsCodeThemeFile(value) : parseThemeFile(value),
-            });
-          } catch (cause) {
-            failures.push(
-              `${file.name}: ${cause instanceof Error ? cause.message : "not a theme file"}`,
-            );
-          }
+  const readThemeBatch = async (files: ReadonlyArray<ImportableThemeFile>) => {
+    const requestId = ++importRequestRef.current;
+    setIsReading(true);
+    const failures: string[] = [];
+    const parsed: Array<{ theme: ThemeDefinition; sourceName: string }> = [];
+    const importFiles = async () => {
+      for (const file of files) {
+        const oversized = describeOversizedThemeFile(file.size);
+        if (oversized) {
+          failures.push(`${file.name}: too large`);
+          continue;
         }
-        if (requestId !== importRequestRef.current) return;
-        const installed: ThemeDefinition[] = [];
-        const conflicting: ThemeDefinition[] = [];
-        for (const theme of pairVsCodeThemes(resolveThemeLabelCollisions(parsed))) {
-          if (getCustomThemes().some((existing) => existing.id === theme.id)) {
-            conflicting.push(theme);
-            continue;
-          }
-          try {
-            installed.push(installCustomTheme(theme));
-          } catch (cause) {
-            failures.push(
-              `${theme.label}: ${cause instanceof Error ? cause.message : "could not install"}`,
-            );
-          }
+        try {
+          const value: unknown = JSON.parse(await file.text());
+          parsed.push({
+            sourceName: file.name,
+            theme: isVsCodeThemeFile(value) ? parseVsCodeThemeFile(value) : parseThemeFile(value),
+          });
+        } catch (cause) {
+          failures.push(
+            `${file.name}: ${cause instanceof Error ? cause.message : "not a theme file"}`,
+          );
         }
-        if (installed.length > 0) onImportedMany(installed, { updated: false });
-        if (failures.length > 0) {
-          setError(failures.join(" — "));
-        } else if (conflicting.length > 0) {
-          setConflicts(conflicting);
-        } else if (installed.length > 0) {
-          onOpenChange(false);
+      }
+      if (requestId !== importRequestRef.current) return;
+      const installed: ThemeDefinition[] = [];
+      const conflicting: ThemeDefinition[] = [];
+      for (const theme of pairVsCodeThemes(resolveThemeLabelCollisions(parsed))) {
+        if (getCustomThemes().some((existing) => existing.id === theme.id)) {
+          conflicting.push(theme);
+          continue;
         }
-      };
-      await importFiles().finally(() => {
-        if (requestId === importRequestRef.current) setIsReading(false);
-      });
-    },
-    [onImportedMany, onOpenChange],
-  );
+        try {
+          installed.push(installCustomTheme(theme));
+        } catch (cause) {
+          failures.push(
+            `${theme.label}: ${cause instanceof Error ? cause.message : "could not install"}`,
+          );
+        }
+      }
+      if (installed.length > 0) onImportedMany(installed, { updated: false });
+      if (failures.length > 0) {
+        setError(failures.join(" — "));
+      } else if (conflicting.length > 0) {
+        setConflicts(conflicting);
+      } else if (installed.length > 0) {
+        onOpenChange(false);
+      }
+    };
+    await importFiles().finally(() => {
+      if (requestId === importRequestRef.current) setIsReading(false);
+    });
+  };
 
-  const readThemeFiles = useCallback(
-    (files: ReadonlyArray<ImportableThemeFile>) => {
-      if (files.length === 0) return;
-      if (files.length === 1) void readThemeFile(files[0]!);
-      else void readThemeBatch(files);
-    },
-    [readThemeBatch, readThemeFile],
-  );
+  const readThemeFiles = (files: ReadonlyArray<ImportableThemeFile>) => {
+    if (files.length === 0) return;
+    if (files.length === 1) void readThemeFile(files[0]!);
+    else void readThemeBatch(files);
+  };
 
-  const openFilePicker = useCallback(() => {
+  const openFilePicker = () => {
     const bridge = window.desktopBridge;
     if (bridge?.pickThemeFiles) {
       void bridge.pickThemeFiles().then((picked) => {
@@ -311,62 +301,53 @@ export function ThemeImportDialog({
       return;
     }
     fileInputRef.current?.click();
-  }, [readThemeFiles]);
+  };
 
-  const handleFileChange = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) => {
-      const files = [...(event.currentTarget.files ?? [])];
-      event.currentTarget.value = "";
-      readThemeFiles(files);
-    },
-    [readThemeFiles],
-  );
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = [...(event.currentTarget.files ?? [])];
+    event.currentTarget.value = "";
+    readThemeFiles(files);
+  };
 
-  const handleDrop = useCallback(
-    (event: DragEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      setIsDropTarget(false);
-      readThemeFiles([...event.dataTransfer.files]);
-    },
-    [readThemeFiles],
-  );
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDropTarget(false);
+    readThemeFiles([...event.dataTransfer.files]);
+  };
 
-  const resolveConflicts = useCallback(
-    (mode: "update" | "copy") => {
-      if (!conflicts) return;
-      const resolved: ThemeDefinition[] = [];
-      const failures: string[] = [];
-      const preferredName =
-        conflicts.length === 1 && fileName
-          ? humanizeThemeName(fileName.replace(/\.[^.]+$/, ""))
-          : null;
-      for (const theme of conflicts) {
-        try {
-          const existingTheme =
-            mode === "update"
-              ? getCustomThemes().find((candidate) => candidate.id === theme.id)
-              : undefined;
-          const themeToUpdate = existingTheme?.collection
-            ? { ...theme, collection: existingTheme.collection }
-            : theme;
-          resolved.push(
-            mode === "update"
-              ? updateCustomTheme(themeToUpdate)
-              : installCustomTheme(versionedCopy(theme, preferredName)),
-          );
-        } catch (cause) {
-          failures.push(`${theme.label}: ${cause instanceof Error ? cause.message : "failed"}`);
-        }
+  const resolveConflicts = (mode: "update" | "copy") => {
+    if (!conflicts) return;
+    const resolved: ThemeDefinition[] = [];
+    const failures: string[] = [];
+    const preferredName =
+      conflicts.length === 1 && fileName
+        ? humanizeThemeName(fileName.replace(/\.[^.]+$/, ""))
+        : null;
+    for (const theme of conflicts) {
+      try {
+        const existingTheme =
+          mode === "update"
+            ? getCustomThemes().find((candidate) => candidate.id === theme.id)
+            : undefined;
+        const themeToUpdate = existingTheme?.collection
+          ? { ...theme, collection: existingTheme.collection }
+          : theme;
+        resolved.push(
+          mode === "update"
+            ? updateCustomTheme(themeToUpdate)
+            : installCustomTheme(versionedCopy(theme, preferredName)),
+        );
+      } catch (cause) {
+        failures.push(`${theme.label}: ${cause instanceof Error ? cause.message : "failed"}`);
       }
-      if (resolved.length > 0) onImportedMany(resolved, { updated: mode === "update" });
-      setConflicts(null);
-      if (failures.length > 0) setError(failures.join(" — "));
-      else onOpenChange(false);
-    },
-    [conflicts, fileName, onImportedMany, onOpenChange],
-  );
+    }
+    if (resolved.length > 0) onImportedMany(resolved, { updated: mode === "update" });
+    setConflicts(null);
+    if (failures.length > 0) setError(failures.join(" — "));
+    else onOpenChange(false);
+  };
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = () => {
     const oversized = describeOversizedThemeFile(json.length);
     if (oversized) {
       setError(oversized);
@@ -394,7 +375,7 @@ export function ThemeImportDialog({
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "That theme file is invalid.");
     }
-  }, [json, onImported, onOpenChange]);
+  };
 
   return (
     <Dialog

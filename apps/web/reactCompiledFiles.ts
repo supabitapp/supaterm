@@ -67,6 +67,7 @@ export const REACT_COMPILED_FILES = [
   "apps/web/src/components/settings/StorageSettings.tsx",
   "apps/web/src/components/settings/TelemetryExportSettings.tsx",
   "apps/web/src/components/settings/ThemeEditorPanel.tsx",
+  "apps/web/src/components/settings/ThemeImportDialog.tsx",
   "apps/web/src/components/settings/UsageProviderSettings.tsx",
   "apps/web/src/components/settings/useHostConnectionChecks.ts",
   "apps/web/src/components/settings/useProjectScriptSettings.ts",
