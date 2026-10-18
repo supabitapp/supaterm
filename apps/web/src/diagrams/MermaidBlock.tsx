@@ -1,10 +1,11 @@
-import { CheckIcon, CopyIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, Maximize2Icon } from "lucide-react";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "../components/ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../components/ui/tooltip";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 import { renderMermaidDiagram } from "./mermaidRenderer";
+import { ExpandedPreviewDialog } from "../components/chat/ExpandedPreviewDialog";
 import { MarkdownFindContext, useFindRevealRef } from "../components/chat/markdownFindContext";
 
 export function MermaidBlock({
@@ -20,6 +21,7 @@ export function MermaidBlock({
   const [visible, setVisible] = useState(() => typeof IntersectionObserver === "undefined");
   const [rendered, setRendered] = useState<{ source: string; output: string | null } | null>(null);
   const [showSource, setShowSource] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const searching = use(MarkdownFindContext);
   const revealSource = useCallback(() => setShowSource(true), []);
   const sourceRevealRef = useFindRevealRef(revealSource);
@@ -88,6 +90,21 @@ export function MermaidBlock({
               >
                 Source
               </Button>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost-muted"
+                      size="icon-xs"
+                      aria-label="Open full screen"
+                      onClick={() => setExpanded(true)}
+                    />
+                  }
+                >
+                  <Maximize2Icon className="size-3" />
+                </TooltipTrigger>
+                <TooltipPopup side="top">Open full screen</TooltipPopup>
+              </Tooltip>
             </>
           ) : null}
           <Tooltip>
@@ -118,6 +135,15 @@ export function MermaidBlock({
         <pre ref={sourceRevealRef} hidden>
           {source}
         </pre>
+      ) : null}
+      {expanded && output !== null ? (
+        <ExpandedPreviewDialog
+          title={title ?? "Mermaid diagram"}
+          contentClassName="p-6"
+          onClose={() => setExpanded(false)}
+        >
+          <pre className="m-0 font-mono text-sm leading-snug whitespace-pre">{output}</pre>
+        </ExpandedPreviewDialog>
       ) : null}
     </div>
   );

@@ -5,7 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 import { NativeMermaidBlock } from "./NativeMermaidBlock";
 import type { NativeMarkdownTextStyle } from "./SelectableMarkdownText.types";
 
-const { copy } = vi.hoisted(() => ({ copy: vi.fn().mockResolvedValue(undefined) }));
+const { copy, navigate } = vi.hoisted(() => ({
+  copy: vi.fn().mockResolvedValue(undefined),
+  navigate: vi.fn(),
+}));
+vi.mock("@react-navigation/native", () => ({ useNavigation: () => ({ navigate }) }));
 vi.mock("react-native", () => ({
   Platform: { OS: "ios" },
   View: "View",
@@ -79,6 +83,7 @@ async function press(label: string) {
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   copy.mockClear();
+  navigate.mockClear();
   vi.useFakeTimers();
 });
 
@@ -106,6 +111,22 @@ describe("NativeMermaidBlock", () => {
     expect(displayedText()).toBe("[A] --> [B]");
     await render(source, renderer, { ...textStyle, codeColor: "white" });
     expect(renderer).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the rendered diagram full screen", async () => {
+    const source = "graph LR\nA --> B";
+    const pending = Promise.withResolvers<string>();
+    await render(source, () => pending.promise);
+    const expandButtons = () =>
+      root!.root.findAll(
+        (node) =>
+          node.type === ("Pressable" as never) &&
+          node.props.accessibilityLabel === "Open diagram full screen",
+      );
+    expect(expandButtons()).toHaveLength(0);
+    await act(async () => pending.resolve("[A] --> [B]"));
+    await press("Open diagram full screen");
+    expect(navigate).toHaveBeenCalledWith("MermaidDiagram", { source });
   });
 
   it("keeps streaming source until rendering is enabled and ignores obsolete results", async () => {

@@ -7,6 +7,11 @@ import { MermaidBlock } from "./MermaidBlock";
 import { renderMermaidDiagram } from "./mermaidRenderer";
 
 vi.mock("./mermaidRenderer", () => ({ renderMermaidDiagram: vi.fn() }));
+vi.mock("../components/chat/ExpandedPreviewDialog", () => ({
+  ExpandedPreviewDialog: ({ title, children }: { title: string; children: ReactNode }) => (
+    <section aria-label={title}>{children}</section>
+  ),
+}));
 vi.mock("../components/ui/tooltip", async () => {
   const { cloneElement, isValidElement } = await import("react");
   return {
@@ -115,6 +120,19 @@ describe("MermaidBlock", () => {
     await act(async () => button("Diagram").onClick?.({} as React.MouseEvent<HTMLButtonElement>));
     expect(displayedText()).toBe("┌───┐\n│ A │\n└───┘");
     expect(renderMermaidDiagram).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the rendered diagram full screen from either view", async () => {
+    vi.mocked(renderMermaidDiagram).mockResolvedValue("┌───┐\n│ A │\n└───┘");
+    await mount("graph TD\n A");
+    expect(() => button("Open full screen")).toThrow();
+    await act(async () => TestIntersectionObserver.instances[0]!.visible(true));
+    await act(async () => button("Source").onClick?.({} as React.MouseEvent<HTMLButtonElement>));
+    await act(async () =>
+      button("Open full screen").onClick?.({} as React.MouseEvent<HTMLButtonElement>),
+    );
+    const expanded = renderer!.root.findByProps({ "aria-label": "Mermaid diagram" });
+    expect(expanded.findByType("pre").children.join("")).toBe("┌───┐\n│ A │\n└───┘");
   });
 
   it("keeps original source after failure without retrying on ordinary rerenders", async () => {
