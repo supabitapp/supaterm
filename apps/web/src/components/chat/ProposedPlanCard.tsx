@@ -1,5 +1,5 @@
 import { proposedPlanTitle, stripDisplayedPlanMarkdown } from "@supaterm/shared/proposedPlanText";
-import { memo, useCallback, useState, useId } from "react";
+import { memo, useState, useId } from "react";
 import { useFindRevealRef } from "./markdownFindContext";
 import {
   isAtomCommandInterrupted,
@@ -85,8 +85,7 @@ export const ProposedPlanCard = memo(function ProposedPlanCard({
   const isCollapsed = canCollapse && !expanded;
 
   const showPreview = isCollapsed && !findActive;
-  const revealForFind = useCallback(() => setExpanded(true), [setExpanded]);
-  const findRevealRef = useFindRevealRef(revealForFind);
+  const findRevealRef = useFindRevealRef(() => setExpanded(true));
   const downloadFilename = buildProposedPlanMarkdownFilename(planMarkdown);
   const saveContents = normalizePlanMarkdownForExport(planMarkdown);
 
