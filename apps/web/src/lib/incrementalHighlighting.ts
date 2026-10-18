@@ -36,7 +36,10 @@ export function createIncrementalHighlightedDocument(
       return highlighter.codeToHast(code, options);
     }
     if (cached && !code.startsWith(cached.prefix)) cached = undefined;
-    const end = code.lastIndexOf("\n") + 1;
+    // Markdown ends fenced code with a newline even while its last line is still
+    // streaming. Caching that line would invalidate the prefix on the next delta.
+    const withoutFinalNewline = code.endsWith("\n") ? code.slice(0, -1) : code;
+    const end = withoutFinalNewline.lastIndexOf("\n") + 1;
     if (end > (cached?.prefix.length ?? 0)) {
       // Omit the final newline: Shiki would tokenize an extra empty line and
       // advance the grammar state twice before we process the following line.

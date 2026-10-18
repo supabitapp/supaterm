@@ -155,9 +155,9 @@ import { LRUCache } from "../lib/lruCache";
 import { MermaidBlock } from "../diagrams/MermaidBlock";
 import { getSyntaxHighlighterPromise } from "../lib/syntaxHighlighting";
 import { GitHubIcon } from "./Icons";
-import { createIncrementalHighlightedDocument } from "../lib/incrementalHighlighting";
 import { HighlightedCodeLines } from "./chat/HighlightedCodeLines";
 import { RenderErrorBoundary } from "./RenderErrorBoundary";
+import { useIncrementalHighlightedDocument } from "../hooks/useIncrementalHighlightedDocument";
 import { useTheme } from "../hooks/useTheme";
 import { getClientSettings, useClientSettings } from "../hooks/useSettings";
 import {
@@ -1052,31 +1052,6 @@ interface UncachedShikiCodeBlockProps {
   preserveLines: boolean;
 }
 
-function highlightFenceCode(input: {
-  readonly highlighter: Awaited<ReturnType<typeof getSyntaxHighlighterPromise>>;
-  readonly document: ReturnType<typeof createIncrementalHighlightedDocument> | null;
-  readonly code: string;
-  readonly language: string;
-  readonly themeName: DiffThemeName;
-  readonly preserveLines: boolean;
-}) {
-  const { highlighter, code, language, themeName, preserveLines } = input;
-  try {
-    if (input.document) return input.document(code);
-    return preserveLines
-      ? highlighter.codeToHast(code, { lang: language, theme: themeName })
-      : highlighter.codeToHtml(code, { lang: language, theme: themeName });
-  } catch (error) {
-    console.warn(
-      `Code highlighting failed for language "${language}", falling back to plain text.`,
-      error instanceof Error ? error.message : error,
-    );
-    return preserveLines
-      ? highlighter.codeToHast(code, { lang: "text", theme: themeName })
-      : highlighter.codeToHtml(code, { lang: "text", theme: themeName });
-  }
-}
-
 function UncachedShikiCodeBlock({
   code,
   language,
@@ -1086,66 +1061,28 @@ function UncachedShikiCodeBlock({
   preserveLines,
 }: UncachedShikiCodeBlockProps) {
   const highlighter = use(getSyntaxHighlighterPromise(language));
-  // Highlighting reruns only when its inputs change, and the incremental document
-  // keeps already-highlighted lines across streamed deltas. Both live in state:
-  // the compiler would rebuild the document on every code change, because
-  // highlighting through it counts as mutating it.
-  const [highlight, setHighlight] = useState(() => {
-    const document = preserveLines
-      ? createIncrementalHighlightedDocument(highlighter, language, themeName)
-      : null;
-    return {
-      highlighter,
-      language,
-      themeName,
-      preserveLines,
-      code,
-      document,
-      highlighted: highlightFenceCode({
-        highlighter,
-        document,
-        code,
-        language,
-        themeName,
-        preserveLines,
-      }),
-    };
-  });
-  let highlighted = highlight.highlighted;
-  if (
-    highlight.code !== code ||
-    highlight.highlighter !== highlighter ||
-    highlight.language !== language ||
-    highlight.themeName !== themeName ||
-    highlight.preserveLines !== preserveLines
-  ) {
-    const document =
-      highlight.highlighter === highlighter &&
-      highlight.language === language &&
-      highlight.themeName === themeName &&
-      highlight.preserveLines === preserveLines
-        ? highlight.document
-        : preserveLines
-          ? createIncrementalHighlightedDocument(highlighter, language, themeName)
-          : null;
-    highlighted = highlightFenceCode({
-      highlighter,
-      document,
-      code,
-      language,
-      themeName,
-      preserveLines,
-    });
-    setHighlight({
-      highlighter,
-      language,
-      themeName,
-      preserveLines,
-      code,
-      document,
-      highlighted,
-    });
-  }
+  const incrementalHighlight = useIncrementalHighlightedDocument(
+    preserveLines,
+    highlighter,
+    language,
+    themeName,
+  );
+  const highlighted = (() => {
+    try {
+      if (incrementalHighlight) return incrementalHighlight(code);
+      return preserveLines
+        ? highlighter.codeToHast(code, { lang: language, theme: themeName })
+        : highlighter.codeToHtml(code, { lang: language, theme: themeName });
+    } catch (error) {
+      console.warn(
+        `Code highlighting failed for language "${language}", falling back to plain text.`,
+        error instanceof Error ? error.message : error,
+      );
+      return preserveLines
+        ? highlighter.codeToHast(code, { lang: "text", theme: themeName })
+        : highlighter.codeToHtml(code, { lang: "text", theme: themeName });
+    }
+  })();
 
   useEffect(() => {
     if (!isStreaming) {

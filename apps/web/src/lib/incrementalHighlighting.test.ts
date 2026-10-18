@@ -1,6 +1,6 @@
 import { toHtml } from "hast-util-to-html";
 import { getSharedHighlighter } from "@pierre/diffs";
-import { describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { createIncrementalHighlightedDocument } from "./incrementalHighlighting";
 
@@ -24,6 +24,10 @@ const highlighterPromise = getSharedHighlighter({
   preferredHighlighter: "shiki-wasm",
 });
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe("incremental code highlighting", () => {
   it.each(Object.entries(samples))(
     "matches full HTML at every streaming prefix in %s",
@@ -40,6 +44,28 @@ describe("incremental code highlighting", () => {
       }
     },
   );
+
+  it("keeps completed lines while a newline-terminated last line grows", async () => {
+    const highlighter = await highlighterPromise;
+    const completed = "/* open\ncomment */\n";
+    const current = "const current = `a\nb`;";
+    const inputs = Array.from(
+      { length: current.length + 1 },
+      (_, end) => `${completed}${current.slice(0, end)}\n`,
+    );
+    const expected = inputs.map((text) =>
+      highlighter.codeToHtml(text, { lang: "typescript", theme: "pierre-dark" }),
+    );
+    const highlight = createIncrementalHighlightedDocument(
+      highlighter,
+      "typescript",
+      "pierre-dark",
+    );
+    expect(toHtml(highlight(inputs[0]!))).toBe(expected[0]);
+    const codeToHast = vi.spyOn(highlighter, "codeToHast");
+    expect(inputs.slice(1).map((text) => toHtml(highlight(text)))).toEqual(expected.slice(1));
+    expect(codeToHast.mock.calls.every(([text]) => !text.includes("comment */"))).toBe(true);
+  });
 
   it("resets after edits and truncation, including edits to a completed line", async () => {
     const highlighter = await highlighterPromise;

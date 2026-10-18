@@ -255,6 +255,26 @@ describe("ChatMarkdown streaming", () => {
     expect(highlight.mock.calls.every(([code]) => !code.includes("const completed"))).toBe(true);
   });
 
+  it("does not retokenize completed lines while the last line streams", async () => {
+    const highlighter = await getSyntaxHighlighterPromise("typescript");
+    const highlight = vi.spyOn(highlighter, "codeToHast");
+    const message = (code: string) => (
+      <ChatMarkdown
+        cwd="/tmp/project"
+        text={`\`\`\`typescript\nconst completed = 1;\n${code}`}
+        isStreaming
+      />
+    );
+    const { rerender } = await render(message("const cur"));
+    await vi.waitFor(() => expect(highlight).toHaveBeenCalled());
+    highlight.mockClear();
+    for (const code of ["const curr", "const current = 2;", "const current = 2;\nconst next"]) {
+      await rerender(message(code));
+    }
+    expect(highlight).toHaveBeenCalled();
+    expect(highlight.mock.calls.every(([code]) => !code.includes("const completed"))).toBe(true);
+  });
+
   it("recovers highlighting after a failed fence changes without resetting its controls", async () => {
     const highlighter = await getSyntaxHighlighterPromise("text");
     const codeToHast = highlighter.codeToHast.bind(highlighter);
