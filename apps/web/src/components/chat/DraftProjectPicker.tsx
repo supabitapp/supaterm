@@ -9,7 +9,7 @@ import { scopedProjectKey, scopeProjectRef } from "@supaterm/client-runtime/envi
 import { isScratchProject } from "@supaterm/client-runtime/state/projects";
 import { ChevronDownIcon, FolderIcon, FolderPlusIcon, MessageSquareDashedIcon } from "lucide-react";
 import { useAtomValue } from "@effect/atom-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { openCommandPalette } from "~/commandPaletteBus";
 import { useComposerHandleContext } from "~/composerHandleContext";
@@ -60,25 +60,82 @@ interface DraftProjectPickerProps {
   readonly activeProjectTitle: string | null;
 }
 
-/** The composer strip's project control for a new draft; it retargets the draft in place. */
-export function DraftProjectPicker({
-  draftId,
-  activeProjectRef,
-  activeProjectTitle,
-}: DraftProjectPickerProps) {
+// The picker's handlers pass catalog entries to plain functions after later hooks, so the
+// catalog is derived in its own hook, where the compiler can cache it.
+function useDraftProjectCatalog(activeProjectRef: ScopedProjectRef | null) {
   const projects = useProjects();
   const threads = useThreadShells();
   const { environments } = useEnvironments();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
   const projectSortOrder = useClientSettings((settings) => settings.sidebarProjectSortOrder);
+  const environmentLabelById = new Map(
+    environments.map((environment) => [environment.environmentId, environment.label] as const),
+  );
+  const projectGroups = sortLogicalProjectsForSidebar(
+    buildSidebarProjectSnapshots({
+      projects,
+      settings: projectGroupingSettings,
+      primaryEnvironmentId,
+      resolveEnvironmentLabel: (environmentId) => environmentLabelById.get(environmentId) ?? null,
+    }),
+    threads,
+    projectSortOrder,
+  );
+  const projectPickerEntries = buildSidebarProjectPickerEntries({
+    groups: projectGroups,
+    preferredProjectRef: activeProjectRef,
+  });
+  return {
+    projects,
+    environments,
+    primaryEnvironmentId,
+    projectGroupingSettings,
+    projectGroups,
+    projectPickerEntries,
+    projectEntryByKey: new Map(
+      projectPickerEntries.map((entry) => [entry.group.projectKey, entry] as const),
+    ),
+    // Same-named projects on two machines are only told apart by where they
+    // live, so rows on another machine carry its icon once the catalog spans
+    // more than one environment; a single-machine catalog stays as it was.
+    showProjectEnvironments: projectGroupsSpanEnvironments(projectGroups),
+    environmentMachineById: new Map(
+      environments.map(
+        (environment) =>
+          [
+            environment.environmentId,
+            resolveEnvironmentMachineKind(environment.serverConfig),
+          ] as const,
+      ),
+    ),
+  };
+}
+
+/** The composer strip's project control for a new draft; it retargets the draft in place. */
+export function DraftProjectPicker({
+  draftId,
+  activeProjectRef,
+  activeProjectTitle,
+}: DraftProjectPickerProps) {
+  const {
+    projects,
+    environments,
+    primaryEnvironmentId,
+    projectGroupingSettings,
+    projectGroups,
+    projectPickerEntries,
+    projectEntryByKey,
+    showProjectEnvironments,
+    environmentMachineById,
+  } = useDraftProjectCatalog(activeProjectRef);
   const setLogicalProjectDraftThreadId = useComposerDraftStore(
     (store) => store.setLogicalProjectDraftThreadId,
   );
   const getComposerDraft = useComposerDraftStore((store) => store.getComposerDraft);
   const applyStickyState = useComposerDraftStore((store) => store.applyStickyState);
   const setModelSelection = useComposerDraftStore((store) => store.setModelSelection);
-  const openAddProject = useCallback(() => openCommandPalette({ open: "add-project" }), []);
+  const openAddProject = () => openCommandPalette({ open: "add-project" });
   const { scratchEnvironmentId, scratchWorkspaceRootFor, openScratchProject } = useScratchProject();
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const projectPickerShortcut = shortcutLabelForCommand(keybindings, "projectPicker.toggle");
@@ -88,67 +145,6 @@ export function DraftProjectPicker({
   const composerMenuProps = useComposerMenuProps();
   const pickerRef = useRef<HTMLDivElement>(null);
 
-  const environmentLabelById = useMemo(
-    () =>
-      new Map(
-        environments.map((environment) => [environment.environmentId, environment.label] as const),
-      ),
-    [environments],
-  );
-  const projectGroups = useMemo(
-    () =>
-      sortLogicalProjectsForSidebar(
-        buildSidebarProjectSnapshots({
-          projects,
-          settings: projectGroupingSettings,
-          primaryEnvironmentId,
-          resolveEnvironmentLabel: (environmentId) =>
-            environmentLabelById.get(environmentId) ?? null,
-        }),
-        threads,
-        projectSortOrder,
-      ),
-    [
-      environmentLabelById,
-      primaryEnvironmentId,
-      projectGroupingSettings,
-      projectSortOrder,
-      projects,
-      threads,
-    ],
-  );
-  // Same-named projects on two machines are only told apart by where they
-  // live, so rows on another machine carry its icon once the catalog spans
-  // more than one environment; a single-machine catalog stays as it was.
-  const showProjectEnvironments = useMemo(
-    () => projectGroupsSpanEnvironments(projectGroups),
-    [projectGroups],
-  );
-  const environmentMachineById = useMemo(
-    () =>
-      new Map(
-        environments.map(
-          (environment) =>
-            [
-              environment.environmentId,
-              resolveEnvironmentMachineKind(environment.serverConfig),
-            ] as const,
-        ),
-      ),
-    [environments],
-  );
-  const projectPickerEntries = useMemo(
-    () =>
-      buildSidebarProjectPickerEntries({
-        groups: projectGroups,
-        preferredProjectRef: activeProjectRef,
-      }),
-    [activeProjectRef, projectGroups],
-  );
-  const projectEntryByKey = useMemo(
-    () => new Map(projectPickerEntries.map((entry) => [entry.group.projectKey, entry] as const)),
-    [projectPickerEntries],
-  );
   const activeProjectGroup =
     activeProjectRef === null
       ? null

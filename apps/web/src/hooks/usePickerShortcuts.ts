@@ -5,7 +5,7 @@ import {
   type KeybindingCommand,
   type ResolvedKeybindingsConfig,
 } from "@supaterm/contracts";
-import { useEffect, useEffectEvent, useMemo } from "react";
+import { useEffect, useEffectEvent } from "react";
 
 import { isCommandPaletteOpen } from "~/commandPaletteBus";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "~/keybindings";
@@ -33,21 +33,17 @@ export function usePickerShortcuts<T>({
   onSelect: (item: T) => void;
 }) {
   const commands = PICKER_COMMANDS[picker];
-  const context = useMemo(
-    () => ({
-      modelPickerOpen: false,
-      projectPickerOpen: picker === "project",
-      hostPickerOpen: picker === "host",
-      branchPickerOpen: picker === "branch",
-    }),
-    [picker],
-  );
-  const labels = useMemo(() => {
-    const mapping = new Map<T, string>();
-    if (!open) return mapping;
+  const context = {
+    modelPickerOpen: false,
+    projectPickerOpen: picker === "project",
+    hostPickerOpen: picker === "host",
+    branchPickerOpen: picker === "branch",
+  };
+  const labels = new Map<T, string>();
+  if (open) {
     if (fixedChoice) {
       const label = shortcutLabelForCommand(keybindings, fixedChoice.command, { context });
-      if (label) mapping.set(fixedChoice.item, label);
+      if (label) labels.set(fixedChoice.item, label);
     }
     for (const [index, item] of items.entries()) {
       const command = commands[index];
@@ -55,10 +51,9 @@ export function usePickerShortcuts<T>({
       const label = shortcutLabelForCommand(keybindings, command, {
         context,
       });
-      if (label) mapping.set(item, label);
+      if (label) labels.set(item, label);
     }
-    return mapping;
-  }, [open, items, fixedChoice, keybindings, commands, context]);
+  }
 
   const handleKeyDown = useEffectEvent((event: KeyboardEvent) => {
     if (event.defaultPrevented || event.repeat || event.isComposing || isCommandPaletteOpen()) {
