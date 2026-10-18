@@ -6,7 +6,7 @@ The three shared Icon Composer projects are the source of truth for exported app
 - `nightly/app-icon.icon`
 - `prod/app-icon.icon`
 
-Each project has one raster layer, `Assets/artwork.png`: the retro computer face, rendered full bleed at 1024×1024 so the casing fills the system's rounded-square mask. The `fill` in `icon.json` matches the casing colour, so nothing else shows at the mask edge. Nightly and dev reuse the production artwork with only the screen's lightning bolt recoloured (magenta and cyan), so the builds stay distinguishable in the Dock. After changing the production artwork, run `vp run icons:variants` to regenerate them before exporting.
+Each project keeps the housing, screen, controls, phosphor glow, and glass lightning bolt as separate layers. Production preserves the supplied Icon Composer project. Nightly and dev reuse its layers with the bolt and glow recoloured magenta and cyan, so the builds stay distinguishable in the Dock. After changing the production project, run `vp run icons:variants` to regenerate them before exporting. Add `--check` to verify the variants without changing files.
 
 In-app branding uses the exported application icon.
 
@@ -45,13 +45,13 @@ Do not resize, composite, or otherwise post-process the rendered PNG, and do not
 Android masks the central 72dp of a 108dp adaptive canvas, and the Android 12+ splash screen masks
 the central two thirds of a 288dp canvas, so the Icon Composer exports cannot be used directly:
 their rounded-square silhouette would be framed a second time. `vp run icons:export:android`
-renders the Android artwork from each variant's `artwork.png` instead:
+composites each variant's source layers onto an unmasked 1024×1024 canvas instead:
 
 - `apps/mobile/assets/android-icon-background-*.png`: the artwork fitted into the masked central two
-  thirds, with the casing colour filling the parallax margin
+  thirds, with the artwork's corner colour filling the parallax margin
 - `apps/mobile/assets/android-icon-foreground.png`: a transparent layer, since the artwork already
   sits in the background
 - `apps/mobile/assets/android-splash-icon-*.png`: the same composition at 288dp, so the splash mask
   frames the artwork like the launcher icon does
 
-Rerun the export after changing an `artwork.png`.
+Rerun the export after changing the source layers.
