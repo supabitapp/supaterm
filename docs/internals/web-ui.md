@@ -66,7 +66,9 @@ Lint keeps those rules errors there, and `supaterm/no-manual-memo` rejects `useM
 `useCallback`, which the compiler makes redundant. It also rejects `"use memo"`. The compiler
 withholds a cache scope when a value reaches plain function calls on both sides of a hook call. A
 `"use memo"` helper forces one, but hides the ordering problem. Fix the order instead: plain uses
-of a value go before the hook, or the helper is inlined. Lint misses some bailouts, notably `try`
+of a value go before the hook, or the helper is inlined. A `use*` helper that calls no hook is
+compiled as a plain function and caches nothing, so a derived-value helper reads its source hook
+itself instead of taking the value as an argument. Lint misses some bailouts, notably `try`
 with `finally` and `throw` inside `try`, so [`reactCompiledFiles.test.ts`](../../apps/web/src/reactCompiledFiles.test.ts)
 compiles each listed file and fails on any skip. Async handlers rarely need `try`: an atom
 command settles into a result, so cleanup can follow the `await`, and `settlePromise` does the same
