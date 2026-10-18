@@ -28,7 +28,7 @@ import type {
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
-import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -544,11 +544,8 @@ function ProcessTable({
   onSignal: (process: ResourceTelemetryProcess, signal: ServerProcessSignal) => void;
 }) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
-  const visible = useMemo(
-    () => visibleResourceTelemetryProcesses(processes, collapsed),
-    [collapsed, processes],
-  );
-  const toggle = useCallback((process: ResourceTelemetryProcess) => {
+  const visible = visibleResourceTelemetryProcesses(processes, collapsed);
+  const toggle = (process: ResourceTelemetryProcess) => {
     const identityKey = processIdentityKey(process);
     setCollapsed((current) => {
       const next = new Set(current);
@@ -559,7 +556,7 @@ function ProcessTable({
       }
       return next;
     });
-  }, []);
+  };
 
   return (
     <div className="border-t border-border/60">
@@ -838,59 +835,56 @@ export function ResourceTelemetryDiagnostics({
   const snapshot = telemetry.data;
   const allSupaterm = snapshot?.groups.allSupaterm;
 
-  const signalProcess = useCallback(
-    (process: ResourceTelemetryProcess, signal: ServerProcessSignal) => {
-      if (
-        environmentId === null ||
-        !readEnvironmentScope(environmentId, AuthEnvironmentMaintainScope)
-      )
-        return;
-      const identityKey = processIdentityKey(process);
-      if (signalingKeysRef.current.has(identityKey)) return;
-      const nextSignalingKeys = new Set(signalingKeysRef.current).add(identityKey);
-      signalingKeysRef.current = nextSignalingKeys;
-      setSignalingKeys(nextSignalingKeys);
-      void signalServerProcess({
-        environmentId,
-        input: {
-          pid: process.identity.pid,
-          startTimeMs: process.identity.startTimeMs,
-          signal,
-        },
-      })
-        .then((result) => {
-          if (result._tag === "Failure") {
-            if (isAtomCommandInterrupted(result)) return;
-            throw squashAtomCommandFailure(result);
-          }
-          if (result.value.signaled) return;
-          toastManager.add({
-            type: "error",
-            title: `Could not send ${signal}`,
-            description: Option.getOrElse(
-              result.value.message,
-              () => `Failed to send ${signal} to process ${process.identity.pid}.`,
-            ),
-          });
-        })
-        .catch((error: unknown) => {
-          toastManager.add({
-            type: "error",
-            title: `Could not send ${signal}`,
-            description: error instanceof Error ? error.message : `Failed to send ${signal}.`,
-          });
-        })
-        .finally(() => {
-          const next = new Set(signalingKeysRef.current);
-          next.delete(identityKey);
-          signalingKeysRef.current = next;
-          setSignalingKeys(next);
+  const signalProcess = (process: ResourceTelemetryProcess, signal: ServerProcessSignal) => {
+    if (
+      environmentId === null ||
+      !readEnvironmentScope(environmentId, AuthEnvironmentMaintainScope)
+    )
+      return;
+    const identityKey = processIdentityKey(process);
+    if (signalingKeysRef.current.has(identityKey)) return;
+    const nextSignalingKeys = new Set(signalingKeysRef.current).add(identityKey);
+    signalingKeysRef.current = nextSignalingKeys;
+    setSignalingKeys(nextSignalingKeys);
+    void signalServerProcess({
+      environmentId,
+      input: {
+        pid: process.identity.pid,
+        startTimeMs: process.identity.startTimeMs,
+        signal,
+      },
+    })
+      .then((result) => {
+        if (result._tag === "Failure") {
+          if (isAtomCommandInterrupted(result)) return;
+          throw squashAtomCommandFailure(result);
+        }
+        if (result.value.signaled) return;
+        toastManager.add({
+          type: "error",
+          title: `Could not send ${signal}`,
+          description: Option.getOrElse(
+            result.value.message,
+            () => `Failed to send ${signal} to process ${process.identity.pid}.`,
+          ),
         });
-    },
-    [environmentId, signalServerProcess],
-  );
+      })
+      .catch((error: unknown) => {
+        toastManager.add({
+          type: "error",
+          title: `Could not send ${signal}`,
+          description: error instanceof Error ? error.message : `Failed to send ${signal}.`,
+        });
+      })
+      .finally(() => {
+        const next = new Set(signalingKeysRef.current);
+        next.delete(identityKey);
+        signalingKeysRef.current = next;
+        setSignalingKeys(next);
+      });
+  };
 
-  const retryCollector = useCallback(() => {
+  const retryCollector = () => {
     if (
       environmentId === null ||
       !readEnvironmentScope(environmentId, AuthEnvironmentMaintainScope)
@@ -909,7 +903,7 @@ export function ResourceTelemetryDiagnostics({
       .finally(() => {
         setIsRetrying(false);
       });
-  }, [environmentId, retryTelemetry]);
+  };
 
   const speedLimit = snapshot ? Option.getOrNull(snapshot.speedLimitPercent) : null;
   const collectorNeedsRetry = shouldShowResourceMonitorRetry({
