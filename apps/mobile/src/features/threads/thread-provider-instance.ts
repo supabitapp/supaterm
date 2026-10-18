@@ -28,7 +28,13 @@ export function resolveThreadProviderInstance(
   if (providers === undefined) return null;
   const instanceId = thread.runtime?.providerInstanceId ?? thread.modelSelection.instanceId;
   const snapshot = providers.find((provider) => provider.instanceId === instanceId);
-  if (!snapshot) return null;
+  return snapshot ? describeProviderInstance(snapshot, providers) : null;
+}
+
+export function describeProviderInstance(
+  snapshot: ThreadListProvider,
+  providers: ReadonlyArray<ThreadListProvider>,
+): ThreadRowProviderInstance {
   const entry = {
     driverKind: snapshot.driver,
     displayName: resolveProviderInstanceDisplayName(snapshot),
