@@ -32,4 +32,5 @@ export const REACT_COMPILED_FILES = [
   "apps/web/src/hooks/useRightPanelSurfaceClose.ts",
   "apps/web/src/panelAnimations.ts",
   "apps/web/src/state/queries.ts",
+  "apps/web/src/state/sourceControlActions.ts",
 ] as const;
