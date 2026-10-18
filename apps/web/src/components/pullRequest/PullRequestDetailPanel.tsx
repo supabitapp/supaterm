@@ -51,11 +51,9 @@ import {
   lazy,
   Suspense,
   type MouseEvent as ReactMouseEvent,
-  useCallback,
   useEffect,
   useEffectEvent,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -429,6 +427,183 @@ function PullRequestBaseFreshnessWarning({
   );
 }
 
+function reportCheckoutCommandError(error: Error) {
+  toastManager.add({
+    type: "error",
+    title: "Could not copy checkout command",
+    description: error.message,
+  });
+}
+
+function pullRequestRefKey(reference: PullRequestRef) {
+  return `${reference.projectId}:${reference.host ?? ""}:${reference.repository}#${reference.number}`;
+}
+
+function pullRequestDetailSummary(data: PullRequestDetail | null) {
+  return data === null ? null : { ...data, checksState: pullRequestChecksState(data.checks) };
+}
+
+/**
+ * Loads a pull request's detail and activity and merges them, with the snapshot cache, the shared
+ * summary and the list row, into the detail the panel shows.
+ */
+function usePullRequestDetail(
+  environmentId: EnvironmentId,
+  reference: PullRequestRef,
+  listEntry: PullRequestListEntry | null,
+) {
+  const scopeKey = `${environmentId}:${pullRequestRefKey(reference)}`;
+  const canWriteSourceControl = useEnvironmentScope(environmentId, AuthSourceControlWriteScope);
+  const detailQuery = useEnvironmentQuery(
+    pullRequestEnvironment.detail({ environmentId, input: reference }),
+  );
+  const activityQuery = useEnvironmentQuery(
+    pullRequestEnvironment.activity({ environmentId, input: reference }),
+  );
+  const [cachedDetail, setCachedDetail] = useState(() =>
+    readPullRequestDetailSnapshot(
+      typeof window === "undefined" ? undefined : window.localStorage,
+      environmentId,
+      reference,
+    ),
+  );
+  const [cachedDetailKey, setCachedDetailKey] = useState(scopeKey);
+  if (cachedDetailKey !== scopeKey) {
+    setCachedDetailKey(scopeKey);
+    setCachedDetail(
+      detailQuery.data ??
+        readPullRequestDetailSnapshot(
+          typeof window === "undefined" ? undefined : window.localStorage,
+          environmentId,
+          reference,
+        ),
+    );
+  } else if (detailQuery.data !== null && detailQuery.data !== cachedDetail) {
+    setCachedDetail(detailQuery.data);
+  }
+  const saveDetailSnapshot = useEffectEvent((data: PullRequestDetail) => {
+    writePullRequestDetailSnapshot(
+      typeof window === "undefined" ? undefined : window.localStorage,
+      environmentId,
+      reference,
+      data,
+    );
+  });
+  useEffect(() => {
+    if (detailQuery.data !== null) saveDetailSnapshot(detailQuery.data);
+  }, [detailQuery.data]);
+  const detailSummary = pullRequestDetailSummary(detailQuery.data);
+  const observedSummary = useSharedPullRequestSummary(
+    environmentId,
+    reference,
+    detailSummary,
+    detailQuery.dataUpdatedAt,
+  );
+  const activity = activityQuery.data;
+  const resolvedCoreDetail = resolveDisplayedPullRequestDetail({
+    live: detailQuery.data,
+    cached: cachedDetail,
+    reference,
+  });
+  // Every hook runs above this line: a hook between the merge and the panel's plain readers of
+  // `detail` would cost it its cache scope.
+  const listSummary = listEntry === null ? null : pullRequestListEntryToSummary(listEntry);
+  // The list row is also published to the shared cache, but only after this commit's layout
+  // effects run, so it is compared directly rather than trusted to be there already.
+  const sharedSummary = newestPullRequestSummary(
+    resolvedCoreDetail,
+    newestPullRequestSummary(observedSummary, listSummary),
+  );
+  const coreDetail =
+    resolvedCoreDetail === null || sharedSummary === null || sharedSummary === resolvedCoreDetail
+      ? resolvedCoreDetail
+      : {
+          ...resolvedCoreDetail,
+          title: sharedSummary.title,
+          state: sharedSummary.state,
+          headBranch: sharedSummary.headBranch,
+          baseBranch: sharedSummary.baseBranch,
+          updatedAt: sharedSummary.updatedAt,
+          author: sharedSummary.author ?? resolvedCoreDetail.author,
+          additions: sharedSummary.additions ?? resolvedCoreDetail.additions,
+          deletions: sharedSummary.deletions ?? resolvedCoreDetail.deletions,
+          changedFiles: sharedSummary.changedFiles ?? resolvedCoreDetail.changedFiles,
+          mergeability: sharedSummary.mergeability ?? resolvedCoreDetail.mergeability,
+          closedAt:
+            sharedSummary.closedAt === undefined
+              ? resolvedCoreDetail.closedAt
+              : sharedSummary.closedAt,
+          mergedAt:
+            sharedSummary.mergedAt === undefined
+              ? resolvedCoreDetail.mergedAt
+              : sharedSummary.mergedAt,
+          isDraft: sharedSummary.isDraft ?? resolvedCoreDetail.isDraft,
+        };
+  const detail =
+    coreDetail === null
+      ? null
+      : {
+          ...coreDetail,
+          capabilities: canWriteSourceControl
+            ? coreDetail.capabilities
+            : {
+                ...coreDetail.capabilities,
+                reactions: false,
+                edit: { changeRequest: false, comment: false },
+              },
+          viewerPermissions: canWriteSourceControl
+            ? coreDetail.viewerPermissions
+            : {
+                ...coreDetail.viewerPermissions,
+                actions: [],
+                comment: false,
+                resolve: false,
+                verdicts: [],
+                requestReviewers: false,
+                updateMethods: [],
+                labels: false,
+              },
+          author: activity?.author ?? coreDetail.author,
+          reviewers: activity?.reviewers ?? coreDetail.reviewers,
+          comments: activity?.comments ?? [],
+          commentCount: activity?.commentCount ?? 0,
+          commentsTruncated: activity?.commentsTruncated ?? false,
+          reviewThreads: activity?.reviewThreads ?? [],
+          commits: activity?.commits ?? [],
+          reactions: activity?.reactions ?? [],
+        };
+  return {
+    canWriteSourceControl,
+    detailQuery,
+    activityQuery,
+    activity,
+    sharedSummary,
+    coreDetail,
+    detail,
+  };
+}
+
+function pullRequestMarkdownContext(
+  hostClient: ReturnType<typeof sourceControlClients.get>,
+  repositoryUrl: string | null,
+  threadRef: ScopedThreadRef | null,
+) {
+  return {
+    repositoryUrl:
+      repositoryUrl === null ? null : hostClient.referenceAutolinkRepositoryUrl(repositoryUrl),
+    threadRef,
+  };
+}
+
+function pullRequestStackReference(
+  detail: Pick<PullRequestDetail, "url" | "capabilities"> | null,
+  reference: PullRequestRef,
+) {
+  return detail === null || detail.capabilities.stacks !== true
+    ? null
+    : { ...reference, host: reference.host ?? parseChangeRequestUrl(detail.url)?.host };
+}
+
 export function PullRequestDetailPanel({
   environmentId,
   shortcutsEnabled,
@@ -467,11 +642,14 @@ export function PullRequestDetailPanel({
       project.id === requestedReference.projectId && project.environmentId === environmentId,
   );
   const repositoryIdentity = project?.repositoryIdentity;
-  const reference = useMemo(
-    () => resolvePullRequestReferenceHost(requestedReference, repositoryIdentity),
-    [requestedReference, repositoryIdentity],
+  const reference = resolvePullRequestReferenceHost(requestedReference, repositoryIdentity);
+  const loadingCheckoutCommand = loadingPullRequestCheckoutCommand(reference, repositoryIdentity);
+  const unavailableGitHubUrl = gitHubPullRequestBrowserUrl(
+    repositoryIdentity,
+    reference.repository,
+    reference.number,
   );
-  const pullRequestKey = `${reference.projectId}:${reference.host ?? ""}:${reference.repository}#${reference.number}`;
+  const pullRequestKey = pullRequestRefKey(reference);
   const matchingListEntry =
     listEntry?.projectId === reference.projectId &&
     listEntry.repository.toLowerCase() === reference.repository.toLowerCase() &&
@@ -527,23 +705,22 @@ export function PullRequestDetailPanel({
   } else if (!tabMountState.tabs.has(tab)) {
     setTabMountState({ key: tabScopeKey, tabs: new Set(tabMountState.tabs).add(tab) });
   }
-  const [chromeStateByTab, setChromeStateByTab] = useState<Partial<Record<DetailTab, boolean>>>({});
-  const condensed = chromeStateByTab[tab] ?? false;
+  // Each tab restores the condensed state its own scrolling left behind.
+  const [condensedByTab, setCondensedByTab] = useState<Partial<Record<DetailTab, boolean>>>({});
+  const condensed = condensedByTab[tab] ?? false;
   const scrollerByTab = useRef<Partial<Record<DetailTab, HTMLDivElement | null>>>({});
-  const scrollerRefs = useMemo(
-    () => ({
-      summary: (node: HTMLDivElement | null) => {
-        scrollerByTab.current.summary = node;
-      },
-      timeline: (node: HTMLDivElement | null) => {
-        scrollerByTab.current.timeline = node;
-      },
-      code: (node: HTMLDivElement | null) => {
-        scrollerByTab.current.code = node;
-      },
-    }),
-    [],
-  );
+  // Fresh ref callbacks would detach and reattach every scroller on each render.
+  const [scrollerRefs] = useState(() => ({
+    summary: (node: HTMLDivElement | null) => {
+      scrollerByTab.current.summary = node;
+    },
+    timeline: (node: HTMLDivElement | null) => {
+      scrollerByTab.current.timeline = node;
+    },
+    code: (node: HTMLDivElement | null) => {
+      scrollerByTab.current.code = node;
+    },
+  }));
   const foldRef = useRef<HTMLDivElement | null>(null);
   const condensedRowRef = useRef<HTMLDivElement | null>(null);
   const compensationRef = useRef<{
@@ -593,149 +770,16 @@ export function PullRequestDetailPanel({
     | "delete-branch"
   >();
   const [handoff, setHandoff] = useState<string | null>(null);
-  const canWriteSourceControl = useEnvironmentScope(environmentId, AuthSourceControlWriteScope);
-  const detailQuery = useEnvironmentQuery(
-    pullRequestEnvironment.detail({ environmentId, input: reference }),
-  );
-  const activityQuery = useEnvironmentQuery(
-    pullRequestEnvironment.activity({ environmentId, input: reference }),
-  );
   const turnRefresh = usePullRequestTurnRefresh(environmentId);
-  const [cachedDetailState, setCachedDetailState] = useState(() => ({
-    key: tabScopeKey,
-    detail: readPullRequestDetailSnapshot(
-      typeof window === "undefined" ? undefined : window.localStorage,
-      environmentId,
-      reference,
-    ),
-  }));
-  if (cachedDetailState.key !== tabScopeKey) {
-    setCachedDetailState({
-      key: tabScopeKey,
-      detail:
-        detailQuery.data ??
-        readPullRequestDetailSnapshot(
-          typeof window === "undefined" ? undefined : window.localStorage,
-          environmentId,
-          reference,
-        ),
-    });
-  } else if (detailQuery.data !== null && cachedDetailState.detail !== detailQuery.data) {
-    setCachedDetailState({ key: tabScopeKey, detail: detailQuery.data });
-  }
-  const cachedDetail = cachedDetailState.detail;
-  const writeDetailSnapshot = useEffectEvent((detail: NonNullable<typeof detailQuery.data>) => {
-    writePullRequestDetailSnapshot(
-      typeof window === "undefined" ? undefined : window.localStorage,
-      environmentId,
-      reference,
-      detail,
-    );
-  });
-  useEffect(() => {
-    if (detailQuery.data === null) return;
-    writeDetailSnapshot(detailQuery.data);
-  }, [detailQuery.data]);
-  const resolvedCoreDetail = resolveDisplayedPullRequestDetail({
-    live: detailQuery.data,
-    cached: cachedDetail,
-    reference,
-  });
-  const listSummary = useMemo(
-    () => (matchingListEntry === null ? null : pullRequestListEntryToSummary(matchingListEntry)),
-    [matchingListEntry],
-  );
-  const detailSummary = useMemo(
-    () =>
-      detailQuery.data === null
-        ? null
-        : {
-            ...detailQuery.data,
-            checksState: pullRequestChecksState(detailQuery.data.checks),
-          },
-    [detailQuery.data],
-  );
-  const observedSummary = useSharedPullRequestSummary(
-    environmentId,
-    reference,
-    detailSummary,
-    detailQuery.dataUpdatedAt,
-  );
-  // The list row is also published to the shared cache, but only after this commit's layout
-  // effects run, so it is compared directly rather than trusted to be there already.
-  const sharedSummary = useMemo(
-    () =>
-      newestPullRequestSummary(
-        resolvedCoreDetail,
-        newestPullRequestSummary(observedSummary, listSummary),
-      ),
-    [resolvedCoreDetail, observedSummary, listSummary],
-  );
-  const coreDetail = useMemo(
-    () =>
-      resolvedCoreDetail === null || sharedSummary === null || sharedSummary === resolvedCoreDetail
-        ? resolvedCoreDetail
-        : {
-            ...resolvedCoreDetail,
-            title: sharedSummary.title,
-            state: sharedSummary.state,
-            headBranch: sharedSummary.headBranch,
-            baseBranch: sharedSummary.baseBranch,
-            updatedAt: sharedSummary.updatedAt,
-            author: sharedSummary.author ?? resolvedCoreDetail.author,
-            additions: sharedSummary.additions ?? resolvedCoreDetail.additions,
-            deletions: sharedSummary.deletions ?? resolvedCoreDetail.deletions,
-            changedFiles: sharedSummary.changedFiles ?? resolvedCoreDetail.changedFiles,
-            mergeability: sharedSummary.mergeability ?? resolvedCoreDetail.mergeability,
-            closedAt:
-              sharedSummary.closedAt === undefined
-                ? resolvedCoreDetail.closedAt
-                : sharedSummary.closedAt,
-            mergedAt:
-              sharedSummary.mergedAt === undefined
-                ? resolvedCoreDetail.mergedAt
-                : sharedSummary.mergedAt,
-            isDraft: sharedSummary.isDraft ?? resolvedCoreDetail.isDraft,
-          },
-    [resolvedCoreDetail, sharedSummary],
-  );
-  const activity = activityQuery.data;
-  const detail = useMemo(
-    () =>
-      coreDetail === null
-        ? null
-        : {
-            ...coreDetail,
-            capabilities: canWriteSourceControl
-              ? coreDetail.capabilities
-              : {
-                  ...coreDetail.capabilities,
-                  reactions: false,
-                  edit: { changeRequest: false, comment: false },
-                },
-            viewerPermissions: canWriteSourceControl
-              ? coreDetail.viewerPermissions
-              : {
-                  ...coreDetail.viewerPermissions,
-                  actions: [],
-                  comment: false,
-                  resolve: false,
-                  verdicts: [],
-                  requestReviewers: false,
-                  updateMethods: [],
-                  labels: false,
-                },
-            author: activity?.author ?? coreDetail.author,
-            reviewers: activity?.reviewers ?? coreDetail.reviewers,
-            comments: activity?.comments ?? [],
-            commentCount: activity?.commentCount ?? 0,
-            commentsTruncated: activity?.commentsTruncated ?? false,
-            reviewThreads: activity?.reviewThreads ?? [],
-            commits: activity?.commits ?? [],
-            reactions: activity?.reactions ?? [],
-          },
-    [activity, canWriteSourceControl, coreDetail],
-  );
+  const {
+    canWriteSourceControl,
+    detailQuery,
+    activityQuery,
+    activity,
+    sharedSummary,
+    coreDetail,
+    detail,
+  } = usePullRequestDetail(environmentId, reference, matchingListEntry);
   const handoffSummary = detail ?? sharedSummary;
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const { copyToClipboard: copyReference } = useCopyToClipboard<string>({
@@ -763,29 +807,16 @@ export function PullRequestDetailPanel({
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, []);
-  const autoMergeMethod = detail?.autoMergeMethod;
-  const [autoMergeMethodAppliedFor, setAutoMergeMethodAppliedFor] = useState<{
-    readonly pullRequestKey: string;
-    readonly method: typeof autoMergeMethod;
-  } | null>(null);
-  if (
-    autoMergeMethodAppliedFor === null ||
-    autoMergeMethodAppliedFor.pullRequestKey !== pullRequestKey ||
-    autoMergeMethodAppliedFor.method !== autoMergeMethod
-  ) {
-    setAutoMergeMethodAppliedFor({ pullRequestKey, method: autoMergeMethod });
-    if (autoMergeMethod !== undefined) setMergeMethod(autoMergeMethod);
+  const autoMergeKey = `${pullRequestKey}:${detail?.autoMergeMethod ?? ""}`;
+  const [seenAutoMergeKey, setSeenAutoMergeKey] = useState<string | null>(null);
+  if (seenAutoMergeKey !== autoMergeKey) {
+    setSeenAutoMergeKey(autoMergeKey);
+    if (detail?.autoMergeMethod !== undefined) setMergeMethod(detail.autoMergeMethod);
   }
   const repositoryUrl = detail === null ? null : changeRequestRepositoryUrl(detail.url);
   const hostClient = sourceControlClients.get(detail?.provider);
-  const markdownContext = useMemo(
-    () => ({
-      repositoryUrl:
-        repositoryUrl === null ? null : hostClient.referenceAutolinkRepositoryUrl(repositoryUrl),
-      threadRef,
-    }),
-    [hostClient, repositoryUrl, threadRef],
-  );
+  const openOnHostText = openOnHostLabel(hostClient);
+  const markdownContext = pullRequestMarkdownContext(hostClient, repositoryUrl, threadRef);
   const authorProfileUrl =
     detail?.author && repositoryUrl !== null
       ? hostClient.authorProfileUrl(detail.author.login, repositoryUrl)
@@ -798,14 +829,7 @@ export function PullRequestDetailPanel({
         detail?.headRepositoryNameWithOwner,
         changeRequestRepositoryUrl(handoffSummary.url),
       )
-    : loadingPullRequestCheckoutCommand(reference, repositoryIdentity);
-  const onCheckoutCommandError = useCallback((error: Error) => {
-    toastManager.add({
-      type: "error",
-      title: "Could not copy checkout command",
-      description: error.message,
-    });
-  }, []);
+    : loadingCheckoutCommand;
   const branchRefsQuery = useEnvironmentQuery(
     detail === null
       ? null
@@ -821,13 +845,7 @@ export function PullRequestDetailPanel({
   const isStackedPullRequest =
     detail !== null &&
     isStackedPullRequestBase(detail.baseBranch, branchRefsQuery.data?.refs ?? []);
-  const stackReference = useMemo(
-    () =>
-      detail === null || detail.capabilities.stacks !== true
-        ? null
-        : { ...reference, host: reference.host ?? parseChangeRequestUrl(detail.url)?.host },
-    [detail, reference],
-  );
+  const stackReference = pullRequestStackReference(detail, reference);
   const nativeStackQuery = usePullRequestStack(environmentId, stackReference);
   const nativeStack = nativeStackQuery.data;
   const supportsStackActions =
@@ -842,43 +860,38 @@ export function PullRequestDetailPanel({
   });
   const activityPending = activityQuery.isPending && activity === null;
   const activityError = activity === null ? activityQuery.error : null;
-  const refreshDetailQuery = detailQuery.refresh;
-  const refreshActivityQuery = activityQuery.refresh;
-  const refreshNativeStackQuery = nativeStackQuery.refresh;
-  const refreshDetail = useCallback(() => {
-    refreshDetailQuery();
-    refreshActivityQuery();
-    refreshNativeStackQuery();
-  }, [refreshActivityQuery, refreshDetailQuery, refreshNativeStackQuery]);
+  const refreshDetail = () => {
+    detailQuery.refresh();
+    activityQuery.refresh();
+    nativeStackQuery.refresh();
+  };
   const [refreshToken, setRefreshToken] = useState(0);
+  const codeRefreshToken = refreshToken + (turnRefresh ?? 0);
   const [activityRevision, setActivityRevision] = useState<{
     readonly key: string;
     readonly updatedAt: string;
   } | null>(null);
-  const [revisionRefreshCount, setRevisionRefreshCount] = useState(0);
-  if (coreDetail) {
-    const next = { key: tabScopeKey, updatedAt: coreDetail.updatedAt };
-    if (shouldRefreshPullRequestActivity(activityRevision, next)) {
+  const [activityRevalidations, setActivityRevalidations] = useState(0);
+  const coreUpdatedAt = coreDetail?.updatedAt ?? null;
+  if (
+    coreUpdatedAt !== null &&
+    (activityRevision?.key !== tabScopeKey || activityRevision.updatedAt !== coreUpdatedAt)
+  ) {
+    const next = { key: tabScopeKey, updatedAt: coreUpdatedAt };
+    if (!shouldRefreshPullRequestActivity(activityRevision, next)) {
+      setActivityRevision(next);
+    } else if (!activityQuery.isPending) {
       // Let an existing read settle before revalidating the new revision. Interrupting a
       // mutation's activity refresh can leave SWR displaying its previous value.
-      if (!activityQuery.isPending) {
-        setRevisionRefreshCount((count) => count + 1);
-        setActivityRevision(next);
-      }
-    } else if (
-      activityRevision === null ||
-      activityRevision.key !== next.key ||
-      activityRevision.updatedAt !== next.updatedAt
-    ) {
       setActivityRevision(next);
+      setActivityRevalidations((count) => count + 1);
+      setRefreshToken((token) => token + 1);
     }
   }
-  const refreshActivityForRevision = useEffectEvent(() => refreshActivityQuery());
+  const revalidateActivity = useEffectEvent(() => activityQuery.refresh());
   useEffect(() => {
-    if (revisionRefreshCount === 0) return;
-    refreshActivityForRevision();
-  }, [revisionRefreshCount]);
-  const codeRefreshToken = refreshToken + revisionRefreshCount + (turnRefresh ?? 0);
+    if (activityRevalidations > 0) revalidateActivity();
+  }, [activityRevalidations]);
   useLiveRefresh(
     () => {
       detailQuery.refresh();
@@ -888,21 +901,21 @@ export function PullRequestDetailPanel({
   const invalidate = useAtomCommand(pullRequestEnvironment.invalidate, { reportFailure: false });
   const [isInvalidating, setIsInvalidating] = useState(false);
   const refreshing = isInvalidating || detailQuery.isPending;
-  const refreshFromHost = useCallback(async () => {
+  const refreshFromHost = async () => {
     setIsInvalidating(true);
-    const invalidateAndRefresh = async () => {
-      await invalidate({ environmentId, input: { reference } });
-      refreshDetail();
-      setRefreshToken((token) => token + 1);
-    };
-    await invalidateAndRefresh().finally(() => setIsInvalidating(false));
-  }, [environmentId, invalidate, reference, refreshDetail]);
+    // Atom commands settle instead of throwing, so the reset below always runs.
+    await invalidate({ environmentId, input: { reference } });
+    refreshDetail();
+    setRefreshToken((token) => token + 1);
+    setIsInvalidating(false);
+  };
+  const refreshFromHostOnRequest = useEffectEvent(() => void refreshFromHost());
   const appliedForcedToken = useRef(forcedRefreshToken);
   useEffect(() => {
     if (appliedForcedToken.current === forcedRefreshToken) return;
     appliedForcedToken.current = forcedRefreshToken;
-    void refreshFromHost();
-  }, [forcedRefreshToken, refreshFromHost]);
+    refreshFromHostOnRequest();
+  }, [forcedRefreshToken]);
   const runAction = useAtomCommand(pullRequestEnvironment.runAction, {
     reportFailure: false,
   });
@@ -920,27 +933,18 @@ export function PullRequestDetailPanel({
   const [titleSaving, setTitleSaving] = useState(false);
   const newThread = useNewThreadHandler();
   const { environments } = useEnvironments();
-  const unavailableGitHubUrl = useMemo(() => {
-    const identity = projects.find(
-      (project) => project.id === reference.projectId && project.environmentId === environmentId,
-    )?.repositoryIdentity;
-    return gitHubPullRequestBrowserUrl(identity, reference.repository, reference.number);
-  }, [environmentId, projects, reference.number, reference.projectId, reference.repository]);
-  const pickableEnvironments = useMemo(
-    () =>
-      context === "page"
-        ? resolvePickableEnvironments(
-            { environmentId, projectId: reference.projectId },
-            projects,
-            environments.map((environment) => ({
-              environmentId: environment.environmentId,
-              label: environment.label,
-              machine: resolveEnvironmentMachineKind(environment.serverConfig),
-            })),
-          )
-        : [],
-    [context, environmentId, environments, projects, reference.projectId],
-  );
+  const pickableEnvironments =
+    context === "page"
+      ? resolvePickableEnvironments(
+          { environmentId, projectId: reference.projectId },
+          projects,
+          environments.map((environment) => ({
+            environmentId: environment.environmentId,
+            label: environment.label,
+            machine: resolveEnvironmentMachineKind(environment.serverConfig),
+          })),
+        )
+      : [];
   const [actingScope, setActingScope] = useState<{
     readonly pullRequestKey: string;
     readonly environmentId: EnvironmentId;
@@ -1681,7 +1685,7 @@ export function PullRequestDetailPanel({
         seed={matchingListEntry}
         summary={sharedSummary}
         checkoutCommand={checkoutCommand}
-        onCheckoutError={onCheckoutCommandError}
+        onCheckoutError={reportCheckoutCommandError}
         number={reference.number}
         tabs={visibleTabs}
         activeTab={tab}
@@ -1796,7 +1800,7 @@ export function PullRequestDetailPanel({
                       </button>
                     }
                   />
-                  <TooltipPopup side="top">{openOnHostLabel(hostClient)}</TooltipPopup>
+                  <TooltipPopup side="top">{openOnHostText}</TooltipPopup>
                 </Tooltip>
               </>
             ) : null}
@@ -1855,7 +1859,7 @@ export function PullRequestDetailPanel({
                       </button>
                     }
                   />
-                  <TooltipPopup side="top">{openOnHostLabel(hostClient)}</TooltipPopup>
+                  <TooltipPopup side="top">{openOnHostText}</TooltipPopup>
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger
@@ -2216,7 +2220,7 @@ export function PullRequestDetailPanel({
                   ) : null}
                   <MenuItem onClick={() => void readLocalApi()?.shell.openExternal(detail.url)}>
                     <ArrowUpRightIcon className="size-3.5" />
-                    {openOnHostLabel(hostClient)}
+                    {openOnHostText}
                   </MenuItem>
                   <MenuItem onClick={() => copyReference(detail.url, "PR link")}>
                     <LinkIcon className="size-3.5" />
@@ -2523,7 +2527,7 @@ export function PullRequestDetailPanel({
                       copiedLabel="Checkout command copied"
                       className="ml-auto font-mono"
                       tooltipSide="bottom"
-                      onError={onCheckoutCommandError}
+                      onError={reportCheckoutCommandError}
                     />
                   ) : null
                 }
@@ -2741,21 +2745,18 @@ export function PullRequestDetailPanel({
           const scroller = scrollerByTab.current[tab];
           if (event.target !== scroller || scroller === null || scroller === undefined) return;
           const top = scroller.scrollTop;
-          setChromeStateByTab((current) => {
-            const previous = current[tab] ?? false;
-            let next = previous;
-            const foldHeight = foldRef.current?.scrollHeight ?? 0;
+          // Decided here, not in a state updater, which React may run during render.
+          const previous = condensedByTab[tab] ?? false;
+          const foldHeight = foldRef.current?.scrollHeight ?? 0;
+          let next = previous;
+          if (previous) {
+            if (top < 4 && foldHeight > 0) next = false;
+          } else if (foldHeight > 0 && top > foldHeight + 32) {
             const chromeDelta = foldHeight - (condensedRowRef.current?.scrollHeight ?? 0);
-            if (previous) {
-              if (top < 4 && foldHeight > 0) {
-                next = false;
-              }
-            } else if (foldHeight > 0 && top > foldHeight + 32) {
-              compensationRef.current = { tab, scroller, delta: -chromeDelta };
-              next = true;
-            }
-            return next === previous ? current : { ...current, [tab]: next };
-          });
+            compensationRef.current = { tab, scroller, delta: -chromeDelta };
+            next = true;
+          }
+          if (next !== previous) setCondensedByTab({ ...condensedByTab, [tab]: next });
         }}
       >
         {detailQuery.error && !detail ? (
