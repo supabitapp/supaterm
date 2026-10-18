@@ -50,6 +50,7 @@ import * as Equal from "effect/Equal";
 import * as Schema from "effect/Schema";
 import { APP_VERSION, HOSTED_APP_CHANNEL, HOSTED_APP_CHANNEL_LABEL } from "../../branding";
 import { CliCommandSettingsRow } from "./CliCommandSettingsRow";
+import { MobileAppSettingsRow } from "./MobileAppSettingsRow";
 import { DaysField } from "./DaysField";
 import {
   canCheckForUpdate,
@@ -2813,6 +2814,7 @@ export function GeneralSettingsPanel() {
         ) : (
           <SettingsRow id={searchableSetting("app-version").id} title={<AboutVersionTitle />} />
         )}
+        <MobileAppSettingsRow />
         <SettingsRow
           {...searchableSetting("privacy-policy")}
           control={

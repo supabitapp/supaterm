@@ -103,7 +103,9 @@ command cannot reach the app, start or update the desktop app and try again.
 
 ## Mobile app
 
-Build the mobile client using the [mobile development guide](../../apps/mobile/README.md).
+On iPhone and iPad, [join the Supaterm beta on TestFlight](https://testflight.apple.com/join/VUJkRPwq).
+The link and a QR code are also in **Settings → General → Mobile app** on web and desktop.
+On Android, build the client using the [mobile development guide](../../apps/mobile/README.md).
 The phone connects to a server on another machine. Follow
 [remote access](./remote-access.md) to pair it with a pairing URL or QR code.
 
