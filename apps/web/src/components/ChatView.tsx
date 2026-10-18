@@ -1268,12 +1268,13 @@ export default function ChatView(props: ChatViewProps) {
   );
   const timestampFormat = settings.timestampFormat;
   const navigate = useNavigate();
-  const citationLocation = useLocation({
-    select: (location) => ({
-      href: location.href,
-      key: location.state.assistantCitationActivation ?? location.state.__TSR_key,
-    }),
+  // Selects primitives: an object here is new on every router store update, which
+  // re-renders ChatView on unrelated navigation state changes.
+  const citationHref = useLocation({ select: (location) => location.href });
+  const citationKey = useLocation({
+    select: (location) => location.state.assistantCitationActivation ?? location.state.__TSR_key,
   });
+  const citationLocation = { href: citationHref, key: citationKey };
   const citationRequest = useMemo<AssistantCitationRequest | null>(() => {
     const citation = assistantCitationFromLocation(citationLocation.href);
     return citation && citation.environmentId === environmentId && citation.threadId === threadId
@@ -6073,6 +6074,10 @@ export default function ChatView(props: ChatViewProps) {
   const timelineSkills = activeProviderStatus
     ? resolveProviderSkillsForCwd(activeProviderStatus, gitCwd)
     : EMPTY_PROVIDER_SKILLS;
+  const timelineProviders =
+    environmentById.get(
+      displayedThreadRef?.environmentId ?? activeThread?.environmentId ?? environmentId,
+    )?.serverConfig?.providers ?? EMPTY_PROVIDERS;
   const threadFindControlsRef = useRef<ThreadFindControls | null>(null);
   const [isThreadFindActive, setIsThreadFindActive] = useState(false);
   const openThreadFind = () => threadFindControlsRef.current?.open();
@@ -7277,20 +7282,31 @@ export default function ChatView(props: ChatViewProps) {
     sendInFlightRef.current = false;
   };
 
+  // Keyed on the fields it reads: the thread and runtime objects change with
+  // every streamed event, and a new function re-renders the whole model picker.
+  const hasStartedSession = activeRuntime !== null;
+  const runtimeProviderInstanceId = activeRuntime?.providerInstanceId ?? null;
+  const currentModelSelection = activeThread?.modelSelection ?? null;
   const getModelDisabledReason = useMemo(
     () =>
       makeModelDisabledReason(
-        activeThread
+        currentModelSelection
           ? {
               providers: providerStatuses,
-              hasStartedSession: activeRuntime !== null,
+              hasStartedSession,
               supportsProviderSwitchingViaHandoff,
-              currentModelSelection: activeThread.modelSelection,
-              currentProviderInstanceId: activeRuntime?.providerInstanceId ?? null,
+              currentModelSelection,
+              currentProviderInstanceId: runtimeProviderInstanceId,
             }
           : null,
       ),
-    [activeRuntime, activeThread, providerStatuses, supportsProviderSwitchingViaHandoff],
+    [
+      currentModelSelection,
+      hasStartedSession,
+      providerStatuses,
+      runtimeProviderInstanceId,
+      supportsProviderSwitchingViaHandoff,
+    ],
   );
 
   const onProviderModelSelect = (
@@ -8059,11 +8075,7 @@ export default function ChatView(props: ChatViewProps) {
                     }
                     listRef={legendListRef}
                     timelineEntries={displayedTimeline.entries}
-                    providerStatuses={
-                      environmentById.get(
-                        displayedThreadRef?.environmentId ?? activeThread.environmentId,
-                      )?.serverConfig?.providers ?? EMPTY_PROVIDERS
-                    }
+                    providerStatuses={timelineProviders}
                     runs={paintOnlyDisplayedTimeline ? [] : (serverProjection?.runs ?? [])}
                     latestRun={paintOnlyDisplayedTimeline ? null : activeActivityRun}
                     runningRunId={paintOnlyDisplayedTimeline ? null : activeRunningTurnId}
