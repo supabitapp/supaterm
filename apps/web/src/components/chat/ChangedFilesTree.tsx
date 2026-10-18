@@ -1,5 +1,5 @@
 import { type RunId } from "@supaterm/contracts";
-import { type MouseEvent, type ReactNode, memo, useCallback, useMemo, useState } from "react";
+import { type MouseEvent, type ReactNode, memo, useState } from "react";
 import { type TurnDiffFileChange } from "../../types";
 import {
   buildTurnDiffTree,
@@ -40,9 +40,9 @@ export const ChangedFilesCard = memo(function ChangedFilesCard(props: {
     onOpenTurnDiff,
     onFileContextMenu,
   } = props;
-  const summaryStat = useMemo(() => summarizeTurnDiffStats(files), [files]);
-  const hasDirectories = files.some((file) => /[/\\]/.test(file.path));
   const onDisclosureToggle = useTimelineDisclosureToggle();
+  const summaryStat = summarizeTurnDiffStats(files);
+  const hasDirectories = files.some((file) => /[/\\]/.test(file.path));
 
   return (
     <div
@@ -138,40 +138,34 @@ export const ChangedFilesTree = memo(function ChangedFilesTree(props: {
   const { files, allDirectoriesExpanded, onOpenTurnDiff, resolvedTheme, runId, onFileContextMenu } =
     props;
   const onDisclosureToggle = useTimelineDisclosureToggle();
-  const treeNodes = useMemo(() => buildTurnDiffTree(files), [files]);
-  const directoryPathsKey = useMemo(
-    () => collectDirectoryPaths(treeNodes).join("\u0000"),
-    [treeNodes],
-  );
+  // Overrides apply only while their key matches the current one, so starting from no key is
+  // the same as starting with no overrides. That lets this hook run before the tree is built,
+  // and the compiler caches the tree on `files`.
+  const [directoryExpansionState, setDirectoryExpansionState] = useState<{
+    key: string | null;
+    overrides: Record<string, boolean>;
+  }>({ key: null, overrides: {} });
+  const treeNodes = buildTurnDiffTree(files);
+  const directoryPathsKey = collectDirectoryPaths(treeNodes).join("\u0000");
   const hasDirectoryNodes = directoryPathsKey.length > 0;
   const expansionStateKey = `${allDirectoriesExpanded ? "expanded" : "collapsed"}\u0000${directoryPathsKey}`;
-  const [directoryExpansionState, setDirectoryExpansionState] = useState<{
-    key: string;
-    overrides: Record<string, boolean>;
-  }>(() => ({
-    key: expansionStateKey,
-    overrides: {},
-  }));
   const expandedDirectories =
     directoryExpansionState.key === expansionStateKey
       ? directoryExpansionState.overrides
       : EMPTY_DIRECTORY_OVERRIDES;
 
-  const toggleDirectory = useCallback(
-    (pathValue: string) => {
-      setDirectoryExpansionState((current) => {
-        const nextOverrides = current.key === expansionStateKey ? current.overrides : {};
-        return {
-          key: expansionStateKey,
-          overrides: {
-            ...nextOverrides,
-            [pathValue]: !(nextOverrides[pathValue] ?? allDirectoriesExpanded),
-          },
-        };
-      });
-    },
-    [allDirectoriesExpanded, expansionStateKey],
-  );
+  const toggleDirectory = (pathValue: string) => {
+    setDirectoryExpansionState((current) => {
+      const nextOverrides = current.key === expansionStateKey ? current.overrides : {};
+      return {
+        key: expansionStateKey,
+        overrides: {
+          ...nextOverrides,
+          [pathValue]: !(nextOverrides[pathValue] ?? allDirectoriesExpanded),
+        },
+      };
+    });
+  };
 
   const renderTreeNode = (node: TurnDiffTreeNode, depth: number) => {
     const leftPadding = 8 + depth * 14;
