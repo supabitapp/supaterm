@@ -12,6 +12,7 @@ export const REACT_COMPILED_FILES = [
   "apps/web/src/components/PersistentThreadTerminals.tsx",
   "apps/web/src/components/Sidebar.tsx",
   "apps/web/src/components/ThreadNotificationCoordinator.tsx",
+  "apps/web/src/components/auth/PairingRouteSurface.tsx",
   "apps/web/src/components/chat/ChatComposer.tsx",
   "apps/web/src/components/chat/MessagesTimeline.tsx",
   "apps/web/src/components/chat/RightPanelSurfaceContent.tsx",
