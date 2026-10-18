@@ -19,6 +19,7 @@ export const REACT_COMPILED_FILES = [
   "apps/web/src/components/auth/PairingRouteSurface.tsx",
   "apps/web/src/components/chat/ChatComposer.tsx",
   "apps/web/src/components/chat/MessagesTimeline.tsx",
+  "apps/web/src/components/chat/QueuedRunsControl.tsx",
   "apps/web/src/components/chat/RightPanelSurfaceContent.tsx",
   "apps/web/src/components/chat/composerFocusRedirect.ts",
   "apps/web/src/components/chat/useChatShortcuts.ts",
