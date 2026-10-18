@@ -33,6 +33,7 @@ export const REACT_COMPILED_FILES = [
   "apps/web/src/components/chat/useUsageLimitsPanel.ts",
   "apps/web/src/components/chat/useWorktreeSetup.ts",
   "apps/web/src/components/desktop/SnapShotCoordinator.tsx",
+  "apps/web/src/components/desktop/SshPasswordPromptDialog.tsx",
   "apps/web/src/components/device/DevicePanel.tsx",
   "apps/web/src/components/device/DeviceSetup.tsx",
   "apps/web/src/components/files/AttachmentFilePreview.tsx",
