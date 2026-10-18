@@ -231,7 +231,7 @@ class NativeTunnelTest {
   }
 
   @Test
-  fun foregroundProbeKeepsAResponsiveSession() {
+  fun foregroundCancelsBackgroundCloseAndKeepsResponsiveSession() {
     val host = SilentHost(unhex(vector.getString("identity")), replyToPings = true)
     MockWebServer().use { server ->
       server.enqueue(MockResponse().withWebSocketUpgrade(host))
@@ -249,6 +249,7 @@ class NativeTunnelTest {
       ).use { tunnel ->
         openStream(tunnel.origin).use {
           connected.get(10, TimeUnit.SECONDS)
+          tunnel.background(100)
           tunnel.resume(300)
           host.records.awaitPing()
           assertFailsWith<java.util.concurrent.TimeoutException> {
@@ -262,7 +263,7 @@ class NativeTunnelTest {
   }
 
   @Test
-  fun suspendClosesTheSessionAndTheNextRequestReconnects() {
+  fun backgroundGraceClosesTheSessionAndTheNextRequestReconnects() {
     MockWebServer().use { server ->
       repeat(2) {
         server.enqueue(
@@ -287,7 +288,7 @@ class NativeTunnelTest {
       ).use { tunnel ->
         openStream(tunnel.origin).use {
           connected.get(10, TimeUnit.SECONDS)
-          tunnel.suspend()
+          tunnel.background(100)
           down.get(10, TimeUnit.SECONDS)
         }
         assertLoopbackClosed(tunnel.origin)

@@ -25,10 +25,10 @@ even while the network reports offline. Returning to mobile also restarts an
 in-flight connection attempt, whose routes may belong to the previous network.
 Desktop foregrounding leaves ordinary in-flight attempts alone.
 
-The native mobile relay keeps its tunnel through backgrounding for as long as
-the OS lets the app run: iOS until its background task expires, Android until
-the process is frozen or killed. It checks the tunnel on foreground before the
-RPC probe times out. An RPC session replacement
+The native mobile relay keeps its tunnel through backgrounding: iOS until its
+background task expires, Android for five minutes, since Android grants no
+bounded background time to wait on. It checks the tunnel on foreground before
+the RPC probe times out. An RPC session replacement
 alone cannot repair a dead native tunnel. While mobile is backgrounded, the
 supervisor retains established sessions but parks connection attempts and
 retries. Expected background disconnects do not become connection failures in the

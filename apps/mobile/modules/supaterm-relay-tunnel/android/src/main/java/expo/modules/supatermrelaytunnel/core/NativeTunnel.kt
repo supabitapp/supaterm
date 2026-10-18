@@ -35,6 +35,7 @@ class NativeTunnel(
   private val timing: Timing = Timing()
 ) : AutoCloseable {
   companion object {
+    const val BACKGROUND_GRACE_MILLIS = 5 * 60_000L
     private const val SWITCHING_PROTOCOLS = 101
   }
 
@@ -67,6 +68,7 @@ class NativeTunnel(
   private var mux: TunnelMux? = null
   private var webSocket: WebSocket? = null
   private var keepalive: ScheduledFuture<*>? = null
+  private var backgroundClose: ScheduledFuture<*>? = null
   private var probeDeadline: ScheduledFuture<*>? = null
   private var cooldownFailure: RelayAttemptException? = null
   private var cooldownUntil = 0L
@@ -406,11 +408,27 @@ class NativeTunnel(
   }
 
   fun suspend() = post {
+    backgroundClose?.cancel(false)
+    backgroundClose = null
+    suspendSession()
+  }
+
+  private fun suspendSession() {
     suspended = true
     attempt?.let { fail(it, IllegalStateException("Backgrounded")) }
   }
 
+  fun background(graceMillis: Long = BACKGROUND_GRACE_MILLIS) = post {
+    backgroundClose?.cancel(false)
+    backgroundClose = actor.schedule({
+      backgroundClose = null
+      suspendSession()
+    }, graceMillis, TimeUnit.MILLISECONDS)
+  }
+
   fun resume(probeTimeoutMillis: Long = 2_000) = post {
+    backgroundClose?.cancel(false)
+    backgroundClose = null
     suspended = false
     log("[relay-android] foregrounded origin=$origin")
     val current = attempt
@@ -432,6 +450,7 @@ class NativeTunnel(
     listener.close()
     sockets.forEach { it.close() }
     actor.execute {
+      backgroundClose?.cancel(false)
       attempt?.let { fail(it, IllegalStateException("Tunnel unavailable")) }
       state = "down"
       emit()

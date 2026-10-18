@@ -1,6 +1,7 @@
 package expo.modules.supatermrelaytunnel
 
 import android.util.Log
+import android.os.SystemClock
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.records.Field
@@ -20,6 +21,7 @@ class RelayTunnelOptions : Record {
 
 class SupatermRelayTunnelModule : Module() {
   private val tunnels = LinkedHashMap<String, NativeTunnel>()
+  private var backgroundDeadline: Long? = null
 
   private fun stopAll() =
     synchronized(tunnels) {
@@ -32,6 +34,10 @@ class SupatermRelayTunnelModule : Module() {
     Events("onStatus")
     AsyncFunction("start") { options: RelayTunnelOptions ->
       synchronized(tunnels) {
+        val graceRemaining = backgroundDeadline?.minus(SystemClock.elapsedRealtime())
+        check(graceRemaining == null || graceRemaining > 0) {
+          "Relay tunnel is suspended while the app is in the background"
+        }
         val digest = sha256(parseRelayIdentity(options.hostAddress))
         val key = digest.hex()
         val existing = tunnels[key]
@@ -59,6 +65,7 @@ class SupatermRelayTunnelModule : Module() {
               if (port == 0) throw error else create(0)
             }
           tunnels[key] = tunnel
+          graceRemaining?.let { tunnel.background(it) }
           mapOf("origin" to tunnel.origin)
         }
       }
@@ -72,8 +79,17 @@ class SupatermRelayTunnelModule : Module() {
         }
       }
     }
+    OnActivityEntersBackground {
+      synchronized(tunnels) {
+        backgroundDeadline = SystemClock.elapsedRealtime() + NativeTunnel.BACKGROUND_GRACE_MILLIS
+        tunnels.values.forEach { it.background() }
+      }
+    }
     OnActivityEntersForeground {
-      synchronized(tunnels) { tunnels.values.forEach { it.resume() } }
+      synchronized(tunnels) {
+        backgroundDeadline = null
+        tunnels.values.forEach { it.resume() }
+      }
     }
     OnDestroy { stopAll() }
   }
