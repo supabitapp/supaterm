@@ -9,9 +9,11 @@ import { Dialog, DialogPopup, DialogTitle } from "../ui/dialog";
 // open dialog with it; hosts that recycle rows pin the row while this reports open.
 export const ExpandedPreviewHostContext = createContext<((open: boolean) => void) | null>(null);
 
+// Auto margins center content smaller than the viewport and collapse once it overflows.
+// `place-items: safe center` does the same but stops Chromium's keyboard scrolling.
 const FIT_CLASS_NAMES = {
-  fill: "h-[100cqh] w-[100cqw]",
-  center: "p-6",
+  fill: "m-auto h-[100cqh] w-[100cqw]",
+  center: "m-auto p-6",
 } as const;
 
 export function ExpandedPreviewDialog(props: {
@@ -50,7 +52,7 @@ export function ExpandedPreviewDialog(props: {
           </Button>
           <div
             tabIndex={0}
-            className="grid h-[min(86vh,calc(100vh-160px))] place-items-center-safe overflow-auto overscroll-contain rounded-lg bg-background shadow-2xl ring-1 ring-border/70 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset [container-type:size]"
+            className="grid h-[min(86vh,calc(100vh-160px))] overflow-auto overscroll-contain rounded-lg bg-background shadow-2xl ring-1 ring-border/70 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset [container-type:size]"
           >
             <div className={FIT_CLASS_NAMES[props.fit]} style={{ zoom }}>
               {props.children}
