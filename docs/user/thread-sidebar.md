@@ -12,8 +12,10 @@ an existing worktree, use **New thread in this worktree** from the branch toolba
 On mobile, a new task opens in the project you last chose; tap the project in the
 draft to pick another.
 
-When you change a new thread's project, Supaterm stays in the current environment
-if that project exists there. Otherwise it selects an environment that has it.
+When you change a new thread's project, its branch, workspace mode, and machine
+choice reset to that project's defaults; the prompt and a model you picked stay.
+Supaterm stays in the current environment if that project exists there, unless Auto
+balance chooses another. Otherwise it selects an environment that has it.
 
 ### Start without a project
 

@@ -4,7 +4,11 @@ import {
   composerDraftHasUserContent,
   draftThreadHasOpenPreview,
 } from "~/composerDraftStore";
-import { resolveEnvironmentMachineKind, type ScopedProjectRef } from "@supaterm/contracts";
+import {
+  DEFAULT_SERVER_SETTINGS,
+  resolveEnvironmentMachineKind,
+  type ScopedProjectRef,
+} from "@supaterm/contracts";
 import { scopedProjectKey, scopeProjectRef } from "@supaterm/client-runtime/environment";
 import { isScratchProject } from "@supaterm/client-runtime/state/projects";
 import { ChevronDownIcon, FolderIcon, FolderPlusIcon, MessageSquareDashedIcon } from "lucide-react";
@@ -15,11 +19,14 @@ import { openCommandPalette } from "~/commandPaletteBus";
 import { useComposerHandleContext } from "~/composerHandleContext";
 import { shortcutLabelForCommand } from "~/keybindings";
 import { primaryServerKeybindingsAtom } from "~/state/server";
-import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
+import { resolveNewDraftEnvMode, useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { useScratchProject } from "~/hooks/useScratchProject";
 import { useClientSettings } from "~/hooks/useSettings";
 import { usePickerShortcuts } from "~/hooks/usePickerShortcuts";
-import { hasExplicitComposerModelSelection } from "~/lib/chatThreadActions";
+import {
+  hasExplicitComposerModelSelection,
+  resolveNewDraftStartFromOrigin,
+} from "~/lib/chatThreadActions";
 import {
   deriveLogicalProjectKeyFromSettings,
   selectProjectGroupingSettings,
@@ -200,27 +207,51 @@ export function DraftProjectPicker({
       activeProjectKey: logicalProjectKey,
       scratchTargetEnvironmentId: project.environmentId,
     };
+    const projectRef = scopeProjectRef(project.environmentId, project.id);
     const currentDraft = getComposerDraft(draftId);
     if (
       !composerDraftHasUserContent(currentDraft) &&
       draftThreadHasOpenPreview(useComposerDraftStore.getState().getDraftSession(draftId))
     ) {
-      void openProjectDraft(scopeProjectRef(project.environmentId, project.id));
+      void openProjectDraft(projectRef);
       return;
     }
-    setLogicalProjectDraftThreadId(
-      logicalProjectKey,
-      scopeProjectRef(project.environmentId, project.id),
-      draftId,
-    );
+    setLogicalProjectDraftThreadId(logicalProjectKey, projectRef, draftId);
+    const serverConfig = environments.find(
+      (environment) => environment.environmentId === project.environmentId,
+    )?.serverConfig;
+    const projectSettings = serverConfig
+      ? resolveProjectSettings(serverConfig.settings, project.id, project).settings
+      : null;
+    const movedDraft = useComposerDraftStore.getState().getDraftSession(draftId);
+    void resolveNewDraftEnvMode(projectRef, serverConfig).then((envMode) => {
+      const { getDraftSession, setDraftThreadContext } = useComposerDraftStore.getState();
+      const draft = getDraftSession(draftId);
+      // Another pick, a mode the user chose meanwhile, or a send outranks the default.
+      if (
+        !movedDraft ||
+        !draft ||
+        draft.promotedTo ||
+        draft.logicalProjectKey !== movedDraft.logicalProjectKey ||
+        draft.envMode !== movedDraft.envMode ||
+        draft.startFromOrigin !== movedDraft.startFromOrigin
+      ) {
+        return;
+      }
+      setDraftThreadContext(draftId, {
+        envMode,
+        startFromOrigin: resolveNewDraftStartFromOrigin({
+          envMode,
+          newWorktreesStartFromOrigin:
+            projectSettings?.newWorktreesStartFromOrigin ??
+            DEFAULT_SERVER_SETTINGS.newWorktreesStartFromOrigin,
+        }),
+      });
+    });
     if (!hasExplicitComposerModelSelection(currentDraft)) {
       applyStickyState(draftId);
-      const environmentSettings = environments.find(
-        (environment) => environment.environmentId === project.environmentId,
-      )?.serverConfig?.settings;
-      const defaultModelSelection = environmentSettings
-        ? resolveProjectSettings(environmentSettings, project.id, project).settings
-            .defaultModelSelection
+      const defaultModelSelection = projectSettings
+        ? projectSettings.defaultModelSelection
         : project.defaultModelSelection;
       if (defaultModelSelection) {
         setModelSelection(draftId, defaultModelSelection, {

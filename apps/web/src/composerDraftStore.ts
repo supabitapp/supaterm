@@ -1231,8 +1231,13 @@ function createDraftThreadState(
     options?.startFromOrigin === undefined
       ? (existingThread?.startFromOrigin ?? false)
       : options.startFromOrigin;
+  // Manual or automatic routing picks among one logical project's machines,
+  // so a draft moved to another logical project starts from the default.
   const environmentSelection =
-    options?.environmentSelection ?? existingThread?.environmentSelection;
+    options?.environmentSelection ??
+    (existingThread?.logicalProjectKey === logicalProjectKey
+      ? existingThread.environmentSelection
+      : undefined);
   return {
     threadId,
     environmentId: projectRef.environmentId,

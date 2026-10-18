@@ -4,7 +4,12 @@ import {
   scopeProjectRef,
   scopeThreadRef,
 } from "@supaterm/client-runtime/environment";
-import { DEFAULT_SERVER_SETTINGS, type ScopedProjectRef, type ThreadId } from "@supaterm/contracts";
+import {
+  DEFAULT_SERVER_SETTINGS,
+  type ScopedProjectRef,
+  type ServerConfig,
+  type ThreadId,
+} from "@supaterm/contracts";
 import { useParams, useRouter } from "@tanstack/react-router";
 import { useCallback, useMemo } from "react";
 import {
@@ -57,6 +62,36 @@ function pickExplicitWorkspaceOptions(options: NewThreadWorkspaceOptions | undef
     ...(options?.envMode !== undefined ? { envMode: options.envMode } : {}),
     ...(options?.startFromOrigin !== undefined ? { startFromOrigin: options.startFromOrigin } : {}),
   };
+}
+
+/** The workspace mode a draft starts in when it is opened in, or moved to, the project. */
+export async function resolveNewDraftEnvMode(
+  projectRef: ScopedProjectRef,
+  serverConfig: ServerConfig | null | undefined,
+): Promise<DraftThreadEnvMode> {
+  const project = readProject(projectRef) ?? undefined;
+  const serverSettings = serverConfig?.settings ?? DEFAULT_SERVER_SETTINGS;
+  const projectSettings = resolveProjectSettings(serverSettings, project?.id ?? null, project);
+  const consultProjectFile =
+    project !== undefined && projectSettings.settings.defaultThreadEnvMode === null;
+  const projectFile = consultProjectFile
+    ? await readSupatermProjectFile(project.environmentId, project.workspaceRoot)
+    : null;
+  return resolveNewThreadEnvMode({
+    projectSettings: resolveProjectSettings(
+      serverSettings,
+      project?.id ?? null,
+      project,
+      projectFile,
+    ),
+    workspaceRoot: project?.workspaceRoot ?? null,
+    newProjectsRoot: serverConfig?.newProjectsRoot,
+    projectHasThreads: readThreadShells().some(
+      (thread) =>
+        thread.environmentId === projectRef.environmentId &&
+        thread.projectId === projectRef.projectId,
+    ),
+  });
 }
 
 export function useNewThreadHandler() {
@@ -134,28 +169,8 @@ export function useNewThreadHandler() {
             currentRouteTarget?.kind === "draft" ? currentRouteTarget.draftId : null,
           destinationDraftId,
         });
-      const resolveDefaultEnvMode = async (): Promise<DraftThreadEnvMode> => {
-        const consultProjectFile =
-          project !== undefined && projectSettings.settings.defaultThreadEnvMode === null;
-        const projectFile = consultProjectFile
-          ? await readSupatermProjectFile(project.environmentId, project.workspaceRoot)
-          : null;
-        return resolveNewThreadEnvMode({
-          projectSettings: resolveProjectSettings(
-            targetServerSettings,
-            project?.id ?? null,
-            project,
-            projectFile,
-          ),
-          workspaceRoot: project?.workspaceRoot ?? null,
-          newProjectsRoot: environmentServerConfigs.get(projectRef.environmentId)?.newProjectsRoot,
-          projectHasThreads: readThreadShells().some(
-            (thread) =>
-              thread.environmentId === projectRef.environmentId &&
-              thread.projectId === projectRef.projectId,
-          ),
-        });
-      };
+      const resolveDefaultEnvMode = () =>
+        resolveNewDraftEnvMode(projectRef, environmentServerConfigs.get(projectRef.environmentId));
       const logicalProjectKey = project
         ? deriveLogicalProjectKeyFromSettings(project, projectGroupingSettings)
         : scopedProjectKey(projectRef);

@@ -1806,7 +1806,9 @@ describe("composerDraftStore project draft thread mapping", () => {
       environmentSelection: "auto",
       loadBalancedEnvironmentId: TEST_ENVIRONMENT_ID,
     });
-    store.setProjectDraftThreadId(remoteProjectRef, draftId, { threadId });
+    store.setLogicalProjectDraftThreadId(scopedProjectKey(projectRef), remoteProjectRef, draftId, {
+      threadId,
+    });
     expect(store.getDraftThread(draftId)).toMatchObject({
       environmentSelection: "auto",
       loadBalancedEnvironmentId: null,
@@ -1817,6 +1819,18 @@ describe("composerDraftStore project draft thread mapping", () => {
       environmentSelection: "auto",
       loadBalancedEnvironmentId: null,
     });
+  });
+
+  it("starts a draft moved to another project with default machine routing", () => {
+    const store = useComposerDraftStore.getState();
+    store.setProjectDraftThreadId(projectRef, draftId, { threadId });
+    store.setDraftThreadContext(draftId, { branch: "feature/pinned" });
+    expect(store.getDraftThread(draftId)?.environmentSelection).toBe("manual");
+
+    store.setProjectDraftThreadId(otherProjectRef, draftId, { threadId });
+
+    expect(store.getDraftThread(draftId)?.environmentSelection).toBeUndefined();
+    expect(store.getDraftThread(draftId)?.branch).toBeNull();
   });
 
   it("does not opt a legacy branch choice into balancing when runtime mode changes", () => {
