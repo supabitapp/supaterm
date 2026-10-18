@@ -25,14 +25,17 @@ even while the network reports offline. Returning to mobile also restarts an
 in-flight connection attempt, whose routes may belong to the previous network.
 Desktop foregrounding leaves ordinary in-flight attempts alone.
 
-The native mobile relay keeps its tunnel through backgrounding: iOS until its
-background task expires, Android for five minutes, since Android grants no
-bounded background time to wait on. It checks the tunnel on foreground before
-the RPC probe times out. An RPC session replacement
-alone cannot repair a dead native tunnel. While mobile is backgrounded, the
-supervisor retains established sessions but parks connection attempts and
-retries. Expected background disconnects do not become connection failures in the
-foreground UI.
+The native mobile relay, not the supervisor, decides when a backgrounded tunnel
+suspends. iOS suspends when its background task expires, so the tunnel lasts as
+long as the OS grants. Android has no such deadline, so it suspends after a fixed
+grace instead of holding the tunnel and its keepalives until the process is
+frozen or killed, which can take hours on devices without the cached-app
+freezer. Where the freezer runs, it usually ends the tunnel first. On foreground
+the relay probes its tunnel before the RPC probe times out, because an RPC
+session replacement alone cannot repair a dead native tunnel. While mobile is
+backgrounded, the supervisor retains established
+sessions but parks connection attempts and retries. Expected background
+disconnects do not become connection failures in the foreground UI.
 
 Native tunnels ([iOS](../../apps/mobile/modules/supaterm-relay-tunnel/Sources/RelayTunnelCore/RelayTunnel.swift),
 [Android](../../apps/mobile/modules/supaterm-relay-tunnel/android/src/main/java/expo/modules/supatermrelaytunnel/core/NativeTunnel.kt))
