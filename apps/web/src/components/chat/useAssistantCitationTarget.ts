@@ -1,6 +1,6 @@
 import type { LegendListRef } from "@legendapp/list/react";
 import type { RunId } from "@supaterm/contracts";
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import type { TimelineEntry } from "../../session-logic";
 import type { MessagesTimelineRow } from "./MessagesTimeline.logic";
 import type { AssistantCitationRequest, AssistantCitationTarget } from "./AssistantCitationSource";
@@ -36,7 +36,7 @@ export function useAssistantCitationTarget({
   const [ready, setReady] = useState<AssistantCitationTarget | null>(null);
   const [finishedKey, setFinishedKey] = useState<string | null>(null);
   const [listLoaded, setListLoaded] = useState(false);
-  const onListLoad = useCallback(() => setListLoaded(true), []);
+  const onListLoad = () => setListLoaded(true);
   const navigationRef = useRef<{
     target: AssistantCitationTarget;
     requestedPages: Set<string>;
