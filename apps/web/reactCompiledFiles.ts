@@ -52,6 +52,7 @@ export const REACT_COMPILED_FILES = [
   "apps/web/src/components/pullRequest/usePullRequestFilesViewed.ts",
   "apps/web/src/components/pullRequest/useThreadLinkedPullRequest.ts",
   "apps/web/src/components/settings/AcpSessionManagementSection.tsx",
+  "apps/web/src/components/settings/CaptureShortcutConfig.tsx",
   "apps/web/src/components/settings/DeviceHostsSettings.tsx",
   "apps/web/src/components/settings/DiagnosticsSettings.tsx",
   "apps/web/src/components/settings/GitHubAccountSettings.tsx",
