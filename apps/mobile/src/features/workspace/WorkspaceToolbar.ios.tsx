@@ -5,7 +5,7 @@ import { Platform } from "react-native";
 import type { SearchBarCommands } from "react-native-screens";
 
 import { NATIVE_LIQUID_GLASS_SUPPORTED } from "../../native/native-glass";
-import { useNativeLayoutMetrics } from "../../native/native-layout-metrics";
+import { useDeviceType, useNativeLayoutMetrics } from "../../native/native-layout-metrics";
 import { NativeStackScreenOptions } from "../../native/StackHeader";
 import { NativeWorkspaceTabActivityContext } from "../../native/v5-workspace-context";
 import { useHardwareKeyboardCommand } from "../keyboard/hardwareKeyboardCommands";
@@ -24,12 +24,15 @@ export function WorkspaceToolbar(props: {
 }) {
   const workspace = useWorkspaceTabs()!;
   const metrics = useNativeLayoutMetrics();
+  const deviceType = useDeviceType();
   const sidebarTabs = useSidebarWorkspaceTabs();
   const selectTab = useWorkspaceTabSelection();
   const selectedTint = useMobileNavigationTheme().colors.primary;
   const nativeToolbarCompose =
     Platform.OS === "ios" &&
-    (Platform.isPad || sidebarTabs !== null || (metrics?.verticalBarEdge ?? "none") !== "none");
+    (deviceType === "pad" ||
+      sidebarTabs !== null ||
+      (metrics?.verticalBarEdge ?? "none") !== "none");
   const { isTabActive } = workspace;
   const tabActive = use(NativeWorkspaceTabActivityContext)?.active ?? true;
   const { panes, togglePrimarySidebar } = useAdaptiveWorkspaceLayout();
