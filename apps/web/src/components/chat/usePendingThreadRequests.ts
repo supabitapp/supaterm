@@ -21,7 +21,7 @@ import {
   type AtomCommandResult,
 } from "@supaterm/client-runtime/state/runtime";
 import { createUserInputAutoDismissPause } from "@supaterm/client-runtime/user-input-auto-dismiss-pause";
-import { useEffect, useMemo, useRef, useState, type RefObject, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type RefObject, type SetStateAction } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { DraftId, useComposerDraftStore } from "../../composerDraftStore";
 import { useStableCallback } from "../../hooks/useStableCallback";
@@ -117,7 +117,7 @@ function makePendingCustomAnswerSetter(input: {
   readonly activePendingUserInput: PendingUserInput | null;
   readonly activePendingRequestKey: string;
   readonly activePendingAnswerDrafts: Record<string, PendingUserInputDraftAnswer>;
-  readonly promptRef: { current: string };
+  readonly writePrompt: (prompt: string) => void;
   readonly pauseActiveQuestionTimer: () => void;
   readonly setPendingUserInputAnswersByRequestId: (
     update: SetStateAction<Record<string, Record<string, PendingUserInputDraftAnswer>>>,
@@ -134,7 +134,7 @@ function makePendingCustomAnswerSetter(input: {
     }
     if (value !== (input.activePendingAnswerDrafts[questionId]?.customAnswer ?? ""))
       input.pauseActiveQuestionTimer();
-    input.promptRef.current = value;
+    input.writePrompt(value);
     input.setPendingUserInputAnswersByRequestId((existing) => ({
       ...existing,
       [activePendingRequestKey]: {
@@ -211,21 +211,12 @@ export function usePendingThreadRequests(input: {
   >({});
   const [pendingUserInputQuestionIndexByRequestId, setPendingUserInputQuestionIndexByRequestId] =
     useState<Record<string, number>>({});
-  const pendingRequests = useMemo(
-    () =>
-      serverProjection === null
-        ? { approvals: [], userInputs: [] }
-        : derivePendingThreadRequests(serverProjection),
-    [serverProjection],
-  );
-  const pendingApprovals = useMemo(
-    () => derivePendingApprovals(pendingRequests.approvals),
-    [pendingRequests.approvals],
-  );
-  const pendingUserInputs = useMemo(
-    () => derivePendingUserInputs(pendingRequests.userInputs),
-    [pendingRequests.userInputs],
-  );
+  const pendingRequests =
+    serverProjection === null
+      ? { approvals: [], userInputs: [] }
+      : derivePendingThreadRequests(serverProjection);
+  const pendingApprovals = derivePendingApprovals(pendingRequests.approvals);
+  const pendingUserInputs = derivePendingUserInputs(pendingRequests.userInputs);
   const activePendingUserInput = pendingUserInputs[0] ?? null;
   const activePendingRequestKey = JSON.stringify([
     environmentId,
@@ -245,22 +236,13 @@ export function usePendingThreadRequests(input: {
       return seeded === drafts ? existing : { ...existing, [activePendingRequestKey]: seeded };
     });
   }
-  const pendingQuestionDraftKeys = useMemo(
-    () =>
-      activeThreadId
-        ? pendingUserInputs.flatMap((request) =>
-            request.questions.map((question) =>
-              questionAttachmentDraftId(
-                environmentId,
-                activeThreadId,
-                request.requestId,
-                question.id,
-              ),
-            ),
-          )
-        : [],
-    [activeThreadId, environmentId, pendingUserInputs],
-  );
+  const pendingQuestionDraftKeys = activeThreadId
+    ? pendingUserInputs.flatMap((request) =>
+        request.questions.map((question) =>
+          questionAttachmentDraftId(environmentId, activeThreadId, request.requestId, question.id),
+        ),
+      )
+    : [];
   const questionComposerDrafts = useComposerDraftStore(
     useShallow((state) =>
       Object.fromEntries(
@@ -316,63 +298,45 @@ export function usePendingThreadRequests(input: {
         clearQuestionAttachmentDraft(DraftId.make(key));
     }
   }, [environmentId, activeThread, pendingUserInputs]);
-  const activePendingDraftAnswers = useMemo(() => {
-    if (!activePendingUserInput || !activeThreadId) return EMPTY_PENDING_USER_INPUT_ANSWERS;
-    return Object.fromEntries(
-      activePendingUserInput.questions.map((question) => {
-        const key = questionAttachmentDraftId(
-          environmentId,
-          activeThreadId,
-          activePendingUserInput.requestId,
-          question.id,
+  const activePendingDraftAnswers =
+    !activePendingUserInput || !activeThreadId
+      ? EMPTY_PENDING_USER_INPUT_ANSWERS
+      : Object.fromEntries(
+          activePendingUserInput.questions.map((question) => {
+            const key = questionAttachmentDraftId(
+              environmentId,
+              activeThreadId,
+              activePendingUserInput.requestId,
+              question.id,
+            );
+            const draft = questionComposerDrafts[key];
+            const attachments = draft ? [...draft.images, ...draft.files] : [];
+            return [
+              question.id,
+              {
+                ...pendingUserInputAnswersByRequestId[activePendingRequestKey]?.[question.id],
+                attachmentCount: attachments.length,
+                attachmentsBlocked:
+                  (attachments.length > 0 && !supportsQuestionAttachments) ||
+                  (questionPreparations[key] ?? 0) > 0 ||
+                  questionUploadsBlocked[key] === true,
+              },
+            ];
+          }),
         );
-        const draft = questionComposerDrafts[key];
-        const attachments = draft ? [...draft.images, ...draft.files] : [];
-        return [
-          question.id,
-          {
-            ...pendingUserInputAnswersByRequestId[activePendingRequestKey]?.[question.id],
-            attachmentCount: attachments.length,
-            attachmentsBlocked:
-              (attachments.length > 0 && !supportsQuestionAttachments) ||
-              (questionPreparations[key] ?? 0) > 0 ||
-              questionUploadsBlocked[key] === true,
-          },
-        ];
-      }),
-    );
-  }, [
-    activePendingUserInput,
-    activeThreadId,
-    environmentId,
-    questionComposerDrafts,
-    questionUploadsBlocked,
-    supportsQuestionAttachments,
-    questionPreparations,
-    pendingUserInputAnswersByRequestId,
-    activePendingRequestKey,
-  ]);
   const activePendingQuestionIndex = activePendingUserInput
     ? (pendingUserInputQuestionIndexByRequestId[activePendingRequestKey] ?? 0)
     : 0;
-  const activePendingProgress = useMemo(
-    () =>
-      activePendingUserInput
-        ? derivePendingUserInputProgress(
-            activePendingUserInput.questions,
-            activePendingDraftAnswers,
-            activePendingQuestionIndex,
-          )
-        : null,
-    [activePendingDraftAnswers, activePendingQuestionIndex, activePendingUserInput],
-  );
-  const activePendingResolvedAnswers = useMemo(
-    () =>
-      activePendingUserInput
-        ? buildPendingUserInputAnswers(activePendingUserInput.questions, activePendingDraftAnswers)
-        : null,
-    [activePendingDraftAnswers, activePendingUserInput],
-  );
+  const activePendingProgress = activePendingUserInput
+    ? derivePendingUserInputProgress(
+        activePendingUserInput.questions,
+        activePendingDraftAnswers,
+        activePendingQuestionIndex,
+      )
+    : null;
+  const activePendingResolvedAnswers = activePendingUserInput
+    ? buildPendingUserInputAnswers(activePendingUserInput.questions, activePendingDraftAnswers)
+    : null;
   const activePendingIsResponding = activePendingUserInput
     ? activePendingUserInput.responseCapability === "not_resumable" ||
       respondingUserInputRequestIds.includes(activePendingUserInput.requestId)
@@ -501,28 +465,16 @@ export function usePendingThreadRequests(input: {
   };
   const onDismissUserInputStable = useStableCallback(onDismissUserInput);
 
-  const pauseOnInteraction = useMemo(() => createUserInputAutoDismissPause(), []);
-  const pauseActiveQuestionTimer = useMemo(
-    () =>
-      makeQuestionTimerPause({
-        environmentId,
-        activeThreadId,
-        activePendingUserInput,
-        canPauseUserInputAutoDismiss,
-        pauseOnInteraction,
-        pauseUserInputAutoDismiss,
-        setThreadError,
-      }),
-    [
-      activePendingUserInput,
-      activeThreadId,
-      canPauseUserInputAutoDismiss,
-      environmentId,
-      pauseOnInteraction,
-      pauseUserInputAutoDismiss,
-      setThreadError,
-    ],
-  );
+  const [pauseOnInteraction] = useState(createUserInputAutoDismissPause);
+  const pauseActiveQuestionTimer = makeQuestionTimerPause({
+    environmentId,
+    activeThreadId,
+    activePendingUserInput,
+    canPauseUserInputAutoDismiss,
+    pauseOnInteraction,
+    pauseUserInputAutoDismiss,
+    setThreadError,
+  });
 
   const setActivePendingUserInputQuestionIndex = (nextQuestionIndex: number) => {
     if (!activePendingUserInput) {
@@ -589,25 +541,17 @@ export function usePendingThreadRequests(input: {
     onSelectActivePendingUserInputOption,
   );
 
-  const onChangeActivePendingUserInputCustomAnswer = useMemo(
-    () =>
-      // oxlint-disable-next-line react/refs -- the setter writes promptRef when the composer calls it, never during render
-      makePendingCustomAnswerSetter({
-        activePendingUserInput,
-        activePendingRequestKey,
-        activePendingAnswerDrafts,
-        promptRef,
-        pauseActiveQuestionTimer,
-        setPendingUserInputAnswersByRequestId,
-      }),
-    [
-      activePendingUserInput,
-      activePendingRequestKey,
-      activePendingAnswerDrafts,
-      promptRef,
-      pauseActiveQuestionTimer,
-    ],
-  );
+  const writePrompt = useStableCallback((prompt: string) => {
+    promptRef.current = prompt;
+  });
+  const onChangeActivePendingUserInputCustomAnswer = makePendingCustomAnswerSetter({
+    activePendingUserInput,
+    activePendingRequestKey,
+    activePendingAnswerDrafts,
+    writePrompt,
+    pauseActiveQuestionTimer,
+    setPendingUserInputAnswersByRequestId,
+  });
 
   const onAdvanceActivePendingUserInput = () => {
     if (
