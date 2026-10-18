@@ -1147,8 +1147,12 @@ function sameInputs(previous: ReadonlyArray<unknown>, inputs: ReadonlyArray<unkn
   );
 }
 
-function useInputsChanged(inputs: ReadonlyArray<unknown>): boolean {
-  const [previous, setPrevious] = useState<ReadonlyArray<unknown> | null>(null);
+type PrimitiveInput = string | number | boolean | null | undefined;
+
+// Primitives only: an object rebuilt each render never compares equal, so the
+// state set below would re-render forever.
+function useInputsChanged(inputs: ReadonlyArray<PrimitiveInput>): boolean {
+  const [previous, setPrevious] = useState<ReadonlyArray<PrimitiveInput> | null>(null);
   if (previous !== null && sameInputs(previous, inputs)) {
     return false;
   }
@@ -3240,8 +3244,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     composerTerminalContextsRef.current = composerTerminalContexts;
   }, [composerTerminalContexts, composerTerminalContextsRef]);
 
+  const activeComposerMenuItemKey = activeComposerMenuItem?.id ?? null;
   const composerMenuHighlightInputsChanged = useInputsChanged([
-    activeComposerMenuItem,
+    activeComposerMenuItemKey,
     composerMenuOpen,
     composerMenuSearchKey,
   ]);
@@ -3250,7 +3255,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       setComposerHighlightedItemId(null);
       setComposerHighlightedSearchKey(null);
     } else {
-      const nextActiveItemId = activeComposerMenuItem?.id ?? null;
+      const nextActiveItemId = activeComposerMenuItemKey;
       setComposerHighlightedItemId((existing) =>
         existing === nextActiveItemId ? existing : nextActiveItemId,
       );
