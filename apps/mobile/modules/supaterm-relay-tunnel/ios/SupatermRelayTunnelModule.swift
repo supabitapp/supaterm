@@ -15,7 +15,6 @@ public final class SupatermRelayTunnelModule: Module {
   private var backgroundObserver: NSObjectProtocol?
   private var foregroundObserver: NSObjectProtocol?
   private var backgroundTask = UIBackgroundTaskIdentifier.invalid
-  private var suspendWork: DispatchWorkItem?
   private var graceGeneration: UInt64 = 0
   private let logger = Logger(subsystem: "com.supaterm.mobile", category: "relay-tunnel")
 
@@ -77,13 +76,7 @@ public final class SupatermRelayTunnelModule: Module {
       guard let self, self.graceGeneration == generation else { return }
       self.suspendTunnels()
     }
-    guard backgroundTask != .invalid else { suspendTunnels(); return }
-    let work = DispatchWorkItem { [weak self] in
-      guard let self, self.graceGeneration == generation else { return }
-      self.suspendTunnels()
-    }
-    suspendWork = work
-    DispatchQueue.main.asyncAfter(deadline: .now() + 15, execute: work)
+    if backgroundTask == .invalid { suspendTunnels() }
   }
 
   private func suspendTunnels() {
@@ -93,7 +86,6 @@ public final class SupatermRelayTunnelModule: Module {
 
   private func cancelBackgroundGrace() {
     graceGeneration += 1
-    suspendWork?.cancel(); suspendWork = nil
     guard backgroundTask != .invalid else { return }
     let task = backgroundTask; backgroundTask = .invalid
     UIApplication.shared.endBackgroundTask(task)
