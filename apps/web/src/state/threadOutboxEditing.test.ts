@@ -12,14 +12,26 @@ import { useComposerDraftStore, type ComposerFileAttachment } from "../composerD
 import { buildMessageContext, fileContextReference } from "../lib/composerContextRecords";
 import { formatInlineContextReference } from "../lib/composerContextReferences";
 import type { PendingThreadTurn } from "./threadOutbox";
-import { buildEditedThreadOutboxTurn, createThreadOutboxEditor } from "./threadOutboxEditing";
+import {
+  buildEditedThreadOutboxTurn,
+  captureOutboxAttachments,
+  createThreadOutboxEditor,
+} from "./threadOutboxEditing";
 
-const transport = vi.hoisted(() => ({ pause: vi.fn(), replace: vi.fn(), release: vi.fn() }));
+const transport = vi.hoisted(() => ({
+  pause: vi.fn(),
+  replace: vi.fn(),
+  release: vi.fn(),
+  uploaded: vi.fn(),
+}));
 vi.mock("./threadOutbox", () => ({
   webThreadOutbox: { pause: transport.pause },
   replaceThreadOutboxTurn: transport.replace,
 }));
-vi.mock("../lib/attachmentUploadQueue", () => ({ releaseDraftAttachments: transport.release }));
+vi.mock("../lib/attachmentUploadQueue", () => ({
+  releaseDraftAttachments: transport.release,
+  getUploadedAttachments: transport.uploaded,
+}));
 
 const environmentId = EnvironmentId.make("environment");
 const threadId = ThreadId.make("thread");
@@ -219,5 +231,39 @@ describe("outbox editing in the composer", () => {
         addedAttachments: [],
       }),
     ).toThrow("Enter a message or keep an attachment");
+  });
+});
+
+describe("outbox attachment capture", () => {
+  const recovered: ComposerFileAttachment = { ...file, id: "recovered-file", file: null };
+
+  it("keeps the bytes of attachments the composer still holds", () => {
+    expect(captureOutboxAttachments(environmentId, [file])).toEqual([
+      {
+        id: file.id,
+        type: "file",
+        name: file.name,
+        mimeType: file.mimeType,
+        sizeBytes: file.sizeBytes,
+        bytes: file.file,
+      },
+    ]);
+    expect(transport.uploaded).not.toHaveBeenCalled();
+  });
+
+  it("references the upload of an attachment recovered without bytes", () => {
+    const uploaded = { ...file, id: "server-attachment" };
+    transport.uploaded.mockReturnValueOnce([uploaded]);
+    expect(captureOutboxAttachments(environmentId, [recovered])).toEqual([
+      expect.objectContaining({ id: recovered.id, bytes: null, uploaded }),
+    ]);
+    expect(transport.uploaded).toHaveBeenCalledWith({ environmentId, images: [recovered] });
+  });
+
+  it("asks for the attachment again when neither bytes nor an upload remain", () => {
+    transport.uploaded.mockReturnValueOnce(null);
+    expect(() => captureOutboxAttachments(environmentId, [recovered])).toThrow(
+      "Attach 'notes.txt' again before sending.",
+    );
   });
 });

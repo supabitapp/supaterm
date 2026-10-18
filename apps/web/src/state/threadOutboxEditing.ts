@@ -1,6 +1,7 @@
 import {
   ChatAttachment,
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
+  type EnvironmentId,
   type OrchestrationMessageContext,
 } from "@supaterm/contracts";
 import {
@@ -10,9 +11,14 @@ import {
 import * as Schema from "effect/Schema";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
-import { DraftId, useComposerDraftStore } from "../composerDraftStore";
+import {
+  DraftId,
+  useComposerDraftStore,
+  type ComposerFileAttachment,
+  type ComposerImageAttachment,
+} from "../composerDraftStore";
 import { removeInlineContextReference } from "../lib/composerContextReferences";
-import { releaseDraftAttachments } from "../lib/attachmentUploadQueue";
+import { getUploadedAttachments, releaseDraftAttachments } from "../lib/attachmentUploadQueue";
 import { replaceThreadOutboxTurn, webThreadOutbox, type PendingThreadTurn } from "./threadOutbox";
 import type { OutboxTurn } from "./threadOutboxSchema";
 
@@ -34,6 +40,31 @@ function threadOutboxEditAttachments(entry: PendingThreadTurn) {
       url: "dataUrl" in attachment ? attachment.dataUrl : null,
     })),
   ];
+}
+
+/** The outbox owns its own bytes; an attachment without them must already be uploaded. */
+export function captureOutboxAttachments(
+  environmentId: EnvironmentId,
+  attachments: ReadonlyArray<ComposerImageAttachment | ComposerFileAttachment>,
+) {
+  return attachments.map((attachment) => {
+    const uploaded =
+      attachment.file === null
+        ? getUploadedAttachments({ environmentId, images: [attachment] })?.[0]
+        : undefined;
+    if (attachment.file === null && uploaded === undefined)
+      throw new Error(`Attach '${attachment.name}' again before sending.`);
+    return {
+      id: attachment.id,
+      type: attachment.type,
+      name: attachment.name,
+      mimeType: attachment.mimeType,
+      sizeBytes: attachment.sizeBytes,
+      bytes: attachment.file,
+      ...(attachment.source ? { source: attachment.source } : {}),
+      ...(uploaded ? { uploaded } : {}),
+    };
+  });
 }
 
 /** Keep saved context and bytes while applying the composer's attachment edits. */

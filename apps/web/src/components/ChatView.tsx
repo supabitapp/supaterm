@@ -20,6 +20,7 @@ import {
 import * as DateTime from "effect/DateTime";
 import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
 import { useQueuedRunEdit } from "./chat/useQueuedRunEdit";
+import { useThreadOutboxEdit } from "./chat/useThreadOutboxEdit";
 import {
   isPaintOnlyThreadTimeline,
   peekHeldThreadTimeline,
@@ -431,11 +432,7 @@ import {
   shouldShowThreadErrorBanner,
   ThreadErrorBanner,
 } from "./chat/ThreadErrorBanner";
-import {
-  QueuedRunsControl,
-  type QueuedRunsControlHandle,
-  type EditQueuedRunRequest,
-} from "./chat/QueuedRunsControl";
+import { QueuedRunsControl, type QueuedRunsControlHandle } from "./chat/QueuedRunsControl";
 import { useThreadLinkedPullRequest } from "./pullRequest/useThreadLinkedPullRequest";
 import { useProactivePanels } from "../hooks/useProactivePanels";
 import { useRightPanelSurfaceClose } from "../hooks/useRightPanelSurfaceClose";
@@ -497,18 +494,14 @@ import {
 } from "./ChatView.logic";
 import { useLocalStorage } from "~/hooks/useLocalStorage";
 import { useComposerHandleContext } from "../composerHandleContext";
-import { getUploadedAttachments, releaseDraftAttachments } from "../lib/attachmentUploadQueue";
+import { releaseDraftAttachments } from "../lib/attachmentUploadQueue";
 import { sanitizeThreadErrorMessage } from "~/rpc/transportError";
 import { RightPanelSheet } from "./RightPanelSheet";
 import { previewEnvironment } from "../state/preview";
 import { clampFileAttachmentUploadBytes } from "@supaterm/client-runtime/state/attachments";
 import { appAtomRegistry } from "../rpc/atomRegistry";
-import {
-  enqueueThreadOutboxTurns,
-  usePendingThreadCreation,
-  type PendingThreadTurn,
-} from "../state/threadOutbox";
-import { buildEditedThreadOutboxTurn, useThreadOutboxEditor } from "../state/threadOutboxEditing";
+import { enqueueThreadOutboxTurns, usePendingThreadCreation } from "../state/threadOutbox";
+import { captureOutboxAttachments } from "../state/threadOutboxEditing";
 import { ThreadOutboxControl } from "./chat/ThreadOutboxControl";
 import { assetEnvironment } from "../state/assets";
 import { readEnvironmentScope, readPreparedConnection } from "../state/session";
@@ -1026,7 +1019,6 @@ export default function ChatView(props: ChatViewProps) {
   );
   const baseComposerDraftTarget: ScopedThreadRef | DraftId =
     routeKind === "server" ? routeThreadRef : props.draftId;
-  const outboxEditor = useThreadOutboxEditor(scopedThreadKey(routeThreadRef));
   const draftThread = useComposerDraftStore((store) =>
     routeKind === "server"
       ? store.getDraftSessionByRef(routeThreadRef)
@@ -1052,8 +1044,16 @@ export default function ChatView(props: ChatViewProps) {
     promptRef,
     composerRef,
   });
+  const outboxEdit = useThreadOutboxEdit({
+    environmentId,
+    routeThreadRef,
+    threadId,
+    queuedRunEdit,
+    promptRef,
+    composerRef,
+  });
   const composerDraftTarget: ScopedThreadRef | DraftId =
-    outboxEditor.editing?.draftTarget ?? queuedRunEdit.draftTarget;
+    outboxEdit.draftTarget ?? queuedRunEdit.draftTarget;
   const [previousCreation, setPreviousCreation] = useState<WebPendingThreadCreation | null>(null);
   const pendingThreadCreation = resolvePendingThreadCreation({
     threadKey: routeThreadKey,
@@ -3262,24 +3262,7 @@ export default function ChatView(props: ChatViewProps) {
   };
   const sendAppMessageStable = useStableCallback(sendAppMessage);
   const queuedRunsControlRef = useRef<QueuedRunsControlHandle>(null);
-  const [isSavingOutboxEdit, setIsSavingOutboxEdit] = useState(false);
-  const isSavingEdit = queuedRunEdit.isSaving || isSavingOutboxEdit;
-  const beginEditingQueuedRun = (request: EditQueuedRunRequest) => {
-    outboxEditor.editor.cancel();
-    queuedRunEdit.beginEdit(request);
-  };
-  const beginEditingQueuedRunStable = useStableCallback(beginEditingQueuedRun);
-  const beginEditingOutboxMessage = async (entry: PendingThreadTurn) => {
-    await outboxEditor.editor.begin(entry);
-    queuedRunEdit.cancelEdit();
-    scheduleComposerFocus();
-  };
-  const beginEditingOutboxMessageStable = useStableCallback(beginEditingOutboxMessage);
-  const cancelEditingOutboxMessage = () => {
-    outboxEditor.editor.cancel();
-    scheduleComposerFocus();
-  };
-  const cancelEditingOutboxMessageStable = useStableCallback(cancelEditingOutboxMessage);
+  const isSavingEdit = queuedRunEdit.isSaving || outboxEdit.isSaving;
   const addTerminalContextToDraft = (selection: TerminalContextSelection) => {
     composerRef.current?.addTerminalContext(selection);
   };
@@ -5806,29 +5789,6 @@ export default function ChatView(props: ChatViewProps) {
     });
   };
 
-  function captureOutboxAttachments(
-    attachments: ReadonlyArray<ComposerImageAttachment | ComposerFileAttachment>,
-  ) {
-    return attachments.map((attachment) => {
-      const uploaded =
-        attachment.file === null
-          ? getUploadedAttachments({ environmentId, images: [attachment] })?.[0]
-          : undefined;
-      if (attachment.file === null && uploaded === undefined)
-        throw new Error(`Attach '${attachment.name}' again before sending.`);
-      return {
-        id: attachment.id,
-        type: attachment.type,
-        name: attachment.name,
-        mimeType: attachment.mimeType,
-        sizeBytes: attachment.sizeBytes,
-        bytes: attachment.file,
-        ...(attachment.source ? { source: attachment.source } : {}),
-        ...(uploaded ? { uploaded } : {}),
-      };
-    });
-  }
-
   const onSend = async (
     e?: { preventDefault: () => void },
     dispatchMode: ComposerDispatchMode = "auto",
@@ -5839,60 +5799,9 @@ export default function ChatView(props: ChatViewProps) {
     },
   ) => {
     e?.preventDefault();
-    if (outboxEditor.editing) {
-      if (directAnnotation || sendInFlightRef.current || isSavingEdit) return;
-      const sendContext = composerRef.current?.getSendContext();
-      if (!sendContext) return;
-      const { entry, keptAttachmentIds } = outboxEditor.editing;
-      sendInFlightRef.current = true;
-      setIsSavingOutboxEdit(true);
-      const saveResult = await settlePromise(async () => {
-        const addedAttachments = [...sendContext.images, ...sendContext.files];
-        const payload = buildEditedThreadOutboxTurn({
-          entry,
-          text: promptRef.current,
-          keptAttachmentIds,
-          addedAttachments: captureOutboxAttachments(addedAttachments),
-          context: buildMessageContext({
-            terminalContexts: sendContext.terminalContexts,
-            reviewComments: sendContext.reviewComments,
-            previewAnnotations: sendContext.previewAnnotations,
-            threadContexts: sendContext.threadContexts,
-            attachments: addedAttachments.map((attachment) => ({
-              attachment,
-              attachmentId: attachment.id,
-            })),
-          }),
-        });
-        return outboxEditor.editor.save({
-          ...payload,
-          input: {
-            ...payload.input,
-            modelSelection: sendContext.selectedModelSelection,
-            runtimeMode,
-            interactionMode: sendContext.interactionMode,
-          },
-        });
-      });
-      if (saveResult._tag === "Failure") {
-        const error = squashAtomCommandFailure(saveResult);
-        setThreadError(
-          threadId,
-          error instanceof Error ? error.message : "Could not save the pending message.",
-        );
-      } else {
-        setThreadError(threadId, null);
-        composerRef.current?.resetCursorState();
-        if (saveResult.value)
-          void navigate({
-            to: "/$environmentId/$threadId",
-            params: saveResult.value,
-            replace: true,
-          });
-        scheduleComposerFocus();
-      }
-      sendInFlightRef.current = false;
-      setIsSavingOutboxEdit(false);
+    if (outboxEdit.isEditing) {
+      if (!directAnnotation)
+        await outboxEdit.saveEdit({ runtimeMode, sendInFlightRef }, setThreadError);
       return;
     }
 
@@ -6249,7 +6158,7 @@ export default function ChatView(props: ChatViewProps) {
           ? formatTerminalContextLabel(composerTerminalContextsSnapshot[0])
           : "New thread");
       const title = truncate(titleSeed);
-      const localAttachments = captureOutboxAttachments(composerAttachmentsSnapshot);
+      const localAttachments = captureOutboxAttachments(environmentId, composerAttachmentsSnapshot);
       const targets =
         multipleModelSelections === null
           ? [
@@ -6534,9 +6443,9 @@ export default function ChatView(props: ChatViewProps) {
       <ThreadOutboxControl
         environmentId={environmentId}
         threadId={threadId}
-        editingMessageId={outboxEditor.editing?.entry.id ?? null}
-        onEditMessage={beginEditingOutboxMessageStable}
-        onCancelEdit={cancelEditingOutboxMessageStable}
+        editingMessageId={outboxEdit.editingMessageId}
+        onEditMessage={outboxEdit.beginEdit}
+        onCancelEdit={outboxEdit.cancelEdit}
       />
       {isServerThread && activeThread ? (
         <QueuedRunsControl
@@ -6551,7 +6460,7 @@ export default function ChatView(props: ChatViewProps) {
           threadId={activeThread.id}
           optimisticMessages={optimisticUserMessages}
           editingRunId={queuedRunEdit.editingRunId}
-          onEditQueuedRun={beginEditingQueuedRunStable}
+          onEditQueuedRun={outboxEdit.beginQueuedRunEdit}
           onCancelEdit={queuedRunEdit.cancelEdit}
         />
       ) : null}
@@ -7132,7 +7041,7 @@ export default function ChatView(props: ChatViewProps) {
                                   canQueueMessage={canQueueMessage}
                                   reportedModelSelection={reportedModelSelection}
                                   multipleModelSelections={
-                                    outboxEditor.editing ? null : multipleModelSelections
+                                    outboxEdit.isEditing ? null : multipleModelSelections
                                   }
                                   supportsMultipleModels={serverConfig != null}
                                   onMultipleModelSelectionsChange={setMultipleModelSelectionsStable}
@@ -7171,7 +7080,7 @@ export default function ChatView(props: ChatViewProps) {
                                   sendDisabledReason={
                                     !canQueueMessage
                                       ? "This connection cannot change threads."
-                                      : outboxEditor.editing
+                                      : outboxEdit.isEditing
                                         ? null
                                         : isEnvironmentChanging
                                           ? "Preparing machine"
@@ -7204,13 +7113,13 @@ export default function ChatView(props: ChatViewProps) {
                                   }
                                   environmentUnavailable={activeEnvironmentUnavailableState}
                                   activePendingApproval={
-                                    outboxEditor.editing ? null : activePendingApproval
+                                    outboxEdit.isEditing ? null : activePendingApproval
                                   }
-                                  pendingApprovals={outboxEditor.editing ? [] : pendingApprovals}
-                                  pendingUserInputs={outboxEditor.editing ? [] : pendingUserInputs}
+                                  pendingApprovals={outboxEdit.isEditing ? [] : pendingApprovals}
+                                  pendingUserInputs={outboxEdit.isEditing ? [] : pendingUserInputs}
                                   supportsQuestionAutoDismiss={supportsQuestionAutoDismiss}
                                   activePendingProgress={
-                                    outboxEditor.editing ? null : activePendingProgress
+                                    outboxEdit.isEditing ? null : activePendingProgress
                                   }
                                   activePendingResolvedAnswers={activePendingResolvedAnswers}
                                   activePendingIsResponding={activePendingIsResponding}
@@ -7293,11 +7202,12 @@ export default function ChatView(props: ChatViewProps) {
                                   onExpandImage={onExpandTimelineImageStable}
                                   onFileOpen={openFileAttachmentStable}
                                   editingQueuedAttachments={
-                                    outboxEditor.attachments ?? queuedRunEdit.editingAttachments
+                                    outboxEdit.editingAttachments ??
+                                    queuedRunEdit.editingAttachments
                                   }
                                   onRemoveEditingQueuedAttachment={
-                                    outboxEditor.editing
-                                      ? outboxEditor.editor.removeAttachment
+                                    outboxEdit.isEditing
+                                      ? outboxEdit.removeEditingAttachment
                                       : queuedRunEdit.removeEditingAttachment
                                   }
                                 />
