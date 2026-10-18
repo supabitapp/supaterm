@@ -1,5 +1,4 @@
 import { ClockIcon } from "lucide-react";
-import { useMemo } from "react";
 
 import { useClientSettings } from "~/hooks/useSettings";
 
@@ -19,10 +18,7 @@ export function SidebarSnoozeButton({
 }) {
   const timestampFormat = useClientSettings((settings) => settings.timestampFormat);
   // Resolve relative presets when the menu opens, rather than when the row mounts.
-  const presets = useMemo(
-    () => (open ? resolveSnoozePresets(new Date(), timestampFormat) : []),
-    [open, timestampFormat],
-  );
+  const presets = open ? resolveSnoozePresets(new Date(), timestampFormat) : [];
   return (
     <Menu open={open} onOpenChange={onOpenChange}>
       <Tooltip>
