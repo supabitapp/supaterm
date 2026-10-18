@@ -5,7 +5,6 @@ import {
   type SupatermProjectFileScript,
 } from "@supaterm/contracts";
 import { parseSupatermProjectFile } from "@supaterm/shared/supatermProjectFile";
-import { useMemo } from "react";
 
 import { useProjectFileQuery } from "~/components/files/projectFilesQueryState";
 
@@ -29,20 +28,18 @@ export function useSupatermProjectFileState(
   );
   const contents = query.data && !query.data.truncated ? query.data.contents : null;
   const isPending = query.isPending;
-  return useMemo(() => {
-    if (contents === null) {
-      return {
-        status: isPending ? "loading" : "missing",
-        file: null,
-        scripts: NO_SCRIPTS,
-      } as const;
-    }
-    const file = parseSupatermProjectFile(contents);
-    if (file === null) {
-      return { status: "invalid", file: null, scripts: NO_SCRIPTS } as const;
-    }
-    return { status: "valid", file, scripts: file.scripts ?? NO_SCRIPTS } as const;
-  }, [contents, isPending]);
+  if (contents === null) {
+    return {
+      status: isPending ? "loading" : "missing",
+      file: null,
+      scripts: NO_SCRIPTS,
+    } as const;
+  }
+  const file = parseSupatermProjectFile(contents);
+  if (file === null) {
+    return { status: "invalid", file: null, scripts: NO_SCRIPTS } as const;
+  }
+  return { status: "valid", file, scripts: file.scripts ?? NO_SCRIPTS } as const;
 }
 
 export function useSupatermProjectFileScripts(
