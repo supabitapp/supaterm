@@ -35,6 +35,21 @@ describe("ExecutionEnvironmentDescriptor", () => {
     }
   });
 
+  it("reads platforms and update paths from a newer server instead of failing", () => {
+    const parsed = decodeDescriptor({
+      ...descriptor,
+      platform: { os: "freebsd", arch: "riscv64" },
+      capabilities: { serverSelfUpdate: "package-manager" },
+    });
+
+    expect(parsed.platform).toEqual({ os: "unknown", arch: "other" });
+    expect(parsed.capabilities.serverSelfUpdate).toBeUndefined();
+    expect(
+      decodeDescriptor({ ...descriptor, capabilities: { serverSelfUpdate: "desktop-managed" } })
+        .capabilities.serverSelfUpdate,
+    ).toBe("desktop-managed");
+  });
+
   it("preserves the server's generic attachment upload limit", () => {
     expect(
       decodeDescriptor({

@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
 import {
@@ -38,8 +39,12 @@ export type EnvironmentMachineKind = typeof EnvironmentMachineKind.Type;
 export const isEnvironmentMachineKind = Schema.is(EnvironmentMachineKind);
 
 export const ExecutionEnvironmentPlatform = Schema.Struct({
-  os: ExecutionEnvironmentPlatformOs,
-  arch: ExecutionEnvironmentPlatformArch,
+  os: ExecutionEnvironmentPlatformOs.pipe(
+    Schema.catchDecoding(() => Effect.succeedSome("unknown" as const)),
+  ),
+  arch: ExecutionEnvironmentPlatformArch.pipe(
+    Schema.catchDecoding(() => Effect.succeedSome("other" as const)),
+  ),
   machine: ForwardCompatibleOptional(EnvironmentMachineKind),
 });
 
@@ -80,7 +85,7 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   /** The update path clients should offer for this server. Absent on
       servers that must be relaunched manually (dev checkouts, Windows
       foreground runs). */
-  serverSelfUpdate: Schema.optionalKey(ServerSelfUpdateCapability),
+  serverSelfUpdate: ForwardCompatibleOptional(ServerSelfUpdateCapability),
   /** Manual commands must update this install, not the host's default global prefix. */
   serverInstallation: ForwardCompatibleOptional(ServerInstallation),
   serverSelfUpdateProgress: Schema.optionalKey(Schema.Boolean),
@@ -92,6 +97,10 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
 });
 export type ExecutionEnvironmentCapabilities = typeof ExecutionEnvironmentCapabilities.Type;
 
+/**
+ * Clients decode this before comparing protocol versions, so its closed sets must read a newer
+ * server's values instead of failing: a decode failure here hides the "update" message.
+ */
 export const ExecutionEnvironmentDescriptor = Schema.Struct({
   environmentId: EnvironmentId,
   label: TrimmedNonEmptyString,
