@@ -36,7 +36,15 @@ export function useLoadBalancedEnvironment(
     },
     [registry],
   );
-  const resourcesAtom = useMemo(() => hostResourcesSnapshotAtom(environmentIds), [environmentIds]);
+  // Keyed by content: callers derive the list every render.
+  const environmentIdsKey = environmentIds.join("\n");
+  const resourcesAtom = useMemo(
+    () =>
+      hostResourcesSnapshotAtom(
+        environmentIdsKey === "" ? [] : (environmentIdsKey.split("\n") as EnvironmentId[]),
+      ),
+    [environmentIdsKey],
+  );
   const { observedAt, resources } = useAtomValue(resourcesAtom);
   const pending = resources.some((resource) => resource.pending);
   const environmentId = chooseLoadBalancedEnvironment(

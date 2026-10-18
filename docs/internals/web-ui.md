@@ -68,6 +68,8 @@ withholds a cache scope when a value reaches plain function calls on both sides 
 `"use memo"` helper forces one, but hides the ordering problem. Fix the order instead: plain uses
 of a value go before the hook, or the helper is inlined. Lint misses some bailouts, notably `try`
 with `finally` and `throw` inside `try`, so [`reactCompiledFiles.test.ts`](../../apps/web/src/reactCompiledFiles.test.ts)
-compiles each listed file and fails on any skip. `useStableCallback` still marks handlers that
-leave a large component, as described above. Add a file to the list once it compiles cleanly, and
+compiles each listed file and fails on any skip. Async handlers rarely need `try`: an atom
+command settles into a result, so cleanup can follow the `await`, and `settlePromise` does the same
+for a promise that may reject. `useStableCallback` still marks handlers that leave a large
+component, as described above. Add a file to the list once it compiles cleanly, and
 drop its manual memoization in the same change.

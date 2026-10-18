@@ -162,6 +162,7 @@ import { useShallow } from "zustand/react/shallow";
 import {
   isAtomCommandInterrupted,
   mapAtomCommandResult,
+  settlePromise,
   squashAtomCommandFailure,
   type AtomCommandResult,
 } from "@supaterm/client-runtime/state/runtime";
@@ -746,16 +747,118 @@ function pasteTextToFocusComposer(event: ClipboardEvent): string | null {
   return text.length > 0 ? text : null;
 }
 
-const draftFanoutStateAtom = Atom.family((_routeKey: string) =>
-  Atom.make({
-    selections: null as ReadonlyArray<ModelSelection> | null,
-    sendInFlight: { current: false },
-    uncertainSubmissions: { current: new Map<string, ThreadId>() },
-  }).pipe(Atom.keepAlive),
+// Kept per route so a send in flight, and the multiple-model selections, survive
+// ChatView remounting while the user navigates.
+const draftFanoutSelectionsAtom = Atom.family((_routeKey: string) =>
+  Atom.make<ReadonlyArray<ModelSelection> | null>(null).pipe(Atom.keepAlive),
 );
-const selectDraftFanoutSelections = (state: {
-  readonly selections: ReadonlyArray<ModelSelection> | null;
-}) => state.selections;
+const draftSendStateByRouteKey = new Map<string, { readonly sendInFlight: { current: boolean } }>();
+function draftSendState(routeKey: string) {
+  let state = draftSendStateByRouteKey.get(routeKey);
+  if (!state) {
+    state = { sendInFlight: { current: false } };
+    draftSendStateByRouteKey.set(routeKey, state);
+  }
+  return state;
+}
+
+/**
+ * Reverts the thread to before `message` and puts that message's text and
+ * attachments back in the composer draft. Returns the restored prompt, or the
+ * error to show; on error the draft is untouched.
+ */
+async function rewindToMessage(input: {
+  readonly message: ChatMessage;
+  readonly environmentId: EnvironmentId;
+  readonly routeThreadRef: ScopedThreadRef;
+  readonly threadId: ThreadId;
+  readonly turnCount: number;
+  readonly restoreFiles: boolean;
+  readonly draftTarget: ScopedThreadRef | DraftId;
+  readonly composerHasPendingAttachments: boolean;
+  readonly createAssetUrl: Parameters<
+    typeof prepareRevertedMessageAttachments
+  >[0]["createAssetUrl"];
+  readonly revertThreadCheckpoint: (value: {
+    environmentId: EnvironmentId;
+    input: { commandId: CommandId; threadId: ThreadId; turnCount: number; restoreFiles: boolean };
+  }) => Promise<AtomCommandResult<unknown, unknown>>;
+}): Promise<
+  | { readonly error: string; readonly prompt?: never }
+  | { readonly error: null; readonly prompt: string }
+> {
+  const { message, environmentId, draftTarget } = input;
+  try {
+    if (input.composerHasPendingAttachments) {
+      throw new Error("Wait for attachments to finish preparing before rewinding.");
+    }
+    const connection = readPreparedConnection(environmentId);
+    if (!connection) throw new Error("The environment is not connected.");
+    const files = await prepareRevertedMessageAttachments({
+      message,
+      environmentId,
+      httpBaseUrl: connection.httpBaseUrl,
+      createAssetUrl: input.createAssetUrl,
+    });
+    const store = useComposerDraftStore.getState();
+    const draft = store.getComposerDraft(draftTarget);
+    if (
+      (draft?.images.length ?? 0) + (draft?.files.length ?? 0) + files.length >
+      PROVIDER_SEND_TURN_MAX_ATTACHMENTS
+    ) {
+      throw new Error("Make room for this message's attachments in the composer before rewinding.");
+    }
+    const commandId = CommandId.make(randomUUID());
+    await waitForRevertedMessage(
+      input.routeThreadRef,
+      message.id,
+      input.turnCount,
+      commandId,
+      async () => {
+        const result = await input.revertThreadCheckpoint({
+          environmentId,
+          input: {
+            commandId,
+            threadId: input.threadId,
+            turnCount: input.turnCount,
+            restoreFiles: input.restoreFiles,
+          },
+        });
+        if (result._tag === "Failure") throw squashAtomCommandFailure(result);
+      },
+    );
+    const currentPrompt = store.getComposerDraft(draftTarget)?.prompt ?? "";
+    const restoredPrompt = recallableComposerPrompt(message.text);
+    const nextPrompt =
+      restoredPrompt.length === 0
+        ? currentPrompt
+        : currentPrompt.length > 0
+          ? `${currentPrompt}\n\n${restoredPrompt}`
+          : restoredPrompt;
+    store.setPrompt(draftTarget, nextPrompt);
+    const images: ComposerImageAttachment[] = [];
+    const restoredFiles: ComposerFileAttachment[] = [];
+    files.forEach((file, index) => {
+      const attachment = {
+        id: randomUUID(),
+        name: file.name,
+        mimeType: file.type,
+        sizeBytes: file.size,
+        file,
+      };
+      if (message.attachments?.[index]?.type === "image") {
+        images.push({ ...attachment, type: "image", previewUrl: URL.createObjectURL(file) });
+      } else {
+        restoredFiles.push({ ...attachment, type: "file" });
+      }
+    });
+    store.addImages(draftTarget, images, { allowDuplicates: true });
+    store.addFiles(draftTarget, restoredFiles, { allowDuplicates: true });
+    return { error: null, prompt: nextPrompt };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to revert thread state." };
+  }
+}
 
 function formatOutgoingPrompt(params: {
   provider: ProviderDriverKind;
@@ -1320,28 +1423,22 @@ export default function ChatView(props: ChatViewProps) {
   const [timelineOverflows, setTimelineOverflows] = useState(false);
   const attachmentPreviewHandoffByMessageIdRef = useRef<Record<string, string[]>>({});
   const attachmentPreviewPromotionInFlightByMessageIdRef = useRef<Record<string, true>>({});
-  const fanoutStateAtom = draftFanoutStateAtom(routeThreadKey);
-  const fanoutState = useAtomValue(fanoutStateAtom);
-  const sendInFlightRef = fanoutState.sendInFlight;
+  const fanoutSelectionsAtom = draftFanoutSelectionsAtom(routeThreadKey);
+  const { sendInFlight: sendInFlightRef } = draftSendState(routeThreadKey);
   const isSendInFlight = useEffectEvent(() => sendInFlightRef.current);
   const [resumingThreadKeys, setResumingThreadKeys] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
   const isResuming = resumingThreadKeys.has(routeThreadKey);
-  const multipleModelSelections = useAtomValue(fanoutStateAtom, selectDraftFanoutSelections);
+  const multipleModelSelections = useAtomValue(fanoutSelectionsAtom);
   const setMultipleModelSelections = (
     selections: SetStateAction<ReadonlyArray<ModelSelection> | null>,
   ) => {
-    appAtomRegistry.update(fanoutStateAtom, (current) => ({
-      ...current,
-      selections: typeof selections === "function" ? selections(current.selections) : selections,
-    }));
+    appAtomRegistry.update(fanoutSelectionsAtom, (current) =>
+      typeof selections === "function" ? selections(current) : selections,
+    );
   };
   const setMultipleModelSelectionsStable = useStableCallback(setMultipleModelSelections);
-  const multipleModelSelectionsRef = useRef(multipleModelSelections);
-  useLayoutEffect(() => {
-    multipleModelSelectionsRef.current = multipleModelSelections;
-  });
   const feedbackUploadsInFlightRef = useRef(new Set<string>());
   const terminalUiOpenByThreadRef = useRef<Record<string, boolean>>({});
 
@@ -2507,12 +2604,12 @@ export default function ChatView(props: ChatViewProps) {
     const disabled = new Set(
       providerInstanceEntries.filter((entry) => !entry.enabled).map((entry) => entry.instanceId),
     );
-    appAtomRegistry.update(fanoutStateAtom, (current) => {
-      if (current.selections === null) return current;
-      const next = current.selections.filter((selection) => !disabled.has(selection.instanceId));
-      return next.length === current.selections.length ? current : { ...current, selections: next };
+    appAtomRegistry.update(fanoutSelectionsAtom, (current) => {
+      if (current === null) return current;
+      const next = current.filter((selection) => !disabled.has(selection.instanceId));
+      return next.length === current.length ? current : next;
     });
-  }, [fanoutStateAtom, isLocalDraftThread, providerInstanceEntries]);
+  }, [fanoutSelectionsAtom, isLocalDraftThread, providerInstanceEntries]);
   const { selectedProviderEntry, requestedDriverKind } = useMemo(
     () =>
       resolveComposerProviderSelection({
@@ -5258,25 +5355,22 @@ export default function ChatView(props: ChatViewProps) {
       return;
     const threadKey = scopedThreadKey(activeThreadRef);
     setReopeningThreadKey(threadKey);
-    const reopenRequest = reopenThreadMutation({
+    // Commands settle into a result, so this always runs.
+    const result = await reopenThreadMutation({
       environmentId: activeThreadRef.environmentId,
       input: { threadId: activeThreadRef.threadId, reason: "user" },
     });
-    try {
-      const result = await reopenRequest;
-      if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
-        const error = squashAtomCommandFailure(result);
-        toastManager.add(
-          stackedThreadToast({
-            type: "error",
-            title: "Failed to reopen thread",
-            description: error instanceof Error ? error.message : "An error occurred.",
-          }),
-        );
-      }
-    } finally {
-      setReopeningThreadKey((current) => (current === threadKey ? null : current));
+    if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+      const error = squashAtomCommandFailure(result);
+      toastManager.add(
+        stackedThreadToast({
+          type: "error",
+          title: "Failed to reopen thread",
+          description: error instanceof Error ? error.message : "An error occurred.",
+        }),
+      );
     }
+    setReopeningThreadKey((current) => (current === threadKey ? null : current));
   };
   const handleReopenActiveThreadStable = useStableCallback(handleReopenActiveThread);
   const unsnoozeThreadMutation = useOrchestrationCommand(threadEnvironment.unsnooze, {
@@ -5298,7 +5392,8 @@ export default function ChatView(props: ChatViewProps) {
       recovery.runId === activeThreadShell?.latestRun?.runId &&
       activeThreadShell?.snoozedUntil != null &&
       Date.parse(activeThreadShell.snoozedUntil) === Date.parse(recovery.resetAt);
-    const unsnoozeRequest = recoveryOwnsSnooze
+    // Commands settle into a result, so this always runs.
+    const result = await (recoveryOwnsSnooze
       ? updateThreadMetadata({
           environmentId: activeThreadRef.environmentId,
           input: {
@@ -5309,22 +5404,18 @@ export default function ChatView(props: ChatViewProps) {
       : unsnoozeThreadMutation({
           environmentId: activeThreadRef.environmentId,
           input: { threadId: activeThreadRef.threadId, reason: "user" },
-        });
-    try {
-      const result = await unsnoozeRequest;
-      if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
-        const error = squashAtomCommandFailure(result);
-        toastManager.add(
-          stackedThreadToast({
-            type: "error",
-            title: "Failed to wake thread",
-            description: error instanceof Error ? error.message : "An error occurred.",
-          }),
-        );
-      }
-    } finally {
-      setUnsnoozingThreadKey((current) => (current === threadKey ? null : current));
+        }));
+    if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+      const error = squashAtomCommandFailure(result);
+      toastManager.add(
+        stackedThreadToast({
+          type: "error",
+          title: "Failed to wake thread",
+          description: error instanceof Error ? error.message : "An error occurred.",
+        }),
+      );
     }
+    setUnsnoozingThreadKey((current) => (current === threadKey ? null : current));
   };
   const handleUnsnoozeActiveThreadStable = useStableCallback(handleUnsnoozeActiveThread);
   const [isRestoringThreadBranch, setIsRestoringThreadBranch] = useState(false);
@@ -5502,8 +5593,8 @@ export default function ChatView(props: ChatViewProps) {
     const createdAt = new Date().toISOString();
     sendInFlightRef.current = true;
     setThreadError(threadId, null);
-    try {
-      await enqueueThreadOutboxTurns([
+    const result = await settlePromise(() =>
+      enqueueThreadOutboxTurns([
         {
           environmentId,
           input: {
@@ -5518,14 +5609,16 @@ export default function ChatView(props: ChatViewProps) {
             ? { branch: localCheckoutBranchMismatch.currentBranch }
             : {}),
         },
-      ]);
+      ]),
+    );
+    if (result._tag === "Failure") {
+      const error = squashAtomCommandFailure(result);
+      setThreadError(threadId, error instanceof Error ? error.message : failureMessage);
+    } else {
       scrollToEnd();
       clearUsageLimitsFor(routeThreadKey);
-    } catch (error) {
-      setThreadError(threadId, error instanceof Error ? error.message : failureMessage);
-    } finally {
-      sendInFlightRef.current = false;
     }
+    sendInFlightRef.current = false;
   };
   const sendStandaloneCommandStable = useStableCallback(sendStandaloneCommand);
   const activeGoal = activeThreadShell?.goal ?? null;
@@ -6475,81 +6568,33 @@ export default function ChatView(props: ChatViewProps) {
       rewindingThreadKeys: new Set(store.rewindingThreadKeys).add(routeThreadKey),
     }));
     setThreadError(activeThread.id, null);
-    try {
-      if (composerRef.current?.hasPendingAttachments()) {
-        throw new Error("Wait for attachments to finish preparing before rewinding.");
-      }
-      const connection = readPreparedConnection(environmentId);
-      if (!connection) throw new Error("The environment is not connected.");
-      const files = await prepareRevertedMessageAttachments({
-        message,
-        environmentId,
-        httpBaseUrl: connection.httpBaseUrl,
-        createAssetUrl: createAttachmentAssetUrl,
-      });
-      const store = useComposerDraftStore.getState();
-      const draft = store.getComposerDraft(composerDraftTarget);
-      if (
-        (draft?.images.length ?? 0) + (draft?.files.length ?? 0) + files.length >
-        PROVIDER_SEND_TURN_MAX_ATTACHMENTS
-      ) {
-        throw new Error(
-          "Make room for this message's attachments in the composer before rewinding.",
-        );
-      }
-      const commandId = CommandId.make(randomUUID());
-      await waitForRevertedMessage(routeThreadRef, messageId, turnCount, commandId, async () => {
-        const result = await revertThreadCheckpoint({
-          environmentId,
-          input: { commandId, threadId: activeThread.id, turnCount, restoreFiles },
-        });
-        if (result._tag === "Failure") throw squashAtomCommandFailure(result);
-      });
-      const currentPrompt = store.getComposerDraft(composerDraftTarget)?.prompt ?? "";
-      const restoredPrompt = recallableComposerPrompt(message.text);
-      const nextPrompt =
-        restoredPrompt.length === 0
-          ? currentPrompt
-          : currentPrompt.length > 0
-            ? `${currentPrompt}\n\n${restoredPrompt}`
-            : restoredPrompt;
-      store.setPrompt(composerDraftTarget, nextPrompt);
-      const images: ComposerImageAttachment[] = [];
-      const restoredFiles: ComposerFileAttachment[] = [];
-      files.forEach((file, index) => {
-        const attachment = {
-          id: randomUUID(),
-          name: file.name,
-          mimeType: file.type,
-          sizeBytes: file.size,
-          file,
-        };
-        if (message.attachments?.[index]?.type === "image") {
-          images.push({ ...attachment, type: "image", previewUrl: URL.createObjectURL(file) });
-        } else {
-          restoredFiles.push({ ...attachment, type: "file" });
-        }
-      });
-      store.addImages(composerDraftTarget, images, { allowDuplicates: true });
-      store.addFiles(composerDraftTarget, restoredFiles, { allowDuplicates: true });
-      if (currentRouteThreadKeyRef.current === routeThreadKey) {
-        promptRef.current = nextPrompt;
-        composerRef.current?.resetCursorState({ prompt: nextPrompt, cursor: nextPrompt.length });
-        requestAnimationFrame(() => {
-          if (currentRouteThreadKeyRef.current === routeThreadKey)
-            composerRef.current?.focusAtEnd();
-        });
-      }
-    } catch (error) {
-      setThreadError(
-        activeThread.id,
-        error instanceof Error ? error.message : "Failed to revert thread state.",
-      );
-    } finally {
-      useComposerDraftStore.setState((store) => {
-        const remaining = new Set(store.rewindingThreadKeys);
-        remaining.delete(routeThreadKey);
-        return { rewindingThreadKeys: remaining };
+    const rewind = await rewindToMessage({
+      message,
+      environmentId,
+      routeThreadRef,
+      threadId: activeThread.id,
+      turnCount,
+      restoreFiles,
+      draftTarget: composerDraftTarget,
+      composerHasPendingAttachments: composerRef.current?.hasPendingAttachments() === true,
+      createAssetUrl: createAttachmentAssetUrl,
+      revertThreadCheckpoint,
+    });
+    useComposerDraftStore.setState((store) => {
+      const remaining = new Set(store.rewindingThreadKeys);
+      remaining.delete(routeThreadKey);
+      return { rewindingThreadKeys: remaining };
+    });
+    if (rewind.error !== null) {
+      setThreadError(activeThread.id, rewind.error);
+      return;
+    }
+    if (currentRouteThreadKeyRef.current === routeThreadKey) {
+      const nextPrompt = rewind.prompt;
+      promptRef.current = nextPrompt;
+      composerRef.current?.resetCursorState({ prompt: nextPrompt, cursor: nextPrompt.length });
+      requestAnimationFrame(() => {
+        if (currentRouteThreadKeyRef.current === routeThreadKey) composerRef.current?.focusAtEnd();
       });
     }
   };
@@ -6578,65 +6623,63 @@ export default function ChatView(props: ChatViewProps) {
     sendInFlightRef.current = true;
     setResumingThreadKeys((current) => new Set(current).add(routeThreadKey));
     setThreadError(threadId, null);
-    try {
-      const resume = async () => {
-        if (resumableRunId === null) {
-          return resumeThreadQueue({ environmentId, input: { threadId } });
-        }
-        const createdAt = new Date().toISOString();
-        const settingsResult = await persistThreadSettingsForNextTurn({
+    // Commands settle into a result, so this always runs.
+    const resume = async () => {
+      if (resumableRunId === null) {
+        return resumeThreadQueue({ environmentId, input: { threadId } });
+      }
+      const createdAt = new Date().toISOString();
+      const settingsResult = await persistThreadSettingsForNextTurn({
+        threadId,
+        createdAt,
+        ...(localCheckoutBranchMismatch
+          ? { branch: localCheckoutBranchMismatch.currentBranch }
+          : {}),
+        runtimeMode,
+        interactionMode,
+      });
+      if (settingsResult._tag === "Failure") return settingsResult;
+      const modelSelection = composerRef.current?.getSendContext().selectedModelSelection;
+      const turnResult = await startThreadTurn({
+        environmentId,
+        input: {
           threadId,
-          createdAt,
-          ...(localCheckoutBranchMismatch
-            ? { branch: localCheckoutBranchMismatch.currentBranch }
-            : {}),
+          manualContinuationOfRunId: resumableRunId,
+          ...(modelSelection ? { modelSelection } : {}),
+          message: {
+            messageId: newMessageId(),
+            role: "user",
+            text: "Continue where you left off.",
+            attachments: [],
+          },
           runtimeMode,
           interactionMode,
-        });
-        if (settingsResult._tag === "Failure") return settingsResult;
-        const modelSelection = composerRef.current?.getSendContext().selectedModelSelection;
-        const turnResult = await startThreadTurn({
-          environmentId,
-          input: {
-            threadId,
-            manualContinuationOfRunId: resumableRunId,
-            ...(modelSelection ? { modelSelection } : {}),
-            message: {
-              messageId: newMessageId(),
-              role: "user",
-              text: "Continue where you left off.",
-              attachments: [],
-            },
-            runtimeMode,
-            interactionMode,
-            dispatchMode: "start",
-          },
-        });
-        if (turnResult._tag === "Failure" || !hasHeldQueuedRuns) return turnResult;
-        clearUsageLimitsFor(routeThreadKey);
-        return resumeThreadQueue({ environmentId, input: { threadId } });
-      };
-      const result = await resume();
-      if (result._tag === "Failure") {
-        if (!isAtomCommandInterrupted(result)) {
-          const error = squashAtomCommandFailure(result);
-          setThreadError(
-            threadId,
-            error instanceof Error ? error.message : "Could not resume thread.",
-          );
-        }
-      } else {
-        clearUsageLimitsFor(routeThreadKey);
-        if (currentRouteThreadKeyRef.current === routeThreadKey) scrollToEnd();
-      }
-    } finally {
-      sendInFlightRef.current = false;
-      setResumingThreadKeys((current) => {
-        const next = new Set(current);
-        next.delete(routeThreadKey);
-        return next;
+          dispatchMode: "start",
+        },
       });
+      if (turnResult._tag === "Failure" || !hasHeldQueuedRuns) return turnResult;
+      clearUsageLimitsFor(routeThreadKey);
+      return resumeThreadQueue({ environmentId, input: { threadId } });
+    };
+    const result = await resume();
+    if (result._tag === "Failure") {
+      if (!isAtomCommandInterrupted(result)) {
+        const error = squashAtomCommandFailure(result);
+        setThreadError(
+          threadId,
+          error instanceof Error ? error.message : "Could not resume thread.",
+        );
+      }
+    } else {
+      clearUsageLimitsFor(routeThreadKey);
+      if (currentRouteThreadKeyRef.current === routeThreadKey) scrollToEnd();
     }
+    sendInFlightRef.current = false;
+    setResumingThreadKeys((current) => {
+      const next = new Set(current);
+      next.delete(routeThreadKey);
+      return next;
+    });
   };
 
   function captureOutboxAttachments(
@@ -6679,7 +6722,7 @@ export default function ChatView(props: ChatViewProps) {
       const { entry, keptAttachmentIds } = outboxEditor.editing;
       sendInFlightRef.current = true;
       setIsSavingOutboxEdit(true);
-      try {
+      const saveResult = await settlePromise(async () => {
         const addedAttachments = [...sendContext.images, ...sendContext.files];
         const payload = buildEditedThreadOutboxTurn({
           entry,
@@ -6697,7 +6740,7 @@ export default function ChatView(props: ChatViewProps) {
             })),
           }),
         });
-        const nextThreadRef = await outboxEditor.editor.save({
+        return outboxEditor.editor.save({
           ...payload,
           input: {
             ...payload.input,
@@ -6706,20 +6749,26 @@ export default function ChatView(props: ChatViewProps) {
             interactionMode: sendContext.interactionMode,
           },
         });
-        setThreadError(threadId, null);
-        composerRef.current?.resetCursorState();
-        if (nextThreadRef)
-          void navigate({ to: "/$environmentId/$threadId", params: nextThreadRef, replace: true });
-        scheduleComposerFocus();
-      } catch (error) {
+      });
+      if (saveResult._tag === "Failure") {
+        const error = squashAtomCommandFailure(saveResult);
         setThreadError(
           threadId,
           error instanceof Error ? error.message : "Could not save the pending message.",
         );
-      } finally {
-        sendInFlightRef.current = false;
-        setIsSavingOutboxEdit(false);
+      } else {
+        setThreadError(threadId, null);
+        composerRef.current?.resetCursorState();
+        if (saveResult.value)
+          void navigate({
+            to: "/$environmentId/$threadId",
+            params: saveResult.value,
+            replace: true,
+          });
+        scheduleComposerFocus();
       }
+      sendInFlightRef.current = false;
+      setIsSavingOutboxEdit(false);
       return;
     }
 
@@ -7021,7 +7070,11 @@ export default function ChatView(props: ChatViewProps) {
       return;
     }
 
-    const multipleTargets = [];
+    const multipleTargets: Array<{
+      readonly selection: ModelSelection;
+      readonly text: string;
+      readonly interactionMode: ProviderInteractionMode;
+    }> = [];
     for (const selection of multipleModelSelections ?? []) {
       const provider = providerInstanceEntries.find(
         (entry) => entry.instanceId === selection.instanceId,
@@ -7063,7 +7116,8 @@ export default function ChatView(props: ChatViewProps) {
 
     sendInFlightRef.current = true;
     const savedDraft = useComposerDraftStore.getState().getComposerDraft(composerDraftTarget);
-    try {
+    // Anything thrown while saving to the outbox shows on the thread; the send flag still clears.
+    const sendResult = await settlePromise(async () => {
       const titleSeed =
         assistantCitationsToPlainText(stripInlineContextReferences(trimmed)).trim() ||
         composerAttachmentsSnapshot[0]?.name ||
@@ -7212,14 +7266,15 @@ export default function ChatView(props: ChatViewProps) {
           replace: true,
         });
       }
-    } catch (error) {
+    });
+    if (sendResult._tag === "Failure") {
+      const error = squashAtomCommandFailure(sendResult);
       setThreadError(
         threadIdForSend,
         error instanceof Error ? error.message : "Could not save the pending message.",
       );
-    } finally {
-      sendInFlightRef.current = false;
     }
+    sendInFlightRef.current = false;
   };
 
   const getModelDisabledReason = useMemo(
@@ -7339,20 +7394,9 @@ export default function ChatView(props: ChatViewProps) {
     });
   };
   const onWorktreeSetupWorkLocallyStable = useStableCallback(onWorktreeSetupWorkLocally);
-  const onSendRef = useRef(onSend);
-  const onResumeRef = useRef(onResume);
-  const onCompactContextRef = useRef(onCompactContext);
-  useLayoutEffect(() => {
-    onSendRef.current = onSend;
-    onResumeRef.current = onResume;
-    onCompactContextRef.current = onCompactContext;
-  });
-  const onComposerSend = (...args: Parameters<typeof onSend>) => onSendRef.current(...args);
-  const onComposerSendStable = useStableCallback(onComposerSend);
-  const onComposerResume = () => onResumeRef.current();
-  const onComposerResumeStable = useStableCallback(onComposerResume);
-  const onComposerCompactContext = () => onCompactContextRef.current();
-  const onComposerCompactContextStable = useStableCallback(onComposerCompactContext);
+  const onComposerSendStable = useStableCallback(onSend);
+  const onComposerResumeStable = useStableCallback(onResume);
+  const onComposerCompactContextStable = useStableCallback(onCompactContext);
   const queuedRunsControl = useMemo(
     () => (
       <>
@@ -7424,9 +7468,10 @@ export default function ChatView(props: ChatViewProps) {
     }
     // oxlint-disable-next-line react/set-state-in-effect -- consumes the resend request before sending it
     setWorkLocallyResendDraftId(null);
-    void onSendRef.current();
+    void onComposerSendStable();
   }, [
     composerDraftTarget,
+    onComposerSendStable,
     routeThreadKey,
     sendEnvMode,
     setDraftThreadContext,
@@ -7455,14 +7500,8 @@ export default function ChatView(props: ChatViewProps) {
     onDiffPanelOpen?.();
   };
   const onOpenTurnDiffStable = useStableCallback(onOpenTurnDiff);
-  // The revert handler is read from a ref at call-time so the callback
-  // reference is fully stable and never busts TimelineRowCtx identity.
-  const onRevertToTurnCountRef = useRef(onRevertToTurnCountStable);
-  useLayoutEffect(() => {
-    onRevertToTurnCountRef.current = onRevertToTurnCountStable;
-  });
   const onRevertTimelineTurn = (targetTurnCount: number, messageId: MessageId) => {
-    void onRevertToTurnCountRef.current(targetTurnCount, messageId);
+    void onRevertToTurnCountStable(targetTurnCount, messageId);
   };
   const onRevertTimelineTurnStable = useStableCallback(onRevertTimelineTurn);
 
