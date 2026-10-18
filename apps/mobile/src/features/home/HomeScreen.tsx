@@ -29,6 +29,7 @@ import {
 import {
   Platform,
   ScrollView,
+  useWindowDimensions,
   View,
   type ScrollViewProps,
   type GestureResponderEvent,
@@ -41,6 +42,10 @@ import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSw
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { cn } from "../../lib/cn";
+import {
+  ANDROID_READING_MAX_WIDTH,
+  deriveCenteredContentHorizontalPadding,
+} from "../../lib/layout";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { FloatingActionButton } from "../../components/ui/FloatingActionButton";
 import type { WorkspaceEnvironment, WorkspaceState } from "../../state/workspaceModel";
@@ -282,6 +287,17 @@ export function HomeScreen(props: HomeScreenProps) {
   const contentSideInsets = usesNativeWorkspaceColumns
     ? (columnMetrics ?? screenMetrics)?.safeArea
     : undefined;
+  // Android lists that span a wide window (foldables in portrait) keep the
+  // reading width, so rows stay clear of the edges and the camera cutout.
+  const { width: windowWidth } = useWindowDimensions();
+  const androidListGutter =
+    Platform.OS === "android"
+      ? deriveCenteredContentHorizontalPadding({
+          viewportWidth: windowWidth,
+          maxContentWidth: ANDROID_READING_MAX_WIDTH,
+          minimumPadding: 0,
+        })
+      : 0;
   const iosBottomClearance = Math.max(
     columnMetrics?.safeArea.bottom ?? insets.bottom,
     24,
@@ -1012,8 +1028,10 @@ export function HomeScreen(props: HomeScreenProps) {
               {...scrollGateHandlers}
               scrollEventThrottle={16}
               contentContainerStyle={{
-                paddingLeft: (contentSideInsets?.left ?? 0) + (primaryColumn ? 8 : 0),
-                paddingRight: (contentSideInsets?.right ?? 0) + (primaryColumn ? 8 : 0),
+                paddingLeft:
+                  (contentSideInsets?.left ?? 0) + (primaryColumn ? 8 : 0) + androidListGutter,
+                paddingRight:
+                  (contentSideInsets?.right ?? 0) + (primaryColumn ? 8 : 0) + androidListGutter,
                 paddingBottom:
                   Platform.OS === "ios"
                     ? iosBottomClearance

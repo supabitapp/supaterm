@@ -31,6 +31,7 @@ import {
 import { useResolveClassNames } from "uniwind";
 
 import { AppText as Text } from "./components/ui/AppText";
+import { androidWorkspaceDestinationAnimation } from "./lib/android-workspace-navigation";
 import { getCompactBrandHeaderOptions } from "./components/CompactBrandTitle";
 import { WorkspaceRootScreen } from "./features/workspace/WorkspaceRootScreen";
 import { AndroidWorkspaceTabsProvider } from "./features/workspace/AndroidWorkspaceTabsProvider";
@@ -1002,8 +1003,8 @@ export const RootStack = RootStackConfig.with(function AdaptiveRootStack({ Navig
   const { width, height } = useWindowDimensions();
   const { themeAppearance } = useAppearancePreferences();
   const nativeMetrics = useNativeLayoutMetrics();
-  const usesWorkspaceFlowScreens =
-    Platform.OS === "android" || deriveLayout({ width, height, nativeMetrics }).usesSplitView;
+  const usesSplitView = deriveLayout({ width, height, nativeMetrics }).usesSplitView;
+  const usesWorkspaceFlowScreens = Platform.OS === "android" || usesSplitView;
 
   return (
     <Navigator
@@ -1012,7 +1013,9 @@ export const RootStack = RootStackConfig.with(function AdaptiveRootStack({ Navig
         const statusBarStyle = themeAppearance === "dark" ? "light" : "dark";
         const statusBarOptions = Platform.OS === "ios" ? ({ statusBarStyle } as const) : {};
         if (route.name !== "SettingsSheet" && route.name !== "NewTaskSheet") {
-          return statusBarOptions;
+          return Platform.OS === "android"
+            ? { animation: androidWorkspaceDestinationAnimation(route.name, usesSplitView) }
+            : statusBarOptions;
         }
 
         return usesWorkspaceFlowScreens
