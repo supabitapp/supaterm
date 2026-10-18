@@ -1,3 +1,19 @@
+diff --git a/android/src/main/java/expo/modules/widgets/WidgetsModule.kt b/android/src/main/java/expo/modules/widgets/WidgetsModule.kt
+index f947f46..d290055 100644
+--- a/android/src/main/java/expo/modules/widgets/WidgetsModule.kt
++++ b/android/src/main/java/expo/modules/widgets/WidgetsModule.kt
+@@ -84,6 +84,11 @@ class WidgetsModule : Module() {
+     }
+ 
+     Class("CustomNotification", CustomNotification::class) {
++      // A SharedObject class without a constructor fails module registration at launch.
++      Constructor { ->
++        throw UnsupportedOperationException("CustomNotification instances come from CustomNotificationFactory")
++      }
++
+       Function("getId") { notification: CustomNotification ->
+         notification.id
+       }
 diff --git a/android/src/main/java/expo/modules/widgets/notifications/CustomNotificationBuilder.kt b/android/src/main/java/expo/modules/widgets/notifications/CustomNotificationBuilder.kt
 index 07eca41..82cabea 100644
 --- a/android/src/main/java/expo/modules/widgets/notifications/CustomNotificationBuilder.kt

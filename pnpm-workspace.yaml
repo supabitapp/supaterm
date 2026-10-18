@@ -169,7 +169,9 @@ overrides:
   devalue: 5.9.4
   http-cache-semantics: 4.3.0
   # Earlier React Navigation declarations create a circular type alias in TypeScript 7.
-  "@react-navigation/core": 7.21.13
+  # Move this with @react-navigation/native: an older core than it requires crashes
+  # every native stack at launch.
+  "@react-navigation/core": 7.24.0
   # The dbus-next patch drops usocket from the package, but pnpm resolves from the
   # registry manifest, so the edge has to be cut here as well.
   "dbus-next>usocket": "-"
