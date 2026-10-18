@@ -188,7 +188,8 @@ export function DraftProjectPicker({
   // draft row if the user later navigates away.
   const openProjectDraft = useNewThreadHandler();
   // Each choice takes a new request, so one still waiting on its project's
-  // defaults or folder yields to a later choice.
+  // defaults or folder yields to a later choice, even one that keeps the
+  // current project.
   const moveRequestRef = useRef(0);
   const selectProject = (project: (typeof projects)[number], logicalProjectKey: string) => {
     if (!draftId) {
@@ -223,11 +224,11 @@ export function DraftProjectPicker({
   // Moves the draft to No project. Focus goes to the prompt unless the user has
   // already moved it elsewhere while the folder was being prepared.
   const startScratch = async () => {
+    const moveRequest = ++moveRequestRef.current;
     if (scratchTargetEnvironmentId === null || isScratchDraft) {
       return;
     }
     const requested = { draftId, activeProjectKey, scratchTargetEnvironmentId };
-    const moveRequest = ++moveRequestRef.current;
     const project = await openScratchProject(scratchTargetEnvironmentId);
     const latest = latestTargetRef.current;
     if (
@@ -288,8 +289,14 @@ export function DraftProjectPicker({
       return;
     }
     const entry = projectEntryByKey.get(item.value);
-    if (entry && item.value !== activeProjectKey)
-      selectProject(entry.targetProject, entry.group.projectKey);
+    if (!entry) {
+      return;
+    }
+    if (item.value === activeProjectKey) {
+      moveRequestRef.current += 1;
+      return;
+    }
+    selectProject(entry.targetProject, entry.group.projectKey);
   };
   const projectJumpLabels = usePickerShortcuts({
     picker: "project",
