@@ -135,6 +135,8 @@ export const STATIC_KEYBINDING_COMMANDS = [
   ...HOST_PICKER_JUMP_KEYBINDING_COMMANDS,
   "composer.cycleHost",
   "composer.effort",
+  "composer.increaseEffort",
+  "composer.decreaseEffort",
   "composer.mode",
   "composer.workspace",
   "composer.previousWorktree",
