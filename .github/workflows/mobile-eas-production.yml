@@ -80,7 +80,7 @@ jobs:
 
       - name: Checkout
         if: steps.expo-token.outputs.present == 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -110,7 +110,7 @@ jobs:
 
       - name: Checkout with version override push credentials
         if: steps.version_app_token.outcome == 'success'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           token: ${{ steps.version_app_token.outputs.token }}
@@ -194,7 +194,7 @@ jobs:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       MOBILE_PLATFORM: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.prepare.outputs.sha }}
@@ -234,7 +234,7 @@ jobs:
           fi
       - id: history
         name: Find completed builds
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9.0.0
         env:
           MOBILE_VERSION: ${{ steps.config.outputs.version }}
           MOBILE_FINGERPRINT: ${{ steps.config.outputs.fingerprint }}
@@ -311,7 +311,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Record completed store build
         if: steps.build.outcome == 'success'
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9.0.0
         env:
           MOBILE_VERSION: ${{ steps.config.outputs.version }}
           MOBILE_FINGERPRINT: ${{ steps.build.outputs.fingerprint }}

@@ -57,14 +57,14 @@ jobs:
       has_changes: ${{ steps.resolve.outputs.has_changes }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           sparse-checkout: .github/scripts
 
       - id: resolve
         name: Resolve release commit
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9.0.0
         env:
           DISPATCH_CHANNEL: ${{ inputs.channel }}
         with:
@@ -118,7 +118,7 @@ jobs:
       ref: ${{ needs.resolve_commit.outputs.ref }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.resolve_commit.outputs.ref }}
@@ -239,7 +239,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -269,7 +269,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -308,7 +308,7 @@ jobs:
         shard: [1, 2, 3, 4, 5, 6]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -335,7 +335,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -526,7 +526,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -570,7 +570,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -744,7 +744,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -787,7 +787,7 @@ jobs:
       VITE_HOSTED_APP_CHANNEL: ${{ needs.preflight.outputs.release_channel == 'stable' && 'latest' || 'nightly' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -819,7 +819,7 @@ jobs:
       WEB_CHANNEL: ${{ needs.preflight.outputs.release_channel == 'stable' && 'latest' || 'nightly' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -850,7 +850,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -878,7 +878,7 @@ jobs:
     environment: release
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -908,7 +908,7 @@ jobs:
     environment: release
     steps:
       - name: Checkout release tooling
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.preflight.outputs.ref }}
           persist-credentials: false
@@ -935,7 +935,7 @@ jobs:
           permission-contents: write
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
