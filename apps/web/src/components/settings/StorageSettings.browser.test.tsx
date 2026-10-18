@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { RegistryProvider } from "@effect/atom-react";
 import {
   DEFAULT_SERVER_SETTINGS,
@@ -18,7 +17,8 @@ const state = vi.hoisted(() => ({
   databaseStorage: null as DatabaseStorageStatus | null,
 }));
 
-vi.mock("../../state/server", async () => {
+vi.mock(import("../../state/server"), async (original) => {
+  const actual = await original();
   const { Atom } = await import("effect/reactivity");
   const report = Atom.make(() => ({ _tag: "Success", value: state.report, waiting: false }));
   const databaseStorage = Atom.make(() => ({
@@ -28,16 +28,25 @@ vi.mock("../../state/server", async () => {
   }));
   const allowed = Atom.make(true);
   return {
+    ...actual,
     serverEnvironment: {
-      storageCleanupReport: () => report,
-      databaseStorage: () => databaseStorage,
-      runStorageCleanup: { permissionAtom: () => allowed },
+      ...actual.serverEnvironment,
+      storageCleanupReport: (() => report) as never,
+      databaseStorage: (() => databaseStorage) as never,
+      runStorageCleanup: {
+        ...actual.serverEnvironment.runStorageCleanup,
+        permissionAtom: () => allowed,
+      },
     },
   };
 });
-vi.mock("../../state/use-atom-command", () => ({ useAtomCommand: () => state.run }));
-vi.mock("./SettingsScopeContext", () => ({
-  useSettingsScope: () => {
+vi.mock(import("../../state/use-atom-command"), async (original) => ({
+  ...(await original()),
+  useAtomCommand: (() => state.run) as never,
+}));
+vi.mock(import("./SettingsScopeContext"), async (original) => ({
+  ...(await original()),
+  useSettingsScope: (() => {
     const environment = {
       environmentId: "env",
       label: "Machine",
@@ -58,39 +67,36 @@ vi.mock("./SettingsScopeContext", () => ({
       targets: [],
       target: null,
     };
-  },
+  }) as never,
 }));
-vi.mock("./useScopedSettings", () => ({
-  useScopedSettings: () => state.settings,
+vi.mock(import("./useScopedSettings"), async (original) => ({
+  ...(await original()),
+  useScopedSettings: (() => state.settings) as never,
   useScopedSettingsMixed: () => false,
   useUpdateScopedSettings: () => vi.fn(),
   useClearScopedSettings: () => vi.fn(),
 }));
-vi.mock("./settingsLayout", () => ({
-  SettingsPageContainer: ({ children }: { children: ReactNode }) => children,
-  SettingsSection: ({ children }: { children: ReactNode }) => children,
-  SettingsRow: ({
-    title,
-    description,
-    control,
-  }: {
-    title: ReactNode;
-    description: ReactNode;
-    control: ReactNode;
-  }) => (
+// The real page container needs a router and the real row reads write permission and
+// overrides from live environment state; this suite is about the cleanup panel.
+vi.mock(import("./settingsLayout"), async (original) => ({
+  ...(await original()),
+  SettingsPageContainer: (({ children }: { children: ReactNode }) => children) as never,
+  SettingsRow: ({ title, description, control, children }) => (
     <div>
       <h3>{title}</h3>
       {description}
       {control}
+      {children}
     </div>
   ),
-  SettingResetButton: () => null,
-  useRelativeTimeTick: () => undefined,
-  useSettingsSearchTargetId: () => null,
-  useSettingsSearchTarget: () => undefined,
+  SettingResetButton: (() => null) as never,
 }));
-vi.mock("../ui/toast", () => ({ toastManager: { add: vi.fn() } }));
+vi.mock(import("../ui/toast"), async (original) => {
+  const actual = await original();
+  return { ...actual, toastManager: { ...actual.toastManager, add: vi.fn() } };
+});
 
+import { clickOnFakeClock } from "~/test/inlineConfirm";
 import { StorageSettingsPanel } from "./StorageSettings";
 
 let root: Root;
@@ -142,9 +148,9 @@ async function render() {
 }
 
 async function pressTwice(button: HTMLButtonElement) {
-  await act(async () => button.click());
+  await act(async () => clickOnFakeClock(button));
   await act(async () => vi.advanceTimersByTime(500));
-  await act(async () => button.click());
+  await act(async () => clickOnFakeClock(button));
 }
 
 it.each(["machine-wide immediate", "project custom"])(
