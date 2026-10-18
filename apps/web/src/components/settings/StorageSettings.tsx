@@ -6,12 +6,12 @@ import type {
 import { resolveWorktreeCleanup } from "@supaterm/shared/projectSettings";
 import { useRef, useState } from "react";
 import { useAtomValue } from "@effect/atom-react";
-import { Atom } from "effect/reactivity";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
 import { formatBytes } from "../../lib/formatBytes";
+import { environmentAtomList, environmentIdsKey } from "../../state/environmentAtomList";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { formatRelativeTimeLabel } from "../../timestampFormat";
@@ -198,36 +198,34 @@ function CleanupResults({
   );
 }
 
+const storageCleanupReportsAtom = environmentAtomList(
+  "web-storage-cleanup-reports",
+  (environmentId) => serverEnvironment.storageCleanupReport({ environmentId, input: {} }),
+);
+const storageCleanupPermissionsAtom = environmentAtomList(
+  "web-storage-cleanup-permissions",
+  serverEnvironment.runStorageCleanup.permissionAtom,
+);
+
 function CleanupSection() {
   useRelativeTimeTick(60_000);
   const { connectedEnvironments } = useSettingsScope();
   const [pending, setPending] = useState(false);
   const run = useAtomCommand(serverEnvironment.runStorageCleanup);
   const supported = connectedEnvironments.filter((environment) => environment.serverConfig != null);
-  const state = useAtomValue(
-    Atom.make((get) =>
-      connectedEnvironments.flatMap((environment) => {
-        if (environment.serverConfig == null) return [];
-        const query = get(
-          serverEnvironment.storageCleanupReport({
-            environmentId: environment.environmentId,
-            input: {},
-          }),
-        );
-        return [
-          {
-            environmentId: environment.environmentId,
-            allowed: get(
-              serverEnvironment.runStorageCleanup.permissionAtom(environment.environmentId),
-            ),
-            report: query._tag === "Success" ? query.value : null,
-            loading: query.waiting,
-            failed: query._tag === "Failure",
-          },
-        ];
-      }),
-    ),
-  );
+  const supportedIds = supported.map(({ environmentId }) => environmentId);
+  const reports = useAtomValue(storageCleanupReportsAtom(environmentIdsKey(supportedIds)));
+  const permissions = useAtomValue(storageCleanupPermissionsAtom(environmentIdsKey(supportedIds)));
+  const state = supportedIds.map((environmentId, index) => {
+    const query = reports[index]!;
+    return {
+      environmentId,
+      allowed: permissions[index]!,
+      report: query._tag === "Success" ? query.value : null,
+      loading: query.waiting,
+      failed: query._tag === "Failure",
+    };
+  });
   const hasRules = supported.some((environment) => {
     const settings = environment.serverConfig?.settings;
     if (!settings) return false;
