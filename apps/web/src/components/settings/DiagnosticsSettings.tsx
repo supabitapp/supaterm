@@ -11,7 +11,7 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
-import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import type {
   ServerProcessDiagnosticsEntry,
   ServerProcessResourceHistorySummary,
@@ -287,6 +287,28 @@ function ProcessNameCell({
   );
 }
 
+function visibleProcessTree(
+  processes: ReadonlyArray<ServerProcessDiagnosticsEntry>,
+  collapsedPids: ReadonlySet<number>,
+) {
+  const visible: ServerProcessDiagnosticsEntry[] = [];
+  let hiddenChildDepth: number | null = null;
+
+  for (const process of processes) {
+    if (hiddenChildDepth !== null) {
+      if (process.depth > hiddenChildDepth) continue;
+      hiddenChildDepth = null;
+    }
+
+    visible.push(process);
+    if (collapsedPids.has(process.pid)) {
+      hiddenChildDepth = process.depth;
+    }
+  }
+
+  return visible;
+}
+
 function ProcessDiagnosticsTable({
   processes,
   canMaintainEnvironment,
@@ -301,26 +323,9 @@ function ProcessDiagnosticsTable({
   emptyLabel?: string;
 }) {
   const [collapsedPids, setCollapsedPids] = useState<ReadonlySet<number>>(() => new Set());
-  const visibleProcesses = useMemo(() => {
-    const visible: ServerProcessDiagnosticsEntry[] = [];
-    let hiddenChildDepth: number | null = null;
+  const visibleProcesses = visibleProcessTree(processes, collapsedPids);
 
-    for (const process of processes) {
-      if (hiddenChildDepth !== null) {
-        if (process.depth > hiddenChildDepth) continue;
-        hiddenChildDepth = null;
-      }
-
-      visible.push(process);
-      if (collapsedPids.has(process.pid)) {
-        hiddenChildDepth = process.depth;
-      }
-    }
-
-    return visible;
-  }, [collapsedPids, processes]);
-
-  const toggleProcess = useCallback((pid: number) => {
+  const toggleProcess = (pid: number) => {
     setCollapsedPids((previous) => {
       const next = new Set(previous);
       if (next.has(pid)) {
@@ -330,7 +335,7 @@ function ProcessDiagnosticsTable({
       }
       return next;
     });
-  }, []);
+  };
 
   return (
     <div className="border-t border-border/60">
@@ -761,7 +766,7 @@ export function DiagnosticsSettingsPanel() {
   const [signalingPid, setSignalingPid] = useState<number | null>(null);
   const signalingPidRef = useRef<number | null>(null);
 
-  const openLogsDirectory = useCallback(() => {
+  const openLogsDirectory = () => {
     const logsDirectoryPath = observability?.logsDirectoryPath ?? null;
     if (!logsDirectoryPath) return;
 
@@ -784,7 +789,7 @@ export function DiagnosticsSettingsPanel() {
         );
       }
     })();
-  }, [environmentId, observability?.logsDirectoryPath, openInEditor]);
+  };
 
   const isInitialLoading = isPending && data === null;
   const isProcessInitialLoading = isProcessPending && processData === null;
@@ -802,61 +807,58 @@ export function DiagnosticsSettingsPanel() {
   ) {
     setExportFormEnvironmentId(environmentId);
   }
-  const signalProcess = useCallback(
-    (process: ServerProcessDiagnosticsEntry, signal: ServerProcessSignal) => {
-      if (
-        environmentId === null ||
-        signalingPidRef.current !== null ||
-        !readEnvironmentScope(environmentId, AuthEnvironmentMaintainScope)
-      )
-        return;
-      signalingPidRef.current = process.pid;
-      setSignalingPid(process.pid);
-      void signalServerProcess({
-        environmentId,
-        input: { pid: process.pid, startTimeMs: process.startTimeMs, signal },
-      })
-        .then((result) => {
-          if (result._tag === "Failure") {
-            if (!isAtomCommandInterrupted(result)) {
-              const error = squashAtomCommandFailure(result);
-              toastManager.add({
-                type: "error",
-                title: `Could not send ${signal}`,
-                description: error instanceof Error ? error.message : `Failed to send ${signal}.`,
-              });
-            }
-            return;
-          }
-          if (!result.value.signaled) {
-            const message = Option.getOrUndefined(result.value.message);
-            refreshProcesses();
-            if (isStaleProcessSignalMessage(message)) {
-              toastManager.add({
-                type: "info",
-                title: "Process already exited",
-                description:
-                  "The process is not a child of the Supaterm Server. It might already have exited.",
-              });
-              return;
-            }
-
+  const signalProcess = (process: ServerProcessDiagnosticsEntry, signal: ServerProcessSignal) => {
+    if (
+      environmentId === null ||
+      signalingPidRef.current !== null ||
+      !readEnvironmentScope(environmentId, AuthEnvironmentMaintainScope)
+    )
+      return;
+    signalingPidRef.current = process.pid;
+    setSignalingPid(process.pid);
+    void signalServerProcess({
+      environmentId,
+      input: { pid: process.pid, startTimeMs: process.startTimeMs, signal },
+    })
+      .then((result) => {
+        if (result._tag === "Failure") {
+          if (!isAtomCommandInterrupted(result)) {
+            const error = squashAtomCommandFailure(result);
             toastManager.add({
               type: "error",
               title: `Could not send ${signal}`,
-              description: message ?? `Failed to send ${signal}.`,
+              description: error instanceof Error ? error.message : `Failed to send ${signal}.`,
+            });
+          }
+          return;
+        }
+        if (!result.value.signaled) {
+          const message = Option.getOrUndefined(result.value.message);
+          refreshProcesses();
+          if (isStaleProcessSignalMessage(message)) {
+            toastManager.add({
+              type: "info",
+              title: "Process already exited",
+              description:
+                "The process is not a child of the Supaterm Server. It might already have exited.",
             });
             return;
           }
-          refreshProcesses();
-        })
-        .finally(() => {
-          signalingPidRef.current = null;
-          setSignalingPid(null);
-        });
-    },
-    [environmentId, refreshProcesses, signalServerProcess],
-  );
+
+          toastManager.add({
+            type: "error",
+            title: `Could not send ${signal}`,
+            description: message ?? `Failed to send ${signal}.`,
+          });
+          return;
+        }
+        refreshProcesses();
+      })
+      .finally(() => {
+        signalingPidRef.current = null;
+        setSignalingPid(null);
+      });
+  };
 
   const processDiagnosticsError = processData ? Option.getOrNull(processData.error) : null;
   const processResourceError = resourceData ? Option.getOrNull(resourceData.error) : null;
