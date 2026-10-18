@@ -15,8 +15,6 @@ import {
   isThreadWokeUnseen,
   resolveDraftHeroState,
   shouldDockDraftHeroForSubmission,
-  resolveVisibleWorktreeSetup,
-  resolveWorktreeSetupProgress,
 } from "./ChatView.logic";
 import * as DateTime from "effect/DateTime";
 import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
@@ -46,6 +44,7 @@ import type { UsageLimitSourceSnapshots } from "@supaterm/contracts";
 import { headlineUsageWindows, isUsageLimitsCommand } from "@supaterm/shared/usageLimits";
 import { feedbackBannerItem } from "./chat/ComposerFeedback";
 import { useUsageLimitsPanel } from "./chat/useUsageLimitsPanel";
+import { useWorktreeSetup } from "./chat/useWorktreeSetup";
 import { ComposerUsageMeter } from "./chat/ComposerUsageMeter";
 import { getTerminalLabel } from "@supaterm/shared/terminalLabels";
 import {
@@ -79,7 +78,6 @@ import {
   resolveEnvironmentMachineKind,
   resolveProjectProviderInstanceEnabled,
   RuntimeMode,
-  type WorktreeSetupSnapshot,
 } from "@supaterm/contracts";
 import { type EnvironmentConnectionPresentation } from "@supaterm/client-runtime/connection";
 import { readPastedComposerContext } from "./composerInlineTokenPaste";
@@ -378,7 +376,6 @@ import {
   serverEnvironment,
 } from "../state/server";
 import { threadEnvironment } from "../state/threads";
-import { workspacePreparationRetryRunIds } from "@supaterm/client-runtime/state/turn-item-presentation";
 import { resolveProviderSkillsForCwd } from "@supaterm/client-runtime/providerSkills";
 import { vcsEnvironment } from "../state/vcs";
 import { sourceControlEnvironment } from "../state/sourceControl";
@@ -409,7 +406,7 @@ import type { AssistantCitationRequest } from "./chat/AssistantCitationSource";
 import { MessagesTimeline, type MessagesTimelineHistoryControls } from "./chat/MessagesTimeline";
 import { ProviderSubagentBar } from "./chat/ProviderSubagentBar";
 import { getTriggerDisplayModelName } from "./chat/providerIconUtils";
-import { resolveTimelineIsAtEnd, worktreeSetupAgentStarted } from "./chat/MessagesTimeline.logic";
+import { resolveTimelineIsAtEnd } from "./chat/MessagesTimeline.logic";
 import {
   overlayComposerIsResting,
   resolveComposerTimelineInset,
@@ -906,8 +903,6 @@ function createTimelineEntriesProjector() {
   };
 }
 
-const retryingWorkspacePreparationRunIds = new Set<RunId>();
-
 function makeThreadErrorSetter(input: {
   readonly routeThreadRef: ScopedThreadRef;
   readonly routeThreadKey: string;
@@ -1249,15 +1244,6 @@ export default function ChatView(props: ChatViewProps) {
     return () => revokeBlobPreviewUrl(src);
   }, [expandedImage]);
   const [optimisticUserMessages, setOptimisticUserMessages] = useState<ChatMessage[]>([]);
-  // Last live snapshot from the setup stream. The server drops a finished
-  // snapshot after a grace period and emits null; holding it here bridges the
-  // gap until the settled activity arrives on the thread projection.
-  const [worktreeSetupRef, setWorktreeSetupRef] = useState<{
-    environmentId: EnvironmentId;
-    threadId: ThreadId;
-    ownerKey: string;
-  } | null>(null);
-  const [heldWorktreeSetup, setHeldWorktreeSetup] = useState<WorktreeSetupSnapshot | null>(null);
   const [workLocallyResendDraftId, setWorkLocallyResendDraftId] = useState<DraftId | null>(null);
   if (workLocallyResendDraftId !== null && workLocallyResendDraftId !== draftId) {
     setWorkLocallyResendDraftId(null);
@@ -3030,116 +3016,27 @@ export default function ChatView(props: ChatViewProps) {
     activeThreadKey,
   );
   const displayedThreadRef = parseScopedThreadKey(displayedTimelineKey);
-  const worktreeSetupOwnerKey = draftId ?? routeThreadKey;
-  const worktreeSetupActive =
-    worktreeSetupRef !== null && worktreeSetupRef.ownerKey === worktreeSetupOwnerKey;
-  const setupTarget = worktreeSetupActive ? worktreeSetupRef : routeThreadRef;
-  const worktreeSetupQuery = useEnvironmentQuery(
-    worktreeSetupActive ||
-      (activeThread?.id === routeThreadRef.threadId &&
-        (isLocallyPreparingWorktree || activeRunPreparing || activeThread.worktreePath !== null))
-      ? vcsEnvironment.worktreeSetup({
-          environmentId: setupTarget.environmentId,
-          input: { threadId: setupTarget.threadId },
-        })
-      : null,
-  );
-  const latestWorktreeSetup = worktreeSetupQuery.data;
-  const [heldWorktreeSetupSource, setHeldWorktreeSetupSource] = useState({
-    latest: latestWorktreeSetup,
-    routeThreadKey,
-  });
-  if (heldWorktreeSetupSource.routeThreadKey !== routeThreadKey) {
-    setHeldWorktreeSetupSource({ latest: latestWorktreeSetup, routeThreadKey });
-    setHeldWorktreeSetup(null);
-  } else if (heldWorktreeSetupSource.latest !== latestWorktreeSetup) {
-    setHeldWorktreeSetupSource({ latest: latestWorktreeSetup, routeThreadKey });
-    if (latestWorktreeSetup) {
-      setHeldWorktreeSetup((current) =>
-        current?.threadId === latestWorktreeSetup.threadId &&
-        current.sequence > latestWorktreeSetup.sequence
-          ? current
-          : latestWorktreeSetup,
-      );
-    }
-  }
-  const { snapshot: liveWorktreeSetup, isPreparingWorktree } = useMemo(
-    () =>
-      resolveWorktreeSetupProgress({
-        threadId: setupTarget.threadId,
-        localPreparing: isLocallyPreparingWorktree,
-        runStatus: activeActivityRun?.status,
-        latest: latestWorktreeSetup,
-        held: heldWorktreeSetup,
-      }),
-    [
-      activeActivityRun?.status,
-      heldWorktreeSetup,
-      isLocallyPreparingWorktree,
-      latestWorktreeSetup,
-      setupTarget.threadId,
-    ],
-  );
-  const worktreeSetup = resolveVisibleWorktreeSetup({
-    live: liveWorktreeSetup,
-    recorded: null,
-    turnStarted: activeActivityRun?.startedAt != null,
+  const {
+    worktreeSetup,
+    isPreparingWorktree,
+    blocksSend: worktreeSetupBlocksSend,
+    retryableRunIds: retryableWorkspacePreparationRunIds,
+    begin: beginWorktreeSetup,
+    cancel: cancelWorktreeSetup,
+    retryPreparation: onRetryWorkspacePreparationStable,
+    openSetupTerminal: onOpenWorktreeSetupTerminal,
+  } = useWorktreeSetup({
+    routeThreadRef,
+    ownerKey: draftId ?? routeThreadKey,
+    activeThread,
+    threadRef: activeThreadRef,
+    serverProjection,
+    activityRun: activeActivityRun,
+    localPreparing: isLocallyPreparingWorktree,
+    sendQueuesBehindSetup,
     followUpSent: timelineMessages.filter((message) => message.role === "user").length > 1,
   });
-  // Sends wait for the agent handoff, not for the setup script: an async
-  // script keeps the snapshot running while the agent already works, and a
-  // follow-up must not be held behind a slow install. Before the first
-  // snapshot arrives the starting session stands in for it. A send that
-  // queues behind the setup run or the pending task is never held here.
-  const worktreeSetupBlocksSend =
-    !sendQueuesBehindSetup &&
-    (worktreeSetup !== null
-      ? worktreeSetup.phase === "running" && !worktreeSetupAgentStarted(worktreeSetup)
-      : isPreparingWorktree);
-  const cancelWorktreeSetup = useAtomCommand(vcsEnvironment.cancelWorktreeSetup, {
-    reportFailure: false,
-  });
-  const retryWorkspacePreparation = useAtomCommand(threadEnvironment.retryWorkspacePreparation);
-  const retryableRunIdsKey = useMemo(
-    () =>
-      [
-        ...workspacePreparationRetryRunIds(
-          serverProjection?.runs ?? [],
-          serverProjection?.turnItems ?? [],
-        ),
-      ].join("\n"),
-    [serverProjection?.runs, serverProjection?.turnItems],
-  );
-  const retryableWorkspacePreparationRunIds = useMemo(
-    () => new Set(retryableRunIdsKey === "" ? [] : (retryableRunIdsKey.split("\n") as RunId[])),
-    [retryableRunIdsKey],
-  );
-  const onRetryWorkspacePreparation = (runId: RunId) => {
-    if (!activeThreadRef || retryingWorkspacePreparationRunIds.has(runId)) return;
-    retryingWorkspacePreparationRunIds.add(runId);
-    void retryWorkspacePreparation({
-      environmentId: activeThreadRef.environmentId,
-      input: { threadId: activeThreadRef.threadId, runId },
-    }).finally(() => retryingWorkspacePreparationRunIds.delete(runId));
-  };
-  const onRetryWorkspacePreparationStable = useStableCallback(onRetryWorkspacePreparation);
-  const onCancelWorktreeSetup = () => {
-    if (!worktreeSetup || worktreeSetup.phase !== "running") return;
-    void cancelWorktreeSetup({
-      environmentId: setupTarget.environmentId,
-      input: { threadId: worktreeSetup.threadId },
-    });
-  };
-  const onCancelWorktreeSetupStable = useStableCallback(onCancelWorktreeSetup);
-  const onOpenWorktreeSetupTerminal = useMemo(() => {
-    if (!worktreeSetup || !activeThreadRef || worktreeSetup.threadId !== activeThreadRef.threadId) {
-      return null;
-    }
-    const setupThreadRef = activeThreadRef;
-    return (terminalId: string) => {
-      storeEnsureTerminal(setupThreadRef, terminalId, { open: true, active: true });
-    };
-  }, [activeThreadRef, storeEnsureTerminal, worktreeSetup]);
+  const onCancelWorktreeSetupStable = useStableCallback(() => void cancelWorktreeSetup());
   const [dockedDraftHeroThreadKey, setDockedDraftHeroThreadKey] = useState<string | null>(null);
   if (isLocalDraftThread && !draftThread?.promotedTo && dockedDraftHeroThreadKey !== null) {
     setDockedDraftHeroThreadKey(null);
@@ -7310,13 +7207,9 @@ export default function ChatView(props: ChatViewProps) {
         );
       }
       if (!sendQueuesBehindSetup) {
-        setWorktreeSetupRef(
+        beginWorktreeSetup(
           multipleModelSelections === null && baseBranchForWorktree
-            ? {
-                environmentId,
-                threadId: threadIdForSend,
-                ownerKey: worktreeSetupOwnerKey,
-              }
+            ? { environmentId, threadId: threadIdForSend }
             : null,
         );
       }
@@ -7463,15 +7356,9 @@ export default function ChatView(props: ChatViewProps) {
     if (!worktreeSetup || worktreeSetup.phase !== "running" || !draftId) {
       return;
     }
-    const target = {
-      environmentId: setupTarget.environmentId,
-      input: { threadId: worktreeSetup.threadId },
-    };
-    void (async () => {
-      const result = await cancelWorktreeSetup(target);
-      if (result._tag !== "Success" || !result.value.cancelled) return;
-      setWorkLocallyResendDraftId(draftId);
-    })();
+    void cancelWorktreeSetup().then((cancelled) => {
+      if (cancelled) setWorkLocallyResendDraftId(draftId);
+    });
   };
   const onWorktreeSetupWorkLocallyStable = useStableCallback(onWorktreeSetupWorkLocally);
   const onSendRef = useRef(onSend);
