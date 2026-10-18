@@ -20,6 +20,7 @@ export const REACT_COMPILED_FILES = [
   "apps/web/src/components/Sidebar.logic.ts",
   "apps/web/src/components/Sidebar.tsx",
   "apps/web/src/components/ThreadNotificationCoordinator.tsx",
+  "apps/web/src/components/ThreadTerminalDrawer.tsx",
   "apps/web/src/components/auth/PairingRouteSurface.tsx",
   "apps/web/src/components/chat/ChatComposer.tsx",
   "apps/web/src/components/chat/MessagesTimeline.tsx",
