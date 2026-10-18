@@ -1,7 +1,7 @@
 import { ThreadDetailsComboboxControl, ThreadDetailsControl } from "./chat/ThreadDetailsControl";
 import { ComposerContextLabel } from "./ComposerContextLabel";
 import { CheckIcon, CopyIcon, FolderGit2Icon, FolderGitIcon, FolderIcon } from "lucide-react";
-import { memo, useMemo, type MouseEvent as ReactMouseEvent } from "react";
+import { memo, type MouseEvent as ReactMouseEvent } from "react";
 import { useCopyToClipboard, writeTextToClipboard } from "../hooks/useCopyToClipboard";
 import { useShortcutLabel } from "../hooks/useShortcutLabel";
 import { readLocalApi } from "../localApi";
@@ -79,19 +79,16 @@ export const BranchToolbarEnvModeSelector = memo(function BranchToolbarEnvModeSe
   const previousWorktreeShortcut = useShortcutLabel(
     showPreviousWorktree ? "composer.previousWorktree" : null,
   );
-  const envModeItems = useMemo(
-    () => [
-      {
-        value: "local",
-        label: workspaceDisplayName ?? resolveCurrentWorkspaceLabel(activeWorktreePath),
-      },
-      { value: "worktree", label: resolveEnvModeLabel("worktree") },
-      ...(showPreviousWorktree && previousWorktreeLabel
-        ? [{ value: PREVIOUS_WORKTREE_SELECT_VALUE, label: previousWorktreeLabel }]
-        : []),
-    ],
-    [activeWorktreePath, previousWorktreeLabel, showPreviousWorktree, workspaceDisplayName],
-  );
+  const envModeItems = [
+    {
+      value: "local",
+      label: workspaceDisplayName ?? resolveCurrentWorkspaceLabel(activeWorktreePath),
+    },
+    { value: "worktree", label: resolveEnvModeLabel("worktree") },
+    ...(showPreviousWorktree && previousWorktreeLabel
+      ? [{ value: PREVIOUS_WORKTREE_SELECT_VALUE, label: previousWorktreeLabel }]
+      : []),
+  ];
 
   const handleWorkspaceContextMenu = (event: ReactMouseEvent) => {
     if (!workspacePath || forceNewWorktree) return;
