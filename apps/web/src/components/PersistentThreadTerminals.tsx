@@ -8,7 +8,7 @@ import {
 import { scopeProjectRef } from "@supaterm/client-runtime/environment";
 import { projectScriptCwd, projectScriptRuntimeEnv } from "@supaterm/shared/projectScripts";
 import { resolveTerminalSessionLabel } from "@supaterm/shared/terminalLabels";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { useComposerDraftStore } from "../composerDraftStore";
 import { useStableCallback } from "../hooks/useStableCallback";
 import type { TerminalContextSelection } from "../lib/terminalContext";
@@ -71,6 +71,12 @@ function serverTerminalIdsStrictSubsetOfClient(
   return true;
 }
 
+interface TerminalLaunchLocationWithEnv {
+  readonly cwd: string;
+  readonly worktreePath: string | null;
+  readonly runtimeEnv: Record<string, string>;
+}
+
 interface PersistentThreadTerminalDrawerProps {
   threadRef: { environmentId: EnvironmentId; threadId: ThreadId };
   threadId: ThreadId;
@@ -119,77 +125,42 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
   const panelSurfaces = useRightPanelStore(
     (state) => selectThreadRightPanelState(state.byThreadKey, threadRef).surfaces,
   );
-  const panelTerminalIds = useMemo(
-    () =>
-      new Set(
-        panelSurfaces.flatMap((surface) =>
-          surface.kind === "terminal" ? surface.terminalIds : [],
-        ),
-      ),
-    [panelSurfaces],
+  const panelTerminalIds = new Set(
+    panelSurfaces.flatMap((surface) => (surface.kind === "terminal" ? surface.terminalIds : [])),
   );
-  const drawerTerminalSessions = useMemo(
-    () =>
-      knownTerminalSessions?.filter(
-        (session) => !panelTerminalIds.has(session.target.terminalId),
-      ) ?? [],
-    [knownTerminalSessions, panelTerminalIds],
+  const drawerTerminalSessions =
+    knownTerminalSessions?.filter((session) => !panelTerminalIds.has(session.target.terminalId)) ??
+    [];
+  const terminalLabelsById = new Map<string, string>();
+  for (const session of drawerTerminalSessions) {
+    terminalLabelsById.set(
+      session.target.terminalId,
+      resolveTerminalSessionLabel(session.target.terminalId, session.state.summary),
+    );
+  }
+  const terminalHasRunningSubprocessById = new Map(
+    drawerTerminalSessions.map((session) => [
+      session.target.terminalId,
+      session.state.hasRunningSubprocess,
+    ]),
   );
-  const terminalLabelsById = useMemo(() => {
-    const next = new Map<string, string>();
-    for (const session of drawerTerminalSessions) {
-      next.set(
-        session.target.terminalId,
-        resolveTerminalSessionLabel(session.target.terminalId, session.state.summary),
-      );
-    }
-    return next;
-  }, [drawerTerminalSessions]);
-  const terminalHasRunningSubprocessById = useMemo(
-    () =>
-      new Map(
-        drawerTerminalSessions.map((session) => [
-          session.target.terminalId,
-          session.state.hasRunningSubprocess,
-        ]),
-      ),
-    [drawerTerminalSessions],
-  );
-  const terminalLaunchLocationsById = useMemo(() => {
-    const next = new Map<
-      string,
-      {
-        readonly cwd: string;
-        readonly worktreePath: string | null;
-        readonly runtimeEnv: Record<string, string>;
-      }
-    >();
-    if (!project) {
-      return next;
-    }
-
-    for (const session of drawerTerminalSessions) {
-      const summary = session.state.summary;
-      if (!summary) {
-        continue;
-      }
-      const worktreePathForLaunch =
-        launchContext !== null ? launchContext.worktreePath : summary.worktreePath;
-      next.set(session.target.terminalId, {
-        cwd: launchContext?.cwd ?? summary.cwd,
+  const terminalLaunchLocationsById = new Map<string, TerminalLaunchLocationWithEnv>();
+  for (const session of drawerTerminalSessions) {
+    const summary = session.state.summary;
+    if (!project || !summary) continue;
+    const worktreePathForLaunch =
+      launchContext !== null ? launchContext.worktreePath : summary.worktreePath;
+    terminalLaunchLocationsById.set(session.target.terminalId, {
+      cwd: launchContext?.cwd ?? summary.cwd,
+      worktreePath: worktreePathForLaunch,
+      runtimeEnv: projectScriptRuntimeEnv({
+        project: { cwd: project.workspaceRoot },
         worktreePath: worktreePathForLaunch,
-        runtimeEnv: projectScriptRuntimeEnv({
-          project: { cwd: project.workspaceRoot },
-          worktreePath: worktreePathForLaunch,
-        }),
-      });
-    }
-
-    return next;
-  }, [drawerTerminalSessions, launchContext, project]);
-  const serverOrderedTerminalIds = useMemo(
-    () => drawerTerminalSessions.map((session) => session.target.terminalId),
-    [drawerTerminalSessions],
+      }),
+    });
+  }
+  const serverOrderedTerminalIds = drawerTerminalSessions.map(
+    (session) => session.target.terminalId,
   );
   const storeSetTerminalHeight = useTerminalUiStateStore((state) => state.setTerminalHeight);
   const storeSetTerminalSplitLayout = useTerminalUiStateStore(
@@ -217,54 +188,36 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
   }, [reconcileTerminalIds, serverOrderedTerminalIds, terminalUiState.terminalIds, threadRef]);
   const [localFocusRequestId, setLocalFocusRequestId] = useState(0);
   const worktreePath = serverThread?.worktreePath ?? draftThread?.worktreePath ?? null;
-  const effectiveWorktreePath = useMemo(() => {
-    if (launchContext !== null) {
-      return launchContext.worktreePath;
-    }
-    return worktreePath;
-  }, [launchContext, worktreePath]);
-  const cwd = useMemo(
-    () =>
-      launchContext?.cwd ??
-      (project
-        ? projectScriptCwd({
-            project: { cwd: project.workspaceRoot },
-            worktreePath: effectiveWorktreePath,
-          })
-        : null),
-    [effectiveWorktreePath, launchContext?.cwd, project],
-  );
-  const runtimeEnv = useMemo(
-    () =>
-      project
-        ? projectScriptRuntimeEnv({
-            project: { cwd: project.workspaceRoot },
-            worktreePath: effectiveWorktreePath,
-          })
-        : {},
-    [effectiveWorktreePath, project],
-  );
+  const effectiveWorktreePath = launchContext !== null ? launchContext.worktreePath : worktreePath;
+  const cwd =
+    launchContext?.cwd ??
+    (project
+      ? projectScriptCwd({
+          project: { cwd: project.workspaceRoot },
+          worktreePath: effectiveWorktreePath,
+        })
+      : null);
+  const runtimeEnv = project
+    ? projectScriptRuntimeEnv({
+        project: { cwd: project.workspaceRoot },
+        worktreePath: effectiveWorktreePath,
+      })
+    : {};
 
-  const bumpFocusRequestId = useCallback(() => {
+  const bumpFocusRequestId = () => {
     if (!visible) {
       return;
     }
     setLocalFocusRequestId((value) => value + 1);
-  }, [visible]);
+  };
 
-  const setTerminalHeight = useCallback(
-    (height: number) => {
-      storeSetTerminalHeight(threadRef, height);
-    },
-    [storeSetTerminalHeight, threadRef],
-  );
+  const setTerminalHeight = (height: number) => {
+    storeSetTerminalHeight(threadRef, height);
+  };
 
-  const setTerminalSplitLayout = useCallback(
-    (groupId: string, layout: TerminalSplitLayout) => {
-      storeSetTerminalSplitLayout(threadRef, groupId, layout);
-    },
-    [storeSetTerminalSplitLayout, threadRef],
-  );
+  const setTerminalSplitLayout = (groupId: string, layout: TerminalSplitLayout) => {
+    storeSetTerminalSplitLayout(threadRef, groupId, layout);
+  };
 
   const launchDrawerTerminal = (place: (terminalId: string) => void) => {
     if (!cwd) return;
@@ -286,13 +239,10 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
     launchDrawerTerminal((terminalId) => storeNewTerminal(threadRef, terminalId)),
   );
 
-  const activateTerminal = useCallback(
-    (terminalId: string) => {
-      storeSetActiveTerminal(threadRef, terminalId);
-      bumpFocusRequestId();
-    },
-    [bumpFocusRequestId, storeSetActiveTerminal, threadRef],
-  );
+  const activateTerminal = (terminalId: string) => {
+    storeSetActiveTerminal(threadRef, terminalId);
+    bumpFocusRequestId();
+  };
 
   const closeTerminal = useStableCallback((terminalId: string) => {
     if (!terminalActions.canWrite()) return;
@@ -301,15 +251,12 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
     bumpFocusRequestId();
   });
 
-  const handleAddTerminalContext = useCallback(
-    (selection: TerminalContextSelection) => {
-      if (!visible) {
-        return;
-      }
-      onAddTerminalContext(selection);
-    },
-    [onAddTerminalContext, visible],
-  );
+  const handleAddTerminalContext = (selection: TerminalContextSelection) => {
+    if (!visible) {
+      return;
+    }
+    onAddTerminalContext(selection);
+  };
 
   if (!project || (!terminalUiState.terminalOpen && !active) || !cwd) {
     return null;
@@ -352,8 +299,8 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
           onHeightChange={setTerminalHeight}
           onSplitLayoutChange={setTerminalSplitLayout}
           onAddTerminalContext={handleAddTerminalContext}
-          terminalLabelsById={terminalLabelsById}
           terminalHasRunningSubprocessById={terminalHasRunningSubprocessById}
+          terminalLabelsById={terminalLabelsById}
           terminalLaunchLocationsById={terminalLaunchLocationsById}
         />
       </div>
@@ -416,101 +363,49 @@ export const PersistentThreadTerminalPanel = memo(function PersistentThreadTermi
       ?.state.summary ?? null;
   const worktreePath =
     launchContext?.worktreePath ?? activeSummary?.worktreePath ?? threadWorktreePath;
-  const cwd = useMemo(
-    () =>
-      launchContext?.cwd ??
-      activeSummary?.cwd ??
-      (project
-        ? projectScriptCwd({
-            project: { cwd: project.workspaceRoot },
-            worktreePath,
-          })
-        : null),
-    [activeSummary?.cwd, launchContext?.cwd, project, worktreePath],
-  );
-  const runtimeEnv = useMemo(
-    () =>
-      project
-        ? projectScriptRuntimeEnv({
-            project: { cwd: project.workspaceRoot },
-            worktreePath,
-          })
-        : {},
-    [project, worktreePath],
-  );
-  const terminalLabelsById = useMemo(() => {
-    const labels = new Map<string, string>();
-    for (const terminalId of surface.terminalIds) {
-      const summary =
-        knownTerminalSessions?.find((session) => session.target.terminalId === terminalId)?.state
-          .summary ?? null;
-      labels.set(terminalId, resolveTerminalSessionLabel(terminalId, summary));
-    }
-    return labels;
-  }, [knownTerminalSessions, surface.terminalIds]);
-  const terminalHasRunningSubprocessById = useMemo(
-    () =>
-      new Map(
-        surface.terminalIds.map((terminalId) => [
-          terminalId,
-          knownTerminalSessions?.find((session) => session.target.terminalId === terminalId)?.state
-            .hasRunningSubprocess ?? false,
-        ]),
-      ),
-    [knownTerminalSessions, surface.terminalIds],
-  );
-  const terminalLaunchLocationsById = useMemo(() => {
-    const locations = new Map<
-      string,
-      {
-        readonly cwd: string;
-        readonly worktreePath: string | null;
-        readonly runtimeEnv: Record<string, string>;
-      }
-    >();
-    for (const terminalId of surface.terminalIds) {
-      const summary =
-        knownTerminalSessions?.find((session) => session.target.terminalId === terminalId)?.state
-          .summary ?? null;
-      const terminalWorktreePath =
-        launchContext?.worktreePath ?? summary?.worktreePath ?? threadWorktreePath;
-      const terminalCwd =
+  const cwd =
+    launchContext?.cwd ??
+    activeSummary?.cwd ??
+    (project ? projectScriptCwd({ project: { cwd: project.workspaceRoot }, worktreePath }) : null);
+  const runtimeEnv = project
+    ? projectScriptRuntimeEnv({ project: { cwd: project.workspaceRoot }, worktreePath })
+    : {};
+  const terminalLabelsById = new Map<string, string>();
+  const terminalHasRunningSubprocessById = new Map<string, boolean>();
+  const terminalLaunchLocationsById = new Map<string, TerminalLaunchLocationWithEnv>();
+  for (const terminalId of surface.terminalIds) {
+    const summary =
+      knownTerminalSessions?.find((session) => session.target.terminalId === terminalId)?.state
+        .summary ?? null;
+    terminalLabelsById.set(terminalId, resolveTerminalSessionLabel(terminalId, summary));
+    terminalHasRunningSubprocessById.set(
+      terminalId,
+      knownTerminalSessions?.find((session) => session.target.terminalId === terminalId)?.state
+        .hasRunningSubprocess ?? false,
+    );
+    if (!project) continue;
+    const terminalWorktreePath =
+      launchContext?.worktreePath ?? summary?.worktreePath ?? threadWorktreePath;
+    terminalLaunchLocationsById.set(terminalId, {
+      cwd:
         launchContext?.cwd ??
         summary?.cwd ??
-        (project
-          ? projectScriptCwd({
-              project: { cwd: project.workspaceRoot },
-              worktreePath: terminalWorktreePath,
-            })
-          : null);
-      if (!terminalCwd || !project) continue;
-      locations.set(terminalId, {
-        cwd: terminalCwd,
-        worktreePath: terminalWorktreePath,
-        runtimeEnv: projectScriptRuntimeEnv({
+        projectScriptCwd({
           project: { cwd: project.workspaceRoot },
           worktreePath: terminalWorktreePath,
         }),
-      });
-    }
-    return locations;
-  }, [
-    knownTerminalSessions,
-    launchContext?.cwd,
-    launchContext?.worktreePath,
-    project,
-    surface.terminalIds,
-    threadWorktreePath,
-  ]);
+      worktreePath: terminalWorktreePath,
+      runtimeEnv: projectScriptRuntimeEnv({
+        project: { cwd: project.workspaceRoot },
+        worktreePath: terminalWorktreePath,
+      }),
+    });
+  }
 
-  const terminalGroups = useMemo(() => [surface], [surface]);
   const storeSetTerminalSplitLayout = useRightPanelStore((state) => state.setTerminalSplitLayout);
-  const setTerminalSplitLayout = useCallback(
-    (surfaceId: string, layout: TerminalSplitLayout) => {
-      storeSetTerminalSplitLayout(threadRef, surfaceId, layout);
-    },
-    [storeSetTerminalSplitLayout, threadRef],
-  );
+  const setTerminalSplitLayout = (surfaceId: string, layout: TerminalSplitLayout) => {
+    storeSetTerminalSplitLayout(threadRef, surfaceId, layout);
+  };
 
   if (!project || !cwd) return null;
 
@@ -526,7 +421,7 @@ export const PersistentThreadTerminalPanel = memo(function PersistentThreadTermi
       height={0}
       terminalIds={surface.terminalIds}
       activeTerminalId={surface.activeTerminalId}
-      terminalGroups={terminalGroups}
+      terminalGroups={[surface]}
       activeTerminalGroupId={surface.id}
       focusRequestId={focusRequestId}
       onSplitTerminal={onSplitTerminal}
@@ -541,8 +436,8 @@ export const PersistentThreadTerminalPanel = memo(function PersistentThreadTermi
       onHeightChange={() => undefined}
       onSplitLayoutChange={setTerminalSplitLayout}
       onAddTerminalContext={onAddTerminalContext}
-      terminalLabelsById={terminalLabelsById}
       terminalHasRunningSubprocessById={terminalHasRunningSubprocessById}
+      terminalLabelsById={terminalLabelsById}
       terminalLaunchLocationsById={terminalLaunchLocationsById}
       keybindings={keybindings}
     />
