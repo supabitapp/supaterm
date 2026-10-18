@@ -9,7 +9,7 @@ import type {
   PullRequestMergeMethod,
   PullRequestRef,
 } from "@supaterm/contracts";
-import { useCallback, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 import { useEnvironmentSettings } from "~/hooks/useSettings";
 
@@ -106,28 +106,29 @@ export function usePullRequestActionRunner({
     if (pendingRef.current || reference === null) return;
     pendingRef.current = true;
     setActionPending(true);
-    try {
-      const result = await runAction({
-        environmentId,
-        input: {
-          ...reference,
-          action,
-          ...(method ? { mergeMethod: method } : resolveMergeMethod ? { resolveMergeMethod } : {}),
-        },
-      });
-      if (result._tag === "Failure") throw squashAtomCommandFailure(result);
-      toastManager.add({ type: "success", title: ACTION_SUCCESS_LABELS[action] });
-      onSuccess?.(action);
-    } catch (failure) {
+    const result = await runAction({
+      environmentId,
+      input: {
+        ...reference,
+        action,
+        ...(method ? { mergeMethod: method } : resolveMergeMethod ? { resolveMergeMethod } : {}),
+      },
+    });
+    pendingRef.current = false;
+    setActionPending(false);
+    if (result._tag === "Failure") {
       toastManager.add({
         type: "error",
         title: ACTION_FAILURE_LABELS[action],
-        description: readableFailure(failure, ACTION_FAILURE_HINTS[action]),
+        description: readableFailure(
+          squashAtomCommandFailure(result),
+          ACTION_FAILURE_HINTS[action],
+        ),
       });
-    } finally {
-      pendingRef.current = false;
-      setActionPending(false);
+      return;
     }
+    toastManager.add({ type: "success", title: ACTION_SUCCESS_LABELS[action] });
+    onSuccess?.(action);
   };
 
   return { actionPending, perform };
@@ -137,55 +138,50 @@ export function usePullRequestCloseBatch(onClosed: (entry: EnvironmentPullReques
   const runAction = useAtomCommand(pullRequestEnvironment.runAction, { reportFailure: false });
   const pending = useRef(new Set<string>());
   const [closingKeys, setClosingKeys] = useState<ReadonlySet<string>>(() => new Set());
-  const close = useCallback(
-    async (entries: readonly EnvironmentPullRequestEntry[]) => {
-      const batch = entries.filter((entry) => {
-        const key = pullRequestEntryKey(entry);
-        if (entry.state !== "open" || pending.current.has(key)) return false;
-        pending.current.add(key);
+  const close = async (entries: readonly EnvironmentPullRequestEntry[]) => {
+    const batch = entries.filter((entry) => {
+      const key = pullRequestEntryKey(entry);
+      if (entry.state !== "open" || pending.current.has(key)) return false;
+      pending.current.add(key);
+      return true;
+    });
+    if (batch.length === 0) return;
+    setClosingKeys(new Set(pending.current));
+    const failures: string[] = [];
+    const outcomes = await Promise.all(
+      batch.map(async (entry) => {
+        const result = await runAction({
+          environmentId: entry.environmentId,
+          input: {
+            projectId: entry.projectId,
+            host: entry.host,
+            repository: entry.repository,
+            number: entry.number,
+            action: "close",
+          },
+        });
+        pending.current.delete(pullRequestEntryKey(entry));
+        setClosingKeys(new Set(pending.current));
+        if (result._tag === "Failure") {
+          failures.push(
+            `#${entry.number}: ${readableFailure(squashAtomCommandFailure(result), ACTION_FAILURE_HINTS.close)}`,
+          );
+          return;
+        }
+        onClosed(entry);
         return true;
-      });
-      if (batch.length === 0) return;
-      setClosingKeys(new Set(pending.current));
-      let closed = 0;
-      const failures: string[] = [];
-      await Promise.all(
-        batch.map(async (entry) => {
-          try {
-            const result = await runAction({
-              environmentId: entry.environmentId,
-              input: {
-                projectId: entry.projectId,
-                host: entry.host,
-                repository: entry.repository,
-                number: entry.number,
-                action: "close",
-              },
-            });
-            if (result._tag === "Failure") throw squashAtomCommandFailure(result);
-            closed++;
-            onClosed(entry);
-          } catch (failure) {
-            failures.push(
-              `#${entry.number}: ${readableFailure(failure, ACTION_FAILURE_HINTS.close)}`,
-            );
-          } finally {
-            pending.current.delete(pullRequestEntryKey(entry));
-            setClosingKeys(new Set(pending.current));
-          }
-        }),
-      );
-      toastManager.add({
-        type: failures.length > 0 ? "error" : "success",
-        title:
-          failures.length > 0
-            ? `Closed ${closed} of ${batch.length} pull requests`
-            : `Closed ${closed} pull request${closed === 1 ? "" : "s"}`,
-        ...(failures.length > 0 ? { description: failures.slice(0, 3).join("\n") } : {}),
-      });
-    },
-    [onClosed, runAction],
-  );
+      }),
+    );
+    const closed = outcomes.filter(Boolean).length;
+    toastManager.add({
+      type: failures.length > 0 ? "error" : "success",
+      title:
+        failures.length > 0
+          ? `Closed ${closed} of ${batch.length} pull requests`
+          : `Closed ${closed} pull request${closed === 1 ? "" : "s"}`,
+      ...(failures.length > 0 ? { description: failures.slice(0, 3).join("\n") } : {}),
+    });
+  };
   return { close, closingKeys };
 }
 

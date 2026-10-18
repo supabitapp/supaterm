@@ -45,6 +45,7 @@ export const REACT_COMPILED_FILES = [
   "apps/web/src/components/preview/PreviewView.tsx",
   "apps/web/src/components/preview/useAgentOpenedPreviews.ts",
   "apps/web/src/components/pullRequest/PullRequestCodeTab.tsx",
+  "apps/web/src/components/pullRequest/usePullRequestActions.ts",
   "apps/web/src/components/pullRequest/usePullRequestFilesViewed.ts",
   "apps/web/src/components/pullRequest/useThreadLinkedPullRequest.ts",
   "apps/web/src/components/settings/ProjectFaviconPickerDialog.tsx",
