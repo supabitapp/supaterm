@@ -390,6 +390,16 @@ it.effect.each(
           ).length,
           1,
         );
+        const firstStartedAt = final.runs.find((run) => run.id === first.runId)?.startedAt;
+        const followUpWorkStartedAt = final.runs.find(
+          (run) => run.id === started[1]?.runId,
+        )?.workStartedAt;
+        assert.exists(firstStartedAt);
+        assert.exists(followUpWorkStartedAt);
+        assert.equal(
+          DateTime.toEpochMillis(followUpWorkStartedAt),
+          DateTime.toEpochMillis(firstStartedAt),
+        );
         yield* worker.drain();
         assert.equal(started.length, 2);
       }).pipe(
@@ -696,6 +706,74 @@ it.effect("starts a steer that missed the turn on the saved next-turn selection"
         assert.equal(started[1]?.message.messageId, MessageId.make("message:steer"));
         assert.deepEqual(started[1]?.modelSelection, composerSelection);
         assert.deepEqual(projection.thread.modelSelection, composerSelection);
+      }).pipe(Effect.provide(layer));
+    }),
+  ),
+);
+
+it.effect("starts a new work clock for a steer aimed at a run that already completed", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { events, started, layer, startFirstTurn } = yield* nextTurnSelectionHarness(
+        "steering-completed-target",
+      );
+      yield* Effect.gen(function* () {
+        const orchestrator = yield* Orchestrator.OrchestratorV2;
+        const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
+        const threadId = yield* startFirstTurn;
+        const first = started[0]!;
+        const settled = yield* orchestrator.streamDomainEvents.pipe(
+          Stream.filter(
+            (event) =>
+              event.type === "run.updated" &&
+              event.payload.id === first.runId &&
+              event.payload.status === "waiting",
+          ),
+          Stream.take(1),
+          Stream.runDrain,
+          Effect.forkScoped,
+        );
+        const turn = (yield* orchestrator.getThreadProjection(threadId)).providerTurns[0]!;
+        yield* Queue.offer(events, {
+          type: "provider_turn.updated",
+          driver,
+          providerTurn: { ...turn, status: "completed", completedAt: yield* DateTime.now },
+        });
+        yield* Queue.offer(events, {
+          type: "turn.terminal",
+          driver,
+          providerThreadId: turn.providerThreadId,
+          providerTurnId: turn.id,
+          runOrdinal: first.runOrdinal,
+          status: "completed",
+          failure: null,
+          threadDisposition: "reusable",
+        });
+        yield* Fiber.join(settled);
+        yield* worker.drain();
+        const completed = yield* orchestrator.getThreadProjection(threadId);
+        assert.equal(completed.runs.find((run) => run.id === first.runId)?.status, "completed");
+
+        yield* orchestrator.dispatch({
+          type: "message.dispatch",
+          commandId: CommandId.make("stale-steer"),
+          threadId,
+          messageId: MessageId.make("message:stale-steer"),
+          text: "stale steer",
+          attachments: [],
+          modelSelection: runSelection,
+          dispatchMode: { type: "steer_active", targetRunId: first.runId },
+          createdBy: "user",
+          creationSource: "web",
+        });
+        yield* worker.drain();
+
+        assert.equal(started.length, 2);
+        const next = (yield* orchestrator.getThreadProjection(threadId)).runs.find(
+          (run) => run.id === started[1]?.runId,
+        );
+        assert.exists(next);
+        assert.isUndefined(next.workStartedAt);
       }).pipe(Effect.provide(layer));
     }),
   ),
