@@ -35,6 +35,8 @@ jobs:
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
+      - name: Lint GitHub Actions
+        run: mise exec -- jactionlint --format github --shellcheck=shellcheck
       - name: Install workspace dependencies
         run: mise exec -- vp install
       - name: Ensure Electron runtime is installed

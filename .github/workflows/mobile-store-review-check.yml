@@ -38,8 +38,6 @@ jobs:
           ruby-version: "3.4.8"
           working-directory: apps/mobile
           bundler-cache: true
-      - name: Validate workflows
-        run: mise exec -- actionlint .github/workflows/mobile-eas-production.yml .github/workflows/mobile-store-review.yml .github/workflows/mobile-showcase-screenshots.yml .github/workflows/mobile-store-review-check.yml
       - name: Test exact build selection and credential export
         run: node --test .github/scripts/mobile-store-release.test.mjs .github/scripts/export-play-credentials.test.mjs
       - name: Test screenshot validation

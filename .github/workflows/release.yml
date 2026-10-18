@@ -137,12 +137,11 @@ jobs:
           DISPATCH_CHANNEL: ${{ github.event.inputs.channel }}
           DISPATCH_VERSION: ${{ github.event.inputs.version }}
           NIGHTLY_VERSION: ${{ needs.resolve_commit.outputs.nightly_version }}
-          NIGHTLY_DATE: ${{ github.run_started_at }}
           NIGHTLY_SHA: ${{ needs.resolve_commit.outputs.ref }}
           NIGHTLY_RUN_NUMBER: ${{ github.run_number }}
         run: |
           if [[ "${GITHUB_EVENT_NAME}" == "schedule" || ( "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${DISPATCH_CHANNEL:-preview}" == "nightly" ) ]]; then
-            nightly_date="$(date -u -d "$NIGHTLY_DATE" +%Y%m%d)"
+            nightly_date="$(date -u +%Y%m%d)"
 
             node scripts/resolve-nightly-release.ts \
               --date "$nightly_date" \
@@ -150,10 +149,12 @@ jobs:
               --sha "$NIGHTLY_SHA" \
               --github-output
 
-            echo "release_channel=nightly" >> "$GITHUB_OUTPUT"
-            echo "cli_dist_tag=nightly" >> "$GITHUB_OUTPUT"
-            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
-            echo "make_latest=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "release_channel=nightly"
+              echo "cli_dist_tag=nightly"
+              echo "is_prerelease=true"
+              echo "make_latest=false"
+            } >> "$GITHUB_OUTPUT"
           elif [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${DISPATCH_CHANNEL:-preview}" == "preview" ]]; then
             # Manual-only test train: exercises the whole release flow for a
             # commit end users must never receive.
@@ -163,7 +164,7 @@ jobs:
             # its desktop builds carry no update feed, and no updater manifest
             # is attached to the release, so neither stable nor nightly
             # installs can ever be offered one.
-            nightly_date="$(date -u -d "$NIGHTLY_DATE" +%Y%m%d)"
+            nightly_date="$(date -u +%Y%m%d)"
 
             node scripts/resolve-nightly-release.ts \
               --channel preview \
@@ -172,10 +173,12 @@ jobs:
               --sha "$NIGHTLY_SHA" \
               --github-output
 
-            echo "release_channel=preview" >> "$GITHUB_OUTPUT"
-            echo "cli_dist_tag=preview" >> "$GITHUB_OUTPUT"
-            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
-            echo "make_latest=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "release_channel=preview"
+              echo "cli_dist_tag=preview"
+              echo "is_prerelease=true"
+              echo "make_latest=false"
+            } >> "$GITHUB_OUTPUT"
           else
             if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
               raw="${DISPATCH_VERSION:-$NIGHTLY_VERSION}"
@@ -193,11 +196,13 @@ jobs:
               exit 1
             fi
 
-            echo "release_channel=stable" >> "$GITHUB_OUTPUT"
-            echo "version=$version" >> "$GITHUB_OUTPUT"
-            echo "tag=v$version" >> "$GITHUB_OUTPUT"
-            echo "name=Supaterm v$version" >> "$GITHUB_OUTPUT"
-            echo "cli_dist_tag=latest" >> "$GITHUB_OUTPUT"
+            {
+              echo "release_channel=stable"
+              echo "version=$version"
+              echo "tag=v$version"
+              echo "name=Supaterm v$version"
+              echo "cli_dist_tag=latest"
+            } >> "$GITHUB_OUTPUT"
             if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
               echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
               echo "make_latest=true" >> "$GITHUB_OUTPUT"
