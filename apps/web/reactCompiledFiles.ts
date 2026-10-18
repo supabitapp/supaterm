@@ -41,6 +41,7 @@ export const REACT_COMPILED_FILES = [
   "apps/web/src/hooks/useLiveRefresh.ts",
   "apps/web/src/hooks/useProactivePanels.ts",
   "apps/web/src/hooks/useRightPanelSurfaceClose.ts",
+  "apps/web/src/hooks/useThreadActions.ts",
   "apps/web/src/panelAnimations.ts",
   "apps/web/src/state/queries.ts",
   "apps/web/src/state/sourceControlActions.ts",
