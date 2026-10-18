@@ -1,5 +1,5 @@
-import { act, cloneElement, createContext, use, type ReactElement, type ReactNode } from "react";
-import { create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
+import { act, cloneElement, type ReactElement, type ReactNode } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import {
   EnvironmentId,
   ThreadId,
@@ -8,9 +8,12 @@ import {
   type OrchestrationV2ContextTransfer,
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
-import { afterEach, expect, it, vi } from "vite-plus/test";
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
+
+import "~/index.css";
 
 const state = vi.hoisted(() => ({
+  stopWorkflowLabel: "environment-data:orchestration:stop-workflow",
   projection: null as unknown,
   navigate: vi.fn(),
   shells: [] as unknown[],
@@ -23,92 +26,137 @@ const state = vi.hoisted(() => ({
   toast: vi.fn(),
 }));
 
-vi.mock("@tanstack/react-router", () => ({ useNavigate: () => state.navigate }));
-vi.mock("../../state/entities", () => ({
-  useThreadProjection: () => ({ projection: state.projection }),
-  useThreadRelationshipShells: (ref: { readonly environmentId: string }) =>
+vi.mock(import("@tanstack/react-router"), async (original) => ({
+  ...(await original()),
+  useNavigate: (() => state.navigate) as never,
+}));
+vi.mock(import("../../state/entities"), async (original) => ({
+  ...(await original()),
+  useThreadProjection: (() => ({ projection: state.projection })) as never,
+  useThreadRelationshipShells: ((ref: { readonly environmentId: string }) =>
     (state.shells as ReadonlyArray<{ readonly environmentId: string; readonly source: unknown }>)
       .filter((shell) => shell.environmentId === ref.environmentId)
-      .map((shell) => shell.source),
-  useProjects: () => state.projects,
+      .map((shell) => shell.source)) as never,
+  useProjects: (() => state.projects) as never,
 }));
-vi.mock("../../state/environments", () => ({
-  useEnvironmentProviders: () =>
+vi.mock(import("../../state/environments"), async (original) => ({
+  ...(await original()),
+  useEnvironmentProviders: (() =>
     new Map(
       [...state.configs].map(([id, config]) => [id, (config as { providers: unknown }).providers]),
-    ),
+    )) as never,
 }));
-vi.mock("../../lib/archivedThreadsState", () => ({
-  useArchivedThreadSnapshots: () => ({ snapshots: [] }),
+vi.mock(import("../../state/session"), async (original) => ({
+  ...(await original()),
+  useEnvironmentScope: (() => state.canOperateThread) as never,
+  readEnvironmentScope: (() => state.canOperateThread) as never,
 }));
-vi.mock("../../state/use-atom-command", () => ({
-  useAtomCommand: (command: { label: string }) =>
-    command.label === "environment-data:orchestration:stop-workflow"
-      ? state.workflowCommand
-      : state.command,
+vi.mock(import("../../lib/archivedThreadsState"), async (original) => ({
+  ...(await original()),
+  useArchivedThreadSnapshots: (() => ({ snapshots: [] })) as never,
 }));
-vi.mock("../../state/threadOutbox", () => ({
-  readPendingThreadCreation: () => null,
-  webThreadOutbox: { isLoaded: () => true, subscribe: () => () => {} },
+vi.mock(import("../../state/use-atom-command"), async (original) => ({
+  ...(await original()),
+  useAtomCommand: ((command: { label?: string }) =>
+    command.label === state.stopWorkflowLabel ? state.workflowCommand : state.command) as never,
 }));
-vi.mock("../../state/use-orchestration-command", () => ({
-  useOrchestrationCommand: () => state.command,
-}));
-vi.mock("../../state/session", () => ({
-  useEnvironmentScope: () => state.canOperateThread,
-}));
-vi.mock("../ui/collapsible", () => {
-  const OpenContext = createContext(false);
-  return {
-    Collapsible: ({ open, children }: { open: boolean; children: ReactNode }) => (
-      <OpenContext value={open}>{children}</OpenContext>
-    ),
-    CollapsiblePanel: ({ children }: { children: ReactNode }) =>
-      use(OpenContext) ? children : null,
-  };
+vi.mock(import("../ui/toast"), async (original) => {
+  const actual = await original();
+  return { ...actual, toastManager: { ...actual.toastManager, add: state.toast } as never };
 });
-vi.mock("../ui/toast", () => ({ toastManager: { add: state.toast } }));
-vi.mock("../../state/orchestration", async () => {
+vi.mock(import("../../state/orchestration"), async (original) => {
+  const actual = await original();
   const { Atom } = await import("effect/reactivity");
   const granted = Atom.make(true);
+  const stopWorkflow = actual.orchestrationEnvironment.stopWorkflow;
   return {
-    orchestrationEnvironment: {
-      stopWorkflow: {
-        label: "environment-data:orchestration:stop-workflow",
+    ...actual,
+    orchestrationEnvironment: Object.assign(Object.create(actual.orchestrationEnvironment), {
+      stopWorkflow: Object.assign(Object.create(stopWorkflow), {
+        label: state.stopWorkflowLabel,
         permissionAtom: () => granted,
-      },
-    },
+      }),
+    }),
   };
 });
-vi.mock("../ui/tooltip", () => ({
-  Tooltip: ({ children }: { children: ReactNode }) => children,
-  TooltipTrigger: ({ render, children }: { render: ReactElement; children: ReactNode }) =>
-    cloneElement(render, {}, children),
-  TooltipPopup: ({ children }: { children: ReactNode }) => (state.showTooltips ? children : null),
-}));
+// Tooltip and hover card content renders inline so the suite can read every row's agent
+// details across many states without hovering each row.
+vi.mock(import("../ui/tooltip"), async () => {
+  const { cloneElement } = await import("react");
+  const passThrough = (({ children }: { children: ReactNode }) => children) as never;
+  return {
+    TooltipProvider: passThrough,
+    TooltipScrollDismissArea: passThrough,
+    TooltipShortcutLabel: passThrough,
+    Tooltip: (({ children }: { children: ReactNode }) => children) as never,
+    TooltipTrigger: (({ render, children }: { render: ReactElement; children: ReactNode }) =>
+      cloneElement(render, {}, children)) as never,
+    TooltipPopup: (({ children }: { children: ReactNode }) =>
+      state.showTooltips ? children : null) as never,
+  };
+});
 
 import { ThreadRelationshipsPanel } from "./ThreadRelationshipsControl";
 
-let renderer: ReactTestRenderer;
+let root: Root;
+let container: HTMLDivElement;
+let current: ReactElement;
 
-function renderedText(node: ReactTestInstance) {
-  return node
-    .findAll((child) => typeof child.type === "string")
-    .flatMap((child) => child.children.filter((value) => typeof value === "string"))
-    .join("");
+async function render(element: ReactElement) {
+  current = element;
+  await act(async () => root.render(element));
 }
-
-function groupHeader(label: string) {
-  return renderer.root.find(
-    (node) =>
-      node.type === "button" &&
-      typeof node.props["aria-controls"] === "string" &&
-      renderedText(node).startsWith(label),
+// The mocked hooks read `state` while rendering, so a new element picks up changes.
+const update = () => act(async () => root.render(cloneElement(current)));
+const click = (element: HTMLElement) => act(async () => element.click());
+const buttons = () => [...container.querySelectorAll("button")];
+const allByLabel = (label: string) =>
+  buttons().filter((button) => button.getAttribute("aria-label") === label);
+function byLabel(label: string) {
+  const matches = allByLabel(label);
+  if (matches.length !== 1)
+    throw new Error(`Expected one "${label}" button, got ${matches.length}`);
+  return matches[0]!;
+}
+const sectionToggles = (expanded: boolean) =>
+  buttons().filter(
+    (button) =>
+      button.getAttribute("aria-expanded") === String(expanded) &&
+      !button.hasAttribute("aria-label"),
   );
+function sectionToggle(expanded: boolean) {
+  const [toggle] = sectionToggles(expanded);
+  if (!toggle) throw new Error(`No ${expanded ? "expanded" : "collapsed"} section toggle`);
+  return toggle;
 }
+const heading = () => container.querySelector("h3")?.textContent;
+const groupHeader = (label: string) =>
+  buttons().find(
+    (button) => button.hasAttribute("aria-controls") && button.textContent?.startsWith(label),
+  );
+const buttonsWithLabel = (matches: (label: string) => boolean) =>
+  buttons().filter((button) => matches(button.getAttribute("aria-label") ?? ""));
+// Joins rendered text nodes; `visibleOnly` drops screen-reader-only text.
+function textNodes(separator: string, visibleOnly = false) {
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  const parts: string[] = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (visibleOnly && node.parentElement?.closest(".sr-only")) continue;
+    parts.push(node.textContent ?? "");
+  }
+  return parts.join(separator);
+}
+
+beforeEach(() => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+});
 
 afterEach(async () => {
-  await act(async () => renderer?.unmount());
+  await act(async () => root.unmount());
+  container.remove();
   vi.unstubAllGlobals();
   state.shells = [];
   state.projects = [];
@@ -123,7 +171,6 @@ afterEach(async () => {
 });
 
 it("separates relationship kinds and collapses each group independently", async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const environmentId = EnvironmentId.make("test");
   const current = {
     id: "current",
@@ -178,50 +225,46 @@ it("separates relationship kinds and collapses each group independently", async 
       lineage: { parentThreadId: "current", relationshipToParent: "fork" },
     },
   ].map((source) => ({ environmentId, source }));
-  const panel = (
-    <ThreadRelationshipsPanel environmentId={environmentId} threadId={ThreadId.make("current")} />
+  await render(
+    <ThreadRelationshipsPanel environmentId={environmentId} threadId={ThreadId.make("current")} />,
   );
-  await act(async () => {
-    renderer = create(panel);
-  });
   const rows = (label: string) =>
-    renderedText(
-      renderer.root.find((node) => node.type === "ul" && node.props["aria-label"] === label),
-    );
+    container.querySelector(`ul[aria-label="${label}"]`)?.textContent ?? "";
+  const toggleGroup = (label: string) => click(groupHeader(label)!);
   expect(rows("Parent")).toContain("Parent conversation");
   expect(rows("Parent")).not.toContain("Forked conversation");
-  expect(renderedText(groupHeader("Parent"))).not.toContain("failed");
+  expect(groupHeader("Parent")?.textContent).not.toContain("failed");
   expect(rows("Forks")).toContain("Forked conversation");
   expect(rows("Forks")).not.toContain("Active worker");
   expect(rows("Context transfers")).toContain("Resolved (portable)");
   expect(rows("Subagents")).toContain("Active worker");
-  expect(renderedText(renderer.root)).not.toContain("Finished worker");
+  expect(container.textContent).not.toContain("Finished worker");
 
-  await act(async () => groupHeader("Forks").props.onClick());
-  expect(renderedText(renderer.root)).not.toContain("Forked conversation");
+  // A collapsing group keeps its rows until the panel's exit animation ends.
+  await toggleGroup("Forks");
+  await vi.waitFor(() => expect(container.textContent).not.toContain("Forked conversation"));
   expect(rows("Parent")).toContain("Parent conversation");
   expect(rows("Subagents")).toContain("Active worker");
-  await act(async () => groupHeader("Previous agents").props.onClick());
+  await toggleGroup("Previous agents");
   expect(rows("Previous agents")).toContain("Finished worker");
   expect(rows("Previous agents")).not.toContain("Active worker");
 
-  await act(async () => groupHeader("Forks").props.onClick());
+  await toggleGroup("Forks");
   expect(rows("Forks")).toContain("Forked conversation");
-  await act(async () => groupHeader("Previous agents").props.onClick());
+  await toggleGroup("Previous agents");
   state.projection = {
     ...projection,
     subagents: projection.subagents.map((subagent) => ({ ...subagent, status: "completed" })),
   };
-  await act(async () => renderer.update(cloneElement(panel)));
-  expect(renderedText(renderer.root)).not.toContain("Active worker");
-  expect(renderedText(groupHeader("Previous agents"))).toContain("(2)");
-  await act(async () => groupHeader("Previous agents").props.onClick());
+  await update();
+  await vi.waitFor(() => expect(container.textContent).not.toContain("Active worker"));
+  expect(groupHeader("Previous agents")?.textContent).toContain("(2)");
+  await toggleGroup("Previous agents");
   expect(rows("Previous agents")).toContain("Active worker");
   expect(rows("Previous agents")).toContain("Finished worker");
 });
 
 it("stops the entire native workflow through its parent without changing state before acknowledgement", async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const coordinator = {
     id: "workflow",
     origin: "provider_native",
@@ -268,24 +311,15 @@ it("stops the entire native workflow through its parent without changing state b
       },
     },
   ];
-  await act(async () => {
-    renderer = create(
-      <ThreadRelationshipsPanel
-        environmentId={EnvironmentId.make("remote")}
-        threadId={ThreadId.make("parent")}
-      />,
-    );
-  });
-  await act(async () =>
-    renderer.root.findByProps({ "aria-label": "Expand Checkout review" }).props.onClick(),
+  await render(
+    <ThreadRelationshipsPanel
+      environmentId={EnvironmentId.make("remote")}
+      threadId={ThreadId.make("parent")}
+    />,
   );
-  const stopButton = () =>
-    renderer.root.findByProps({ "aria-label": "Stop workflow Checkout review" });
-  expect(
-    renderer.root.findAll(
-      (node) => node.type === "button" && String(node.props["aria-label"]).startsWith("Stop "),
-    ),
-  ).toHaveLength(2);
+  await click(byLabel("Expand Checkout review"));
+  const stopButton = () => byLabel("Stop workflow Checkout review");
+  expect(buttonsWithLabel((label) => label.startsWith("Stop "))).toHaveLength(2);
   let acknowledge!: (result: { _tag: string }) => void;
   state.workflowCommand.mockImplementationOnce(
     () =>
@@ -293,35 +327,29 @@ it("stops the entire native workflow through its parent without changing state b
         acknowledge = resolve;
       }),
   );
-  await act(async () => {
-    stopButton().props.onClick();
-  });
+  await click(stopButton());
   expect(state.workflowCommand).toHaveBeenCalledExactlyOnceWith({
     environmentId: "remote",
     input: { threadId: "parent", subagentId: "workflow" },
   });
   expect(state.command).not.toHaveBeenCalled();
   expect(state.navigate).not.toHaveBeenCalled();
-  expect(stopButton().props.disabled).toBe(true);
-  expect(renderer.root.findByProps({ "aria-label": "Stop subagent Worker" }).props.disabled).toBe(
-    true,
-  );
-  expect(renderer.root.findByProps({ "aria-label": "Open Checker chat" })).toBeDefined();
-  expect(renderedText(groupHeader("Subagents"))).toBe("Subagents · 2 running");
+  expect(stopButton().disabled).toBe(true);
+  expect(byLabel("Stop subagent Worker").disabled).toBe(true);
+  expect(byLabel("Open Checker chat")).toBeDefined();
+  expect(groupHeader("Subagents")?.textContent).toBe("Subagents · 2 running");
   await act(async () => {
     acknowledge({ _tag: "Success" });
   });
-  expect(stopButton().props.disabled).toBe(false);
-  expect(renderedText(groupHeader("Subagents"))).toBe("Subagents · 2 running");
+  expect(stopButton().disabled).toBe(false);
+  expect(groupHeader("Subagents")?.textContent).toBe("Subagents · 2 running");
   state.workflowCommand.mockResolvedValueOnce({ _tag: "Failure" });
-  await act(async () => {
-    stopButton().props.onClick();
-  });
+  await click(stopButton());
   expect(state.toast).toHaveBeenCalledExactlyOnceWith({
     type: "error",
     title: "Could not stop workflow",
   });
-  expect(stopButton().props.disabled).toBe(false);
+  expect(stopButton().disabled).toBe(false);
   expect(state.command).not.toHaveBeenCalled();
   expect(state.navigate).not.toHaveBeenCalled();
 });
@@ -334,7 +362,6 @@ it.each([
   ["codex", "provider_native", "running"],
   ["claudeAgent", "app_owned", "running"],
 ])("does not offer workflow stop for %s %s %s", async (driver, origin, status) => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   state.projection = {
     thread: { id: "parent", lineage: { relationshipToParent: null } },
     runs: [],
@@ -357,28 +384,20 @@ it.each([
       },
     ],
   };
-  await act(async () => {
-    renderer = create(
-      <ThreadRelationshipsPanel
-        environmentId={EnvironmentId.make("remote")}
-        threadId={ThreadId.make("parent")}
-      />,
-    );
-  });
-  const previousAgents = renderer.root.findAll(
-    (node) =>
-      node.type === "button" && node.props["aria-expanded"] === false && !node.props["aria-label"],
+  await render(
+    <ThreadRelationshipsPanel
+      environmentId={EnvironmentId.make("remote")}
+      threadId={ThreadId.make("parent")}
+    />,
   );
-  if (previousAgents.length > 0) await act(async () => previousAgents[0]!.props.onClick());
-  expect(renderer.root.findByProps({ "aria-label": "Expand Checkout review" })).toBeDefined();
-  expect(
-    renderer.root.findAllByProps({ "aria-label": "Stop workflow Checkout review" }),
-  ).toHaveLength(0);
+  const previousAgents = sectionToggles(false);
+  if (previousAgents.length > 0) await click(previousAgents[0]!);
+  expect(byLabel("Expand Checkout review")).toBeDefined();
+  expect(allByLabel("Stop workflow Checkout review")).toHaveLength(0);
   expect(state.workflowCommand).not.toHaveBeenCalled();
 });
 
 it("opens the correct chat for every workflow phase and unphased member", async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   state.showTooltips = true;
   state.configs.set("remote", {
     providers: [
@@ -446,92 +465,73 @@ it("opens the correct chat for every workflow phase and unphased member", async 
       threadId={ThreadId.make("parent")}
     />
   );
-  await act(async () => {
-    renderer = create(panel);
-  });
-  await act(async () =>
-    renderer.root.findByProps({ "aria-label": "Expand Checkout review" }).props.onClick(),
-  );
-  const memberButtons = () =>
-    renderer.root.findAll(
-      (node) =>
-        node.type === "button" && String(node.props["aria-label"]).startsWith("Open Member"),
-    );
+  await render(panel);
+  await click(byLabel("Expand Checkout review"));
+  const memberButtons = () => buttonsWithLabel((label) => label.startsWith("Open Member"));
   const phaseButtons = () =>
-    renderer.root.findAll(
-      (node) =>
-        node.type === "button" &&
-        typeof node.props["aria-expanded"] === "boolean" &&
-        String(node.props["aria-label"]).includes(" phase, "),
+    buttonsWithLabel((label) => label.includes(" phase, ")).filter((button) =>
+      button.hasAttribute("aria-expanded"),
     );
   expect(memberButtons()).toHaveLength(3);
   expect(phaseButtons()).toHaveLength(3);
-  expect(renderer.root.findByProps({ "aria-label": "Expand Inspect phase, Done" })).toBeDefined();
-  expect(
-    renderer.root.findByProps({ "aria-label": "Expand Improve phase, stopped" }),
-  ).toBeDefined();
-  expect(
-    renderer.root.findByProps({ "aria-label": "Collapse Verify phase, running" }),
-  ).toBeDefined();
-  for (const phase of phaseButtons().slice(0, 2)) await act(async () => phase.props.onClick());
+  expect(byLabel("Expand Inspect phase, Done")).toBeDefined();
+  expect(byLabel("Expand Improve phase, stopped")).toBeDefined();
+  expect(byLabel("Collapse Verify phase, running")).toBeDefined();
+  for (const phase of phaseButtons().slice(0, 2)) await click(phase);
   expect(memberButtons()).toHaveLength(7);
   for (const button of memberButtons()) {
-    expect(button.props.disabled).toBe(true);
-    await act(async () => button.props.onClick());
+    expect(button.disabled).toBe(true);
+    await click(button);
   }
   expect(state.navigate).not.toHaveBeenCalled();
   state.shells = memberShells.map((source) => ({ environmentId: "remote", source }));
-  await act(async () => renderer.update(cloneElement(panel)));
-  for (const button of memberButtons()) expect(button.props.disabled).toBe(false);
+  await update();
+  for (const button of memberButtons()) expect(button.disabled).toBe(false);
   for (const agent of agents) {
-    await act(async () =>
-      renderer.root.findByProps({ "aria-label": `Open ${agent.label} chat` }).props.onClick(),
-    );
+    await click(byLabel(`Open ${agent.label} chat`));
     expect(state.navigate).toHaveBeenLastCalledWith({
       to: "/$environmentId/$threadId",
       params: { environmentId: "remote", threadId: agent.childThreadId },
     });
   }
-  const rendered = JSON.stringify(renderer.toJSON());
+  const rendered = textNodes("|");
   expect(rendered.match(/Sonnet · Work account/g)).toHaveLength(7);
   expect(rendered).not.toContain("Personal account");
   for (const phase of phases) expect(rendered).toContain(phase.title);
   expect(rendered).not.toContain(" phases");
-  expect(rendered).toContain('"1","/","2"," ","agents"');
+  expect(rendered).toContain("1|/|2| |agents");
   expect(rendered).toContain("Running");
   expect(rendered).toContain("running");
-  expect(rendered).toContain("Done");
-  expect(rendered).toContain("stopped");
-  expect(rendered).toContain('"6s"');
+  expect(buttonsWithLabel((label) => label.endsWith("phase, Done"))).toHaveLength(1);
+  expect(buttonsWithLabel((label) => label.endsWith("phase, stopped"))).toHaveLength(1);
+  expect(rendered).toContain("|6s|");
+  // A collapsing phase keeps its members until the panel's exit animation ends.
+  const expectMembers = (count: number) =>
+    vi.waitFor(() => expect(memberButtons()).toHaveLength(count));
   for (const phase of phaseButtons()) {
-    const label = String(phase.props["aria-label"]).slice("Collapse ".length);
-    await act(async () => phase.props.onClick());
-    expect(memberButtons()).toHaveLength(5);
-    await act(async () =>
-      renderer.root.findByProps({ "aria-label": `Expand ${label}` }).props.onClick(),
-    );
+    const label = String(phase.getAttribute("aria-label")).slice("Collapse ".length);
+    await click(phase);
+    await expectMembers(5);
+    await click(byLabel(`Expand ${label}`));
     expect(memberButtons()).toHaveLength(7);
   }
-  await act(async () => phaseButtons()[0]!.props.onClick());
-  expect(memberButtons()).toHaveLength(5);
+  await click(phaseButtons()[0]!);
+  await expectMembers(5);
   const restarted = agents.map((agent) =>
     agent.index === 0 ? { ...agent, state: "running" } : agent,
   );
   state.projection = project(restarted);
-  await act(async () => renderer.update(cloneElement(panel)));
+  await update();
   expect(memberButtons()).toHaveLength(5);
   state.projection = project(agents);
-  await act(async () => renderer.update(cloneElement(panel)));
+  await update();
   expect(memberButtons()).toHaveLength(5);
-  await act(async () =>
-    renderer.root.findByProps({ "aria-label": "Collapse Checkout review" }).props.onClick(),
-  );
-  expect(memberButtons()).toHaveLength(0);
+  await click(byLabel("Collapse Checkout review"));
+  await expectMembers(0);
   expect(state.navigate).toHaveBeenCalledTimes(7);
 });
 
 it("groups and counts a workflow by its run status instead of its coordinator chat", async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   state.showTooltips = true;
   const coordinator = {
     id: "workflow",
@@ -574,22 +574,14 @@ it("groups and counts a workflow by its run status instead of its coordinator ch
       threadId={ThreadId.make("parent")}
     />
   );
-  await act(async () => {
-    renderer = create(panel);
-  });
-  const text = () =>
-    renderer.root
-      .findAll((node) => typeof node.type === "string")
-      .flatMap((node) => node.children.filter((child) => typeof child === "string"))
-      .join("");
-  expect(renderedText(groupHeader("Subagents"))).toBe("Subagents · 1 running");
-  await act(async () =>
-    renderer.root.findByProps({ "aria-label": "Expand Checkout review" }).props.onClick(),
-  );
-  expect(renderer.root.findByProps({ "aria-label": "Open Checker chat" })).toBeDefined();
+  await render(panel);
+  const text = () => textNodes("");
+  expect(groupHeader("Subagents")?.textContent).toBe("Subagents · 1 running");
+  await click(byLabel("Expand Checkout review"));
+  expect(byLabel("Open Checker chat")).toBeDefined();
   state.shells = [{ environmentId: "test", source: { ...child, activityRunStatus: "waiting" } }];
-  await act(async () => renderer.update(cloneElement(panel)));
-  expect(renderedText(groupHeader("Subagents"))).toBe("Subagents · 1 running");
+  await update();
+  expect(groupHeader("Subagents")?.textContent).toBe("Subagents · 1 running");
   expect(text()).toContain("Inspecting the checkout workflow");
   state.projection = {
     ...projection,
@@ -601,14 +593,12 @@ it("groups and counts a workflow by its run status instead of its coordinator ch
       },
     ],
   };
-  await act(async () => renderer.update(cloneElement(panel)));
-  expect(renderer.root.findByType("h3").children).toEqual(["Related threads"]);
+  await update();
+  expect(heading()).toBe("Related threads");
   expect(text()).toContain("Previous agents");
-  expect(renderer.root.findAllByProps({ "aria-label": "Open Checker chat" })).toHaveLength(0);
-  await act(async () =>
-    renderer.root.findByProps({ type: "button", "aria-expanded": false }).props.onClick(),
-  );
-  expect(renderer.root.findByProps({ "aria-label": "Expand Checkout review" })).toBeDefined();
+  expect(allByLabel("Open Checker chat")).toHaveLength(0);
+  await click(sectionToggle(false));
+  expect(byLabel("Expand Checkout review")).toBeDefined();
   expect(text()).toContain("Workflow checks complete");
   expect(text()).toContain("10m");
 });
@@ -621,7 +611,6 @@ it.each([
 ])(
   "offers individual Stop for supported $origin $driver subagents with run $runId",
   async ({ driver, origin, runId, canStop }) => {
-    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     const parent = {
       id: "parent",
       lineage: { relationshipToParent: null },
@@ -667,17 +656,13 @@ it.each([
         threadId={ThreadId.make("parent")}
       />
     );
-    await act(async () => {
-      renderer = create(panel);
-    });
+    await render(panel);
     if (!canStop) {
-      expect(renderer.root.findAllByProps({ "aria-label": "Stop subagent Worker" })).toHaveLength(
-        0,
-      );
+      expect(allByLabel("Stop subagent Worker")).toHaveLength(0);
       return;
     }
-    const stopButton = () => renderer.root.findByProps({ "aria-label": "Stop subagent Worker" });
-    await act(async () => stopButton().props.onClick());
+    const stopButton = () => byLabel("Stop subagent Worker");
+    await click(stopButton());
     expect(state.command).toHaveBeenCalledWith({
       environmentId: "test",
       input:
@@ -703,19 +688,15 @@ it.each([
         ...projection,
         subagents: [{ ...agent, origin: "provider_native", status: "completed" }],
       };
-      await act(async () => renderer.update(cloneElement(panel)));
-      expect(renderer.root.findAllByProps({ "aria-label": "Stop subagent Worker" })).toHaveLength(
-        0,
-      );
+      await update();
+      expect(allByLabel("Stop subagent Worker")).toHaveLength(0);
       state.projection = { ...projection, subagents: [{ ...agent, status: "completed" }] };
-      await act(async () => renderer.update(cloneElement(panel)));
+      await update();
       if (origin === "provider_native") {
-        expect(renderer.root.findAllByProps({ "aria-label": "Stop subagent Worker" })).toHaveLength(
-          0,
-        );
+        expect(allByLabel("Stop subagent Worker")).toHaveLength(0);
         continue;
       }
-      await act(async () => stopButton().props.onClick());
+      await click(stopButton());
       expect(state.command).toHaveBeenCalledTimes(1);
       expect(state.command).toHaveBeenLastCalledWith({
         environmentId: "test",
@@ -725,32 +706,29 @@ it.each([
     state.shells = [{ environmentId: "test", source: child }];
     for (const status of ["completed", "failed", "interrupted"]) {
       state.projection = { ...projection, subagents: [{ ...agent, status }] };
-      await act(async () => renderer.update(cloneElement(panel)));
-      expect(renderer.root.findAllByProps({ "aria-label": "Stop subagent Worker" })).toHaveLength(
-        0,
-      );
+      await update();
+      expect(allByLabel("Stop subagent Worker")).toHaveLength(0);
     }
     state.projection = { ...projection, subagents: [{ ...agent, startedAt: null }] };
-    await act(async () => renderer.update(cloneElement(panel)));
-    expect(renderer.root.findAllByProps({ "aria-label": "Stop subagent Worker" })).toHaveLength(0);
+    await update();
+    expect(allByLabel("Stop subagent Worker")).toHaveLength(0);
     state.projection = {
       ...projection,
       subagents: [{ ...agent, origin: "provider_native", driver: "codex" }],
     };
-    await act(async () => renderer.update(cloneElement(panel)));
-    expect(renderer.root.findAllByProps({ "aria-label": "Stop subagent Worker" })).toHaveLength(0);
+    await update();
+    expect(allByLabel("Stop subagent Worker")).toHaveLength(0);
 
     state.command.mockClear();
     state.canOperateThread = false;
     state.projection = { ...projection, subagents: [agent] };
-    await act(async () => renderer.update(cloneElement(panel)));
-    expect(renderer.root.findAllByProps({ "aria-label": "Stop subagent Worker" })).toHaveLength(0);
+    await update();
+    expect(allByLabel("Stop subagent Worker")).toHaveLength(0);
     expect(state.command).not.toHaveBeenCalled();
   },
 );
 
 it("shows the matching child agent details and refreshes them when the agent settles", async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const agent = {
     id: "agent-1",
     driver: "codex",
@@ -789,15 +767,8 @@ it("shows the matching child agent details and refreshes them when the agent set
       threadId={ThreadId.make("parent")}
     />
   );
-  await act(async () => {
-    renderer = create(panel);
-  });
-  const text = () =>
-    renderer.root
-      .findAll((node) => typeof node.type === "string")
-      .flatMap((node) => node.children.filter((child) => typeof child === "string"))
-      .join(" ")
-      .replace(/\s+/g, " ");
+  await render(panel);
+  const text = () => textNodes(" ").replace(/\s+/g, " ");
   expect(text()).toContain("Checker");
   expect(text()).toContain("Subagents · 3 running");
   expect(text()).toContain("running");
@@ -806,7 +777,7 @@ it("shows the matching child agent details and refreshes them when the agent set
   expect(text()).not.toContain("tok");
   expect(text()).not.toContain("Unlinked agent");
   expect(text()).not.toContain("Active agents");
-  expect(renderer.root.findAllByProps({ type: "button", "aria-expanded": true })).toHaveLength(1);
+  expect(sectionToggles(true)).toHaveLength(1);
 
   state.projection = {
     ...projection,
@@ -820,26 +791,20 @@ it("shows the matching child agent details and refreshes them when the agent set
       },
     ],
   };
-  await act(async () => renderer.update(cloneElement(panel)));
-  expect(renderer.root.findByType("h3").children).toEqual(["Related threads"]);
+  await update();
+  expect(heading()).toBe("Related threads");
   expect(text()).toContain("Previous agents (1)");
   expect(text()).not.toContain("Checker");
-  await act(async () =>
-    renderer.root.findByProps({ type: "button", "aria-expanded": false }).props.onClick(),
-  );
+  await click(sectionToggle(false));
   expect(text()).toContain("Checker");
   expect(text()).toContain("2m 15s");
   expect(text()).not.toContain("(1)");
   expect(text()).not.toContain("running");
   expect(text()).not.toContain("Worker");
-  await act(async () =>
-    renderer.root.findByProps({ type: "button", "aria-expanded": true }).props.onClick(),
-  );
-  expect(text()).not.toContain("Checker");
+  await click(sectionToggle(true));
+  await vi.waitFor(() => expect(text()).not.toContain("Checker"));
   expect(text()).toContain("Previous agents (1)");
-  await act(async () =>
-    renderer.root.findByProps({ type: "button", "aria-expanded": false }).props.onClick(),
-  );
+  await click(sectionToggle(false));
   expect(text()).toContain("Checker");
 
   state.projection = {
@@ -850,7 +815,7 @@ it("shows the matching child agent details and refreshes them when the agent set
       childThreadId: `running-child-${index}`,
     })),
   };
-  await act(async () => renderer.update(cloneElement(panel)));
+  await update();
   expect(text()).toContain("Subagents · 8 running");
 
   state.projection = {
@@ -865,29 +830,23 @@ it("shows the matching child agent details and refreshes them when the agent set
       completedAt: DateTime.makeUnsafe("2026-09-16T12:02:15Z"),
     })),
   };
-  await act(async () => renderer.update(cloneElement(panel)));
+  await update();
   expect(text()).toContain("1 failed");
   expect(text()).not.toContain("Old agent 7");
-  await act(async () =>
-    renderer.root
-      .findAllByType("button")
-      .find((button) => button.children.includes("Show "))!
-      .props.onClick(),
-  );
+  await click(buttons().find((button) => button.textContent?.startsWith("Show "))!);
   expect(text()).toContain("Old agent 7");
 
   state.projection = {
     ...projection,
     subagents: [{ ...agent, childThreadId: null }],
   };
-  await act(async () => renderer.update(cloneElement(panel)));
+  await update();
   expect(text()).toContain("Subagents · 1 running");
-  await act(async () => groupHeader("Subagents").props.onClick());
-  expect(renderedText(groupHeader("Subagents"))).toBe("Subagents · 1 running (1)");
+  await click(groupHeader("Subagents")!);
+  expect(groupHeader("Subagents")?.textContent).toBe("Subagents · 1 running (1)");
 });
 
 it("shows readable models and only differing workspace details in agent tooltips", async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   state.showTooltips = true;
   const parent = {
     id: "parent",
@@ -961,20 +920,20 @@ it("shows readable models and only differing workspace details in agent tooltips
       threadId={ThreadId.make("parent")}
     />
   );
-  await act(async () => {
-    renderer = create(panel);
-  });
-  const text = (visibleOnly = false) => {
-    const read = (node: ReactTestInstance | string): string => {
-      if (typeof node === "string") return node;
-      if (visibleOnly && node.props.className === "sr-only") return "";
-      return node.children.map(read).join("");
-    };
-    return read(renderer.root);
-  };
+  await render(panel);
+  const text = (visibleOnly = false) => textNodes("", visibleOnly);
   const rerender = async (source = child) => {
-    state.shells = [{ environmentId: "test", source: { ...source } }];
-    await act(async () => renderer.update(cloneElement(panel)));
+    // Fresh objects, as real shells are: the compiled component memoizes on identity.
+    state.shells = [
+      {
+        environmentId: "test",
+        source: {
+          ...source,
+          modelSelection: { ...source.modelSelection, options: source.modelSelection.options },
+        },
+      },
+    ];
+    await update();
   };
   const nativeProjection = {
     ...projection,
@@ -982,11 +941,11 @@ it("shows readable models and only differing workspace details in agent tooltips
   };
   expect(text()).toContain("My GPT · high");
   state.projection = nativeProjection;
-  await act(async () => renderer.update(cloneElement(panel)));
+  await update();
   expect(text()).toContain("My GPT");
   expect(text()).not.toContain("My GPT · high");
   state.projection = projection;
-  await act(async () => renderer.update(cloneElement(panel)));
+  await update();
   expect(text()).not.toContain("Tokens");
   expect(text()).not.toContain("Open subagent");
   expect(text()).not.toContain("Project");
@@ -1005,7 +964,7 @@ it("shows readable models and only differing workspace details in agent tooltips
       ...projection,
       subagents: [{ ...projection.subagents[0], model }],
     };
-    await act(async () => renderer.update(cloneElement(panel)));
+    await update();
     expect(text()).toContain(expected);
     if (!model?.trim() || model === "gpt-5.5" || model === "custom/model-v1") {
       expect(text()).not.toContain(" · high");
@@ -1030,7 +989,7 @@ it("shows readable models and only differing workspace details in agent tooltips
       ...projection,
       subagents: [{ ...projection.subagents[0], driver, model: null }],
     };
-    await act(async () => renderer.update(cloneElement(panel)));
+    await update();
     expect(text()).toContain("Not reported");
     expect(text()).not.toContain("My GPT");
   }
@@ -1156,7 +1115,7 @@ it("shows readable models and only differing workspace details in agent tooltips
   expect(text()).toContain("My GPT · Work account · Fast mode onhigh");
   expect(text()).not.toContain("Personal account");
   state.projection = nativeProjection;
-  await act(async () => renderer.update(cloneElement(panel)));
+  await update();
   expect(text()).not.toMatch(/Fast|Ultrafast|Normal|Standard|Flex| · high/);
   state.projection = projection;
   for (const modelSelection of [
@@ -1186,18 +1145,14 @@ it("shows readable models and only differing workspace details in agent tooltips
         },
       ],
     };
-    await act(async () => renderer.update(cloneElement(panel)));
+    await update();
     if (status === "completed") {
-      await act(async () =>
-        renderer.root.findByProps({ type: "button", "aria-expanded": false }).props.onClick(),
-      );
+      await click(sectionToggle(false));
     }
     expect(text()).toContain("My GPT · Work account · Ultrafast mode onlow");
     expect(text()).not.toContain(" · high");
   }
-  await act(async () =>
-    renderer.root.findByProps({ type: "button", "aria-expanded": true }).props.onClick(),
-  );
+  await click(sectionToggle(true));
   state.projection = projection;
   state.configs.set("test", speedConfig);
   child.modelSelection.options = [{ id: "reasoningEffort", value: "high" }];
@@ -1205,7 +1160,7 @@ it("shows readable models and only differing workspace details in agent tooltips
   expect(text()).not.toContain("My GPT ·");
   const config = state.configs.get("test");
   state.configs.clear();
-  await act(async () => renderer.update(cloneElement(panel)));
+  await update();
   expect(text()).toContain("GPT-5.4");
   expect(text()).not.toContain("GPT-5.4 ·");
   await rerender();
@@ -1233,7 +1188,7 @@ it("shows readable models and only differing workspace details in agent tooltips
       },
     ],
   };
-  await act(async () => renderer.update(cloneElement(panel)));
+  await update();
   expect(text()).toContain("Checking the latest changes");
   expect(text()).not.toContain("Old intermediate result");
   const result = "Final checks passed. " + "More detail. ".repeat(50) + "Hidden tail";
@@ -1243,10 +1198,8 @@ it("shows readable models and only differing workspace details in agent tooltips
       { ...projection.subagents[0], status: "failed", progress: "Stale progress", result },
     ],
   };
-  await act(async () => renderer.update(cloneElement(panel)));
-  await act(async () =>
-    renderer.root.findByProps({ type: "button", "aria-expanded": false }).props.onClick(),
-  );
+  await update();
+  await click(sectionToggle(false));
   expect(text()).toContain("Final checks passed.");
   expect(text()).not.toContain("Stale progress");
   expect(text()).not.toContain("Hidden tail");
@@ -1280,7 +1233,7 @@ it("shows readable models and only differing workspace details in agent tooltips
 
   state.shells = [];
   state.configs.clear();
-  await act(async () => renderer.update(cloneElement(panel)));
+  await update();
   expect(text()).toContain("GPT-5.4");
   expect(text()).not.toContain("GPT-5.4 ·");
   expect(text()).not.toContain("gpt-5.4");
@@ -1302,13 +1255,12 @@ it("shows readable models and only differing workspace details in agent tooltips
       ...projection,
       subagents: [{ ...projection.subagents[0], driver, model }],
     };
-    await act(async () => renderer.update(cloneElement(panel)));
+    await update();
     expect(text()).toContain(expected);
   }
 });
 
 it("shows the parent's own visible status as parent and child activity change", async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const environmentId = EnvironmentId.make("test");
   const parent = {
     id: "parent",
@@ -1339,21 +1291,15 @@ it("shows the parent's own visible status as parent and child activity change", 
   const panel = (
     <ThreadRelationshipsPanel environmentId={environmentId} threadId={ThreadId.make("child")} />
   );
-  await act(async () => {
-    renderer = create(panel);
-  });
-  const visibleText = () =>
-    renderer.root
-      .findAll((node) => typeof node.type === "string" && node.props.className !== "sr-only")
-      .flatMap((node) => node.children.filter((child) => typeof child === "string"))
-      .join(" ");
+  await render(panel);
+  const visibleText = () => textNodes(" ", true);
   expect(visibleText()).toContain("Parent conversation");
   expect(visibleText()).toContain("Running");
   state.shells = shells(
     { ...parent, activityRunStatus: "completed" },
     { ...child, status: "running" },
   );
-  await act(async () => renderer.update(cloneElement(panel)));
+  await update();
   expect(visibleText()).toContain("Done");
   expect(visibleText()).not.toContain("Running");
 });
@@ -1361,7 +1307,6 @@ it("shows the parent's own visible status as parent and child activity change", 
 it.each(["source", "target"])(
   "shows transfer lifecycle states when viewing the %s thread",
   async (currentThreadId) => {
-    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     const environmentId = EnvironmentId.make("test");
     const threads = ["source", "target"].map((id) => ({
       id,
@@ -1397,14 +1342,9 @@ it.each(["source", "target"])(
         subagents: [],
         contextTransfers: [{ sourceThreadId: "source", targetThreadId: "target", status }],
       };
-      await act(async () => {
-        if (status === "pending") renderer = create(panel);
-        else renderer.update(cloneElement(panel));
-      });
-      const visibleText = renderer.root
-        .findAll((node) => typeof node.type === "string")
-        .flatMap((node) => node.children.filter((child) => typeof child === "string"))
-        .join(" ");
+      if (status === "pending") await render(panel);
+      else await update();
+      const visibleText = textNodes(" ");
       expect(visibleText).toContain(
         currentThreadId === "source" ? "target conversation" : "source conversation",
       );
