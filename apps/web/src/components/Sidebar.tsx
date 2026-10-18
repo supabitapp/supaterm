@@ -1051,18 +1051,25 @@ type SortableThreadRowBag = Pick<
 const SIDEBAR_SORTABLE_DRAG_DISABLED = { draggable: true } as const;
 const SIDEBAR_SORTABLE_DRAG_ENABLED = { draggable: false } as const;
 
-function SortableThreadRow(props: {
-  id: string;
-  disabled: boolean;
-  contextDrag: boolean;
-  environmentId: EnvironmentId;
-  children: (bag: SortableThreadRowBag) => ReactNode;
-}) {
-  const canOperateThread = useEnvironmentScope(props.environmentId, AuthOrchestrationOperateScope);
+// Takes the row's props rather than a render function: a closure from the
+// sidebar body is new on every sidebar render, which rebuilt the bag and
+// re-rendered every memoized row with it.
+function SortableThreadRow(
+  props: Omit<SidebarThreadRowProps, "sortable"> & {
+    sortableId: string;
+    sortableDisabled: boolean;
+    contextDrag: boolean;
+  },
+) {
+  const { sortableId, sortableDisabled, contextDrag, ...rowProps } = props;
+  const canOperateThread = useEnvironmentScope(
+    rowProps.thread.environmentId,
+    AuthOrchestrationOperateScope,
+  );
   const { listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: props.id,
+    id: sortableId,
     disabled:
-      props.disabled || !canOperateThread
+      sortableDisabled || !canOperateThread
         ? SIDEBAR_SORTABLE_DRAG_DISABLED
         : SIDEBAR_SORTABLE_DRAG_ENABLED,
     animateLayoutChanges: animateSidebarLayoutChanges,
@@ -1072,11 +1079,11 @@ function SortableThreadRow(props: {
   const bag = {
     listeners,
     setNodeRef,
-    transform: props.contextDrag ? null : transform,
-    transition: props.contextDrag && isDragging ? "transform 150ms ease-out" : transition,
-    isDragging: isDragging && !props.contextDrag,
+    transform: contextDrag ? null : transform,
+    transition: contextDrag && isDragging ? "transform 150ms ease-out" : transition,
+    isDragging: isDragging && !contextDrag,
   };
-  return props.children(bag);
+  return <SidebarThreadRow {...rowProps} sortable={bag} />;
 }
 
 // The pen identifies unsent work on both draft sessions and existing threads.
@@ -1526,7 +1533,7 @@ function toastThreadActionFailure(title: string, result: AtomCommandResult<unkno
   );
 }
 
-const SidebarThreadRow = memo(function SidebarThreadRow(props: {
+type SidebarThreadRowProps = {
   thread: SidebarThreadSummary;
   // Done rows reopen, snoozed rows wake, and active rows become done.
   variantAction: SidebarSweepAction;
@@ -1578,7 +1585,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
   onUnpin: (threadRef: ScopedThreadRef) => void;
   onAcknowledgeWoke: (threadRef: ScopedThreadRef, visitedAt: string) => void;
   onFileDropThreads?: ((threadRef: ScopedThreadRef, files: File[]) => void) | undefined;
-}) {
+};
+
+const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowProps) {
   const {
     isRenaming,
     onCancelRename,
@@ -4417,18 +4426,25 @@ export default function Sidebar() {
                   )}
                 >
                   {(() => {
-                    const renderThreadRowInner = (
+                    const renderThreadRow = (
                       thread: EnvironmentThreadShell,
                       section: SidebarSection,
-                      sortable?: SortableThreadRowBag,
                     ) => {
                       const threadKey = scopedThreadKey(
                         scopeThreadRef(thread.environmentId, thread.id),
                       );
                       const isActive = routeThreadKey === threadKey;
                       return (
-                        <SidebarThreadRow
+                        <SortableThreadRow
                           key={threadKey}
+                          sortableId={threadKey}
+                          contextDrag={isContextDrag}
+                          sortableDisabled={
+                            renamingThreadKey === threadKey ||
+                            section === "working" ||
+                            !draggableThreadKeys.has(threadKey) ||
+                            optimisticDrop !== null
+                          }
                           thread={thread}
                           // Snoozed rows wake, done rows reopen, and active rows become done.
                           variantAction={
@@ -4442,7 +4458,6 @@ export default function Sidebar() {
                           snoozeSupported={serverConfigs.has(thread.environmentId)}
                           pinningSupported={serverConfigs.has(thread.environmentId)}
                           isPinned={thread.pinnedAt != null}
-                          sortable={sortable}
                           dropVerb={
                             dragState?.activeKey === threadKey
                               ? resolveSidebarDropVerb(dragState.activeSection, dragTargetSection)
@@ -4506,30 +4521,6 @@ export default function Sidebar() {
                           onAcknowledgeWoke={acknowledgeWoke}
                           onFileDropThreads={handleThreadFileDrop}
                         />
-                      );
-                    };
-                    const renderThreadRow = (
-                      thread: EnvironmentThreadShell,
-                      section: SidebarSection,
-                    ) => {
-                      const threadKey = scopedThreadKey(
-                        scopeThreadRef(thread.environmentId, thread.id),
-                      );
-                      return (
-                        <SortableThreadRow
-                          key={threadKey}
-                          id={threadKey}
-                          environmentId={thread.environmentId}
-                          contextDrag={isContextDrag}
-                          disabled={
-                            renamingThreadKey === threadKey ||
-                            section === "working" ||
-                            !draggableThreadKeys.has(threadKey) ||
-                            optimisticDrop !== null
-                          }
-                        >
-                          {(bag) => renderThreadRowInner(thread, section, bag)}
-                        </SortableThreadRow>
                       );
                     };
                     const from = isContextDrag ? null : (dragState?.activeSection ?? null);
