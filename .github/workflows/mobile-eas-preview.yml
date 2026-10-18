@@ -2,20 +2,23 @@ name: Mobile Preview
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize]
+    types: [opened, reopened, synchronize, labeled]
 
 permissions:
   contents: read
-
-concurrency:
-  group: mobile-eas-preview-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
 
 jobs:
   preview:
     name: Mobile preview ${{ matrix.platform }}
     # Only collaborators can push same-repo branches; fork PRs get no secrets on pull_request.
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: |
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.state == 'open' &&
+      contains(github.event.pull_request.labels.*.name, '🚀 Mobile Continuous Deployment') &&
+      (github.event.action != 'labeled' || github.event.label.name == '🚀 Mobile Continuous Deployment')
+    concurrency:
+      group: mobile-eas-preview-${{ github.event.pull_request.number }}-${{ matrix.platform }}
+      cancel-in-progress: true
     strategy:
       fail-fast: false
       matrix:
@@ -150,7 +153,7 @@ jobs:
           script: |
             const platform = process.env.MOBILE_PLATFORM;
             const marker = `### Mobile preview: ${platform}`;
-            const body = `${marker}\n\n[Install the development build](${process.env.MOBILE_BUILD_URL}), then open the PR update from the [update page](https://expo.dev/accounts/supabitapp/projects/supaterm/updates/${process.env.MOBILE_UPDATE_GROUP}).\n\nBuilt for ${process.env.PR_HEAD_SHA}. New commits generate previews automatically.`;
+            const body = `${marker}\n\n[Install the development build](${process.env.MOBILE_BUILD_URL}), then open the PR update from the [update page](https://expo.dev/accounts/supabitapp/projects/supaterm/updates/${process.env.MOBILE_UPDATE_GROUP}).\n\nBuilt for ${process.env.PR_HEAD_SHA}. New commits generate previews while the 🚀 Mobile Continuous Deployment label remains applied.`;
             const comments = await github.paginate(github.rest.issues.listComments, {
               ...context.repo, issue_number: context.issue.number, per_page: 100,
             });

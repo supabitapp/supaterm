@@ -141,6 +141,11 @@ Workflows that build PR code use `pull_request`, then `workflow_run` from `main`
 credentials. Mobile Preview needs signing credentials in the build itself, so it runs only for
 branches in this repository.
 
+Mobile previews are opt-in to conserve Expo's upload allowance. Apply the
+`🚀 Mobile Continuous Deployment` label to start previews. Later pushes reuse a recorded build
+with a matching native fingerprint, compiling and uploading only when none exists. Remove the
+label to stop previews on future pushes; a build already running continues.
+
 ## Required release credentials
 
 Store `OP_SERVICE_ACCOUNT_TOKEN` in the GitHub `release` environment. Its read-only 1Password service
