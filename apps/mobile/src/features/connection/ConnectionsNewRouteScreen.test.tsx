@@ -159,6 +159,20 @@ describe("QR pairing", () => {
     expect(state.goBack).not.toHaveBeenCalled();
   });
 
+  it("returns to the opener after a dev pairing link connects", async () => {
+    vi.stubGlobal("__DEV__", true);
+    state.onConnectPress.mockResolvedValue(AsyncResult.success(null));
+    await act(() => {
+      renderer = create(
+        <ConnectionsNewRouteScreen route={{ params: { pairingUrl, autoConnect: "1" } }} />,
+      );
+    });
+
+    expect(state.onConnectPress).toHaveBeenCalledExactlyOnceWith(pairingUrl, undefined);
+    expect(state.goBack).toHaveBeenCalledTimes(1);
+    expect(state.dispatch).not.toHaveBeenCalled();
+  });
+
   it("keeps a failed route pairing open and accepts a fresh scan", async () => {
     const environmentId = EnvironmentId.make("machine");
     const result = deferredResult();

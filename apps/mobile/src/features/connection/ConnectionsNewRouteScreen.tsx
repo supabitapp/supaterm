@@ -141,7 +141,7 @@ export function ConnectionsNewRouteScreen({
   }, [isSubmitting, requestCameraPermission]);
 
   const connectAndClose = useCallback(
-    async (pairingUrl: string, replaceWithHome: boolean) => {
+    async (pairingUrl: string) => {
       setIsSubmitting(true);
       onChangeConnectionPairingUrl(pairingUrl);
       const connect = async () => {
@@ -152,7 +152,9 @@ export function ConnectionsNewRouteScreen({
             : Haptics.NotificationFeedbackType.Error,
         );
         if (AsyncResult.isSuccess(result)) {
-          if (replaceWithHome || !navigation.canGoBack()) {
+          // Return to whatever opened the sheet. Replacing it with Home would
+          // nest Home inside any sheet still below it.
+          if (!navigation.canGoBack()) {
             navigation.dispatch(StackActions.replace("Home"));
           } else {
             navigation.goBack();
@@ -180,7 +182,7 @@ export function ConnectionsNewRouteScreen({
         setCodeInput(code);
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         setScanComplete(true);
-        void connectAndClose(pairingUrl, false);
+        void connectAndClose(pairingUrl);
       } catch (error) {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Dialog.alert(
@@ -196,7 +198,7 @@ export function ConnectionsNewRouteScreen({
   );
 
   const handleSubmit = useCallback(async () => {
-    await connectAndClose(pairingUrlForFields(hostInput, codeInput, originalPairingUrl), false);
+    await connectAndClose(pairingUrlForFields(hostInput, codeInput, originalPairingUrl));
   }, [codeInput, connectAndClose, hostInput, originalPairingUrl]);
 
   useEffect(() => {
@@ -205,7 +207,7 @@ export function ConnectionsNewRouteScreen({
     }
 
     attemptedAutoConnectRef.current = routePairingUrl;
-    void connectAndClose(routePairingUrl, true);
+    void connectAndClose(routePairingUrl);
   }, [connectAndClose, routePairingUrl, shouldAutoConnect]);
 
   return (
