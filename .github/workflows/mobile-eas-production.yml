@@ -203,9 +203,28 @@ jobs:
         working-directory: apps/mobile
         run: |
           version=$(npx expo config --json --type public | jq -er '.version')
-          fingerprint=$(eas fingerprint:generate --platform "$MOBILE_PLATFORM" --environment production --json --non-interactive | sed -n '/^{/,$p' | jq -er '.hash')
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+          fingerprint_json=$(eas fingerprint:generate --platform "$MOBILE_PLATFORM" --environment production --json --non-interactive | sed -n '/^{/,$p')
+          fingerprint=$(jq -er '.hash' <<< "$fingerprint_json")
+          reason=expoAutolinkingAndroid
+          if [ "$MOBILE_PLATFORM" = ios ]; then reason=expoAutolinkingIos; fi
+          expo_modules=$(jq --arg reason "$reason" '[.sources[] | select((.reasons // []) | index($reason))] | length' <<< "$fingerprint_json")
+          {
+            echo "version=$version"
+            echo "fingerprint=$fingerprint"
+            echo "expo_modules=$expo_modules"
+          } >> "$GITHUB_OUTPUT"
+      # @expo/fingerprint swallows autolinking errors and returns no Expo module
+      # sources, so native changes stop moving the hash and OTAs reach binaries
+      # that lack them. Stop before any OTA from such a fingerprint.
+      - name: Verify the fingerprint hashes Expo native modules
+        if: github.event_name == 'push' || inputs.mode == 'update'
+        env:
+          EXPO_MODULES: ${{ steps.config.outputs.expo_modules }}
+        run: |
+          if [ "${EXPO_MODULES:-0}" -eq 0 ]; then
+            echo ":x: $MOBILE_PLATFORM: the native fingerprint hashes no Expo native modules; stopped before any OTA." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
       - id: history
         name: Find completed builds
         uses: actions/github-script@v8
