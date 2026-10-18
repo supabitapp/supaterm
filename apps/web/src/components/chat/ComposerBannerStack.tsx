@@ -457,7 +457,7 @@ function ComposerBannerStackAlert({
       density="comfortable"
       {...presence}
     >
-      <ComposerBanner.Row layout="wrap-actions">
+      <ComposerBanner.Row layout={item.priority === "activity" ? "inline" : "wrap-actions"}>
         <ComposerBanner.Icon
           className="h-(--composer-banner-icon-column) self-start"
           aria-hidden={item.iconInteractive ? undefined : true}
