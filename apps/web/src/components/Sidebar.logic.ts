@@ -663,9 +663,9 @@ export function useThreadJumpHintVisibility(): {
     };
   }, []);
 
-  const updateThreadJumpHintsVisibility = React.useCallback((shouldShow: boolean) => {
+  const updateThreadJumpHintsVisibility = (shouldShow: boolean) => {
     controllerRef.current?.sync(shouldShow);
-  }, []);
+  };
 
   return {
     showThreadJumpHints,
