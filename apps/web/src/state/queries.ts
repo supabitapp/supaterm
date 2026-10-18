@@ -26,7 +26,7 @@ import type {
 import * as Cause from "effect/Cause";
 import * as Option from "effect/Option";
 import { AsyncResult, Atom } from "effect/reactivity";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { useFilesystemReadAccess } from "./filesystem";
@@ -90,10 +90,8 @@ export function useThreadSearch(
   const debouncedQuery = useDebouncedValue(normalizedQuery, THREAD_SEARCH_DEBOUNCE_MS);
   const canSearch = environmentIds.length > 0 && normalizedQuery.length >= 2;
   const settledQuery = canSearch && normalizedQuery === debouncedQuery ? debouncedQuery : null;
-  const searchKey = useMemo(
-    () => (settledQuery === null ? null : makeThreadSearchKey(environmentIds, settledQuery)),
-    [environmentIds, settledQuery],
-  );
+  const searchKey =
+    settledQuery === null ? null : makeThreadSearchKey(environmentIds, settledQuery);
   const result = useAtomValue(
     searchKey === null ? EMPTY_THREAD_SEARCH_ATOM : threadSearchResultsAtom(searchKey),
   );
@@ -106,53 +104,45 @@ export function useThreadSearch(
 }
 
 export function usePaginatedBranches(target: VcsRefTarget) {
-  const query = target.query?.trim() ?? "";
-  const targetKey =
-    target.environmentId !== null && target.cwd !== null
-      ? JSON.stringify([target.environmentId, target.cwd, query])
-      : null;
+  // Starts unkeyed: a key mismatch already resolves to the initial cursors, and seeding
+  // the key here would make every derivation below straddle this hook call.
   const [pagination, setPagination] = useState<{
     readonly targetKey: string | null;
     readonly cursors: ReadonlyArray<number | undefined>;
   }>({
-    targetKey,
+    targetKey: null,
     cursors: INITIAL_BRANCH_CURSORS,
   });
+  const { environmentId, cwd } = target;
+  const query = target.query?.trim() ?? "";
+  const targetKey =
+    environmentId !== null && cwd !== null ? JSON.stringify([environmentId, cwd, query]) : null;
   const cursors = pagination.targetKey === targetKey ? pagination.cursors : INITIAL_BRANCH_CURSORS;
-  const pageAtoms = useMemo(
-    () =>
-      target.environmentId !== null && target.cwd !== null
-        ? cursors.map((cursor) =>
-            vcsEnvironment.listRefs({
-              environmentId: target.environmentId!,
-              input: {
-                cwd: target.cwd!,
-                ...(query.length > 0 ? { query } : {}),
-                ...(cursor === undefined ? {} : { cursor }),
-                limit: VCS_REF_LIST_LIMIT,
-              },
-            }),
-          )
-        : [],
-    [cursors, query, target.cwd, target.environmentId],
-  );
-  const pagesAtom = useMemo(
-    () =>
-      Atom.make((get) => pageAtoms.map((atom) => get(atom))).pipe(
-        Atom.withLabel(`web:vcs-ref-pages:${targetKey ?? "empty"}`),
-      ),
-    [pageAtoms, targetKey],
+  const pageAtoms =
+    environmentId !== null && cwd !== null
+      ? cursors.map((cursor) =>
+          vcsEnvironment.listRefs({
+            environmentId,
+            input: {
+              cwd,
+              ...(query.length > 0 ? { query } : {}),
+              ...(cursor === undefined ? {} : { cursor }),
+              limit: VCS_REF_LIST_LIMIT,
+            },
+          }),
+        )
+      : [];
+  const pagesAtom = Atom.make((get) => pageAtoms.map((atom) => get(atom))).pipe(
+    Atom.withLabel(`web:vcs-ref-pages:${targetKey ?? "empty"}`),
   );
   const results = useAtomValue(pagesAtom);
   const refsCacheState = useAtomValue(
-    target.environmentId === null
-      ? EMPTY_VCS_REFS_STATE_ATOM
-      : vcsRefsCacheStateAtom({ environmentId: target.environmentId }),
+    environmentId === null ? EMPTY_VCS_REFS_STATE_ATOM : vcsRefsCacheStateAtom({ environmentId }),
   );
   const liveRevision = useAtomValue(
-    target.environmentId === null || target.cwd === null
+    environmentId === null || cwd === null
       ? EMPTY_VCS_REFS_LIVE_REVISION_ATOM
-      : vcsRefsLiveRevisionAtom({ environmentId: target.environmentId, cwd: target.cwd }),
+      : vcsRefsLiveRevisionAtom({ environmentId, cwd }),
   );
   const values = results.flatMap((result) => {
     const value = Option.getOrNull(AsyncResult.value(result));
@@ -187,15 +177,15 @@ export function usePaginatedBranches(target: VcsRefTarget) {
             : "Failed to load refs.";
         })()
       : null;
-  const refresh = useCallback(() => {
+  const refresh = () => {
     const firstPage = pageAtoms[0];
     setPagination({ targetKey, cursors: INITIAL_BRANCH_CURSORS });
     if (firstPage !== undefined) {
       appAtomRegistry.refresh(firstPage);
     }
-  }, [pageAtoms, targetKey]);
+  };
   const nextCursor = data?.nextCursor;
-  const loadNext = useCallback(() => {
+  const loadNext = () => {
     if (targetKey === null || nextCursor === null || nextCursor === undefined) {
       return;
     }
@@ -206,7 +196,7 @@ export function usePaginatedBranches(target: VcsRefTarget) {
         ? { targetKey, cursors: currentCursors }
         : { targetKey, cursors: [...currentCursors, nextCursor] };
     });
-  }, [nextCursor, targetKey]);
+  };
 
   return {
     data,
@@ -244,16 +234,13 @@ export function useProjectPathSearch(
   options?: { readonly allowEmptyQuery?: boolean },
 ) {
   const allowEmptyQuery = options?.allowEmptyQuery === true;
-  const normalizedTarget = useMemo(
-    () => ({
-      environmentId: target.environmentId,
-      cwd: target.cwd,
-      query: target.query == null ? null : target.query.trim(),
-      kind: target.kind,
-      imageOnly: target.imageOnly,
-    }),
-    [target.cwd, target.environmentId, target.imageOnly, target.kind, target.query],
-  );
+  const normalizedTarget = {
+    environmentId: target.environmentId,
+    cwd: target.cwd,
+    query: target.query == null ? null : target.query.trim(),
+    kind: target.kind,
+    imageOnly: target.imageOnly,
+  };
   const debouncedTarget = useDebouncedValue(normalizedTarget, PROJECT_PATH_SEARCH_DEBOUNCE_MS);
   const fileAccess = useFilesystemReadAccess(debouncedTarget.environmentId);
   const { canReadFiles } = fileAccess;
