@@ -5,7 +5,7 @@ on:
     paths:
       - .github/scripts/*play-credentials*
       - .github/scripts/mobile-store-*
-      - .github/workflows/mobile-*.yml
+      - .github/workflows/mobile-store-review-check.yml
       - apps/mobile/Gemfile*
       - apps/mobile/fastlane/**
       - scripts/mobile-store-*
@@ -15,7 +15,7 @@ on:
     paths:
       - .github/scripts/*play-credentials*
       - .github/scripts/mobile-store-*
-      - .github/workflows/mobile-*.yml
+      - .github/workflows/mobile-store-review-check.yml
       - apps/mobile/Gemfile*
       - apps/mobile/fastlane/**
       - scripts/mobile-store-*

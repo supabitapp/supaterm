@@ -43,6 +43,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-mise
+        with:
+          cache: false
       - id: artifacts
         name: Verify the production workflow and available builds
         uses: actions/github-script@v8
@@ -116,6 +118,8 @@ jobs:
           persist-credentials: false
           ref: ${{ inputs.review_ref || inputs.source_sha }}
       - uses: ./.github/actions/setup-mise
+        with:
+          cache: false
       - name: Install asset tooling
         run: mise exec -- vp install --filter=@supaterm/scripts...
       - name: Download captured screenshots

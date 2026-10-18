@@ -87,6 +87,8 @@ jobs:
       - name: Setup Mise
         if: steps.expo-token.outputs.present == 'true'
         uses: ./.github/actions/setup-mise
+        with:
+          cache: false
 
       - name: Load release App credentials for version override
         if: steps.expo-token.outputs.present == 'true' && github.event_name == 'workflow_dispatch' && inputs.mode == 'build' && inputs.version != ''
@@ -201,10 +203,12 @@ jobs:
         with:
           token: ${{ secrets.EXPO_TOKEN }}
           environment: production
+          cache: false
       - id: config
         name: Resolve native fingerprint and app version
         working-directory: apps/mobile
         run: |
+          set -o pipefail
           version=$(npx expo config --json --type public | jq -er '.version')
           fingerprint=$(eas fingerprint:generate --platform "$MOBILE_PLATFORM" --environment production --json --non-interactive | sed -n '/^{/,$p' | jq -er '.hash')
           echo "version=$version" >> "$GITHUB_OUTPUT"

@@ -139,12 +139,6 @@ jobs:
             throw "Windows ARM builds must use the pinned PowerShell runtime"
           }
 
-      # Windows installs straight from the registry. There, linking the packages
-      # takes the time, not downloading them, so a ~700 MB package cache did not
-      # pay for its own restore. Across recent nightlies, restore plus install
-      # took 183-233s on arm64 and 116-172s on x64, while a plain install took
-      # 142-210s and 84-160s. The arm64 entries also filled 4 GB of the
-      # repository's 10 GB Actions cache.
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
         with:
@@ -158,6 +152,12 @@ jobs:
           name: release-dependency-verification
           path: ${{ runner.temp }}/pnpm-metadata
 
+      # Windows installs straight from the registry. There, linking the packages
+      # takes the time, not downloading them, so a ~700 MB package cache did not
+      # pay for its own restore. Across recent nightlies, restore plus install
+      # took 183-233s on arm64 and 116-172s on x64, while a plain install took
+      # 142-210s and 84-160s. The arm64 entries also filled 4 GB of the
+      # repository's 10 GB Actions cache.
       - name: Install desktop dependencies
         env:
           pnpm_config_cache_dir: ${{ runner.temp }}/pnpm-metadata

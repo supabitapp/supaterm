@@ -92,6 +92,8 @@ jobs:
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
+        with:
+          cache: false
       - name: Download and validate static assets
         if: github.event_name == 'workflow_run'
         env:

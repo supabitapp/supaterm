@@ -5,7 +5,7 @@ rules:
 
 ignores:
   - rule: [dangerous-triggers, concurrency-limits]
-    file: .github/workflows/*-preview-publish.yml
+    file: .github/workflows/{web,desktop-macos}-preview-publish.yml
     reason: Trusted half of a PR preview. It runs only main's code, publishes only for vouched authors, and serializes per PR in job-level groups.
   - rule: dangerous-triggers
     file: .github/workflows/pr-size.yml
@@ -25,3 +25,6 @@ ignores:
   - rule: superfluous-actions
     uses: softprops/action-gh-release
     reason: A rerun updates the existing release and replaces its assets, which gh release create does not do.
+  - rule: unpinned-images
+    file: .github/workflows/publish-aur.yml
+    reason: Arch is rolling and the job upgrades the whole image with pacman -Syu; a pinned digest would only age its keyring with nothing to bump it.
