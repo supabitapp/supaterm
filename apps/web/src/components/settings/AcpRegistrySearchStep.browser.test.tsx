@@ -167,10 +167,13 @@ it("shows the loading, error, and empty states", async () => {
 
 it("submits a typed query at once and refreshes when the same query is submitted again", async () => {
   await render();
+  // Hold the typing debounce so a slow run cannot settle the query before Enter submits it.
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   await userEvent.fill(searchBox(), "Codex");
   await userEvent.keyboard("{Enter}");
   expect(lastQuery()).toBe("Codex");
   expect(state.refresh).not.toHaveBeenCalled();
+  vi.useRealTimers();
 
   state.result = { agents: [gemini] };
   await render();
