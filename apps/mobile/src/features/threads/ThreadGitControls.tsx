@@ -19,6 +19,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { useCallback, useMemo } from "react";
 import { useEnvironmentScope } from "../../state/session";
+import { PullRequestGlyph } from "../pull-requests/pullRequestGlyphs";
 import {
   basename,
   getTerminalStatusLabel,
@@ -386,7 +387,7 @@ function useThreadGitHeaderActionItems(props: ThreadGitControlsProps) {
               ? [
                   {
                     description: "Bring this thread's latest turn into its source",
-                    icon: { name: "arrow.triangle.merge", type: "sfSymbol" as const },
+                    icon: { name: PullRequestGlyph.merged, type: "sfSymbol" as const },
                     label: "Merge back to source",
                     onPress: props.onMergeBack,
                     type: "action" as const,

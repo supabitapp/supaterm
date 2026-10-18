@@ -1,8 +1,7 @@
 import type { ThreadPullRequestLink } from "@supaterm/contracts";
-import { resolveThreadPullRequestChains } from "@supaterm/shared/threadPullRequests";
 import { describe, expect, it } from "vite-plus/test";
 
-import { pullRequestListLines } from "./pullRequestListLines";
+import { pullRequestListLines, resolveThreadPullRequestChains } from "./threadPullRequests.ts";
 
 function link(
   number: number,

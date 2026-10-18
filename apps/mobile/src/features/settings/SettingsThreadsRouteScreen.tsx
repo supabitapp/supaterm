@@ -34,6 +34,7 @@ import {
   uniformMobileSetting,
   type ScopedMobileSettingsTarget,
 } from "./settings-scoped-server";
+import { PullRequestGlyph } from "../pull-requests/pullRequestGlyphs";
 
 export function SettingsThreadsRouteScreen() {
   const insets = useSafeAreaInsets();
@@ -230,7 +231,7 @@ function ThreadBehaviorSettingsRows() {
         ) : null}
         {afterDays !== null ? (
           <SettingsSwitchRow
-            icon="arrow.triangle.pull"
+            icon={PullRequestGlyph.pullRequest}
             label="Keep threads with an open PR"
             subtitle="Inactivity does not mark threads with an open pull request as Done."
             value={referenceSettings.sidebarAutoMarkDoneKeepPullRequests}

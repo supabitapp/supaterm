@@ -19,6 +19,7 @@ import { EnvironmentMachineIcon } from "./EnvironmentMachineIcon";
 import { useProject } from "../state/entities";
 import { environmentPresentations } from "../state/presentation";
 import {
+  pullRequestListLines,
   resolveThreadCurrentPullRequestLink,
   resolveThreadPullRequestChains,
   visibleThreadPullRequests,
@@ -52,7 +53,6 @@ import {
 import type { SidebarThreadSummary } from "../types";
 import { formatWorktreePathForDisplay } from "../worktreeCleanup";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
-import { pullRequestListLines } from "./pullRequest/pullRequestListLines";
 import {
   PULL_REQUEST_STATE_PRESENTATION,
   PullRequestGlyph,

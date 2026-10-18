@@ -44,6 +44,7 @@ import {
 } from "./commandPaletteItems";
 import { parseActiveThreadPath, type HardwareKeyboardCommand } from "./hardwareKeyboardCommands";
 import { threadJumpIndex } from "./threadKeyboardShortcuts";
+import { PullRequestGlyph } from "../pull-requests/pullRequestGlyphs";
 
 const PALETTE_COMMANDS: ReadonlyArray<HardwareKeyboardCommand> = [
   "commandPalette",
@@ -65,7 +66,7 @@ const ACTION_ICONS: Record<string, AppSymbolName> = {
   archive: "archivebox",
   files: "doc.text",
   terminal: "terminal",
-  review: "arrow.triangle.pull",
+  review: PullRequestGlyph.pullRequest,
   copyThreadReference: "link",
   forkThread: "arrow.triangle.branch",
 };

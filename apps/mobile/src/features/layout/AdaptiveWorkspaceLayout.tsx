@@ -70,6 +70,7 @@ import { AndroidWorkspaceSidebar } from "../workspace/AndroidWorkspaceSidebar";
 import { useAndroidWorkspaceSelection } from "../workspace/useAndroidWorkspaceSelection";
 import { HomeListOptionsProvider } from "../home/home-list-options";
 import { ThreadNavigationSidebar } from "../threads/ThreadNavigationSidebar";
+import { useOpenThreadPullRequests } from "../threads/use-open-thread-pull-requests";
 import { useStartNewTask } from "../threads/use-start-new-task";
 import { RenderErrorBoundary, RenderFailureView } from "../../components/RenderErrorBoundary";
 import { WORKSPACE_PANE_TIMING } from "./workspace-pane-animation";
@@ -477,6 +478,8 @@ function AdaptiveWorkspaceLayoutContent(
     });
   }, [navigation]);
 
+  const handleOpenThreadPullRequests = useOpenThreadPullRequests();
+
   const handleNewThreadOnBranch = useCallback(
     (thread: EnvironmentThreadShell) => {
       navigation.navigate("NewTaskSheet", {
@@ -799,6 +802,7 @@ function AdaptiveWorkspaceLayoutContent(
                           onNewThreadInProject={handleNewThreadInProject}
                           onNewThreadOnBranch={handleNewThreadOnBranch}
                           onSelectThread={handleSelectThread}
+                          onOpenThreadPullRequests={handleOpenThreadPullRequests}
                           onSearchQueryChange={setPrimarySidebarSearchQuery}
                           searchQuery={primarySidebarSearchQuery}
                         />

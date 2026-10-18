@@ -75,6 +75,7 @@ import {
   ThreadListV2WorkingShelfHeader,
 } from "./thread-list-v2-items";
 import { useThreadRowProviderInstanceResolver } from "./thread-provider-instance";
+import type { ThreadPrPresentation } from "../../state/thread-pr-presentation";
 import {
   buildThreadListV2ListItems,
   threadListV2ListItemsAreEqual,
@@ -121,6 +122,10 @@ interface ThreadNavigationSidebarProps {
   readonly onNewThreadInProject: (project: EnvironmentProject) => void;
   readonly onSearchQueryChange: (query: string) => void;
   readonly onSelectThread: (thread: EnvironmentThreadShell) => void;
+  readonly onOpenThreadPullRequests: (
+    thread: EnvironmentThreadShell,
+    pr: ThreadPrPresentation,
+  ) => void;
   readonly onRequestVisibility: () => void;
   readonly searchQuery: string;
 }
@@ -508,13 +513,20 @@ function ThreadNavigationSidebarPane(
       openSwipeableRef.current = null;
     }
   }, []);
-  const { onSelectThread } = props;
+  const { onSelectThread, onOpenThreadPullRequests } = props;
   const handleSelectThread = useCallback(
     (thread: EnvironmentThreadShell) => {
       onSelectThread(thread);
       openSwipeableRef.current?.close();
     },
     [onSelectThread],
+  );
+  const handleOpenThreadPullRequests = useCallback(
+    (thread: EnvironmentThreadShell, pr: ThreadPrPresentation) => {
+      onOpenThreadPullRequests(thread, pr);
+      openSwipeableRef.current?.close();
+    },
+    [onOpenThreadPullRequests],
   );
   const handleScrollBeginDrag = useCallback(() => {
     openSwipeableRef.current?.close();
@@ -653,6 +665,7 @@ function ThreadNavigationSidebarPane(
               }
               fullSwipeWidth={props.width - 20}
               onSelectThread={handleSelectThread}
+              onOpenThreadPullRequests={handleOpenThreadPullRequests}
               onDeleteThread={confirmDeleteThread}
               onArchiveThread={archiveThread}
               onRenameThread={renameThread}
@@ -743,6 +756,7 @@ function ThreadNavigationSidebarPane(
       archiveThread,
       confirmDeletePendingTask,
       confirmDeleteThread,
+      handleOpenThreadPullRequests,
       handleSelectThread,
       handleSwipeableClose,
       handleSwipeableWillOpen,
