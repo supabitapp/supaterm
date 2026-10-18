@@ -1,3 +1,7 @@
+import {
+  applyPullRequestDraftFilterChange,
+  parsePullRequestQuery,
+} from "@supaterm/client-runtime/pull-request-query";
 import { WorkspaceDock } from "../workspace/WorkspaceDock";
 import { WorkspaceHeaderActions } from "../workspace/WorkspaceHeaderActions";
 import { useStartNewTask } from "../threads/use-start-new-task";
@@ -5,7 +9,6 @@ import { LegendList, type LegendListRef } from "@legendapp/list/react-native";
 import { useNavigation } from "@react-navigation/native";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sortProjectsByGroupOrder } from "@supaterm/client-runtime/state/project-grouping";
-import { ProjectId } from "@supaterm/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import {
   Keyboard,
@@ -36,10 +39,10 @@ import { usePullRequestListActions } from "./usePullRequestListActions";
 import {
   filterPullRequestList,
   pullRequestListFacets,
+  pullRequestListInput,
   pullRequestListRowsAreEqual,
   scopedPullRequestListKey as pullRequestKey,
   type EnvironmentPullRequestListEntry,
-  PR_LIST_PAGE_SIZE,
   withoutScratchProjectScope,
 } from "./pullRequestList";
 import { useDebouncedValue } from "../../state/queries";
@@ -86,6 +89,8 @@ export function PullRequestsScreen(
   );
   const debouncedQuery = useDebouncedValue(tab.query.trim(), 180);
   const query = tab.searchMode === "resting" ? "" : debouncedQuery;
+  const typedQuery = tab.searchMode === "resting" ? "" : tab.query;
+  const typedDraft = parsePullRequestQuery(typedQuery).filters.draft;
   const listControls = usePullRequestListControls();
   const selectedEnvironmentId = listControls.environmentId;
   const environmentId = environments.some((item) => item.environmentId === selectedEnvironmentId)
@@ -127,14 +132,7 @@ export function PullRequestsScreen(
         .sort((left, right) => left.environmentId.localeCompare(right.environmentId))
         .map((environment) => ({
           environmentId: environment.environmentId,
-          input: {
-            state: controls.state,
-            involvement: controls.involvement,
-            filters: controls.filters,
-            limit: PR_LIST_PAGE_SIZE,
-            ...(controls.projectId ? { projectId: ProjectId.make(controls.projectId) } : {}),
-            ...(query ? { query } : {}),
-          },
+          input: pullRequestListInput(controls, query),
         })),
     [environments, environmentId, configs, controls, query],
   );
@@ -236,8 +234,15 @@ export function PullRequestsScreen(
     environmentId,
     onEnvironmentChange: listControls.setEnvironmentId,
     onReset: listControls.reset,
-    value: controls,
-    onChange: (next) => listControls.setControls(environmentId, next),
+    value: typedDraft
+      ? { ...controls, filters: { ...controls.filters, draft: typedDraft } }
+      : controls,
+    onChange: (next) => {
+      const update = applyPullRequestDraftFilterChange(typedQuery, controls.filters, next.filters);
+      listControls.setControls(environmentId, { ...next, filters: update.filters });
+      if (update.query !== typedQuery)
+        workspace.dispatch({ type: "query", tab: "pullRequests", query: update.query });
+    },
     authors: knownFacets.environmentId === environmentId ? knownFacets.authors : facets.authors,
     labels: knownFacets.environmentId === environmentId ? knownFacets.labels : facets.labels,
     projects,
