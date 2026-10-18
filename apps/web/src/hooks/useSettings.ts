@@ -1,4 +1,5 @@
 import { useRef, useSyncExternalStore, use } from "react";
+import { useSyncExternalStoreWithSelector } from "use-sync-external-store/with-selector";
 import { RegistryContext, useAtomValue } from "@effect/atom-react";
 import {
   DEFAULT_SERVER_SETTINGS,
@@ -36,6 +37,7 @@ import {
   themeAllowsSidebarArtwork,
   type ThemeAppearance,
 } from "~/themePalette";
+import * as Equal from "effect/Equal";
 import * as Struct from "effect/Struct";
 import * as Option from "effect/Option";
 import { AsyncResult, Atom } from "effect/reactivity";
@@ -286,11 +288,23 @@ export function useClientSettingsHydrationStatus(): ClientSettingsHydrationStatu
   );
 }
 
-function useClientSettingsValue(): ClientSettings {
-  return useSyncExternalStore(
+const getDefaultClientSettings = () => DEFAULT_CLIENT_SETTINGS;
+const selectWholeClientSettings = (settings: ClientSettings) => settings;
+
+/**
+ * The selection, not the whole snapshot, is what the store compares, so a write re-renders only
+ * readers whose selected value changed. Selectors may build objects or arrays: a structurally
+ * equal result keeps the previous reference.
+ */
+export function useClientSettings<T = ClientSettings>(
+  selector?: (settings: ClientSettings) => T,
+): T {
+  return useSyncExternalStoreWithSelector(
     subscribeClientSettings,
     getClientSettingsSnapshot,
-    () => DEFAULT_CLIENT_SETTINGS,
+    getDefaultClientSettings,
+    selector ?? (selectWholeClientSettings as (settings: ClientSettings) => T),
+    Equal.equals,
   );
 }
 
@@ -306,17 +320,15 @@ export function mergeEnvironmentSettings(
   };
 }
 
-// Returns the merged object alone so the selector, often inline, cannot widen its cache key.
-function useMergedSettings(serverSettings: ServerSettings): UnifiedSettings {
-  const clientSettings = useClientSettingsValue();
-  return mergeEnvironmentSettings(serverSettings, clientSettings);
-}
-
-export function useClientSettings<T = ClientSettings>(
-  selector?: (settings: ClientSettings) => T,
+/** Selecting inside the client store keeps a client write from re-rendering unaffected readers. */
+export function useMergedSettings<T = UnifiedSettings>(
+  serverSettings: ServerSettings,
+  selector?: (settings: UnifiedSettings) => T,
 ): T {
-  const settings = useClientSettingsValue();
-  return selector ? selector(settings) : (settings as T);
+  return useClientSettings((clientSettings) => {
+    const merged = mergeEnvironmentSettings(serverSettings, clientSettings);
+    return selector ? selector(merged) : (merged as T);
+  });
 }
 
 export function resolveEnvironmentIdentificationMode(input: {
@@ -430,8 +442,7 @@ export function useEnvironmentSettings<T = UnifiedSettings>(
   selector?: (settings: UnifiedSettings) => T,
 ): T {
   const serverSettings = useAtomValue(serverEnvironment.settingsValueAtom(environmentId));
-  const merged = useMergedSettings(serverSettings ?? DEFAULT_SERVER_SETTINGS);
-  return selector ? selector(merged) : (merged as T);
+  return useMergedSettings(serverSettings ?? DEFAULT_SERVER_SETTINGS, selector);
 }
 
 export function usePersistEnvironmentProviderInstanceMutation(environmentId: EnvironmentId) {
@@ -449,8 +460,7 @@ export function usePrimarySettings<T = UnifiedSettings>(
   selector?: (settings: UnifiedSettings) => T,
 ): T {
   const settings = useAtomValue(primaryServerSettingsAtom);
-  const merged = useMergedSettings(settings);
-  return selector ? selector(merged) : (merged as T);
+  return useMergedSettings(settings, selector);
 }
 
 export const PRIMARY_SETTINGS_UNAVAILABLE_MESSAGE =

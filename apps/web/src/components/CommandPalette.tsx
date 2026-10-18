@@ -47,6 +47,7 @@ import {
   AuthOrchestrationOperateScope,
   AuthSourceControlWriteScope,
   AuthFilesystemReadScope,
+  type ClientSettings,
   type DesktopWslState,
   type EnvironmentId,
   type EnvironmentMachineKind,
@@ -251,7 +252,7 @@ import { stackedThreadToast, toastManager } from "./ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { ComposerHandleContext, useComposerHandleContext } from "../composerHandleContext";
 import type { ChatComposerHandle } from "./chat/ChatComposer";
-import { getProjectOrderKey, selectProjectGroupingSettings } from "../logicalProject";
+import { getProjectOrderKey } from "../logicalProject";
 import { useUiStateStore } from "../uiStateStore";
 import {
   buildSidebarProjectPickerEntries,
@@ -468,11 +469,18 @@ function useProjectLookups() {
   return { projectCwdById, projectByKey, projectTitleById };
 }
 
+const selectCommandPaletteClientSettings = (settings: ClientSettings) => ({
+  sidebarProjectGroupingMode: settings.sidebarProjectGroupingMode,
+  sidebarProjectGroupingOverrides: settings.sidebarProjectGroupingOverrides,
+  sidebarProjectSortOrder: settings.sidebarProjectSortOrder,
+  sidebarThreadSortOrder: settings.sidebarThreadSortOrder,
+});
+
 function useSortedProjectGroups(environmentLabelById: ReadonlyMap<EnvironmentId, string>) {
   const projects = useProjects();
   const threads = useThreadShells();
   const projectOrder = useUiStateStore((store) => store.projectOrder);
-  const clientSettings = useClientSettings();
+  const clientSettings = useClientSettings(selectCommandPaletteClientSettings);
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const orderedProjects = orderItemsByPreferredIds({
     items: projects,
@@ -481,7 +489,10 @@ function useSortedProjectGroups(environmentLabelById: ReadonlyMap<EnvironmentId,
   });
   const unsortedProjectGroups = buildSidebarProjectSnapshots({
     projects: clientSettings.sidebarProjectSortOrder === "manual" ? orderedProjects : projects,
-    settings: selectProjectGroupingSettings(clientSettings),
+    settings: {
+      sidebarProjectGroupingMode: clientSettings.sidebarProjectGroupingMode,
+      sidebarProjectGroupingOverrides: clientSettings.sidebarProjectGroupingOverrides,
+    },
     primaryEnvironmentId,
     resolveEnvironmentLabel: (environmentId) => environmentLabelById.get(environmentId) ?? null,
   });
@@ -726,7 +737,7 @@ function OpenCommandPaletteDialog(props: {
     highlightClearedRef.current = true;
     setHighlightedItemValue(null);
   }
-  const clientSettings = useClientSettings();
+  const clientSettings = useClientSettings(selectCommandPaletteClientSettings);
   const createProject = useAtomCommand(projectEnvironment.create, {
     reportFailure: false,
   });
