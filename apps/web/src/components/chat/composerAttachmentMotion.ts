@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { flushSync } from "react-dom";
 
 import { EASE_DRAWER, animationsSettled, prefersReducedMotion } from "~/lib/motion";
@@ -87,17 +87,11 @@ export function useAttachmentTrayMotion(
       { duration: 200, easing: EASE_DRAWER },
     );
   }, [snapShotPending, tray]);
-  const findAttachment = useCallback(
-    (id: string) =>
-      [
-        ...(trayRef.current?.querySelectorAll<HTMLElement>("[data-composer-attachment]") ?? []),
-      ].find((element) => element.dataset.composerAttachment === id),
-    [],
-  );
-  const exitSettled = useCallback(
-    () => setTray((current) => ({ ...current, animateHeight: true })),
-    [],
-  );
+  const findAttachment = (id: string) =>
+    [...(trayRef.current?.querySelectorAll<HTMLElement>("[data-composer-attachment]") ?? [])].find(
+      (element) => element.dataset.composerAttachment === id,
+    );
+  const exitSettled = () => setTray((current) => ({ ...current, animateHeight: true }));
   return { trayRef, tray: { draftKey, arrived: tray.arrived, findAttachment, exitSettled } };
 }
 

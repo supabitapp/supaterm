@@ -20,7 +20,7 @@ import ProjectScriptsControl, {
   type NewProjectScriptInput,
   type ProjectScriptActionResult,
 } from "../ProjectScriptsControl";
-import { memo, useMemo, type ComponentProps } from "react";
+import { memo, type ComponentProps } from "react";
 import { ThreadDetailsCard } from "./ThreadDetailsCard";
 import { OpenInPicker } from "./OpenInPicker";
 import { ThreadDetailsSection } from "./ThreadDetailsSection";
@@ -86,10 +86,7 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
       props.availableEnvironments.find((env) => env.environmentId === props.environmentId) ?? null,
     canPickEnvironment,
   });
-  const activeThreadRef = useMemo(
-    () => ({ environmentId: props.environmentId, threadId: props.threadId }),
-    [props.environmentId, props.threadId],
-  );
+  const activeThreadRef = { environmentId: props.environmentId, threadId: props.threadId };
   const branchToolbarProps = {
     showGitControls: props.isGitRepo,
     environmentId: props.environmentId,

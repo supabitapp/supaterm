@@ -1,5 +1,5 @@
 import type { OrchestrationV2ProviderFailureClass } from "@supaterm/contracts";
-import { memo, useMemo } from "react";
+import { memo, useState } from "react";
 import { usePresence } from "~/hooks/usePresence";
 import { Alert, AlertAction, AlertDescription } from "../ui/alert";
 import { Button } from "../ui/button";
@@ -43,10 +43,16 @@ export const ThreadErrorBanner = memo(function ThreadErrorBanner({
   onDismiss?: () => void;
   chatGptUsageLimit?: boolean;
 }) {
-  const liveBanner = useMemo(
-    () => (error ? { error, errorClass, chatGptUsageLimit } : null),
-    [error, errorClass, chatGptUsageLimit],
-  );
+  const nextBanner = error ? { error, errorClass, chatGptUsageLimit } : null;
+  // usePresence retains by identity, so the banner object changes only with its content.
+  const [liveBanner, setLiveBanner] = useState(nextBanner);
+  if (
+    liveBanner?.error !== nextBanner?.error ||
+    liveBanner?.errorClass !== nextBanner?.errorClass ||
+    liveBanner?.chatGptUsageLimit !== nextBanner?.chatGptUsageLimit
+  ) {
+    setLiveBanner(nextBanner);
+  }
   const presence = usePresence(liveBanner);
   const banner = presence.value;
   if (!banner) return null;

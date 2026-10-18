@@ -1,5 +1,5 @@
 import { CheckIcon, CopyIcon } from "lucide-react";
-import { use, useCallback, useEffect, useRef, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 
 import { Button } from "../components/ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../components/ui/tooltip";
@@ -21,7 +21,7 @@ export function MermaidBlock({
   const [rendered, setRendered] = useState<{ source: string; output: string | null } | null>(null);
   const [showSource, setShowSource] = useState(false);
   const searching = use(MarkdownFindContext);
-  const revealSource = useCallback(() => setShowSource(true), []);
+  const revealSource = () => setShowSource(true);
   const sourceRevealRef = findRevealRef(revealSource);
   const [copiedText, setCopiedText] = useState<string | null>(null);
   const { copyToClipboard, isCopied } = useCopyToClipboard<string>({

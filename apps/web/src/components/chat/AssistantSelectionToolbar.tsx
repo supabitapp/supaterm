@@ -5,7 +5,7 @@ import {
   type ScopedThreadRef,
 } from "@supaterm/contracts";
 import { QuoteIcon } from "lucide-react";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   captureAssistantTextSelection,
@@ -38,13 +38,10 @@ export function AssistantSelectionToolbar({
   const actionsRef = useRef<ReturnType<typeof observeSelectionActions> | null>(null);
   const presence = usePresence(selection);
   const presenceRef = presence.props.ref;
-  const setToolbar = useCallback(
-    (node: HTMLButtonElement | null) => {
-      toolbarRef.current = node;
-      presenceRef(node);
-    },
-    [presenceRef],
-  );
+  const setToolbar = (node: HTMLButtonElement | null) => {
+    toolbarRef.current = node;
+    presenceRef(node);
+  };
   const shown = presence.value !== null;
 
   useLayoutEffect(() => {

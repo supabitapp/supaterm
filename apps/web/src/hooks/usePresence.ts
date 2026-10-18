@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { animationsSettled } from "~/lib/motion";
 
@@ -32,9 +32,9 @@ export function usePresence<T>(value: T | null | undefined) {
     };
   }, [exiting]);
 
-  const ref = useCallback((node: HTMLElement | null) => {
+  const ref = (node: HTMLElement | null) => {
     elementRef.current = node;
-  }, []);
+  };
 
   return {
     value: live ?? retained,

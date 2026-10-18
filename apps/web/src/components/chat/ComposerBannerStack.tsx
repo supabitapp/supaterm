@@ -1,13 +1,5 @@
 import { InfoIcon } from "lucide-react";
-import {
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { animationsSettled } from "~/lib/motion";
 import { cn } from "~/lib/utils";
@@ -140,10 +132,7 @@ export function ComposerBannerStack({ className, items }: ComposerBannerStackPro
   if (presentDismissedIds.length !== dismissedIds.size) {
     setDismissedIds(new Set(presentDismissedIds));
   }
-  const live = useMemo(
-    () => (dismissedIds.size === 0 ? items : items.filter((item) => !dismissedIds.has(item.id))),
-    [dismissedIds, items],
-  );
+  const live = dismissedIds.size === 0 ? items : items.filter((item) => !dismissedIds.has(item.id));
   const liveKey = live.map((item) => item.id).join("\n");
   const [stack, setStack] = useState<{
     readonly liveKey: string;
