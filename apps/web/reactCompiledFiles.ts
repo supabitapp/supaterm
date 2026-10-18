@@ -24,6 +24,7 @@ export const REACT_COMPILED_FILES = [
   "apps/web/src/components/preview/useAgentOpenedPreviews.ts",
   "apps/web/src/components/pullRequest/useThreadLinkedPullRequest.ts",
   "apps/web/src/components/terminal/**",
+  "apps/web/src/components/ui/toggle-group.tsx",
   "apps/web/src/components/ui/tooltip.tsx",
   "apps/web/src/hooks/useLiveRefresh.ts",
   "apps/web/src/hooks/useProactivePanels.ts",
