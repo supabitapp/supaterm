@@ -1,19 +1,3 @@
-const MINIMUM_ARTIFACT_LIFETIME_MS = 24 * 60 * 60 * 1000;
-
-async function artifactIsReusable({ github, context, artifactId }) {
-  try {
-    const { data: artifact } = await github.rest.actions.getArtifact({
-      ...context.repo,
-      artifact_id: artifactId,
-    });
-    const remainingLifetimeMs = Date.parse(artifact.expires_at) - Date.now();
-    return !artifact.expired && remainingLifetimeMs >= MINIMUM_ARTIFACT_LIFETIME_MS;
-  } catch (error) {
-    if (error.status === 404 || error.status === 410) return false;
-    throw error;
-  }
-}
-
 function environmentName(profile, platform) {
   if (!["production", "preview:dev"].includes(profile)) {
     throw new Error(`Unsupported mobile profile: ${profile}`);
@@ -57,12 +41,6 @@ async function findBuilds({ github, context, profile, platform, version, fingerp
         per_page: 1,
       });
       if (statuses[0]?.state !== "success") continue;
-      if (
-        payload.artifactId !== undefined &&
-        !(await artifactIsReusable({ github, context, artifactId: payload.artifactId }))
-      ) {
-        continue;
-      }
       if (matchesVersion && !versionBuild) versionBuild = payload;
       if (matchesFingerprint && !compatibleBuild) compatibleBuild = payload;
       if (versionBuild && compatibleBuild) return { versionBuild, compatibleBuild };
@@ -71,22 +49,9 @@ async function findBuilds({ github, context, profile, platform, version, fingerp
   return { versionBuild, compatibleBuild };
 }
 
-async function recordBuild({
-  github,
-  context,
-  profile,
-  platform,
-  version,
-  fingerprint,
-  sha,
-  url,
-  artifactId,
-}) {
+async function recordBuild({ github, context, profile, platform, version, fingerprint, sha, url }) {
   if (!/^[a-f0-9]{40,64}$/.test(fingerprint) || !version) {
     throw new Error("A completed mobile build requires its version and embedded fingerprint");
-  }
-  if (artifactId !== undefined && (!Number.isSafeInteger(artifactId) || artifactId < 1)) {
-    throw new Error("A preview artifact requires a valid GitHub artifact ID");
   }
   const environment = environmentName(profile, platform);
   const { data: deployment } = await github.rest.repos.createDeployment({
@@ -98,15 +63,7 @@ async function recordBuild({
     required_contexts: [],
     transient_environment: profile === "preview:dev",
     production_environment: profile === "production",
-    payload: {
-      schema: 1,
-      profile,
-      platform,
-      version,
-      fingerprint,
-      url,
-      artifactId,
-    },
+    payload: { schema: 1, profile, platform, version, fingerprint, url },
     description: `Signed ${platform} build ${version}`,
   });
   if (!deployment.id) throw new Error("GitHub did not create a mobile build deployment");
