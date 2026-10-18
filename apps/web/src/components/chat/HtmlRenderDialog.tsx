@@ -10,11 +10,7 @@ export function HtmlRenderDialog(props: {
   readonly onClose: () => void;
 }) {
   return (
-    <ExpandedPreviewDialog
-      title={props.title}
-      contentClassName="h-[100cqh] w-[100cqw]"
-      onClose={props.onClose}
-    >
+    <ExpandedPreviewDialog title={props.title} fit="fill" onClose={props.onClose}>
       <HtmlRenderDocument
         src={props.src}
         title={props.title}

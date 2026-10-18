@@ -1,17 +1,32 @@
+import { PREVIEW_ZOOM, stepPreviewZoom } from "@supaterm/client-runtime/preview-zoom";
 import { MinusIcon, PlusIcon, XIcon } from "lucide-react";
-import { type ReactNode, useRef, useState } from "react";
+import { createContext, type ReactNode, use, useEffect, useRef, useState } from "react";
 
 import { Button } from "../ui/button";
 import { Dialog, DialogPopup, DialogTitle } from "../ui/dialog";
 
+// A virtualized timeline row unmounts once it leaves the draw window, taking an
+// open dialog with it; hosts that recycle rows pin the row while this reports open.
+export const ExpandedPreviewHostContext = createContext<((open: boolean) => void) | null>(null);
+
+const FIT_CLASS_NAMES = {
+  fill: "h-[100cqh] w-[100cqw]",
+  center: "p-6",
+} as const;
+
 export function ExpandedPreviewDialog(props: {
   readonly title: string;
-  readonly contentClassName: string;
+  readonly fit: keyof typeof FIT_CLASS_NAMES;
   readonly onClose: () => void;
   readonly children: ReactNode;
 }) {
   const [zoom, setZoom] = useState(1);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const reportOpen = use(ExpandedPreviewHostContext);
+  useEffect(() => {
+    reportOpen?.(true);
+    return () => reportOpen?.(false);
+  }, [reportOpen]);
   return (
     <Dialog open onOpenChange={(open) => !open && props.onClose()}>
       <DialogPopup
@@ -33,8 +48,11 @@ export function ExpandedPreviewDialog(props: {
           >
             <XIcon />
           </Button>
-          <div className="grid h-[min(86vh,calc(100vh-160px))] place-items-center-safe overflow-auto overscroll-contain rounded-lg bg-background shadow-2xl ring-1 ring-border/70 [container-type:size]">
-            <div className={props.contentClassName} style={{ zoom }}>
+          <div
+            tabIndex={0}
+            className="grid h-[min(86vh,calc(100vh-160px))] place-items-center-safe overflow-auto overscroll-contain rounded-lg bg-background shadow-2xl ring-1 ring-border/70 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset [container-type:size]"
+          >
+            <div className={FIT_CLASS_NAMES[props.fit]} style={{ zoom }}>
               {props.children}
             </div>
           </div>
@@ -45,8 +63,8 @@ export function ExpandedPreviewDialog(props: {
                 aria-label="Zoom out"
                 size="icon-sm"
                 variant="overlay"
-                disabled={zoom === 0.5}
-                onClick={() => setZoom((value) => value - 0.25)}
+                disabled={zoom <= PREVIEW_ZOOM.min}
+                onClick={() => setZoom((value) => stepPreviewZoom(value, -1))}
               >
                 <MinusIcon />
               </Button>
@@ -62,8 +80,8 @@ export function ExpandedPreviewDialog(props: {
                 aria-label="Zoom in"
                 size="icon-sm"
                 variant="overlay"
-                disabled={zoom === 2}
-                onClick={() => setZoom((value) => value + 0.25)}
+                disabled={zoom >= PREVIEW_ZOOM.max}
+                onClick={() => setZoom((value) => stepPreviewZoom(value, 1))}
               >
                 <PlusIcon />
               </Button>

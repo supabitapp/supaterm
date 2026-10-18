@@ -181,6 +181,7 @@ import {
   SnapShotAttachmentDetails,
 } from "./SnapShotAttachmentDetails";
 import { ProposedPlanCard } from "./ProposedPlanCard";
+import { ExpandedPreviewHostContext } from "./ExpandedPreviewDialog";
 import { HtmlRenderFrame } from "./HtmlRenderFrame";
 import { McpAppFrame } from "./McpAppFrame";
 import { ChangedFilesCard } from "./ChangedFilesTree";
@@ -1536,7 +1537,9 @@ const ConversationTimeline = memo(function ConversationTimeline({
     ({ item }: { item: MessagesTimelineRow }) => (
       <div className="messages-timeline-row-frame">
         <div className="chat-content-lane overflow-x-clip" data-timeline-root="true">
-          <TimelineRowContent row={item} />
+          <TimelineRowPreviewHost rowId={item.id}>
+            <TimelineRowContent row={item} />
+          </TimelineRowPreviewHost>
         </div>
       </div>
     ),
@@ -3017,6 +3020,15 @@ function ProposedPlanTimelineRow({
       />
     </div>
   );
+}
+
+function TimelineRowPreviewHost({ rowId, children }: { rowId: string; children: ReactNode }) {
+  const { onAppFullscreenChange } = use(TimelineRowCtx);
+  const reportOpen = useCallback(
+    (open: boolean) => onAppFullscreenChange(rowId, open),
+    [onAppFullscreenChange, rowId],
+  );
+  return <ExpandedPreviewHostContext value={reportOpen}>{children}</ExpandedPreviewHostContext>;
 }
 
 function HtmlRenderTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "html-render" }> }) {

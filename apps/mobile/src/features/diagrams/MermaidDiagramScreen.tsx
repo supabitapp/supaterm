@@ -1,33 +1,34 @@
 import { type StaticScreenProps, useNavigation } from "@react-navigation/native";
+import { PREVIEW_ZOOM, stepPreviewZoom } from "@supaterm/client-runtime/preview-zoom";
 import { SourceText } from "@supaterm/mobile-source-text";
-import { useEffect, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { useEffect, useLayoutEffect, useState } from "react";
+import { Platform, Pressable, ScrollView, View } from "react-native";
 
+import { AppText } from "../../components/ui/AppText";
 import { CODE_FONT_FAMILY } from "../../lib/fonts";
 import { renderMermaidDiagram } from "../../lib/mermaidRenderer.native";
 import { useUniwindTheme } from "../../lib/useUniwindTheme";
+import { useAppearanceCodeSurface } from "../settings/appearance/useAppearanceCodeSurface";
 
 type MermaidDiagramRouteParams = {
   readonly source: string;
 };
 
-const MIN_ZOOM = 0.5;
-const MAX_ZOOM = 2;
-const ZOOM_STEP = 0.25;
-
 function ZoomControls(props: { readonly zoom: number; readonly onZoom: (zoom: number) => void }) {
   const { zoom, onZoom } = props;
+  const canZoomOut = zoom > PREVIEW_ZOOM.min;
+  const canZoomIn = zoom < PREVIEW_ZOOM.max;
   return (
     <View className="flex-row items-center">
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Zoom out"
-        disabled={zoom === MIN_ZOOM}
+        disabled={!canZoomOut}
         hitSlop={6}
-        onPress={() => onZoom(zoom - ZOOM_STEP)}
-        className={zoom === MIN_ZOOM ? "px-2 opacity-40" : "px-2"}
+        onPress={() => onZoom(stepPreviewZoom(zoom, -1))}
+        className={canZoomOut ? "px-2" : "px-2 opacity-40"}
       >
-        <Text className="text-xl text-foreground">−</Text>
+        <AppText className="text-xl text-foreground">−</AppText>
       </Pressable>
       <Pressable
         accessibilityRole="button"
@@ -36,17 +37,19 @@ function ZoomControls(props: { readonly zoom: number; readonly onZoom: (zoom: nu
         onPress={() => onZoom(1)}
         className="px-1"
       >
-        <Text className="text-sm text-foreground tabular-nums">{Math.round(zoom * 100)}%</Text>
+        <AppText className="text-sm text-foreground tabular-nums">
+          {Math.round(zoom * 100)}%
+        </AppText>
       </Pressable>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Zoom in"
-        disabled={zoom === MAX_ZOOM}
+        disabled={!canZoomIn}
         hitSlop={6}
-        onPress={() => onZoom(zoom + ZOOM_STEP)}
-        className={zoom === MAX_ZOOM ? "px-2 opacity-40" : "px-2"}
+        onPress={() => onZoom(stepPreviewZoom(zoom, 1))}
+        className={canZoomIn ? "px-2" : "px-2 opacity-40"}
       >
-        <Text className="text-xl text-foreground">+</Text>
+        <AppText className="text-xl text-foreground">+</AppText>
       </Pressable>
     </View>
   );
@@ -56,21 +59,23 @@ export function MermaidDiagramScreen(props: StaticScreenProps<MermaidDiagramRout
   const { source } = props.route.params;
   const navigation = useNavigation();
   const codeText = useUniwindTheme()["--color-md-code-text"];
+  const { codeSurface } = useAppearanceCodeSurface();
   const [zoom, setZoom] = useState(1);
-  const [result, setResult] = useState<{ source: string; diagram: string | null } | null>(null);
-  const diagram = result?.source === source ? result.diagram : undefined;
+  // The source rather than the diagram travels in the route, since route params are
+  // serialized into the workspace path; rendering hits the cache the block just filled.
+  const [diagram, setDiagram] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     void renderMermaidDiagram(source).then((rendered) => {
-      if (active) setResult({ source, diagram: rendered });
+      if (active) setDiagram(rendered ?? source);
     });
     return () => {
       active = false;
     };
   }, [source]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const controls = <ZoomControls zoom={zoom} onZoom={setZoom} />;
     navigation.setOptions({ headerRight: () => controls });
   }, [navigation, zoom]);
@@ -80,14 +85,15 @@ export function MermaidDiagramScreen(props: StaticScreenProps<MermaidDiagramRout
       <ScrollView horizontal contentContainerStyle={{ padding: 16 }}>
         <SourceText
           selectable
+          selectionColorClassName={Platform.OS === "android" ? "accent-focus/32" : undefined}
           style={{
             color: codeText,
             fontFamily: CODE_FONT_FAMILY,
-            fontSize: 13 * zoom,
-            lineHeight: 19 * zoom,
+            fontSize: codeSurface.fontSize * zoom,
+            lineHeight: codeSurface.rowHeight * zoom,
           }}
         >
-          {diagram === undefined ? "" : (diagram ?? source)}
+          {diagram}
         </SourceText>
       </ScrollView>
     </ScrollView>

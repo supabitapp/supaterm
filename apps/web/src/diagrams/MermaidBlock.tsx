@@ -21,7 +21,7 @@ export function MermaidBlock({
   const [visible, setVisible] = useState(() => typeof IntersectionObserver === "undefined");
   const [rendered, setRendered] = useState<{ source: string; output: string | null } | null>(null);
   const [showSource, setShowSource] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [expandedDiagram, setExpandedDiagram] = useState<string | null>(null);
   const searching = use(MarkdownFindContext);
   const revealSource = useCallback(() => setShowSource(true), []);
   const sourceRevealRef = useFindRevealRef(revealSource);
@@ -97,7 +97,7 @@ export function MermaidBlock({
                       variant="ghost-muted"
                       size="icon-xs"
                       aria-label="Open full screen"
-                      onClick={() => setExpanded(true)}
+                      onClick={() => setExpandedDiagram(output)}
                     />
                   }
                 >
@@ -136,13 +136,15 @@ export function MermaidBlock({
           {source}
         </pre>
       ) : null}
-      {expanded && output !== null ? (
+      {expandedDiagram !== null ? (
         <ExpandedPreviewDialog
           title={title ?? "Mermaid diagram"}
-          contentClassName="p-6"
-          onClose={() => setExpanded(false)}
+          fit="center"
+          onClose={() => setExpandedDiagram(null)}
         >
-          <pre className="m-0 font-mono text-sm leading-snug whitespace-pre">{output}</pre>
+          <pre className="m-0 font-mono text-(length:--font-size-code,var(--text-sm)) leading-snug whitespace-pre">
+            {expandedDiagram}
+          </pre>
         </ExpandedPreviewDialog>
       ) : null}
     </div>
