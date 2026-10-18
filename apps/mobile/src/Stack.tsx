@@ -660,7 +660,9 @@ function NotFoundScreen() {
 
 const RootStackConfig = createWorkspaceStackNavigator({
   initialRouteName: "Home",
-  layout: RootStackLayout,
+  // React Navigation calls layouts as plain functions inside its own render. Passing a
+  // compiled component directly would put its memo cache among the navigator's hooks.
+  layout: (props) => <RootStackLayout {...props} />,
   screenOptions: {
     headerShown: false,
     statusBarHidden: Platform.OS === "ios" ? false : undefined,
@@ -961,10 +963,12 @@ const RootStackConfig = createWorkspaceStackNavigator({
   },
 });
 
-function GuardedScreenLayout(props: {
+type GuardedScreenLayoutProps = {
   readonly children: ReactNode;
   readonly route: { readonly name: string; readonly params?: object | undefined };
-}) {
+};
+
+function GuardedScreenLayout(props: GuardedScreenLayoutProps) {
   return (
     <RenderErrorBoundary
       resetKeys={[props.route.params]}
@@ -975,6 +979,12 @@ function GuardedScreenLayout(props: {
       {props.children}
     </RenderErrorBoundary>
   );
+}
+
+// React Navigation calls screen layouts as plain functions inside its own render. Passing a
+// compiled component directly would put its memo cache among the navigator's hooks.
+function renderGuardedScreenLayout(props: GuardedScreenLayoutProps) {
+  return <GuardedScreenLayout {...props} />;
 }
 
 function ScreenRenderFallback(props: RenderFailureProps & { readonly routeName: string }) {
@@ -997,7 +1007,7 @@ export const RootStack = RootStackConfig.with(function AdaptiveRootStack({ Navig
 
   return (
     <Navigator
-      screenLayout={GuardedScreenLayout}
+      screenLayout={renderGuardedScreenLayout}
       screenOptions={({ route }) => {
         const statusBarStyle = themeAppearance === "dark" ? "light" : "dark";
         const statusBarOptions = Platform.OS === "ios" ? ({ statusBarStyle } as const) : {};

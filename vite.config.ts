@@ -403,6 +403,13 @@ export default defineConfig({
         rules: { "supaterm/no-hermes-unsupported-apis": "error" },
       },
       {
+        // Mobile is ratcheting toward full React Compiler coverage
+        // (apps/mobile/src/reactCompilerCoverage.test.ts). Directives would hide bailouts from it;
+        // the manual memo hooks go once the allowlist there is empty.
+        files: ["apps/mobile/src/**/*.{ts,tsx}"],
+        rules: { "supaterm/no-manual-memo": ["error", { allowMemoHooks: true }] },
+      },
+      {
         files: [
           "apps/mobile/src/features/archive/ArchivedThreadsScreen.tsx",
           "apps/mobile/src/features/connection/ConnectionsNewRouteScreen.tsx",

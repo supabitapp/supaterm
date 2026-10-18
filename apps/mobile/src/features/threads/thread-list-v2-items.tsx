@@ -730,21 +730,30 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   // Swipe: the v2 primary action is the lifecycle transition. Reopening a
   // done row keeps it active until new activity clears the user override.
   const canReopen = variant === "slim";
-  const [snoozeGateTick, bumpSnoozeGateTick] = useState(0);
+  // The React Compiler caches render results on props and state, so a clock read
+  // in render would stay frozen until `thread` changes: the gate could never
+  // expire and its timer would re-fire every 50ms. The gate's clock is state.
+  const [snoozeGateClock, setSnoozeGateClock] = useState(() => ({ thread, now: new Date() }));
+  if (snoozeGateClock.thread !== thread) setSnoozeGateClock({ thread, now: new Date() });
+  const snoozeGateNow = snoozeGateClock.now.toISOString();
   const snoozeGateExpiryMs = props.snoozeSupported
-    ? resolveThreadListV2SnoozeGateExpiryMs(thread, { now: new Date().toISOString() })
+    ? resolveThreadListV2SnoozeGateExpiryMs(thread, { now: snoozeGateNow })
     : null;
   useEffect(() => {
-    if (snoozeGateExpiryMs === null) return;
-    const delayMs = Math.min(Math.max(0, snoozeGateExpiryMs - Date.now()) + 50, 2_147_483_647);
-    const id = setTimeout(() => bumpSnoozeGateTick(snoozeGateTick + 1), delayMs);
+    // A gate still closed past its expiry is held by runtime status, not time,
+    // so no clock tick can open it.
+    if (snoozeGateExpiryMs === null || snoozeGateExpiryMs <= snoozeGateClock.now.getTime()) {
+      return;
+    }
+    const delayMs = Math.min(snoozeGateExpiryMs - Date.now() + 50, 2_147_483_647);
+    const id = setTimeout(() => setSnoozeGateClock({ thread, now: new Date() }), delayMs);
     return () => clearTimeout(id);
-  }, [snoozeGateExpiryMs, snoozeGateTick]);
+  }, [snoozeGateExpiryMs, snoozeGateClock.now, thread]);
   const swipeActions = resolveThreadListV2SwipeActions({
     variant,
     markDoneSupported: props.markDoneSupported,
     snoozeSupported: props.snoozeSupported,
-    snoozable: canSnooze(thread, { now: new Date().toISOString() }),
+    snoozable: canSnooze(thread, { now: snoozeGateNow }),
     snoozed: snoozedRow,
   });
   const [snoozePresetClock, setSnoozePresetClock] = useState(() => ({
