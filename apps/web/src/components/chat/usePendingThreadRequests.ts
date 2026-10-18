@@ -1,9 +1,6 @@
-import { useAtomValue } from "@effect/atom-react";
 import {
   AuthOrchestrationOperateScope,
-  CommandId,
   type EnvironmentId,
-  type OrchestrationV2Command,
   type OrchestrationV2ThreadProjection,
   type ProviderApprovalDecision,
   type RuntimeRequestId,
@@ -18,15 +15,12 @@ import {
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
-  type AtomCommandResult,
 } from "@supaterm/client-runtime/state/runtime";
-import { createUserInputAutoDismissPause } from "@supaterm/client-runtime/user-input-auto-dismiss-pause";
 import { useEffect, useRef, useState, type RefObject, type SetStateAction } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { DraftId, useComposerDraftStore } from "../../composerDraftStore";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { getUploadedAttachments, useAttachmentUploadStore } from "../../lib/attachmentUploadQueue";
-import { randomUUID } from "../../lib/utils";
 import {
   buildPendingUserInputAnswers,
   carryDisplacedCustomAnswerIntoPrompt,
@@ -47,7 +41,6 @@ import {
   derivePendingUserInputs,
   type PendingUserInput,
 } from "../../session-logic";
-import { serverEnvironment } from "../../state/server";
 import { readEnvironmentScope } from "../../state/session";
 import { threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -59,69 +52,11 @@ const NO_PENDING_REQUESTS = { approvals: [], userInputs: [] } as const;
 const NO_PENDING_APPROVALS: ReturnType<typeof derivePendingApprovals> = [];
 const NO_PENDING_USER_INPUTS: ReturnType<typeof derivePendingUserInputs> = [];
 
-type ThreadErrorSetter = (targetThreadId: ThreadId | null, error: string | null) => void;
-
-/** Pauses the auto-dismiss timer of the question the making render saw, once per question. */
-function makeQuestionTimerPause(input: {
-  readonly environmentId: EnvironmentId;
-  readonly activeThreadId: ThreadId | null;
-  readonly activePendingUserInput: PendingUserInput | null;
-  readonly canPauseUserInputAutoDismiss: boolean;
-  readonly pauseOnInteraction: ReturnType<typeof createUserInputAutoDismissPause>;
-  readonly pauseUserInputAutoDismiss: (value: {
-    readonly environmentId: EnvironmentId;
-    readonly input: Extract<
-      OrchestrationV2Command,
-      { type: "thread.user-input.auto-dismiss.pause" }
-    >;
-  }) => Promise<AtomCommandResult<unknown, unknown>>;
-  readonly setThreadError: ThreadErrorSetter;
-}) {
-  return () => {
-    const { environmentId, activeThreadId, activePendingUserInput } = input;
-    if (
-      !activePendingUserInput ||
-      activePendingUserInput.autoDismissAt == null ||
-      !activeThreadId ||
-      !input.canPauseUserInputAutoDismiss
-    )
-      return;
-    void input.pauseOnInteraction(
-      {
-        environmentId,
-        threadId: activeThreadId,
-        requestId: activePendingUserInput.requestId,
-      },
-      async () => {
-        const result = await input.pauseUserInputAutoDismiss({
-          environmentId,
-          input: {
-            type: "thread.user-input.auto-dismiss.pause",
-            commandId: CommandId.make(randomUUID()),
-            threadId: activeThreadId,
-            requestId: activePendingUserInput.requestId,
-          },
-        });
-        if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
-          const error = squashAtomCommandFailure(result);
-          input.setThreadError(
-            activeThreadId,
-            error instanceof Error ? error.message : "Could not pause automatic dismissal.",
-          );
-        }
-        return result._tag === "Success";
-      },
-    );
-  };
-}
-
 /** Writes the custom answer for a question of the pending user input the making render saw. */
 function makePendingCustomAnswerSetter(input: {
   readonly activePendingUserInput: PendingUserInput | null;
   readonly activePendingRequestKey: string;
-  readonly activePendingAnswerDrafts: Record<string, PendingUserInputDraftAnswer>;
   readonly writePrompt: (prompt: string) => void;
-  readonly pauseActiveQuestionTimer: () => void;
   readonly setPendingUserInputAnswersByRequestId: (
     update: SetStateAction<Record<string, Record<string, PendingUserInputDraftAnswer>>>,
   ) => void;
@@ -135,8 +70,6 @@ function makePendingCustomAnswerSetter(input: {
     if (!question || question.allowCustomAnswer === false) {
       return;
     }
-    if (value !== (input.activePendingAnswerDrafts[questionId]?.customAnswer ?? ""))
-      input.pauseActiveQuestionTimer();
     input.writePrompt(value);
     input.setPendingUserInputAnswersByRequestId((existing) => ({
       ...existing,
@@ -169,7 +102,7 @@ export function usePendingThreadRequests(input: {
   readonly setComposerDraftPrompt: (target: ScopedThreadRef | DraftId, prompt: string) => void;
   readonly promptRef: { current: string };
   readonly composerRef: RefObject<ChatComposerHandle | null>;
-  readonly setThreadError: ThreadErrorSetter;
+  readonly setThreadError: (threadId: ThreadId, error: string | null) => void;
 }) {
   const {
     environmentId,
@@ -192,18 +125,6 @@ export function usePendingThreadRequests(input: {
   const dismissThreadUserInput = useAtomCommand(threadEnvironment.dismissUserInput, {
     reportFailure: false,
   });
-  const pauseUserInputAutoDismiss = useAtomCommand(threadEnvironment.pauseUserInputAutoDismiss, {
-    reportFailure: false,
-  });
-  const questionTimerPermission = useAtomValue(
-    threadEnvironment.pauseUserInputAutoDismiss.permissionAtom(environmentId, {
-      type: "thread.user-input.auto-dismiss.pause",
-    }),
-  );
-  const questionTimerConfig = useAtomValue(serverEnvironment.configValueAtom(environmentId));
-  const supportsQuestionAutoDismiss =
-    questionTimerConfig?.settings.autoDismissQuestions !== false && questionTimerConfig != null;
-  const canPauseUserInputAutoDismiss = questionTimerPermission && supportsQuestionAutoDismiss;
   const userInputResponsesInFlight = useRef(new Set<string>());
   const [respondingRequestIds, setRespondingRequestIds] = useState<RuntimeRequestId[]>([]);
   const [respondingUserInputRequestIds, setRespondingUserInputRequestIds] = useState<
@@ -452,6 +373,8 @@ export function usePendingThreadRequests(input: {
     return result;
   };
 
+  // Closes an async question without messaging the agent. The server records
+  // the dismissal so every client releases the composer.
   const onDismissUserInput = async (requestId: RuntimeRequestId) => {
     if (!activeThreadId) return;
 
@@ -474,17 +397,6 @@ export function usePendingThreadRequests(input: {
   };
   const onDismissUserInputStable = useStableCallback(onDismissUserInput);
 
-  const [pauseOnInteraction] = useState(createUserInputAutoDismissPause);
-  const pauseActiveQuestionTimer = makeQuestionTimerPause({
-    environmentId,
-    activeThreadId,
-    activePendingUserInput,
-    canPauseUserInputAutoDismiss,
-    pauseOnInteraction,
-    pauseUserInputAutoDismiss,
-    setThreadError,
-  });
-
   const setActivePendingUserInputQuestionIndex = (nextQuestionIndex: number) => {
     if (!activePendingUserInput) {
       return;
@@ -495,12 +407,12 @@ export function usePendingThreadRequests(input: {
     }));
   };
 
-  const activePendingQuestion = activePendingProgress?.activeQuestion;
   const onSelectActivePendingUserInputOption = (questionId: string, optionValue: string) => {
-    pauseActiveQuestionTimer();
     if (!activePendingUserInput) {
       return;
     }
+    // The option replaces the custom answer. Anything typed there is the
+    // user's text, so it goes back to the thread draft instead of vanishing.
     const displacedAnswer =
       pendingUserInputAnswersByRequestId[activePendingRequestKey]?.[questionId]?.customAnswer;
     const currentPrompt =
@@ -525,8 +437,9 @@ export function usePendingThreadRequests(input: {
     }
     setPendingUserInputAnswersByRequestId((existing) => {
       const question =
-        (activePendingQuestion?.id === questionId ? activePendingQuestion : undefined) ??
-        activePendingUserInput.questions.find((entry) => entry.id === questionId);
+        (activePendingProgress?.activeQuestion?.id === questionId
+          ? activePendingProgress.activeQuestion
+          : undefined) ?? activePendingUserInput.questions.find((entry) => entry.id === questionId);
       if (!question) {
         return existing;
       }
@@ -556,9 +469,7 @@ export function usePendingThreadRequests(input: {
   const onChangeActivePendingUserInputCustomAnswer = makePendingCustomAnswerSetter({
     activePendingUserInput,
     activePendingRequestKey,
-    activePendingAnswerDrafts,
     writePrompt,
-    pauseActiveQuestionTimer,
     setPendingUserInputAnswersByRequestId,
   });
 
@@ -601,7 +512,6 @@ export function usePendingThreadRequests(input: {
     activePendingResolvedAnswers,
     activePendingIsResponding,
     respondingRequestIds,
-    supportsQuestionAutoDismiss,
     onRespondToApproval: onRespondToApprovalStable,
     onDismissUserInput: onDismissUserInputStable,
     onSelectActivePendingUserInputOption: onSelectActivePendingUserInputOptionStable,

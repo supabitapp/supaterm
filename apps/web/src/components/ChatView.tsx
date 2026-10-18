@@ -37,7 +37,7 @@ import { useStableCallback } from "../hooks/useStableCallback";
 import { useProjectScriptEditing } from "./chat/useProjectScriptEditing";
 import { RightPanelSurfaceContent } from "./chat/RightPanelSurfaceContent";
 import { useThreadTerminalActions } from "./terminal/useThreadTerminalActions";
-import { usePendingThreadRequests } from "./chat/usePendingThreadRequests";
+import { usePendingThreadRequestsWithTimerPause } from "./chat/usePendingThreadRequestsWithTimerPause";
 import { isScratchProject } from "@supaterm/client-runtime/state/projects";
 import { visibleThreadPullRequests } from "@supaterm/shared/threadPullRequests";
 import {
@@ -2354,7 +2354,7 @@ export default function ChatView(props: ChatViewProps) {
     onAdvanceActivePendingUserInput,
     onAdvanceActivePendingUserInputStable,
     onPreviousActivePendingUserInputQuestion: onPreviousActivePendingUserInputQuestionStable,
-  } = usePendingThreadRequests({
+  } = usePendingThreadRequestsWithTimerPause({
     environmentId,
     activeThreadId,
     activeThread,
