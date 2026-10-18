@@ -35,17 +35,14 @@ const ResizablePanelGroupContext = React.createContext<ResizablePanelGroupContex
 
 function ResizablePanelGroup({ onLayoutChanged, ...props }: GroupProps) {
   const listeners = React.useRef(new Set<() => void>());
-  const context = React.useMemo<ResizablePanelGroupContextValue>(
-    () => ({
-      subscribe: (listener) => {
-        listeners.current.add(listener);
-        return () => {
-          listeners.current.delete(listener);
-        };
-      },
-    }),
-    [],
-  );
+  const context: ResizablePanelGroupContextValue = {
+    subscribe: (listener) => {
+      listeners.current.add(listener);
+      return () => {
+        listeners.current.delete(listener);
+      };
+    },
+  };
   return (
     <ResizablePanelGroupContext value={context}>
       <Group

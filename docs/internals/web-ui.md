@@ -61,17 +61,16 @@ Anything it can't prove, such as reading a ref during render or calling `setStat
 makes it skip the whole function without a build error. Lint reports most skips as `react(...)`
 errors, but a disable comment silences the report without making the function compile.
 
-Files listed in [`reactCompiledFiles.ts`](../../apps/web/reactCompiledFiles.ts) must compile.
-Lint keeps those rules errors there, and `supaterm/no-manual-memo` rejects `useMemo` and
-`useCallback`, which the compiler makes redundant. It also rejects `"use memo"`. The compiler
+Every file under `apps/web/src` must compile. Lint keeps those rules errors there, and
+`supaterm/no-manual-memo` rejects `useMemo` and `useCallback`, which the compiler makes redundant;
+no built-in oxlint rule bans them outright. It also rejects `"use memo"`. The compiler
 withholds a cache scope when a value reaches plain function calls on both sides of a hook call. A
 `"use memo"` helper forces one, but hides the ordering problem. Fix the order instead: plain uses
 of a value go before the hook, or the helper is inlined. A `use*` helper that calls no hook is
 compiled as a plain function and caches nothing, so a derived-value helper reads its source hook
 itself instead of taking the value as an argument. Lint misses some bailouts, notably `try`
-with `finally` and `throw` inside `try`, so [`reactCompiledFiles.test.ts`](../../apps/web/src/reactCompiledFiles.test.ts)
-compiles each listed file and fails on any skip. Async handlers rarely need `try`: an atom
+with `finally` and `throw` inside `try`, so [`reactCompilerCoverage.test.ts`](../../apps/web/src/reactCompilerCoverage.test.ts)
+compiles every file and fails on any skip. Async handlers rarely need `try`: an atom
 command settles into a result, so cleanup can follow the `await`, and `settlePromise` does the same
 for a promise that may reject. `useStableCallback` still marks handlers that leave a large
-component, as described above. Add a file to the list once it compiles cleanly, and
-drop its manual memoization in the same change.
+component, as described above.
