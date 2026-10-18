@@ -247,9 +247,6 @@ import { RightPanelTabs } from "./RightPanelTabs";
 import { LinkPullRequestDialogHost } from "./pullRequest/LinkPullRequestDialog";
 import { BackgroundWorkIcon, BackgroundWorkTitle } from "./chat/BackgroundWork";
 import { useDeviceState } from "~/state/device";
-import { DeviceSetup } from "./device/DeviceSetup";
-import { Dialog } from "./ui/dialog";
-import { WizardPopup } from "./ui/wizard";
 import { BranchToolbar, type BranchToolbarHandle } from "./BranchToolbar";
 import {
   makeWorkspaceFileDropHandlers,
@@ -377,7 +374,14 @@ import { createPageScrollController, type PageScrollKey } from "./chat/pageScrol
 import { isTimelineScrollTarget } from "./chat/timelineScrollTarget";
 import { DraftProjectPicker } from "./chat/DraftProjectPicker";
 import { ExpandedImageDialog } from "./chat/ExpandedImageDialog";
-import { PullRequestThreadDialog } from "./PullRequestThreadDialog";
+import {
+  DeviceSetupDialogHost,
+  openDeviceSetupDialog,
+  openPullRequestThreadDialog,
+  openRevertConfirm,
+  PullRequestThreadDialogHost,
+  RevertConfirmHost,
+} from "./chat/ChatOverlayHosts";
 import type { AssistantCitationRequest } from "./chat/AssistantCitationSource";
 import { MessagesTimeline, type MessagesTimelineHistoryControls } from "./chat/MessagesTimeline";
 import { ProviderSubagentBar } from "./chat/ProviderSubagentBar";
@@ -469,7 +473,6 @@ import {
   LAST_INVOKED_SCRIPT_BY_PROJECT_KEY,
   LastInvokedScriptByProjectSchema,
   type LocalDispatchSnapshot,
-  PullRequestDialogState,
   deriveLockedProvider,
   resolveFileAttachmentUrl,
   prepareRevertedMessageAttachments,
@@ -507,15 +510,6 @@ import { useAtomCommand } from "../state/use-atom-command";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { useAtomQueryRunner } from "../state/use-atom-query-runner";
 import { Button, InlineButton } from "./ui/button";
-import {
-  AlertDialog,
-  AlertDialogClose,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogPopup,
-  AlertDialogTitle,
-} from "./ui/alert-dialog";
 import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import {
   PreviewPanelGroup,
@@ -1262,8 +1256,6 @@ export default function ChatView(props: ChatViewProps) {
   const isMobileViewport = useMediaQuery("max-sm");
   const threadPanelPopoverAnchorRef = useRef<HTMLElement | null>(null);
   const [terminalFocusRequestId, setTerminalFocusRequestId] = useState(0);
-  const [pullRequestDialogState, setPullRequestDialogState] =
-    useState<PullRequestDialogState | null>(null);
   const [terminalUiLaunchContext, setTerminalUiLaunchContext] =
     useState<TerminalLaunchContext | null>(null);
   const [attachmentPreviewHandoffByMessageId, setAttachmentPreviewHandoffByMessageId] = useState<
@@ -2014,16 +2006,10 @@ export default function ChatView(props: ChatViewProps) {
     if (!canCheckoutPullRequestIntoThread) {
       return;
     }
-    setPullRequestDialogState({
-      initialReference: reference ?? null,
-      key: Date.now(),
-    });
+    if (activeThreadKey === null) return;
+    openPullRequestThreadDialog(activeThreadKey, reference);
   };
   const openPullRequestDialogStable = useStableCallback(openPullRequestDialog);
-
-  const closePullRequestDialog = () => {
-    setPullRequestDialogState(null);
-  };
 
   const openOrReuseProjectDraftThread = async (input: {
     branch: string;
@@ -3636,11 +3622,10 @@ export default function ChatView(props: ChatViewProps) {
   const { state: deviceState, loaded: deviceStateLoaded } = useDeviceState(
     activeThreadRef?.environmentId ?? null,
   );
-  const [deviceSetupThread, setDeviceSetupThread] = useState<ScopedThreadRef | null>(null);
   const addDeviceSurface = () => {
     if (!activeThreadRef) return;
     if (!deviceState.onboardingCompleted || deviceState.hostStatus === "disabled") {
-      setDeviceSetupThread(activeThreadRef);
+      openDeviceSetupDialog(scopedThreadKey(activeThreadRef));
       return;
     }
     useRightPanelStore.getState().open(activeThreadRef, "device");
@@ -4472,7 +4457,6 @@ export default function ChatView(props: ChatViewProps) {
   if (timelineScrollSession.threadKey !== activeThreadKey) {
     const followEnd = readTimelinePosition(routeThreadKey)?.atEnd !== false;
     setTimelineScrollSession({ threadKey: activeThreadKey, followEnd });
-    setPullRequestDialogState(null);
     setTimelineLiveFollowEnabled(followEnd);
     setShowScrollToBottom(!followEnd);
   }
@@ -5719,16 +5703,6 @@ export default function ChatView(props: ChatViewProps) {
     };
   }, [activeThreadId, composerRef]);
 
-  const [pendingRevert, setPendingRevert] = useState<{
-    turnCount: number;
-    messageId: MessageId;
-    routeThreadKey: string;
-  } | null>(null);
-
-  if (pendingRevert && pendingRevert.routeThreadKey !== routeThreadKey) {
-    setPendingRevert(null);
-  }
-
   const onRevertToTurnCount = async (
     turnCount: number,
     messageId: MessageId,
@@ -5777,7 +5751,7 @@ export default function ChatView(props: ChatViewProps) {
       return;
     }
     if (restoreFiles === undefined) {
-      setPendingRevert({ turnCount, messageId, routeThreadKey });
+      openRevertConfirm(routeThreadKey, { turnCount, messageId });
       return;
     }
 
@@ -5816,6 +5790,10 @@ export default function ChatView(props: ChatViewProps) {
     }
   };
   const onRevertToTurnCountStable = useStableCallback(onRevertToTurnCount);
+  const onConfirmRevert = (turnCount: number, messageId: MessageId, restoreFiles: boolean) => {
+    void onRevertToTurnCount(turnCount, messageId, restoreFiles);
+  };
+  const onConfirmRevertStable = useStableCallback(onConfirmRevert);
 
   const onCompactContext = () => {
     if (compactDisabled) return;
@@ -6977,29 +6955,11 @@ export default function ChatView(props: ChatViewProps) {
 
   const content = (
     <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-background">
-      <Dialog
-        open={
-          deviceSetupThread !== null &&
-          deviceSetupThread.environmentId === activeThreadRef?.environmentId &&
-          deviceSetupThread.threadId === activeThreadRef?.threadId
-        }
-        onOpenChange={(open) => {
-          if (!open) setDeviceSetupThread(null);
-        }}
-      >
-        <WizardPopup>
-          {activeThreadRef ? (
-            <DeviceSetup
-              environmentId={activeThreadRef.environmentId}
-              state={deviceState}
-              onComplete={() => {
-                useRightPanelStore.getState().open(activeThreadRef, "device");
-                setDeviceSetupThread(null);
-              }}
-            />
-          ) : null}
-        </WizardPopup>
-      </Dialog>
+      <DeviceSetupDialogHost
+        threadKey={activeThreadKey}
+        threadRef={activeThreadRef}
+        state={deviceState}
+      />
       {rightPanelControlsAtRoot ? panelLayoutControls : null}
       <PreviewPanelGroup className="min-h-0 min-w-0 flex-1" maximized={rightPanelMaximized}>
         <PreviewPanelSibling>
@@ -7528,22 +7488,13 @@ export default function ChatView(props: ChatViewProps) {
                   <ThreadDetailsPanel {...threadDetailsPanelProps} />
                 ) : null}
 
-                {pullRequestDialogState ? (
-                  <PullRequestThreadDialog
-                    key={pullRequestDialogState.key}
-                    open
-                    environmentId={activeThread.environmentId}
-                    threadId={activeThread.id}
-                    cwd={activeProject?.workspaceRoot ?? null}
-                    initialReference={pullRequestDialogState.initialReference}
-                    onOpenChange={(open) => {
-                      if (!open) {
-                        closePullRequestDialog();
-                      }
-                    }}
-                    onPrepared={handlePreparedPullRequestThreadStable}
-                  />
-                ) : null}
+                <PullRequestThreadDialogHost
+                  threadKey={activeThreadKey}
+                  environmentId={activeThread.environmentId}
+                  threadId={activeThread.id}
+                  cwd={activeProject?.workspaceRoot ?? null}
+                  onPrepared={handlePreparedPullRequestThreadStable}
+                />
               </ThreadFindCanvas>
             </div>
 
@@ -7682,44 +7633,7 @@ export default function ChatView(props: ChatViewProps) {
         </RightPanelSheet>
       ) : null}
 
-      <AlertDialog
-        open={pendingRevert !== null && pendingRevert.routeThreadKey === routeThreadKey}
-        onOpenChange={(open) => {
-          if (!open) setPendingRevert(null);
-        }}
-      >
-        <AlertDialogPopup>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Edit from here?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Rewind chat to before this message. Your prompt and attachments return to the
-              composer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (!pendingRevert || pendingRevert.routeThreadKey !== routeThreadKey) return;
-                setPendingRevert(null);
-                void onRevertToTurnCount(pendingRevert.turnCount, pendingRevert.messageId, true);
-              }}
-            >
-              Revert files too
-            </Button>
-            <Button
-              onClick={() => {
-                if (!pendingRevert || pendingRevert.routeThreadKey !== routeThreadKey) return;
-                setPendingRevert(null);
-                void onRevertToTurnCount(pendingRevert.turnCount, pendingRevert.messageId, false);
-              }}
-            >
-              Revert and keep changes
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogPopup>
-      </AlertDialog>
+      <RevertConfirmHost threadKey={routeThreadKey} onConfirm={onConfirmRevertStable} />
       <LinkPullRequestDialogHost />
       {expandedImage && (
         <ExpandedImageDialog
