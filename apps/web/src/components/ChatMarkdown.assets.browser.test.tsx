@@ -2,7 +2,7 @@ import { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import { AsyncResult } from "effect/reactivity";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const mint = vi.hoisted(() => vi.fn());
 // Atoms derived from the server config run in the real registry over a missing config.
@@ -67,4 +67,60 @@ it("opens host media through server authorization before the client grant loads"
       }),
     ),
   );
+});
+
+describe("pending media requests", () => {
+  const environmentId = EnvironmentId.make("media-environment");
+  const markdown = (threadId: string, text: string, onImageExpand: () => void) => (
+    <ChatMarkdown
+      cwd="/repo"
+      threadRef={{ environmentId, threadId: ThreadId.make(threadId) }}
+      text={text}
+      onImageExpand={onImageExpand}
+    />
+  );
+
+  async function resolveAfterVisiting(visits: ReadonlyArray<{ threadId: string; text: string }>) {
+    let resolveMint!: (result: unknown) => void;
+    mint.mockReturnValue(new Promise((resolve) => (resolveMint = resolve)));
+    const onImageExpand = vi.fn();
+    const container = document.body.appendChild(document.createElement("div"));
+    const root = createRoot(container);
+    roots.push(root);
+    await act(async () =>
+      root.render(markdown("thread-a", "[Open image](/tmp/image.png)", onImageExpand)),
+    );
+    const link = container.querySelector<HTMLAnchorElement>('a[href="/tmp/image.png"]');
+    expect(link).not.toBeNull();
+    await act(async () => link!.click());
+    for (const { threadId, text } of visits) {
+      await act(async () => root.render(markdown(threadId, text, onImageExpand)));
+    }
+    await act(async () =>
+      resolveMint(AsyncResult.success({ relativeUrl: "/api/assets/image.png", expiresAt: 1 })),
+    );
+    return onImageExpand;
+  }
+
+  it("opens after the reply re-renders in the same thread", async () => {
+    const onImageExpand = await resolveAfterVisiting([
+      { threadId: "thread-a", text: "[Open image](/tmp/image.png) and more" },
+    ]);
+    expect(onImageExpand).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays closed when it finishes loading in another thread", async () => {
+    const onImageExpand = await resolveAfterVisiting([
+      { threadId: "thread-b", text: "[Open image](/tmp/image.png)" },
+    ]);
+    expect(onImageExpand).not.toHaveBeenCalled();
+  });
+
+  it("stays closed when it finishes loading after returning to its thread", async () => {
+    const onImageExpand = await resolveAfterVisiting([
+      { threadId: "thread-b", text: "[Open image](/tmp/image.png)" },
+      { threadId: "thread-a", text: "[Open image](/tmp/image.png)" },
+    ]);
+    expect(onImageExpand).not.toHaveBeenCalled();
+  });
 });

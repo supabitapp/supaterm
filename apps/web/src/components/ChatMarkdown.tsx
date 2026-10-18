@@ -2272,9 +2272,7 @@ function useChatMarkdownState({
   githubMedia = false,
 }: ChatMarkdownProps) {
   const { resolvedTheme } = useTheme();
-  const [localMediaPreview, setLocalMediaPreview] = useState<ExpandedImagePreview | null>(null);
   const markdownRef = useRef<HTMLDivElement>(null);
-  const expandMedia = onImageExpand ?? setLocalMediaPreview;
   const mediaRequestId = useRef(0);
   const mediaScopeKey = JSON.stringify([
     threadRef?.environmentId,
@@ -2283,18 +2281,31 @@ function useChatMarkdownState({
     cwd,
     imageBaseDir,
   ]);
+  // Tagged with the scope it was opened in: a request from the previous scope can
+  // resolve before the layout cleanup below invalidates it, and must stay hidden.
+  const [localMedia, setLocalMedia] = useState<{
+    scope: string;
+    preview: ExpandedImagePreview;
+  } | null>(null);
+  const localMediaPreview = localMedia?.scope === mediaScopeKey ? localMedia.preview : null;
+  const closeLocalMediaPreview = () => setLocalMedia(null);
+  const expandMedia =
+    onImageExpand ??
+    ((preview: ExpandedImagePreview) => setLocalMedia({ scope: mediaScopeKey, preview }));
   const [renderedMediaScopeKey, setRenderedMediaScopeKey] = useState(mediaScopeKey);
   if (renderedMediaScopeKey !== mediaScopeKey) {
     setRenderedMediaScopeKey(mediaScopeKey);
-    setLocalMediaPreview(null);
+    setLocalMedia(null);
   }
-  const activeMediaScopeKeyRef = useRef<string | null>(null);
-  useEffect(() => {
-    activeMediaScopeKeyRef.current = mediaScopeKey;
-    return () => {
-      activeMediaScopeKeyRef.current = null;
-    };
-  }, [mediaScopeKey]);
+  // A layout cleanup runs in the commit that changes scope, so a request resolving
+  // before paint cannot reach a parent onImageExpand either.
+  useLayoutEffect(
+    () => () => {
+      mediaRequestId.current += 1;
+    },
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Leaving the scope invalidates media requests still loading for it.
+    [mediaScopeKey],
+  );
   const createAssetUrl = useAtomQueryRunner(assetEnvironment.createUrl, {
     reportFailure: false,
     refresh: true,
@@ -2319,9 +2330,6 @@ function useChatMarkdownState({
     clickedImage?: HTMLImageElement | null,
   ) => {
     const requestId = ++mediaRequestId.current;
-    const requestScopeKey = activeMediaScopeKeyRef.current;
-    const isCurrentRequest = () =>
-      mediaRequestId.current === requestId && activeMediaScopeKeyRef.current === requestScopeKey;
     void resolveMarkdownMediaPreview({
       source,
       resolvedFilePath,
@@ -2337,7 +2345,7 @@ function useChatMarkdownState({
         : undefined,
     }).then(
       (preview) => {
-        if (preview && isCurrentRequest()) {
+        if (preview && mediaRequestId.current === requestId) {
           const selected = preview.images[preview.index];
           expandMedia(
             selected && selected.type !== "video" && markdownRef.current
@@ -2347,7 +2355,7 @@ function useChatMarkdownState({
         }
       },
       (error: unknown) => {
-        if (!isCurrentRequest()) return;
+        if (mediaRequestId.current !== requestId) return;
         toastManager.add(
           stackedThreadToast({
             type: "error",
@@ -2672,7 +2680,7 @@ function useChatMarkdownState({
     markdownRef,
     markdownUrlTransform,
     localMediaPreview,
-    setLocalMediaPreview,
+    closeLocalMediaPreview,
   };
 }
 
@@ -3295,7 +3303,7 @@ function ChatMarkdown({
     markdownRef,
     markdownUrlTransform,
     localMediaPreview,
-    setLocalMediaPreview,
+    closeLocalMediaPreview,
   } = useChatMarkdownState({ text, ...props });
   const fadesNewBlocks = componentState.isStreaming && (fadeInitialBlocks || text !== mountedText);
   const incrementalParsing =
@@ -3336,10 +3344,7 @@ function ChatMarkdown({
         </ChatMarkdownTextContext>
       </ChatMarkdownRendererContext>
       {localMediaPreview ? (
-        <ExpandedImageDialog
-          preview={localMediaPreview}
-          onClose={() => setLocalMediaPreview(null)}
-        />
+        <ExpandedImageDialog preview={localMediaPreview} onClose={closeLocalMediaPreview} />
       ) : null}
     </div>
   );
