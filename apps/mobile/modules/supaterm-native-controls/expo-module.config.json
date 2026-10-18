@@ -11,7 +11,8 @@
     "modules": [
       "expo.modules.supatermnativecontrols.SupatermNativeControlsModule",
       "expo.modules.supatermnativecontrols.SupatermWorkspaceNavigationModule",
-      "expo.modules.supatermnativecontrols.SupatermKeyboardCommandsModule"
+      "expo.modules.supatermnativecontrols.SupatermKeyboardCommandsModule",
+      "expo.modules.supatermnativecontrols.SupatermFoldPostureModule"
     ]
   }
 }
