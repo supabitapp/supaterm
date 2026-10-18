@@ -4,7 +4,7 @@ import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
 
 import { Radio as RadioPrimitive } from "@base-ui/react/radio";
 import { CheckIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import {
   type AcpRegistrySearchAgent,
@@ -129,10 +129,11 @@ export function AddProviderInstanceDialog({
   const [isSaving, setIsSaving] = useState(false);
   const [createdInstanceId, setCreatedInstanceId] = useState<ProviderInstanceId | null>(null);
 
-  const existingIds = useMemo(
-    () => new Set(["codex", "claudeAgent", ...Object.keys(settings.providerInstances ?? {})]),
-    [settings.providerInstances],
-  );
+  const existingIds = new Set([
+    "codex",
+    "claudeAgent",
+    ...Object.keys(settings.providerInstances ?? {}),
+  ]);
 
   const driverOption = providerClients.get(driver) ?? DEFAULT_DRIVER_OPTION;
   const isAcpRegistry = driver === ACP_REGISTRY_DRIVER_KIND;
@@ -154,10 +155,7 @@ export function AddProviderInstanceDialog({
       label,
       existingIds,
     );
-  const driverSettingsFields = useMemo(
-    () => deriveProviderSettingsFields(driverOption),
-    [driverOption],
-  );
+  const driverSettingsFields = deriveProviderSettingsFields(driverOption);
   const instanceIdError = validateInstanceId(instanceId, existingIds);
   const showInstanceIdError = hasAttemptedSubmit && instanceIdError !== null;
   const identityStep = 1;
