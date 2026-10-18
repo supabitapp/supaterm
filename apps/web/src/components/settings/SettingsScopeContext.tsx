@@ -3,7 +3,7 @@ import { parseSupatermProjectFile } from "@supaterm/shared/supatermProjectFile";
 import { useAtomValue } from "@effect/atom-react";
 import * as Option from "effect/Option";
 import { AsyncResult, Atom } from "effect/reactivity";
-import { createContext, type ReactNode, useContext, useMemo } from "react";
+import { createContext, type ReactNode, useContext } from "react";
 
 import { useEnvironments, usePrimaryEnvironmentId } from "../../state/environments";
 import { getProjectFileQueryAtom, optimisticFileAtom } from "../files/projectFilesQueryState";
@@ -15,36 +15,32 @@ import { selectSingleEnvironmentScope } from "./settingsScopeAxis";
 function useMemberProjectFiles(scope: ReturnType<typeof resolveSettingsScope>) {
   const members = scope.kind === "project" || scope.kind === "checkout" ? scope.members : [];
   return useAtomValue(
-    useMemo(
-      () =>
-        Atom.make((get) => {
-          const files = new Map<string, SupatermProjectFile | null>();
-          for (const member of members) {
-            const result = get(
-              getProjectFileQueryAtom(
-                member.environmentId,
-                member.workspaceRoot,
-                SUPATERM_PROJECT_FILE_NAME,
-              ),
-            );
-            if (result.waiting) continue;
-            const data =
-              get(
-                optimisticFileAtom(
-                  member.environmentId,
-                  member.workspaceRoot,
-                  SUPATERM_PROJECT_FILE_NAME,
-                ),
-              )?.data ?? Option.getOrNull(AsyncResult.value(result));
-            files.set(
-              member.physicalProjectKey,
-              data === null || data.truncated ? null : parseSupatermProjectFile(data.contents),
-            );
-          }
-          return files;
-        }),
-      [members],
-    ),
+    Atom.make((get) => {
+      const files = new Map<string, SupatermProjectFile | null>();
+      for (const member of members) {
+        const result = get(
+          getProjectFileQueryAtom(
+            member.environmentId,
+            member.workspaceRoot,
+            SUPATERM_PROJECT_FILE_NAME,
+          ),
+        );
+        if (result.waiting) continue;
+        const data =
+          get(
+            optimisticFileAtom(
+              member.environmentId,
+              member.workspaceRoot,
+              SUPATERM_PROJECT_FILE_NAME,
+            ),
+          )?.data ?? Option.getOrNull(AsyncResult.value(result));
+        files.set(
+          member.physicalProjectKey,
+          data === null || data.truncated ? null : parseSupatermProjectFile(data.contents),
+        );
+      }
+      return files;
+    }),
   );
 }
 
@@ -52,42 +48,27 @@ function useResolvedSettingsScope(rawSearch: SettingsScopeSearch, singleEnvironm
   const groups = useSettingsProjectGroups();
   const { environments: availableEnvironments } = useEnvironments();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
-  const search = useMemo(
-    () =>
-      singleEnvironment
-        ? selectSingleEnvironmentScope(
-            rawSearch,
-            resolveSettingsScope(rawSearch, groups, availableEnvironments),
-            availableEnvironments,
-            primaryEnvironmentId,
-          )
-        : rawSearch,
-    [availableEnvironments, groups, primaryEnvironmentId, rawSearch, singleEnvironment],
-  );
-  const scope = useMemo(
-    () => resolveSettingsScope(search, groups, availableEnvironments),
-    [availableEnvironments, groups, search],
-  );
+  const search = singleEnvironment
+    ? selectSingleEnvironmentScope(
+        rawSearch,
+        resolveSettingsScope(rawSearch, groups, availableEnvironments),
+        availableEnvironments,
+        primaryEnvironmentId,
+      )
+    : rawSearch;
+  const scope = resolveSettingsScope(search, groups, availableEnvironments);
   const projectFiles = useMemberProjectFiles(scope);
-  return useMemo(() => {
-    const selected = selectScopedSettingsEnvironments(
-      scope,
-      availableEnvironments,
-      primaryEnvironmentId,
-    );
-    const targets = resolveScopedSettingsTargets(
-      scope,
-      selected.connectedEnvironments,
-      projectFiles,
-    );
-    const target =
-      targets.find(
-        (candidate) => candidate.environmentId === selected.environment?.environmentId,
-      ) ??
-      targets[0] ??
-      null;
-    return { scope, groups, search, ...selected, targets, target };
-  }, [availableEnvironments, groups, primaryEnvironmentId, projectFiles, scope, search]);
+  const selected = selectScopedSettingsEnvironments(
+    scope,
+    availableEnvironments,
+    primaryEnvironmentId,
+  );
+  const targets = resolveScopedSettingsTargets(scope, selected.connectedEnvironments, projectFiles);
+  const target =
+    targets.find((candidate) => candidate.environmentId === selected.environment?.environmentId) ??
+    targets[0] ??
+    null;
+  return { scope, groups, search, ...selected, targets, target };
 }
 
 const SettingsScopeContext = createContext<
@@ -111,10 +92,7 @@ export function SettingsScopeProvider({
   children: ReactNode;
 }) {
   const resolved = useResolvedSettingsScope(search, singleEnvironment);
-  const value = useMemo(
-    () => ({ ...resolved, singleEnvironment, selectScope: onChange }),
-    [onChange, resolved, singleEnvironment],
-  );
+  const value = { ...resolved, singleEnvironment, selectScope: onChange };
   return <SettingsScopeContext value={value}>{children}</SettingsScopeContext>;
 }
 
