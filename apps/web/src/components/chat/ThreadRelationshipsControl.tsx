@@ -51,7 +51,7 @@ import {
   useProjects,
   useServerConfigs,
   useThreadProjection,
-  useThreadShells,
+  useThreadRelationshipShells,
 } from "../../state/entities";
 import { threadEnvironment } from "../../state/threads";
 import { orchestrationEnvironment } from "../../state/orchestration";
@@ -210,7 +210,7 @@ export function ThreadRelationshipsPanel(props: {
   const ref = scopeThreadRef(props.environmentId, props.threadId);
   const projection = useThreadProjection(ref)?.projection ?? null;
   const serverConfigs = useServerConfigs();
-  const threadShells = useThreadShells();
+  const relationshipShells = useThreadRelationshipShells(ref);
   const allProjects = useProjects();
   const archived = useArchivedThreadSnapshots([props.environmentId]);
   const canOperateThread = useEnvironmentScope(props.environmentId, AuthOrchestrationOperateScope);
@@ -256,9 +256,7 @@ export function ThreadRelationshipsPanel(props: {
     deriveWorkflowGroups(runtimeSubagents).map((group) => [group.workflow.id, group]),
   );
   const shells: ReadonlyArray<OrchestrationV2ThreadShell> = [
-    ...threadShells
-      .filter((thread) => thread.environmentId === props.environmentId)
-      .map((thread) => thread.source),
+    ...relationshipShells,
     ...(archivedShells ?? []),
   ];
   const graph = deriveThreadRelationshipGraph({ threads: shells, projection });
