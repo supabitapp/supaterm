@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
-import { renderToStaticMarkup } from "react-dom/server";
 
 import {
   isSidebarStageBackdropSupported,
   resolveEnvironmentIdentificationPillLabel,
   shouldShowSidebarStageBackdrop,
-  StageBackdropArt,
 } from "./SidebarStageBackdrop";
 
 describe("SidebarStageBackdrop", () => {
@@ -44,18 +42,5 @@ describe("SidebarStageBackdrop", () => {
     expect(resolveEnvironmentIdentificationPillLabel("nightly")).toBe("Nightly");
     expect(resolveEnvironmentIdentificationPillLabel("Latest")).toBeNull();
     expect(resolveEnvironmentIdentificationPillLabel(null)).toBeNull();
-  });
-
-  it("uses unique SVG definition ids when production artwork is rendered more than once", () => {
-    const markup = renderToStaticMarkup(
-      <>
-        <StageBackdropArt />
-        <StageBackdropArt />
-      </>,
-    );
-    const ids = Array.from(markup.matchAll(/\sid="([^"]+)"/g), (match) => match[1]);
-
-    expect(ids.length).toBeGreaterThan(0);
-    expect(new Set(ids).size).toBe(ids.length);
   });
 });

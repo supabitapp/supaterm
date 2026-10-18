@@ -1,6 +1,6 @@
 import { ProjectId, ThreadId, type VcsStatusResult } from "@supaterm/contracts";
-import { act, type ComponentProps, type ReactNode } from "react";
-import { create, type ReactTestRenderer } from "react-test-renderer";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vite-plus/test";
 
 import { AppAtomRegistryProvider } from "../rpc/atomRegistry";
@@ -8,8 +8,12 @@ import { makeThreadFixture } from "../test-fixtures";
 
 const state = vi.hoisted(() => ({ queries: [] as string[] }));
 
-vi.mock("../state/entities", () => ({ useProject: () => null, useServerConfigs: () => new Map() }));
-vi.mock("../state/vcs", async () => {
+vi.mock(import("../state/entities"), async (original) => ({
+  ...(await original()),
+  useProject: () => null,
+  useServerConfigs: () => new Map(),
+}));
+vi.mock(import("../state/vcs"), async (original) => {
   const { AsyncResult, Atom } = await import("effect/reactivity");
   const statuses = Atom.family((cwd: string) =>
     Atom.make(() => {
@@ -35,12 +39,17 @@ vi.mock("../state/vcs", async () => {
       } satisfies VcsStatusResult);
     }),
   );
+  const actual = await original();
   return {
-    vcsEnvironment: { status: ({ input }: { input: { cwd: string } }) => statuses(input.cwd) },
+    ...actual,
+    vcsEnvironment: {
+      ...actual.vcsEnvironment,
+      status: (({ input }: { input: { cwd: string } }) => statuses(input.cwd)) as never,
+    },
   };
 });
-vi.mock("../state/pullRequests", async (importOriginal) => {
-  const original = await importOriginal<typeof import("../state/pullRequests")>();
+vi.mock(import("../state/pullRequests"), async (importOriginal) => {
+  const original = await importOriginal();
   const { AsyncResult, Atom } = await import("effect/reactivity");
   const { ProjectId } = await import("@supaterm/contracts");
   const summaries = Atom.family((number: number) =>
@@ -62,44 +71,23 @@ vi.mock("../state/pullRequests", async (importOriginal) => {
   );
   return {
     ...original,
-    linkedPullRequestDetailAtom: ({ input }: { input: { number: number } }) =>
-      summaries(input.number),
+    linkedPullRequestDetailAtom: (({ input }: { input: { number: number } }) =>
+      summaries(input.number)) as never,
   };
 });
-vi.mock("./ui/tooltip", async () => {
-  const { cloneElement, isValidElement } = await import("react");
-  return {
-    Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
-    TooltipTrigger({
-      render,
-      children,
-    }: ComponentProps<typeof import("./ui/tooltip").TooltipTrigger>) {
-      return isValidElement(render) ? cloneElement(render, undefined, children) : children;
-    },
-    TooltipPopup: () => null,
-  };
-});
-
 import { ThreadRowLeadingStatus } from "./ThreadStatusIndicators";
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+// The lease overscans 160px around a 20px viewport, a 340px band. With 45px rows the band
+// covers exactly 8 rows at each scroll position below.
+const ROW_HEIGHT = 45;
+const SPACER = 1000;
+
 it("leases visible worktree results while retaining persisted and cached PR badges", async () => {
-  const observers: Array<{ setVisible: (visible: boolean) => void }> = [];
-  const scrollRoot = {};
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  vi.stubGlobal(
-    "IntersectionObserver",
-    class {
-      constructor(callback: (entries: ReadonlyArray<{ isIntersecting: boolean }>) => void) {
-        observers.push({ setVisible: (visible) => callback([{ isIntersecting: visible }]) });
-      }
-      observe() {}
-      disconnect() {}
-    },
-  );
   const threads = Array.from({ length: 128 }, (_, index) =>
     makeThreadFixture({
       id: ThreadId.make(`palette-thread-${index}`),
@@ -139,64 +127,73 @@ it("leases visible worktree results while retaining persisted and cached PR badg
             },
     }),
   );
-  let renderer: ReactTestRenderer | undefined;
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
   state.queries.length = 0;
-  try {
+  const viewport = () =>
+    container.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]')!;
+  const scrollTo = async (top: number) => {
     await act(async () => {
-      renderer = create(
-        <AppAtomRegistryProvider>
-          {threads.map((thread, index) => (
-            <span key={thread.id}>
-              <ThreadRowLeadingStatus
-                thread={thread}
-                snapshot={
-                  index === 126
-                    ? {
-                        branch: "feature/test",
-                        sourceControlProvider: undefined,
-                        pr: {
-                          number: 126,
-                          title: "Cached badge",
-                          url: "https://github.com/example/repo/pull/126",
-                          baseRef: "main",
-                          headRef: "feature/test",
-                          state: "open",
-                        },
-                      }
-                    : undefined
-                }
-              />
-              {thread.title}
-            </span>
-          ))}
-        </AppAtomRegistryProvider>,
-        { createNodeMock: () => ({ parentElement: { closest: () => scrollRoot } }) },
-      );
+      viewport().scrollTop = top;
+      await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 50)));
     });
-    const mounted = renderer!;
-    const badgeCount = () =>
-      mounted.root.findAll(
-        (node) => node.type === "span" && String(node.props["aria-label"] ?? "").startsWith("PR #"),
-      ).length;
-    expect(observers).toHaveLength(128);
+  };
+  const badgeCount = () =>
+    [...container.querySelectorAll("[aria-label]")].filter((node) =>
+      node.getAttribute("aria-label")!.startsWith("PR #"),
+    ).length;
+  try {
+    await act(async () =>
+      root.render(
+        <AppAtomRegistryProvider>
+          <div data-slot="scroll-area-viewport" style={{ height: 20, overflowY: "auto" }}>
+            <div style={{ height: SPACER }} />
+            {threads.map((thread, index) => (
+              <div key={thread.id} style={{ height: ROW_HEIGHT, overflow: "hidden" }}>
+                <ThreadRowLeadingStatus
+                  thread={thread}
+                  snapshot={
+                    index === 126
+                      ? {
+                          branch: "feature/test",
+                          sourceControlProvider: undefined,
+                          pr: {
+                            number: 126,
+                            title: "Cached badge",
+                            url: "https://github.com/example/repo/pull/126",
+                            baseRef: "main",
+                            headRef: "feature/test",
+                            state: "open",
+                          },
+                        }
+                      : undefined
+                  }
+                />
+                {thread.title}
+              </div>
+            ))}
+          </div>
+        </AppAtomRegistryProvider>,
+      ),
+    );
+    await scrollTo(0);
     expect(state.queries).toEqual([]);
     expect(badgeCount()).toBe(65);
 
-    await act(async () => {
-      for (const observer of observers.slice(0, 8)) observer.setVisible(true);
-    });
+    // Band [1000, 1340]: rows 0..7.
+    await scrollTo(SPACER + 160);
     expect(state.queries).toHaveLength(4);
     expect(state.queries.filter((key) => key.startsWith("vcs:"))).toHaveLength(4);
     expect(state.queries.filter((key) => key.startsWith("pr:"))).toHaveLength(0);
     expect(badgeCount()).toBe(69);
 
-    await act(async () => {
-      for (const observer of observers.slice(0, 8)) observer.setVisible(false);
-      for (const observer of observers.slice(8, 16)) observer.setVisible(true);
-    });
+    // Band [1370, 1710]: rows 8..15.
+    await scrollTo(SPACER + 8 * ROW_HEIGHT + 10 + 160);
     expect(state.queries).toHaveLength(8);
     expect(badgeCount()).toBe(73);
   } finally {
-    await act(async () => renderer?.unmount());
+    await act(async () => root.unmount());
+    container.remove();
   }
 });
