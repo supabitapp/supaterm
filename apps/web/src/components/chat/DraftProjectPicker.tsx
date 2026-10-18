@@ -4,11 +4,7 @@ import {
   composerDraftHasUserContent,
   draftThreadHasOpenPreview,
 } from "~/composerDraftStore";
-import {
-  DEFAULT_SERVER_SETTINGS,
-  resolveEnvironmentMachineKind,
-  type ScopedProjectRef,
-} from "@supaterm/contracts";
+import { resolveEnvironmentMachineKind, type ScopedProjectRef } from "@supaterm/contracts";
 import { scopedProjectKey, scopeProjectRef } from "@supaterm/client-runtime/environment";
 import { isScratchProject } from "@supaterm/client-runtime/state/projects";
 import { ChevronDownIcon, FolderIcon, FolderPlusIcon, MessageSquareDashedIcon } from "lucide-react";
@@ -19,14 +15,11 @@ import { openCommandPalette } from "~/commandPaletteBus";
 import { useComposerHandleContext } from "~/composerHandleContext";
 import { shortcutLabelForCommand } from "~/keybindings";
 import { primaryServerKeybindingsAtom } from "~/state/server";
-import { resolveNewDraftEnvMode, useNewThreadHandler } from "~/hooks/useHandleNewThread";
+import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { useScratchProject } from "~/hooks/useScratchProject";
 import { useClientSettings } from "~/hooks/useSettings";
 import { usePickerShortcuts } from "~/hooks/usePickerShortcuts";
-import {
-  hasExplicitComposerModelSelection,
-  resolveNewDraftStartFromOrigin,
-} from "~/lib/chatThreadActions";
+import { moveDraftToProject, resolveNewDraftWorkspace } from "~/lib/newDraftWorkspace";
 import {
   deriveLogicalProjectKeyFromSettings,
   selectProjectGroupingSettings,
@@ -55,7 +48,6 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { Kbd } from "../ui/kbd";
 import { ComposerControl } from "./ComposerControl";
 import { useComposerMenuProps } from "./composerEventScope";
-import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 import { normalizeSearchQuery, scoreQueryMatch } from "@supaterm/shared/searchRanking";
 
 // Menu value for "No project"; real entries are keyed by logical project key.
@@ -79,12 +71,7 @@ export function DraftProjectPicker({
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
   const projectSortOrder = useClientSettings((settings) => settings.sidebarProjectSortOrder);
-  const setLogicalProjectDraftThreadId = useComposerDraftStore(
-    (store) => store.setLogicalProjectDraftThreadId,
-  );
   const getComposerDraft = useComposerDraftStore((store) => store.getComposerDraft);
-  const applyStickyState = useComposerDraftStore((store) => store.applyStickyState);
-  const setModelSelection = useComposerDraftStore((store) => store.setModelSelection);
   const openAddProject = useCallback(() => openCommandPalette({ open: "add-project" }), []);
   const { scratchEnvironmentId, scratchWorkspaceRootFor, openScratchProject } = useScratchProject();
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
@@ -198,6 +185,8 @@ export function DraftProjectPicker({
   // prompt stays in the same composer session, so the sidebar only gets a
   // draft row if the user later navigates away.
   const openProjectDraft = useNewThreadHandler();
+  // A pick still waiting on its project's defaults yields to a later one.
+  const moveRequestRef = useRef(0);
   const selectProject = (project: (typeof projects)[number], logicalProjectKey: string) => {
     if (!draftId) {
       return;
@@ -207,58 +196,30 @@ export function DraftProjectPicker({
       activeProjectKey: logicalProjectKey,
       scratchTargetEnvironmentId: project.environmentId,
     };
+    const moveRequest = ++moveRequestRef.current;
     const projectRef = scopeProjectRef(project.environmentId, project.id);
-    const currentDraft = getComposerDraft(draftId);
     if (
-      !composerDraftHasUserContent(currentDraft) &&
+      !composerDraftHasUserContent(getComposerDraft(draftId)) &&
       draftThreadHasOpenPreview(useComposerDraftStore.getState().getDraftSession(draftId))
     ) {
       void openProjectDraft(projectRef);
       return;
     }
-    setLogicalProjectDraftThreadId(logicalProjectKey, projectRef, draftId);
     const serverConfig = environments.find(
       (environment) => environment.environmentId === project.environmentId,
     )?.serverConfig;
-    const projectSettings = serverConfig
-      ? resolveProjectSettings(serverConfig.settings, project.id, project).settings
-      : null;
-    const movedDraft = useComposerDraftStore.getState().getDraftSession(draftId);
-    void resolveNewDraftEnvMode(projectRef, serverConfig).then((envMode) => {
-      const { getDraftSession, setDraftThreadContext } = useComposerDraftStore.getState();
-      const draft = getDraftSession(draftId);
-      // Another pick, a mode the user chose meanwhile, or a send outranks the default.
-      if (
-        !movedDraft ||
-        !draft ||
-        draft.promotedTo ||
-        draft.logicalProjectKey !== movedDraft.logicalProjectKey ||
-        draft.envMode !== movedDraft.envMode ||
-        draft.startFromOrigin !== movedDraft.startFromOrigin
-      ) {
+    void resolveNewDraftWorkspace(projectRef, serverConfig).then((workspace) => {
+      if (moveRequestRef.current !== moveRequest) {
         return;
       }
-      setDraftThreadContext(draftId, {
-        envMode,
-        startFromOrigin: resolveNewDraftStartFromOrigin({
-          envMode,
-          newWorktreesStartFromOrigin:
-            projectSettings?.newWorktreesStartFromOrigin ??
-            DEFAULT_SERVER_SETTINGS.newWorktreesStartFromOrigin,
-        }),
+      moveDraftToProject({
+        draftId,
+        project,
+        logicalProjectKey,
+        serverSettings: serverConfig?.settings ?? null,
+        workspace,
       });
     });
-    if (!hasExplicitComposerModelSelection(currentDraft)) {
-      applyStickyState(draftId);
-      const defaultModelSelection = projectSettings
-        ? projectSettings.defaultModelSelection
-        : project.defaultModelSelection;
-      if (defaultModelSelection) {
-        setModelSelection(draftId, defaultModelSelection, {
-          replaceOptions: true,
-        });
-      }
-    }
   };
   // Moves the draft to No project. Focus goes to the prompt unless the user has
   // already moved it elsewhere while the folder was being prepared.
