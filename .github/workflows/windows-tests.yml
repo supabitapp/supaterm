@@ -52,6 +52,26 @@ jobs:
         if: inputs.package == '' || inputs.package == 'apps/desktop'
         run: vp run --filter "@supaterm/desktop" ensure:electron
 
+      # The web test script runs its browser project in headless Chromium, which
+      # installing dependencies does not download. Keyed like ci.yml's cache.
+      - name: Resolve Playwright version
+        if: inputs.package == '' || inputs.package == 'apps/web'
+        id: playwright_version
+        shell: bash
+        run: echo "version=$(node -p "require('./apps/web/node_modules/playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Chromium
+        if: inputs.package == '' || inputs.package == 'apps/web'
+        id: chromium_cache
+        uses: actions/cache@v6
+        with:
+          path: ~/AppData/Local/ms-playwright
+          key: playwright-chromium-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright_version.outputs.version }}
+
+      - name: Install Chromium for web browser tests
+        if: (inputs.package == '' || inputs.package == 'apps/web') && steps.chromium_cache.outputs.cache-hit != 'true'
+        run: node apps/web/node_modules/playwright/cli.js install --only-shell chromium
+
       # `vp run ... test -- <files>` does not forward positional args to vitest,
       # so file-scoped runs call `vp test run` inside the package instead.
       - name: Test
