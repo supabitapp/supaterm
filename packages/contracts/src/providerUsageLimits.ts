@@ -25,7 +25,6 @@ export type ServerProviderUsageWindow = typeof ServerProviderUsageWindow.Type;
 export const ServerProviderResetCredits = Schema.Struct({
   availableCount: NonNegativeInt,
   nextExpiresAt: Schema.optional(IsoDateTime),
-  /** Pins redemption to the displayed credit, including retries from another client. */
   nextCreditId: Schema.optional(TrimmedNonEmptyString),
 });
 export type ServerProviderResetCredits = typeof ServerProviderResetCredits.Type;
@@ -89,9 +88,7 @@ export const UsageLimitsReport = Schema.Struct({
       instanceId: ProviderInstanceId,
       driver: ProviderDriverKind,
       plan: Schema.optional(TrimmedNonEmptyString),
-      email: Schema.optional(TrimmedNonEmptyString),
       displayName: Schema.optional(Schema.String),
-      accentColor: Schema.optional(Schema.String),
       limits: ServerProviderUsageLimits,
     }),
   ),

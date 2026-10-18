@@ -49,13 +49,15 @@ function cursorUsageWindowRank(id: string): number {
   return rank < 0 ? CURSOR_USAGE_WINDOWS.length : rank;
 }
 
+type ProviderWithLimits = ServerProvider & { readonly usageLimits: ServerProviderUsageLimits };
+
 export function providersWithLimits(
   providers: readonly ServerProvider[],
-): readonly ServerProvider[] {
+): readonly ProviderWithLimits[] {
   return providers.filter(hasUsageLimits);
 }
 
-function hasUsageLimits(provider: ServerProvider): boolean {
+function hasUsageLimits(provider: ServerProvider): provider is ProviderWithLimits {
   return (
     provider.enabled &&
     provider.installed &&
@@ -86,12 +88,12 @@ export function collectExternalUsageLinks(presentations: LimitPresentations) {
   >();
   for (const presentation of presentations.values()) {
     for (const provider of providersWithLimits(presentation.serverConfig?.providers ?? [])) {
-      const external = provider.usageLimits?.externalUsage;
+      const external = provider.usageLimits.externalUsage;
       if (external && provider.auth.status === "authenticated") {
         const account = `${provider.displayName ?? provider.instanceId} on ${presentation.entry.target.label}`;
         links.set(external.url, {
           ...external,
-          message: provider.usageLimits?.unavailable?.message,
+          message: provider.usageLimits.unavailable?.message,
           accounts: [...new Set([...(links.get(external.url)?.accounts ?? []), account])],
         });
       }
@@ -100,48 +102,30 @@ export function collectExternalUsageLinks(presentations: LimitPresentations) {
   return [...links.values()];
 }
 
-function accountKey(
-  driver: ServerProvider["driver"],
-  email: string | undefined,
-  limits?: ServerProviderUsageLimits,
-): string | null {
-  const normalizedEmail = email?.trim().toLowerCase();
-  if (normalizedEmail) return `${driver}:${normalizedEmail}`;
-  return limits?.credentialFingerprint
-    ? `${driver}:credential:${limits.credentialFingerprint}`
-    : null;
+function accountKey(provider: ServerProvider): string | null {
+  const normalizedEmail = provider.auth.email?.trim().toLowerCase();
+  if (normalizedEmail) return `${provider.driver}:${normalizedEmail}`;
+  const fingerprint = provider.usageLimits?.credentialFingerprint;
+  return fingerprint ? `${provider.driver}:credential:${fingerprint}` : null;
 }
-
-interface AccountReport {
-  readonly driver: ServerProvider["driver"];
-  readonly email?: string | undefined;
-  readonly workspaceId?: string | undefined;
-  readonly usageLimits?: ServerProviderUsageLimits | undefined;
-}
-
-const nativeReport = (provider: ServerProvider): AccountReport => ({
-  driver: provider.driver,
-  email: provider.auth.email,
-  workspaceId: provider.auth.workspaceId,
-  usageLimits: provider.usageLimits,
-});
 
 /**
  * Pass every enabled login, read or not, so an unreadable workspace still
  * counts as one.
  */
-function accountKeyResolver(reports: Iterable<AccountReport>) {
+function accountKeyResolver(providers: Iterable<ServerProvider>) {
   const workspaces = new Map<string, Set<string>>();
-  for (const report of reports) {
-    const key = accountKey(report.driver, report.email, report.usageLimits);
-    if (key && report.workspaceId) {
-      workspaces.set(key, (workspaces.get(key) ?? new Set()).add(report.workspaceId));
+  for (const provider of providers) {
+    const key = accountKey(provider);
+    const workspaceId = provider.auth.workspaceId;
+    if (key && workspaceId) {
+      workspaces.set(key, (workspaces.get(key) ?? new Set()).add(workspaceId));
     }
   }
-  return (report: AccountReport): string | null => {
-    const key = accountKey(report.driver, report.email, report.usageLimits);
+  return (provider: ServerProvider): string | null => {
+    const key = accountKey(provider);
     if (!key) return null;
-    if (report.workspaceId) return `${key}:${report.workspaceId}`;
+    if (provider.auth.workspaceId) return `${key}:${provider.auth.workspaceId}`;
     const known = workspaces.get(key);
     if (!known) return key;
     return known.size === 1 ? `${key}:${[...known][0]}` : null;
@@ -210,16 +194,14 @@ export function collectLimitAccounts(presentations: LimitPresentations): readonl
   };
   const resolveKey = accountKeyResolver(
     [...presentations.values()].flatMap((presentation) =>
-      (presentation.serverConfig?.providers ?? []).flatMap((provider) =>
-        provider.enabled ? [nativeReport(provider)] : [],
-      ),
+      (presentation.serverConfig?.providers ?? []).filter((provider) => provider.enabled),
     ),
   );
   for (const [environmentId, presentation] of presentations) {
     const label = presentation.entry.target.label;
     for (const provider of providersWithLimits(presentation.serverConfig?.providers ?? [])) {
-      if (!provider.usageLimits || limitsNotice(provider.usageLimits) !== null) continue;
-      merge(resolveKey(nativeReport(provider)) ?? `${environmentId}:${provider.instanceId}`, {
+      if (limitsNotice(provider.usageLimits) !== null) continue;
+      merge(resolveKey(provider) ?? `${environmentId}:${provider.instanceId}`, {
         key: `${environmentId}:${provider.instanceId}`,
         driver: provider.driver,
         displayName: provider.displayName?.trim() || null,
@@ -242,8 +224,8 @@ export function collectLimitNotices(presentations: LimitPresentations): readonly
   for (const presentation of presentations.values()) {
     const environmentLabel = presentation.entry.target.label;
     for (const provider of providersWithLimits(presentation.serverConfig?.providers ?? [])) {
-      if (provider.usageLimits?.unavailable?.reason === "unsupported") continue;
-      const notice = provider.usageLimits ? limitsNotice(provider.usageLimits) : null;
+      if (provider.usageLimits.unavailable?.reason === "unsupported") continue;
+      const notice = limitsNotice(provider.usageLimits);
       const name = provider.displayName?.trim() || String(provider.driver);
       if (notice) notices.push(`${label(environmentLabel, name)}: ${notice}`);
     }
@@ -485,7 +467,7 @@ function headlineWindowLabel(window: ServerProviderUsageWindow): string {
  * of Cursor's two pools, or a Claude model's weekly once it outruns the account's.
  */
 export function headlineUsageWindows(provider: ServerProvider | null) {
-  const windows = provider && hasUsageLimits(provider) ? (provider.usageLimits?.windows ?? []) : [];
+  const windows = provider && hasUsageLimits(provider) ? provider.usageLimits.windows : [];
   return HEADLINE_WINDOW_KINDS.flatMap((kind) => {
     const busiest = windows
       .filter((window) => window.kind === kind)
@@ -542,14 +524,12 @@ export function collectProviderUsageLimits(
   if (!selected || !hasProviderUsageLimits(selected.driver, providers)) return null;
   const accounts: Array<UsageLimitsReport["accounts"][number]> = [];
   for (const provider of providersWithLimits(providers)) {
-    if (provider.driver !== selected.driver || !provider.usageLimits) continue;
+    if (provider.driver !== selected.driver) continue;
     accounts.push({
       instanceId: provider.instanceId,
       driver: provider.driver,
       ...(provider.auth.label ? { plan: provider.auth.label } : {}),
       ...(provider.displayName ? { displayName: provider.displayName } : {}),
-      ...(provider.accentColor ? { accentColor: provider.accentColor } : {}),
-      ...(provider.auth.email ? { email: provider.auth.email } : {}),
       limits: provider.usageLimits,
     });
   }

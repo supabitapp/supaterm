@@ -210,6 +210,7 @@ function PoolSegment({
   readonly showAccountName: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const redeem = useResetCredit(account.redeem.environmentId, account.redeem.input);
   const remaining = remainingPercent(window);
   const resetsIn = formatResetsIn(window, now);
   const credits = account.limits.resetCredits?.availableCount ?? 0;
@@ -274,13 +275,25 @@ function PoolSegment({
         </div>
       </PopoverTrigger>
       <LegendRow account={account} window={window} color={color} now={now} index={index} />
-      <SegmentPopup
-        account={account}
-        window={window}
-        reset={reset}
-        now={now}
-        closePopover={() => setOpen(false)}
-      />
+      <PopoverPopup side="top" sideOffset={6}>
+        <SegmentPopover
+          account={account}
+          window={window}
+          reset={reset}
+          now={now}
+          redeem={redeem}
+          onRedeem={() => {
+            setOpen(false);
+            void redeem.redeem();
+          }}
+        />
+      </PopoverPopup>
+      {/* The popover closes as the redeem starts, so the outcome needs a home outside it. */}
+      {redeem.status ? (
+        <span role="status" className="col-span-full text-xs text-muted-foreground">
+          <AccountName account={account} className="font-medium text-foreground" /> {redeem.status}
+        </span>
+      ) : null}
     </Popover>
   );
 }
@@ -337,45 +350,6 @@ function LegendRow({
         ) : null}
       </span>
     </PopoverTrigger>
-  );
-}
-
-function SegmentPopup({
-  account,
-  window,
-  reset,
-  now,
-  closePopover,
-}: {
-  readonly account: LimitAccount;
-  readonly window: LimitPoolMember["window"];
-  readonly reset: LimitPoolWindow["resets"][number] | undefined;
-  readonly now: number;
-  readonly closePopover: () => void;
-}) {
-  const redeem = useResetCredit(account.redeem.environmentId, account.redeem.input);
-  return (
-    <>
-      <PopoverPopup side="top" sideOffset={6}>
-        <SegmentPopover
-          account={account}
-          window={window}
-          reset={reset}
-          now={now}
-          redeem={redeem}
-          onRedeem={() => {
-            closePopover();
-            void redeem.redeem();
-          }}
-        />
-      </PopoverPopup>
-      {/* The popover closes as the redeem starts, so the outcome needs a home outside it. */}
-      {redeem.status ? (
-        <span role="status" className="col-span-full text-xs text-muted-foreground">
-          <AccountName account={account} className="font-medium text-foreground" /> {redeem.status}
-        </span>
-      ) : null}
-    </>
   );
 }
 

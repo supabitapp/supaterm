@@ -881,7 +881,6 @@ describe("/usage-limits", () => {
     );
     expect(report?.createdAt).toBe("2026-09-03T12:00:00.000Z");
     expect(report?.accounts.map((account) => account.instanceId)).toEqual(["codex", "codex-work"]);
-    expect(report?.accounts[0]).toMatchObject({ email: selected.auth.email });
     expect(report?.accounts[1]).toMatchObject({
       displayName: "Work",
       limits: { resetCredits: { availableCount: 2 } },
