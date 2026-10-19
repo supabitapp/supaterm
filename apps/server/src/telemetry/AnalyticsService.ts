@@ -57,7 +57,7 @@ const TelemetryEnvConfig = Config.all({
     Config.withDefault("phc_mpkbs8jxUDhRkrsvAPZEpzVxykW3Ce2HEPGPrfhgSrLC"), // gitleaks:allow
   ),
   posthogHost: Config.String("SUPATERM_POSTHOG_HOST").pipe(
-    Config.withDefault("https://i.supaterm.com"),
+    Config.withDefault("https://us.i.posthog.com"),
   ),
   enabled: Config.Boolean("SUPATERM_TELEMETRY_ENABLED").pipe(Config.withDefault(true)),
   flushBatchSize: Config.Number("SUPATERM_TELEMETRY_FLUSH_BATCH_SIZE").pipe(Config.withDefault(20)),
