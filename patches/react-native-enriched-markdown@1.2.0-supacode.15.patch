@@ -262,7 +262,7 @@ index 3ae63ac..f2bf344 100644
      for (NSUInteger i = 0; i < segments.count; i++) {
        ENRMRenderedSegment *segment = segments[i];
 diff --git a/ios/internals/EnrichedMarkdownShadowNode.mm b/ios/internals/EnrichedMarkdownShadowNode.mm
-index 6cbabb3..1e10d91 100644
+index 6cbabb3..03eed50 100644
 --- a/ios/internals/EnrichedMarkdownShadowNode.mm
 +++ b/ios/internals/EnrichedMarkdownShadowNode.mm
 @@ -50,12 +50,13 @@ void EnrichedMarkdownShadowNode::dirtyLayoutIfNeeded()
@@ -275,7 +275,7 @@ index 6cbabb3..1e10d91 100644
 +// Order-independent fingerprint of the unwrapped set for the cache key; the toggle
 +// being off (nil, nothing wrapped) hashes apart from {} (everything wrapped), and
 +// {0} still hashes apart from {}.
-+static size_t ENRMWrappedCodeBlocksFingerprint(NSSet<NSNumber *> *unwrappedCodeBlocks)
++static size_t ENRMCodeBlockWrapStateFingerprint(NSSet<NSNumber *> *unwrappedCodeBlocks)
  {
 -  size_t h = 0;
 -  for (NSNumber *index in [wrappedCodeBlocks.allObjects sortedArrayUsingSelector:@selector(compare:)]) {
@@ -307,10 +307,111 @@ index 6cbabb3..1e10d91 100644
 +                                                    resolvedLayoutDirection, unwrappedCodeBlocks);
        },
 -      ENRMWrappedCodeBlocksFingerprint(wrappedCodeBlocks));
-+      ENRMWrappedCodeBlocksFingerprint(unwrappedCodeBlocks));
++      ENRMCodeBlockWrapStateFingerprint(unwrappedCodeBlocks));
  }
  
  } // namespace facebook::react
+diff --git a/ios/internals/MeasurementCache.h b/ios/internals/MeasurementCache.h
+index dbd7e95..b094b19 100644
+--- a/ios/internals/MeasurementCache.h
++++ b/ios/internals/MeasurementCache.h
+@@ -47,8 +47,8 @@ struct MeasurementCacheKey {
+   bool md4cFlagsAdmonitions;
+   size_t styleFingerprint;
+   size_t linkPillContentFingerprint;
+-  // Code blocks the user wrapped (view state, not props); 0 when none.
+-  size_t wrappedCodeBlocksFingerprint;
++  // Which code blocks wrap (view state, not props); 0 when none can.
++  size_t codeBlockWrapStateFingerprint;
+   CGFloat fontScale;
+   MarkdownFlavor flavor;
+   std::string lineBreakStrategyIOS;
+@@ -63,14 +63,14 @@ struct MeasurementCacheKey {
+     return std::tie(markdown, maxWidth, allowTrailingMargin, allowFontScaling, maxFontSizeMultiplier,
+                     md4cFlagsUnderline, md4cFlagsSuperscript, md4cFlagsSubscript, md4cFlagsHighlight,
+                     md4cFlagsLatexMath, md4cFlagsHardSoftBreaks, md4cFlagsPreserveBlankLines, md4cFlagsAdmonitions,
+-                    styleFingerprint, linkPillContentFingerprint, wrappedCodeBlocksFingerprint, fontScale, flavor,
++                    styleFingerprint, linkPillContentFingerprint, codeBlockWrapStateFingerprint, fontScale, flavor,
+                     lineBreakStrategyIOS, writingDirection, numberOfLines, ellipsizeMode, linkRegexKey,
+                     inlineCodeLinkRegexKey) ==
+            std::tie(other.markdown, other.maxWidth, other.allowTrailingMargin, other.allowFontScaling,
+                     other.maxFontSizeMultiplier, other.md4cFlagsUnderline, other.md4cFlagsSuperscript,
+                     other.md4cFlagsSubscript, other.md4cFlagsHighlight, other.md4cFlagsLatexMath,
+                     other.md4cFlagsHardSoftBreaks, other.md4cFlagsPreserveBlankLines, other.md4cFlagsAdmonitions,
+-                    other.styleFingerprint, other.linkPillContentFingerprint, other.wrappedCodeBlocksFingerprint,
++                    other.styleFingerprint, other.linkPillContentFingerprint, other.codeBlockWrapStateFingerprint,
+                     other.fontScale, other.flavor, other.lineBreakStrategyIOS, other.writingDirection,
+                     other.numberOfLines, other.ellipsizeMode, other.linkRegexKey, other.inlineCodeLinkRegexKey);
+   }
+@@ -95,7 +95,7 @@ struct MeasurementCacheKeyHash {
+     HashUtils::hash_one(h, key.md4cFlagsAdmonitions);
+     HashUtils::hash_one(h, key.styleFingerprint);
+     HashUtils::hash_one(h, key.linkPillContentFingerprint);
+-    HashUtils::hash_one(h, key.wrappedCodeBlocksFingerprint);
++    HashUtils::hash_one(h, key.codeBlockWrapStateFingerprint);
+     HashUtils::hash_one(h, key.fontScale);
+     HashUtils::hash_one(h, static_cast<uint8_t>(key.flavor));
+     HashUtils::hash_one(h, key.lineBreakStrategyIOS);
+@@ -200,7 +200,7 @@ template <typename RegexProps> inline std::string buildLinkRecognitionCacheKey(c
+ 
+ template <typename PropsType>
+ inline MeasurementCacheKey buildMeasurementCacheKey(const PropsType &props, CGFloat maxWidth, CGFloat fontScale,
+-                                                    MarkdownFlavor flavor, size_t wrappedCodeBlocksFingerprint = 0)
++                                                    MarkdownFlavor flavor, size_t codeBlockWrapStateFingerprint = 0)
+ {
+   return MeasurementCacheKey{
+       .markdown = props.markdown,
+@@ -219,7 +219,7 @@ inline MeasurementCacheKey buildMeasurementCacheKey(const PropsType &props, CGFl
+       .styleFingerprint = computeStyleFingerprint(props.markdownStyle) ^ ENRMImageSourcesFingerprint(props) ^
+                           ENRMMediaPropsFingerprint(props),
+       .linkPillContentFingerprint = computeLinkPillContentFingerprint(props.linkPillContent),
+-      .wrappedCodeBlocksFingerprint = wrappedCodeBlocksFingerprint,
++      .codeBlockWrapStateFingerprint = codeBlockWrapStateFingerprint,
+       .fontScale = fontScale,
+       .flavor = flavor,
+       .lineBreakStrategyIOS = props.lineBreakStrategyIOS,
+diff --git a/ios/internals/ShadowMeasurementUtils.h b/ios/internals/ShadowMeasurementUtils.h
+index 523809b..f1d5f46 100644
+--- a/ios/internals/ShadowMeasurementUtils.h
++++ b/ios/internals/ShadowMeasurementUtils.h
+@@ -87,8 +87,8 @@ static inline bool ENRMPropsNeedExactStreamingMeasurement(const PropsT &oldProps
+  * `ENRMMeasureSegmentedMarkdownViewFree`); the resolved view is still handed
+  * to the block for strategies that can use it. `fontScale` handed to the
+  * block is the real multiplier even when streaming skips the cache —
+- * rendering must always use it. `wrappedCodeBlocksFingerprint` folds view
+- * state outside the props that changes the size (code blocks the user wrapped)
++ * rendering must always use it. `codeBlockWrapStateFingerprint` folds view
++ * state outside the props that changes the size (which code blocks wrap)
+  * into the cache key.
+  */
+ template <typename PropsT, typename ViewT>
+@@ -97,7 +97,7 @@ ENRMMeasureMarkdownContent(const PropsT &typedProps, const std::shared_ptr<void>
+                            int &lastExactMeasurementCounter, CGSize &lastExactMeasurementSize, MarkdownFlavor flavor,
+                            const LayoutContext &layoutContext, const LayoutConstraints &layoutConstraints,
+                            CGSize (^measureUncached)(ViewT *view, CGFloat maxWidth, CGFloat fontScale),
+-                           size_t wrappedCodeBlocksFingerprint = 0)
++                           size_t codeBlockWrapStateFingerprint = 0)
+ {
+   CGFloat maxWidth = layoutConstraints.maximumSize.width;
+ 
+@@ -123,7 +123,7 @@ ENRMMeasureMarkdownContent(const PropsT &typedProps, const std::shared_ptr<void>
+   CGFloat fontScale = ENRMFontScaleForMeasurement(typedProps.allowFontScaling, layoutContext);
+ 
+   if (shouldUseMeasurementCache && !typedProps.markdown.empty()) {
+-    auto cacheKey = buildMeasurementCacheKey(typedProps, maxWidth, fontScale, flavor, wrappedCodeBlocksFingerprint);
++    auto cacheKey = buildMeasurementCacheKey(typedProps, maxWidth, fontScale, flavor, codeBlockWrapStateFingerprint);
+     CachedSize cached;
+     if (MeasurementCache::shared().get(cacheKey, cached)) {
+       return ENRMClampMeasuredSize(CGSizeMake(cached.width, cached.height), layoutConstraints);
+@@ -133,7 +133,7 @@ ENRMMeasureMarkdownContent(const PropsT &typedProps, const std::shared_ptr<void>
+   CGSize size = measureUncached(view, maxWidth, fontScale);
+ 
+   if (shouldUseMeasurementCache && !typedProps.markdown.empty()) {
+-    auto cacheKey = buildMeasurementCacheKey(typedProps, maxWidth, fontScale, flavor, wrappedCodeBlocksFingerprint);
++    auto cacheKey = buildMeasurementCacheKey(typedProps, maxWidth, fontScale, flavor, codeBlockWrapStateFingerprint);
+     MeasurementCache::shared().set(cacheKey, {size.width, size.height});
+   }
+ 
 diff --git a/ios/segments/ENRMSegmentHeightMeasurer.h b/ios/segments/ENRMSegmentHeightMeasurer.h
 index d7877b3..2447da4 100644
 --- a/ios/segments/ENRMSegmentHeightMeasurer.h
