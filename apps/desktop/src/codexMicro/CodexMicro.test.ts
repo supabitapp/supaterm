@@ -75,6 +75,7 @@ const makeFakeTransport = Effect.gen(function* () {
     }
   >();
   const opened: Array<string> = [];
+  const unopenable = new Set<string>();
   let closed = 0;
   let devices: ReadonlyArray<CodexMicroTransport.CodexMicroDevice> = [];
   let responder: Responder = () => undefined;
@@ -82,33 +83,40 @@ const makeFakeTransport = Effect.gen(function* () {
   const service = CodexMicroTransport.CodexMicroTransport.of({
     discover: Effect.sync(() => devices),
     connect: (device) =>
-      Effect.acquireRelease(
-        Effect.gen(function* () {
-          const events = yield* Queue.unbounded<CodexMicroTransport.CodexMicroDeviceEvent>();
-          const disconnected = yield* Deferred.make<void>();
-          opened.push(device.path);
-          connections.set(device.path, { events, disconnected });
-          return {
-            device,
-            request: (method, params) =>
-              Effect.suspend(() => {
-                const request = { method, params: params ?? null, path: device.path };
-                Queue.offerUnsafe(requests, request);
-                return (
-                  responder(request) ??
-                  Effect.succeed(method === "device.status" ? DEVICE_STATUS : null)
-                );
+      unopenable.has(device.path)
+        ? Effect.fail(
+            new CodexMicroTransport.CodexMicroConnectError({
+              transport: device.transport,
+              cause: new Error("open failed"),
+            }),
+          )
+        : Effect.acquireRelease(
+            Effect.gen(function* () {
+              const events = yield* Queue.unbounded<CodexMicroTransport.CodexMicroDeviceEvent>();
+              const disconnected = yield* Deferred.make<void>();
+              opened.push(device.path);
+              connections.set(device.path, { events, disconnected });
+              return {
+                device,
+                request: (method, params) =>
+                  Effect.suspend(() => {
+                    const request = { method, params: params ?? null, path: device.path };
+                    Queue.offerUnsafe(requests, request);
+                    return (
+                      responder(request) ??
+                      Effect.succeed(method === "device.status" ? DEVICE_STATUS : null)
+                    );
+                  }),
+                events,
+                disconnected: Deferred.await(disconnected),
+                idle: Effect.void,
+              } satisfies CodexMicroTransport.CodexMicroConnection;
+            }),
+            () =>
+              Effect.sync(() => {
+                closed += 1;
               }),
-            events,
-            disconnected: Deferred.await(disconnected),
-            idle: Effect.void,
-          } satisfies CodexMicroTransport.CodexMicroConnection;
-        }),
-        () =>
-          Effect.sync(() => {
-            closed += 1;
-          }),
-      ),
+          ),
   });
 
   return {
@@ -118,6 +126,10 @@ const makeFakeTransport = Effect.gen(function* () {
     closed: () => closed,
     setDevices: (next: ReadonlyArray<CodexMicroTransport.CodexMicroDevice>) => {
       devices = next;
+    },
+    setUnopenable: (path: string, failing: boolean) => {
+      if (failing) unopenable.add(path);
+      else unopenable.delete(path);
     },
     respond: (next: Responder) => {
       responder = next;
@@ -338,6 +350,30 @@ describe("CodexMicro", () => {
       assert.strictEqual(state.status, "connected");
       assert.deepStrictEqual(state.battery, { percentage: 80, isCharging: false });
       assert.deepStrictEqual(harness.transport.opened, ["bluetooth", "usb"]);
+    }),
+  );
+
+  it.effect("stays on Bluetooth while a visible USB interface will not open", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness;
+      harness.transport.setDevices([BLUETOOTH]);
+      yield* harness.connect;
+
+      harness.transport.setUnopenable("usb", true);
+      harness.transport.setDevices([USB, BLUETOOTH]);
+      yield* TestClock.adjust(Duration.seconds(10));
+      const reopened = yield* harness.takeRequests(3);
+      assert.isTrue(reopened.every((request) => request.path === "bluetooth"));
+      yield* TestClock.adjust(Duration.seconds(30));
+
+      harness.transport.setUnopenable("usb", false);
+      harness.transport.setDevices([BLUETOOTH]);
+      yield* TestClock.adjust(Duration.seconds(10));
+      harness.transport.setDevices([USB, BLUETOOTH]);
+      yield* TestClock.adjust(Duration.seconds(10));
+      const next = yield* Queue.take(harness.transport.requests);
+      assert.strictEqual(next.path, "usb");
+      assert.deepStrictEqual(harness.transport.opened, ["bluetooth", "bluetooth", "usb"]);
     }),
   );
 

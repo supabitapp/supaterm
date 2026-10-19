@@ -147,6 +147,17 @@ const make = Effect.gen(function* () {
   let lastInputAt = Number.NEGATIVE_INFINITY;
   let screenLocked = false;
   let enabledFiber: Fiber.Fiber<void> | undefined;
+  // A USB interface that would not open keeps the Bluetooth session until it
+  // disappears, such as on replug, instead of forcing a handoff every scan.
+  const unopenableUsbPaths = new Set<string>();
+
+  const forgetVanishedUsb = (devices: ReadonlyArray<CodexMicroTransport.CodexMicroDevice>) => {
+    for (const path of unopenableUsbPaths) {
+      if (!devices.some((device) => device.path === path)) unopenableUsbPaths.delete(path);
+    }
+  };
+  const hasOpenableUsb = (devices: ReadonlyArray<CodexMicroTransport.CodexMicroDevice>) =>
+    devices.some((device) => device.transport === "usb" && !unopenableUsbPaths.has(device.path));
 
   const lifecycle = yield* Semaphore.make(1);
   const lightingWake = yield* Queue.sliding<void>(1);
@@ -230,6 +241,7 @@ const make = Effect.gen(function* () {
     handoff: boolean,
   ) {
     const connection = yield* transport.connect(device);
+    unopenableUsbPaths.delete(device.path);
     const sessionScope = yield* Effect.scope;
     const ended = yield* Deferred.make<SessionEnd>();
     const knobTimer = yield* FiberHandle.make<void, never>();
@@ -461,7 +473,8 @@ const make = Effect.gen(function* () {
         const devices = yield* transport.discover.pipe(
           Effect.orElseSucceed((): ReadonlyArray<CodexMicroTransport.CodexMicroDevice> => []),
         );
-        if (devices.some((candidate) => candidate.transport === "usb")) {
+        forgetVanishedUsb(devices);
+        if (hasOpenableUsb(devices)) {
           yield* Deferred.succeed(ended, { reason: "handoff" });
           return;
         }
@@ -519,6 +532,7 @@ const make = Effect.gen(function* () {
       (yield* powerMonitor.getSystemIdleState(LOCK_CHECK_IDLE_THRESHOLD_SECONDS)) === "locked";
     yield* refreshInputMonitoring;
 
+    unopenableUsbPaths.clear();
     let failures = 0;
     let previous: SessionEnd["reason"] | "open-failed" | undefined;
     while (true) {
@@ -540,6 +554,7 @@ const make = Effect.gen(function* () {
         yield* waitForRescan(DISCOVERY_INTERVAL);
         continue;
       }
+      forgetVanishedUsb(discovered.devices);
       if (discovered.devices.length === 0) {
         failures = 0;
         previous = undefined;
@@ -556,10 +571,12 @@ const make = Effect.gen(function* () {
       for (const device of discovered.devices) {
         outcome = yield* Effect.scoped(runSession(device, previous === "handoff")).pipe(
           Effect.catchTags({
-            CodexMicroConnectError: (error) =>
-              logWarning("could not open the keyboard", { transport: error.transport }).pipe(
+            CodexMicroConnectError: (error) => {
+              if (device.transport === "usb") unopenableUsbPaths.add(device.path);
+              return logWarning("could not open the keyboard", { transport: error.transport }).pipe(
                 Effect.as(undefined),
-              ),
+              );
+            },
           }),
         );
         if (outcome !== undefined) break;

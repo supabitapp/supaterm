@@ -47,6 +47,7 @@ export function encodeRequest(request: {
   );
 }
 
+// Host-to-device requests carry no trailing newline; only device output is newline-framed.
 export function frameMessage(message: string): ReadonlyArray<Uint8Array> {
   const bytes = textEncoder.encode(message);
   const reports: Array<Uint8Array> = [];
