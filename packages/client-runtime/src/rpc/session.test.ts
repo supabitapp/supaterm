@@ -517,21 +517,7 @@ describe("RpcSessionFactory", () => {
             _tag: "Chunk",
             requestId: request.id,
             values: [
-              {
-                version: 1,
-                type: "usageLimitSourcesUpdated",
-                payload: {
-                  sources: [
-                    {
-                      id: "proxy",
-                      kind: "cliproxy",
-                      label: "Proxy",
-                      checkedAt: "2026-09-04T00:00:00Z",
-                      accounts: [],
-                    },
-                  ],
-                },
-              },
+              { version: 1, type: "usageLimitSourcesUpdated", payload: { sources: [] } },
               { version: 1, type: "workspaceIndexUpdated", payload: { files: 12 } },
               encodeServerConfigStreamEvent(marker),
             ],
