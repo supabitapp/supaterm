@@ -2850,10 +2850,8 @@ export function ConnectionsSettings() {
   };
 
   const renderTailscaleRow = () => {
-    const row = resolveTailscaleHttpsRow({
-      endpoint: tailscaleHttpsEndpoint,
-      state: desktopServerExposureState,
-    });
+    const serveEnabled = desktopServerExposureState?.tailscaleServeEnabled === true;
+    const row = resolveTailscaleHttpsRow({ endpoint: tailscaleHttpsEndpoint, serveEnabled });
     return (
       <SettingsRow
         title={searchableSetting("tailscale-https").title}
@@ -2865,7 +2863,7 @@ export function ConnectionsSettings() {
         }
         control={
           <Switch
-            checked={row.enabled}
+            checked={serveEnabled}
             disabled={!desktopServerExposureState || isUpdatingTailscaleServe}
             onCheckedChange={(checked) => {
               if (checked) {
