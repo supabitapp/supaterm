@@ -69,9 +69,9 @@ withholds a cache scope when a value reaches plain function calls on both sides 
 of a value go before the hook, or the helper is inlined. Even a boolean counts when it comes from a
 method call on a value the compiler cannot type, such as state, props or a reassigned `let`. Once
 it reaches a method on a ref, every closure using that ref can lose its scope too, with no
-diagnostic. Compute such flags with operators, like `items.length > 0`. A `use*` helper that calls no hook is
-compiled as a plain function and caches nothing, so a derived-value helper reads its source hook
-itself instead of taking the value as an argument. Lint misses some bailouts, notably `try`
+diagnostic. Compute such flags with operators, like `items.length > 0`. A `use*` helper that calls
+no hook is compiled as a plain function and caches nothing, so a derived-value helper reads its
+source hook itself instead of taking the value as an argument. Lint misses some bailouts, notably `try`
 with `finally` and `throw` inside `try`, so [`reactCompilerCoverage.test.ts`](../../apps/web/src/reactCompilerCoverage.test.ts)
 compiles every file and fails on any skip. Async handlers rarely need `try`: an atom
 command settles into a result, so cleanup can follow the `await`, and `settlePromise` does the same
