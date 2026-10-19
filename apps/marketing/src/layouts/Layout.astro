@@ -4,7 +4,7 @@ import appIcon from "../assets/icon.webp";
 import socialCard from "../assets/social-card.webp";
 import dmSansLatinUrl from "../assets/fonts/dm-sans-latin.woff2?url";
 import "../styles/fonts.css";
-import { GITHUB_REPOSITORY_URL } from "../lib/site";
+import { GITHUB_REPOSITORY_URL, ICON_DESIGNER_URL } from "../lib/site";
 
 interface Props {
   title?: string;
@@ -110,7 +110,7 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
               loading="lazy"
               decoding="async"
             />
-            <span>&copy; {new Date().getFullYear()} Supaterm Limited · MIT licensed</span>
+            <span>&copy; {new Date().getFullYear()} Supaterm Limited · MIT licensed · Icon&nbsp;by&nbsp;<a href={ICON_DESIGNER_URL} target="_blank" rel="noopener">Moby</a></span>
           </div>
           <div class="footer-links">
             <a href={GITHUB_REPOSITORY_URL} target="_blank" rel="noopener noreferrer">GitHub</a>
@@ -431,6 +431,15 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
     gap: 10px;
     font-size: 13px;
     color: var(--fg-dim);
+  }
+
+  .footer-brand a {
+    color: var(--fg);
+    transition: color 0.2s ease;
+  }
+
+  .footer-brand a:hover {
+    color: var(--accent);
   }
 
   .footer-brand img {
