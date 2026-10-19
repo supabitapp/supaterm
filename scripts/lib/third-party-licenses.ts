@@ -536,11 +536,7 @@ function exportTargets(value: unknown, underTypesCondition = false): ReadonlyArr
 }
 
 function isTypeDeclaration(target: ExportTarget): boolean {
-  return (
-    target.underTypesCondition ||
-    /\.d\.[cm]?ts$/u.test(target.path) ||
-    target.path === "./package.json"
-  );
+  return target.underTypesCondition || /\.d\.[cm]?ts$/u.test(target.path);
 }
 
 function isDeclared(value: unknown): boolean {
@@ -573,7 +569,10 @@ async function isTypeOnlyPackage(packageJson: PackageJson, packageRoot: string):
     packageJson.style,
     packageJson.sass,
   ];
-  if (entries.some(isDeclared) || targets.some((target) => !isTypeDeclaration(target))) {
+  if (
+    entries.some(isDeclared) ||
+    targets.some((target) => target.path !== "./package.json" && !isTypeDeclaration(target))
+  ) {
     return false;
   }
 

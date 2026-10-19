@@ -315,23 +315,26 @@ describe("third-party license generation", () => {
     expect(manifest.entries.some((entry) => entry.name === "generated-asset")).toBe(false);
   });
 
-  it("finds packages whose exports hide both their manifest and entry point", async () => {
-    const fixture = await createFixture();
-    await writeJson(NodePath.join(fixture.dependencyRoot, "package.json"), {
-      name: "demo-dependency",
-      version: "1.2.3",
-      license: "MIT",
-      exports: {},
-      repository: "example/demo-dependency",
-    });
+  it.each([{}, { "./package.json": "./package.json" }])(
+    "includes packages without type declarations when exports are %j",
+    async (exports) => {
+      const fixture = await createFixture();
+      await writeJson(NodePath.join(fixture.dependencyRoot, "package.json"), {
+        name: "demo-dependency",
+        version: "1.2.3",
+        license: "MIT",
+        exports,
+        repository: "example/demo-dependency",
+      });
 
-    const manifest = await generateThirdPartyLicenseManifest({
-      configFile: fixture.configFile,
-      packageManifests: [{ bundle: "web", path: fixture.appManifest }],
-    });
+      const manifest = await generateThirdPartyLicenseManifest({
+        configFile: fixture.configFile,
+        packageManifests: [{ bundle: "web", path: fixture.appManifest }],
+      });
 
-    expect(manifest.entries.some((entry) => entry.name === "demo-dependency")).toBe(true);
-  });
+      expect(manifest.entries.some((entry) => entry.name === "demo-dependency")).toBe(true);
+    },
+  );
 
   it("leaves type-only packages out of the notices but still walks their dependencies", async () => {
     const fixture = await createFixture();
