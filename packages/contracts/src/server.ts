@@ -10,6 +10,7 @@ import {
 import { ServerAuthDescriptor } from "./auth.ts";
 import {
   ForwardCompatibleArray,
+  hasUnknownUnionTag,
   IsoDateTime,
   NonNegativeInt,
   PositiveInt,
@@ -755,38 +756,35 @@ const ServerConfigKnownStreamEvents = [
   ServerConfigStreamRelayAdvertisementUpdatedEvent,
 ] as const;
 
-const knownServerConfigStreamEventTypes: ReadonlySet<string> = new Set(
-  ServerConfigKnownStreamEvents.map((member) => member.fields.type.literal),
-);
+const isUnknownServerConfigStreamEvent = hasUnknownUnionTag(ServerConfigKnownStreamEvents, "type");
 
 /**
  * A config event whose type this build does not know, such as a newer server's event or the
  * `usageLimitSourcesUpdated` that servers with usage-limit hubs send on every connect. A failed
  * config subscription closes the connection, so clients skip these instead.
  */
-const ServerConfigStreamUnknownEvent = Schema.Struct({
-  type: Schema.String.check(
+const ServerConfigStreamUnknownEvent = Schema.Struct({ type: Schema.String })
+  .check(
     Schema.makeFilter(
-      (type: string) =>
-        !knownServerConfigStreamEventTypes.has(type) ||
-        "A known config event type must decode in full.",
+      (event) =>
+        isUnknownServerConfigStreamEvent(event) || "A known config event type must decode in full.",
     ),
-  ),
-}).pipe(
-  Schema.decodeTo(
-    Schema.Struct({
-      type: Schema.Literal("unknown-event"),
-      eventType: Schema.String,
-    }),
-    {
-      decode: SchemaGetter.transform((event) => ({
-        type: "unknown-event" as const,
-        eventType: event.type,
-      })),
-      encode: SchemaGetter.forbidden(() => "Servers never send unknown config events."),
-    },
-  ),
-);
+  )
+  .pipe(
+    Schema.decodeTo(
+      Schema.Struct({
+        type: Schema.Literal("unknown-event"),
+        eventType: Schema.String,
+      }),
+      {
+        decode: SchemaGetter.transform((event) => ({
+          type: "unknown-event" as const,
+          eventType: event.type,
+        })),
+        encode: SchemaGetter.forbidden(() => "Servers never send unknown config events."),
+      },
+    ),
+  );
 
 export const ServerConfigStreamEvent = Schema.Union([
   ...ServerConfigKnownStreamEvents,
