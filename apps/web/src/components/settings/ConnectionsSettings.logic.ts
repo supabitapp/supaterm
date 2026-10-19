@@ -4,6 +4,7 @@ import {
   AuthTerminalOperateScope,
   AuthTerminalReadScope,
   type DesktopBridge,
+  type DesktopServerExposureState,
   type DesktopWslState,
   type RelayConnectionInfo,
   type ServerSettings,
@@ -82,6 +83,33 @@ type WslEnableBridge = Pick<DesktopBridge, "setWslBackendEnabled" | "setWslDistr
  */
 export function isQrShareableEndpoint(endpoint: AdvertisedEndpoint): boolean {
   return endpoint.status !== "unavailable" && endpoint.reachability !== "loopback";
+}
+
+/**
+ * The desktop asks Tailscale for its MagicDNS name only once Serve or Network
+ * access is on, so a missing endpoint means Tailscale isn't running only in
+ * those modes. The switch follows the saved Serve flag so a failed probe or a
+ * stopped Tailscale never hides the way to turn Serve off.
+ */
+export function resolveTailscaleHttpsRow(input: {
+  readonly endpoint: AdvertisedEndpoint | null;
+  readonly state: Pick<DesktopServerExposureState, "mode" | "tailscaleServeEnabled"> | null;
+}) {
+  const { endpoint, state } = input;
+  const enabled = state?.tailscaleServeEnabled === true;
+  const tailscaleQueried = enabled || state?.mode === "network-accessible";
+  const describe = () => {
+    if (endpoint && enabled) return endpoint.httpBaseUrl;
+    if (!endpoint && tailscaleQueried) {
+      return "Start Tailscale to set up HTTPS access through MagicDNS.";
+    }
+    return "Use Tailscale Serve to expose this backend through a MagicDNS HTTPS URL.";
+  };
+  return {
+    enabled,
+    description: describe(),
+    unreachable: enabled && endpoint !== null && endpoint.status !== "available",
+  };
 }
 
 export function isWslSettingsRowVisible(input: {

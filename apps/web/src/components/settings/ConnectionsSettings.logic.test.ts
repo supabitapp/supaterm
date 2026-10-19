@@ -9,6 +9,7 @@ import {
   selectQrEndpointOption,
   togglePairingScopeSelection,
   resolvePairingLinkRoutes,
+  resolveTailscaleHttpsRow,
   createRelayPairingEndpoint,
 } from "./ConnectionsSettings.logic";
 
@@ -268,4 +269,48 @@ it("uses current routing when the relay server changes after link creation", () 
     resolvePairingLinkRoutes([], {}, prepared, { ...settings, publicRelayEnabled: false })
       .endpoints,
   ).toEqual([]);
+});
+
+describe("resolveTailscaleHttpsRow", () => {
+  const endpoint = makeEndpoint({
+    id: "tailscale-magicdns:https://machine.tailnet.ts.net",
+    label: "Tailscale HTTPS",
+    httpBaseUrl: "https://machine.tailnet.ts.net",
+    reachability: "private-network",
+  });
+  const setupHint = "Use Tailscale Serve to expose this backend through a MagicDNS HTTPS URL.";
+  const startHint = "Start Tailscale to set up HTTPS access through MagicDNS.";
+
+  it("offers setup without Network access, before Tailscale has been asked", () => {
+    expect(
+      resolveTailscaleHttpsRow({
+        endpoint: null,
+        state: { mode: "local-only", tailscaleServeEnabled: false },
+      }),
+    ).toEqual({ enabled: false, description: setupHint, unreachable: false });
+  });
+
+  it("asks to start Tailscale once it was asked and reported no MagicDNS name", () => {
+    expect(
+      resolveTailscaleHttpsRow({
+        endpoint: null,
+        state: { mode: "network-accessible", tailscaleServeEnabled: false },
+      }).description,
+    ).toBe(startHint);
+    expect(
+      resolveTailscaleHttpsRow({
+        endpoint: null,
+        state: { mode: "local-only", tailscaleServeEnabled: true },
+      }),
+    ).toEqual({ enabled: true, description: startHint, unreachable: false });
+  });
+
+  it("stays on and flags the URL when this machine cannot reach it", () => {
+    expect(
+      resolveTailscaleHttpsRow({
+        endpoint: { ...endpoint, status: "unavailable" },
+        state: { mode: "local-only", tailscaleServeEnabled: true },
+      }),
+    ).toEqual({ enabled: true, description: endpoint.httpBaseUrl, unreachable: true });
+  });
 });

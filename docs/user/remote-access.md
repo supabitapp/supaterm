@@ -168,7 +168,8 @@ set to **Manual only** remains excluded. Mobile keeps its manual environment sel
 ### Tailscale HTTPS
 
 Join both devices to the same tailnet. In the desktop app, enable **Tailscale
-HTTPS** in **Settings → Connections**. Turn it off there to remove that route.
+HTTPS** in **Settings → Connections**. **Network access** can stay off; Tailscale
+reaches the backend on this machine. Turn it off there to remove that route.
 
 To start a command-line server with Tailscale HTTPS:
 

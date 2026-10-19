@@ -63,6 +63,28 @@ it.layer(NodeServices.layer)("EnvironmentAuthPolicy.layer", (it) => {
     ),
   );
 
+  it.effect(
+    "accepts one-time tokens on a loopback desktop backend reached through Tailscale Serve",
+    () =>
+      Effect.gen(function* () {
+        const policy = yield* EnvironmentAuthPolicy.EnvironmentAuthPolicy;
+        const descriptor = yield* policy.getDescriptor();
+
+        expect(descriptor.policy).toBe("remote-reachable");
+        expect(descriptor.bootstrapMethods).toEqual(["desktop-bootstrap", "one-time-token"]);
+        expect(descriptor.sessionCookieName).toBe("supaterm_session_3773");
+      }).pipe(
+        Effect.provide(
+          layerEnvironmentAuthPolicy({
+            mode: "desktop",
+            host: "127.0.0.1",
+            port: 3773,
+            tailscaleServeEnabled: true,
+          }),
+        ),
+      ),
+  );
+
   it.effect("uses remote-reachable policy for desktop mode when bound beyond loopback", () =>
     Effect.gen(function* () {
       const policy = yield* EnvironmentAuthPolicy.EnvironmentAuthPolicy;
