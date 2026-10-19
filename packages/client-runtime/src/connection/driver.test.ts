@@ -40,10 +40,7 @@ function route(id: string, host: string): ConnectionRoute {
 }
 const lan = route("lan", "192.168.1.2:4389");
 const tailnet = route("tailnet", "100.100.1.2:4389");
-const relay = route(
-  "relay",
-  `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.invalid/`,
-);
+const relay = route("relay", `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`);
 const entry = { ...lan, enabled: true, alternateRoutes: [tailnet] };
 const lease = (
   route: ConnectionRoute,

@@ -72,6 +72,10 @@ class ProtocolTest {
         unhex(v.getString("identity")),
         parseRelayIdentity(v.getString("address") + "pair#token=unused"),
       )
+      assertContentEquals(
+        unhex(v.getString("identity")),
+        parseRelayIdentity(v.getString("address").replace(".alt/", ".invalid/")),
+      )
       val transcript =
         "supaterm-tunnel-v2\n".toByteArray() +
           unhex(v.getString("identity")) +

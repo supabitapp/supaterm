@@ -26,7 +26,7 @@ describe("settings pairing URL helpers", () => {
   });
   it("shows a relay link and a scannable QR before access-list updates arrive", () => {
     const relayUrl = "wss://custom-relay.invalid";
-    const host = `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.invalid/`;
+    const host = `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`;
     const result = resolvePairingShareValue("PAIRCODE", host, {
       environmentId: EnvironmentId.make("machine"),
       relayUrl,

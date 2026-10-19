@@ -199,7 +199,7 @@ describe("route latency", () => {
   );
 });
 
-const relayEndpoint = `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.invalid/`;
+const relayEndpoint = `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`;
 function relayRoute(relayUrl?: string): ConnectionRoute {
   return {
     ...directRoute,

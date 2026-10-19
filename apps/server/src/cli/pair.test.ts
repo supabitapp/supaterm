@@ -154,7 +154,7 @@ const withDescriptorServer = <A, E, R>(
 describe("supaterm pair", () => {
   it.effect("activates an idle relay before printing its first pairing URL", () => {
     const relay = {
-      relayEndpoint: `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.invalid/`,
+      relayEndpoint: `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`,
       relayUrl: "wss://custom-relay.invalid",
     };
     return withDescriptorServer(

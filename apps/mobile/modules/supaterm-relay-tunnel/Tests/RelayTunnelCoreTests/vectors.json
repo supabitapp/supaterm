@@ -1,5 +1,5 @@
 {
-  "address": "https://79b5562e8fe654f94078b112e8a98ba7.901f853ae695bed7e0e3910bad049664.relay.supaterm.invalid/",
+  "address": "https://79b5562e8fe654f94078b112e8a98ba7.901f853ae695bed7e0e3910bad049664.relay.supaterm.alt/",
   "clientSecret": "2122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f40",
   "hello": "{\"type\":\"hello\",\"version\":2,\"key\":\"WGmv9FBUlzLLqu1eXfmzCm2jHLDldCutWtShp2jxpns\"}",
   "welcome": "{\"type\":\"welcome\",\"version\":2,\"key\":\"ZLEBsdC-WocEvQePmJUAH8A-jp-VIvGI3RKNmEbUhGY\",\"signature\":\"-fo9aY5xy0W-Ybaf-oHFPvMpUVi5PXs_xYg0Q8b8aHZWs2oyqArky8BjIL0DLng2bxtWq270ujRqYDX3CvhwCg\"}",

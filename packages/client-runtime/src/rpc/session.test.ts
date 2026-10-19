@@ -274,7 +274,7 @@ describe("RpcSessionFactory", () => {
         );
         expect(yield* Queue.take(updates)).toEqual(config);
         const advertisement = {
-          relayEndpoint: `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.invalid/`,
+          relayEndpoint: `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`,
           relayUrl: "wss://custom.example.test",
         };
         yield* publishConfigEvents(socket, [

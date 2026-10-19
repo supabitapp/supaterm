@@ -32,7 +32,7 @@ describe("settings scope environment labels", () => {
     const relay = (environmentId: string, key: string) => ({
       environmentId: EnvironmentId.make(environmentId),
       label: "Development",
-      displayUrl: `https://${key.repeat(16)}.${"22".repeat(16)}.relay.supaterm.invalid/`,
+      displayUrl: `https://${key.repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`,
     });
     const environments = [relay("first", "11"), relay("second", "33")];
     expect(

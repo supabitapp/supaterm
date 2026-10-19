@@ -7,6 +7,8 @@ public enum RelayError: Error, CustomStringConvertible {
 }
 
 public struct RelayIdentity {
+  static let suffix = ".relay.supaterm.alt"
+  static let legacySuffix = ".relay.supaterm.invalid"
   public let key: Data
   public let endpointID: String
   public let address: String
@@ -16,17 +18,17 @@ public struct RelayIdentity {
     guard let url = URLComponents(string: address),
           ["https", "wss"].contains(url.scheme), url.port == nil,
           url.user == nil, url.password == nil, let host = url.host,
-          host.hasSuffix(".relay.supaterm.invalid") else {
+          let matched = [Self.suffix, Self.legacySuffix].first(where: { host.hasSuffix($0) }) else {
       throw RelayError.invalid("Invalid relay address")
     }
-    let parts = host.dropLast(".relay.supaterm.invalid".count).split(separator: ".")
+    let parts = host.dropLast(matched.count).split(separator: ".")
     guard parts.count == 2, parts.allSatisfy({ $0.count == 32 }),
           let key = Data(hex: parts.joined()), key.count == 32 else {
       throw RelayError.invalid("Invalid relay identity")
     }
     self.key = key
     endpointID = Data(SHA256.hash(data: key)).hex
-    self.address = "https://\(parts.joined(separator: ".")).relay.supaterm.invalid/"
+    self.address = "https://\(parts.joined(separator: "."))\(Self.suffix)/"
   }
 }
 

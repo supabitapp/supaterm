@@ -76,7 +76,7 @@ async function fixture(upgrade = false) {
     socket.once("error", (error) => stream.onClose(error));
     return stream;
   });
-  const gateway = await openLoopbackRelay("https://relay.supaterm.invalid", {
+  const gateway = await openLoopbackRelay("https://relay.supaterm.alt", {
     randomBytes: (length) => new Uint8Array(length),
     createSocket: () => {
       throw new Error("Unexpected relay dial");

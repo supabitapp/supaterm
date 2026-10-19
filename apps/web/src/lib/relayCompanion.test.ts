@@ -45,7 +45,7 @@ class ControlSocket extends EventTarget {
 const controls: Array<ReturnType<typeof createRelayCompanionControl>> = [];
 const identity = (index: number) => {
   const hex = index.toString(16).padStart(64, "0");
-  return `https://${hex.slice(0, 32)}.${hex.slice(32)}.relay.supaterm.invalid`;
+  return `https://${hex.slice(0, 32)}.${hex.slice(32)}.relay.supaterm.alt`;
 };
 async function connectedControl() {
   const control = createRelayCompanionControl();

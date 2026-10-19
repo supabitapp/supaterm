@@ -155,9 +155,12 @@ final class ProtocolTests: XCTestCase {
     let vector = try vectors()
     let identity = try RelayIdentity(address: vector.address + "pair#token=secret")
     XCTAssertEqual(identity.address, vector.address)
+    let legacy = try RelayIdentity(address: vector.address.replacingOccurrences(of: ".alt/", with: ".invalid/"))
+    XCTAssertEqual(legacy.key, identity.key)
+    XCTAssertEqual(legacy.address, vector.address)
     XCTAssertTrue((40000..<60000).contains(Int(identity.stablePort)))
     XCTAssertThrowsError(try RelayIdentity(address: vector.address.replacingOccurrences(of: "https", with: "http")))
-    XCTAssertThrowsError(try RelayIdentity(address: "https://aa.relay.supaterm.invalid/"))
+    XCTAssertThrowsError(try RelayIdentity(address: "https://aa.relay.supaterm.alt/"))
   }
   func testConcurrentStartsShareOneListener() async throws {
     let tunnel = try RelayTunnel(relayURL: "ws://127.0.0.1:9", hostAddress: vectors().address)

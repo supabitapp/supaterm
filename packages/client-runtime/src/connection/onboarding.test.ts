@@ -376,7 +376,7 @@ describe("connection onboarding", () => {
       Effect.gen(function* () {
         const calls: Array<Call> = [];
         const entered = Promise.withResolvers<void>();
-        const relayEndpoint = `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.invalid/`;
+        const relayEndpoint = `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`;
         const pairingUrl = buildPairingUrl(relayEndpoint, "pairing-token", {
           environmentId: SAVED_ENVIRONMENT_ID,
           routes: [TAILNET],
@@ -428,7 +428,7 @@ describe("connection onboarding", () => {
         const closed = Promise.withResolvers<void>();
         let closes = 0;
         const calls: Call[] = [];
-        const relayEndpoint = `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.invalid/`;
+        const relayEndpoint = `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`;
         const gatewayLayer = layerRelayGateway({
           fetch: globalThis.fetch,
           open: async () => {
@@ -481,7 +481,7 @@ describe("connection onboarding", () => {
     Effect.gen(function* () {
       const calls: Array<Call> = [];
       const entered = Promise.withResolvers<void>();
-      const relayEndpoint = `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.invalid/`;
+      const relayEndpoint = `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`;
       const pending = yield* preparePairingRegistration(
         { pairingUrl: buildPairingUrl(relayEndpoint, "pairing-token") },
         NO_SAVED_ENVIRONMENTS,
@@ -518,7 +518,7 @@ describe("connection onboarding", () => {
     "pairs an unreachable LAN link through a learned custom relay with a cold gateway",
     () =>
       Effect.gen(function* () {
-        const relayEndpoint = `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.invalid/`;
+        const relayEndpoint = `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`;
         const customRelay = "wss://private-relay.example.test";
         const loopback = "http://127.0.0.1:44000";
         const calls: Call[] = [];
@@ -1109,6 +1109,39 @@ describe("connection onboarding", () => {
         },
         credential: { token: "bearer-token" },
       });
+    }),
+  );
+
+  it.effect("keeps a custom relay when an edit names the relay host by its legacy address", () =>
+    Effect.gen(function* () {
+      const environmentId = EnvironmentId.make("environment-relay");
+      const connectionId = "bearer:environment-relay";
+      const relayEndpoint = `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`;
+      const relayUrl = "wss://relay.example.test";
+      const registration = yield* prepareBearerConnectionUpdate({
+        input: {
+          environmentId,
+          label: "Relay",
+          httpBaseUrl: relayEndpoint.replace(".alt/", ".invalid/"),
+        },
+        entry: Option.some({
+          target: new BearerConnectionTarget({ environmentId, label: "Relay", connectionId }),
+          profile: Option.some(
+            new BearerConnectionProfile({
+              connectionId,
+              environmentId,
+              label: "Relay",
+              httpBaseUrl: relayEndpoint,
+              wsBaseUrl: relayEndpoint.replace("https:", "wss:"),
+              relayUrl,
+            }),
+          ),
+          enabled: true,
+        }),
+        credential: Option.some(new BearerConnectionCredential({ token: "bearer-token" })),
+      });
+
+      expect(registration.profile).toMatchObject({ httpBaseUrl: relayEndpoint, relayUrl });
     }),
   );
 

@@ -1,6 +1,8 @@
 import { DesktopSshEnvironmentTargetSchema, EnvironmentId } from "@supaterm/contracts";
+import { upgradeRelayAddresses } from "@supaterm/shared/relay/protocol";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import * as SchemaTransformation from "effect/SchemaTransformation";
 
 import {
   BearerConnectionTarget,
@@ -8,6 +10,16 @@ import {
   SshConnectionTarget,
   type ConnectionTarget,
 } from "./model.ts";
+
+const BaseUrl = Schema.String.pipe(
+  Schema.decodeTo(
+    Schema.String,
+    SchemaTransformation.transform({
+      decode: upgradeRelayAddresses,
+      encode: (value) => value,
+    }),
+  ),
+);
 
 const ConnectionProfileBase = {
   connectionId: Schema.String,
@@ -19,8 +31,8 @@ export class BearerConnectionProfile extends Schema.TaggedClass<BearerConnection
   "BearerConnectionProfile",
   {
     ...ConnectionProfileBase,
-    httpBaseUrl: Schema.String,
-    wsBaseUrl: Schema.String,
+    httpBaseUrl: BaseUrl,
+    wsBaseUrl: BaseUrl,
     /** Learned from the server's direct endpoint advertisement. */
     learned: Schema.optionalKey(Schema.Literal(true)),
     network: Schema.optionalKey(Schema.Literal("tailscale")),

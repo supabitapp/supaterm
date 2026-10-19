@@ -90,16 +90,23 @@ internal class CurveCrypto(val forceFallback: Boolean = false) {
   }
 }
 
+internal const val RELAY_ADDRESS_SUFFIX = ".relay.supaterm.alt"
+private const val LEGACY_RELAY_ADDRESS_SUFFIX = ".relay.supaterm.invalid"
+
 internal fun parseRelayIdentity(address: String): ByteArray {
   val uri = URI(address)
   require(uri.scheme in listOf("https", "wss") && uri.port == -1 && uri.userInfo == null) {
     "Invalid relay address"
   }
   val host = uri.host?.lowercase() ?: error("Invalid relay address")
-  require(Regex("[0-9a-f]{32}\\.[0-9a-f]{32}\\.relay\\.supaterm\\.invalid").matches(host)) {
+  val key =
+    listOf(RELAY_ADDRESS_SUFFIX, LEGACY_RELAY_ADDRESS_SUFFIX)
+      .firstOrNull { host.endsWith(it) }
+      ?.let { host.removeSuffix(it) }
+  require(key != null && Regex("[0-9a-f]{32}\\.[0-9a-f]{32}").matches(key)) {
     "Invalid relay identity"
   }
-  return unhex(host.removeSuffix(".relay.supaterm.invalid").replace(".", ""))
+  return unhex(key.replace(".", ""))
 }
 
 internal class ClientHandshake(

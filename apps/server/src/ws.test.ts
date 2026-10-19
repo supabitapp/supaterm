@@ -259,7 +259,7 @@ const relayEnvironment: ServerConfig["environment"] = {
 };
 
 const relayAdvertisement = {
-  relayEndpoint: `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.invalid/`,
+  relayEndpoint: `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`,
   relayUrl: "wss://relay.example.test",
 };
 

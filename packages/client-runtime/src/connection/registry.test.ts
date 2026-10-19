@@ -2137,7 +2137,7 @@ it.effect(
             Queue.offer(writes, { routes, profiles }).pipe(Effect.asVoid),
         },
       );
-      const relayEndpoint = `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.invalid/`;
+      const relayEndpoint = `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`;
       yield* Effect.gen(function* () {
         const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
         yield* registry.start;

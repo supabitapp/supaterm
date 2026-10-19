@@ -1,8 +1,8 @@
 import { expect, it, vi } from "vite-plus/test";
 import { createLoopbackRelayPool, type LoopbackRelay } from "./loopbackPool.ts";
 
-const address = `https://${"a".repeat(32)}.${"b".repeat(32)}.relay.supaterm.invalid`;
-const otherAddress = `https://${"c".repeat(32)}.${"d".repeat(32)}.relay.supaterm.invalid`;
+const address = `https://${"a".repeat(32)}.${"b".repeat(32)}.relay.supaterm.alt`;
+const otherAddress = `https://${"c".repeat(32)}.${"d".repeat(32)}.relay.supaterm.alt`;
 const relayA = "wss://relay-a.example";
 const relayB = "wss://relay-b.example";
 

@@ -92,8 +92,8 @@ const RELAY_ROUTE: ConnectionRoute = {
       connectionId: "relay",
       environmentId: TARGET.environmentId,
       label: TARGET.label,
-      httpBaseUrl: `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.invalid/`,
-      wsBaseUrl: `wss://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.invalid/`,
+      httpBaseUrl: `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`,
+      wsBaseUrl: `wss://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`,
     }),
   ),
 };

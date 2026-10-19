@@ -56,7 +56,7 @@ describe("remote", () => {
   );
 
   it("carries a non-default relay with relay pairing links only", () => {
-    const relayAddress = `https://${"ab".repeat(16)}.${"cd".repeat(16)}.relay.supaterm.invalid/`;
+    const relayAddress = `https://${"ab".repeat(16)}.${"cd".repeat(16)}.relay.supaterm.alt/`;
     const relayUrl = "wss://relay.example/tunnel";
     const pairingUrl = buildPairingUrl(relayAddress, "code", { environmentId, relayUrl });
     expect(resolveRemotePairingTarget({ pairingUrl })).toMatchObject({
@@ -72,6 +72,20 @@ describe("remote", () => {
     expect(() =>
       resolveRemotePairingTarget({ pairingUrl: `${relayAddress}pair#token=code&relay=https://x` }),
     ).toThrow(RemotePairingUrlInvalidError);
+  });
+
+  it("resolves links from hosts that still issue legacy relay addresses", () => {
+    const relayAddress = `https://${"ab".repeat(16)}.${"cd".repeat(16)}.relay.supaterm.alt/`;
+    const legacy = relayAddress.replace(".alt/", ".invalid/");
+    expect(resolveRemotePairingTarget({ pairingUrl: `${legacy}pair#token=code` })).toMatchObject({
+      httpBaseUrl: relayAddress,
+      wsBaseUrl: relayAddress.replace("https:", "wss:"),
+    });
+    expect(
+      resolveRemotePairingTarget({
+        pairingUrl: `https://app.supaterm.com/pair?host=${encodeURIComponent(legacy)}#token=code`,
+      }),
+    ).toMatchObject({ httpBaseUrl: relayAddress });
   });
 
   it("discards unsafe route hints", () => {

@@ -7,6 +7,8 @@ import type {
   AdvertisedEndpointStatus,
 } from "@supaterm/contracts";
 
+import { upgradeRelayAddresses } from "./relay/protocol.ts";
+
 export interface CreateAdvertisedEndpointInput {
   readonly id: string;
   readonly label: string;
@@ -36,7 +38,7 @@ export function normalizeHttpBaseUrl(rawValue: string): string {
   url.pathname = "/";
   url.search = "";
   url.hash = "";
-  return url.toString();
+  return upgradeRelayAddresses(url.toString());
 }
 
 export function deriveWsBaseUrl(httpBaseUrl: string): string {

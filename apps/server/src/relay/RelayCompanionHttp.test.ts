@@ -17,7 +17,7 @@ import { RelayCompanion, RelayCompanionError } from "./RelayCompanion.ts";
 import { layer } from "./RelayCompanionHttp.ts";
 
 const platform = NodeHttpPlatform.layer.pipe(Layer.provideMerge(NodeServices.layer));
-const identity = `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.invalid`;
+const identity = `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt`;
 const address = `${identity}/`;
 const foreignHostStatus = (origin: string) =>
   new Promise<number>((resolve, reject) => {
@@ -150,7 +150,7 @@ it.effect("answers failed opens and drops a tab that sends malformed control mes
     const fs = yield* FileSystem.FileSystem;
     const root = yield* fs.makeTempDirectoryScoped();
     const released = yield* Deferred.make<void>();
-    const failedIdentity = `https://${"55".repeat(16)}.${"66".repeat(16)}.relay.supaterm.invalid`;
+    const failedIdentity = `https://${"55".repeat(16)}.${"66".repeat(16)}.relay.supaterm.alt`;
     const service = Layer.mock(RelayCompanion, {
       session: Effect.gen(function* () {
         yield* Effect.addFinalizer(() => Deferred.succeed(released, undefined));

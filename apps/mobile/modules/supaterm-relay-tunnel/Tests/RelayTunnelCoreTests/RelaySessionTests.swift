@@ -39,7 +39,7 @@ private final class FakeRelay: @unchecked Sendable {
 
   var address: String {
     let hex = signing.publicKey.rawRepresentation.hex
-    return "https://\(hex.prefix(32)).\(hex.suffix(32)).relay.supaterm.invalid/"
+    return "https://\(hex.prefix(32)).\(hex.suffix(32)).relay.supaterm.alt/"
   }
 
   init(greeting: Greeting = .welcome) throws {
@@ -112,7 +112,7 @@ private final class FakeRelay: @unchecked Sendable {
 }
 
 private final class RejectingRelay: @unchecked Sendable {
-  let address = "https://\(String(repeating: "ab", count: 16)).\(String(repeating: "cd", count: 16)).relay.supaterm.invalid/"
+  let address = "https://\(String(repeating: "ab", count: 16)).\(String(repeating: "cd", count: 16)).relay.supaterm.alt/"
   private let status: String
   private let queue = DispatchQueue(label: "rejecting-relay")
   private let listener: NWListener

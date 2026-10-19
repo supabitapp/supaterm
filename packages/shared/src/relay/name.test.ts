@@ -15,7 +15,7 @@ describe("relayName", () => {
 
   it("leaves ordinary and malformed addresses unnamed", () => {
     expect(relayName("https://host.test/")).toBeNull();
-    expect(relayName("https://abc.relay.supaterm.invalid/")).toBeNull();
+    expect(relayName("https://abc.relay.supaterm.alt/")).toBeNull();
     expect(relayName("not a url")).toBeNull();
   });
 });

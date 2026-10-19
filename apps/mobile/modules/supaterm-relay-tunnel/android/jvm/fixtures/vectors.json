@@ -1,7 +1,7 @@
 {
   "identity": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
   "clientSecret": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
-  "address": "https://03a107bff3ce10be1d70dd18e74bc099.67e4d6309ba50d5f1ddc8664125531b8.relay.supaterm.invalid/",
+  "address": "https://03a107bff3ce10be1d70dd18e74bc099.67e4d6309ba50d5f1ddc8664125531b8.relay.supaterm.alt/",
   "transcript": "737570617465726d2d74756e6e656c2d76320a03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8358072d6365880d1aeea329adf9121383851ed21a28e3b75e965d0d2cd16625479a631eede1bf9c98f12032cdeadd0e7a079398fc786b88cc846ec89af85a51a",
   "hello": "{\"type\":\"hello\",\"version\":2,\"key\":\"NYBy1jZYgNGu6jKa35EhODhR7SGijjt16WXQ0s0WYlQ\"}",
   "welcome": "{\"type\":\"welcome\",\"version\":2,\"key\":\"eaYx7t4b-cmPEgMs3q3Q56B5OY_HhriMyEbsia-FpRo\",\"signature\":\"dQyiE71LxTBVeMr5zwkSCHaUyy730gPNJY5naDTYgM176aSYsF_1wZ51Nnt2OEu5F-gZIep2-hSZZwl_3CRHBA\"}",

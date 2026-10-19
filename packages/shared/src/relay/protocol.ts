@@ -15,7 +15,9 @@ export const RelayTunnelFailure = Schema.Literals([
   "relay-unreachable",
 ]);
 export type RelayTunnelFailure = typeof RelayTunnelFailure.Type;
-const suffix = ".relay.supaterm.invalid";
+const suffix = ".relay.supaterm.alt";
+const legacySuffix = ".relay.supaterm.invalid";
+const legacyRelayHost = /([0-9a-f]{32}\.[0-9a-f]{32})\.relay\.supaterm\.invalid(?![\w.-])/g;
 const encoder = new TextEncoder();
 export const encodeBase64 = (data: Uint8Array): string => {
   let value = "";
@@ -43,20 +45,21 @@ export const parseRelayAddress = (input: string): Uint8Array | null => {
   } catch {
     return null;
   }
-  if (!url.hostname.endsWith(suffix)) return null;
+  const matched = [suffix, legacySuffix].find((value) => url.hostname.endsWith(value));
+  if (matched === undefined) return null;
   if (!["https:", "wss:"].includes(url.protocol) || url.port || url.username || url.password) {
     throw new Error("Invalid relay address");
   }
-  const key = url.hostname.slice(0, -suffix.length);
+  const key = url.hostname.slice(0, -matched.length);
   if (!/^[0-9a-f]{32}\.[0-9a-f]{32}$/.test(key)) throw new Error("Invalid relay identity");
   return hexToBytes(key.replace(".", ""));
 };
 export const canonicalRelayAddress = (input: string): string | null => {
-  if (!parseRelayAddress(input)) return null;
-  const url = new URL(input);
-  url.protocol = "https:";
-  return url.origin;
+  const publicKey = parseRelayAddress(input);
+  return publicKey === null ? null : new URL(relayHttpBaseUrl(publicKey)).origin;
 };
+export const upgradeRelayAddresses = (text: string): string =>
+  text.replace(legacyRelayHost, `$1${suffix}`);
 export const signRelayChallenge = (secret: Uint8Array, nonce: string) =>
   encodeBase64(
     ed25519.sign(

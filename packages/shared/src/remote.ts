@@ -4,6 +4,7 @@ import {
   EnvironmentId,
   normalizeRelayServerUrl,
 } from "@supaterm/contracts";
+import { deriveWsBaseUrl, normalizeHttpBaseUrl } from "./advertisedEndpoint.ts";
 import { parseRelayAddress } from "./relay/protocol.ts";
 import { isLocalLoopbackHost, isPrivateNetworkHost, isTailnetHost } from "./hostClassification.ts";
 
@@ -116,32 +117,6 @@ const normalizeRemoteBaseUrl = (
   url.search = "";
   url.hash = "";
   return url;
-};
-
-const toHttpBaseUrl = (url: URL): string => {
-  const next = new URL(url.toString());
-  if (next.protocol === "ws:") {
-    next.protocol = "http:";
-  } else if (next.protocol === "wss:") {
-    next.protocol = "https:";
-  }
-  next.pathname = "/";
-  next.search = "";
-  next.hash = "";
-  return next.toString();
-};
-
-const toWsBaseUrl = (url: URL): string => {
-  const next = new URL(url.toString());
-  if (next.protocol === "http:") {
-    next.protocol = "ws:";
-  } else if (next.protocol === "https:") {
-    next.protocol = "wss:";
-  }
-  next.pathname = "/";
-  next.search = "";
-  next.hash = "";
-  return next.toString();
 };
 
 export interface ResolvedRemotePairingTarget extends PairingRouteHints {
@@ -335,8 +310,8 @@ export const resolveRemotePairingTarget = (input: {
       );
       return {
         credential: hostedPairingRequest.token,
-        httpBaseUrl: toHttpBaseUrl(hostedBackendUrl),
-        wsBaseUrl: toWsBaseUrl(hostedBackendUrl),
+        httpBaseUrl: normalizeHttpBaseUrl(hostedBackendUrl.href),
+        wsBaseUrl: deriveWsBaseUrl(hostedBackendUrl.href),
         ...hints,
       };
     }
@@ -347,8 +322,8 @@ export const resolveRemotePairingTarget = (input: {
     }
     return {
       credential,
-      httpBaseUrl: toHttpBaseUrl(url),
-      wsBaseUrl: toWsBaseUrl(url),
+      httpBaseUrl: normalizeHttpBaseUrl(url.href),
+      wsBaseUrl: deriveWsBaseUrl(url.href),
       ...hints,
     };
   }
@@ -365,7 +340,7 @@ export const resolveRemotePairingTarget = (input: {
 
   return {
     credential: pairingCode,
-    httpBaseUrl: toHttpBaseUrl(normalizedHost),
-    wsBaseUrl: toWsBaseUrl(normalizedHost),
+    httpBaseUrl: normalizeHttpBaseUrl(normalizedHost.href),
+    wsBaseUrl: deriveWsBaseUrl(normalizedHost.href),
   };
 };

@@ -109,7 +109,7 @@ describe("ConnectionCatalogDocument", () => {
     const profile = new BearerConnectionProfile({
       ...BEARER_PROFILE,
       connectionId: target.connectionId,
-      httpBaseUrl: `https://${"a".repeat(32)}.${"b".repeat(32)}.relay.supaterm.invalid/`,
+      httpBaseUrl: `https://${"a".repeat(32)}.${"b".repeat(32)}.relay.supaterm.alt/`,
       relayUrl: "wss://relay-a.example",
       learned: true,
     });
@@ -124,6 +124,22 @@ describe("ConnectionCatalogDocument", () => {
     const withdrawn = setRoutesInCatalog(restored, ENVIRONMENT_ID, [BEARER_TARGET]);
     expect(withdrawn.profiles).toEqual([BEARER_PROFILE]);
     expect(withdrawn.credentials).toEqual(initial.credentials);
+  });
+
+  it("moves relay profiles saved under the legacy suffix to the current address", () => {
+    const host = `${"a".repeat(32)}.${"b".repeat(32)}`;
+    const relay = new BearerConnectionProfile({
+      ...BEARER_PROFILE,
+      httpBaseUrl: `https://${host}.relay.supaterm.alt/`,
+      wsBaseUrl: `wss://${host}.relay.supaterm.alt/`,
+    });
+    const saved = JSON.parse(
+      JSON.stringify({ ...EMPTY_CONNECTION_CATALOG_DOCUMENT, profiles: [relay] }).replaceAll(
+        ".relay.supaterm.alt/",
+        ".relay.supaterm.invalid/",
+      ),
+    );
+    expect(decodeCatalogDocument(saved).profiles).toEqual([relay]);
   });
 
   it.effect("persists explicit GitHub trust and forgets it when a connection is removed", () =>

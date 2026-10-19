@@ -1,4 +1,5 @@
 import { EnvironmentId } from "@supaterm/contracts";
+import { upgradeRelayAddresses } from "@supaterm/shared/relay/protocol";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
@@ -80,7 +81,8 @@ export function gitHubRoutingPermissionFor(
   const key = gitHubRoutingConnectionKey(entry);
   return key === null
     ? "off"
-    : (permissions.find((permission) => permission.connectionKey === key)?.permission ?? "off");
+    : (permissions.find((permission) => upgradeRelayAddresses(permission.connectionKey) === key)
+        ?.permission ?? "off");
 }
 
 export class GitHubRoutingPermissions extends Context.Reference<{

@@ -47,7 +47,7 @@ class NativeTunnel(
 
   private val identity = parseRelayIdentity(hostAddress)
   private val hostAddress =
-    identity.hex().let { "https://${it.take(32)}.${it.drop(32)}.relay.supaterm.invalid/" }
+    identity.hex().let { "https://${it.take(32)}.${it.drop(32)}$RELAY_ADDRESS_SUFFIX/" }
   private val actor = Executors.newSingleThreadScheduledExecutor {
     Thread(it, "relay-session").apply { isDaemon = true }
   }

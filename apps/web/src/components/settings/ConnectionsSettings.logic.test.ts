@@ -14,7 +14,7 @@ import {
 
 it("shares the confirmed relay route before its status subscription arrives", () => {
   const relay = {
-    relayEndpoint: `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.invalid/`,
+    relayEndpoint: `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`,
     relayUrl: "wss://custom-relay.invalid",
   };
   const settings = { publicRelayEnabled: true, publicRelayUrl: relay.relayUrl };
@@ -254,7 +254,7 @@ describe("canRevokeOtherClients", () => {
 
 it("uses current routing when the relay server changes after link creation", () => {
   const prepared = {
-    relayEndpoint: "https://relay.supaterm.invalid/",
+    relayEndpoint: "https://relay.supaterm.alt/",
     relayUrl: "wss://old-relay.invalid",
   };
   const settings = { publicRelayEnabled: true, publicRelayUrl: "wss://new-relay.invalid" };
