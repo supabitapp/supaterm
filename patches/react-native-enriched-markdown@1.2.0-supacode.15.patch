@@ -1,0 +1,548 @@
+diff --git a/android/src/main/java/com/swmansion/enriched/markdown/CodeBlockWrapState.kt b/android/src/main/java/com/swmansion/enriched/markdown/CodeBlockWrapState.kt
+index 6246f87..0995039 100644
+--- a/android/src/main/java/com/swmansion/enriched/markdown/CodeBlockWrapState.kt
++++ b/android/src/main/java/com/swmansion/enriched/markdown/CodeBlockWrapState.kt
+@@ -5,8 +5,8 @@ import com.swmansion.enriched.markdown.segments.CodeBlockContainerView
+ // Code block wrap state is keyed by block position, so it only stays meaningful
+ // while the document grows in place. Streaming may rewrite its unfinished last
+ // line (an HTML tag closing, a link relabeled); anything earlier changing - a
+-// recycled cell, an edited message, a block inserted above - starts unwrapped.
+-// Compares in place: this runs on every streamed chunk while a block is wrapped.
++// recycled cell, an edited message, a block inserted above - starts wrapped again.
++// Compares in place: this runs on every streamed chunk while a block is unwrapped.
+ internal fun keepsCodeBlockWrapState(
+   previous: String,
+   next: String,
+@@ -16,8 +16,9 @@ internal fun keepsCodeBlockWrapState(
+ }
+ 
+ /**
+- * Which code blocks of one EnrichedMarkdown the user wrapped with the header
+- * toggle, and the only writer of that choice.
++ * Which code blocks of one EnrichedMarkdown the user unwrapped with the header
++ * toggle, and the only writer of that choice. Blocks start wrapped while the
++ * toggle is on.
+  *
+  * Blocks are identified by document-order index, counted pre-order across
+  * nesting (a block inside a blockquote takes the next index, like a top-level
+@@ -41,22 +42,25 @@ internal class CodeBlockWrapState(
+   // The markdown prop as last received, which local task toggles don't touch.
+   private var lastMarkdownProp: String = ""
+ 
+-  /** Returns whether the wrapped set was cleared, so the height must be recomputed. */
++  /**
++   * Returns whether the code block heights changed, so the height must be
++   * recomputed. Blocks start wrapped, so switching the toggle moves every block
++   * the user left alone.
++   */
+   fun setEnabled(value: Boolean): Boolean {
+     if (enabled == value) return false
+     enabled = value
+-    val cleared = !value && indices.isNotEmpty()
+-    if (cleared) write(emptySet())
++    if (!value) write(emptySet())
+     sync()
+-    return cleared
++    return true
+   }
+ 
+   /**
+    * Applies the reset rule to a new markdown prop; [rendered] is the document on
+    * screen, which includes local task toggles. The prop is compared with the
+    * previous prop, so an app that ignores a checkbox tap and keeps streaming its
+-   * own copy keeps the wrapped blocks; a prop equal to what's rendered is the app
+-   * echoing a task toggle back and keeps them too. Returns whether the wrapped
++   * own copy keeps the unwrapped blocks; a prop equal to what's rendered is the app
++   * echoing a task toggle back and keeps them too. Returns whether the unwrapped
+    * set was cleared.
+    */
+   fun onMarkdownProp(
+@@ -70,12 +74,12 @@ internal class CodeBlockWrapState(
+     return true
+   }
+ 
+-  /** Pushes the wrapped set and the toggle onto the current code block views. */
++  /** Pushes the unwrapped set and the toggle onto the current code block views. */
+   fun sync() {
+     codeBlockViews().forEachIndexed { index, view ->
+       view.onWrapToggle = ::toggle
+       view.showsWrapButton = enabled
+-      view.wrapped = enabled && index in indices
++      view.wrapped = enabled && index !in indices
+     }
+   }
+ 
+@@ -90,19 +94,23 @@ internal class CodeBlockWrapState(
+ 
+   private fun write(value: Set<Int>) {
+     indices = value
+-    MeasurementStore.updateWrappedCodeBlocks(viewTag(), value)
++    MeasurementStore.updateUnwrappedCodeBlocks(viewTag(), value)
+   }
+ }
+ 
+ /**
+  * Hands out the wrapped flag of each code block in the order a view-free measure
+  * pass reaches them: pre-order, descending into blockquotes, the same order
+- * [CodeBlockWrapState] indexes the views in.
++ * [CodeBlockWrapState] indexes the views in. [unwrapped] is null when the toggle
++ * is off, which leaves every block unwrapped.
+  */
+ class CodeBlockWrapCursor(
+-  private val wrapped: Set<Int>,
++  private val unwrapped: Set<Int>?,
+ ) {
+   private var nextIndex = 0
+ 
+-  fun nextIsWrapped(): Boolean = nextIndex++ in wrapped
++  fun nextIsWrapped(): Boolean {
++    val index = nextIndex++
++    return unwrapped != null && index !in unwrapped
++  }
+ }
+diff --git a/android/src/main/java/com/swmansion/enriched/markdown/MeasurementStore.kt b/android/src/main/java/com/swmansion/enriched/markdown/MeasurementStore.kt
+index 6c4e1ee..6b924a5 100644
+--- a/android/src/main/java/com/swmansion/enriched/markdown/MeasurementStore.kt
++++ b/android/src/main/java/com/swmansion/enriched/markdown/MeasurementStore.kt
+@@ -95,8 +95,8 @@ object MeasurementStore {
+ 
+   private val streamingCodeBlockModes = ConcurrentHashMap<Int, CodeBlockStreamingMode>()
+ 
+-  // Code blocks the user wrapped, by document-order index across nesting (see CodeBlockWrapState).
+-  private val wrappedCodeBlocks = ConcurrentHashMap<Int, Set<Int>>()
++  // Code blocks the user unwrapped, by document-order index across nesting (see CodeBlockWrapState).
++  private val unwrappedCodeBlocks = ConcurrentHashMap<Int, Set<Int>>()
+ 
+   private fun resolveFontScalingSettings(
+     viewId: Int?,
+@@ -150,14 +150,14 @@ object MeasurementStore {
+     data.remove(id)
+     numberOfLinesByViewId.remove(id)
+     ellipsizeModeByViewId.remove(id)
+-    wrappedCodeBlocks.remove(id)
++    unwrappedCodeBlocks.remove(id)
+   }
+ 
+-  fun updateWrappedCodeBlocks(
++  fun updateUnwrappedCodeBlocks(
+     viewId: Int,
+     indices: Set<Int>,
+   ) {
+-    if (indices.isEmpty()) wrappedCodeBlocks.remove(viewId) else wrappedCodeBlocks[viewId] = indices
++    if (indices.isEmpty()) unwrappedCodeBlocks.remove(viewId) else unwrappedCodeBlocks[viewId] = indices
+     data.remove(viewId)
+   }
+ 
+@@ -503,16 +503,17 @@ object MeasurementStore {
+       } else {
+         rawMarkdown
+       }
+-    val wrapped =
++    val unwrapped =
+       if (props.getBooleanOrDefault("enableCodeBlockWrapToggle", true)) {
+-        id?.let { wrappedCodeBlocks[it] } ?: emptySet()
++        id?.let { unwrappedCodeBlocks[it] } ?: emptySet()
+       } else {
+-        emptySet()
++        null
+       }
+-    // A Set's hashCode sums its elements, so {} and {0} would collide; the sorted list's doesn't.
++    // A Set's hashCode sums its elements, so {} and {0} would collide; the sorted list's doesn't,
++    // and the toggle being off (null, nothing wrapped) hashes apart from {} (everything wrapped).
+     val propsHash =
+       31 * computePropsHashForMarkdown(markdown, props, allowFontScaling, fontScale, maxFontSizeMultiplier) +
+-        wrapped.sorted().hashCode()
++        (unwrapped?.sorted()?.hashCode() ?: 0)
+ 
+     // Streaming shortcut: reuse cached size when the filtered content and
+     // width are unchanged. When the filter output changes (e.g. a table
+@@ -610,7 +611,7 @@ object MeasurementStore {
+       val lastIndex = renderedSegments.lastIndex
+       var totalHeightPx = 0f
+       var maxContentWidthPx = 0f
+-      val wrapCursor = CodeBlockWrapCursor(wrapped)
++      val wrapCursor = CodeBlockWrapCursor(unwrapped)
+ 
+       for ((index, segment) in renderedSegments.withIndex()) {
+         val isLastSegment = index == lastIndex
+diff --git a/android/src/main/java/com/swmansion/enriched/markdown/segments/SegmentHeightMeasurer.kt b/android/src/main/java/com/swmansion/enriched/markdown/segments/SegmentHeightMeasurer.kt
+index 3ed7f31..4aa8827 100644
+--- a/android/src/main/java/com/swmansion/enriched/markdown/segments/SegmentHeightMeasurer.kt
++++ b/android/src/main/java/com/swmansion/enriched/markdown/segments/SegmentHeightMeasurer.kt
+@@ -22,8 +22,8 @@ import kotlin.math.ceil
+  * supplied through mathHeightForIndex, because the summation runs off the main
+  * thread. Blockquote children recurse through
+  * BlockquoteContainerView.measureBlockquoteNodeHeight. wrapCursor, when given,
+- * says which code blocks the user wrapped; it is shared down the recursion so
+- * nested blocks keep counting in document order.
++ * says which code blocks are wrapped; it is shared down the recursion so nested
++ * blocks keep counting in document order.
+  */
+ object SegmentHeightMeasurer {
+   fun measureSegmentsHeight(
+diff --git a/docs/API_REFERENCE.md b/docs/API_REFERENCE.md
+index 392a7d2..415890b 100644
+--- a/docs/API_REFERENCE.md
++++ b/docs/API_REFERENCE.md
+@@ -284,7 +284,7 @@ Works in both flavors: `flavor="github"` fires on the container-based code block
+ 
+ ### `enableCodeBlockWrapToggle`
+ 
+-Shows a line wrap toggle next to the copy button in each fenced code block header (`flavor="github"`); set it to `false` to hide the toggle. Blocks start unwrapped and scroll horizontally; tapping the toggle wraps that block's lines at the block width, and tapping again goes back to scrolling. The state belongs to the block's position in the document: it survives streaming appends and resets when the markdown is replaced rather than appended to. The toggle's spoken labels come from [`accessibilityLabels.codeBlock`](#accessibilitylabels). macOS accepts the prop but shows no toggle.
++Shows a line wrap toggle next to the copy button in each fenced code block header (`flavor="github"`); set it to `false` to hide the toggle. Blocks start wrapped at the block width; tapping the toggle makes that block scroll horizontally, and tapping again wraps it again. Hiding the toggle leaves every block scrolling. The state belongs to the block's position in the document: it survives streaming appends and resets when the markdown is replaced rather than appended to. The toggle's spoken labels come from [`accessibilityLabels.codeBlock`](#accessibilitylabels). macOS accepts the prop but shows no toggle.
+ 
+ | Type      | Default Value | Platform     |
+ | --------- | ------------- | ------------ |
+diff --git a/ios/EnrichedMarkdown.h b/ios/EnrichedMarkdown.h
+index 1d4df07..f3807fb 100644
+--- a/ios/EnrichedMarkdown.h
++++ b/ios/EnrichedMarkdown.h
+@@ -22,10 +22,10 @@ NS_ASSUME_NONNULL_BEGIN
+ - (CGSize)lastCommittedLayoutSize;
+ 
+ /// Document-order indexes, counted across nesting, of the code blocks the user
+-/// wrapped with the header toggle (see ENRMCodeBlockWrapState). Written on main,
+-/// read by the shadow-node measure pass on any thread (atomic copy), so the
+-/// measured height follows the wrapped blocks.
+-@property (nonatomic, copy, readonly) NSSet<NSNumber *> *wrappedCodeBlockIndices;
++/// unwrapped with the header toggle (see ENRMCodeBlockWrapState); every other
++/// block is wrapped. Written on main, read by the shadow-node measure pass on any
++/// thread (atomic copy), so the measured height follows the wrapped blocks.
++@property (nonatomic, copy, readonly) NSSet<NSNumber *> *unwrappedCodeBlockIndices;
+ @end
+ 
+ NS_ASSUME_NONNULL_END
+diff --git a/ios/EnrichedMarkdown.mm b/ios/EnrichedMarkdown.mm
+index 896a222..d57c093 100644
+--- a/ios/EnrichedMarkdown.mm
++++ b/ios/EnrichedMarkdown.mm
+@@ -1181,7 +1181,7 @@ static char kENRMSegmentFadeAnimatorKey;
+   return codeBlockView;
+ }
+ 
+-- (NSSet<NSNumber *> *)wrappedCodeBlockIndices
++- (NSSet<NSNumber *> *)unwrappedCodeBlockIndices
+ {
+   return _codeBlockWrapState.indices;
+ }
+diff --git a/ios/internals/ENRMViewFreeMeasurement.h b/ios/internals/ENRMViewFreeMeasurement.h
+index 3ae63ac..f2bf344 100644
+--- a/ios/internals/ENRMViewFreeMeasurement.h
++++ b/ios/internals/ENRMViewFreeMeasurement.h
+@@ -234,16 +234,17 @@ static inline CGSize ENRMMeasureMarkdownViewFree(const PropsT &typedProps, CGFlo
+  * same condition, tables report full width. Finishes with `measureSize:`'s
+  * pixel rounding (width capped at maxWidth) and its
+  * (maxWidth × system-16 line height) fallback for empty/failed content.
+- * `wrappedCodeBlocks` holds the document-order indexes, counted across nesting,
+- * of the code blocks the user wrapped (EnrichedMarkdown.wrappedCodeBlockIndices);
+- * those measure at the block width (a quote's inner width when nested) instead
+- * of their unwrapped height.
++ * `unwrappedCodeBlocks` holds the document-order indexes, counted across nesting,
++ * of the code blocks the user unwrapped (EnrichedMarkdown.unwrappedCodeBlockIndices),
++ * or nil when the toggle is off and no block wraps; the others measure at the
++ * block width (a quote's inner width when nested) instead of their unwrapped
++ * height.
+  */
+ template <typename PropsT>
+ static inline CGSize ENRMMeasureSegmentedMarkdownViewFree(const PropsT &typedProps, CGFloat maxWidth, CGFloat fontScale,
+                                                           CGFloat pointScaleFactor,
+                                                           NSWritingDirection resolvedLayoutDirection,
+-                                                          NSSet<NSNumber *> *wrappedCodeBlocks = nil)
++                                                          NSSet<NSNumber *> *unwrappedCodeBlocks = nil)
+ {
+   @autoreleasepool {
+     CGSize fallback = CGSizeMake(maxWidth, UIFontLineHeight([UIFont systemFontOfSize:16.0]));
+@@ -310,7 +311,7 @@ static inline CGSize ENRMMeasureSegmentedMarkdownViewFree(const PropsT &typedPro
+     CGFloat yOffset = 0.0;
+     CGFloat maxContentWidth = 0.0;
+     const NSUInteger lastIndex = segments.count - 1;
+-    ENRMCodeBlockWrapCursor *wrapCursor = [[ENRMCodeBlockWrapCursor alloc] initWithWrapped:wrappedCodeBlocks];
++    ENRMCodeBlockWrapCursor *wrapCursor = [[ENRMCodeBlockWrapCursor alloc] initWithUnwrapped:unwrappedCodeBlocks];
+ 
+     for (NSUInteger i = 0; i < segments.count; i++) {
+       ENRMRenderedSegment *segment = segments[i];
+diff --git a/ios/internals/EnrichedMarkdownShadowNode.mm b/ios/internals/EnrichedMarkdownShadowNode.mm
+index 6cbabb3..1e10d91 100644
+--- a/ios/internals/EnrichedMarkdownShadowNode.mm
++++ b/ios/internals/EnrichedMarkdownShadowNode.mm
+@@ -50,12 +50,13 @@ void EnrichedMarkdownShadowNode::dirtyLayoutIfNeeded()
+   }
+ }
+ 
+-// Order-independent fingerprint of the wrapped set for the cache key; 0 for none,
+-// and {0} still hashes apart from {}.
+-static size_t ENRMWrappedCodeBlocksFingerprint(NSSet<NSNumber *> *wrappedCodeBlocks)
++// Order-independent fingerprint of the unwrapped set for the cache key; the toggle
++// being off (nil, nothing wrapped) hashes apart from {} (everything wrapped), and
++// {0} still hashes apart from {}.
++static size_t ENRMWrappedCodeBlocksFingerprint(NSSet<NSNumber *> *unwrappedCodeBlocks)
+ {
+-  size_t h = 0;
+-  for (NSNumber *index in [wrappedCodeBlocks.allObjects sortedArrayUsingSelector:@selector(compare:)]) {
++  size_t h = unwrappedCodeBlocks != nil;
++  for (NSNumber *index in [unwrappedCodeBlocks.allObjects sortedArrayUsingSelector:@selector(compare:)]) {
+     HashUtils::hash_one(h, index.unsignedLongValue);
+   }
+   return h;
+@@ -73,20 +74,22 @@ Size EnrichedMarkdownShadowNode::measureContent(const LayoutContext &layoutConte
+                                                    ? NSWritingDirectionRightToLeft
+                                                    : NSWritingDirectionLeftToRight;
+ 
+-  // Wrapped code blocks are view state, not props, so they join the cache key by fingerprint.
++  // Unwrapped code blocks are view state, not props, so they join the cache key by fingerprint.
++  // A view that doesn't exist yet has every block wrapped, like a fresh ENRMCodeBlockWrapState.
+   const auto componentViewRef = getStateData().getComponentViewRef();
+   RCTInternalGenericWeakWrapper *weakWrapper = (RCTInternalGenericWeakWrapper *)unwrapManagedObject(componentViewRef);
+   EnrichedMarkdown *view = weakWrapper ? (EnrichedMarkdown *)weakWrapper.object : nil;
+-  NSSet<NSNumber *> *wrappedCodeBlocks = typedProps.enableCodeBlockWrapToggle ? view.wrappedCodeBlockIndices : nil;
++  NSSet<NSNumber *> *unwrappedCodeBlocks =
++      typedProps.enableCodeBlockWrapToggle ? (view.unwrappedCodeBlockIndices ?: [NSSet set]) : nil;
+ 
+   return ENRMMeasureMarkdownContent<EnrichedMarkdownProps, EnrichedMarkdown>(
+       typedProps, componentViewRef, receivedCounter, lastExactMeasurementCounter_, lastExactMeasurementSize_,
+       MarkdownFlavor::GitHub, layoutContext, layoutConstraints,
+       ^(EnrichedMarkdown *measuredView, CGFloat maxWidth, CGFloat fontScale) {
+         return ENRMMeasureSegmentedMarkdownViewFree(*props, maxWidth, fontScale, pointScaleFactor,
+-                                                    resolvedLayoutDirection, wrappedCodeBlocks);
++                                                    resolvedLayoutDirection, unwrappedCodeBlocks);
+       },
+-      ENRMWrappedCodeBlocksFingerprint(wrappedCodeBlocks));
++      ENRMWrappedCodeBlocksFingerprint(unwrappedCodeBlocks));
+ }
+ 
+ } // namespace facebook::react
+diff --git a/ios/segments/ENRMSegmentHeightMeasurer.h b/ios/segments/ENRMSegmentHeightMeasurer.h
+index d7877b3..2447da4 100644
+--- a/ios/segments/ENRMSegmentHeightMeasurer.h
++++ b/ios/segments/ENRMSegmentHeightMeasurer.h
+@@ -24,8 +24,8 @@ NS_ASSUME_NONNULL_BEGIN
+  * +[ENRMBlockquoteContainerView measureHeightForBlockquoteNode:...] (recursion).
+  * Per-kind margins come from the config exactly as computeSegmentLayout applies
+  * them: marginTop before, marginBottom after unless it is the last segment and
+- * trailing margins are disabled. Code blocks the user wrapped (wrapCursor,
+- * shared with nested quotes) measure at contentWidth.
++ * trailing margins are disabled. Wrapped code blocks (wrapCursor, shared with
++ * nested quotes) measure at contentWidth.
+  */
+ CGFloat ENRMMeasureSegmentsHeightViewFree(NSArray<ENRMRenderedSegment *> *segments, StyleConfig *config,
+                                           CGFloat contentWidth, BOOL allowTrailingMargin, CGFloat pointScaleFactor,
+diff --git a/ios/utils/ENRMCodeBlockWrapState.h b/ios/utils/ENRMCodeBlockWrapState.h
+index ca99ded..53cab06 100644
+--- a/ios/utils/ENRMCodeBlockWrapState.h
++++ b/ios/utils/ENRMCodeBlockWrapState.h
+@@ -13,8 +13,8 @@ NS_ASSUME_NONNULL_BEGIN
+ // Code block wrap state is keyed by block position, so it only stays meaningful
+ // while the document grows in place. Streaming may rewrite its unfinished last
+ // line (an HTML tag closing, a link relabeled); anything earlier changing - a
+-// recycled cell, an edited message, a block inserted above - starts unwrapped.
+-// Compares in place: this runs on every streamed chunk while a block is wrapped.
++// recycled cell, an edited message, a block inserted above - starts wrapped again.
++// Compares in place: this runs on every streamed chunk while a block is unwrapped.
+ inline bool ENRMKeepsCodeBlockWrapState(const std::string &previous, const std::string &next)
+ {
+   const auto cut = previous.rfind('\n');
+@@ -35,22 +35,23 @@ void ENRMCollectCodeBlockViews(NSArray<RCTUIView *> *segmentViews,
+  */
+ @interface ENRMCodeBlockWrapCursor : NSObject
+ 
+-- (instancetype)initWithWrapped:(nullable NSSet<NSNumber *> *)wrapped;
++// `unwrapped` is nil when the toggle is off, which leaves every block unwrapped.
++- (instancetype)initWithUnwrapped:(nullable NSSet<NSNumber *> *)unwrapped;
+ 
+ - (BOOL)nextIsWrapped;
+ 
+ @end
+ 
+ /**
+- * Which code blocks of one EnrichedMarkdown the user wrapped with the header
++ * Which code blocks of one EnrichedMarkdown the user unwrapped with the header
+  * toggle, and the only writer of that choice; mirrors Android's
+- * CodeBlockWrapState.
++ * CodeBlockWrapState. Blocks start wrapped while the toggle is on.
+  *
+  * Blocks are identified by document-order index, counted pre-order across
+  * nesting (a block inside a blockquote takes the next index, like a top-level
+  * one). The set lives here rather than on the views, which are rebuilt on style,
+  * font-scale and pill-content changes, and the shadow node's view-free measure
+- * pass reads it through EnrichedMarkdown.wrappedCodeBlockIndices.
++ * pass reads it through EnrichedMarkdown.unwrappedCodeBlockIndices.
+  */
+ @interface ENRMCodeBlockWrapState : NSObject
+ 
+@@ -65,25 +66,25 @@ void ENRMCollectCodeBlockViews(NSArray<RCTUIView *> *segmentViews,
+ // Written on main, read by the shadow-node measure pass on any thread.
+ @property (atomic, copy, readonly) NSSet<NSNumber *> *indices;
+ 
+-// Returns whether the wrapped set was cleared, so the height must be recomputed.
++// Returns whether the code block heights changed, so the height must be recomputed.
+ - (BOOL)updateEnabled:(BOOL)enabled;
+ 
+ #ifdef __cplusplus
+ // Applies the reset rule to a new markdown prop; `rendered` is the document on
+ // screen, which includes local task toggles. The prop is compared with the
+ // previous prop, so an app that ignores a checkbox tap and keeps streaming its
+-// own copy keeps the wrapped blocks; a prop equal to what's rendered is the app
+-// echoing a task toggle back and keeps them too. Returns whether the wrapped set
++// own copy keeps the unwrapped blocks; a prop equal to what's rendered is the app
++// echoing a task toggle back and keeps them too. Returns whether the unwrapped set
+ // was cleared.
+ - (BOOL)markdownPropDidChangeFrom:(const std::string &)previous
+                                to:(const std::string &)next
+                          rendered:(nullable NSString *)rendered;
+ #endif
+ 
+-// Pushes the wrapped set and the toggle onto the current code block views.
++// Pushes the unwrapped set and the toggle onto the current code block views.
+ - (void)sync;
+ 
+-// Back to the initial state (toggle on, nothing wrapped) for a recycled view.
++// Back to the initial state (toggle on, every block wrapped) for a recycled view.
+ - (void)reset;
+ 
+ @end
+diff --git a/ios/utils/ENRMCodeBlockWrapState.mm b/ios/utils/ENRMCodeBlockWrapState.mm
+index 451f273..b9f4dd3 100644
+--- a/ios/utils/ENRMCodeBlockWrapState.mm
++++ b/ios/utils/ENRMCodeBlockWrapState.mm
+@@ -14,21 +14,22 @@ void ENRMCollectCodeBlockViews(NSArray<RCTUIView *> *segmentViews,
+ }
+ 
+ @implementation ENRMCodeBlockWrapCursor {
+-  NSSet<NSNumber *> *_wrapped;
++  NSSet<NSNumber *> *_unwrapped;
+   NSUInteger _nextIndex;
+ }
+ 
+-- (instancetype)initWithWrapped:(NSSet<NSNumber *> *)wrapped
++- (instancetype)initWithUnwrapped:(NSSet<NSNumber *> *)unwrapped
+ {
+   if (self = [super init]) {
+-    _wrapped = wrapped;
++    _unwrapped = unwrapped;
+   }
+   return self;
+ }
+ 
+ - (BOOL)nextIsWrapped
+ {
+-  return [_wrapped containsObject:@(_nextIndex++)];
++  NSNumber *index = @(_nextIndex++);
++  return _unwrapped != nil && ![_unwrapped containsObject:index];
+ }
+ 
+ @end
+@@ -61,12 +62,12 @@ void ENRMCollectCodeBlockViews(NSArray<RCTUIView *> *segmentViews,
+     return NO;
+   }
+   _enabled = enabled;
+-  BOOL cleared = !enabled && self.indices.count > 0;
+-  if (cleared) {
++  if (!enabled) {
+     self.indices = [NSSet set];
+   }
+   [self sync];
+-  return cleared;
++  // Blocks start wrapped, so switching the toggle moves every block the user left alone.
++  return YES;
+ }
+ 
+ - (BOOL)markdownPropDidChangeFrom:(const std::string &)previous
+@@ -86,12 +87,12 @@ void ENRMCollectCodeBlockViews(NSArray<RCTUIView *> *segmentViews,
+ 
+ - (void)sync
+ {
+-  NSSet<NSNumber *> *wrapped = self.indices;
++  NSSet<NSNumber *> *unwrapped = self.indices;
+   __weak ENRMCodeBlockWrapState *weakSelf = self;
+   [_codeBlockViews() enumerateObjectsUsingBlock:^(ENRMCodeBlockContainerView *view, NSUInteger index, BOOL *stop) {
+     view.onWrapToggle = ^(ENRMCodeBlockContainerView *toggled) { [weakSelf toggle:toggled]; };
+     view.showsWrapButton = self->_enabled;
+-    view.wrapped = self->_enabled && [wrapped containsObject:@(index)];
++    view.wrapped = self->_enabled && ![unwrapped containsObject:@(index)];
+   }];
+ }
+ 
+@@ -104,13 +105,13 @@ void ENRMCollectCodeBlockViews(NSArray<RCTUIView *> *segmentViews,
+   if (index == NSNotFound) {
+     return;
+   }
+-  NSMutableSet<NSNumber *> *wrapped = [self.indices mutableCopy];
+-  if ([wrapped containsObject:@(index)]) {
+-    [wrapped removeObject:@(index)];
++  NSMutableSet<NSNumber *> *unwrapped = [self.indices mutableCopy];
++  if ([unwrapped containsObject:@(index)]) {
++    [unwrapped removeObject:@(index)];
+   } else {
+-    [wrapped addObject:@(index)];
++    [unwrapped addObject:@(index)];
+   }
+-  self.indices = wrapped;
++  self.indices = unwrapped;
+   [self sync];
+   _onHeightChanged();
+ }
+diff --git a/lib/module/EnrichedMarkdownNativeComponent.ts b/lib/module/EnrichedMarkdownNativeComponent.ts
+index 955cb94..2149900 100644
+--- a/lib/module/EnrichedMarkdownNativeComponent.ts
++++ b/lib/module/EnrichedMarkdownNativeComponent.ts
+@@ -604,7 +604,7 @@ export interface NativeProps extends ViewProps {
+   enableCodeBlockPress?: CodegenTypes.WithDefault<boolean, false>;
+   /**
+    * Shows a per-block line wrap toggle next to the copy button in fenced code
+-   * block headers. Each block starts unwrapped.
++   * block headers. Each block starts wrapped.
+    * @default false
+    */
+   enableCodeBlockWrapToggle?: CodegenTypes.WithDefault<boolean, true>;
+diff --git a/lib/typescript/src/EnrichedMarkdownNativeComponent.d.ts b/lib/typescript/src/EnrichedMarkdownNativeComponent.d.ts
+index 76d8f23..5739344 100644
+--- a/lib/typescript/src/EnrichedMarkdownNativeComponent.d.ts
++++ b/lib/typescript/src/EnrichedMarkdownNativeComponent.d.ts
+@@ -539,7 +539,7 @@ export interface NativeProps extends ViewProps {
+     enableCodeBlockPress?: CodegenTypes.WithDefault<boolean, false>;
+     /**
+      * Shows a per-block line wrap toggle next to the copy button in fenced code
+-     * block headers. Each block starts unwrapped.
++     * block headers. Each block starts wrapped.
+      * @default false
+      */
+     enableCodeBlockWrapToggle?: CodegenTypes.WithDefault<boolean, true>;
+diff --git a/lib/typescript/src/types/MarkdownTextProps.d.ts b/lib/typescript/src/types/MarkdownTextProps.d.ts
+index e8d441a..fd9c0c8 100644
+--- a/lib/typescript/src/types/MarkdownTextProps.d.ts
++++ b/lib/typescript/src/types/MarkdownTextProps.d.ts
+@@ -287,7 +287,7 @@ export interface EnrichedMarkdownTextProps extends Omit<ViewProps, 'style'> {
+     onCodeBlockPress?: (event: CodeBlockPressEvent) => void;
+     /**
+      * Shows a line wrap toggle next to the copy button in each fenced code block
+-     * header; set `false` to hide it. Every block starts unwrapped (horizontal scroll) and toggles on its
++     * header; set `false` to hide it. Every block starts wrapped and toggles on its
+      * own. The state belongs to the block's position in the document: it survives
+      * streaming appends and resets when the markdown is replaced. Code blocks
+      * inside blockquotes and admonitions get the toggle too. The toggle's spoken
+diff --git a/src/EnrichedMarkdownNativeComponent.ts b/src/EnrichedMarkdownNativeComponent.ts
+index 955cb94..2149900 100644
+--- a/src/EnrichedMarkdownNativeComponent.ts
++++ b/src/EnrichedMarkdownNativeComponent.ts
+@@ -604,7 +604,7 @@ export interface NativeProps extends ViewProps {
+   enableCodeBlockPress?: CodegenTypes.WithDefault<boolean, false>;
+   /**
+    * Shows a per-block line wrap toggle next to the copy button in fenced code
+-   * block headers. Each block starts unwrapped.
++   * block headers. Each block starts wrapped.
+    * @default false
+    */
+   enableCodeBlockWrapToggle?: CodegenTypes.WithDefault<boolean, true>;
+diff --git a/src/types/MarkdownTextProps.ts b/src/types/MarkdownTextProps.ts
+index 425d8e4..9ffd035 100644
+--- a/src/types/MarkdownTextProps.ts
++++ b/src/types/MarkdownTextProps.ts
+@@ -301,7 +301,7 @@ export interface EnrichedMarkdownTextProps extends Omit<ViewProps, 'style'> {
+   onCodeBlockPress?: (event: CodeBlockPressEvent) => void;
+   /**
+    * Shows a line wrap toggle next to the copy button in each fenced code block
+-   * header; set `false` to hide it. Every block starts unwrapped (horizontal scroll) and toggles on its
++   * header; set `false` to hide it. Every block starts wrapped and toggles on its
+    * own. The state belongs to the block's position in the document: it survives
+    * streaming appends and resets when the markdown is replaced. Code blocks
+    * inside blockquotes and admonitions get the toggle too. The toggle's spoken

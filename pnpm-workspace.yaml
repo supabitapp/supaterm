@@ -262,6 +262,8 @@ patchedDependencies:
   react-native-keyboard-controller@1.22.7: patches/react-native-keyboard-controller@1.22.7.patch
   # Android: a nested WebView hands a vertical drag to its scrolling parent at the page's edge.
   react-native-webview@14.0.1: patches/react-native-webview@14.0.1.patch
+  # Code blocks start with their lines wrapped; the header toggle unwraps a block.
+  react-native-enriched-markdown@1.2.0-supacode.15: patches/react-native-enriched-markdown@1.2.0-supacode.15.patch
   "@expo/ui@58.0.20": patches/@expo__ui@58.0.20.patch
   # Android: Maven-resolved gradle plugins (expo-widgets) have no sourceDir; without this
   # skip, the fingerprint silently drops every Expo native module and OTAs reach stale binaries.
