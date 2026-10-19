@@ -81,7 +81,8 @@ the source commit, app version, and native build number from the signed binary. 
 submits each uploaded iOS build for external beta review and adds it to `Supaterm Public Beta`, with
 tester notifications enabled after approval. The beta job uses the `release` environment's existing
 App Store Connect API key and waits up to 45 minutes for Apple to process the exact build. Rerun a
-failed beta job to retry submission without rebuilding. Apple still controls beta approval.
+failed beta job to retry submission without rebuilding. If another build of the same version is in
+beta review, the job names that build; retry after Apple finishes its review. Apple still controls beta approval.
 App Store review is a separate, optional step.
 
 To submit a build for review, dispatch [Mobile Store Review](../../.github/workflows/mobile-store-review.yml)

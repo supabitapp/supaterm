@@ -393,7 +393,13 @@ jobs:
         with:
           ruby-version: "3.4.8"
           working-directory: apps/mobile
-          bundler-cache: true
+          bundler-cache: false
+      - name: Install locked Fastlane dependencies
+        if: steps.build.outputs.enabled == 'true'
+        working-directory: apps/mobile
+        env:
+          BUNDLE_FROZEN: "true"
+        run: bundle install --jobs 4 --retry 3
       - name: Load App Store Connect API key
         if: steps.build.outputs.enabled == 'true'
         uses: ./.github/actions/load-release-secrets

@@ -35,6 +35,14 @@ platform :ios do
     state = build.build_beta_detail.external_build_state
     eligible_states = %w[READY_FOR_BETA_SUBMISSION WAITING_FOR_BETA_REVIEW IN_BETA_REVIEW BETA_APPROVED READY_FOR_BETA_TESTING IN_BETA_TESTING]
     UI.user_error!("TestFlight build #{version} (#{build_number}) cannot be distributed (state=#{state})") if build.expired || !eligible_states.include?(state)
+    if build.ready_for_beta_submission?
+      blocking = app.get_builds(
+        filter: {"expired" => false, "preReleaseVersion.version" => version,
+          "betaAppReviewSubmission.betaReviewState" => "WAITING_FOR_REVIEW,IN_REVIEW"},
+        includes: "betaAppReviewSubmission,preReleaseVersion"
+      ).find { |candidate| candidate.id != build.id }
+      UI.user_error!("TestFlight #{version} (#{build_number}) is blocked by build #{blocking.version} in beta review. Rerun the beta job after Apple finishes that review.") if blocking
+    end
     upload_to_testflight(
       api_key: api_key, app_identifier: identifier, app_platform: "ios",
       app_version: version, build_number: build_number,
