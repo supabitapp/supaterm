@@ -499,31 +499,45 @@ export interface ToolGroupImage {
   readonly srcFragment?: string;
 }
 
-export function latestToolGroupImage(
+/** Newest first, so a strip shows what just happened without scrolling. */
+export function toolGroupImages(
   rows: ReadonlyArray<OrchestrationV2ProjectedTurnItem>,
   workspaceRoot?: string,
-): ToolGroupImage | null {
-  const row = rows.at(-1);
-  if (!row || row.item.type !== "dynamic_tool") return null;
-  const item = row.item;
-  const imageCount = item.outputImageCount ?? turnItemOutputImages(item).length;
-  if (imageCount > 0) {
-    return {
-      resource: {
-        _tag: "tool-output-image",
-        threadId: row.sourceThreadId,
-        itemId: row.sourceItemId,
-        index: imageCount - 1,
-      },
-      alt: item.title || "Tool output image",
-    };
+): ReadonlyArray<ToolGroupImage> {
+  const images: ToolGroupImage[] = [];
+  for (let rowIndex = rows.length - 1; rowIndex >= 0; rowIndex -= 1) {
+    const row = rows[rowIndex]!;
+    if (row.item.type !== "dynamic_tool") continue;
+    const item = row.item;
+    const imageCount = item.outputImageCount ?? turnItemOutputImages(item).length;
+    for (let index = imageCount - 1; index >= 0; index -= 1) {
+      images.push({
+        resource: {
+          _tag: "tool-output-image",
+          threadId: row.sourceThreadId,
+          itemId: row.sourceItemId,
+          index,
+        },
+        alt: item.title || "Tool output image",
+      });
+    }
+    const viewedImage =
+      imageCount === 0 && item.viewedImagePath
+        ? resolveViewedImageAsset(item.viewedImagePath, {
+            threadId: row.sourceThreadId,
+            workspaceRoot,
+          })
+        : null;
+    if (viewedImage) images.push(viewedImage);
   }
-  return item.viewedImagePath
-    ? resolveViewedImageAsset(item.viewedImagePath, {
-        threadId: row.sourceThreadId,
-        workspaceRoot,
-      })
-    : null;
+  return images;
+}
+
+export function toolGroupImageKey(image: ToolGroupImage): string {
+  const { resource } = image;
+  return resource._tag === "tool-output-image"
+    ? `${resource.itemId}:${resource.index}`
+    : `${resource.threadId}:${resource.path}`;
 }
 
 export function resolveViewedImageAsset(

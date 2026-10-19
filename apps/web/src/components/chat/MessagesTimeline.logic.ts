@@ -14,7 +14,7 @@ import {
   commandProgramName,
 } from "@supaterm/client-runtime/work-log/command-label";
 import {
-  latestToolGroupImage,
+  toolGroupImages,
   type ToolGroupImage,
   liveActivityToolStatus,
   normalizeCompactToolLabel,
@@ -74,8 +74,8 @@ import {
 } from "@supaterm/shared/toolActivity";
 import { isWindowsAbsolutePath } from "@supaterm/shared/path";
 
-function latestWorkGroupImage(entries: ReadonlyArray<WorkLogEntry>) {
-  return latestToolGroupImage(
+function workGroupImages(entries: ReadonlyArray<WorkLogEntry>) {
+  return toolGroupImages(
     entries.flatMap((entry) => (entry.projectedItem ? [entry.projectedItem] : [])),
   );
 }
@@ -501,10 +501,11 @@ type MessagesTimelineRowContent =
       groupedEntries: WorkLogEntry[];
       isExpandedToolGroup: boolean;
       displayLabel?: string;
+      images?: ReadonlyArray<ToolGroupImage>;
     }
   | {
       kind: "work-live";
-      latestImage?: ToolGroupImage | null;
+      images?: ReadonlyArray<ToolGroupImage>;
       id: string;
       createdAt: string;
       entry: WorkLogEntry;
@@ -522,7 +523,7 @@ type MessagesTimelineRowContent =
     }
   | {
       kind: "thinking";
-      latestImage?: ToolGroupImage | null;
+      images?: ReadonlyArray<ToolGroupImage>;
       id: string;
       createdAt: string | null;
       groupId?: string;
@@ -530,7 +531,7 @@ type MessagesTimelineRowContent =
     }
   | {
       kind: "work-toggle";
-      latestImage?: ToolGroupImage | null;
+      images?: ReadonlyArray<ToolGroupImage>;
       id: string;
       createdAt: string;
       runId?: RunId | null;
@@ -551,6 +552,7 @@ type MessagesTimelineRowContent =
       runId: RunId;
       label: string;
       expanded: boolean;
+      images?: ReadonlyArray<ToolGroupImage>;
     }
   | {
       kind: "attempt-fold";
@@ -713,6 +715,7 @@ interface TurnFold {
   anchorEntryId: string;
   createdAt: string;
   hiddenEntryIds: ReadonlySet<string>;
+  images: ReadonlyArray<ToolGroupImage>;
   label: string;
 }
 
@@ -1140,6 +1143,11 @@ function deriveTurnFolds(input: {
       anchorEntryId: group.anchorEntryId,
       createdAt: group.startBoundary ?? firstEntry.createdAt,
       hiddenEntryIds,
+      images: workGroupImages(
+        group.entries.flatMap((entry) =>
+          entry.kind === "work" && hiddenEntryIds.has(entry.id) ? [entry.entry] : [],
+        ),
+      ),
       label,
     });
   }
@@ -1472,7 +1480,7 @@ export function deriveMessagesTimelineRows(input: {
               : `work-live:${activeWorkAnchor.id}`,
             createdAt: activeWorkAnchor.createdAt,
             entry: (latestRunningToolEntry ?? latestVisibleToolEntry).entry,
-            latestImage: latestWorkGroupImage(visibleActiveToolEntries.map(({ entry }) => entry)),
+            images: workGroupImages(visibleActiveToolEntries.map(({ entry }) => entry)),
             groupedEntries: visibleActiveToolEntries.map((entry) => entry.entry),
             groupId,
             expanded: input.expandedWorkGroupIds?.has(groupId) ?? false,
@@ -1537,6 +1545,7 @@ export function deriveMessagesTimelineRows(input: {
         runId: turnFold.runId,
         label: turnFold.label,
         expanded: input.expandedRunIds?.has(turnFold.runId) ?? false,
+        images: turnFold.images,
       });
     }
 
@@ -1639,7 +1648,7 @@ export function deriveMessagesTimelineRows(input: {
             id: `work-live:${timelineEntry.id}`,
             createdAt: timelineEntry.createdAt,
             entry: latestActiveToolEntry,
-            latestImage: latestWorkGroupImage(visibleGroupedEntries),
+            images: workGroupImages(visibleGroupedEntries),
             groupedEntries: visibleGroupedEntries,
             groupId,
             expanded,
@@ -1662,6 +1671,7 @@ export function deriveMessagesTimelineRows(input: {
             createdAt: timelineEntry.createdAt,
             groupedEntries: visibleGroupedEntries,
             isExpandedToolGroup: false,
+            images: workGroupImages(visibleGroupedEntries),
             displayLabel:
               toolGroupAction(singleEntry) === "edit"
                 ? summarizeToolGroup(visibleGroupedEntries).summary
@@ -1703,7 +1713,7 @@ export function deriveMessagesTimelineRows(input: {
             createdAt: timelineEntry.createdAt,
             runId: timelineEntry.entry.runId ?? null,
             groupId,
-            latestImage: latestWorkGroupImage(visibleGroupedEntries),
+            images: workGroupImages(visibleGroupedEntries),
             hiddenCount: visibleGroupedEntries.length,
             expanded,
             summary: usesSingleToolCallLabel
@@ -1889,7 +1899,7 @@ export function deriveMessagesTimelineRows(input: {
         createdAt: input.activeTurnStartedAt ?? null,
         groupId,
         expanded,
-        latestImage: latestWorkGroupImage(visibleActiveToolEntries.map(({ entry }) => entry)),
+        images: workGroupImages(visibleActiveToolEntries.map(({ entry }) => entry)),
       });
       if (expanded) {
         nextRows.push(
@@ -1912,16 +1922,11 @@ export function deriveMessagesTimelineRows(input: {
   const result = attachTrailingToolGroupsToAssistant(
     attachCreatedThreadSummaries(nextRows, timelineEntries),
   );
-  const tailRow = result.findLast((row) => row.kind !== "assistant-meta");
-  return result.map((row, index) => {
-    const currentRow =
-      "latestImage" in row && row.latestImage && row !== tailRow
-        ? { ...row, latestImage: null }
-        : row;
-    return timelineRowIsWorkLog(row) && timelineRowIsWorkLog(result[index + 1])
-      ? { ...currentRow, continuesWorkLog: true }
-      : currentRow;
-  });
+  return result.map((row, index) =>
+    timelineRowIsWorkLog(row) && timelineRowIsWorkLog(result[index + 1])
+      ? { ...row, continuesWorkLog: true }
+      : row,
+  );
 }
 
 function timelineRowIsWorkLog(row: MessagesTimelineRow | undefined): boolean {
@@ -2148,7 +2153,7 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.createdAt === bt.createdAt &&
         a.groupId === bt.groupId &&
         a.expanded === bt.expanded &&
-        Equal.equals(a.latestImage, bt.latestImage)
+        Equal.equals(a.images, bt.images)
       );
     }
     case "worktree-setup":
@@ -2167,7 +2172,12 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
 
     case "turn-fold": {
       const bf = b as typeof a;
-      return a.createdAt === bf.createdAt && a.label === bf.label && a.expanded === bf.expanded;
+      return (
+        a.createdAt === bf.createdAt &&
+        a.label === bf.label &&
+        a.expanded === bf.expanded &&
+        Equal.equals(a.images, bf.images)
+      );
     }
 
     case "attempt-fold": {
@@ -2210,6 +2220,7 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
       return (
         a.isExpandedToolGroup === bw.isExpandedToolGroup &&
         a.displayLabel === bw.displayLabel &&
+        Equal.equals(a.images, bw.images) &&
         Equal.equals(a.groupedEntries, bw.groupedEntries)
       );
     }
@@ -2221,7 +2232,7 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.groupId === bw.groupId &&
         a.expanded === bw.expanded &&
         a.active === bw.active &&
-        Equal.equals(a.latestImage, bw.latestImage) &&
+        Equal.equals(a.images, bw.images) &&
         Equal.equals(a.entry, bw.entry) &&
         Equal.equals(a.groupedEntries, bw.groupedEntries)
       );
@@ -2239,7 +2250,7 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.summaryKind === bw.summaryKind &&
         a.toolSurface === bw.toolSurface &&
         Equal.equals(a.toolIcon, bw.toolIcon) &&
-        Equal.equals(a.latestImage, bw.latestImage) &&
+        Equal.equals(a.images, bw.images) &&
         a.hasFailure === bw.hasFailure
       );
     }

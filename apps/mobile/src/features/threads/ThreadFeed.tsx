@@ -202,6 +202,7 @@ import {
   ThreadWorkLog,
   WORK_GROUP_TOGGLE_HEIGHT,
 } from "./thread-work-log";
+import { ThreadToolImageStrip } from "./thread-tool-image-strip";
 import { appendPendingThreadMessages, type PendingThreadFeedEntry } from "./pending-thread-feed";
 import type { QueuedThreadMessage } from "../../state/thread-outbox-model";
 import {
@@ -1029,32 +1030,39 @@ function renderFeedEntry(
 
   if (entry.type === "run-fold") {
     return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ expanded: entry.expanded }}
-        onPress={() => props.onToggleTurnFold(entry.runId)}
-        hitSlop={4}
-        className="mb-1 min-h-11 flex-row items-center gap-2 border-b border-border-subtle px-2"
-        style={{
-          minHeight: Math.max(TURN_FOLD_HEIGHT - 3.5, props.workRowSizing.estimatedRowHeight),
-        }}
-      >
-        <Text
-          key={props.workRowSizing.textSizeKey}
-          className="font-supaterm-medium text-sm tabular-nums text-foreground-muted"
+      <View className="mb-1 border-b border-border-subtle">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: entry.expanded }}
+          onPress={() => props.onToggleTurnFold(entry.runId)}
+          hitSlop={4}
+          className="min-h-11 flex-row items-center gap-2 px-2"
+          style={{
+            minHeight: Math.max(TURN_FOLD_HEIGHT - 3.5, props.workRowSizing.estimatedRowHeight),
+          }}
         >
-          {entry.label}
-        </Text>
-        <ThreadDisclosureChevron
-          expanded={entry.expanded}
-          collapsedDirection="right"
-          size={15}
-          tintColor={iconSubtleColor}
+          <Text
+            key={props.workRowSizing.textSizeKey}
+            className="font-supaterm-medium text-sm tabular-nums text-foreground-muted"
+          >
+            {entry.label}
+          </Text>
+          <ThreadDisclosureChevron
+            expanded={entry.expanded}
+            collapsedDirection="right"
+            size={15}
+            tintColor={iconSubtleColor}
+          />
+        </Pressable>
+        <ThreadToolImageStrip
+          images={entry.expanded ? undefined : entry.images}
+          inset={false}
+          environmentId={props.environmentId}
+          onPressPreview={props.onPressPreview}
         />
-      </Pressable>
+      </View>
     );
   }
-
   if (entry.type === "thinking") {
     return <ThreadThinkingRow rowSizing={props.workRowSizing} iconSubtleColor={iconSubtleColor} />;
   }
@@ -1089,7 +1097,7 @@ function renderFeedEntry(
   if (entry.type === "work-toggle") {
     return (
       <ThreadWorkGroupToggle
-        latestImage={entry.latestImage}
+        images={entry.images}
         onPressPreview={props.onPressPreview}
         environmentId={props.environmentId}
         rowSizing={props.workRowSizing}
@@ -2515,11 +2523,11 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
       }
       switch (entry.type) {
         case "run-fold":
-          return resolveThreadFeedFixedItemSize(entry.type);
-        case "work-toggle":
-          return entry.thought || (!entry.expanded && entry.latestImage)
+          return !entry.expanded && entry.images.length > 0
             ? undefined
-            : WORK_GROUP_TOGGLE_HEIGHT;
+            : resolveThreadFeedFixedItemSize(entry.type);
+        case "work-toggle":
+          return entry.thought || entry.images?.length ? undefined : WORK_GROUP_TOGGLE_HEIGHT;
         case "thinking":
           return WORK_GROUP_TOGGLE_HEIGHT;
         case "activity-group":

@@ -10,6 +10,7 @@ import { MarkdownFindContext, findRevealRef } from "./markdownFindContext";
 import { useChatCanvas } from "./ChatCanvasContext";
 import { ThreadTimelineLoading } from "./ThreadTimelineLoading";
 import { WorkLogBlock, WorkLogButton, WorkLogDetails, WorkLogList, WorkLogRow } from "./WorkLog";
+import { ToolGroupImageStrip } from "./ToolGroupImageStrip";
 import { PullRequestGlyph } from "../pullRequest/pullRequestIcons";
 import type { WorktreeSetupSnapshot } from "@supaterm/contracts";
 import { ReadOnlySourcePreview } from "../files/AttachmentFilePreview";
@@ -1983,8 +1984,11 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
           {row.kind === "work-live" ? <LiveWorkEntryTimelineRow row={row} /> : null}
           {row.kind === "work-toggle" ? <WorkGroupToggleTimelineRow row={row} /> : null}
           {row.kind === "thinking" ? <ThinkingTimelineRow row={row} /> : null}
-          {row.kind === "work-toggle" || row.kind === "work-live" || row.kind === "thinking" ? (
-            <CollapsedToolGroupImage image={row.expanded ? null : (row.latestImage ?? null)} />
+          {row.kind === "work-toggle" ||
+          row.kind === "work-live" ||
+          row.kind === "thinking" ||
+          (row.kind === "work" && !row.isExpandedToolGroup) ? (
+            <TimelineToolGroupImages images={row.images} />
           ) : null}
         </WorkLogBlock>
       ) : null}
@@ -2595,20 +2599,29 @@ function TurnFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "turn-
   const ctx = use(TimelineRowCtx);
 
   return (
-    <div className="group/timeline-row relative flex items-center gap-1 border-b border-border/60 pb-2 pe-0.5 pt-1">
-      <button
-        type="button"
-        aria-expanded={row.expanded}
-        onClick={() => ctx.onToggleTurnFold(row.runId)}
-        className="flex cursor-pointer select-none items-center gap-1 rounded-md px-1 text-sm leading-relaxed text-muted-foreground tabular-nums transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
-      >
-        <span>{row.label}</span>
-        <MorphIcon className="size-3.5" icon={row.expanded ? ChevronDown : ChevronRight} />
-      </button>
-      <TimelineRowTimestamp
-        createdAt={row.createdAt}
-        timestampFormat={ctx.timestampFormat}
-        className="ms-auto"
+    <div className="border-b border-border/60 pb-2 pt-1">
+      <div className="group/timeline-row relative flex items-center gap-1 pe-0.5">
+        <button
+          type="button"
+          aria-expanded={row.expanded}
+          onClick={() => ctx.onToggleTurnFold(row.runId)}
+          className="flex cursor-pointer select-none items-center gap-1 rounded-md px-1 text-sm leading-relaxed text-muted-foreground tabular-nums transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
+        >
+          <span>{row.label}</span>
+          <MorphIcon className="size-3.5" icon={row.expanded ? ChevronDown : ChevronRight} />
+        </button>
+        <TimelineRowTimestamp
+          createdAt={row.createdAt}
+          timestampFormat={ctx.timestampFormat}
+          className="ms-auto"
+        />
+      </div>
+      <ToolGroupImageStrip
+        images={row.expanded ? undefined : row.images}
+        inset={false}
+        environmentId={ctx.activeThreadEnvironmentId}
+        workspaceRoot={ctx.workspaceRoot}
+        onImageExpand={ctx.onImageExpand}
       />
     </div>
   );
@@ -3983,29 +3996,19 @@ function toolGroupSummaryIconName(
   }
 }
 
-function CollapsedToolGroupImage({ image }: { image: ToolGroupImage | null }) {
+function TimelineToolGroupImages({
+  images,
+}: {
+  images: ReadonlyArray<ToolGroupImage> | undefined;
+}) {
   const ctx = use(TimelineRowCtx);
-  const presence = usePresence(image);
-  const retainedImage = presence.value;
-  if (!retainedImage) return null;
   return (
-    <div
-      {...presence.props}
-      inert={presence.exiting}
-      className="transition-[opacity,translate] duration-180 ease-drawer data-enter:starting:-translate-y-1 data-enter:starting:opacity-0 data-ending-style:-translate-y-1 data-ending-style:opacity-0 data-ending-style:duration-140 motion-reduce:transition-none"
-    >
-      <WorkLogDetails kind="media">
-        <ChatMarkdownAssetImage
-          environmentId={ctx.activeThreadEnvironmentId}
-          resource={retainedImage.resource}
-          alt={retainedImage.alt}
-          srcFragment={retainedImage.srcFragment ?? ""}
-          workspaceRoot={ctx.workspaceRoot}
-          maxHeightRem={16}
-          onImageExpand={ctx.onImageExpand}
-        />
-      </WorkLogDetails>
-    </div>
+    <ToolGroupImageStrip
+      images={images}
+      environmentId={ctx.activeThreadEnvironmentId}
+      workspaceRoot={ctx.workspaceRoot}
+      onImageExpand={ctx.onImageExpand}
+    />
   );
 }
 

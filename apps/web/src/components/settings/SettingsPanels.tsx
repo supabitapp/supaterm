@@ -518,6 +518,7 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.inAppNotificationsEnabled !== DEFAULT_UNIFIED_SETTINGS.inAppNotificationsEnabled
       ? ["In-app notifications"]
       : []),
+    ...(settings.showToolImages !== DEFAULT_UNIFIED_SETTINGS.showToolImages ? ["Tool images"] : []),
     ...(settings.sidebarThreadPreviewCount !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadPreviewCount
       ? ["Visible threads"]
       : []),
@@ -671,6 +672,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       timestampFormat: DEFAULT_UNIFIED_SETTINGS.timestampFormat,
       notificationMode: DEFAULT_UNIFIED_SETTINGS.notificationMode,
       inAppNotificationsEnabled: DEFAULT_UNIFIED_SETTINGS.inAppNotificationsEnabled,
+      showToolImages: DEFAULT_UNIFIED_SETTINGS.showToolImages,
       wordWrap: DEFAULT_UNIFIED_SETTINGS.wordWrap,
       persistComposerContextStrip: DEFAULT_UNIFIED_SETTINGS.persistComposerContextStrip,
       diffFilesCollapsed: DEFAULT_UNIFIED_SETTINGS.diffFilesCollapsed,
@@ -1861,6 +1863,27 @@ export function GeneralSettingsPanel() {
               checked={settings.inAppNotificationsEnabled}
               onCheckedChange={(checked) => updateSettings({ inAppNotificationsEnabled: checked })}
               aria-label="In-app notifications"
+            />
+          }
+        />
+        <SettingsRow
+          {...searchableSetting("tool-images")}
+          description="Show images from tool calls under each tool group."
+          resetAction={
+            settings.showToolImages !== DEFAULT_UNIFIED_SETTINGS.showToolImages ? (
+              <SettingResetButton
+                label="tool images"
+                onClick={() =>
+                  updateSettings({ showToolImages: DEFAULT_UNIFIED_SETTINGS.showToolImages })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Switch
+              checked={settings.showToolImages}
+              onCheckedChange={(checked) => updateSettings({ showToolImages: Boolean(checked) })}
+              aria-label="Tool images"
             />
           }
         />

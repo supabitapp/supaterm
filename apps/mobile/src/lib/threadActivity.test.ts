@@ -44,7 +44,16 @@ const threadId = ThreadId.make("thread-1");
 const sourceThreadId = ThreadId.make("thread-source");
 const runId = RunId.make("run-1");
 
-it("shows an image only from the latest tool on collapsed mobile groups", () => {
+const imageIds = (row: ThreadFeedEntry | undefined) =>
+  row?.type === "work-toggle"
+    ? row.images?.map((image) =>
+        image.resource._tag === "tool-output-image"
+          ? `${image.resource.itemId}:${image.resource.index}`
+          : image.resource.path,
+      )
+    : undefined;
+
+it("collects every tool image, newest first, on collapsed and expanded mobile groups", () => {
   const items: OrchestrationV2TurnItem[] = [2, 0].map((outputImageCount, position) => ({
     ...base(`image-tool-${position}`, "2026-06-20T00:00:03.000Z", position + 1),
     type: "dynamic_tool",
@@ -60,51 +69,59 @@ it("shows an image only from the latest tool on collapsed mobile groups", () => 
       new Set([runId]),
       expanded,
     );
-  const first = rows(items.slice(0, 1)).find((row) => row.type === "work-toggle");
-  expect(first).toMatchObject({
-    expanded: false,
-    latestImage: { resource: { itemId: "image-tool-0", index: 1 } },
-  });
-  expect(rows(items).find((row) => row.type === "work-toggle")).toMatchObject({
-    expanded: false,
-    latestImage: null,
-  });
+  const toggle = (feed: ReadonlyArray<ThreadFeedEntry>) =>
+    feed.find((row) => row.type === "work-toggle");
+  const first = toggle(rows(items.slice(0, 1)));
+  expect(imageIds(first)).toEqual(["image-tool-0:1", "image-tool-0:0"]);
+  expect(imageIds(toggle(rows(items)))).toEqual(["image-tool-0:1", "image-tool-0:0"]);
   const updated = items.map((item, index) =>
     item.type === "dynamic_tool" && index === 1 ? { ...item, outputImageCount: 1 } : item,
   );
-  expect(rows(updated).find((row) => row.type === "work-toggle")).toMatchObject({
-    latestImage: { resource: { itemId: "image-tool-1", index: 0 } },
-  });
+  const newest = ["image-tool-1:0", "image-tool-0:1", "image-tool-0:0"];
+  expect(imageIds(toggle(rows(updated)))).toEqual(newest);
   if (first?.type !== "work-toggle") throw new Error("Expected group toggle");
-  expect(rows(updated, new Set([first.groupId])).map((row) => row.type)).toEqual([
-    "run-fold",
-    "work-toggle",
-    "activity-group",
-  ]);
+  const expanded = rows(updated, new Set([first.groupId]));
+  expect(expanded.map((row) => row.type)).toEqual(["run-fold", "work-toggle", "activity-group"]);
+  expect(imageIds(toggle(expanded))).toEqual(newest);
 });
 
-it("clears the collapsed mobile image when a command follows a screenshot", () => {
-  const screenshot: OrchestrationV2TurnItem = {
-    ...base("screenshot", "2026-06-20T00:00:02.000Z", 1),
+it("shows a folded run's tool images on its fold row", () => {
+  const screenshot = (id: string, ordinal: number): OrchestrationV2TurnItem => ({
+    ...base(id, "2026-06-20T00:00:02.000Z", ordinal),
     type: "dynamic_tool",
     toolName: "mcp__supaterm__device_screenshot",
     input: {},
     outputImageCount: 1,
-  };
-  const rows = deriveThreadFeedPresentation(
-    buildThreadFeed([projected(screenshot, 0), projected(command(), 1)]),
-    null,
-    new Set([runId]),
-  );
-
-  expect(rows.find((row) => row.type === "work-toggle")).toMatchObject({
-    expanded: false,
-    latestImage: null,
   });
+  const feed = buildThreadFeed(
+    [
+      userMessage(),
+      screenshot("first-screenshot", 1),
+      command(),
+      screenshot("second-screenshot", 3),
+      assistantMessage(),
+    ].map((item, index) => projected(item, index)),
+  );
+  const latestRun = {
+    runId,
+    status: "completed" as const,
+    startedAt: "2026-06-20T00:00:01.000Z",
+    completedAt: "2026-06-20T00:00:03.000Z",
+  };
+  const fold = deriveThreadFeedPresentation(feed, latestRun, new Set()).find(
+    (entry) => entry.type === "run-fold",
+  );
+  expect(
+    fold?.type === "run-fold"
+      ? fold.images.map(
+          (image) => image.resource._tag === "tool-output-image" && image.resource.itemId,
+        )
+      : undefined,
+  ).toEqual(["second-screenshot", "first-screenshot"]);
 });
 
 it.each([false, true])(
-  "hides earlier mobile group previews when chat advances, working=%s",
+  "keeps earlier mobile group images when chat advances, working=%s",
   (working) => {
     const screenshot: OrchestrationV2TurnItem = {
       ...base("screenshot", "2026-06-20T00:00:02.000Z", 1),
@@ -113,36 +130,33 @@ it.each([false, true])(
       input: {},
       outputImageCount: 1,
     };
-    const present = (items: OrchestrationV2TurnItem[], expanded = new Set<string>()) =>
+    const present = (items: OrchestrationV2TurnItem[]) =>
       deriveThreadFeedPresentation(
         buildThreadFeed(items.map((item, index) => projected(item, index))),
         working
           ? { runId, status: "running", startedAt: "2026-06-20T00:00:00.000Z", completedAt: null }
           : null,
         new Set([runId]),
-        expanded,
+        new Set<string>(),
         working ? "2026-06-20T00:00:00.000Z" : null,
       );
-    const initial = present([screenshot]).find((row) => row.type === "work-toggle");
-    expect(initial?.latestImage?.resource).toMatchObject({ itemId: screenshot.id });
-    for (const following of [assistantMessage(), userMessage("2026-06-20T00:00:03.000Z")]) {
-      expect(
-        present([screenshot, following]).find((row) => row.type === "work-toggle")?.latestImage,
-      ).toBeNull();
+    const groupImageIds = (items: OrchestrationV2TurnItem[]) =>
+      present(items)
+        .filter((row) => row.type === "work-toggle")
+        .map(imageIds);
+    expect(groupImageIds([screenshot])).toEqual([["screenshot:0"]]);
+    for (const following of [
+      command(),
+      assistantMessage(),
+      userMessage("2026-06-20T00:00:03.000Z"),
+    ]) {
+      expect(groupImageIds([screenshot, following])).toEqual([["screenshot:0"]]);
     }
     const newer = { ...screenshot, id: TurnItemId.make("newer-screenshot"), ordinal: 3 };
-    const groups = present([screenshot, assistantMessage(), newer]).filter(
-      (row) => row.type === "work-toggle",
-    );
-    expect(groups.map((row) => row.latestImage?.resource)).toEqual([
-      undefined,
-      expect.objectContaining({ itemId: newer.id }),
+    expect(groupImageIds([screenshot, assistantMessage(), newer])).toEqual([
+      ["screenshot:0"],
+      ["newer-screenshot:0"],
     ]);
-    if (!initial) throw new Error("Expected tool group");
-    const expanded = present([screenshot, assistantMessage()], new Set([initial.groupId]));
-    expect(
-      expanded.find((row) => row.type === "activity-group")?.activities[0]?.projectedItem.item,
-    ).toMatchObject({ id: screenshot.id, outputImageCount: 1 });
   },
 );
 

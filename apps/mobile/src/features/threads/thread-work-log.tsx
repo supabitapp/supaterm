@@ -1,5 +1,5 @@
 import type { ToolGroupImage } from "@supaterm/client-runtime/work-log/presentation";
-import { ThreadMarkdownImage } from "./ThreadMarkdownImage";
+import { ThreadToolImageStrip } from "./thread-tool-image-strip";
 import { SubagentStatusDot } from "./SubagentStatusDot";
 import { ThreadSubagentGroup } from "./thread-subagent-group";
 import { DisclosureChevron } from "../../components/ui/DisclosureChevron";
@@ -1037,7 +1037,7 @@ const ThreadWorkLogRow = memo(function ThreadWorkLogRow(
 });
 
 export function ThreadWorkGroupToggle(props: {
-  readonly latestImage?: ToolGroupImage | null;
+  readonly images?: ReadonlyArray<ToolGroupImage>;
   readonly onPressPreview: (source: FilePreviewSource) => void;
   readonly environmentId: EnvironmentId;
   readonly rowSizing: ReturnType<typeof deriveThreadWorkLogSizing>;
@@ -1056,9 +1056,6 @@ export function ThreadWorkGroupToggle(props: {
   readonly onToggle: () => void;
 }) {
   const statusLabel = props.hasFailure ? `${props.summary}, tool call failed` : props.summary;
-  const image = props.expanded ? null : (props.latestImage ?? null);
-  const [retainedImage, setRetainedImage] = useState(image);
-  if (image && image !== retainedImage) setRetainedImage(image);
   const accessibilityLabel = props.thought ? `${props.thought} ${statusLabel}` : statusLabel;
   const icon =
     props.summaryToolIcon ??
@@ -1131,22 +1128,11 @@ export function ThreadWorkGroupToggle(props: {
           tintColor={props.iconSubtleColor}
         />
       </WorkLogPressable>
-      <MotionPresence
-        visible={image !== null}
-        onHidden={() => setRetainedImage(null)}
-        className="ml-7 mt-1"
-      >
-        {retainedImage ? (
-          <ThreadMarkdownImage
-            environmentId={props.environmentId}
-            resource={retainedImage.resource}
-            alt={retainedImage.alt}
-            showCaption={false}
-            srcFragment={retainedImage.srcFragment}
-            onPressPreview={props.onPressPreview}
-          />
-        ) : null}
-      </MotionPresence>
+      <ThreadToolImageStrip
+        images={props.images}
+        environmentId={props.environmentId}
+        onPressPreview={props.onPressPreview}
+      />
     </WorkLogBlock>
   );
 }

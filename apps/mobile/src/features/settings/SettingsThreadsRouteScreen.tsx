@@ -10,7 +10,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DEFAULT_SERVER_SETTINGS } from "@supaterm/contracts";
 import { supportsSharedSettingsSync } from "@supaterm/client-runtime/state/shared-settings";
 import { AppText as Text } from "../../components/ui/AppText";
-import { showSkillsInSlashMenuAtom, updateMobilePreferencesAtom } from "../../state/preferences";
+import {
+  showSkillsInSlashMenuAtom,
+  showToolImagesAtom,
+  updateMobilePreferencesAtom,
+} from "../../state/preferences";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { SettingsSection } from "./components/SettingsSection";
@@ -51,6 +55,7 @@ export function SettingsThreadsRouteScreen() {
           contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
         >
           <ThreadBehaviorSettingsRows />
+          <ToolCallSettingsSection />
           <ComposerSettingsSection />
         </ScrollView>
       </SettingsScreen>
@@ -263,6 +268,23 @@ function ThreadBehaviorSettingsRows() {
         </SettingsSection>
       ) : null}
     </View>
+  );
+}
+
+function ToolCallSettingsSection() {
+  const savePreferences = useAtomSet(updateMobilePreferencesAtom);
+  const showToolImages = useAtomValue(showToolImagesAtom);
+
+  return (
+    <SettingsSection title="Tool calls">
+      <SettingsSwitchRow
+        icon="photo"
+        label="Tool images"
+        subtitle="Show images from tool calls under each tool group."
+        value={showToolImages}
+        onValueChange={(value) => savePreferences({ showToolImages: value })}
+      />
+    </SettingsSection>
   );
 }
 

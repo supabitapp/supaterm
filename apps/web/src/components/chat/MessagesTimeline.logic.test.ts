@@ -678,7 +678,7 @@ describe("resolveAssistantMessageCopyState", () => {
 
 describe("deriveMessagesTimelineRows", () => {
   it.each([false, true])(
-    "hides earlier group previews when chat advances, working=%s",
+    "keeps every group's images after chat advances, working=%s",
     (isWorking) => {
       const fixture = makeStreamingTimelineFixture("Continuing after the screenshot.");
       const source = fixture.visibleTurnItems.find((row) => row.item.type === "dynamic_tool")!;
@@ -712,37 +712,84 @@ describe("deriveMessagesTimelineRows", () => {
           turnDiffSummaries: [],
           supportsConversationRollback: false,
         });
-      expect(
-        rows(initial).find((row) => row.kind === "work-toggle" || row.kind === "work-live")
-          ?.latestImage,
-      ).toMatchObject({
-        resource: { itemId: initial[1]!.sourceItemId },
-      });
+      const groupImageIds = (timeline: ReturnType<typeof rows>) =>
+        timeline
+          .filter((row) => row.kind === "work-toggle" || row.kind === "work-live")
+          .map((row) =>
+            row.images?.map((image) =>
+              image.resource._tag === "tool-output-image" ? image.resource.itemId : null,
+            ),
+          );
+      const initialIds = [initial[1]!.sourceItemId, initial[0]!.sourceItemId];
+      expect(groupImageIds(rows(initial))).toEqual([initialIds]);
       for (const type of ["assistant_message", "user_message"] as const) {
         const following = fixture.visibleTurnItems.find(
           (row) => row.item.type === type && row.item.runId === fixture.runId,
         )!;
-        const advanced = rows([...initial, { ...following, position: 2 }]);
-        expect(
-          advanced.find((row) => row.kind === "work-toggle" || row.kind === "work-live")
-            ?.latestImage,
-        ).toBeNull();
+        expect(groupImageIds(rows([...initial, { ...following, position: 2 }]))).toEqual([
+          initialIds,
+        ]);
       }
       const assistant = fixture.visibleTurnItems.find(
         (row) => row.item.type === "assistant_message" && row.item.runId === fixture.runId,
       )!;
+      const older = screenshot(3);
       const newer = screenshot(4);
-      const groups = rows([...initial, { ...assistant, position: 2 }, screenshot(3), newer]).filter(
-        (row) => row.kind === "work-toggle" || row.kind === "work-live",
-      );
-      expect(groups.map((row) => row.latestImage?.resource)).toEqual([
-        undefined,
-        expect.objectContaining({ itemId: newer.sourceItemId }),
-      ]);
+      expect(
+        groupImageIds(rows([...initial, { ...assistant, position: 2 }, older, newer])),
+      ).toEqual([initialIds, [newer.sourceItemId, older.sourceItemId]]);
     },
   );
 
-  it("updates and clears a collapsed group's image with the latest tool result", () => {
+  it("shows a folded turn's tool images on its fold row", () => {
+    const fixture = makeStreamingTimelineFixture("Here is what the screenshots show.");
+    const source = fixture.visibleTurnItems.find((row) => row.item.type === "dynamic_tool")!;
+    if (source.item.type !== "dynamic_tool") throw new Error("Expected tool fixture");
+    const screenshot = (position: number) => {
+      const id = TurnItemId.make(`fold-screenshot-${position}`);
+      return {
+        ...source,
+        position,
+        sourceItemId: id,
+        item: { ...source.item, id, output: undefined, outputOmitted: true, outputImageCount: 1 },
+      };
+    };
+    const streamingAssistant = fixture.visibleTurnItems.find(
+      (row) => row.item.type === "assistant_message" && row.item.runId === fixture.runId,
+    )!;
+    if (streamingAssistant.item.type !== "assistant_message") throw new Error("Expected reply");
+    const assistant = {
+      ...streamingAssistant,
+      item: { ...streamingAssistant.item, status: "completed" as const, streaming: false },
+    };
+    const rows = (expandedRunIds: ReadonlySet<RunId>) =>
+      deriveMessagesTimelineRows({
+        timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
+          visibleTurnItems: [screenshot(0), screenshot(1), { ...assistant, position: 2 }],
+          optimisticMessages: [],
+        }),
+        isWorking: false,
+        expandedRunIds,
+        activeTurnStartedAt: null,
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      });
+    const fold = rows(new Set()).find((row) => row.kind === "turn-fold");
+    expect(
+      fold?.kind === "turn-fold"
+        ? fold.images?.map(
+            (image) => image.resource._tag === "tool-output-image" && image.resource.itemId,
+          )
+        : undefined,
+    ).toEqual(["fold-screenshot-1", "fold-screenshot-0"]);
+    expect(
+      rows(new Set([fixture.runId])).some(
+        (row) => row.kind === "work-toggle" && row.images?.length === 2,
+      ),
+    ).toBe(true);
+  });
+
+  it("adds each tool result's images to a collapsed group", () => {
     const fixture = makeStreamingTimelineFixture();
     const source = fixture.visibleTurnItems.find((row) => row.item.type === "dynamic_tool")!;
     if (source.item.type !== "dynamic_tool") throw new Error("Expected tool fixture");
@@ -774,24 +821,22 @@ describe("deriveMessagesTimelineRows", () => {
         turnDiffSummaries: [],
         supportsConversationRollback: false,
       });
+    const images = (row: MessagesTimelineRow | undefined) =>
+      row?.kind === "work-toggle" ? row.images?.map((image) => image.resource) : undefined;
     const first = rows(0);
-    expect(first.find((row) => row.kind === "work-toggle")).toMatchObject({
-      expanded: false,
-      latestImage: null,
-    });
+    expect(images(first.find((row) => row.kind === "work-toggle"))).toEqual([
+      expect.objectContaining({ itemId: "image-tool-0", index: 1 }),
+      expect.objectContaining({ itemId: "image-tool-0", index: 0 }),
+    ]);
     const stable = computeStableMessagesTimelineRows(first, { byId: new Map(), result: [] });
     const next = computeStableMessagesTimelineRows(rows(1), stable);
-    expect(next.result.find((row) => row.kind === "work-toggle")).toMatchObject({
-      expanded: false,
-      latestImage: { resource: { itemId: "image-tool-1", index: 0 } },
-    });
+    expect(images(next.result.find((row) => row.kind === "work-toggle"))).toEqual([
+      expect.objectContaining({ itemId: "image-tool-1", index: 0 }),
+      expect.objectContaining({ itemId: "image-tool-0", index: 1 }),
+      expect.objectContaining({ itemId: "image-tool-0", index: 0 }),
+    ]);
     expect(next).not.toBe(stable);
-    const cleared = computeStableMessagesTimelineRows(rows(0), next);
-    expect(cleared.result.find((row) => row.kind === "work-toggle")).toMatchObject({
-      expanded: false,
-      latestImage: null,
-    });
-    expect(cleared).not.toBe(next);
+    expect(computeStableMessagesTimelineRows(rows(1), next)).toBe(next);
   });
 
   it("stops stranded thinking after a steer and follows the next thought or tool", () => {
