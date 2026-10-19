@@ -841,6 +841,9 @@ jobs:
         run: |
           vp dlx wrangler@4.147.0 deploy --config "apps/web/cloudflare/$WEB_CHANNEL.json"
           vp dlx wrangler@4.147.0 deploy --config apps/web/cloudflare/router.json
+      - name: Deploy ingestion proxy
+        if: ${{ needs.preflight.outputs.release_channel == 'nightly' }}
+        run: vp dlx wrangler@4.147.0 deploy --config apps/web/cloudflare/ingest.json
 
   build_marketing:
     name: Build marketing site

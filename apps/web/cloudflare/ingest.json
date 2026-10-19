@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "account_id": "0590e876aba1d68fc6c82a657092da2d",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "name": "supaterm-ingest",
+  "main": "ingest.ts",
+  "routes": [
+    {
+      "pattern": "i.supaterm.com",
+      "custom_domain": true
+    }
+  ]
+}
