@@ -170,6 +170,8 @@ independent from the shared Release App installation.
 
 Cloudflare Workers serves the marketing site and hosted web client. The agent server continues to run on users' machines. Hosting configuration lives in `apps/marketing/wrangler.json` and `apps/web/cloudflare/`.
 
+PostHog manages the analytics proxy at `ingest.supaterm.com`. Manage it in [PostHog organization settings](https://us.posthog.com/settings/organization-proxy) and keep its Cloudflare CNAME set to DNS only.
+
 The release workflow builds static assets while desktop jobs run and uploads them as GitHub artifacts. Deployment starts only after the GitHub Release succeeds. Stable releases update `latest.app.supaterm.com`; nightly releases update `nightly.app.supaterm.com` and the marketing site at `supaterm.com`. Stable releases leave the marketing site unchanged because they can promote an older nightly commit.
 
 `app.supaterm.com` routes requests to the selected channel. Visiting `/__supaterm/channel?channel=latest` or `/__supaterm/channel?channel=nightly` saves the `supaterm_web_channel` cookie and redirects to the app root. Builds receive the release version through `APP_VERSION` and the channel through `VITE_HOSTED_APP_CHANNEL`.
