@@ -11,7 +11,7 @@ import { memo } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { parseKeybindingShortcut } from "@supaterm/shared/keybindings";
 
-import { APP_BASE_NAME, WEBSITE_URL } from "../../branding";
+import { APP_BASE_NAME, SOURCE_CODE_URL, WEBSITE_URL } from "../../branding";
 import { isElectron } from "../../env";
 import { useSendFeedback } from "../../hooks/useSendFeedback";
 import { useEnvironmentIdentificationMode } from "../../hooks/useSettings";
@@ -26,6 +26,7 @@ import {
   useEnvironmentStageLabel,
   useSidebarStageBackdrop,
 } from "../SidebarStageBackdrop";
+import { GitHubIcon } from "../Icons";
 import { Badge } from "../ui/badge";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import {
@@ -169,6 +170,12 @@ function SidebarUtilityItem({
   );
 }
 
+function openExternalLink(url: string) {
+  void readLocalApi()
+    ?.shell.openExternal(url)
+    .catch(() => toastManager.add({ type: "error", title: "Unable to open the link" }));
+}
+
 function SidebarHelpItem({ closeMobileSidebar }: { closeMobileSidebar: () => void }) {
   const sendFeedback = useSendFeedback();
 
@@ -195,17 +202,13 @@ function SidebarHelpItem({ closeMobileSidebar }: { closeMobileSidebar: () => voi
             <MessageSquareTextIcon />
             Send feedback
           </MenuItem>
-          <MenuItem
-            onClick={() => {
-              void readLocalApi()
-                ?.shell.openExternal(WEBSITE_URL)
-                .catch(() =>
-                  toastManager.add({ type: "error", title: "Unable to open the website" }),
-                );
-            }}
-          >
+          <MenuItem onClick={() => openExternalLink(WEBSITE_URL)}>
             <GlobeIcon />
-            Visit website
+            supaterm.com
+          </MenuItem>
+          <MenuItem onClick={() => openExternalLink(SOURCE_CODE_URL)}>
+            <GitHubIcon />
+            View source on GitHub
           </MenuItem>
         </MenuPopup>
       </Menu>

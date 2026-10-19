@@ -22,3 +22,4 @@ export const APP_STAGE_LABEL = injectedDesktopAppBranding
 export const APP_DISPLAY_NAME = injectedDesktopAppBranding?.displayName ?? APP_BASE_NAME;
 export const APP_VERSION = import.meta.env.APP_VERSION || "0.0.0";
 export const WEBSITE_URL = "https://supaterm.com";
+export const SOURCE_CODE_URL = "https://github.com/supabitapp/supaterm";
