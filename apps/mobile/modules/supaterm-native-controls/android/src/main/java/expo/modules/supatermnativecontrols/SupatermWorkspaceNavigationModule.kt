@@ -42,7 +42,6 @@ class SupatermWorkspaceNavigationModule : Module() {
       Prop("selectedTab") { view: SupatermWorkspaceNavigationView, value: String ->
         view.selectedTab = value
       }
-      Prop("dock") { view: SupatermWorkspaceNavigationView, value: Boolean -> view.dock = value }
       Prop("showTabs") { view: SupatermWorkspaceNavigationView, value: Boolean ->
         view.showTabs = value
       }
@@ -70,7 +69,7 @@ class SupatermWorkspaceNavigationModule : Module() {
   }
 }
 
-/** Material3 workspace tabs, alone or in the dock between filter and compose. */
+/** Material3 workspace dock: filter, the workspace tabs, and compose. */
 class SupatermWorkspaceNavigationView(
   context: Context,
   appContext: AppContext
@@ -81,7 +80,6 @@ class SupatermWorkspaceNavigationView(
   private val onTabSelected by EventDispatcher()
   private val onFilterPressed by EventDispatcher()
   private val onCompose by EventDispatcher()
-  var dock by mutableStateOf(false)
   var showTabs by mutableStateOf(true)
   var filterCustomized by mutableStateOf(false)
   var selectedTab by mutableStateOf("threads")
@@ -122,35 +120,31 @@ class SupatermWorkspaceNavigationView(
         )
         setContent {
           MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme()) {
-            if (dock) {
-              Row(
-                modifier = Modifier.fillMaxSize(),
-                verticalAlignment = Alignment.CenterVertically
-              ) {
-                dockButton(
-                  drawable = R.drawable.supaterm_filter,
-                  label = if (selectedTab ==
-                    "threads"
-                  ) {
-                    "Filter threads"
-                  } else {
-                    "Filter pull requests"
-                  },
-                  customized = filterCustomized
+            Row(
+              modifier = Modifier.fillMaxSize(),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              dockButton(
+                drawable = R.drawable.supaterm_filter,
+                label = if (selectedTab ==
+                  "threads"
                 ) {
-                  onFilterPressed(emptyMap<String, String>())
-                }
-                if (showTabs) {
-                  tabBar(Modifier.weight(1f))
+                  "Filter threads"
                 } else {
-                  Spacer(Modifier.weight(1f))
-                }
-                dockButton(R.drawable.supaterm_compose, "New chat") {
-                  onCompose(emptyMap<String, String>())
-                }
+                  "Filter pull requests"
+                },
+                customized = filterCustomized
+              ) {
+                onFilterPressed(emptyMap<String, String>())
               }
-            } else {
-              tabBar(Modifier.fillMaxSize())
+              if (showTabs) {
+                tabBar(Modifier.weight(1f))
+              } else {
+                Spacer(Modifier.weight(1f))
+              }
+              dockButton(R.drawable.supaterm_compose, "New chat") {
+                onCompose(emptyMap<String, String>())
+              }
             }
           }
         }

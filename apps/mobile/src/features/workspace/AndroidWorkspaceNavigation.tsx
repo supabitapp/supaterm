@@ -1,10 +1,8 @@
 export function AndroidWorkspaceNavigation(_props: {
-  readonly dock?: {
-    readonly showTabs: boolean;
-    readonly filterCustomized: boolean;
-    readonly onFilter: () => void;
-    readonly onCompose: () => void;
-  };
+  readonly showTabs: boolean;
+  readonly filterCustomized: boolean;
+  readonly onFilter: () => void;
+  readonly onCompose: () => void;
 }) {
   return null;
 }

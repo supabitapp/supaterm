@@ -13,12 +13,10 @@ export function WorkspaceDock(props: WorkspaceDockProps) {
       >
         {(open) => (
           <AndroidWorkspaceNavigation
-            dock={{
-              showTabs: props.showTabs !== false,
-              filterCustomized: props.filterMenu?.customized ?? false,
-              onFilter: open,
-              onCompose: props.onNewTask,
-            }}
+            showTabs={props.showTabs !== false}
+            filterCustomized={props.filterMenu?.customized ?? false}
+            onFilter={open}
+            onCompose={props.onNewTask}
           />
         )}
       </AndroidAnchoredMenu>
