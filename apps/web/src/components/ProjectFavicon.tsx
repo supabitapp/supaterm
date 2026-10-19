@@ -8,7 +8,7 @@ import type { ComponentType } from "react";
 import { createElement, lazy, Suspense, useState } from "react";
 import { useAtomValue } from "@effect/atom-react";
 import { projectFaviconUrlAtom } from "../state/assets";
-import { deriveProjectIdentity } from "../projectIdentity";
+import { useProjectIdentity } from "../state/projectIdentity";
 import { projectIconColorClassName } from "../projectIconColors";
 import { ProjectMonogram } from "./ProjectMonogram";
 import { cn } from "~/lib/utils";
@@ -124,10 +124,7 @@ function ProjectFaviconFallback({
   readonly projectName?: string | undefined;
 }) {
   if (projectName && projectName.trim().length > 0) {
-    const identity = deriveProjectIdentity(projectName);
-    return (
-      <ProjectMonogram text={identity.monogram} color={identity.color} className={className} />
-    );
+    return <AutomaticProjectMonogram projectName={projectName} className={className} />;
   }
 
   if (emoji) {
@@ -145,6 +142,17 @@ function ProjectFaviconFallback({
   }
 
   return <Icon className={cn("size-3.5 shrink-0 text-icon-muted", className)} />;
+}
+
+function AutomaticProjectMonogram({
+  projectName,
+  className,
+}: {
+  readonly projectName: string;
+  readonly className?: string | undefined;
+}) {
+  const identity = useProjectIdentity(projectName);
+  return <ProjectMonogram text={identity.monogram} color={identity.color} className={className} />;
 }
 
 function ProjectFaviconImage({

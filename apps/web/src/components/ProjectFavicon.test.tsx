@@ -61,6 +61,9 @@ vi.mock("../state/assets", () => ({
     testState.lastTarget = input;
   },
 }));
+vi.mock("../state/projectIdentity", () => ({
+  useProjectIdentity: () => ({ monogram: "PR", color: "blue" }),
+}));
 
 import { ProjectFavicon, type ProjectFaviconProject } from "./ProjectFavicon";
 

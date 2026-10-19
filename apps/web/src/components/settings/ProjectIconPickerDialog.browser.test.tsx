@@ -3,8 +3,9 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
 
-import { deriveProjectIdentity } from "../../projectIdentity";
 import { ProjectIconPickerDialog } from "./ProjectIconPickerDialog";
+
+const automatic = { monogram: "TT", color: "teal" } as const;
 
 let root: Root;
 let container: HTMLDivElement;
@@ -45,7 +46,7 @@ async function openPicker() {
     root.render(
       <ProjectIconPickerDialog
         current={null}
-        projectName="Test"
+        automatic={automatic}
         open
         onOpenChange={onOpenChange}
         onSelect={onSelect}
@@ -58,7 +59,6 @@ async function openPicker() {
 describe("ProjectIconPickerDialog", () => {
   it("starts an automatic project on icons in its derived color and saves the picked icon", async () => {
     const { onSelect, onOpenChange } = await openPicker();
-    const { color } = deriveProjectIdentity("Test");
     expect((await button("Icons")).getAttribute("aria-pressed")).toBe("true");
     expect(
       document.querySelector('[aria-label="Icon color"] [aria-pressed="true"]'),
@@ -68,7 +68,11 @@ describe("ProjectIconPickerDialog", () => {
     await click("Rocket");
     await click("Save icon");
 
-    expect(onSelect).toHaveBeenCalledExactlyOnceWith({ kind: "lucide", name: "rocket", color });
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith({
+      kind: "lucide",
+      name: "rocket",
+      color: automatic.color,
+    });
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
@@ -90,7 +94,7 @@ describe("ProjectIconPickerDialog", () => {
     expect(onSelect).toHaveBeenCalledExactlyOnceWith({
       kind: "monogram",
       text: "T3",
-      color: deriveProjectIdentity("Test").color,
+      color: automatic.color,
     });
   });
 });

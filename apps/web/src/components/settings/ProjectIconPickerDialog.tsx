@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema";
-import { deriveProjectIdentity } from "../../projectIdentity";
+import type { ProjectIdentity } from "../../projectIdentity";
 import { ProjectMonogram } from "../ProjectMonogram";
 import {
   ProjectMonogramText,
@@ -47,18 +47,17 @@ function iconLabel(name: string): string {
 
 export function ProjectIconPickerDialog({
   current,
-  projectName,
+  automatic,
   open,
   onOpenChange,
   onSelect,
 }: {
   readonly current: ProjectIconOverride | null;
-  readonly projectName: string;
+  readonly automatic: ProjectIdentity;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly onSelect: (icon: ProjectIconOverride) => void;
 }) {
-  const automatic = deriveProjectIdentity(projectName);
   const [mode, setMode] = useState<ProjectIconOverride["kind"]>(current?.kind ?? "lucide");
   const [iconName, setIconName] = useState<string>(
     current?.kind === "lucide" ? current.name : DEFAULT_ICON,

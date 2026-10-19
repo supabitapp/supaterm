@@ -141,9 +141,10 @@ Supaterm detect an icon again.
 
 Choose **Monogram** in the icon picker to set one or two letters or numbers and a color.
 
-When no image is found, web and desktop show a two-character monogram with a color
-from the icon palette, derived from the saved project name. For example, `Nebula` becomes `NA`,
-`Silver Orchard` becomes `SO`, and `M7 Forge` becomes `M7`.
+When no image is found, web and desktop show a two-character monogram derived from the saved
+project name. For example, `Nebula` becomes `NA`, `Silver Orchard` becomes `SO`, and `M7 Forge`
+becomes `M7`. Each project keeps its own color as you add projects; colors repeat only after nine
+projects. To pick a different color, choose **Monogram** in the icon picker.
 
 ## Keep the default branch current
 
