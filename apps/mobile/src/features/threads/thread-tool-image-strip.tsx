@@ -1,8 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
-import {
-  toolGroupImageKey,
-  type ToolGroupImage,
-} from "@supaterm/client-runtime/work-log/presentation";
+import type { ToolGroupImage } from "@supaterm/client-runtime/work-log/presentation";
 import type { EnvironmentId } from "@supaterm/contracts";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
@@ -28,8 +25,7 @@ export function ThreadToolImageStrip(props: {
   const images = enabled && props.images?.length ? props.images : NO_IMAGES;
   const [retained, setRetained] = useState(images);
   if (images.length > 0 && images !== retained) setRetained(images);
-  const [showAll, setShowAll] = useState(false);
-  const visible = showAll ? retained : retained.slice(0, VISIBLE_IMAGE_LIMIT);
+  const visible = retained.slice(0, VISIBLE_IMAGE_LIMIT);
   const hiddenCount = retained.length - visible.length;
   const gallery = useMemo(
     () =>
@@ -55,7 +51,7 @@ export function ThreadToolImageStrip(props: {
             <View className="flex-row gap-1.5">
               {visible.map((image) => (
                 <ThreadMarkdownImage
-                  key={toolGroupImageKey(image)}
+                  key={image.key}
                   environmentId={props.environmentId}
                   resource={image.resource}
                   alt={image.alt}
@@ -69,7 +65,9 @@ export function ThreadToolImageStrip(props: {
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={`Show ${hiddenCount} more images`}
-                  onPress={() => setShowAll(true)}
+                  onPress={() =>
+                    props.onPressPreview({ ...gallery[VISIBLE_IMAGE_LIMIT]!, gallery })
+                  }
                   className="w-16 items-center justify-center rounded-[10px] bg-md-code-bg active:opacity-70"
                   style={{ height: THUMBNAIL_HEIGHT }}
                 >

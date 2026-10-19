@@ -43,6 +43,7 @@ describe("pending timeline messages", () => {
         shimmer: live,
         images: [
           {
+            key: "screenshot:0",
             alt: "Screenshot",
             resource: {
               _tag: "tool-output-image",

@@ -494,6 +494,8 @@ export interface ViewedImageAsset {
 }
 
 export interface ToolGroupImage {
+  /** Unique per tool call, so the same file read twice still gets two thumbnails. */
+  readonly key: string;
   readonly resource: Extract<AssetResource, { readonly _tag: "media-file" | "tool-output-image" }>;
   readonly alt: string;
   readonly srcFragment?: string;
@@ -512,6 +514,7 @@ export function toolGroupImages(
     const imageCount = item.outputImageCount ?? turnItemOutputImages(item).length;
     for (let index = imageCount - 1; index >= 0; index -= 1) {
       images.push({
+        key: `${row.sourceItemId}:${index}`,
         resource: {
           _tag: "tool-output-image",
           threadId: row.sourceThreadId,
@@ -528,16 +531,9 @@ export function toolGroupImages(
             workspaceRoot,
           })
         : null;
-    if (viewedImage) images.push(viewedImage);
+    if (viewedImage) images.push({ ...viewedImage, key: `${row.sourceItemId}:viewed` });
   }
   return images;
-}
-
-export function toolGroupImageKey(image: ToolGroupImage): string {
-  const { resource } = image;
-  return resource._tag === "tool-output-image"
-    ? `${resource.itemId}:${resource.index}`
-    : `${resource.threadId}:${resource.path}`;
 }
 
 export function resolveViewedImageAsset(

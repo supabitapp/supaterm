@@ -789,6 +789,46 @@ describe("deriveMessagesTimelineRows", () => {
     ).toBe(true);
   });
 
+  it("keeps each screenshot's image when its run fails", () => {
+    const fixture = makeStreamingTimelineFixture();
+    const source = fixture.visibleTurnItems.find((row) => row.item.type === "dynamic_tool")!;
+    if (source.item.type !== "dynamic_tool") throw new Error("Expected tool fixture");
+    const screenshot = (position: number) => {
+      const id = TurnItemId.make(`failed-run-screenshot-${position}`);
+      return {
+        ...source,
+        position,
+        sourceItemId: id,
+        item: { ...source.item, id, output: undefined, outputOmitted: true, outputImageCount: 1 },
+      };
+    };
+    const rows = deriveMessagesTimelineRows({
+      timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
+        visibleTurnItems: [screenshot(0), screenshot(1)],
+        optimisticMessages: [],
+      }),
+      latestRun: {
+        runId: fixture.runId,
+        status: "failed",
+        startedAt: fixture.time(0),
+        completedAt: fixture.time(5),
+      },
+      isWorking: false,
+      activeTurnStartedAt: null,
+      turnDiffSummaries: [],
+      supportsConversationRollback: false,
+    });
+    expect(
+      rows.flatMap((row) =>
+        row.kind === "work"
+          ? (row.images ?? []).map(
+              (image) => image.resource._tag === "tool-output-image" && image.resource.itemId,
+            )
+          : [],
+      ),
+    ).toEqual(["failed-run-screenshot-0", "failed-run-screenshot-1"]);
+  });
+
   it("adds each tool result's images to a collapsed group", () => {
     const fixture = makeStreamingTimelineFixture();
     const source = fixture.visibleTurnItems.find((row) => row.item.type === "dynamic_tool")!;

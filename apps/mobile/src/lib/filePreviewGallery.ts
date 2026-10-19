@@ -28,6 +28,23 @@ export function filePreviewGallery(source: FilePreviewSource, group: readonly Fi
   return items;
 }
 
+/** The gallery once every item has resolved or failed, without the failed ones; null until then. */
+export function settledPreviewGallery<Resolved>(
+  items: readonly FilePreviewItem[],
+  resolved: Readonly<Record<string, Resolved>>,
+  failedKeys: ReadonlySet<string>,
+): Resolved[] | null {
+  const gallery: Resolved[] = [];
+  for (const item of items) {
+    const key = filePreviewKey(item);
+    if (failedKeys.has(key)) continue;
+    const value = resolved[key];
+    if (value === undefined) return null;
+    gallery.push(value);
+  }
+  return gallery;
+}
+
 export function filePreviewName(source: FilePreviewItem): string {
   const uriName = "uri" in source ? source.uri.split(/[?#]/)[0]?.split("/").pop() : undefined;
   const name =

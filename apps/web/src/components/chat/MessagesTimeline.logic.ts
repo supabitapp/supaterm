@@ -1606,6 +1606,7 @@ export function deriveMessagesTimelineRows(input: {
           createdAt: timelineEntry.createdAt,
           groupedEntries: [timelineEntry.entry],
           isExpandedToolGroup: false,
+          images: workGroupImages([timelineEntry.entry]),
         });
         continue;
       }

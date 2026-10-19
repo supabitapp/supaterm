@@ -1456,7 +1456,7 @@ function renderFeedEntry(
     );
   }
 
-  return (
+  const workLog = (
     <ThreadWorkLog
       key={`${entry.id}:${props.workRowSizing.textSizeKey}`}
       activities={entry.activities}
@@ -1476,6 +1476,18 @@ function renderFeedEntry(
       renderReasoning={props.renderReasoning}
       onPressPreview={props.onPressPreview}
     />
+  );
+  return entry.images ? (
+    <View>
+      {workLog}
+      <ThreadToolImageStrip
+        images={entry.images}
+        environmentId={props.environmentId}
+        onPressPreview={props.onPressPreview}
+      />
+    </View>
+  ) : (
+    workLog
   );
 }
 
@@ -2531,7 +2543,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
         case "thinking":
           return WORK_GROUP_TOGGLE_HEIGHT;
         case "activity-group":
-          if (entry.activities[0]?.projectedItem.item.type === "subagent") {
+          if (entry.images || entry.activities[0]?.projectedItem.item.type === "subagent") {
             return undefined;
           }
           if (isContextCompactionActivityGroup(entry) || isContextHandoffActivityGroup(entry)) {

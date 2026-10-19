@@ -200,6 +200,7 @@ type ThreadFeedEntryContent =
       readonly createdAt: string;
       readonly runId: RunId | null;
       readonly activities: ReadonlyArray<ThreadFeedActivity>;
+      readonly images?: ReadonlyArray<ToolGroupImage>;
     }
   | {
       readonly type: "work-toggle";
@@ -1303,7 +1304,7 @@ export function deriveThreadFeedPresentation(
       ) {
         let rows = failedActivityGroupsCache.get(entry);
         if (!rows) {
-          rows =
+          rows = (
             entry.activities.length === 1
               ? [entry]
               : entry.activities.map((activity) => ({
@@ -1312,7 +1313,13 @@ export function deriveThreadFeedPresentation(
                   createdAt: activity.createdAt,
                   runId: activity.runId,
                   activities: [activity],
-                }));
+                }))
+          ).map((row) => {
+            const images = toolGroupImages(
+              row.activities.map((activity) => activity.projectedItem),
+            );
+            return images.length > 0 ? { ...row, images } : row;
+          });
           failedActivityGroupsCache.set(entry, rows);
         }
         result.push(...rows);

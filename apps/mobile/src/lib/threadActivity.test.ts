@@ -120,6 +120,39 @@ it("shows a folded run's tool images on its fold row", () => {
   ).toEqual(["second-screenshot", "first-screenshot"]);
 });
 
+it("keeps each screenshot's image when its mobile run fails", () => {
+  const screenshot = (id: string, ordinal: number): OrchestrationV2TurnItem => ({
+    ...base(id, "2026-06-20T00:00:02.000Z", ordinal),
+    type: "dynamic_tool",
+    toolName: "mcp__supaterm__device_screenshot",
+    input: {},
+    outputImageCount: 1,
+  });
+  const rows = deriveThreadFeedPresentation(
+    buildThreadFeed(
+      [screenshot("first-screenshot", 1), screenshot("second-screenshot", 2)].map((item, index) =>
+        projected(item, index),
+      ),
+    ),
+    {
+      runId,
+      status: "failed",
+      startedAt: "2026-06-20T00:00:01.000Z",
+      completedAt: "2026-06-20T00:00:03.000Z",
+    },
+    new Set(),
+  );
+  expect(
+    rows.flatMap((row) =>
+      row.type === "activity-group"
+        ? (row.images ?? []).map(
+            (image) => image.resource._tag === "tool-output-image" && image.resource.itemId,
+          )
+        : [],
+    ),
+  ).toEqual(["first-screenshot", "second-screenshot"]);
+});
+
 it.each([false, true])(
   "keeps earlier mobile group images when chat advances, working=%s",
   (working) => {

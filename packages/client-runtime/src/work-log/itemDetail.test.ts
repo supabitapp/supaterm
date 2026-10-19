@@ -151,6 +151,17 @@ describe("tool group images", () => {
       output: undefined,
       viewedImagePath: "screens/latest.png",
     });
+    const reread = projectedScreenshot({
+      id: TurnItemId.make("reread"),
+      output: undefined,
+      viewedImagePath: "screens/latest.png",
+    });
+    expect(
+      toolGroupImages([file, reread], "/workspace").map((entry) => [entry.key, entry.resource]),
+    ).toEqual([
+      ["reread:viewed", expect.objectContaining({ path: "/workspace/screens/latest.png" })],
+      ["file:viewed", expect.objectContaining({ path: "/workspace/screens/latest.png" })],
+    ]);
     expect(
       toolGroupImages([screenshotRow, file], "/workspace").map((entry) => entry.resource),
     ).toEqual([
