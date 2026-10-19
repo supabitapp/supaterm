@@ -673,7 +673,6 @@ a.feature-tag {
     9px "Courier New",
     monospace;
 }
-.site-footer > p a,
 .site-footer nav a {
   color: var(--pink);
   text-underline-offset: 3px;
