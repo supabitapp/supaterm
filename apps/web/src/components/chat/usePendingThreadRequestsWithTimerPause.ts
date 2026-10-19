@@ -24,7 +24,7 @@ import { usePendingThreadRequests } from "./usePendingThreadRequests";
 type PendingThreadRequestsInput = Parameters<typeof usePendingThreadRequests>[0];
 
 /** Pauses the auto-dismiss timer of the question the making render saw, once per question. */
-export function makeQuestionTimerPause(input: {
+function makeQuestionTimerPause(input: {
   readonly environmentId: EnvironmentId;
   readonly activeThreadId: ThreadId | null;
   readonly activePendingUserInput: PendingUserInput | null;
@@ -78,7 +78,7 @@ export function makeQuestionTimerPause(input: {
 }
 
 /** Whether typing `value` changes a custom answer the question accepts. */
-export function changesPendingCustomAnswer(input: {
+function changesPendingCustomAnswer(input: {
   readonly activePendingUserInput: PendingUserInput | null;
   readonly activePendingDraftAnswers: Record<string, PendingUserInputDraftAnswer>;
   readonly questionId: string;
