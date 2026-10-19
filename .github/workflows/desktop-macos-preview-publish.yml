@@ -258,7 +258,7 @@ jobs:
 
       - name: Comment download link
         if: steps.upload.outputs.download_url != ''
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
           DOWNLOAD_URL: ${{ steps.upload.outputs.download_url }}
@@ -367,7 +367,7 @@ jobs:
 
       - name: Mark the preview comment as removed
         if: steps.delete.outputs.removed == 'true'
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const marker = "<!-- desktop-macos-preview -->";
