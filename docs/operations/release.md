@@ -77,8 +77,12 @@ bumps require a new store binary under the existing OTA fingerprint policy.
 
 [Mobile Production](../../.github/workflows/mobile-eas-production.yml) automatically uploads newly built
 production binaries to TestFlight and Google Play internal testing. After a successful upload, it records
-the source commit, app version, and native build number from the signed binary. Store review is a separate,
-optional step.
+the source commit, app version, and native build number from the signed binary. On `main`, the workflow
+submits each uploaded iOS build for external beta review and adds it to `Supaterm Public Beta`, with
+tester notifications enabled after approval. The beta job uses the `release` environment's existing
+App Store Connect API key and waits up to 45 minutes for Apple to process the exact build. Rerun a
+failed beta job to retry submission without rebuilding. Apple still controls beta approval.
+App Store review is a separate, optional step.
 
 To submit a build for review, dispatch [Mobile Store Review](../../.github/workflows/mobile-store-review.yml)
 on `main` with the platform, original Mobile Production run ID, and source SHA from the build's job summary.

@@ -6,18 +6,52 @@ def required_store_env(name)
   value
 end
 
+def store_api_key
+  app_store_connect_api_key(
+    key_id: required_store_env("APPLE_API_KEY_ID"),
+    issuer_id: required_store_env("APPLE_API_ISSUER"),
+    key_content: required_store_env("APPLE_API_KEY"),
+    duration: 1200
+  )
+end
+
 platform :ios do
+  desc "Submit the exact uploaded build to the public TestFlight beta"
+  lane :external_beta do
+    version = required_store_env("MOBILE_VERSION")
+    build_number = required_store_env("MOBILE_BUILD_NUMBER")
+    identifier = required_store_env("MOBILE_APPLICATION_ID")
+    api_key = store_api_key
+    app = Spaceship::ConnectAPI::App.find(identifier)
+    UI.user_error!("App Store Connect application was not found") unless app
+    group = app.get_beta_groups.find { |candidate| candidate.name == "Supaterm Public Beta" && !candidate.is_internal_group }
+    UI.user_error!("The Supaterm Public Beta external group was not found") unless group
+    require "fastlane_core/build_watcher"
+    build = FastlaneCore::BuildWatcher.wait_for_build_processing_to_be_complete(
+      app_id: app.id, platform: "IOS", app_version: version, build_version: build_number,
+      timeout_duration: 2700, return_spaceship_testflight_build: false,
+      wait_for_build_beta_detail_processing: true
+    )
+    state = build.build_beta_detail.external_build_state
+    eligible_states = %w[READY_FOR_BETA_SUBMISSION WAITING_FOR_BETA_REVIEW IN_BETA_REVIEW BETA_APPROVED READY_FOR_BETA_TESTING IN_BETA_TESTING]
+    UI.user_error!("TestFlight build #{version} (#{build_number}) cannot be distributed (state=#{state})") if build.expired || !eligible_states.include?(state)
+    upload_to_testflight(
+      api_key: api_key, app_identifier: identifier, app_platform: "ios",
+      app_version: version, build_number: build_number,
+      distribute_only: true, wait_processing_timeout_duration: 2700,
+      distribute_external: true, groups: [group.id], submit_beta_review: true,
+      notify_external_testers: true, reject_build_waiting_for_review: false,
+      expire_previous_builds: false,
+      changelog: ENV.fetch("MOBILE_RELEASE_NOTES", "Test the latest Supaterm conversations, code review, and remote connections.")
+    )
+  end
+
   desc "Upload screenshots and submit the exact processed build for App Store review"
   lane :review do
     version = required_store_env("MOBILE_VERSION")
     build_number = required_store_env("MOBILE_BUILD_NUMBER")
     identifier = required_store_env("MOBILE_APPLICATION_ID")
-    api_key = app_store_connect_api_key(
-      key_id: required_store_env("APPLE_API_KEY_ID"),
-      issuer_id: required_store_env("APPLE_API_ISSUER"),
-      key_content: required_store_env("APPLE_API_KEY"),
-      duration: 1200
-    )
+    api_key = store_api_key
     app = Spaceship::ConnectAPI::App.find(identifier)
     UI.user_error!("App Store Connect application was not found") unless app
     build = Timeout.timeout(2700) do

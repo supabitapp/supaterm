@@ -341,3 +341,70 @@ jobs:
           message="${UPDATE_MESSAGE:-$(git log -1 --pretty=%s | head -c 120) ($(git rev-parse --short=9 HEAD))}"
           eas update --channel production --environment production --platform "$MOBILE_PLATFORM" \
             --message "$message" --non-interactive
+
+  testflight:
+    name: Submit iOS public beta
+    needs: [prepare, production]
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.prepare.result == 'success' && needs.prepare.outputs.enabled == 'true' }}
+    runs-on: depot-ubuntu-24.04
+    environment: release
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    env:
+      CI: "true"
+      FASTLANE_SKIP_UPDATE_CHECK: "true"
+      FASTLANE_HIDE_CHANGELOG: "true"
+      FASTLANE_SKIP_DOCS: "true"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: ./.github/actions/setup-mise
+        with:
+          cache: false
+      - id: artifacts
+        name: Find uploaded iOS build identities
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {...context.repo, run_id: context.runId, per_page: 100});
+            const names = artifacts.filter(artifact => !artifact.expired).map(artifact => artifact.name);
+            core.setOutput('present', names.some(name => /^mobile-store-build-ios-\d+$/.test(name)));
+            core.setOutput('names', JSON.stringify(names));
+      - name: Download exact iOS build identities
+        if: steps.artifacts.outputs.present == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          pattern: mobile-store-build-ios-*
+          path: ${{ runner.temp }}/testflight-builds
+      - id: build
+        name: Select the signed iOS build from this source commit
+        if: steps.artifacts.outputs.present == 'true'
+        env:
+          MOBILE_PLATFORM: ios
+          MOBILE_SOURCE_SHA: ${{ needs.prepare.outputs.sha }}
+          MOBILE_BINARY_ARTIFACTS: ${{ steps.artifacts.outputs.names }}
+        run: node .github/scripts/mobile-store-release.mjs matrix "$RUNNER_TEMP/testflight-builds"
+      - uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1.329.0
+        if: steps.build.outputs.enabled == 'true'
+        with:
+          ruby-version: "3.4.8"
+          working-directory: apps/mobile
+          bundler-cache: true
+      - name: Load App Store Connect API key
+        if: steps.build.outputs.enabled == 'true'
+        uses: ./.github/actions/load-release-secrets
+        with:
+          profile: app-store
+          service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+      - name: Submit the exact build for external beta review
+        if: steps.build.outputs.enabled == 'true'
+        working-directory: apps/mobile
+        env:
+          MOBILE_VERSION: ${{ fromJSON(steps.build.outputs.matrix).include[0].version }}
+          MOBILE_APPLICATION_ID: ${{ fromJSON(steps.build.outputs.matrix).include[0].identifier }}
+          MOBILE_BUILD_NUMBER: ${{ fromJSON(steps.build.outputs.matrix).include[0].buildNumber }}
+        run: bundle exec fastlane ios external_beta
