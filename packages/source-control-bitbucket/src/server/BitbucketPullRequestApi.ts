@@ -585,7 +585,7 @@ export const make = Effect.gen(function* () {
       withRepository(input.repository, (path) =>
         readPage({
           operation: "getPullRequest",
-          url: `${path}/pullrequests/${input.number}`,
+          url: `${path}/pullrequests/${input.number}?fields=%2Bclosed_on`,
           decode: decodePullRequestJson,
         }),
       ),

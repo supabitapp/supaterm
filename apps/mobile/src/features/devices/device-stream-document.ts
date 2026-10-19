@@ -1,5 +1,6 @@
 import type { DeviceHubAccess } from "@supaterm/client-runtime/device/hub-access";
 import type { DevicePlatform } from "@supaterm/contracts";
+import type { PlatformOSType } from "react-native";
 
 export interface DeviceStreamConfiguration {
   readonly access: DeviceHubAccess;
@@ -13,6 +14,17 @@ export interface DeviceStreamConfiguration {
     readonly buttonForeground: string;
     readonly buttonBorder: string;
   };
+}
+
+export function deviceStreamBaseUrl(
+  viewerPlatform: PlatformOSType,
+  devicePlatform: DevicePlatform,
+  httpBase: string,
+) {
+  if (viewerPlatform !== "android") return "file:///";
+
+  if (devicePlatform === "android") return "https://localhost/";
+  return `${new URL(httpBase).origin}/`;
 }
 
 export function deviceStreamDocument(configuration: string, script: string) {

@@ -372,6 +372,36 @@ it.effect("preserves initialized capabilities when optional usage times out", ()
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 
+it.effect("fails a hung initialization probe with a timeout", () =>
+  Effect.gen(function* () {
+    const initializationStarted = yield* Deferred.make<void>();
+    const query = vi.spyOn(ClaudeSdk, "query").mockImplementation(
+      () =>
+        ({
+          initializationResult: () => {
+            Deferred.doneUnsafe(initializationStarted, Effect.void);
+            return new Promise(() => {});
+          },
+          usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: async () => ({
+            rate_limits_available: true,
+            rate_limits: {},
+          }),
+        }) as ReturnType<typeof ClaudeSdk.query>,
+    );
+    yield* Effect.addFinalizer(() => Effect.sync(() => query.mockRestore()));
+    const probe = yield* probeClaudeCapabilities(
+      decodeClaudeSettings({ binaryPath: "claude" }),
+    ).pipe(Effect.result, Effect.forkChild);
+
+    yield* Deferred.await(initializationStarted);
+    yield* TestClock.adjust("25 seconds");
+    const result = yield* Fiber.join(probe);
+
+    assert.isTrue(Result.isFailure(result));
+    if (Result.isFailure(result)) assert.isTrue(Cause.isTimeoutError(result.failure));
+  }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+);
+
 it.effect("asks for usage without the local transcript scan", () =>
   Effect.gen(function* () {
     let usageOptions: unknown;

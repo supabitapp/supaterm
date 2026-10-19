@@ -38,10 +38,14 @@ catalog:
   "@tailwindcss/oxide": 4.3.3
   "@tailwindcss/vite": 4.3.3
   "@types/node": 24.12.4
+  "@types/react": ~19.3.0
+  "@types/react-dom": ~19.3.0
   "@types/ws": 8.18.2
   effect: 4.0.5
   jose: 6.2.12
   lightningcss: 1.33.0
+  react: 19.3.0
+  react-dom: 19.3.0
   tailwindcss: 4.3.3
   typescript: 7.0.2
   undici: 8.11.2
@@ -220,6 +224,11 @@ overrides:
   yaml: "catalog:"
 
 packageExtensions:
+  react-native-pdf-jsi@5.0.0:
+    dependencies:
+      "@expo/config-plugins": "58.0.9"
+    peerDependencies:
+      "@types/react": "*"
   # Legend List omits devDependencies, so types-fixer cannot infer this missing type peer.
   "@legendapp/list@*":
     peerDependencies:
@@ -260,6 +269,7 @@ patchedDependencies:
   node-pty@1.2.0-beta.15: patches/node-pty@1.2.0-beta.15.patch
   react-native-gesture-handler@3.3.0: patches/react-native-gesture-handler@3.3.0.patch
   react-native-keyboard-controller@1.22.7: patches/react-native-keyboard-controller@1.22.7.patch
+  react-native-pdf-jsi@5.0.0: patches/react-native-pdf-jsi@5.0.0.patch
   # Android: a nested WebView hands a vertical drag to its scrolling parent at the page's edge.
   react-native-webview@14.0.1: patches/react-native-webview@14.0.1.patch
   "@expo/ui@58.0.20": patches/@expo__ui@58.0.20.patch

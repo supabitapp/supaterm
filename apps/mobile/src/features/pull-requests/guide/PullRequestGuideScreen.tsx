@@ -2,7 +2,7 @@ import { Toolbar } from "../../../components/ui/Toolbar";
 import { parsePatchFiles } from "@pierre/diffs/utils/parsePatchFiles";
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { StackActions, useNavigation, type StaticScreenProps } from "@react-navigation/native";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { Platform, Pressable, View } from "react-native";
 import { AndroidScreenHeader } from "../../../components/ui/AndroidScreenHeader";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -32,13 +32,11 @@ import { composerPullRequests } from "../../../state/pull-requests";
 import { usePullRequestPermissions } from "../usePullRequestPermissions";
 import { pullRequestTarget } from "../usePullRequestDiff";
 import { useReviewGuide } from "./useReviewGuide";
-
 export type GuideStopParams = PullRequestParams & {
   readonly position: number;
   readonly guideHeadSha: string;
   readonly guideGeneratedAt: string;
 };
-
 const attentionLabels = {
   tradeoff: "A tradeoff to weigh",
   contract: "A contract to check",
@@ -46,7 +44,6 @@ const attentionLabels = {
   risk: "A risk to judge",
   accessibility: "An accessibility call",
 };
-
 export function PullRequestGuideContent({ params }: { readonly params: PullRequestParams }) {
   const navigation = useNavigation();
   const state = useReviewGuide(params);
@@ -90,7 +87,6 @@ export function PullRequestGuideContent({ params }: { readonly params: PullReque
     </Animated.View>
   );
 }
-
 export function PullRequestGuideStopScreen({ route }: StaticScreenProps<GuideStopParams>) {
   const navigation = useNavigation();
   const state = useReviewGuide(route.params);
@@ -102,19 +98,8 @@ export function PullRequestGuideStopScreen({ route }: StaticScreenProps<GuideSto
   const position = Math.max(0, Math.min(route.params.position, (guide?.stops.length ?? 1) - 1));
   const stop = guide?.stops[Math.max(0, position)];
   const diff = usePullRequestDiff(route.params);
-  const excerptFiles = useMemo(() => {
-    const files = new Map<string, FileDiffMetadata>();
-    try {
-      for (const patch of parsePatchFiles(diff.patch)) {
-        for (const file of patch.files) {
-          files.set(file.name, file);
-          if (file.prevName) files.set(file.prevName, file);
-        }
-      }
-    } catch {}
-    return files;
-  }, [diff.patch]);
-  const wanted = useMemo(() => (stop ? stopFilePaths(stop) : []), [stop]);
+  const excerptFiles = diffFilesByPath(diff.patch);
+  const wanted = stop ? stopFilePaths(stop) : [];
   const loadedPaths = new Set(
     diff.parsed.kind === "files" ? diff.parsed.files.map((file) => file.path) : [],
   );
@@ -178,7 +163,11 @@ export function PullRequestGuideStopScreen({ route }: StaticScreenProps<GuideSto
       >
         <ScreenScrollView
           contentInsetAdjustmentBehavior="automatic"
-          contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24, gap: 20 }}
+          contentContainerStyle={{
+            padding: 16,
+            paddingBottom: insets.bottom + 24,
+            gap: 20,
+          }}
         >
           <View className="w-full max-w-[760px] self-center gap-5">
             {!state.enabled ? (
@@ -216,7 +205,11 @@ export function PullRequestGuideStopScreen({ route }: StaticScreenProps<GuideSto
                           StackActions.push("PullRequestFile", {
                             ...route.params,
                             path: excerpt.path,
-                            focus: { side: excerpt.side, start: excerpt.start, end: excerpt.end },
+                            focus: {
+                              side: excerpt.side,
+                              start: excerpt.start,
+                              end: excerpt.end,
+                            },
                             fileSelectionId: `guide:${position}:${excerpt.path}:${excerpt.start}`,
                           }),
                         )
@@ -331,4 +324,16 @@ export function PullRequestGuideStopScreen({ route }: StaticScreenProps<GuideSto
       </PullRequestMarkdownRepository>
     </View>
   );
+}
+function diffFilesByPath(patchText: string): Map<string, FileDiffMetadata> {
+  const files = new Map<string, FileDiffMetadata>();
+  try {
+    for (const patch of parsePatchFiles(patchText)) {
+      for (const file of patch.files) {
+        files.set(file.name, file);
+        if (file.prevName) files.set(file.prevName, file);
+      }
+    }
+  } catch {}
+  return files;
 }

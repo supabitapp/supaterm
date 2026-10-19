@@ -1,5 +1,10 @@
 import type { ClientSettings } from "@supaterm/contracts/settings";
-import type { AssistantCitation, ResolvedKeybindingsConfig } from "@supaterm/contracts";
+import type {
+  AssistantCitation,
+  EnvironmentId,
+  ResolvedKeybindingsConfig,
+} from "@supaterm/contracts";
+import type { ComposerPathSearchTarget } from "@supaterm/client-runtime/state/threads";
 import {
   serializeAssistantCitation,
   withAssistantCitationComment,
@@ -20,11 +25,25 @@ import { isMacPlatform } from "./lib/utils";
 
 export type ComposerSubmissionIntent = "foreground" | "background" | "alternate";
 
+export function isPathSuggestionCurrent(
+  searchTarget: ComposerPathSearchTarget,
+  trigger: ComposerTrigger | null,
+  environmentId: EnvironmentId | null,
+  cwd: string | null,
+) {
+  return (
+    trigger?.kind === "path" &&
+    searchTarget.environmentId === environmentId &&
+    searchTarget.cwd === cwd &&
+    searchTarget.query === trigger.query.trim()
+  );
+}
+
 export function formatAssistantCitationForComposer(citation: AssistantCitation, comment = "") {
   return `${serializeAssistantCitation(withAssistantCitationComment(citation, comment))} `;
 }
 
-function composerRequiresModifier(
+export function composerRequiresModifier(
   sendShortcut: ClientSettings["sendShortcut"] | undefined,
   prompt: string,
 ) {
@@ -38,14 +57,15 @@ export function composerSubmissionIntentForKey(input: {
   event: ShortcutEventLike & { isComposing?: boolean; keyCode?: number; repeat?: boolean };
   keybindings: ResolvedKeybindingsConfig;
   platform?: string;
-  isMobileViewport: boolean;
+  isSoftwareKeyboardOpen: boolean;
   isDraftThread: boolean;
   isRunning?: boolean;
   sendShortcut?: ClientSettings["sendShortcut"];
   prompt?: string;
 }): ComposerSubmissionIntent | null {
   const { event } = input;
-  if (input.isMobileViewport || event.isComposing || event.keyCode === 229 || event.repeat)
+  if (event.isComposing || event.keyCode === 229 || event.repeat) return null;
+  if (input.isSoftwareKeyboardOpen && event.key === "Enter" && !event.metaKey && !event.ctrlKey)
     return null;
   const command = resolveShortcutCommand(event, input.keybindings, {
     ...(input.platform === undefined ? {} : { platform: input.platform }),
@@ -53,6 +73,7 @@ export function composerSubmissionIntentForKey(input: {
       composerFocus: true,
       draftThreadRoute: input.isDraftThread,
       turnRunning: input.isRunning === true,
+      composerRequiresModifier: composerRequiresModifier(input.sendShortcut, input.prompt ?? ""),
     },
   });
   if (command === "composer.sendAlternate" && input.isRunning) return "alternate";
@@ -87,7 +108,7 @@ export function composerSendShortcutLabels(input: {
   isRunning: boolean;
   sendShortcut: ClientSettings["sendShortcut"];
   hasMultilinePrompt: boolean;
-  isMobileViewport: boolean;
+  isSoftwareKeyboardOpen: boolean;
 }): Partial<Record<ComposerSendAction, string>> {
   const { keybindings, platform, isDraftThread, isRunning } = input;
   const labels: Partial<Record<ComposerSendAction, string>> = {};
@@ -103,7 +124,7 @@ export function composerSendShortcutLabels(input: {
       },
       keybindings,
       platform,
-      isMobileViewport: input.isMobileViewport,
+      isSoftwareKeyboardOpen: input.isSoftwareKeyboardOpen,
       isDraftThread,
       isRunning,
       sendShortcut: input.sendShortcut,
@@ -119,7 +140,15 @@ export function composerSendShortcutLabels(input: {
   }
   const options = {
     platform,
-    context: { composerFocus: true, draftThreadRoute: isDraftThread, turnRunning: isRunning },
+    context: {
+      composerFocus: true,
+      draftThreadRoute: isDraftThread,
+      turnRunning: isRunning,
+      composerRequiresModifier: composerRequiresModifier(
+        input.sendShortcut,
+        input.hasMultilinePrompt ? "\n" : "",
+      ),
+    },
   };
   const alternate = isRunning
     ? shortcutLabelForCommand(keybindings, "composer.sendAlternate", options)

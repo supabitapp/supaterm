@@ -82,6 +82,7 @@ import * as PreviewBrowser from "./PreviewBrowser.ts";
 import * as PreviewBrowserHost from "./PreviewBrowserHost.ts";
 import { presentAsChrome, ServerBrowserContexts } from "./ServerBrowserContexts.ts";
 import { BrowserControlInterrupted, SessionControl } from "./SessionControl.ts";
+import { installPdfDocumentNavigation, isPdfAssetUrl } from "./PdfDocumentNavigation.ts";
 
 const SERVER_HOST_CLIENT_ID = SERVER_BROWSER_AUTOMATION_CLIENT_ID;
 const RENDER_SCALE = 2;
@@ -137,6 +138,7 @@ const isHostSetupError = Schema.is(
   Schema.Union([
     PreviewBrowserHost.PreviewBrowserSandboxError,
     PreviewBrowserHost.PreviewBrowserLibrariesError,
+    PreviewBrowserHost.PreviewBrowserRootError,
   ]),
 );
 
@@ -283,6 +285,9 @@ interface ServerTab {
   readonly networkEntries: Array<PreviewAutomationNetworkEntry>;
   readonly actionTimeline: Array<PreviewAutomationActionEvent>;
   readonly control: SessionControl;
+  agentOperating: boolean;
+  fileChooserIntercepted: boolean;
+  readonly onFileChooser: (chooser: FileChooser) => void;
 
   readonly isolatedContext: boolean;
 
@@ -497,7 +502,16 @@ const make = Effect.gen(function* () {
         }
       : null;
 
+  const updateFileChooserInterception = (tab: ServerTab) => {
+    const intercept = !tab.desktop || tab.agentOperating || tab.control.controller !== null;
+    if (intercept === tab.fileChooserIntercepted) return;
+    tab.fileChooserIntercepted = intercept;
+    if (intercept) tab.page.on("filechooser", tab.onFileChooser);
+    else tab.page.off("filechooser", tab.onFileChooser);
+  };
+
   const broadcastControl = (tab: ServerTab) => {
+    updateFileChooserInterception(tab);
     for (const viewer of tab.viewers)
       viewer.push({
         _tag: "control",
@@ -725,7 +739,7 @@ const make = Effect.gen(function* () {
     if (!desktop) await prepareContext(context);
     const page = adopted?.page ?? desktop?.page ?? (await context.newPage());
     const cdp = await context.newCDPSession(page);
-
+    await installPdfDocumentNavigation(cdp);
     if (!desktop) await presentAsChrome(cdp, host);
     if (!desktop) await recordCopies(cdp);
     page.setDefaultTimeout(NAVIGATION_TIMEOUT_MS);
@@ -746,6 +760,9 @@ const make = Effect.gen(function* () {
       networkEntries: [],
       actionTimeline: [],
       control,
+      agentOperating: false,
+      fileChooserIntercepted: false,
+      onFileChooser: (chooser) => void offerFileChooser(tab, chooser),
       isolatedContext,
       desktop: desktop === null ? null : { close: desktop.close },
       profileId: snapshot.profileId,
@@ -852,7 +869,7 @@ const make = Effect.gen(function* () {
       broadcastControl(tab);
     });
     page.on("download", (download) => void saveDownload(tab, download));
-    page.on("filechooser", (chooser) => void offerFileChooser(tab, chooser));
+    updateFileChooserInterception(tab);
     // Popups become tabs and keep `window.opener`, so sign-in popups can report back.
     page.on("popup", (popup) => void adoptPopup(tab, popup));
     // Playwright cannot reload a crashed page, so it must leave the tab list.
@@ -880,11 +897,17 @@ const make = Effect.gen(function* () {
       throw cause;
     }
     reportLiveTabs();
-    // A popup is already loading its own URL, and the desktop loads its tab's.
-    if (!adopted && !desktop && snapshot.navStatus._tag === "Loading") {
-      tab.initialNavigation = page
-        .goto(snapshot.navStatus.url, { waitUntil: "commit", timeout: NAVIGATION_TIMEOUT_MS })
-        .then(constVoid);
+
+    if (
+      snapshot.navStatus._tag === "Loading" &&
+      ((!adopted && !desktop) || isPdfAssetUrl(snapshot.navStatus.url))
+    ) {
+      const options = { waitUntil: "commit", timeout: NAVIGATION_TIMEOUT_MS } as const;
+      tab.initialNavigation = (
+        (desktop || adopted) && page.url() === snapshot.navStatus.url
+          ? page.reload(options)
+          : page.goto(snapshot.navStatus.url, options)
+      ).then(constVoid);
 
       void tab.initialNavigation.catch(constVoid);
     }
@@ -1254,7 +1277,12 @@ const make = Effect.gen(function* () {
   const closeIdleAgentTabs = () => {
     const cutoff = Date.now() - AGENT_TAB_IDLE_MS;
     for (const tab of tabs.values()) {
-      if (tab.control.agentId !== null && tab.viewers.size === 0 && tab.usedAt < cutoff)
+      if (
+        tab.control.agentId !== null &&
+        tab.desktop === null &&
+        tab.viewers.size === 0 &&
+        tab.usedAt < cutoff
+      )
         dropTab(tab, true);
     }
   };
@@ -1733,7 +1761,20 @@ const make = Effect.gen(function* () {
                 ),
               )
             : undefined;
-
+        if (reuse && request.tabIdExplicit && !found) {
+          const { sessions } = await Effect.runPromise(
+            manager.list({ threadId: ThreadId.make(request.threadId) }),
+          );
+          const desktop = sessions.some(
+            (session) => session.tabId === request.tabId && session.runtime !== "server",
+          );
+          throw new ServerBrowserPage.ServerBrowserOperationError(
+            desktop ? "PreviewAutomationExecutionError" : "PreviewAutomationTabNotFoundError",
+            desktop
+              ? "This tab belongs to the desktop runtime. This environment's server browser cannot control desktop tabs. Omit tabId to open a server tab instead."
+              : "The requested server preview tab does not exist.",
+          );
+        }
         const existing =
           found && (request.tabIdExplicit || found.control.agentId === request.agentSessionId)
             ? found
@@ -1871,9 +1912,13 @@ const make = Effect.gen(function* () {
           "dialogPending",
         );
       const generation = tab.control.generation;
+      tab.agentOperating = !READ_OPERATIONS.has(request.operation);
+      updateFileChooserInterception(tab);
       try {
         return await executeTabOperation(tab, request);
       } finally {
+        tab.agentOperating = false;
+        updateFileChooserInterception(tab);
         if (generation !== tab.control.generation) ServerBrowserPage.invalidateRefs(tab.page);
       }
     });
@@ -2156,23 +2201,26 @@ const make = Effect.gen(function* () {
         await applySetting(tab, setting);
         return;
       }
+
       case "navigate":
         if (typeof message.url === "string") {
           const url = normalizePreviewUrl(message.url);
-          await tab.page.goto(url, VIEWER_NAVIGATION_OPTIONS);
+          tab.control.trackUntilHandoff(tab.page.goto(url, VIEWER_NAVIGATION_OPTIONS));
         }
         return;
       case "history":
-        await (num(message.delta) < 0
-          ? tab.page.goBack(VIEWER_NAVIGATION_OPTIONS)
-          : tab.page.goForward(VIEWER_NAVIGATION_OPTIONS));
+        tab.control.trackUntilHandoff(
+          num(message.delta) < 0
+            ? tab.page.goBack(VIEWER_NAVIGATION_OPTIONS)
+            : tab.page.goForward(VIEWER_NAVIGATION_OPTIONS),
+        );
         return;
       case "reload":
         if (message.ignoreCache === true) {
           await session.send("Page.reload", { ignoreCache: true });
           return;
         }
-        await tab.page.reload(VIEWER_NAVIGATION_OPTIONS);
+        tab.control.trackUntilHandoff(tab.page.reload(VIEWER_NAVIGATION_OPTIONS));
         return;
       case "probe": {
         const x = num(message.x);

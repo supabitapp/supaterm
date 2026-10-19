@@ -43,22 +43,18 @@ export const make = Effect.gen(function* () {
 
   yield* electronApp.setPath("userData", DesktopUserData.userDataPath(environment));
 
-  const isPrimaryInstance =
-    environment.platform === "darwin" || (yield* electronApp.requestSingleInstanceLock);
+  const isPrimaryInstance = yield* electronApp.requestSingleInstanceLock;
   if (isPrimaryInstance) {
     yield* electronApp.setAsDefaultProtocolClient(
       ElectronProtocol.getDesktopScheme(environment.isDevelopment),
     );
   } else {
     yield* electronApp.quit;
+    return yield* Effect.interrupt;
   }
 
   return DesktopDeepLinks.of({
     configure: Effect.gen(function* () {
-      if (!isPrimaryInstance) {
-        return yield* Effect.interrupt;
-      }
-
       const electronApp = yield* ElectronApp.ElectronApp;
       const electronWindow = yield* ElectronWindow.ElectronWindow;
       const webLinks = yield* DesktopWebLinks.DesktopWebLinks;

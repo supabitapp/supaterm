@@ -1301,6 +1301,7 @@ describe("deriveMessagesTimelineRows", () => {
         id: "compaction-entry",
         createdAt: "2026-01-01T00:00:00Z",
         label: "Compacted context 899K → 19K tokens",
+        tokenCounts: null,
         active: false,
       },
     ]);
@@ -1354,6 +1355,7 @@ describe("deriveMessagesTimelineRows", () => {
     expect(completedRows.find((row) => row.kind === "context-compaction")).toMatchObject({
       active: false,
       label: "Context compacted 899K → 19K tokens",
+      tokenCounts: { before: "899K", after: "19K" },
     });
     expect(completedRows.at(-1)?.kind).toBe("thinking");
 
@@ -2133,6 +2135,44 @@ describe("deriveMessagesTimelineRows", () => {
     expect(rows.at(-1)).toMatchObject({ kind: "thinking" });
   });
 
+  it("does not show Thinking once the open run's provider turn has ended", () => {
+    const input = {
+      timelineEntries: [
+        {
+          id: "user-entry",
+          kind: "message" as const,
+          createdAt: "2026-01-01T00:00:00Z",
+          message: {
+            id: "user" as never,
+            role: "user" as const,
+            text: "Take over the queue",
+            runId: "turn-1" as never,
+            createdAt: "2026-01-01T00:00:00Z",
+            updatedAt: "2026-01-01T00:00:00Z",
+            streaming: false,
+          },
+        },
+      ],
+      latestRun: {
+        runId: "turn-1" as never,
+        status: "running" as const,
+        startedAt: "2026-01-01T00:00:00Z",
+        completedAt: null,
+      },
+      isWorking: true,
+      activeTurnStartedAt: "2026-01-01T00:00:00Z",
+      turnDiffSummaries: [],
+      supportsConversationRollback: false,
+    };
+
+    expect(deriveMessagesTimelineRows(input).at(-1)?.kind).toBe("thinking");
+    const ended = deriveMessagesTimelineRows({
+      ...input,
+      latestRun: { ...input.latestRun, turnEnded: true },
+    });
+    expect(ended.some((row) => row.kind === "thinking")).toBe(false);
+  });
+
   it("does not fold the active in-progress turn", () => {
     const rows = deriveMessagesTimelineRows({
       timelineEntries: [
@@ -2569,6 +2609,123 @@ describe("deriveMessagesTimelineRows", () => {
       "work",
       "work",
       "assistant:resume-answer",
+    ]);
+  });
+
+  it("keeps answered questions in their own row outside tool groups and turn folds", () => {
+    const threadId = ThreadId.make("answered-question-thread");
+    const runId = RunId.make("answered-question-run");
+    const requestId = RuntimeRequestId.make("scope-question");
+    const at = (second: number) =>
+      DateTime.makeUnsafe(new Date(Date.UTC(2026, 9, 17, 12, 0, second)).toISOString());
+    const base = (id: string, ordinal: number, second: number) => ({
+      id: TurnItemId.make(id),
+      threadId,
+      runId,
+      nodeId: null,
+      providerThreadId: null,
+      providerTurnId: null,
+      nativeItemRef: null,
+      parentItemId: null,
+      ordinal,
+      status: "completed" as const,
+      title: null,
+      startedAt: at(second),
+      completedAt: at(second),
+      updatedAt: at(second),
+    });
+    const command = (id: string, ordinal: number, second: number) => ({
+      ...base(id, ordinal, second),
+      type: "command_execution" as const,
+      input: `cat ${id}`,
+    });
+    const items = (settled: boolean) =>
+      [
+        {
+          ...base("prompt", 0, 0),
+          type: "user_message" as const,
+          messageId: MessageId.make("prompt"),
+          text: "Pick a repository",
+          attachments: [],
+          inputIntent: "turn_start" as const,
+          createdBy: "user" as const,
+          creationSource: "web" as const,
+        },
+        command("before", 1, 1),
+        {
+          ...base("question", 2, 2),
+          type: "user_input_request" as const,
+          requestId,
+          questions: [],
+          questionAnswer: {
+            requestId,
+            questionTextById: { scope: "Which repository?" },
+            answers: { scope: "The private one" },
+            attachmentsByQuestionId: {},
+          },
+        },
+        command("after", 3, 3),
+        settled
+          ? {
+              ...base("answer", 4, 5),
+              type: "assistant_message" as const,
+              messageId: MessageId.make("answer"),
+              text: "Done",
+              streaming: false,
+            }
+          : { ...command("running", 4, 4), status: "running" as const, completedAt: null },
+      ].map((item, position) => ({
+        position,
+        visibility: "local" as const,
+        sourceThreadId: threadId,
+        sourceItemId: item.id,
+        item,
+      }));
+    const rows = (settled: boolean, expandedRunIds?: ReadonlySet<RunId>) =>
+      deriveMessagesTimelineRows({
+        timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
+          visibleTurnItems: items(settled),
+          optimisticMessages: [],
+        }),
+        latestRun: {
+          runId,
+          status: settled ? "completed" : "running",
+          startedAt: DateTime.formatIso(at(0)),
+          completedAt: settled ? DateTime.formatIso(at(5)) : null,
+        },
+        runningRunId: settled ? null : runId,
+        isWorking: !settled,
+        activeTurnStartedAt: settled ? null : DateTime.formatIso(at(0)),
+        ...(expandedRunIds === undefined ? {} : { expandedRunIds }),
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      });
+    const shape = (timeline: ReadonlyArray<MessagesTimelineRow>) =>
+      timeline.map((row) =>
+        row.kind === "turn-fold"
+          ? "fold"
+          : row.kind === "message"
+            ? `${row.message.role}:${row.message.id}`
+            : row.kind === "work" || row.kind === "work-live"
+              ? `${row.kind}:${row.groupedEntries.map((entry) => entry.id).join(" + ")}`
+              : row.kind,
+      );
+
+    expect(shape(rows(true))).toEqual(["user:prompt", "fold", "work:question", "assistant:answer"]);
+    expect(shape(rows(true, new Set([runId])))).toEqual([
+      "user:prompt",
+      "fold",
+      "work:before",
+      "work:question",
+      "work:after",
+      "assistant:answer",
+    ]);
+    expect(shape(rows(false))).toEqual([
+      "user:prompt",
+      "working",
+      "work:before",
+      "work:question",
+      "work-live:after + running",
     ]);
   });
 

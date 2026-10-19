@@ -88,6 +88,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev pkg-config
 
       - name: Build JS bundle
+        env:
+          SUPATERM_TELEMETRY_CHANNEL: ${{ github.repository == 'supabitapp/supaterm' && 'preview' || 'dev' }}
         run: vp run build:desktop
 
       # Same layout as release.yml's js-bundle so release-desktop.yml can

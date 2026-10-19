@@ -15,7 +15,7 @@ const PREVIEW_PANEL_MAX_WIDTH = "70vw";
 /** Floor for the column beside the panel: below this the chat composer overflows. */
 const PREVIEW_PANEL_SIBLING_MIN_WIDTH = 360;
 
-const MaximizedContext = createContext(false);
+export const MaximizedContext = createContext(false);
 
 /**
  * The row an inline preview panel sits in: one `PreviewPanelSibling`, then one

@@ -205,7 +205,8 @@ export const layer = Layer.effectDiscard(
                 createActivityReport(environmentId, lastInteractionAtMs, observedAtMs),
               ),
             )
-            .pipe(Effect.ignore),
+
+            .pipe(Effect.ignoreCause),
         { concurrency: "unbounded", discard: true },
       );
     }).pipe(Effect.withSpan("web.backgroundActivity.report"));

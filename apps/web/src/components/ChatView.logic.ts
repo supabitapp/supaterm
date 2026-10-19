@@ -153,12 +153,7 @@ export function shouldOpenProactiveTurnDiff(input: {
 export function resolveProactiveTurnDiffAction(input: {
   checkpoint: Pick<TurnDiffSummary, "status" | "files"> | undefined;
   isGitRepo: boolean | undefined;
-  activeSurfaceKind: RightPanelSurface["kind"] | null;
 }): "defer" | "ignore" | "open" {
-  // An open diff already shows the work; reopening it would reset the chosen scope.
-  if (input.activeSurfaceKind === "pull-request" || input.activeSurfaceKind === "diff") {
-    return "ignore";
-  }
   if (input.checkpoint === undefined || input.checkpoint.status === "missing") return "defer";
   if (input.isGitRepo === undefined) return "defer";
   if (
@@ -173,6 +168,14 @@ export function resolveProactiveTurnDiffAction(input: {
     0,
   );
   return input.checkpoint.files.length >= 3 || changedLines >= 50 ? "open" : "ignore";
+}
+
+export function resolveExplicitDiffOpenOnActivate(input: {
+  readonly surfaceKind: RightPanelSurface["kind"];
+  readonly diffOpen: boolean;
+  readonly activeThreadRef: ScopedThreadRef;
+}): ScopedThreadRef | null {
+  return input.surfaceKind === "diff" && !input.diffOpen ? input.activeThreadRef : null;
 }
 
 export function codexArtifactTemplatePromptToAppend(
@@ -1161,7 +1164,7 @@ export function shouldRefocusComposerOnWindowFocus(
   }
   return (
     activeElement.closest(
-      '[role="dialog"], [role="alertdialog"], [data-slot$="-popup"], [data-terminal-owner]',
+      '[role="dialog"], [role="alertdialog"], [role="application"], [data-slot$="-popup"], [data-terminal-owner]',
     ) === null
   );
 }

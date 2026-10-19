@@ -80,11 +80,11 @@ export function createDesktopNetworkAccessStateAtom(
   });
 
   return Atom.make(loadDesktopNetworkAccess()).pipe(
+    Atom.keepAlive,
     Atom.swr({
       staleTime: DESKTOP_NETWORK_ACCESS_STALE_TIME_MS,
       revalidateOnMount: true,
     }),
-    Atom.keepAlive,
     Atom.withLabel("desktop:network-access"),
   );
 }

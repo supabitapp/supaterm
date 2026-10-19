@@ -52,6 +52,7 @@ import {
   type DefaultBranchConfirmableAction,
   requiresDefaultBranchConfirmation,
   resolveDefaultBranchActionDialogCopy,
+  resolveFeatureBranchUnavailableReason,
   resolveGitActionProgressPresentation,
   resolveGitActionResultToastTiming,
   resolveLiveThreadBranchUpdate,
@@ -1057,6 +1058,8 @@ export default function GitActionsControl({
   const changesTotals = gitStatusForActions?.branchChanges ?? gitStatusForActions?.workingTree;
 
   const allFiles = gitStatusForActions?.workingTree.files ?? [];
+
+  const workingTreeRoot = gitStatusForActions?.workingTree.rootPath ?? null;
   const selectedFiles = allFiles.filter((f) => !excludedFiles.has(f.path));
   const allSelected = excludedFiles.size === 0;
   const noneSelected = selectedFiles.length === 0;
@@ -1123,6 +1126,13 @@ export default function GitActionsControl({
       })
     : null;
 
+  const featureBranchUnavailableReason = pendingDefaultBranchAction
+    ? resolveFeatureBranchUnavailableReason({
+        branchName: pendingDefaultBranchAction.branchName,
+        hasWorkingTreeChanges: gitStatus?.hasWorkingTreeChanges ?? true,
+      })
+    : null;
+
   useEffect(() => {
     if (gitCwd === null) {
       return;
@@ -1156,8 +1166,6 @@ export default function GitActionsControl({
     };
   }, [activeEnvironmentId, gitCwd, refreshVcsStatus]);
 
-  // React 19.2 leaves useEffectEvent stale inside the memoized details panel.
-  // Bind each render's actions to its checkout and thread, including retained toast actions.
   async function runGitActionWithToast({
     action,
     commitMessage,
@@ -1455,7 +1463,7 @@ export default function GitActionsControl({
   };
 
   const openChangedFileInEditor = (filePath: string) => {
-    if (!gitCwd) {
+    if (workingTreeRoot === null) {
       toastManager.add({
         type: "error",
         title: "Editor opening is unavailable.",
@@ -1463,7 +1471,7 @@ export default function GitActionsControl({
       });
       return;
     }
-    const target = resolvePathLinkTarget(filePath, gitCwd);
+    const target = resolvePathLinkTarget(filePath, workingTreeRoot);
     void (async () => {
       const result = await openInPreferredEditor(target);
       if (result._tag === "Success" || isAtomCommandInterrupted(result)) {
@@ -1815,8 +1823,10 @@ export default function GitActionsControl({
           <FileDiffIcon className={THREAD_DETAILS_PANEL_ICON_CLASS} aria-hidden />
           <span className="flex-1 text-left">Changes</span>
           <span className="flex items-center gap-1 font-mono text-2xs tabular-nums">
-            <span className="text-success">+{formatDiffCount(changesTotals?.insertions ?? 0)}</span>
-            <span className="text-destructive">
+            <span className="text-diff-addition">
+              +{formatDiffCount(changesTotals?.insertions ?? 0)}
+            </span>
+            <span className="text-diff-deletion">
               -{formatDiffCount(changesTotals?.deletions ?? 0)}
             </span>
           </span>
@@ -1914,7 +1924,7 @@ export default function GitActionsControl({
                                 <button
                                   type="button"
                                   className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
-                                  disabled={!canOperateThread}
+                                  disabled={!canOperateThread || workingTreeRoot === null}
                                   aria-label={`Open ${file.path} in editor`}
                                   onClick={() => openChangedFileInEditor(file.path)}
                                 >
@@ -2021,6 +2031,9 @@ export default function GitActionsControl({
               {pendingDefaultBranchActionCopy?.title ?? "Run action on default branch?"}
             </DialogTitle>
             <DialogDescription>{pendingDefaultBranchActionCopy?.description}</DialogDescription>
+            {featureBranchUnavailableReason && (
+              <p className="text-xs text-muted-foreground">{featureBranchUnavailableReason}</p>
+            )}
           </DialogHeader>
           <DialogFooter variant="bare" className="sm:flex-wrap sm:items-center">
             <Button
@@ -2044,7 +2057,7 @@ export default function GitActionsControl({
               className="w-full max-w-full sm:w-auto"
               size="sm-multiline"
               onClick={checkoutFeatureBranchAndContinuePendingAction}
-              disabled={!canChangeThreadBranch}
+              disabled={!canChangeThreadBranch || featureBranchUnavailableReason !== null}
             >
               Check out feature branch & continue
             </Button>

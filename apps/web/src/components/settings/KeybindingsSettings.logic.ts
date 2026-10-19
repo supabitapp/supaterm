@@ -9,6 +9,7 @@ import {
 import {
   DEFAULT_RESOLVED_KEYBINDINGS,
   parseKeybindingWhenExpression,
+  US_SHIFTED_TO_UNSHIFTED_KEYS,
 } from "@supaterm/shared/keybindings";
 
 import { shortcutKeyFromEvent } from "../../keybindings";
@@ -248,12 +249,14 @@ export function groupKeybindingRows(
 export function buildKeybindingRows(
   keybindings: ResolvedKeybindingsConfig,
 ): ReadonlyArray<KeybindingRow> {
-  const rows = keybindings.map((binding, index) => {
+  const rowsById = new Map<string, KeybindingRow>();
+  for (const binding of keybindings) {
     const defaultBinding = defaultBindingForBinding(binding);
     const key = shortcutToKeybindingInput(binding.shortcut);
     const when = whenAstToExpression(binding.whenAst);
-    return {
-      id: `${keybindingRowId(binding.command, key, when)}\u0000${index}`,
+    const id = keybindingRowId(binding.command, key, when);
+    rowsById.set(id, {
+      id,
       command: binding.command,
       key,
       when,
@@ -262,8 +265,9 @@ export function buildKeybindingRows(
       defaultWhen: whenAstToExpression(defaultBinding?.whenAst),
       binding,
       conflicts: [],
-    } satisfies KeybindingRow;
-  });
+    });
+  }
+  const rows = [...rowsById.values()];
 
   const rowsWithConflicts = rows.map((row) => {
     const conflicts = keybindingConflictLabels(rows, {
@@ -390,6 +394,17 @@ function titleCaseCommandSegment(segment: string): string {
   return words.join(" ");
 }
 
+function recordedLayoutShortcutKey(
+  event: Pick<KeyboardEvent, "key" | "code" | "shiftKey" | "altKey">,
+): string {
+  const physicalKey = shortcutKeyFromEvent(event);
+  const layoutKey = event.key.toLowerCase();
+  if (event.altKey || layoutKey.length !== 1) return physicalKey;
+
+  const unshiftedKey = event.shiftKey ? US_SHIFTED_TO_UNSHIFTED_KEYS.get(layoutKey) : undefined;
+  return unshiftedKey === physicalKey ? physicalKey : layoutKey;
+}
+
 function normalizeShortcutKeyToken(key: string): string | null {
   const normalized = key.toLowerCase();
   if (
@@ -423,8 +438,13 @@ function normalizeShortcutKeyToken(key: string): string | null {
 export function keybindingFromKeyboardEvent(
   event: Pick<KeyboardEvent, "key" | "code" | "metaKey" | "ctrlKey" | "altKey" | "shiftKey">,
   platform: string,
+  options?: {
+    readonly layoutCharacter?: boolean;
+  },
 ): string | null {
-  const keyToken = normalizeShortcutKeyToken(shortcutKeyFromEvent(event));
+  const keyToken = normalizeShortcutKeyToken(
+    options?.layoutCharacter ? recordedLayoutShortcutKey(event) : shortcutKeyFromEvent(event),
+  );
   if (!keyToken) return null;
 
   const parts: string[] = [];

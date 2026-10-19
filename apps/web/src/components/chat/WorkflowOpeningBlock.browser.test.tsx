@@ -23,6 +23,15 @@ vi.mock(import("../../state/server"), async (original) => {
   };
 });
 
+vi.mock(import("../../lib/syntaxHighlighting"), async (original) => ({
+  ...(await original()),
+  getSyntaxHighlighterPromise: async () =>
+    ({
+      codeToHtml: (code: string) =>
+        Object.assign(document.createElement("pre"), { textContent: code }).outerHTML,
+    }) as never,
+}));
+
 const SHORT_SCRIPT =
   "export const meta = { name: 'repo-check' }\nagent('Run SCRIPTONLY with Bash')";
 const LONG_SCRIPT = [

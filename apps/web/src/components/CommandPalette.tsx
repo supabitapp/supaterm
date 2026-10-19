@@ -204,6 +204,7 @@ import {
   type CommandPaletteActionItem,
   type CommandPaletteOpenIntent,
   type CommandPaletteProject,
+  type CommandPaletteReturnContext,
   type CommandPaletteSubmenuItem,
   type CommandPaletteView,
   filterCommandPaletteGroups,
@@ -213,6 +214,8 @@ import {
   ITEM_ICON_CLASS,
   RECENT_THREAD_LIMIT,
   reduceCommandPaletteUiState,
+  createCommandPaletteSearchState,
+  reduceCommandPaletteSearchState,
   type SearchOverlayMode,
 } from "./CommandPalette.logic";
 import { orderItemsByPreferredIds, sortLogicalProjectsForSidebar } from "./Sidebar.logic";
@@ -519,6 +522,8 @@ export function CommandPalette({ children }: { children: ReactNode }) {
   const openAddProject = () => dispatch({ _tag: "OpenAddProject" });
   const openNewThreadIn = () => dispatch({ _tag: "OpenNewThreadIn" });
   const clearOpenIntent = () => dispatch({ _tag: "ClearOpenIntent" });
+  const openChildSearch = (mode: "files" | "content", context: CommandPaletteReturnContext) =>
+    dispatch({ _tag: "OpenChildSearch", mode, context });
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const { theme, themeHalves, resolvedTheme, appearanceMode, setAppearanceMode } = useTheme();
   const composerHandleRef = useRef<ChatComposerHandle | null>(null);
@@ -541,11 +546,11 @@ export function CommandPalette({ children }: { children: ReactNode }) {
       if (event.isComposing || event.key !== "Escape") return;
       event.preventDefault();
       event.stopPropagation();
-      toggleMode("command");
+      dispatch({ _tag: "BackToCommand" });
     };
     window.addEventListener("keydown", onEscapeKeyDown, true);
     return () => window.removeEventListener("keydown", onEscapeKeyDown, true);
-  }, [state.mode, state.open, toggleMode]);
+  }, [state.mode, state.open]);
 
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -652,7 +657,7 @@ export function CommandPalette({ children }: { children: ReactNode }) {
         onOpenChange={(open, eventDetails) => {
           if (!open && eventDetails.reason === "escape-key" && state.mode !== "command") {
             eventDetails.cancel();
-            toggleMode("command");
+            dispatch({ _tag: "BackToCommand" });
             return;
           }
           setOpen(open);
@@ -665,7 +670,8 @@ export function CommandPalette({ children }: { children: ReactNode }) {
           mode={state.mode}
           openIntent={state.openIntent}
           setOpen={setOpen}
-          openOverlayMode={toggleMode}
+          openChildSearch={openChildSearch}
+          initialContext={state.restoredSearch}
           clearOpenIntent={clearOpenIntent}
         />
       </CommandDialog>
@@ -677,7 +683,11 @@ function CommandPaletteDialog(props: {
   readonly mode: SearchOverlayMode;
   readonly openIntent: CommandPaletteOpenIntent | null;
   readonly setOpen: (open: boolean) => void;
-  readonly openOverlayMode: (mode: SearchOverlayMode) => void;
+  readonly openChildSearch: (
+    mode: "files" | "content",
+    context: CommandPaletteReturnContext,
+  ) => void;
+  readonly initialContext: CommandPaletteReturnContext | undefined;
   readonly clearOpenIntent: () => void;
 }) {
   const composerHandleRef = useComposerHandleContext();
@@ -696,7 +706,9 @@ function CommandPaletteDialog(props: {
       data-palette-mode={props.mode}
       data-testid="command-palette"
       finalFocus={() => {
-        composerHandleRef?.current?.focusAtEnd();
+        const composer = composerHandleRef?.current;
+        if (!composer) return true;
+        composer.focusAtEnd();
         return false;
       }}
       onBackdropPointerDown={() => {
@@ -711,7 +723,8 @@ function CommandPaletteDialog(props: {
         <OpenCommandPaletteDialog
           openIntent={props.openIntent}
           setOpen={props.setOpen}
-          openOverlayMode={props.openOverlayMode}
+          openChildSearch={props.openChildSearch}
+          initialContext={props.initialContext}
           clearOpenIntent={props.clearOpenIntent}
         />
       )}
@@ -722,16 +735,28 @@ function CommandPaletteDialog(props: {
 function OpenCommandPaletteDialog(props: {
   readonly openIntent: CommandPaletteOpenIntent | null;
   readonly setOpen: (open: boolean) => void;
-  readonly openOverlayMode: (mode: SearchOverlayMode) => void;
+  readonly openChildSearch: (
+    mode: "files" | "content",
+    context: CommandPaletteReturnContext,
+  ) => void;
+  readonly initialContext: CommandPaletteReturnContext | undefined;
   readonly clearOpenIntent: () => void;
 }) {
   const navigate = useNavigate();
   const pathname = useLocation({ select: (location) => location.pathname });
-  const { clearOpenIntent, openIntent, openOverlayMode, setOpen } = props;
-  const [query, setQuery] = useState(openIntent?.kind === "search" ? openIntent.query : "");
-  const [linkedThreadSearch, setLinkedThreadSearch] = useState(
-    openIntent?.kind === "search" ? openIntent : null,
+  const { clearOpenIntent, openIntent, openChildSearch, setOpen } = props;
+  const initialSearch = props.initialContext ?? {
+    query: openIntent?.kind === "search" ? openIntent.query : "",
+    linkedThreadSearch: openIntent?.kind === "search" ? openIntent : null,
+  };
+  const [searchState, dispatchSearch] = useReducer(
+    reduceCommandPaletteSearchState,
+    initialSearch.query,
+    createCommandPaletteSearchState,
   );
+  const { query, views: viewStack } = searchState;
+  const setQuery = (query: string) => dispatchSearch({ type: "query", query });
+  const [linkedThreadSearch, setLinkedThreadSearch] = useState(initialSearch.linkedThreadSearch);
   const deferredQuery = useDeferredValue(query);
   const isActionsOnly = deferredQuery.startsWith(">");
   const [highlightedItemValue, setHighlightedItemValue] = useState<string | null>(null);
@@ -855,8 +880,7 @@ function OpenCommandPaletteDialog(props: {
       );
     }),
   );
-  const [viewStack, setViewStack] = useState<CommandPaletteView[]>([]);
-  const currentView = viewStack.at(-1) ?? null;
+  const currentView = viewStack.at(-1)?.view ?? null;
   const environmentIds = environments
     .filter((environment) => environment.connection.phase === "connected")
     .map((environment) => environment.environmentId);
@@ -1310,16 +1334,8 @@ function OpenCommandPaletteDialog(props: {
   const recentThreadItems = allThreadItems.slice(0, RECENT_THREAD_LIMIT);
 
   const pushPaletteViewState = (view: CommandPaletteView): void => {
-    setViewStack((previousViews) => [
-      ...previousViews,
-      {
-        addonIcon: view.addonIcon,
-        groups: view.groups,
-        ...(view.initialQuery ? { initialQuery: view.initialQuery } : {}),
-      },
-    ]);
+    dispatchSearch({ type: "push", view });
     setHighlightedItemValue(null);
-    setQuery(view.initialQuery ?? "");
   };
   // Stable so the item builders that capture it during render never see the
   // highlight ref it writes.
@@ -1328,14 +1344,6 @@ function OpenCommandPaletteDialog(props: {
     highlightClearedRef.current = true;
     pushPaletteViewState(view);
   });
-
-  function pushView(item: CommandPaletteSubmenuItem): void {
-    pushPaletteView({
-      addonIcon: item.addonIcon,
-      groups: item.groups,
-      ...(item.initialQuery ? { initialQuery: item.initialQuery } : {}),
-    });
-  }
 
   function popView(): void {
     browseNavigation.invalidate();
@@ -1346,9 +1354,8 @@ function OpenCommandPaletteDialog(props: {
     } else if (newProjectFlow?.sourcesEnvironmentId) {
       setAddProjectEnvironmentId(newProjectFlow.sourcesEnvironmentId);
     }
-    setViewStack((previousViews) => previousViews.slice(0, -1));
+    dispatchSearch({ type: "back" });
     setHighlightedItemValue(null);
-    setQuery("");
   }
 
   function handleQueryChange(nextQuery: string): void {
@@ -1627,7 +1634,7 @@ function OpenCommandPaletteDialog(props: {
       setIsRemoteProjectLookingUp(false);
       setAddProjectCloneFlow(null);
       setNewProjectFlow(null);
-      setViewStack([]);
+      dispatchSearch({ type: "reset" });
       setLinkedThreadSearch(openIntent);
       setQuery(openIntent.query);
     } else if (openIntent.kind === "add-project") {
@@ -1668,7 +1675,7 @@ function OpenCommandPaletteDialog(props: {
     } else if (openIntent.kind === "new-thread-in") {
       setAddProjectCloneFlow(null);
       setNewProjectFlow(null);
-      setViewStack([]);
+      dispatchSearch({ type: "reset" });
       setQuery("");
       const currentPrefix =
         currentProjectEnvironmentId && currentProjectId
@@ -1694,7 +1701,7 @@ function OpenCommandPaletteDialog(props: {
       setIsRemoteProjectLookingUp(false);
       setAddProjectCloneFlow(null);
       setNewProjectFlow(null);
-      setViewStack([]);
+      dispatchSearch({ type: "reset" });
       pushPaletteViewState({
         addonIcon: <PaletteIcon className={ADDON_ICON_CLASS} />,
         groups: [{ value: "themes", label: "Change theme", items: [] }],
@@ -1958,7 +1965,7 @@ function OpenCommandPaletteDialog(props: {
     keepOpen: true,
     shortcutCommand: "filePicker.toggle",
     run: async () => {
-      openOverlayMode("files");
+      openChildSearch("files", { query, linkedThreadSearch });
     },
   });
 
@@ -1971,7 +1978,7 @@ function OpenCommandPaletteDialog(props: {
     keepOpen: true,
     shortcutCommand: "projectSearch.toggle",
     run: async () => {
-      openOverlayMode("content");
+      openChildSearch("content", { query, linkedThreadSearch });
     },
   });
 
@@ -2712,7 +2719,7 @@ function OpenCommandPaletteDialog(props: {
       return;
     }
     if (sourcesEnvironmentId !== null) {
-      setViewStack((previousViews) => previousViews.slice(0, -1));
+      dispatchSearch({ type: "back" });
     }
     popView();
     startAddProjectSourceSelection(environmentId);
@@ -3098,7 +3105,7 @@ function OpenCommandPaletteDialog(props: {
     }
 
     if (item.kind === "submenu") {
-      pushView(item);
+      pushPaletteView(item);
       return;
     }
 
@@ -3413,7 +3420,7 @@ function OpenCommandPaletteDialog(props: {
         </div>
       ) : null}
       {remoteProjectContext ? (
-        <div className="p-2 pb-0">
+        <div className="shrink-0 p-2 pb-0">
           <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">Repository</div>
           <div className="flex min-h-8 items-center gap-2 rounded-sm px-2 py-1.5">
             {remoteProjectContext.icon}

@@ -428,6 +428,14 @@ export function resolveDefaultBranchActionDialogCopy(input: {
   };
 }
 
+export function resolveFeatureBranchUnavailableReason(input: {
+  branchName: string;
+  hasWorkingTreeChanges: boolean;
+}): string | null {
+  if (input.hasWorkingTreeChanges) return null;
+  return `There are no changes to commit, so a feature branch can't be named. Create a branch yourself or continue on ${input.branchName}.`;
+}
+
 export function resolveThreadBranchUpdate(
   result: GitRunStackedActionResult,
 ): { branch: string } | null {

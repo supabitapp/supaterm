@@ -202,6 +202,8 @@ export function FontFamilyPicker({
               <LegendList<string>
                 ref={listRef}
                 data={items}
+
+                extraData={items}
                 keyExtractor={(item) => item}
                 renderItem={({ item, index }) => renderItem(item, index)}
                 estimatedItemSize={30}

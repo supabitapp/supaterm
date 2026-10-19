@@ -33,6 +33,7 @@ import {
   type OrchestratorMcpListScheduledTasksInput,
   type ProjectId,
   type OrchestratorMcpThreadDetail,
+  type OrchestratorMcpThreadPullRequest,
   type OrchestratorMcpThreadInterruptInput,
   type OrchestratorMcpThreadInterruptResult,
   type OrchestratorMcpThreadListInput,
@@ -57,6 +58,10 @@ import {
   ThreadId,
 } from "@supaterm/contracts";
 import { runRanAfter } from "@supaterm/shared/orchestrationV2ThreadError";
+import {
+  normalizeThreadPullRequestKey,
+  visibleThreadPullRequests,
+} from "@supaterm/shared/threadPullRequests";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
@@ -83,6 +88,7 @@ import * as ThreadManagementService from "../orchestration-v2/ThreadManagementSe
 import * as ThreadLaunchService from "../orchestration-v2/ThreadLaunchService.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import { isSnoozed } from "../orchestration-v2/ThreadDoneService.ts";
+import { userFacingDispatchErrorMessage } from "../orchestration-v2/UserFacingErrors.ts";
 import * as ProjectService from "../project/ProjectService.ts";
 import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
 import * as ScheduledTaskService from "../scheduledTasks/ScheduledTaskService.ts";
@@ -266,11 +272,16 @@ function providerConstraints(
     constraints.push("No V2 provider adapter is registered.");
   }
   if (provider === undefined) return constraints;
-  if (!provider.enabled) constraints.push("Provider instance is disabled.");
-  if (!provider.installed) constraints.push("Provider executable is not installed.");
+
   if (!isProviderAvailable(provider)) {
     constraints.push(provider.unavailableReason ?? "Provider driver is unavailable.");
   }
+  if (!provider.enabled) {
+    constraints.push("Provider instance is disabled.");
+
+    return constraints;
+  }
+  if (!provider.installed) constraints.push("Provider executable is not installed.");
   if (provider.status === "error" || provider.status === "disabled") {
     constraints.push(provider.message ?? `Provider status is ${provider.status}.`);
   }
@@ -682,6 +693,19 @@ function threadSnooze(
   };
 }
 
+function threadPullRequests(
+  links: OrchestrationV2ThreadShell["pullRequests"],
+): OrchestratorMcpThreadPullRequest[] {
+  return visibleThreadPullRequests(links ?? []).map((link) => ({
+    host: normalizeThreadPullRequestKey(link).host,
+    repository: link.repository,
+    number: link.number,
+    url: link.url,
+    source: link.source,
+    state: link.snapshot?.state ?? null,
+  }));
+}
+
 function listItemFromShell(
   shell: OrchestrationV2ThreadShell,
   nowMs: number,
@@ -698,6 +722,7 @@ function listItemFromShell(
     runtimeMode: shell.runtimeMode,
     interactionMode: shell.interactionMode,
     linkedPullRequest: shell.linkedPullRequest ?? null,
+    pullRequests: threadPullRequests(shell.pullRequests),
     ...threadDone(shell),
     ...threadSnooze(shell, nowMs),
     parentThreadId: shell.lineage.parentThreadId,
@@ -730,6 +755,7 @@ function threadDetail(
     runtimeMode: projection.thread.runtimeMode,
     interactionMode: projection.thread.interactionMode,
     linkedPullRequest: projection.thread.linkedPullRequest ?? null,
+    pullRequests: threadPullRequests(projection.thread.pullRequests),
     titleRegeneration:
       projection.thread.titleRegeneration === undefined ||
       projection.thread.titleRegeneration === null
@@ -1799,6 +1825,19 @@ const make = Effect.gen(function* () {
                 failure("invalid_request", "Unable to resolve the parent checkout commit."),
               ),
             );
+
+          if (parent.thread.worktreePath !== null) {
+            yield* gitDriver
+              .resolveCommit({ cwd: project.workspaceRoot, revision: base.commitSha })
+              .pipe(
+                Effect.mapError(() =>
+                  failure(
+                    "invalid_request",
+                    `Isolation "worktree" creates the child checkout in project "${project.title}" (${project.workspaceRoot}), which does not contain the parent checkout's commit. Use isolation "shared" to work in the parent's checkout.`,
+                  ),
+                ),
+              );
+          }
           workspaceStrategy = { type: "worktree", baseRef: base.commitSha, startFromOrigin: false };
         }
         // ThreadManagementService.dispatch is the chokepoint for this command
@@ -1998,6 +2037,29 @@ const make = Effect.gen(function* () {
                 ),
               ),
             );
+          const stopped = yield* threadManagement
+            .getThreadRecords(current.childThreadId, ["runs"])
+            .pipe(Effect.mapError(threadManagementFailure));
+          for (const run of stopped.runs) {
+            if (
+              run.status !== "queued" ||
+              (run.delegatedTaskId !== input.taskId && run.id !== current.childRunId)
+            )
+              continue;
+
+            yield* threadManagement
+              .dispatch({
+                type: "queued-run.cancel",
+                commandId: stableCommandId({
+                  scope,
+                  requestKey: key,
+                  operation: `cancel-task-queued-run:${run.id}`,
+                }),
+                threadId: current.childThreadId,
+                runId: run.id,
+              })
+              .pipe(Effect.mapError(threadManagementFailure));
+          }
         });
         // Checked above; a user raising one of these threads meanwhile is
         // caught again under that thread's lock, which leaves it running.
@@ -2034,7 +2096,12 @@ const make = Effect.gen(function* () {
         const child = yield* loadProjection(current.childThreadId);
         if (
           current.workState !== "waiting_for_children" &&
-          ThreadManagementService.latestActiveRun(child) === undefined
+          ThreadManagementService.latestActiveRun(child) === undefined &&
+          !child.runs.some(
+            (run) =>
+              run.status === "queued" &&
+              (run.delegatedTaskId === input.taskId || run.id === current.childRunId),
+          )
         ) {
           return yield* failure(
             "task_not_cancellable",
@@ -2382,7 +2449,7 @@ const make = Effect.gen(function* () {
                 ? threadManagementFailure(error)
                 : failure(
                     "orchestration_error",
-                    `Unable to send to thread ${input.threadId}: ${errorMessage(error)}`,
+                    `Unable to send to thread ${input.threadId}: ${userFacingDispatchErrorMessage(error) ?? errorMessage(error)}`,
                   ),
             ),
           );

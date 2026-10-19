@@ -2,6 +2,7 @@ import { sourceControlClients } from "@supaterm/client-runtime/source-control-cl
 import * as Schema from "effect/Schema";
 
 import {
+  GitCommandError,
   PullRequestDetail,
   PullRequestOperationError,
   pullRequestActionAllowed,
@@ -1099,6 +1100,20 @@ export function readableFailure(failure: unknown, hint: string): string {
   return bounded;
 }
 
+const isGitCommandError = Schema.is(GitCommandError);
+
+export function checkoutFailureDescription(failure: unknown): string {
+  const description = isGitCommandError(failure)
+    ? failure.reason === undefined
+      ? failure.detail
+      : `${failure.detail} (${failure.reason})`
+    : failure;
+  return readableFailure(
+    description,
+    "Check that the branch still exists and is not checked out elsewhere, then try again.",
+  );
+}
+
 export function resolveBaseFreshness(detail: {
   readonly state: PullRequestState;
   readonly mergeability: PullRequestMergeability;
@@ -1155,7 +1170,7 @@ export function canDeletePullRequestBranch(
   );
 }
 
-type SnapshotStorage = Pick<Storage, "getItem" | "setItem">;
+type SnapshotStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 export function resolvePullRequestReferenceHost(
   reference: PullRequestRef,
@@ -1206,17 +1221,36 @@ export function readPullRequestDetailSnapshot(
   }
 }
 
+const PULL_REQUEST_DETAIL_SNAPSHOT_INDEX_KEY = "supaterm.pullRequests.recentDetails";
+const PULL_REQUEST_DETAIL_SNAPSHOT_LIMIT = 20;
+
+function readPullRequestDetailSnapshotIndex(storage: SnapshotStorage): string[] {
+  try {
+    const keys: unknown = JSON.parse(
+      storage.getItem(PULL_REQUEST_DETAIL_SNAPSHOT_INDEX_KEY) ?? "[]",
+    );
+    return Array.isArray(keys) ? keys.filter((key): key is string => typeof key === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 export function writePullRequestDetailSnapshot(
   storage: SnapshotStorage | undefined,
   environmentId: string,
   reference: PullRequestDetailSnapshotRef,
   detail: PullRequestDetail,
 ): void {
+  if (!storage) return;
   try {
-    storage?.setItem(
-      pullRequestDetailSnapshotKey(environmentId, reference),
-      JSON.stringify(detail),
-    );
+    const key = pullRequestDetailSnapshotKey(environmentId, reference);
+    const recent = readPullRequestDetailSnapshotIndex(storage).filter((entry) => entry !== key);
+    recent.push(key);
+    for (const evicted of recent.splice(0, recent.length - PULL_REQUEST_DETAIL_SNAPSHOT_LIMIT)) {
+      storage.removeItem(evicted);
+    }
+    storage.setItem(PULL_REQUEST_DETAIL_SNAPSHOT_INDEX_KEY, JSON.stringify(recent));
+    storage.setItem(key, JSON.stringify(detail));
   } catch {}
 }
 

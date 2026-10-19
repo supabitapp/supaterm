@@ -14,6 +14,22 @@ interface DestinationCompileContext {
   sliceSerialize(token: DestinationToken): string;
 }
 
+interface EscapeCompileContext {
+  readonly stack: ReadonlyArray<{
+    readonly type: string;
+    children?: Array<{ type: string; value?: string }>;
+  }>;
+}
+
+function keepWindowsPathEscape(this: EscapeCompileContext) {
+  const text = this.stack.at(-1)?.children?.at(-1);
+  if (text?.type !== "text" || text.value === undefined) return;
+  const before = text.value.slice(0, -1);
+  if (/(?:^|\W)[A-Za-z]:(?:[\\/]\S*)?$/.test(before)) {
+    text.value = `${before}\\${text.value.slice(-1)}`;
+  }
+}
+
 export function remarkKeepWindowsPathDestinations(
   this: Processor,
   capture?: (
@@ -38,6 +54,7 @@ export function remarkKeepWindowsPathDestinations(
     exit: {
       resourceDestinationString: keepDestination,
       definitionDestinationString: keepDestination,
+      characterEscape: keepWindowsPathEscape,
     },
   });
 }

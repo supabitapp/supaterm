@@ -1,8 +1,8 @@
+import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { useAtomValue } from "@effect/atom-react";
 import { AuthOrchestrationOperateScope, type EnvironmentId } from "@supaterm/contracts";
-import { Atom } from "effect/reactivity";
+import { Atom, AsyncResult } from "effect/reactivity";
 import { useEffect, useRef } from "react";
-
 import { prepareTurnAttachments } from "../lib/attachmentUpload";
 import { retainComposerAttachmentFileForPreview } from "../lib/composerAttachmentPreviewRetention";
 import { isFileBackedComposerAttachment } from "../lib/composerImages";
@@ -18,19 +18,19 @@ import { useServerConfigs } from "./entities";
 import { flattenQueuedThreadMessages, threadOutboxManager } from "./thread-outbox";
 import { useThreadOutboxMessages } from "./use-thread-outbox";
 import {
+  ComposerDraftPersistenceError,
   composerDraftsAtom,
+  composerDraftUploadSourcesAtom,
   ensureComposerDraftsLoaded,
   flushComposerDrafts,
   setComposerDraftAttachmentUpload,
 } from "./use-composer-drafts";
 import { useRemoteConnectionStatus } from "./use-remote-environment-registry";
 import { readEnvironmentScope, useEnvironmentsWithScope } from "./session";
-
 export {
   composerAttachmentUploadBlockReason,
   composerAttachmentsStillUploading,
 } from "../lib/composerAttachmentUploadQueue";
-
 export const composerAttachmentUploadsAtom = Atom.make<
   Readonly<Record<string, ComposerAttachmentUploadState>>
 >({}).pipe(Atom.keepAlive);
@@ -38,7 +38,6 @@ const uploadStateAtom = Atom.family((key: string) =>
   Atom.map(composerAttachmentUploadsAtom, (states) => states[key]),
 );
 let uploadQueue: ReturnType<typeof createComposerAttachmentUploadQueue> | null = null;
-
 export function useComposerAttachmentUploadState(
   environmentId: EnvironmentId | undefined,
   attachmentId: string,
@@ -47,14 +46,12 @@ export function useComposerAttachmentUploadState(
     uploadStateAtom(environmentId ? composerAttachmentUploadKey(environmentId, attachmentId) : ""),
   );
 }
-
 export function retryComposerAttachmentUpload(environmentId: EnvironmentId, attachmentId: string) {
   if (!readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) return;
   uploadQueue?.retry(environmentId, attachmentId);
 }
-
 export function useComposerAttachmentUploadWorker() {
-  const drafts = useAtomValue(composerDraftsAtom);
+  const drafts = useAtomValue(composerDraftUploadSourcesAtom);
   const queuedMessages = useThreadOutboxMessages();
   const serverConfigs = useServerConfigs();
   const { connectedEnvironments } = useRemoteConnectionStatus();
@@ -63,7 +60,6 @@ export function useComposerAttachmentUploadWorker() {
     AuthOrchestrationOperateScope,
   );
   const queueRef = useRef<ReturnType<typeof createComposerAttachmentUploadQueue> | null>(null);
-
   useEffect(() => {
     ensureComposerDraftsLoaded();
     const queue = createComposerAttachmentUploadQueue({
@@ -72,8 +68,8 @@ export function useComposerAttachmentUploadWorker() {
         const release = isFileBackedComposerAttachment(attachment)
           ? retainComposerAttachmentFileForPreview(attachment)
           : undefined;
-        try {
-          const result = await prepareTurnAttachments({
+        const prepared = await settlePromise(() =>
+          prepareTurnAttachments({
             environmentId,
             attachments: [attachment],
             signal,
@@ -93,14 +89,19 @@ export function useComposerAttachmentUploadWorker() {
                 }
               }
               if (!retained) return "abandon";
-              await flushComposerDrafts();
+
+              await flushComposerDrafts().catch((error: unknown) => {
+                if (!(error instanceof ComposerDraftPersistenceError)) throw error;
+                console.warn("[composer-attachments] could not save the uploaded reference", error);
+              });
               return "persisted";
             },
-          });
-          return result.status === "ready";
-        } finally {
-          release?.();
-        }
+          }),
+        );
+        release?.();
+
+        if (AsyncResult.isFailure(prepared)) throw squashAtomCommandFailure(prepared);
+        return prepared.value.status === "ready";
       },
     });
     queueRef.current = queue;
@@ -111,7 +112,6 @@ export function useComposerAttachmentUploadWorker() {
       queueRef.current = null;
     };
   }, []);
-
   useEffect(() => {
     const queued = flattenQueuedThreadMessages(queuedMessages);
     const connected = new Set(
@@ -131,7 +131,10 @@ export function useComposerAttachmentUploadWorker() {
         .filter((attachment) =>
           canUploadComposerAttachment(attachment, serverConfigs.get(environmentId)),
         )
-        .map((attachment) => ({ environmentId, attachment }));
+        .map((attachment) => ({
+          environmentId,
+          attachment,
+        }));
     });
     queueRef.current?.sync(requests);
   }, [connectedEnvironments, drafts, operableEnvironments, queuedMessages, serverConfigs]);

@@ -26,7 +26,6 @@ import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff"
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
 import type { PullRequestStackState } from "./usePullRequestStack";
 import { PullRequestGlyph } from "./pullRequestGlyphs";
-
 export function PullRequestMergeControls(props: {
   readonly pr: PullRequestDetail;
   readonly params: PullRequestParams;
@@ -37,7 +36,9 @@ export function PullRequestMergeControls(props: {
   const permissions = usePullRequestPermissions(props.params, pr);
   const preferences = useAtomValue(mobilePreferencesAtom);
   const savePreferences = useAtomSet(updateMobilePreferencesAtom);
-  const runAction = useAtomCommand(composerPullRequests.runAction, { reportFailure: false });
+  const runAction = useAtomCommand(composerPullRequests.runAction, {
+    reportFailure: false,
+  });
   const refreshDetail = useAtomRefresh(composerPullRequests.detail(target));
   const refreshActivity = useAtomRefresh(composerPullRequests.activity(target));
   const [selectedMethod, setSelectedMethod] = useState<PullRequestMergeMethod | null>(null);
@@ -88,7 +89,6 @@ export function PullRequestMergeControls(props: {
     (autoAction === "disable-auto-merge" || (!stack.stack && canMergeSingle)) &&
     permissions.canWrite &&
     canPerformPullRequestAction(pr, autoAction);
-
   const perform = async (action: "merge" | "enable-auto-merge" | "disable-auto-merge") => {
     if (
       pending.current ||
@@ -98,47 +98,47 @@ export function PullRequestMergeControls(props: {
       return;
     pending.current = true;
     setBusy(true);
-    try {
-      const response = await runAction({
-        ...target,
-        input: {
-          ...target.input,
-          action,
-          ...(action === "merge" && method && stack.stack && scope
+    const response = await runAction({
+      ...target,
+      input: {
+        ...target.input,
+        action,
+        ...(action === "merge" && method && stack.stack && scope
+          ? {
+              stackNumber: stack.stack.number,
+              expectedStackHeads: scope.heads,
+              mergeMethod: method,
+            }
+          : action === "merge" && method
             ? {
-                stackNumber: stack.stack.number,
-                expectedStackHeads: scope.heads,
-                mergeMethod: method,
+                resolveMergeMethod: (fresh) => {
+                  if (
+                    !canPerformPullRequestAction(fresh, "merge") ||
+                    !allowedMergeMethods(fresh).includes(method)
+                  )
+                    throw new Error("The pull request changed. Refresh before merging.");
+                  return method;
+                },
               }
-            : action === "merge" && method
+            : action === "enable-auto-merge" && method
               ? {
-                  resolveMergeMethod: (fresh) => {
-                    if (
-                      !canPerformPullRequestAction(fresh, "merge") ||
-                      !allowedMergeMethods(fresh).includes(method)
-                    )
-                      throw new Error("The pull request changed. Refresh before merging.");
-                    return method;
-                  },
+                  mergeMethod: method,
                 }
-              : action === "enable-auto-merge" && method
-                ? { mergeMethod: method }
-                : {}),
-        },
-      });
-      if (response._tag === "Failure") throw squashAtomCommandFailure(response);
-    } catch (cause) {
+              : {}),
+      },
+    });
+    // A stack can partly merge before the provider reports a failure.
+    refreshDetail();
+    refreshActivity();
+    stack.refresh();
+    pending.current = false;
+    setBusy(false);
+    if (AsyncResult.isFailure(response)) {
+      const cause = squashAtomCommandFailure(response);
       Dialog.alert(
         "Couldn't complete the merge action",
         cause instanceof Error ? cause.message : "Try again.",
       );
-    } finally {
-      // A stack can partly merge before the provider reports a failure.
-      refreshDetail();
-      refreshActivity();
-      stack.refresh();
-      pending.current = false;
-      setBusy(false);
     }
   };
   const confirm = (action: "merge" | "enable-auto-merge" | "disable-auto-merge") => {
@@ -159,7 +159,10 @@ export function PullRequestMergeControls(props: {
             ? "Stop the provider from automatically merging this pull request."
             : `Merge #${pr.number} into ${pr.baseBranch} using ${method}.`;
     Dialog.alert(title, message, [
-      { text: "Cancel", style: "cancel" },
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
       {
         text: action === "merge" ? label : title.replace("?", ""),
         onPress: () => void perform(action),
@@ -192,7 +195,10 @@ export function PullRequestMergeControls(props: {
             accessibilityLabel={
               scope ? `${label}, ${scope.layers.length} stack layers through #${pr.number}` : label
             }
-            accessibilityState={{ disabled: !canMerge, busy: busy || checkingStack }}
+            accessibilityState={{
+              disabled: !canMerge,
+              busy: busy || checkingStack,
+            }}
             disabled={!canMerge}
             onPress={() => confirm("merge")}
             className="min-h-11 min-w-0 flex-1 flex-row items-center justify-center gap-2 px-3 py-2 active:opacity-70"
@@ -223,7 +229,9 @@ export function PullRequestMergeControls(props: {
                 id,
                 title: MERGE_METHODS[id].title,
                 state: id === method ? ("on" as const) : ("off" as const),
-                attributes: { disabled: busy },
+                attributes: {
+                  disabled: busy,
+                },
               })),
               ...(canAutoMerge
                 ? [
@@ -239,7 +247,9 @@ export function PullRequestMergeControls(props: {
               const selected = methods.find((id) => id === nativeEvent.event);
               if (selected) {
                 setSelectedMethod(selected);
-                savePreferences({ pullRequestMergeMethod: selected });
+                savePreferences({
+                  pullRequestMergeMethod: selected,
+                });
               } else if (nativeEvent.event === autoAction && canAutoMerge) confirm(autoAction);
             }}
           >

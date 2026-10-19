@@ -114,13 +114,17 @@ export function getProviderVersionAdvisoryPresentation(
   ) {
     const targetVersion = compatibility.recommendedVersion;
     const recommendation = getProviderVersionLabel(targetVersion) ?? compatibility.recommendedRange;
+
+    const isAlreadyLatest = advisory?.status === "current";
     return {
       title: COMPATIBILITY_TITLES[compatibility.status],
       detail:
         compatibility.message ??
         (recommendation ? `Use ${recommendation} for full support.` : "Update for full support."),
       updateCommand:
-        targetVersion || latestIsIncompatible ? null : (advisory?.updateCommand ?? null),
+        targetVersion || latestIsIncompatible || isAlreadyLatest
+          ? null
+          : (advisory?.updateCommand ?? null),
       emphasis: compatibility.status === "graceful" ? "normal" : "strong",
       targetVersion,
     };

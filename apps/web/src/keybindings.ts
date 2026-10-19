@@ -2,6 +2,7 @@ import {
   type KeybindingCommand,
   type KeybindingShortcut,
   type KeybindingWhenNode,
+  type ResolvedKeybindingRule,
   MODEL_PICKER_JUMP_KEYBINDING_COMMANDS,
   type ResolvedKeybindingsConfig,
   THREAD_JUMP_KEYBINDING_COMMANDS,
@@ -104,6 +105,24 @@ export function shortcutConflictKey(
   ].join("|");
 }
 
+function shortcutForContext(binding: ResolvedKeybindingRule, context: ShortcutMatchContext) {
+  const shortcut = binding.shortcut;
+
+  if (
+    context.composerRequiresModifier &&
+    binding.command === "composer.sendAlternate" &&
+    shortcut.key === "enter" &&
+    shortcut.modKey &&
+    !shortcut.metaKey &&
+    !shortcut.ctrlKey &&
+    !shortcut.altKey &&
+    !shortcut.shiftKey
+  ) {
+    return { ...shortcut, shiftKey: true };
+  }
+  return shortcut;
+}
+
 export function effectiveShortcutsForCommand(
   keybindings: ResolvedKeybindingsConfig,
   command: KeybindingCommand,
@@ -119,14 +138,15 @@ export function effectiveShortcutsForCommand(
     if (!binding) continue;
     if (!matchesWhenClause(binding.whenAst, context)) continue;
 
-    const conflictKey = shortcutConflictKey(binding.shortcut, platform);
+    const shortcut = shortcutForContext(binding, context);
+    const conflictKey = shortcutConflictKey(shortcut, platform);
     if (claimedShortcuts.has(conflictKey)) {
       continue;
     }
 
     claimedShortcuts.add(conflictKey);
     if (binding.command === command) {
-      effective.push(binding.shortcut);
+      effective.push(shortcut);
     }
   }
 
@@ -162,7 +182,7 @@ export function resolveShortcutCommand(
     const binding = keybindings[index];
     if (!binding) continue;
     if (!matchesWhenClause(binding.whenAst, context)) continue;
-    if (!matchesKeybindingShortcut(event, binding.shortcut, platform)) continue;
+    if (!matchesKeybindingShortcut(event, shortcutForContext(binding, context), platform)) continue;
     return binding.command;
   }
   return null;

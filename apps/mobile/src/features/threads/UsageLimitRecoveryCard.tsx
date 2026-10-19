@@ -1,4 +1,5 @@
 import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
+import { AsyncResult } from "effect/reactivity";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import type { EnvironmentId } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
@@ -7,7 +8,6 @@ import { Pressable, View } from "react-native";
 import { AppText as Text } from "../../components/ui/AppText";
 import { threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
-
 export function UsageLimitRecoveryCard({
   thread,
   environmentId,
@@ -32,6 +32,23 @@ export function UsageLimitRecoveryCard({
   const canSchedule =
     resetAt !== null &&
     Date.parse(resetAt) > Date.parse(thread.latestRun?.completedAt ?? thread.updatedAt);
+
+  const resetAtMs = resetAt === null ? null : Date.parse(resetAt);
+  const [resetPassedFor, setResetPassedFor] = useState<number | null>(null);
+  const resetPassed = resetAtMs !== null && resetPassedFor === resetAtMs;
+  useEffect(() => {
+    if (resetAtMs === null || Number.isNaN(resetAtMs)) return;
+    const flip = () => setResetPassedFor(resetAtMs);
+    const delay = resetAtMs - Date.now();
+    if (delay <= 0) {
+      flip();
+      return;
+    }
+
+    if (delay > 2_147_483_647) return;
+    const timer = setTimeout(flip, delay);
+    return () => clearTimeout(timer);
+  }, [resetAtMs]);
   const runId = thread.latestRun?.runId;
   const recovery = thread.limitRecovery;
   const scheduled =
@@ -57,23 +74,27 @@ export function UsageLimitRecoveryCard({
     }
     setPending(true);
     setError(null);
-    try {
-      const result = await updateMetadata({
-        environmentId,
-        input: {
-          threadId: thread.id,
-          limitRecovery: {
-            runId,
-            resetAt,
-            ...(action === "resume" ? { autoResume: !scheduled } : { snooze: !snoozed }),
-          },
+    const result = await updateMetadata({
+      environmentId,
+      input: {
+        threadId: thread.id,
+        limitRecovery: {
+          runId,
+          resetAt,
+          ...(action === "resume"
+            ? {
+                autoResume: !scheduled,
+              }
+            : {
+                snooze: !snoozed,
+              }),
         },
-      });
-      if (result._tag === "Failure") throw squashAtomCommandFailure(result);
-    } catch (cause) {
+      },
+    });
+    setPending(false);
+    if (AsyncResult.isFailure(result)) {
+      const cause = squashAtomCommandFailure(result);
       setError(cause instanceof Error ? cause.message : "Could not change limit recovery.");
-    } finally {
-      setPending(false);
     }
   }
   return (
@@ -97,7 +118,7 @@ export function UsageLimitRecoveryCard({
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            disabled={pending || (!snoozed && Date.parse(resetAt!) <= nowMs)}
+            disabled={pending || (!snoozed && resetPassed)}
             onPress={() => void toggle("snooze")}
             className="self-start rounded-lg bg-subtle px-3 py-2 active:opacity-70"
           >

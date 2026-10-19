@@ -16,7 +16,7 @@ export interface ProbedOpenCode {
   readonly version: string;
 }
 
-const OPENCODE_VERSION_PROBE_TIMEOUT = "4 seconds";
+const OPENCODE_VERSION_PROBE_TIMEOUT = "10 seconds";
 const OPENCODE_SERVER_PROBE_TIMEOUT = "5 seconds";
 // 2.x's own CLI decodes `{version, pid}` from `/api/info`; requiring both keeps unrelated JSON out.
 const decodeApiInfo = Schema.decodeUnknownOption(

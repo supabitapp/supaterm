@@ -171,12 +171,13 @@ import {
   useThreadShell,
 } from "../state/entities";
 import { useSidebarThreadNavigation } from "../hooks/useSidebarThreadNavigation";
+import { useNowSecond } from "../hooks/useNowSecond";
+import { environmentPresentations } from "../state/presentation";
 import { primaryServerKeybindingsAtom } from "../state/server";
 import { environmentProjects } from "../state/projects";
 import { vcsEnvironment } from "../state/vcs";
 import { threadEnvironment } from "../state/threads";
 import { useEnvironmentQuery } from "../state/query";
-import { environmentPresentations } from "../state/presentation";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { readEnvironmentScope, useEnvironmentScope } from "../state/session";
 import { buildThreadRouteParams, resolveActiveThreadRouteRef } from "../threadRoutes";
@@ -215,6 +216,7 @@ import {
   resolveSidebarDropVerb,
   resolveSidebarThreadSection,
   resolveSidebarRowAccessibility,
+  resolveSidebarRowThreadId,
   type SidebarDropVerb,
   type SidebarSweepAction,
   resolveSidebarThreadStatus,
@@ -306,6 +308,7 @@ type SidebarProviderEntry = Pick<
   ProviderInstanceEntry,
   | "instanceId"
   | "driverKind"
+  | "enabled"
   | "displayName"
   | "accentColor"
   | "acpRegistryAgentId"
@@ -323,6 +326,7 @@ function sameSidebarProviderEntries(
     if (
       other === undefined ||
       other.driverKind !== entry.driverKind ||
+      other.enabled !== entry.enabled ||
       other.displayName !== entry.displayName ||
       other.accentColor !== entry.accentColor ||
       other.acpRegistryAgentId !== entry.acpRegistryAgentId ||
@@ -459,13 +463,26 @@ function useSidebarThreads(input: {
   readonly scopedProjectKeys: ReadonlySet<string> | null;
   readonly serverConfigs: ReadonlyMap<EnvironmentId, EnvironmentServerConfig>;
   readonly optimisticDrop: SidebarOptimisticDrop | null;
-  readonly routeThreadKey: string | null;
+  readonly routeThreadRef: ScopedThreadRef | null;
   readonly dragging: boolean;
 }) {
-  const { projectScopeKey, scopedProjectKeys, serverConfigs, optimisticDrop, routeThreadKey } =
+  const { projectScopeKey, scopedProjectKeys, serverConfigs, optimisticDrop, routeThreadRef } =
     input;
   const threads = useSidebarThreadShells();
   const serverThreadRefs = useThreadRefs();
+  const routeRowThreadKey =
+    routeThreadRef === null
+      ? null
+      : scopedThreadKey(
+          scopeThreadRef(
+            routeThreadRef.environmentId,
+            resolveSidebarRowThreadId(
+              routeThreadRef.threadId,
+              routeThreadRef.environmentId,
+              threads,
+            ),
+          ),
+        );
   const nowMinute = useNowMinute();
   // Snooze wake times are second-precise, so classifying with the quantized
   // minute would hold a woken thread on the shelf for up to a minute. The
@@ -533,30 +550,30 @@ function useSidebarThreads(input: {
     // The open thread must never hide under "Show more": navigating into a
     // deep done thread (search, deep link) pulls its row into the visible
     // tail so the highlight and the reopen affordance stay reachable.
-    if (routeThreadKey !== null) {
+    if (routeRowThreadKey !== null) {
       const routeThread = doneThreads
         .slice(doneVisibleCount)
-        .find((thread) => threadShellKey(thread) === routeThreadKey);
+        .find((thread) => threadShellKey(thread) === routeRowThreadKey);
       if (routeThread !== undefined) visible.push(routeThread);
     }
     return visible;
   })();
   const renderedDoneThreads = doneShelfExpanded
     ? visibleDoneThreads
-    : routeThreadOnly(visibleDoneThreads, routeThreadKey);
+    : routeThreadOnly(visibleDoneThreads, routeRowThreadKey);
   const visibleSnoozedThreads = snoozedShelfExpanded
     ? snoozedThreads
-    : routeThreadOnly(snoozedThreads, routeThreadKey);
+    : routeThreadOnly(snoozedThreads, routeRowThreadKey);
   // Sending a message folds the open thread into the Working shelf, and its
   // row must stay visible there.
   const visibleWorkingThreads = workingShelfExpanded
     ? workingThreads
-    : routeThreadOnly(workingThreads, routeThreadKey);
+    : routeThreadOnly(workingThreads, routeRowThreadKey);
   // Dragging exposes the full saved pin order without changing the preference.
   const pinnedShelfVisible = pinnedShelfExpanded || input.dragging;
   const visiblePinnedThreads = pinnedShelfVisible
     ? pinnedThreads
-    : routeThreadOnly(pinnedThreads, routeThreadKey);
+    : routeThreadOnly(pinnedThreads, routeRowThreadKey);
   const orderedThreads = [
     ...visiblePinnedThreads,
     ...activeThreads,
@@ -575,6 +592,7 @@ function useSidebarThreads(input: {
     for (const thread of list) sectionByThreadKey.set(threadShellKey(thread), section);
   }
   return {
+    routeRowThreadKey,
     ...partition,
     threads,
     serverThreadKeys,
@@ -879,16 +897,17 @@ function SidebarRelativeTime({
 }
 
 // The elapsed label ticks independently so the row and its queries stay idle.
-function WorkingDuration({ startedAt }: { startedAt: string | null }) {
-  const startedMs = startedAt === null ? Number.NaN : Date.parse(startedAt);
-  const [nowMs, setNowMs] = useState(() => Date.now());
-  useEffect(() => {
-    if (!Number.isFinite(startedMs)) return;
-    const timer = window.setInterval(() => setNowMs(Date.now()), 1_000);
-    return () => window.clearInterval(timer);
-  }, [startedMs]);
-  if (!Number.isFinite(startedMs)) return null;
-  return <span className="tabular-nums">{formatWorkingDurationLabel(nowMs - startedMs)}</span>;
+function WorkingDuration(props: { startedAt: string | null }) {
+  const startedMs = props.startedAt !== null ? Date.parse(props.startedAt) : Number.NaN;
+  if (Number.isNaN(startedMs)) return null;
+  return <WorkingDurationLabel startedMs={startedMs} />;
+}
+
+function WorkingDurationLabel(props: { startedMs: number }) {
+  const nowMs = useNowSecond();
+  return (
+    <span className="tabular-nums">{formatWorkingDurationLabel(nowMs - props.startedMs)}</span>
+  );
 }
 
 function terminalProcessLabel(count: number): string {
@@ -1618,6 +1637,7 @@ type SidebarThreadRowProps = {
   // The pin and mark-done shortcuts act on the active thread, so only its row receives them.
   pinShortcut: string | null;
   doneShortcut: string | null;
+  isRouteThread: boolean;
   openPullRequestsInRightPanel: boolean;
   jumpLabel: string | null;
   currentEnvironmentId: string | null;
@@ -1700,7 +1720,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   });
   const terminalStatus = terminalStatusFromRunningIds(runningTerminalIds);
   const terminalProcessCount = runningTerminalIds.length;
-  const hasUnsentDraft = useThreadHasUnsentDraft(threadRef) && !props.isActive;
+  const hasUnsentDraft = useThreadHasUnsentDraft(threadRef) && !props.isRouteThread;
   const handleDiscardDraftClick = (event: ReactMouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
@@ -2025,7 +2045,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     if (!url) return;
     const showInRightPanel = targetUrl !== undefined || openPullRequestsInRightPanel;
     const openedInRightPanel = openPrLink(event, url, showInRightPanel ? threadRef : undefined);
-    if (openedInRightPanel && showInRightPanel && !props.isActive) {
+    if (openedInRightPanel && showInRightPanel && !props.isRouteThread) {
       onThreadActivate(threadRef);
     }
   };
@@ -2143,7 +2163,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const prBadgeShape = resolveThreadPullRequestBadge(thread.pullRequests);
   const handlePrListClick = () => {
     useRightPanelStore.getState().open(threadRef, "pull-requests");
-    if (!props.isActive) onThreadActivate(threadRef);
+    if (!props.isRouteThread) onThreadActivate(threadRef);
   };
   const prBadge =
     prBadgeShape?.kind === "stack" || pr || currentLinkedPr ? (
@@ -2910,12 +2930,13 @@ export default function Sidebar() {
     sectionByThreadKey,
     pinnedKeys,
     pinnedKeysById,
+    routeRowThreadKey,
   } = useSidebarThreads({
     projectScopeKey,
     scopedProjectKeys,
     serverConfigs,
     optimisticDrop,
-    routeThreadKey,
+    routeThreadRef,
     // A Working row only drags out as chat context, so it never reveals the pin order.
     dragging: dragState !== null && dragState.activeSection !== "working",
   });
@@ -3486,7 +3507,7 @@ export default function Sidebar() {
     ...(draggedActiveOrder === undefined ? {} : { activeOrder: draggedActiveOrder }),
     doneExpanded: doneShelfExpanded,
     doneVisibleCount,
-    routeThreadKey,
+    routeThreadKey: routeRowThreadKey,
     snoozedThreadCount: snoozedThreads.length,
   });
   const draggedThreadKey = dragState?.activeKey;
@@ -4284,7 +4305,7 @@ export default function Sidebar() {
         navigateToThreadKey(
           resolveAdjacentThreadId({
             threadIds: orderedThreadKeys,
-            currentThreadId: routeThreadKey,
+            currentThreadId: routeRowThreadKey,
             direction: traversalDirection,
           }),
         );
@@ -4300,8 +4321,8 @@ export default function Sidebar() {
     keybindings,
     navigateToThread,
     orderedThreadKeys,
+    routeRowThreadKey,
     routeTerminalOpen,
-    routeThreadKey,
     threadByKey,
   ]);
 
@@ -4524,7 +4545,7 @@ export default function Sidebar() {
                       const threadKey = scopedThreadKey(
                         scopeThreadRef(thread.environmentId, thread.id),
                       );
-                      const isActive = routeThreadKey === threadKey;
+                      const isActive = routeRowThreadKey === threadKey;
                       return (
                         <SortableThreadRow
                           key={threadKey}
@@ -4570,8 +4591,9 @@ export default function Sidebar() {
                           // rows resolve to null on their own.
                           wokeAt={threadWokeAt(thread, { now: snoozeNow })}
                           isActive={isActive}
-                          pinShortcut={isActive ? pinShortcut : null}
-                          doneShortcut={isActive ? doneShortcut : null}
+                          isRouteThread={routeThreadKey === threadKey}
+                          pinShortcut={routeThreadKey === threadKey ? pinShortcut : null}
+                          doneShortcut={routeThreadKey === threadKey ? doneShortcut : null}
                           openPullRequestsInRightPanel={routeThreadRef !== null}
                           jumpLabel={showJumpHints ? (jumpLabelByKey.get(threadKey) ?? null) : null}
                           currentEnvironmentId={primaryEnvironmentId}

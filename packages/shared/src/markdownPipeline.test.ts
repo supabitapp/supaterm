@@ -27,3 +27,33 @@ it("preserves in-app thread links through the shared Markdown sanitizer", () => 
   });
   expect(JSON.stringify(tree)).not.toContain("javascript:");
 });
+
+it("keeps backslashes that CommonMark would read as escapes in prose Windows paths", () => {
+  const processor = unified()
+    .use(remarkParse)
+    .use(CHAT_MARKDOWN_REMARK_PLUGINS)
+    .use(remarkRehype, { allowDangerousHtml: true })
+    .use(CHAT_MARKDOWN_REHYPE_PLUGINS);
+  type Node = { type: string; value?: string; tagName?: string; children?: Node[] };
+  const text = (node: Node): string =>
+    node.type === "text"
+      ? (node.value ?? "")
+      : node.tagName === "code"
+        ? `<code>${(node.children ?? []).map(text).join("")}</code>`
+        : (node.children ?? []).map(text).join("");
+  const render = (markdown: string) => text(processor.runSync(processor.parse(markdown)) as Node);
+
+  expect(
+    render(
+      String.raw`Saved to C:\Users\me\.supaterm\_build and (C:\.scratch) and C:/work\.config.`,
+    ),
+  ).toBe(String.raw`Saved to C:\Users\me\.supaterm\_build and (C:\.scratch) and C:/work\.config.`);
+
+  expect(render(String.raw`Escaped C:\\Users\\me`)).toBe(String.raw`Escaped C:\\Users\\me`);
+  expect(render(String.raw`See C:\x and \*this\* and Note:\*that\*.`)).toBe(
+    String.raw`See C:\x and *this* and Note:*that*.`,
+  );
+  expect(render(String.raw`${"`"}C:\me\.supaterm${"`"} and C:\me\.supaterm`)).toBe(
+    String.raw`<code>C:\me\.supaterm</code> and C:\me\.supaterm`,
+  );
+});

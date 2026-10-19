@@ -429,7 +429,7 @@ function ComposerCitationNodeView({ node, editor, getPos }: NodeViewProps) {
   return (
     <NodeViewWrapper
       as="span"
-      className="inline-flex min-w-0 max-w-full select-none"
+      className={cn(CHIP_NODE_SELECTION_CLASS_NAME, "min-w-0 max-w-full")}
       contentEditable={false}
       spellCheck={false}
       data-composer-citation-chip="true"
@@ -1276,9 +1276,19 @@ function ComposerPromptEditorTiptapInner(props: ComposerPromptEditorProps) {
           return handled;
         },
         handleTextInput: (view, from, to, text) => {
-          if (literalText || text.length !== 1) return false;
+          if (literalText || view.composing || text.length !== 1) return false;
           const closer = SURROUND_CLOSE[text];
-          if (!closer || from === to) return false;
+          const { selection } = view.state;
+
+          if (
+            !closer ||
+            !(selection instanceof TextSelection) ||
+            selection.empty ||
+            selection.from !== from ||
+            selection.to !== to
+          ) {
+            return false;
+          }
           // Never wrap chips or other atoms, and never wrap styled text: the
           // default replace keeps marks intact, wrapping would drop them.
           let touchesSpecial = false;

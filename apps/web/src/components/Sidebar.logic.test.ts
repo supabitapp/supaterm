@@ -22,6 +22,7 @@ import {
   hasUnseenCompletion,
   isContextMenuPointerDown,
   isSidebarSubagentThread,
+  resolveSidebarRowThreadId,
   isSidebarThreadWorking,
   isTrailingDoubleClick,
   orderItemsByPreferredIds,
@@ -58,12 +59,7 @@ import {
 } from "./Sidebar.logic";
 import { EnvironmentId, ProjectId, ProviderInstanceId, RunId, ThreadId } from "@supaterm/contracts";
 
-import {
-  DEFAULT_INTERACTION_MODE,
-  DEFAULT_RUNTIME_MODE,
-  type Project,
-  type Thread,
-} from "../types";
+import { DEFAULT_RUNTIME_MODE, type Project, type Thread } from "../types";
 import { makeThreadFixture, type ThreadFixtureOverrides } from "../test-fixtures";
 
 const localEnvironmentId = EnvironmentId.make("environment-local");
@@ -450,6 +446,46 @@ describe("sidebar thread lineage helpers", () => {
 
     expect(isSidebarSubagentThread(subagent)).toBe(true);
     expect(isSidebarSubagentThread(makeThreadFixture())).toBe(false);
+  });
+
+  it("maps an open subagent to its nearest visible ancestor's sidebar row", () => {
+    const environmentId = EnvironmentId.make("environment-row");
+    const otherEnvironmentId = EnvironmentId.make("environment-other");
+    const subagentOf = (id: string, parentId: ThreadId, environment = environmentId) =>
+      makeThreadFixture({
+        id: ThreadId.make(id),
+        environmentId: environment,
+        lineage: {
+          rootThreadId: parentId,
+          parentThreadId: parentId,
+          relationshipToParent: "subagent",
+        },
+      });
+    const root = makeThreadFixture({ id: ThreadId.make("thread-root"), environmentId });
+    const fork = makeThreadFixture({
+      id: ThreadId.make("thread-fork"),
+      environmentId,
+      lineage: {
+        rootThreadId: root.id,
+        parentThreadId: root.id,
+        relationshipToParent: "fork",
+      },
+    });
+    const child = subagentOf("thread-child", root.id);
+    const grandchild = subagentOf("thread-grandchild", child.id);
+    const forkChild = subagentOf("thread-fork-child", fork.id);
+    const orphan = subagentOf("thread-orphan", ThreadId.make("thread-missing"));
+    const elsewhere = subagentOf("thread-elsewhere", root.id, otherEnvironmentId);
+    const threads = [root, fork, child, grandchild, forkChild, orphan, elsewhere];
+
+    expect(resolveSidebarRowThreadId(child.id, environmentId, threads)).toBe(root.id);
+    expect(resolveSidebarRowThreadId(grandchild.id, environmentId, threads)).toBe(root.id);
+    expect(resolveSidebarRowThreadId(forkChild.id, environmentId, threads)).toBe(fork.id);
+    expect(resolveSidebarRowThreadId(elsewhere.id, otherEnvironmentId, threads)).toBe(elsewhere.id);
+    expect(resolveSidebarRowThreadId(orphan.id, environmentId, threads)).toBe(orphan.id);
+    const loopA = subagentOf("thread-loop-a", ThreadId.make("thread-loop-b"));
+    const loopB = subagentOf("thread-loop-b", loopA.id);
+    expect(resolveSidebarRowThreadId(loopA.id, environmentId, [loopA, loopB])).toBe(loopA.id);
   });
 
   it("resolves the parent thread for fork sidebar affordances", () => {
@@ -1289,9 +1325,76 @@ describe("resolveThreadStatusPill", () => {
       }),
     ).toMatchObject({ label: "Completed", pulse: false });
   });
+
+  it("shows failed, not completed, when the unseen run failed", () => {
+    expect(
+      resolveThreadStatusPill({
+        thread: {
+          ...baseThread,
+          latestRun: { ...makeLatestRun(), status: "failed" },
+          lastVisitedAt: "2026-03-09T10:04:00.000Z",
+          runtime: {
+            ...baseThread.runtime,
+            status: "failed",
+            activeRunId: null,
+            lastError: "Provider turn failed.",
+          },
+        },
+      }),
+    ).toMatchObject({ label: "Failed", pulse: false });
+  });
+
+  it("shows failed for a thread nobody has opened yet", () => {
+    expect(
+      resolveThreadStatusPill({
+        thread: {
+          ...baseThread,
+          latestRun: { ...makeLatestRun(), status: "failed" },
+          lastVisitedAt: null,
+          runtime: { ...baseThread.runtime, status: "failed", activeRunId: null },
+        },
+      }),
+    ).toMatchObject({ label: "Failed" });
+  });
+
+  it("shows failed, not plan ready, when a plan run proposed a plan and then failed", () => {
+    expect(
+      resolveThreadStatusPill({
+        thread: {
+          ...baseThread,
+          latestRun: { ...makeLatestRun(), status: "failed" },
+          lastVisitedAt: "2026-03-09T10:04:00.000Z",
+          runtime: { ...baseThread.runtime, status: "failed", activeRunId: null },
+        },
+      }),
+    ).toMatchObject({ label: "Failed" });
+  });
+
+  it("drops the failed pill once the failure has been seen", () => {
+    expect(
+      resolveThreadStatusPill({
+        thread: {
+          ...baseThread,
+          latestRun: { ...makeLatestRun(), status: "failed" },
+          lastVisitedAt: "2026-03-09T10:06:00.000Z",
+          runtime: { ...baseThread.runtime, status: "failed", activeRunId: null },
+        },
+      }),
+    ).toBeNull();
+  });
 });
 
 describe("resolveProjectStatusIndicator", () => {
+  it("ranks a failure above work in progress and completions", () => {
+    expect(
+      resolveProjectStatusIndicator([
+        { label: "Completed", colorClass: "", dotClass: "", pulse: false },
+        { label: "Working", colorClass: "", dotClass: "", pulse: true },
+        { label: "Failed", colorClass: "", dotClass: "", pulse: false },
+      ]),
+    ).toMatchObject({ label: "Failed" });
+  });
+
   it("returns null when no threads have a notable status", () => {
     expect(resolveProjectStatusIndicator([null, null])).toBeNull();
   });
@@ -1354,7 +1457,6 @@ function makeThread(overrides: ThreadFixtureOverrides = {}): Thread {
       ...overrides?.modelSelection,
     },
     runtimeMode: DEFAULT_RUNTIME_MODE,
-    interactionMode: DEFAULT_INTERACTION_MODE,
     runtime: null,
     messages: [],
     createdAt: "2026-03-09T10:00:00.000Z",
@@ -1975,10 +2077,10 @@ describe("Working shelf", () => {
   };
   const backgroundTask = { taskId: "bg-1", description: "Watch build", kind: "monitor" as const };
   const idle = {
+    interactionMode: "default" as const,
     hasActionableProposedPlan: false,
     hasPendingApprovals: false,
     hasPendingUserInput: false,
-    interactionMode: "default" as const,
     latestRun: makeLatestRun(),
     runtime: null,
   };

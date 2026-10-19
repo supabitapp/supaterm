@@ -1,5 +1,6 @@
 import { SourceControlProviderKind } from "@supaterm/contracts";
 import {
+  GitCommandError,
   ProjectId,
   PullRequestAction,
   type PullRequestCheck,
@@ -47,6 +48,7 @@ import {
   pullRequestCheckoutCommand,
   pullRequestFindingKey,
   pullRequestReviewOutcome,
+  checkoutFailureDescription,
   readableFailure,
   readPullRequestDetailSnapshot,
   resolveDisplayedPullRequestDetail,
@@ -1049,6 +1051,28 @@ describe("what to say when an action fails", () => {
     expect(readableFailure(undefined, hint)).toBe(hint);
   });
 
+  it("uses bounded git diagnostics and falls back when checkout has no useful detail", () => {
+    const diagnostic = (detail: string, reason?: GitCommandError["reason"]) =>
+      new GitCommandError({
+        cwd: "/workspace",
+        operation: "GitVcsDriver.createWorktree",
+        command: "git worktree add",
+        detail,
+        reason,
+      });
+    expect(
+      checkoutFailureDescription(diagnostic("git worktree add failed", "path_already_exists")),
+    ).toBe("git worktree add failed (path_already_exists)");
+    const reason = "The worktree directory already exists. Choose another directory.";
+    expect(checkoutFailureDescription(diagnostic(reason))).toBe(reason);
+    expect(checkoutFailureDescription(diagnostic("x".repeat(900)))).toBe(`${"x".repeat(319)}…`);
+    for (const failure of [undefined, diagnostic(""), diagnostic("exited with code 1")]) {
+      expect(checkoutFailureDescription(failure)).toBe(
+        "Check that the branch still exists and is not checked out elsewhere, then try again.",
+      );
+    }
+  });
+
   it("bounds a host that answers with a page of output", () => {
     const long = readableFailure(new Error("x".repeat(900)), hint);
     expect(long.length).toBeLessThanOrEqual(320);
@@ -1809,8 +1833,36 @@ describe("cached pull request detail", () => {
     return {
       getItem: (key: string) => held.get(key) ?? null,
       setItem: (key: string, value: string) => void held.set(key, value),
+      removeItem: (key: string) => void held.delete(key),
+      size: () => held.size,
     };
   };
+
+  it("keeps only the 20 most recently saved pull requests", () => {
+    const storage = makeStorage();
+    const numbered = (number: number) => ({ ...reference, number });
+    for (let number = 1; number <= 21; number += 1) {
+      writePullRequestDetailSnapshot(storage, "env-1", numbered(number), detail({ number }));
+    }
+    expect(readPullRequestDetailSnapshot(storage, "env-1", numbered(1))).toBeNull();
+    expect(readPullRequestDetailSnapshot(storage, "env-1", numbered(2))?.number).toBe(2);
+    expect(readPullRequestDetailSnapshot(storage, "env-1", numbered(21))?.number).toBe(21);
+
+    expect(storage.size()).toBe(21);
+  });
+
+  it("saving a pull request again keeps it as the newest without growing the list", () => {
+    const storage = makeStorage();
+    const numbered = (number: number) => ({ ...reference, number });
+    for (let number = 1; number <= 20; number += 1) {
+      writePullRequestDetailSnapshot(storage, "env-1", numbered(number), detail({ number }));
+    }
+    writePullRequestDetailSnapshot(storage, "env-1", numbered(1), detail({ number: 1 }));
+    writePullRequestDetailSnapshot(storage, "env-1", numbered(21), detail({ number: 21 }));
+    expect(readPullRequestDetailSnapshot(storage, "env-1", numbered(1))?.number).toBe(1);
+    expect(readPullRequestDetailSnapshot(storage, "env-1", numbered(2))).toBeNull();
+    expect(storage.size()).toBe(21);
+  });
 
   it("hydrates the last title, author, and counts so a reopen does not ghost the tab", () => {
     const storage = makeStorage();

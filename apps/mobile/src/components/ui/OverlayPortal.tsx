@@ -8,6 +8,10 @@ type Entries = ReadonlyMap<number, ReactNode>;
 type Listener = (entries: Entries) => void;
 
 let nextKey = 0;
+
+function allocateKey() {
+  return nextKey++;
+}
 const entries = new Map<number, ReactNode>();
 const listeners = new Set<Listener>();
 
@@ -19,7 +23,7 @@ function emit() {
 }
 
 export function OverlayPortal(props: { readonly children: ReactNode }) {
-  const [key] = useState(() => nextKey++);
+  const [key] = useState(allocateKey);
 
   // No dependency array: re-project after every render so the host always
   // shows the current content (menus re-render while open — drill-in, theme).

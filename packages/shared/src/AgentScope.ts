@@ -15,6 +15,7 @@ export interface AgentScopeShape {
      * killed server left running before it resumes their sessions.
      */
     readonly survivesRestart?: boolean | undefined;
+    readonly shared?: boolean | undefined;
   }) => Effect.Effect<AgentScopeCommand>;
   readonly oomKilled: (threadId: string, sessionId?: string) => Effect.Effect<boolean>;
   /**

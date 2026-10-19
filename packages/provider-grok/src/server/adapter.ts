@@ -56,6 +56,7 @@ import {
 } from "./xaiAcpExtension.ts";
 import { mergeProviderInstanceEnvironment } from "@supaterm/provider-core/server/instanceEnvironment";
 import { acpPermissionDisposition } from "@supaterm/provider-acp/server/clientPolicy";
+import { sessionModelStateFromInitialize } from "@supaterm/provider-acp/server/runtimeModel";
 import * as AcpSessionRuntime from "@supaterm/provider-acp/server/AcpSessionRuntime";
 import * as ProviderEventLoggers from "@supaterm/provider-core/server/ProviderEventLoggers";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
@@ -186,9 +187,7 @@ const registerGrokAskUserQuestionExtensions = ({
       runtime.handleExtRequest(method, XAiAskUserQuestionRequest, (params, requestContext) => {
         const identity = extractXAiAskUserQuestionIdentity(params);
         const questions = extractXAiAskUserQuestions(params).map((question) => ({
-          id: question.id,
-          header: question.header,
-          question: question.question,
+          ...question,
           options: [...question.options],
         }));
         return requestUserInput(
@@ -249,6 +248,19 @@ export function makeGrokAcpAdapterFlavor(
     supportsImagePrompts: true,
     supportsCompaction: true,
     resolveModelId: (selection) => resolveGrokAcpBaseModelId(selection.model),
+    getModelContextWindow: (selection, session) => {
+      if (selection.instanceId !== options.instanceId) return undefined;
+      const modelId = resolveGrokAcpBaseModelId(selection.model);
+      const models =
+        session.sessionSetupResult.models ??
+        sessionModelStateFromInitialize(session.initializeResult);
+      const window = models?.availableModels.find((model) => model.modelId === modelId)?._meta
+        ?.totalContextTokens;
+
+      return typeof window === "number" && Number.isSafeInteger(window) && window > 0
+        ? window
+        : undefined;
+    },
     applyModelSelection: ({ runtime, startResult, modelSelection }) =>
       Effect.gen(function* () {
         const legacy = startResult.initializeResult.protocolVersion === 1;

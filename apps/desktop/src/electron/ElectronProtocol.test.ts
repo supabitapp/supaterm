@@ -308,6 +308,7 @@ describe("ElectronProtocol", () => {
     ]);
     assert.deepEqual(directives["media-src"], ["'self'", "supaterm:", "blob:", "http:", "https:"]);
     assert.deepEqual(directives["frame-src"], ["'self'", "blob:", "http:", "https:"]);
+    assert.deepEqual(directives["object-src"], ["'self'", "blob:", "http:", "https:"]);
     assert.deepEqual(directives["font-src"], ["'self'", "supaterm:", "data:"]);
   });
 });

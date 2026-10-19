@@ -1078,6 +1078,28 @@ describe("EnvironmentRegistry", () => {
     }),
   );
 
+  it.effect("does not expose a persisted environment as disconnected while it starts", () =>
+    Effect.gen(function* () {
+      const connectionStarted = yield* Deferred.make<void>();
+      const finishConnection = yield* Deferred.make<void>();
+      const harness = yield* makeHarness([TARGET], [], [], {
+        beforeSessionConnect: () =>
+          Deferred.succeed(connectionStarted, undefined).pipe(
+            Effect.andThen(Deferred.await(finishConnection)),
+          ),
+      });
+
+      yield* Effect.gen(function* () {
+        const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
+        expect((yield* registry.state(TARGET.environmentId)).phase).toBe("connecting");
+
+        yield* Deferred.await(connectionStarted);
+        expect((yield* registry.state(TARGET.environmentId)).phase).toBe("connecting");
+        yield* Deferred.succeed(finishConnection, undefined);
+      }).pipe(Effect.provide(harness.layer), Effect.scoped);
+    }),
+  );
+
   it.effect("exposes the current RPC generation to late query subscribers", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness([TARGET]);
@@ -1189,11 +1211,16 @@ describe("EnvironmentRegistry", () => {
     }),
   );
 
-  it.effect("keeps unsupported environments off until compatibility changes", () =>
+  it.effect("keeps unsupported learned routes off until compatibility changes", () =>
     Effect.gen(function* () {
-      const harness = yield* makeHarness([REMOTE_TARGET], [], [], {
-        initialDisabled: [REMOTE_TARGET.environmentId],
-      });
+      const harness = yield* makeHarness(
+        [REMOTE_TARGET],
+        [new BearerConnectionProfile({ ...remoteProfile(REMOTE_TARGET), learned: true })],
+        [],
+        {
+          initialDisabled: [REMOTE_TARGET.environmentId],
+        },
+      );
       yield* Effect.gen(function* () {
         const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
         yield* registry.start;
@@ -1293,6 +1320,87 @@ describe("EnvironmentRegistry", () => {
           Effect.ensuring(Effect.sync(finishClose)),
         );
       }
+    }),
+  );
+
+  it.effect.each([
+    { outcome: "connects after a server update", compatible: true, relayFirst: false },
+    { outcome: "connects with a preferred relay route", compatible: true, relayFirst: true },
+    { outcome: "blocks again if still incompatible", compatible: false, relayFirst: false },
+  ])("retrying an unsupported saved URL $outcome", ({ compatible, relayFirst }) =>
+    Effect.gen(function* () {
+      const environmentId = BEARER_TARGET.environmentId;
+      const error = new ConnectionBlockedError({
+        reason: "unsupported",
+        detail: "Update the server to use this client.",
+        serverUpdateRequired: true,
+      });
+      const profile = new BearerConnectionProfile({
+        ...BEARER_PROFILE,
+        ...(relayFirst ? { relayUrl: "wss://relay.example.test" } : {}),
+      });
+      const attempts = yield* Ref.make(0);
+      const retryStarted = yield* Deferred.make<void>();
+      const retryResult = yield* Deferred.make<ConnectionBlockedError | undefined>();
+      const harness = yield* makeHarness(
+        [BEARER_TARGET],
+        [profile],
+        [[BEARER_TARGET.connectionId, BEARER_CREDENTIAL]],
+        {
+          beforePrepareRoute: () =>
+            Effect.gen(function* () {
+              if ((yield* Ref.updateAndGet(attempts, (count) => count + 1)) === 1) return error;
+              yield* Deferred.succeed(retryStarted, undefined);
+              return yield* Deferred.await(retryResult);
+            }),
+        },
+      );
+      yield* Effect.gen(function* () {
+        const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
+        yield* registry.start;
+        const awaitDisabled = SubscriptionRef.changes(registry.entries).pipe(
+          Stream.filter((entries) => entries.get(environmentId)?.enabled === false),
+          Stream.take(1),
+          Stream.runDrain,
+        );
+        yield* awaitDisabled;
+        expect((yield* Ref.get(harness.storedDisabled)).has(environmentId)).toBe(true);
+        expect((yield* SubscriptionRef.get(registry.entries)).get(environmentId)).toMatchObject({
+          target: BEARER_TARGET,
+          enabled: false,
+          unsupportedReason: error.message,
+          serverUpdateRequired: true,
+        });
+        expect(yield* Ref.get(attempts)).toBe(1);
+
+        yield* registry.setEnabled(environmentId, true);
+        yield* Deferred.await(retryStarted);
+        const retrying = (yield* SubscriptionRef.get(registry.entries)).get(environmentId);
+        expect(retrying?.enabled).toBe(true);
+        expect(retrying?.unsupportedReason).toBeUndefined();
+        expect(retrying?.serverUpdateRequired).toBeUndefined();
+        expect((yield* Ref.get(harness.storedDisabled)).has(environmentId)).toBe(false);
+
+        yield* Deferred.succeed(retryResult, compatible ? undefined : error);
+        if (compatible) {
+          yield* awaitConnectionState(
+            registry,
+            environmentId,
+            (state) => state.phase === "connected",
+          );
+          expect(yield* Ref.get(harness.sessions)).toHaveLength(1);
+        } else {
+          yield* awaitDisabled;
+          expect((yield* SubscriptionRef.get(registry.entries)).get(environmentId)).toMatchObject({
+            enabled: false,
+            unsupportedReason: error.message,
+            serverUpdateRequired: true,
+          });
+          expect((yield* Ref.get(harness.storedDisabled)).has(environmentId)).toBe(true);
+          expect(yield* Ref.get(harness.sessions)).toHaveLength(0);
+        }
+        expect(yield* Ref.get(attempts)).toBe(2);
+      }).pipe(Effect.provide(harness.layer));
     }),
   );
 

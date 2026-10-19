@@ -42,8 +42,15 @@ export function DevicePanel(props: {
   const list = useAtomCommand(deviceEnvironment.list, { reportFailure: false });
   const open = useAtomCommand(deviceEnvironment.open);
   const close = useAtomCommand(deviceEnvironment.close);
-  const [operationError, setOperationError] = useState<string | null>(null);
-  const [pendingDevice, setPendingDevice] = useState<DeviceSummary | null>(null);
+
+  const scope = `${environmentId}\u0000${threadId}`;
+  const [operation, setOperation] = useState<{
+    readonly scope: string;
+    readonly pending: DeviceSummary | null;
+    readonly error: string | null;
+  } | null>(null);
+  const pendingDevice = operation?.scope === scope ? operation.pending : null;
+  const operationError = operation?.scope === scope ? operation.error : null;
   const pendingDeviceKey = pendingDevice ? deviceKey(pendingDevice) : null;
 
   const hostDisabled = state.hostStatus === "disabled";
@@ -70,11 +77,20 @@ export function DevicePanel(props: {
 
   const grouped = groupDevices(state);
 
+  const startOperation = (pending: DeviceSummary | null) => {
+    const started = { scope, pending, error: null };
+    setOperation(started);
+
+    return (error: string | null) =>
+      setOperation((current) =>
+        current === started ? { ...started, pending: null, error } : current,
+      );
+  };
+
   const selectDevice = async (value: string) => {
     const device = state.devices.find((candidate) => deviceKey(candidate) === value);
     if (!device) return;
-    setOperationError(null);
-    setPendingDevice(device);
+    const settleOperation = startOperation(device);
     const result = await open({
       environmentId,
       input: {
@@ -84,15 +100,16 @@ export function DevicePanel(props: {
         platform: device.platform,
       },
     });
-    if (result._tag === "Failure") setOperationError(formatEnvironmentQueryError(result.cause));
-    else
+    if (result._tag === "Failure") settleOperation(formatEnvironmentQueryError(result.cause));
+    else {
       useRightPanelStore.getState().openDevice(props.threadRef, {
         hostId: result.value.hostId,
         deviceId: result.value.deviceId,
         platform: device.platform,
         name: device.name,
       });
-    setPendingDevice(null);
+      settleOperation(null);
+    }
   };
 
   const floatActive = () => {
@@ -113,7 +130,7 @@ export function DevicePanel(props: {
       return;
     }
     if (!activeSession) return;
-    setOperationError(null);
+    const settleOperation = startOperation(null);
     void close({
       environmentId,
       input: {
@@ -123,7 +140,7 @@ export function DevicePanel(props: {
         shutdown: powerOff,
       },
     }).then((result) => {
-      if (result._tag === "Failure") setOperationError(formatEnvironmentQueryError(result.cause));
+      if (result._tag === "Failure") settleOperation(formatEnvironmentQueryError(result.cause));
       else useRightPanelStore.getState().closeSurface(props.threadRef, props.surface.id);
     });
   };
@@ -157,7 +174,9 @@ export function DevicePanel(props: {
       {hostReady && !activeDevice && state.hostStatusDetail ? (
         <div
           role="status"
-          className="whitespace-pre-line border-b px-3 py-2 text-xs text-muted-foreground"
+          aria-label="Device host diagnostics"
+          tabIndex={0}
+          className="max-h-32 shrink-0 overflow-y-auto whitespace-pre-line break-words border-b px-3 py-2 text-xs text-muted-foreground"
         >
           {state.hostStatusDetail}
         </div>
@@ -178,7 +197,7 @@ export function DevicePanel(props: {
             size="icon-xs"
             variant="ghost"
             aria-label="Dismiss device error"
-            onClick={() => setOperationError(null)}
+            onClick={() => setOperation(null)}
           >
             <X className="size-3" />
           </Button>
@@ -229,7 +248,10 @@ export function DevicePanel(props: {
               {grouped.length === 0 ? (
                 <>
                   <Smartphone className="size-6 opacity-60" />
-                  <p className="max-w-sm">
+                  <p
+                    className="max-h-32 w-full max-w-sm overflow-y-auto whitespace-pre-line break-words"
+                    tabIndex={state.hostStatus === "failed" ? 0 : undefined}
+                  >
                     {state.hostStatus === "failed"
                       ? (state.hostStatusDetail ?? "The device hub failed to start.")
                       : "No simulators or emulators were found on this environment."}

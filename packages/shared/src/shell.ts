@@ -20,7 +20,12 @@ const WINDOWS_SHELL_CANDIDATES = ["pwsh.exe", "powershell.exe"] as const;
 type ExecFileSyncLike = (
   file: string,
   args: ReadonlyArray<string>,
-  options: { encoding: "utf8"; timeout: number },
+  options: {
+    encoding: "utf8";
+    timeout: number;
+    detached?: true;
+    stdio?: ["ignore", "pipe", "ignore"];
+  },
 ) => string;
 
 function canExecuteFile(filePath: string): boolean {
@@ -271,6 +276,8 @@ export const readEnvironmentFromLoginShell: ShellEnvironmentReader = (
   const output = execFile(shell, ["-ilc", buildEnvironmentCaptureCommand(names)], {
     encoding: "utf8",
     timeout: 5000,
+    detached: true,
+    stdio: ["ignore", "pipe", "ignore"],
   });
 
   const environment: Partial<Record<string, string>> = {};
@@ -679,10 +686,55 @@ export function preferGitForWindowsBinary(
   return executable;
 }
 
+const NPM_EXECUTABLE_SHIM_PREFIX = [
+  "@ECHO off",
+  "GOTO start",
+  ":find_dp0",
+  "SET dp0=%~dp0",
+  "EXIT /b",
+  ":start",
+  "SETLOCAL",
+  "CALL :find_dp0",
+];
+const NPM_EXECUTABLE_SHIM_RUN = /^"%dp0%\\([^"%]+\.exe)" +%\*$/;
+
+function readFileSyncOrUndefined(filePath: string): string | undefined {
+  try {
+    return NodeFS.readFileSync(filePath, "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
+export function npmShimExecutable(
+  shimPath: string,
+  readFile: (filePath: string) => string | undefined = readFileSyncOrUndefined,
+  isFile: (filePath: string) => boolean = isFileSync,
+): string | undefined {
+  const path = NodePath.win32;
+  if (path.extname(shimPath).toLowerCase() !== ".cmd") return undefined;
+
+  const lines = readFile(shimPath)
+    ?.split(/\r?\n/)
+    .filter((line) => line.length > 0);
+  if (lines?.length !== NPM_EXECUTABLE_SHIM_PREFIX.length + 1) return undefined;
+  if (NPM_EXECUTABLE_SHIM_PREFIX.some((expected, index) => lines[index] !== expected)) {
+    return undefined;
+  }
+  const target = NPM_EXECUTABLE_SHIM_RUN.exec(lines.at(-1)!)?.[1];
+  if (target === undefined) return undefined;
+  const executable = path.join(path.dirname(shimPath), target);
+  return isFile(executable) ? executable : undefined;
+}
+
+export interface SpawnCommandOptions extends CommandAvailabilityOptions {
+  readonly bypassNpmShim?: boolean;
+}
+
 export const resolveSpawnCommand = Effect.fnUntraced(function* (
   command: string,
   args: ReadonlyArray<string>,
-  options: CommandAvailabilityOptions = {},
+  options: SpawnCommandOptions = {},
 ): Effect.fn.Return<ResolvedSpawnCommand> {
   const platform = yield* HostProcess.Platform;
   if (platform !== "win32") {
@@ -728,6 +780,10 @@ export const resolveSpawnCommand = Effect.fnUntraced(function* (
   const extension = NodePath.win32.extname(resolvedCommand).toLowerCase();
   if (extension !== ".cmd" && extension !== ".bat") {
     return { command: resolvedCommand, args: [...args], shell: false };
+  }
+  const shimExecutable = options.bypassNpmShim ? npmShimExecutable(resolvedCommand) : undefined;
+  if (shimExecutable !== undefined) {
+    return { command: shimExecutable, args: [...args], shell: false };
   }
 
   // Node runs a shell spawn as `cmd.exe /d /s /c "<command> <args...>"`, but

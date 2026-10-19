@@ -1,3 +1,4 @@
+import { AsyncResult } from "effect/reactivity";
 import { Toolbar } from "../../components/ui/Toolbar";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { usePullRequestConnected } from "./usePullRequestConnected";
@@ -5,7 +6,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { useNavigation, type StaticScreenProps } from "@react-navigation/native";
 import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import type { PullRequestReviewerCandidate } from "@supaterm/contracts";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   FlatList,
   Platform,
@@ -32,22 +33,31 @@ import {
 } from "../layout/native-mail-search-toolbar";
 import { PullRequestAvatar } from "./PullRequestPresentation";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
-
 function ReviewerScrollView(props: ScrollViewProps) {
   const insets = useSafeAreaInsets();
   return (
-    <ScrollViewMarker style={{ flex: 1 }}>
+    <ScrollViewMarker
+      style={{
+        flex: 1,
+      }}
+    >
       <ScrollView
         {...props}
         automaticallyAdjustContentInsets={false}
         contentInsetAdjustmentBehavior="never"
-        contentInset={{ top: insets.top }}
-        contentOffset={props.contentOffset ?? { x: 0, y: -insets.top }}
+        contentInset={{
+          top: insets.top,
+        }}
+        contentOffset={
+          props.contentOffset ?? {
+            x: 0,
+            y: -insets.top,
+          }
+        }
       />
     </ScrollViewMarker>
   );
 }
-
 export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequestParams>) {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -74,12 +84,14 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
       ? composerPullRequests.reviewerCandidates(target)
       : null,
   );
-  const request = useAtomCommand(composerPullRequests.requestReviewers, { reportFailure: false });
+  const request = useAtomCommand(composerPullRequests.requestReviewers, {
+    reportFailure: false,
+  });
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
-  const candidates = useMemo(() => {
+  const candidates = (() => {
     const needle = query.trim().toLowerCase();
     return [...(result.data?.candidates ?? [])]
       .filter((candidate) =>
@@ -88,7 +100,7 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
       .sort(
         (a, b) => Number(b.isRequested) - Number(a.isRequested) || a.login.localeCompare(b.login),
       );
-  }, [result.data, query]);
+  })();
   useEffect(() => {
     if (candidates.length === 0) return;
     listRef.current?.scrollToOffset({
@@ -103,34 +115,42 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
     inFlight.current = true;
     setPending(`${candidate.kind}:${candidate.id}`);
     setError(null);
-    try {
-      const response = await request({
-        ...target,
-        input: {
-          ...target.input,
-          reviewers: [{ id: candidate.id, kind: candidate.kind }],
-          requested: !candidate.isRequested,
-        },
-      });
-      if (response._tag === "Failure") throw squashAtomCommandFailure(response);
-      if (!pr?.capabilities.reviewers.listCandidates) {
-        setQuery("");
-        detail.refresh();
-      }
-    } catch (cause) {
+    const response = await request({
+      ...target,
+      input: {
+        ...target.input,
+        reviewers: [
+          {
+            id: candidate.id,
+            kind: candidate.kind,
+          },
+        ],
+        requested: !candidate.isRequested,
+      },
+    });
+    inFlight.current = false;
+    setPending(null);
+    if (AsyncResult.isFailure(response)) {
+      const cause = squashAtomCommandFailure(response);
       setError(
         cause instanceof Error ? cause.message : "Couldn't update this review request. Try again.",
       );
-    } finally {
-      inFlight.current = false;
-      setPending(null);
+      return;
+    }
+    if (!pr?.capabilities.reviewers.listCandidates) {
+      setQuery("");
+      detail.refresh();
     }
   };
   const listCandidates = pr?.capabilities.reviewers.listCandidates === true;
   const searchOptions = {
     placeholder: "Search reviewers",
     autoCapitalize: "none" as const,
-    onChangeText: (event: { nativeEvent: { text: string } }) => setQuery(event.nativeEvent.text),
+    onChangeText: (event: {
+      nativeEvent: {
+        text: string;
+      };
+    }) => setQuery(event.nativeEvent.text),
     onCancelButtonPress: () => setQuery(""),
     hideNavigationBar: false,
     hideWhenScrolling: false,
@@ -180,7 +200,9 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
           automaticallyAdjustKeyboardInsets
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingBottom: 24 }}
+          contentContainerStyle={{
+            paddingBottom: 24,
+          }}
           ListHeaderComponent={
             <View className="gap-3 px-4 py-4">
               <Text className="text-xs text-foreground-muted">
@@ -215,7 +237,9 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`${item.isRequested ? "Remove review request from" : "Request review from"} ${item.login}${item.kind === "team" ? " team" : ""}`}
-                accessibilityState={{ disabled: !allowed || pending !== null }}
+                accessibilityState={{
+                  disabled: !allowed || pending !== null,
+                }}
                 disabled={!allowed || pending !== null}
                 onPress={() => void update(item)}
                 className="min-h-16 flex-row items-center gap-3 border-b border-border-subtle px-4 py-3 active:opacity-70"
@@ -277,7 +301,10 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
           contentInsetAdjustmentBehavior="automatic"
           automaticallyAdjustKeyboardInsets
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ padding: 16, gap: 16 }}
+          contentContainerStyle={{
+            padding: 16,
+            gap: 16,
+          }}
         >
           {!pr ? (
             detail.isPending ? (
@@ -306,14 +333,26 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
                 label="Request review"
                 fullWidth
                 disabled={!allowed || !query.trim() || pending !== null}
-                onPress={() => void update({ id: query.trim(), kind: "user", isRequested: false })}
+                onPress={() =>
+                  void update({
+                    id: query.trim(),
+                    kind: "user",
+                    isRequested: false,
+                  })
+                }
               />
               <Button
                 label="Remove review request"
                 fullWidth
                 tone="text"
                 disabled={!allowed || !query.trim() || pending !== null}
-                onPress={() => void update({ id: query.trim(), kind: "user", isRequested: true })}
+                onPress={() =>
+                  void update({
+                    id: query.trim(),
+                    kind: "user",
+                    isRequested: true,
+                  })
+                }
               />
               {error ? (
                 <Text selectable className="text-danger-foreground">

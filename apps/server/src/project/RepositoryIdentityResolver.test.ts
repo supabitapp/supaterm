@@ -226,9 +226,9 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
       expect(identity).not.toBeNull();
       expect(identity?.canonicalKey).toBe("github.com/supabitapp/supacode-next");
       expect(normalizeResolvedPath(resolvedIdentityRoot)).toBe(normalizeResolvedPath(resolvedCwd));
-      expect(identity?.displayName).toBe("supabitapp/supacode-next");
+      expect(identity?.displayName).toBe("SupabitApp/supacode-next");
       expect(identity?.provider).toBe("github");
-      expect(identity?.owner).toBe("supabitapp");
+      expect(identity?.owner).toBe("SupabitApp");
       expect(identity?.name).toBe("supacode-next");
     }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
   );
@@ -286,6 +286,33 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
     }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
   );
 
+  it.effect("ignores local-path remotes such as a tool-generated gb-local", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const localOnlyDir = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "supaterm-repository-identity-local-remote-",
+      });
+      const mixedDir = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "supaterm-repository-identity-mixed-remote-",
+      });
+
+      yield* git(localOnlyDir, ["init"]);
+      yield* git(localOnlyDir, ["remote", "add", "gb-local", "."]);
+      yield* git(localOnlyDir, ["remote", "add", "backup", "/srv/git/repo.git"]);
+      yield* git(localOnlyDir, ["remote", "add", "archive", "file:///srv/git/repo.git"]);
+      yield* git(mixedDir, ["init"]);
+      yield* git(mixedDir, ["remote", "add", "gb-local", "."]);
+      yield* git(mixedDir, ["remote", "add", "mirror", "git@github.com:SupabitApp/supaterm.git"]);
+
+      const resolver = yield* RepositoryIdentityResolver.RepositoryIdentityResolver;
+      expect(yield* resolver.resolve(localOnlyDir)).toBeNull();
+
+      const mixedIdentity = yield* resolver.resolve(mixedDir);
+      expect(mixedIdentity?.locator.remoteName).toBe("mirror");
+      expect(mixedIdentity?.canonicalKey).toBe("github.com/supabitapp/supaterm");
+    }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
+  );
+
   it.effect.each(["add", "replace"] as const)(
     "refreshes the primary upstream after %s before cache expiry",
     (change) =>
@@ -319,7 +346,7 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
         expect(identity).not.toBeNull();
         expect(identity?.locator.remoteName).toBe("upstream");
         expect(identity?.canonicalKey).toBe("github.com/supabitapp/supacode-next");
-        expect(identity?.displayName).toBe("supabitapp/supacode-next");
+        expect(identity?.displayName).toBe("SupabitApp/supacode-next");
         expect(yield* resolver.resolve(cwd)).toEqual(identity);
       }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
   );
@@ -413,8 +440,8 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
 
       expect(identity).not.toBeNull();
       expect(identity?.canonicalKey).toBe("gitlab.com/supaterm/platform/supaterm");
-      expect(identity?.displayName).toBe("supaterm/platform/supaterm");
-      expect(identity?.owner).toBe("supaterm");
+      expect(identity?.displayName).toBe("Supaterm/platform/supaterm");
+      expect(identity?.owner).toBe("Supaterm");
       expect(identity?.name).toBe("supaterm");
     }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
   );
@@ -491,7 +518,7 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
       const refreshedIdentity = yield* resolver.resolve(cwd);
       expect(refreshedIdentity).not.toBeNull();
       expect(refreshedIdentity?.canonicalKey).toBe("github.com/supabitapp/supacode-next");
-      expect(refreshedIdentity?.displayName).toBe("supabitapp/supacode-next");
+      expect(refreshedIdentity?.displayName).toBe("SupabitApp/supacode-next");
       expect(refreshedIdentity?.name).toBe("supacode-next");
     }).pipe(
       Effect.provide(

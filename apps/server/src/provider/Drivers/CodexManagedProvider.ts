@@ -55,7 +55,7 @@ export const makeManagedCodexProvider = Effect.fn("makeManagedCodexProvider")(fu
     homePath: runtime.homeLayout.sharedHomePath,
     shadowHomePath: runtime.homeLayout.mode === "authOverlay" ? runtime.homePath : null,
   };
-  const pending = makePendingCodexProvider({ ...config, customModels: [] }).pipe(
+  const pending = makePendingCodexProvider({ ...config, enabled, customModels: [] }).pipe(
     Effect.map((draft) =>
       stamp({
         ...draft,
@@ -286,21 +286,39 @@ export const makeManagedCodexProvider = Effect.fn("makeManagedCodexProvider")(fu
     snapshotForCwd: (cwd: string) =>
       enabled
         ? resolveRuntime.pipe(
-            Effect.flatMap((effective) =>
-              probeCodexSkillsForCwd({
-                binaryPath: effective.config.binaryPath,
-                homePath: effective.config.homePath,
-                launchArgs: effective.config.launchArgs,
-                cwd,
-                environment: effective.environment,
-              }),
-            ),
-            Effect.flatMap((skills) =>
-              snapshot.getSnapshot.pipe(Effect.map((draft) => ({ ...draft, skills }))),
-            ),
+            Effect.matchEffect({
+              onFailure: (cause) =>
+                snapshot.getSnapshot.pipe(
+                  Effect.filterOrFail(
+                    (machine) => machine.auth.status === "unauthenticated",
+                    () => cause,
+                  ),
+                ),
+              onSuccess: (effective) =>
+                probeCodexSkillsForCwd({
+                  binaryPath: effective.config.binaryPath,
+                  homePath: effective.config.homePath,
+                  launchArgs: effective.config.launchArgs,
+                  cwd,
+                  environment: effective.environment,
+                }).pipe(
+                  Effect.flatMap((skills) =>
+                    snapshot.getSnapshot.pipe(Effect.map((draft) => ({ ...draft, skills }))),
+                  ),
+                ),
+            }),
             Effect.scoped,
             Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
-            Effect.catch(() => snapshot.getSnapshot),
+
+            Effect.mapError(
+              (cause) =>
+                new ProviderDriverError({
+                  driver: DRIVER,
+                  instanceId,
+                  detail: `Failed to probe Codex skills for '${cwd}'`,
+                  cause,
+                }),
+            ),
           )
         : snapshot.getSnapshot,
   } satisfies ProviderInstance;

@@ -1,7 +1,19 @@
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
+import * as Option from "effect/Option";
 import * as Path from "effect/Path";
+import type * as PlatformError from "effect/PlatformError";
+import * as Result from "effect/Result";
+import * as HostProcess from "@supaterm/shared/HostProcess";
 import { resolveSymlinkTarget } from "@supaterm/shared/symlink";
+
+export const isWindowsRenameLock = (error: PlatformError.PlatformError) => {
+  const code = (error.reason.cause as NodeJS.ErrnoException | undefined)?.code;
+  return code === "EBUSY" || code === "EPERM" || code === "EACCES";
+};
+
+const LOCKED_RENAME_RETRIES = 20;
+const LOCKED_RENAME_RETRY_DELAY = "100 millis";
 
 /**
  * A symlinked target is resolved first so the link survives and its destination is
@@ -15,6 +27,7 @@ export const writeFileStringAtomically = (input: {
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
+      const platform = yield* HostProcess.Platform;
       const targetPath = yield* resolveSymlinkTarget(input.filePath);
       const targetDirectory = path.dirname(targetPath);
 
@@ -32,6 +45,34 @@ export const writeFileStringAtomically = (input: {
       const tempPath = path.join(tempDirectory, "contents.tmp");
 
       yield* fs.writeFileString(tempPath, input.contents);
-      yield* fs.rename(tempPath, targetPath);
+      if (platform !== "win32") return yield* fs.rename(tempPath, targetPath);
+
+      const targetVersion = fs.stat(targetPath).pipe(
+        Effect.map((info) => ({
+          id: `${Option.getOrUndefined(info.ino)}:${info.size}:${Option.getOrUndefined(info.mtime)?.getTime()}`,
+          readOnly: (info.mode & 0o200) === 0,
+        })),
+        Effect.catchIf(
+          (error) => error.reason._tag === "NotFound",
+          () => Effect.succeed({ id: "missing", readOnly: false }),
+        ),
+        Effect.option,
+      );
+      const before = yield* targetVersion;
+      const firstAttempt = yield* Effect.result(fs.rename(tempPath, targetPath));
+      if (Result.isSuccess(firstAttempt)) return;
+      const lockError = firstAttempt.failure;
+      if (!isWindowsRenameLock(lockError) || Option.isNone(before) || before.value.readOnly) {
+        return yield* lockError;
+      }
+      for (let retry = 0; retry < LOCKED_RENAME_RETRIES; retry += 1) {
+        yield* Effect.sleep(LOCKED_RENAME_RETRY_DELAY);
+        const current = yield* targetVersion;
+        if (Option.isNone(current) || current.value.id !== before.value.id) break;
+        const attempt = yield* Effect.result(fs.rename(tempPath, targetPath));
+        if (Result.isSuccess(attempt)) return;
+        if (!isWindowsRenameLock(attempt.failure)) return yield* attempt.failure;
+      }
+      return yield* lockError;
     }),
   );

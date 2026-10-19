@@ -2,7 +2,9 @@
 
 The Supaterm server sends product usage events to PostHog through `https://ingest.supaterm.com`,
 associated with a hashed account or installation identifier. Events include the provider, model,
-reasoning effort, permission mode, turn result, duration, and main-agent token totals when available.
+reasoning effort, permission mode, turn result, duration, release channel, and main-agent token totals when available.
+They also record which features and MCP tools are used, client operation outcomes, and delegated-task
+results, durations, and provider/model choices.
 
 Events do not include prompts, responses, file contents, authentication tokens, conversation IDs,
 raw provider events, or child-agent output. Child-agent token use is excluded from the totals.

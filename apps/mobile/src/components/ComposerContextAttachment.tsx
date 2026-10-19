@@ -1,8 +1,10 @@
+import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
+import { AsyncResult } from "effect/reactivity";
 import * as Dialog from "./ui/Dialog";
 import type { ComposerContextRecord, EnvironmentId } from "@supaterm/contracts";
 import { Pressable, View } from "react-native";
 import { Image } from "expo-image";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { DraftComposerAttachment } from "../lib/composerImages";
 import { composerAttachmentInlineUri, isFileBackedComposerAttachment } from "../lib/composerImages";
 import { loadLocalAttachmentPreview } from "../lib/localAttachmentPreview";
@@ -12,24 +14,27 @@ import { useAssetUrlState, useRefreshAssetUrl } from "../state/assets";
 import { AppText as Text } from "./ui/AppText";
 import { FilePreviewModal } from "./FilePreviewModal";
 import { PresentationSource } from "./ui/NativePresentation";
-
 export function ComposerContextAttachment(props: {
-  record: Extract<ComposerContextRecord, { attachmentId: string }>;
+  record: Extract<
+    ComposerContextRecord,
+    {
+      attachmentId: string;
+    }
+  >;
   environmentId?: EnvironmentId;
   attachment?: DraftComposerAttachment;
 }) {
   const { record, attachment } = props;
   const shareSourceIdentifier = useId();
-  const resource = useMemo(
-    () => ({
-      _tag: "attachment" as const,
-      attachmentId: record.attachmentId,
-      fileName: record.name,
-    }),
-    [record.attachmentId, record.name],
-  );
+  const resource = {
+    _tag: "attachment" as const,
+    attachmentId: record.attachmentId,
+    fileName: record.name,
+  };
   const local = attachment?.fileUri
-    ? (attachment as DraftComposerAttachment & { fileUri: string })
+    ? (attachment as DraftComposerAttachment & {
+        fileUri: string;
+      })
     : undefined;
   const inlineUri = composerAttachmentInlineUri(attachment);
   const remoteEnvironmentId = local || inlineUri ? null : (props.environmentId ?? null);
@@ -64,31 +69,33 @@ export function ComposerContextAttachment(props: {
     if (sharing) return;
     setSharing(true);
     const controller = new AbortController();
-    try {
+    const result = await settlePromise(async () => {
       if (local) {
         const preview = await loadLocalAttachmentPreview(local, controller.signal);
-        try {
-          await preview?.share(controller.signal, shareSourceIdentifier);
-        } finally {
-          preview?.dispose();
-        }
-      } else {
-        const url = await refresh();
-        if (!url) throw new Error("Reconnect to the environment and try again.");
-        await downloadAndShareAttachment({
-          url,
-          attachment: record,
-          signal: controller.signal,
-          sourceIdentifier: shareSourceIdentifier,
-        });
+        if (!preview) return;
+        const shared = await settlePromise(() =>
+          preview.share(controller.signal, shareSourceIdentifier),
+        );
+        preview.dispose();
+        if (AsyncResult.isFailure(shared)) throw squashAtomCommandFailure(shared);
+        return;
       }
-    } catch (cause) {
+      const url = await refresh();
+      if (!url) throw new Error("Reconnect to the environment and try again.");
+      await downloadAndShareAttachment({
+        url,
+        attachment: record,
+        signal: controller.signal,
+        sourceIdentifier: shareSourceIdentifier,
+      });
+    });
+    setSharing(false);
+    if (AsyncResult.isFailure(result)) {
+      const cause = squashAtomCommandFailure(result);
       Dialog.alert(
         "Could not open attachment",
         cause instanceof Error ? cause.message : "Try again.",
       );
-    } finally {
-      setSharing(false);
     }
   };
   return (
@@ -102,10 +109,15 @@ export function ComposerContextAttachment(props: {
           <Image
             source={
               remoteEnvironmentId === null
-                ? { uri }
+                ? {
+                    uri,
+                  }
                 : assetImageSource(remoteEnvironmentId, resource, uri)
             }
-            style={{ width: "100%", height: 280 }}
+            style={{
+              width: "100%",
+              height: 280,
+            }}
             contentFit="contain"
             accessibilityLabel={record.name}
           />
@@ -138,10 +150,17 @@ export function ComposerContextAttachment(props: {
               name: record.name,
               mimeType: record.mimeType,
               ...(attachment && isFileBackedComposerAttachment(attachment)
-                ? { attachment }
+                ? {
+                    attachment,
+                  }
                 : inlineUri === undefined && props.environmentId
-                  ? { environmentId: props.environmentId, resource }
-                  : { uri }),
+                  ? {
+                      environmentId: props.environmentId,
+                      resource,
+                    }
+                  : {
+                      uri,
+                    }),
             },
           }}
           onRequestClose={() => setPreviewOpen(false)}

@@ -122,6 +122,52 @@ it.effect("launches the default browser through the platform command", () => {
   );
 });
 
+it.effect.skipIf(windowsHost)(
+  "launched browsers and editors do not inherit ELECTRON_RUN_AS_NODE",
+  () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const binDir = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-editors-" });
+      const codePath = path.join(binDir, "code");
+      yield* fileSystem.writeFileString(codePath, "#!/bin/sh\n");
+      yield* fileSystem.chmod(codePath, 0o755);
+
+      const spawned: ChildProcess.StandardCommand[] = [];
+      yield* Effect.gen(function* () {
+        const launcher = yield* ExternalLauncher.ExternalLauncher;
+        yield* launcher.launchBrowser("https://example.com");
+        yield* launcher.launchEditor({ editor: "vscode", cwd: "/workspace" });
+      }).pipe(
+        Effect.provide(
+          layerTest({
+            platform: "linux",
+            env: { PATH: binDir, DISPLAY: ":0" },
+            onSpawn: (command) => spawned.push(command),
+          }),
+        ),
+        Effect.provideService(HostProcess.Environment, {
+          PATH: binDir,
+          DISPLAY: ":0",
+          ELECTRON_RUN_AS_NODE: "1",
+        }),
+      );
+
+      assert.deepEqual(
+        spawned.map((command) => ({
+          command: command.command,
+          env: command.options.env,
+          extendEnv: command.options.extendEnv,
+        })),
+        ["xdg-open", "code"].map((command) => ({
+          command,
+          env: { PATH: binDir, DISPLAY: ":0" },
+          extendEnv: false,
+        })),
+      );
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+);
+
 it.effect.each(["win32", "linux"] as const)(
   "launches the browser through PowerShell on %s",
   (platform) => {
@@ -299,6 +345,34 @@ it.effect("launches Cursor in classic IDE mode through the Windows command shim"
     );
     assert.deepEqual(spawned.args, []);
     assert.equal(spawned.options.shell, true);
+  }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+);
+
+it.effect("opens a folder in File Explorer with Windows separators", () =>
+  Effect.gen(function* () {
+    const fileSystem = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const binDir = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-editors-" });
+    yield* fileSystem.writeFileString(path.join(binDir, "explorer.EXE"), "");
+
+    let spawned: ChildProcess.StandardCommand | undefined;
+    yield* Effect.gen(function* () {
+      const launcher = yield* ExternalLauncher.ExternalLauncher;
+      yield* launcher.launchEditor({ editor: "file-manager", cwd: "C:/workspace/project" });
+    }).pipe(
+      Effect.provide(
+        layerTest({
+          platform: "win32",
+          env: { PATH: binDir, PATHEXT: ".COM;.EXE;.BAT;.CMD" },
+          onSpawn: (command) => {
+            spawned = command;
+          },
+        }),
+      ),
+    );
+
+    assert.ok(spawned);
+    assert.deepEqual(spawned.args, ["C:\\workspace\\project"]);
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 

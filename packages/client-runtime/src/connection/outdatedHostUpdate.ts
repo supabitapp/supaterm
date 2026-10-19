@@ -63,6 +63,16 @@ export const updateOutdatedHost = Effect.fn("clientRuntime.connection.updateOutd
     const { prepared, descriptor } = yield* Effect.firstSuccessOf(
       usableRoutes(entry).map((route) => resolver.prepareForUpdate(routeEntry(entry, route))),
     );
+    const switchBackOn = Effect.gen(function* () {
+      yield* registry.setCompatibility(environmentId, null);
+      yield* registry.setEnabled(environmentId, true);
+    });
+
+    if (isCompatibleDescriptor(descriptor)) {
+      yield* switchBackOn;
+      return { targetVersion: descriptor.serverVersion };
+    }
+
     const capabilities = descriptor.capabilities;
     if (
       capabilities.serverSelfUpdate === undefined ||
@@ -185,8 +195,7 @@ export const updateOutdatedHost = Effect.fn("clientRuntime.connection.updateOutd
       });
     }
 
-    yield* registry.setCompatibility(environmentId, null);
-    yield* registry.setEnabled(environmentId, true);
+    yield* switchBackOn;
     return { ...result, targetVersion: resumed.value.serverVersion };
   },
 );

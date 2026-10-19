@@ -18,9 +18,9 @@ export function Sheet(props: SheetProps) {
       onDismiss={props.onClose}
       onNativeDismiss={props.onClose}
     >
-      <View collapsable={false} className="flex-1 bg-sheet">
+      <View collapsable={false} className="absolute inset-0 flex-col-reverse bg-sheet">
+        <View className="flex-1">{props.children}</View>
         <AndroidSheetHeader title={props.title} onBack={() => setIsOpen(false)} />
-        {props.children}
       </View>
     </FormSheet>
   );

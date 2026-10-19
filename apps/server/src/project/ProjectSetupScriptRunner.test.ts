@@ -113,7 +113,7 @@ it.effect("resolves setup scripts through the standalone project service", () =>
       NO_COLOR: "1",
       FORCE_COLOR: "0",
     });
-    assert.equal(write.mock.calls[0]?.[0].data, "vp install\r");
+    assert.equal(write.mock.calls[0]?.[0].data, " vp install\r");
     const lines: string[] = [];
     const observed = yield* runner.runForThread({
       threadId: "thread-1",
@@ -127,6 +127,7 @@ it.effect("resolves setup scripts through the standalone project service", () =>
       },
     });
     assert.equal(observed.status, "started");
+    assert.match(write.mock.calls[1]?.[0].data ?? "", /^ \S/);
     const listener = listeners[0]!;
     yield* listener({
       type: "output",
@@ -145,7 +146,7 @@ it.effect("resolves setup scripts through the standalone project service", () =>
     });
     const doneTerminalId = done.status === "started" ? done.terminalId : "";
     assert.match(doneTerminalId, /^done-clean-/);
-    assert.equal(write.mock.calls.at(-1)?.[0].data, "cargo clean\r");
+    assert.equal(write.mock.calls.at(-1)?.[0].data, " cargo clean\r");
 
     const observedDone = yield* runner.runForThread({
       threadId: "thread-1",
@@ -157,6 +158,7 @@ it.effect("resolves setup scripts through the standalone project service", () =>
     const observedTerminalId = observedDone.status === "started" ? observedDone.terminalId : "";
     // Each completion gets its own shell, so a busy one is never typed into.
     assert.notEqual(observedTerminalId, doneTerminalId);
+    assert.match(write.mock.calls.at(-1)?.[0].data ?? "", /^ \S/);
     const token = /__SUPATERM_SETUP_DONE___(\w+):/.exec(
       write.mock.calls.at(-1)?.[0].data ?? "",
     )?.[1];

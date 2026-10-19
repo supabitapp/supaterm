@@ -33,7 +33,6 @@ export type BrowserSessionPartitionNamespace = "profile";
 const ALLOWED_PREVIEW_PERMISSIONS: ReadonlySet<string> = new Set([
   "clipboard-read",
   "clipboard-sanitized-write",
-  "notifications",
   "geolocation",
 
   "fullscreen",

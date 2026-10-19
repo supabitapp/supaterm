@@ -3,6 +3,7 @@ import { parseThreadLinkPrompt, withoutPromptLinkParams } from "@supaterm/shared
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 
+import { isThreadRoutePathname } from "../../threadRoutes";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { placeLinkedPrompt } from "./linkedPrompt";
 
@@ -20,6 +21,7 @@ export function ThreadLinkPrompt({ threadRef }: { readonly threadRef: ScopedThre
   });
 
   useEffect(() => {
+    if (!isThreadRoutePathname(location.pathname, threadRef)) return;
     if (!new URLSearchParams(location.search).has("prompt")) return;
     if (!handledLinkKeys.has(location.key)) {
       handledLinkKeys.add(location.key);

@@ -9,7 +9,6 @@ import { useAtomValue } from "@effect/atom-react";
 import { useRef, useState } from "react";
 import { Linking, Pressable, ScrollView, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { AppText as Text } from "../../components/ui/AppText";
 import { Button } from "../../components/ui/Button";
@@ -28,12 +27,10 @@ import {
 import { SettingsScreen } from "./components/SettingsScreen";
 import { SettingsSection } from "./components/SettingsSection";
 import { useSettingsEnvironmentFilter, type SettingsTarget } from "./settings-environment-filter";
-
 const TERMINAL_CONTROL_SEQUENCE = new RegExp(
   `${String.fromCharCode(0x1b)}\\[[0-?]*[ -/]*[@-~]`,
   "g",
 );
-
 export function SettingsProviderAccountsRouteScreen() {
   const { selectedTargets } = useSettingsEnvironmentFilter();
   const providersByEnvironment = useAtomValue(environmentPresentations.providersByEnvironmentAtom);
@@ -46,7 +43,9 @@ export function SettingsProviderAccountsRouteScreen() {
           className="flex-1"
           contentInsetAdjustmentBehavior="automatic"
           contentContainerClassName="gap-6 px-5 pt-4"
-          contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
+          contentContainerStyle={{
+            paddingBottom: Math.max(insets.bottom, 18) + 18,
+          }}
         >
           <Text className="px-2 text-sm text-foreground-muted">
             Accounts are saved on the environment that runs your agents.
@@ -93,7 +92,6 @@ export function SettingsProviderAccountsRouteScreen() {
     </>
   );
 }
-
 function ProviderAccount({
   environment,
   provider,
@@ -105,9 +103,17 @@ function ProviderAccount({
 }) {
   const environmentId = environment.environmentId;
   const instanceId = provider.instanceId;
-  const target = { environmentId, input: { instanceId } };
+  const target = {
+    environmentId,
+    input: {
+      instanceId,
+    },
+  };
   const auth = useEnvironmentQuery(serverEnvironment.providerAuthState(target));
-  const options = { reportFailure: false, reportDefect: false };
+  const options = {
+    reportFailure: false,
+    reportDefect: false,
+  };
   const start = useAtomCommand(serverEnvironment.startProviderAuth, options);
   const respond = useAtomCommand(serverEnvironment.respondProviderAuth, options);
   const complete = useAtomCommand(serverEnvironment.completeProviderAuth, options);
@@ -117,7 +123,10 @@ function ProviderAccount({
   const [choosingMethod, setChoosingMethod] = useState(false);
   const pendingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
-  const [draft, setDraft] = useState({ id: "", values: {} as Record<string, string> });
+  const [draft, setDraft] = useState({
+    id: "",
+    values: {} as Record<string, string>,
+  });
   const state = auth.data;
   const interaction = state?.interaction;
   const draftId = `${state?.flowId ?? ""}:${interaction?.id ?? ""}`;
@@ -153,14 +162,12 @@ function ProviderAccount({
     !choosingMethod &&
     !loading &&
     !auth.error;
-
   function signInLabel() {
     if (pending) return "Working…";
     if (signedIn) return "Change account";
     if (state?.phase === "failed" || state?.phase === "cancelled") return "Retry sign-in";
     return "Sign in";
   }
-
   function accountDescription() {
     if (active) return state.message;
     if (!provider.enabled) return "Enable in web or desktop Settings → Providers.";
@@ -179,27 +186,27 @@ function ProviderAccount({
     pendingRef.current = true;
     setPending(true);
     setError(null);
-    let succeeded = false;
-    try {
-      const result = await command();
-      if (result._tag === "Success") succeeded = true;
-      else if (!isAtomCommandInterrupted(result)) {
-        const failure = squashAtomCommandFailure(result);
-        setError(failure instanceof Error ? failure.message : "Could not update provider sign-in.");
-      }
-    } catch {
-      setError("Could not update provider sign-in.");
-    }
+    const result = await command();
     pendingRef.current = false;
     setPending(false);
-    return succeeded;
+    if (result._tag === "Success") return true;
+    if (!isAtomCommandInterrupted(result)) {
+      const failure = squashAtomCommandFailure(result);
+      setError(failure instanceof Error ? failure.message : "Could not update provider sign-in.");
+    }
+    return false;
   }
   function send(response: ProviderAuthResponse) {
     if (!state?.flowId || !interaction) return Promise.resolve(false);
     return run(() =>
       respond({
         environmentId,
-        input: { instanceId, flowId: state.flowId!, interactionId: interaction.id, response },
+        input: {
+          instanceId,
+          flowId: state.flowId!,
+          interactionId: interaction.id,
+          response,
+        },
       }),
     );
   }
@@ -218,7 +225,15 @@ function ProviderAccount({
           editable={!disabled}
           maxLength={secret && interaction?.type === "terminal" ? 4_095 : 16_384}
           value={values[name] ?? ""}
-          onChangeText={(value) => setDraft({ id: draftId, values: { ...values, [name]: value } })}
+          onChangeText={(value) =>
+            setDraft({
+              id: draftId,
+              values: {
+                ...values,
+                [name]: value,
+              },
+            })
+          }
         />
       </View>
     );
@@ -290,8 +305,15 @@ function ProviderAccount({
               label="Send response"
               disabled={disabled}
               onPress={() => {
-                void send({ type: "terminal", data: `${values.input ?? ""}\r` }).then((sent) => {
-                  if (sent) setDraft({ id: "", values: {} });
+                void send({
+                  type: "terminal",
+                  data: `${values.input ?? ""}\r`,
+                }).then((sent) => {
+                  if (sent)
+                    setDraft({
+                      id: "",
+                      values: {},
+                    });
                 });
               }}
             />
@@ -307,8 +329,15 @@ function ProviderAccount({
               label="Connect"
               disabled={disabled}
               onPress={() => {
-                void send({ type: "credentials", values }).then((sent) => {
-                  if (sent) setDraft({ id: "", values: {} });
+                void send({
+                  type: "credentials",
+                  values,
+                }).then((sent) => {
+                  if (sent)
+                    setDraft({
+                      id: "",
+                      values: {},
+                    });
                 });
               }}
             />
@@ -329,10 +358,18 @@ function ProviderAccount({
                 void run(() =>
                   complete({
                     environmentId,
-                    input: { instanceId, flowId: state.flowId!, callbackUrl: values.callback! },
+                    input: {
+                      instanceId,
+                      flowId: state.flowId!,
+                      callbackUrl: values.callback!,
+                    },
                   }),
                 ).then((sent) => {
-                  if (sent) setDraft({ id: "", values: {} });
+                  if (sent)
+                    setDraft({
+                      id: "",
+                      values: {},
+                    });
                 });
               }}
             />
@@ -355,7 +392,13 @@ function ProviderAccount({
               onPress={() => {
                 setChoosingMethod(false);
                 void run(() =>
-                  start({ environmentId, input: { instanceId, methodId: method.id } }),
+                  start({
+                    environmentId,
+                    input: {
+                      instanceId,
+                      methodId: method.id,
+                    },
+                  }),
                 );
               }}
             />
@@ -373,7 +416,10 @@ function ProviderAccount({
               if (
                 interaction?.type === "browser" &&
                 interaction.requiresConsent &&
-                !(await send({ type: "browser", action: "accept" }))
+                !(await send({
+                  type: "browser",
+                  action: "accept",
+                }))
               )
                 return;
               await Linking.openURL(url);
@@ -397,7 +443,15 @@ function ProviderAccount({
           label="Cancel sign-in"
           disabled={disabled}
           onPress={() => {
-            void run(() => cancel({ environmentId, input: { instanceId, flowId: state.flowId! } }));
+            void run(() =>
+              cancel({
+                environmentId,
+                input: {
+                  instanceId,
+                  flowId: state.flowId!,
+                },
+              }),
+            );
           }}
         />
       ) : null}
@@ -412,7 +466,10 @@ function ProviderAccount({
               "Sign out?",
               `Running threads sharing this sign-in on ${environment.label} will stop. Thread history is kept.`,
               [
-                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Cancel",
+                  style: "cancel",
+                },
                 {
                   text: "Sign out",
                   style: "destructive",
@@ -428,7 +485,6 @@ function ProviderAccount({
     </View>
   );
 }
-
 function ProviderAccountEmail({ email }: { readonly email: string }) {
   const [revealed, setRevealed] = useState(false);
   return (

@@ -15,6 +15,7 @@ import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
+import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
@@ -28,7 +29,6 @@ import * as SshAuth from "./auth.ts";
 import {
   baseSshArgs,
   buildSshHostSpecEffect,
-  collectProcessOutput,
   getLastNonEmptyOutputLine,
   remoteStateKey,
   resolveSshCommand,
@@ -50,6 +50,7 @@ const REMOTE_PORT_SCAN_WINDOW = 200;
 const SSH_READY_TIMEOUT_MS = 20_000;
 const SSH_READY_PROBE_TIMEOUT_MS = 1_000;
 const TUNNEL_SHUTDOWN_TIMEOUT_MS = 2_000;
+const TUNNEL_STDERR_TAIL_CHARS = 16_384;
 const REMOTE_READY_TIMEOUT_MS = 60_000;
 const REMOTE_LAUNCH_TIMEOUT_MS = 90_000;
 // A cold archive launch also downloads and unpacks a ~70 MB release archive
@@ -459,21 +460,11 @@ supaterm_runtime_ready() {
 }
 if ! supaterm_runtime_ready; then
   mkdir -p "$HOME/.supaterm/runtime/versions"
-  # Concurrent launches (two clients, a retry racing a slow first run) must
-  # not both install: mkdir is the atomic lock and the ready check repeats
-  # under it.
   SUPATERM_LOCK="$HOME/.supaterm/runtime/versions/.$SUPATERM_ARCHIVE_VERSION.install.lock"
-  # mkdir is the only portable atomic exclusive create (mv would silently
-  # nest a candidate inside an existing lock). The owner publishes its pid
-  # right after, so a lock with a live owner is never reclaimed however
-  # slow its download is, and a lock whose owner is dead is reclaimed at
-  # once. A lock with no pid at all is a crash between mkdir and the pid
-  # write; it is reclaimed after a short grace so a live owner has time to
-  # publish.
   SUPATERM_LOCK_WAITED=0
   SUPATERM_LOCK_UNOWNED=0
-  while ! mkdir "$SUPATERM_LOCK" 2>/dev/null; do
-    SUPATERM_LOCK_OWNER="$(cat "$SUPATERM_LOCK/pid" 2>/dev/null || true)"
+  while ! (set -C; printf '%s\\n' "$$" > "$SUPATERM_LOCK") 2>/dev/null; do
+    SUPATERM_LOCK_OWNER="$(cat "$SUPATERM_LOCK" 2>/dev/null || true)"
     if [ -n "$SUPATERM_LOCK_OWNER" ]; then
       SUPATERM_LOCK_UNOWNED=0
       if ! kill -0 "$SUPATERM_LOCK_OWNER" 2>/dev/null; then
@@ -494,7 +485,6 @@ if ! supaterm_runtime_ready; then
     sleep 1
     SUPATERM_LOCK_WAITED=$((SUPATERM_LOCK_WAITED + 1))
   done
-  printf '%s\\n' "$$" > "$SUPATERM_LOCK/pid.tmp" && mv "$SUPATERM_LOCK/pid.tmp" "$SUPATERM_LOCK/pid"
   trap 'rm -rf "$SUPATERM_LOCK"' EXIT
 fi
 if ! supaterm_runtime_ready; then
@@ -1243,8 +1233,21 @@ const startSshTunnel = Effect.fn("ssh/tunnel.startSshTunnel")(function* (input: 
     process: child,
     scope,
   };
+
+  let stderrTail = "";
+  const stderrDrain = yield* child.stderr.pipe(
+    Stream.decodeText(),
+    Stream.runForEach((chunk) =>
+      Effect.sync(() => {
+        stderrTail = (stderrTail + chunk).slice(-TUNNEL_STDERR_TAIL_CHARS);
+      }),
+    ),
+
+    Effect.ignore,
+    Effect.forkIn(scope),
+  );
   const exitFailure = Effect.all(
-    [collectProcessOutput(child.stderr), child.exitCode.pipe(Effect.map(Number))],
+    [Fiber.join(stderrDrain), child.exitCode.pipe(Effect.map(Number))],
     { concurrency: "unbounded" },
   ).pipe(
     Effect.mapError(
@@ -1260,7 +1263,8 @@ const startSshTunnel = Effect.fn("ssh/tunnel.startSshTunnel")(function* (input: 
           cause,
         }),
     ),
-    Effect.flatMap(([stderr, exitCode]) => {
+    Effect.flatMap(([, exitCode]) => {
+      const stderr = stderrTail;
       const error = new SshCommandError({
         command: tunnelCommand,
         exitCode,

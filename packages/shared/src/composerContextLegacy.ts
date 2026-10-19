@@ -410,9 +410,10 @@ export function upgradeLegacyContextMessage(text: string): UpgradedLegacyContext
     if (placedTerminals.has(record)) continue;
     const label = inlineTerminalLabel(record);
     let at = body.indexOf(label);
+
     while (
       at !== -1 &&
-      (/[\p{L}\p{N}\p{M}_@.-]$/u.test(body.slice(0, at)) ||
+      (/(?:\p{L}|\p{N}|\p{M}|[_@.-])$/u.test(body.slice(0, at)) ||
         /^(?:[\p{L}\p{N}\p{M}_-]|[.@]+[\p{L}\p{N}\p{M}_-])/u.test(body.slice(at + label.length)))
     ) {
       at = body.indexOf(label, at + 1);

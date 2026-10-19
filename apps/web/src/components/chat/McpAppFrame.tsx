@@ -37,6 +37,7 @@ const MIN_URL_LIFE_MS = 5 * 60_000;
 const fullscreenSupported =
   typeof HTMLElement !== "undefined" && "popover" in HTMLElement.prototype;
 
+const PAGE_ACTIVATION_MS = 5_000;
 function saveBlob(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -158,6 +159,19 @@ export function McpAppFrame(props: {
   useEffect(() => {
     latest.current = live;
   });
+
+  const lastPageInputAt = useRef(Number.NEGATIVE_INFINITY);
+  useEffect(() => {
+    const note = () => {
+      lastPageInputAt.current = performance.now();
+    };
+    if (navigator.userActivation?.isActive) note();
+    const types = ["pointerdown", "pointerup", "touchend", "keydown"] as const;
+    for (const type of types) window.addEventListener(type, note, true);
+    return () => {
+      for (const type of types) window.removeEventListener(type, note, true);
+    };
+  }, []);
 
   useEffect(() => {
     const box = boxRef.current;
@@ -306,7 +320,10 @@ export function McpAppFrame(props: {
         const otherFullscreen = document.querySelector("[data-mcp-app-fullscreen]");
         if (
           mode === "fullscreen" &&
-          (latest.current.props.awaitingUser === true ||
+          (document.activeElement !== frameRef.current ||
+            !navigator.userActivation?.isActive ||
+            performance.now() - lastPageInputAt.current < PAGE_ACTIVATION_MS ||
+            latest.current.props.awaitingUser === true ||
             isConfirmDialogActive() ||
             (otherFullscreen !== null && otherFullscreen !== boxRef.current))
         ) {

@@ -70,6 +70,8 @@ export function detectComposerTrigger(text: string, cursorInput: number): Compos
   const tokenStart = tokenStartForCursor(text, cursor);
   const token = text.slice(tokenStart, cursor);
   if (token.startsWith("/")) {
+    const word = text.slice(tokenStart, tokenEndForCursor(text, cursor));
+    if (word.slice(1).includes("/")) return null;
     if (Array.from(text.slice(0, tokenStart)).every(isWhitespace)) {
       return {
         kind: "slash-command",
@@ -78,16 +80,12 @@ export function detectComposerTrigger(text: string, cursorInput: number): Compos
         rangeEnd: cursor,
       };
     }
-    const word = text.slice(tokenStart, tokenEndForCursor(text, cursor));
-    if (!word.slice(1).includes("/")) {
-      return {
-        kind: "slash-skill",
-        query: token.slice(1),
-        rangeStart: tokenStart,
-        rangeEnd: cursor,
-      };
-    }
-    return null;
+    return {
+      kind: "slash-skill",
+      query: token.slice(1),
+      rangeStart: tokenStart,
+      rangeEnd: cursor,
+    };
   }
 
   const pullRequestMatch = /^#([\p{L}\p{N}][\p{L}\p{N}_-]*)?$/u.exec(token);

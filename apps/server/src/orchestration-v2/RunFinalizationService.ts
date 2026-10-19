@@ -72,14 +72,15 @@ const make = Effect.gen(function* () {
       );
     const cwd = projection.checkpointScopes.find((scope) => scope.id === input.scopeId)?.cwd;
     if (cwd !== undefined) {
-      yield* observer
-        .refresh({ cwd, threadId: input.threadId, runId: input.runId })
-        .pipe(
-          Effect.mapError(
-            (cause) =>
-              new RunFinalizationError({ ...input, operation: "refresh-workspace", cause }),
-          ),
-        );
+      yield* observer.refresh({ cwd, threadId: input.threadId, runId: input.runId }).pipe(
+        Effect.catchTags({
+          RunFinalizationRefreshError: (cause) =>
+            Effect.logWarning("Failed to refresh workspace after checkpoint capture", {
+              ...input,
+              cause,
+            }),
+        }),
+      );
     }
   });
   return RunFinalizationService.of({ finalize });

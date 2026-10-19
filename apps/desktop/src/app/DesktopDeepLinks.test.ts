@@ -113,7 +113,7 @@ describe("DesktopDeepLinks", () => {
     });
   });
 
-  it.effect("registers the protocol client without the single-instance lock on macOS", () => {
+  it.effect("acquires the single-instance lock before registering the protocol on macOS", () => {
     const events: string[] = [];
 
     return Effect.gen(function* () {
@@ -122,7 +122,7 @@ describe("DesktopDeepLinks", () => {
           makeDesktopDeepLinksLayer({
             platform: "darwin",
             isDevelopment: false,
-            hasSingleInstanceLock: false,
+            hasSingleInstanceLock: true,
             events,
           }),
         ),
@@ -130,42 +130,33 @@ describe("DesktopDeepLinks", () => {
 
       assert.deepEqual(events, [
         "setPath:userData:/tmp/app-data/supaterm-v2",
+        "requestSingleInstanceLock",
         "setAsDefaultProtocolClient:supaterm",
       ]);
     });
   });
 
-  it.effect("quits and interrupts startup in a secondary instance", () => {
-    const events: string[] = [];
-    const listeners = new Map<string, (...args: unknown[]) => void>();
-
-    return Effect.gen(function* () {
-      const deepLinks = yield* DesktopDeepLinks.DesktopDeepLinks;
-      const exit = yield* Effect.exit(
-        Effect.scoped(
-          deepLinks.configure.pipe(
-            Effect.provide(earlyEventsLayer),
-            Effect.provideService(DesktopWebLinks.DesktopWebLinks, ignoreWebLinks),
+  it.effect.each(["darwin", "linux", "win32"] as const)(
+    "interrupts construction in a secondary instance on %s",
+    (platform) => {
+      const events: string[] = [];
+      return Effect.gen(function* () {
+        const exit = yield* Effect.exit(
+          Effect.scoped(
+            Layer.build(
+              makeDesktopDeepLinksLayer({ platform, hasSingleInstanceLock: false, events }),
+            ),
           ),
-        ),
-      );
-
-      assert.isTrue(Exit.hasInterrupts(exit));
-      assert.deepEqual(events, [
-        "setPath:userData:/tmp/app-data/supaterm-dev",
-        "requestSingleInstanceLock",
-        "quit",
-      ]);
-      assert.deepEqual([...listeners.keys()], ["open-url", "open-file", "second-instance"]);
-    }).pipe(
-      Effect.provide(makeDesktopDeepLinksLayer({ hasSingleInstanceLock: false, events })),
-      Effect.provideService(ElectronApp.ElectronApp, makeListenerApp(listeners)),
-      Effect.provideService(
-        ElectronWindow.ElectronWindow,
-        {} as ElectronWindow.ElectronWindow["Service"],
-      ),
-    );
-  });
+        );
+        assert.isTrue(Exit.hasInterrupts(exit));
+        assert.deepEqual(events, [
+          "setPath:userData:/tmp/app-data/supaterm-dev",
+          "requestSingleInstanceLock",
+          "quit",
+        ]);
+      });
+    },
+  );
 
   it.effect("registers the open-url and second-instance handlers in the primary instance", () => {
     const listeners = new Map<string, (...args: unknown[]) => void>();

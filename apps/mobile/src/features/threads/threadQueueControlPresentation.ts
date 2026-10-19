@@ -1,4 +1,5 @@
 import type { EnvironmentId, RunId, ThreadId } from "@supaterm/contracts";
+import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
 
 export const REMOVE_QUEUED_MESSAGE_ACCESSIBILITY_LABEL = "Remove queued message";
 
@@ -16,6 +17,7 @@ export interface ThreadQueueRowControls {
 
 export function resolveThreadQueueRowControls(input: {
   readonly busy: boolean;
+  readonly canOperate: boolean;
   readonly canPromoteToSteer: boolean;
   readonly canReorder: boolean;
   readonly index: number;
@@ -23,18 +25,18 @@ export function resolveThreadQueueRowControls(input: {
   readonly queuedCount: number;
   readonly text: string;
 }): ThreadQueueRowControls {
-  const mutationEnabled = !input.busy;
+  const mutationEnabled = input.canOperate && !input.busy;
   const isEditing = input.isEditing === true;
 
   return {
-    canDismiss: !input.busy,
+    canDismiss: mutationEnabled,
     canEdit: mutationEnabled && !isEditing,
     canMoveDown: mutationEnabled && input.canReorder && input.index < input.queuedCount - 1,
     canMoveUp: mutationEnabled && input.canReorder && input.index > 0,
     canOpen: mutationEnabled,
     canSteer: mutationEnabled && input.canPromoteToSteer && !isEditing,
     dismissAccessibilityLabel: REMOVE_QUEUED_MESSAGE_ACCESSIBILITY_LABEL,
-    displayText: input.text,
+    displayText: assistantCitationsToPlainText(input.text),
     isEditing,
   };
 }

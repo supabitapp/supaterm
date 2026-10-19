@@ -434,6 +434,9 @@ export const makeClaudeCapabilitiesCache = Effect.fn("makeClaudeCapabilitiesCach
   R,
 >(input: {
   readonly key: string;
+  readonly validateFallback: (
+    capabilities: ClaudeCapabilitiesProbe,
+  ) => Effect.Effect<boolean, never, R>;
   readonly lookup: () => Effect.Effect<ClaudeCapabilitiesProbe, ClaudeCapabilitiesProbeError, R>;
 }) {
   const lastGood = yield* Ref.make<ClaudeCapabilitiesProbe | undefined>(undefined);
@@ -449,7 +452,7 @@ export const makeClaudeCapabilitiesCache = Effect.fn("makeClaudeCapabilitiesCach
         Effect.catch((error) =>
           Effect.gen(function* () {
             const previous = yield* Ref.getAndSet(lastGood, undefined);
-            if (!previous) return yield* error;
+            if (!previous || !(yield* input.validateFallback(previous))) return yield* error;
             const { usage: _staleUsage, ...capabilities } = previous;
             return yield* Effect.succeed<ClaudeCapabilitiesProbe>(capabilities);
           }),

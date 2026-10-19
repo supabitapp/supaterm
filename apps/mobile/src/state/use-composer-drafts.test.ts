@@ -144,7 +144,10 @@ vi.mock("../features/sharing/incoming-share-storage", () => ({
 }));
 
 import type { DraftComposerAttachment } from "../lib/composerImages";
-import { formatComposerContextReference } from "@supaterm/shared/composerContextReferences";
+import {
+  collectComposerContextReferences,
+  formatComposerContextReference,
+} from "@supaterm/shared/composerContextReferences";
 import { appAtomRegistry } from "./atom-registry";
 import { threadOutboxManager } from "./thread-outbox";
 import {
@@ -2110,6 +2113,42 @@ describe("mobile composer drafts", () => {
       [draftKey]: { ...merged[draftKey]!, text: "User edited the imported context" },
     };
     expect(mergeComposerDraftContentState(edited, draftKey, content)).toBe(edited);
+  });
+
+  it("shows a shared non-image file as a composer chip", () => {
+    const draftKey = "new-task:environment-1:project-1";
+    const sharedFile = {
+      id: "share-1:file:0",
+      type: "file" as const,
+      name: "backup.json",
+      mimeType: "application/json",
+      sizeBytes: 41,
+      fileUri: "file:///documents/backup.json",
+    };
+
+    const existingFile = { ...sharedFile, id: "existing-file", name: "notes.txt" };
+
+    const merged = mergeComposerDraftContentState(
+      { [draftKey]: { text: "", attachments: [existingFile] } },
+      draftKey,
+      { text: "", attachments: [sharedFile], sourceShareId: "share-1" },
+    )[draftKey]!;
+
+    expect(merged.attachments).toEqual([existingFile, sharedFile]);
+    const references = collectComposerContextReferences(merged.text);
+    expect(references).toHaveLength(1);
+    expect(merged.context?.records).toEqual([
+      expect.objectContaining({
+        kind: "file",
+        contextId: references[0]!.contextId,
+        attachmentId: sharedFile.id,
+      }),
+    ]);
+
+    const recovered = { text: "Retry this", attachments: [sharedFile] };
+    const once = mergeComposerDraftContentState({}, draftKey, recovered);
+    expect(once[draftKey]?.text).toBe("Retry this");
+    expect(mergeComposerDraftContentState(once, draftKey, recovered)).toBe(once);
   });
 
   it("preserves existing images when shared content exceeds the draft attachment limit", () => {

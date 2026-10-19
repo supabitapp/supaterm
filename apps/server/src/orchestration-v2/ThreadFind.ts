@@ -264,7 +264,7 @@ export const makeThreadFind = Effect.fn("makeThreadFind")(function* (
   });
 
   const textCache = yield* Cache.make({
-    capacity: 512,
+    capacity: 8192,
     timeToLive: "1 minute",
     lookup: (key: TextKey) => Effect.sync(() => parseText(key)),
   });

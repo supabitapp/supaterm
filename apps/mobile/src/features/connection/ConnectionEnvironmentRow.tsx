@@ -3,6 +3,7 @@ import { ConnectionTraceId } from "./ConnectionTraceId";
 import { SymbolView } from "../../components/ui/AppSymbol";
 import { connectionAddressLabel } from "@supaterm/client-runtime/connection";
 import { relayName } from "@supaterm/shared/relay/name";
+import { hasSavedBearerRoute } from "@supaterm/client-runtime/connection";
 import type { AtomCommandResult } from "@supaterm/client-runtime/state/runtime";
 import { type EnvironmentId, resolveEnvironmentMachineKind } from "@supaterm/contracts";
 import { useAtomValue } from "@effect/atom-react";
@@ -21,6 +22,7 @@ import { cn } from "../../lib/cn";
 import type { ConnectedEnvironmentSummary } from "../../state/remote-runtime-types";
 import { serverEnvironment } from "../../state/server";
 import { environmentConnectionAddressAtom } from "../../state/presentation";
+import { environmentPresentations } from "../../state/presentation";
 import { ConnectionFormField } from "./ConnectionFormField";
 import { ConnectionStatusDot } from "./ConnectionStatusDot";
 import { DisclosureChevron } from "../../components/ui/DisclosureChevron";
@@ -60,6 +62,10 @@ export function ConnectionEnvironmentRow(props: {
     useAtomValue(environmentConnectionAddressAtom(props.environment.environmentId)) ??
     connectionAddressLabel(props.environment.displayUrl);
   const unsupported = props.environment.connectionState === "unsupported";
+  const presentation = useAtomValue(
+    environmentPresentations.presentationAtom(props.environment.environmentId),
+  );
+  const canRetry = presentation !== null && hasSavedBearerRoute(presentation.entry);
   const enabled = props.environment.isEnabled && !unsupported;
   const statusLabel = connectionStatusLabel(props.environment);
   const statusTraceId = enabled ? props.environment.connectionErrorTraceId : null;
@@ -86,15 +92,17 @@ export function ConnectionEnvironmentRow(props: {
 
   return (
     <Animated.View layout={LinearTransition.duration(250)} className="bg-grouped-card">
-      <Pressable
-        className="flex-row items-center gap-3 px-4 py-3.5 active:opacity-70"
-        accessibilityRole="button"
-        accessibilityLabel={
-          props.opensDetails ? `Manage ${props.environment.environmentLabel}` : undefined
-        }
-        onPress={props.onToggle}
-      >
-        <View className="flex-1 gap-0.5">
+      <View className="flex-row items-center gap-3 px-4 py-3.5">
+        <Pressable
+          className="min-w-0 flex-1 gap-0.5 active:opacity-70"
+          accessibilityRole="button"
+          accessibilityLabel={
+            props.opensDetails
+              ? `Manage ${props.environment.environmentLabel}`
+              : `${props.expanded ? "Collapse" : "Expand"} details for ${props.environment.environmentLabel}`
+          }
+          onPress={props.onToggle}
+        >
           <View className="flex-row items-center gap-1.5">
             <ConnectionStatusDot
               state={enabled || unsupported ? props.environment.connectionState : "available"}
@@ -137,24 +145,41 @@ export function ConnectionEnvironmentRow(props: {
               ) : null}
             </Text>
           ) : null}
-        </View>
+        </Pressable>
 
         <ThemedSwitch
+          accessibilityLabel={`Enable ${props.environment.environmentLabel}`}
           style={{ alignSelf: "center" }}
-          disabled={unsupported}
+          disabled={unsupported && !canRetry}
           onValueChange={(next) => props.onSetEnabled(props.environment.environmentId, next)}
           value={enabled}
         />
-        {props.opensDetails ? (
-          <SymbolView name="chevron.right" size={12} tintColorClassName="accent-icon-subtle" />
-        ) : (
-          <DisclosureChevron
-            expanded={props.expanded}
-            size={12}
-            tintColorClassName="accent-icon-subtle"
-          />
-        )}
-      </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            props.opensDetails
+              ? `Manage ${props.environment.environmentLabel}`
+              : `${props.expanded ? "Collapse" : "Expand"} details for ${props.environment.environmentLabel}`
+          }
+          onPress={props.onToggle}
+          style={{
+            minWidth: 44,
+            minHeight: 44,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {props.opensDetails ? (
+            <SymbolView name="chevron.right" size={12} tintColorClassName="accent-icon-subtle" />
+          ) : (
+            <DisclosureChevron
+              expanded={props.expanded}
+              size={12}
+              tintColorClassName="accent-icon-subtle"
+            />
+          )}
+        </Pressable>
+      </View>
 
       {props.expanded ? (
         <Animated.View

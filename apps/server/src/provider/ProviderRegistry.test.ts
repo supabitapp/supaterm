@@ -3,8 +3,8 @@ import * as CodexInstallation from "./CodexInstallation.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { describe, it, assert, expect } from "@effect/vitest";
-import * as DateTime from "effect/DateTime";
 import * as Cause from "effect/Cause";
+import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Path from "effect/Path";
@@ -66,6 +66,7 @@ import type {
 } from "@supaterm/provider-core/server/driver";
 import * as ProviderInstanceRegistry from "./ProviderInstanceRegistry.ts";
 import * as ProviderRegistry from "./ProviderRegistry.ts";
+import { ProviderDriverError } from "./Errors.ts";
 import { makeManualOnlyProviderMaintenanceCapabilities } from "@supaterm/provider-core/server/maintenanceResolver";
 const decodeServerSettings = Schema.decodeSync(ServerSettings);
 const encodeServerSettings = Schema.encodeSync(ServerSettings);
@@ -848,6 +849,7 @@ it.layer(
           },
           { slug: "default", name: "Default", isCustom: false, capabilities: null },
         ],
+        nativeSessions: { canList: false, canLoad: false, canResume: false },
         slashCommands: [],
         skills: [],
       } as const satisfies ServerProvider;
@@ -860,6 +862,37 @@ it.layer(
       assert.deepStrictEqual(
         ProviderRegistry.mergeProviderSnapshot(previousProvider, refreshedProvider).models,
         [...refreshedProvider.models],
+      );
+    });
+
+    it("drops stale ACP Registry models when an agent without sign-in completes discovery", () => {
+      const previousProvider = {
+        instanceId: ProviderInstanceId.make("acpRegistry_kimi"),
+        driver: ProviderDriverKind.make("acpRegistry"),
+        status: "ready",
+        enabled: true,
+        installed: true,
+        auth: { status: "unknown", canLogout: false },
+        checkedAt: "2026-08-13T00:00:00.000Z",
+        version: "1.2.0",
+        models: [
+          { slug: "kimi-old", name: "Kimi Old", isCustom: false, capabilities: null },
+          { slug: "default", name: "Default", isCustom: false, capabilities: null },
+        ],
+        nativeSessions: { canList: true, canLoad: true, canResume: false },
+        slashCommands: [],
+        skills: [],
+      } as const satisfies ServerProvider;
+
+      const probedProvider = {
+        ...previousProvider,
+        checkedAt: "2026-08-13T00:01:00.000Z",
+        models: [{ slug: "kimi-new", name: "Kimi New", isCustom: false, capabilities: null }],
+      } satisfies ServerProvider;
+
+      assert.deepStrictEqual(
+        ProviderRegistry.mergeProviderSnapshot(previousProvider, probedProvider).models,
+        [...probedProvider.models],
       );
     });
 
@@ -881,15 +914,29 @@ it.layer(
         ...previousProvider,
         checkedAt: "2026-08-13T00:01:00.000Z",
         auth: { status: "unknown" },
+        message: "Checking ACP authentication, models, and commands in the background...",
         models: [{ slug: "default", name: "Default", isCustom: false, capabilities: null }],
+      } satisfies ServerProvider;
+
+      const confirmedCheckingProvider = {
+        ...checkingProvider,
+        auth: { status: "authenticated" },
       } satisfies ServerProvider;
       const failedProbeProvider = {
         ...checkingProvider,
         status: "warning",
+        message: "ACP discovery failed.",
       } satisfies ServerProvider;
 
       assert.deepStrictEqual(
         ProviderRegistry.mergeProviderSnapshot(previousProvider, checkingProvider).models,
+        [
+          { slug: "default", name: "Default", isCustom: false, capabilities: null },
+          { slug: "gpt-5.6-sol", name: "GPT-5.6-Sol", isCustom: false, capabilities: null },
+        ],
+      );
+      assert.deepStrictEqual(
+        ProviderRegistry.mergeProviderSnapshot(previousProvider, confirmedCheckingProvider).models,
         [
           { slug: "default", name: "Default", isCustom: false, capabilities: null },
           { slug: "gpt-5.6-sol", name: "GPT-5.6-Sol", isCustom: false, capabilities: null },
@@ -1113,6 +1160,204 @@ it.layer(
       const afterFailure = ProviderRegistry.mergeProviderSnapshot(afterRemoval, failedProvider);
 
       assert.deepStrictEqual(afterFailure.models, [authoritativeProvider.models[0]!]);
+    });
+
+    describe("Pi model inventories", () => {
+      const defaultModel = {
+        slug: "default",
+        name: "Pi default",
+        isCustom: false,
+        capabilities: null,
+      } as const;
+      const currentModel = {
+        slug: "openai/gpt-6.1-sol",
+        name: "GPT-6.1-Sol",
+        isCustom: false,
+        capabilities: null,
+      } as const;
+      const removedModel = {
+        slug: "openrouter/google/gemini-2.5-pro",
+        name: "Google: Gemini 2.5 Pro",
+        isCustom: false,
+        capabilities: null,
+      } as const;
+      const customModel = {
+        slug: "custom-model",
+        name: "Custom model",
+        isCustom: true,
+        capabilities: null,
+      } as const;
+      const cachedProvider = {
+        instanceId: ProviderInstanceId.make("pi-personal"),
+        driver: ProviderDriverKind.make("pi"),
+        status: "ready",
+        enabled: true,
+        installed: true,
+        auth: { status: "authenticated", type: "pi" },
+        checkedAt: "2026-10-03T00:00:00.000Z",
+        version: "1.0.0",
+        models: [
+          defaultModel,
+          currentModel,
+          removedModel,
+          { ...customModel, slug: "removed-custom" },
+        ],
+        slashCommands: [],
+        skills: [],
+      } satisfies ServerProvider;
+      const refreshedProvider = {
+        ...cachedProvider,
+        checkedAt: "2026-10-03T00:01:00.000Z",
+        models: [defaultModel, currentModel, customModel],
+      } satisfies ServerProvider;
+      const pendingProvider = {
+        ...cachedProvider,
+        status: "warning",
+        version: null,
+        auth: { status: "unknown" },
+        models: [defaultModel, customModel],
+      } satisfies ServerProvider;
+      const failedProvider = {
+        ...pendingProvider,
+        checkedAt: "2026-10-03T00:02:00.000Z",
+        status: "ready",
+        version: "1.0.0",
+        message: "Pi is available, but Supaterm could not refresh its models and commands.",
+      } satisfies ServerProvider;
+
+      it("drops disconnected Pi upstream models after successful discovery", () => {
+        assert.deepStrictEqual(
+          ProviderRegistry.mergeProviderSnapshot(cachedProvider, refreshedProvider).models,
+          refreshedProvider.models,
+        );
+      });
+
+      it("clears discovered Pi models when successful discovery finds no usable models", () => {
+        const signedOutProvider = {
+          ...refreshedProvider,
+          status: "warning",
+          auth: { status: "unauthenticated", type: "pi" },
+          models: [defaultModel, customModel],
+        } satisfies ServerProvider;
+
+        assert.deepStrictEqual(
+          ProviderRegistry.mergeProviderSnapshot(cachedProvider, signedOutProvider).models,
+          signedOutProvider.models,
+        );
+      });
+
+      it("retains Pi inventories during incomplete probes without restoring removed custom models", () => {
+        const incompleteProviders = [
+          pendingProvider,
+          { ...pendingProvider, installed: false },
+          failedProvider,
+          { ...failedProvider, status: "error" },
+        ] satisfies ReadonlyArray<ServerProvider>;
+
+        for (const provider of incompleteProviders) {
+          assert.deepStrictEqual(
+            ProviderRegistry.mergeProviderSnapshot(cachedProvider, provider).models,
+            [defaultModel, customModel, currentModel, removedModel],
+          );
+        }
+      });
+
+      it("does not restore disconnected Pi models after a later discovery failure", () => {
+        const afterRemoval = ProviderRegistry.mergeProviderSnapshot(
+          cachedProvider,
+          refreshedProvider,
+        );
+        assert.deepStrictEqual(
+          ProviderRegistry.mergeProviderSnapshot(afterRemoval, failedProvider).models,
+          [defaultModel, customModel, currentModel],
+        );
+      });
+
+      it.effect(
+        "persists Pi inventory removals across failed refreshes and registry restarts",
+        () =>
+          Effect.gen(function* () {
+            const config = yield* ServerConfig.ServerConfig;
+            const filePath = yield* resolveProviderStatusCachePath({
+              cacheDir: config.providerStatusCacheDir,
+              instanceId: cachedProvider.instanceId,
+            });
+            yield* writeProviderStatusCache({ filePath, provider: cachedProvider });
+            const nextProvider = yield* Ref.make<ServerProvider>(refreshedProvider);
+            const instance = {
+              instanceId: cachedProvider.instanceId,
+              driverKind: cachedProvider.driver,
+              continuationIdentity: {
+                driverKind: cachedProvider.driver,
+                continuationKey: "pi:instance:pi-personal",
+              },
+              displayName: undefined,
+              enabled: true,
+              snapshot: {
+                resolveMaintenance: () =>
+                  Effect.succeed(
+                    makeManualOnlyProviderMaintenanceCapabilities({
+                      provider: cachedProvider.driver,
+                      packageName: null,
+                    }),
+                  ),
+                getSnapshot: Effect.succeed(pendingProvider),
+                refresh: Ref.get(nextProvider),
+                streamChanges: Stream.empty,
+                applyUsageLimits: () => Effect.void,
+              },
+              orchestrationAdapter: {} as ProviderInstance["orchestrationAdapter"],
+              textGeneration: {} as ProviderInstance["textGeneration"],
+            } satisfies ProviderInstance;
+            const layerInstanceRegistry = Layer.succeed(
+              ProviderInstanceRegistry.ProviderInstanceRegistry,
+              {
+                getInstance: (id) =>
+                  Effect.succeed(id === instance.instanceId ? instance : undefined),
+                listInstances: Effect.succeed([instance]),
+                listUnavailable: Effect.succeed([]),
+                streamChanges: Stream.empty,
+                subscribeChanges: Effect.flatMap(PubSub.unbounded<void>(), PubSub.subscribe),
+              },
+            );
+            const retainedModels = [defaultModel, customModel, currentModel];
+
+            for (const restarted of [false, true]) {
+              yield* Effect.gen(function* () {
+                const registry = yield* ProviderRegistry.ProviderRegistry;
+                assert.deepStrictEqual(
+                  (yield* registry.getProviders)[0]?.models,
+                  restarted
+                    ? retainedModels
+                    : [defaultModel, customModel, currentModel, removedModel],
+                );
+
+                yield* registry.refreshInstance(instance.instanceId);
+                assert.deepStrictEqual(
+                  (yield* readProviderStatusCache(filePath))?.models,
+                  restarted ? retainedModels : refreshedProvider.models,
+                );
+
+                yield* Ref.set(nextProvider, failedProvider);
+                const afterFailure = yield* registry.refreshInstance(instance.instanceId);
+                assert.deepStrictEqual(afterFailure[0]?.models, retainedModels);
+                assert.deepStrictEqual(
+                  (yield* readProviderStatusCache(filePath))?.models,
+                  retainedModels,
+                );
+              }).pipe(
+                Effect.provide(ProviderRegistry.layer.pipe(Layer.provide(layerInstanceRegistry))),
+                Effect.scoped,
+              );
+            }
+          }).pipe(
+            Effect.provide(
+              ServerConfig.layerTest(process.cwd(), {
+                prefix: "supaterm-pi-model-cache-",
+              }).pipe(Layer.provideMerge(NodeServices.layer)),
+            ),
+          ),
+      );
     });
 
     describe("Codex model inventories", () => {
@@ -1671,12 +1916,6 @@ it.layer(
           slashCommands: [{ name: "project" }],
           skills: [{ name: "project", path: "/workspace/SKILL.md", enabled: true }],
         } as const satisfies ServerProvider;
-        const pendingScopedProvider = {
-          ...scopedProvider,
-          status: "error",
-          installed: false,
-          slashCommands: [],
-        } as const satisfies ServerProvider;
         const snapshotCalls = yield* Ref.make(0);
         const scopedResult = yield* Ref.make<ProviderWorkspaceSnapshot>({
           ...scopedProvider,
@@ -1689,7 +1928,7 @@ it.layer(
           readonly started: Deferred.Deferred<void>;
           readonly release: Deferred.Deferred<void>;
         } | null>(null);
-        const returnPendingSnapshot = yield* Ref.make(true);
+        const failScan = yield* Ref.make(true);
         const probeStarted = yield* Deferred.make<void>();
         const releaseProbe = yield* Deferred.make<void>();
         const makeInstance = (
@@ -1725,7 +1964,13 @@ it.layer(
         const firstInstance = makeInstance(machineProvider, () =>
           Effect.gen(function* () {
             yield* Ref.update(snapshotCalls, (count) => count + 1);
-            if (yield* Ref.get(returnPendingSnapshot)) return pendingScopedProvider;
+            if (yield* Ref.get(failScan)) {
+              return yield* new ProviderDriverError({
+                driver,
+                instanceId,
+                detail: "The workspace scan failed.",
+              });
+            }
             yield* Deferred.succeed(probeStarted, undefined);
             yield* Deferred.await(releaseProbe);
             const result = yield* Ref.get(scopedResult);
@@ -1782,7 +2027,7 @@ it.layer(
           const registry = yield* ProviderRegistry.ProviderRegistry;
           yield* registry.refreshWorkspaceSnapshot({ instanceId, cwd: "/workspace" });
           assert.strictEqual((yield* registry.getProviders)[0]?.workspaceSnapshots, undefined);
-          yield* Ref.set(returnPendingSnapshot, false);
+          yield* Ref.set(failScan, false);
           const workspaceUpdate = yield* registry.streamChanges.pipe(
             Stream.runHead,
             Effect.forkChild,
@@ -1890,6 +2135,131 @@ it.layer(
           }
           assert.strictEqual(rebuilt[0]?.checkedAt, rebuiltProvider.checkedAt);
           assert.strictEqual(rebuilt[0]?.workspaceSnapshots, undefined);
+        }).pipe(Effect.provide(runtimeServices));
+      }),
+    );
+
+    it.effect("publishes workspace skills while machine health is in error", () =>
+      Effect.gen(function* () {
+        const driver = ProviderDriverKind.make("codex");
+        const instanceId = ProviderInstanceId.make("codex");
+        const healthyProvider = {
+          instanceId,
+          driver,
+          status: "ready",
+          enabled: true,
+          installed: true,
+          auth: { status: "authenticated" },
+          checkedAt: "2026-06-10T00:00:00.000Z",
+          version: "1.0.0",
+          models: [],
+          slashCommands: [COMPACT_SLASH_COMMAND],
+          skills: [],
+        } as const satisfies ServerProvider;
+
+        const unhealthyProvider = {
+          ...healthyProvider,
+          status: "error",
+          auth: { status: "unknown" },
+          message: "Codex app-server provider probe failed: unauthorized (401).",
+          slashCommands: [],
+        } as const satisfies ServerProvider;
+        const firstSkills = [{ name: "first", path: "/workspace/first/SKILL.md", enabled: true }];
+        const laterSkills = [{ name: "later", path: "/workspace/later/SKILL.md", enabled: true }];
+        const scanResult = yield* Ref.make<ProviderWorkspaceSnapshot>({
+          ...healthyProvider,
+          skills: firstSkills,
+        });
+        const instance: ProviderInstance = {
+          instanceId,
+          driverKind: driver,
+          continuationIdentity: { driverKind: driver, continuationKey: "codex:instance:codex" },
+          displayName: undefined,
+          enabled: true,
+          snapshot: {
+            resolveMaintenance: () =>
+              Effect.succeed(
+                makeManualOnlyProviderMaintenanceCapabilities({
+                  provider: driver,
+                  packageName: null,
+                }),
+              ),
+            getSnapshot: Effect.succeed(unhealthyProvider),
+            refresh: Effect.succeed(unhealthyProvider),
+            streamChanges: Stream.empty,
+            applyUsageLimits: () => Effect.void,
+          },
+          snapshotForCwd: () => Ref.get(scanResult),
+          orchestrationAdapter: {} as ProviderInstance["orchestrationAdapter"],
+          textGeneration: {} as ProviderInstance["textGeneration"],
+        };
+        const layerInstanceRegistry = Layer.succeed(
+          ProviderInstanceRegistry.ProviderInstanceRegistry,
+          {
+            getInstance: (requestedId) =>
+              Effect.succeed(requestedId === instanceId ? instance : undefined),
+            listInstances: Effect.succeed([instance]),
+            listUnavailable: Effect.succeed([]),
+            streamChanges: Stream.empty,
+            subscribeChanges: Effect.flatMap(PubSub.unbounded<void>(), PubSub.subscribe),
+          },
+        );
+        const scope = yield* Scope.make();
+        yield* Effect.addFinalizer(() => Scope.close(scope, Exit.void));
+        const runtimeServices = yield* Layer.build(
+          ProviderRegistry.layer.pipe(
+            Layer.provideMerge(layerInstanceRegistry),
+            Layer.provideMerge(
+              ServerConfig.layerTest(process.cwd(), {
+                prefix: "supaterm-provider-registry-unhealthy-workspace-",
+              }),
+            ),
+            Layer.provideMerge(NodeServices.layer),
+          ),
+        ).pipe(Scope.provide(scope));
+
+        yield* Effect.gen(function* () {
+          const registry = yield* ProviderRegistry.ProviderRegistry;
+          const workspaceOf = Effect.map(
+            registry.getProviders,
+            (providers) => providers[0]?.workspaceSnapshots?.[0],
+          );
+          yield* registry.refreshWorkspaceSnapshot({ instanceId, cwd: "/workspace" });
+          assert.deepStrictEqual((yield* workspaceOf)?.slashCommands, [COMPACT_SLASH_COMMAND]);
+
+          yield* TestClock.adjust(PROVIDER_WORKSPACE_SNAPSHOT_TTL_MS);
+          yield* Ref.set(scanResult, { ...unhealthyProvider, skills: laterSkills });
+          yield* registry.refreshWorkspaceSnapshot({ instanceId, cwd: "/workspace" });
+          const unhealthy = yield* workspaceOf;
+          assert.deepStrictEqual(unhealthy?.skills, laterSkills);
+          assert.deepStrictEqual(unhealthy?.slashCommands, [COMPACT_SLASH_COMMAND]);
+          assert.strictEqual(unhealthy?.slashCommandsPending, true);
+          const provider = (yield* registry.getProviders)[0];
+          assert.strictEqual(provider?.status, "error");
+          assert.strictEqual(provider?.message, unhealthyProvider.message);
+
+          yield* Ref.set(scanResult, { ...unhealthyProvider, skills: [] });
+          yield* registry.refreshWorkspaceSnapshot({ instanceId, cwd: "/workspace" });
+          assert.deepStrictEqual((yield* workspaceOf)?.skills, []);
+
+          const discoveredCommand = { name: "review", description: "Review changes" };
+          yield* Ref.set(scanResult, {
+            ...unhealthyProvider,
+            slashCommands: [discoveredCommand],
+            slashCommandsPending: false,
+          });
+          yield* registry.refreshWorkspaceSnapshot({ instanceId, cwd: "/workspace" });
+          const discovered = yield* workspaceOf;
+          assert.deepStrictEqual(discovered?.slashCommands, [discoveredCommand]);
+          assert.strictEqual(discovered?.slashCommandsPending, undefined);
+
+          yield* TestClock.adjust(PROVIDER_WORKSPACE_SNAPSHOT_TTL_MS);
+          yield* Ref.set(scanResult, { ...healthyProvider, skills: laterSkills });
+          yield* registry.refreshWorkspaceSnapshot({ instanceId, cwd: "/workspace" });
+          const recovered = yield* workspaceOf;
+          assert.deepStrictEqual(recovered?.skills, laterSkills);
+          assert.deepStrictEqual(recovered?.slashCommands, [COMPACT_SLASH_COMMAND]);
+          assert.strictEqual(recovered?.slashCommandsPending, undefined);
         }).pipe(Effect.provide(runtimeServices));
       }),
     );
@@ -3559,6 +3929,16 @@ it.layer(
         assert.strictEqual(
           status.message,
           "Could not verify Claude authentication status from initialization result.",
+        );
+
+        const timedOut = yield* checkClaudeProviderStatus(defaultClaudeSettings, () =>
+          Effect.fail(new Cause.TimeoutError()),
+        );
+        assert.strictEqual(timedOut.status, "warning");
+        assert.strictEqual(timedOut.auth.status, "unknown");
+        assert.strictEqual(
+          timedOut.message,
+          "Claude status check timed out. Try again when the environment is less busy.",
         );
       }).pipe(
         Effect.provide(

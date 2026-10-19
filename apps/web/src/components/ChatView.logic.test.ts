@@ -16,7 +16,13 @@ import {
 } from "@supaterm/contracts";
 import { deriveProviderInstanceEntries, NO_PROVIDER_MODEL_SELECTION } from "../providerInstances";
 import { headlineUsageWindows } from "@supaterm/shared/usageLimits";
-import type { RightPanelSurface } from "../rightPanelStore";
+import { selectThreadDiffPanelSelection, useDiffPanelStore } from "../diffPanelStore";
+import {
+  selectActiveRightPanel,
+  selectThreadRightPanelState,
+  useRightPanelStore,
+  type RightPanelSurface,
+} from "../rightPanelStore";
 import {
   CommandId,
   EnvironmentId,
@@ -26,6 +32,7 @@ import {
   ProviderInstanceId,
   ThreadId,
   RunId,
+  type ScopedThreadRef,
   TurnItemId,
   type OrchestrationV2ProjectedTurnItem,
   type WorktreeSetupSnapshot,
@@ -33,7 +40,7 @@ import {
 import type { CodexArtifactTemplate } from "@supaterm/shared/codexArtifactTemplates";
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
-import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { Atom } from "effect/reactivity";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { environmentThreadDetails } from "../state/threads";
@@ -47,6 +54,7 @@ import {
   resolveComposerProviderSelection,
   resolveProactiveTurnDiffAction,
   resolveDraftHeroState,
+  resolveExplicitDiffOpenOnActivate,
   resolveWorktreeSetupProgress,
   isPaintOnlyThreadTimeline,
   peekHeldThreadTimeline,
@@ -1689,7 +1697,6 @@ describe("proactive completed diff guard", () => {
         resolveProactiveTurnDiffAction({
           checkpoint: changedCheckpoint,
           isGitRepo: true,
-          activeSurfaceKind: null,
         }),
       ).toBe(action);
     },
@@ -1709,41 +1716,37 @@ describe("proactive completed diff guard", () => {
       resolveProactiveTurnDiffAction({
         checkpoint: undefined,
         isGitRepo: true,
-        activeSurfaceKind: null,
       }),
     ).toBe("defer");
     expect(
       resolveProactiveTurnDiffAction({
         checkpoint: missingCheckpoint,
         isGitRepo: true,
-        activeSurfaceKind: null,
       }),
     ).toBe("defer");
     expect(
       resolveProactiveTurnDiffAction({
         checkpoint: changedCheckpoint,
         isGitRepo: undefined,
-        activeSurfaceKind: null,
       }),
     ).toBe("defer");
   });
 
-  it("keeps an active pull request above a completed turn diff", () => {
+  it("delegates a qualifying completed diff to the store while a pull request is active", () => {
     const changedCheckpoint = {
       status: "ready",
-      files: [{ path: "src/app.ts", kind: "modified", additions: 1, deletions: 0 }],
+      files: [{ path: "src/app.ts", kind: "modified", additions: 50, deletions: 0 }],
     } satisfies Pick<TurnDiffSummary, "status" | "files">;
 
     expect(
       resolveProactiveTurnDiffAction({
         checkpoint: changedCheckpoint,
         isGitRepo: true,
-        activeSurfaceKind: "pull-request",
       }),
-    ).toBe("ignore");
+    ).toBe("open");
   });
 
-  it("leaves an already open diff and its chosen scope alone", () => {
+  it("delegates a qualifying completion to the store while a diff is already open", () => {
     const largeCheckpoint = {
       status: "ready",
       files: Array.from({ length: 3 }, (_, index) => ({
@@ -1758,9 +1761,108 @@ describe("proactive completed diff guard", () => {
       resolveProactiveTurnDiffAction({
         checkpoint: largeCheckpoint,
         isGitRepo: true,
-        activeSurfaceKind: "diff",
       }),
-    ).toBe("ignore");
+    ).toBe("open");
+  });
+});
+
+describe("Diff scope across right-panel tab switches", () => {
+  const threadRef: ScopedThreadRef = { environmentId, threadId };
+  const otherThreadRef: ScopedThreadRef = { environmentId, threadId: ThreadId.make("thread-2") };
+  let explicitDiffOpen: ScopedThreadRef | null = null;
+
+  const diffIsActive = (ref: ScopedThreadRef) =>
+    selectActiveRightPanel(useRightPanelStore.getState().byThreadKey, ref) === "diff";
+  const diffScope = (ref: ScopedThreadRef) =>
+    selectThreadDiffPanelSelection(useDiffPanelStore.getState().byThreadKey, ref).kind;
+  const settle = (ref: ScopedThreadRef) => {
+    const explicit = explicitDiffOpen;
+    explicitDiffOpen = null;
+    if (diffIsActive(ref) && explicit !== ref) {
+      useDiffPanelStore.getState().selectGitScope(ref, "branch");
+    }
+  };
+  const clickTab = (ref: ScopedThreadRef, surfaceId: string) => {
+    const surface = selectThreadRightPanelState(
+      useRightPanelStore.getState().byThreadKey,
+      ref,
+    ).surfaces.find((entry) => entry.id === surfaceId);
+    explicitDiffOpen = resolveExplicitDiffOpenOnActivate({
+      surfaceKind: surface!.kind,
+      diffOpen: diffIsActive(ref),
+      activeThreadRef: ref,
+    });
+    useRightPanelStore.getState().activateSurface(ref, surfaceId);
+    settle(ref);
+  };
+
+  beforeEach(() => {
+    explicitDiffOpen = null;
+    useRightPanelStore.setState({
+      byThreadKey: {},
+      userActionRevisionByThreadKey: {},
+      closeRevisionByThreadKey: {},
+    });
+    useDiffPanelStore.setState({ byThreadKey: {}, branchBaseRefByThreadKey: {} });
+  });
+
+  it("keeps Uncommitted when the user clicks back to the Diff tab", () => {
+    const panels = useRightPanelStore.getState();
+    panels.open(threadRef, "diff");
+    settle(threadRef);
+    useDiffPanelStore.getState().selectGitScope(threadRef, "unstaged");
+
+    panels.open(threadRef, "files");
+    settle(threadRef);
+    clickTab(threadRef, "diff");
+
+    expect(diffScope(threadRef)).toBe("unstaged");
+  });
+
+  it("still opens on Changes for generic openings", () => {
+    const panels = useRightPanelStore.getState();
+    const diffStore = useDiffPanelStore.getState();
+
+    panels.open(threadRef, "diff");
+    settle(threadRef);
+    expect(diffScope(threadRef)).toBe("branch");
+
+    diffStore.selectGitScope(threadRef, "unstaged");
+    panels.open(threadRef, "files");
+    settle(threadRef);
+    panels.closeSurface(threadRef, "files");
+    settle(threadRef);
+    expect(diffScope(threadRef)).toBe("branch");
+
+    diffStore.selectGitScope(threadRef, "unstaged");
+    panels.open(otherThreadRef, "diff");
+    diffStore.selectGitScope(otherThreadRef, "unstaged");
+    settle(otherThreadRef);
+    expect(diffScope(otherThreadRef)).toBe("branch");
+  });
+
+  it("marks only a click that brings the Diff tab on screen", () => {
+    expect(
+      resolveExplicitDiffOpenOnActivate({
+        surfaceKind: "diff",
+        diffOpen: false,
+        activeThreadRef: threadRef,
+      }),
+    ).toBe(threadRef);
+    expect(
+      resolveExplicitDiffOpenOnActivate({
+        surfaceKind: "diff",
+        diffOpen: true,
+        activeThreadRef: threadRef,
+      }),
+    ).toBeNull();
+    expect(
+      resolveExplicitDiffOpenOnActivate({
+        surfaceKind: "files",
+        diffOpen: false,
+        activeThreadRef: threadRef,
+      }),
+    ).toBeNull();
   });
 });
 
@@ -1796,6 +1898,12 @@ describe("shouldRefocusComposerOnWindowFocus", () => {
 
   it.each(["IFRAME", "WEBVIEW"])("leaves a focused %s preview alone", (tagName) => {
     expect(shouldRefocusComposerOnWindowFocus(element(tagName))).toBe(false);
+  });
+
+  it("leaves a focused device screen alone", () => {
+    expect(shouldRefocusComposerOnWindowFocus(element("DIV", { within: "application" }))).toBe(
+      false,
+    );
   });
 
   it("leaves a focused terminal alone in the drawer and the right panel", () => {

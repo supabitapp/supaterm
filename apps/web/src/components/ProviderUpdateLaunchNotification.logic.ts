@@ -234,6 +234,28 @@ function formatProviderList(providers: ReadonlyArray<Pick<ServerProvider, "drive
   return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 }
 
+function describeInitialUpdates(input: {
+  readonly updateProviders: ReadonlyArray<ProviderUpdateCandidate>;
+  readonly oneClickProviders: ReadonlyArray<ProviderUpdateCandidate>;
+}): string {
+  const fromSettings = input.updateProviders.filter(
+    (provider) => provider.versionAdvisory.canUpdate,
+  );
+  const manual = input.updateProviders.filter((provider) => !provider.versionAdvisory.canUpdate);
+  return [
+    input.oneClickProviders.length > 0
+      ? "Install the update now or review provider settings."
+      : fromSettings.length > 0
+        ? `${formatProviderList(fromSettings)} can be updated from provider settings.`
+        : null,
+    manual.length > 0
+      ? `Update ${formatProviderList(manual)} with the app or tool that installed ${manual.length === 1 ? "it" : "them"}.`
+      : null,
+  ]
+    .filter((sentence) => sentence !== null)
+    .join(" ");
+}
+
 export function getProviderUpdateInitialToastView(input: {
   readonly updateProviders: ReadonlyArray<ProviderUpdateCandidate>;
   readonly oneClickProviders: ReadonlyArray<ProviderUpdateCandidate>;
@@ -242,10 +264,7 @@ export function getProviderUpdateInitialToastView(input: {
     phase: "initial",
     type: "warning",
     title: getProviderUpdateInitialToastTitle(input.updateProviders),
-    description:
-      input.oneClickProviders.length > 0
-        ? "Install the update now or review provider settings."
-        : `${formatProviderList(input.updateProviders)} can be updated from provider settings.`,
+    description: describeInitialUpdates(input),
   };
 }
 
@@ -460,12 +479,24 @@ function latestFinishedAtForProviders(providers: ReadonlyArray<ServerProvider>):
   }, null);
 }
 
+function latestTerminalProvidersByDriver(providers: ReadonlyArray<ServerProvider>) {
+  const latestProviderByDriver = new Map<ProviderDriverKind, ServerProvider>();
+
+  for (const provider of providers) {
+    const current = latestProviderByDriver.get(provider.driver);
+    if (!current || (getUpdateFinishedAt(provider) ?? "") >= (getUpdateFinishedAt(current) ?? "")) {
+      latestProviderByDriver.set(provider.driver, provider);
+    }
+  }
+
+  return [...latestProviderByDriver.values()];
+}
+
 export function getProviderUpdateSidebarPillView(
   providers: ReadonlyArray<ServerProvider>,
   options?: ProviderUpdateSidebarPillOptions,
 ): ProviderUpdateSidebarPillView | null {
-  const dedupedProviders = dedupeProvidersByDriver(providers);
-  const activeProviders = dedupedProviders.filter(isProviderUpdateActive);
+  const activeProviders = dedupeProvidersByDriver(providers.filter(isProviderUpdateActive));
   if (activeProviders.length > 0) {
     const activeProvider = activeProviders[0]!;
     const activeProviderName =
@@ -487,8 +518,8 @@ export function getProviderUpdateSidebarPillView(
     };
   }
 
-  const recentTerminalProviders = dedupedProviders.filter((provider) =>
-    isRecentTerminalProvider(provider, options?.visibleAfterIso),
+  const recentTerminalProviders = latestTerminalProvidersByDriver(
+    providers.filter((provider) => isRecentTerminalProvider(provider, options?.visibleAfterIso)),
   );
   const terminalCandidates: ProviderUpdateSidebarPillView[] = [];
 

@@ -1508,7 +1508,11 @@ describe("extractMcpToolCallIdentity", () => {
       "mcp__supaterm__delegate_task",
       "supaterm_delegate_task",
       "delegate_task (supaterm MCP Server)",
+      "delegate_task",
       'delegate_task: {"mode":"async"}',
+
+      'delegate_task: {"mode":"async","task":"Ru',
+      'delegate_task: {"mode":"async","task":"Ru...cho child-result-42\'"}',
     ]) {
       const toolCall = toolCallFromUpdate({
         sessionUpdate: "tool_call",
@@ -1543,6 +1547,17 @@ describe("extractMcpToolCallIdentity", () => {
         tool: "supaterm_thread_send",
       });
     }
+  });
+
+  it("does not claim an agent's own tool that shares a Supaterm tool name", () => {
+    const toolCall = toolCallFromUpdate({
+      sessionUpdate: "tool_call",
+      toolCallId: "own-delegate-1",
+      kind: "execute",
+      title: "delegate_task: 1 tasks: Run the terminal command 'echo child-result-42'",
+      status: "pending",
+    });
+    expect(extractMcpToolCallIdentity(toolCall)).toBeUndefined();
   });
 
   it("recovers Supaterm identity from goose _meta despite LLM-rewritten titles", () => {

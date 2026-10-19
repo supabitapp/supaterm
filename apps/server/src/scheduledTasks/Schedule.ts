@@ -14,7 +14,7 @@ export function nextScheduledRunAt(
   from: DateTime.DateTime,
 ): DateTime.DateTime | null {
   if (schedule.type === "interval") {
-    return DateTime.add(from, { milliseconds: schedule.everyMs });
+    return DateTime.addDuration(from, schedule.everyMs);
   }
 
   const time = parseTimeOfDay(schedule.timeOfDay);

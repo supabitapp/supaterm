@@ -1,3 +1,4 @@
+import { ScheduledTaskId } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "@supaterm/shared/composerContextReferences";
@@ -116,6 +117,16 @@ describe("buildComposerPromptHistoryEntries", () => {
       { id: "m3", prompt: "other" },
       { id: "m4", prompt: "same" },
     ]);
+  });
+
+  it("skips messages sent by automations, agents, and Supaterm", () => {
+    const typed = buildComposerPromptHistoryEntries([
+      { id: "m1", role: "user", text: "typed" },
+      { id: "m2", role: "user", text: "scheduled", scheduledTaskId: ScheduledTaskId.make("task") },
+      { id: "m3", role: "user", text: "from agent", createdBy: "agent", creationSource: "mcp" },
+      { id: "m4", role: "user", text: "from server", createdBy: "agent", creationSource: "server" },
+    ]);
+    expect(typed).toEqual([{ id: "m1", prompt: "typed" }]);
   });
 });
 

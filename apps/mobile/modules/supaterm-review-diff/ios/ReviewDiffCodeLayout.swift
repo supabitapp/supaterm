@@ -2,6 +2,8 @@ import UIKit
 
 /// ASCII uses fixed-pitch columns. TextKit handles shaping, tabs, and Unicode highlights.
 final class ReviewDiffCodeLayout: NSObject {
+  static let unboundedWidth = CGFloat.greatestFiniteMagnitude
+
   // Measurement reuses one engine; only recently drawn rows retain a full TextKit layout.
   private static var measurer: ReviewDiffTextLayout {
     let key = "SupatermReviewDiff.textMeasurer"
@@ -20,6 +22,7 @@ final class ReviewDiffCodeLayout: NSObject {
   let lineHeight: CGFloat
   let firstLineHeight: CGFloat
   let extraHeight: CGFloat
+  let usedWidth: CGFloat
   private let font: UIFont
   private let width: CGFloat
   private let characterWidth: CGFloat
@@ -32,10 +35,12 @@ final class ReviewDiffCodeLayout: NSObject {
     self.characterWidth = characterWidth
     lineHeight = ceil(font.lineHeight)
     if text.utf8.allSatisfy({ $0 >= 32 && $0 <= 126 }) {
-      let columns = max(1, Int(width / characterWidth))
-      starts = Array(stride(from: 0, to: max(1, text.utf8.count), by: columns))
+      let length = max(1, text.utf8.count)
+      let columns = max(1, Int(min(width / characterWidth, CGFloat(length))))
+      starts = Array(stride(from: 0, to: length, by: columns))
       firstLineHeight = font.lineHeight
       extraHeight = CGFloat(starts.count - 1) * lineHeight
+      usedWidth = CGFloat(min(text.utf8.count, columns)) * characterWidth
       usesNativeLayout = false
     } else {
       let layout = Self.measurer
@@ -46,7 +51,9 @@ final class ReviewDiffCodeLayout: NSObject {
       starts = [0]
       firstLineHeight = manager.numberOfGlyphs > 0
         ? manager.lineFragmentRect(forGlyphAt: 0, effectiveRange: nil).height : font.lineHeight
-      extraHeight = max(0, manager.usedRect(for: container).height - firstLineHeight)
+      let used = manager.usedRect(for: container)
+      extraHeight = max(0, used.height - firstLineHeight)
+      usedWidth = ceil(used.width)
     }
   }
 

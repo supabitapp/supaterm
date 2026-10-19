@@ -1,6 +1,8 @@
+import { settlePromise } from "@supaterm/client-runtime/state/runtime";
+import { AsyncResult } from "effect/reactivity";
 import * as Dialog from "../../components/ui/Dialog";
 import { useFocusEffect, useNavigation, type StaticScreenProps } from "@react-navigation/native";
-import { useCallback, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { View } from "react-native";
 import type { PullRequestReviewPosition } from "@supaterm/contracts";
 import { AppText as Text, AppTextInput as TextInput } from "../../components/ui/AppText";
@@ -13,7 +15,6 @@ import { usePullRequestReviewDraft } from "./usePullRequestReviewDraft";
 import { reviewPositionLabel } from "./pullRequestDiffComments";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
-
 export type InlineCommentParams = PullRequestParams & {
   readonly draftId?: string;
   readonly path: string;
@@ -31,7 +32,7 @@ export function PullRequestInlineCommentScreen({ route }: StaticScreenProps<Inli
   const body = editedBody ?? saved?.body ?? "";
   const detail = useEnvironmentQuery(composerPullRequests.detail(pullRequestTarget(params)));
   const { refresh: refreshDetail } = detail;
-  useFocusEffect(useCallback(() => refreshDetail(), [refreshDetail]));
+  useFocusEffect(() => refreshDetail());
   const permissions = usePullRequestPermissions(params, detail.data);
   const stale = detail.data && detail.data.headSha !== params.headSha;
   const pending = useRef(false);
@@ -56,7 +57,11 @@ export function PullRequestInlineCommentScreen({ route }: StaticScreenProps<Inli
         {
           id: params.draftId ?? uuidv4(),
           path: params.path,
-          ...(params.oldPath ? { oldPath: params.oldPath } : {}),
+          ...(params.oldPath
+            ? {
+                oldPath: params.oldPath,
+              }
+            : {}),
           position: params.position,
           headSha: params.headSha,
           code: params.code,
@@ -64,13 +69,11 @@ export function PullRequestInlineCommentScreen({ route }: StaticScreenProps<Inli
         },
       ],
     }));
-    try {
-      await store.flush();
-      navigation.goBack();
-    } finally {
-      pending.current = false;
-      setBusy(false);
-    }
+
+    const result = await settlePromise(() => store.flush());
+    pending.current = false;
+    setBusy(false);
+    if (AsyncResult.isSuccess(result)) navigation.goBack();
   };
   return (
     <PullRequestSheetContent
@@ -112,7 +115,9 @@ export function PullRequestInlineCommentScreen({ route }: StaticScreenProps<Inli
         value={body}
         onChangeText={setBody}
         className="min-h-32 rounded-[20px] bg-grouped-card p-4 text-base text-foreground"
-        style={{ textAlignVertical: "top" }}
+        style={{
+          textAlignVertical: "top",
+        }}
       />
       <Text className="text-xs text-foreground-muted">
         Saved comments are private until you submit your review.
@@ -130,7 +135,10 @@ export function PullRequestInlineCommentScreen({ route }: StaticScreenProps<Inli
           label="Delete draft"
           onPress={() =>
             Dialog.alert("Delete this draft?", "Your other review comments will be kept.", [
-              { text: "Cancel", style: "cancel" },
+              {
+                text: "Cancel",
+                style: "cancel",
+              },
               {
                 text: "Delete",
                 style: "destructive",

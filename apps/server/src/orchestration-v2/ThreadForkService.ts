@@ -16,7 +16,7 @@ import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
-import { withoutWatches } from "./threadWatches.ts";
+import { withoutInheritedWatches } from "./threadWatches.ts";
 
 export interface ThreadForkPlanV2 {
   readonly targetThread: OrchestrationV2AppThread;
@@ -71,7 +71,7 @@ export const layer: Layer.Layer<ThreadForkServiceV2> = Layer.succeed(
           });
         }
         const targetThread: OrchestrationV2AppThread = {
-          ...withoutWatches(input.sourceProjection.thread),
+          ...withoutInheritedWatches(input.sourceProjection.thread),
           createdBy: input.createdBy,
           creationSource: input.creationSource,
           id: input.targetThreadId,

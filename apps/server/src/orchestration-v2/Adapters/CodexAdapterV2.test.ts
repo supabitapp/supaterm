@@ -512,11 +512,11 @@ describe("CodexAdapterV2 runtime policy", () => {
 
         assert.equal(params.collaborationMode?.mode, "default");
         assert.include(
-          params.additionalContext?.supaterm_orchestration?.value ?? "",
+          params.additionalContext?.supaterm_orchestration_01?.value ?? "",
           "Use `delegate_task`",
         );
         assert.include(
-          params.additionalContext?.supaterm_orchestration?.value ?? "",
+          params.additionalContext?.supaterm_orchestration_02?.value ?? "",
           "structured object, never as JSON text",
         );
       }),
@@ -3239,7 +3239,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
           hasSupatermMcp: true,
         });
         assert.include(
-          params.additionalContext?.supaterm_orchestration?.value ?? "",
+          params.additionalContext?.supaterm_orchestration_01?.value ?? "",
           "delegate_task",
         );
         const entries = codexReplayPreamble({ nativeThreadId, nativeTurnId, prompt: "work" });
@@ -6039,6 +6039,94 @@ describe("CodexAdapterV2 post-settle continuation", () => {
         yield* awaitUntil(() => harness.terminalEvents().length === 1, "interrupted root terminal");
         assertChildProviderTerminalBeforeRoot(harness.events, harness.threadId);
         assert.isFalse(yield* harness.hasPendingBackgroundWork);
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
+        ),
+      ),
+    ),
+  );
+
+  const childTurnStartedIndex = interruptSubagentCommandTranscript.entries.findIndex(
+    (entry) => entry.type === "emit_inbound" && entry.label === "turn/started/child",
+  );
+  const failedRootLiveChildTranscript = makeCodexReplayTranscript({
+    scenario: "codex-failed-root-live-subagent",
+    entries: [
+      ...interruptSubagentCommandTranscript.entries.slice(0, childTurnStartedIndex + 1),
+      {
+        type: "emit_inbound",
+        label: "turn/completed/root-failed",
+        frame: {
+          method: "turn/completed",
+          params: {
+            threadId: INTERRUPT_NATIVE_THREAD,
+            turn: {
+              ...makeCodexReplayTurn({ id: INTERRUPT_NATIVE_TURN, status: "failed" }),
+              error: {
+                message: "unsupported websocket request type: response.interrupt",
+                codexErrorInfo: "other",
+                additionalDetails: null,
+              },
+            },
+          },
+        },
+      },
+      {
+        type: "emit_inbound",
+        label: "turn/completed/child",
+        afterMs: 30_000,
+        frame: {
+          method: "turn/completed",
+          params: {
+            threadId: INTERRUPT_CHILD_NATIVE_THREAD,
+            turn: makeCodexReplayTurn({ id: INTERRUPT_CHILD_NATIVE_TURN, status: "completed" }),
+          },
+        },
+      },
+      { type: "runtime_exit", status: "success" },
+    ],
+  });
+
+  it.effect("settles a failed root without waiting for subagents that keep running", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const childCompleted = yield* Deferred.make<void>();
+        const harness = yield* makeCodexReplayHarness(failedRootLiveChildTranscript, (event) =>
+          event.type === "provider_turn.updated" &&
+          event.providerTurn.nativeTurnRef?.nativeId === INTERRUPT_CHILD_NATIVE_TURN &&
+          event.providerTurn.status === "completed"
+            ? Deferred.succeed(childCompleted, undefined)
+            : Effect.void,
+        );
+        const now = yield* DateTime.now;
+        const childTurnCompleted = () =>
+          harness.events.some(
+            (event) =>
+              event.type === "provider_turn.updated" &&
+              event.threadId !== harness.threadId &&
+              event.providerTurn.status === "completed",
+          );
+
+        yield* harness.runtime.startTurn(
+          makeCodexTestTurnInput({
+            threadId: harness.threadId,
+            providerThread: harness.providerThread,
+            now,
+            attemptId: RunAttemptId.make("attempt-codex-failed-root-live-subagent"),
+            text: INTERRUPT_PROMPT,
+          }),
+        );
+        yield* harness.firstTerminal;
+
+        const terminal = harness.terminalEvents()[0];
+        assert.equal(terminal?.status, "failed");
+        assert.isTrue(terminal?.status === "failed" && terminal.childTurnsContinue === true);
+        assert.isFalse(childTurnCompleted(), "the subagent is still running");
+
+        yield* TestClock.adjust("30 seconds");
+        yield* Deferred.await(childCompleted);
+        assert.lengthOf(harness.terminalEvents(), 1);
       }).pipe(
         Effect.provide(
           Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),

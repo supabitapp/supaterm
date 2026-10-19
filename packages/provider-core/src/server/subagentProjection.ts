@@ -172,18 +172,6 @@ export function subagentResultForRun(
   readonly messageId: OrchestrationV2ConversationMessage["id"] | null;
   readonly turnItemId: OrchestrationV2TurnItem["id"] | null;
 } {
-  const message =
-    projection.messages
-      .filter(
-        (candidate) =>
-          candidate.runId === run.id &&
-          candidate.role === "assistant" &&
-          candidate.text.trim().length > 0,
-      )
-      .toSorted(
-        (left, right) =>
-          DateTime.toEpochMillis(right.updatedAt) - DateTime.toEpochMillis(left.updatedAt),
-      )[0] ?? null;
   const turnItem =
     projection.turnItems
       .filter(
@@ -195,6 +183,21 @@ export function subagentResultForRun(
           candidate.text.trim().length > 0,
       )
       .toSorted((left, right) => right.ordinal - left.ordinal)[0] ?? null;
+  const messages = projection.messages.filter(
+    (candidate) =>
+      candidate.runId === run.id &&
+      candidate.role === "assistant" &&
+      candidate.text.trim().length > 0,
+  );
+
+  const message =
+    messages.find((candidate) => candidate.id === turnItem?.messageId) ??
+    messages.toSorted(
+      (left, right) =>
+        DateTime.toEpochMillis(right.updatedAt) - DateTime.toEpochMillis(left.updatedAt) ||
+        DateTime.toEpochMillis(right.createdAt) - DateTime.toEpochMillis(left.createdAt),
+    )[0] ??
+    null;
   const failure =
     run.status === "failed"
       ? projection.turnItems
@@ -247,8 +250,9 @@ export function delegatedTaskProgress(projection: {
         isOrchestrationV2WorkActive(task.status) ||
         // Publishing a child's result precedes scheduling its parent's wake.
         // The parent still owes that follow-up even between those transactions.
-        task.completionDelivery?.state === "pending" ||
-        task.completionDelivery?.state === "claimed",
+        (task.status !== "idle" &&
+          (task.completionDelivery?.state === "pending" ||
+            task.completionDelivery?.state === "claimed")),
     ) ||
     projection.providerThreads.some((thread) => (thread.pendingBackgroundTasks?.length ?? 0) > 0);
   const resultRun = workRuns

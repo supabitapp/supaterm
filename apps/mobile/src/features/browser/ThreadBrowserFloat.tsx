@@ -1,6 +1,8 @@
 import { useIsFocused } from "@react-navigation/native";
 import { shouldShowFloatingBrowser } from "@supaterm/client-runtime/preview/floating-browser";
 import type { EnvironmentId, PreviewSessionSnapshot, ThreadId } from "@supaterm/contracts";
+import { previewPdfAssetUrl } from "@supaterm/shared/preview";
+import * as Option from "effect/Option";
 import { type ComponentProps, useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Pressable, View } from "react-native";
 
@@ -8,6 +10,7 @@ import { SymbolView } from "../../components/ui/AppSymbol";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { browserTabTitle } from "./browserTabs";
 import { PreviewStreamWebView } from "./PreviewStreamWebView";
+import { usePreparedConnection } from "../../state/session";
 
 const PLAYER_LONG_SIDE = 184;
 
@@ -84,6 +87,8 @@ function FloatingBrowserPlayer(props: {
 
 function FloatingBrowserStream(props: ComponentProps<typeof FloatingBrowserPlayer>) {
   const { themeVariables } = useAppearancePreferences();
+  const prepared = usePreparedConnection(props.environmentId);
+  const httpBaseUrl = Option.isSome(prepared) ? prepared.value.httpBaseUrl : null;
   const [viewport, setViewport] = useState<{ width: number; height: number } | null>(null);
   const [streaming, setStreaming] = useState(false);
   const aspect = Math.min(Math.max(viewport ? viewport.width / viewport.height : 16 / 10, 0.5), 2);
@@ -116,6 +121,11 @@ function FloatingBrowserStream(props: ComponentProps<typeof FloatingBrowserPlaye
             environmentId={props.environmentId}
             threadId={props.threadId}
             tabId={props.tab.tabId}
+            pdfUri={
+              props.tab.navStatus._tag === "Success"
+                ? previewPdfAssetUrl(props.tab.navStatus.url, httpBaseUrl)
+                : null
+            }
             interactive={false}
             background={background}
             compact

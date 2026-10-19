@@ -4,8 +4,10 @@ import { buildRuntimeInstructions } from "@supaterm/provider-core/server/runtime
 
 import {
   SUPATERM_BROWSER_TOOL_INSTRUCTIONS,
-  SUPATERM_ORCHESTRATION_INSTRUCTIONS,
+  SUPATERM_ORCHESTRATION_SECTIONS,
 } from "@supaterm/provider-core/server/orchestrationInstructions";
+
+export const CODEX_ADDITIONAL_CONTEXT_VALUE_MAX_BYTES = 4_000;
 
 const SUPATERM_DEVICE_TOOL_INSTRUCTIONS = `## Supaterm devices
 
@@ -202,9 +204,14 @@ export function buildCodexAdditionalContext(
   toolsAvailable: boolean | SupatermToolAvailability = true,
 ): Record<string, V2TurnStartParams__AdditionalContextEntry> {
   const tools = toolInstructions(toolsAvailable);
-  // Separate keys keep each value under Codex's per-entry token cap.
+
   return {
-    supaterm_orchestration: { kind: "application", value: SUPATERM_ORCHESTRATION_INSTRUCTIONS },
+    ...Object.fromEntries(
+      SUPATERM_ORCHESTRATION_SECTIONS.map((section, index) => [
+        `supaterm_orchestration_${String(index + 1).padStart(2, "0")}`,
+        { kind: "application" as const, value: section },
+      ]),
+    ),
     supaterm_runtime: {
       kind: "application",
       value: buildRuntimeInstructions({ harness: "Codex", ...runtime }),

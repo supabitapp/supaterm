@@ -469,6 +469,7 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
   private var pendingIconUris = Set<String>()
   private var tokensNeedRebuild = false
   private var chipsNeedMeasuredWidth = false
+  private var hasDeferredForcedRebuild = false
 
   let onComposerChange = EventDispatcher()
   let onComposerSelectionChange = EventDispatcher()
@@ -839,11 +840,18 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
   }
 
   private func applyControlledDocument(force: Bool = false) {
-    let currentSource = textView.serializedText()
-    guard force || currentSource != value || !documentMatchesExpectedTokens() else {
+    if textView.markedTextRange != nil {
+      hasDeferredForcedRebuild = hasDeferredForcedRebuild || force
       updatePlaceholderVisibility()
       return
     }
+    let shouldForce = force || hasDeferredForcedRebuild
+    let currentSource = textView.serializedText()
+    guard shouldForce || currentSource != value || !documentMatchesExpectedTokens() else {
+      updatePlaceholderVisibility()
+      return
+    }
+    hasDeferredForcedRebuild = false
 
     let previousSelection = sourceSelection()
     isApplyingControlledValue = true

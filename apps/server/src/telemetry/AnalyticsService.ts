@@ -1,7 +1,3 @@
-/**
- * Each event carries a uuid, so PostHog can tell a retried copy from a new
- * event.
- */
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import type { ClientOs } from "@supaterm/contracts";
 import * as Clock from "effect/Clock";
@@ -39,12 +35,16 @@ interface DeliveryState {
   readonly retryAt: number;
 }
 
-const FLUSH_INTERVAL_MS = 1_000;
+const FLUSH_INTERVAL_MS = 10_000;
 // A hung send would hold the flush lock, and with it the shutdown flush.
 const SEND_TIMEOUT = "10 seconds";
 const MAX_BATCH_ATTEMPTS = 5;
 const RETRY_BASE_DELAY_MS = 2_000;
 const RETRY_MAX_DELAY_MS = 300_000;
+
+const REJECTED_BATCH_STATUSES = new Set([400, 401, 413]);
+
+declare const __SUPATERM_TELEMETRY_CHANNEL__: "stable" | "nightly" | "preview" | "dev" | undefined;
 
 /** `random` is in [0, 1). */
 export function retryDelayMs(failures: number, random: number): number {
@@ -120,6 +120,8 @@ export const make = Effect.gen(function* () {
   // The background flush and the shutdown flush must not send the same batch at once.
   const flushLock = yield* Semaphore.make(1);
   const clientType = serverConfig.mode === "desktop" ? "desktop-app" : "cli-web-client";
+  const telemetryChannel =
+    typeof __SUPATERM_TELEMETRY_CHANNEL__ === "undefined" ? "dev" : __SUPATERM_TELEMETRY_CHANNEL__;
   const hostPlatform = yield* HostProcess.Platform;
   const hostArchitecture = yield* HostProcess.Architecture;
 
@@ -173,6 +175,7 @@ export const make = Effect.gen(function* () {
           wsl: Option.getOrUndefined(telemetryConfig.wslDistroName),
           arch: hostArchitecture,
           supatermVersion: packageJson.version,
+          telemetryChannel,
           clientType,
           serverOs: serverOsFromNodePlatform(hostPlatform),
           serverArch: hostArchitecture,
@@ -214,20 +217,26 @@ export const make = Effect.gen(function* () {
       const failures = delivery.failures + 1;
       const batchAttempts = delivery.batchAttempts + 1;
       const retryAt = (yield* Clock.currentTimeMillis) + retryDelayMs(failures, yield* Random.next);
-      if (batchAttempts < MAX_BATCH_ATTEMPTS) {
+      const error = sent.failure;
+      const rejected =
+        error._tag === "HttpClientError" &&
+        error.reason._tag === "StatusCodeError" &&
+        REJECTED_BATCH_STATUSES.has(error.reason.response.status);
+      if (!rejected && batchAttempts < MAX_BATCH_ATTEMPTS) {
         yield* Ref.set(deliveryRef, { failedBatch: batch, batchAttempts, failures, retryAt });
         yield* Effect.logDebug("Failed to send telemetry batch; will retry", {
           attempt: batchAttempts,
-          cause: sent.failure,
+          cause: error,
         });
         return;
       }
       yield* Ref.set(deliveryRef, { failedBatch: [], batchAttempts: 0, failures, retryAt });
-      yield* Effect.logWarning("Dropped telemetry batch after repeated send failures", {
-        events: batch.length,
-        attempts: batchAttempts,
-        cause: sent.failure,
-      });
+      yield* Effect.logWarning(
+        rejected
+          ? "Dropped telemetry batch the endpoint rejected"
+          : "Dropped telemetry batch after repeated send failures",
+        { events: batch.length, attempts: batchAttempts, cause: error },
+      );
       return;
     }
   }).pipe(flushLock.withPermit);

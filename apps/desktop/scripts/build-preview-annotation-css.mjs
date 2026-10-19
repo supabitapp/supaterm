@@ -29,7 +29,15 @@ const compilerInput = [
   annotationSource.replace('@import "tailwindcss";', "@tailwind utilities;"),
 ].join("\n");
 const compiler = await compile(compilerInput, { base: appRoot });
-const css = compiler.build([...candidates]);
+
+const compiledCss = compiler.build([...candidates]);
+const css = compiledCss.replace(
+  /(@layer properties \{\n)  @supports [^\n]*\{\n([\s\S]*?)\n  \}\n(\})/,
+  "$1$2\n$3",
+);
+if (css === compiledCss || /@layer properties\s*\{\s*@supports\b/.test(css)) {
+  throw new Error("Tailwind @property fallback was not unwrapped; update the pattern above.");
+}
 const encodedCss = `'${css
   .replaceAll("\\", "\\\\")
   .replaceAll("'", "\\'")

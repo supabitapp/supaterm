@@ -9,6 +9,8 @@ import {
   BROWSER_PROFILE_MAX_COUNT,
   type BrowserLinkTarget,
   type BrowserProfile,
+  BrowserSearchEngine,
+  BROWSER_CUSTOM_SEARCH_URL_MAX_LENGTH,
   type EnvironmentId,
   BROWSER_PROFILE_NAME_MAX_LENGTH,
   BROWSER_RECORDING_FRAME_RATES,
@@ -16,6 +18,7 @@ import {
   DEFAULT_BROWSER_PROFILE_ID,
   DEFAULT_BROWSER_LINK_TARGET,
   DEFAULT_BROWSER_RECORDING_FRAME_RATE,
+  DEFAULT_BROWSER_SEARCH_ENGINE,
   DEFAULT_BROWSER_VIEWPORT,
   DEFAULT_PREVIEW_APPEARANCE,
   DEFAULT_PREVIEW_ZOOM_FACTOR,
@@ -31,6 +34,7 @@ import {
   type PreviewAppearancePreference,
   type PreviewViewportSetting,
 } from "@supaterm/contracts";
+import { isValidSearchUrlTemplate } from "@supaterm/shared/preview";
 import { PREVIEW_VIEWPORT_PRESETS } from "@supaterm/shared/previewViewport";
 import { MoreVertical, Plus as PlusIcon } from "lucide-react";
 import { useId, useRef, useState } from "react";
@@ -45,6 +49,7 @@ import { useEnvironments, usePrimaryEnvironment } from "~/state/environments";
 import { deviceEnvironment, useDeviceState } from "~/state/device";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
 import { useAtomCommand } from "~/state/use-atom-command";
+import { formatEnvironmentQueryError } from "~/state/query";
 import { previewEnvironment } from "~/state/preview";
 import { useServerConfigs } from "~/state/entities";
 import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
@@ -674,6 +679,91 @@ function BrowserLinkTargetSetting({ disabled }: { readonly disabled: boolean }) 
   );
 }
 
+const SEARCH_ENGINE_LABELS: Readonly<Record<BrowserSearchEngine, string>> = {
+  duckduckgo: "DuckDuckGo",
+  google: "Google",
+  bing: "Bing",
+  brave: "Brave Search",
+  kagi: "Kagi",
+  ecosia: "Ecosia",
+  custom: "Custom",
+};
+
+function BrowserSearchEngineSetting() {
+  const engine = useClientSettings((settings) => settings.browserSearchEngine);
+  const customUrl = useClientSettings((settings) => settings.browserCustomSearchUrl);
+  const updateSettings = useUpdatePrimarySettings();
+
+  return (
+    <>
+      <SettingsRow
+        {...searchableSetting("browser-search-engine")}
+        description="What the address bar searches when you type something that isn't a URL."
+        resetAction={
+          engine !== DEFAULT_BROWSER_SEARCH_ENGINE || customUrl !== "" ? (
+            <SettingResetButton
+              label="search engine"
+              onClick={() =>
+                updateSettings({
+                  browserSearchEngine: DEFAULT_BROWSER_SEARCH_ENGINE,
+                  browserCustomSearchUrl: "",
+                })
+              }
+            />
+          ) : null
+        }
+        control={
+          <Select
+            value={engine}
+            onValueChange={(value) => {
+              const next = BrowserSearchEngine.literals.find((literal) => literal === value);
+              if (next !== undefined) {
+                updateSettings({ browserSearchEngine: next });
+              }
+            }}
+          >
+            <SelectTrigger size="sm" className="w-full sm:w-40" aria-label="Search engine">
+              <SelectValue>{SEARCH_ENGINE_LABELS[engine]}</SelectValue>
+            </SelectTrigger>
+            <SelectPopup align="end" alignItemWithTrigger={false}>
+              {BrowserSearchEngine.literals.map((literal) => (
+                <SelectItem hideIndicator key={literal} value={literal}>
+                  {SEARCH_ENGINE_LABELS[literal]}
+                </SelectItem>
+              ))}
+            </SelectPopup>
+          </Select>
+        }
+      />
+      {engine === "custom" ? (
+        <SettingsRow
+          title="Custom search URL"
+          description="Use %s where the search terms go."
+          status={
+            isValidSearchUrlTemplate(customUrl)
+              ? undefined
+              : "Enter an http or https URL containing %s. Searches use DuckDuckGo until then."
+          }
+          control={
+            <DraftInput
+              nativeInput
+              size="sm"
+              className="w-full sm:w-64"
+              aria-label="Custom search URL"
+              placeholder="https://example.com/search?q=%s"
+              autoCapitalize="none"
+              spellCheck={false}
+              maxLength={BROWSER_CUSTOM_SEARCH_URL_MAX_LENGTH}
+              value={customUrl}
+              onCommit={(next) => updateSettings({ browserCustomSearchUrl: next.trim() })}
+            />
+          }
+        />
+      ) : null}
+    </>
+  );
+}
+
 function PullRequestLinksOpenInAppSetting() {
   const openInApp = useClientSettings((settings) => settings.pullRequestLinksOpenInApp);
   const updateSettings = useUpdatePrimarySettings();
@@ -721,7 +811,7 @@ function DeviceIntegrationSettings() {
   );
 }
 
-function DeviceIntegrationControls({
+export function DeviceIntegrationControls({
   environmentId,
   enabled,
   agentAccessEnabled,
@@ -813,11 +903,7 @@ function DeviceIntegrationControls({
                 void list({ environmentId, input: { updateTool: tool } })
                   .then((result) => {
                     if (result._tag === "Failure")
-                      setUpdateError({
-                        tool,
-                        message:
-                          "Update failed. Check this host's network connection and try again.",
-                      });
+                      setUpdateError({ tool, message: formatEnvironmentQueryError(result.cause) });
                   })
                   .finally(() => setPending(null));
               }}
@@ -1523,6 +1609,7 @@ export function IntegrationsSettingsPanel() {
         ) : (
           previewDefaults
         )}
+        <BrowserSearchEngineSetting />
         <PullRequestLinksOpenInAppSetting />
       </SettingsSection>
       <DeviceIntegrationSettings />

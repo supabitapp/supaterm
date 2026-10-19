@@ -77,6 +77,27 @@ function pullRequestMatchesProject(
   );
 }
 
+type DonePullRequestLink = NonNullable<
+  ProjectionStore.ProjectionDoneCandidate["pullRequests"]
+>[number];
+
+function linkTerminalAtMs(link: DonePullRequestLink): number {
+  const snapshot = link.snapshot;
+  const value = snapshot?.state === "merged" ? snapshot.mergedAt : snapshot?.closedAt;
+  const timestamp = Date.parse(value ?? "");
+  return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
+}
+
+function donePullRequestLinks(
+  links: ReadonlyArray<DonePullRequestLink>,
+): ReadonlyArray<DonePullRequestLink> {
+  return visibleThreadPullRequests(links).filter((link) => {
+    if (link.snapshot === null || link.snapshot.state === "open") return true;
+    const linkedAtMs = Date.parse(link.linkedAt);
+    return Number.isNaN(linkedAtMs) || linkTerminalAtMs(link) >= linkedAtMs;
+  });
+}
+
 /**
  * Absolute age bounds client clock skew in both directions and stops stale
  * pre-adoption data from blocking the thread forever.
@@ -192,17 +213,11 @@ export function resolveAutoMarkDoneAt(input: {
 }): DateTime.Utc | null {
   const { thread } = input;
   let pullRequest = input.pullRequest;
-  const links = visibleThreadPullRequests(thread.pullRequests ?? []);
+  const links = donePullRequestLinks(thread.pullRequests ?? []);
   if (links.some((link) => link.snapshot === null || link.snapshot.state === "open")) return null;
   if (links.length > 0) {
-    const terminalAt = (link: (typeof links)[number]) => {
-      const snapshot = link.snapshot;
-      const value = snapshot?.state === "merged" ? snapshot.mergedAt : snapshot?.closedAt;
-      const timestamp = Date.parse(value ?? "");
-      return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
-    };
     const latest = links.reduce((current, candidate) =>
-      terminalAt(candidate) > terminalAt(current) ? candidate : current,
+      linkTerminalAtMs(candidate) > linkTerminalAtMs(current) ? candidate : current,
     );
     pullRequest =
       latest.snapshot === null

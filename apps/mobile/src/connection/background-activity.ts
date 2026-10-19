@@ -81,7 +81,8 @@ export const layerReporter = Layer.effectDiscard(
                 observedAt: DateTime.makeUnsafe(observedAtMs),
               }),
             )
-            .pipe(Effect.ignore),
+
+            .pipe(Effect.ignoreCause),
         { concurrency: "unbounded", discard: true },
       );
     }).pipe(Effect.withSpan("mobile.backgroundActivity.report"));

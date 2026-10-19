@@ -12,6 +12,14 @@ import {
 
 export { shouldBundleCliDependency };
 
+const TELEMETRY_CHANNELS = ["stable", "nightly", "preview", "dev"];
+const telemetryChannel = process.env.SUPATERM_TELEMETRY_CHANNEL?.trim() || "dev";
+if (!TELEMETRY_CHANNELS.includes(telemetryChannel)) {
+  throw new Error(
+    `SUPATERM_TELEMETRY_CHANNEL must be one of ${TELEMETRY_CHANNELS.join(", ")}, got "${telemetryChannel}".`,
+  );
+}
+
 // `build:exe` wraps the same bundle in a Node single-executable. tsdown's exe
 // step refuses multi-chunk output and counts the sourcemap as a chunk, and the
 // executable needs a host Node that supports `--build-sea` (25.7+), so this is
@@ -83,6 +91,9 @@ export default mergeConfig(
       },
       banner: {
         js: "#!/usr/bin/env node\n",
+      },
+      define: {
+        __SUPATERM_TELEMETRY_CHANNEL__: JSON.stringify(telemetryChannel),
       },
     },
     test: {

@@ -1,5 +1,5 @@
 import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
-import { type ComponentProps, type ReactNode, useLayoutEffect, useRef } from "react";
+import { type ComponentProps, type ReactNode, useEffect, useRef } from "react";
 
 import { Command, CommandFooter, CommandInput, CommandPanel } from "./ui/command";
 import { Kbd, KbdGroup } from "./ui/kbd";
@@ -32,16 +32,17 @@ export function CommandPaletteContent({
 
   // Direct-open flows replace the initial palette view after the dialog has
   // already moved focus. Reclaim it when the replacement input mounts so
-  // typing cannot continue in the composer behind the modal.
-  useLayoutEffect(() => {
-    inputRef.current?.focus();
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => inputRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   return (
     <div className="contents" data-testid={testId}>
       <Command {...commandProps}>
         <div className="relative">
-          <CommandInput {...inputProps} ref={inputRef} />
+          <CommandInput autoFocus={false} {...inputProps} ref={inputRef} />
           {inputAccessory}
         </div>
         <CommandPanel
@@ -50,7 +51,7 @@ export function CommandPaletteContent({
               ? "flex min-h-0 flex-1 flex-col"
               : panelSize === "tall-list"
                 ? "max-h-[min(34rem,76vh)]"
-                : "max-h-[min(28rem,70vh)]"
+                : "flex max-h-[min(28rem,70vh)] min-h-0 flex-col"
           }
         >
           {children}
