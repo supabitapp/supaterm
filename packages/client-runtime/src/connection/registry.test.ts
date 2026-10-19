@@ -617,16 +617,44 @@ describe("EnvironmentRegistry", () => {
           (yield* SubscriptionRef.get(registry.entries)).get(environmentId)?.target.label,
         ).toBe("My workstation");
         const state = yield* registry.state(environmentId);
+        const detectedLabel = "New computer name";
+        const renamedRegistration =
+          registration._tag === "PrimaryConnectionRegistration"
+            ? new PrimaryConnectionRegistration({
+                target: new PrimaryConnectionTarget({
+                  ...registration.target,
+                  label: detectedLabel,
+                }),
+              })
+            : new BearerConnectionRegistration({
+                ...registration,
+                target: new BearerConnectionTarget({
+                  ...registration.target,
+                  label: detectedLabel,
+                }),
+                profile: new BearerConnectionProfile({
+                  ...registration.profile,
+                  label: detectedLabel,
+                }),
+              });
+        yield* registry.reconcilePlatform([renamedRegistration]);
+        expect((yield* SubscriptionRef.get(registry.entries)).get(environmentId)).toMatchObject({
+          target: { label: "My workstation" },
+          defaultLabel: detectedLabel,
+        });
+        expect(yield* registry.state(environmentId)).toEqual(state);
+        expect(yield* Ref.get(reloaded.releasedSessions)).toBe(0);
+        expect(yield* Ref.get(reloaded.sessions)).toHaveLength(1);
         yield* registry.rename(environmentId, null);
         expect(
           (yield* SubscriptionRef.get(registry.entries)).get(environmentId)?.target.label,
-        ).toBe(registration.target.label);
+        ).toBe(detectedLabel);
         expect(yield* registry.state(environmentId)).toEqual(state);
         expect(yield* Ref.get(reloaded.storedPlatformLabels)).toEqual([]);
-        yield* registry.reconcilePlatform([registration]);
+        yield* registry.reconcilePlatform([renamedRegistration]);
         expect(
           (yield* SubscriptionRef.get(registry.entries)).get(environmentId)?.target.label,
-        ).toBe(registration.target.label);
+        ).toBe(detectedLabel);
       }).pipe(Effect.provide(reloaded.layer), Effect.scoped);
     }),
   );

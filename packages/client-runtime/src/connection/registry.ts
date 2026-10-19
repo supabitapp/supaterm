@@ -541,10 +541,16 @@ export const make = Effect.gen(function* () {
     if (
       options?.retainEquivalentRuntime === true &&
       previous !== undefined &&
-      Equal.equals(previous, entry) &&
+      Equal.equals({ ...previous, defaultLabel: entry.defaultLabel }, entry) &&
       existingScope !== undefined &&
-      Equal.equals(yield* Ref.get(existingScope.entry), entry)
+      Equal.equals(yield* Ref.get(existingScope.entry), previous)
     ) {
+      if (!Equal.equals(previous, entry)) {
+        yield* Ref.set(existingScope.entry, entry);
+        yield* SubscriptionRef.update(entries, (current) =>
+          new Map(current).set(target.environmentId, entry),
+        );
+      }
       return;
     }
 
