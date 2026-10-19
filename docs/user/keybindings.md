@@ -164,6 +164,12 @@ terminals so native undo keeps working there.
 `navigation.back` (`mod+[` by default) and `navigation.forward` (`mod+]`) move
 through the pages you have visited, like a browser's back and forward buttons.
 
+`thread.approve` and `thread.decline` answer the first pending approval in the open thread.
+`composer.submit` sends the draft as the send button would, and `composer.toggleFastMode` turns
+Fast mode on or off for the selected model. `conversation.scrollUp`, `conversation.scrollDown`,
+and `conversation.scrollToEnd` scroll the open thread. These are unbound by default; a
+[Codex Micro](./codex-micro.md) keyboard uses them.
+
 `chat.new` may ask you to choose a project when there is more than one.
 `chat.newLocal` skips that chooser. Both use your
 [new-thread defaults](./thread-sidebar.md#start-a-thread). `chat.newWithoutProject`

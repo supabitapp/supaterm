@@ -63,6 +63,7 @@ import {
 import {
   AuthOrchestrationOperateScope,
   type EnvironmentMachineKind,
+  type KeybindingCommand,
   type ScopedThreadRef,
   type ThreadId,
 } from "@supaterm/contracts";
@@ -148,6 +149,7 @@ import { useThreadUndoNotice } from "../hooks/showThreadUndoNotice";
 import { useNewThreadHandler } from "../hooks/useHandleNewThread";
 import { useSidebarProjectGroups } from "../hooks/useSidebarProjectGroups";
 import { useTerminalFocus } from "../hooks/useTerminalFocus";
+import { registerAppCommandHandler } from "../appCommandBus";
 import { isCommandPaletteOpen, openCommandPalette } from "../commandPaletteBus";
 import { registerMarkDoneAndAdvance } from "../markDoneAndAdvance";
 import { useClientSettings } from "../hooks/useSettings";
@@ -4256,6 +4258,28 @@ export default function Sidebar() {
   );
 
   useEffect(() => {
+    const navigateToThreadKey = (targetThreadKey: string | null) => {
+      if (!targetThreadKey) return false;
+      const targetThread = threadByKey.get(targetThreadKey);
+      if (!targetThread) return false;
+      navigateToThread(scopeThreadRef(targetThread.environmentId, targetThread.id));
+      return true;
+    };
+    const navigateForCommand = (command: KeybindingCommand | null) => {
+      const traversalDirection = threadTraversalDirectionFromCommand(command);
+      if (traversalDirection !== null) {
+        return navigateToThreadKey(
+          resolveAdjacentThreadId({
+            threadIds: orderedThreadKeys,
+            currentThreadId: routeThreadKey,
+            direction: traversalDirection,
+          }),
+        );
+      }
+      const jumpIndex = threadJumpIndexFromCommand(command ?? "");
+      if (jumpIndex === null) return false;
+      return navigateToThreadKey(orderedThreadKeys[jumpIndex] ?? null);
+    };
     const onWindowKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.repeat || isCommandPaletteOpen() || isModelPickerOpen()) {
         return;
@@ -4270,32 +4294,18 @@ export default function Sidebar() {
           isDesktop: isElectron,
         },
       });
-      const navigateToThreadKey = (targetThreadKey: string | null) => {
-        if (!targetThreadKey) return false;
-        const targetThread = threadByKey.get(targetThreadKey);
-        if (!targetThread) return false;
-        event.preventDefault();
-        event.stopPropagation();
-        navigateToThread(scopeThreadRef(targetThread.environmentId, targetThread.id));
-        return true;
-      };
-      const traversalDirection = threadTraversalDirectionFromCommand(command);
-      if (traversalDirection !== null) {
-        navigateToThreadKey(
-          resolveAdjacentThreadId({
-            threadIds: orderedThreadKeys,
-            currentThreadId: routeThreadKey,
-            direction: traversalDirection,
-          }),
-        );
-        return;
-      }
-      const jumpIndex = threadJumpIndexFromCommand(command ?? "");
-      if (jumpIndex === null) return;
-      navigateToThreadKey(orderedThreadKeys[jumpIndex] ?? null);
+      if (!navigateForCommand(command)) return;
+      event.preventDefault();
+      event.stopPropagation();
     };
     window.addEventListener("keydown", onWindowKeyDown);
-    return () => window.removeEventListener("keydown", onWindowKeyDown);
+    const unregister = registerAppCommandHandler(
+      (command) => !isCommandPaletteOpen() && !isModelPickerOpen() && navigateForCommand(command),
+    );
+    return () => {
+      window.removeEventListener("keydown", onWindowKeyDown);
+      unregister();
+    };
   }, [
     keybindings,
     navigateToThread,

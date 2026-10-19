@@ -50,6 +50,12 @@ export const SET_SNAP_SHOT_ANIMATION_DESTINATION_CHANNEL =
   "desktop:set-snap-shot-animation-destination";
 export const DISMISS_SNAP_SHOT_ANIMATION_CHANNEL = "desktop:dismiss-snap-shot-animation";
 export const ACKNOWLEDGE_SNAP_SHOT_CHANNEL = "desktop:acknowledge-snap-shot";
+export const CODEX_MICRO_GET_STATE_CHANNEL = "desktop:codex-micro-get-state";
+export const CODEX_MICRO_STATE_CHANNEL = "desktop:codex-micro-state";
+export const CODEX_MICRO_INPUT_CHANNEL = "desktop:codex-micro-input";
+export const CODEX_MICRO_SET_LIGHTING_CHANNEL = "desktop:codex-micro-set-lighting";
+export const CODEX_MICRO_OPEN_INPUT_MONITORING_SETTINGS_CHANNEL =
+  "desktop:codex-micro-open-input-monitoring-settings";
 export const GET_CONNECTION_CATALOG_CHANNEL = "desktop:get-connection-catalog";
 export const SET_CONNECTION_CATALOG_CHANNEL = "desktop:set-connection-catalog";
 export const CLEAR_CONNECTION_CATALOG_CHANNEL = "desktop:clear-connection-catalog";

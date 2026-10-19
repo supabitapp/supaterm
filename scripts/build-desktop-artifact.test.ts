@@ -48,6 +48,7 @@ import {
   resolveDesktopUpdateChannel,
   resolveDesktopWebAssetBrand,
   resolveResourceMonitorRustTargets,
+  resolveWindowsFileExclusions,
   resolveWindowsServerAsarIgnoreGlobs,
   resourceMonitorExecutableName,
   resolveGitHubPublishConfig,
@@ -621,7 +622,10 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       assert.notProperty(win, "toolsets");
       assert.deepStrictEqual(mac.files, [...DESKTOP_FILE_EXCLUSIONS, ...MAC_FILE_EXCLUSIONS]);
       assert.deepStrictEqual(linux.files, [...DESKTOP_FILE_EXCLUSIONS, ...LINUX_FILE_EXCLUSIONS]);
-      assert.deepStrictEqual(win.files, DESKTOP_FILE_EXCLUSIONS);
+      assert.deepStrictEqual(win.files, [
+        ...DESKTOP_FILE_EXCLUSIONS,
+        ...resolveWindowsFileExclusions(),
+      ]);
       assert.deepStrictEqual(winWithoutWslRuntime.files, win.files);
       assert.notProperty(mac.mac as Record<string, unknown>, "sign");
       assert.propertyVal(
@@ -640,10 +644,20 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     assert.deepStrictEqual(MAC_FILE_EXCLUSIONS, [
       "!**/node_modules/node-pty/prebuilds/win32-*/**/*",
       "!**/node_modules/node-pty/third_party/conpty/**/*",
+      "!**/node_modules/node-hid/hidapi/**/*",
+      "!**/node_modules/node-hid/src/**/*",
+      "!**/node_modules/node-hid/prebuilds/HID-win32-*/**/*",
+      "!**/node_modules/node-hid/prebuilds/HID-linux-*/**/*",
+      "!**/node_modules/node-hid/prebuilds/HID_hidraw-*/**/*",
     ]);
     assert.deepStrictEqual(LINUX_FILE_EXCLUSIONS, [
-      ...MAC_FILE_EXCLUSIONS,
+      "!**/node_modules/node-pty/prebuilds/win32-*/**/*",
+      "!**/node_modules/node-pty/third_party/conpty/**/*",
       "!**/node_modules/node-pty/prebuilds/darwin-*/**/*",
+      "!**/node_modules/node-hid/hidapi/**/*",
+      "!**/node_modules/node-hid/src/**/*",
+      "!**/node_modules/node-hid/prebuilds/HID-*/**/*",
+      "!**/node_modules/node-hid/prebuilds/HID_hidraw-linux-*-musl/**/*",
     ]);
   });
 

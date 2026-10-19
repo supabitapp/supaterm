@@ -21,6 +21,7 @@ import {
   getSpeedToggleNextValue,
   SPEED_TOGGLE_LABELS,
   type SpeedToggle,
+  type SpeedToggleLevel,
 } from "@supaterm/client-runtime/provider-speed-toggle";
 import { memo } from "react";
 import { BrainIcon, ZapIcon } from "lucide-react";
@@ -345,6 +346,34 @@ export function getReasoningTraitStep(input: {
     if (change.prompt.startsWith(ULTRATHINK_PROMPT_PREFIX)) return change;
   }
   return null;
+}
+
+/** What the Fast mode toggle would write, or null when the model has no speed option. */
+export function getSpeedToggleChange(input: {
+  provider: ProviderDriverKind;
+  models: ReadonlyArray<ServerProviderModel>;
+  model: string | null | undefined;
+  prompt: string;
+  modelOptions: ProviderOptions | null | undefined;
+}): { modelOptions: ProviderOptions | undefined; level: SpeedToggleLevel } | null {
+  const { descriptors, speedToggle } = getTraitsSectionVisibility(input);
+  if (speedToggle === null) return null;
+  const nextValue = getSpeedToggleNextValue(speedToggle);
+  return {
+    modelOptions: buildProviderOptionSelectionsFromDescriptors(
+      replaceDescriptorCurrentValue(descriptors, speedToggle.descriptorId, nextValue),
+    ),
+    level: speedToggleLevelForValue(speedToggle, nextValue),
+  };
+}
+
+function speedToggleLevelForValue(
+  speedToggle: SpeedToggle,
+  value: string | boolean,
+): SpeedToggleLevel {
+  if (value === speedToggle.offValue) return "off";
+  if (value === speedToggle.ultrafastValue) return "ultrafast";
+  return "fast";
 }
 
 export function shouldRenderTraitsControls(input: {

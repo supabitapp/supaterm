@@ -21,6 +21,7 @@ export type SettingsPath =
   | "/settings/appearance"
   | "/settings/keybindings"
   | "/settings/snap-shot"
+  | "/settings/codex-micro"
   | "/settings/providers"
   | "/settings/integrations"
   | "/settings/source-control"
@@ -72,6 +73,7 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/appearance": "Appearance",
   "/settings/keybindings": "Keybindings",
   "/settings/snap-shot": "SnapShots",
+  "/settings/codex-micro": "Codex Micro",
   "/settings/providers": "Providers",
   "/settings/integrations": "Integrations",
   "/settings/source-control": "Source Control",
@@ -79,6 +81,15 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/connections": "Connections",
   "/settings/archived": "Archive",
 };
+
+const DESKTOP_ONLY_SETTINGS_SECTIONS: ReadonlySet<SettingsPath> = new Set([
+  "/settings/codex-micro",
+]);
+
+/** A section that only the desktop app can use is hidden, and its route redirected, elsewhere. */
+export function isSettingsSectionAvailable(path: SettingsPath): boolean {
+  return isElectron || !DESKTOP_ONLY_SETTINGS_SECTIONS.has(path);
+}
 
 export function keybindingSearchAnchorId<Command extends KeybindingCommand>(command: Command) {
   return `keybinding-${command}` as const;
@@ -587,6 +598,72 @@ export const SETTINGS_SEARCH_ITEMS = [
     targetId: "snap-shot-enabled",
   },
   {
+    id: "codex-micro-enabled",
+    title: "Codex Micro",
+    to: "/settings/codex-micro",
+    searchTerms: [
+      "keyboard macro keypad hardware device enable connect usb bluetooth battery firmware",
+    ],
+    desktopOnly: true,
+  },
+  {
+    id: "codex-micro-input-monitoring",
+    title: "Input Monitoring",
+    to: "/settings/codex-micro",
+    searchTerms: ["codex micro keyboard permission privacy key presses"],
+    desktopOnly: true,
+    macOnly: true,
+  },
+  {
+    id: "codex-micro-brightness",
+    title: "Brightness",
+    to: "/settings/codex-micro",
+    searchTerms: ["codex micro keyboard lighting lights"],
+    desktopOnly: true,
+  },
+  {
+    id: "codex-micro-auto-dim",
+    title: "Auto-dim",
+    to: "/settings/codex-micro",
+    searchTerms: ["codex micro keyboard lighting lights inactivity idle timeout"],
+    desktopOnly: true,
+  },
+  {
+    id: "codex-micro-layout",
+    title: "Layout",
+    to: "/settings/codex-micro",
+    searchTerms: ["codex micro keyboard keycaps keys analog stick joystick knob reset assign"],
+    desktopOnly: true,
+  },
+  {
+    id: "codex-micro-agent-keys",
+    title: "Agent keys",
+    to: "/settings/codex-micro",
+    searchTerms: ["codex micro keyboard threads pinned recent needs attention custom assignments"],
+    desktopOnly: true,
+  },
+  {
+    id: "codex-micro-knob",
+    title: "Knob",
+    to: "/settings/codex-micro",
+    searchTerms: ["codex micro keyboard encoder dial scroll conversation reasoning effort"],
+    desktopOnly: true,
+  },
+  {
+    id: "codex-micro-separate-microphone-keys",
+    title: "Use separate microphone keys",
+    to: "/settings/codex-micro",
+    searchTerms: ["codex micro keyboard mic wide key switches"],
+    desktopOnly: true,
+  },
+  {
+    id: "codex-micro-single-tap-focus",
+    title: "Focus Supaterm with a single tap",
+    to: "/settings/codex-micro",
+    searchTerms: ["codex micro keyboard agent key double tap bring window to front"],
+    desktopOnly: true,
+  },
+  {
     id: "providers",
     title: "Providers",
     to: "/settings/providers",
@@ -937,6 +1014,7 @@ const SETTINGS_CATEGORY_SCOPES: Readonly<Record<SettingsPath, SettingsSearchScop
   "/settings/general": null,
   "/settings/appearance": null,
   "/settings/snap-shot": null,
+  "/settings/codex-micro": null,
   "/settings/keybindings": null,
   "/settings/providers": null,
   "/settings/integrations": null,

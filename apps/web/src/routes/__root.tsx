@@ -27,6 +27,7 @@ import { RunningThreadKeepAlive } from "../components/desktop/RunningThreadKeepA
 import { ProviderUpdateLaunchNotification } from "../components/ProviderUpdateLaunchNotification";
 import { DesktopUpdateLaunchNotice } from "../components/sidebar/updateEverythingRun";
 import { ThreadNotificationCoordinator } from "../components/ThreadNotificationCoordinator";
+import { CodexMicroCoordinator } from "../components/codexMicro/CodexMicroCoordinator";
 import { ReopenClosedViewShortcut } from "../components/ReopenClosedViewShortcut";
 import { ProjectCloneToastCoordinator } from "../components/ProjectCloneToastCoordinator";
 import { PullRequestGuideRunCoordinator } from "../components/pullRequest/guide/PullRequestGuideRunCoordinator";
@@ -209,6 +210,7 @@ function RootRouteView() {
 
   const appShell = (
     <CommandPalette>
+      {isElectron ? <CodexMicroCoordinator /> : null}
       <AppSidebarLayout>
         <Outlet />
       </AppSidebarLayout>

@@ -1,4 +1,6 @@
 import type {
+  CodexMicroDeviceState,
+  CodexMicroInputEvent,
   DesktopBridge,
   DesktopPreviewOpenLinkEvent,
   DesktopPreviewPointerEvent,
@@ -26,6 +28,32 @@ function isSnapShotEvent(value: unknown): value is DesktopSnapShotEvent {
     SNAP_SHOT_EVENT_TYPES.has(type) &&
     (id === undefined || typeof id === "string")
   );
+}
+
+const CODEX_MICRO_PENDING_FOCUS_MS = 10_000;
+
+// A focus press can recreate the main window, so it is held until the keyboard
+// coordinator subscribes instead of being lost while the app loads.
+let pendingCodexMicroFocus: { readonly event: CodexMicroInputEvent; readonly at: number } | null =
+  null;
+let codexMicroInputListeners = 0;
+ipcRenderer.on(IpcChannels.CODEX_MICRO_INPUT_CHANNEL, (_event, inputEvent: unknown) => {
+  if (codexMicroInputListeners > 0 || !isCodexMicroFocusEvent(inputEvent)) return;
+  pendingCodexMicroFocus = { event: inputEvent, at: performance.now() };
+});
+
+function isCodexMicroFocusEvent(value: unknown): value is CodexMicroInputEvent {
+  if (typeof value !== "object" || value === null) return false;
+  const { type, focus } = value as { type?: unknown; focus?: unknown };
+  return type === "agent-key" && focus === true;
+}
+
+function takePendingCodexMicroFocus(): CodexMicroInputEvent | null {
+  const pending = pendingCodexMicroFocus;
+  pendingCodexMicroFocus = null;
+  if (pending === null || performance.now() - pending.at > CODEX_MICRO_PENDING_FOCUS_MS)
+    return null;
+  return pending.event;
 }
 
 // oxlint-disable-next-line supaterm/no-global-process-runtime -- Electron exposes the client platform in its sandboxed preload process.
@@ -415,6 +443,35 @@ contextBridge.exposeInMainWorld("desktopBridge", {
       return () =>
         ipcRenderer.removeListener(IpcChannels.PREVIEW_OPEN_LINK_CHANNEL, wrappedListener);
     },
+  },
+  codexMicro: {
+    getState: () => ipcRenderer.invoke(IpcChannels.CODEX_MICRO_GET_STATE_CHANNEL),
+    onStateChange: (listener) => {
+      const wrappedListener = (_event: Electron.IpcRendererEvent, state: unknown) => {
+        if (typeof state !== "object" || state === null) return;
+        listener(state as CodexMicroDeviceState);
+      };
+      ipcRenderer.on(IpcChannels.CODEX_MICRO_STATE_CHANNEL, wrappedListener);
+      return () =>
+        ipcRenderer.removeListener(IpcChannels.CODEX_MICRO_STATE_CHANNEL, wrappedListener);
+    },
+    onInput: (listener) => {
+      const wrappedListener = (_event: Electron.IpcRendererEvent, inputEvent: unknown) => {
+        if (typeof inputEvent !== "object" || inputEvent === null) return;
+        listener(inputEvent as CodexMicroInputEvent);
+      };
+      ipcRenderer.on(IpcChannels.CODEX_MICRO_INPUT_CHANNEL, wrappedListener);
+      codexMicroInputListeners += 1;
+      const pending = takePendingCodexMicroFocus();
+      if (pending !== null) queueMicrotask(() => listener(pending));
+      return () => {
+        codexMicroInputListeners -= 1;
+        ipcRenderer.removeListener(IpcChannels.CODEX_MICRO_INPUT_CHANNEL, wrappedListener);
+      };
+    },
+    setLighting: (model) => ipcRenderer.invoke(IpcChannels.CODEX_MICRO_SET_LIGHTING_CHANNEL, model),
+    openInputMonitoringSettings: () =>
+      ipcRenderer.invoke(IpcChannels.CODEX_MICRO_OPEN_INPUT_MONITORING_SETTINGS_CHANNEL),
   },
   webLinks: {
     setReady: (ready) => ipcRenderer.invoke(IpcChannels.WEB_LINK_READY_CHANNEL, ready),

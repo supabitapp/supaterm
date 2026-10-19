@@ -6,6 +6,12 @@ import * as DesktopIpc from "./DesktopIpc.ts";
 import { installNotificationBadge } from "./methods/notificationBadge.ts";
 import { getClientSettings, setClientSettings } from "./methods/clientSettings.ts";
 import {
+  getCodexMicroState,
+  installCodexMicroEventForwarding,
+  openCodexMicroInputMonitoringSettings,
+  setCodexMicroLighting,
+} from "./methods/codexMicro.ts";
+import {
   clearConnectionCatalog,
   getConnectionCatalog,
   setConnectionCatalog,
@@ -84,6 +90,7 @@ export const installDesktopIpcHandlers = Effect.fn("desktop.ipc.installHandlers"
   const ipc = yield* DesktopIpc.DesktopIpc;
   yield* installNotificationBadge();
   yield* PreviewIpc.installPreviewEventForwarding();
+  yield* installCodexMicroEventForwarding();
 
   yield* ipc.handle(WebLinksIpc.setReady);
   yield* ipc.handle(AppActivationIpc.setReady);
@@ -113,6 +120,9 @@ export const installDesktopIpcHandlers = Effect.fn("desktop.ipc.installHandlers"
   yield* ipc.handle(setSnapShotAnimationDestination);
   yield* ipc.handle(dismissSnapShotAnimation);
   yield* ipc.handle(acknowledgeSnapShot);
+  yield* ipc.handle(getCodexMicroState);
+  yield* ipc.handle(setCodexMicroLighting);
+  yield* ipc.handle(openCodexMicroInputMonitoringSettings);
   yield* ipc.handle(setConnectionCatalog);
   yield* ipc.handle(clearConnectionCatalog);
 

@@ -7,6 +7,7 @@ import {
   getThreadAutoMarkDoneSearchAvailability,
   isSettingsOverviewVisible,
   isSettingsSearchScopeAvailable,
+  isSettingsSectionAvailable,
   searchableSetting,
   searchSettings,
   SETTINGS_SEARCH_ITEMS,
@@ -528,5 +529,13 @@ describe("settings sidebar scope", () => {
     expect(isSettingsOverviewVisible({ machine: "remote" })).toBe(false);
     expect(isSettingsOverviewVisible({ project: "project" })).toBe(true);
     expect(isSettingsOverviewVisible({ project: "project", checkout: "checkout" })).toBe(true);
+  });
+});
+
+describe("desktop-only settings sections", () => {
+  it("hides Codex Micro outside the desktop app", () => {
+    expect(isSettingsSectionAvailable("/settings/codex-micro")).toBe(false);
+    expect(isSettingsSectionAvailable("/settings/general")).toBe(true);
+    expect(searchSettings("codex micro")).toEqual([]);
   });
 });

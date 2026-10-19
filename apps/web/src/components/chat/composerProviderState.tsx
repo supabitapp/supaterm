@@ -21,6 +21,7 @@ import { getProviderModelCapabilities } from "../../providerModels";
 import type { ComposerControlSize } from "./ComposerControl";
 import {
   getReasoningTraitStep,
+  getSpeedToggleChange,
   shouldRenderTraitsControls,
   TraitsMenuContent,
   TraitsPicker,
@@ -150,6 +151,22 @@ export function getComposerProviderState(input: ComposerProviderStateInput): Com
         }
       : {}),
   };
+}
+
+export function getComposerSpeedToggleChange(input: {
+  provider: ProviderDriverKind;
+  model: string;
+  models: ReadonlyArray<ServerProviderModel>;
+  modelOptions: ReadonlyArray<ProviderOptionSelection> | null | undefined;
+  prompt: string;
+}) {
+  const { selections } = resolveComposerOptionSelections(
+    input.models,
+    input.model,
+    input.provider,
+    input.modelOptions,
+  );
+  return getSpeedToggleChange({ ...input, modelOptions: selections });
 }
 
 /**

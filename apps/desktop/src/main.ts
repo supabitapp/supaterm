@@ -34,6 +34,9 @@ import * as ElectronTheme from "./electron/ElectronTheme.ts";
 import * as ElectronUpdater from "./electron/ElectronUpdater.ts";
 import * as ElectronWindow from "./electron/ElectronWindow.ts";
 import * as DesktopApp from "./app/DesktopApp.ts";
+import * as CodexMicro from "./codexMicro/CodexMicro.ts";
+import * as CodexMicroTransport from "./codexMicro/CodexMicroTransport.ts";
+import * as MacInputMonitoring from "./permissions/MacInputMonitoring.ts";
 import * as DesktopAppActivation from "./app/DesktopAppActivation.ts";
 import * as DesktopAppIdentity from "./app/DesktopAppIdentity.ts";
 import * as DesktopConnectionCatalogStore from "./app/DesktopConnectionCatalogStore.ts";
@@ -177,6 +180,13 @@ const layerDesktopSnapShot = DesktopSnapShot.layer.pipe(
   Layer.provideMerge(layerDesktopWindow),
   Layer.provideMerge(layerDesktopFoundation),
 );
+
+const layerDesktopCodexMicro = CodexMicro.layer.pipe(
+  Layer.provide(CodexMicroTransport.layer),
+  Layer.provide(MacInputMonitoring.layer),
+  Layer.provideMerge(layerDesktopFoundation),
+);
+
 const layerDesktopAppActivation = DesktopAppActivation.layer.pipe(
   Layer.provide(layerDesktopWindow),
 );
@@ -210,6 +220,7 @@ const layerDesktopApplication = Layer.mergeAll(
 ).pipe(
   Layer.provideMerge(layerDesktopWebLinks),
   Layer.provideMerge(layerDesktopSnapShot),
+  Layer.provideMerge(layerDesktopCodexMicro),
   Layer.provideMerge(DesktopUpdates.layer),
   Layer.provideMerge(layerDesktopWslBackend),
   Layer.provideMerge(layerDesktopLocalEnvironmentAuth),

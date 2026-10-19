@@ -21,6 +21,15 @@ import {
 import { EnvironmentMachineKind, ThreadEnvMode, WorktreeSubmodules } from "./environment.ts";
 import { KeybindingShortcut } from "./keybindings.ts";
 import {
+  CodexMicroAgentSource,
+  CodexMicroAutoDim,
+  CodexMicroBrightness,
+  CodexMicroCustomAgentKeys,
+  CodexMicroLayout,
+  DEFAULT_CODEX_MICRO_CUSTOM_AGENT_KEYS,
+  DEFAULT_CODEX_MICRO_LAYOUT,
+} from "./codexMicro.ts";
+import {
   CustomModelSetting,
   DEFAULT_TEXT_GENERATION_MODEL,
   DEFAULT_TEXT_GENERATION_REASONING_EFFORT,
@@ -397,6 +406,21 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   snapShotFlash: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   snapShotAnimations: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  codexMicroEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  codexMicroAgentSource: CodexMicroAgentSource.pipe(
+    Schema.withDecodingDefault(Effect.succeed("recent" as const)),
+  ),
+  codexMicroSingleTapFocus: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  codexMicroBrightness: CodexMicroBrightness.pipe(Schema.withDecodingDefault(Effect.succeed(100))),
+  codexMicroAutoDim: CodexMicroAutoDim.pipe(
+    Schema.withDecodingDefault(Effect.succeed("3-minutes" as const)),
+  ),
+  codexMicroLayout: CodexMicroLayout.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_CODEX_MICRO_LAYOUT)),
+  ),
+  codexMicroCustomAgentKeys: CodexMicroCustomAgentKeys.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_CODEX_MICRO_CUSTOM_AGENT_KEYS)),
+  ),
   wordWrap: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
 });
 export type ClientSettings = typeof ClientSettingsSchema.Type;
@@ -1538,6 +1562,13 @@ export const ClientSettingsPatch = Schema.Struct({
   snapShotSound: Schema.optionalKey(SnapShotSound),
   snapShotFlash: Schema.optionalKey(Schema.Boolean),
   snapShotAnimations: Schema.optionalKey(Schema.Boolean),
+  codexMicroEnabled: Schema.optionalKey(Schema.Boolean),
+  codexMicroAgentSource: Schema.optionalKey(CodexMicroAgentSource),
+  codexMicroSingleTapFocus: Schema.optionalKey(Schema.Boolean),
+  codexMicroBrightness: Schema.optionalKey(CodexMicroBrightness),
+  codexMicroAutoDim: Schema.optionalKey(CodexMicroAutoDim),
+  codexMicroLayout: Schema.optionalKey(CodexMicroLayout),
+  codexMicroCustomAgentKeys: Schema.optionalKey(CodexMicroCustomAgentKeys),
   wordWrap: Schema.optionalKey(Schema.Boolean),
 });
 export type ClientSettingsPatch = typeof ClientSettingsPatch.Type;

@@ -7,7 +7,9 @@ import {
   type ReactNode,
 } from "react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
+import type { KeybindingCommand } from "@supaterm/contracts";
 
+import { registerAppCommandHandler } from "../appCommandBus";
 import { isElectron } from "../env";
 import {
   isRichTextBoldShortcut,
@@ -134,9 +136,15 @@ function SidebarControl() {
     const unsubscribe = window.desktopBridge?.onMenuAction((action) => {
       if (action === "sidebar.toggle") toggleSidebar();
     });
+    const unregister = registerAppCommandHandler((command) => {
+      if (command !== "sidebar.toggle") return false;
+      toggleSidebar();
+      return true;
+    });
     return () => {
       window.removeEventListener("keydown", onKeyDown, true);
       unsubscribe?.();
+      unregister();
     };
   }, [keybindings, toggleSidebar, usagePageOpen]);
 
@@ -167,6 +175,19 @@ function SidebarControl() {
       </Tooltip>
     </div>
   );
+}
+
+function navigateHistory(command: KeybindingCommand | null): boolean {
+  switch (command) {
+    case "navigation.back":
+      window.history.back();
+      return true;
+    case "navigation.forward":
+      window.history.forward();
+      return true;
+    default:
+      return false;
+  }
 }
 
 function NavigationHistoryShortcuts() {
@@ -200,16 +221,17 @@ function NavigationHistoryShortcuts() {
           modelPickerOpen: isModelPickerOpen(),
         },
       });
-      if (command !== "navigation.back" && command !== "navigation.forward") return;
-
+      if (!navigateHistory(command)) return;
       event.preventDefault();
       event.stopPropagation();
-      if (command === "navigation.back") window.history.back();
-      else window.history.forward();
     };
 
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    const unregister = registerAppCommandHandler(navigateHistory);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      unregister();
+    };
   }, [keybindings, routeThreadRef]);
 
   return null;

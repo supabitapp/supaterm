@@ -1,5 +1,6 @@
 import type { KeybindingCommand, ResolvedKeybindingsConfig } from "@supaterm/contracts";
 import { useEffect, useLayoutEffect, useRef } from "react";
+import { registerAppCommandHandler } from "../../appCommandBus";
 import { isCommandPaletteOpen } from "../../commandPaletteBus";
 import { resolveChatShortcutCommand, type ShortcutMatchContext } from "../../keybindings";
 import { isTerminalCloseConfirmPending } from "../../lib/terminalCloseConfirm";
@@ -33,7 +34,8 @@ export interface ChatShortcutsInput {
 }
 
 /**
- * The chat's window keyboard shortcuts, plus Escape closing thread find.
+ * The chat's window keyboard shortcuts and dispatched app commands, plus Escape
+ * closing thread find.
  * Listeners attach once and read the latest input on each event, so handlers
  * act on the current render without re-registering on every change.
  */
@@ -96,9 +98,19 @@ export function useChatShortcuts(input: ChatShortcutsInput) {
       event.preventDefault();
       current.closeThreadFind();
     };
+    const unregister = registerAppCommandHandler((command) => {
+      const current = latest.current;
+      if (!current.enabled || isCommandPaletteOpen()) return false;
+      const run = current.commands[command] ?? current.fallback(command);
+      if (!run) return false;
+      // Handlers read `repeat` and call `preventDefault`; a dispatched command is a single press.
+      const event = new KeyboardEvent("keydown", { cancelable: true });
+      return run({ event, terminalFocusOwner: getTerminalFocusOwner() }) !== false;
+    });
     window.addEventListener("keydown", handler, true);
     window.addEventListener("keydown", dismissFind);
     return () => {
+      unregister();
       window.removeEventListener("keydown", handler, true);
       window.removeEventListener("keydown", dismissFind);
     };

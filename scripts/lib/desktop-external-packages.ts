@@ -10,6 +10,7 @@ export const DESKTOP_RUNTIME_EXTERNAL_PREFIXES = [
   "@crowecawcaw/xa11y",
   "ffi-rs",
   "@yuuang/",
+  "node-hid",
   // Desktop injection reads coreBundle.js; the server browser loads the full runtime.
   "playwright-core",
 ] as const;

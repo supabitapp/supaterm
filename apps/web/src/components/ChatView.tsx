@@ -88,6 +88,7 @@ import {
 import { type EnvironmentConnectionPresentation } from "@supaterm/client-runtime/connection";
 import { readPastedComposerContext } from "./composerInlineTokenPaste";
 import { isPasteAsTextShortcut } from "@supaterm/client-runtime/text-paste";
+import { SPEED_TOGGLE_LABELS } from "@supaterm/client-runtime/provider-speed-toggle";
 import { effectiveSnoozed, threadWokeAt } from "@supaterm/client-runtime/state/thread-snooze";
 import { childThreadInputsTitle } from "@supaterm/client-runtime/state/threads";
 import { useAcknowledgeThreadWoke, useThreadActions } from "../hooks/useThreadActions";
@@ -547,6 +548,7 @@ const EMPTY_FEEDBACK_SUBMISSIONS: ReadonlyArray<CodexFeedbackSubmission> = [];
 // second, and every server-side visit is a full command dispatch plus a
 // broadcast to all shell subscribers.
 const VISIT_DISPATCH_THROTTLE_MS = 10_000;
+const CONVERSATION_SCROLL_STEP_PX = 160;
 const EMPTY_PROVIDER_SKILLS: ServerProvider["skills"] = [];
 // Measures the prompt surface, not its anchor: the hero's context strip above it
 // and a thread's strip below it come and go with the state change.
@@ -3996,7 +3998,7 @@ export default function ChatView(props: ChatViewProps) {
   const pageScrollControllerRef = useRef<ReturnType<typeof createPageScrollController> | null>(
     null,
   );
-  const handlePageScrollStart = useEffectEvent((key: PageScrollKey) => {
+  const handlePageScrollStart = useStableCallback((key: PageScrollKey) => {
     timelineScrollIntentRef.current = key === "PageUp" ? "away-from-end" : "toward-end";
     composerRef.current?.collapseForTimelineScrollKey(key);
     if (
@@ -4020,7 +4022,7 @@ export default function ChatView(props: ChatViewProps) {
         pageScrollControllerRef.current = null;
       }
     };
-  }, [composerOverlayElement]);
+  }, [composerOverlayElement, handlePageScrollStart]);
   const onComposerPageScrollKeyDown = (key: PageScrollKey) => {
     pageScrollControllerRef.current?.handleKeyDown(key);
   };
@@ -4051,6 +4053,15 @@ export default function ChatView(props: ChatViewProps) {
     });
   };
   const scrollToEndStable = useStableCallback(scrollToEnd);
+  const scrollConversation = (direction: 1 | -1) => {
+    const node = getTimelineScrollableNode();
+    if (!(node instanceof HTMLElement)) return false;
+    handlePageScrollStart(direction < 0 ? "PageUp" : "PageDown");
+    node.scrollBy({
+      top: direction * CONVERSATION_SCROLL_STEP_PX,
+      behavior: prefersReducedMotion() ? "auto" : "smooth",
+    });
+  };
   useEffect(() => {
     if (!activeThread?.id) return;
     let removeListeners: (() => void) | null = null;
@@ -5424,6 +5435,15 @@ export default function ChatView(props: ChatViewProps) {
     const open = openComposerControl(command);
     return (context) => (showDraftProjectPicker ? open(context) : false);
   };
+  const respondToActiveApproval = (decision: "accept" | "decline", repeat: boolean) => {
+    const approval = activePendingApproval;
+    if (!approval || approval.responseCapability !== "live") return false;
+    if (approval.options && !approval.options.some((option) => option.decision === decision)) {
+      return false;
+    }
+    if (repeat || respondingRequestIds.includes(approval.requestId)) return;
+    void onRespondToApprovalStable(approval.requestId, decision);
+  };
   useChatShortcuts({
     enabled: activeThreadId !== null,
     keybindings,
@@ -5551,6 +5571,25 @@ export default function ChatView(props: ChatViewProps) {
         if (!canInterruptRunningThread) return false;
         if (!event.repeat) void onInterruptStable();
       },
+      "thread.approve": ({ event }) => respondToActiveApproval("accept", event.repeat),
+      "thread.decline": ({ event }) => respondToActiveApproval("decline", event.repeat),
+      "composer.submit": ({ event }) => {
+        if (!composerRef.current) return false;
+        if (!event.repeat) composerRef.current.submit();
+      },
+      "composer.toggleFastMode": ({ event }) => {
+        if (event.repeat) return;
+        const level = composerRef.current?.toggleFastMode() ?? null;
+        if (level === null) return false;
+        toastManager.add({
+          id: "fast-mode-toggle",
+          title: SPEED_TOGGLE_LABELS[level],
+          timeout: 1500,
+        });
+      },
+      "conversation.scrollUp": () => scrollConversation(-1),
+      "conversation.scrollDown": () => scrollConversation(1),
+      "conversation.scrollToEnd": () => scrollToEndStable(true),
     },
     fallback: (command) => {
       const scriptId = projectScriptIdFromCommand(command);

@@ -52,6 +52,7 @@ import {
   type EnvironmentId,
   type EnvironmentMachineKind,
   type FilesystemBrowseResult,
+  type KeybindingCommand,
   type ProjectId,
   type SourceControlDiscoveryResult,
   SourceControlProviderKind,
@@ -163,6 +164,7 @@ import {
   isUnsupportedWindowsProjectPath,
   resolveProjectPathForDispatch,
 } from "../lib/projectPaths";
+import { registerAppCommandHandler } from "../appCommandBus";
 import { onOpenCommandPalette } from "../commandPaletteBus";
 import { useComposerDraftStore } from "../composerDraftStore";
 import { isPreviewFocused } from "../lib/previewFocus";
@@ -548,21 +550,9 @@ export function CommandPalette({ children }: { children: ReactNode }) {
   }, [state.mode, state.open, toggleMode]);
 
   useEffect(() => {
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.defaultPrevented) return;
-      const command = resolveShortcutCommand(event, keybindings, {
-        context: {
-          terminalFocus: isTerminalFocused(),
-          terminalOpen,
-          previewFocus: isPreviewFocused(),
-          previewOpen,
-          modelPickerOpen: composerHandleRef.current?.isModelPickerOpen() ?? false,
-        },
-      });
+    const runCommand = (command: KeybindingCommand | null, repeat: boolean): boolean => {
       if (command === "appearance.cycle") {
-        event.preventDefault();
-        event.stopPropagation();
-        if (event.repeat) return;
+        if (repeat) return true;
         const nextMode =
           appearanceMode === "system" ? "light" : appearanceMode === "light" ? "dark" : "system";
         if (!setAppearanceMode(nextMode)) {
@@ -574,43 +564,52 @@ export function CommandPalette({ children }: { children: ReactNode }) {
             timeout: 1500,
           });
         }
-        return;
+        return true;
       }
       if (command === "theme.select") {
-        event.preventDefault();
-        event.stopPropagation();
-        if (event.repeat) return;
-        dispatch({ _tag: "OpenChangeTheme" });
-        return;
+        if (!repeat) dispatch({ _tag: "OpenChangeTheme" });
+        return true;
       }
       if (command === "themeEditor.toggle") {
-        event.preventDefault();
-        event.stopPropagation();
         toggleThemeEditorForTheme({
           theme,
           themeHalves,
           initialAppearance: resolvedTheme,
         });
-        return;
+        return true;
       }
       const page = pageForCommand(command);
       if (page !== null) {
-        event.preventDefault();
-        event.stopPropagation();
         setOpen(false);
         void navigate({ to: page });
-        return;
+        return true;
       }
       const mode = overlayModeForCommand(command);
-      if (mode === null) {
-        return;
-      }
+      if (mode === null) return false;
+      toggleMode(mode);
+      return true;
+    };
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      const command = resolveShortcutCommand(event, keybindings, {
+        context: {
+          terminalFocus: isTerminalFocused(),
+          terminalOpen,
+          previewFocus: isPreviewFocused(),
+          previewOpen,
+          modelPickerOpen: composerHandleRef.current?.isModelPickerOpen() ?? false,
+        },
+      });
+      if (!runCommand(command, event.repeat)) return;
       event.preventDefault();
       event.stopPropagation();
-      toggleMode(mode);
     };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    const unregister = registerAppCommandHandler((command) => runCommand(command, false));
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      unregister();
+    };
   }, [
     appearanceMode,
     keybindings,

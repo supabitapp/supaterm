@@ -33,6 +33,7 @@ import { scrollToSettingsTarget } from "./settingsLayout";
 import {
   searchSettings,
   isSettingsOverviewVisible,
+  isSettingsSectionAvailable,
   SETTINGS_SECTION_LABELS,
   type SettingsPath,
   type SettingsSearchItem,
@@ -52,6 +53,14 @@ const SnapShotIcon = createLucideIcon("snap-shot", [
   ["circle", { cx: "12", cy: "12", r: "1.5", key: "lens" }],
 ]);
 
+const CodexMicroIcon = createLucideIcon("codex-micro", [
+  ["rect", { width: "18", height: "18", x: "3", y: "3", rx: "3", key: "body" }],
+  ["circle", { cx: "8.5", cy: "8.5", r: "2", key: "knob" }],
+  ["rect", { width: "4", height: "4", x: "13", y: "6.5", rx: "1", key: "key-top" }],
+  ["rect", { width: "4", height: "4", x: "6.5", y: "13", rx: "1", key: "key-left" }],
+  ["rect", { width: "4", height: "4", x: "13", y: "13", rx: "1", key: "key-right" }],
+]);
+
 const SETTINGS_SECTION_ICONS: Readonly<
   Record<SettingsPath, ComponentType<{ className?: string }>>
 > = {
@@ -61,6 +70,7 @@ const SETTINGS_SECTION_ICONS: Readonly<
   "/settings/projects": PanelsTopLeftIcon,
   "/settings/keybindings": KeyboardIcon,
   "/settings/snap-shot": SnapShotIcon,
+  "/settings/codex-micro": CodexMicroIcon,
   "/settings/providers": BotIcon,
   "/settings/integrations": BlocksIcon,
   "/settings/source-control": GitBranchIcon,
@@ -74,7 +84,7 @@ const SETTINGS_NAV_ITEMS: ReadonlyArray<{
   to: SettingsPath;
   icon: ComponentType<{ className?: string }>;
 }> = (Object.keys(SETTINGS_SECTION_LABELS) as SettingsPath[])
-  .filter((to) => to !== "/settings/diagnostics")
+  .filter((to) => to !== "/settings/diagnostics" && isSettingsSectionAvailable(to))
   .map((to) => ({
     to,
     label: SETTINGS_SECTION_LABELS[to],
