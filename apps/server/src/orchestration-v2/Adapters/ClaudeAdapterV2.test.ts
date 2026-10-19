@@ -2051,7 +2051,11 @@ describe("ClaudeAdapterV2 MCP credential channel", () => {
 });
 
 describe("ClaudeAdapterV2 native session identity", () => {
-  const openTurnWithOrdinal = (providerTurnOrdinal: number, nativeThreadHasTurns?: boolean) =>
+  const openTurnWithOrdinal = (
+    providerTurnOrdinal: number,
+    nativeThreadHasTurns?: boolean,
+    existingTranscript = false,
+  ) =>
     Effect.scoped(
       Effect.gen(function* () {
         const fileSystem = yield* FileSystem.FileSystem;
@@ -2059,11 +2063,25 @@ describe("ClaudeAdapterV2 native session identity", () => {
         const attachmentsDir = yield* fileSystem.makeTempDirectoryScoped({
           prefix: "supaterm-claude-v2-session-identity-",
         });
+        const configDir = yield* fileSystem.makeTempDirectoryScoped({
+          prefix: "supaterm-claude-v2-session-identity-config-",
+        });
+        if (existingTranscript) {
+          const projectsDir = NodePath.join(configDir, "projects");
+          yield* fileSystem.makeDirectory(NodePath.join(projectsDir, "-workspace"), {
+            recursive: true,
+          });
+          yield* fileSystem.writeFileString(NodePath.join(projectsDir, ".DS_Store"), "");
+          yield* fileSystem.writeFileString(
+            NodePath.join(projectsDir, "-workspace", "native-session-identity.jsonl"),
+            '{"type":"user","sessionId":"native-session-identity"}\n',
+          );
+        }
         const openedQueries: Array<ClaudeAdapterV2.ClaudeAgentSdkQueryOpenInput> = [];
         const adapter = yield* ClaudeAdapterV2.makeClaudeAdapterV2({
           instanceId: ClaudeAdapterV2.CLAUDE_DEFAULT_INSTANCE_ID,
           settings: DEFAULT_CLAUDE_SETTINGS,
-          environment: {},
+          environment: { CLAUDE_CONFIG_DIR: configDir },
           attachmentsDir,
           fileSystem,
           path: yield* Path.Path,
@@ -2150,6 +2168,15 @@ describe("ClaudeAdapterV2 native session identity", () => {
       const openedQueries = yield* openTurnWithOrdinal(4, false);
       assert.equal(openedQueries[0]?.options.sessionId, "native-session-identity");
       assert.equal(openedQueries[0]?.options.resume, undefined);
+    }),
+  );
+
+  it.effect("resumes an imported native session on its first provider turn", () =>
+    Effect.gen(function* () {
+      const openedQueries = yield* openTurnWithOrdinal(1, false, true);
+      assert.equal(openedQueries.length, 1);
+      assert.equal(openedQueries[0]?.options.resume, "native-session-identity");
+      assert.equal(openedQueries[0]?.options.sessionId, undefined);
     }),
   );
 });

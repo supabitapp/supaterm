@@ -114,7 +114,10 @@ import * as Stream from "effect/Stream";
 import { resolveAttachmentPath } from "../../attachmentStore.ts";
 import { resolveClaudeSdkExecutablePath } from "../../provider/Drivers/ClaudeExecutable.ts";
 import { planClaudeSkillDispatch } from "../../provider/Drivers/ClaudeSkillDispatch.ts";
-import { discoverClaudeSkills } from "../../provider/Drivers/ClaudeSkills.ts";
+import {
+  discoverClaudeSkills,
+  resolveClaudeConfigDirPath,
+} from "../../provider/Drivers/ClaudeSkills.ts";
 import {
   compileClaudeModelSelection,
   type CompiledClaudeModelSelection,
@@ -3413,6 +3416,34 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
       ),
       Effect.provideService(FileSystem.FileSystem, fileSystem),
       Effect.provideService(Path.Path, path),
+    );
+
+  // `--resume` finds a transcript under any project directory, not only the
+  // one for the current cwd, so any copy means the session already exists.
+  const hasClaudeTranscript = (nativeThreadId: string, cwd: string | null) =>
+    Effect.gen(function* () {
+      const projectsDir = path.join(
+        yield* resolveClaudeConfigDirPath(
+          adapterOptions.settings,
+          adapterOptions.environment,
+          cwd ?? undefined,
+        ),
+        "projects",
+      );
+      // Stray files beside the project directories fail with ENOTDIR.
+      const transcriptExists = (project: string) =>
+        fileSystem
+          .exists(path.join(projectsDir, project, `${nativeThreadId}.jsonl`))
+          .pipe(Effect.orElseSucceed(() => false));
+      const found = yield* Effect.forEach(
+        yield* fileSystem.readDirectory(projectsDir),
+        transcriptExists,
+        { concurrency: 16 },
+      );
+      return found.includes(true);
+    }).pipe(
+      Effect.provideService(Path.Path, path),
+      Effect.orElseSucceed(() => false),
     );
 
   return ProviderAdapter.ProviderAdapterV2.of({
@@ -8406,8 +8437,12 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           // requires resume; sessionId would fail with "already in use".
           const hasPersistedProviderTurn =
             turnInput.nativeThreadHasTurns ?? turnInput.providerTurnOrdinal > 1;
+          // Imported sessions have a transcript before their first Supaterm turn.
           const shouldResume =
-            resumeSessionAt !== undefined || openedWithResume || hasPersistedProviderTurn;
+            resumeSessionAt !== undefined ||
+            openedWithResume ||
+            hasPersistedProviderTurn ||
+            (yield* hasClaudeTranscript(nativeThreadId, turnInput.runtimePolicy.cwd));
           const queryOptions = makeClaudeQueryOptions({
             modelSelection: turnInput.modelSelection,
             nativeThreadId,

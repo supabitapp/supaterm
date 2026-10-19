@@ -238,7 +238,7 @@ const readSkillOverrides = Effect.fn("readSkillOverrides")(function* (
   return overridesByName;
 });
 
-const resolveClaudeConfigDirPath = Effect.fn("resolveClaudeConfigDirPath")(function* (
+export const resolveClaudeConfigDirPath = Effect.fn("resolveClaudeConfigDirPath")(function* (
   config: Pick<ClaudeSettings, "homePath">,
   environment: NodeJS.ProcessEnv,
   cwd?: string,
