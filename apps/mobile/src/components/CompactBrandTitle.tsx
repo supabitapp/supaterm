@@ -23,8 +23,8 @@ export function CompactBrandTitle(
     readonly allowFontScaling?: boolean;
     readonly accessibilityLabel?: string;
     /**
-     * Spans the title column and drops the stage badge when the full title does not fit.
-     * Narrow Android sidebar headers otherwise draw their actions over the badge.
+     * Spans the title column, drops the stage badge when the full title does not fit, then
+     * truncates the wordmark. Narrow Android sidebar headers otherwise draw their actions over it.
      */
     readonly fit?: boolean;
   } = {},
@@ -38,6 +38,8 @@ export function CompactBrandTitle(
   const showStage =
     stageLabel !== null &&
     (!props.fit || availableWidth === null || fullWidth === null || fullWidth <= availableWidth);
+  // Truncating while the badge shows would clamp the measured width and keep the badge forever.
+  const truncate = props.fit && !showStage;
 
   const title = (
     <View
@@ -52,13 +54,17 @@ export function CompactBrandTitle(
       style={[
         { marginLeft: titleOffset },
         Platform.OS === "android" && { gap: 5.25 * scale },
-        props.fit && { flexShrink: 0 },
+        props.fit && { flexShrink: truncate ? 1 : 0 },
       ]}
     >
       <Text
         allowFontScaling={props.allowFontScaling}
+        numberOfLines={truncate ? 1 : undefined}
         className="font-supaterm-bold text-foreground-muted"
-        style={{ fontSize: 21 * scale, letterSpacing: -0.5 * scale }}
+        style={[
+          { fontSize: 21 * scale, letterSpacing: -0.5 * scale },
+          truncate && { flexShrink: 1 },
+        ]}
       >
         Supaterm
       </Text>
