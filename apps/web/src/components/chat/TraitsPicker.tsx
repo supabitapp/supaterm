@@ -592,7 +592,7 @@ export function buildTraitsTriggerLabel(input: {
   const labels: Array<string> = [];
   for (const descriptor of input.descriptors) {
     if (input.speedToggle && descriptor.id === input.speedToggle.descriptorId) {
-      const currentValue = getProviderOptionCurrentValue(descriptor);
+      const currentValue = getProviderOptionCurrentValue(descriptor) ?? input.speedToggle.offValue;
       if (input.speedToggle.level !== "off" || currentValue === input.speedToggle.offValue) {
         if (descriptor.type === "select") {
           speedFallbackLabel =

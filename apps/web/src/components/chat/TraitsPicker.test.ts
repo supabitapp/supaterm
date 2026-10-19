@@ -74,6 +74,12 @@ describe("buildTraitsTriggerLabel", () => {
     for (const fastMode of [false, true]) {
       expect(label([EFFORT, fastModeDescriptor(fastMode), CONTEXT_WINDOW])).toBe("High · 1M");
     }
+    const unsetFastMode: ProviderOptionDescriptor = {
+      id: "fastMode",
+      label: "Fast Mode",
+      type: "boolean",
+    };
+    expect(label([EFFORT, unsetFastMode])).toBe("High");
     for (const tier of ["default", "priority", "ultrafast"] as const) {
       expect(label([EFFORT, serviceTierDescriptor(tier)])).toBe("High");
     }
