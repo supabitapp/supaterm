@@ -17,6 +17,7 @@ import {
 import {
   canRetainCachedPlatformRegistrationAfterRefreshFailure,
   canReuseCachedPlatformRegistration,
+  disconnectDesktopSshEnvironment,
   isRejectedBootstrapCredentialError,
   isRejectedSecondaryBootstrap,
   nextRejectedSecondaryBootstrap,
@@ -58,6 +59,9 @@ function makeBridge(
         wsBaseUrl: "ws://127.0.0.1:3201/",
         pairingToken: ensureOptions?.issuePairingToken === true ? "pairing-token" : null,
       };
+    },
+    disconnectSshEnvironment: async () => {
+      calls.push("disconnect");
     },
     fetchSshSessionState: async () => {
       calls.push("session");
@@ -203,6 +207,37 @@ describe("desktop SSH pairing", () => {
       yield* prepareDesktopSshEnvironment(bridge, input);
       expect(calls.filter((call) => call === "ensure")).toHaveLength(2);
     }),
+  );
+
+  it.effect(
+    "starts its own reconnect launch after a disconnect instead of joining the old one",
+    () =>
+      Effect.gen(function* () {
+        const calls: string[] = [];
+        let openLaunchGate = () => {};
+        const launchGate = new Promise<void>((resolve) => {
+          openLaunchGate = resolve;
+        });
+        const bridge = makeBridge(calls, { launchGate });
+        const input = {
+          target: TARGET,
+          expectedEnvironmentId: EnvironmentId.make("environment-ssh"),
+          bearerToken: "saved-token",
+        };
+
+        const abandoned = yield* Effect.forkChild(prepareDesktopSshEnvironment(bridge, input), {
+          startImmediately: true,
+        });
+        yield* Fiber.interrupt(abandoned);
+        yield* disconnectDesktopSshEnvironment(bridge, TARGET);
+        const reconnect = yield* Effect.forkChild(prepareDesktopSshEnvironment(bridge, input), {
+          startImmediately: true,
+        });
+        openLaunchGate();
+        yield* Fiber.join(reconnect);
+
+        expect(calls.slice(0, 3)).toEqual(["ensure", "disconnect", "ensure"]);
+      }),
   );
 
   it.effect("stops before sending the saved token or pairing on a different machine", () =>

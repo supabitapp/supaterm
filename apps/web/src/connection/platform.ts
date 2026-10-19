@@ -222,19 +222,38 @@ export const provisionDesktopSshEnvironment = Effect.fn(
 // instead of queueing another behind it.
 const pendingSshReconnects = new Map<string, Promise<DesktopSshEnvironmentBootstrap>>();
 
+const sshTargetKey = (target: DesktopSshEnvironmentTarget) =>
+  JSON.stringify([target.alias, target.hostname, target.username, target.port]);
+
 function ensureSshEnvironmentForReconnect(
   bridge: DesktopBridge,
   target: DesktopSshEnvironmentTarget,
 ): Promise<DesktopSshEnvironmentBootstrap> {
-  const key = JSON.stringify([target.alias, target.hostname, target.username, target.port]);
+  const key = sshTargetKey(target);
   const pending = pendingSshReconnects.get(key);
   if (pending !== undefined) return pending;
-  const launch = bridge
-    .ensureSshEnvironment(target, { issuePairingToken: false })
-    .finally(() => pendingSshReconnects.delete(key));
+  const launch = bridge.ensureSshEnvironment(target, { issuePairingToken: false }).finally(() => {
+    if (pendingSshReconnects.get(key) === launch) pendingSshReconnects.delete(key);
+  });
   pendingSshReconnects.set(key, launch);
   return launch;
 }
+
+export const disconnectDesktopSshEnvironment = Effect.fn(
+  "web.connectionPlatform.ssh.disconnectDesktop",
+)(function* (bridge: DesktopBridge, target: DesktopSshEnvironmentTarget) {
+  // A disconnect queues behind the running launch and tears its tunnel down,
+  // so a later reconnect must start a launch of its own instead of joining it.
+  pendingSshReconnects.delete(sshTargetKey(target));
+  yield* Effect.tryPromise({
+    try: () => bridge.disconnectSshEnvironment(target),
+    catch: (cause) =>
+      new ConnectionTransientError({
+        reason: "remote-unavailable",
+        detail: `Could not disconnect the SSH environment: ${String(cause)}`,
+      }),
+  });
+});
 
 /**
  * Connects a saved SSH environment. A token from an earlier pairing is kept
@@ -332,14 +351,7 @@ const layerCapabilities = Layer.effectContext(
         if (bridge === undefined) {
           return;
         }
-        yield* Effect.tryPromise({
-          try: () => bridge.disconnectSshEnvironment(target),
-          catch: (cause) =>
-            new ConnectionTransientError({
-              reason: "remote-unavailable",
-              detail: `Could not disconnect the SSH environment: ${String(cause)}`,
-            }),
-        });
+        yield* disconnectDesktopSshEnvironment(bridge, target);
       }),
     });
 
