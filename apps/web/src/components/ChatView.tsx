@@ -339,7 +339,6 @@ import { type ReviewCommentContext } from "../reviewCommentContext";
 import { environmentCatalog } from "../connection/catalog";
 import { isDesktopLocalConnectionTarget } from "../connection/desktopLocal";
 import { useEnvironmentDisconnectDelay } from "../hooks/useEnvironmentDisconnectDelay";
-import { useReconnectEnvironment } from "../hooks/useReconnectEnvironment";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { useKnownTerminalSessions, useThreadRunningTerminalIds } from "../state/terminalSessions";
 import { useEnvironmentQuery } from "../state/query";
@@ -1010,7 +1009,7 @@ export default function ChatView(props: ChatViewProps) {
   const { environments } = useEnvironments();
   const providersByEnvironment = useEnvironmentProviders();
   const primaryEnvironment = usePrimaryEnvironment();
-  const reconnectEnvironment = useReconnectEnvironment();
+  const retryEnvironment = useAtomCommand(environmentCatalog.retryNow, { reportFailure: false });
   const setEnvironmentEnabled = useAtomCommand(environmentCatalog.setEnabled, {
     reportFailure: false,
   });
@@ -1900,6 +1899,22 @@ export default function ChatView(props: ChatViewProps) {
       connection: activeEnvironment.connection,
     };
   })();
+  const handleReconnectActiveEnvironment = async (environmentId: EnvironmentId) => {
+    const result = await retryEnvironment(environmentId);
+    if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+      const error = squashAtomCommandFailure(result);
+      toastManager.add(
+        stackedThreadToast({
+          type: "error",
+          title: "Could not reconnect environment",
+          description: error instanceof Error ? error.message : "Failed to reconnect.",
+        }),
+      );
+    }
+  };
+  const handleReconnectActiveEnvironmentStable = useStableCallback(
+    handleReconnectActiveEnvironment,
+  );
   const disconnectDelayElapsed = useEnvironmentDisconnectDelay(
     activeEnvironmentUnavailable ? activeEnvironment.environmentId : null,
   );
@@ -2157,15 +2172,19 @@ export default function ChatView(props: ChatViewProps) {
         title: `${activeEnvironmentUnavailableState.label} is ${environmentReconnecting ? "reconnecting" : "offline"}`,
         actions: (
           <>
-            <Button
-              size="xs"
-              variant="ghost"
-              onClick={() =>
-                void reconnectEnvironment(activeEnvironmentUnavailableState.environmentId)
-              }
-            >
-              Reconnect
-            </Button>
+            {!environmentReconnecting ? (
+              <Button
+                size="xs"
+                variant="ghost"
+                onClick={() =>
+                  void handleReconnectActiveEnvironmentStable(
+                    activeEnvironmentUnavailableState.environmentId,
+                  )
+                }
+              >
+                Reconnect
+              </Button>
+            ) : null}
             {disconnectAction}
           </>
         ),

@@ -60,7 +60,6 @@ import { useUpdatePrimarySettings } from "../../hooks/useSettings";
 import { PublicRelaySettings, usePublicRelayStatus } from "./PublicRelaySettings";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { useInlineConfirm } from "../../hooks/useInlineConfirm";
-import { useReconnectEnvironment } from "../../hooks/useReconnectEnvironment";
 import { cn } from "../../lib/utils";
 import { isLocalEnvironmentDisabled } from "../../localEnvironment";
 import { formatElapsedDurationLabel, formatExpiresInLabel } from "../../timestampFormat";
@@ -1285,7 +1284,6 @@ type SavedBackendListRowProps = {
   environment: EnvironmentPresentation;
   removingEnvironmentId: EnvironmentId | null;
   onSetEnabled: (environmentId: EnvironmentId, enabled: boolean) => void;
-  onReconnect: (environmentId: EnvironmentId) => void;
   onRemove: (environment: EnvironmentPresentation) => void;
   onAddRoute: (environment: EnvironmentPresentation) => void;
 };
@@ -1319,7 +1317,6 @@ function SavedBackendListRow({
   environment,
   removingEnvironmentId,
   onSetEnabled,
-  onReconnect,
   onRemove,
   onAddRoute,
 }: SavedBackendListRowProps) {
@@ -1501,11 +1498,6 @@ function SavedBackendListRow({
           />
         ) : null}
         <div className="flex items-center gap-1">
-          {enabled && !isConnected ? (
-            <Button size="micro" variant="ghost-muted" onClick={() => onReconnect(environmentId)}>
-              Reconnect
-            </Button>
-          ) : null}
           <Button
             size="micro"
             variant="ghost-muted"
@@ -1619,7 +1611,6 @@ export function ConnectionsSettings() {
   const setEnvironmentEnabled = useAtomCommand(environmentCatalog.setEnabled, {
     reportFailure: false,
   });
-  const reconnectEnvironment = useReconnectEnvironment();
   const primaryEnvironmentId = primaryEnvironment?.environmentId ?? null;
   const primarySessionState = usePrimarySessionState();
   const currentSessionScopes = primarySessionState.data?.authenticated
@@ -3540,7 +3531,6 @@ export function ConnectionsSettings() {
             environment={environment}
             removingEnvironmentId={removingSavedEnvironmentId}
             onSetEnabled={handleSetSavedBackendEnabled}
-            onReconnect={reconnectEnvironment}
             onRemove={handleRemoveSavedBackend}
             onAddRoute={(target) => {
               setRouteTarget(target);

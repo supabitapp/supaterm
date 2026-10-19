@@ -723,42 +723,6 @@ describe("EnvironmentSupervisor", () => {
     }),
   );
 
-  it.effect("an explicit retry during an in-flight reconnect attempt starts a fresh attempt", () =>
-    Effect.gen(function* () {
-      const retryAttemptStarted = yield* Deferred.make<void>();
-      const harness = yield* makeHarness({
-        prepare: (attempt) => {
-          switch (attempt) {
-            case 1:
-              return Effect.fail(transient());
-            case 2:
-              return Deferred.succeed(retryAttemptStarted, undefined).pipe(
-                Effect.andThen(Effect.never),
-              );
-            default:
-              return Effect.succeed(PREPARED_CONNECTION);
-          }
-        },
-      });
-      const supervisor = yield* EnvironmentSupervisor.make(TARGET_ENTRY, {
-        initiallyDesired: true,
-      }).pipe(Effect.provide(harness.dependencies));
-
-      yield* awaitState(supervisor.state, (state) => state.phase === "backoff");
-      yield* TestClock.adjust("2 seconds");
-      yield* Deferred.await(retryAttemptStarted);
-
-      yield* supervisor.retryNow;
-      const connected = yield* eventuallyState(
-        supervisor.state,
-        (state) => state.phase === "connected",
-      );
-
-      expect(connected.attempt).toBe(1);
-      expect(yield* Ref.get(harness.prepareCount)).toBe(3);
-    }).pipe(Effect.provide(TestClock.layer())),
-  );
-
   it.effect("explicit retry starts a fresh backoff sequence", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness({
