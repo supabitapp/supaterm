@@ -1,4 +1,4 @@
-import { scopeThreadRef } from "@supaterm/client-runtime/environment";
+import { scopedThreadKey, scopeThreadRef } from "@supaterm/client-runtime/environment";
 import {
   CommandId,
   EnvironmentId,
@@ -7,6 +7,7 @@ import {
   ProviderInstanceId,
   RunId,
   ThreadId,
+  type ScopedThreadRef,
 } from "@supaterm/contracts";
 import { act, useLayoutEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -16,9 +17,25 @@ import { useComposerDraftStore } from "../../composerDraftStore";
 import type { PendingThreadTurn } from "../../state/threadOutbox";
 import type { ChatComposerHandle } from "./ChatComposer";
 import type { EditQueuedRunRequest } from "./QueuedRunsControl";
-import { useThreadOutboxEdit } from "./useThreadOutboxEdit";
+import { useQueuedRunEditWithOutbox } from "./useQueuedRunEditWithOutbox";
 
-const outbox = vi.hoisted(() => ({ pause: vi.fn(), replace: vi.fn(), navigate: vi.fn() }));
+const outbox = vi.hoisted(() => ({
+  pause: vi.fn(),
+  replace: vi.fn(),
+  navigate: vi.fn(),
+  queued: {
+    editingRunId: null,
+    isEditing: false,
+    isSaving: false,
+    draftTarget: null as ScopedThreadRef | null,
+    editingAttachments: null,
+    beginEdit: vi.fn(),
+    cancelEdit: vi.fn(),
+    removeEditingAttachment: vi.fn(),
+    saveEdit: vi.fn(),
+  },
+}));
+vi.mock("./useQueuedRunEdit", () => ({ useQueuedRunEdit: () => outbox.queued }));
 vi.mock("../../state/threadOutbox", () => ({
   webThreadOutbox: { pause: outbox.pause },
   replaceThreadOutboxTurn: outbox.replace,
@@ -84,23 +101,29 @@ const sendContext: ReturnType<ChatComposerHandle["getSendContext"]> = {
 
 let root: Root;
 let container: HTMLDivElement;
-let edit: ReturnType<typeof useThreadOutboxEdit>;
-const queuedRunEdit = { beginEdit: vi.fn(), cancelEdit: vi.fn(), isSaving: false };
-const composer = {
+let edit: ReturnType<typeof useQueuedRunEditWithOutbox>;
+const composer: Pick<ChatComposerHandle, "focusAtEnd" | "getSendContext" | "resetCursorState"> = {
   focusAtEnd: vi.fn(),
   resetCursorState: vi.fn(),
   getSendContext: () => sendContext,
 };
 const setThreadError = vi.fn();
+const queuedRequest: EditQueuedRunRequest = {
+  runId: RunId.make("run"),
+  messageId: MessageId.make("queued"),
+  text: "Queued message",
+  attachments: [],
+};
 
 function Probe() {
-  const current = useThreadOutboxEdit({
+  const current = useQueuedRunEditWithOutbox({
     environmentId,
     routeThreadRef,
-    threadId,
-    queuedRunEdit,
+    threadDraftTarget: routeThreadRef,
+    activeThreadId: threadId,
+    serverProjection: null,
     promptRef: { current: "Edited message" },
-    composerRef: { current: composer },
+    composerRef: { current: composer as ChatComposerHandle },
   });
   useLayoutEffect(() => {
     edit = current;
@@ -108,20 +131,24 @@ function Probe() {
   return null;
 }
 
+const render = () => act(() => root.render(<Probe />));
+
 async function beginOutboxEdit() {
-  await act(() => edit.beginEdit(entry));
-  expect(edit.isEditing).toBe(true);
+  await act(() => edit.outbox.beginEdit(entry));
+  expect(edit.outbox.isEditing).toBe(true);
 }
 
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.clearAllMocks();
+  outbox.queued.isSaving = false;
+  outbox.queued.draftTarget = routeThreadRef;
   outbox.pause.mockResolvedValue(true);
   outbox.replace.mockResolvedValue(null);
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  act(() => root.render(<Probe />));
+  render();
 });
 
 afterEach(() => {
@@ -131,43 +158,66 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("outbox message editing", () => {
-  it("cancels a queued-run edit when an outbox edit starts, and the reverse", async () => {
+describe("queued-run editing with the outbox", () => {
+  it("hands the composer to an outbox edit and cancels a queued-run edit", async () => {
+    expect(edit.draftTarget).toBe(routeThreadRef);
     await beginOutboxEdit();
-    expect(queuedRunEdit.cancelEdit).toHaveBeenCalledOnce();
-
-    const request: EditQueuedRunRequest = {
-      runId: RunId.make("run"),
-      messageId: MessageId.make("queued"),
-      text: "Queued message",
-      attachments: [],
-    };
-    act(() => edit.beginQueuedRunEdit(request));
-    expect(edit.isEditing).toBe(false);
-    expect(queuedRunEdit.beginEdit).toHaveBeenCalledWith(request);
-    expect(outbox.pause).toHaveBeenLastCalledWith(entry.id, false);
+    expect(outbox.queued.cancelEdit).toHaveBeenCalledOnce();
+    expect(edit.draftTarget).toBe(`outbox-edit:${scopedThreadKey(routeThreadRef)}:${entry.id}`);
+    expect(edit.editingAttachments).toEqual([]);
+    expect(edit.removeEditingAttachment).not.toBe(outbox.queued.removeEditingAttachment);
   });
 
-  it("does not save while another send is in flight", async () => {
+  it("closes the outbox edit and hands the composer back when a queued-run edit starts", async () => {
+    await beginOutboxEdit();
+    act(() => edit.beginEdit(queuedRequest));
+    expect(edit.outbox.isEditing).toBe(false);
+    expect(outbox.queued.beginEdit).toHaveBeenCalledWith(queuedRequest);
+    expect(outbox.pause).toHaveBeenLastCalledWith(entry.id, false);
+    expect(edit.draftTarget).toBe(routeThreadRef);
+    expect(edit.removeEditingAttachment).toBe(outbox.queued.removeEditingAttachment);
+  });
+
+  it("does not save while another send or a queued-run save is in flight", async () => {
     await beginOutboxEdit();
     await act(() =>
-      edit.saveEdit(
+      edit.outbox.saveEdit(
         { runtimeMode: "full-access", sendInFlightRef: { current: true } },
         setThreadError,
       ),
     );
+    outbox.queued.isSaving = true;
+    render();
+    expect(edit.isSaving).toBe(true);
+    await act(() =>
+      edit.outbox.saveEdit(
+        { runtimeMode: "full-access", sendInFlightRef: { current: false } },
+        setThreadError,
+      ),
+    );
     expect(outbox.replace).not.toHaveBeenCalled();
-    expect(edit.isEditing).toBe(true);
+    expect(edit.outbox.isEditing).toBe(true);
   });
 
   it("saves the composer's message and model into the pending message", async () => {
     const savedThread = { environmentId, threadId: ThreadId.make("saved") };
-    outbox.replace.mockResolvedValue(savedThread);
+    let finishSave!: (value: typeof savedThread) => void;
+    outbox.replace.mockReturnValue(new Promise((resolve) => (finishSave = resolve)));
     await beginOutboxEdit();
     const sendInFlightRef = { current: false };
-    await act(() =>
-      edit.saveEdit({ runtimeMode: "approval-required", sendInFlightRef }, setThreadError),
-    );
+    let saving!: Promise<void>;
+    act(() => {
+      saving = edit.outbox.saveEdit(
+        { runtimeMode: "approval-required", sendInFlightRef },
+        setThreadError,
+      );
+    });
+    expect(edit.isSaving).toBe(true);
+    expect(sendInFlightRef.current).toBe(true);
+    await act(async () => {
+      finishSave(savedThread);
+      await saving;
+    });
     expect(outbox.replace).toHaveBeenCalledWith(
       entry,
       expect.objectContaining({
@@ -182,7 +232,7 @@ describe("outbox message editing", () => {
     expect(outbox.navigate).toHaveBeenCalledWith(
       expect.objectContaining({ params: savedThread, replace: true }),
     );
-    expect(edit.isEditing).toBe(false);
+    expect(edit.outbox.isEditing).toBe(false);
     expect(edit.isSaving).toBe(false);
     expect(sendInFlightRef.current).toBe(false);
   });
@@ -191,9 +241,11 @@ describe("outbox message editing", () => {
     outbox.replace.mockRejectedValue(new Error("Delivery has already started."));
     await beginOutboxEdit();
     const sendInFlightRef = { current: false };
-    await act(() => edit.saveEdit({ runtimeMode: "full-access", sendInFlightRef }, setThreadError));
+    await act(() =>
+      edit.outbox.saveEdit({ runtimeMode: "full-access", sendInFlightRef }, setThreadError),
+    );
     expect(setThreadError).toHaveBeenCalledWith(threadId, "Delivery has already started.");
-    expect(edit.isEditing).toBe(true);
+    expect(edit.outbox.isEditing).toBe(true);
     expect(sendInFlightRef.current).toBe(false);
   });
 });

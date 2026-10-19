@@ -19,8 +19,7 @@ import {
 } from "./ChatView.logic";
 import * as DateTime from "effect/DateTime";
 import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
-import { useQueuedRunEdit } from "./chat/useQueuedRunEdit";
-import { useThreadOutboxEdit } from "./chat/useThreadOutboxEdit";
+import { useQueuedRunEditWithOutbox } from "./chat/useQueuedRunEditWithOutbox";
 import {
   isPaintOnlyThreadTimeline,
   peekHeldThreadTimeline,
@@ -1035,7 +1034,7 @@ export default function ChatView(props: ChatViewProps) {
   const serverProjection = serverThreadProjection?.projection ?? null;
   const promptRef = useRef("");
   const composerRef = useChatComposerRef();
-  const queuedRunEdit = useQueuedRunEdit({
+  const queuedRunEdit = useQueuedRunEditWithOutbox({
     environmentId,
     routeThreadRef,
     threadDraftTarget: baseComposerDraftTarget,
@@ -1044,16 +1043,7 @@ export default function ChatView(props: ChatViewProps) {
     promptRef,
     composerRef,
   });
-  const outboxEdit = useThreadOutboxEdit({
-    environmentId,
-    routeThreadRef,
-    threadId,
-    queuedRunEdit,
-    promptRef,
-    composerRef,
-  });
-  const composerDraftTarget: ScopedThreadRef | DraftId =
-    outboxEdit.draftTarget ?? queuedRunEdit.draftTarget;
+  const composerDraftTarget = queuedRunEdit.draftTarget;
   const [previousCreation, setPreviousCreation] = useState<WebPendingThreadCreation | null>(null);
   const pendingThreadCreation = resolvePendingThreadCreation({
     threadKey: routeThreadKey,
@@ -3262,7 +3252,6 @@ export default function ChatView(props: ChatViewProps) {
   };
   const sendAppMessageStable = useStableCallback(sendAppMessage);
   const queuedRunsControlRef = useRef<QueuedRunsControlHandle>(null);
-  const isSavingEdit = queuedRunEdit.isSaving || outboxEdit.isSaving;
   const addTerminalContextToDraft = (selection: TerminalContextSelection) => {
     composerRef.current?.addTerminalContext(selection);
   };
@@ -5799,9 +5788,9 @@ export default function ChatView(props: ChatViewProps) {
     },
   ) => {
     e?.preventDefault();
-    if (outboxEdit.isEditing) {
+    if (queuedRunEdit.outbox.isEditing) {
       if (!directAnnotation)
-        await outboxEdit.saveEdit({ runtimeMode, sendInFlightRef }, setThreadError);
+        await queuedRunEdit.outbox.saveEdit({ runtimeMode, sendInFlightRef }, setThreadError);
       return;
     }
 
@@ -6443,9 +6432,9 @@ export default function ChatView(props: ChatViewProps) {
       <ThreadOutboxControl
         environmentId={environmentId}
         threadId={threadId}
-        editingMessageId={outboxEdit.editingMessageId}
-        onEditMessage={outboxEdit.beginEdit}
-        onCancelEdit={outboxEdit.cancelEdit}
+        editingMessageId={queuedRunEdit.outbox.editingMessageId}
+        onEditMessage={queuedRunEdit.outbox.beginEdit}
+        onCancelEdit={queuedRunEdit.outbox.cancelEdit}
       />
       {isServerThread && activeThread ? (
         <QueuedRunsControl
@@ -6460,7 +6449,7 @@ export default function ChatView(props: ChatViewProps) {
           threadId={activeThread.id}
           optimisticMessages={optimisticUserMessages}
           editingRunId={queuedRunEdit.editingRunId}
-          onEditQueuedRun={outboxEdit.beginQueuedRunEdit}
+          onEditQueuedRun={queuedRunEdit.beginEdit}
           onCancelEdit={queuedRunEdit.cancelEdit}
         />
       ) : null}
@@ -7013,7 +7002,10 @@ export default function ChatView(props: ChatViewProps) {
                             showComposerModelStrip
                           }
                         >
-                          <ComposerSurface.Host inert={isSavingEdit} aria-busy={isSavingEdit}>
+                          <ComposerSurface.Host
+                            inert={queuedRunEdit.isSaving}
+                            aria-busy={queuedRunEdit.isSaving}
+                          >
                             <div className="relative z-10">
                               {showProviderSubagentBar ? (
                                 <ProviderSubagentBar
@@ -7041,7 +7033,7 @@ export default function ChatView(props: ChatViewProps) {
                                   canQueueMessage={canQueueMessage}
                                   reportedModelSelection={reportedModelSelection}
                                   multipleModelSelections={
-                                    outboxEdit.isEditing ? null : multipleModelSelections
+                                    queuedRunEdit.outbox.isEditing ? null : multipleModelSelections
                                   }
                                   supportsMultipleModels={serverConfig != null}
                                   onMultipleModelSelectionsChange={setMultipleModelSelectionsStable}
@@ -7074,13 +7066,13 @@ export default function ChatView(props: ChatViewProps) {
                                   isCompacting={isCompacting}
                                   canInterrupt={canInterruptRunningThread}
                                   isConnecting={isConnecting}
-                                  isSendBusy={isSendBusy || isSavingEdit || isResuming}
+                                  isSendBusy={isSendBusy || queuedRunEdit.isSaving || isResuming}
                                   canResume={resumableRunId !== null || hasHeldQueuedRuns}
                                   isRevertingCheckpoint={isRevertingCheckpoint}
                                   sendDisabledReason={
                                     !canQueueMessage
                                       ? "This connection cannot change threads."
-                                      : outboxEdit.isEditing
+                                      : queuedRunEdit.outbox.isEditing
                                         ? null
                                         : isEnvironmentChanging
                                           ? "Preparing machine"
@@ -7113,13 +7105,17 @@ export default function ChatView(props: ChatViewProps) {
                                   }
                                   environmentUnavailable={activeEnvironmentUnavailableState}
                                   activePendingApproval={
-                                    outboxEdit.isEditing ? null : activePendingApproval
+                                    queuedRunEdit.outbox.isEditing ? null : activePendingApproval
                                   }
-                                  pendingApprovals={outboxEdit.isEditing ? [] : pendingApprovals}
-                                  pendingUserInputs={outboxEdit.isEditing ? [] : pendingUserInputs}
+                                  pendingApprovals={
+                                    queuedRunEdit.outbox.isEditing ? [] : pendingApprovals
+                                  }
+                                  pendingUserInputs={
+                                    queuedRunEdit.outbox.isEditing ? [] : pendingUserInputs
+                                  }
                                   supportsQuestionAutoDismiss={supportsQuestionAutoDismiss}
                                   activePendingProgress={
-                                    outboxEdit.isEditing ? null : activePendingProgress
+                                    queuedRunEdit.outbox.isEditing ? null : activePendingProgress
                                   }
                                   activePendingResolvedAnswers={activePendingResolvedAnswers}
                                   activePendingIsResponding={activePendingIsResponding}
@@ -7201,14 +7197,9 @@ export default function ChatView(props: ChatViewProps) {
                                   setThreadError={setThreadError}
                                   onExpandImage={onExpandTimelineImageStable}
                                   onFileOpen={openFileAttachmentStable}
-                                  editingQueuedAttachments={
-                                    outboxEdit.editingAttachments ??
-                                    queuedRunEdit.editingAttachments
-                                  }
+                                  editingQueuedAttachments={queuedRunEdit.editingAttachments}
                                   onRemoveEditingQueuedAttachment={
-                                    outboxEdit.isEditing
-                                      ? outboxEdit.removeEditingAttachment
-                                      : queuedRunEdit.removeEditingAttachment
+                                    queuedRunEdit.removeEditingAttachment
                                   }
                                 />
                               )}
