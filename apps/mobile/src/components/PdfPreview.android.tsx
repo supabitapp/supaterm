@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import Pdf from "react-native-pdf-jsi";
 
-import { FilePreviewLoading, FilePreviewNotice } from "../features/files/FilePreviewFeedback";
+import { FilePreviewLoading, FilePreviewNotice } from "./FilePreviewFeedback";
 import { pdfInitialPage, pdfLinkUrl, preparePdfPreview } from "../lib/pdfPreview";
 import { tryOpenExternalUrl } from "../lib/openExternalUrl";
 import { ControlPill } from "./ui/ControlPill";

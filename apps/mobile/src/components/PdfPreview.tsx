@@ -2,7 +2,7 @@ import { useState } from "react";
 import { View } from "react-native";
 import { WebView } from "react-native-webview";
 
-import { FilePreviewLoading, FilePreviewNotice } from "../features/files/FilePreviewFeedback";
+import { FilePreviewLoading, FilePreviewNotice } from "./FilePreviewFeedback";
 
 export function PdfPreview(props: { readonly uri: string }) {
   const [error, setError] = useState<string | null>(null);

@@ -23,7 +23,7 @@ import { isFileBackedComposerAttachment } from "../../lib/composerImages";
 import { copyTextWithHaptic } from "../../lib/copyTextWithHaptic";
 import { useUniwindTheme } from "../../lib/useUniwindTheme";
 import { removeComposerDraftAttachment, useComposerDraft } from "../../state/use-composer-drafts";
-import { FilePreviewLoading, FilePreviewNotice } from "./FilePreviewFeedback";
+import { FilePreviewLoading, FilePreviewNotice } from "../../components/FilePreviewFeedback";
 import { FileMarkdownPreview } from "./FileMarkdownPreview";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { SourceFileSurface } from "./SourceFileSurface";

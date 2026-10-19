@@ -41,7 +41,7 @@ import {
 } from "../layout/AdaptiveWorkspaceLayout";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { ThreadRouteScreen } from "../threads/ThreadRouteScreen";
-import { FilePreviewLoading, FilePreviewNotice } from "./FilePreviewFeedback";
+import { FilePreviewLoading, FilePreviewNotice } from "../../components/FilePreviewFeedback";
 import { FileMarkdownPreview } from "./FileMarkdownPreview";
 import { ThreadInspectorContentStack } from "../threads/thread-inspector-content-stack";
 import { FileTreeBrowser } from "./FileTreeBrowser";

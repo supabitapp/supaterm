@@ -5,7 +5,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { AppText as Text } from "../../components/ui/AppText";
-import { FilePreviewLoading } from "./FilePreviewFeedback";
+import { FilePreviewLoading } from "../../components/FilePreviewFeedback";
 import { LoadingStrip } from "../../components/ui/LoadingStrip";
 import { PdfPreview } from "../../components/PdfPreview";
 import { ControlPill } from "../../components/ui/ControlPill";

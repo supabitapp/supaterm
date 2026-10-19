@@ -1,7 +1,7 @@
 import { useId, useMemo, useState } from "react";
 import { Image, Pressable, View } from "react-native";
 
-import { FilePreviewLoading } from "./FilePreviewFeedback";
+import { FilePreviewLoading } from "../../components/FilePreviewFeedback";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { FilePreviewModal, type FilePreviewSource } from "../../components/FilePreviewModal";
 import { PresentationSource } from "../../components/ui/NativePresentation";

@@ -59,7 +59,7 @@ vi.mock("@react-navigation/native", () => ({
   useRoute: () => ({ params: { environmentId, threadId } }),
 }));
 vi.mock("./entities", () => ({
-  useThreadShell: () => useAtomValue(shellAtom),
+  useQuietThreadShell: () => useAtomValue(shellAtom),
   useProject: () => null,
 }));
 vi.mock("./threads", () => ({

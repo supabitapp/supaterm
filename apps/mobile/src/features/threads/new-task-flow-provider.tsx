@@ -471,10 +471,11 @@ export function NewTaskFlowProvider(props: React.PropsWithChildren) {
     () => () => {
       const request = latestSwitchRef.current;
       if (request?.draftKey === selectedProjectDraftKey && request.projectKey === draftProjectKey) {
-        cancelEnvironmentSwitch();
+        latestSwitchRef.current = null;
+        setSwitchingToEnvironmentId(null);
       }
     },
-    [cancelEnvironmentSwitch, selectedProjectDraftKey, draftProjectKey],
+    [selectedProjectDraftKey, draftProjectKey],
   );
   useEffect(() => {
     if (activeDraftKey !== null || editingPendingTask !== null || selectedProject === null) {

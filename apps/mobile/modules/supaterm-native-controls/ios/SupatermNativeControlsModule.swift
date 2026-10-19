@@ -249,8 +249,11 @@ public final class SupatermNativeControlsModule: Module {
     guard filePresentation == nil, videoPresentation == nil,
       appContext?.utilities?.currentViewController() != nil
     else { throw URLError(.cannotLoadFromNetwork) }
-    let file = SupatermNativeFilePresentation(identifier: identifier, sources: presentationSources,
-                                        sourceIdentifiers: sourceIdentifiers) { [weak self] error in
+    let file = SupatermNativeFilePresentation(
+      identifier: identifier,
+      sources: presentationSources,
+      sourceIdentifiers: sourceIdentifiers
+    ) { [weak self] error in
       self?.filePresentation = nil
       if let error { promise.reject(error) } else { promise.resolve(nil) }
     }

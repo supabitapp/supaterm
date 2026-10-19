@@ -1,8 +1,8 @@
 import { View } from "react-native";
 
-import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
-import { AppText as Text } from "../../components/ui/AppText";
-import { cn } from "../../lib/cn";
+import { AppActivityIndicator } from "./ui/AppActivityIndicator";
+import { AppText as Text } from "./ui/AppText";
+import { cn } from "../lib/cn";
 
 export function FilePreviewLoading(props: {
   readonly message: string;

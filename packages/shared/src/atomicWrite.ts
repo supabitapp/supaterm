@@ -7,7 +7,7 @@ import * as Result from "effect/Result";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { resolveSymlinkTarget } from "@supaterm/shared/symlink";
 
-export const isWindowsRenameLock = (error: PlatformError.PlatformError) => {
+const isWindowsRenameLock = (error: PlatformError.PlatformError) => {
   const code = (error.reason.cause as NodeJS.ErrnoException | undefined)?.code;
   return code === "EBUSY" || code === "EPERM" || code === "EACCES";
 };
