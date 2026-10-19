@@ -25,6 +25,7 @@ import {
   AuthStandardClientScopes,
   type DesktopBridge,
   type DesktopEnvironmentBootstrap,
+  type DesktopSshEnvironmentBootstrap,
   type DesktopSshEnvironmentTarget,
   type EnvironmentId,
   PRIMARY_LOCAL_ENVIRONMENT_ID,
@@ -216,6 +217,25 @@ export const provisionDesktopSshEnvironment = Effect.fn(
   };
 });
 
+// The bridge cannot cancel an SSH launch, and launches for one host run one at
+// a time, so a retry that gave up waiting joins the launch still running
+// instead of queueing another behind it.
+const pendingSshReconnects = new Map<string, Promise<DesktopSshEnvironmentBootstrap>>();
+
+function ensureSshEnvironmentForReconnect(
+  bridge: DesktopBridge,
+  target: DesktopSshEnvironmentTarget,
+): Promise<DesktopSshEnvironmentBootstrap> {
+  const key = JSON.stringify([target.alias, target.hostname, target.username, target.port]);
+  const pending = pendingSshReconnects.get(key);
+  if (pending !== undefined) return pending;
+  const launch = bridge
+    .ensureSshEnvironment(target, { issuePairingToken: false })
+    .finally(() => pendingSshReconnects.delete(key));
+  pendingSshReconnects.set(key, launch);
+  return launch;
+}
+
 /**
  * Connects a saved SSH environment. A token from an earlier pairing is kept
  * while the host still accepts it with every standard scope, because every
@@ -233,7 +253,7 @@ export const prepareDesktopSshEnvironment = Effect.fn("web.connectionPlatform.ss
     const bearerToken = input.bearerToken;
     if (bearerToken !== undefined) {
       const bootstrap = yield* Effect.tryPromise({
-        try: () => bridge.ensureSshEnvironment(input.target, { issuePairingToken: false }),
+        try: () => ensureSshEnvironmentForReconnect(bridge, input.target),
         catch: sshPreparationError,
       });
       // Stop without sending the saved token, or pairing, when the forward

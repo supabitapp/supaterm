@@ -8,6 +8,7 @@ import {
 } from "@supaterm/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import {
   ConnectionBlockedError,
   ConnectionTransientError,
@@ -41,6 +42,7 @@ function makeBridge(
     readonly failDescriptor?: boolean;
     readonly savedTokenRejected?: boolean;
     readonly savedTokenScopes?: ReadonlyArray<string>;
+    readonly launchGate?: Promise<void>;
   },
 ): DesktopBridge {
   return {
@@ -49,6 +51,7 @@ function makeBridge(
       ensureOptions?: { issuePairingToken?: boolean },
     ) => {
       calls.push("ensure");
+      await options?.launchGate;
       return {
         target,
         httpBaseUrl: "http://127.0.0.1:3201/",
@@ -168,6 +171,37 @@ describe("desktop SSH pairing", () => {
 
       expect(prepared.bearerToken).toBe("bearer-token");
       expect(calls).toEqual(["ensure", "descriptor", "session", "ensure", "descriptor", "token"]);
+    }),
+  );
+
+  it.effect("joins a reconnect launch still running instead of queueing another", () =>
+    Effect.gen(function* () {
+      const calls: string[] = [];
+      let openLaunchGate = () => {};
+      const launchGate = new Promise<void>((resolve) => {
+        openLaunchGate = resolve;
+      });
+      const bridge = makeBridge(calls, { launchGate });
+      const input = {
+        target: TARGET,
+        expectedEnvironmentId: EnvironmentId.make("environment-ssh"),
+        bearerToken: "saved-token",
+      };
+
+      const abandoned = yield* Effect.forkChild(prepareDesktopSshEnvironment(bridge, input), {
+        startImmediately: true,
+      });
+      yield* Fiber.interrupt(abandoned);
+      const retry = yield* Effect.forkChild(prepareDesktopSshEnvironment(bridge, input), {
+        startImmediately: true,
+      });
+      openLaunchGate();
+
+      expect((yield* Fiber.join(retry)).bearerToken).toBe("saved-token");
+      expect(calls.filter((call) => call === "ensure")).toHaveLength(1);
+
+      yield* prepareDesktopSshEnvironment(bridge, input);
+      expect(calls.filter((call) => call === "ensure")).toHaveLength(2);
     }),
   );
 
