@@ -24,6 +24,7 @@ const workspaceFiles = [
   "apps/marketing/package.json",
   "oxlint-plugin-supaterm/package.json",
   "packages/client-runtime/package.json",
+  "packages/codex-micro/package.json",
   "packages/contracts/package.json",
   "packages/mermaid-ascii/package.json",
   "packages/shared/package.json",
