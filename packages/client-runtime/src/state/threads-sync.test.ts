@@ -1785,9 +1785,34 @@ describe("EnvironmentThreads", () => {
     }),
   );
 
-  it.effect.each(["http", "socket", "missing"] as const)(
-    "rechecks a missing thread on reopen and handles %s recovery",
-    (recovery) =>
+  it.effect.each([
+    {
+      source: "http",
+      httpSnapshot: {
+        _tag: "present",
+        snapshot: { snapshotSequence: 7, projection: BASE_PROJECTION },
+      },
+      expectedProjection: BASE_PROJECTION,
+      expectedStatus: "live",
+      expectedSubscriptions: 1,
+    },
+    {
+      source: "socket",
+      httpSnapshot: { _tag: "unavailable" },
+      expectedProjection: BASE_PROJECTION,
+      expectedStatus: "live",
+      expectedSubscriptions: 1,
+    },
+    {
+      source: "missing",
+      httpSnapshot: { _tag: "missing" },
+      expectedProjection: null,
+      expectedStatus: "deleted",
+      expectedSubscriptions: 0,
+    },
+  ] as const)(
+    "rechecks a missing thread after interrupted cleanup through $source",
+    ({ source, httpSnapshot, expectedProjection, expectedStatus, expectedSubscriptions }) =>
       Effect.gen(function* () {
         const resumeCache: NonNullable<Parameters<typeof makeEnvironmentThreadState>[1]> = {
           snapshot: undefined,
@@ -1808,24 +1833,19 @@ describe("EnvironmentThreads", () => {
 
         const resumed = yield* makeHarness({
           resumeCache,
-          httpSnapshot:
-            recovery === "http"
-              ? { _tag: "present", snapshot: { snapshotSequence: 7, projection: BASE_PROJECTION } }
-              : { _tag: recovery === "socket" ? "unavailable" : "missing" },
+          httpSnapshot,
         });
-        if (recovery === "socket") {
+        if (source === "socket") {
           yield* Queue.offer(resumed.inputs, snapshot(BASE_PROJECTION));
         }
         const restored = yield* awaitThreadState(
           resumed.observed,
           (value) => value.status === "live" || value.status === "deleted",
         );
-        expect(restored.status).toBe(recovery === "missing" ? "deleted" : "live");
-        expect(Option.getOrNull(restored.data)).toEqual(
-          recovery === "missing" ? null : BASE_PROJECTION,
-        );
+        expect(restored.status).toBe(expectedStatus);
+        expect(Option.getOrNull(restored.data)).toEqual(expectedProjection);
         expect(yield* Ref.get(resumed.loaderCalls)).toBe(1);
-        expect(yield* Ref.get(resumed.subscriptionCount)).toBe(recovery === "missing" ? 0 : 1);
+        expect(yield* Ref.get(resumed.subscriptionCount)).toBe(expectedSubscriptions);
       }),
   );
 

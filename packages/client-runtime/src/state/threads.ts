@@ -222,7 +222,7 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
   const applyLock = yield* Semaphore.make(1);
   // Save only completed data/cursor updates. A canceled scope must not cache
   // a cursor whose event has not reached the data yet.
-  const remember = Effect.gen(function* () {
+  const remember = Effect.fnUntraced(function* (retention: "retain" | "recheck" = "retain") {
     const current = yield* SubscriptionRef.get(state);
     const sequence = yield* SubscriptionRef.get(lastSequence);
     committed = {
@@ -233,7 +233,9 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
         committed.persisted &&
         matchesThreadSnapshot(committed, Option.getOrNull(current.data), sequence, current.history),
     };
-    if (resumeCache?.owner === owner) resumeCache.snapshot = committed;
+    if (resumeCache?.owner === owner) {
+      resumeCache.snapshot = retention === "retain" ? committed : undefined;
+    }
   });
   const persistence = yield* Queue.sliding<OrchestrationV2ThreadDetailSnapshot>(1);
 
@@ -392,7 +394,9 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
       history: patch(current.history),
     }));
 
-  const setDeleted = Effect.fn("EnvironmentThreadState.setDeleted")(function* () {
+  const setDeleted = Effect.fn("EnvironmentThreadState.setDeleted")(function* (
+    retention: "retain" | "recheck" = "retain",
+  ) {
     yield* Ref.set(awaitingCompletion, false);
     yield* SubscriptionRef.set(state, {
       data: Option.none(),
@@ -400,7 +404,7 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
       error: Option.none(),
       history: EMPTY_THREAD_HISTORY_META,
     });
-    yield* remember;
+    yield* remember(retention);
     if (resumeCache !== undefined && resumeCache.owner !== owner) return;
     yield* cache.removeThread(environmentId, threadId).pipe(
       Effect.catch((error) =>
@@ -600,7 +604,7 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
           yield* applyItemLocked(item);
         }
         yield* applyEventsLocked(events);
-        yield* remember;
+        yield* remember();
       }),
     );
   });
@@ -699,7 +703,7 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
           ),
         );
         if (result._tag !== "loaded") return result;
-        if (complete) yield* remember;
+        if (complete) yield* remember();
       }
       return { _tag: "loaded" } satisfies ThreadHistoryController.ThreadHistoryLoadEarlierResult;
     });
@@ -762,9 +766,6 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
       ORCHESTRATION_V2_WS_METHODS.subscribeThread,
       Effect.fn("EnvironmentThreadState.makeSubscribeInput")(function* (session) {
         let current = yield* SubscriptionRef.get(state);
-        // A prior definitive miss (or delete event) already cleared this thread.
-        // Park the subscription attempt without opening the socket so we do not
-        // retry forever against a known-missing id.
         if (current.status === "deleted") {
           return yield* Effect.never;
         }
@@ -817,20 +818,14 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
                         }
                       : EMPTY_THREAD_HISTORY_META;
                   yield* setThread(httpResult.snapshot.projection, { history });
-                  yield* remember;
+                  yield* remember();
                 }),
               );
               current = yield* SubscriptionRef.get(state);
               break;
             }
             case "missing": {
-              yield* setDeleted().pipe(
-                Effect.ensuring(
-                  Effect.sync(() => {
-                    if (resumeCache?.owner === owner) resumeCache.snapshot = undefined;
-                  }),
-                ),
-              );
+              yield* setDeleted("recheck");
               return yield* Effect.never;
             }
             case "unavailable": {

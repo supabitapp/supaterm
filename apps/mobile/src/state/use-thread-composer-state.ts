@@ -181,7 +181,7 @@ export function useThreadComposerState() {
   const {
     selectedThread: selectedThreadShell,
     selectedThreadCreation,
-    selectedThreadDetailRef,
+    selectedThreadRef,
     selectedEnvironmentRuntime,
   } = useThreadSelection();
   const selectedThreadProjection = useSelectedThreadProjection();
@@ -279,9 +279,9 @@ export function useThreadComposerState() {
     ? (preferencesResult.value.followUpBehavior ?? DEFAULT_FOLLOW_UP_BEHAVIOR)
     : DEFAULT_FOLLOW_UP_BEHAVIOR;
   const queueWorkflow = useAtomValue(
-    selectedThreadDetailRef === null
+    selectedThreadRef === null
       ? EMPTY_QUEUE_WORKFLOW_ATOM
-      : environmentThreadDetails.queueWorkflowAtom(selectedThreadDetailRef),
+      : environmentThreadDetails.queueWorkflowAtom(selectedThreadRef),
   );
   const queuedRunEdit = useQueuedRunEdit(selectedThreadKey);
   const composerDraftKey =
