@@ -62,6 +62,19 @@ another host is using the relay identity, the same Supaterm data is running on a
 second machine. Turn **Encrypted Relay** off and on to bring the relay back to this
 host.
 
+## Add a connection from a terminal
+
+With the desktop app running on your receiving Mac or Linux machine, run:
+
+```bash
+supaterm app connection add "<pairing-link>"
+```
+
+Replace `<pairing-link>` with the full URL created in **Settings → Connections** or by `supaterm pair` on the host.
+The command pairs and saves the connection in your local desktop app. Run it
+on the receiving machine, outside an SSH session. Manage or remove the saved
+connection in **Settings → Connections**.
+
 ## Pair over a LAN or private network
 
 Use direct pairing when the other device can reach the host's network address.

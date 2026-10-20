@@ -2,7 +2,11 @@ import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime
 import type { DesktopAppActivationRequest } from "@supaterm/contracts";
 import { useEffect, useEffectEvent, useRef } from "react";
 
-import { handleDesktopAppActivationRequest } from "../../desktopAppActivation";
+import {
+  handleDesktopAppActivationRequest,
+  handleDesktopAppConnectionRequest,
+} from "../../desktopAppActivation";
+import { connectPairing } from "../../connection/onboarding";
 import { useNewThreadHandler } from "../../hooks/useHandleNewThread";
 import { findProjectByPath, inferProjectTitleFromPath } from "../../lib/projectPaths";
 import { newProjectId } from "../../lib/utils";
@@ -16,6 +20,10 @@ export function DesktopAppActivationCoordinator() {
   const primaryEnvironment = usePrimaryEnvironment();
   const createProject = useAtomCommand(projectEnvironment.create, { reportFailure: false });
   const openThread = useNewThreadHandler();
+  const registerPairing = useAtomCommand(connectPairing, {
+    reportFailure: false,
+    reportDefect: false,
+  });
   const queueRef = useRef(Promise.resolve());
   const activation = window.desktopBridge?.appActivation;
   const shellHasSnapshot = useEnvironmentShellHasSnapshot(
@@ -27,8 +35,11 @@ export function DesktopAppActivationCoordinator() {
     primaryEnvironment.serverConfig !== null &&
     shellHasSnapshot;
 
-  const processRequest = useEffectEvent(async (request: DesktopAppActivationRequest) =>
-    handleDesktopAppActivationRequest(request, {
+  const processRequest = useEffectEvent(async (request: DesktopAppActivationRequest) => {
+    if (request.type === "add-connection") {
+      return handleDesktopAppConnectionRequest(request, registerPairing);
+    }
+    return handleDesktopAppActivationRequest(request, {
       getTarget: () => {
         if (
           primaryEnvironment?.connection.phase !== "connected" ||
@@ -68,8 +79,8 @@ export function DesktopAppActivationCoordinator() {
         await waitForProject(projectRef);
       },
       openThread: (projectRef) => openThread(projectRef),
-    }),
-  );
+    });
+  });
 
   useEffect(() => {
     if (!ready || activation === undefined) return;

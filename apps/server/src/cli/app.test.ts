@@ -16,6 +16,7 @@ import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
+import * as TestConsole from "effect/testing/TestConsole";
 import { Command } from "effect/cli";
 import { describe, expect } from "vite-plus/test";
 
@@ -46,6 +47,7 @@ const runCli = (args: ReadonlyArray<string>, env: Record<string, string> = {}) =
       Layer.mergeAll(
         NodeServices.layer,
         NetService.layer,
+        TestConsole.layer,
         ConfigProvider.layer(ConfigProvider.fromEnv({ env })),
       ),
     ),
@@ -107,7 +109,10 @@ async function startFakeDesktop(input: {
     server.listen(target.address, resolve);
   });
 
+  if (target.directory !== null) await NodeFSP.chmod(target.address, 0o600);
+
   return {
+    address: target.address,
     received,
     close: async () => {
       await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -293,11 +298,16 @@ describe("supaterm app", () => {
         yield* runCli(["app"], { SUPATERM_HOME: baseDir });
         yield* runCli(["app", explicitPath, "--base-dir", baseDir]);
 
-        expect(desktop.received.map((request) => request.workspaceRoot)).toEqual([
-          workingDirectory,
-          explicitPath,
-        ]);
-        expect(desktop.received.every((request) => request.platform === platform)).toBe(true);
+        expect(
+          desktop.received.map((request) =>
+            request.type === "open-workspace" ? request.workspaceRoot : null,
+          ),
+        ).toEqual([workingDirectory, explicitPath]);
+        expect(
+          desktop.received.every(
+            (request) => request.type === "open-workspace" && request.platform === platform,
+          ),
+        ).toBe(true);
       }).pipe(Effect.scoped),
     ),
   );
@@ -396,3 +406,221 @@ describe("supaterm app", () => {
       ),
   );
 });
+
+describe("desktop connection platform support", () => {
+  it.effect("refuses to send pairing credentials to an unverified Windows pipe", () =>
+    Effect.gen(function* () {
+      const error = yield* runCli([
+        "app",
+        "connection",
+        "add",
+        "https://remote.example/pair#token=secret",
+      ]).pipe(Effect.provideService(HostProcess.Platform, "win32"), Effect.flip);
+      expect(error).toMatchObject({ _tag: "DesktopAppConnectionPlatformUnsupportedError" });
+    }),
+  );
+});
+
+describe.skipIf(HostProcess.Platform.defaultValue() === "win32")(
+  "supaterm app connection add",
+  () => {
+    const pairingUrl = "https://remote.example/pair#token=secret-pairing-token";
+
+    it.effect("sends pairing to the desktop and keeps credentials out of output", () =>
+      withTempDirectory("supaterm-app-pair-", (baseDir) =>
+        Effect.gen(function* () {
+          const desktop = yield* fakeDesktop({
+            baseDir,
+            reply: (request) => ({
+              version: 1,
+              requestId: request.requestId,
+              ok: true,
+              result: "connection-added",
+              environmentId: "remote-environment",
+            }),
+          });
+          yield* runCli(["app", "connection", "add", pairingUrl, "--base-dir", baseDir]);
+          expect(desktop.received).toEqual([
+            {
+              version: 1,
+              requestId: expect.any(String),
+              type: "add-connection",
+              pairingUrl,
+            },
+          ]);
+          const output = (yield* TestConsole.logLines).join("\n");
+          expect(output).toContain("Connection is available in Supaterm (remote-environment).");
+          expect(output).not.toContain("secret-pairing-token");
+        }).pipe(Effect.scoped),
+      ),
+    );
+
+    it.effect("rejects a malformed link without contacting the desktop or exposing it", () =>
+      withTempDirectory("supaterm-app-bad-pair-", (baseDir) =>
+        Effect.gen(function* () {
+          const desktop = yield* fakeDesktop({ baseDir });
+          const error = yield* runCli([
+            "app",
+            "connection",
+            "add",
+            "https://remote.example/pair#secret-pairing-token",
+            "--base-dir",
+            baseDir,
+          ]).pipe(Effect.flip);
+          expect(error).toMatchObject({ _tag: "DesktopAppPairingLinkInvalidError" });
+          expect(JSON.stringify(error)).not.toContain("secret-pairing-token");
+          expect(desktop.received).toHaveLength(0);
+        }).pipe(Effect.scoped),
+      ),
+    );
+
+    it.effect("rejects SSH sessions before contacting the desktop", () =>
+      withTempDirectory("supaterm-app-pair-ssh-", (baseDir) =>
+        Effect.gen(function* () {
+          const error = yield* runCli(
+            ["app", "connection", "add", pairingUrl, "--base-dir", baseDir],
+            { SSH_TTY: "/dev/pts/1" },
+          ).pipe(Effect.flip);
+          expect(error).toMatchObject({ _tag: "DesktopAppSshUnsupportedError" });
+        }),
+      ),
+    );
+
+    it.effect.each([
+      "invalid-request",
+      "pairing-failed",
+      "connection-save-failed",
+      "request-timeout",
+    ] as const)("reports a desktop %s response without claiming success", (code) =>
+      withTempDirectory("supaterm-app-pair-fail-", (baseDir) =>
+        Effect.gen(function* () {
+          yield* fakeDesktop({
+            baseDir,
+            reply: (request) => ({
+              version: 1,
+              requestId: request.requestId,
+              ok: false,
+              code,
+              message: "Could not complete request.",
+            }),
+          });
+          const error = yield* runCli([
+            "app",
+            "connection",
+            "add",
+            pairingUrl,
+            "--base-dir",
+            baseDir,
+          ]).pipe(Effect.flip);
+          expect(error).toMatchObject({ _tag: "DesktopAppConnectionFailedError", code });
+          if (code === "invalid-request") expect(String(error)).toContain("Update the desktop app");
+          if (code === "request-timeout") expect(String(error)).toContain("may still finish");
+          expect((yield* TestConsole.logLines).join("\n")).not.toContain("Connection is available");
+        }).pipe(Effect.scoped),
+      ),
+    );
+
+    it.effect("rejects a workspace success response to a connection request", () =>
+      withTempDirectory("supaterm-app-pair-wrong-", (baseDir) =>
+        Effect.gen(function* () {
+          yield* fakeDesktop({ baseDir });
+          const error = yield* runCli([
+            "app",
+            "connection",
+            "add",
+            pairingUrl,
+            "--base-dir",
+            baseDir,
+          ]).pipe(Effect.flip);
+          expect(error).toMatchObject({
+            _tag: "DesktopAppConnectionFailedError",
+            code: "invalid-request",
+          });
+        }).pipe(Effect.scoped),
+      ),
+    );
+
+    it.effect("refuses a socket readable by other users without sending credentials", () =>
+      withTempDirectory("supaterm-app-public-socket-", (baseDir) =>
+        Effect.gen(function* () {
+          const desktop = yield* fakeDesktop({ baseDir });
+          yield* Effect.promise(() => NodeFSP.chmod(desktop.address, 0o660));
+          const error = yield* runCli([
+            "app",
+            "connection",
+            "add",
+            pairingUrl,
+            "--base-dir",
+            baseDir,
+          ]).pipe(Effect.flip);
+          expect(error).toMatchObject({ _tag: "DesktopAppConnectionUnavailableError" });
+          expect(desktop.received).toHaveLength(0);
+        }).pipe(Effect.scoped),
+      ),
+    );
+
+    it.effect("refuses a symlinked socket without sending credentials", () =>
+      withTempDirectory("supaterm-app-symlink-socket-", (baseDir) =>
+        Effect.gen(function* () {
+          const desktop = yield* fakeDesktop({ baseDir });
+          const realAddress = `${desktop.address}.real`;
+          yield* Effect.acquireRelease(
+            Effect.promise(async () => {
+              await NodeFSP.rename(desktop.address, realAddress);
+              await NodeFSP.symlink(realAddress, desktop.address);
+            }),
+            () =>
+              Effect.promise(async () => {
+                await NodeFSP.unlink(desktop.address);
+                await NodeFSP.rename(realAddress, desktop.address);
+              }),
+          );
+          const error = yield* runCli([
+            "app",
+            "connection",
+            "add",
+            pairingUrl,
+            "--base-dir",
+            baseDir,
+          ]).pipe(Effect.flip);
+          expect(error).toMatchObject({ _tag: "DesktopAppConnectionUnavailableError" });
+          expect(desktop.received).toHaveLength(0);
+        }).pipe(Effect.scoped),
+      ),
+    );
+
+    it.effect("refuses a socket owned by a different user without sending the link", () =>
+      withTempDirectory("supaterm-app-untrusted-", (baseDir) =>
+        Effect.gen(function* () {
+          const desktop = yield* fakeDesktop({ baseDir });
+          const error = yield* runCli([
+            "app",
+            "connection",
+            "add",
+            pairingUrl,
+            "--base-dir",
+            baseDir,
+          ]).pipe(Effect.flip);
+          expect(error).toMatchObject({
+            _tag: "DesktopAppConnectionUnavailableError",
+            cause: { message: "The desktop control socket is not private to the current user." },
+          });
+          expect(desktop.received).toHaveLength(0);
+        }).pipe(Effect.provideService(HostProcess.UserId, Number.MAX_SAFE_INTEGER), Effect.scoped),
+      ),
+    );
+
+    it.effect("opens a directory named connection with an explicit relative path", () =>
+      withTempDirectory("supaterm-app-connection-dir-", (baseDir) =>
+        Effect.gen(function* () {
+          const desktop = yield* fakeDesktop({ baseDir });
+          yield* runCli(["app", "./connection", "--base-dir", baseDir]);
+          expect(desktop.received[0]).toMatchObject({
+            type: "open-workspace",
+            workspaceRoot: NodePath.resolve("connection"),
+          });
+        }).pipe(Effect.scoped),
+      ),
+    );
+  },
+);

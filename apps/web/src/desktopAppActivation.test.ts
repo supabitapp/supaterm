@@ -1,8 +1,13 @@
+import { ConnectionBlockedError } from "@supaterm/client-runtime/connection";
+import * as Cause from "effect/Cause";
+import { AsyncResult } from "effect/reactivity";
+import { Persistence } from "@supaterm/client-runtime/platform";
 import { EnvironmentId, ProjectId, ThreadId } from "@supaterm/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
   handleDesktopAppActivationRequest,
+  handleDesktopAppConnectionRequest,
   type DesktopAppActivationDependencies,
 } from "./desktopAppActivation";
 
@@ -103,5 +108,73 @@ describe("desktop app activation", () => {
       message: "Project path is not available.",
     });
     expect(openThread).not.toHaveBeenCalled();
+  });
+});
+
+describe("desktop connection registration", () => {
+  const connectionRequest = {
+    version: 1,
+    requestId: "connection-request",
+    type: "add-connection",
+    pairingUrl: "https://remote.example/pair#token=secret-token",
+  } as const;
+
+  it("acknowledges only after registration finishes", async () => {
+    let finishRegistration = (_environmentId: EnvironmentId) => {};
+    const registration = new Promise<EnvironmentId>((resolve) => {
+      finishRegistration = resolve;
+    });
+    let markStarted = () => {};
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    let completed = false;
+    const response = handleDesktopAppConnectionRequest(connectionRequest, async () => {
+      markStarted();
+      return AsyncResult.success(await registration);
+    }).then((value) => {
+      completed = true;
+      return value;
+    });
+    await started;
+    expect(completed).toBe(false);
+    finishRegistration(environmentId);
+    await expect(response).resolves.toEqual({
+      version: 1,
+      requestId: connectionRequest.requestId,
+      ok: true,
+      result: "connection-added",
+      environmentId,
+    });
+  });
+
+  it.each([
+    {
+      error: new ConnectionBlockedError({
+        reason: "configuration",
+        detail: "Failed fetching secret-token",
+      }),
+      code: "pairing-failed",
+    },
+    {
+      error: new Persistence.ConnectionPersistenceError({
+        operation: "register-connection",
+        message: "Could not save secret-token",
+      }),
+      code: "connection-save-failed",
+    },
+  ])("returns $code without exposing credentials", async ({ error, code }) => {
+    const response = await handleDesktopAppConnectionRequest(connectionRequest, async () =>
+      AsyncResult.failure(Cause.fail(error)),
+    );
+    expect(response).toMatchObject({ ok: false, code });
+    expect(JSON.stringify(response)).not.toContain("secret-token");
+  });
+  it("reports unexpected defects without exposing their payload", async () => {
+    const response = await handleDesktopAppConnectionRequest(connectionRequest, async () =>
+      AsyncResult.failure(Cause.die(new Error("secret-token"))),
+    );
+    expect(response).toMatchObject({ ok: false, code: "internal-error" });
+    expect(JSON.stringify(response)).not.toContain("secret-token");
   });
 });

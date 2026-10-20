@@ -1,6 +1,7 @@
 // @effect-diagnostics globalTimers:off -- This protocol broker owns cancellable request deadlines outside the Effect runtime.
 import {
   DESKTOP_APP_ACTIVATION_PROTOCOL_VERSION,
+  DESKTOP_APP_ACTIVATION_TIMEOUT_MS,
   type DesktopAppActivationFailure,
   type DesktopAppActivationRequest,
   type DesktopAppActivationResponse,
@@ -31,13 +32,11 @@ function failure(
 
 export class DesktopAppActivationBroker {
   readonly #pending = new Map<string, PendingActivation>();
-  readonly #requestTimeoutMs: number;
   readonly #activate: () => void;
   #renderer: RendererSender | null = null;
   #closed = false;
 
-  constructor(input: { readonly requestTimeoutMs: number; readonly activate: () => void }) {
-    this.#requestTimeoutMs = input.requestTimeoutMs;
+  constructor(input: { readonly activate: () => void }) {
     this.#activate = input.activate;
   }
 
@@ -54,21 +53,23 @@ export class DesktopAppActivationBroker {
     }
 
     const response = new Promise<DesktopAppActivationResponse>((resolve) => {
-      const timeout = setTimeout(() => {
-        this.#settle(
-          failure(
-            request.requestId,
-            "request-timeout",
-            "The desktop app did not finish opening the project in time.",
-          ),
-        );
-      }, this.#requestTimeoutMs);
-      this.#pending.set(request.requestId, {
+      const pending: PendingActivation = {
         request,
         resolve,
-        timeout,
         dispatched: false,
-      });
+        timeout: setTimeout(() => {
+          this.#settle(
+            failure(
+              request.requestId,
+              pending.dispatched ? "request-timeout" : "renderer-unavailable",
+              pending.dispatched
+                ? "The desktop app did not complete the request in time."
+                : "The desktop window was not ready to process the request.",
+            ),
+          );
+        }, DESKTOP_APP_ACTIVATION_TIMEOUT_MS[request.type]),
+      };
+      this.#pending.set(request.requestId, pending);
     });
 
     this.#activate();
@@ -88,8 +89,8 @@ export class DesktopAppActivationBroker {
         this.#settle(
           failure(
             pending.request.requestId,
-            "renderer-unavailable",
-            "The Supaterm window closed before it opened the project.",
+            "request-timeout",
+            "The Supaterm window closed before it completed the request.",
           ),
         );
       }
@@ -111,7 +112,11 @@ export class DesktopAppActivationBroker {
     this.#renderer = null;
     for (const pending of this.#pending.values()) {
       this.#settle(
-        failure(pending.request.requestId, "renderer-unavailable", "Supaterm is shutting down."),
+        failure(
+          pending.request.requestId,
+          pending.dispatched ? "request-timeout" : "renderer-unavailable",
+          "Supaterm is shutting down.",
+        ),
       );
     }
   }
