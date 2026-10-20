@@ -25,6 +25,7 @@ import { ChatPaneDropOverlay } from "./ChatPaneDropOverlay";
 import { LinkPullRequestDialogHost } from "../pullRequest/LinkPullRequestDialog";
 import { cn } from "~/lib/utils";
 import { useStableCallback } from "~/hooks/useStableCallback";
+import { runPaneMenuAction, trackChatPaneWorkspaceMount } from "../../chatPanes/actions";
 
 function useNavigateToPaneTarget() {
   const navigate = useNavigate();
@@ -71,6 +72,9 @@ export function ChatPaneWorkspace({ target }: { target: ThreadRouteTarget }) {
     if (!focused || paneTargetKey(focused) !== focusedKey) return;
     navigateToTarget(focused, historyMode === "replace");
   }, [focusedKey, navigateToTarget]);
+
+  useEffect(() => trackChatPaneWorkspaceMount(), []);
+  useEffect(() => window.desktopBridge?.onMenuAction(runPaneMenuAction), []);
 
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   useLayoutEffect(() => {
@@ -233,16 +237,16 @@ function ChatPaneFrame(props: {
   const [composerRef] = useState(() => ({ current: null as ChatComposerHandle | null }));
   useEffect(() => registerPaneComposer(cell.id, composerRef), [cell.id, composerRef]);
 
-  const frameRef = useRef<HTMLDivElement | null>(null);
+  const [frame, setFrame] = useState<HTMLDivElement | null>(null);
   const [narrow, setNarrow] = useState(false);
   useLayoutEffect(() => {
-    const element = frameRef.current;
+    const element = frame;
     if (!element) return;
     const measure = () =>
       setNarrow(element.getBoundingClientRect().width <= RIGHT_PANEL_SHEET_MAX_WIDTH);
     measure();
     return observeResize([element], measure);
-  }, []);
+  }, [frame]);
 
   const layoutVersion = split
     ? [
@@ -252,14 +256,20 @@ function ChatPaneFrame(props: {
         trackOffset(layout.rows, cell.row + cell.rowSpan),
       ].join(":")
     : "single";
-  const scope: PaneScope = { paneId: cell.id, layoutVersion, narrow, collapsed };
+  const scope: PaneScope = {
+    paneId: cell.id,
+    layoutVersion,
+    narrow,
+    collapsed,
+    element: split ? frame : null,
+  };
 
   const claimFocus = () => {
     if (!focused) focus(cell.id);
   };
   return (
     <div
-      ref={frameRef}
+      ref={setFrame}
       className={cn(
         "relative flex h-full min-h-0 w-full min-w-0 flex-col border-border data-[split=true]:[contain:layout]",
         split && cell.column > 0 && "border-l",

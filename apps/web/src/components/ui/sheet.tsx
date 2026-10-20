@@ -59,6 +59,7 @@ function SheetPopup({
   children,
   showCloseButton = true,
   keepMounted = false,
+  container,
   transitionDurationMs,
   side = "right",
   variant = "default",
@@ -67,6 +68,8 @@ function SheetPopup({
 }: SheetPrimitive.Popup.Props & {
   showCloseButton?: boolean;
   keepMounted?: boolean;
+  /** Renders inside this element instead of the page, for a sheet that belongs to one region. */
+  container?: SheetPrimitive.Portal.Props["container"];
   transitionDurationMs?: number;
   side?: "right" | "left" | "top" | "bottom";
   variant?: "default" | "inset";
@@ -78,7 +81,7 @@ function SheetPopup({
   const instant = transitionDurationMs === 0;
 
   return (
-    <SheetPortal keepMounted={keepMounted}>
+    <SheetPortal keepMounted={keepMounted} container={container}>
       <SheetBackdrop
         className={
           instant

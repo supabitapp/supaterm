@@ -43,6 +43,8 @@ import {
 } from "../threadRoutes";
 import { toastManager } from "./ui/toast";
 import { newestClosedPaneAt, useChatPaneStore } from "../chatPanes/store";
+import { isChatPaneWorkspaceMounted } from "../chatPanes/actions";
+import { focusedPane } from "../chatPanes/layout";
 
 const PREVIEW_FORWARDED_LAYOUT_COMMANDS = [
   "sidebar.toggle",
@@ -88,7 +90,21 @@ export function ReopenClosedViewShortcut() {
     const paneClosedAt = newestClosedPaneAt();
     const viewClosedAt = useClosedViewStore.getState().entries[0]?.closedAt ?? 0;
     if (paneClosedAt !== null && paneClosedAt >= viewClosedAt) {
-      useChatPaneStore.getState().reopenClosed();
+      const store = useChatPaneStore.getState();
+      if (!store.reopenClosed() || isChatPaneWorkspaceMounted()) return;
+      const layout = useChatPaneStore.getState().layout;
+      const reopened = layout ? focusedPane(layout).target : null;
+      if (reopened?.kind === "server") {
+        await navigate({
+          to: "/$environmentId/$threadId",
+          params: buildThreadRouteParams(reopened.threadRef),
+        });
+      } else if (reopened?.kind === "draft") {
+        await navigate({
+          to: "/draft/$draftId",
+          params: buildDraftThreadRouteParams(reopened.draftId),
+        });
+      }
       return;
     }
     const catalog = appAtomRegistry.get(environmentCatalog.catalogValueAtom);

@@ -56,7 +56,7 @@ import { showThreadUndoNotice } from "./showThreadUndoNotice";
 import { useAtomCommand } from "../state/use-atom-command";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { useAtomQueryRunner } from "../state/use-atom-query-runner";
-import { closePaneShowingThread } from "../chatPanes/store";
+import { closePaneShowingThread, isThreadShownInSplit } from "../chatPanes/store";
 
 export class ThreadArchiveBlockedError extends Schema.TaggedError<ThreadArchiveBlockedError>()(
   "ThreadArchiveBlockedError",
@@ -414,6 +414,9 @@ export function useThreadActions() {
     }
 
     const deletedThreadIds = deletedIds ?? new Set<ThreadId>();
+    // Decided before the delete is sent: the thread's pane may close itself as soon as the
+    // deletion reaches this client, before the command's response does.
+    const shownInSplit = isThreadShownInSplit(threadRef);
     const currentRouteThreadRef = getCurrentRouteThreadRef();
     const shouldNavigateToFallback =
       currentRouteThreadRef?.threadId === threadRef.threadId &&
@@ -441,8 +444,8 @@ export function useThreadActions() {
     clearTerminalUiState(threadRef);
     clearThreadPreviewState(threadRef);
 
-    const closedPane = closePaneShowingThread(threadRef, { remember: false });
-    if (shouldNavigateToFallback && !closedPane) {
+    closePaneShowingThread(threadRef, { remember: false });
+    if (shouldNavigateToFallback && !shownInSplit) {
       const fallbackThread = fallbackThreadId
         ? readThreadShell(scopeThreadRef(threadRef.environmentId, fallbackThreadId))
         : null;

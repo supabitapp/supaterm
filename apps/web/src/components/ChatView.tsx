@@ -970,6 +970,7 @@ export default function ChatView(props: ChatViewProps) {
   const openPaneThread = usePaneThreadNavigation();
   const paneScope = usePaneScope();
   const paneSplit = useChatPaneStore((state) => (state.layout?.cells.length ?? 1) > 1);
+  const ownsPaneInput = useIsPaneInputOwner();
   const canQueueMessage = useAtomValue(canQueueComposerMessageAtom(environmentId));
   const canOperateTerminal = useEnvironmentScope(environmentId, AuthTerminalOperateScope);
   const hasTerminalWriteAccess = () =>
@@ -5793,7 +5794,7 @@ export default function ChatView(props: ChatViewProps) {
       promptRef.current = nextPrompt;
       composerRef.current?.resetCursorState({ prompt: nextPrompt, cursor: nextPrompt.length });
       requestAnimationFrame(() => {
-        if (currentRouteThreadKeyRef.current === routeThreadKey) composerRef.current?.focusAtEnd();
+        if (currentRouteThreadKeyRef.current === routeThreadKey) focusComposerStable();
       });
     }
   };
@@ -7539,8 +7540,10 @@ export default function ChatView(props: ChatViewProps) {
       {rightPanelPresent && shouldUsePlanSidebarSheet && activeThreadRef ? (
         <RightPanelSheet
           animationDurationMs={panelAnimationsActive ? panelAnimationDurationMs : 0}
-          open={rightPanelOpen}
+          // A sheet is modal, so in a split only the pane in use shows its own.
+          open={rightPanelOpen && ownsPaneInput}
           onClose={closePreviewPanelStable}
+          container={paneScope?.element}
         >
           <RightPanelTabs
             mode="sheet"

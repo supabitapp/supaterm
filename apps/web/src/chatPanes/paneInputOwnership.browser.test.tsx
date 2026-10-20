@@ -67,6 +67,7 @@ describe("chat shortcuts in a split", () => {
       layoutVersion: paneId,
       narrow: false,
       collapsed: false,
+      element: null,
     });
     await act(() =>
       root.render(

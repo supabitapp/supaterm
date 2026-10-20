@@ -42,6 +42,7 @@ import type { ChatComposerHandle } from "./ChatComposer";
 import { fileAttachmentCapabilityBlockReason } from "./composerAttachmentFiles";
 import { prepareQueuedEditAttachments, recoverQueuedMessageEdit } from "./queuedMessageEdit";
 import type { EditQueuedRunRequest } from "./QueuedRunsControl";
+import { usePaneInputOwner } from "../../chatPanes/paneScope";
 
 interface EditingQueuedRun {
   readonly threadId: ThreadId;
@@ -209,8 +210,11 @@ export function useQueuedRunEdit(input: {
           url: urlByAttachmentId.get(attachment.id) ?? null,
         }));
 
+  const isPaneInputOwner = usePaneInputOwner();
   const focusComposerSoon = () => {
-    window.requestAnimationFrame(() => composerRef.current?.focusAtEnd());
+    window.requestAnimationFrame(() => {
+      if (isPaneInputOwner()) composerRef.current?.focusAtEnd();
+    });
   };
   const clearEditDraft = (runId: RunId) =>
     useComposerDraftStore

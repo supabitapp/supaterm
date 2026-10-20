@@ -352,6 +352,15 @@ export function newestClosedPaneAt(): number | null {
   return useChatPaneStore.getState().closed[0]?.closedAt ?? null;
 }
 
+export function isThreadShownInSplit(threadRef: ScopedThreadRef): boolean {
+  const { layout } = useChatPaneStore.getState();
+  return (
+    layout !== null &&
+    layout.cells.length > 1 &&
+    findPaneByTarget(layout, { kind: "server", threadRef }) !== null
+  );
+}
+
 /**
  * Closes the split pane showing a thread, for a thread archived or deleted from
  * anywhere. Returns false when the thread is not in a split, so the caller keeps

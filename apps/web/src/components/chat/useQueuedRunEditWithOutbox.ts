@@ -13,7 +13,7 @@ import {
 import type { OutboxTurn } from "../../state/threadOutboxSchema";
 import type { EditQueuedRunRequest } from "./QueuedRunsControl";
 import { useQueuedRunEdit } from "./useQueuedRunEdit";
-import { usePaneThreadNavigation } from "../../chatPanes/paneScope";
+import { usePaneInputOwner, usePaneThreadNavigation } from "../../chatPanes/paneScope";
 
 /**
  * Queued-run editing plus editing a message still waiting in the thread outbox.
@@ -29,8 +29,11 @@ export function useQueuedRunEditWithOutbox(input: Parameters<typeof useQueuedRun
   const openThread = usePaneThreadNavigation();
   const [isSavingOutboxEdit, setIsSavingOutboxEdit] = useState(false);
 
+  const isPaneInputOwner = usePaneInputOwner();
   const scheduleComposerFocus = () => {
-    window.requestAnimationFrame(() => composerRef.current?.focusAtEnd());
+    window.requestAnimationFrame(() => {
+      if (isPaneInputOwner()) composerRef.current?.focusAtEnd();
+    });
   };
   const beginEdit = useStableCallback((request: EditQueuedRunRequest) => {
     editor.cancel();

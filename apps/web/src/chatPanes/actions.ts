@@ -4,6 +4,7 @@ import { canSplitPane, findPaneByTarget, type PaneEdge } from "./layout";
 import { workspaceSize } from "./paneDrop";
 import { focusPaneComposer } from "./paneScope";
 import { useChatPaneStore } from "./store";
+import type { ScopedThreadRef } from "@supaterm/contracts";
 
 /**
  * Opens a thread in a new pane beside the focused one, or focuses it if it is already on screen.
@@ -17,6 +18,35 @@ export function openThreadBeside(target: ThreadRouteTarget, edge: PaneEdge): boo
     findPaneByTarget(layout, target) !== null ||
     canSplitPane(layout, layout.focusedPaneId, edge, workspace);
   return fits && split(layout.focusedPaneId, edge, target) !== null;
+}
+
+/** A click into a desktop browser never reaches the pane's DOM, so the browser claims its pane. */
+export function focusPaneShowingThread(threadRef: ScopedThreadRef) {
+  const { layout, focus } = useChatPaneStore.getState();
+  const pane = layout ? findPaneByTarget(layout, { kind: "server", threadRef }) : null;
+  if (pane) focus(pane.id);
+}
+
+let mountedWorkspaces = 0;
+
+/** The chat workspace follows focus into the URL; elsewhere, such as Settings, callers navigate. */
+export function trackChatPaneWorkspaceMount(): () => void {
+  mountedWorkspaces += 1;
+  return () => {
+    mountedWorkspaces -= 1;
+  };
+}
+
+export function isChatPaneWorkspaceMounted(): boolean {
+  return mountedWorkspaces > 0;
+}
+
+/** Pane commands that arrive as desktop menu actions, such as shortcuts forwarded from a browser. */
+export function runPaneMenuAction(action: string): boolean {
+  if (action === "pane.focusNext") return focusAdjacentPaneFromKeyboard(1);
+  if (action === "pane.focusPrevious") return focusAdjacentPaneFromKeyboard(-1);
+  const index = /^pane\.focus\.([1-4])$/.exec(action)?.[1];
+  return index !== undefined && focusPaneIndexFromKeyboard(Number(index) - 1);
 }
 
 /** Arms the next opened thread to land beside the focused pane, then lets the user pick it. */

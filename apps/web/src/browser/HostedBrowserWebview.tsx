@@ -31,6 +31,7 @@ import {
   planWebviewCrashRecovery,
   type WebviewCrashRecoveryState,
 } from "./webviewCrashRecovery";
+import { focusPaneShowingThread } from "../chatPanes/actions";
 
 interface ElectronWebview extends HTMLElement {
   src: string;
@@ -105,6 +106,7 @@ export function HostedBrowserWebview(props: {
   );
   const recordingActive = useActiveBrowserRecordingTabIds().has(runtimeTabId);
   usePreviewBridge({ threadRef, tabId, runtimeTabId, serverDriven });
+  const claimChatPane = useEffectEvent(() => focusPaneShowingThread(threadRef));
 
   const serverColorScheme = serverRendering?.colorScheme;
   const serverZoomFactor = serverRendering?.zoomFactor;
@@ -185,6 +187,7 @@ export function HostedBrowserWebview(props: {
       webview.dispatchEvent(
         new PointerEvent("pointerdown", { bubbles: true, pointerType: "mouse" }),
       );
+      claimChatPane();
     };
     webview.addEventListener("did-attach", register);
     webview.addEventListener("dom-ready", register);
