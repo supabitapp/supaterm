@@ -544,6 +544,7 @@ export const pairCommand = Command.make("pair", {
                 ? Effect.fail(new PublicRelayOffError({ settingsPath: config.settingsPath }))
                 : Effect.fail(error),
           }),
+          Effect.tapError(() => Console.error("Pass --no-relay to pair directly instead.")),
         );
         const { relayEndpoint } = prepared;
         relayUrl = prepared.relayUrl;

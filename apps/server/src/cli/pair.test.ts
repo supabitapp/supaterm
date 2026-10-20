@@ -5,12 +5,17 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { AuthStandardClientScopes, ORCHESTRATION_PROTOCOL_VERSION } from "@supaterm/contracts";
+import {
+  AuthStandardClientScopes,
+  ORCHESTRATION_PROTOCOL_VERSION,
+  RelayPreparationError,
+} from "@supaterm/contracts";
 import * as NetService from "@supaterm/shared/Net";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { assert, describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Schema from "effect/Schema";
 import * as TestConsole from "effect/testing/TestConsole";
 import { Command, CliError } from "effect/cli";
 
@@ -119,16 +124,20 @@ const testDescriptor = {
   capabilities: {},
 };
 
+const isRelayPreparationError = Schema.is(RelayPreparationError);
+
 const withDescriptorServer = <A, E, R>(
   run: (origin: string) => Effect.Effect<A, E, R>,
-  relay?: { readonly relayEndpoint: string; readonly relayUrl: string },
+  relay?: { readonly relayEndpoint: string; readonly relayUrl: string } | RelayPreparationError,
 ) =>
   Effect.acquireUseRelease(
     Effect.callback<NodeHttp.Server>((resume) => {
       const server = NodeHttp.createServer((request, response) => {
         if (request.url === "/api/relay/prepare" && relay) {
           expect(request.headers.authorization).toMatch(/^Bearer /);
-          response.writeHead(200, { "content-type": "application/json" });
+          response.writeHead(isRelayPreparationError(relay) ? 503 : 200, {
+            "content-type": "application/json",
+          });
           response.end(JSON.stringify(relay));
           return;
         }
@@ -185,6 +194,45 @@ describe("supaterm pair", () => {
       relay,
     ).pipe(Effect.provide(NodeServices.layer));
   });
+  it.effect.each(["off", "invalid-url", "superseded", "timeout", "unavailable"] as const)(
+    "suggests direct pairing when relay preparation fails: %s",
+    (reason) =>
+      withDescriptorServer(
+        (origin) =>
+          provideCliTestLayers(
+            Effect.gen(function* () {
+              const baseDir = NodeFS.mkdtempSync(
+                NodePath.join(NodeOS.tmpdir(), "supaterm-pair-relay-failure-test-"),
+              );
+              yield* persistServerRuntimeState({
+                path: NodePath.join(baseDir, "userdata", "server-runtime.json"),
+                state: yield* makePersistedServerRuntimeState({
+                  config: { host: "127.0.0.1", devUrl: undefined },
+                  port: Number(new URL(origin).port),
+                }),
+              });
+
+              const error = yield* runCli(["pair", "--base-dir", baseDir]).pipe(Effect.flip);
+
+              expect(error).toMatchObject({
+                _tag: reason === "off" ? "PublicRelayOffError" : "RelayPreparationError",
+              });
+              expect(yield* TestConsole.errorLines).toContain(
+                "Pass --no-relay to pair directly instead.",
+              );
+              assert.notInclude((yield* TestConsole.logLines).join("\n"), "Pairing URL:");
+              for (const group of ["pairing", "session"]) {
+                const listed = yield* captureStdout(
+                  runCli(["auth", group, "list", "--base-dir", baseDir, "--json"]),
+                );
+                expect(JSON.parse(listed)).toEqual([]);
+              }
+            }),
+          ),
+        new RelayPreparationError({ reason }),
+      ).pipe(Effect.provide(NodeServices.layer)),
+  );
+
   it.effect("pairs directly without activating relay with --no-relay", () =>
     withDescriptorServer((origin) =>
       Effect.gen(function* () {
