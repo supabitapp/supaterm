@@ -287,6 +287,11 @@ export const LINUX_DESKTOP_BUILD_PREREQUISITES = [
     description: "libsecret development headers and pkg-config",
     packages: ["libsecret-1-dev", "pkg-config"],
   },
+  {
+    id: "hid",
+    description: "libusb and libudev development headers",
+    packages: ["libusb-1.0-0-dev", "libudev-dev", "pkg-config"],
+  },
   { id: "imagemagick", description: "ImageMagick", packages: ["imagemagick"] },
 ] as const;
 
@@ -1491,6 +1496,10 @@ export const preflightLinuxDesktopBuild = Effect.fn("preflightLinuxDesktopBuild"
       libsecret: desktopBuildProbeSucceeds(
         ChildProcess.make("pkg-config", ["--exists", "libsecret-1"]),
         "libsecret",
+      ),
+      hid: desktopBuildProbeSucceeds(
+        ChildProcess.make("pkg-config", ["--exists", "libusb-1.0", "libudev"]),
+        "hid",
       ),
       imagemagick: Effect.all([
         desktopBuildProbeSucceeds(ChildProcess.make("magick", ["-version"]), "magick"),

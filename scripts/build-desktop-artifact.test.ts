@@ -970,12 +970,12 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         );
 
         assert.instanceOf(error, LinuxDesktopBuildPrerequisitesMissingError);
-        assert.deepStrictEqual(error.missing, ["cargo", "rust-target", "libsecret"]);
+        assert.deepStrictEqual(error.missing, ["cargo", "rust-target", "libsecret", "hid"]);
         assert.include(error.message, "Rust compiler and Cargo (cargo, rustc)");
         assert.include(error.message, "Requested Rust standard library");
         assert.include(
           error.message,
-          "sudo apt-get install cargo rustc libsecret-1-dev pkg-config",
+          "sudo apt-get install cargo rustc libsecret-1-dev pkg-config libusb-1.0-0-dev libudev-dev",
         );
         assert.include(error.message, "rustup target add aarch64-unknown-linux-gnu");
         assert.isTrue(
