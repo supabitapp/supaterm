@@ -78,6 +78,8 @@ export class DesktopAppRequestFailedError extends Schema.TaggedError<DesktopAppR
   },
 ) {
   override get message(): string {
+    if (this.code === "request-busy")
+      return "The desktop app is handling another command. Try again after it finishes.";
     return `Supaterm could not open ${this.workspaceRoot} (${this.code}).`;
   }
 }
@@ -99,6 +101,8 @@ export class DesktopAppConnectionFailedError extends Schema.TaggedError<DesktopA
     switch (this.code) {
       case "invalid-request":
         return "This Supaterm desktop app cannot add connections from the command line. Update the desktop app.";
+      case "request-busy":
+        return "The desktop app is handling another command. Try again after it finishes.";
       case "renderer-unavailable":
         return "The desktop window is unavailable. Wait for the app to finish starting and try again.";
       case "request-timeout":

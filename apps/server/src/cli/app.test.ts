@@ -491,6 +491,7 @@ describe.skipIf(HostProcess.Platform.defaultValue() === "win32")(
       "pairing-failed",
       "connection-save-failed",
       "request-timeout",
+      "request-busy",
     ] as const)("reports a desktop %s response without claiming success", (code) =>
       withTempDirectory("supaterm-app-pair-fail-", (baseDir) =>
         Effect.gen(function* () {

@@ -1,4 +1,9 @@
-import { ProjectId, ThreadId, type DesktopAppActivationRequest } from "@supaterm/contracts";
+import {
+  EnvironmentId,
+  ProjectId,
+  ThreadId,
+  type DesktopAppActivationRequest,
+} from "@supaterm/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import { DesktopAppActivationBroker } from "./DesktopAppActivationBroker.ts";
@@ -87,29 +92,34 @@ describe("DesktopAppActivationBroker", () => {
     broker.close();
   });
 
-  it("never sends a canceled request that was queued behind another request", async () => {
+  it("rejects a second command immediately while pairing is running", async () => {
     const send = vi.fn();
     const broker = new DesktopAppActivationBroker({ activate: vi.fn() });
     broker.registerRenderer(send);
     const secondRequest = { ...request, requestId: "request-2" };
 
-    const firstResponse = broker.request(request);
+    const firstResponse = broker.request({
+      version: 1,
+      requestId: request.requestId,
+      type: "add-connection",
+      pairingUrl: "https://remote.example/pair#token=secret",
+    });
     const secondResponse = broker.request(secondRequest);
     expect(send).toHaveBeenCalledTimes(1);
-    expect(send).toHaveBeenLastCalledWith(request);
-
-    broker.cancel(secondRequest.requestId);
+    await expect(secondResponse).resolves.toMatchObject({ ok: false, code: "request-busy" });
     broker.complete({
       version: 1,
       requestId: request.requestId,
       ok: true,
-      projectId: ProjectId.make("project-1"),
-      threadId: ThreadId.make("thread-1"),
+      result: "connection-added",
+      environmentId: EnvironmentId.make("remote"),
     });
 
     await expect(firstResponse).resolves.toMatchObject({ ok: true });
-    await expect(secondResponse).resolves.toMatchObject({ ok: false });
-    expect(send).toHaveBeenCalledTimes(1);
+    const nextResponse = broker.request({ ...request, requestId: "request-3" });
+    expect(send).toHaveBeenCalledTimes(2);
+    broker.cancel("request-3");
+    await expect(nextResponse).resolves.toMatchObject({ ok: false });
     broker.close();
   });
 

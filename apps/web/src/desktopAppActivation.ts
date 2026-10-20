@@ -5,6 +5,7 @@ import * as Cause from "effect/Cause";
 import * as Option from "effect/Option";
 import type {
   DesktopAppActivationFailure,
+  DesktopAppActivationRequest,
   DesktopAppOpenWorkspaceRequest,
   DesktopAppAddConnectionRequest,
   DesktopAppActivationPlatform,
@@ -163,4 +164,38 @@ export async function handleDesktopAppConnectionRequest(
     "pairing-failed",
     "Supaterm could not pair with the environment. Check its address and use a fresh pairing link.",
   );
+}
+
+export function createDesktopAppActivationRunner() {
+  let running = false;
+  return async (
+    request: DesktopAppActivationRequest,
+    process: (request: DesktopAppActivationRequest) => Promise<DesktopAppActivationResponse>,
+    complete: (response: DesktopAppActivationResponse) => Promise<void>,
+  ) => {
+    if (running) {
+      await complete(
+        failure(
+          request.requestId,
+          "request-busy",
+          "The desktop app is handling another command. Try again after it finishes.",
+        ),
+      );
+      return;
+    }
+    running = true;
+    let response: DesktopAppActivationResponse;
+    try {
+      response = await process(request);
+    } catch {
+      response = failure(
+        request.requestId,
+        "internal-error",
+        "Supaterm could not complete the desktop request.",
+      );
+    } finally {
+      running = false;
+    }
+    await complete(response);
+  };
 }

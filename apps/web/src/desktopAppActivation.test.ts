@@ -6,6 +6,7 @@ import { EnvironmentId, ProjectId, ThreadId } from "@supaterm/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
+  createDesktopAppActivationRunner,
   handleDesktopAppActivationRequest,
   handleDesktopAppConnectionRequest,
   type DesktopAppActivationDependencies,
@@ -176,5 +177,69 @@ describe("desktop connection registration", () => {
     );
     expect(response).toMatchObject({ ok: false, code: "internal-error" });
     expect(JSON.stringify(response)).not.toContain("secret-token");
+  });
+});
+
+describe("desktop activation runner", () => {
+  const success = {
+    version: 1,
+    requestId: request.requestId,
+    ok: true,
+    projectId: existingProjectId,
+    threadId,
+  } as const;
+
+  it("rejects concurrent work while an earlier operation is still running", async () => {
+    let finish = () => {};
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const run = createDesktopAppActivationRunner();
+    const complete = vi.fn(async () => {});
+    const process = vi.fn(async () => {
+      await pending;
+      return success;
+    });
+    const first = run(request, process, complete);
+    await run({ ...request, requestId: "request-2" }, process, complete);
+    expect(process).toHaveBeenCalledOnce();
+    expect(complete).toHaveBeenCalledWith(
+      expect.objectContaining({ requestId: "request-2", ok: false, code: "request-busy" }),
+    );
+    finish();
+    await first;
+    expect(complete).toHaveBeenLastCalledWith(success);
+  });
+
+  it("completes a rejected operation as an internal error without exposing its payload", async () => {
+    const run = createDesktopAppActivationRunner();
+    const complete = vi.fn(async () => {});
+    await run(
+      request,
+      async () => {
+        throw new Error("secret-token");
+      },
+      complete,
+    );
+    expect(complete).toHaveBeenCalledWith(
+      expect.objectContaining({ requestId: request.requestId, ok: false, code: "internal-error" }),
+    );
+    expect(JSON.stringify(complete.mock.calls)).not.toContain("secret-token");
+  });
+
+  it("accepts new work after response delivery fails", async () => {
+    const run = createDesktopAppActivationRunner();
+    await expect(
+      run(
+        request,
+        async () => success,
+        async () => {
+          throw new Error("Window closed");
+        },
+      ),
+    ).rejects.toThrow("Window closed");
+    const complete = vi.fn(async () => {});
+    await run(request, async () => success, complete);
+    expect(complete).toHaveBeenCalledWith(success);
   });
 });

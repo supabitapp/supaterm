@@ -44,6 +44,7 @@ export const DesktopAppActivationErrorCode = Schema.Literals([
   "thread-open-failed",
   "pairing-failed",
   "connection-save-failed",
+  "request-busy",
   "request-timeout",
   "internal-error",
 ]);
