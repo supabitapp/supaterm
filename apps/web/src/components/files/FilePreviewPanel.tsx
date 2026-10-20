@@ -366,6 +366,32 @@ function WorkspaceAudioPreview(props: {
   return <AudioPreview src={url} name={props.name} onError={() => setFailedUrl(url)} />;
 }
 
+function WorkspaceBinaryFilePreview(props: {
+  readonly environmentId: EnvironmentId;
+  readonly threadRef: ScopedThreadRef;
+  readonly absolutePath: string;
+  readonly name: string;
+}) {
+  return (
+    <AttachmentFilePreview
+      name={fileBasename(props.name)}
+      mimeType="application/octet-stream"
+      sizeBytes={0}
+      kind="unsupported"
+      asset={{
+        environmentId: props.environmentId,
+        resource: {
+          _tag: "media-file",
+          threadId: props.threadRef.threadId,
+          path: props.absolutePath,
+          disposition: "attachment",
+        },
+      }}
+      origin="File"
+    />
+  );
+}
+
 function clampFileLine(contents: string, requestedLine: number): number {
   let lineCount = 1;
   for (let index = 0; index < contents.length; index += 1) {
@@ -1369,22 +1395,12 @@ export default function FilePreviewPanel({
               workspaceMutationId={workspaceMutationId}
             />
           ) : relativePath && absolutePath && file.readError?.failure === "binary_file" ? (
-            <AttachmentFilePreview
+            <WorkspaceBinaryFilePreview
               key={`${environmentId}:${absolutePath}`}
-              name={fileBasename(relativePath)}
-              mimeType="application/octet-stream"
-              sizeBytes={0}
-              kind="unsupported"
-              asset={{
-                environmentId,
-                resource: {
-                  _tag: "media-file",
-                  threadId: threadRef.threadId,
-                  path: absolutePath,
-                  disposition: "attachment",
-                },
-              }}
-              origin="File"
+              environmentId={environmentId}
+              threadRef={threadRef}
+              absolutePath={absolutePath}
+              name={relativePath}
             />
           ) : relativePath && file.error && file.data === null ? (
             <div
