@@ -4571,12 +4571,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             : sendDisabledReason;
   const stashSendAllBlockedReason = isSendingAllStash
     ? "Sending stashed prompts…"
-    : (stashSendBlockedReason ??
-      (composerDraftHasUserContent(composerDraft)
+    : stashSendBlockedReason !== null
+      ? stashSendBlockedReason
+      : composerDraftHasUserContent(composerDraft)
         ? "Send or stash your draft first"
         : stashQueue.some((entry) => entry.pendingImageCount)
           ? "Still saving stashed images"
-          : null));
+          : null;
 
   // Runs between sends, so it re-checks what the previous send may have changed:
   // a question from the agent would otherwise take the next prompt as its answer.
