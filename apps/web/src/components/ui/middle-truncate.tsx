@@ -34,14 +34,15 @@ export function MiddleTruncate({
 
 const DEFAULT_TAIL = 10;
 const MAX_SEGMENT_TAIL = 16;
+const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
 export function splitForMiddleTruncate(
   value: string,
   tail?: number,
 ): { head: string; tail: string } | null {
-  // Code points, not UTF-16 units: a cut inside a surrogate pair would render two broken
-  // glyphs where an emoji or a CJK extension character used to be.
-  const chars = Array.from(value);
+  // Graphemes, not code points: head and tail render as separate flex items, so a cut
+  // inside a combining sequence or a joined emoji would render its pieces as broken glyphs.
+  const chars = Array.from(graphemeSegmenter.segment(value), (part) => part.segment);
   let keep = tail ?? DEFAULT_TAIL;
   if (tail === undefined) {
     const slash = chars.lastIndexOf("/");
