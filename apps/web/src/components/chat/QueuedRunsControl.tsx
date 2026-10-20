@@ -191,16 +191,16 @@ export function QueuedRunsControl({
       if (!repeat && busyRunId === null) void steer(next.run.id);
       return true;
     },
-    // Declines while a queued message is already being edited so the key keeps
-    // moving the caret inside that draft.
+    // Takes the key while the last row is still saving rather than editing an
+    // older message than the one shown last.
     editLatest(repeat) {
-      const latest = queued.at(-1);
-      if (!latest || props.editingRunId !== null || busyRunId !== null) return false;
-      if (!repeat) {
+      const latest = items.at(-1);
+      if (!latest) return false;
+      if (!repeat && latest.runId !== null && latest.messageId !== null && busyRunId === null) {
         setExpanded(true);
         props.onEditQueuedRun({
-          runId: latest.run.id,
-          messageId: latest.run.userMessageId,
+          runId: latest.runId,
+          messageId: latest.messageId,
           text: latest.text,
           attachments: latest.attachments,
         });
@@ -421,11 +421,7 @@ export function QueuedRunsControl({
                                 <PencilIcon />
                               </TooltipTrigger>
                               <TooltipPopup
-                                shortcut={
-                                  item.serverIndex === queued.length - 1
-                                    ? props.editShortcutLabel
-                                    : null
-                                }
+                                shortcut={item === items.at(-1) ? props.editShortcutLabel : null}
                               >
                                 Edit in the composer
                               </TooltipPopup>

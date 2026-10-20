@@ -504,7 +504,7 @@ import { clampFileAttachmentUploadBytes } from "@supaterm/client-runtime/state/a
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { enqueueThreadOutboxTurns, usePendingThreadCreation } from "../state/threadOutbox";
 import { captureOutboxAttachments } from "../state/threadOutboxEditing";
-import { ThreadOutboxControl } from "./chat/ThreadOutboxControl";
+import { ThreadOutboxControl, type ThreadOutboxControlHandle } from "./chat/ThreadOutboxControl";
 import { assetEnvironment } from "../state/assets";
 import { readEnvironmentScope, readPreparedConnection } from "../state/session";
 import { useAtomCommand } from "../state/use-atom-command";
@@ -3264,6 +3264,17 @@ export default function ChatView(props: ChatViewProps) {
   };
   const sendAppMessageStable = useStableCallback(sendAppMessage);
   const queuedRunsControlRef = useRef<QueuedRunsControlHandle>(null);
+  const threadOutboxControlRef = useRef<ThreadOutboxControlHandle>(null);
+  // Outbox messages have not reached the server yet, so they are newer than any queued run.
+  const editLatestQueuedMessage = (repeat: boolean) =>
+    !queuedRunEdit.isEditing &&
+    !queuedRunEdit.outbox.isEditing &&
+    (threadOutboxControlRef.current?.editLatest(repeat) === true ||
+      (routeKind !== "draft" && queuedRunsControlRef.current?.editLatest(repeat) === true));
+  const editLatestQueuedMessageStable = useStableCallback(editLatestQueuedMessage);
+  const cancelQueuedMessageEdit = () =>
+    queuedRunEdit.outbox.isEditing ? queuedRunEdit.outbox.cancelEdit() : queuedRunEdit.cancelEdit();
+  const cancelQueuedMessageEditStable = useStableCallback(cancelQueuedMessageEdit);
   const addTerminalContextToDraft = (selection: TerminalContextSelection) => {
     composerRef.current?.addTerminalContext(selection);
   };
@@ -5570,9 +5581,7 @@ export default function ChatView(props: ChatViewProps) {
       "thread.steerQueuedMessage": ({ event }) =>
         routeKind !== "draft" && queuedRunsControlRef.current?.steerNext(event.repeat) === true,
       "thread.editQueuedMessage": ({ event }) =>
-        routeKind !== "draft" &&
-        composerRef.current?.isCaretAtStart() === true &&
-        queuedRunsControlRef.current?.editLatest(event.repeat) === true,
+        composerRef.current?.isCaretAtStart() === true && editLatestQueuedMessage(event.repeat),
       "thread.stop": ({ event }) => {
         if (!canInterruptRunningThread) return false;
         if (!event.repeat) void onInterruptStable();
@@ -6457,6 +6466,7 @@ export default function ChatView(props: ChatViewProps) {
   const queuedRunsControl = (
     <>
       <ThreadOutboxControl
+        ref={threadOutboxControlRef}
         environmentId={environmentId}
         threadId={threadId}
         editingMessageId={queuedRunEdit.outbox.editingMessageId}
@@ -7229,6 +7239,8 @@ export default function ChatView(props: ChatViewProps) {
                                   onRemoveEditingQueuedAttachment={
                                     queuedRunEdit.removeEditingAttachment
                                   }
+                                  onEditLatestQueuedMessage={editLatestQueuedMessageStable}
+                                  onCancelQueuedMessageEdit={cancelQueuedMessageEditStable}
                                 />
                               )}
                             </div>

@@ -1592,6 +1592,9 @@ export interface ChatComposerProps {
     readonly url: string | null;
   }> | null;
   onRemoveEditingQueuedAttachment: (attachmentId: string) => void;
+  // True when it took the key, even if the latest queued message cannot be edited yet.
+  onEditLatestQueuedMessage: (repeat: boolean) => boolean;
+  onCancelQueuedMessageEdit: () => void;
 
   onCompactContext: () => void;
   onSend: (
@@ -1969,6 +1972,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     onFileOpen,
     editingQueuedAttachments,
     onRemoveEditingQueuedAttachment,
+    onEditLatestQueuedMessage,
+    onCancelQueuedMessageEdit,
   } = props;
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const composerDraftTargetKey = composerTargetKey(composerDraftTarget);
@@ -4103,13 +4108,22 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       return false;
     }
     const recalled = promptHistoryPositionRef.current;
-    const position = recalled?.targetKey === promptHistoryTargetKey ? recalled.position : null;
+    // Sending a recalled prompt clears the composer without clearing the ref.
+    const position =
+      recalled?.targetKey === promptHistoryTargetKey &&
+      recalled.position.recalled === promptRef.current
+        ? recalled.position
+        : null;
     if (position === null && promptRef.current.length > 0) {
       return false;
     }
     const editor = composerEditorRef.current;
     if (!editor?.isCaretOnVisualEdge(direction === "backward" ? "start" : "end")) {
       return false;
+    }
+    // A queued message is newer than anything sent, so it comes before history.
+    if (direction === "backward" && position === null && onEditLatestQueuedMessage(event.repeat)) {
+      return true;
     }
     const step = stepComposerPromptHistory({
       direction,
@@ -4143,9 +4157,14 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       !isLiteralPendingAnswer &&
       (composerMenuOpenRef.current || (trigger !== null && trigger.kind !== "slash-skill"));
     if (key === "Escape") {
-      if (!menuIsActive || event.isComposing || event.keyCode === 229) return false;
-      dismissComposerTrigger(trigger);
-      composerMenuOpenRef.current = false;
+      if (event.isComposing || event.keyCode === 229) return false;
+      if (menuIsActive) {
+        dismissComposerTrigger(trigger);
+        composerMenuOpenRef.current = false;
+        return true;
+      }
+      if (!isEditingQueuedMessage) return false;
+      onCancelQueuedMessageEdit();
       return true;
     }
     if (menuIsActive && (submissionIntent === null || submissionIntent === "foreground")) {
