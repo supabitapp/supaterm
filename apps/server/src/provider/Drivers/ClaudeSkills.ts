@@ -7,7 +7,7 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 import { fromLenientJson } from "@supaterm/shared/schemaJson";
 import { parse as parseYamlDocument } from "yaml";
 
-import { expandHomePath } from "@supaterm/provider-core/server/pathExpansion";
+import { resolveClaudeHomePath } from "./ClaudeHome.ts";
 
 type ClaudeSkillScope = "user" | "project";
 
@@ -238,29 +238,6 @@ const readSkillOverrides = Effect.fn("readSkillOverrides")(function* (
   return overridesByName;
 });
 
-export const resolveClaudeConfigDirPath = Effect.fn("resolveClaudeConfigDirPath")(function* (
-  config: Pick<ClaudeSettings, "homePath">,
-  environment: NodeJS.ProcessEnv,
-  cwd?: string,
-): Effect.fn.Return<string, never, Path.Path> {
-  const path = yield* Path.Path;
-  const home = yield* HostProcess.HomeDirectory;
-  const homePath = config.homePath.trim();
-  if (homePath.length > 0) {
-    return path.resolve(expandHomePath(homePath, home));
-  }
-  // No tilde expansion here: the spawned CLI receives this env var verbatim
-  // (env vars are never shell-expanded), so a literal `~` must stay literal
-  // for discovery to scan the same directory the runtime would. A relative
-  // value is resolved against the workspace cwd — the subprocess's own cwd —
-  // for the same reason.
-  const environmentConfigDir = environment.CLAUDE_CONFIG_DIR?.trim() ?? "";
-  if (environmentConfigDir.length > 0) {
-    return cwd ? path.resolve(cwd, environmentConfigDir) : path.resolve(environmentConfigDir);
-  }
-  return path.join(home, ".claude");
-});
-
 /**
  * Roots are listed highest precedence first and the first hit for a name wins,
  * matching Claude Code: verified against the CLI with the same skill name in
@@ -273,7 +250,7 @@ export const discoverClaudeSkills = Effect.fn("discoverClaudeSkills")(function* 
 ): Effect.fn.Return<ReadonlyArray<ServerProviderSkill>, never, FileSystem.FileSystem | Path.Path> {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const configDirPath = yield* resolveClaudeConfigDirPath(config, environment ?? process.env, cwd);
+  const configDirPath = yield* resolveClaudeHomePath(config, environment ?? process.env, cwd);
   const skillOverrides = yield* readSkillOverrides(configDirPath, cwd, environment ?? process.env);
 
   const roots: ReadonlyArray<{ directory: string; scope: ClaudeSkillScope }> = [

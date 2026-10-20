@@ -114,10 +114,7 @@ import * as Stream from "effect/Stream";
 import { resolveAttachmentPath } from "../../attachmentStore.ts";
 import { resolveClaudeSdkExecutablePath } from "../../provider/Drivers/ClaudeExecutable.ts";
 import { planClaudeSkillDispatch } from "../../provider/Drivers/ClaudeSkillDispatch.ts";
-import {
-  discoverClaudeSkills,
-  resolveClaudeConfigDirPath,
-} from "../../provider/Drivers/ClaudeSkills.ts";
+import { discoverClaudeSkills } from "../../provider/Drivers/ClaudeSkills.ts";
 import {
   compileClaudeModelSelection,
   type CompiledClaudeModelSelection,
@@ -127,6 +124,7 @@ import { expandHomePath } from "@supaterm/provider-core/server/pathExpansion";
 import { signalProcessGroup } from "@supaterm/provider-core/server/processGroup";
 import {
   claudeSignedOutMessage,
+  hasClaudeTranscript,
   makeClaudeEnvironment,
 } from "../../provider/Drivers/ClaudeHome.ts";
 import {
@@ -3416,34 +3414,6 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
       ),
       Effect.provideService(FileSystem.FileSystem, fileSystem),
       Effect.provideService(Path.Path, path),
-    );
-
-  // `--resume` finds a transcript under any project directory, not only the
-  // one for the current cwd, so any copy means the session already exists.
-  const hasClaudeTranscript = (nativeThreadId: string, cwd: string | null) =>
-    Effect.gen(function* () {
-      const projectsDir = path.join(
-        yield* resolveClaudeConfigDirPath(
-          adapterOptions.settings,
-          adapterOptions.environment,
-          cwd ?? undefined,
-        ),
-        "projects",
-      );
-      // Stray files beside the project directories fail with ENOTDIR.
-      const transcriptExists = (project: string) =>
-        fileSystem
-          .exists(path.join(projectsDir, project, `${nativeThreadId}.jsonl`))
-          .pipe(Effect.orElseSucceed(() => false));
-      const found = yield* Effect.forEach(
-        yield* fileSystem.readDirectory(projectsDir),
-        transcriptExists,
-        { concurrency: 16 },
-      );
-      return found.includes(true);
-    }).pipe(
-      Effect.provideService(Path.Path, path),
-      Effect.orElseSucceed(() => false),
     );
 
   return ProviderAdapter.ProviderAdapterV2.of({
@@ -8442,7 +8412,15 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             resumeSessionAt !== undefined ||
             openedWithResume ||
             hasPersistedProviderTurn ||
-            (yield* hasClaudeTranscript(nativeThreadId, turnInput.runtimePolicy.cwd));
+            (yield* hasClaudeTranscript({
+              config: adapterOptions.settings,
+              environment: adapterOptions.environment,
+              cwd: turnInput.runtimePolicy.cwd,
+              sessionId: nativeThreadId,
+            }).pipe(
+              Effect.provideService(FileSystem.FileSystem, fileSystem),
+              Effect.provideService(Path.Path, path),
+            ));
           const queryOptions = makeClaudeQueryOptions({
             modelSelection: turnInput.modelSelection,
             nativeThreadId,
