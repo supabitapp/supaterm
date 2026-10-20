@@ -111,6 +111,7 @@ const makeHarness = Effect.fn("TestEnvironmentThreads.makeHarness")(function* (o
   readonly resumeCache?: NonNullable<Parameters<typeof makeEnvironmentThreadState>[1]>;
   readonly loadCached?: ReturnType<Persistence.EnvironmentCacheStore["Service"]["loadThread"]>;
   readonly saveThread?: Persistence.EnvironmentCacheStore["Service"]["saveThread"];
+  readonly removeThread?: Persistence.EnvironmentCacheStore["Service"]["removeThread"];
   readonly historyPaging?: "enabled" | "no-http" | "no-controller";
   readonly historyHttpClient?: HttpClient.HttpClient;
 }) {
@@ -209,8 +210,10 @@ const makeHarness = Effect.fn("TestEnvironmentThreads.makeHarness")(function* (o
       Ref.update(savedThreads, (current) => [...current, thread]).pipe(
         Effect.andThen(options?.saveThread?.(environmentId, thread) ?? Effect.void),
       ),
-    removeThread: (_environmentId, threadId) =>
-      Ref.update(removedThreads, (current) => [...current, threadId]),
+    removeThread: (environmentId, threadId) =>
+      Ref.update(removedThreads, (current) => [...current, threadId]).pipe(
+        Effect.andThen(options?.removeThread?.(environmentId, threadId) ?? Effect.void),
+      ),
     loadServerConfig: () => Effect.succeedNone,
     saveServerConfig: () => Effect.void,
     loadVcsRefs: () => Effect.succeedNone,
@@ -1780,6 +1783,50 @@ describe("EnvironmentThreads", () => {
       expect(yield* Ref.get(harness.loaderCalls)).toBe(1);
       expect((yield* Ref.get(harness.latest)).status).toBe("deleted");
     }),
+  );
+
+  it.effect.each(["http", "socket", "missing"] as const)(
+    "rechecks a missing thread on reopen and handles %s recovery",
+    (recovery) =>
+      Effect.gen(function* () {
+        const resumeCache: NonNullable<Parameters<typeof makeEnvironmentThreadState>[1]> = {
+          snapshot: undefined,
+          owner: undefined,
+        };
+        yield* Effect.scoped(
+          Effect.gen(function* () {
+            const first = yield* makeHarness({
+              httpSnapshot: { _tag: "missing" },
+              resumeCache,
+              removeThread: () => Effect.never,
+            });
+            yield* awaitThreadState(first.observed, (value) => value.status === "deleted");
+            expect(yield* Ref.get(first.loaderCalls)).toBe(1);
+            expect(yield* Ref.get(first.subscriptionCount)).toBe(0);
+          }),
+        );
+
+        const resumed = yield* makeHarness({
+          resumeCache,
+          httpSnapshot:
+            recovery === "http"
+              ? { _tag: "present", snapshot: { snapshotSequence: 7, projection: BASE_PROJECTION } }
+              : { _tag: recovery === "socket" ? "unavailable" : "missing" },
+        });
+        if (recovery === "socket") {
+          yield* Queue.offer(resumed.inputs, snapshot(BASE_PROJECTION));
+        }
+        const restored = yield* awaitThreadState(
+          resumed.observed,
+          (value) => value.status === "live" || value.status === "deleted",
+        );
+        expect(restored.status).toBe(recovery === "missing" ? "deleted" : "live");
+        expect(Option.getOrNull(restored.data)).toEqual(
+          recovery === "missing" ? null : BASE_PROJECTION,
+        );
+        expect(yield* Ref.get(resumed.loaderCalls)).toBe(1);
+        expect(yield* Ref.get(resumed.subscriptionCount)).toBe(recovery === "missing" ? 0 : 1);
+      }),
   );
 
   it.effect("falls back to the socket when the HTTP snapshot is only unavailable", () =>

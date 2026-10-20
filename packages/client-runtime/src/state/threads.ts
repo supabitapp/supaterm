@@ -824,7 +824,13 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
               break;
             }
             case "missing": {
-              yield* setDeleted();
+              yield* setDeleted().pipe(
+                Effect.ensuring(
+                  Effect.sync(() => {
+                    if (resumeCache?.owner === owner) resumeCache.snapshot = undefined;
+                  }),
+                ),
+              );
               return yield* Effect.never;
             }
             case "unavailable": {
