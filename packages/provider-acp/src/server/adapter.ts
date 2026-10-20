@@ -198,9 +198,10 @@ export interface AcpAdapterV2Flavor {
   readonly clientCapabilitiesMeta?: NonNullable<
     EffectAcpSchema.InitializeRequest["clientCapabilities"]
   >["_meta"];
+  /** Returning `null` drops the update. */
   readonly normalizeSessionUpdate?: (
     notification: EffectAcpSchema.SessionNotification,
-  ) => EffectAcpSchema.SessionNotification;
+  ) => EffectAcpSchema.SessionNotification | null;
   readonly onAvailableCommandsUpdate?: (
     commands: ReadonlyArray<EffectAcpSchema.AvailableCommand>,
   ) => Effect.Effect<void>;
@@ -5069,9 +5070,11 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                 ) ?? Effect.void
               );
             }
-            yield* handleSessionUpdate(
-              flavor.normalizeSessionUpdate?.(notification) ?? notification,
-            );
+            const normalized =
+              flavor.normalizeSessionUpdate === undefined
+                ? notification
+                : flavor.normalizeSessionUpdate(notification);
+            if (normalized !== null) yield* handleSessionUpdate(normalized);
           }).pipe(
             Effect.mapError(
               (cause) =>

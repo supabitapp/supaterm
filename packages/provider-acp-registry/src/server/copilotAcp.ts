@@ -14,6 +14,7 @@ import type {
 
 const COPILOT_META_KEY = "github.com/copilot";
 const COPILOT_SESSION_EVENT = "github.com/copilot/sessionEvent";
+const TASK_COMPLETE_TOOL = "task_complete";
 
 export const copilotClientCapabilitiesMeta = {
   [COPILOT_META_KEY]: {
@@ -105,7 +106,52 @@ export function makeCopilotSubagentRouting() {
       }
     });
 
+  // Autopilot ends a turn with a `task_complete` tool whose `summary` is the
+  // final answer, often never streamed as text. Copilot's own UI shows it as
+  // the last response, so project it as one instead of a collapsed tool row.
+  const streamedText = new Map<string, string>();
+  const taskCompleteIds = new Set<string>();
+  const projectTaskComplete = (
+    notification: AcpSchema.SessionNotification,
+  ): AcpSchema.SessionNotification | null => {
+    const update = notification.update;
+    const key = notification.sessionId;
+    if (update.sessionUpdate === "agent_message_chunk") {
+      if (update.content.type === "text") {
+        streamedText.set(key, (streamedText.get(key) ?? "") + update.content.text);
+      }
+      return notification;
+    }
+    if (update.sessionUpdate === "tool_call_update") {
+      if (taskCompleteIds.delete(update.toolCallId)) return null;
+      streamedText.delete(key);
+      return notification;
+    }
+    if (update.sessionUpdate !== "tool_call") {
+      if (update.sessionUpdate !== "agent_thought_chunk") streamedText.delete(key);
+      return notification;
+    }
+    const streamed = streamedText.get(key) ?? "";
+    streamedText.delete(key);
+    const summary = record(update.rawInput)?.summary;
+    if (update.title !== TASK_COMPLETE_TOOL || typeof summary !== "string") return notification;
+    taskCompleteIds.add(update.toolCallId);
+    const text = summary.trim();
+    if (text.length === 0 || text === streamed.trim()) return null;
+    return {
+      ...notification,
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: streamed.length === 0 ? text : `\n\n${text}` },
+      },
+    };
+  };
+
   const normalizeSessionUpdate = (
+    notification: AcpSchema.SessionNotification,
+  ): AcpSchema.SessionNotification | null => projectTaskComplete(routeSessionUpdate(notification));
+
+  const routeSessionUpdate = (
     notification: AcpSchema.SessionNotification,
   ): AcpSchema.SessionNotification => {
     const update = notification.update;
