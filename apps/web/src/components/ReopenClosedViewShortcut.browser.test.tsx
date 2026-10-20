@@ -1,4 +1,8 @@
-import type { ResolvedKeybindingsConfig, ScopedThreadRef } from "@supaterm/contracts";
+import {
+  PANE_FOCUS_KEYBINDING_COMMANDS,
+  type ResolvedKeybindingsConfig,
+  type ScopedThreadRef,
+} from "@supaterm/contracts";
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@supaterm/shared/keybindings";
 import * as Cause from "effect/Cause";
 import { AsyncResult } from "effect/reactivity";
@@ -323,11 +327,12 @@ describe("root reopen shortcut", () => {
     expect(forwardedCommands()).not.toContain("view.reopenClosed");
   });
 
-  it("always forwards the layout toggles out of a focused desktop browser", async () => {
+  it("always forwards the layout toggles and pane focus out of a focused desktop browser", async () => {
     await render();
     expect(state.setShortcuts).toHaveBeenLastCalledWith([
       expect.objectContaining({ command: "sidebar.toggle" }),
       expect.objectContaining({ command: "rightPanel.toggle" }),
+      ...PANE_FOCUS_KEYBINDING_COMMANDS.map((command) => expect.objectContaining({ command })),
     ]);
   });
 });

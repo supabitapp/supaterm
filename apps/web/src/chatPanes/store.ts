@@ -4,7 +4,7 @@ import * as Schema from "effect/Schema";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-import { DraftId } from "../composerDraftStore";
+import { DraftId } from "../draftId";
 import { resolveStorage, type StateStorage } from "../lib/storage";
 import { randomUUID } from "../lib/utils";
 import type { ThreadRouteTarget } from "../threadRoutes";

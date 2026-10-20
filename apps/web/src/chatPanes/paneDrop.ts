@@ -65,7 +65,7 @@ function sourcePaneId(payload: PaneDragPayload): string | null {
     : null;
 }
 
-export function isPaneDropAllowed(
+function isPaneDropAllowed(
   payload: PaneDragPayload,
   target: PaneDropTarget,
   workspace: { width: number; height: number } | null,
