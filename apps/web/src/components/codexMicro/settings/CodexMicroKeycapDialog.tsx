@@ -10,11 +10,12 @@ import { cn } from "~/lib/utils";
 import {
   assignCodexMicroKeycap,
   CODEX_MICRO_COMMAND_GROUPS,
+  CODEX_MICRO_COMMAND_OPTIONS,
   codexMicroActionLabel,
+  codexMicroActionValue,
   codexMicroKeycap,
   codexMicroKeycapHolder,
   codexMicroKeycapsForSlot,
-  type CodexMicroCommandOption,
   type CodexMicroKeycap,
 } from "../codexMicroCatalog";
 import { Button } from "../../ui/button";
@@ -38,23 +39,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../ui/select";
-import {
-  codexMicroActionValue,
-  codexMicroSlotName,
-  filterCodexMicroKeycaps,
-} from "./CodexMicroSettings.logic";
+import { codexMicroSlotName, filterCodexMicroKeycaps } from "./CodexMicroSettings.logic";
 
 const DEFAULT_CHOICE = "default";
 const DEFAULT_CHOICE_LABEL = "Use keycap default";
 const TEXT_CHOICE = "text";
 const TEXT_CHOICE_LABEL = "Insert text…";
 const MAX_TEXT_LENGTH = 500;
-
-const COMMAND_OPTIONS = new Map<string, CodexMicroCommandOption>(
-  CODEX_MICRO_COMMAND_GROUPS.flatMap((group) =>
-    group.options.map((option) => [codexMicroActionValue(option.action), option] as const),
-  ),
-);
 
 function initialChoice(action: CodexMicroAction | undefined): string {
   if (action === undefined) return DEFAULT_CHOICE;
@@ -72,7 +63,7 @@ function chosenAction(
     const trimmed = text.trim();
     return trimmed.length > 0 ? { type: "composer-text", text: trimmed } : null;
   }
-  return COMMAND_OPTIONS.get(choice)?.action ?? preservedAction;
+  return CODEX_MICRO_COMMAND_OPTIONS.get(choice)?.action ?? preservedAction;
 }
 
 function choiceLabel(choice: string, action: CodexMicroAction | undefined | null): string {
@@ -140,7 +131,7 @@ export function CodexMicroKeycapDialog({
   const preservedAction =
     current.action !== undefined &&
     currentChoice !== TEXT_CHOICE &&
-    !COMMAND_OPTIONS.has(currentChoice)
+    !CODEX_MICRO_COMMAND_OPTIONS.has(currentChoice)
       ? current.action
       : null;
   const action = chosenAction(choice, text, preservedAction);

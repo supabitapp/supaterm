@@ -404,11 +404,22 @@ export const CODEX_MICRO_COMMAND_GROUPS: ReadonlyArray<CodexMicroCommandGroup> =
   },
 ];
 
-const COMMAND_LABELS = new Map(
+export function codexMicroActionValue(action: CodexMicroAction): string {
+  switch (action.type) {
+    case "command":
+      return `command:${action.command}`;
+    case "composer-text":
+      return `text:${action.text}`;
+    case "push-to-talk":
+    case "open-settings":
+    case "open-codex-micro-settings":
+      return action.type;
+  }
+}
+
+export const CODEX_MICRO_COMMAND_OPTIONS: ReadonlyMap<string, CodexMicroCommandOption> = new Map(
   CODEX_MICRO_COMMAND_GROUPS.flatMap((group) =>
-    group.options.flatMap((entry) =>
-      entry.action.type === "command" ? [[entry.action.command, entry.label] as const] : [],
-    ),
+    group.options.map((option) => [codexMicroActionValue(option.action), option] as const),
   ),
 );
 
@@ -416,7 +427,9 @@ export function codexMicroActionLabel(action: CodexMicroAction | null): string {
   if (action === null) return "Unassigned";
   switch (action.type) {
     case "command":
-      return COMMAND_LABELS.get(action.command) ?? action.command;
+      return (
+        CODEX_MICRO_COMMAND_OPTIONS.get(codexMicroActionValue(action))?.label ?? action.command
+      );
     case "composer-text":
       return `Insert ${action.text}`;
     case "push-to-talk":
@@ -426,17 +439,4 @@ export function codexMicroActionLabel(action: CodexMicroAction | null): string {
     case "open-codex-micro-settings":
       return "Open Codex Micro settings";
   }
-}
-
-export function sameCodexMicroAction(
-  left: CodexMicroAction | null | undefined,
-  right: CodexMicroAction | null | undefined,
-): boolean {
-  if (left == null || right == null) return left == right;
-  if (left.type !== right.type) return false;
-  if (left.type === "command" && right.type === "command") return left.command === right.command;
-  if (left.type === "composer-text" && right.type === "composer-text") {
-    return left.text === right.text;
-  }
-  return true;
 }

@@ -2,7 +2,7 @@ import type { CodexMicroAction } from "@supaterm/contracts";
 import { CheckIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 
-import { sameCodexMicroAction } from "../codexMicroCatalog";
+import { codexMicroActionValue } from "../codexMicroCatalog";
 import {
   Command,
   CommandGroup,
@@ -11,7 +11,7 @@ import {
   CommandItem,
   CommandList,
 } from "../../ui/command";
-import { codexMicroActionValue, filterCodexMicroCommandGroups } from "./CodexMicroSettings.logic";
+import { filterCodexMicroCommandGroups } from "./CodexMicroSettings.logic";
 
 const CLEAR_VALUE = "clear";
 
@@ -31,6 +31,7 @@ export function CodexMicroActionPicker({
   const [query, setQuery] = useState("");
   const groups = filterCodexMicroCommandGroups(query);
   const showClear = clearLabel !== undefined && query.trim().length === 0;
+  const selectedValue = selected ? codexMicroActionValue(selected) : null;
 
   return (
     <Command mode="none" value={query} onValueChange={setQuery} aria-label={label}>
@@ -46,18 +47,17 @@ export function CodexMicroActionPicker({
         {groups.map((group) => (
           <CommandGroup key={group.label}>
             <CommandGroupLabel>{group.label}</CommandGroupLabel>
-            {group.options.map((option) => (
-              <CommandItem
-                key={codexMicroActionValue(option.action)}
-                value={codexMicroActionValue(option.action)}
-                onClick={() => onSelect(option.action)}
-              >
-                <span className="min-w-0 flex-1 truncate">{option.label}</span>
-                {sameCodexMicroAction(option.action, selected) ? (
-                  <CheckIcon aria-hidden className="size-3.5 shrink-0" />
-                ) : null}
-              </CommandItem>
-            ))}
+            {group.options.map((option) => {
+              const value = codexMicroActionValue(option.action);
+              return (
+                <CommandItem key={value} value={value} onClick={() => onSelect(option.action)}>
+                  <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                  {value === selectedValue ? (
+                    <CheckIcon aria-hidden className="size-3.5 shrink-0" />
+                  ) : null}
+                </CommandItem>
+              );
+            })}
           </CommandGroup>
         ))}
         {groups.length === 0 ? (

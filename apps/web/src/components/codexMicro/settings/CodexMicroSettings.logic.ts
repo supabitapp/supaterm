@@ -391,20 +391,6 @@ export function filterCodexMicroCommandGroups(
   });
 }
 
-/** A stable string for one action, for select values and list keys. */
-export function codexMicroActionValue(action: CodexMicroAction): string {
-  switch (action.type) {
-    case "command":
-      return `command:${action.command}`;
-    case "composer-text":
-      return `text:${action.text}`;
-    case "push-to-talk":
-    case "open-settings":
-    case "open-codex-micro-settings":
-      return action.type;
-  }
-}
-
 interface CodexMicroThreadCandidate {
   readonly environmentId: EnvironmentId;
   readonly id: ThreadId;
