@@ -4605,6 +4605,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     flushSync(() => applyStashEntry(entry, expiredAttachmentIds))?.complete === true;
   const applyStashEntryForSendStable = useStableCallback(applyStashEntryForSend);
 
+  const submitStashEntry = (targetKey: string) => {
+    if (stashSendBlockedReason !== null || composerTargetMovedFrom(targetKey)) return null;
+    return submitComposer(undefined, "queue");
+  };
+  const submitStashEntryStable = useStableCallback(submitStashEntry);
+
   // Each prompt is restored and sent through the composer's own path, oldest first. Sends
   // queue instead of steering, so the first starts a turn and the rest wait behind it. The
   // run stops at the first prompt that cannot go out as stashed, leaving it in the composer.
@@ -4614,7 +4620,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     const targetKey = composerTargetKey(composerDraftTarget);
     const entries = usePromptStashStore.getState().entries.toReversed();
     let sentCount = 0;
-    try {
+    const sendEntries = async () => {
       for (const entry of entries) {
         const expiredAttachmentIds = await verifyStashEntryFilesStable(entry);
         if (
@@ -4632,16 +4638,16 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           startAttachmentUpload({ environmentId, image: file, draftTarget: attachmentDraftTarget });
         }
         await awaitAttachmentUploads(restoredUploads.map((file) => file.id));
-        if (composerTargetMovedFrom(targetKey)) break;
-        const sending = submitComposerStable(undefined, "queue");
+        const sending = submitStashEntryStable(targetKey);
         if (!sending) break;
         await sending;
         if (composerDraftHasUserContent(getComposerDraft(composerDraftTarget))) break;
         sentCount += 1;
       }
-    } finally {
+    };
+    await sendEntries().finally(() => {
       setIsSendingAllStash(false);
-    }
+    });
     if (sentCount === entries.length) return;
     if (sentCount > 0) {
       toastManager.add({
