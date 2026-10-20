@@ -10,7 +10,10 @@ export function ThreadContextDragGhost() {
     <div
       aria-hidden="true"
       className="pointer-events-none fixed left-0 top-0 z-[100] flex max-w-72 items-center gap-2 rounded-lg border bg-popover px-3 py-2 text-sm shadow-lg"
-      style={{ transform: `translate(${ghost.x + 12}px, ${ghost.y + 12}px)` }}
+      // Dropping onto a pane's right or bottom edge is common, so the label stays on screen there.
+      style={{
+        transform: `translate(min(${ghost.x + 12}px, calc(100vw - 100% - 8px)), min(${ghost.y + 12}px, calc(100vh - 100% - 8px)))`,
+      }}
     >
       <MessagesSquareIcon className="size-4 shrink-0 text-secondary-label" />
       <span className="flex min-w-0 flex-col">
