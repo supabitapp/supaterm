@@ -113,4 +113,31 @@ describe("sending all", () => {
     });
     expect(onRestore).not.toHaveBeenCalled();
   });
+
+  it("keeps the send button in place while confirming", async () => {
+    await renderMenu();
+    const before = sendAllButton().getBoundingClientRect();
+
+    await act(async () => sendAllButton().click());
+
+    const after = sendAllButton().getBoundingClientRect();
+    expect(after.x).toBe(before.x);
+    expect(after.width).toBe(before.width);
+  });
+
+  it("blocks sending when a draft appears after arming", async () => {
+    const onSendAll = vi.fn();
+    await renderMenu({ onSendAll });
+    await act(async () => sendAllButton().click());
+
+    await renderMenu({ onSendAll, sendAllBlockedReason: "Send or stash your draft first" });
+    await pressAgain(sendAllButton());
+    expect(onSendAll).not.toHaveBeenCalled();
+
+    await renderMenu({ onSendAll });
+    await act(async () => sendAllButton().click());
+    expect(onSendAll).not.toHaveBeenCalled();
+    await pressAgain(sendAllButton());
+    expect(onSendAll).toHaveBeenCalledOnce();
+  });
 });

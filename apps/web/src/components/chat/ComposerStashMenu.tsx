@@ -1,4 +1,4 @@
-import { BookmarkIcon, FileIcon, FileTextIcon, XIcon } from "lucide-react";
+import { ArrowUpIcon, BookmarkIcon, FileIcon, FileTextIcon, XIcon } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
 
@@ -6,7 +6,7 @@ import { useInlineConfirm } from "~/hooks/useInlineConfirm";
 import { RelativeTime } from "../RelativeTime";
 import { cn } from "~/lib/utils";
 import { type PromptStashEntry } from "../../promptStashStore";
-import { InlineConfirmIcon, InlineConfirmLabel, InlineConfirmTooltip } from "../InlineConfirm";
+import { InlineConfirmIcon, InlineConfirmTooltip } from "../InlineConfirm";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { ComposerBanner } from "./ComposerBanner";
@@ -111,8 +111,6 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
         return;
       }
       if (event.key === "Enter") {
-        // A focused control (a row's delete, Send all) owns its own activation;
-        // swallowing Enter here would restore instead.
         if (event.target instanceof HTMLElement && event.target.closest("button")) {
           return;
         }
@@ -143,51 +141,62 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
 
   return (
     <ComposerBanner.Root ref={drawerRef} data-composer-stash-drawer="true">
-      <ComposerBanner.Row className="relative">
+      <ComposerBanner.Row className="relative pb-1">
         <ComposerBanner.Icon>
           <BookmarkIcon />
         </ComposerBanner.Icon>
         <ComposerBanner.Content className="text-muted-foreground">
           <button
             type="button"
-            className="cursor-pointer outline-none before:absolute before:inset-0 before:rounded-md focus-visible:before:outline-2 focus-visible:before:-outline-offset-2 focus-visible:before:outline-ring"
+            className="flex cursor-pointer items-center gap-1 outline-none before:absolute before:inset-0 before:rounded-md focus-visible:before:outline-2 focus-visible:before:-outline-offset-2 focus-visible:before:outline-ring"
             aria-label="Close stash"
             aria-expanded="true"
             onPointerDown={(event) => event.preventDefault()}
             onClick={onClose}
           >
             Stash
+            <ComposerBanner.Count>{entries.length}</ComposerBanner.Count>
           </button>
         </ComposerBanner.Content>
         <ComposerBanner.Actions>
-          {entries.length === 0 ? null : sendAllBlockedReason === null ? (
-            <InlineConfirmTooltip
-              armed={sendAllArmed}
-              tip="Send each prompt as its own message, oldest first"
-              armedTip={`Click again to send ${entries.length === 1 ? "this prompt" : `all ${entries.length} prompts`}`}
-              render={
-                <Button
-                  size="xs"
-                  variant="ghost-muted"
-                  className="z-10"
-                  onPointerDown={(event) => event.preventDefault()}
-                  {...sendAllConfirm.bind("send-all", onSendAll)}
-                />
-              }
-            >
-              <InlineConfirmLabel armed={sendAllArmed} idle="Send all" confirm="Confirm send" />
-            </InlineConfirmTooltip>
-          ) : (
+          {entries.length > 0 && (
             <Tooltip>
-              <TooltipTrigger render={<span className="relative z-10 flex" />}>
-                <Button size="xs" variant="ghost-muted" disabled>
-                  Send all
-                </Button>
+              <TooltipTrigger
+                closeOnClick={sendAllArmed}
+                render={
+                  <Button
+                    size="compact"
+                    variant="outline"
+                    className="z-10"
+                    aria-disabled={sendAllBlockedReason !== null}
+                    aria-label={sendAllArmed ? "Confirm send all" : "Send all"}
+                    onPointerDown={(event) => event.preventDefault()}
+                    {...(sendAllBlockedReason === null
+                      ? sendAllConfirm.bind("send-all", onSendAll)
+                      : {})}
+                  />
+                }
+              >
+                <InlineConfirmIcon armed={sendAllArmed}>
+                  <ArrowUpIcon className="size-3.5" />
+                </InlineConfirmIcon>
+                <span className="inline-grid" aria-hidden>
+                  <span className={cn("col-start-1 row-start-1", sendAllArmed && "invisible")}>
+                    Send all
+                  </span>
+                  <span className={cn("col-start-1 row-start-1", !sendAllArmed && "invisible")}>
+                    Confirm
+                  </span>
+                </span>
               </TooltipTrigger>
-              <TooltipPopup>{sendAllBlockedReason}</TooltipPopup>
+              <TooltipPopup>
+                {sendAllBlockedReason ??
+                  (sendAllArmed
+                    ? `Click again to send ${entries.length === 1 ? "this prompt" : `all ${entries.length} prompts`}`
+                    : "Send each prompt as its own message, oldest first")}
+              </TooltipPopup>
             </Tooltip>
           )}
-          <ComposerBanner.Count>{entries.length}</ComposerBanner.Count>
           <ComposerBanner.ToggleIcon expanded />
         </ComposerBanner.Actions>
       </ComposerBanner.Row>
