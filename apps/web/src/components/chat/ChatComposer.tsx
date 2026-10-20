@@ -1608,7 +1608,7 @@ export interface ChatComposerProps {
     e?: { preventDefault: () => void },
     dispatchMode?: ComposerDispatchMode,
     submissionIntent?: ComposerSubmissionIntent,
-  ) => void;
+  ) => Promise<void>;
   onResume: () => void;
   onInterrupt: () => void;
   onRespondToApproval: (
@@ -2410,6 +2410,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const hasWrappedPrompt = useComposerMultilinePrompt(composerMenuAnchor);
   const hasMultilinePrompt = prompt.includes("\n") || hasWrappedPrompt;
   const [isStashMenuOpen, setIsStashMenuOpen] = useState(false);
+  const [isSendingAllStash, setIsSendingAllStash] = useState(false);
   const [tasksExpandedPreference, setTasksExpandedPreference] = useLocalStorage(
     COMPOSER_TASKS_EXPANDED_KEY,
     false,
@@ -3945,7 +3946,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     event?: { preventDefault: () => void },
     dispatchMode?: ComposerDispatchMode,
     submissionIntent?: ComposerSubmissionIntent,
-  ) => {
+  ): Promise<void> | null => {
     if (
       !canQueueSelectedProvider ||
       isSendDisabled ||
@@ -3954,7 +3955,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         : readCanQueueComposerMessage(environmentId))
     ) {
       event?.preventDefault();
-      return;
+      return null;
     }
     // A send while a pasted image is still compressing would strand that image:
     // the turn snapshot wouldn't include it, and it would surface in the *next*
@@ -3966,7 +3967,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         title: "Still compressing a pasted image.",
         description: "Send again once its thumbnail appears.",
       });
-      return;
+      return null;
     }
     if (pendingDraftWork.has(attachmentTargetKey)) {
       event?.preventDefault();
@@ -3975,15 +3976,16 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         title: "Still bringing attached context into this message.",
         description: "Send again once its chip resolves.",
       });
-      return;
+      return null;
     }
+    let sending: Promise<void> | null = null;
     const submission = submitComposerDraft({
       prompt: promptRef.current,
       submissionTarget: activePendingProgress ? "pending-user-input" : "provider-turn",
       event,
       onSend: (sendEvent) => {
         providerInputRejectedRef.current = false;
-        onSend(
+        sending = onSend(
           sendEvent,
           dispatchMode ??
             resolveComposerDispatchMode({
@@ -3998,11 +4000,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       },
     });
     setComposerSubmissionError(submission.validationMessage);
-    if (!submission.didDispatch) return;
+    if (!submission.didDispatch) return null;
     onTypingGuardSend();
     if (shouldBlurMobileComposerOnSubmit()) {
       blurMobileComposerAfterSend();
     }
+    return sending;
   };
   const submitComposerStable = useStableCallback(submitComposer);
   const handleSubmitMessage = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -4260,7 +4263,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     }, 1200);
   };
 
-  const restoreStashEntry = async (menuEntry: PromptStashEntry) => {
+  const composerTargetMovedFrom = (targetKey: string) =>
+    isRevertingCheckpointRef.current || targetKey !== composerDraftTargetKeyRef.current;
+
+  const verifyStashEntryFiles = async (menuEntry: PromptStashEntry) => {
     const filesToVerify = menuEntry.files ?? [];
     if (filesToVerify.some((file) => file.environmentId !== environmentId)) {
       toastManager.add({
@@ -4268,7 +4274,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         title: "Stashed files belong to another environment",
         description: "Restore this prompt in the environment that received its files.",
       });
-      return;
+      return null;
     }
     setIsStashMenuOpen(false);
 
@@ -4281,24 +4287,20 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         verifyStashedAttachmentUpload({ environmentId, attachmentId: file.attachmentId }),
       ),
     );
-    const expiredAttachmentIds = new Set(
+    return new Set(
       filesToVerify
         .filter((_, index) => verifications[index]?.status === "missing")
         .map((file) => file.attachmentId),
     );
+  };
+  const verifyStashEntryFilesStable = useStableCallback(verifyStashEntryFiles);
 
-    // A thread switch during the verify await would mix the new thread's
-    // prompt with this invocation's captured target. Nothing was taken yet,
-    // so abort and leave the entry restorable where the user now is.
-    if (
-      isRevertingCheckpointRef.current ||
-      composerTargetKey(composerDraftTarget) !== composerDraftTargetKeyRef.current
-    ) {
-      return;
-    }
-
+  const applyStashEntry = (
+    menuEntry: PromptStashEntry,
+    expiredAttachmentIds: ReadonlySet<string>,
+  ) => {
     const { entry, durable } = takeStashEntry(menuEntry.id);
-    if (!entry) return;
+    if (!entry) return null;
     if (!durable) {
       toastManager.add({
         type: "warning",
@@ -4513,8 +4515,17 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         description: missingImageReasons.join(" "),
       });
     }
+    return { promptChanged, complete: missingImageReasons.length === 0 };
+  };
 
-    if (promptChanged) {
+  const restoreStashEntry = async (menuEntry: PromptStashEntry) => {
+    const targetKey = composerTargetKey(composerDraftTarget);
+    const expiredAttachmentIds = await verifyStashEntryFiles(menuEntry);
+    // A thread switch during the verify await would mix the new thread's
+    // prompt with this invocation's captured target. Nothing was taken yet,
+    // so abort and leave the entry restorable where the user now is.
+    if (!expiredAttachmentIds || composerTargetMovedFrom(targetKey)) return;
+    if (applyStashEntry(menuEntry, expiredAttachmentIds)?.promptChanged) {
       window.requestAnimationFrame(() => {
         composerEditorRef.current?.focusAtEnd();
       });
@@ -4547,6 +4558,80 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     }
   };
   const deleteStashEntryStable = useStableCallback(deleteStashEntry);
+
+  const stashSendBlockedReason =
+    routeKind === "draft"
+      ? "Send one prompt to start this thread first"
+      : isEditingQueuedMessage
+        ? "Finish editing the queued message first"
+        : activePendingProgress
+          ? "Answer the pending question first"
+          : !canQueueMessage || !canQueueSelectedProvider
+            ? "Sending is unavailable right now"
+            : sendDisabledReason;
+  const stashSendAllBlockedReason = isSendingAllStash
+    ? "Sending stashed prompts…"
+    : (stashSendBlockedReason ??
+      (composerDraftHasUserContent(composerDraft)
+        ? "Send or stash your draft first"
+        : stashQueue.some((entry) => entry.pendingImageCount)
+          ? "Still saving stashed images"
+          : null));
+
+  // Runs between sends, so it re-checks what the previous send may have changed:
+  // a question from the agent would otherwise take the next prompt as its answer.
+  // The send reads the restored draft from render state, hence the flushSync.
+  const applyStashEntryForSend = (
+    entry: PromptStashEntry,
+    expiredAttachmentIds: ReadonlySet<string>,
+    targetKey: string,
+  ) =>
+    stashSendBlockedReason === null &&
+    !composerTargetMovedFrom(targetKey) &&
+    !composerDraftHasUserContent(getComposerDraft(composerDraftTarget)) &&
+    flushSync(() => applyStashEntry(entry, expiredAttachmentIds))?.complete === true;
+  const applyStashEntryForSendStable = useStableCallback(applyStashEntryForSend);
+
+  // Each prompt is restored and sent through the composer's own path, oldest first. Sends
+  // queue instead of steering, so the first starts a turn and the rest wait behind it. The
+  // run stops at the first prompt that cannot go out as stashed, leaving it in the composer.
+  const sendAllStashEntries = async () => {
+    setIsStashMenuOpen(false);
+    setIsSendingAllStash(true);
+    const targetKey = composerTargetKey(composerDraftTarget);
+    const entries = usePromptStashStore.getState().entries.toReversed();
+    let sentCount = 0;
+    try {
+      for (const entry of entries) {
+        const expiredAttachmentIds = await verifyStashEntryFilesStable(entry);
+        if (
+          !expiredAttachmentIds ||
+          !applyStashEntryForSendStable(entry, expiredAttachmentIds, targetKey)
+        ) {
+          break;
+        }
+        const sending = submitComposerStable(undefined, "queue");
+        if (!sending) break;
+        await sending;
+        if (composerDraftHasUserContent(getComposerDraft(composerDraftTarget))) break;
+        sentCount += 1;
+      }
+    } finally {
+      setIsSendingAllStash(false);
+    }
+    if (sentCount === entries.length) return;
+    if (sentCount > 0) {
+      toastManager.add({
+        type: "info",
+        title: `Sent ${sentCount} of ${entries.length} stashed prompts`,
+        description: "The rest are still in the stash.",
+      });
+    }
+    window.requestAnimationFrame(() => {
+      composerEditorRef.current?.focusAtEnd();
+    });
+  };
+  const sendAllStashEntriesStable = useStableCallback(sendAllStashEntries);
 
   const stashCurrentPrompt = async () => {
     // Stashing clears the draft. A pasted attachment still downloading would then land in the
@@ -6687,8 +6772,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                         modelPickerOpen: false,
                       },
                     })}
+                    sendAllBlockedReason={stashSendAllBlockedReason}
                     onRestore={restoreStashEntryStable}
                     onDelete={deleteStashEntryStable}
+                    onSendAll={sendAllStashEntriesStable}
                     onClose={() => setIsStashMenuOpen(false)}
                   />
                 </ComposerCommandMenuLayer>

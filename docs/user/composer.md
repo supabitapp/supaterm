@@ -185,6 +185,12 @@ With an empty composer, the same shortcut restores a single stash or opens the
 stash menu when there are several. To delete a stash, press its **X** twice;
 Escape cancels.
 
+To send every stash, press **Send all** in the stash menu twice. Each stash goes out
+as its own message, oldest first, and waits in the queue while the agent works, so you
+can still edit or remove it there. Send all needs an empty composer in a thread that
+has already started. It stops at a stash that cannot be sent as saved, such as one
+with missing images, and leaves it in the composer for you to check.
+
 Stashes containing uploaded files must be restored in their original environment.
 Those files are retained for 24 hours. After an upload expires, restore the prompt
 and use **Attach again** or remove the missing file before sending.
