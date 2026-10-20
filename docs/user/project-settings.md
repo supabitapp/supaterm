@@ -69,8 +69,8 @@ access. Source Control contains automatic pull, the default pull request merge m
 generation. The same rows edit environment defaults or project overrides depending on the
 project crumb.
 
-The Project category, shown while a project is selected, holds the project's name, icon, actions,
-checkouts and removal. Actions belong to a project: editing them creates the project's own list
+The Project category holds the project's name, icon, actions, checkouts and removal. Open it and
+choose a project to manage. Actions belong to a project: editing them creates the project's own list
 on each selected environment, and reset returns to the environment's shared list. A project's
 `supaterm.json` actions can be imported there.
 

@@ -33,7 +33,6 @@ import { SidebarUtilityMenu } from "../sidebar/SidebarChrome";
 import { scrollToSettingsTarget } from "./settingsLayout";
 import {
   searchSettings,
-  isSettingsOverviewVisible,
   isSettingsSectionAvailable,
   SETTINGS_SECTION_LABELS,
   type SettingsPath,
@@ -94,9 +93,6 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
   const currentHash = useLocation({ select: (location) => location.hash });
   const currentSearch = useLocation({ select: (location) => location.search });
   const scopeSearch = validateSettingsScopeSearch(currentSearch);
-  const navItems = SETTINGS_NAV_ITEMS.filter(
-    (item) => item.to !== "/settings/projects" || isSettingsOverviewVisible(scopeSearch),
-  );
   const { isMobile, setOpenMobile, open, setOpen } = useSidebar();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
@@ -310,7 +306,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
               </SidebarMenu>
             ) : (
               <SidebarMenu>
-                {navItems.map((item) => {
+                {SETTINGS_NAV_ITEMS.map((item) => {
                   const Icon = item.icon;
                   const isGeneralDetailPage =
                     item.to === "/settings/general" &&
