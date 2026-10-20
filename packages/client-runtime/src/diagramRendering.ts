@@ -1,7 +1,13 @@
-import { MERMAID_ASCII_LIMITS } from "@supaterm/mermaid-ascii/limits";
+import {
+  acceptsDiagramSource,
+  diagramOptions,
+  isDiagram,
+  type Diagram,
+  type DiagramOptions,
+} from "@supaterm/mermaid/diagram";
 
 export function createDiagramRenderer(
-  render: (source: string) => Promise<string | null>,
+  render: (source: string, options: ReturnType<typeof diagramOptions>) => Promise<Diagram | null>,
   options: {
     maxPending?: number;
     maxCacheEntries?: number;
@@ -11,14 +17,19 @@ export function createDiagramRenderer(
   const maxPending = options.maxPending ?? 32;
   const maxCacheEntries = options.maxCacheEntries ?? 128;
   const maxCacheBytes = options.maxCacheBytes ?? 2 * 1024 * 1024;
-  const cache = new Map<string, { output: string | null; bytes: number }>();
-  const pending = new Map<string, Promise<string | null>>();
-  const queue: Array<{ source: string; resolve: (output: string | null) => void }> = [];
+  const cache = new Map<string, { output: Diagram | null; bytes: number }>();
+  const pending = new Map<string, Promise<Diagram | null>>();
+  const queue: Array<{
+    key: string;
+    source: string;
+    options: ReturnType<typeof diagramOptions>;
+    resolve: (output: Diagram | null) => void;
+  }> = [];
   let cacheBytes = 0;
   let running = false;
 
-  function remember(source: string, output: string | null) {
-    const bytes = (source.length + (output?.length ?? 0)) * 2;
+  function remember(key: string, output: Diagram | null) {
+    const bytes = (key.length + (output?.svg.length ?? 0)) * 2;
     if (maxCacheEntries <= 0 || bytes > maxCacheBytes) return;
     while (cache.size >= maxCacheEntries || cacheBytes + bytes > maxCacheBytes) {
       const oldest = cache.entries().next().value;
@@ -26,7 +37,7 @@ export function createDiagramRenderer(
       cache.delete(oldest[0]);
       cacheBytes -= oldest[1].bytes;
     }
-    cache.set(source, { output, bytes });
+    cache.set(key, { output, bytes });
     cacheBytes += bytes;
   }
 
@@ -34,45 +45,38 @@ export function createDiagramRenderer(
     if (running) return;
     running = true;
     for (let request = queue.shift(); request; request = queue.shift()) {
-      let output: string | null = null;
+      let output: Diagram | null = null;
       try {
-        const rendered = await render(request.source);
-        if (
-          rendered !== null &&
-          rendered.length > 0 &&
-          rendered.length <=
-            MERMAID_ASCII_LIMITS.canvasCells * 2 + MERMAID_ASCII_LIMITS.canvasDimension
-        ) {
-          output = rendered;
-        }
-        remember(request.source, output);
+        const rendered = await render(request.source, request.options);
+        if (isDiagram(rendered)) output = rendered;
+        remember(request.key, output);
       } catch {
         output = null;
       }
-      pending.delete(request.source);
+      pending.delete(request.key);
       request.resolve(output);
     }
     running = false;
   }
 
   return {
-    render(source: string): Promise<string | null> {
-      if (source.length === 0 || source.length > MERMAID_ASCII_LIMITS.sourceChars) {
-        return Promise.resolve(null);
-      }
-      const cached = cache.get(source);
+    render(source: string, options: DiagramOptions = {}): Promise<Diagram | null> {
+      if (!acceptsDiagramSource(source)) return Promise.resolve(null);
+      const normalized = diagramOptions(options);
+      const key = JSON.stringify([source, normalized]);
+      const cached = cache.get(key);
       if (cached) {
-        cache.delete(source);
-        cache.set(source, cached);
+        cache.delete(key);
+        cache.set(key, cached);
         return Promise.resolve(cached.output);
       }
-      const existing = pending.get(source);
+      const existing = pending.get(key);
       if (existing) return existing;
       if (pending.size >= maxPending) return Promise.resolve(null);
-      const promise = new Promise<string | null>((resolve) => {
-        queue.push({ source, resolve });
+      const promise = new Promise<Diagram | null>((resolve) => {
+        queue.push({ key, source, options: normalized, resolve });
       });
-      pending.set(source, promise);
+      pending.set(key, promise);
       void drain();
       return promise;
     },

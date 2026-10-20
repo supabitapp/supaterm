@@ -443,9 +443,18 @@ describe("ChatMarkdown diagrams", () => {
   ])(
     "renders completed fences while retaining unfinished source: $text",
     async ({ text, streaming, expected }) => {
-      vi.mocked(renderMermaidDiagram).mockReset().mockResolvedValue("diagram");
+      vi.mocked(renderMermaidDiagram).mockReset().mockResolvedValue({
+        svg: '<svg xmlns="http://www.w3.org/2000/svg"><text>diagram</text></svg>',
+        width: 100,
+        height: 100,
+        type: "flowchart",
+      });
       const container = await renderText(text, { cwd: undefined, isStreaming: streaming });
-      await vi.waitFor(() => expect(container.querySelector("code")?.textContent).toBe(expected));
+      await vi.waitFor(() =>
+        expect(
+          (container.querySelector("code") ?? container.querySelector("svg text"))?.textContent,
+        ).toBe(expected),
+      );
       expect(renderMermaidDiagram).toHaveBeenCalledTimes(expected === "diagram" ? 1 : 0);
     },
   );
@@ -841,7 +850,12 @@ describe("ChatMarkdown thread find", () => {
           </FindProbe>,
         ),
       );
-    vi.mocked(renderMermaidDiagram).mockResolvedValue("Rendered diagram");
+    vi.mocked(renderMermaidDiagram).mockResolvedValue({
+      svg: '<svg xmlns="http://www.w3.org/2000/svg"><text>Rendered diagram</text></svg>',
+      width: 100,
+      height: 100,
+      type: "flowchart",
+    });
     const diagrams = () => (container.textContent?.match(/Rendered diagram/g) ?? []).length;
 
     await show("Needle");

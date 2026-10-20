@@ -72,7 +72,10 @@ export interface SelectableMarkdownTextProps {
   readonly skills?: ReadonlyArray<SelectableMarkdownSkill>;
   readonly preserveSoftBreaks?: boolean;
   readonly isStreaming?: boolean;
-  readonly renderDiagram?: (source: string) => Promise<string | null>;
+  readonly renderDiagram?: (
+    source: string,
+    options?: import("@supaterm/mermaid/diagram").DiagramOptions,
+  ) => Promise<import("@supaterm/mermaid/diagram").Diagram | null>;
   readonly onLinkPress?: (href: string) => void;
   readonly fileContextMenu?: (href: string) => MarkdownFileContextMenu | undefined;
   readonly onFileContextMenuAction?: (href: string, actionId: string) => void;

@@ -510,9 +510,9 @@ importers:
       '@supaterm/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@supaterm/mermaid-ascii':
+      '@supaterm/mermaid':
         specifier: workspace:*
-        version: link:../../packages/mermaid-ascii
+        version: link:../../packages/mermaid
       '@supaterm/mobile-relay-tunnel':
         specifier: file:./modules/supaterm-relay-tunnel
         version: file:apps/mobile/modules/supaterm-relay-tunnel(expo@58.0.14)
@@ -751,6 +751,9 @@ importers:
       '@pierre/trees':
         specifier: 1.0.0-beta.6
         version: 1.0.0-beta.6(@pierre/theme@2.0.0)(@shikijs/themes@4.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(shiki@4.2.0)
+      '@types/babel__core':
+        specifier: ^7.20.5
+        version: 7.20.5
       '@types/mdast':
         specifier: ^4.0.4
         version: 4.0.4
@@ -971,9 +974,9 @@ importers:
       '@supaterm/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@supaterm/mermaid-ascii':
+      '@supaterm/mermaid':
         specifier: workspace:*
-        version: link:../../packages/mermaid-ascii
+        version: link:../../packages/mermaid
       '@supaterm/provider-acp-registry':
         specifier: workspace:*
         version: link:../../packages/provider-acp-registry
@@ -1186,9 +1189,9 @@ importers:
       '@supaterm/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@supaterm/mermaid-ascii':
+      '@supaterm/mermaid':
         specifier: workspace:*
-        version: link:../mermaid-ascii
+        version: link:../mermaid
       '@supaterm/shared':
         specifier: workspace:*
         version: link:../shared
@@ -1312,7 +1315,11 @@ importers:
         specifier: 1.0.0
         version: 1.0.0(@types/jsdom@30.0.0)(@types/node@24.12.4)(@vitest/browser-playwright@5.0.1)(@vitest/ui@5.0.1)(bufferutil@4.1.0)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@1.8.0))(msw@2.12.11(@types/node@24.12.4)(typescript@7.0.2))(terser@5.48.0)(typescript@7.0.2)(unrun@0.2.39)(utf-8-validate@6.0.6)(yaml@2.9.0)
 
-  packages/mermaid-ascii:
+  packages/mermaid:
+    dependencies:
+      pele:
+        specifier: 1.7.0
+        version: 1.7.0
     devDependencies:
       '@types/node':
         specifier: 24.12.4
@@ -5656,6 +5663,18 @@ packages:
   '@types/aws4@1.11.6':
     resolution: {integrity: sha512-5CnVUkHNyLGpD9AnOcK66YyP0qvIh6nhJJoeK8zSl5YKikUcUbdB7SlHevUYVqicgeh6j5AJa1qa/h08dSZHoA==}
 
+  '@types/babel__core@7.20.5':
+    resolution: {integrity: sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==}
+
+  '@types/babel__generator@7.27.0':
+    resolution: {integrity: sha512-ufFd2Xi92OAVPYsy+P4n7/U7e68fex0+Ee8gSG9KX7eo084CWiQ4sdxktvdl0bOPupXtVJPY19zk6EwWqUQ8lg==}
+
+  '@types/babel__template@7.4.4':
+    resolution: {integrity: sha512-h/NUaSyG5EyxBIp8YRxo4RMe2/qQgvyowRwVMzhYhBCONbW8PUsg4lkFMrhgZhUe5z3L3MiLDuvyJ/CaPa2A8A==}
+
+  '@types/babel__traverse@7.28.0':
+    resolution: {integrity: sha512-8PvcXf70gTDZBgt9ptxJ8elBeBjcLOAcOtoO/mPJjtji1+CdGbHgm77om1GrsPxsiE+uXIpNSK64UYaIwQXd4Q==}
+
   '@types/body-parser@1.19.6':
     resolution: {integrity: sha512-HLFeCYgz89uk22N5Qg3dvGvsv46B8GLvKKo1zKG4NybA8U2DiEO3w9lqGg29t/tfLRJpJ6iQxnVw4OnB7MoM9g==}
 
@@ -9558,6 +9577,10 @@ packages:
   pe-library@0.4.1:
     resolution: {integrity: sha512-eRWB5LBz7PpDu4PUlwT0PhnQfTQJlDDdPa35urV4Osrm0t0AqQFGn+UIkU3klZvwJ8KPO3VbBFsXquA6p6kqZw==}
     engines: {node: '>=12', npm: '>=6'}
+
+  pele@1.7.0:
+    resolution: {integrity: sha512-nkYb5VnxsTgwD4NThF6j4pJEC4AhGLJ9ptiL4q/vIzGr9q6ZtoRE3hFr94LgHpZ/xy56d1pw42UAQGaZkjM5XA==}
+    engines: {node: '>=20'}
 
   pend@1.2.0:
     resolution: {integrity: sha512-F3asv42UuXchdzt+xXqfW1OGlVBe+mxa2mqI0pg5yAHZPvFmY3Y6drSf/GQ1A86WgWEN9Kzh/WrgKa6iGcHXLg==}
@@ -14934,6 +14957,27 @@ snapshots:
     dependencies:
       '@types/node': 24.12.4
 
+  '@types/babel__core@7.20.5':
+    dependencies:
+      '@babel/parser': 7.29.8
+      '@babel/types': 7.29.8
+      '@types/babel__generator': 7.27.0
+      '@types/babel__template': 7.4.4
+      '@types/babel__traverse': 7.28.0
+
+  '@types/babel__generator@7.27.0':
+    dependencies:
+      '@babel/types': 7.29.8
+
+  '@types/babel__template@7.4.4':
+    dependencies:
+      '@babel/parser': 7.29.8
+      '@babel/types': 7.29.8
+
+  '@types/babel__traverse@7.28.0':
+    dependencies:
+      '@babel/types': 7.29.8
+
   '@types/body-parser@1.19.6':
     dependencies:
       '@types/connect': 3.4.38
@@ -19613,6 +19657,8 @@ snapshots:
       through: 2.3.8
 
   pe-library@0.4.1: {}
+
+  pele@1.7.0: {}
 
   pend@1.2.0: {}
 

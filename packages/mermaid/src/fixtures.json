@@ -1,0 +1,406 @@
+[
+  {
+    "id": "ampersand_lhs",
+    "source": "graph LR\nA --> B & C"
+  },
+  {
+    "id": "ampersand_lhs_and_rhs",
+    "source": "graph LR\nA & B --> C & D"
+  },
+  {
+    "id": "ampersand_rhs",
+    "source": "graph LR\nA & B --> C"
+  },
+  {
+    "id": "ampersand_td_fanin",
+    "source": "graph TD\nA & B --> C"
+  },
+  {
+    "id": "ampersand_td_fanout",
+    "source": "graph TD\nA --> B & C"
+  },
+  {
+    "id": "ampersand_without_edge",
+    "source": "graph LR\nA & B"
+  },
+  {
+    "id": "back_reference_from_child",
+    "source": "graph LR\nA --> B --> C --> A"
+  },
+  {
+    "id": "backlink_from_bottom",
+    "source": "graph LR\nA --> B\nB --> C\nA --> C\nB --> D\nC --> D"
+  },
+  {
+    "id": "backlink_from_top",
+    "source": "graph LR\nA --> B\nB --> C\nA --> C\nB --> D\nD --> C"
+  },
+  {
+    "id": "backlink_with_short_y_padding",
+    "source": "graph LR\nA --> B & C\nB --> C & D\nD --> C"
+  },
+  {
+    "id": "cls_all_relationships",
+    "source": "classDiagram\n  A <|-- B : inherits\n  C *-- D : owns\n  E o-- F : has\n  G --> H : uses\n  I ..> J : depends\n  K ..|> L : implements"
+  },
+  {
+    "id": "cls_annotation",
+    "source": "classDiagram\n  class Shape {\n    <<abstract>>\n    +draw() void\n  }\n  class Circle {\n    +radius int\n    +draw() void\n  }\n  Shape <|-- Circle"
+  },
+  {
+    "id": "cls_association",
+    "source": "classDiagram\n  Student --> Course : enrolls"
+  },
+  {
+    "id": "cls_basic",
+    "source": "classDiagram\n  class Animal {\n    +String name\n    +eat() void\n  }"
+  },
+  {
+    "id": "cls_dependency",
+    "source": "classDiagram\n  Client ..> Server : uses"
+  },
+  {
+    "id": "cls_inheritance",
+    "source": "classDiagram\n  Animal <|-- Dog\n  Animal : +String name\n  Dog : +bark() void"
+  },
+  {
+    "id": "cls_methods",
+    "source": "classDiagram\n  class BankAccount {\n    +String owner\n    -int balance\n    +deposit(int amount) void\n    +withdraw(int amount) bool\n    -validate() bool\n  }"
+  },
+  {
+    "id": "comments",
+    "source": "graph LR\n%% This is a comment\nA --> B\n%% Another comment\nB --> C\nA --> C\n%% Final comment"
+  },
+  {
+    "id": "custom_padding",
+    "source": "graph LR\nA --> B"
+  },
+  {
+    "id": "duplicate_labels",
+    "source": "graph TD\nA[Server] --> B[Client]\nC[Server] --> D[Client]"
+  },
+  {
+    "id": "er_attributes",
+    "source": "erDiagram\n  CUSTOMER {\n    string name PK\n    string email UK\n    int age\n  }\n  ORDER {\n    int id PK\n    string status\n  }\n  CUSTOMER ||--o{ ORDER : places"
+  },
+  {
+    "id": "er_basic",
+    "source": "erDiagram\n  CUSTOMER ||--o{ ORDER : places"
+  },
+  {
+    "id": "er_identifying",
+    "source": "erDiagram\n  PERSON ||--o{ ADDRESS : lives_at\n  PERSON {\n    string name PK\n  }\n  ADDRESS {\n    string street\n    string city\n  }"
+  },
+  {
+    "id": "flowchart_tb_simple",
+    "source": "flowchart TB\n    A --> B\n    B --> C"
+  },
+  {
+    "id": "graph_bt_direction",
+    "source": "graph BT\n  A --> B --> C"
+  },
+  {
+    "id": "graph_tb_direction",
+    "source": "graph TB\nsubgraph one\n    A --> B\nend"
+  },
+  {
+    "id": "nested_subgraphs_with_labels",
+    "source": "graph TD\nA[Web Server] --> B[API Gateway]\nB --> C[Web Server]\nsubgraph Frontend\nA\nend\nsubgraph Backend\nB\nC\nend"
+  },
+  {
+    "id": "preserve_order_of_definition",
+    "source": "graph LR\nA\nB\nB --> A\nA --> A\nB --> C\nC --> A"
+  },
+  {
+    "id": "self_reference",
+    "source": "graph LR\nA --> A"
+  },
+  {
+    "id": "self_reference_with_edge",
+    "source": "graph LR\nA --> A & B"
+  },
+  {
+    "id": "seq_basic",
+    "source": "sequenceDiagram\n  Alice->>Bob: Hello Bob\n  Bob-->>Alice: Hi Alice"
+  },
+  {
+    "id": "seq_multiple_messages",
+    "source": "sequenceDiagram\n  Alice->>Bob: Hello\n  Bob->>Charlie: Forward\n  Charlie-->>Bob: Reply\n  Bob-->>Alice: Done"
+  },
+  {
+    "id": "seq_self_message",
+    "source": "sequenceDiagram\n  Alice->>Alice: Think\n  Alice->>Bob: Result"
+  },
+  {
+    "id": "single_node",
+    "source": "graph LR\nA"
+  },
+  {
+    "id": "single_node_longer_name",
+    "source": "graph LR\nLongerName"
+  },
+  {
+    "id": "subgraph_complex_mixed",
+    "source": "graph LR\nStart\nsubgraph Processing\n    A --> B\n    B --> C\nend\nsubgraph Storage\n    D\n    E\nend\nStart --> A\nC --> D\nC --> E\nD --> End\nE --> End\nEnd"
+  },
+  {
+    "id": "subgraph_complex_nested",
+    "source": "graph LR\nsubgraph outer\n    A\n    subgraph inner\n        B\n    end\n    C\nend\nD"
+  },
+  {
+    "id": "subgraph_direction_override",
+    "source": "graph TD\nsubgraph one [LR Group]\n    direction LR\n    A --> B\nend\nX --> A\nB --> Y"
+  },
+  {
+    "id": "subgraph_empty",
+    "source": "graph LR\nsubgraph one\nend\nA --> B"
+  },
+  {
+    "id": "subgraph_mixed_nodes",
+    "source": "graph LR\nX\nsubgraph one\n    A --> B\nend\nY\nX --> A\nB --> Y"
+  },
+  {
+    "id": "subgraph_mixed_nodes_td",
+    "source": "graph TD\nX\nsubgraph one\n    A --> B\nend\nY\nX --> A\nB --> Y"
+  },
+  {
+    "id": "subgraph_multiple_edges",
+    "source": "graph LR\nsubgraph one\n    A --> B\n    A --> C\nend\nsubgraph two\n    D --> E\nend\nB --> D\nC --> E"
+  },
+  {
+    "id": "subgraph_multiple_nodes",
+    "source": "graph LR\nsubgraph one\n    A --> B\nend"
+  },
+  {
+    "id": "subgraph_nested",
+    "source": "graph LR\nsubgraph outer\n    subgraph inner\n        A\n    end\nend"
+  },
+  {
+    "id": "subgraph_nested_with_external",
+    "source": "graph LR\nX\nsubgraph outer\n    A\n    subgraph inner\n        B --> C\n    end\n    A --> B\nend\nX --> A\nC --> Y\nY"
+  },
+  {
+    "id": "subgraph_node_outside_lr",
+    "source": "graph LR\nX\nsubgraph one\n    A --> B\nend"
+  },
+  {
+    "id": "subgraph_single_node",
+    "source": "graph LR\nsubgraph one\n    A\nend"
+  },
+  {
+    "id": "subgraph_td_direction",
+    "source": "graph TD\nsubgraph one\n    A --> B\nend"
+  },
+  {
+    "id": "subgraph_td_multiple",
+    "source": "graph TD\nsubgraph Frontend\n    UI --> API\nend\nsubgraph Backend\n    API --> Database\n    API --> Cache\nend"
+  },
+  {
+    "id": "subgraph_three_levels_nested",
+    "source": "graph LR\nsubgraph level1\n    subgraph level2\n        subgraph level3\n            A\n        end\n    end\nend"
+  },
+  {
+    "id": "subgraph_three_separate",
+    "source": "graph LR\nsubgraph Frontend\n    UI\nend\nsubgraph Backend\n    API\nend\nsubgraph Database\n    DB\nend\nUI --> API\nAPI --> DB"
+  },
+  {
+    "id": "subgraph_two_separate",
+    "source": "graph LR\nsubgraph one\n    A\nend\nsubgraph two\n    B\nend\nA --> B"
+  },
+  {
+    "id": "subgraph_with_labels",
+    "source": "graph LR\nsubgraph one\n    A -->|sends| B\nend\nsubgraph two\n    C -->|receives| D\nend\nB -->|data| C"
+  },
+  {
+    "id": "three_nodes",
+    "source": "graph LR\nA --> B\nB --> C"
+  },
+  {
+    "id": "three_nodes_single_line",
+    "source": "graph LR\nA --> B --> C"
+  },
+  {
+    "id": "two_layer_single_graph",
+    "source": "graph LR\nA --> B\nA --> C"
+  },
+  {
+    "id": "two_layer_single_graph_longer_names",
+    "source": "graph LR\nABC --> BCDEFG\nABC --> CDEFGHI"
+  },
+  {
+    "id": "two_nodes_longer_names",
+    "source": "graph LR\nLongerName1 --> LongerName2"
+  },
+  {
+    "id": "two_root_nodes",
+    "source": "graph LR\nA --> B\nC --> D"
+  },
+  {
+    "id": "two_root_nodes_longer_names",
+    "source": "graph LR\nABC --> BCDEFG\nCDEFGH --> DEF"
+  },
+  {
+    "id": "two_single_root_nodes",
+    "source": "graph LR\nA\nB"
+  },
+  {
+    "id": "state",
+    "source": "stateDiagram-v2\n[*] --> Idle\nIdle --> Running\nRunning --> [*]"
+  },
+  {
+    "id": "xychart",
+    "source": "xychart-beta\ntitle \"Sales\"\nx-axis [Jan, Feb]\ny-axis 0 --> 100\nbar [25, 75]"
+  },
+  {
+    "id": "architecture-flow",
+    "source": "flowchart LR\nA[User request] --> B[WebSocket server]\nB --> C{Permission granted?}\nC -->|Yes| D[Agent runtime]\nC -->|No| E[Show error]\nD --> F[Stream response]\nF --> G[Save checkpoint]"
+  },
+  {
+    "id": "sequence-wide",
+    "source": "sequenceDiagram\nparticipant U as User\nparticipant W as Web client\nparticipant S as Server\nparticipant P as Provider\nU->>W: Send a new message\nW->>S: Start turn\nS->>P: Execute request\nP-->>S: Stream output\nS-->>W: Push events\nW-->>U: Render response"
+  },
+  {
+    "id": "nested",
+    "source": "flowchart LR\nsubgraph Clients\nW[Web] --> D[Desktop]\nend\nsubgraph Environment\nS[Server] --> A[Agent]\nend\nW --> S\nD --> S"
+  },
+  {
+    "id": "long-label",
+    "source": "flowchart LR\nA[\"Review the implementation and collect validation results\"] --> B[\"Create a pull request with the verified changes\"] --> C[\"Wait for review\"]"
+  },
+  {
+    "id": "unicode",
+    "source": "flowchart LR\nA[\"日本語の処理\"] --> B[\"Tiếng Việt\"] --> C[\"🚀 Ready\"]"
+  },
+  {
+    "id": "pie",
+    "source": "pie title Work\n\"Done\" : 70\n\"Remaining\" : 30"
+  },
+  {
+    "id": "gantt",
+    "source": "gantt\ntitle Release\ndateFormat YYYY-MM-DD\nsection Work\nDesign :a1, 2026-10-01, 3d\nBuild :after a1, 4d"
+  },
+  {
+    "id": "mindmap",
+    "source": "mindmap\n  root((Supaterm))\n    Web\n    Desktop\n    Mobile"
+  },
+  {
+    "id": "timeline",
+    "source": "timeline\n title Release\n October : Design\n November : Ship"
+  },
+  {
+    "id": "git",
+    "source": "gitGraph\ncommit id: \"Start\"\nbranch feature\ncheckout feature\ncommit id: \"Change\"\ncheckout main\nmerge feature"
+  },
+  {
+    "id": "journey",
+    "source": "journey\n title User journey\n section Work\n  Open project: 5: User\n  Send message: 4: User"
+  },
+  {
+    "id": "quadrant",
+    "source": "quadrantChart\n title Priorities\n x-axis Low impact --> High impact\n y-axis Low effort --> High effort\n Task: [0.7, 0.2]"
+  },
+  {
+    "id": "sankey",
+    "source": "sankey-beta\nRequests,Allowed,80\nRequests,Denied,20"
+  },
+  {
+    "id": "packet",
+    "source": "packet-beta\n0-15: \"Header\"\n16-31: \"Data\""
+  },
+  {
+    "id": "block",
+    "source": "block-beta\ncolumns 3\nA B C\nA --> B\nB --> C"
+  },
+  {
+    "id": "frontmatter",
+    "source": "---\ntitle: Agent lifecycle\n---\nflowchart LR\nA[Start] --> B[Finish]"
+  },
+  {
+    "id": "styled",
+    "source": "flowchart LR\nA[Start] --> B[Finish]\nclassDef warning fill:#ff0000,color:#ffffff\nclass B warning"
+  },
+  {
+    "id": "chain-10",
+    "source": "flowchart LR\nN0[Step 0] --> N1[Step 1]\nN1[Step 1] --> N2[Step 2]\nN2[Step 2] --> N3[Step 3]\nN3[Step 3] --> N4[Step 4]\nN4[Step 4] --> N5[Step 5]\nN5[Step 5] --> N6[Step 6]\nN6[Step 6] --> N7[Step 7]\nN7[Step 7] --> N8[Step 8]\nN8[Step 8] --> N9[Step 9]"
+  },
+  {
+    "id": "chain-50",
+    "source": "flowchart LR\nN0[Step 0] --> N1[Step 1]\nN1[Step 1] --> N2[Step 2]\nN2[Step 2] --> N3[Step 3]\nN3[Step 3] --> N4[Step 4]\nN4[Step 4] --> N5[Step 5]\nN5[Step 5] --> N6[Step 6]\nN6[Step 6] --> N7[Step 7]\nN7[Step 7] --> N8[Step 8]\nN8[Step 8] --> N9[Step 9]\nN9[Step 9] --> N10[Step 10]\nN10[Step 10] --> N11[Step 11]\nN11[Step 11] --> N12[Step 12]\nN12[Step 12] --> N13[Step 13]\nN13[Step 13] --> N14[Step 14]\nN14[Step 14] --> N15[Step 15]\nN15[Step 15] --> N16[Step 16]\nN16[Step 16] --> N17[Step 17]\nN17[Step 17] --> N18[Step 18]\nN18[Step 18] --> N19[Step 19]\nN19[Step 19] --> N20[Step 20]\nN20[Step 20] --> N21[Step 21]\nN21[Step 21] --> N22[Step 22]\nN22[Step 22] --> N23[Step 23]\nN23[Step 23] --> N24[Step 24]\nN24[Step 24] --> N25[Step 25]\nN25[Step 25] --> N26[Step 26]\nN26[Step 26] --> N27[Step 27]\nN27[Step 27] --> N28[Step 28]\nN28[Step 28] --> N29[Step 29]\nN29[Step 29] --> N30[Step 30]\nN30[Step 30] --> N31[Step 31]\nN31[Step 31] --> N32[Step 32]\nN32[Step 32] --> N33[Step 33]\nN33[Step 33] --> N34[Step 34]\nN34[Step 34] --> N35[Step 35]\nN35[Step 35] --> N36[Step 36]\nN36[Step 36] --> N37[Step 37]\nN37[Step 37] --> N38[Step 38]\nN38[Step 38] --> N39[Step 39]\nN39[Step 39] --> N40[Step 40]\nN40[Step 40] --> N41[Step 41]\nN41[Step 41] --> N42[Step 42]\nN42[Step 42] --> N43[Step 43]\nN43[Step 43] --> N44[Step 44]\nN44[Step 44] --> N45[Step 45]\nN45[Step 45] --> N46[Step 46]\nN46[Step 46] --> N47[Step 47]\nN47[Step 47] --> N48[Step 48]\nN48[Step 48] --> N49[Step 49]"
+  },
+  {
+    "id": "chain-100",
+    "source": "flowchart LR\nN0[Step 0] --> N1[Step 1]\nN1[Step 1] --> N2[Step 2]\nN2[Step 2] --> N3[Step 3]\nN3[Step 3] --> N4[Step 4]\nN4[Step 4] --> N5[Step 5]\nN5[Step 5] --> N6[Step 6]\nN6[Step 6] --> N7[Step 7]\nN7[Step 7] --> N8[Step 8]\nN8[Step 8] --> N9[Step 9]\nN9[Step 9] --> N10[Step 10]\nN10[Step 10] --> N11[Step 11]\nN11[Step 11] --> N12[Step 12]\nN12[Step 12] --> N13[Step 13]\nN13[Step 13] --> N14[Step 14]\nN14[Step 14] --> N15[Step 15]\nN15[Step 15] --> N16[Step 16]\nN16[Step 16] --> N17[Step 17]\nN17[Step 17] --> N18[Step 18]\nN18[Step 18] --> N19[Step 19]\nN19[Step 19] --> N20[Step 20]\nN20[Step 20] --> N21[Step 21]\nN21[Step 21] --> N22[Step 22]\nN22[Step 22] --> N23[Step 23]\nN23[Step 23] --> N24[Step 24]\nN24[Step 24] --> N25[Step 25]\nN25[Step 25] --> N26[Step 26]\nN26[Step 26] --> N27[Step 27]\nN27[Step 27] --> N28[Step 28]\nN28[Step 28] --> N29[Step 29]\nN29[Step 29] --> N30[Step 30]\nN30[Step 30] --> N31[Step 31]\nN31[Step 31] --> N32[Step 32]\nN32[Step 32] --> N33[Step 33]\nN33[Step 33] --> N34[Step 34]\nN34[Step 34] --> N35[Step 35]\nN35[Step 35] --> N36[Step 36]\nN36[Step 36] --> N37[Step 37]\nN37[Step 37] --> N38[Step 38]\nN38[Step 38] --> N39[Step 39]\nN39[Step 39] --> N40[Step 40]\nN40[Step 40] --> N41[Step 41]\nN41[Step 41] --> N42[Step 42]\nN42[Step 42] --> N43[Step 43]\nN43[Step 43] --> N44[Step 44]\nN44[Step 44] --> N45[Step 45]\nN45[Step 45] --> N46[Step 46]\nN46[Step 46] --> N47[Step 47]\nN47[Step 47] --> N48[Step 48]\nN48[Step 48] --> N49[Step 49]\nN49[Step 49] --> N50[Step 50]\nN50[Step 50] --> N51[Step 51]\nN51[Step 51] --> N52[Step 52]\nN52[Step 52] --> N53[Step 53]\nN53[Step 53] --> N54[Step 54]\nN54[Step 54] --> N55[Step 55]\nN55[Step 55] --> N56[Step 56]\nN56[Step 56] --> N57[Step 57]\nN57[Step 57] --> N58[Step 58]\nN58[Step 58] --> N59[Step 59]\nN59[Step 59] --> N60[Step 60]\nN60[Step 60] --> N61[Step 61]\nN61[Step 61] --> N62[Step 62]\nN62[Step 62] --> N63[Step 63]\nN63[Step 63] --> N64[Step 64]\nN64[Step 64] --> N65[Step 65]\nN65[Step 65] --> N66[Step 66]\nN66[Step 66] --> N67[Step 67]\nN67[Step 67] --> N68[Step 68]\nN68[Step 68] --> N69[Step 69]\nN69[Step 69] --> N70[Step 70]\nN70[Step 70] --> N71[Step 71]\nN71[Step 71] --> N72[Step 72]\nN72[Step 72] --> N73[Step 73]\nN73[Step 73] --> N74[Step 74]\nN74[Step 74] --> N75[Step 75]\nN75[Step 75] --> N76[Step 76]\nN76[Step 76] --> N77[Step 77]\nN77[Step 77] --> N78[Step 78]\nN78[Step 78] --> N79[Step 79]\nN79[Step 79] --> N80[Step 80]\nN80[Step 80] --> N81[Step 81]\nN81[Step 81] --> N82[Step 82]\nN82[Step 82] --> N83[Step 83]\nN83[Step 83] --> N84[Step 84]\nN84[Step 84] --> N85[Step 85]\nN85[Step 85] --> N86[Step 86]\nN86[Step 86] --> N87[Step 87]\nN87[Step 87] --> N88[Step 88]\nN88[Step 88] --> N89[Step 89]\nN89[Step 89] --> N90[Step 90]\nN90[Step 90] --> N91[Step 91]\nN91[Step 91] --> N92[Step 92]\nN92[Step 92] --> N93[Step 93]\nN93[Step 93] --> N94[Step 94]\nN94[Step 94] --> N95[Step 95]\nN95[Step 95] --> N96[Step 96]\nN96[Step 96] --> N97[Step 97]\nN97[Step 97] --> N98[Step 98]\nN98[Step 98] --> N99[Step 99]"
+  },
+  {
+    "id": "chain-128",
+    "source": "flowchart LR\nN0[Step 0] --> N1[Step 1]\nN1[Step 1] --> N2[Step 2]\nN2[Step 2] --> N3[Step 3]\nN3[Step 3] --> N4[Step 4]\nN4[Step 4] --> N5[Step 5]\nN5[Step 5] --> N6[Step 6]\nN6[Step 6] --> N7[Step 7]\nN7[Step 7] --> N8[Step 8]\nN8[Step 8] --> N9[Step 9]\nN9[Step 9] --> N10[Step 10]\nN10[Step 10] --> N11[Step 11]\nN11[Step 11] --> N12[Step 12]\nN12[Step 12] --> N13[Step 13]\nN13[Step 13] --> N14[Step 14]\nN14[Step 14] --> N15[Step 15]\nN15[Step 15] --> N16[Step 16]\nN16[Step 16] --> N17[Step 17]\nN17[Step 17] --> N18[Step 18]\nN18[Step 18] --> N19[Step 19]\nN19[Step 19] --> N20[Step 20]\nN20[Step 20] --> N21[Step 21]\nN21[Step 21] --> N22[Step 22]\nN22[Step 22] --> N23[Step 23]\nN23[Step 23] --> N24[Step 24]\nN24[Step 24] --> N25[Step 25]\nN25[Step 25] --> N26[Step 26]\nN26[Step 26] --> N27[Step 27]\nN27[Step 27] --> N28[Step 28]\nN28[Step 28] --> N29[Step 29]\nN29[Step 29] --> N30[Step 30]\nN30[Step 30] --> N31[Step 31]\nN31[Step 31] --> N32[Step 32]\nN32[Step 32] --> N33[Step 33]\nN33[Step 33] --> N34[Step 34]\nN34[Step 34] --> N35[Step 35]\nN35[Step 35] --> N36[Step 36]\nN36[Step 36] --> N37[Step 37]\nN37[Step 37] --> N38[Step 38]\nN38[Step 38] --> N39[Step 39]\nN39[Step 39] --> N40[Step 40]\nN40[Step 40] --> N41[Step 41]\nN41[Step 41] --> N42[Step 42]\nN42[Step 42] --> N43[Step 43]\nN43[Step 43] --> N44[Step 44]\nN44[Step 44] --> N45[Step 45]\nN45[Step 45] --> N46[Step 46]\nN46[Step 46] --> N47[Step 47]\nN47[Step 47] --> N48[Step 48]\nN48[Step 48] --> N49[Step 49]\nN49[Step 49] --> N50[Step 50]\nN50[Step 50] --> N51[Step 51]\nN51[Step 51] --> N52[Step 52]\nN52[Step 52] --> N53[Step 53]\nN53[Step 53] --> N54[Step 54]\nN54[Step 54] --> N55[Step 55]\nN55[Step 55] --> N56[Step 56]\nN56[Step 56] --> N57[Step 57]\nN57[Step 57] --> N58[Step 58]\nN58[Step 58] --> N59[Step 59]\nN59[Step 59] --> N60[Step 60]\nN60[Step 60] --> N61[Step 61]\nN61[Step 61] --> N62[Step 62]\nN62[Step 62] --> N63[Step 63]\nN63[Step 63] --> N64[Step 64]\nN64[Step 64] --> N65[Step 65]\nN65[Step 65] --> N66[Step 66]\nN66[Step 66] --> N67[Step 67]\nN67[Step 67] --> N68[Step 68]\nN68[Step 68] --> N69[Step 69]\nN69[Step 69] --> N70[Step 70]\nN70[Step 70] --> N71[Step 71]\nN71[Step 71] --> N72[Step 72]\nN72[Step 72] --> N73[Step 73]\nN73[Step 73] --> N74[Step 74]\nN74[Step 74] --> N75[Step 75]\nN75[Step 75] --> N76[Step 76]\nN76[Step 76] --> N77[Step 77]\nN77[Step 77] --> N78[Step 78]\nN78[Step 78] --> N79[Step 79]\nN79[Step 79] --> N80[Step 80]\nN80[Step 80] --> N81[Step 81]\nN81[Step 81] --> N82[Step 82]\nN82[Step 82] --> N83[Step 83]\nN83[Step 83] --> N84[Step 84]\nN84[Step 84] --> N85[Step 85]\nN85[Step 85] --> N86[Step 86]\nN86[Step 86] --> N87[Step 87]\nN87[Step 87] --> N88[Step 88]\nN88[Step 88] --> N89[Step 89]\nN89[Step 89] --> N90[Step 90]\nN90[Step 90] --> N91[Step 91]\nN91[Step 91] --> N92[Step 92]\nN92[Step 92] --> N93[Step 93]\nN93[Step 93] --> N94[Step 94]\nN94[Step 94] --> N95[Step 95]\nN95[Step 95] --> N96[Step 96]\nN96[Step 96] --> N97[Step 97]\nN97[Step 97] --> N98[Step 98]\nN98[Step 98] --> N99[Step 99]\nN99[Step 99] --> N100[Step 100]\nN100[Step 100] --> N101[Step 101]\nN101[Step 101] --> N102[Step 102]\nN102[Step 102] --> N103[Step 103]\nN103[Step 103] --> N104[Step 104]\nN104[Step 104] --> N105[Step 105]\nN105[Step 105] --> N106[Step 106]\nN106[Step 106] --> N107[Step 107]\nN107[Step 107] --> N108[Step 108]\nN108[Step 108] --> N109[Step 109]\nN109[Step 109] --> N110[Step 110]\nN110[Step 110] --> N111[Step 111]\nN111[Step 111] --> N112[Step 112]\nN112[Step 112] --> N113[Step 113]\nN113[Step 113] --> N114[Step 114]\nN114[Step 114] --> N115[Step 115]\nN115[Step 115] --> N116[Step 116]\nN116[Step 116] --> N117[Step 117]\nN117[Step 117] --> N118[Step 118]\nN118[Step 118] --> N119[Step 119]\nN119[Step 119] --> N120[Step 120]\nN120[Step 120] --> N121[Step 121]\nN121[Step 121] --> N122[Step 122]\nN122[Step 122] --> N123[Step 123]\nN123[Step 123] --> N124[Step 124]\nN124[Step 124] --> N125[Step 125]\nN125[Step 125] --> N126[Step 126]\nN126[Step 126] --> N127[Step 127]"
+  },
+  {
+    "id": "agentflow-example",
+    "source": "---\nconfig:\n  agentflow:\n    nodeSpacing: 70\n    rankSpacing: 70\n---\nagentflow-beta TB\n  a[\"A\"] --> b[\"B\"]\n"
+  },
+  {
+    "id": "architecture-example",
+    "source": "architecture-beta\n    service src1(server)[Source 1]\n    service src2(server)[Source 2]\n    service src3(server)[Source 3]\n    service proc(server)[Processor]\n    src1:B --> T:proc\n    src2:B --> T:proc\n    src3:B --> T:proc\n    align row src1 src2 src3\n"
+  },
+  {
+    "id": "c4-example",
+    "source": "    C4Dynamic\n    title Dynamic diagram for Internet Banking System - API Application\n\n    ContainerDb(c4, \"Database\", \"Relational Database Schema\", \"Stores user registration information, hashed authentication credentials, access logs, etc.\")\n    Container(c1, \"Single-Page Application\", \"JavaScript and Angular\", \"Provides all of the Internet banking functionality to customers via their web browser.\")\n    Container_Boundary(b, \"API Application\") {\n      Component(c3, \"Security Component\", \"Spring Bean\", \"Provides functionality Related to signing in, changing passwords, etc.\")\n      Component(c2, \"Sign In Controller\", \"Spring MVC Rest Controller\", \"Allows users to sign in to the Internet Banking System.\")\n    }\n    Rel(c1, c2, \"Submits credentials to\", \"JSON/HTTPS\")\n    Rel(c2, c3, \"Calls isAuthenticated() on\")\n    Rel(c3, c4, \"select * from users where username = ?\", \"JDBC\")\n\n    UpdateRelStyle(c1, c2, $textColor=\"red\", $offsetY=\"-40\")\n    UpdateRelStyle(c2, c3, $textColor=\"red\", $offsetX=\"-40\", $offsetY=\"60\")\n    UpdateRelStyle(c3, c4, $textColor=\"red\", $offsetY=\"-40\", $offsetX=\"10\")\n\n"
+  },
+  {
+    "id": "cynefin-example",
+    "source": "cynefin-beta\n  title Cynefin Framework\n\n  complex\n  complicated\n  clear\n  chaotic\n"
+  },
+  {
+    "id": "eventmodeling-example",
+    "source": "eventmodeling\n\ntf 01 ui CartUI\ntf 02 cmd AddItem\ntf 03 evt ItemAdded\n"
+  },
+  {
+    "id": "ishikawa-example",
+    "source": "ishikawa-beta\n    Blurry Photo\n    Process\n        Out of focus\n        Shutter speed too slow\n        Protective film not removed\n        Beautification filter applied\n    User\n        Shaky hands\n    Equipment\n        LENS\n            Inappropriate lens\n            Damaged lens\n            Dirty lens\n        SENSOR\n            Damaged sensor\n            Dirty sensor\n    Environment\n        Subject moved too quickly\n        Too dark\n"
+  },
+  {
+    "id": "kanban-example",
+    "source": "kanban\n  column1[Column Title]\n    task1[Task Description]\n"
+  },
+  {
+    "id": "radar-example",
+    "source": "---\ntitle: \"Grades\"\n---\nradar-beta\n  axis m[\"Math\"], s[\"Science\"], e[\"English\"]\n  axis h[\"History\"], g[\"Geography\"], a[\"Art\"]\n  curve a[\"Alice\"]{85, 90, 80, 70, 75, 90}\n  curve b[\"Bob\"]{70, 75, 85, 80, 90, 85}\n\n  max 100\n  min 0\n"
+  },
+  {
+    "id": "railroad-example",
+    "source": "railroad-ebnf-beta\nsign = \"+\" | \"-\" ;\n"
+  },
+  {
+    "id": "requirement-example",
+    "source": "requirementDiagram\n\nrequirement \"__test_req__\" {\n    id: 1\n    text: \"*italicized text* **bold text**\"\n    risk: high\n    verifymethod: test\n}\n"
+  },
+  {
+    "id": "swimlane-example",
+    "source": "swimlane-beta\n  subgraph Sales\n    lead[Qualify lead]\n    quote[Prepare quote]\n  end\n"
+  },
+  {
+    "id": "treemap-example",
+    "source": "treemap-beta\n\"Category A\"\n    \"Item A1\": 10\n    \"Item A2\": 20\n\"Category B\"\n    \"Item B1\": 15\n    \"Item B2\": 25\n"
+  },
+  {
+    "id": "treeView-example",
+    "source": "treeView-beta\n    \"packages\"\n        \"mermaid\"\n            \"src\"\n        \"parser\"\n"
+  },
+  {
+    "id": "usecase-example",
+    "source": "usecase-beta\nactor User\nLogin\nUser -- \"include account details\" --> Login\n"
+  },
+  {
+    "id": "venn-example",
+    "source": "venn-beta\n  set A[\"Alpha\"]\n  set B[\"Beta\"]\n  union A,B[\"AB\"]\n"
+  },
+  {
+    "id": "wardley-example",
+    "source": "wardley-beta\ntitle Custom Size\nsize [800, 1000]\n"
+  },
+  {
+    "id": "info-example",
+    "source": "info"
+  }
+]

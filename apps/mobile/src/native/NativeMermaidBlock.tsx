@@ -6,6 +6,8 @@ import { Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { SymbolView } from "../components/ui/AppSymbol";
 import { CopyTextButton } from "../features/threads/CopyTextButton";
 import { SourceText } from "@supaterm/mobile-source-text";
+import { NativeMermaidSvg } from "./NativeMermaidSvg";
+import { diagramOptions, type Diagram, type DiagramOptions } from "@supaterm/mermaid/diagram";
 import type { NativeMarkdownTextStyle } from "./SelectableMarkdownText.types";
 
 export function NativeMermaidBlock({
@@ -17,35 +19,55 @@ export function NativeMermaidBlock({
   readonly source: string;
   readonly textStyle: NativeMarkdownTextStyle;
   readonly compact?: boolean;
-  readonly renderDiagram: ((source: string) => Promise<string | null>) | null;
+  readonly renderDiagram:
+    | ((source: string, options?: DiagramOptions) => Promise<Diagram | null>)
+    | null;
 }) {
   const navigation = useNavigation();
-  const [result, setResult] = useState<{ source: string; text: string | null } | null>(null);
+  const [result, setResult] = useState<{ source: string; diagram: Diagram | null } | null>(null);
   const [sourceSelected, setSourceSelected] = useState(false);
-  const diagram = renderDiagram && result?.source === source ? result.text : null;
+  const diagram = renderDiagram && result?.source === source ? result.diagram : null;
   const showDiagram = diagram !== null && !sourceSelected;
-  const content = showDiagram ? diagram : source;
+  const [width, setWidth] = useState(0);
   const fontSize = Math.max(10, Math.round(textStyle.fontSize * 0.8));
-  const failed = renderDiagram !== null && result?.source === source && result.text === null;
+  const failed = renderDiagram !== null && result?.source === source && result.diagram === null;
 
   useEffect(() => {
-    if (!renderDiagram) return;
+    if (!renderDiagram || !width) return;
     let active = true;
-    void renderDiagram(source).then(
-      (text) => {
-        if (active) setResult({ source, text });
+    void renderDiagram(source, { maxWidth: width }).then(
+      (diagram) => {
+        if (active) setResult({ source, diagram });
       },
       () => {
-        if (active) setResult({ source, text: null });
+        if (active) setResult({ source, diagram: null });
       },
     );
     return () => {
       active = false;
     };
-  }, [renderDiagram, source]);
+  }, [renderDiagram, source, width]);
+
+  const sourceText = (
+    <SourceText
+      selectable
+      selectionColor={textStyle.selectionColor}
+      style={{
+        color: textStyle.codeColor,
+        fontFamily: CODE_FONT_FAMILY,
+        fontSize,
+        lineHeight: fontSize + 6,
+      }}
+    >
+      {source}
+    </SourceText>
+  );
 
   return (
     <View
+      onLayout={(event) =>
+        setWidth(diagramOptions({ maxWidth: event.nativeEvent.layout.width - 28 }).maxWidth)
+      }
       style={{
         backgroundColor: textStyle.codeBlockBackgroundColor,
         borderColor: textStyle.dividerColor,
@@ -99,8 +121,8 @@ export function NativeMermaidBlock({
           </Pressable>
         ) : null}
         <CopyTextButton
-          accessibilityLabel={showDiagram ? "Copy diagram" : "Copy Mermaid source"}
-          text={content}
+          accessibilityLabel="Copy Mermaid source"
+          text={source}
           tintColor={textStyle.mutedColor}
           copiedTintColor={textStyle.linkColor}
           backgroundColor={textStyle.codeBackgroundColor}
@@ -109,26 +131,22 @@ export function NativeMermaidBlock({
           iconSize={14}
         />
       </View>
-      <ScrollView
-        key={showDiagram ? "diagram" : "source"}
-        horizontal
-        bounces={false}
-        nestedScrollEnabled={Platform.OS === "android"}
-        contentContainerStyle={{ paddingHorizontal: 14, paddingVertical: 12 }}
-      >
-        <SourceText
-          selectable
-          selectionColor={textStyle.selectionColor}
-          style={{
-            color: textStyle.codeColor,
-            fontFamily: CODE_FONT_FAMILY,
-            fontSize,
-            lineHeight: fontSize + 6,
-          }}
+      {showDiagram ? (
+        <ScrollView style={{ maxHeight: 480 }} nestedScrollEnabled bounces={false}>
+          <ScrollView horizontal nestedScrollEnabled contentContainerStyle={{ padding: 12 }}>
+            <NativeMermaidSvg diagram={diagram} fallback={sourceText} />
+          </ScrollView>
+        </ScrollView>
+      ) : (
+        <ScrollView
+          horizontal
+          bounces={false}
+          nestedScrollEnabled={Platform.OS === "android"}
+          contentContainerStyle={{ paddingHorizontal: 14, paddingVertical: 12 }}
         >
-          {content}
-        </SourceText>
-      </ScrollView>
+          {sourceText}
+        </ScrollView>
+      )}
     </View>
   );
 }

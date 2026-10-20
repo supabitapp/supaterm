@@ -26,7 +26,7 @@
     "@pierre/trees": "1.0.0-beta.6",
     "@supaterm/client-runtime": "workspace:*",
     "@supaterm/contracts": "workspace:*",
-    "@supaterm/mermaid-ascii": "workspace:*",
+    "@supaterm/mermaid": "workspace:*",
     "@supaterm/provider-acp-registry": "workspace:*",
     "@supaterm/provider-core": "workspace:*",
     "@supaterm/provider-cursor": "workspace:*",

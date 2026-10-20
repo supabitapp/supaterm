@@ -4,6 +4,8 @@ import { SourceText } from "@supaterm/mobile-source-text";
 import { useEffect, useLayoutEffect, useState } from "react";
 import { Platform, Pressable, ScrollView, View } from "react-native";
 
+import { diagramOptions, type Diagram } from "@supaterm/mermaid/diagram";
+import { NativeMermaidSvg } from "../../native/NativeMermaidSvg";
 import { AppText } from "../../components/ui/AppText";
 import { CODE_FONT_FAMILY } from "../../lib/fonts";
 import { renderMermaidDiagram } from "../../lib/mermaidRenderer.native";
@@ -61,40 +63,55 @@ export function MermaidDiagramScreen(props: StaticScreenProps<MermaidDiagramRout
   const codeText = useUniwindTheme()["--color-md-code-text"];
   const { codeSurface } = useAppearanceCodeSurface();
   const [zoom, setZoom] = useState(1);
-  // The source rather than the diagram travels in the route, since route params are
-  // serialized into the workspace path; rendering hits the cache the block just filled.
-  const [diagram, setDiagram] = useState<string | null>(null);
+  const [width, setWidth] = useState(0);
+  const [result, setResult] = useState<{ source: string; diagram: Diagram | null } | null>(null);
+  const diagram = result?.source === source ? result.diagram : null;
 
   useEffect(() => {
+    if (!width) return;
     let active = true;
-    void renderMermaidDiagram(source).then((rendered) => {
-      if (active) setDiagram(rendered ?? source);
+    void renderMermaidDiagram(source, { maxWidth: width }).then((rendered) => {
+      if (active) setResult({ source, diagram: rendered });
     });
     return () => {
       active = false;
     };
-  }, [source]);
+  }, [source, width]);
 
   useLayoutEffect(() => {
     const controls = <ZoomControls zoom={zoom} onZoom={setZoom} />;
     navigation.setOptions({ headerRight: () => controls });
   }, [navigation, zoom]);
 
+  const sourceText = (
+    <SourceText
+      selectable
+      selectionColorClassName={Platform.OS === "android" ? "accent-focus/32" : undefined}
+      style={{
+        color: codeText,
+        fontFamily: CODE_FONT_FAMILY,
+        fontSize: codeSurface.fontSize * zoom,
+        lineHeight: codeSurface.rowHeight * zoom,
+      }}
+    >
+      {source}
+    </SourceText>
+  );
+
   return (
-    <ScrollView className="flex-1 bg-md-code-bg" contentInsetAdjustmentBehavior="automatic">
+    <ScrollView
+      className="flex-1 bg-md-code-bg"
+      contentInsetAdjustmentBehavior="automatic"
+      onLayout={(event) =>
+        setWidth(diagramOptions({ maxWidth: event.nativeEvent.layout.width - 32 }).maxWidth)
+      }
+    >
       <ScrollView horizontal contentContainerStyle={{ padding: 16 }}>
-        <SourceText
-          selectable
-          selectionColorClassName={Platform.OS === "android" ? "accent-focus/32" : undefined}
-          style={{
-            color: codeText,
-            fontFamily: CODE_FONT_FAMILY,
-            fontSize: codeSurface.fontSize * zoom,
-            lineHeight: codeSurface.rowHeight * zoom,
-          }}
-        >
-          {diagram}
-        </SourceText>
+        {diagram ? (
+          <NativeMermaidSvg diagram={diagram} zoom={zoom} fallback={sourceText} />
+        ) : (
+          sourceText
+        )}
       </ScrollView>
     </ScrollView>
   );
