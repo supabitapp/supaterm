@@ -58,7 +58,7 @@ import { resolveDiffThemeName } from "~/lib/diffRendering";
 import { PREFERRED_HIGHLIGHTER } from "~/lib/syntaxHighlighting";
 import { cn } from "~/lib/utils";
 import type { ChatFileAttachment } from "~/types";
-import { isAbsolutePath } from "@supaterm/shared/path";
+import { fileBasename, isAbsolutePath } from "@supaterm/shared/path";
 import { resolvePathLinkTarget } from "@supaterm/shared/fileLinks";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { stackedThreadToast, toastManager } from "~/components/ui/toast";
@@ -1367,6 +1367,23 @@ export default function FilePreviewPanel({
               workspaceRoot={cwd}
               title={relativePath}
               workspaceMutationId={workspaceMutationId}
+            />
+          ) : relativePath && absolutePath && file.readError?.failure === "binary_file" ? (
+            <AttachmentFilePreview
+              key={`${environmentId}:${absolutePath}`}
+              name={fileBasename(relativePath)}
+              mimeType="application/octet-stream"
+              sizeBytes={0}
+              asset={{
+                environmentId,
+                resource: {
+                  _tag: "media-file",
+                  threadId: threadRef.threadId,
+                  path: absolutePath,
+                  disposition: "attachment",
+                },
+              }}
+              origin="File"
             />
           ) : relativePath && file.error && file.data === null ? (
             <div
