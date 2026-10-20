@@ -27,6 +27,7 @@ import {
 } from "../serverRuntimeState.ts";
 import {
   DevServerNotProxiableError,
+  PairRouteConflictError,
   resolveDirectPairingBaseUrl,
   resolveTailscaleLocalTarget,
 } from "./pair.ts";
@@ -152,7 +153,10 @@ const withDescriptorServer = <A, E, R>(
   );
 
 describe("supaterm pair", () => {
-  it.effect("activates an idle relay before printing its first pairing URL", () => {
+  it.effect.each([
+    { label: "by default", flags: [] },
+    { label: "with --relay", flags: ["--relay"] },
+  ])("activates an idle relay $label before printing its first pairing URL", ({ flags }) => {
     const relay = {
       relayEndpoint: `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`,
       relayUrl: "wss://custom-relay.invalid",
@@ -170,7 +174,7 @@ describe("supaterm pair", () => {
               port: Number(new URL(origin).port),
             }),
           });
-          const output = yield* captureStdout(runCli(["pair", "--relay", "--base-dir", baseDir]));
+          const output = yield* captureStdout(runCli(["pair", ...flags, "--base-dir", baseDir]));
           assert.include(output, `Pairing URL: ${relay.relayEndpoint}pair#token=`);
           assert.include(output, `relay=${encodeURIComponent(relay.relayUrl)}`);
           const sessions = yield* captureStdout(
@@ -181,7 +185,7 @@ describe("supaterm pair", () => {
       relay,
     ).pipe(Effect.provide(NodeServices.layer));
   });
-  it.effect("mints a token and prints a QR pairing URL for a live server", () =>
+  it.effect("pairs directly without activating relay with --no-relay", () =>
     withDescriptorServer((origin) =>
       Effect.gen(function* () {
         const baseDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-pair-test-"));
@@ -195,7 +199,7 @@ describe("supaterm pair", () => {
           }),
         });
 
-        const output = yield* captureStdout(runCli(["pair", "--base-dir", baseDir]));
+        const output = yield* captureStdout(runCli(["pair", "--no-relay", "--base-dir", baseDir]));
 
         assert.include(output, `Pairing with pair-test (${origin})`);
         assert.include(output, `Pairing URL: ${origin}/pair#token=`);
@@ -251,6 +255,7 @@ describe("supaterm pair", () => {
         yield* captureStdout(
           runCli([
             "pair",
+            "--no-relay",
             "--base-dir",
             baseDir,
             "--scope",
@@ -289,21 +294,25 @@ describe("supaterm pair", () => {
           }),
         });
 
-        const output = yield* captureStdout(runCli(["pair", "--base-dir", baseDir]));
+        const output = yield* captureStdout(runCli(["pair", "--no-relay", "--base-dir", baseDir]));
 
         assert.include(output, "Pairing URL: http://localhost:5733/pair#token=");
       }),
     ).pipe(Effect.provide(NodeServices.layer)),
   );
 
-  it.effect("directs to serve when no server is running", () =>
+  it.effect.each([
+    { label: "default relay", flags: [] },
+    { label: "Tailscale", flags: ["--tailscale"] },
+    { label: "Tailscale without relay", flags: ["--tailscale", "--no-relay"] },
+  ])("accepts $label and directs to serve when no server is running", ({ flags }) =>
     Effect.gen(function* () {
       const baseDir = NodeFS.mkdtempSync(
         NodePath.join(NodeOS.tmpdir(), "supaterm-pair-none-test-"),
       );
 
       const error = yield* provideCliTestLayers(
-        runCli(["pair", "--base-dir", baseDir]).pipe(Effect.flip),
+        runCli(["pair", ...flags, "--base-dir", baseDir]).pipe(Effect.flip),
       );
 
       const rendered = String(
@@ -312,6 +321,16 @@ describe("supaterm pair", () => {
       assert.include(rendered, "No running Supaterm server found.");
       assert.include(rendered, "supaterm serve");
     }).pipe(Effect.provide(NodeServices.layer)),
+  );
+
+  it.effect("rejects explicitly selecting both relay and Tailscale before discovery", () =>
+    Effect.gen(function* () {
+      const error = yield* provideCliTestLayers(
+        runCli(["pair", "--relay", "--tailscale"]).pipe(Effect.flip),
+      );
+
+      assert.instanceOf(error, PairRouteConflictError);
+    }),
   );
 
   it.effect("ignores runtime state whose recorded pid is no longer alive", () =>

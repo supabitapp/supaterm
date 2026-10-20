@@ -6,9 +6,7 @@
  * database, then confirms the process is actually answering by fetching its
  * public environment descriptor. Inside a linked git worktree the worktree's
  * own `.supaterm` is checked first (matching dev-runner precedence); otherwise the
- * shared Supaterm home. `--tailscale` publishes the server over Tailscale Serve
- * HTTPS and pairs through the tailnet URL instead; `--relay` pairs through the
- * server's Encrypted Relay address, which works for hosts no client manages directly.
+ * shared Supaterm home.
  */
 import {
   type AuthEnvironmentScope,
@@ -502,9 +500,9 @@ const tailscaleFlag = Flag.Boolean("tailscale").pipe(
 
 const relayFlag = Flag.Boolean("relay").pipe(
   Flag.withDescription(
-    "Pair through the server's Encrypted Relay address. Encrypted Relay must be on for the server.",
+    "Activate and pair through Encrypted Relay by default, unless --tailscale is selected. Use --no-relay for direct pairing. Encrypted Relay must be enabled in server settings.",
   ),
-  Flag.withDefault(false),
+  Flag.optional,
 );
 
 const tailscaleServePortFlag = Flag.Int("tailscale-serve-port").pipe(
@@ -530,14 +528,15 @@ export const pairCommand = Command.make("pair", {
       const cliLogLevel = yield* GlobalFlag.LogLevel;
       const logLevel = Option.getOrElse(cliLogLevel, () => "Warn" as const);
 
-      if (flags.relay && flags.tailscale) return yield* new PairRouteConflictError();
+      const useRelay = Option.getOrElse(flags.relay, () => !flags.tailscale);
+      if (useRelay && flags.tailscale) return yield* new PairRouteConflictError();
       const target = yield* discoverPairTarget(Option.getOrUndefined(flags.baseDir));
       const config = yield* makePairServerConfig({ target, logLevel });
 
       const notes: Array<string> = [];
       let relayUrl = target.descriptor.relayUrl;
       let pairingBaseUrl: string;
-      if (flags.relay) {
+      if (useRelay) {
         const prepared = yield* prepareRelay(target, config).pipe(
           Effect.catchTags({
             RelayPreparationError: (error) =>

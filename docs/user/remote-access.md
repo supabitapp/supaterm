@@ -18,8 +18,11 @@ Connections settings show the same name once it connects.
 On a host you reach only over SSH, print a relay pairing link there:
 
 ```bash
-supaterm pair --relay
+supaterm pair
 ```
+
+The command activates the relay before printing the link. Pass `--no-relay` to
+pair directly, or `--tailscale` to pair through Tailscale Serve.
 
 If Encrypted Relay is off, enable it from the terminal before creating the link:
 
@@ -93,7 +96,7 @@ supaterm serve --host <private-ip>
 If a server is already running, generate a fresh link without restarting it:
 
 ```bash
-supaterm pair
+supaterm pair --no-relay
 ```
 
 Scan the QR code on your phone or paste the pairing URL into **Add environment**
