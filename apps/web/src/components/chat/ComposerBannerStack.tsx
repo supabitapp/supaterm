@@ -12,6 +12,7 @@ export interface ComposerBannerStackItem {
   readonly id: string;
   readonly variant: ComposerBannerVariant;
   readonly priority?: "urgent" | "activity" | "notice";
+  readonly alwaysVisible?: boolean;
   readonly icon: ReactNode;
   /** The icon holds a control, so it stays in the accessibility tree. */
   readonly iconInteractive?: boolean;
@@ -25,7 +26,7 @@ export interface ComposerBannerStackItem {
 
 export type ComposerBannerStackContent = Pick<
   ComposerBannerStackItem,
-  "id" | "variant" | "priority"
+  "id" | "variant" | "priority" | "alwaysVisible"
 > & { readonly content: ReactNode };
 
 type ComposerBannerStackEntry = ComposerBannerStackItem | ComposerBannerStackContent;
@@ -51,6 +52,9 @@ interface StackSlot {
 
 // The activity row trades places with the strip outside the stack, so it never animates.
 const animates = (item: ComposerBannerStackEntry) => item.priority !== "activity";
+
+const staysVisible = (item: ComposerBannerStackEntry) =>
+  item.priority === "activity" || item.alwaysVisible === true;
 
 function arrangeSlots(slots: ReadonlyArray<StackSlot>) {
   const ordered = slots.toSorted((a, b) => bannerPriority(a.item) - bannerPriority(b.item));
@@ -151,8 +155,8 @@ export function ComposerBannerStack({ className, items }: ComposerBannerStackPro
   });
   const exitingKey = slots.flatMap((slot) => (slot.exiting ? [slot.item.id] : [])).join("\n");
   const { front, stacked } = arrangeSlots(slots);
-  const stackedActivity = stacked.filter((slot) => slot.item.priority === "activity");
-  const stackedNotices = stacked.filter((slot) => slot.item.priority !== "activity");
+  const stackedVisible = stacked.filter((slot) => staysVisible(slot.item));
+  const stackedNotices = stacked.filter((slot) => !staysVisible(slot.item));
   const hasStack = stackedNotices.length > 0;
 
   useEffect(() => {
@@ -299,9 +303,9 @@ export function ComposerBannerStack({ className, items }: ComposerBannerStackPro
           </div>
         </div>
       ) : null}
-      {stackedActivity.length > 0 ? (
+      {stackedVisible.length > 0 ? (
         <div className="relative z-20 space-y-2 pb-2" data-chat-composer-collapsed-controls="true">
-          {stackedActivity.map((slot) => (
+          {stackedVisible.map((slot) => (
             <div key={slot.item.id} {...slotProps(slot)} className={presenceClassName}>
               <ComposerBannerStackAlert
                 slot={slot}

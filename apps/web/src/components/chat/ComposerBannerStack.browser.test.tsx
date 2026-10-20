@@ -3,8 +3,11 @@ import "../../index.css";
 import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
+import { RunId } from "@supaterm/contracts";
 
 import { ComposerBannerStack } from "./ComposerBannerStack";
+import { usageLimitRecoveryBannerItem } from "./UsageLimitRecoveryBanner";
 
 let root: Root;
 let container: HTMLDivElement;
@@ -59,6 +62,67 @@ it("only offers notice details when the description cannot fit", async () => {
   await nextFrame();
   expect(hasDetails()).toBe(true);
 });
+
+it.each([true, false])(
+  "keeps connection and usage-limit warnings visible with activity=%s",
+  async (withActivity) => {
+    const items: ComponentProps<typeof ComposerBannerStack>["items"] = [
+      ...(withActivity
+        ? [
+            {
+              id: "activity",
+              variant: "default" as const,
+              priority: "activity" as const,
+              content: "Tasks",
+            },
+          ]
+        : []),
+      {
+        id: "connection",
+        variant: "warning",
+        alwaysVisible: true,
+        icon: null,
+        title: "Host is reconnecting",
+      },
+      usageLimitRecoveryBannerItem({
+        runId: RunId.make("limited"),
+        resetAt: null,
+        stoppedAt: "2026-10-20T12:00:00.000Z",
+        snoozedUntil: null,
+        recovery: null,
+        onChange: async () => {},
+      }),
+      { id: "update", variant: "info", icon: null, title: "Server update available" },
+    ];
+    await act(async () => root.render(<ComposerBannerStack items={items} />));
+
+    const connection = page.getByText("Host is reconnecting", { exact: true });
+    const limit = page.getByText("Usage limit reached", { exact: true });
+    const update = page.getByText("Server update available", { exact: true });
+    await expect.element(connection).toBeVisible();
+    await expect.element(limit).toBeVisible();
+    await expect.element(update).not.toBeVisible();
+    if (withActivity) await expect.element(page.getByText("Tasks", { exact: true })).toBeVisible();
+
+    await act(async () =>
+      userEvent.click(page.getByRole("button", { name: "Show other notices" })),
+    );
+    await expect.element(update).toBeVisible();
+    await act(async () => userEvent.keyboard("{Escape}"));
+    await expect.element(update).not.toBeVisible();
+    await expect.element(connection).toBeVisible();
+    await expect.element(limit).toBeVisible();
+
+    await act(async () =>
+      root.render(<ComposerBannerStack items={items.filter((item) => item.id !== "update")} />),
+    );
+    await expect
+      .element(page.getByRole("button", { name: "Show other notices" }))
+      .not.toBeInTheDocument();
+    await expect.element(connection).toBeVisible();
+    await expect.element(limit).toBeVisible();
+  },
+);
 
 describe("notice exits", () => {
   type Items = ComponentProps<typeof ComposerBannerStack>["items"];

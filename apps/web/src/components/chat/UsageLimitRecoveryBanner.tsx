@@ -25,6 +25,7 @@ export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBann
     id: `usage-limit-recovery:${runId}`,
     variant: "warning",
     priority: "urgent",
+    alwaysVisible: true,
     icon: <GaugeIcon />,
     title: "Usage limit reached",
     description: resetAt
