@@ -105,8 +105,9 @@ it.each([true, false])(
     if (withActivity) await expect.element(page.getByText("Tasks", { exact: true })).toBeVisible();
 
     await act(async () =>
-      userEvent.click(page.getByRole("button", { name: "Show other notices" })),
+      page.getByRole("button", { name: "Show other notices" }).element().focus(),
     );
+    await act(async () => userEvent.keyboard("{Enter}"));
     await expect.element(update).toBeVisible();
     await act(async () => userEvent.keyboard("{Escape}"));
     await expect.element(update).not.toBeVisible();
