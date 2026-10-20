@@ -261,6 +261,7 @@ const ChatPaneFrame = memo(function ChatPaneFrame(props: {
       )}
       data-chat-pane={cell.id}
       data-split={split}
+      data-top-row={!split || cell.row === 0}
       data-focused={focused}
       data-collapsed={collapsed}
       style={paneChromeStyle(cell, layout, split)}

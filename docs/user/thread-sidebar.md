@@ -237,6 +237,27 @@ Expand a tool call in the conversation to see its full command and output.
 Summaries shorten shell wrappers and can still describe the latest call after it
 finishes; the call's own result shows its status.
 
+## Open threads side by side
+
+On web and desktop, show up to four threads at once. Drag a thread from the
+sidebar onto an edge of the chat to open it beside that thread, or onto the middle
+to open it there. You can also right-click a thread and choose **Open to the side**,
+choose **Open a thread on the right** or **Open a thread below** in the command
+palette, or press `Alt+Enter` on a thread in the palette.
+
+The pane you last clicked is the focused one. Its thread is the one in the address
+bar, and keyboard shortcuts, paste, and the thread actions in the palette act on it.
+Each thread opens in one pane at a time; opening a thread that is already on screen
+focuses its pane.
+
+Drag a pane by the grip in its header onto another pane's edge to move it there,
+or onto the middle to swap the two. Drag the lines between panes to resize them.
+Close a pane with **×** in its header, and reopen it with `mod+shift+t`. When the
+window is too small for every pane, it shows the focused one with arrows to switch
+between them, and restores the split when there is room again. Each browser tab
+remembers its own arrangement; a new tab or a restarted desktop app starts from the
+most recent one.
+
 ## Snooze until later
 
 Choose **Snooze → Custom…** from a thread's menu to pick a date and time in your

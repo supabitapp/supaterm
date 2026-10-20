@@ -38,6 +38,19 @@ Build new UI the same way. Compose or extend a component instead of copying its 
 When a call site repeats a treatment another one already uses, make it a variant or a slot on the
 shared component. A new composer banner or notice uses the `ComposerBanner` slots.
 
+## Chat panes
+
+The chat area is a [workspace of panes](../../apps/web/src/components/chatPanes/ChatPaneWorkspace.tsx)
+on one `react-resizable-panels` `Grid`, even for a single thread. Every pane is a `Cell` keyed by a
+stable pane id, so splitting, moving, or closing a pane never changes another pane's React parent
+and never remounts its `ChatView`. Layout changes go through the pure functions in
+[`chatPanes/layout.ts`](../../apps/web/src/chatPanes/layout.ts).
+
+`ChatView` and its children register window and document listeners. With several mounted, each
+listener that acts on keyboard, paste, menu, or bus input checks `usePaneInputOwner` from
+[`chatPanes/paneScope.tsx`](../../apps/web/src/chatPanes/paneScope.tsx), so only the focused pane
+responds. A new window-level listener inside the chat view needs the same check.
+
 ## Handlers in large components
 
 V8 gives every closure created in one render a single shared scope. A memoized handler keeps

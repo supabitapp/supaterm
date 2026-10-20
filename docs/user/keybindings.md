@@ -111,7 +111,9 @@ Join modifiers and a key with `+`, such as `mod+shift+d` or `ctrl+l`.
 Available context keys are `terminalFocus`, `terminalOpen`, `previewFocus`,
 `previewOpen`, `modelPickerOpen`, `projectPickerOpen`, `hostPickerOpen`,
 `branchPickerOpen`, `usagePageOpen`, `composerFocus`, `composerDraft`,
-`turnRunning`, `editableFocus`, `textSelected`, `isWeb`, and `isDesktop`.
+`turnRunning`, `editableFocus`, `textSelected`, `paneClosable`, `isWeb`, and `isDesktop`.
+`paneClosable` is true while [threads are side by side](./thread-sidebar.md#open-threads-side-by-side)
+and the focused pane has no right panel open.
 `editableFocus` is true while a text field, the composer, or another editor has
 the keyboard. `textSelected` is true while text is selected in the page or a focused
 text field. `isWeb` is true in a browser tab. `isDesktop` is true in the
@@ -164,6 +166,13 @@ terminals so native undo keeps working there.
 `navigation.back` (`mod+[` by default) and `navigation.forward` (`mod+]`) move
 through the pages you have visited, like a browser's back and forward buttons.
 
+`pane.focus.1` through `pane.focus.4` (`mod+alt+1` to `mod+alt+4`) focus a pane
+when [threads are side by side](./thread-sidebar.md#open-threads-side-by-side),
+numbered top to bottom, then left to right. `pane.close` closes the focused pane
+with `mod+w` once its right panel is closed. `pane.splitRight` and
+`pane.splitDown` open the command palette to choose a thread for a new pane;
+`pane.closeOthers`, `pane.focusNext`, and `pane.focusPrevious` have no default shortcut.
+
 `chat.new` may ask you to choose a project when there is more than one.
 `chat.newLocal` skips that chooser. Both use your
 [new-thread defaults](./thread-sidebar.md#start-a-thread). `chat.newWithoutProject`
@@ -172,12 +181,14 @@ through the pages you have visited, like a browser's back and forward buttons.
 ## Reserved shortcuts
 
 In the desktop app, `mod+w` closes the focused terminal or the active right-panel
-tab. When nothing remains to close, it closes the window. In a browser, `mod+w`
+tab, then the focused pane when threads are side by side. When nothing remains to
+close, it closes the window. In a browser, `mod+w`
 closes the browser tab; rebind `rightPanel.close` and `terminal.close` to an available
 shortcut such as `alt+w`.
 
 `mod+shift+t` reopens the last closed tab across the app, including files,
-diffs, pull requests, browsers, and devices, in the order you closed them.
+diffs, pull requests, browsers, devices, and side-by-side panes, in the order you
+closed them.
 A browser opens in a fresh session without its old page history. Incognito tabs
 can reopen until you reload or quit the app. This shortcut does not undo deleted work.
 Browsers also use it to reopen browser tabs; choose another binding in Settings
