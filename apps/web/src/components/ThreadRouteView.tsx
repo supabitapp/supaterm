@@ -7,7 +7,8 @@ import ChatView from "./ChatView";
 import { resolveDraftPromotionNavigationTarget, threadHasStarted } from "./ChatView.logic";
 import { waitForDraftHeroTransition } from "./chat/draftHeroTransition";
 import { ThreadTimelineLoading } from "./chat/ThreadTimelineLoading";
-import { SidebarInset } from "./ui/sidebar";
+import { isPaneInputOwner } from "../chatPanes/paneScope";
+import { useChatPaneStore } from "../chatPanes/store";
 import {
   finalizePromotedDraftThreadByRef,
   markPromotedDraftThreadByRef,
@@ -28,10 +29,13 @@ import {
 
 /**
  * Plain server threads are unkeyed, so navigating between them reuses one instance as ChatView
- * expects. Rendered by the `_chat` layout rather than by the two leaf routes, since an element
- * only survives a route swap when the same parent renders it.
+ * expects. Each chat pane renders one, from the `_chat` layout rather than the two leaf routes,
+ * since an element only survives a route swap when the same parent renders it.
+ *
+ * The focused pane follows the URL. A pane in the background changes its own thread instead,
+ * so a draft promoting or a thread disappearing behind the user never moves the URL.
  */
-export function ThreadRouteView({ target }: { target: ThreadRouteTarget }) {
+export function ThreadRouteView({ target, paneId }: { target: ThreadRouteTarget; paneId: string }) {
   const navigate = useNavigate();
   const draftId = target.kind === "draft" ? target.draftId : null;
   const draftSession = useComposerDraftStore((store) =>
@@ -128,6 +132,12 @@ export function ThreadRouteView({ target }: { target: ThreadRouteTarget }) {
       if (cancelled) {
         return;
       }
+      if (!isPaneInputOwner(paneId)) {
+        useChatPaneStore
+          .getState()
+          .retarget(paneId, { kind: "server", threadRef: canonicalThreadRef });
+        return;
+      }
       void navigate({
         to: "/$environmentId/$threadId",
         params: buildThreadRouteParams(canonicalThreadRef),
@@ -137,14 +147,15 @@ export function ThreadRouteView({ target }: { target: ThreadRouteTarget }) {
     return () => {
       cancelled = true;
     };
-  }, [canonicalThreadRef, navigate]);
+  }, [canonicalThreadRef, navigate, paneId]);
 
   useEffect(() => {
     if (target.kind !== "draft" || draftSession || canonicalThreadRef) {
       return;
     }
+    if (useChatPaneStore.getState().close(paneId, { remember: false })) return;
     void navigate({ to: "/", replace: true });
-  }, [canonicalThreadRef, draftSession, navigate, target.kind]);
+  }, [canonicalThreadRef, draftSession, navigate, paneId, target.kind]);
 
   useEffect(() => {
     if (target.kind !== "server" || !bootstrapComplete) {
@@ -153,11 +164,12 @@ export function ThreadRouteView({ target }: { target: ThreadRouteTarget }) {
     if (renderState === "missing") {
       const { clearPendingFileDropsForThread } = useSidebarPendingFileDropStore.getState();
       clearPendingFileDropsForThread(target.threadRef);
+      if (useChatPaneStore.getState().close(paneId, { remember: false })) return;
       if (environmentHasAnyThreads) {
         void navigate({ to: "/", replace: true });
       }
     }
-  }, [bootstrapComplete, environmentHasAnyThreads, navigate, renderState, target]);
+  }, [bootstrapComplete, environmentHasAnyThreads, navigate, paneId, renderState, target]);
 
   useEffect(() => {
     if (target.kind !== "server" || !serverThreadStarted || !draftThread) {
@@ -193,9 +205,5 @@ export function ThreadRouteView({ target }: { target: ThreadRouteTarget }) {
     view = <ThreadTimelineLoading />;
   }
 
-  return (
-    <SidebarInset className="h-svh min-h-0 overflow-hidden overscroll-y-none md:h-dvh">
-      {view}
-    </SidebarInset>
-  );
+  return view;
 }

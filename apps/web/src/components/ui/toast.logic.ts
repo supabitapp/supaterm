@@ -99,13 +99,14 @@ export function shouldRenderThreadScopedToast(
         threadId?: ThreadId | null;
       }
     | undefined,
-  activeThreadRef: ScopedThreadRef | null,
+  visibleThreadRefs: ReadonlyArray<ScopedThreadRef>,
 ): boolean {
-  if (data?.threadRef) {
-    return (
-      activeThreadRef !== null &&
-      data.threadRef.environmentId === activeThreadRef.environmentId &&
-      data.threadRef.threadId === activeThreadRef.threadId
+  const threadRef = data?.threadRef;
+  if (threadRef) {
+    return visibleThreadRefs.some(
+      (visible) =>
+        visible.environmentId === threadRef.environmentId &&
+        visible.threadId === threadRef.threadId,
     );
   }
 
@@ -114,5 +115,5 @@ export function shouldRenderThreadScopedToast(
     return true;
   }
 
-  return activeThreadRef?.threadId === toastThreadId;
+  return visibleThreadRefs.some((visible) => visible.threadId === toastThreadId);
 }

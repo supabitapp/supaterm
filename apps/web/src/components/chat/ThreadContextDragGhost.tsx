@@ -13,7 +13,12 @@ export function ThreadContextDragGhost() {
       style={{ transform: `translate(${ghost.x + 12}px, ${ghost.y + 12}px)` }}
     >
       <MessagesSquareIcon className="size-4 shrink-0 text-secondary-label" />
-      <span className="truncate">{ghost.title}</span>
+      <span className="flex min-w-0 flex-col">
+        <span className="truncate">{ghost.title}</span>
+        {ghost.verb ? (
+          <span className="truncate text-xs text-secondary-label">{ghost.verb}</span>
+        ) : null}
+      </span>
       {ghost.count > 1 ? (
         <span className="shrink-0 rounded-full bg-muted px-1.5 text-xs text-secondary-label">
           +{ghost.count - 1}

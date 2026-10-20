@@ -56,6 +56,7 @@ import { showThreadUndoNotice } from "./showThreadUndoNotice";
 import { useAtomCommand } from "../state/use-atom-command";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { useAtomQueryRunner } from "../state/use-atom-query-runner";
+import { closePaneShowingThread } from "../chatPanes/store";
 
 export class ThreadArchiveBlockedError extends Schema.TaggedError<ThreadArchiveBlockedError>()(
   "ThreadArchiveBlockedError",
@@ -302,6 +303,8 @@ export function useThreadActions() {
       failureTitle: "Failed to undo archive",
     });
 
+    // The focused pane takes a new draft as before; a pane in the background just closes.
+    closePaneShowingThread(threadRef, { remember: true, onlyInBackground: true });
     if (shouldNavigateToDraft) {
       const navigationResult = await settlePromise(() =>
         handleNewThread(scopeProjectRef(thread.environmentId, thread.projectId)),
@@ -438,7 +441,8 @@ export function useThreadActions() {
     clearTerminalUiState(threadRef);
     clearThreadPreviewState(threadRef);
 
-    if (shouldNavigateToFallback) {
+    const closedPane = closePaneShowingThread(threadRef, { remember: false });
+    if (shouldNavigateToFallback && !closedPane) {
       const fallbackThread = fallbackThreadId
         ? readThreadShell(scopeThreadRef(threadRef.environmentId, fallbackThreadId))
         : null;

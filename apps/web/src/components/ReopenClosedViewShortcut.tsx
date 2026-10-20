@@ -4,7 +4,7 @@ import {
   scopedThreadKey,
   scopeThreadRef,
 } from "@supaterm/client-runtime/environment";
-import type { ScopedThreadRef } from "@supaterm/contracts";
+import { PANE_FOCUS_KEYBINDING_COMMANDS, type ScopedThreadRef } from "@supaterm/contracts";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useRef } from "react";
 
@@ -42,11 +42,15 @@ import {
   resolveThreadRouteTarget,
 } from "../threadRoutes";
 import { toastManager } from "./ui/toast";
+import { newestClosedPaneAt, useChatPaneStore } from "../chatPanes/store";
 
 const PREVIEW_FORWARDED_LAYOUT_COMMANDS = [
   "sidebar.toggle",
   "rightPanel.toggle",
   "rightPanel.toggleMaximized",
+  "pane.focusNext",
+  "pane.focusPrevious",
+  ...PANE_FOCUS_KEYBINDING_COMMANDS,
 ] as const;
 
 const isGlobalPullRequests = (ref: ScopedThreadRef) =>
@@ -73,11 +77,20 @@ export function ReopenClosedViewShortcut() {
     (state) => selectActiveRightPanel(state.byThreadKey, threadRef) === "preview",
   );
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
-  const hasHistory = useClosedViewStore((state) => state.entries.length > 0);
+  const hasViewHistory = useClosedViewStore((state) => state.entries.length > 0);
+  const hasPaneHistory = useChatPaneStore((state) => state.closed.length > 0);
+  const hasHistory = hasViewHistory || hasPaneHistory;
   const openPreview = useAtomCommand(previewEnvironment.open);
   const pending = useRef(Promise.resolve());
 
   const reopenNext = useEffectEvent(async () => {
+    // Chat panes and panel views share one history: the most recently closed comes back first.
+    const paneClosedAt = newestClosedPaneAt();
+    const viewClosedAt = useClosedViewStore.getState().entries[0]?.closedAt ?? 0;
+    if (paneClosedAt !== null && paneClosedAt >= viewClosedAt) {
+      useChatPaneStore.getState().reopenClosed();
+      return;
+    }
     const catalog = appAtomRegistry.get(environmentCatalog.catalogValueAtom);
     const drafts = useComposerDraftStore.getState();
     const panelsByThread = useRightPanelStore.getState().byThreadKey;
@@ -149,7 +162,8 @@ export function ReopenClosedViewShortcut() {
       if (
         event.defaultPrevented ||
         isCommandPaletteOpen() ||
-        useClosedViewStore.getState().entries.length === 0 ||
+        (useClosedViewStore.getState().entries.length === 0 &&
+          useChatPaneStore.getState().closed.length === 0) ||
         (event.target instanceof HTMLElement && event.target.closest("[data-keybinding-capture]"))
       )
         return;

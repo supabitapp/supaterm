@@ -140,7 +140,7 @@ describe("shouldRenderThreadScopedToast", () => {
         {
           threadRef: activeThreadRef,
         },
-        activeThreadRef,
+        [activeThreadRef],
       ),
       true,
     );
@@ -155,9 +155,19 @@ describe("shouldRenderThreadScopedToast", () => {
             threadId: "thread-1",
           } as ScopedThreadRef,
         },
-        activeThreadRef,
+        [activeThreadRef],
       ),
       false,
+    );
+  });
+
+  it("renders a scoped toast for a thread shown in another pane", () => {
+    assert.equal(
+      shouldRenderThreadScopedToast({ threadRef: activeThreadRef }, [
+        { environmentId: "environment-b", threadId: "thread-2" } as ScopedThreadRef,
+        activeThreadRef,
+      ]),
+      true,
     );
   });
 
@@ -167,7 +177,7 @@ describe("shouldRenderThreadScopedToast", () => {
         {
           threadId: "thread-1" as never,
         },
-        activeThreadRef,
+        [activeThreadRef],
       ),
       true,
     );

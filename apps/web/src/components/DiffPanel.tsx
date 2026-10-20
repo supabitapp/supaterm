@@ -188,12 +188,15 @@ function DiffFileHeaderSuffix({
 
 interface DiffPanelProps {
   mode?: DiffPanelMode;
+  /** The thread whose changes to show; defaults to the route's, which is the focused pane's. */
+  threadRef?: ScopedThreadRef | undefined;
   composerDraftTarget: ScopedThreadRef | DraftId;
   workspaceMutationId: string | null;
 }
 
 export default function DiffPanel({
   mode = "inline",
+  threadRef,
   composerDraftTarget,
   workspaceMutationId,
 }: DiffPanelProps) {
@@ -223,7 +226,8 @@ export default function DiffPanel({
   const [codeViewRevision, setCodeViewRevision] = useState(0);
   const [codeView, setCodeView] = useState<AnnotatableCodeViewHandle | null>(null);
 
-  const routeThreadRef = useThreadRouteRef();
+  const urlThreadRef = useThreadRouteRef();
+  const routeThreadRef = threadRef ?? urlThreadRef;
   const activeThreadId = routeThreadRef?.threadId ?? null;
   const activeThread = useQuietThreadShell(routeThreadRef);
   const fileAccess = useFilesystemReadAccess(activeThread?.environmentId ?? null);

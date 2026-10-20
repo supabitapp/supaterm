@@ -288,9 +288,14 @@ const MAX_REMEMBERED_THREAD_TIMELINES = 16;
 
 let rememberedThreadTimelines = new Map<string, HeldThreadTimeline<readonly unknown[]>>();
 let rememberedThreadTimelineOrder: string[] = [];
-let lastReadyThreadKey: string | null = null;
+// Per chat pane: a pane loading a thread paints its own last timeline, never another pane's.
+let lastReadyThreadKeyByScope = new Map<string, string>();
+const DEFAULT_TIMELINE_SCOPE = "default";
 
-function rememberThreadTimelineEntries(held: HeldThreadTimeline<readonly unknown[]>): void {
+function rememberThreadTimelineEntries(
+  held: HeldThreadTimeline<readonly unknown[]>,
+  scope: string,
+): void {
   if (held.threadKey === null) {
     return;
   }
@@ -305,16 +310,17 @@ function rememberThreadTimelineEntries(held: HeldThreadTimeline<readonly unknown
       rememberedThreadTimelines.delete(evicted);
     }
   }
-  lastReadyThreadKey = held.threadKey;
+  lastReadyThreadKeyByScope.set(scope, held.threadKey);
 }
 
 export function rememberReadyThreadTimeline<T extends readonly unknown[]>(
   held: HeldThreadTimeline<T>,
+  scope: string = DEFAULT_TIMELINE_SCOPE,
 ): void {
   if (held.threadKey === null || held.entries.length === 0) {
     return;
   }
-  rememberThreadTimelineEntries(held);
+  rememberThreadTimelineEntries(held, scope);
 }
 
 export function peekRememberedThreadTimeline<T extends readonly unknown[]>(
@@ -326,9 +332,10 @@ export function peekRememberedThreadTimeline<T extends readonly unknown[]>(
   return (rememberedThreadTimelines.get(threadKey)?.entries as T | undefined) ?? null;
 }
 
-export function peekHeldThreadTimeline<
-  T extends readonly unknown[],
->(): HeldThreadTimeline<T> | null {
+export function peekHeldThreadTimeline<T extends readonly unknown[]>(
+  scope: string = DEFAULT_TIMELINE_SCOPE,
+): HeldThreadTimeline<T> | null {
+  const lastReadyThreadKey = lastReadyThreadKeyByScope.get(scope) ?? null;
   if (lastReadyThreadKey === null) {
     return null;
   }
@@ -342,7 +349,7 @@ export function peekHeldThreadTimeline<
 export function resetHeldThreadTimeline(): void {
   rememberedThreadTimelines = new Map();
   rememberedThreadTimelineOrder = [];
-  lastReadyThreadKey = null;
+  lastReadyThreadKeyByScope = new Map();
 }
 
 export function threadKeysShareEnvironment(left: string | null, right: string | null): boolean {
@@ -369,6 +376,7 @@ export function resolveThreadSwitchTimeline<T extends readonly unknown[]>(input:
   nextEntries: T;
   rememberedForActive?: T | null;
   lastReady?: HeldThreadTimeline<T> | null;
+  scope?: string | undefined;
 }): { entries: T; displayThreadKey: string | null } {
   if (input.nextEntries.length > 0) {
     return { entries: input.nextEntries, displayThreadKey: input.activeThreadKey };
@@ -380,7 +388,7 @@ export function resolveThreadSwitchTimeline<T extends readonly unknown[]>(input:
     return { entries: rememberedForActive, displayThreadKey: input.activeThreadKey };
   }
 
-  const lastReady = input.lastReady ?? peekHeldThreadTimeline<T>();
+  const lastReady = input.lastReady ?? peekHeldThreadTimeline<T>(input.scope);
   if (
     input.loading &&
     lastReady !== null &&

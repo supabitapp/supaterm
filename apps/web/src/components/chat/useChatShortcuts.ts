@@ -18,6 +18,8 @@ export type ChatShortcutHandler = (context: {
 
 export interface ChatShortcutsInput {
   readonly enabled: boolean;
+  /** Whether this chat's pane receives window input; only one pane in a split does. */
+  readonly isInputOwner: () => boolean;
   readonly keybindings: ResolvedKeybindingsConfig;
   readonly scriptKeybindings: ResolvedKeybindingsConfig;
   readonly getShortcutContext: (target: EventTarget | null) => ShortcutMatchContext & {
@@ -45,6 +47,7 @@ export function useChatShortcuts(input: ChatShortcutsInput) {
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       const current = latest.current;
+      if (!current.isInputOwner()) return;
       const { keybindings } = current;
       if (preventRepeatedTerminalCloseShortcut(event, keybindings)) {
         event.stopPropagation();
@@ -83,6 +86,7 @@ export function useChatShortcuts(input: ChatShortcutsInput) {
     const dismissFind = (event: KeyboardEvent) => {
       const current = latest.current;
       if (
+        !current.isInputOwner() ||
         event.key !== "Escape" ||
         !current.threadFindActive ||
         event.defaultPrevented ||

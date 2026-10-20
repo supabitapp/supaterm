@@ -268,6 +268,7 @@ import {
   rememberCopiedComposerAttachments,
 } from "~/lib/copiedComposerAttachments";
 import { matchComposerThreadItems } from "@supaterm/client-runtime/composerThreadItems";
+import { usePaneInputOwner } from "../../chatPanes/paneScope";
 import { useThreadContextDrop, threadContextDropTargetProps } from "./threadContextDrag";
 import { readThreadShell, useThreadShells } from "~/state/entities";
 import { requestConfirmDialog } from "~/confirmDialog";
@@ -2386,6 +2387,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const [isComposerPrimaryActionsCompact, setIsComposerPrimaryActionsCompact] = useState(false);
   const [isComposerModelPickerOpen, setIsComposerModelPickerOpen] = useState(false);
   const isMobileViewport = useMediaQuery("max-sm");
+  const isPaneInputOwner = usePaneInputOwner();
   const isSoftwareKeyboardOpen = useSoftwareKeyboardOpen();
   const {
     isComposerFocused,
@@ -2470,6 +2472,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       pasteAsTextShortcutUntilRef.current = 0;
     };
     const onDesktopPasteAsText = () => {
+      if (!isPaneInputOwner()) return;
       const activeElement = document.activeElement;
       const blocksPasteToFocus =
         activeElement instanceof Element &&
@@ -2491,7 +2494,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       window.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("blur", onBlur);
     };
-  }, []);
+  }, [isPaneInputOwner]);
 
   const composerSendState = deriveComposerSendState({
     prompt,
@@ -5305,6 +5308,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
 
   useEffect(() => {
     const handler = (event: globalThis.KeyboardEvent) => {
+      if (!isPaneInputOwner()) return;
       const command = resolveShortcutCommand(event, keybindings, {
         context: {
           terminalFocus: getTerminalFocusOwner() !== null,
@@ -5340,6 +5344,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     projectSelectionRequired,
     stashCurrentPromptStable,
     isRevertingCheckpoint,
+    isPaneInputOwner,
     terminalOpen,
   ]);
 

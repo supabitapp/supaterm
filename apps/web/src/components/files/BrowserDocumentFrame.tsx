@@ -4,6 +4,7 @@ import {
   type KeybindingShortcut,
   MODEL_PICKER_JUMP_KEYBINDING_COMMANDS,
   type ScopedThreadRef,
+  PANE_FOCUS_KEYBINDING_COMMANDS,
   THREAD_JUMP_KEYBINDING_COMMANDS,
 } from "@supaterm/contracts";
 import {
@@ -58,6 +59,9 @@ const HTML_RENDER_SHORTCUT_COMMANDS: ReadonlySet<KeybindingCommand> = new Set([
   "thread.next",
   ...THREAD_JUMP_KEYBINDING_COMMANDS,
   ...MODEL_PICKER_JUMP_KEYBINDING_COMMANDS,
+  "pane.focusNext",
+  "pane.focusPrevious",
+  ...PANE_FOCUS_KEYBINDING_COMMANDS,
 ]);
 
 export const isPdfPreviewFile = (path: string): boolean =>

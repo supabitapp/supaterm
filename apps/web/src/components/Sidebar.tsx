@@ -298,6 +298,8 @@ import {
   type DraftSessionState,
 } from "../composerDraftStore";
 import { useThreadRouteTarget } from "../hooks/useThreadRouteTarget";
+import { useChatPaneStore } from "../chatPanes/store";
+import { useShallow } from "zustand/react/shallow";
 
 // Done-tail paging: recent history is the common lookup; the deep tail
 // stays behind an explicit Show more.
@@ -1634,6 +1636,8 @@ type SidebarThreadRowProps = {
   snoozeWakeLabelText: string | null;
   wokeAt: string | null;
   isActive: boolean;
+  /** Open in a chat pane that is not focused. */
+  inOtherPane: boolean;
   // The pin and mark-done shortcuts act on the active thread, so only its row receives them.
   pinShortcut: string | null;
   doneShortcut: string | null;
@@ -2059,11 +2063,13 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     variantAction === "reopen" && "[&:not(:hover):not(:focus-within)_*]:text-secondary-label/70",
     props.isActive
       ? "bg-sidebar-row-active text-sidebar-foreground"
-      : isSelected || props.sweepAction !== null
-        ? "bg-sidebar-row-selected text-sidebar-foreground"
-        : shouldRecede
-          ? "text-sidebar-muted-foreground/75 hover:bg-sidebar-row-hover hover:text-sidebar-foreground"
-          : "bg-transparent text-sidebar-foreground hover:bg-sidebar-row-hover",
+      : props.inOtherPane
+        ? "bg-sidebar-row-active/50 text-sidebar-foreground hover:bg-sidebar-row-hover"
+        : isSelected || props.sweepAction !== null
+          ? "bg-sidebar-row-selected text-sidebar-foreground"
+          : shouldRecede
+            ? "text-sidebar-muted-foreground/75 hover:bg-sidebar-row-hover hover:text-sidebar-foreground"
+            : "bg-transparent text-sidebar-foreground hover:bg-sidebar-row-hover",
     shouldRecede &&
       (status === "working" || status === "waiting") &&
       "opacity-70 transition-opacity hover:opacity-100 focus-within:opacity-100 motion-reduce:transition-none",
@@ -2766,6 +2772,14 @@ export default function Sidebar() {
   const contextDragKeyRef = useRef<string | null>(null);
   const routeThreadRef = resolveActiveThreadRouteRef(routeTarget, routeDraftThread);
   const routeThreadKey = routeThreadRef ? scopedThreadKey(routeThreadRef) : null;
+  const paneThreadKeyList = useChatPaneStore(
+    useShallow((state) =>
+      (state.layout?.cells ?? []).flatMap((cell) =>
+        cell.target.kind === "server" ? [scopedThreadKey(cell.target.threadRef)] : [],
+      ),
+    ),
+  );
+  const paneThreadKeys = new Set(paneThreadKeyList);
   // Post-completion navigation validates against the CURRENT route, not the one
   // captured when marking done started: if the user navigated elsewhere while
   // the command was in flight, completing it must not yank them away.
@@ -3251,12 +3265,16 @@ export default function Sidebar() {
     const threads = contextDragThreads();
     const title =
       threadByKeyRef.current.get(contextDragKeyRef.current ?? "")?.title.trim() || "Thread";
-    moveThreadContextDragGhost(point, { title, count: threads.length });
+    moveThreadContextDragGhost(
+      point,
+      { title, count: threads.length },
+      { kind: "threads", threads },
+    );
     return true;
   };
   const dropThreadContextDrag = (point: { x: number; y: number }) => {
     if (!pointerOutsideThreadList(point)) return false;
-    dropThreadContext(point, contextDragThreads());
+    dropThreadContext(point, { kind: "threads", threads: contextDragThreads() });
     return true;
   };
   // useSensor memoizes on the options object; a fresh one each render rebuilds
@@ -4084,6 +4102,7 @@ export default function Sidebar() {
               isRegeneratingTitle,
               isRunning: !threadRuntimeCanArchive(thread.runtime),
               snoozePresets,
+              canOpenBeside: routeTarget !== null && routeThreadKey !== scopedThreadKey(threadRef),
             }),
             position,
           ),
@@ -4099,6 +4118,10 @@ export default function Sidebar() {
           return;
         }
         switch (clicked.value) {
+          case "open-beside":
+            useChatPaneStore.getState().requestOpenToSide("right");
+            void navigateToThread(threadRef);
+            return;
           case "filter-by-project":
             if (threadProjectGroup) {
               setProjectScopeKey(
@@ -4548,6 +4571,7 @@ export default function Sidebar() {
                       const isActive = routeRowThreadKey === threadKey;
                       return (
                         <SortableThreadRow
+                          inOtherPane={!isActive && paneThreadKeys.has(threadKey)}
                           key={threadKey}
                           sortableId={threadKey}
                           contextDrag={isContextDrag}
