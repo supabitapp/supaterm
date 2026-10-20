@@ -1,9 +1,12 @@
 import { assert, describe, it } from "@effect/vitest";
 import * as Duration from "effect/Duration";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
 import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
+import * as Scope from "effect/Scope";
 import * as TestClock from "effect/testing/TestClock";
 
 import {
@@ -117,6 +120,35 @@ describe("makeConnection", () => {
       yield* TestClock.adjust(Duration.seconds(10));
       const error = yield* Fiber.join(fiber);
       assert.strictEqual(error._tag, "CodexMicroTimeoutError");
+    }),
+  );
+
+  it.effect("releases the request permit when the scope closes during an exchange", () =>
+    Effect.gen(function* () {
+      const device = yield* makeFakeHandle;
+      const scope = yield* Scope.make();
+      const connection = yield* makeConnection(device.handle, USB_DEVICE).pipe(
+        Effect.provideService(Scope.Scope, scope),
+      );
+      const request = yield* Effect.forkIn(connection.request("device.status"), scope);
+      const sent = yield* Queue.take(device.sent);
+      const closing = yield* Deferred.make<void>();
+      const idleBeforeDeadline = yield* Deferred.make<boolean>();
+      yield* Scope.addFinalizer(
+        scope,
+        Effect.gen(function* () {
+          yield* Deferred.succeed(closing, undefined);
+          const idle = yield* connection.idle.pipe(Effect.timeoutOption(Duration.seconds(10)));
+          yield* Deferred.succeed(idleBeforeDeadline, Option.isSome(idle));
+        }),
+      );
+      const closed = yield* Scope.close(scope, Exit.void).pipe(Effect.forkChild);
+      yield* Deferred.await(closing);
+      device.reply(`{"id":${sent.id},"result":null}`);
+      yield* Fiber.join(request);
+      yield* TestClock.adjust(Duration.seconds(10));
+      yield* Fiber.join(closed);
+      assert.isTrue(yield* Deferred.await(idleBeforeDeadline));
     }),
   );
 

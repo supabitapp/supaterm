@@ -293,6 +293,7 @@ export const makeConnection = Effect.fnUntraced(function* (
         yield* Effect.forkIn(
           Effect.sleep(REQUEST_GAP).pipe(Effect.ensuring(permits.release(1))),
           scope,
+          { startImmediately: true },
         );
         return yield* exit;
       }),

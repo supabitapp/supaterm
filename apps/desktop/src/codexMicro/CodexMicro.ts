@@ -469,9 +469,8 @@ const make = Effect.gen(function* () {
     const handoffLoop = Effect.gen(function* () {
       while (true) {
         yield* waitForRescan(HANDOFF_SCAN_INTERVAL);
-        const devices = yield* transport.discover.pipe(
-          Effect.orElseSucceed((): ReadonlyArray<CodexMicroTransport.CodexMicroDevice> => []),
-        );
+        const devices = yield* transport.discover.pipe(Effect.orElseSucceed(() => null));
+        if (devices === null) continue;
         forgetVanishedUsb(devices);
         if (hasOpenableUsb(devices)) {
           yield* Deferred.succeed(ended, { reason: "handoff" });

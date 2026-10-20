@@ -77,10 +77,13 @@ const makeFakeTransport = Effect.gen(function* () {
   const unopenable = new Set<string>();
   let closed = 0;
   let devices: ReadonlyArray<CodexMicroTransport.CodexMicroDevice> = [];
+  let discoveryError: CodexMicroTransport.CodexMicroDiscoveryError | undefined;
   let responder: Responder = () => undefined;
 
   const service = CodexMicroTransport.CodexMicroTransport.of({
-    discover: Effect.sync(() => devices),
+    discover: Effect.suspend(() =>
+      discoveryError ? Effect.fail(discoveryError) : Effect.succeed(devices),
+    ),
     connect: (device) =>
       unopenable.has(device.path)
         ? Effect.fail(
@@ -125,6 +128,11 @@ const makeFakeTransport = Effect.gen(function* () {
     closed: () => closed,
     setDevices: (next: ReadonlyArray<CodexMicroTransport.CodexMicroDevice>) => {
       devices = next;
+    },
+    failDiscovery: (failing: boolean) => {
+      discoveryError = failing
+        ? new CodexMicroTransport.CodexMicroDiscoveryError({ cause: new Error("scan failed") })
+        : undefined;
     },
     setUnopenable: (path: string, failing: boolean) => {
       if (failing) unopenable.add(path);
@@ -387,6 +395,23 @@ describe("CodexMicro", () => {
       assert.deepStrictEqual(thstatus?.params, LIGHTS_OFF_PAYLOAD.thstatus);
       assert.strictEqual(harness.transport.closed(), 1);
       assert.strictEqual((yield* harness.codexMicro.state).status, "disabled");
+    }),
+  );
+
+  it.effect("keeps failed USB paths across a transient Bluetooth discovery error", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness;
+      harness.transport.setDevices([USB, BLUETOOTH]);
+      harness.transport.setUnopenable("usb", true);
+      yield* harness.connect;
+
+      harness.transport.failDiscovery(true);
+      yield* TestClock.adjust(Duration.seconds(10));
+      harness.transport.failDiscovery(false);
+      yield* TestClock.adjust(Duration.seconds(10));
+
+      assert.deepStrictEqual(harness.transport.opened, ["bluetooth"]);
+      assert.strictEqual(harness.transport.closed(), 0);
     }),
   );
 
