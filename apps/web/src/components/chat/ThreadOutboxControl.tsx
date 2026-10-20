@@ -75,17 +75,6 @@ export function ThreadOutboxControl({
       pending.some((entry) => entry.status === "failed" || entry.error !== null),
   );
 
-  // Takes the key while the last message is mid-send rather than editing an
-  // older one.
-  useImperativeHandle(ref, () => ({
-    editLatest(repeat) {
-      const latest = pending.at(-1);
-      if (!latest) return false;
-      if (!repeat && !busy && canChangeEntry(latest)) void act(() => props.onEditMessage(latest));
-      return true;
-    },
-  }));
-
   async function act(action: () => Promise<void>) {
     setBusy(true);
     setError(null);
@@ -96,6 +85,17 @@ export function ThreadOutboxControl({
     }
     setBusy(false);
   }
+
+  // Takes the key while the last message is mid-send rather than editing an
+  // older one.
+  useImperativeHandle(ref, () => ({
+    editLatest(repeat) {
+      const latest = pending.at(-1);
+      if (!latest) return false;
+      if (!repeat && !busy && canChangeEntry(latest)) void act(() => props.onEditMessage(latest));
+      return true;
+    },
+  }));
 
   return (
     <ComposerBanner.Drawer open={open}>
