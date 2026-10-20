@@ -6,7 +6,6 @@ import {
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
 import { AuthOrchestrationOperateScope, type RunId, type ThreadId } from "@supaterm/contracts";
-import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { newThreadId } from "../lib/utils";
@@ -15,7 +14,7 @@ import { useEnvironment } from "../state/environments";
 import { useEnvironmentScope } from "../state/session";
 import { threadEnvironment } from "../state/threads";
 import { useAtomCommand } from "../state/use-atom-command";
-import { buildThreadRouteParams } from "../threadRoutes";
+import { usePaneThreadNavigation } from "../chatPanes/paneScope";
 
 const pendingForks = new Set<string>();
 
@@ -24,7 +23,7 @@ export function useForkThread(
   thread: Pick<EnvironmentThreadShell, "environmentId" | "id" | "title"> | null | undefined,
   disabled = false,
 ) {
-  const navigate = useNavigate();
+  const openThread = usePaneThreadNavigation();
   const environmentId = thread?.environmentId ?? null;
   const threadId = thread?.id ?? null;
   const title = thread?.title ?? "";
@@ -58,10 +57,7 @@ export function useForkThread(
           "The fork was created, but its thread data did not reach this client. Reconnect and try opening it from the sidebar.",
         );
       }
-      await navigate({
-        to: "/$environmentId/$threadId",
-        params: buildThreadRouteParams(targetThreadRef),
-      });
+      await openThread({ kind: "server", threadRef: targetThreadRef });
     });
     pendingForks.delete(key);
     setBusy(false);

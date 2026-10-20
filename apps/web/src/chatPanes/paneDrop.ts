@@ -96,8 +96,9 @@ function findPaneElement(point: { x: number; y: number }): HTMLElement | null {
   );
 }
 
-function workspaceSize(element: HTMLElement) {
-  const grid = element.closest<HTMLElement>('[data-slot="resizable-grid"]');
+/** The chat workspace's size, which bounds how many panes fit. */
+export function workspaceSize() {
+  const grid = document.querySelector<HTMLElement>('[data-slot="resizable-grid"]');
   if (!grid) return null;
   const { width, height } = grid.getBoundingClientRect();
   return { width, height };
@@ -111,7 +112,7 @@ export function findPaneDropTarget(
   const paneId = element?.dataset.chatPane;
   if (!element || !paneId) return null;
   const target = { paneId, zone: resolvePaneDropZone(element.getBoundingClientRect(), point) };
-  return isPaneDropAllowed(payload, target, workspaceSize(element)) ? target : null;
+  return isPaneDropAllowed(payload, target, workspaceSize()) ? target : null;
 }
 
 let hover: PaneDropTarget | null = null;

@@ -152,6 +152,25 @@ describe("reachable layouts", () => {
     }
   });
 
+  it("reopens a closed pane over the area it left", () => {
+    const createId = ids("reopen");
+    const overlaps = (a: ReturnType<typeof place>, b: ReturnType<typeof place>) =>
+      a.x! < b.x! + b.width &&
+      b.x! < a.x! + a.width &&
+      a.y! < b.y! + b.height &&
+      b.y! < a.y! + a.height;
+    for (const layout of layouts) {
+      if (layout.cells.length < 2) continue;
+      for (const cell of layout.cells) {
+        const before = place(layout, cell.id);
+        const closed = closePane(layout, cell.id)!;
+        const { paneId, edge } = closed.reopenBeside;
+        const reopened = splitPane(closed.layout, paneId, edge, cell.target, "again", createId)!;
+        expect(overlaps(place(reopened, "again"), before)).toBe(true);
+      }
+    }
+  });
+
   it("can move any pane onto any edge of another pane", () => {
     const createId = ids("move");
     for (const layout of layouts.filter((candidate) => candidate.cells.length === 3)) {

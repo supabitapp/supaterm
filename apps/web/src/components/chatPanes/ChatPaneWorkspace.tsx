@@ -20,7 +20,7 @@ import { buildThreadRouteParams, type ThreadRouteTarget } from "../../threadRout
 import type { ChatComposerHandle } from "../chat/ChatComposer";
 import { ThreadRouteView } from "../ThreadRouteView";
 import { SidebarInset } from "../ui/sidebar";
-import { ResizableGrid, ResizableGridCell, ResizableGridline } from "../ui/resizable";
+import { ResizableGrid, ResizableGridCell, ResizableGridline, useGridRef } from "../ui/resizable";
 import { ChatPaneDropOverlay } from "./ChatPaneDropOverlay";
 import { LinkPullRequestDialogHost } from "../pullRequest/LinkPullRequestDialog";
 import { cn } from "~/lib/utils";
@@ -100,6 +100,12 @@ export function ChatPaneWorkspace({ target }: { target: ThreadRouteTarget }) {
 
 const SINGLE_TRACK = [{ id: "single", defaultSize: "100%" }];
 
+const trackSizes = (tracks: PaneLayout["columns"]) =>
+  Object.fromEntries(tracks.map((track) => [track.id, track.size]));
+
+const sizesDiffer = (current: Record<string, number>, wanted: Record<string, number>) =>
+  Object.entries(wanted).some(([id, size]) => Math.abs((current[id] ?? -1) - size) > 0.5);
+
 function gridTracks(layout: PaneLayout, axis: "column" | "row") {
   return (axis === "column" ? layout.columns : layout.rows).map((track, index) => ({
     id: track.id,
@@ -122,8 +128,21 @@ function PaneGrid({
   const cells = split ? layout.cells : [focusedPane(layout)];
   const columns = split ? gridTracks(layout, "column") : SINGLE_TRACK;
   const rows = split ? gridTracks(layout, "row") : SINGLE_TRACK;
+  // Sizes that change without a drag, like equalizing or reopening, reach the grid through its
+  // handle: once dragged, it keeps the sizes it was given over new default sizes.
+  const gridRef = useGridRef();
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    if (!grid || !split) return;
+    const current = grid.getLayout();
+    const wanted = { columns: trackSizes(layout.columns), rows: trackSizes(layout.rows) };
+    if (sizesDiffer(current.columns, wanted.columns) || sizesDiffer(current.rows, wanted.rows)) {
+      grid.setLayout(wanted);
+    }
+  }, [gridRef, layout, split]);
   return (
     <ResizableGrid
+      gridRef={gridRef}
       className="min-h-0 min-w-0 flex-1"
       columns={columns}
       rows={rows}

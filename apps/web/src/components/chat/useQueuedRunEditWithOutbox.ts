@@ -1,7 +1,6 @@
 import type { ThreadId } from "@supaterm/contracts";
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
-import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { buildMessageContext } from "../../lib/composerContextRecords";
@@ -14,6 +13,7 @@ import {
 import type { OutboxTurn } from "../../state/threadOutboxSchema";
 import type { EditQueuedRunRequest } from "./QueuedRunsControl";
 import { useQueuedRunEdit } from "./useQueuedRunEdit";
+import { usePaneThreadNavigation } from "../../chatPanes/paneScope";
 
 /**
  * Queued-run editing plus editing a message still waiting in the thread outbox.
@@ -26,7 +26,7 @@ export function useQueuedRunEditWithOutbox(input: Parameters<typeof useQueuedRun
   const queuedRunEdit = useQueuedRunEdit(input);
   const { environmentId, routeThreadRef, promptRef, composerRef } = input;
   const { editor, editing, attachments } = useThreadOutboxEditor(scopedThreadKey(routeThreadRef));
-  const navigate = useNavigate();
+  const openThread = usePaneThreadNavigation();
   const [isSavingOutboxEdit, setIsSavingOutboxEdit] = useState(false);
 
   const scheduleComposerFocus = () => {
@@ -98,11 +98,7 @@ export function useQueuedRunEditWithOutbox(input: Parameters<typeof useQueuedRun
       setThreadError(routeThreadRef.threadId, null);
       composerRef.current?.resetCursorState();
       if (saveResult.value)
-        void navigate({
-          to: "/$environmentId/$threadId",
-          params: saveResult.value,
-          replace: true,
-        });
+        void openThread({ kind: "server", threadRef: saveResult.value }, { replace: true });
       scheduleComposerFocus();
     }
     send.sendInFlightRef.current = false;

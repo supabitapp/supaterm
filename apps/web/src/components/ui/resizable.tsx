@@ -7,6 +7,7 @@ import {
   Group,
   Panel,
   Separator,
+  useGridRef,
   useGroupRef,
   usePanelCallbackRef,
   type CellProps,
@@ -316,5 +317,6 @@ export {
   ResizablePanel,
   ResizablePanelGroup,
   useCollapsiblePanel,
+  useGridRef,
   useGroupRef,
 };

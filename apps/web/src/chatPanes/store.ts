@@ -106,14 +106,12 @@ function createPaneStorage(): StateStorage {
 /** How the URL should follow a focus change: an open adds history, a click does not. */
 export type PaneHistoryMode = "push" | "replace";
 
-/** How long a request to open the next thread beside the focused one stays armed. */
-const OPEN_TO_SIDE_TTL_MS = 15_000;
-
 interface ChatPaneState {
   layout: PaneLayout | null;
   closed: ReadonlyArray<ClosedPaneRecord>;
   historyMode: PaneHistoryMode;
-  openToSide: { readonly edge: PaneEdge; readonly expiresAt: number } | null;
+  /** Set while the user picks a thread to open beside the focused pane. */
+  openToSide: { readonly edge: PaneEdge } | null;
   /**
    * The route names the focused pane's thread. With an open-to-side request
    * armed, a thread that is not on screen opens in a new pane instead.
@@ -150,29 +148,6 @@ function remember(
   return [record, ...closed].slice(0, MAX_CLOSED_RECORDS);
 }
 
-/** The pane a closed pane sat beside, so reopening can put it back on the same edge. */
-function closedPaneAnchor(layout: PaneLayout, paneId: string) {
-  const cell = findPane(layout, paneId)!;
-  const others = layout.cells.filter((other) => other.id !== paneId);
-  const touches = (other: (typeof others)[number], edge: PaneEdge) => {
-    if (edge === "left") return other.column + other.columnSpan === cell.column;
-    if (edge === "right") return other.column === cell.column + cell.columnSpan;
-    if (edge === "top") return other.row + other.rowSpan === cell.row;
-    return other.row === cell.row + cell.rowSpan;
-  };
-  const opposite: Record<PaneEdge, PaneEdge> = {
-    left: "right",
-    right: "left",
-    top: "bottom",
-    bottom: "top",
-  };
-  for (const edge of ["left", "top", "right", "bottom"] as const) {
-    const neighbour = others.find((other) => touches(other, edge));
-    if (neighbour) return { besidePaneId: neighbour.id, edge: opposite[edge] };
-  }
-  return { besidePaneId: others[0]!.id, edge: "right" as const };
-}
-
 export const useChatPaneStore = create<ChatPaneState>()(
   persist(
     (set, get) => ({
@@ -183,7 +158,7 @@ export const useChatPaneStore = create<ChatPaneState>()(
       // Runs once per navigation, so an armed open-to-side request is used up either way.
       reconcileRoute: (target, workspace) =>
         set((state) => {
-          const request = (state.openToSide?.expiresAt ?? 0) > Date.now() ? state.openToSide : null;
+          const request = state.openToSide;
           const { layout: current } = state;
           if (
             current &&
@@ -207,8 +182,7 @@ export const useChatPaneStore = create<ChatPaneState>()(
             ? state
             : { layout, openToSide: null, historyMode: "replace" };
         }),
-      requestOpenToSide: (edge) =>
-        set({ openToSide: { edge, expiresAt: Date.now() + OPEN_TO_SIDE_TTL_MS } }),
+      requestOpenToSide: (edge) => set({ openToSide: { edge } }),
       cancelOpenToSide: () => set((state) => (state.openToSide ? { openToSide: null } : state)),
       focus: (paneId) =>
         set((state) => {
@@ -278,7 +252,8 @@ export const useChatPaneStore = create<ChatPaneState>()(
               : remember(closed, {
                   kind: "pane",
                   target: cell.target,
-                  ...closedPaneAnchor(layout, paneId),
+                  besidePaneId: result.reopenBeside.paneId,
+                  edge: result.reopenBeside.edge,
                   closedAt: Date.now(),
                 }),
           historyMode: "replace",

@@ -1,8 +1,10 @@
+import { useNavigate } from "@tanstack/react-router";
 import { createContext, use, type ReactNode } from "react";
 
 import type { ComposerHandleRef } from "../composerHandleContext";
 import type { ChatComposerHandle } from "../components/chat/ChatComposer";
 import { useChatPaneStore } from "./store";
+import { buildThreadRouteParams, type ThreadRouteTarget } from "../threadRoutes";
 
 export interface PaneScope {
   readonly paneId: string;
@@ -54,6 +56,32 @@ export function useIsPaneInputOwner(): boolean {
     if (paneId === null || state.layout === null || state.layout.cells.length < 2) return true;
     return state.layout.focusedPaneId === paneId;
   });
+}
+
+/**
+ * Opens a thread from work a pane started, such as a send, a fork, or a saved edit. Work that
+ * finishes after the user moved to another pane changes its own pane instead of replacing the
+ * thread the user is now in.
+ */
+export function usePaneThreadNavigation() {
+  const paneId = use(PaneScopeContext)?.paneId ?? null;
+  const navigate = useNavigate();
+  return async (target: ThreadRouteTarget, options?: { readonly replace?: boolean }) => {
+    if (!isPaneInputOwner(paneId)) {
+      useChatPaneStore.getState().retarget(paneId!, target);
+      return;
+    }
+    const replace = options?.replace ?? false;
+    if (target.kind === "server") {
+      await navigate({
+        to: "/$environmentId/$threadId",
+        params: buildThreadRouteParams(target.threadRef),
+        replace,
+      });
+    } else {
+      await navigate({ to: "/draft/$draftId", params: { draftId: target.draftId }, replace });
+    }
+  };
 }
 
 const paneComposers = new Map<string, ComposerHandleRef>();

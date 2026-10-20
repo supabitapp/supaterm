@@ -300,6 +300,7 @@ import {
 import { useThreadRouteTarget } from "../hooks/useThreadRouteTarget";
 import { useChatPaneStore } from "../chatPanes/store";
 import { useShallow } from "zustand/react/shallow";
+import { openThreadBeside } from "../chatPanes/actions";
 
 // Done-tail paging: recent history is the common lookup; the deep tail
 // stays behind an explicit Show more.
@@ -4119,8 +4120,9 @@ export default function Sidebar() {
         }
         switch (clicked.value) {
           case "open-beside":
-            useChatPaneStore.getState().requestOpenToSide("right");
-            void navigateToThread(threadRef);
+            if (!openThreadBeside({ kind: "server", threadRef }, "right")) {
+              void navigateToThread(threadRef);
+            }
             return;
           case "filter-by-project":
             if (threadProjectGroup) {

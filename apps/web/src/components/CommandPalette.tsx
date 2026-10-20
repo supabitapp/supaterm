@@ -3225,15 +3225,27 @@ function OpenCommandPaletteDialog(props: {
       setOpen(false);
     }
 
-    void item.run().catch((error: unknown) => {
-      toastManager.add(
-        stackedThreadToast({
-          type: "error",
-          title: "Unable to run command",
-          description: error instanceof Error ? error.message : "An unexpected error occurred.",
-        }),
-      );
-    });
+    const openToSide = useChatPaneStore.getState().openToSide;
+    void item
+      .run()
+      .catch((error: unknown) => {
+        toastManager.add(
+          stackedThreadToast({
+            type: "error",
+            title: "Unable to run command",
+            description: error instanceof Error ? error.message : "An unexpected error occurred.",
+          }),
+        );
+      })
+      .finally(() => {
+        // A request to open beside the focused pane belongs to this pick. If the pick did not
+        // open a thread, it lapses rather than splitting some later navigation.
+        requestAnimationFrame(() => {
+          if (openToSide !== null && useChatPaneStore.getState().openToSide === openToSide) {
+            useChatPaneStore.getState().cancelOpenToSide();
+          }
+        });
+      });
   }
 
   const handleOpenProjectFromFileManager = async () => {

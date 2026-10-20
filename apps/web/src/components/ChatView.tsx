@@ -212,7 +212,12 @@ import { writeTextToClipboard } from "../hooks/useCopyToClipboard";
 import { isCommandPaletteOpen } from "../commandPaletteBus";
 import { markDoneAndAdvance } from "../markDoneAndAdvance";
 import { subscribeSnapShotComposerFocus } from "../lib/desktopSnapShot";
-import { useIsPaneInputOwner, usePaneInputOwner, usePaneScope } from "../chatPanes/paneScope";
+import {
+  useIsPaneInputOwner,
+  usePaneInputOwner,
+  usePaneScope,
+  usePaneThreadNavigation,
+} from "../chatPanes/paneScope";
 import { useChatPaneStore } from "../chatPanes/store";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { FileMetadataThreadProvider } from "../hooks/FileMetadataThreadProvider";
@@ -311,7 +316,7 @@ import {
   deriveLogicalProjectKeyFromSettings,
   selectProjectGroupingSettings,
 } from "../logicalProject";
-import { buildDraftThreadRouteParams, buildThreadRouteParams } from "../threadRoutes";
+import { buildThreadRouteParams } from "../threadRoutes";
 import {
   isSameSidebarThreadRef,
   useSidebarPendingFileDropStore,
@@ -962,6 +967,7 @@ export default function ChatView(props: ChatViewProps) {
   } = props;
   const canOperateThread = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
   const isPaneInputOwner = usePaneInputOwner();
+  const openPaneThread = usePaneThreadNavigation();
   const paneScope = usePaneScope();
   const paneSplit = useChatPaneStore((state) => (state.layout?.cells.length ?? 1) > 1);
   const canQueueMessage = useAtomValue(canQueueComposerMessageAtom(environmentId));
@@ -2033,10 +2039,7 @@ export default function ChatView(props: ChatViewProps) {
         },
       );
       if (routeKind !== "draft" || draftId !== storedDraftSession.draftId) {
-        await navigate({
-          to: "/draft/$draftId",
-          params: buildDraftThreadRouteParams(storedDraftSession.draftId),
-        });
+        await openPaneThread({ kind: "draft", draftId: storedDraftSession.draftId });
       }
       return storedDraftSession.threadId;
     }
@@ -2062,10 +2065,7 @@ export default function ChatView(props: ChatViewProps) {
         .defaultRuntimeMode,
       ...input,
     });
-    await navigate({
-      to: "/draft/$draftId",
-      params: buildDraftThreadRouteParams(nextDraftId),
-    });
+    await openPaneThread({ kind: "draft", draftId: nextDraftId });
     return nextThreadId;
   };
 
@@ -6390,11 +6390,10 @@ export default function ChatView(props: ChatViewProps) {
       clearUsageLimitsFor(routeThreadKey);
       if (submissionIntent === "background") handleNewThreadInActiveProject();
       else if (isLocalDraftThread && targets[0]) {
-        void navigate({
-          to: "/$environmentId/$threadId",
-          params: { environmentId, threadId: targets[0].threadId },
-          replace: true,
-        });
+        void openPaneThread(
+          { kind: "server", threadRef: scopeThreadRef(environmentId, targets[0].threadId) },
+          { replace: true },
+        );
       }
     });
     if (sendResult._tag === "Failure") {

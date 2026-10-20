@@ -305,7 +305,16 @@ export interface ClosePaneResult {
   readonly layout: PaneLayout;
   /** The pane that took the closed pane's place, or that keeps focus. */
   readonly survivorId: string;
+  /** Where the closed pane sat relative to a pane that grew into its space, to reopen it there. */
+  readonly reopenBeside: { readonly paneId: string; readonly edge: PaneEdge };
 }
+
+const OPPOSITE_EDGE: Record<PaneEdge, PaneEdge> = {
+  left: "right",
+  right: "left",
+  top: "bottom",
+  bottom: "top",
+};
 
 /** Closes `paneId`; neighbours that share its whole edge grow into its area. Null for the last pane. */
 export function closePane(layout: PaneLayout, paneId: string): ClosePaneResult | null {
@@ -326,6 +335,7 @@ export function closePane(layout: PaneLayout, paneId: string): ClosePaneResult |
     return {
       layout: normalizePaneLayout({ ...layout, cells, focusedPaneId: survivorId }),
       survivorId,
+      reopenBeside: { paneId: neighbours[0]!.id, edge: OPPOSITE_EDGE[edge] },
     };
   }
   return null;
