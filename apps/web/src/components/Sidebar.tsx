@@ -1350,6 +1350,8 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
   project: ProjectFaviconProject | null;
   projectDisplayName: string | null;
   isActive: boolean;
+  /** Open in a chat pane that is not focused. */
+  inOtherPane: boolean;
   onNavigate: (draftId: DraftId) => void;
   onDiscard: (draftId: DraftId) => void;
   onContextMenu: (draftId: DraftId, position: { x: number; y: number }) => void;
@@ -1413,7 +1415,11 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
           data-testid="sidebar-draft-row"
           className={cn(
             "group/sidebar-row relative w-full cursor-pointer overflow-hidden rounded-md text-left text-sidebar-foreground outline-none select-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-            props.isActive ? "bg-sidebar-row-active" : "bg-transparent hover:bg-sidebar-row-hover",
+            props.isActive
+              ? "bg-sidebar-row-active"
+              : props.inOtherPane
+                ? "bg-sidebar-row-active/50 hover:bg-sidebar-row-hover"
+                : "bg-transparent hover:bg-sidebar-row-hover",
           )}
           onClick={handleActivate}
           onContextMenu={handleContextMenu}
@@ -1487,6 +1493,14 @@ const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
     Schema.Boolean,
   );
   const toggleDraftsShelf = () => setDraftsShelfExpanded((value) => !value);
+  const paneDraftIdList = useChatPaneStore(
+    useShallow((state) =>
+      (state.layout?.cells ?? []).flatMap((cell) =>
+        cell.target.kind === "draft" ? [cell.target.draftId] : [],
+      ),
+    ),
+  );
+  const paneDraftIds = new Set(paneDraftIdList);
   const draftThreadsByThreadKey = useComposerDraftStore((store) => store.draftThreadsByThreadKey);
   const draftsByThreadKey = useComposerDraftStore((store) => store.draftsByThreadKey);
   const [frozenActive, setFrozenActive] = useState<{
@@ -1538,7 +1552,7 @@ const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
   }
   const renderedDrafts = draftsShelfExpanded
     ? drafts
-    : drafts.filter(({ draftId }) => draftId === props.routeDraftId);
+    : drafts.filter(({ draftId }) => draftId === props.routeDraftId || paneDraftIds.has(draftId));
   return (
     <SortableSidebarMarker marker="drafts-block">
       <ul role="presentation" className="flex flex-col gap-px">
@@ -1563,6 +1577,7 @@ const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
               project={props.projectByKey.get(projectKey) ?? null}
               projectDisplayName={props.projectDisplayNameByKey.get(projectKey) ?? null}
               isActive={draftId === props.routeDraftId}
+              inOtherPane={draftId !== props.routeDraftId && paneDraftIds.has(draftId)}
               onNavigate={props.onNavigateToDraft}
               onDiscard={discardComposerDraft}
               onContextMenu={props.onDraftContextMenu}

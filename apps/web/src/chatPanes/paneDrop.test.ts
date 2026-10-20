@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vite-plus/test";
+import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
+import { beforeEach, describe, expect, it } from "vite-plus/test";
 
-import { paneDropVerb, resolvePaneDropZone } from "./paneDrop";
+import { findPaneByTarget, paneTargetKey } from "./layout";
+import { commitPaneDrop, paneDropVerb, resolvePaneDropZone } from "./paneDrop";
+import { useChatPaneStore } from "./store";
 
 const pane = { left: 100, top: 50, width: 800, height: 600 };
 
@@ -35,5 +38,42 @@ describe("paneDropVerb", () => {
     expect(paneDropVerb("right", threads)).toBe("Split right");
     expect(paneDropVerb("center", threads)).toBe("Open here");
     expect(paneDropVerb("center", pane)).toBe("Swap panes");
+    expect(paneDropVerb("top", pane)).toBe("Move up");
+  });
+});
+
+describe("commitPaneDrop", () => {
+  const thread = (id: string) => ({
+    kind: "server" as const,
+    threadRef: { environmentId: "env" as EnvironmentId, threadId: id as ThreadId },
+  });
+  const store = () => useChatPaneStore.getState();
+  const paneOf = (id: string) => findPaneByTarget(store().layout!, thread(id))!;
+
+  beforeEach(() => {
+    useChatPaneStore.setState({ layout: null, closed: [], openToSide: null });
+    store().reconcileRoute(thread("a"), { width: 1600, height: 900 });
+    store().split(store().layout!.focusedPaneId, "right", thread("b"));
+  });
+
+  it("moves a thread that is already open instead of opening it twice", () => {
+    const dragged = { kind: "threads", threads: [thread("a").threadRef] } as const;
+    expect(commitPaneDrop({ paneId: paneOf("b").id, zone: "bottom" }, dragged)).toBe(true);
+    const targets = store().layout!.cells.map((cell) => cell.target);
+    expect(targets).toHaveLength(2);
+    expect(
+      targets.filter((target) => paneTargetKey(target) === paneTargetKey(thread("a"))),
+    ).toHaveLength(1);
+    expect(paneOf("a").row).toBeGreaterThan(paneOf("b").row);
+  });
+
+  it("swaps when an open thread is dropped on another pane's middle", () => {
+    const before = paneOf("a").column;
+    commitPaneDrop(
+      { paneId: paneOf("b").id, zone: "center" },
+      { kind: "threads", threads: [thread("a").threadRef] },
+    );
+    expect(store().layout!.cells).toHaveLength(2);
+    expect(paneOf("a").column).not.toBe(before);
   });
 });

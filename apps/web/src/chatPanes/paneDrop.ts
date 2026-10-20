@@ -46,19 +46,12 @@ export function resolvePaneDropZone(rect: Rect, point: { x: number; y: number })
   return nearest[1] < 1 ? nearest[0] : "center";
 }
 
+/** A thread already on screen moves its pane rather than opening a second one. */
 export function paneDropVerb(zone: PaneDropZone, payload: PaneDragPayload): string {
-  switch (zone) {
-    case "left":
-      return "Split left";
-    case "right":
-      return "Split right";
-    case "top":
-      return "Split up";
-    case "bottom":
-      return "Split down";
-    case "center":
-      return payload.kind === "pane" ? "Swap panes" : "Open here";
-  }
+  const moving = payload.kind === "pane" || sourcePaneId(payload) !== null;
+  if (zone === "center") return moving ? "Swap panes" : "Open here";
+  const direction = { left: "left", right: "right", top: "up", bottom: "down" }[zone];
+  return `${moving ? "Move" : "Split"} ${direction}`;
 }
 
 /** The pane a dragged thread or pane already occupies, if any. */
