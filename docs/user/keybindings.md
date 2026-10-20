@@ -166,6 +166,12 @@ terminals so native undo keeps working there.
 `navigation.back` (`mod+[` by default) and `navigation.forward` (`mod+]`) move
 through the pages you have visited, like a browser's back and forward buttons.
 
+`thread.approve` and `thread.decline` answer the first pending approval in the focused thread.
+`composer.submit` sends the draft as the send button would, and `composer.toggleFastMode` turns
+Fast mode on or off for the selected model. `conversation.scrollUp`, `conversation.scrollDown`,
+and `conversation.scrollToEnd` scroll the focused thread. These are unbound by default; a
+[Codex Micro](./codex-micro.md) keyboard uses them.
+
 `pane.focus.1` through `pane.focus.4` (`mod+alt+1` to `mod+alt+4`) focus a pane
 when [threads are side by side](./thread-sidebar.md#open-threads-side-by-side),
 numbered top to bottom, then left to right. `pane.close` closes the focused pane

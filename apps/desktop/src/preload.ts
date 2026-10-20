@@ -9,6 +9,7 @@ import type {
 } from "@supaterm/contracts";
 import { contextBridge, ipcRenderer, webFrame, webUtils } from "electron";
 
+import { makeCodexMicroBridge } from "./codexMicro/CodexMicroPreload.ts";
 import * as IpcChannels from "./ipc/channels.ts";
 
 const SNAP_SHOT_EVENT_TYPES = new Set([
@@ -60,7 +61,10 @@ function unwrapEnsureSshEnvironmentResult(result: unknown) {
   return result as Awaited<ReturnType<DesktopBridge["ensureSshEnvironment"]>>;
 }
 
+const codexMicro = makeCodexMicroBridge();
+
 contextBridge.exposeInMainWorld("desktopBridge", {
+  ...(codexMicro ? { codexMicro } : {}),
   getAppBranding: () => {
     const result = ipcRenderer.sendSync(IpcChannels.GET_APP_BRANDING_CHANNEL);
     if (typeof result !== "object" || result === null) {

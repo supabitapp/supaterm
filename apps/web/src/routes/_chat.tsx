@@ -1,8 +1,9 @@
-import { AuthPreviewOperateScope } from "@supaterm/contracts";
+import { AuthPreviewOperateScope, type KeybindingCommand } from "@supaterm/contracts";
 import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
 import { useAtomValue } from "@effect/atom-react";
 import { useEffect } from "react";
 
+import { registerAppCommandHandler } from "../appCommandBus";
 import { isCommandPaletteOpen, openCommandPalette } from "../commandPaletteBus";
 import { ChatPaneWorkspace } from "../components/chatPanes/ChatPaneWorkspace";
 import { ThreadLinkPrompt } from "../components/promptLinks/ThreadLinkPrompt";
@@ -25,6 +26,23 @@ import { useThreadSelectionStore } from "../threadSelectionStore";
 import { stackedThreadToast, toastManager } from "~/components/ui/toast";
 import { primaryServerKeybindingsAtom } from "~/state/server";
 import { useThreadRouteTarget } from "../hooks/useThreadRouteTarget";
+
+function previewActionForCommand(command: KeybindingCommand | null) {
+  switch (command) {
+    case "preview.refresh":
+      return "refresh";
+    case "preview.focusUrl":
+      return "focus-url";
+    case "preview.zoomIn":
+      return "zoom-in";
+    case "preview.zoomOut":
+      return "zoom-out";
+    case "preview.resetZoom":
+      return "reset-zoom";
+    default:
+      return null;
+  }
+}
 
 function ChatRouteGlobalShortcuts() {
   const clearSelection = useThreadSelectionStore((state) => state.clearSelection);
@@ -52,6 +70,63 @@ function ChatRouteGlobalShortcuts() {
       : false,
   );
   useEffect(() => {
+    const runCommand = (command: KeybindingCommand | null, repeat: boolean): boolean => {
+      if (command === "chat.new" || command === "chat.newLocal") {
+        void startNewThreadFromContext({
+          activeDraftThread,
+          activeThread: activeThread ?? undefined,
+          defaultProjectRef,
+          handleNewThread,
+        });
+        return true;
+      }
+
+      if (command === "chat.newWithoutProject") {
+        const environmentId = scratchEnvironmentId(
+          activeThread?.environmentId ?? activeDraftThread?.environmentId ?? primaryEnvironmentId,
+        );
+        if (environmentId === null) return false;
+        void startScratchThread(environmentId);
+        return true;
+      }
+
+      if (command === "projectPicker.toggle") {
+        if (repeat) return true;
+        const projectTrigger =
+          document.querySelector<HTMLButtonElement>(
+            '[data-chat-pane][data-focused="true"] [data-draft-project-trigger]',
+          ) ?? document.querySelector<HTMLButtonElement>("[data-draft-project-trigger]");
+        if (projectTrigger) {
+          projectTrigger.focus({ preventScroll: true });
+          projectTrigger.click();
+        } else {
+          openCommandPalette({ open: "new-thread-in" });
+        }
+        return true;
+      }
+
+      if (command === "preview.toggle") {
+        if (!routeThreadRef || (!canOperatePreview && !previewOpen)) return true;
+        if (!isPreviewAvailableFor(routeThreadRef.environmentId)) {
+          toastManager.add(
+            stackedThreadToast({
+              type: "info",
+              title: "Preview is desktop-only",
+              description: "Open Supaterm in the desktop app to use the in-app preview.",
+            }),
+          );
+          return true;
+        }
+        dispatchPreviewAction("toggle-panel");
+        return true;
+      }
+
+      const previewAction = previewActionForCommand(command);
+      if (previewAction === null) return false;
+      if (canOperatePreview) dispatchPreviewAction(previewAction);
+      return true;
+    };
+
     const onWindowKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
       const command = resolveShortcutCommand(event, keybindings, {
@@ -84,103 +159,18 @@ function ChatRouteGlobalShortcuts() {
         return;
       }
 
-      if (command === "chat.newLocal") {
-        event.preventDefault();
-        event.stopPropagation();
-        void startNewThreadFromContext({
-          activeDraftThread,
-          activeThread: activeThread ?? undefined,
-          defaultProjectRef,
-          handleNewThread,
-        });
-        return;
-      }
-
-      if (command === "chat.newWithoutProject") {
-        const environmentId = scratchEnvironmentId(
-          activeThread?.environmentId ?? activeDraftThread?.environmentId ?? primaryEnvironmentId,
-        );
-        if (environmentId === null) return;
-        event.preventDefault();
-        event.stopPropagation();
-        void startScratchThread(environmentId);
-        return;
-      }
-
-      if (command === "chat.new") {
-        event.preventDefault();
-        event.stopPropagation();
-        void startNewThreadFromContext({
-          activeDraftThread,
-          activeThread: activeThread ?? undefined,
-          defaultProjectRef,
-          handleNewThread,
-        });
-        return;
-      }
-
-      if (command === "projectPicker.toggle") {
-        event.preventDefault();
-        event.stopPropagation();
-        if (event.repeat) return;
-        const projectTrigger =
-          document.querySelector<HTMLButtonElement>(
-            '[data-chat-pane][data-focused="true"] [data-draft-project-trigger]',
-          ) ?? document.querySelector<HTMLButtonElement>("[data-draft-project-trigger]");
-        if (projectTrigger) {
-          projectTrigger.focus({ preventScroll: true });
-          projectTrigger.click();
-        } else {
-          openCommandPalette({ open: "new-thread-in" });
-        }
-        return;
-      }
-
-      if (command === "preview.toggle") {
-        event.preventDefault();
-        event.stopPropagation();
-        if (!routeThreadRef || (!canOperatePreview && !previewOpen)) return;
-        if (!isPreviewAvailableFor(routeThreadRef.environmentId)) {
-          toastManager.add(
-            stackedThreadToast({
-              type: "info",
-              title: "Preview is desktop-only",
-              description: "Open Supaterm in the desktop app to use the in-app preview.",
-            }),
-          );
-          return;
-        }
-        dispatchPreviewAction("toggle-panel");
-        return;
-      }
-
-      if (
-        command === "preview.refresh" ||
-        command === "preview.focusUrl" ||
-        command === "preview.zoomIn" ||
-        command === "preview.zoomOut" ||
-        command === "preview.resetZoom"
-      ) {
-        event.preventDefault();
-        event.stopPropagation();
-        if (!canOperatePreview) return;
-        const action =
-          command === "preview.refresh"
-            ? "refresh"
-            : command === "preview.focusUrl"
-              ? "focus-url"
-              : command === "preview.zoomIn"
-                ? "zoom-in"
-                : command === "preview.zoomOut"
-                  ? "zoom-out"
-                  : "reset-zoom";
-        dispatchPreviewAction(action);
-      }
+      if (!runCommand(command, event.repeat)) return;
+      event.preventDefault();
+      event.stopPropagation();
     };
 
     window.addEventListener("keydown", onWindowKeyDown);
+    const unregister = registerAppCommandHandler(
+      (command) => !isCommandPaletteOpen() && runCommand(command, false),
+    );
     return () => {
       window.removeEventListener("keydown", onWindowKeyDown);
+      unregister();
     };
   }, [
     activeDraftThread,

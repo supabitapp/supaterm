@@ -1,11 +1,12 @@
-import { renderMermaidAscii } from "@supaterm/mermaid-ascii";
+import { renderDiagram } from "@supaterm/mermaid";
+import type { DiagramOptions } from "@supaterm/mermaid/diagram";
 
-self.addEventListener("message", (event: MessageEvent<{ source: string }>) => {
-  try {
-    self.postMessage({ output: renderMermaidAscii(event.data.source) }, { transfer: [] });
-  } catch {
-    self.postMessage({ error: true }, { transfer: [] });
-  }
-});
+self.addEventListener(
+  "message",
+  (event: MessageEvent<{ source: string; options: DiagramOptions }>) => {
+    const output = renderDiagram(event.data.source, event.data.options);
+    self.postMessage(output ? { output } : { error: true }, { transfer: [] });
+  },
+);
 
 self.postMessage({ ready: true }, { transfer: [] });

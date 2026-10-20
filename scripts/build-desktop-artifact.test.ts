@@ -48,6 +48,7 @@ import {
   resolveDesktopUpdateChannel,
   resolveDesktopWebAssetBrand,
   resolveResourceMonitorRustTargets,
+  resolveWindowsFileExclusions,
   resolveWindowsServerAsarIgnoreGlobs,
   resourceMonitorExecutableName,
   resolveGitHubPublishConfig,
@@ -637,7 +638,10 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       assert.notProperty(win, "toolsets");
       assert.deepStrictEqual(mac.files, [...DESKTOP_FILE_EXCLUSIONS, ...MAC_FILE_EXCLUSIONS]);
       assert.deepStrictEqual(linux.files, [...DESKTOP_FILE_EXCLUSIONS, ...LINUX_FILE_EXCLUSIONS]);
-      assert.deepStrictEqual(win.files, DESKTOP_FILE_EXCLUSIONS);
+      assert.deepStrictEqual(win.files, [
+        ...DESKTOP_FILE_EXCLUSIONS,
+        ...resolveWindowsFileExclusions(),
+      ]);
       assert.deepStrictEqual(winWithoutWslRuntime.files, win.files);
       assert.notProperty(mac.mac as Record<string, unknown>, "sign");
       assert.propertyVal(
@@ -656,10 +660,24 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     assert.deepStrictEqual(MAC_FILE_EXCLUSIONS, [
       "!**/node_modules/node-pty/prebuilds/win32-*/**/*",
       "!**/node_modules/node-pty/third_party/conpty/**/*",
+      "!**/node_modules/node-hid/hidapi/**/*",
+      "!**/node_modules/node-hid/src/**/*",
+      "!**/node_modules/node-hid/build/**/*",
+      "!**/node_modules/node-hid/binding.gyp",
+      "!**/node_modules/node-hid/prebuilds/HID-win32-*/**/*",
+      "!**/node_modules/node-hid/prebuilds/HID-linux-*/**/*",
+      "!**/node_modules/node-hid/prebuilds/HID_hidraw-*/**/*",
     ]);
     assert.deepStrictEqual(LINUX_FILE_EXCLUSIONS, [
-      ...MAC_FILE_EXCLUSIONS,
+      "!**/node_modules/node-pty/prebuilds/win32-*/**/*",
+      "!**/node_modules/node-pty/third_party/conpty/**/*",
       "!**/node_modules/node-pty/prebuilds/darwin-*/**/*",
+      "!**/node_modules/node-hid/hidapi/**/*",
+      "!**/node_modules/node-hid/src/**/*",
+      "!**/node_modules/node-hid/build/**/*",
+      "!**/node_modules/node-hid/binding.gyp",
+      "!**/node_modules/node-hid/prebuilds/HID-*/**/*",
+      "!**/node_modules/node-hid/prebuilds/HID_hidraw-linux-*-musl/**/*",
     ]);
   });
 
@@ -952,12 +970,12 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         );
 
         assert.instanceOf(error, LinuxDesktopBuildPrerequisitesMissingError);
-        assert.deepStrictEqual(error.missing, ["cargo", "rust-target", "libsecret"]);
+        assert.deepStrictEqual(error.missing, ["cargo", "rust-target", "libsecret", "hid"]);
         assert.include(error.message, "Rust compiler and Cargo (cargo, rustc)");
         assert.include(error.message, "Requested Rust standard library");
         assert.include(
           error.message,
-          "sudo apt-get install cargo rustc libsecret-1-dev pkg-config",
+          "sudo apt-get install cargo rustc libsecret-1-dev pkg-config libusb-1.0-0-dev libudev-dev",
         );
         assert.include(error.message, "rustup target add aarch64-unknown-linux-gnu");
         assert.isTrue(
@@ -2078,6 +2096,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         outputDir: Option.none(),
         skipBuild: Option.none(),
         keepStage: Option.none(),
+        withoutCodexMicro: Option.none(),
         signed: Option.none(),
         verbose: Option.none(),
         mockUpdates: Option.none(),
@@ -2118,6 +2137,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
             outputDir: Option.none(),
             skipBuild: Option.none(),
             keepStage: Option.none(),
+            withoutCodexMicro: Option.none(),
             signed: Option.none(),
             verbose: Option.none(),
             mockUpdates: Option.none(),
@@ -2142,6 +2162,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         outputDir: Option.some("release-test"),
         skipBuild: Option.some(false),
         keepStage: Option.some(false),
+        withoutCodexMicro: Option.none(),
         signed: Option.some(false),
         verbose: Option.some(false),
         mockUpdates: Option.some(false),

@@ -17,6 +17,8 @@ allowBuilds:
   esbuild: true
   msgpackr-extract: true
   msw: false
+  # Ships N-API prebuilds; the install script would only fall back to node-gyp.
+  node-hid: false
   node-pty: true
   "react-native-enriched-markdown@file:apps/mobile/deps/react-native-enriched-markdown-1.2.0-supacode.15.tgz": true
   sharp: true
@@ -167,6 +169,7 @@ minimumReleaseAgeExclude:
   - "@react-native/virtualized-lists@0.88.0"
   - react-native-svg@15.16.0
   - "@expo/schema-utils@58.0.2"
+  - pele@1.7.0
 
 overrides:
   # Keep jsdom's optional peer consistent so Vite+ has one test-runner instance.

@@ -1,4 +1,11 @@
-import { MERMAID_ASCII_LIMITS } from "@supaterm/mermaid-ascii/limits";
+import { DIAGRAM_LIMITS, diagramOptions } from "@supaterm/mermaid/diagram";
+
+const diagram = (text: string) => ({
+  svg: `<svg >${text}</svg>`,
+  width: 100,
+  height: 100,
+  type: "flowchart",
+});
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { createBrowserDiagramRenderer } from "./mermaidRenderer";
@@ -38,15 +45,17 @@ describe("browser diagram rendering", () => {
     const worker = TestWorker.instances[0]!;
     expect(worker.postMessage).not.toHaveBeenCalled();
     worker.reply({ ready: true });
-    expect(worker.postMessage.mock.calls).toEqual([[{ source: "first" }, []]]);
-    worker.reply({ output: "first diagram" });
-    expect(await first).toBe("first diagram");
     expect(worker.postMessage.mock.calls).toEqual([
-      [{ source: "first" }, []],
-      [{ source: "second" }, []],
+      [{ source: "first", options: diagramOptions() }, []],
     ]);
-    worker.reply({ output: "second diagram" });
-    expect(await second).toBe("second diagram");
+    worker.reply({ output: diagram("first diagram") });
+    expect(await first).toEqual(diagram("first diagram"));
+    expect(worker.postMessage.mock.calls).toEqual([
+      [{ source: "first", options: diagramOptions() }, []],
+      [{ source: "second", options: diagramOptions() }, []],
+    ]);
+    worker.reply({ output: diagram("second diagram") });
+    expect(await second).toEqual(diagram("second diagram"));
     expect(TestWorker.instances).toHaveLength(1);
     expect(worker.terminate).not.toHaveBeenCalled();
   });
@@ -56,17 +65,17 @@ describe("browser diagram rendering", () => {
     const first = renderer.render("slow");
     const firstWorker = TestWorker.instances[0]!;
     firstWorker.reply({ ready: true });
-    vi.advanceTimersByTime(MERMAID_ASCII_LIMITS.durationMs * 2);
+    vi.advanceTimersByTime(DIAGRAM_LIMITS.durationMs * 2);
     expect(await first).toBeNull();
     expect(firstWorker.terminate).toHaveBeenCalledTimes(1);
     expect(TestWorker.instances).toHaveLength(1);
 
     const second = renderer.render("slow");
-    firstWorker.reply({ output: "stale diagram" });
+    firstWorker.reply({ output: diagram("stale diagram") });
     const secondWorker = TestWorker.instances[1]!;
     secondWorker.reply({ ready: true });
-    secondWorker.reply({ output: "recovered diagram" });
-    expect(await second).toBe("recovered diagram");
+    secondWorker.reply({ output: diagram("recovered diagram") });
+    expect(await second).toEqual(diagram("recovered diagram"));
   });
 
   it("retains source on renderer errors without restarting healthy workers", async () => {
@@ -91,8 +100,8 @@ describe("browser diagram rendering", () => {
     expect(await failed).toBeNull();
     expect(worker.terminate).toHaveBeenCalledTimes(1);
     TestWorker.instances[1]!.reply({ ready: true });
-    TestWorker.instances[1]!.reply({ output: "diagram" });
-    expect(await next).toBe("diagram");
+    TestWorker.instances[1]!.reply({ output: diagram("diagram") });
+    expect(await next).toEqual(diagram("diagram"));
   });
 
   it("allows a slow worker download before starting the rendering deadline", async () => {
@@ -103,9 +112,9 @@ describe("browser diagram rendering", () => {
     expect(worker.terminate).not.toHaveBeenCalled();
     expect(worker.postMessage).not.toHaveBeenCalled();
     worker.reply({ ready: true });
-    vi.advanceTimersByTime(MERMAID_ASCII_LIMITS.durationMs);
-    worker.reply({ output: "diagram" });
-    expect(await result).toBe("diagram");
+    vi.advanceTimersByTime(DIAGRAM_LIMITS.durationMs);
+    worker.reply({ output: diagram("diagram") });
+    expect(await result).toEqual(diagram("diagram"));
   });
 
   it("replaces a worker that never becomes ready", async () => {
@@ -118,7 +127,7 @@ describe("browser diagram rendering", () => {
     expect(worker.postMessage).not.toHaveBeenCalled();
     const next = renderer.render("first");
     TestWorker.instances[1]!.reply({ ready: true });
-    TestWorker.instances[1]!.reply({ output: "diagram" });
-    expect(await next).toBe("diagram");
+    TestWorker.instances[1]!.reply({ output: diagram("diagram") });
+    expect(await next).toEqual(diagram("diagram"));
   });
 });

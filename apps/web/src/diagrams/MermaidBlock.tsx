@@ -1,10 +1,10 @@
 import { CheckIcon, CopyIcon, Maximize2Icon } from "lucide-react";
-import { use, useEffect, useRef, useState } from "react";
+import { use, useEffect, useState } from "react";
 
 import { Button } from "../components/ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../components/ui/tooltip";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
-import { renderMermaidDiagram } from "./mermaidRenderer";
+import { ExpandedMermaid, MermaidSvg, useDiagramWidth, useMermaidDiagram } from "./MermaidSvg";
 import { ExpandedPreviewDialog } from "../components/chat/ExpandedPreviewDialog";
 import { MarkdownFindContext, findRevealRef } from "../components/chat/markdownFindContext";
 
@@ -17,9 +17,8 @@ export function MermaidBlock({
   complete: boolean;
   title: string | null;
 }) {
-  const container = useRef<HTMLDivElement>(null);
+  const { ref: container, width } = useDiagramWidth();
   const [visible, setVisible] = useState(() => typeof IntersectionObserver === "undefined");
-  const [rendered, setRendered] = useState<{ source: string; output: string | null } | null>(null);
   const [showSource, setShowSource] = useState(false);
   const [expandedDiagram, setExpandedDiagram] = useState<string | null>(null);
   const searching = use(MarkdownFindContext);
@@ -31,11 +30,11 @@ export function MermaidBlock({
     target: "diagram content",
     onCopy: setCopiedText,
   });
-  const output = complete && rendered?.source === source ? rendered.output : null;
+  const diagram = useMermaidDiagram(source, width, complete && visible);
+  const output = complete ? diagram : null;
   const showingDiagram = output !== null && !showSource;
-  const content = showingDiagram ? output : source;
-  const copied = isCopied && copiedText === content;
-  const copyLabel = copied ? "Copied" : showingDiagram ? "Copy diagram" : "Copy source";
+  const copied = isCopied && copiedText === source;
+  const copyLabel = copied ? "Copied" : "Copy Mermaid source";
 
   useEffect(() => {
     const element = container.current;
@@ -46,18 +45,7 @@ export function MermaidBlock({
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (!complete || !visible) return;
-    let current = true;
-    void renderMermaidDiagram(source).then((result) => {
-      if (current) setRendered({ source, output: result });
-    });
-    return () => {
-      current = false;
-    };
-  }, [complete, source, visible]);
+  }, [container]);
 
   return (
     <div
@@ -97,7 +85,7 @@ export function MermaidBlock({
                       variant="ghost-muted"
                       size="icon-xs"
                       aria-label="Open full screen"
-                      onClick={() => setExpandedDiagram(output)}
+                      onClick={() => setExpandedDiagram(source)}
                     />
                   }
                 >
@@ -114,7 +102,7 @@ export function MermaidBlock({
                   variant="ghost-muted"
                   size="icon-xs"
                   aria-label={copyLabel}
-                  onClick={() => copyToClipboard(content, content)}
+                  onClick={() => copyToClipboard(source, source)}
                 />
               }
             >
@@ -124,13 +112,23 @@ export function MermaidBlock({
           </Tooltip>
         </span>
       </div>
-      <pre
-        ref={searching && !showingDiagram ? sourceRevealRef : undefined}
-        data-thread-find-ignore={showingDiagram ? "true" : undefined}
-        className="overflow-x-auto whitespace-pre font-mono [overflow-wrap:normal] [word-break:normal]"
-      >
-        <code>{content}</code>
-      </pre>
+      {showingDiagram ? (
+        <div
+          data-thread-find-ignore="true"
+          tabIndex={0}
+          aria-label="Mermaid diagram"
+          className="max-h-120 overflow-auto overscroll-contain p-3"
+        >
+          <MermaidSvg diagram={output} />
+        </div>
+      ) : (
+        <pre
+          ref={searching ? sourceRevealRef : undefined}
+          className="overflow-x-auto whitespace-pre font-mono [overflow-wrap:normal] [word-break:normal]"
+        >
+          <code>{source}</code>
+        </pre>
+      )}
       {searching && showingDiagram ? (
         <pre ref={sourceRevealRef} hidden>
           {source}
@@ -142,9 +140,7 @@ export function MermaidBlock({
           fit="center"
           onClose={() => setExpandedDiagram(null)}
         >
-          <pre className="m-0 font-mono text-(length:--font-size-code,var(--text-sm)) leading-snug whitespace-pre">
-            {expandedDiagram}
-          </pre>
+          <ExpandedMermaid source={expandedDiagram} />
         </ExpandedPreviewDialog>
       ) : null}
     </div>

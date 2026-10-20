@@ -4,6 +4,7 @@ export const MAC_PERMISSION_SETTINGS_URLS = {
   accessibility: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
   "full-disk-access":
     "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles",
+  "input-monitoring": "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
 };
 
 export type MacPermission = keyof typeof MAC_PERMISSION_SETTINGS_URLS;
@@ -12,4 +13,5 @@ export const MAC_PERMISSION_TITLES: Record<MacPermission, string> = {
   "screen-recording": "Screen Recording",
   accessibility: "Accessibility",
   "full-disk-access": "Full Disk Access",
+  "input-monitoring": "Input Monitoring",
 };

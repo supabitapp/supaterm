@@ -1,4 +1,4 @@
-import { BookmarkIcon, FileIcon, FileTextIcon, XIcon } from "lucide-react";
+import { ArrowUpIcon, BookmarkIcon, FileIcon, FileTextIcon, XIcon } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
 
@@ -7,6 +7,8 @@ import { RelativeTime } from "../RelativeTime";
 import { cn } from "~/lib/utils";
 import { type PromptStashEntry } from "../../promptStashStore";
 import { InlineConfirmIcon, InlineConfirmTooltip } from "../InlineConfirm";
+import { Button } from "../ui/button";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { ComposerBanner } from "./ComposerBanner";
 import { useIsPaneInputOwner } from "../../chatPanes/paneScope";
 
@@ -38,11 +40,21 @@ function stashEntrySnippet(entry: PromptStashEntry): string {
 export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
   entries: ReadonlyArray<PromptStashEntry>;
   stashShortcutLabel: string | null;
+  sendAllBlockedReason: string | null;
   onRestore: (entry: PromptStashEntry) => void;
   onDelete: (entry: PromptStashEntry) => void;
+  onSendAll: () => void;
   onClose: () => void;
 }) {
-  const { entries, stashShortcutLabel, onRestore, onDelete, onClose } = props;
+  const {
+    entries,
+    stashShortcutLabel,
+    sendAllBlockedReason,
+    onRestore,
+    onDelete,
+    onSendAll,
+    onClose,
+  } = props;
   // Its keys are window-wide, so the menu closes once its chat pane is no longer the one in use.
   const ownsInput = useIsPaneInputOwner();
   useEffect(() => {
@@ -51,6 +63,8 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
   const drawerRef = useRef<HTMLDivElement>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(entries[0]?.id ?? null);
   const confirm = useInlineConfirm<string>();
+  const sendAllConfirm = useInlineConfirm<"send-all">();
+  const sendAllArmed = sendAllConfirm.armed === "send-all";
 
   const highlightedEntry = entries.find((entry) => entry.id === highlightedId) ?? entries[0];
 
@@ -73,7 +87,7 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        if (confirm.armed !== null) return;
+        if (confirm.armed !== null || sendAllConfirm.armed !== null) return;
         event.preventDefault();
         event.stopPropagation();
         onClose();
@@ -97,9 +111,7 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
         return;
       }
       if (event.key === "Enter") {
-        // A focused control inside the row (the delete button) owns its own
-        // activation; swallowing Enter here would restore instead of delete.
-        if (event.target instanceof HTMLElement && event.target.closest("button[aria-label]")) {
+        if (event.target instanceof HTMLElement && event.target.closest("button")) {
           return;
         }
         if (!highlightedEntry) return;
@@ -117,23 +129,74 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
     };
     window.addEventListener("keydown", handler, true);
     return () => window.removeEventListener("keydown", handler, true);
-  }, [confirm.armed, entries, highlightedEntry, onClose, onDelete, onRestore]);
+  }, [
+    confirm.armed,
+    sendAllConfirm.armed,
+    entries,
+    highlightedEntry,
+    onClose,
+    onDelete,
+    onRestore,
+  ]);
 
   return (
     <ComposerBanner.Root ref={drawerRef} data-composer-stash-drawer="true">
-      <ComposerBanner.Row
-        render={<button type="button" />}
-        aria-label="Close stash"
-        aria-expanded="true"
-        onPointerDown={(event) => event.preventDefault()}
-        onClick={onClose}
-      >
+      <ComposerBanner.Row className="relative pb-1">
         <ComposerBanner.Icon>
           <BookmarkIcon />
         </ComposerBanner.Icon>
-        <ComposerBanner.Content className="text-muted-foreground">Stash</ComposerBanner.Content>
+        <ComposerBanner.Content className="text-muted-foreground">
+          <button
+            type="button"
+            className="flex cursor-pointer items-center gap-1 outline-none before:absolute before:inset-0 before:rounded-md focus-visible:before:outline-2 focus-visible:before:-outline-offset-2 focus-visible:before:outline-ring"
+            aria-label="Close stash"
+            aria-expanded="true"
+            onPointerDown={(event) => event.preventDefault()}
+            onClick={onClose}
+          >
+            Stash
+            <ComposerBanner.Count>{entries.length}</ComposerBanner.Count>
+          </button>
+        </ComposerBanner.Content>
         <ComposerBanner.Actions>
-          <ComposerBanner.Count>{entries.length}</ComposerBanner.Count>
+          {entries.length > 0 && (
+            <Tooltip>
+              <TooltipTrigger
+                closeOnClick={sendAllArmed}
+                render={
+                  <Button
+                    size="compact"
+                    variant="outline"
+                    className="z-10"
+                    aria-disabled={sendAllBlockedReason !== null}
+                    aria-label={sendAllArmed ? "Confirm send all" : "Send all"}
+                    onPointerDown={(event) => event.preventDefault()}
+                    {...(sendAllBlockedReason === null
+                      ? sendAllConfirm.bind("send-all", onSendAll)
+                      : {})}
+                  />
+                }
+              >
+                <InlineConfirmIcon armed={sendAllArmed}>
+                  <ArrowUpIcon className="size-3.5" />
+                </InlineConfirmIcon>
+                <span className="inline-grid" aria-hidden>
+                  <span className={cn("col-start-1 row-start-1", sendAllArmed && "invisible")}>
+                    Send all
+                  </span>
+                  <span className={cn("col-start-1 row-start-1", !sendAllArmed && "invisible")}>
+                    Confirm
+                  </span>
+                </span>
+              </TooltipTrigger>
+              <TooltipPopup>
+                {sendAllBlockedReason ??
+                  (sendAllArmed
+                    ? `Click again to send ${entries.length === 1 ? "this prompt" : `all ${entries.length} prompts`}`
+                    : "Send each prompt as its own message, oldest first")}
+              </TooltipPopup>
+            </Tooltip>
+          )}
           <ComposerBanner.ToggleIcon expanded />
         </ComposerBanner.Actions>
       </ComposerBanner.Row>

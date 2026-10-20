@@ -94,6 +94,28 @@ describe("client settings hydration", () => {
     expect(persistenceMocks.getClientSettings).toHaveBeenCalledOnce();
   });
 
+  it("computes a function patch from the saved preferences once they are read", async () => {
+    const saved = {
+      ...DEFAULT_CLIENT_SETTINGS,
+      codexMicro: { ...DEFAULT_CLIENT_SETTINGS.codexMicro, enabled: true },
+    };
+    persistenceMocks.getClientSettings.mockResolvedValue(saved);
+    const persisted = new Promise<ClientSettings>((resolve) => {
+      persistenceMocks.setClientSettings.mockImplementationOnce(async (settings) => {
+        resolve(settings);
+      });
+    });
+
+    void persistClientSettingsPatch((current) => ({
+      codexMicro: { ...current.codexMicro, brightness: 40 },
+    }));
+
+    await expect(persisted).resolves.toEqual({
+      ...saved,
+      codexMicro: { ...saved.codexMicro, brightness: 40 },
+    });
+  });
+
   it("handles failed patch reads without writing and retries with the saved preferences", async () => {
     const failure = new Error("storage unavailable");
     vi.spyOn(console, "error").mockImplementation(() => undefined);

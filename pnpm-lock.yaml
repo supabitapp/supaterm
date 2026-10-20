@@ -364,6 +364,9 @@ importers:
       '@supaterm/client-runtime':
         specifier: workspace:*
         version: link:../../packages/client-runtime
+      '@supaterm/codex-micro':
+        specifier: workspace:*
+        version: link:../../packages/codex-micro
       '@supaterm/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -391,6 +394,9 @@ importers:
       ffi-rs:
         specifier: 1.3.2
         version: 1.3.2
+      node-hid:
+        specifier: 3.4.0
+        version: 3.4.0
       playwright-core:
         specifier: 1.60.0
         version: 1.60.0
@@ -504,9 +510,9 @@ importers:
       '@supaterm/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@supaterm/mermaid-ascii':
+      '@supaterm/mermaid':
         specifier: workspace:*
-        version: link:../../packages/mermaid-ascii
+        version: link:../../packages/mermaid
       '@supaterm/mobile-relay-tunnel':
         specifier: file:./modules/supaterm-relay-tunnel
         version: file:apps/mobile/modules/supaterm-relay-tunnel(expo@58.0.14)
@@ -745,6 +751,9 @@ importers:
       '@pierre/trees':
         specifier: 1.0.0-beta.6
         version: 1.0.0-beta.6(@pierre/theme@2.0.0)(@shikijs/themes@4.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(shiki@4.2.0)
+      '@types/babel__core':
+        specifier: ^7.20.5
+        version: 7.20.5
       '@types/mdast':
         specifier: ^4.0.4
         version: 4.0.4
@@ -965,9 +974,9 @@ importers:
       '@supaterm/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@supaterm/mermaid-ascii':
+      '@supaterm/mermaid':
         specifier: workspace:*
-        version: link:../../packages/mermaid-ascii
+        version: link:../../packages/mermaid
       '@supaterm/provider-acp-registry':
         specifier: workspace:*
         version: link:../../packages/provider-acp-registry
@@ -1180,9 +1189,9 @@ importers:
       '@supaterm/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@supaterm/mermaid-ascii':
+      '@supaterm/mermaid':
         specifier: workspace:*
-        version: link:../mermaid-ascii
+        version: link:../mermaid
       '@supaterm/shared':
         specifier: workspace:*
         version: link:../shared
@@ -1220,6 +1229,31 @@ importers:
       '@effect/vitest':
         specifier: 4.0.5
         version: 4.0.5(patch_hash=2731c9c3761c595f25ddc625a7d61ca376b389d5b3049ecb837c8940f21cfa02)(@types/jsdom@30.0.0)(@types/node@24.12.4)(@vitest/browser-playwright@5.0.1)(@vitest/ui@5.0.1)(bufferutil@4.1.0)(effect@4.0.5)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@1.8.0))(msw@2.12.11(@types/node@24.12.4)(typescript@7.0.2))(terser@5.48.0)(typescript@7.0.2)(unrun@0.2.39)(utf-8-validate@6.0.6)(yaml@2.9.0)
+      vite-plus:
+        specifier: 1.0.0
+        version: 1.0.0(@types/jsdom@30.0.0)(@types/node@24.12.4)(@vitest/browser-playwright@5.0.1)(@vitest/ui@5.0.1)(bufferutil@4.1.0)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@1.8.0))(msw@2.12.11(@types/node@24.12.4)(typescript@7.0.2))(terser@5.48.0)(typescript@7.0.2)(unrun@0.2.39)(utf-8-validate@6.0.6)(yaml@2.9.0)
+
+  packages/codex-micro:
+    dependencies:
+      '@supaterm/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@supaterm/shared':
+        specifier: workspace:*
+        version: link:../shared
+      effect:
+        specifier: 4.0.5
+        version: 4.0.5
+    devDependencies:
+      '@effect/vitest':
+        specifier: 4.0.5
+        version: 4.0.5(patch_hash=2731c9c3761c595f25ddc625a7d61ca376b389d5b3049ecb837c8940f21cfa02)(@types/jsdom@30.0.0)(@types/node@24.12.4)(@vitest/browser-playwright@5.0.1)(@vitest/ui@5.0.1)(bufferutil@4.1.0)(effect@4.0.5)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@1.8.0))(msw@2.12.11(@types/node@24.12.4)(typescript@7.0.2))(terser@5.48.0)(typescript@7.0.2)(unrun@0.2.39)(utf-8-validate@6.0.6)(yaml@2.9.0)
+      '@types/node':
+        specifier: 24.12.4
+        version: 24.12.4
+      node-hid:
+        specifier: 3.4.0
+        version: 3.4.0
       vite-plus:
         specifier: 1.0.0
         version: 1.0.0(@types/jsdom@30.0.0)(@types/node@24.12.4)(@vitest/browser-playwright@5.0.1)(@vitest/ui@5.0.1)(bufferutil@4.1.0)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@1.8.0))(msw@2.12.11(@types/node@24.12.4)(typescript@7.0.2))(terser@5.48.0)(typescript@7.0.2)(unrun@0.2.39)(utf-8-validate@6.0.6)(yaml@2.9.0)
@@ -1281,7 +1315,11 @@ importers:
         specifier: 1.0.0
         version: 1.0.0(@types/jsdom@30.0.0)(@types/node@24.12.4)(@vitest/browser-playwright@5.0.1)(@vitest/ui@5.0.1)(bufferutil@4.1.0)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@1.8.0))(msw@2.12.11(@types/node@24.12.4)(typescript@7.0.2))(terser@5.48.0)(typescript@7.0.2)(unrun@0.2.39)(utf-8-validate@6.0.6)(yaml@2.9.0)
 
-  packages/mermaid-ascii:
+  packages/mermaid:
+    dependencies:
+      pele:
+        specifier: 1.7.0
+        version: 1.7.0
     devDependencies:
       '@types/node':
         specifier: 24.12.4
@@ -5625,6 +5663,18 @@ packages:
   '@types/aws4@1.11.6':
     resolution: {integrity: sha512-5CnVUkHNyLGpD9AnOcK66YyP0qvIh6nhJJoeK8zSl5YKikUcUbdB7SlHevUYVqicgeh6j5AJa1qa/h08dSZHoA==}
 
+  '@types/babel__core@7.20.5':
+    resolution: {integrity: sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==}
+
+  '@types/babel__generator@7.27.0':
+    resolution: {integrity: sha512-ufFd2Xi92OAVPYsy+P4n7/U7e68fex0+Ee8gSG9KX7eo084CWiQ4sdxktvdl0bOPupXtVJPY19zk6EwWqUQ8lg==}
+
+  '@types/babel__template@7.4.4':
+    resolution: {integrity: sha512-h/NUaSyG5EyxBIp8YRxo4RMe2/qQgvyowRwVMzhYhBCONbW8PUsg4lkFMrhgZhUe5z3L3MiLDuvyJ/CaPa2A8A==}
+
+  '@types/babel__traverse@7.28.0':
+    resolution: {integrity: sha512-8PvcXf70gTDZBgt9ptxJ8elBeBjcLOAcOtoO/mPJjtji1+CdGbHgm77om1GrsPxsiE+uXIpNSK64UYaIwQXd4Q==}
+
   '@types/body-parser@1.19.6':
     resolution: {integrity: sha512-HLFeCYgz89uk22N5Qg3dvGvsv46B8GLvKKo1zKG4NybA8U2DiEO3w9lqGg29t/tfLRJpJ6iQxnVw4OnB7MoM9g==}
 
@@ -9209,6 +9259,10 @@ packages:
   node-addon-api@7.1.1:
     resolution: {integrity: sha512-5m3bsyrjFWE1xf7nz7YXdN4udnVtXK6/Yfgn5qnahL6bCkf2yKt4k3nuTKAtT4r3IG8JNR2ncsIMdZuAzJjHQQ==}
 
+  node-addon-api@8.9.2:
+    resolution: {integrity: sha512-VijLXbi3UACN69I0JVXJsX4tjACjNoQDgv2gTF6sx2wWEi8tkSg2eX8p5gSIFi8z2+DL3oHmY6OyKce38SDolg==}
+    engines: {node: ^18 || ^20 || >= 21}
+
   node-api-version@0.2.1:
     resolution: {integrity: sha512-2xP/IGGMmmSQpI1+O/k72jF/ykvZ89JeuKX3TLJAYPDVLUalrshrLHkeVcCCZqG/eEa635cr8IBYzgnDvM2O8Q==}
 
@@ -9239,6 +9293,11 @@ packages:
   node-gyp@12.3.0:
     resolution: {integrity: sha512-QNcUWM+HgJplcPzBvFBZ9VXacyGZ4+VTOb80PwWR+TlVzoHbRKULNEzpRsnaoxG3Wzr7Qh7BYxGDU3CbKib2Yg==}
     engines: {node: ^20.17.0 || >=22.9.0}
+    hasBin: true
+
+  node-hid@3.4.0:
+    resolution: {integrity: sha512-Br7EO3bJARAJBdtcsGzF/Vs5TjfbkaMdglqLQ+Rk9GOGgVqv5DxYUVH5znLerJU+OfBWw8sd552Ujcprz1bG9g==}
+    engines: {node: '>=10.16'}
     hasBin: true
 
   node-int64@0.4.0:
@@ -9519,6 +9578,10 @@ packages:
     resolution: {integrity: sha512-eRWB5LBz7PpDu4PUlwT0PhnQfTQJlDDdPa35urV4Osrm0t0AqQFGn+UIkU3klZvwJ8KPO3VbBFsXquA6p6kqZw==}
     engines: {node: '>=12', npm: '>=6'}
 
+  pele@1.7.0:
+    resolution: {integrity: sha512-nkYb5VnxsTgwD4NThF6j4pJEC4AhGLJ9ptiL4q/vIzGr9q6ZtoRE3hFr94LgHpZ/xy56d1pw42UAQGaZkjM5XA==}
+    engines: {node: '>=20'}
+
   pend@1.2.0:
     resolution: {integrity: sha512-F3asv42UuXchdzt+xXqfW1OGlVBe+mxa2mqI0pg5yAHZPvFmY3Y6drSf/GQ1A86WgWEN9Kzh/WrgKa6iGcHXLg==}
 
@@ -9539,6 +9602,11 @@ packages:
   pkce-challenge@5.0.1:
     resolution: {integrity: sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ==}
     engines: {node: '>=16.20.0'}
+
+  pkg-prebuilds@1.1.0:
+    resolution: {integrity: sha512-jyai+KTQ2OwbN6iRYw88XbYOMgtpoSYJpjYebx7d9ihqz3txNi3ucsBt3va0iVWe6svSlaqpijMHFF/eJCMZzg==}
+    engines: {node: '>= 14.15.0'}
+    hasBin: true
 
   pkg-types@1.3.1:
     resolution: {integrity: sha512-/Jm5M4RvtBFVkKWRu2BLUTNP8/M2a+UwuAX+ae4770q1qVGtfjG+WTCupoZixokjmHiry8uI+dlY8KXYV5HVVQ==}
@@ -14889,6 +14957,27 @@ snapshots:
     dependencies:
       '@types/node': 24.12.4
 
+  '@types/babel__core@7.20.5':
+    dependencies:
+      '@babel/parser': 7.29.8
+      '@babel/types': 7.29.8
+      '@types/babel__generator': 7.27.0
+      '@types/babel__template': 7.4.4
+      '@types/babel__traverse': 7.28.0
+
+  '@types/babel__generator@7.27.0':
+    dependencies:
+      '@babel/types': 7.29.8
+
+  '@types/babel__template@7.4.4':
+    dependencies:
+      '@babel/parser': 7.29.8
+      '@babel/types': 7.29.8
+
+  '@types/babel__traverse@7.28.0':
+    dependencies:
+      '@babel/types': 7.29.8
+
   '@types/body-parser@1.19.6':
     dependencies:
       '@types/connect': 3.4.38
@@ -19123,6 +19212,8 @@ snapshots:
 
   node-addon-api@7.1.1: {}
 
+  node-addon-api@8.9.2: {}
+
   node-api-version@0.2.1:
     dependencies:
       semver: 7.7.4
@@ -19156,6 +19247,11 @@ snapshots:
       tinyglobby: 0.2.17
       undici: 6.28.1
       which: 6.0.1
+
+  node-hid@3.4.0:
+    dependencies:
+      node-addon-api: 8.9.2
+      pkg-prebuilds: 1.1.0
 
   node-int64@0.4.0: {}
 
@@ -19562,6 +19658,8 @@ snapshots:
 
   pe-library@0.4.1: {}
 
+  pele@1.7.0: {}
+
   pend@1.2.0: {}
 
   piccolore@0.1.3: {}
@@ -19573,6 +19671,8 @@ snapshots:
   picomatch@4.0.7: {}
 
   pkce-challenge@5.0.1: {}
+
+  pkg-prebuilds@1.1.0: {}
 
   pkg-types@1.3.1:
     dependencies:

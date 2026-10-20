@@ -8,13 +8,13 @@ import {
 
 let runtime: WorkletRuntime | undefined;
 
-const renderer = createDiagramRenderer(async (source) => {
+const renderer = createDiagramRenderer(async (source, options) => {
   runtime ??= createWorkletRuntime({
-    name: "mermaid-ascii",
+    name: "mermaid",
     enableEventLoop: false,
     enableNetworking: false,
   });
-  return runOnRuntimeAsync(runtime, renderMermaidWorklet, source);
+  return runOnRuntimeAsync(runtime, renderMermaidWorklet, source, options);
 });
 
 export const renderMermaidDiagram = renderer.render;

@@ -89,6 +89,8 @@ const PANE_KEYBINDING_COMMANDS = [
 
 const THREAD_KEYBINDING_COMMANDS = [
   "thread.stop",
+  "thread.approve",
+  "thread.decline",
   "thread.steerQueuedMessage",
   "thread.editQueuedMessage",
   "thread.previous",
@@ -145,6 +147,8 @@ export const STATIC_KEYBINDING_COMMANDS = [
   "appearance.cycle",
   "themeEditor.toggle",
   "composer.stash",
+  "composer.submit",
+  "composer.toggleFastMode",
   "composer.sendAlternate",
   "composer.sendBackground",
   "composer.sendAndNewThread",
@@ -163,6 +167,9 @@ export const STATIC_KEYBINDING_COMMANDS = [
   "chat.newLocal",
   "chat.newWithoutProject",
   "chat.find",
+  "conversation.scrollUp",
+  "conversation.scrollDown",
+  "conversation.scrollToEnd",
   "editor.openFavorite",
   "usage.cost",
   "usage.tokens",

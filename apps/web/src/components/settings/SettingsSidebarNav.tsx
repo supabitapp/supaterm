@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 
+import { CodexMicroIcon } from "../codexMicro/CodexMicroIcon";
 import { Button } from "../ui/button";
 import { Kbd } from "../ui/kbd";
 import {
@@ -32,7 +33,7 @@ import { SidebarUtilityMenu } from "../sidebar/SidebarChrome";
 import { scrollToSettingsTarget } from "./settingsLayout";
 import {
   searchSettings,
-  isSettingsOverviewVisible,
+  isSettingsSectionAvailable,
   SETTINGS_SECTION_LABELS,
   type SettingsPath,
   type SettingsSearchItem,
@@ -61,6 +62,7 @@ const SETTINGS_SECTION_ICONS: Readonly<
   "/settings/projects": PanelsTopLeftIcon,
   "/settings/keybindings": KeyboardIcon,
   "/settings/snap-shot": SnapShotIcon,
+  "/settings/codex-micro": CodexMicroIcon,
   "/settings/providers": BotIcon,
   "/settings/integrations": BlocksIcon,
   "/settings/source-control": GitBranchIcon,
@@ -74,7 +76,7 @@ const SETTINGS_NAV_ITEMS: ReadonlyArray<{
   to: SettingsPath;
   icon: ComponentType<{ className?: string }>;
 }> = (Object.keys(SETTINGS_SECTION_LABELS) as SettingsPath[])
-  .filter((to) => to !== "/settings/diagnostics")
+  .filter((to) => to !== "/settings/diagnostics" && isSettingsSectionAvailable(to))
   .map((to) => ({
     to,
     label: SETTINGS_SECTION_LABELS[to],
@@ -91,9 +93,6 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
   const currentHash = useLocation({ select: (location) => location.hash });
   const currentSearch = useLocation({ select: (location) => location.search });
   const scopeSearch = validateSettingsScopeSearch(currentSearch);
-  const navItems = SETTINGS_NAV_ITEMS.filter(
-    (item) => item.to !== "/settings/projects" || isSettingsOverviewVisible(scopeSearch),
-  );
   const { isMobile, setOpenMobile, open, setOpen } = useSidebar();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
@@ -307,7 +306,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
               </SidebarMenu>
             ) : (
               <SidebarMenu>
-                {navItems.map((item) => {
+                {SETTINGS_NAV_ITEMS.map((item) => {
                   const Icon = item.icon;
                   const isGeneralDetailPage =
                     item.to === "/settings/general" &&

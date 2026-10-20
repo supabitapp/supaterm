@@ -182,17 +182,25 @@ function enqueueClientSettingsPersistence<A>(work: () => Promise<A>): Promise<A>
   return result;
 }
 
+/** A function patch is computed from the settings it applies to, so nested objects merge safely. */
 export function persistClientSettingsPatch(
-  patch: ClientSettingsPatch,
+  patch: ClientSettingsPatch | ((settings: ClientSettings) => ClientSettingsPatch),
   persist: (settings: ClientSettings) => Promise<void> = defaultClientSettingsPersistence,
 ): Promise<void> {
+  const applyPatch = () => {
+    const current = getClientSettingsSnapshot();
+    replaceClientSettingsSnapshot({
+      ...current,
+      ...(typeof patch === "function" ? patch(current) : patch),
+    });
+  };
   // Patches queued before hydration must publish before newer optimistic patches.
   const deferPatch =
     clientSettingsHydrationStatus !== "ready" || deferredClientSettingsPatchCount > 0;
   if (deferPatch) {
     deferredClientSettingsPatchCount += 1;
   } else {
-    replaceClientSettingsSnapshot({ ...getClientSettingsSnapshot(), ...patch });
+    applyPatch();
   }
   return enqueueClientSettingsPersistence(async () => {
     if (deferPatch) {
@@ -200,7 +208,7 @@ export function persistClientSettingsPatch(
         if (clientSettingsHydrationStatus !== "ready") {
           await hydrateClientSettings();
         }
-        replaceClientSettingsSnapshot({ ...getClientSettingsSnapshot(), ...patch });
+        applyPatch();
       } finally {
         deferredClientSettingsPatchCount -= 1;
       }
@@ -642,7 +650,9 @@ export function useUpdatePrimarySettings() {
   return useUpdateSettingsTarget(usePrimaryEnvironment()?.environmentId ?? null);
 }
 
-export function updateClientSettings(patch: ClientSettingsPatch): Promise<void> {
+export function updateClientSettings(
+  patch: Parameters<typeof persistClientSettingsPatch>[0],
+): Promise<void> {
   return persistClientSettingsPatch(patch);
 }
 

@@ -7,12 +7,10 @@ import type { EnvironmentConnectionPhase } from "@supaterm/client-runtime/connec
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { DEFAULT_KEYBINDINGS } from "@supaterm/shared/keybindings";
 import { BUILT_IN_THEMES } from "@supaterm/shared/themePalettes";
+import { getCodexMicroBridge } from "../codexMicro/codexMicroBridge";
+import { CODEX_MICRO_SETTINGS_SEARCH_ITEMS } from "../codexMicro/codexMicroSettingsSearch";
 import { commandLabel } from "./KeybindingsSettings.logic";
-import {
-  validateSettingsScopeSearch,
-  type ResolvedSettingsScope,
-  type SettingsScopeSearch,
-} from "./settingsScope";
+import type { ResolvedSettingsScope } from "./settingsScope";
 
 export type SettingsPath =
   | "/settings/projects"
@@ -21,6 +19,7 @@ export type SettingsPath =
   | "/settings/appearance"
   | "/settings/keybindings"
   | "/settings/snap-shot"
+  | "/settings/codex-micro"
   | "/settings/providers"
   | "/settings/integrations"
   | "/settings/source-control"
@@ -72,6 +71,7 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/appearance": "Appearance",
   "/settings/keybindings": "Keybindings",
   "/settings/snap-shot": "SnapShots",
+  "/settings/codex-micro": "Codex Micro",
   "/settings/providers": "Providers",
   "/settings/integrations": "Integrations",
   "/settings/source-control": "Source Control",
@@ -79,6 +79,15 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/connections": "Connections",
   "/settings/archived": "Archive",
 };
+
+const SETTINGS_SECTION_AVAILABILITY: Partial<Record<SettingsPath, () => boolean>> = {
+  "/settings/codex-micro": () => getCodexMicroBridge() !== null,
+};
+
+/** An unavailable section is hidden from navigation and search, and its route redirects. */
+export function isSettingsSectionAvailable(path: SettingsPath): boolean {
+  return SETTINGS_SECTION_AVAILABILITY[path]?.() ?? true;
+}
 
 export function keybindingSearchAnchorId<Command extends KeybindingCommand>(command: Command) {
   return `keybinding-${command}` as const;
@@ -592,6 +601,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     to: "/settings/snap-shot",
     targetId: "snap-shot-enabled",
   },
+  ...CODEX_MICRO_SETTINGS_SEARCH_ITEMS,
   {
     id: "providers",
     title: "Providers",
@@ -949,6 +959,7 @@ const SETTINGS_CATEGORY_SCOPES: Readonly<Record<SettingsPath, SettingsSearchScop
   "/settings/general": null,
   "/settings/appearance": null,
   "/settings/snap-shot": null,
+  "/settings/codex-micro": null,
   "/settings/keybindings": null,
   "/settings/providers": null,
   "/settings/integrations": null,
@@ -1021,18 +1032,6 @@ export function isSettingsSearchScopeAvailable(
   }
 }
 
-function settingsScopeKindFromSearch(search: SettingsScopeSearch): ResolvedSettingsScope["kind"] {
-  const target = validateSettingsScopeSearch({ ...search });
-  if (target.checkout && !target.project) return "unavailable";
-  if (target.project) return target.checkout ? "checkout" : "project";
-  return target.machine ? "environment" : "all";
-}
-
-export function isSettingsOverviewVisible(search: SettingsScopeSearch): boolean {
-  const kind = settingsScopeKindFromSearch(search);
-  return kind === "project" || kind === "checkout";
-}
-
 export function searchableSetting(id: SettingsSearchItemId): {
   readonly id: string;
   readonly title: string;
@@ -1067,6 +1066,7 @@ export function searchSettings(
 
   return items
     .flatMap((item, index) => {
+      if (!isSettingsSectionAvailable(item.to)) return [];
       if (!isElectron && item.desktopOnly === true) return [];
       if (item.releaseChannelOnly && !isElectron && HOSTED_APP_CHANNEL === null) return [];
       if (item.macOnly && !isMacPlatform(platform)) return [];

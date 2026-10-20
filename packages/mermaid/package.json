@@ -1,0 +1,20 @@
+{
+  "name": "@supaterm/mermaid",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/render.ts",
+    "./diagram": "./src/diagram.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vp test run --config ../../vite.config.ts --dir ."
+  },
+  "dependencies": {
+    "pele": "1.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

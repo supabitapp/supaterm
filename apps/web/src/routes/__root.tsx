@@ -10,7 +10,7 @@ import {
   useRouter,
 } from "@tanstack/react-router";
 import { Check, Copy } from "lucide";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { APP_DISPLAY_NAME, APP_VERSION } from "../branding";
 import { AppSidebarLayout } from "../components/AppSidebarLayout";
@@ -27,6 +27,7 @@ import { RunningThreadKeepAlive } from "../components/desktop/RunningThreadKeepA
 import { ProviderUpdateLaunchNotification } from "../components/ProviderUpdateLaunchNotification";
 import { DesktopUpdateLaunchNotice } from "../components/sidebar/updateEverythingRun";
 import { ThreadNotificationCoordinator } from "../components/ThreadNotificationCoordinator";
+import { getCodexMicroBridge } from "../components/codexMicro/codexMicroBridge";
 import { ReopenClosedViewShortcut } from "../components/ReopenClosedViewShortcut";
 import { ProjectCloneToastCoordinator } from "../components/ProjectCloneToastCoordinator";
 import { PullRequestGuideRunCoordinator } from "../components/pullRequest/guide/PullRequestGuideRunCoordinator";
@@ -73,6 +74,12 @@ import {
 import { getDesktopSnapShotBridge } from "../lib/desktopSnapShot";
 import { installDesktopPasteAsText } from "../lib/desktopPasteAsText";
 import { shouldResumeSnapShotSetupOnStartup } from "../lib/snapShotSetupResume";
+
+const CodexMicroCoordinator = lazy(() =>
+  import("../components/codexMicro/CodexMicroCoordinator").then((module) => ({
+    default: module.CodexMicroCoordinator,
+  })),
+);
 
 export const Route = createRootRoute({
   beforeLoad: async ({ location }) => {
@@ -209,6 +216,11 @@ function RootRouteView() {
 
   const appShell = (
     <CommandPalette>
+      {getCodexMicroBridge() === null ? null : (
+        <Suspense fallback={null}>
+          <CodexMicroCoordinator />
+        </Suspense>
+      )}
       <AppSidebarLayout>
         <Outlet />
       </AppSidebarLayout>

@@ -36,13 +36,16 @@ try {
     const worklet = context.module.exports;
     const runtime = NodeVM.createContext({ performance });
     const render = NodeVM.runInContext(`(${worklet.__initData.code})`, runtime);
-    const outputs = sources.map((source) => render(source));
+    const outputs = sources.map((source) => render(source, { maxWidth: 320, now: 0 }));
     let clock = 0;
-    runtime.performance = { now: () => (clock += 1_000) };
+    runtime.Date = { now: () => (clock += 1_000) };
+    const rejectsExpiredBudget = render("flowchart LR\nA --> B", { now: 0 }) === null;
+    runtime.Date = Date;
     platforms[platform] = {
       closureSize: Object.keys(worklet.__closure ?? {}).length,
       outputs,
-      rejectsExpiredBudget: render("flowchart LR\nA --> B") === null,
+      rejectsExpiredBudget,
+      recoversAfterBudget: render("flowchart LR\nA --> B", { now: 0 }) !== null,
     };
   }
 

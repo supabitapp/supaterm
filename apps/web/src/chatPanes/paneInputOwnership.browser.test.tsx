@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+import { dispatchAppCommand } from "../appCommandBus";
 import { useChatShortcuts } from "../components/chat/useChatShortcuts";
 import { PaneScopeProvider, usePaneInputOwner } from "./paneScope";
 import { useChatPaneStore } from "./store";
@@ -56,7 +57,7 @@ const thread = (id: string) => ({
 });
 
 describe("chat shortcuts in a split", () => {
-  it("run only in the focused pane", async () => {
+  it.each(["keyboard", "command"])("run only in the focused pane via %s", async (input) => {
     const store = useChatPaneStore.getState();
     store.reconcileRoute(thread("a"), { width: 1600, height: 900 });
     const first = useChatPaneStore.getState().layout!.focusedPaneId;
@@ -82,16 +83,18 @@ describe("chat shortcuts in a split", () => {
       ),
     );
     const pressFind = () =>
-      window.dispatchEvent(
-        new KeyboardEvent("keydown", {
-          key: "f",
-          code: "KeyF",
-          metaKey: navigator.platform.includes("Mac"),
-          ctrlKey: !navigator.platform.includes("Mac"),
-          bubbles: true,
-          cancelable: true,
-        }),
-      );
+      input === "command"
+        ? dispatchAppCommand("chat.find")
+        : window.dispatchEvent(
+            new KeyboardEvent("keydown", {
+              key: "f",
+              code: "KeyF",
+              metaKey: navigator.platform.includes("Mac"),
+              ctrlKey: !navigator.platform.includes("Mac"),
+              bubbles: true,
+              cancelable: true,
+            }),
+          );
 
     pressFind();
     expect(found).toEqual(["second"]);

@@ -1,13 +1,18 @@
 import { createDiagramRenderer } from "@supaterm/client-runtime/diagram-rendering";
-import { MERMAID_ASCII_LIMITS } from "@supaterm/mermaid-ascii/limits";
+import {
+  DIAGRAM_LIMITS,
+  isDiagram,
+  type Diagram,
+  type DiagramOptions,
+} from "@supaterm/mermaid/diagram";
 
 export function createBrowserDiagramRenderer() {
   let worker: Worker | undefined;
   let ready = false;
 
   return createDiagramRenderer(
-    (source) =>
-      new Promise<string | null>((resolve, reject) => {
+    (source, options) =>
+      new Promise<Diagram | null>((resolve, reject) => {
         const activeWorker = (worker ??= new Worker(
           new URL("./mermaid.worker.ts", import.meta.url),
           {
@@ -16,7 +21,7 @@ export function createBrowserDiagramRenderer() {
         ));
         let settled = false;
         let sent = false;
-        const finish = (output: string | null, terminate = false) => {
+        const finish = (output: Diagram | null, terminate = false) => {
           if (settled) return;
           settled = true;
           clearTimeout(timer);
@@ -37,9 +42,9 @@ export function createBrowserDiagramRenderer() {
           if (sent) return;
           sent = true;
           clearTimeout(timer);
-          timer = setTimeout(() => finish(null, true), MERMAID_ASCII_LIMITS.durationMs * 2);
+          timer = setTimeout(() => finish(null, true), DIAGRAM_LIMITS.durationMs * 2);
           try {
-            activeWorker.postMessage({ source }, []);
+            activeWorker.postMessage({ source, options }, []);
           } catch {
             finish(null, true);
           }
@@ -57,7 +62,7 @@ export function createBrowserDiagramRenderer() {
             }
             ready = true;
             send();
-          } else if ("output" in data && typeof data.output === "string") {
+          } else if ("output" in data && isDiagram(data.output)) {
             finish(data.output);
           } else if ("error" in data && data.error === true) {
             finish(null);
@@ -80,6 +85,6 @@ export function createBrowserDiagramRenderer() {
 
 const renderer = createBrowserDiagramRenderer();
 
-export function renderMermaidDiagram(source: string) {
-  return renderer.render(source);
+export function renderMermaidDiagram(source: string, options?: DiagramOptions) {
+  return renderer.render(source, options);
 }

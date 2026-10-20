@@ -166,6 +166,7 @@ interface BuildCliInput {
   readonly outputDir: Option.Option<string>;
   readonly skipBuild: Option.Option<boolean>;
   readonly keepStage: Option.Option<boolean>;
+  readonly withoutCodexMicro: Option.Option<boolean>;
   readonly signed: Option.Option<boolean>;
   readonly verbose: Option.Option<boolean>;
   readonly mockUpdates: Option.Option<boolean>;
@@ -285,6 +286,11 @@ export const LINUX_DESKTOP_BUILD_PREREQUISITES = [
     id: "libsecret",
     description: "libsecret development headers and pkg-config",
     packages: ["libsecret-1-dev", "pkg-config"],
+  },
+  {
+    id: "hid",
+    description: "libusb and libudev development headers",
+    packages: ["libusb-1.0-0-dev", "libudev-dev", "pkg-config"],
   },
   { id: "imagemagick", description: "ImageMagick", packages: ["imagemagick"] },
 ] as const;
@@ -872,6 +878,7 @@ interface ResolvedBuildOptions {
   readonly outputDir: string;
   readonly skipBuild: boolean;
   readonly keepStage: boolean;
+  readonly withoutCodexMicro: boolean;
   readonly signed: boolean;
   readonly verbose: boolean;
   readonly mockUpdates: boolean;
@@ -885,6 +892,7 @@ interface StagePackageJson {
   readonly buildVersion: string;
   readonly supatermCommitHash: string;
   readonly supatermWebAuthn?: { readonly touchIdKeychainAccessGroup: string };
+  readonly supatermFeatures?: { readonly codexMicro: false };
   readonly private: true;
   readonly packageManager: string;
   readonly description: string;
@@ -929,26 +937,65 @@ export const DESKTOP_FILE_EXCLUSIONS = [
   "!apps/desktop/gnome-extension/**/*",
 ] as const;
 // Windows terminal helpers cannot run on macOS and slow signing and notarization.
-export const MAC_FILE_EXCLUSIONS = [
+const NODE_PTY_WINDOWS_EXCLUSIONS = [
   "!**/node_modules/node-pty/prebuilds/win32-*/**/*",
   "!**/node_modules/node-pty/third_party/conpty/**/*",
 ] as const;
+// node-hid publishes its C sources and every platform's prebuild in one package.
+// Each platform keeps only what it loads; foreign .node files would also be
+// unpacked and Authenticode-signed on Windows. electron-builder's native rebuild
+// also compiles a build/ copy, which pkg-prebuilds would load ahead of the
+// equivalent N-API prebuild.
+const NODE_HID_SOURCE_EXCLUSIONS = [
+  "!**/node_modules/node-hid/hidapi/**/*",
+  "!**/node_modules/node-hid/src/**/*",
+  "!**/node_modules/node-hid/build/**/*",
+  "!**/node_modules/node-hid/binding.gyp",
+] as const;
+export const MAC_FILE_EXCLUSIONS = [
+  ...NODE_PTY_WINDOWS_EXCLUSIONS,
+  ...NODE_HID_SOURCE_EXCLUSIONS,
+  "!**/node_modules/node-hid/prebuilds/HID-win32-*/**/*",
+  "!**/node_modules/node-hid/prebuilds/HID-linux-*/**/*",
+  "!**/node_modules/node-hid/prebuilds/HID_hidraw-*/**/*",
+] as const;
 // Linux builds node-pty from source, so every prebuild in the package is for
-// another platform (58 MB of it Windows debug symbols).
+// another platform (58 MB of it Windows debug symbols). node-hid loads its
+// glibc hidraw build there; the HID-* builds use libusb or another OS.
 export const LINUX_FILE_EXCLUSIONS = [
-  ...MAC_FILE_EXCLUSIONS,
+  ...NODE_PTY_WINDOWS_EXCLUSIONS,
   "!**/node_modules/node-pty/prebuilds/darwin-*/**/*",
+  ...NODE_HID_SOURCE_EXCLUSIONS,
+  "!**/node_modules/node-hid/prebuilds/HID-*/**/*",
+  "!**/node_modules/node-hid/prebuilds/HID_hidraw-linux-*-musl/**/*",
 ] as const;
 
-// node-pty publishes both Darwin prebuilds in one package. Single-architecture
-// apps only need the native target; universal apps need both.
+// node-pty and node-hid publish both Darwin prebuilds in one package.
+// Single-architecture apps only need the native target; universal apps need both.
 export function resolveMacFileExclusions(arch?: typeof BuildArch.Type) {
   if (arch === undefined || arch === "universal") {
     return [...MAC_FILE_EXCLUSIONS];
   }
 
   const unusedArch = arch === "arm64" ? "x64" : "arm64";
-  return [...MAC_FILE_EXCLUSIONS, `!**/node_modules/node-pty/prebuilds/darwin-${unusedArch}/**/*`];
+  return [
+    ...MAC_FILE_EXCLUSIONS,
+    `!**/node_modules/node-pty/prebuilds/darwin-${unusedArch}/**/*`,
+    `!**/node_modules/node-hid/prebuilds/HID-darwin-${unusedArch}/**/*`,
+  ];
+}
+
+export function resolveWindowsFileExclusions(arch?: typeof BuildArch.Type) {
+  const unusedArchitectures = arch === "arm64" ? ["x64", "ia32"] : ["arm64", "ia32"];
+  return [
+    ...NODE_HID_SOURCE_EXCLUSIONS,
+    "!**/node_modules/node-hid/prebuilds/HID-darwin-*/**/*",
+    "!**/node_modules/node-hid/prebuilds/HID-linux-*/**/*",
+    "!**/node_modules/node-hid/prebuilds/HID_hidraw-*/**/*",
+    ...unusedArchitectures.map(
+      (unusedArch) => `!**/node_modules/node-hid/prebuilds/HID-win32-${unusedArch}/**/*`,
+    ),
+  ];
 }
 // Windows ships the server tree (bundle + node_modules) as a separate
 // resources/server.asar sidecar instead of loose files: the NSIS installer then
@@ -1253,6 +1300,9 @@ const BuildEnvConfig = Config.all({
   outputDir: Config.String("SUPATERM_DESKTOP_OUTPUT_DIR").pipe(Config.option),
   skipBuild: Config.Boolean("SUPATERM_DESKTOP_SKIP_BUILD").pipe(Config.withDefault(false)),
   keepStage: Config.Boolean("SUPATERM_DESKTOP_KEEP_STAGE").pipe(Config.withDefault(false)),
+  withoutCodexMicro: Config.Boolean("SUPATERM_DESKTOP_WITHOUT_CODEX_MICRO").pipe(
+    Config.withDefault(false),
+  ),
   signed: Config.Boolean("SUPATERM_DESKTOP_SIGNED").pipe(Config.withDefault(false)),
   verbose: Config.Boolean("SUPATERM_DESKTOP_VERBOSE").pipe(Config.withDefault(false)),
   mockUpdates: Config.Boolean("SUPATERM_DESKTOP_MOCK_UPDATES").pipe(Config.withDefault(false)),
@@ -1336,6 +1386,7 @@ export const resolveBuildOptions = Effect.fn("resolveBuildOptions")(function* (
 
   const skipBuild = resolveBooleanFlag(input.skipBuild, env.skipBuild);
   const keepStage = resolveBooleanFlag(input.keepStage, env.keepStage);
+  const withoutCodexMicro = resolveBooleanFlag(input.withoutCodexMicro, env.withoutCodexMicro);
   const signed = resolveBooleanFlag(input.signed, env.signed);
   const verbose = resolveBooleanFlag(input.verbose, env.verbose);
 
@@ -1362,6 +1413,7 @@ export const resolveBuildOptions = Effect.fn("resolveBuildOptions")(function* (
     outputDir,
     skipBuild,
     keepStage,
+    withoutCodexMicro,
     signed,
     verbose,
     mockUpdates,
@@ -1444,6 +1496,10 @@ export const preflightLinuxDesktopBuild = Effect.fn("preflightLinuxDesktopBuild"
       libsecret: desktopBuildProbeSucceeds(
         ChildProcess.make("pkg-config", ["--exists", "libsecret-1"]),
         "libsecret",
+      ),
+      hid: desktopBuildProbeSucceeds(
+        ChildProcess.make("pkg-config", ["--exists", "libusb-1.0", "libudev"]),
+        "hid",
       ),
       imagemagick: Effect.all([
         desktopBuildProbeSucceeds(ChildProcess.make("magick", ["-version"]), "magick"),
@@ -2141,6 +2197,17 @@ function validateBundledClientAssets(clientDir: string) {
   });
 }
 
+// Native libraries that only the Codex Micro keyboard loads.
+const CODEX_MICRO_RUNTIME_DEPENDENCIES: ReadonlySet<string> = new Set(["node-hid"]);
+
+function withoutCodexMicroDependencies(
+  dependencies: Record<string, string>,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(dependencies).filter(([name]) => !CODEX_MICRO_RUNTIME_DEPENDENCIES.has(name)),
+  );
+}
+
 export function resolveDesktopRuntimeDependencies(
   dependencies: Record<string, string> | undefined,
   catalog: Record<string, string>,
@@ -2260,7 +2327,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
         ? resolveMacFileExclusions(arch)
         : platform === "linux"
           ? LINUX_FILE_EXCLUSIONS
-          : []),
+          : resolveWindowsFileExclusions(arch)),
     ],
     directories: {
       buildResources: "apps/desktop/resources",
@@ -3065,6 +3132,9 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
         cause,
       }),
   });
+  const desktopRuntimeDependencies = options.withoutCodexMicro
+    ? withoutCodexMicroDependencies(resolvedDesktopRuntimeDependencies)
+    : resolvedDesktopRuntimeDependencies;
 
   const appVersion = options.version ?? serverPackageJson.version;
   const iconAssets = resolveDesktopBuildIconAssets(appVersion);
@@ -3263,11 +3333,11 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
 
   const stageDependencies =
     options.platform === "win"
-      ? { ...resolvedDesktopRuntimeDependencies }
+      ? { ...desktopRuntimeDependencies }
       : resolveMergedStageDependencies({
           platform: options.platform,
           serverDependencies: resolvedServerDependencies,
-          desktopDependencies: resolvedDesktopRuntimeDependencies,
+          desktopDependencies: desktopRuntimeDependencies,
           arch: options.arch,
           fffNodeVersion: serverPackageJson.dependencies["@ff-labs/fff-node"],
         });
@@ -3285,6 +3355,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     buildVersion: appVersion,
     supatermCommitHash: commitHash,
     ...(touchIdKeychainAccessGroup ? { supatermWebAuthn: { touchIdKeychainAccessGroup } } : {}),
+    ...(options.withoutCodexMicro ? { supatermFeatures: { codexMicro: false } as const } : {}),
     private: true,
     packageManager: rootPackageJson.packageManager,
     description:
@@ -3530,6 +3601,12 @@ const buildDesktopArtifactCli = Command.make("build-desktop-artifact", {
   ),
   keepStage: Flag.Boolean("keep-stage").pipe(
     Flag.withDescription("Keep temporary staging files (env: SUPATERM_DESKTOP_KEEP_STAGE)."),
+    Flag.optional,
+  ),
+  withoutCodexMicro: Flag.Boolean("without-codex-micro").pipe(
+    Flag.withDescription(
+      "Leave out the Codex Micro keyboard and its HID library; the app hides the feature (env: SUPATERM_DESKTOP_WITHOUT_CODEX_MICRO).",
+    ),
     Flag.optional,
   ),
   signed: Flag.Boolean("signed").pipe(

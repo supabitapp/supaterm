@@ -475,7 +475,7 @@
   "dependencies": {
     "@pierre/diffs": "catalog:",
     "@supaterm/contracts": "workspace:*",
-    "@supaterm/mermaid-ascii": "workspace:*",
+    "@supaterm/mermaid": "workspace:*",
     "@supaterm/shared": "workspace:*",
     "@supaterm/source-control-azure-devops": "workspace:*",
     "@supaterm/source-control-bitbucket": "workspace:*",

@@ -89,6 +89,7 @@ import { type EnvironmentConnectionPresentation } from "@supaterm/client-runtime
 import { deriveThreadTitleSeed } from "@supaterm/client-runtime/operations";
 import { readPastedComposerContext } from "./composerInlineTokenPaste";
 import { isPasteAsTextShortcut } from "@supaterm/client-runtime/text-paste";
+import { SPEED_TOGGLE_LABELS } from "@supaterm/client-runtime/provider-speed-toggle";
 import { effectiveSnoozed, threadWokeAt } from "@supaterm/client-runtime/state/thread-snooze";
 import { childThreadInputsTitle } from "@supaterm/client-runtime/state/threads";
 import { useAcknowledgeThreadWoke, useThreadActions } from "../hooks/useThreadActions";
@@ -563,6 +564,7 @@ const EMPTY_FEEDBACK_SUBMISSIONS: ReadonlyArray<CodexFeedbackSubmission> = [];
 // second, and every server-side visit is a full command dispatch plus a
 // broadcast to all shell subscribers.
 const VISIT_DISPATCH_THROTTLE_MS = 10_000;
+const CONVERSATION_SCROLL_STEP_PX = 160;
 const EMPTY_PROVIDER_SKILLS: ServerProvider["skills"] = [];
 // Measures the prompt surface, not its anchor: the hero's context strip above it
 // and a thread's strip below it come and go with the state change.
@@ -2203,6 +2205,7 @@ export default function ChatView(props: ChatViewProps) {
       items.push({
         id: `environment-unavailable:${activeEnvironmentUnavailableState.environmentId}`,
         variant: unavailableConnection.phase === "error" ? "error" : "warning",
+        alwaysVisible: true,
         icon: <WifiOffIcon />,
         title: `${activeEnvironmentUnavailableState.label} is ${environmentReconnecting ? "reconnecting" : "offline"}`,
         actions: (
@@ -4076,7 +4079,7 @@ export default function ChatView(props: ChatViewProps) {
   const pageScrollControllerRef = useRef<ReturnType<typeof createPageScrollController> | null>(
     null,
   );
-  const handlePageScrollStart = useEffectEvent((key: PageScrollKey) => {
+  const handlePageScrollStart = useStableCallback((key: PageScrollKey) => {
     timelineScrollIntentRef.current = key === "PageUp" ? "away-from-end" : "toward-end";
     composerRef.current?.collapseForTimelineScrollKey(key);
     if (
@@ -4100,7 +4103,7 @@ export default function ChatView(props: ChatViewProps) {
         pageScrollControllerRef.current = null;
       }
     };
-  }, [composerOverlayElement]);
+  }, [composerOverlayElement, handlePageScrollStart]);
   const onComposerPageScrollKeyDown = (key: PageScrollKey) => {
     pageScrollControllerRef.current?.handleKeyDown(key);
   };
@@ -4131,6 +4134,15 @@ export default function ChatView(props: ChatViewProps) {
     });
   };
   const scrollToEndStable = useStableCallback(scrollToEnd);
+  const scrollConversation = (direction: 1 | -1) => {
+    const node = getTimelineScrollableNode();
+    if (!(node instanceof HTMLElement)) return false;
+    handlePageScrollStart(direction < 0 ? "PageUp" : "PageDown");
+    node.scrollBy({
+      top: direction * CONVERSATION_SCROLL_STEP_PX,
+      behavior: prefersReducedMotion() ? "auto" : "smooth",
+    });
+  };
   useEffect(() => {
     if (!activeThread?.id) return;
     let removeListeners: (() => void) | null = null;
@@ -5506,14 +5518,23 @@ export default function ChatView(props: ChatViewProps) {
     if (!terminalUiState.terminalOpen) setTerminalOpenStable(true);
   };
   const openComposerControl = (command: Parameters<ChatComposerHandle["openControl"]>[0]) =>
-    (({ event }) => {
-      if (!event.repeat) composerRef.current?.openControl(command);
+    (({ repeat }) => {
+      if (!repeat) composerRef.current?.openControl(command);
     }) satisfies ChatShortcutHandler;
   const openDraftProjectControl = (
     command: Parameters<ChatComposerHandle["openControl"]>[0],
   ): ChatShortcutHandler => {
     const open = openComposerControl(command);
     return (context) => (showDraftProjectPicker ? open(context) : false);
+  };
+  const respondToActiveApproval = (decision: "accept" | "decline", repeat: boolean) => {
+    const approval = activePendingApproval;
+    if (!approval || approval.responseCapability !== "live") return false;
+    if (approval.options && !approval.options.some((option) => option.decision === decision)) {
+      return false;
+    }
+    if (repeat || respondingRequestIds.includes(approval.requestId)) return;
+    void onRespondToApprovalStable(approval.requestId, decision);
   };
   useChatShortcuts({
     enabled: activeThreadId !== null,
@@ -5528,9 +5549,9 @@ export default function ChatView(props: ChatViewProps) {
       focusComposerStable();
     },
     commands: {
-      "pane.close": ({ event }) => {
+      "pane.close": ({ repeat }) => {
         if (!paneScope || !paneSplit) return false;
-        if (!event.repeat) useChatPaneStore.getState().close(paneScope.paneId);
+        if (!repeat) useChatPaneStore.getState().close(paneScope.paneId);
       },
       "pane.closeOthers": () => {
         if (!paneScope || !paneSplit) return false;
@@ -5544,12 +5565,12 @@ export default function ChatView(props: ChatViewProps) {
       "pane.focus.2": () => focusPaneIndexFromKeyboard(1),
       "pane.focus.3": () => focusPaneIndexFromKeyboard(2),
       "pane.focus.4": () => focusPaneIndexFromKeyboard(3),
-      "thread.copyReference": ({ event }) => {
-        if (!event.repeat) copyActiveThreadReferenceStable();
+      "thread.copyReference": ({ repeat }) => {
+        if (!repeat) copyActiveThreadReferenceStable();
       },
-      "thread.fork": ({ event }) => {
+      "thread.fork": ({ repeat }) => {
         if (!forkSource || forkDisabled) return false;
-        if (!event.repeat) void onForkFromRunStable(forkSource);
+        if (!repeat) void onForkFromRunStable(forkSource);
       },
       "thread.mark-done": () => {
         if (!readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) return false;
@@ -5583,13 +5604,13 @@ export default function ChatView(props: ChatViewProps) {
         openThreadFindStable();
       },
       "rightPanel.toggle": () => toggleRightPanelStable(),
-      "rightPanel.toggleMaximized": ({ event }) => {
-        if (!event.repeat) toggleRightPanelMaximizedStable();
+      "rightPanel.toggleMaximized": ({ repeat }) => {
+        if (!repeat) toggleRightPanelMaximizedStable();
       },
       "threadPanel.toggle": () => toggleThreadPanelStable(),
-      "rightPanel.close": ({ event }) => {
+      "rightPanel.close": ({ repeat }) => {
         if (!activeRightPanelSurface) return false;
-        if (!event.repeat) closeRightPanelSurfaceStable(activeRightPanelSurface);
+        if (!repeat) closeRightPanelSurfaceStable(activeRightPanelSurface);
       },
       "terminal.split": ({ terminalFocusOwner }) => {
         if (!canOperateTerminal) return false;
@@ -5619,22 +5640,22 @@ export default function ChatView(props: ChatViewProps) {
         createNewTerminalStable();
       },
       "diff.toggle": () => onToggleDiffStable(),
-      "modelPicker.toggle": ({ event }) => {
-        if (!event.repeat) composerRef.current?.toggleModelPicker();
+      "modelPicker.toggle": ({ repeat }) => {
+        if (!repeat) composerRef.current?.toggleModelPicker();
       },
-      "composer.increaseEffort": ({ event }) => {
-        if (!event.repeat) composerRef.current?.stepReasoningEffort(1);
+      "composer.increaseEffort": ({ repeat }) => {
+        if (!repeat) composerRef.current?.stepReasoningEffort(1);
       },
-      "composer.decreaseEffort": ({ event }) => {
-        if (!event.repeat) composerRef.current?.stepReasoningEffort(-1);
+      "composer.decreaseEffort": ({ repeat }) => {
+        if (!repeat) composerRef.current?.stepReasoningEffort(-1);
       },
       "composer.host": openDraftProjectControl("composer.host"),
       "composer.effort": openComposerControl("composer.effort"),
       "composer.mode": openComposerControl("composer.mode"),
       "composer.workspace": openDraftProjectControl("composer.workspace"),
-      "composer.cycleHost": ({ event }) => {
+      "composer.cycleHost": ({ repeat }) => {
         if (!canChangeEnvironment) return false;
-        if (event.repeat) return;
+        if (repeat) return;
         const currentId = environmentChangeRef.current?.environmentId ?? environmentId;
         const index = logicalProjectEnvironments.findIndex(
           (env) => env.environmentId === currentId,
@@ -5642,21 +5663,40 @@ export default function ChatView(props: ChatViewProps) {
         const next = logicalProjectEnvironments[(index + 1) % logicalProjectEnvironments.length];
         if (next) onEnvironmentChangeStable(next.environmentId);
       },
-      "composer.branch": ({ event }) => {
+      "composer.branch": ({ repeat }) => {
         if (!isGitRepo || !showDraftProjectPicker) return false;
-        if (!event.repeat) branchToolbarRef.current?.openBranchPicker();
+        if (!repeat) branchToolbarRef.current?.openBranchPicker();
       },
-      "composer.previousWorktree": ({ event }) => {
-        if (!event.repeat) branchToolbarRef.current?.usePreviousWorktree();
+      "composer.previousWorktree": ({ repeat }) => {
+        if (!repeat) branchToolbarRef.current?.usePreviousWorktree();
       },
-      "thread.steerQueuedMessage": ({ event }) =>
-        routeKind !== "draft" && queuedRunsControlRef.current?.steerNext(event.repeat) === true,
-      "thread.editQueuedMessage": ({ event }) =>
-        composerRef.current?.isCaretAtStart() === true && editLatestQueuedMessage(event.repeat),
-      "thread.stop": ({ event }) => {
+      "thread.steerQueuedMessage": ({ repeat }) =>
+        routeKind !== "draft" && queuedRunsControlRef.current?.steerNext(repeat) === true,
+      "thread.editQueuedMessage": ({ repeat }) =>
+        composerRef.current?.isCaretAtStart() === true && editLatestQueuedMessage(repeat),
+      "thread.stop": ({ repeat }) => {
         if (!canInterruptRunningThread) return false;
-        if (!event.repeat) void onInterruptStable();
+        if (!repeat) void onInterruptStable();
       },
+      "thread.approve": ({ repeat }) => respondToActiveApproval("accept", repeat),
+      "thread.decline": ({ repeat }) => respondToActiveApproval("decline", repeat),
+      "composer.submit": ({ repeat }) => {
+        if (!composerRef.current) return false;
+        if (!repeat) composerRef.current.submit();
+      },
+      "composer.toggleFastMode": ({ repeat }) => {
+        if (repeat) return;
+        const level = composerRef.current?.toggleFastMode() ?? null;
+        if (level === null) return false;
+        toastManager.add({
+          id: "fast-mode-toggle",
+          title: SPEED_TOGGLE_LABELS[level],
+          timeout: 1500,
+        });
+      },
+      "conversation.scrollUp": () => scrollConversation(-1),
+      "conversation.scrollDown": () => scrollConversation(1),
+      "conversation.scrollToEnd": () => scrollToEndStable(true),
     },
     fallback: (command) => {
       const scriptId = projectScriptIdFromCommand(command);

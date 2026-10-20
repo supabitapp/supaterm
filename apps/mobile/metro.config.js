@@ -146,7 +146,7 @@ async function prepareMermaidWorklet() {
   if (process.env.NODE_ENV !== "production") {
     let rebuild = Promise.resolve();
     fs.watch(
-      path.join(workspaceRoot, "packages/mermaid-ascii/src"),
+      path.join(workspaceRoot, "packages/mermaid/src"),
       { persistent: false, recursive: true },
       (_event, filename) => {
         if (filename && !String(filename).endsWith(".ts")) return;

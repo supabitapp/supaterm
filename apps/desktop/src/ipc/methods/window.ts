@@ -13,6 +13,7 @@ import {
   SystemSettingsPaneSchema,
   type DesktopEnvironmentBootstrap,
   type PickedThemeFile,
+  type SystemSettingsPane,
 } from "@supaterm/contracts";
 import { PROJECT_FAVICON_EXTENSIONS } from "@supaterm/shared/projectFavicon";
 import { resolveEditorCommand } from "@supaterm/shared/editor";
@@ -38,6 +39,7 @@ import * as ElectronTheme from "../../electron/ElectronTheme.ts";
 import * as ElectronWindow from "../../electron/ElectronWindow.ts";
 import * as Electron from "electron";
 import * as MacPermissions from "../../permissions/MacPermissions.ts";
+import * as MacInputMonitoring from "../../permissions/MacInputMonitoring.ts";
 import { safariPermissionCheck } from "../../preview/BrowserImport/SafariPermission.ts";
 import * as IpcChannels from "../channels.ts";
 import * as DesktopIpc from "../DesktopIpc.ts";
@@ -293,6 +295,19 @@ export const openExternal = DesktopIpc.makeIpcMethod({
   }),
 });
 
+const systemPermissionCheck = Effect.fnUntraced(function* (pane: SystemSettingsPane) {
+  switch (pane) {
+    case "full-disk-access":
+      return yield* safariPermissionCheck;
+    case "input-monitoring": {
+      const inputMonitoring = yield* MacInputMonitoring.MacInputMonitoring;
+      const runPromise = Effect.runPromiseWith(yield* Effect.context<never>());
+      return () =>
+        runPromise(inputMonitoring.status.pipe(Effect.map((status) => status === "granted")));
+    }
+  }
+});
+
 export const openSystemSettings = DesktopIpc.makeIpcMethod({
   channel: IpcChannels.OPEN_SYSTEM_SETTINGS_CHANNEL,
   payload: SystemSettingsPaneSchema,
@@ -305,7 +320,7 @@ export const openSystemSettings = DesktopIpc.makeIpcMethod({
     const opened = yield* shell.openSystemSettings(pane);
     if (opened && environment.isPackaged) {
       const permissions = yield* MacPermissions.MacPermissions;
-      const isGranted = yield* safariPermissionCheck;
+      const isGranted = yield* systemPermissionCheck(pane);
       yield* permissions.showHelper(pane, owner, isGranted);
     }
     return opened;
@@ -398,10 +413,10 @@ export const checkSystemPermission = DesktopIpc.makeIpcMethod({
   channel: IpcChannels.CHECK_SYSTEM_PERMISSION_CHANNEL,
   payload: SystemSettingsPaneSchema,
   result: Schema.Boolean,
-  handler: Effect.fn("desktop.ipc.window.checkSystemPermission")(function* () {
+  handler: Effect.fn("desktop.ipc.window.checkSystemPermission")(function* (pane) {
     const environment = yield* DesktopEnvironment.DesktopEnvironment;
     if (environment.platform !== "darwin") return false;
-    const check = yield* safariPermissionCheck;
+    const check = yield* systemPermissionCheck(pane);
     return yield* Effect.promise(check);
   }),
 });

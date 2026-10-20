@@ -40,8 +40,9 @@ export function SettingsProjectOverviewRouteScreen() {
         >
           {members.length === 0 ? (
             <Text className="px-2 text-base text-foreground-muted">
-              This project has no checkout on the selected connected environments. Change the filter
-              above.
+              {selectedProjectKey === null
+                ? "Choose a project in the filter above to manage its name and checkouts."
+                : "This project has no checkout on the selected connected environments. Change the filter above."}
             </Text>
           ) : (
             <ProjectOverviewContent

@@ -1,4 +1,5 @@
 import * as MacPermissions from "./permissions/MacPermissions.ts";
+import * as MacInputMonitoring from "./permissions/MacInputMonitoring.ts";
 for (const stream of [process.stdout, process.stderr]) {
   stream.on("error", (err: NodeJS.ErrnoException) => {
     if (err.code !== "EPIPE") throw err;
@@ -34,6 +35,7 @@ import * as ElectronTheme from "./electron/ElectronTheme.ts";
 import * as ElectronUpdater from "./electron/ElectronUpdater.ts";
 import * as ElectronWindow from "./electron/ElectronWindow.ts";
 import * as DesktopApp from "./app/DesktopApp.ts";
+import * as CodexMicroDesktop from "./codexMicro/CodexMicroDesktop.ts";
 import * as DesktopAppActivation from "./app/DesktopAppActivation.ts";
 import * as DesktopAppIdentity from "./app/DesktopAppIdentity.ts";
 import * as DesktopConnectionCatalogStore from "./app/DesktopConnectionCatalogStore.ts";
@@ -138,6 +140,7 @@ const layerElectron = Layer.mergeAll(
 
 const layerDesktopFoundation = Layer.mergeAll(
   MacPermissions.layer,
+  MacInputMonitoring.layer,
   DesktopState.layer,
   DesktopShutdown.layer,
   DesktopAppSettings.layer,
@@ -177,6 +180,11 @@ const layerDesktopSnapShot = DesktopSnapShot.layer.pipe(
   Layer.provideMerge(layerDesktopWindow),
   Layer.provideMerge(layerDesktopFoundation),
 );
+
+const layerDesktopCodexMicro = CodexMicroDesktop.layer.pipe(
+  Layer.provideMerge(layerDesktopFoundation),
+);
+
 const layerDesktopAppActivation = DesktopAppActivation.layer.pipe(
   Layer.provide(layerDesktopWindow),
 );
@@ -210,6 +218,7 @@ const layerDesktopApplication = Layer.mergeAll(
 ).pipe(
   Layer.provideMerge(layerDesktopWebLinks),
   Layer.provideMerge(layerDesktopSnapShot),
+  Layer.provideMerge(layerDesktopCodexMicro),
   Layer.provideMerge(DesktopUpdates.layer),
   Layer.provideMerge(layerDesktopWslBackend),
   Layer.provideMerge(layerDesktopLocalEnvironmentAuth),

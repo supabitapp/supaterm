@@ -20,6 +20,7 @@ import {
 } from "./baseSchemas.ts";
 import { EnvironmentMachineKind, ThreadEnvMode, WorktreeSubmodules } from "./environment.ts";
 import { KeybindingShortcut } from "./keybindings.ts";
+import { CodexMicroSettings } from "./codexMicro.ts";
 import {
   CustomModelSetting,
   DEFAULT_TEXT_GENERATION_MODEL,
@@ -420,6 +421,7 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   snapShotFlash: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   snapShotAnimations: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  codexMicro: CodexMicroSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   wordWrap: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
 });
 export type ClientSettings = typeof ClientSettingsSchema.Type;
@@ -1564,6 +1566,7 @@ export const ClientSettingsPatch = Schema.Struct({
   snapShotSound: Schema.optionalKey(SnapShotSound),
   snapShotFlash: Schema.optionalKey(Schema.Boolean),
   snapShotAnimations: Schema.optionalKey(Schema.Boolean),
+  codexMicro: Schema.optionalKey(CodexMicroSettings),
   wordWrap: Schema.optionalKey(Schema.Boolean),
 });
 export type ClientSettingsPatch = typeof ClientSettingsPatch.Type;
