@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 
 import {
   focusedPane,
@@ -202,7 +202,7 @@ function paneChromeStyle(cell: PaneCell, layout: PaneLayout, split: boolean): CS
   } as CSSProperties;
 }
 
-const ChatPaneFrame = memo(function ChatPaneFrame(props: {
+function ChatPaneFrame(props: {
   cell: PaneCell;
   layout: PaneLayout;
   split: boolean;
@@ -233,20 +233,7 @@ const ChatPaneFrame = memo(function ChatPaneFrame(props: {
         trackOffset(layout.rows, cell.row + cell.rowSpan),
       ].join(":")
     : "single";
-  const [scope, setScope] = useState<PaneScope>({
-    paneId: cell.id,
-    layoutVersion,
-    narrow,
-    collapsed,
-  });
-  if (
-    scope.paneId !== cell.id ||
-    scope.layoutVersion !== layoutVersion ||
-    scope.narrow !== narrow ||
-    scope.collapsed !== collapsed
-  ) {
-    setScope({ paneId: cell.id, layoutVersion, narrow, collapsed });
-  }
+  const scope: PaneScope = { paneId: cell.id, layoutVersion, narrow, collapsed };
 
   const claimFocus = () => {
     if (!focused) focus(cell.id);
@@ -283,4 +270,4 @@ const ChatPaneFrame = memo(function ChatPaneFrame(props: {
       <ChatPaneDropOverlay paneId={cell.id} />
     </div>
   );
-});
+}

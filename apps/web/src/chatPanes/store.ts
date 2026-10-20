@@ -180,24 +180,32 @@ export const useChatPaneStore = create<ChatPaneState>()(
       closed: [],
       historyMode: "replace",
       openToSide: null,
+      // Runs once per navigation, so an armed open-to-side request is used up either way.
       reconcileRoute: (target, workspace) =>
         set((state) => {
-          const request =
-            state.openToSide && state.openToSide.expiresAt > Date.now() ? state.openToSide : null;
-          if (state.layout && request && !findPaneByTarget(state.layout, target)) {
-            const focusedId = state.layout.focusedPaneId;
-            const fits =
-              workspace !== null && canSplitPane(state.layout, focusedId, request.edge, workspace);
-            const split = fits
-              ? splitPane(state.layout, focusedId, request.edge, target, randomUUID(), randomUUID)
-              : null;
+          const request = (state.openToSide?.expiresAt ?? 0) > Date.now() ? state.openToSide : null;
+          const { layout: current } = state;
+          if (
+            current &&
+            request &&
+            workspace &&
+            !findPaneByTarget(current, target) &&
+            canSplitPane(current, current.focusedPaneId, request.edge, workspace)
+          ) {
+            const split = splitPane(
+              current,
+              current.focusedPaneId,
+              request.edge,
+              target,
+              randomUUID(),
+              randomUUID,
+            );
             if (split) return { layout: split, openToSide: null, historyMode: "replace" };
           }
-          const layout = reconcileLayoutWithRoute(state.layout, target, randomUUID);
-          const openToSide = request && layout !== state.layout ? null : state.openToSide;
-          return layout === state.layout && openToSide === state.openToSide
+          const layout = reconcileLayoutWithRoute(current, target, randomUUID);
+          return layout === current && state.openToSide === null
             ? state
-            : { layout, openToSide, historyMode: "replace" };
+            : { layout, openToSide: null, historyMode: "replace" };
         }),
       requestOpenToSide: (edge) =>
         set({ openToSide: { edge, expiresAt: Date.now() + OPEN_TO_SIDE_TTL_MS } }),

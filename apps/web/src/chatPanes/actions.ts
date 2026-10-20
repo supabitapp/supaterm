@@ -9,16 +9,15 @@ export function openThreadPickerBeside(edge: PaneEdge) {
   openCommandPalette();
 }
 
-/** Moves keyboard focus into a pane, for pane switching from the keyboard or a menu. */
-export function focusPaneFromKeyboard(paneId: string) {
-  useChatPaneStore.getState().focus(paneId);
-  requestAnimationFrame(() => focusPaneComposer(paneId));
+/** A keyboard switch moves typing into the newly focused pane, as a click would. */
+function focusFocusedPaneComposer() {
+  const layout = useChatPaneStore.getState().layout;
+  if (layout) requestAnimationFrame(() => focusPaneComposer(layout.focusedPaneId));
 }
 
 export function focusPaneIndexFromKeyboard(index: number): boolean {
   if (!useChatPaneStore.getState().focusIndex(index)) return false;
-  const layout = useChatPaneStore.getState().layout;
-  if (layout) requestAnimationFrame(() => focusPaneComposer(layout.focusedPaneId));
+  focusFocusedPaneComposer();
   return true;
 }
 
@@ -26,7 +25,6 @@ export function focusAdjacentPaneFromKeyboard(offset: 1 | -1): boolean {
   const { layout, focusAdjacent } = useChatPaneStore.getState();
   if (!layout || layout.cells.length < 2) return false;
   focusAdjacent(offset);
-  const next = useChatPaneStore.getState().layout;
-  if (next) requestAnimationFrame(() => focusPaneComposer(next.focusedPaneId));
+  focusFocusedPaneComposer();
   return true;
 }

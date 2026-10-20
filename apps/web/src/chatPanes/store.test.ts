@@ -1,13 +1,12 @@
 import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 
-import type { ThreadRouteTarget } from "../threadRoutes";
 import { findPaneByTarget, orderedPanes } from "./layout";
 import { isPaneInputOwner } from "./paneScope";
 import { closePaneShowingThread, useChatPaneStore } from "./store";
 
-const thread = (id: string): ThreadRouteTarget => ({
-  kind: "server",
+const thread = (id: string) => ({
+  kind: "server" as const,
   threadRef: { environmentId: "env" as EnvironmentId, threadId: id as ThreadId },
 });
 const roomy = { width: 1600, height: 900 };

@@ -2,9 +2,9 @@ import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 
 import type { ThreadRouteTarget } from "../threadRoutes";
 
-export const MAX_CHAT_PANES = 4;
-export const CHAT_PANE_MIN_WIDTH = 360;
-export const CHAT_PANE_MIN_HEIGHT = 320;
+const MAX_CHAT_PANES = 4;
+const CHAT_PANE_MIN_WIDTH = 360;
+const CHAT_PANE_MIN_HEIGHT = 320;
 
 export type PaneAxis = "column" | "row";
 export type PaneEdge = "left" | "right" | "top" | "bottom";
@@ -43,10 +43,6 @@ export interface PaneLayoutSize {
 
 export function paneTargetKey(target: ThreadRouteTarget): string {
   return target.kind === "server" ? scopedThreadKey(target.threadRef) : `draft:${target.draftId}`;
-}
-
-export function samePaneTarget(left: ThreadRouteTarget, right: ThreadRouteTarget): boolean {
-  return paneTargetKey(left) === paneTargetKey(right);
 }
 
 export function createPaneLayout(target: ThreadRouteTarget, createId: () => string): PaneLayout {
@@ -276,7 +272,7 @@ function edgeNeighbours(layout: PaneLayout, cell: PaneCell, edge: PaneEdge): Pan
 }
 
 /** Removes track boundaries no pane starts on, merging their sizes. */
-export function normalizePaneLayout(layout: PaneLayout): PaneLayout {
+function normalizePaneLayout(layout: PaneLayout): PaneLayout {
   let next = layout;
   for (const axis of ["column", "row"] as const) {
     let tracks = axisTracks(next, axis);
