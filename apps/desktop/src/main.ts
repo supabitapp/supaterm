@@ -1,4 +1,5 @@
 import * as MacPermissions from "./permissions/MacPermissions.ts";
+import * as MacInputMonitoring from "./permissions/MacInputMonitoring.ts";
 for (const stream of [process.stdout, process.stderr]) {
   stream.on("error", (err: NodeJS.ErrnoException) => {
     if (err.code !== "EPIPE") throw err;
@@ -139,6 +140,7 @@ const layerElectron = Layer.mergeAll(
 
 const layerDesktopFoundation = Layer.mergeAll(
   MacPermissions.layer,
+  MacInputMonitoring.layer,
   DesktopState.layer,
   DesktopShutdown.layer,
   DesktopAppSettings.layer,

@@ -1,19 +1,16 @@
-import type { CodexMicroPermissionStatus } from "@supaterm/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 
-import * as Electron from "electron";
-
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
-import * as ElectronShell from "../electron/ElectronShell.ts";
-import * as MacPermissions from "../permissions/MacPermissions.ts";
 
 const IOKIT_PATH = "/System/Library/Frameworks/IOKit.framework/IOKit";
 const LISTEN_EVENT_REQUEST = 1;
 const ACCESS_GRANTED = 0;
 const ACCESS_UNKNOWN = 2;
+
+type InputMonitoringStatus = "granted" | "denied" | "unavailable";
 
 interface IOKitHidAccess {
   readonly check: () => number;
@@ -23,17 +20,14 @@ interface IOKitHidAccess {
 export class MacInputMonitoring extends Context.Service<
   MacInputMonitoring,
   {
-    readonly status: Effect.Effect<CodexMicroPermissionStatus>;
+    readonly status: Effect.Effect<InputMonitoringStatus>;
     /** Asks macOS to prompt once, which also adds the app to the Input Monitoring list. */
     readonly requestIfUndetermined: Effect.Effect<void>;
-    readonly openSettings: Effect.Effect<void>;
   }
->()("@supaterm/desktop/codexMicro/MacInputMonitoring") {}
+>()("@supaterm/desktop/permissions/MacInputMonitoring") {}
 
 const make = Effect.gen(function* () {
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
-  const shell = yield* ElectronShell.ElectronShell;
-  const permissions = yield* MacPermissions.MacPermissions;
   let ioKit: Promise<IOKitHidAccess> | undefined;
 
   const loadIOKit = () =>
@@ -80,16 +74,7 @@ const make = Effect.gen(function* () {
     yield* Effect.tryPromise(() => loadIOKit().then((api) => api.request())).pipe(Effect.ignore);
   }).pipe(Effect.withSpan("desktop.macInputMonitoring.requestIfUndetermined"));
 
-  const openSettings = Effect.gen(function* () {
-    if (environment.platform !== "darwin") return;
-    const owner = Electron.BrowserWindow.getFocusedWindow();
-    if (!(yield* shell.openSystemSettings("input-monitoring"))) return;
-    yield* permissions.showHelper("input-monitoring", owner, () =>
-      loadIOKit().then((api) => api.check() === ACCESS_GRANTED),
-    );
-  }).pipe(Effect.withSpan("desktop.macInputMonitoring.openSettings"));
-
-  return MacInputMonitoring.of({ status, requestIfUndetermined, openSettings });
+  return MacInputMonitoring.of({ status, requestIfUndetermined });
 });
 
 export const layer = Layer.effect(MacInputMonitoring, make);

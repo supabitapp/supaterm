@@ -5463,8 +5463,8 @@ export default function ChatView(props: ChatViewProps) {
     if (!terminalUiState.terminalOpen) setTerminalOpenStable(true);
   };
   const openComposerControl = (command: Parameters<ChatComposerHandle["openControl"]>[0]) =>
-    (({ event }) => {
-      if (!event.repeat) composerRef.current?.openControl(command);
+    (({ repeat }) => {
+      if (!repeat) composerRef.current?.openControl(command);
     }) satisfies ChatShortcutHandler;
   const openDraftProjectControl = (
     command: Parameters<ChatComposerHandle["openControl"]>[0],
@@ -5493,12 +5493,12 @@ export default function ChatView(props: ChatViewProps) {
       focusComposerStable();
     },
     commands: {
-      "thread.copyReference": ({ event }) => {
-        if (!event.repeat) copyActiveThreadReferenceStable();
+      "thread.copyReference": ({ repeat }) => {
+        if (!repeat) copyActiveThreadReferenceStable();
       },
-      "thread.fork": ({ event }) => {
+      "thread.fork": ({ repeat }) => {
         if (!forkSource || forkDisabled) return false;
-        if (!event.repeat) void onForkFromRunStable(forkSource);
+        if (!repeat) void onForkFromRunStable(forkSource);
       },
       "thread.mark-done": () => {
         if (!readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) return false;
@@ -5532,13 +5532,13 @@ export default function ChatView(props: ChatViewProps) {
         openThreadFindStable();
       },
       "rightPanel.toggle": () => toggleRightPanelStable(),
-      "rightPanel.toggleMaximized": ({ event }) => {
-        if (!event.repeat) toggleRightPanelMaximizedStable();
+      "rightPanel.toggleMaximized": ({ repeat }) => {
+        if (!repeat) toggleRightPanelMaximizedStable();
       },
       "threadPanel.toggle": () => toggleThreadPanelStable(),
-      "rightPanel.close": ({ event }) => {
+      "rightPanel.close": ({ repeat }) => {
         if (!activeRightPanelSurface) return false;
-        if (!event.repeat) closeRightPanelSurfaceStable(activeRightPanelSurface);
+        if (!repeat) closeRightPanelSurfaceStable(activeRightPanelSurface);
       },
       "terminal.split": ({ terminalFocusOwner }) => {
         if (!canOperateTerminal) return false;
@@ -5568,22 +5568,22 @@ export default function ChatView(props: ChatViewProps) {
         createNewTerminalStable();
       },
       "diff.toggle": () => onToggleDiffStable(),
-      "modelPicker.toggle": ({ event }) => {
-        if (!event.repeat) composerRef.current?.toggleModelPicker();
+      "modelPicker.toggle": ({ repeat }) => {
+        if (!repeat) composerRef.current?.toggleModelPicker();
       },
-      "composer.increaseEffort": ({ event }) => {
-        if (!event.repeat) composerRef.current?.stepReasoningEffort(1);
+      "composer.increaseEffort": ({ repeat }) => {
+        if (!repeat) composerRef.current?.stepReasoningEffort(1);
       },
-      "composer.decreaseEffort": ({ event }) => {
-        if (!event.repeat) composerRef.current?.stepReasoningEffort(-1);
+      "composer.decreaseEffort": ({ repeat }) => {
+        if (!repeat) composerRef.current?.stepReasoningEffort(-1);
       },
       "composer.host": openDraftProjectControl("composer.host"),
       "composer.effort": openComposerControl("composer.effort"),
       "composer.mode": openComposerControl("composer.mode"),
       "composer.workspace": openDraftProjectControl("composer.workspace"),
-      "composer.cycleHost": ({ event }) => {
+      "composer.cycleHost": ({ repeat }) => {
         if (!canChangeEnvironment) return false;
-        if (event.repeat) return;
+        if (repeat) return;
         const currentId = environmentChangeRef.current?.environmentId ?? environmentId;
         const index = logicalProjectEnvironments.findIndex(
           (env) => env.environmentId === currentId,
@@ -5591,29 +5591,29 @@ export default function ChatView(props: ChatViewProps) {
         const next = logicalProjectEnvironments[(index + 1) % logicalProjectEnvironments.length];
         if (next) onEnvironmentChangeStable(next.environmentId);
       },
-      "composer.branch": ({ event }) => {
+      "composer.branch": ({ repeat }) => {
         if (!isGitRepo || !showDraftProjectPicker) return false;
-        if (!event.repeat) branchToolbarRef.current?.openBranchPicker();
+        if (!repeat) branchToolbarRef.current?.openBranchPicker();
       },
-      "composer.previousWorktree": ({ event }) => {
-        if (!event.repeat) branchToolbarRef.current?.usePreviousWorktree();
+      "composer.previousWorktree": ({ repeat }) => {
+        if (!repeat) branchToolbarRef.current?.usePreviousWorktree();
       },
-      "thread.steerQueuedMessage": ({ event }) =>
-        routeKind !== "draft" && queuedRunsControlRef.current?.steerNext(event.repeat) === true,
-      "thread.editQueuedMessage": ({ event }) =>
-        composerRef.current?.isCaretAtStart() === true && editLatestQueuedMessage(event.repeat),
-      "thread.stop": ({ event }) => {
+      "thread.steerQueuedMessage": ({ repeat }) =>
+        routeKind !== "draft" && queuedRunsControlRef.current?.steerNext(repeat) === true,
+      "thread.editQueuedMessage": ({ repeat }) =>
+        composerRef.current?.isCaretAtStart() === true && editLatestQueuedMessage(repeat),
+      "thread.stop": ({ repeat }) => {
         if (!canInterruptRunningThread) return false;
-        if (!event.repeat) void onInterruptStable();
+        if (!repeat) void onInterruptStable();
       },
-      "thread.approve": ({ event }) => respondToActiveApproval("accept", event.repeat),
-      "thread.decline": ({ event }) => respondToActiveApproval("decline", event.repeat),
-      "composer.submit": ({ event }) => {
+      "thread.approve": ({ repeat }) => respondToActiveApproval("accept", repeat),
+      "thread.decline": ({ repeat }) => respondToActiveApproval("decline", repeat),
+      "composer.submit": ({ repeat }) => {
         if (!composerRef.current) return false;
-        if (!event.repeat) composerRef.current.submit();
+        if (!repeat) composerRef.current.submit();
       },
-      "composer.toggleFastMode": ({ event }) => {
-        if (event.repeat) return;
+      "composer.toggleFastMode": ({ repeat }) => {
+        if (repeat) return;
         const level = composerRef.current?.toggleFastMode() ?? null;
         if (level === null) return false;
         toastManager.add({

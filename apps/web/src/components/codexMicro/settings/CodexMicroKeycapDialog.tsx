@@ -2,6 +2,7 @@ import type {
   CodexMicroAction,
   CodexMicroActionSlot,
   CodexMicroKeycapId,
+  CodexMicroKeySlot,
   CodexMicroLayout,
 } from "@supaterm/contracts";
 import { useState } from "react";
@@ -43,27 +44,33 @@ import { codexMicroSlotName, filterCodexMicroKeycaps } from "./CodexMicroSetting
 
 const DEFAULT_CHOICE = "default";
 const DEFAULT_CHOICE_LABEL = "Use keycap default";
+const UNASSIGNED_CHOICE = "unassigned";
 const TEXT_CHOICE = "text";
 const TEXT_CHOICE_LABEL = "Insert text…";
 const MAX_TEXT_LENGTH = 500;
 
-function initialChoice(action: CodexMicroAction | undefined): string {
+function initialChoice(action: CodexMicroAction | null | undefined): string {
   if (action === undefined) return DEFAULT_CHOICE;
+  if (action === null) return UNASSIGNED_CHOICE;
   return action.type === "composer-text" ? TEXT_CHOICE : codexMicroActionValue(action);
 }
 
-/** `undefined` keeps the keycap default; `null` is an incomplete choice that can't be saved. */
-function chosenAction(
+function chosenSlot(
+  keycapId: CodexMicroKeycapId,
   choice: string,
   text: string,
   preservedAction: CodexMicroAction | null,
-): CodexMicroAction | undefined | null {
-  if (choice === DEFAULT_CHOICE) return undefined;
+): CodexMicroKeySlot | null {
+  if (choice === DEFAULT_CHOICE) return { keycapId };
+  if (choice === UNASSIGNED_CHOICE) return { keycapId, action: null };
   if (choice === TEXT_CHOICE) {
     const trimmed = text.trim();
-    return trimmed.length > 0 ? { type: "composer-text", text: trimmed } : null;
+    return trimmed.length > 0
+      ? { keycapId, action: { type: "composer-text", text: trimmed } }
+      : null;
   }
-  return CODEX_MICRO_COMMAND_OPTIONS.get(choice)?.action ?? preservedAction;
+  const action = CODEX_MICRO_COMMAND_OPTIONS.get(choice)?.action ?? preservedAction;
+  return action === null ? null : { keycapId, action };
 }
 
 function choiceLabel(choice: string, action: CodexMicroAction | undefined | null): string {
@@ -134,18 +141,11 @@ export function CodexMicroKeycapDialog({
     !CODEX_MICRO_COMMAND_OPTIONS.has(currentChoice)
       ? current.action
       : null;
-  const action = chosenAction(choice, text, preservedAction);
-  const effectiveAction = action === undefined ? keycap.defaultAction : action;
+  const selection = chosenSlot(keycapId, choice, text, preservedAction);
 
   const save = () => {
-    if (action === null) return;
-    onSave(
-      assignCodexMicroKeycap(
-        layout,
-        slot,
-        action === undefined ? { keycapId } : { keycapId, action },
-      ),
-    );
+    if (selection === null) return;
+    onSave(assignCodexMicroKeycap(layout, slot, selection));
     onClose();
   };
 
@@ -210,11 +210,14 @@ export function CodexMicroKeycapDialog({
                 }}
               >
                 <SelectTrigger size="sm" className="w-full sm:w-56" aria-label="Assigned action">
-                  <SelectValue>{choiceLabel(choice, action)}</SelectValue>
+                  <SelectValue>{choiceLabel(choice, selection?.action)}</SelectValue>
                 </SelectTrigger>
                 <SelectPopup align="end" alignItemWithTrigger={false}>
                   <SelectItem hideIndicator value={DEFAULT_CHOICE}>
                     {DEFAULT_CHOICE_LABEL}
+                  </SelectItem>
+                  <SelectItem hideIndicator value={UNASSIGNED_CHOICE}>
+                    Unassigned
                   </SelectItem>
                   {preservedAction ? (
                     <SelectItem hideIndicator value={currentChoice}>
@@ -256,18 +259,13 @@ export function CodexMicroKeycapDialog({
                 </p>
               </div>
             ) : null}
-            {effectiveAction?.type === "push-to-talk" ? (
-              <p className="text-xs text-muted-foreground">
-                Dictation isn't available on desktop yet
-              </p>
-            ) : null}
           </div>
         </DialogPanel>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button disabled={action === null} onClick={save}>
+          <Button disabled={selection === null} onClick={save}>
             Save
           </Button>
         </DialogFooter>

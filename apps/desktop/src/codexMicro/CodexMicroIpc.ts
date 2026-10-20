@@ -76,15 +76,6 @@ export const setLighting = DesktopIpc.makeIpcMethod({
   }),
 });
 
-export const openInputMonitoringSettings = DesktopIpc.makeIpcMethod({
-  channel: IpcChannels.CODEX_MICRO_OPEN_INPUT_MONITORING_SETTINGS_CHANNEL,
-  payload: Schema.Void,
-  result: Schema.Void,
-  handler: Effect.fn("desktop.ipc.codexMicro.openInputMonitoringSettings")(function* () {
-    yield* (yield* CodexMicro.CodexMicro).openInputMonitoringSettings;
-  }),
-});
-
 export const getAvailability = DesktopIpc.makeSyncIpcMethod({
   channel: IpcChannels.CODEX_MICRO_AVAILABLE_CHANNEL,
   result: Schema.Boolean,

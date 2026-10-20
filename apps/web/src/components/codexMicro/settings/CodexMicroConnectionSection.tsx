@@ -2,12 +2,11 @@ import type {
   ClientSettings,
   CodexMicroDeviceState,
   CodexMicroPermissionStatus,
-  DesktopCodexMicroBridge,
 } from "@supaterm/contracts";
-import { settlePromise } from "@supaterm/client-runtime/state/runtime";
 import { useState, type CSSProperties } from "react";
 
 import { useClientSettings } from "../../../hooks/useSettings";
+import { readLocalApi } from "../../../localApi";
 import { cn, isMacPlatform } from "../../../lib/utils";
 import { Button } from "../../ui/button";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../../ui/select";
@@ -119,13 +118,7 @@ function BrightnessSlider({
   );
 }
 
-export function CodexMicroConnectionSection({
-  bridge,
-  state,
-}: {
-  bridge: DesktopCodexMicroBridge;
-  state: CodexMicroDeviceState | null;
-}) {
+export function CodexMicroConnectionSection({ state }: { state: CodexMicroDeviceState | null }) {
   const settings = useClientSettings(selectConnectionSettings);
   const summary = codexMicroConnectionSummary(settings.enabled, state);
   const details = settings.enabled ? codexMicroDeviceDetails(state) : null;
@@ -133,14 +126,15 @@ export function CodexMicroConnectionSection({
   const disabled = !settings.enabled;
 
   const openInputMonitoringSettings = async () => {
-    const result = await settlePromise(() => bridge.openInputMonitoringSettings());
-    if (result._tag === "Failure") {
-      toastManager.add({
-        type: "error",
-        title: "Couldn't open System Settings",
-        description: "Open Privacy & Security, then Input Monitoring, and allow Supaterm.",
+    await readLocalApi()
+      ?.shell.openSystemSettings("input-monitoring")
+      .catch(() => {
+        toastManager.add({
+          type: "error",
+          title: "Couldn't open System Settings",
+          description: "Open Privacy & Security, then Input Monitoring, and allow Supaterm.",
+        });
       });
-    }
   };
 
   return (

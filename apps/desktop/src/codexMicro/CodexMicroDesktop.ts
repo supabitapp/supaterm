@@ -12,7 +12,6 @@ import * as DesktopIpc from "../ipc/DesktopIpc.ts";
 import * as DesktopClientSettings from "../settings/DesktopClientSettings.ts";
 import * as CodexMicro from "./CodexMicro.ts";
 import * as CodexMicroIpc from "./CodexMicroIpc.ts";
-import * as MacInputMonitoring from "./MacInputMonitoring.ts";
 
 const { logWarning } = makeComponentLogger("desktop-codex-micro");
 
@@ -37,10 +36,7 @@ export const layer = Layer.unwrap(
   includedInBuild.pipe(
     Effect.map((available) =>
       available
-        ? CodexMicro.layer.pipe(
-            Layer.provide(CodexMicroTransport.layer),
-            Layer.provide(MacInputMonitoring.layer),
-          )
+        ? CodexMicro.layer.pipe(Layer.provide(CodexMicroTransport.layer))
         : CodexMicro.layerUnavailable,
     ),
   ),
@@ -54,7 +50,6 @@ export const install = Effect.gen(function* () {
   yield* CodexMicroIpc.installEventForwarding();
   yield* ipc.handle(CodexMicroIpc.getState);
   yield* ipc.handle(CodexMicroIpc.setLighting);
-  yield* ipc.handle(CodexMicroIpc.openInputMonitoringSettings);
   yield* (yield* DesktopClientSettings.DesktopClientSettings).get.pipe(
     Effect.map(
       Option.match({

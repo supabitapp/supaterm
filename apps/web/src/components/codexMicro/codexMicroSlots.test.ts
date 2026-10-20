@@ -220,7 +220,7 @@ describe("buildCodexMicroSlotViews", () => {
   });
 
   it("drops the thread from keys that are off", () => {
-    const model = buildCodexMicroLightingModel(views([thread("only")]), "idle");
+    const model = buildCodexMicroLightingModel(views([thread("only")]));
 
     expect(model.slots).toHaveLength(6);
     expect(model.slots[0]).toMatchObject({ thread: { threadId: "only" }, status: "idle" });

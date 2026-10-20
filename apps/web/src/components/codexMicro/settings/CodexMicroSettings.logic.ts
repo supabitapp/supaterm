@@ -15,7 +15,6 @@ import {
   type CodexMicroLayout,
   type CodexMicroPermissionStatus,
   type CodexMicroSlotStatus,
-  type CodexMicroTransport,
   type EnvironmentId,
   type ProjectId,
   type ThreadId,
@@ -46,12 +45,6 @@ interface CodexMicroConnectionSummary {
 
 const RETRY_SUFFIX = "Supaterm keeps trying.";
 
-const CONNECTED_LABELS: Readonly<Record<CodexMicroTransport, string>> = {
-  usb: "Connected via USB",
-  bluetooth: "Connected via Bluetooth",
-  unknown: "Connected",
-};
-
 export function codexMicroConnectionSummary(
   enabled: boolean,
   state: CodexMicroDeviceState | null,
@@ -64,7 +57,7 @@ export function codexMicroConnectionSummary(
     case "not-detected":
       return {
         label: "Not detected",
-        description: "Connect Codex Micro with USB or pair it over Bluetooth.",
+        description: "Connect Codex Micro with USB.",
         tone: "muted",
       };
     case "detected":
@@ -78,7 +71,7 @@ export function codexMicroConnectionSummary(
         };
       }
       return {
-        label: CONNECTED_LABELS[state.transport ?? "unknown"],
+        label: "Connected",
         description: null,
         tone: "success",
       };

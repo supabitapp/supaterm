@@ -51,10 +51,9 @@ import * as Semaphore from "effect/Semaphore";
 import { makeComponentLogger } from "../app/DesktopObservability.ts";
 import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as ElectronPowerMonitor from "../electron/ElectronPowerMonitor.ts";
-import * as MacInputMonitoring from "./MacInputMonitoring.ts";
+import * as MacInputMonitoring from "../permissions/MacInputMonitoring.ts";
 
 const DISCOVERY_INTERVAL = Duration.seconds(2);
-const HANDOFF_SCAN_INTERVAL = Duration.seconds(10);
 const DEVICE_STATUS_INTERVAL = Duration.seconds(60);
 const SELECTION_HIGHLIGHT = Duration.seconds(4);
 const KNOB_HOLD = Duration.millis(500);
@@ -91,7 +90,6 @@ const deviceState = (
 ): CodexMicroDeviceState => ({
   status,
   controlPlane: "unavailable",
-  transport: null,
   error: null,
   battery: null,
   firmwareVersion: null,
@@ -106,9 +104,7 @@ const sameThread = (left: CodexMicroThreadRef | null, right: CodexMicroThreadRef
 type StateListener = (state: CodexMicroDeviceState) => Effect.Effect<void>;
 type InputListener = (event: CodexMicroInputEvent) => Effect.Effect<void>;
 
-type SessionEnd =
-  | { readonly reason: "lost"; readonly healthy: boolean }
-  | { readonly reason: "handoff" };
+type SessionEnd = { readonly healthy: boolean };
 
 export class CodexMicro extends Context.Service<
   CodexMicro,
@@ -119,7 +115,6 @@ export class CodexMicro extends Context.Service<
     readonly configure: (settings: CodexMicroSettings) => Effect.Effect<void>;
     readonly state: Effect.Effect<CodexMicroDeviceState>;
     readonly setLighting: (model: CodexMicroLightingModel) => Effect.Effect<void>;
-    readonly openInputMonitoringSettings: Effect.Effect<void>;
     readonly subscribeState: (listener: StateListener) => Effect.Effect<void, never, Scope.Scope>;
     readonly subscribeInput: (listener: InputListener) => Effect.Effect<void, never, Scope.Scope>;
   }
@@ -146,18 +141,6 @@ const make = Effect.gen(function* () {
   let lastInputAt = Number.NEGATIVE_INFINITY;
   let screenLocked = false;
   let enabledFiber: Fiber.Fiber<void> | undefined;
-  // A USB interface that would not open keeps the Bluetooth session until it
-  // disappears, such as on replug, instead of forcing a handoff every scan.
-  const unopenableUsbPaths = new Set<string>();
-
-  const forgetVanishedUsb = (devices: ReadonlyArray<CodexMicroTransport.CodexMicroDevice>) => {
-    for (const path of unopenableUsbPaths) {
-      if (!devices.some((device) => device.path === path)) unopenableUsbPaths.delete(path);
-    }
-  };
-  const hasOpenableUsb = (devices: ReadonlyArray<CodexMicroTransport.CodexMicroDevice>) =>
-    devices.some((device) => device.transport === "usb" && !unopenableUsbPaths.has(device.path));
-
   const lifecycle = yield* Semaphore.make(1);
   const lightingWake = yield* Queue.sliding<void>(1);
   const rescan = yield* Queue.sliding<void>(1);
@@ -237,10 +220,8 @@ const make = Effect.gen(function* () {
 
   const runSession = Effect.fn("desktop.codexMicro.session")(function* (
     device: CodexMicroTransport.CodexMicroDevice,
-    handoff: boolean,
   ) {
     const connection = yield* transport.connect(device);
-    unopenableUsbPaths.delete(device.path);
     const sessionScope = yield* Effect.scope;
     const ended = yield* Deferred.make<SessionEnd>();
     const knobTimer = yield* FiberHandle.make<void, never>();
@@ -259,9 +240,7 @@ const make = Effect.gen(function* () {
     let joystickDirection: CodexMicroJoystickDirection | null = null;
     let knobHoldPending = false;
 
-    const endLost = Effect.suspend(() =>
-      Deferred.succeed(ended, { reason: "lost", healthy: initialized }),
-    );
+    const endLost = Effect.suspend(() => Deferred.succeed(ended, { healthy: initialized }));
 
     const request = (method: string, params?: unknown) =>
       connection
@@ -466,31 +445,12 @@ const make = Effect.gen(function* () {
       }
     });
 
-    const handoffLoop = Effect.gen(function* () {
-      while (true) {
-        yield* waitForRescan(HANDOFF_SCAN_INTERVAL);
-        const devices = yield* transport.discover.pipe(Effect.orElseSucceed(() => null));
-        if (devices === null) continue;
-        forgetVanishedUsb(devices);
-        if (hasOpenableUsb(devices)) {
-          yield* Deferred.succeed(ended, { reason: "handoff" });
-          return;
-        }
-      }
-    });
-
-    yield* publishStatus("connected", {
-      controlPlane,
-      transport: device.transport,
-      battery: handoff ? state.battery : null,
-      firmwareVersion: handoff ? state.firmwareVersion : null,
-    });
-    yield* logInfo("connected", { transport: device.transport });
+    yield* publishStatus("connected", { controlPlane });
+    yield* logInfo("connected");
     yield* markActivity;
     yield* Effect.forkScoped(connection.disconnected.pipe(Effect.andThen(endLost)));
     yield* Effect.forkScoped(inputLoop);
     yield* Effect.forkScoped(lightingLoop);
-    if (device.transport === "bluetooth") yield* Effect.forkScoped(handoffLoop);
 
     // Registered after the workers so it runs first on close: a disable or quit
     // lets the in-flight request finish, then turns the lights off.
@@ -530,9 +490,7 @@ const make = Effect.gen(function* () {
       (yield* powerMonitor.getSystemIdleState(LOCK_CHECK_IDLE_THRESHOLD_SECONDS)) === "locked";
     yield* refreshInputMonitoring;
 
-    unopenableUsbPaths.clear();
     let failures = 0;
-    let previous: SessionEnd["reason"] | "open-failed" | undefined;
     while (true) {
       const discovered = yield* transport.discover.pipe(
         Effect.map((devices) => ({ devices, error: null })),
@@ -547,34 +505,27 @@ const make = Effect.gen(function* () {
         if (state.error !== discovered.error) {
           yield* logWarning("discovery failed", { error: discovered.error });
         }
-        previous = undefined;
         yield* publishStatus("error", { error: discovered.error });
         yield* waitForRescan(DISCOVERY_INTERVAL);
         continue;
       }
-      forgetVanishedUsb(discovered.devices);
       if (discovered.devices.length === 0) {
         failures = 0;
-        previous = undefined;
         yield* publishStatus("not-detected");
         yield* waitForRescan(DISCOVERY_INTERVAL);
         continue;
       }
-      if (previous !== "handoff" && previous !== "open-failed") {
+      if (state.error !== "connection-failed") {
         yield* publishStatus("detected");
       }
       if (failures > 0) yield* Effect.sleep(retryDelay(failures));
 
       let outcome: SessionEnd | undefined;
       for (const device of discovered.devices) {
-        outcome = yield* Effect.scoped(runSession(device, previous === "handoff")).pipe(
+        outcome = yield* Effect.scoped(runSession(device)).pipe(
           Effect.catchTags({
-            CodexMicroConnectError: (error) => {
-              if (device.transport === "usb") unopenableUsbPaths.add(device.path);
-              return logWarning("could not open the keyboard", { transport: error.transport }).pipe(
-                Effect.as(undefined),
-              );
-            },
+            CodexMicroConnectError: () =>
+              logWarning("could not open the keyboard").pipe(Effect.as(undefined)),
           }),
         );
         if (outcome !== undefined) break;
@@ -582,15 +533,9 @@ const make = Effect.gen(function* () {
 
       if (outcome === undefined) {
         failures += 1;
-        previous = "open-failed";
         yield* publishStatus("error", { error: "connection-failed" });
-      } else if (outcome.reason === "handoff") {
-        failures = 0;
-        previous = "handoff";
-        yield* logInfo("switching to USB");
       } else {
         failures = outcome.healthy ? 1 : failures + 1;
-        previous = "lost";
         yield* logInfo("connection lost");
       }
     }
@@ -679,10 +624,6 @@ const make = Effect.gen(function* () {
       Effect.withSpan("desktop.codexMicro.state"),
     ),
     setLighting,
-    openInputMonitoringSettings: inputMonitoring.openSettings.pipe(
-      Effect.andThen(refreshInputMonitoring),
-      Effect.withSpan("desktop.codexMicro.openInputMonitoringSettings"),
-    ),
     subscribeState: (listener) => subscribe(stateListeners, listener),
     subscribeInput: (listener) => subscribe(inputListeners, listener),
   });
@@ -697,7 +638,6 @@ export const layerUnavailable = Layer.succeed(
     configure: () => Effect.void,
     state: Effect.succeed(deviceState("disabled", "unavailable")),
     setLighting: () => Effect.void,
-    openInputMonitoringSettings: Effect.void,
     subscribeState: () => Effect.void,
     subscribeInput: () => Effect.void,
   }),

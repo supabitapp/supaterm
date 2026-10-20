@@ -1,4 +1,3 @@
-import type { CodexMicroTransport as CodexMicroTransportKind } from "@supaterm/contracts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Context from "effect/Context";
 import * as Deferred from "effect/Deferred";
@@ -28,8 +27,6 @@ const OPERATION_DEADLINE = Duration.seconds(15);
 const REQUEST_GAP = Duration.millis(50);
 const HID_UNAVAILABLE_CODE = /0xE00002C5/i;
 
-const TransportKind = Schema.Literals(["usb", "bluetooth"]);
-
 export class CodexMicroHidLoadError extends Schema.TaggedError<CodexMicroHidLoadError>()(
   "CodexMicroHidLoadError",
   { cause: Schema.Defect() },
@@ -50,10 +47,10 @@ export class CodexMicroDiscoveryError extends Schema.TaggedError<CodexMicroDisco
 
 export class CodexMicroConnectError extends Schema.TaggedError<CodexMicroConnectError>()(
   "CodexMicroConnectError",
-  { transport: TransportKind, cause: Schema.Defect() },
+  { cause: Schema.Defect() },
 ) {
   override get message(): string {
-    return `Could not open the keyboard over ${this.transport === "usb" ? "USB" : "Bluetooth"}.`;
+    return "Could not open the keyboard.";
   }
 }
 
@@ -131,21 +128,15 @@ export interface CodexMicroHidDeviceInfo {
   readonly productId: number;
   readonly path?: string | undefined;
   readonly manufacturer?: string | undefined;
-  readonly release: number;
   readonly usagePage?: number | undefined;
 }
 
 export interface CodexMicroDevice {
   readonly path: string;
-  readonly transport: Exclude<CodexMicroTransportKind, "unknown">;
 }
 
 const WORK_LOUDER_MANUFACTURER = /Work[ _]Louder/i;
 
-/**
- * hidapi does not report the bus through node-hid, so the device's release
- * number carries the transport: USB interfaces report a multiple of four.
- */
 export function selectCodexMicroDevices(
   devices: ReadonlyArray<CodexMicroHidDeviceInfo>,
 ): ReadonlyArray<CodexMicroDevice> {
@@ -162,7 +153,6 @@ export function selectCodexMicroDevices(
     return [
       {
         path: device.path,
-        release: device.release,
         branded: WORK_LOUDER_MANUFACTURER.test(device.manufacturer ?? ""),
       },
     ];
@@ -175,14 +165,9 @@ export function selectCodexMicroDevices(
   for (const candidate of preferred) {
     if (seen.has(candidate.path)) continue;
     seen.add(candidate.path);
-    selected.push({
-      path: candidate.path,
-      transport: candidate.release % 4 === 0 ? "usb" : "bluetooth",
-    });
+    selected.push({ path: candidate.path });
   }
-  return selected.sort(
-    (left, right) => Number(right.transport === "usb") - Number(left.transport === "usb"),
-  );
+  return selected;
 }
 
 export interface CodexMicroHidHandle {
@@ -363,9 +348,7 @@ const make = Effect.gen(function* () {
     device: CodexMicroDevice,
   ) {
     const hid = yield* loadBinding.pipe(
-      Effect.mapError(
-        (error) => new CodexMicroConnectError({ transport: device.transport, cause: error }),
-      ),
+      Effect.mapError((error) => new CodexMicroConnectError({ cause: error })),
     );
     // Linux hidraw nodes are root-only unless a udev rule grants access to
     // vendor 303a, so this open is where a missing rule surfaces.
@@ -378,7 +361,7 @@ const make = Effect.gen(function* () {
             // lock every other app out of the keyboard's vendor interface.
             platform === "darwin" ? { nonExclusive: true } : undefined,
           ),
-        catch: (cause) => new CodexMicroConnectError({ transport: device.transport, cause }),
+        catch: (cause) => new CodexMicroConnectError({ cause }),
       }),
       (opened) => Effect.promise(() => opened.close().catch(() => undefined)),
     );

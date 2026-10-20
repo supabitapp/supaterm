@@ -25,7 +25,7 @@ import * as TestClock from "effect/testing/TestClock";
 import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as ElectronPowerMonitor from "../electron/ElectronPowerMonitor.ts";
 import * as CodexMicro from "./CodexMicro.ts";
-import * as MacInputMonitoring from "./MacInputMonitoring.ts";
+import * as MacInputMonitoring from "../permissions/MacInputMonitoring.ts";
 
 interface FakeRequest {
   readonly method: string;
@@ -37,8 +37,8 @@ type Responder = (
   request: FakeRequest,
 ) => Effect.Effect<unknown, CodexMicroTransport.CodexMicroRequestError> | undefined;
 
-const USB = { path: "usb", transport: "usb" } as const;
-const BLUETOOTH = { path: "bluetooth", transport: "bluetooth" } as const;
+const USB = { path: "usb" } as const;
+const ALTERNATE_DEVICE = { path: "alternate" } as const;
 const DEVICE_STATUS = { version: "1.0.0", battery: 80, is_charging: false };
 const THREAD = {
   environmentId: EnvironmentId.make("environment-1"),
@@ -77,18 +77,14 @@ const makeFakeTransport = Effect.gen(function* () {
   const unopenable = new Set<string>();
   let closed = 0;
   let devices: ReadonlyArray<CodexMicroTransport.CodexMicroDevice> = [];
-  let discoveryError: CodexMicroTransport.CodexMicroDiscoveryError | undefined;
   let responder: Responder = () => undefined;
 
   const service = CodexMicroTransport.CodexMicroTransport.of({
-    discover: Effect.suspend(() =>
-      discoveryError ? Effect.fail(discoveryError) : Effect.succeed(devices),
-    ),
+    discover: Effect.sync(() => devices),
     connect: (device) =>
       unopenable.has(device.path)
         ? Effect.fail(
             new CodexMicroTransport.CodexMicroConnectError({
-              transport: device.transport,
               cause: new Error("open failed"),
             }),
           )
@@ -129,11 +125,6 @@ const makeFakeTransport = Effect.gen(function* () {
     setDevices: (next: ReadonlyArray<CodexMicroTransport.CodexMicroDevice>) => {
       devices = next;
     },
-    failDiscovery: (failing: boolean) => {
-      discoveryError = failing
-        ? new CodexMicroTransport.CodexMicroDiscoveryError({ cause: new Error("scan failed") })
-        : undefined;
-    },
     setUnopenable: (path: string, failing: boolean) => {
       if (failing) unopenable.add(path);
       else unopenable.delete(path);
@@ -161,7 +152,6 @@ const makeHarness = Effect.gen(function* () {
           MacInputMonitoring.MacInputMonitoring.of({
             status: Effect.succeed("granted"),
             requestIfUndetermined: Effect.void,
-            openSettings: Effect.void,
           }),
         ),
         Layer.succeed(
@@ -256,7 +246,6 @@ describe("CodexMicro", () => {
       assert.deepStrictEqual(state, {
         status: "connected",
         controlPlane: "available",
-        transport: "usb",
         error: null,
         battery: { percentage: 80, isCharging: false },
         firmwareVersion: "1.0.0",
@@ -337,49 +326,26 @@ describe("CodexMicro", () => {
     }),
   );
 
-  it.effect("hands a Bluetooth connection to USB without reporting it lost", () =>
+  it.effect("opens the next interface when the first cannot be opened", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness;
-      harness.transport.setDevices([BLUETOOTH]);
+      harness.transport.setDevices([USB, ALTERNATE_DEVICE]);
+      harness.transport.setUnopenable("usb", true);
       yield* harness.connect;
-
-      harness.transport.setDevices([USB, BLUETOOTH]);
-      yield* TestClock.adjust(Duration.seconds(10));
-      const next = yield* Queue.take(harness.transport.requests);
-      assert.deepStrictEqual(next, {
-        method: "v.oai.rgbcfg",
-        params: lighting(EMPTY_LIGHTING_MODEL).rgbcfg,
-        path: "usb",
-      });
-      const { state, skipped } = yield* harness.awaitState((update) => update.transport === "usb");
-      assert.isTrue(skipped.every((update) => update.status === "connected"));
-      assert.strictEqual(state.status, "connected");
-      assert.deepStrictEqual(state.battery, { percentage: 80, isCharging: false });
-      assert.deepStrictEqual(harness.transport.opened, ["bluetooth", "usb"]);
+      assert.deepStrictEqual(harness.transport.opened, ["alternate"]);
+      assert.strictEqual(harness.transport.closed(), 0);
     }),
   );
 
-  it.effect("stays on Bluetooth while a visible USB interface will not open", () =>
+  it.effect("keeps an active connection when another interface appears", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness;
-      harness.transport.setDevices([BLUETOOTH]);
+      harness.transport.setDevices([ALTERNATE_DEVICE]);
       yield* harness.connect;
-
-      harness.transport.setUnopenable("usb", true);
-      harness.transport.setDevices([USB, BLUETOOTH]);
-      yield* TestClock.adjust(Duration.seconds(10));
-      const reopened = yield* harness.takeRequests(3);
-      assert.isTrue(reopened.every((request) => request.path === "bluetooth"));
+      harness.transport.setDevices([USB, ALTERNATE_DEVICE]);
       yield* TestClock.adjust(Duration.seconds(30));
-
-      harness.transport.setUnopenable("usb", false);
-      harness.transport.setDevices([BLUETOOTH]);
-      yield* TestClock.adjust(Duration.seconds(10));
-      harness.transport.setDevices([USB, BLUETOOTH]);
-      yield* TestClock.adjust(Duration.seconds(10));
-      const next = yield* Queue.take(harness.transport.requests);
-      assert.strictEqual(next.path, "usb");
-      assert.deepStrictEqual(harness.transport.opened, ["bluetooth", "bluetooth", "usb"]);
+      assert.deepStrictEqual(harness.transport.opened, ["alternate"]);
+      assert.strictEqual(harness.transport.closed(), 0);
     }),
   );
 
@@ -395,23 +361,6 @@ describe("CodexMicro", () => {
       assert.deepStrictEqual(thstatus?.params, LIGHTS_OFF_PAYLOAD.thstatus);
       assert.strictEqual(harness.transport.closed(), 1);
       assert.strictEqual((yield* harness.codexMicro.state).status, "disabled");
-    }),
-  );
-
-  it.effect("keeps failed USB paths across a transient Bluetooth discovery error", () =>
-    Effect.gen(function* () {
-      const harness = yield* makeHarness;
-      harness.transport.setDevices([USB, BLUETOOTH]);
-      harness.transport.setUnopenable("usb", true);
-      yield* harness.connect;
-
-      harness.transport.failDiscovery(true);
-      yield* TestClock.adjust(Duration.seconds(10));
-      harness.transport.failDiscovery(false);
-      yield* TestClock.adjust(Duration.seconds(10));
-
-      assert.deepStrictEqual(harness.transport.opened, ["bluetooth"]);
-      assert.strictEqual(harness.transport.closed(), 0);
     }),
   );
 

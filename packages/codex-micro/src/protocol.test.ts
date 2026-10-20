@@ -43,10 +43,8 @@ const pushAll = (decoder: CodexMicroReportDecoder, reports: ReadonlyArray<Uint8A
 
 const model = (
   slots: Partial<Record<number, Partial<CodexMicroLightingModel["slots"][number]>>>,
-  voice: CodexMicroLightingModel["voice"] = "idle",
 ): CodexMicroLightingModel => ({
   slots: EMPTY_LIGHTING_MODEL.slots.map((slot, index) => ({ ...slot, ...slots[index] })),
-  voice,
 });
 
 describe("request encoding", () => {
@@ -270,28 +268,6 @@ describe("serializeLighting", () => {
     });
   });
 
-  it("lets voice state override the ring", () => {
-    const working = { 0: { status: "working" as const, selected: true } };
-    assert.deepStrictEqual(serializeLighting(model(working, "recording"), options).rgbcfg.ambient, {
-      e: 2,
-      b: 0.5,
-      s: 0.4,
-      m: 0,
-      c: 0x2e8b57,
-    });
-    assert.deepStrictEqual(
-      serializeLighting(model(working, "processing"), options).rgbcfg.ambient,
-      { e: 2, b: 0.5, s: 0.4, m: 0, c: 0xffffff },
-    );
-    assert.deepStrictEqual(serializeLighting(model(working, "completed"), options).rgbcfg.ambient, {
-      e: 1,
-      b: 0.5,
-      s: 0,
-      m: 0,
-      c: 0xffffff,
-    });
-  });
-
   it("ignores a selected slot that is off", () => {
     const payload = serializeLighting(model({ 2: { status: "off", selected: true } }), {
       ...options,
@@ -301,14 +277,11 @@ describe("serializeLighting", () => {
   });
 
   it("turns every zone off while dimmed", () => {
-    const payload = serializeLighting(
-      model({ 0: { status: "working", selected: true } }, "recording"),
-      {
-        ...options,
-        highlight: true,
-        dimmed: true,
-      },
-    );
+    const payload = serializeLighting(model({ 0: { status: "working", selected: true } }), {
+      ...options,
+      highlight: true,
+      dimmed: true,
+    });
     assert.deepStrictEqual(payload, LIGHTS_OFF_PAYLOAD);
     assert.isTrue(LIGHTS_OFF_PAYLOAD.thstatus.every((slot) => slot.e === 0 && slot.b === 0));
   });

@@ -13,7 +13,7 @@ import { shouldTypeToFocusComposer } from "./composerFocusRedirect";
 
 /** Runs a command. Returning false lets the key event through untouched. */
 export type ChatShortcutHandler = (context: {
-  readonly event: KeyboardEvent;
+  readonly repeat: boolean;
   readonly terminalFocusOwner: TerminalFocusOwner | null;
 }) => boolean | void;
 
@@ -78,7 +78,7 @@ export function useChatShortcuts(input: ChatShortcutsInput) {
       });
       if (!command) return;
       const run = current.commands[command] ?? current.fallback(command);
-      if (!run || run({ event, terminalFocusOwner }) === false) return;
+      if (!run || run({ repeat: event.repeat, terminalFocusOwner }) === false) return;
       event.preventDefault();
       event.stopPropagation();
     };
@@ -103,9 +103,7 @@ export function useChatShortcuts(input: ChatShortcutsInput) {
       if (!current.enabled || isCommandPaletteOpen()) return false;
       const run = current.commands[command] ?? current.fallback(command);
       if (!run) return false;
-      // Handlers read `repeat` and call `preventDefault`; a dispatched command is a single press.
-      const event = new KeyboardEvent("keydown", { cancelable: true });
-      return run({ event, terminalFocusOwner: getTerminalFocusOwner() }) !== false;
+      return run({ repeat: false, terminalFocusOwner: getTerminalFocusOwner() }) !== false;
     });
     window.addEventListener("keydown", handler, true);
     window.addEventListener("keydown", dismissFind);

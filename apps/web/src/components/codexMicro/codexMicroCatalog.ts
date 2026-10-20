@@ -90,7 +90,7 @@ export const CODEX_MICRO_KEYCAPS: ReadonlyArray<CodexMicroKeycap> = [
     label: "MIC1",
     icon: MicIcon,
     size: "single",
-    defaultAction: { type: "push-to-talk" },
+    defaultAction: null,
   },
   {
     id: "CODEX",
@@ -239,7 +239,7 @@ export const CODEX_MICRO_KEYCAPS: ReadonlyArray<CodexMicroKeycap> = [
     label: "MIC",
     icon: MicIcon,
     size: "double",
-    defaultAction: { type: "push-to-talk" },
+    defaultAction: null,
   },
   { id: "EMPT5", label: "EMPT5", icon: CircleDashedIcon, size: "double", defaultAction: null },
 ];
@@ -267,7 +267,7 @@ export function codexMicroVisibleSlots(
 }
 
 export function resolveCodexMicroSlotAction(slot: CodexMicroKeySlot): CodexMicroAction | null {
-  return slot.action ?? codexMicroKeycap(slot.keycapId).defaultAction;
+  return slot.action === undefined ? codexMicroKeycap(slot.keycapId).defaultAction : slot.action;
 }
 
 const OPEN_CODEX_MICRO_SETTINGS: CodexMicroAction = { type: "open-codex-micro-settings" };
@@ -410,7 +410,6 @@ export function codexMicroActionValue(action: CodexMicroAction): string {
       return `command:${action.command}`;
     case "composer-text":
       return `text:${action.text}`;
-    case "push-to-talk":
     case "open-settings":
     case "open-codex-micro-settings":
       return action.type;
@@ -432,8 +431,6 @@ export function codexMicroActionLabel(action: CodexMicroAction | null): string {
       );
     case "composer-text":
       return `Insert ${action.text}`;
-    case "push-to-talk":
-      return "Push to talk";
     case "open-settings":
       return "Open Settings";
     case "open-codex-micro-settings":

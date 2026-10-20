@@ -6,7 +6,6 @@ import {
   type CodexMicroLightingModel,
   type CodexMicroSlotStatus,
   type CodexMicroThreadRef,
-  type CodexMicroVoiceState,
   type EnvironmentId,
 } from "@supaterm/contracts";
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
@@ -167,7 +166,6 @@ export function buildCodexMicroSlotViews(input: {
 
 export function buildCodexMicroLightingModel(
   views: ReadonlyArray<CodexMicroSlotView>,
-  voice: CodexMicroVoiceState,
 ): CodexMicroLightingModel {
   return {
     slots: views.map((view) => ({
@@ -175,6 +173,5 @@ export function buildCodexMicroLightingModel(
       status: view.status,
       selected: view.selected,
     })),
-    voice,
   };
 }

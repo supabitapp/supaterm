@@ -12,7 +12,7 @@ export function CodexMicroSettings() {
 
   return (
     <SettingsPageContainer>
-      <CodexMicroConnectionSection bridge={bridge} state={state} />
+      <CodexMicroConnectionSection state={state} />
       <CodexMicroLayoutSection state={state} />
       <CodexMicroOptionsSection />
     </SettingsPageContainer>

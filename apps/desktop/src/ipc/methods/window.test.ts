@@ -16,7 +16,7 @@ const { focusedWebContents, ownerWindow } = vi.hoisted(() => ({
 }));
 vi.mock("electron", () => ({
   webContents: { getFocusedWebContents: focusedWebContents },
-  BrowserWindow: { fromWebContents: ownerWindow },
+  BrowserWindow: { fromWebContents: ownerWindow, getFocusedWindow: () => null },
 }));
 
 import * as DesktopBackendConfiguration from "../../backend/DesktopBackendConfiguration.ts";
@@ -25,7 +25,14 @@ import * as DesktopBackendPool from "../../backend/DesktopBackendPool.ts";
 import * as ElectronDialog from "../../electron/ElectronDialog.ts";
 import * as ElectronWindow from "../../electron/ElectronWindow.ts";
 import * as DesktopAppSettings from "../../settings/DesktopAppSettings.ts";
+import * as DesktopEnvironment from "../../app/DesktopEnvironment.ts";
+import * as DesktopConfig from "../../app/DesktopConfig.ts";
+import * as ElectronShell from "../../electron/ElectronShell.ts";
+import * as MacPermissions from "../../permissions/MacPermissions.ts";
+import * as MacInputMonitoring from "../../permissions/MacInputMonitoring.ts";
 import {
+  checkSystemPermission,
+  openSystemSettings,
   getLocalEnvironmentBootstraps,
   getWindowFullscreenState,
   pasteAsText,
@@ -345,3 +352,63 @@ it.effect.skipIf(HostProcess.Platform.defaultValue() === "win32")(
       assert.include(editors, "webstorm");
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
+
+const permissionEnvironment = (platform: NodeJS.Platform) =>
+  DesktopEnvironment.layer({
+    dirname: "/repo/apps/desktop/src",
+    homeDirectory: "/tmp/permission-test",
+    platform,
+    processArch: "arm64",
+    appVersion: "1.2.3",
+    appPath: "/repo",
+    isPackaged: true,
+    resourcesPath: "/missing/resources",
+    runningUnderArm64Translation: false,
+  }).pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        NodeServices.layer,
+        DesktopConfig.layerTest({ SUPATERM_HOME: "/tmp/permission-test" }),
+      ),
+    ),
+  );
+
+describe("input monitoring system settings", () => {
+  it.effect("checks Input Monitoring and uses it to dismiss the shared permission helper", () =>
+    Effect.gen(function* () {
+      const shown: string[] = [];
+      const helpers: string[] = [];
+      const dependencies = Layer.mergeAll(
+        permissionEnvironment("darwin"),
+        Layer.succeed(MacInputMonitoring.MacInputMonitoring, {
+          status: Effect.succeed("granted" as const),
+          requestIfUndetermined: Effect.void,
+        }),
+        Layer.succeed(ElectronShell.ElectronShell, {
+          openSystemSettings: (pane) =>
+            Effect.sync(() => {
+              shown.push(pane);
+              return true;
+            }),
+          openExternal: () => Effect.succeed(false),
+          copyText: () => Effect.void,
+        }),
+        Layer.succeed(MacPermissions.MacPermissions, {
+          showHelper: (pane, _owner, isGranted) =>
+            Effect.promise(async () => {
+              helpers.push(pane);
+              assert.isTrue(await isGranted!());
+            }),
+        }),
+      );
+      assert.isTrue(
+        yield* checkSystemPermission.handler("input-monitoring").pipe(Effect.provide(dependencies)),
+      );
+      assert.isTrue(
+        yield* openSystemSettings.handler("input-monitoring").pipe(Effect.provide(dependencies)),
+      );
+      assert.deepStrictEqual(shown, ["input-monitoring"]);
+      assert.deepStrictEqual(helpers, ["input-monitoring"]);
+    }).pipe(Effect.provide(NodeServices.layer)),
+  );
+});

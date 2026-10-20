@@ -238,8 +238,6 @@ const EFFECT_SOLID = 1;
 const EFFECT_SNAKE = 2;
 const EFFECT_BREATH = 4;
 const ANIMATION_SPEED = 0.4;
-const WHITE = 0xffffff;
-const VOICE_RECORDING_COLOR = 0x2e8b57;
 
 export interface CodexMicroZoneLighting {
   readonly e: number;
@@ -311,20 +309,10 @@ export function serializeLighting(
   const keys =
     highlightColor === undefined ? ZONE_OFF : zone(EFFECT_SOLID, highlightColor, brightness);
 
-  let ambient: CodexMicroZoneLighting;
-  if (model.voice === "recording") {
-    ambient = zone(EFFECT_SNAKE, VOICE_RECORDING_COLOR, brightness, ANIMATION_SPEED);
-  } else if (model.voice === "processing") {
-    ambient = zone(EFFECT_SNAKE, WHITE, brightness, ANIMATION_SPEED);
-  } else if (model.voice === "completed") {
-    ambient = zone(EFFECT_SOLID, WHITE, brightness);
-  } else if (selectedStatus === "working") {
-    ambient = zone(EFFECT_SNAKE, CODEX_MICRO_STATUS_COLORS.working, brightness, ANIMATION_SPEED);
-  } else if (highlightColor !== undefined) {
-    ambient = zone(EFFECT_SOLID, highlightColor, brightness);
-  } else {
-    ambient = ZONE_OFF;
-  }
+  const ambient =
+    selectedStatus === "working"
+      ? zone(EFFECT_SNAKE, CODEX_MICRO_STATUS_COLORS.working, brightness, ANIMATION_SPEED)
+      : keys;
   return { rgbcfg: { ambient, keys }, thstatus };
 }
 
@@ -334,7 +322,6 @@ export const EMPTY_LIGHTING_MODEL: CodexMicroLightingModel = {
     status: "off",
     selected: false,
   })),
-  voice: "idle",
 };
 
 export const LIGHTS_OFF_PAYLOAD = serializeLighting(EMPTY_LIGHTING_MODEL, {

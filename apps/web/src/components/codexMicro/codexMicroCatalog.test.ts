@@ -74,6 +74,12 @@ describe("codexMicroVisibleSlots", () => {
 });
 
 describe("resolveCodexMicroSlotAction", () => {
+  it("keeps cleared assignments and microphone keycaps unassigned", () => {
+    expect(resolveCodexMicroSlotAction({ keycapId: "FAST", action: null })).toBeNull();
+    expect(resolveCodexMicroSlotAction({ keycapId: "MIC" })).toBeNull();
+    expect(resolveCodexMicroSlotAction({ keycapId: "MIC1" })).toBeNull();
+  });
+
   it("uses the keycap's default unless the key has its own action", () => {
     expect(resolveCodexMicroSlotAction({ keycapId: "APPR" })).toEqual({
       type: "command",

@@ -29,7 +29,6 @@ import {
 const connected: CodexMicroDeviceState = {
   status: "connected",
   controlPlane: "available",
-  transport: "usb",
   error: null,
   battery: { percentage: 81.6, isCharging: true },
   firmwareVersion: "1.4.0",
@@ -45,26 +44,8 @@ describe("codexMicroConnectionSummary", () => {
     expect(codexMicroConnectionSummary(true, null).label).toBeNull();
   });
 
-  it.each([
-    [{ ...connected, transport: "usb" as const }, "Connected via USB"],
-    [{ ...connected, transport: "bluetooth" as const }, "Connected via Bluetooth"],
-    [{ ...connected, transport: "unknown" as const }, "Connected"],
-    [
-      { ...connected, controlPlane: "unavailable" as const },
-      "Connected with limited functionality",
-    ],
-    [{ ...connected, status: "not-detected" as const }, "Not detected"],
-    [{ ...connected, status: "detected" as const }, "Detected"],
-    [
-      { ...connected, status: "error" as const, error: "discovery-failed" as const },
-      "Discovery failed",
-    ],
-    [
-      { ...connected, status: "error" as const, error: "connection-failed" as const },
-      "Connection problem",
-    ],
-  ])("labels %o as %s", (state, label) => {
-    expect(codexMicroConnectionSummary(true, state).label).toBe(label);
+  it("labels an available device as connected", () => {
+    expect(codexMicroConnectionSummary(true, connected).label).toBe("Connected");
   });
 
   it("explains that key presses keep working when lighting is unavailable", () => {

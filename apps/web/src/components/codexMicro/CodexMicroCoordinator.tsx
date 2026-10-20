@@ -22,7 +22,6 @@ import { useThreadRouteRef } from "../../hooks/useThreadRouteTarget";
 import { useSidebarThreadShells } from "../../state/entities";
 import { environmentPresentations } from "../../state/presentation";
 import { buildThreadRouteParams } from "../../threadRoutes";
-import { toastManager } from "../ui/toast";
 import { resolveCodexMicroEncoderAction, resolveCodexMicroSlotAction } from "./codexMicroCatalog";
 import {
   buildCodexMicroLightingModel,
@@ -98,7 +97,7 @@ function ActiveCodexMicroCoordinator({ bridge }: { readonly bridge: DesktopCodex
     if (key === sentViewsKeyRef.current) return;
     sentViewsKeyRef.current = key;
     publishCodexMicroSlots(views);
-    void bridge.setLighting(buildCodexMicroLightingModel(views, "idle")).catch(() => undefined);
+    void bridge.setLighting(buildCodexMicroLightingModel(views)).catch(() => undefined);
   }, [bridge, views]);
   useEffect(
     () => () => {
@@ -117,14 +116,6 @@ function ActiveCodexMicroCoordinator({ bridge }: { readonly bridge: DesktopCodex
         return;
       case "composer-text":
         composerHandleRef?.current?.insertTextAtEnd(action.text, { ensureLeadingBoundary: true });
-        return;
-      case "push-to-talk":
-        toastManager.add({
-          id: "codex-micro-dictation",
-          type: "info",
-          title: "Dictation isn't available on desktop yet",
-          timeout: 2500,
-        });
         return;
       case "open-settings":
         void router.navigate({ to: "/settings/general" });

@@ -23,7 +23,7 @@ interface SentRequest {
   readonly id: number;
 }
 
-const USB_DEVICE = { path: "usb-path", transport: "usb" } as const;
+const USB_DEVICE = { path: "usb-path" } as const;
 
 function replyReports(text: string): ReadonlyArray<Uint8Array> {
   const bytes = new TextEncoder().encode(`${text}\n`);
@@ -231,25 +231,21 @@ describe("selectCodexMicroDevices", () => {
     productId: 0x8360,
     path: "path",
     manufacturer: "Work Louder",
-    release: 0x0100,
     usagePage: 0xff00,
     ...overrides,
   });
 
-  it("keeps the vendor interface and sorts USB before Bluetooth", () => {
+  it("keeps vendor interfaces in discovery order", () => {
     assert.deepStrictEqual(
       selectCodexMicroDevices([
-        device({ path: "bt", release: 0x0101 }),
+        device({ path: "bt" }),
         device({ path: "keyboard", usagePage: 0x0001 }),
         device({ path: "other-product", productId: 0x8297 }),
         device({ path: undefined }),
-        device({ path: "usb", release: 0x0100 }),
+        device({ path: "usb" }),
         device({ path: "usb" }),
       ]),
-      [
-        { path: "usb", transport: "usb" },
-        { path: "bt", transport: "bluetooth" },
-      ],
+      [{ path: "bt" }, { path: "usb" }],
     );
   });
 
@@ -259,11 +255,11 @@ describe("selectCodexMicroDevices", () => {
         device({ path: "branded", manufacturer: "Work_Louder" }),
         device({ path: "unbranded", manufacturer: "Unknown" }),
       ]),
-      [{ path: "branded", transport: "usb" }],
+      [{ path: "branded" }],
     );
     assert.deepStrictEqual(
       selectCodexMicroDevices([device({ path: "unbranded", manufacturer: undefined })]),
-      [{ path: "unbranded", transport: "usb" }],
+      [{ path: "unbranded" }],
     );
   });
 });

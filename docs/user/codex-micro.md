@@ -2,14 +2,13 @@
 
 Codex Micro is a small macro keyboard from Work Louder. In the Supaterm desktop app its six agent
 keys follow your threads and light up with their state, and its other keys, analog stick, and knob
-run Supaterm commands. It works over USB or Bluetooth. Supaterm prefers USB when both are
-connected.
+run Supaterm commands. Connect it with USB to get started.
 
 ## Turning it on
 
 Open **Settings** > **Codex Micro** and turn on **Enable Codex Micro**, then connect the keyboard.
 Supaterm only looks for the keyboard while this is on. The page shows whether the keyboard is
-connected, how it is connected, and its battery level.
+connected and its battery level.
 
 - **macOS** needs Input Monitoring for key presses. If the page shows **Not granted**, choose
   **Open System Settings** and turn Supaterm on under **Privacy & Security** > **Input Monitoring**.
@@ -59,4 +58,4 @@ if you like, a different action. Each keycap comes once in the box, so choosing 
 already on another key swaps the two. **Reset layout** restores the keys, stick, and knob without
 changing your agent keys.
 
-Dictation isn't available on desktop yet, so the microphone key shows a notice when pressed.
+The microphone keycaps start unassigned. You can assign them to a supported action like any other key.

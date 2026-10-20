@@ -60,7 +60,5 @@ export function makeCodexMicroBridge(): DesktopCodexMicroBridge | undefined {
       };
     },
     setLighting: (model) => ipcRenderer.invoke(IpcChannels.CODEX_MICRO_SET_LIGHTING_CHANNEL, model),
-    openInputMonitoringSettings: () =>
-      ipcRenderer.invoke(IpcChannels.CODEX_MICRO_OPEN_INPUT_MONITORING_SETTINGS_CHANNEL),
   };
 }

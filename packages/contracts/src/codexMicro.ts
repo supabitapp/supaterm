@@ -1,5 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
+import * as SchemaGetter from "effect/SchemaGetter";
 
 import { EnvironmentId, ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import { KeybindingCommand } from "./keybindings.ts";
@@ -72,16 +73,27 @@ export const CodexMicroAction = Schema.Union([
     type: Schema.Literal("composer-text"),
     text: TrimmedNonEmptyString.check(Schema.isMaxLength(500)),
   }),
-  Schema.Struct({ type: Schema.Literal("push-to-talk") }),
   Schema.Struct({ type: Schema.Literal("open-settings") }),
   Schema.Struct({ type: Schema.Literal("open-codex-micro-settings") }),
 ]);
 export type CodexMicroAction = typeof CodexMicroAction.Type;
 
+const LegacyVoiceAction = Schema.Struct({ type: Schema.Literal("push-to-talk") });
+const discardVoiceAction = <S extends Schema.Top>(schema: S) =>
+  schema.pipe(
+    Schema.decodeTo(Schema.Null, {
+      decode: SchemaGetter.transform(() => null),
+      encode: SchemaGetter.forbidden(() => "Removed voice actions cannot be encoded."),
+    }),
+  );
+const SavedAction = Schema.NullOr(
+  Schema.Union([CodexMicroAction, LegacyVoiceAction.pipe(discardVoiceAction)]),
+);
+
 /** An absent action means the keycap's own default action. */
 export const CodexMicroKeySlot = Schema.Struct({
   keycapId: CodexMicroKeycapId,
-  action: Schema.optionalKey(CodexMicroAction),
+  action: Schema.optionalKey(SavedAction),
 });
 export type CodexMicroKeySlot = typeof CodexMicroKeySlot.Type;
 
@@ -97,8 +109,6 @@ export const CodexMicroEncoderMode = Schema.Literals([
   "custom",
 ]);
 export type CodexMicroEncoderMode = typeof CodexMicroEncoderMode.Type;
-
-const OptionalAction = Schema.NullOr(CodexMicroAction);
 
 const DEFAULT_CODEX_MICRO_ANALOG_STICK = {
   up: { type: "command", command: "rightPanel.toggle" },
@@ -143,16 +153,16 @@ export const CodexMicroLayout = Schema.Struct({
     ACT12: slotWithDefault("ACT12"),
   }).pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   analogStick: Schema.Struct({
-    up: OptionalAction,
-    right: OptionalAction,
-    down: OptionalAction,
-    left: OptionalAction,
+    up: SavedAction,
+    right: SavedAction,
+    down: SavedAction,
+    left: SavedAction,
   }).pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_CODEX_MICRO_ANALOG_STICK))),
   encoder: Schema.Struct({
-    left: OptionalAction,
-    right: OptionalAction,
-    click: OptionalAction,
-    longPress: OptionalAction,
+    left: SavedAction,
+    right: SavedAction,
+    click: SavedAction,
+    longPress: SavedAction,
   }).pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_CODEX_MICRO_ENCODER))),
   encoderMode: CodexMicroEncoderMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("conversation-scroll" as const)),
@@ -176,9 +186,14 @@ export const CodexMicroAgentAssignment = Schema.Union([
 ]);
 export type CodexMicroAgentAssignment = typeof CodexMicroAgentAssignment.Type;
 
-const assignmentWithDefault = Schema.NullOr(CodexMicroAgentAssignment).pipe(
-  Schema.withDecodingDefault(Effect.succeed(null)),
-);
+const assignmentWithDefault = Schema.NullOr(
+  Schema.Union([
+    CodexMicroAgentAssignment,
+    Schema.Struct({ type: Schema.Literal("action"), action: LegacyVoiceAction }).pipe(
+      discardVoiceAction,
+    ),
+  ]),
+).pipe(Schema.withDecodingDefault(Effect.succeed(null)));
 
 export const CodexMicroCustomAgentKeys = Schema.Struct({
   AG00: assignmentWithDefault,
@@ -258,14 +273,6 @@ const CodexMicroLightingSlot = Schema.Struct({
   selected: Schema.Boolean,
 });
 
-export const CodexMicroVoiceState = Schema.Literals([
-  "idle",
-  "recording",
-  "processing",
-  "completed",
-]);
-export type CodexMicroVoiceState = typeof CodexMicroVoiceState.Type;
-
 export const CODEX_MICRO_SLOT_COUNT = CODEX_MICRO_AGENT_KEYS.length;
 
 export const CodexMicroLightingModel = Schema.Struct({
@@ -273,7 +280,6 @@ export const CodexMicroLightingModel = Schema.Struct({
     Schema.isMinLength(CODEX_MICRO_SLOT_COUNT),
     Schema.isMaxLength(CODEX_MICRO_SLOT_COUNT),
   ),
-  voice: CodexMicroVoiceState,
 });
 export type CodexMicroLightingModel = typeof CodexMicroLightingModel.Type;
 
@@ -285,9 +291,6 @@ export const CodexMicroConnectionStatus = Schema.Literals([
   "error",
 ]);
 export type CodexMicroConnectionStatus = typeof CodexMicroConnectionStatus.Type;
-
-export const CodexMicroTransport = Schema.Literals(["usb", "bluetooth", "unknown"]);
-export type CodexMicroTransport = typeof CodexMicroTransport.Type;
 
 const CodexMicroConnectionError = Schema.Literals([
   "discovery-failed",
@@ -302,7 +305,6 @@ export const CodexMicroDeviceState = Schema.Struct({
   status: CodexMicroConnectionStatus,
   /** A connected device can still refuse lighting and status requests. */
   controlPlane: Schema.Literals(["available", "unavailable"]),
-  transport: Schema.NullOr(CodexMicroTransport),
   error: Schema.NullOr(CodexMicroConnectionError),
   battery: Schema.NullOr(
     Schema.Struct({ percentage: Schema.Number, isCharging: Schema.NullOr(Schema.Boolean) }),
@@ -336,5 +338,4 @@ export interface DesktopCodexMicroBridge {
   onStateChange: (listener: (state: CodexMicroDeviceState) => void) => () => void;
   onInput: (listener: (event: CodexMicroInputEvent) => void) => () => void;
   setLighting: (model: CodexMicroLightingModel) => Promise<void>;
-  openInputMonitoringSettings: () => Promise<void>;
 }
