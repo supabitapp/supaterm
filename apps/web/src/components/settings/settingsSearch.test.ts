@@ -532,10 +532,28 @@ describe("settings sidebar scope", () => {
   });
 });
 
-describe("desktop-only settings sections", () => {
-  it("hides Codex Micro outside the desktop app", () => {
+describe("settings section availability", () => {
+  it("hides Codex Micro without the desktop keyboard bridge", () => {
     expect(isSettingsSectionAvailable("/settings/codex-micro")).toBe(false);
     expect(isSettingsSectionAvailable("/settings/general")).toBe(true);
     expect(searchSettings("codex micro")).toEqual([]);
+
+    vi.stubGlobal("window", { desktopBridge: {} });
+    try {
+      expect(isSettingsSectionAvailable("/settings/codex-micro")).toBe(false);
+      expect(searchSettings("codex micro")).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("offers Codex Micro when the desktop keyboard bridge exists", () => {
+    vi.stubGlobal("window", { desktopBridge: { codexMicro: {} } });
+    try {
+      expect(isSettingsSectionAvailable("/settings/codex-micro")).toBe(true);
+      expect(searchSettings("codex micro").map((item) => item.id)).toContain("codex-micro-enabled");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

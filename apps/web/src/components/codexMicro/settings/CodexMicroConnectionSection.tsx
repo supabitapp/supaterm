@@ -7,14 +7,15 @@ import type {
 import { settlePromise } from "@supaterm/client-runtime/state/runtime";
 import { useState, type CSSProperties } from "react";
 
-import { useClientSettings, useUpdateClientSettings } from "../../../hooks/useSettings";
+import { useClientSettings } from "../../../hooks/useSettings";
 import { cn, isMacPlatform } from "../../../lib/utils";
 import { Button } from "../../ui/button";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../../ui/select";
 import { Switch } from "../../ui/switch";
 import { toastManager } from "../../ui/toast";
-import { SettingsRow, SettingsSection } from "../settingsLayout";
-import { searchableSetting } from "../settingsSearch";
+import { SettingsRow, SettingsSection } from "../../settings/settingsLayout";
+import { searchableSetting } from "../../settings/settingsSearch";
+import { useUpdateCodexMicroSettings } from "../useUpdateCodexMicroSettings";
 import {
   CODEX_MICRO_AUTO_DIM_LABELS,
   CODEX_MICRO_PERMISSION_LABELS,
@@ -32,9 +33,9 @@ const TONE_TEXT_CLASS_NAMES: Readonly<Record<CodexMicroTone, string>> = {
 };
 
 const selectConnectionSettings = (settings: ClientSettings) => ({
-  enabled: settings.codexMicroEnabled,
-  brightness: settings.codexMicroBrightness,
-  autoDim: settings.codexMicroAutoDim,
+  enabled: settings.codexMicro.enabled,
+  brightness: settings.codexMicro.brightness,
+  autoDim: settings.codexMicro.autoDim,
 });
 
 const isMacHost = isMacPlatform(navigator.platform);
@@ -126,7 +127,7 @@ export function CodexMicroConnectionSection({
   state: CodexMicroDeviceState | null;
 }) {
   const settings = useClientSettings(selectConnectionSettings);
-  const updateSettings = useUpdateClientSettings();
+  const updateSettings = useUpdateCodexMicroSettings();
   const summary = codexMicroConnectionSummary(settings.enabled, state);
   const details = settings.enabled ? codexMicroDeviceDetails(state) : null;
   const permission = state?.inputMonitoring ?? null;
@@ -161,7 +162,7 @@ export function CodexMicroConnectionSection({
             <Switch
               checked={settings.enabled}
               aria-label="Enable Codex Micro"
-              onCheckedChange={(checked) => void updateSettings({ codexMicroEnabled: checked })}
+              onCheckedChange={(checked) => void updateSettings({ enabled: checked })}
             />
           </>
         }
@@ -188,7 +189,7 @@ export function CodexMicroConnectionSection({
           <BrightnessSlider
             brightness={settings.brightness}
             disabled={disabled}
-            onCommit={(brightness) => void updateSettings({ codexMicroBrightness: brightness })}
+            onCommit={(brightness) => void updateSettings({ brightness })}
           />
         }
       />
@@ -201,7 +202,7 @@ export function CodexMicroConnectionSection({
             value={settings.autoDim}
             disabled={disabled}
             onValueChange={(value) => {
-              if (isCodexMicroAutoDim(value)) void updateSettings({ codexMicroAutoDim: value });
+              if (isCodexMicroAutoDim(value)) void updateSettings({ autoDim: value });
             }}
           >
             <SelectTrigger size="sm" className="w-full sm:w-40" aria-label="Auto-dim">

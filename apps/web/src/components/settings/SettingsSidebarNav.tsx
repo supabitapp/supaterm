@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 
+import { CodexMicroIcon } from "../codexMicro/CodexMicroIcon";
 import { Button } from "../ui/button";
 import { Kbd } from "../ui/kbd";
 import {
@@ -51,14 +52,6 @@ const SnapShotIcon = createLucideIcon("snap-shot", [
   ],
   ["rect", { width: "10", height: "8", x: "7", y: "8", rx: "2", key: "window" }],
   ["circle", { cx: "12", cy: "12", r: "1.5", key: "lens" }],
-]);
-
-const CodexMicroIcon = createLucideIcon("codex-micro", [
-  ["rect", { width: "18", height: "18", x: "3", y: "3", rx: "3", key: "body" }],
-  ["circle", { cx: "8.5", cy: "8.5", r: "2", key: "knob" }],
-  ["rect", { width: "4", height: "4", x: "13", y: "6.5", rx: "1", key: "key-top" }],
-  ["rect", { width: "4", height: "4", x: "6.5", y: "13", rx: "1", key: "key-left" }],
-  ["rect", { width: "4", height: "4", x: "13", y: "13", rx: "1", key: "key-right" }],
 ]);
 
 const SETTINGS_SECTION_ICONS: Readonly<

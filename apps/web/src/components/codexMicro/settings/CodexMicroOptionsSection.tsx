@@ -1,10 +1,11 @@
 import type { ClientSettings } from "@supaterm/contracts";
 
-import { useClientSettings, useUpdateClientSettings } from "../../../hooks/useSettings";
+import { useClientSettings } from "../../../hooks/useSettings";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../../ui/select";
 import { Switch } from "../../ui/switch";
-import { SettingsRow, SettingsSection } from "../settingsLayout";
-import { searchableSetting } from "../settingsSearch";
+import { SettingsRow, SettingsSection } from "../../settings/settingsLayout";
+import { searchableSetting } from "../../settings/settingsSearch";
+import { useUpdateCodexMicroSettings } from "../useUpdateCodexMicroSettings";
 import {
   CODEX_MICRO_AGENT_SOURCE_OPTIONS,
   CODEX_MICRO_ENCODER_MODE_OPTIONS,
@@ -15,9 +16,9 @@ import {
 } from "./CodexMicroSettings.logic";
 
 const selectOptionSettings = (settings: ClientSettings) => ({
-  agentSource: settings.codexMicroAgentSource,
-  layout: settings.codexMicroLayout,
-  singleTapFocus: settings.codexMicroSingleTapFocus,
+  agentSource: settings.codexMicro.agentSource,
+  layout: settings.codexMicro.layout,
+  singleTapFocus: settings.codexMicro.singleTapFocus,
 });
 
 function OptionLabel({ label, description }: { label: string; description: string }) {
@@ -31,7 +32,7 @@ function OptionLabel({ label, description }: { label: string; description: strin
 
 export function CodexMicroOptionsSection() {
   const settings = useClientSettings(selectOptionSettings);
-  const updateSettings = useUpdateClientSettings();
+  const updateSettings = useUpdateCodexMicroSettings();
   const agentSource = CODEX_MICRO_AGENT_SOURCE_OPTIONS.find(
     (option) => option.value === settings.agentSource,
   );
@@ -46,7 +47,7 @@ export function CodexMicroOptionsSection() {
             value={settings.agentSource}
             onValueChange={(value) => {
               if (isCodexMicroAgentSource(value)) {
-                void updateSettings({ codexMicroAgentSource: value });
+                void updateSettings({ agentSource: value });
               }
             }}
           >
@@ -72,7 +73,7 @@ export function CodexMicroOptionsSection() {
             onValueChange={(value) => {
               if (isCodexMicroEncoderMode(value)) {
                 void updateSettings({
-                  codexMicroLayout: codexMicroLayoutWithEncoderMode(settings.layout, value),
+                  layout: codexMicroLayoutWithEncoderMode(settings.layout, value),
                 });
               }
             }}
@@ -101,7 +102,7 @@ export function CodexMicroOptionsSection() {
             aria-label="Use separate microphone keys"
             onCheckedChange={(checked) =>
               void updateSettings({
-                codexMicroLayout: { ...settings.layout, separateMicrophoneKeys: checked },
+                layout: { ...settings.layout, separateMicrophoneKeys: checked },
               })
             }
           />
@@ -114,9 +115,7 @@ export function CodexMicroOptionsSection() {
           <Switch
             checked={settings.singleTapFocus}
             aria-label="Focus Supaterm with a single tap"
-            onCheckedChange={(checked) =>
-              void updateSettings({ codexMicroSingleTapFocus: checked })
-            }
+            onCheckedChange={(checked) => void updateSettings({ singleTapFocus: checked })}
           />
         }
       />

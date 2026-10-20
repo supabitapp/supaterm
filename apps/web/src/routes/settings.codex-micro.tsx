@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { CodexMicroSettings } from "../components/settings/codexMicro/CodexMicroSettings";
+import { CodexMicroSettings } from "../components/codexMicro/settings/CodexMicroSettings";
 import { isSettingsSectionAvailable } from "../components/settings/settingsSearch";
 
 function SettingsCodexMicroRoute() {

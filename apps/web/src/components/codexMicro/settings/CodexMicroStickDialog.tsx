@@ -2,7 +2,7 @@ import type { CodexMicroJoystickDirection, CodexMicroLayout } from "@supaterm/co
 import { ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon } from "lucide-react";
 import { useState } from "react";
 
-import { codexMicroActionLabel } from "../../codexMicro/codexMicroCatalog";
+import { codexMicroActionLabel } from "../codexMicroCatalog";
 import { Button } from "../../ui/button";
 import {
   Dialog,

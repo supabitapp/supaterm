@@ -173,7 +173,8 @@ vp run dist:desktop:win
 ```
 
 DMGs default to the host architecture. Use `--arch` to choose another target and `--keep-stage`
-to retain packaging files for inspection. Run `vp run dist:desktop:artifact --help` for other
+to retain packaging files for inspection. `--without-codex-micro` leaves out the Codex Micro
+keyboard and its native HID library; the app then hides that settings section. Run `vp run dist:desktop:artifact --help` for other
 options.
 
 ### Linux AppImage prerequisites

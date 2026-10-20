@@ -29,10 +29,13 @@ describe("CodexMicroLayout", () => {
   it("starts the keyboard off with its default assignments", () => {
     const settings = decodeClientSettings({});
 
-    expect(settings.codexMicroEnabled).toBe(false);
-    expect(settings.codexMicroAgentSource).toBe("recent");
-    expect(settings.codexMicroLayout).toEqual(DEFAULT_CODEX_MICRO_LAYOUT);
-    expect(settings.codexMicroCustomAgentKeys.AG03).toBeNull();
+    expect(settings.codexMicro.enabled).toBe(false);
+    expect(settings.codexMicro.agentSource).toBe("recent");
+    expect(settings.codexMicro.layout).toEqual(DEFAULT_CODEX_MICRO_LAYOUT);
+    expect(settings.codexMicro.customAgentKeys.AG03).toBeNull();
+    expect(decodeClientSettings({ codexMicro: { enabled: true } }).codexMicro.layout).toEqual(
+      DEFAULT_CODEX_MICRO_LAYOUT,
+    );
   });
 });
 

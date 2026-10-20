@@ -34,9 +34,7 @@ import * as ElectronTheme from "./electron/ElectronTheme.ts";
 import * as ElectronUpdater from "./electron/ElectronUpdater.ts";
 import * as ElectronWindow from "./electron/ElectronWindow.ts";
 import * as DesktopApp from "./app/DesktopApp.ts";
-import * as CodexMicro from "./codexMicro/CodexMicro.ts";
-import * as CodexMicroTransport from "./codexMicro/CodexMicroTransport.ts";
-import * as MacInputMonitoring from "./permissions/MacInputMonitoring.ts";
+import * as CodexMicroDesktop from "./codexMicro/CodexMicroDesktop.ts";
 import * as DesktopAppActivation from "./app/DesktopAppActivation.ts";
 import * as DesktopAppIdentity from "./app/DesktopAppIdentity.ts";
 import * as DesktopConnectionCatalogStore from "./app/DesktopConnectionCatalogStore.ts";
@@ -181,9 +179,7 @@ const layerDesktopSnapShot = DesktopSnapShot.layer.pipe(
   Layer.provideMerge(layerDesktopFoundation),
 );
 
-const layerDesktopCodexMicro = CodexMicro.layer.pipe(
-  Layer.provide(CodexMicroTransport.layer),
-  Layer.provide(MacInputMonitoring.layer),
+const layerDesktopCodexMicro = CodexMicroDesktop.layer.pipe(
   Layer.provideMerge(layerDesktopFoundation),
 );
 

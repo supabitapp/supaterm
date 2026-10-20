@@ -1,0 +1,33 @@
+{
+  "name": "@supaterm/codex-micro",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./protocol": {
+      "types": "./src/protocol.ts",
+      "import": "./src/protocol.ts"
+    },
+    "./transport": {
+      "types": "./src/transport.ts",
+      "import": "./src/transport.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc-rs --noEmit",
+    "test": "vp test run --config ../../vite.config.ts --dir ."
+  },
+  "dependencies": {
+    "@supaterm/contracts": "workspace:*",
+    "@supaterm/shared": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:",
+    "@types/node": "catalog:",
+    "node-hid": "3.4.0",
+    "vite-plus": "catalog:"
+  },
+  "peerDependencies": {
+    "node-hid": "3.4.0"
+  }
+}

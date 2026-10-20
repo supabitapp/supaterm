@@ -212,6 +212,19 @@ export const CodexMicroAutoDim = Schema.Literals(
 );
 export type CodexMicroAutoDim = typeof CodexMicroAutoDim.Type;
 
+export const CodexMicroSettings = Schema.Struct({
+  enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  agentSource: CodexMicroAgentSource.pipe(
+    Schema.withDecodingDefault(Effect.succeed("recent" as const)),
+  ),
+  singleTapFocus: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  brightness: CodexMicroBrightness.pipe(Schema.withDecodingDefault(Effect.succeed(100))),
+  autoDim: CodexMicroAutoDim.pipe(Schema.withDecodingDefault(Effect.succeed("3-minutes" as const))),
+  layout: CodexMicroLayout.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+  customAgentKeys: CodexMicroCustomAgentKeys.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+});
+export type CodexMicroSettings = typeof CodexMicroSettings.Type;
+
 export const CodexMicroSlotStatus = Schema.Literals([
   "off",
   "idle",

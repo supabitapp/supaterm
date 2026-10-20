@@ -8,7 +8,7 @@ import * as Electron from "electron";
 
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
 import * as ElectronShell from "../electron/ElectronShell.ts";
-import * as MacPermissions from "./MacPermissions.ts";
+import * as MacPermissions from "../permissions/MacPermissions.ts";
 
 const IOKIT_PATH = "/System/Library/Frameworks/IOKit.framework/IOKit";
 const LISTEN_EVENT_REQUEST = 1;
@@ -28,7 +28,7 @@ export class MacInputMonitoring extends Context.Service<
     readonly requestIfUndetermined: Effect.Effect<void>;
     readonly openSettings: Effect.Effect<void>;
   }
->()("@supaterm/desktop/permissions/MacInputMonitoring") {}
+>()("@supaterm/desktop/codexMicro/MacInputMonitoring") {}
 
 const make = Effect.gen(function* () {
   const environment = yield* DesktopEnvironment.DesktopEnvironment;

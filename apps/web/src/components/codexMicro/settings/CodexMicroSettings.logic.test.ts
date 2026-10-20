@@ -10,7 +10,7 @@ import {
 import { scopedProjectKey, scopedThreadKey } from "@supaterm/client-runtime/environment";
 import { describe, expect, it } from "vite-plus/test";
 
-import { CODEX_MICRO_KEYCAPS } from "../../codexMicro/codexMicroCatalog";
+import { CODEX_MICRO_KEYCAPS } from "../codexMicroCatalog";
 import {
   codexMicroAgentKeyView,
   codexMicroConnectionSummary,

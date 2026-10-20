@@ -16,7 +16,7 @@ import {
   parseResponseBody,
   serializeLighting,
   trackJoystick,
-} from "./CodexMicroProtocol.ts";
+} from "./protocol.ts";
 
 const textDecoder = new TextDecoder();
 

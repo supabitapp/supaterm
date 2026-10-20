@@ -5,13 +5,10 @@ import type {
   CodexMicroInputEvent,
   CodexMicroSlotStatus,
   CodexMicroThreadRef,
-  DesktopCodexMicroBridge,
 } from "@supaterm/contracts";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
-export function getCodexMicroBridge(): DesktopCodexMicroBridge | null {
-  return window.desktopBridge?.codexMicro ?? null;
-}
+import { getCodexMicroBridge } from "./codexMicroBridge";
 
 export interface CodexMicroSlotView {
   readonly key: CodexMicroAgentKey;

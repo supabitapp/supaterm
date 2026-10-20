@@ -7,7 +7,7 @@ import {
   codexMicroKeycap,
   codexMicroVisibleSlots,
   resolveCodexMicroSlotAction,
-} from "../../codexMicro/codexMicroCatalog";
+} from "../codexMicroCatalog";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../../ui/tooltip";
 import {
   codexMicroStatusColor,

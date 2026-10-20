@@ -9,9 +9,10 @@ import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 import * as Equal from "effect/Equal";
 import { useState } from "react";
 
-import { useClientSettings, useUpdateClientSettings } from "../../../hooks/useSettings";
+import { useClientSettings } from "../../../hooks/useSettings";
 import { useThreadShells } from "../../../state/entities";
-import { useCodexMicroSlots } from "../../codexMicro/codexMicroStore";
+import { useCodexMicroSlots } from "../codexMicroStore";
+import { useUpdateCodexMicroSettings } from "../useUpdateCodexMicroSettings";
 import {
   AlertDialog,
   AlertDialogClose,
@@ -22,8 +23,8 @@ import {
   AlertDialogTitle,
 } from "../../ui/alert-dialog";
 import { Button } from "../../ui/button";
-import { scrollToSettingsTarget, SettingsSection } from "../settingsLayout";
-import { searchableSetting } from "../settingsSearch";
+import { scrollToSettingsTarget, SettingsSection } from "../../settings/settingsLayout";
+import { searchableSetting } from "../../settings/settingsSearch";
 import { CodexMicroAgentKeyDialog } from "./CodexMicroAgentKeyDialog";
 import { CodexMicroKeyboard } from "./CodexMicroKeyboard";
 import { CodexMicroKeycapDialog } from "./CodexMicroKeycapDialog";
@@ -40,10 +41,10 @@ import { CodexMicroStickDialog } from "./CodexMicroStickDialog";
 import { useCodexMicroPressedKey } from "./useCodexMicroPressedKey";
 
 const selectLayoutSettings = (settings: ClientSettings) => ({
-  enabled: settings.codexMicroEnabled,
-  layout: settings.codexMicroLayout,
-  agentSource: settings.codexMicroAgentSource,
-  customAgentKeys: settings.codexMicroCustomAgentKeys,
+  enabled: settings.codexMicro.enabled,
+  layout: settings.codexMicro.layout,
+  agentSource: settings.codexMicro.agentSource,
+  customAgentKeys: settings.codexMicro.customAgentKeys,
 });
 
 const AGENT_KEYS_SETTING_ID = searchableSetting("codex-micro-agent-keys").id;
@@ -93,7 +94,7 @@ function KeyEditor({
 
 export function CodexMicroLayoutSection({ state }: { state: CodexMicroDeviceState | null }) {
   const settings = useClientSettings(selectLayoutSettings);
-  const updateSettings = useUpdateClientSettings();
+  const updateSettings = useUpdateCodexMicroSettings();
   const slots = useCodexMicroSlots();
   const pressedKey = useCodexMicroPressedKey(settings.layout.separateMicrophoneKeys);
   const customAssignments = settings.agentSource === "custom";
@@ -118,7 +119,7 @@ export function CodexMicroLayoutSection({ state }: { state: CodexMicroDeviceStat
   const resetLayout = resetCodexMicroLayout(settings.layout);
   const layoutIsDefault = Equal.equals(resetLayout, settings.layout);
   const saveLayout = (layout: CodexMicroLayout) => {
-    void updateSettings({ codexMicroLayout: layout });
+    void updateSettings({ layout });
   };
 
   const select = (key: CodexMicroKeyId) => {
@@ -160,9 +161,7 @@ export function CodexMicroLayoutSection({ state }: { state: CodexMicroDeviceStat
           layout={settings.layout}
           customAgentKeys={settings.customAgentKeys}
           onLayoutChange={saveLayout}
-          onCustomAgentKeysChange={(customAgentKeys) =>
-            void updateSettings({ codexMicroCustomAgentKeys: customAgentKeys })
-          }
+          onCustomAgentKeysChange={(customAgentKeys) => void updateSettings({ customAgentKeys })}
           onClose={() => setEditing(null)}
         />
       )}

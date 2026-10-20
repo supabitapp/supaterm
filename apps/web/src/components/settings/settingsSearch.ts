@@ -7,6 +7,8 @@ import type { EnvironmentConnectionPhase } from "@supaterm/client-runtime/connec
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { DEFAULT_KEYBINDINGS } from "@supaterm/shared/keybindings";
 import { BUILT_IN_THEMES } from "@supaterm/shared/themePalettes";
+import { getCodexMicroBridge } from "../codexMicro/codexMicroBridge";
+import { CODEX_MICRO_SETTINGS_SEARCH_ITEMS } from "../codexMicro/codexMicroSettingsSearch";
 import { commandLabel } from "./KeybindingsSettings.logic";
 import {
   validateSettingsScopeSearch,
@@ -82,13 +84,13 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/archived": "Archive",
 };
 
-const DESKTOP_ONLY_SETTINGS_SECTIONS: ReadonlySet<SettingsPath> = new Set([
-  "/settings/codex-micro",
-]);
+const SETTINGS_SECTION_AVAILABILITY: Partial<Record<SettingsPath, () => boolean>> = {
+  "/settings/codex-micro": () => getCodexMicroBridge() !== null,
+};
 
-/** A section that only the desktop app can use is hidden, and its route redirected, elsewhere. */
+/** An unavailable section is hidden from navigation and search, and its route redirects. */
 export function isSettingsSectionAvailable(path: SettingsPath): boolean {
-  return isElectron || !DESKTOP_ONLY_SETTINGS_SECTIONS.has(path);
+  return SETTINGS_SECTION_AVAILABILITY[path]?.() ?? true;
 }
 
 export function keybindingSearchAnchorId<Command extends KeybindingCommand>(command: Command) {
@@ -597,72 +599,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     to: "/settings/snap-shot",
     targetId: "snap-shot-enabled",
   },
-  {
-    id: "codex-micro-enabled",
-    title: "Codex Micro",
-    to: "/settings/codex-micro",
-    searchTerms: [
-      "keyboard macro keypad hardware device enable connect usb bluetooth battery firmware",
-    ],
-    desktopOnly: true,
-  },
-  {
-    id: "codex-micro-input-monitoring",
-    title: "Input Monitoring",
-    to: "/settings/codex-micro",
-    searchTerms: ["codex micro keyboard permission privacy key presses"],
-    desktopOnly: true,
-    macOnly: true,
-  },
-  {
-    id: "codex-micro-brightness",
-    title: "Brightness",
-    to: "/settings/codex-micro",
-    searchTerms: ["codex micro keyboard lighting lights"],
-    desktopOnly: true,
-  },
-  {
-    id: "codex-micro-auto-dim",
-    title: "Auto-dim",
-    to: "/settings/codex-micro",
-    searchTerms: ["codex micro keyboard lighting lights inactivity idle timeout"],
-    desktopOnly: true,
-  },
-  {
-    id: "codex-micro-layout",
-    title: "Layout",
-    to: "/settings/codex-micro",
-    searchTerms: ["codex micro keyboard keycaps keys analog stick joystick knob reset assign"],
-    desktopOnly: true,
-  },
-  {
-    id: "codex-micro-agent-keys",
-    title: "Agent keys",
-    to: "/settings/codex-micro",
-    searchTerms: ["codex micro keyboard threads pinned recent needs attention custom assignments"],
-    desktopOnly: true,
-  },
-  {
-    id: "codex-micro-knob",
-    title: "Knob",
-    to: "/settings/codex-micro",
-    searchTerms: ["codex micro keyboard encoder dial scroll conversation reasoning effort"],
-    desktopOnly: true,
-  },
-  {
-    id: "codex-micro-separate-microphone-keys",
-    title: "Use separate microphone keys",
-    to: "/settings/codex-micro",
-    searchTerms: ["codex micro keyboard mic wide key switches"],
-    desktopOnly: true,
-  },
-  {
-    id: "codex-micro-single-tap-focus",
-    title: "Focus Supaterm with a single tap",
-    to: "/settings/codex-micro",
-    searchTerms: ["codex micro keyboard agent key double tap bring window to front"],
-    desktopOnly: true,
-  },
+  ...CODEX_MICRO_SETTINGS_SEARCH_ITEMS,
   {
     id: "providers",
     title: "Providers",
@@ -1133,6 +1070,7 @@ export function searchSettings(
 
   return items
     .flatMap((item, index) => {
+      if (!isSettingsSectionAvailable(item.to)) return [];
       if (!isElectron && item.desktopOnly === true) return [];
       if (item.releaseChannelOnly && !isElectron && HOSTED_APP_CHANNEL === null) return [];
       if (item.macOnly && !isMacPlatform(platform)) return [];

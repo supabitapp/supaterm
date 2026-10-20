@@ -29,6 +29,6 @@ export const setClientSettings = DesktopIpc.makeIpcMethod({
     const codexMicro = yield* CodexMicro.CodexMicro;
     yield* clientSettings.set(settings);
     yield* snapShot.configure(settings);
-    yield* codexMicro.configure(settings);
+    yield* codexMicro.configure(settings.codexMicro);
   }),
 });

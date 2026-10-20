@@ -12,7 +12,7 @@ import {
   type CodexMicroHidHandle,
   makeConnection,
   selectCodexMicroDevices,
-} from "./CodexMicroTransport.ts";
+} from "./transport.ts";
 
 interface SentRequest {
   readonly method: string;

@@ -2,11 +2,17 @@ import {
   DEFAULT_CLIENT_SETTINGS,
   EnvironmentId,
   ThreadId,
-  type ClientSettings,
+  type CodexMicroSettings,
   type CodexMicroDeviceState,
   type CodexMicroInputEvent,
   type CodexMicroLightingModel,
 } from "@supaterm/contracts";
+import {
+  EMPTY_LIGHTING_MODEL,
+  LIGHTS_OFF_PAYLOAD,
+  serializeLighting,
+} from "@supaterm/codex-micro/protocol";
+import * as CodexMicroTransport from "@supaterm/codex-micro/transport";
 import { assert, describe, it } from "@effect/vitest";
 import * as Context from "effect/Context";
 import * as Deferred from "effect/Deferred";
@@ -18,15 +24,8 @@ import * as TestClock from "effect/testing/TestClock";
 
 import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as ElectronPowerMonitor from "../electron/ElectronPowerMonitor.ts";
-import * as MacInputMonitoring from "../permissions/MacInputMonitoring.ts";
-import * as DesktopClientSettings from "../settings/DesktopClientSettings.ts";
 import * as CodexMicro from "./CodexMicro.ts";
-import {
-  EMPTY_LIGHTING_MODEL,
-  LIGHTS_OFF_PAYLOAD,
-  serializeLighting,
-} from "./CodexMicroProtocol.ts";
-import * as CodexMicroTransport from "./CodexMicroTransport.ts";
+import * as MacInputMonitoring from "./MacInputMonitoring.ts";
 
 interface FakeRequest {
   readonly method: string;
@@ -46,10 +45,10 @@ const THREAD = {
   threadId: ThreadId.make("thread-1"),
 };
 
-const settings = (patch: Partial<ClientSettings> = {}): ClientSettings => ({
-  ...DEFAULT_CLIENT_SETTINGS,
-  codexMicroEnabled: true,
-  codexMicroAutoDim: "off",
+const settings = (patch: Partial<CodexMicroSettings> = {}): CodexMicroSettings => ({
+  ...DEFAULT_CLIENT_SETTINGS.codexMicro,
+  enabled: true,
+  autoDim: "off",
   ...patch,
 });
 
@@ -178,7 +177,6 @@ const makeHarness = Effect.gen(function* () {
         Layer.succeed(ElectronApp.ElectronApp, {
           on: () => Effect.void,
         } as unknown as ElectronApp.ElectronApp["Service"]),
-        DesktopClientSettings.layerTest(),
       ),
     ),
   );
@@ -383,7 +381,7 @@ describe("CodexMicro", () => {
       harness.transport.setDevices([USB]);
       yield* harness.connect;
 
-      yield* harness.codexMicro.configure(settings({ codexMicroEnabled: false }));
+      yield* harness.codexMicro.configure(settings({ enabled: false }));
       const [rgbcfg, thstatus] = yield* harness.takeRequests(2);
       assert.deepStrictEqual(rgbcfg?.params, LIGHTS_OFF_PAYLOAD.rgbcfg);
       assert.deepStrictEqual(thstatus?.params, LIGHTS_OFF_PAYLOAD.thstatus);
@@ -431,7 +429,7 @@ describe("CodexMicro", () => {
         focus: false,
       });
 
-      yield* harness.codexMicro.configure(settings({ codexMicroSingleTapFocus: true }));
+      yield* harness.codexMicro.configure(settings({ singleTapFocus: true }));
       harness.key("usb", "AG00", 1);
       const single = yield* Queue.take(harness.inputs);
       assert.isTrue(single.type === "agent-key" && single.focus);
@@ -550,7 +548,7 @@ describe("CodexMicro", () => {
       const harness = yield* makeHarness;
       harness.transport.setDevices([USB]);
       yield* harness.connect;
-      yield* harness.codexMicro.configure(settings({ codexMicroAutoDim: "30-seconds" }));
+      yield* harness.codexMicro.configure(settings({ autoDim: "30-seconds" }));
       const working = modelWith({ thread: THREAD, status: "working", selected: true });
       yield* harness.codexMicro.setLighting(working);
       const lit = yield* harness.takeRequests(2);

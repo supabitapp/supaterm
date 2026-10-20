@@ -1,35 +1,15 @@
 import {
   CODEX_MICRO_AUTO_DIM_MS,
   DEFAULT_CLIENT_SETTINGS,
-  type ClientSettings,
   type CodexMicroAgentKey,
   type CodexMicroConnectionStatus,
   type CodexMicroDeviceState,
   type CodexMicroInputEvent,
   type CodexMicroJoystickDirection,
   type CodexMicroLightingModel,
+  type CodexMicroSettings,
   type CodexMicroThreadRef,
 } from "@supaterm/contracts";
-import * as Clock from "effect/Clock";
-import * as Context from "effect/Context";
-import * as Deferred from "effect/Deferred";
-import * as Duration from "effect/Duration";
-import * as Effect from "effect/Effect";
-import * as Equal from "effect/Equal";
-import * as Fiber from "effect/Fiber";
-import * as FiberHandle from "effect/FiberHandle";
-import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
-import * as Queue from "effect/Queue";
-import * as Result from "effect/Result";
-import * as Scope from "effect/Scope";
-import * as Semaphore from "effect/Semaphore";
-
-import { makeComponentLogger } from "../app/DesktopObservability.ts";
-import * as ElectronApp from "../electron/ElectronApp.ts";
-import * as ElectronPowerMonitor from "../electron/ElectronPowerMonitor.ts";
-import * as MacInputMonitoring from "../permissions/MacInputMonitoring.ts";
-import * as DesktopClientSettings from "../settings/DesktopClientSettings.ts";
 import {
   DEVICE_STATUS_METHOD,
   EMPTY_LIGHTING_MODEL,
@@ -51,8 +31,27 @@ import {
   serializeLighting,
   trackJoystick,
   type CodexMicroLightingPayload,
-} from "./CodexMicroProtocol.ts";
-import * as CodexMicroTransport from "./CodexMicroTransport.ts";
+} from "@supaterm/codex-micro/protocol";
+import * as CodexMicroTransport from "@supaterm/codex-micro/transport";
+import * as Clock from "effect/Clock";
+import * as Context from "effect/Context";
+import * as Deferred from "effect/Deferred";
+import * as Duration from "effect/Duration";
+import * as Effect from "effect/Effect";
+import * as Equal from "effect/Equal";
+import * as Fiber from "effect/Fiber";
+import * as FiberHandle from "effect/FiberHandle";
+import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
+import * as Queue from "effect/Queue";
+import * as Result from "effect/Result";
+import * as Scope from "effect/Scope";
+import * as Semaphore from "effect/Semaphore";
+
+import { makeComponentLogger } from "../app/DesktopObservability.ts";
+import * as ElectronApp from "../electron/ElectronApp.ts";
+import * as ElectronPowerMonitor from "../electron/ElectronPowerMonitor.ts";
+import * as MacInputMonitoring from "./MacInputMonitoring.ts";
 
 const DISCOVERY_INTERVAL = Duration.seconds(2);
 const HANDOFF_SCAN_INTERVAL = Duration.seconds(10);
@@ -78,12 +77,12 @@ const { logDebug, logInfo, logWarning } = makeComponentLogger("desktop-codex-mic
 const retryDelay = (attempt: number) =>
   RETRY_DELAYS[Math.min(Math.max(attempt, 1), RETRY_DELAYS.length) - 1]!;
 
-const readSettings = (settings: ClientSettings) => ({
-  enabled: settings.codexMicroEnabled,
-  singleTapFocus: settings.codexMicroSingleTapFocus,
-  brightness: settings.codexMicroBrightness / 100,
-  autoDimMs: CODEX_MICRO_AUTO_DIM_MS[settings.codexMicroAutoDim],
-  separateMicrophoneKeys: settings.codexMicroLayout.separateMicrophoneKeys,
+const readSettings = (codexMicro: CodexMicroSettings) => ({
+  enabled: codexMicro.enabled,
+  singleTapFocus: codexMicro.singleTapFocus,
+  brightness: codexMicro.brightness / 100,
+  autoDimMs: CODEX_MICRO_AUTO_DIM_MS[codexMicro.autoDim],
+  separateMicrophoneKeys: codexMicro.layout.separateMicrophoneKeys,
 });
 
 const deviceState = (
@@ -114,9 +113,10 @@ type SessionEnd =
 export class CodexMicro extends Context.Service<
   CodexMicro,
   {
-    readonly initialize: Effect.Effect<void>;
+    /** False in a desktop build packaged without the keyboard's HID library. */
+    readonly available: boolean;
     /** Cheap and idempotent: runs on every client-settings write. */
-    readonly configure: (settings: ClientSettings) => Effect.Effect<void>;
+    readonly configure: (settings: CodexMicroSettings) => Effect.Effect<void>;
     readonly state: Effect.Effect<CodexMicroDeviceState>;
     readonly setLighting: (model: CodexMicroLightingModel) => Effect.Effect<void>;
     readonly openInputMonitoringSettings: Effect.Effect<void>;
@@ -130,11 +130,10 @@ const make = Effect.gen(function* () {
   const inputMonitoring = yield* MacInputMonitoring.MacInputMonitoring;
   const powerMonitor = yield* ElectronPowerMonitor.ElectronPowerMonitor;
   const electronApp = yield* ElectronApp.ElectronApp;
-  const clientSettings = yield* DesktopClientSettings.DesktopClientSettings;
   const serviceScope = yield* Effect.scope;
   const runFork = Effect.runForkWith(yield* Effect.context<never>());
 
-  let settings = readSettings(DEFAULT_CLIENT_SETTINGS);
+  let settings = readSettings(DEFAULT_CLIENT_SETTINGS.codexMicro);
   let state = deviceState("disabled", "unavailable");
   const stateListeners = new Set<StateListener>();
   const inputListeners = new Set<InputListener>();
@@ -613,11 +612,9 @@ const make = Effect.gen(function* () {
     yield* publishStatus("disabled");
   });
 
-  const configure = Effect.fn("desktop.codexMicro.configure")(function* (
-    clientSettings: ClientSettings,
-  ) {
+  const configure = Effect.fn("desktop.codexMicro.configure")(function* (next: CodexMicroSettings) {
     const previous = settings;
-    settings = readSettings(clientSettings);
+    settings = readSettings(next);
     if (settings.brightness !== previous.brightness) yield* wakeLighting;
     if (settings.autoDimMs !== previous.autoDimMs) {
       if (settings.autoDimMs === null && dimmed) {
@@ -676,15 +673,7 @@ const make = Effect.gen(function* () {
     );
 
   return CodexMicro.of({
-    initialize: clientSettings.get.pipe(
-      Effect.map(Option.getOrElse(() => DEFAULT_CLIENT_SETTINGS)),
-      Effect.flatMap(configure),
-      Effect.catchTags({
-        DesktopClientSettingsReadError: (error) =>
-          logWarning("could not read client settings", { operation: error.operation }),
-      }),
-      Effect.withSpan("desktop.codexMicro.initialize"),
-    ),
+    available: true,
     configure,
     state: refreshInputMonitoring.pipe(
       Effect.andThen(Effect.sync(() => state)),
@@ -701,3 +690,16 @@ const make = Effect.gen(function* () {
 });
 
 export const layer = Layer.effect(CodexMicro, make);
+
+export const layerUnavailable = Layer.succeed(
+  CodexMicro,
+  CodexMicro.of({
+    available: false,
+    configure: () => Effect.void,
+    state: Effect.succeed(deviceState("disabled", "unavailable")),
+    setLighting: () => Effect.void,
+    openInputMonitoringSettings: Effect.void,
+    subscribeState: () => Effect.void,
+    subscribeInput: () => Effect.void,
+  }),
+);

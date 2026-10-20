@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { useCodexMicroPressedInput } from "../../codexMicro/codexMicroStore";
+import { useCodexMicroPressedInput } from "../codexMicroStore";
 import { codexMicroPressedKey, type CodexMicroKeyId } from "./CodexMicroSettings.logic";
 
 const PRESS_FEEDBACK_MS = 150;

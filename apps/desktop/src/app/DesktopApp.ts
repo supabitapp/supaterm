@@ -12,7 +12,7 @@ import * as ElectronDialog from "../electron/ElectronDialog.ts";
 import * as ElectronProtocol from "../electron/ElectronProtocol.ts";
 import * as ElectronSafeStorage from "../electron/ElectronSafeStorage.ts";
 import { installDesktopIpcHandlers } from "../ipc/DesktopIpcHandlers.ts";
-import * as CodexMicro from "../codexMicro/CodexMicro.ts";
+import * as CodexMicroDesktop from "../codexMicro/CodexMicroDesktop.ts";
 import * as DesktopAppActivation from "./DesktopAppActivation.ts";
 import * as DesktopAppIdentity from "./DesktopAppIdentity.ts";
 import * as PreviewPasskeys from "../preview/Passkeys.ts";
@@ -164,7 +164,6 @@ const bootstrap = Effect.gen(function* () {
   const desktopSettings = yield* DesktopAppSettings.DesktopAppSettings;
   const desktopWindow = yield* DesktopWindow.DesktopWindow;
   const snapShot = yield* DesktopSnapShot.DesktopSnapShot;
-  const codexMicro = yield* CodexMicro.CodexMicro;
   const appActivation = yield* DesktopAppActivation.DesktopAppActivation;
   yield* logBootstrapInfo("bootstrap start");
 
@@ -177,10 +176,11 @@ const bootstrap = Effect.gen(function* () {
       : { assetDirectory: environment.clientAssetsDir }),
   });
   yield* installDesktopIpcHandlers();
+  // Its preload bridge asks main synchronously, so this registers with the other IPC handlers.
+  yield* CodexMicroDesktop.install;
   yield* logBootstrapInfo("bootstrap ipc handlers registered");
 
   yield* snapShot.initialize;
-  yield* codexMicro.initialize;
 
   if (!settings.localEnvironmentEnabled) {
     yield* logBootstrapInfo("bootstrap skipping local environment (disabled in settings)");

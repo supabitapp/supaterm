@@ -16,7 +16,7 @@ import {
   codexMicroKeycapsForSlot,
   type CodexMicroCommandOption,
   type CodexMicroKeycap,
-} from "../../codexMicro/codexMicroCatalog";
+} from "../codexMicroCatalog";
 import { Button } from "../../ui/button";
 import {
   Dialog,

@@ -2,7 +2,7 @@ import type { CodexMicroAction } from "@supaterm/contracts";
 import { CheckIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 
-import { sameCodexMicroAction } from "../../codexMicro/codexMicroCatalog";
+import { sameCodexMicroAction } from "../codexMicroCatalog";
 import {
   Command,
   CommandGroup,

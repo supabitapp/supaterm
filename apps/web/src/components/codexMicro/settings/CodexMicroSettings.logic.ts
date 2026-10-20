@@ -31,8 +31,8 @@ import {
   resolveCodexMicroEncoderAction,
   type CodexMicroCommandGroup,
   type CodexMicroKeycap,
-} from "../../codexMicro/codexMicroCatalog";
-import type { CodexMicroSlotView } from "../../codexMicro/codexMicroStore";
+} from "../codexMicroCatalog";
+import type { CodexMicroSlotView } from "../codexMicroStore";
 
 export type CodexMicroKeyId = CodexMicroAgentKey | CodexMicroActionSlot | "stick" | "knob";
 

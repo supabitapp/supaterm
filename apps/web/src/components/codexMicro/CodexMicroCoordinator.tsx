@@ -29,11 +29,8 @@ import {
   buildCodexMicroSlotViews,
   selectCodexMicroSlotBindings,
 } from "./codexMicroSlots";
-import {
-  getCodexMicroBridge,
-  publishCodexMicroInput,
-  publishCodexMicroSlots,
-} from "./codexMicroStore";
+import { getCodexMicroBridge } from "./codexMicroBridge";
+import { publishCodexMicroInput, publishCodexMicroSlots } from "./codexMicroStore";
 
 function subscribeWindowFocus(listener: () => void) {
   window.addEventListener("focus", listener);
@@ -60,7 +57,7 @@ function selectConnectedEnvironmentIds(
 
 /** Keeps the keyboard's agent keys lit for the threads they follow and runs its key presses. */
 export function CodexMicroCoordinator() {
-  const enabled = useClientSettings((settings) => settings.codexMicroEnabled);
+  const enabled = useClientSettings((settings) => settings.codexMicro.enabled);
   const bridge = getCodexMicroBridge();
   if (!enabled || bridge === null) return null;
   return <ActiveCodexMicroCoordinator bridge={bridge} />;
@@ -70,9 +67,9 @@ function ActiveCodexMicroCoordinator({ bridge }: { readonly bridge: DesktopCodex
   const router = useRouter();
   const composerHandleRef = useComposerHandleContext();
   const settings = useClientSettings((current) => ({
-    source: current.codexMicroAgentSource,
-    customAgentKeys: current.codexMicroCustomAgentKeys,
-    layout: current.codexMicroLayout,
+    source: current.codexMicro.agentSource,
+    customAgentKeys: current.codexMicro.customAgentKeys,
+    layout: current.codexMicro.layout,
   }));
   const threads = useSidebarThreadShells();
   const connectedEnvironmentIds = useAtomValue(
@@ -103,7 +100,14 @@ function ActiveCodexMicroCoordinator({ bridge }: { readonly bridge: DesktopCodex
     publishCodexMicroSlots(views);
     void bridge.setLighting(buildCodexMicroLightingModel(views, "idle")).catch(() => undefined);
   }, [bridge, views]);
-  useEffect(() => () => publishCodexMicroSlots([]), []);
+  useEffect(
+    () => () => {
+      // A remount (StrictMode, or an Activity boundary) must publish again after this clears.
+      sentViewsKeyRef.current = null;
+      publishCodexMicroSlots([]);
+    },
+    [],
+  );
 
   const runAction = (action: CodexMicroAction | null) => {
     if (action === null) return;

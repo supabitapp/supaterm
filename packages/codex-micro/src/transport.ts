@@ -21,7 +21,7 @@ import {
   frameMessage,
   nextRequestId,
   parseResponseBody,
-} from "./CodexMicroProtocol.ts";
+} from "./protocol.ts";
 
 const RESPONSE_TIMEOUT = Duration.seconds(10);
 const OPERATION_DEADLINE = Duration.seconds(15);
@@ -329,7 +329,7 @@ export class CodexMicroTransport extends Context.Service<
       device: CodexMicroDevice,
     ) => Effect.Effect<CodexMicroConnection, CodexMicroConnectError, Scope.Scope>;
   }
->()("@supaterm/desktop/codexMicro/CodexMicroTransport") {}
+>()("@supaterm/codex-micro/transport/CodexMicroTransport") {}
 
 const make = Effect.gen(function* () {
   const platform = yield* HostProcess.Platform;
