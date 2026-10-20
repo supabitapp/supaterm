@@ -321,22 +321,27 @@ export function PlatformStatus(props: {
   readonly status: { readonly ready: boolean; readonly message: string };
   readonly compact?: boolean;
 }) {
+  const showMessage = !props.compact || !props.status.ready;
   return (
     <div
       className={cn("flex gap-2", !props.compact && "rounded-md border border-border/60 px-3 py-2")}
     >
       <MorphIcon
         className={cn(
-          "mt-0.5 size-4 shrink-0",
+          "shrink-0",
+          props.compact ? "mt-px size-3.5" : "mt-0.5 size-4",
           props.status.ready ? "text-success" : "text-muted-foreground",
         )}
         icon={props.status.ready ? CheckGlyph : CircleAlert}
       />
-      <div className={cn(props.compact && props.status.ready && "flex items-center gap-2")}>
-        <p className="font-medium">{props.platform}</p>
-        <p className="text-xs text-muted-foreground">
-          {props.compact && props.status.ready ? "Ready" : props.status.message}
+      <div>
+        <p className="font-medium">
+          {props.platform}
+          {showMessage ? null : <span className="sr-only"> ready</span>}
         </p>
+        {showMessage ? (
+          <p className="text-xs text-muted-foreground">{props.status.message}</p>
+        ) : null}
       </div>
     </div>
   );

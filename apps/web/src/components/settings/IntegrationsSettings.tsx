@@ -986,7 +986,7 @@ export function DeviceIntegrationControls({
                 : undefined
             }
             status={
-              <div className="flex flex-wrap gap-x-5 gap-y-2">
+              <div className="space-y-1.5">
                 <PlatformStatus compact platform="iOS" status={platformSetupStatus(state, "ios")} />
                 <PlatformStatus
                   compact
