@@ -2972,11 +2972,13 @@ export default function Sidebar() {
     // A Working row only drags out as chat context, so it never reveals the pin order.
     dragging: dragState !== null && dragState.activeSection !== "working",
   });
+  // Once delivery starts, the optimistic creation shell owns the row, so
+  // checking only server shells would show the thread twice until the ack.
   const pendingThreads = outboxEntries.filter((entry) => {
     const creation = entry.payload.input.bootstrap?.createThread;
     return (
       creation &&
-      !serverThreadKeys.has(entry.scope) &&
+      !threads.some((thread) => threadShellKey(thread) === entry.scope) &&
       (scopedProjectKeys === null ||
         scopedProjectKeys.has(`${entry.payload.environmentId}:${creation.projectId}`))
     );
