@@ -247,7 +247,9 @@ const cleanupFixture = (
     const fs = yield* FileSystem.FileSystem;
     const config = yield* ServerConfig.ServerConfig;
     const git = yield* GitVcsDriver.GitVcsDriver;
-    const repo = yield* fs.makeTempDirectoryScoped({ prefix: "cleanup-repo-" });
+    const repo = yield* fs
+      .makeTempDirectoryScoped({ prefix: "cleanup-repo-" })
+      .pipe(Effect.flatMap(fs.realPath));
     const command = (cwd: string, args: string[]) =>
       git.execute({ operation: "cleanup-test", cwd, args });
     yield* command(repo, ["init", "-b", "main"]);
@@ -306,14 +308,26 @@ const cleanupFixture = (
         getShellSnapshot: (input?: { location?: string }) =>
           Effect.sync(() => {
             snapshotReads++;
-            return { threads: input?.location === "archive" ? [] : threads };
+            const visible = threads.filter((thread) => thread.deletedAt === null);
+            return {
+              threads:
+                input?.location === "archive"
+                  ? []
+                  : visible.filter((thread) => thread.archivedAt === null),
+              archivedThreads:
+                input?.location === "active"
+                  ? []
+                  : visible.filter((thread) => thread.archivedAt !== null),
+            };
           }),
-        getThreadWorktreePaths: () =>
+        getThreadWorktreePaths: (input?: { includeArchived?: boolean }) =>
           Effect.sync(() =>
             threads.flatMap((thread) =>
-              thread.worktreePath === null
-                ? []
-                : [{ threadId: thread.id, worktreePath: thread.worktreePath }],
+              thread.deletedAt === null &&
+              (input?.includeArchived === true || thread.archivedAt === null) &&
+              thread.worktreePath !== null
+                ? [{ threadId: thread.id, worktreePath: thread.worktreePath }]
+                : [],
             ),
           ),
         getThreadShell: (threadId: ThreadId) =>
@@ -461,7 +475,17 @@ const sessionUpdated = (
   },
 });
 const cleanupTestLayer = GitVcsDriver.layer.pipe(
-  Layer.provideMerge(ServerConfig.layerTest(process.cwd(), { prefix: "storage-cleanup-" })),
+  Layer.provideMerge(
+    Layer.unwrap(
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const baseDir = yield* fs
+          .makeTempDirectoryScoped({ prefix: "storage-cleanup-" })
+          .pipe(Effect.flatMap(fs.realPath));
+        return ServerConfig.layerTest(process.cwd(), baseDir);
+      }),
+    ),
+  ),
   Layer.provideMerge(NodeServices.layer),
 );
 const runCleanupTest = <A, E>(
@@ -1180,6 +1204,41 @@ describe("orphan worktree reports", () => {
 });
 
 describe("storage cleanup reports and local file policies", () => {
+  it.effect("automatically removes an eligible archived thread checkout", () =>
+    runCleanupTest(
+      Effect.gen(function* () {
+        yield* TestClock.setTime(NOW_MS);
+        const fixture = yield* cleanupFixture();
+        fixture.setThreads([
+          shell({
+            branch: "feature",
+            worktreePath: fixture.worktree,
+            archivedAt: at(-DAY_MS),
+          }),
+        ]);
+        yield* fixture.activate(Stream.empty);
+        const [report] = yield* fixture.service.reports.pipe(
+          Stream.filter((report) => report !== null),
+          Stream.take(1),
+          Stream.runCollect,
+        );
+        yield* fixture.service.drain;
+        expect(report).toMatchObject({
+          trigger: "automatic",
+          counts: { removed: 1, kept: 0, failed: 0 },
+          entries: [
+            {
+              threadId: "thread-1",
+              path: fixture.worktree,
+              outcome: "removed",
+              reason: "Inactive for 30 days",
+            },
+          ],
+        });
+        expect(yield* fixture.fs.exists(fixture.worktree)).toBe(false);
+      }),
+    ),
+  );
   it.live.each(["before-check", "while-measuring"] as const)(
     "keeps a worktree protected by a missing project root (%s)",
     (timing) =>
@@ -1266,6 +1325,18 @@ describe("storage cleanup reports and local file policies", () => {
       (worktree: string) => [
         shell({ branch: "feature", worktreePath: worktree }),
         shell({ id: ThreadId.make("thread-2"), branch: "feature", worktreePath: worktree }),
+      ],
+    ],
+    [
+      "an archived thread starts using it",
+      (worktree: string) => [
+        shell({ branch: "feature", worktreePath: worktree }),
+        shell({
+          id: ThreadId.make("thread-2"),
+          branch: "feature",
+          worktreePath: worktree,
+          archivedAt: at(-DAY_MS),
+        }),
       ],
     ],
   ] as const)("keeps a worktree when %s during size measurement", ([, threadsWhileMeasuring]) =>
@@ -1546,6 +1617,17 @@ describe("storage cleanup reports and local file policies", () => {
             shell({ id: ThreadId.make("thread-2"), branch: "feature", worktreePath: worktree }),
           ]);
           expect((yield* service.runNow).entries[0]?.reason).toBe("Shared by 2 threads");
+          setThreads([
+            shell({ branch: "feature", worktreePath: worktree }),
+            shell({
+              id: ThreadId.make("thread-2"),
+              branch: "feature",
+              worktreePath: worktree,
+              archivedAt: at(-DAY_MS),
+            }),
+          ]);
+          expect((yield* service.runNow).entries[0]?.reason).toBe("Shared by 2 threads");
+          expect(yield* fs.exists(worktree)).toBe(true);
           fixture.disable();
           expect((yield* service.runNow).entries).toEqual([]);
           yield* fs.remove(worktree, { recursive: true });

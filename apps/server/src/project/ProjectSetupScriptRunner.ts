@@ -2,6 +2,7 @@ import { ProjectId, type ProjectScript } from "@supaterm/contracts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import {
   projectScriptRuntimeEnv,
+  projectScriptTerminalInput,
   resolveProjectScripts,
   doneProjectScript,
   setupProjectScript,
@@ -422,7 +423,7 @@ export const make = Effect.gen(function* () {
       terminalManager.write({
         threadId: input.threadId,
         terminalId,
-        data: `${commandLine}\r`,
+        data: projectScriptTerminalInput(commandLine),
       }),
     ).pipe(
       Effect.mapError(

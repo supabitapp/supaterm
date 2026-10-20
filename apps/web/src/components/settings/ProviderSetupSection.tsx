@@ -50,7 +50,7 @@ export function ProviderSetupSection(props: ProviderSetupSectionProps) {
   return (
     <section
       aria-label="Antigravity setup"
-      className="@container/setup divide-y divide-border/50 text-xs"
+      className="@container/setup divide-y divide-border/50 text-xs [&_[data-slot=settings-row]]:rounded-none"
     >
       <SettingsRow
         className="@max-lg/setup:[&>div:first-child]:flex @max-lg/setup:[&>div:first-child]:items-stretch @max-lg/setup:[&>div:first-child]:gap-3"
@@ -177,6 +177,9 @@ function ProviderSetupActions({
 
   return (
     <div className="divide-y divide-border/50">
+      <p className="sr-only" role="status">
+        {pendingLabel ? `${pendingLabel}.` : null}
+      </p>
       <SettingsRow
         title="Runtime"
         className="@max-lg/setup:[&>div:first-child]:flex @max-lg/setup:[&>div:first-child]:items-stretch @max-lg/setup:[&>div:first-child]:gap-3"
@@ -278,9 +281,6 @@ function ProviderSetupActions({
         readOnly={false}
       />
 
-      <p className="sr-only" role="status">
-        {pendingLabel ? `${pendingLabel}.` : null}
-      </p>
       {error || queryError ? (
         <div className="grid gap-2 px-3 py-3 sm:px-4">
           <p role="alert" className="text-destructive [overflow-wrap:anywhere]">

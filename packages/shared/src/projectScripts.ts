@@ -79,3 +79,7 @@ export function projectScriptMenuLabel(script: ProjectScript): string {
 export function doneProjectScript(scripts: readonly ProjectScript[]): ProjectScript | null {
   return scripts.find((script) => script.runOnDone === true) ?? null;
 }
+
+export function projectScriptTerminalInput(command: string): string {
+  return ` ${command}\r`;
+}

@@ -63,6 +63,8 @@ const DROPPED_REQUEST_HEADERS = new Set([
   "authorization",
   "content-length",
   "accept-encoding",
+
+  "x-forwarded-proto",
 ]);
 
 const isWebSocketUpgrade = (request: HttpServerRequest.HttpServerRequest) =>

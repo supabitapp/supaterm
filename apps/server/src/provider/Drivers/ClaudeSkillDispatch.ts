@@ -36,19 +36,18 @@ export function planClaudeSkillDispatch(
     return undefined;
   }
 
-  const leading = prompt.slice(0, last.start);
   const trailing = prompt.slice(last.end);
-  const leadingWithInlineSlashes = mentions
-    .slice(0, -1)
+  const promptWithInlineSlashes = mentions
     .reduceRight(
       (text, mention) =>
         `${text.slice(0, mention.start)}/${mention.name}${text.slice(mention.end)}`,
-      leading,
+      prompt,
     )
     .trimEnd();
 
   return {
-    leadingText: leadingWithInlineSlashes.length > 0 ? leadingWithInlineSlashes : undefined,
+    leadingText:
+      prompt.slice(0, last.start).trim().length > 0 ? promptWithInlineSlashes : undefined,
     commandText: `/${last.name}${trailing}`.trimEnd(),
     skillName: last.name,
   };

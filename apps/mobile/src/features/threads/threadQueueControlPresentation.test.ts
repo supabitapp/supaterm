@@ -1,3 +1,4 @@
+import { formatAssistantCitationHref } from "@supaterm/shared/assistantCitations";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
@@ -10,8 +11,36 @@ import {
 import { threadDragGapOffset } from "./threadDragGap";
 
 describe("threadQueueControlPresentation", () => {
+  it("shows an assistant quote as its quoted text", () => {
+    const href = formatAssistantCitationHref({
+      version: 1,
+      environmentId: "environment:test" as never,
+      threadId: "thread:test" as never,
+      messageId: "message:assistant" as never,
+      text: "Retry the sync after the lock clears.",
+      start: 0,
+      end: 37,
+      prefix: "",
+      suffix: "",
+    });
+    const controls = resolveThreadQueueRowControls({
+      canOperate: true,
+      busy: false,
+      canPromoteToSteer: true,
+      canReorder: true,
+      index: 0,
+      queuedCount: 1,
+      text: `[Assistant quote](${href}) Can we add a backoff here?`,
+    });
+
+    expect(controls.displayText).toBe(
+      "Retry the sync after the lock clears. Can we add a backoff here?",
+    );
+  });
+
   it("preserves queue reorder and steer controls with removal", () => {
     const controls = resolveThreadQueueRowControls({
+      canOperate: true,
       busy: false,
       canPromoteToSteer: true,
       canReorder: true,
@@ -31,6 +60,7 @@ describe("threadQueueControlPresentation", () => {
 
   it("disables edge reorder controls and busy dismissal", () => {
     const first = resolveThreadQueueRowControls({
+      canOperate: true,
       busy: false,
       canPromoteToSteer: false,
       canReorder: true,
@@ -39,6 +69,7 @@ describe("threadQueueControlPresentation", () => {
       text: "First",
     });
     const busy = resolveThreadQueueRowControls({
+      canOperate: true,
       busy: true,
       canPromoteToSteer: true,
       canReorder: true,
@@ -58,6 +89,7 @@ describe("threadQueueControlPresentation", () => {
 
   it("lets an edited row return to the composer without reloading or steering", () => {
     const editing = resolveThreadQueueRowControls({
+      canOperate: true,
       busy: false,
       canPromoteToSteer: true,
       canReorder: true,
@@ -73,6 +105,27 @@ describe("threadQueueControlPresentation", () => {
     expect(editing.canSteer).toBe(false);
     expect(editing.canMoveUp).toBe(true);
     expect(editing.canDismiss).toBe(true);
+  });
+
+  it("disables every queue mutation on a read-only connection", () => {
+    const controls = resolveThreadQueueRowControls({
+      canOperate: false,
+      busy: false,
+      canPromoteToSteer: true,
+      canReorder: true,
+      index: 1,
+      queuedCount: 3,
+      text: "Queued message",
+    });
+    expect(controls).toMatchObject({
+      canDismiss: false,
+      canEdit: false,
+      canMoveDown: false,
+      canMoveUp: false,
+      canOpen: false,
+      canSteer: false,
+      displayText: "Queued message",
+    });
   });
 
   it("builds cancelQueuedRun command arguments for removal", () => {

@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import type { ResolvedKeybindingsConfig } from "@supaterm/contracts";
 import type { ClientSettings } from "@supaterm/contracts/settings";
-import { useMediaQuery } from "~/hooks/useMediaQuery";
+import { useSoftwareKeyboardOpen } from "~/hooks/useSoftwareKeyboardOpen";
 import { useEnvironmentIdentificationMode } from "~/hooks/useSettings";
 import { cn } from "~/lib/utils";
 import { composerSendShortcutLabels, type ComposerSendAction } from "../../composer-logic";
@@ -112,11 +112,11 @@ function SendActionsTooltip(props: {
   hasMultilinePrompt: boolean;
 }) {
   const { isRunning, followUpBehavior, canSteer, isDraftThread } = props;
-  const isMobileViewport = useMediaQuery("max-sm");
+  const isSoftwareKeyboardOpen = useSoftwareKeyboardOpen();
   const shortcuts = composerSendShortcutLabels({
     ...props,
     platform: navigator.platform,
-    isMobileViewport,
+    isSoftwareKeyboardOpen,
   });
   const labels: Record<ComposerSendAction, string> = {
     foreground: isRunning

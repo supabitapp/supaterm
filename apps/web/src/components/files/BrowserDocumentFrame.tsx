@@ -34,8 +34,6 @@ import { readLocalApi } from "~/localApi";
 import { cn } from "~/lib/utils";
 import { primaryServerKeybindingsAtom, serverEnvironment } from "~/state/server";
 
-const PDF_VIEWER_FRAGMENT = "#toolbar=0&view=FitH";
-
 /**
  * The page reports the keys, and a page script can report any key it likes,
  * so only commands that change what the reader sees are here, never one that
@@ -65,11 +63,6 @@ const HTML_RENDER_SHORTCUT_COMMANDS: ReadonlySet<KeybindingCommand> = new Set([
 export const isPdfPreviewFile = (path: string): boolean =>
   /\.pdf$/i.test(path.split(/[?#]/, 1)[0] ?? "");
 
-/**
- * HTML runs in a sandboxed frame with an opaque origin, so a page cannot reach
- * the app's session or storage. The built-in PDF viewer needs an unsandboxed
- * frame; a PDF runs no scripts.
- */
 export function BrowserDocumentFrame(props: {
   readonly src: string;
   readonly title: string;
@@ -79,12 +72,12 @@ export function BrowserDocumentFrame(props: {
 }) {
   const className = "min-h-0 flex-1 border-0 bg-white";
   return props.pdf ? (
-    // oxlint-disable-next-line react/iframe-missing-sandbox -- the built-in PDF viewer needs an unsandboxed frame.
-    <iframe
+    <embed
       key={props.src}
-      src={`${props.src}${PDF_VIEWER_FRAGMENT}`}
+      src={props.src}
+      type="application/pdf"
       title={props.title}
-      className={className}
+      className="min-h-0 w-full flex-1 border-0"
     />
   ) : props.htmlRender ? (
     <HtmlRenderDocument
@@ -117,8 +110,6 @@ export function HtmlRenderDocument(props: {
   readonly onContentHeight?: (height: number) => void;
   /** Reports the image viewer opening and closing, so a virtualized row can stay mounted. */
   readonly onFullscreenChange?: ((fullscreen: boolean) => void) | undefined;
-  /** Called when the page has loaded. */
-  readonly onLoad?: () => void;
 }) {
   const theme = useHtmlRenderTheme();
   const frameRef = useRef<HTMLIFrameElement>(null);
@@ -302,7 +293,6 @@ export function HtmlRenderDocument(props: {
           // Covers a theme change that landed while the page was loading.
           postTheme();
           postShortcuts();
-          props.onLoad?.();
         }}
         // A frame whose color scheme differs from its document's paints an opaque
         // canvas, so the blank document a frame starts with would flash white in

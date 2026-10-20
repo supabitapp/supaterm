@@ -415,7 +415,15 @@ export default defineConfig({
         // (apps/mobile/src/reactCompilerCoverage.test.ts). Directives would hide bailouts from it;
         // the manual memo hooks go once the allowlist there is empty.
         files: ["apps/mobile/src/**/*.{ts,tsx}"],
-        rules: { "supaterm/no-manual-memo": ["error", { allowMemoHooks: true }] },
+        rules: {
+          "supaterm/no-manual-memo": ["error", { allowMemoHooks: true }],
+          "react/jsx-no-constructed-context-values": "off",
+        },
+      },
+      {
+        files: ["apps/web/src/**/*.{ts,tsx}", "apps/mobile/src/**/*.{ts,tsx}"],
+        excludeFiles: ["**/*.test.ts", "**/*.test.tsx"],
+        rules: { "supaterm/no-hookless-use-function": "error" },
       },
       {
         files: [

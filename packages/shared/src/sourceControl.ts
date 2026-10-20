@@ -180,7 +180,7 @@ function hasDnsLabel(host: string, label: string): boolean {
 }
 
 function isGitHubHost(host: string): boolean {
-  return host === "github.com" || hasDnsLabel(host, "github");
+  return host === "github.com" || host.endsWith(".ghe.com") || hasDnsLabel(host, "github");
 }
 
 function isGitLabHost(host: string): boolean {

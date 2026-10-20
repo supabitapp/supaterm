@@ -36,8 +36,9 @@ import { useAtomRefresh } from "@effect/atom-react";
 
 import { type PullRequestDetail, type PullRequestListEntry } from "@supaterm/contracts";
 import { PullRequestOverviewLoading } from "./PullRequestOverviewLoading";
+import { copyPullRequestLink, sharePullRequestLink } from "./pullRequestLink";
 import { pullRequestStatus } from "./pullRequestStatus";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Linking,
   Platform,
@@ -107,11 +108,8 @@ function PullRequestTabScrollView(props: ScrollViewProps) {
 function usePullRequestActivityRows(params: PullRequestParams, filter: ActivityFilter) {
   const navigation = useNavigation();
   const result = useEnvironmentQuery(composerPullRequests.activity(requestTarget(params)));
-  const filtered = useMemo(
-    () => (result.data ? filterPullRequestActivity(result.data, filter) : null),
-    [result.data, filter],
-  );
-  const rows = useMemo(() => {
+  const filtered = result.data ? filterPullRequestActivity(result.data, filter) : null;
+  const rows = (() => {
     if (!filtered) return [];
     const rows = pullRequestTimelineRows(filtered.activity, params, navigation);
     if (filter.newestFirst) {
@@ -130,11 +128,11 @@ function usePullRequestActivityRows(params: PullRequestParams, filter: ActivityF
         ),
       });
     return rows;
-  }, [filtered, filter.newestFirst, params, navigation]);
+  })();
   return {
     rows,
     hiddenCount: filtered?.hiddenCount ?? 0,
-    pending: result.isPending,
+    pending: result.isPending && !result.data,
     error: result.error,
   };
 }
@@ -305,7 +303,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
   const result = useEnvironmentQuery(detailAtom);
   const pullRefresh = usePullToRefresh(detailAtom);
   const { refresh: refreshDetail } = result;
-  useFocusEffect(useCallback(() => refreshDetail(), [refreshDetail]));
+  useFocusEffect(() => refreshDetail());
   const pr = result.data;
   const summary = params.initialSummary;
   const identity = pr ?? summary;
@@ -386,12 +384,24 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
                     },
                   ]
                 : []),
-              ...(pr
+              ...(identity
                 ? [
                     {
-                      accessibilityLabel: openOnProviderLabel(pr.provider),
+                      accessibilityLabel: openOnProviderLabel(identity.provider),
                       icon: "arrow.up.right" as const,
-                      onPress: () => void Linking.openURL(pr.url),
+                      onPress: () => void Linking.openURL(identity.url),
+                    },
+                    {
+                      accessibilityLabel: "Copy link",
+                      icon: "link" as const,
+                      overflowOnly: true,
+                      onPress: () => copyPullRequestLink(identity),
+                    },
+                    {
+                      accessibilityLabel: "Share…",
+                      icon: "square.and.arrow.up" as const,
+                      overflowOnly: true,
+                      onPress: () => sharePullRequestLink(identity),
                     },
                   ]
                 : []),
@@ -436,12 +446,25 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
                 <Toolbar.Label>Add comment</Toolbar.Label>
               </Toolbar.MenuAction>
             ) : null}
-            {pr ? (
+            {identity ? (
               <Toolbar.MenuAction
                 icon="arrow.up.right"
-                onPress={() => void Linking.openURL(pr.url)}
+                onPress={() => void Linking.openURL(identity.url)}
               >
-                <Toolbar.Label>{openOnProviderLabel(pr.provider)}</Toolbar.Label>
+                <Toolbar.Label>{openOnProviderLabel(identity.provider)}</Toolbar.Label>
+              </Toolbar.MenuAction>
+            ) : null}
+            {identity ? (
+              <Toolbar.MenuAction icon="link" onPress={() => copyPullRequestLink(identity)}>
+                <Toolbar.Label>Copy link</Toolbar.Label>
+              </Toolbar.MenuAction>
+            ) : null}
+            {identity ? (
+              <Toolbar.MenuAction
+                icon="square.and.arrow.up"
+                onPress={() => sharePullRequestLink(identity)}
+              >
+                <Toolbar.Label>Share…</Toolbar.Label>
               </Toolbar.MenuAction>
             ) : null}
             {showsDeleteBranch ? (

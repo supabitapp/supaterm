@@ -23,16 +23,7 @@ import {
 } from "@supaterm/shared/usageLimits";
 import { StackActions, useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { ReactNode } from "react";
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type RefObject,
-} from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import * as Haptics from "expo-haptics";
 import { Keyboard, Platform, Pressable, View, type ViewStyle } from "react-native";
 import { composerImageGallery } from "../../lib/composerImageGallery";
@@ -64,6 +55,7 @@ import {
   setComposerDraftText,
   composerContextImportsAtom,
   countComposerDraftAttachmentsAfterSelection,
+  useComposerDraft,
 } from "../../state/use-composer-drafts";
 import { appAtomRegistry } from "../../state/atom-registry";
 import type { ComposerDocumentAttachment } from "../../lib/composerContext";
@@ -83,7 +75,6 @@ import { fileRoutePathSegments } from "../files/filePath";
 import { ComposerActionButton, ComposerToolbarRow } from "../../components/ComposerToolbar";
 import {
   composerStripAttachments,
-  type DraftComposerAttachment,
   type DraftComposerFileAttachment,
 } from "../../lib/composerImages";
 import {
@@ -139,8 +130,6 @@ const COMPACT_SURFACE_INSET = 2;
 
 export interface ThreadComposerProps {
   readonly canOperateThread: boolean;
-  readonly draftMessage: string;
-  readonly draftAttachments: ReadonlyArray<DraftComposerAttachment>;
   readonly placeholder: string;
   readonly contentMaxWidth?: number;
   readonly bottomInset?: number;
@@ -174,6 +163,7 @@ export interface ThreadComposerProps {
   readonly onNativePasteText: (paste: ComposerTextPaste) => Promise<void>;
   readonly onRemoveDraftImage: (imageId: string) => void;
   readonly onStopThread: () => void;
+  readonly onResumeQueue: (() => Promise<void>) | null;
   readonly onSendMessage: (followUp?: ActiveTurnComposerAction) => Promise<MessageId | null>;
   readonly onShowUsageLimits: (report: UsageLimitsReport | null) => void;
   readonly canSwitchProvider: boolean;
@@ -332,7 +322,7 @@ function focusComposerEditor(editorRef: RefObject<ComposerEditorHandle | null>) 
   editorRef.current?.focus();
 }
 
-export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposerProps) {
+export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps) {
   const project = useProject(scopeProjectRef(props.environmentId, props.selectedThread.projectId));
   const { themeVariables: materialTheme } = useAppearancePreferences();
   const composerPanel = materialTheme["--color-composer-panel"];
@@ -356,23 +346,33 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
 
   const [previewFile, setPreviewFile] = useState<FilePreviewSource | null>(null);
   const [previewVideo, setPreviewVideo] = useState<VideoPreviewSource | null>(null);
+  const composerOwnerKey = scopedThreadKey(props.environmentId, props.selectedThread.id);
+  const composerDraftKey = props.draftKey ?? composerOwnerKey;
+  const { text: draftMessage, attachments: draftAttachments } = useComposerDraft(composerDraftKey);
   const queuedEdit = props.queuedEdit ?? null;
   const hasContent =
-    props.draftMessage.trim().length > 0 ||
-    props.draftAttachments.length > 0 ||
+    draftMessage.trim().length > 0 ||
+    draftAttachments.length > 0 ||
     (queuedEdit?.existingAttachments.length ?? 0) > 0;
-  const stripAttachments = useMemo(
-    () => composerStripAttachments(props.draftAttachments),
-    [props.draftAttachments],
-  );
+  const stripAttachments = composerStripAttachments(draftAttachments);
   const showStopAction = !hasContent && props.canStopThread && queuedEdit === null;
+  const onResumeQueue = props.onResumeQueue;
+  const [resumingQueue, setResumingQueue] = useState(false);
+  const showResumeAction =
+    !hasContent && !showStopAction && queuedEdit === null && onResumeQueue !== null;
+  const handleResumeQueue = async () => {
+    if (resumingQueue || onResumeQueue === null) return;
+    setResumingQueue(true);
+    await onResumeQueue();
+    setResumingQueue(false);
+  };
 
   const uploadStates = useAtomValue(composerAttachmentUploadsAtom);
   const attachmentsUploading =
     props.connectionState === "connected" &&
     composerAttachmentsStillUploading({
       environmentId: props.environmentId,
-      attachments: props.draftAttachments,
+      attachments: draftAttachments,
       serverConfig: props.serverConfig,
       states: uploadStates,
     });
@@ -397,18 +397,14 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
       currentModelSelection,
       props.selectedThread.projectId,
     );
-  const selectedProviderStatus = useMemo(() => {
+  const selectedProviderStatus = (() => {
     if (!props.serverConfig) return null;
     return (
       props.serverConfig.providers.find(
         (p) => p.instanceId === props.selectedThread.modelSelection.instanceId,
       ) ?? null
     );
-  }, [props.serverConfig, props.selectedThread.modelSelection.instanceId]);
-  const composerOwnerKey = scopedThreadKey(props.environmentId, props.selectedThread.id);
-  // Content lives under the edit's own draft while a queued message is open;
-  // the owner key still identifies this composer for settings.
-  const composerDraftKey = props.draftKey ?? composerOwnerKey;
+  })();
   const openDraftDocument = (attachment: ComposerDocumentAttachment) => {
     Keyboard.dismiss();
     navigation.navigate("ThreadAttachment", {
@@ -425,7 +421,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
   const usageLimitsOffered =
     selectedProviderStatus !== null &&
     hasProviderUsageLimits(selectedProviderStatus.driver, props.serverConfig?.providers ?? []);
-  const openUsageLimits = useCallback(() => {
+  const openUsageLimits = () => {
     const report = collectProviderUsageLimits(
       currentModelSelection.instanceId,
       props.serverConfig?.providers ?? [],
@@ -436,10 +432,10 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
       Dialog.alert("Usage limits unavailable", "This provider does not currently report limits.");
     }
     return report !== null;
-  }, [currentModelSelection.instanceId, onShowUsageLimits, props.serverConfig]);
+  };
 
   const composerMenu = useComposerCommandMenu({
-    draftMessage: props.draftMessage,
+    draftMessage: draftMessage,
     ownerKey: composerDraftKey,
     environmentId: props.environmentId,
     threadShells: useThreadShells(),
@@ -454,7 +450,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
     onChangeDraftMessage: props.onChangeDraftMessage,
     offersUsageLimits: usageLimitsOffered,
     onUsageLimits:
-      usageLimitsOffered && props.draftAttachments.length === 0 ? openUsageLimits : undefined,
+      usageLimitsOffered && draftAttachments.length === 0 ? openUsageLimits : undefined,
   });
   const voiceInput = useVoiceInputController({
     ownerKey: composerDraftKey,
@@ -479,7 +475,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
   const isToolbarVisible = isExpanded || isVoiceInputPresented;
   const attachmentBlockReason = composerAttachmentUploadBlockReason({
     environmentId: props.environmentId,
-    attachments: props.draftAttachments,
+    attachments: draftAttachments,
     connected: props.connectionState === "connected",
     serverConfig: props.serverConfig,
     states: uploadStates,
@@ -515,22 +511,19 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
     return () => onCommandMenuOpenChange?.(false);
   }, [isCommandMenuOpen, onCommandMenuOpenChange]);
 
-  const onPressPreview = useCallback(
-    (source: FilePreviewSource) => {
-      wasExpandedBeforePreviewRef.current = isFocused;
-      setPreviewVideo(null);
-      setPreviewFile(
-        (current) =>
-          current ?? {
-            ...source,
-            gallery: filePreviewGallery(source, composerImageGallery(props.draftAttachments)),
-          },
-      );
-    },
-    [isFocused, props.draftAttachments],
-  );
+  const onPressPreview = (source: FilePreviewSource) => {
+    wasExpandedBeforePreviewRef.current = isFocused;
+    setPreviewVideo(null);
+    setPreviewFile(
+      (current) =>
+        current ?? {
+          ...source,
+          gallery: filePreviewGallery(source, composerImageGallery(draftAttachments)),
+        },
+    );
+  };
 
-  const closePreview = useCallback(() => {
+  const closePreview = () => {
     setPreviewFile(null);
     setPreviewVideo(null);
     if (wasExpandedBeforePreviewRef.current) {
@@ -538,142 +531,93 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
         if (navigation.isFocused()) focusComposerEditor(inputRef);
       }, 100);
     }
-  }, [inputRef, navigation]);
+  };
 
-  const onPressVideo = useCallback(
-    (attachment: DraftComposerFileAttachment, sourceIdentifier: string) => {
-      wasExpandedBeforePreviewRef.current = isFocused;
-      setPreviewFile(null);
-      setPreviewVideo((current) => current ?? { type: "local", attachment, sourceIdentifier });
-    },
-    [isFocused],
-  );
+  const onPressVideo = (attachment: DraftComposerFileAttachment, sourceIdentifier: string) => {
+    wasExpandedBeforePreviewRef.current = isFocused;
+    setPreviewFile(null);
+    setPreviewVideo((current) => current ?? { type: "local", attachment, sourceIdentifier });
+  };
 
   const onEditorFocusChange = props.onEditorFocusChange;
-  const handleFocus = useCallback(() => {
+  const handleFocus = () => {
     setIsFocused(true);
     onExpandedChange?.(true);
     onEditorFocusChange?.(true);
-  }, [onEditorFocusChange, onExpandedChange]);
+  };
 
-  const handleBlur = useCallback(() => {
+  const handleBlur = () => {
     setIsFocused(false);
     if (!settingsSheetPresentation.keepsComposerExpanded) {
       onExpandedChange?.(false);
     }
     onEditorFocusChange?.(false);
-  }, [onEditorFocusChange, onExpandedChange, settingsSheetPresentation.keepsComposerExpanded]);
-  const handleSend = useCallback(
-    async (followUp?: ActiveTurnComposerAction) => {
-      if (voiceInput.blocksSubmission || pendingPastedTextAttachmentCountRef.current > 0) return;
-      if (
-        usageLimitsOffered &&
-        isUsageLimitsCommand(props.draftMessage) &&
-        props.draftAttachments.length === 0
-      ) {
-        if (openUsageLimits()) onChangeDraftMessage("");
-        return;
-      }
-      const threadKey = scopedThreadKey(props.environmentId, props.selectedThread.id);
-      if (inFlightThreadIdsRef.current.has(threadKey)) return;
-      inFlightThreadIdsRef.current.add(threadKey);
-      await onSendMessage(followUp).finally(() => {
-        inFlightThreadIdsRef.current.delete(threadKey);
-      });
-    },
-    [
-      props.draftMessage,
-      props.draftAttachments.length,
-      onChangeDraftMessage,
-      openUsageLimits,
-      usageLimitsOffered,
-      onSendMessage,
-      props.environmentId,
-      props.selectedThread.id,
-      voiceInput.blocksSubmission,
-    ],
-  );
+  };
+  const handleSend = async (followUp?: ActiveTurnComposerAction) => {
+    if (voiceInput.blocksSubmission || pendingPastedTextAttachmentCountRef.current > 0) return;
+    if (usageLimitsOffered && isUsageLimitsCommand(draftMessage) && draftAttachments.length === 0) {
+      if (openUsageLimits()) onChangeDraftMessage("");
+      return;
+    }
+    const threadKey = scopedThreadKey(props.environmentId, props.selectedThread.id);
+    if (inFlightThreadIdsRef.current.has(threadKey)) return;
+    inFlightThreadIdsRef.current.add(threadKey);
+    await onSendMessage(followUp).finally(() => {
+      inFlightThreadIdsRef.current.delete(threadKey);
+    });
+  };
 
   const lockedProviderInstanceId = props.canSwitchProvider
     ? undefined
     : currentModelSelection.instanceId;
-  const modelOptions = useMemo(
-    () =>
-      buildModelOptions(
-        props.serverConfig,
-        currentModelSelection,
-        lockedProviderInstanceId,
-        props.selectedThread.projectId,
-      ),
-    [
-      props.serverConfig,
-      currentModelSelection,
-      lockedProviderInstanceId,
-      props.selectedThread.projectId,
-    ],
+  const modelOptions = buildModelOptions(
+    props.serverConfig,
+    currentModelSelection,
+    lockedProviderInstanceId,
+    props.selectedThread.projectId,
   );
-  const threadProviderGroups = useMemo(() => groupByProvider(modelOptions), [modelOptions]);
+  const threadProviderGroups = groupByProvider(modelOptions);
   const currentModelOption =
     modelOptions.find(
       (option) =>
         option.selection.instanceId === currentModelSelection.instanceId &&
         option.selection.model === currentModelSelection.model,
     ) ?? null;
-  const providerOptionDescriptors = useMemo(
-    () =>
-      resolveProviderOptionDescriptors({
-        capabilities: currentModelOption?.capabilities,
-        selections: currentModelSelection.options,
-      }),
-    [currentModelOption?.capabilities, currentModelSelection.options],
-  );
+  const providerOptionDescriptors = resolveProviderOptionDescriptors({
+    capabilities: currentModelOption?.capabilities,
+    selections: currentModelSelection.options,
+  });
   const settingsOwnerId = composerOwnerKey;
   const onUpdateModelSelection = props.onUpdateModelSelection;
-  const settingsRouteSession = useMemo<ExistingThreadSettingsRouteSession>(
-    () => ({
-      ownerId: settingsOwnerId,
-      environmentId: props.environmentId,
-      projectId: props.selectedThread.projectId,
-      providerInstanceId: currentModelSelection.instanceId,
-      ...(lockedProviderInstanceId ? { lockedProviderInstanceId } : {}),
-      providerGroups: threadProviderGroups,
-      selectedModel: currentModelSelection,
-      reportedModelSelection: props.reportedModelSelection,
-      onSelectModel: (option) =>
-        onUpdateModelSelection(withRememberedModelOptions(option.selection)),
-      optionDescriptors: providerOptionDescriptors,
-      onUpdateOptionSelections: (options) => {
-        rememberModelOptions(
-          currentModelSelection.instanceId,
-          currentModelSelection.model,
-          options ?? [],
-        );
-        onUpdateModelSelection({ ...currentModelSelection, options });
-      },
-      runtimeMode: currentRuntimeMode,
-      onUpdateRuntimeMode: props.onUpdateRuntimeMode,
-    }),
-    [
-      currentModelSelection,
-      props.environmentId,
-      props.reportedModelSelection,
-      currentRuntimeMode,
-      onUpdateModelSelection,
-      props.onUpdateRuntimeMode,
-      providerOptionDescriptors,
-      settingsOwnerId,
-      lockedProviderInstanceId,
-      threadProviderGroups,
-      props.selectedThread.projectId,
-    ],
-  );
+  const settingsRouteSession = {
+    ownerId: settingsOwnerId,
+    environmentId: props.environmentId,
+    projectId: props.selectedThread.projectId,
+    providerInstanceId: currentModelSelection.instanceId,
+    ...(lockedProviderInstanceId ? { lockedProviderInstanceId } : {}),
+    providerGroups: threadProviderGroups,
+    selectedModel: currentModelSelection,
+    reportedModelSelection: props.reportedModelSelection,
+    onSelectModel: (option) => onUpdateModelSelection(withRememberedModelOptions(option.selection)),
+    optionDescriptors: providerOptionDescriptors,
+    onUpdateOptionSelections: (options) => {
+      rememberModelOptions(
+        currentModelSelection.instanceId,
+        currentModelSelection.model,
+        options ?? [],
+      );
+      onUpdateModelSelection({ ...currentModelSelection, options });
+    },
+    runtimeMode: currentRuntimeMode,
+    onUpdateRuntimeMode: props.onUpdateRuntimeMode,
+  } satisfies ExistingThreadSettingsRouteSession;
   const { clear: clearSettingsRoute, present: presentSettingsRoute } = settingsRoutePresentation;
   const { onDismissed: onSettingsSheetDismissed, open: openSettingsSheet } =
     settingsSheetPresentation;
-  const openSettings = useCallback(() => {
+  const openSettings = () => {
     presentSettingsRoute(settingsRouteSession);
     openSettingsSheet();
-  }, [openSettingsSheet, presentSettingsRoute, settingsRouteSession]);
+  };
 
   useEffect(() => {
     if (settingsSheetPresentation.isActive) {
@@ -690,17 +634,15 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
     navigation.dispatch(StackActions.push("ThreadSettingsSheet"));
   }, [navigation, settingsSheetPresentation.isVisible]);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!settingsRoutePresentedRef.current) {
-        return;
-      }
+  useFocusEffect(() => {
+    if (!settingsRoutePresentedRef.current) {
+      return;
+    }
 
-      settingsRoutePresentedRef.current = false;
-      onSettingsSheetDismissed();
-      clearSettingsRoute(settingsOwnerId);
-    }, [clearSettingsRoute, onSettingsSheetDismissed, settingsOwnerId]),
-  );
+    settingsRoutePresentedRef.current = false;
+    onSettingsSheetDismissed();
+    clearSettingsRoute(settingsOwnerId);
+  });
 
   useEffect(
     () =>
@@ -735,6 +677,16 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
           onPress={() => {
             void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             props.onStopThread();
+          }}
+        />
+      ) : showResumeAction ? (
+        <ComposerActionButton
+          accessibilityLabel="Resume queue"
+          disabled={resumingQueue || !props.canOperateThread}
+          icon="play"
+          variant="primary"
+          onPress={() => {
+            void handleResumeQueue();
           }}
         />
       ) : hasContent || !voiceInput.isAvailable ? (
@@ -907,7 +859,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
                 onInertChipPress={() => inputRef.current?.focus()}
                 ref={inputRef}
                 multiline
-                value={props.draftMessage}
+                value={draftMessage}
                 readOnly={voiceInput.freezesEditor}
                 skills={composerMenu.skills}
                 selection={composerMenu.selection}
@@ -1137,4 +1089,4 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
       <FilePreviewModal source={previewFile} onRequestClose={closePreview} />
     </Animated.View>
   );
-});
+};

@@ -100,11 +100,12 @@ export function useServerUpdate() {
       toastManager.add({
         type: "success",
         title: result.value.upToDate ? `${serverLabel} is up to date` : `${serverLabel} updated`,
-        description: result.value.upToDate
-          ? `Desktop app is current on its release feed at ${result.value.targetVersion}.`
-          : selfUpdate === "desktop-managed"
-            ? `Desktop app relaunched on ${result.value.targetVersion}.`
-            : `Reconnected on supaterm@${result.value.targetVersion}.`,
+        description:
+          "upToDate" in result.value && result.value.upToDate
+            ? `Desktop app is current on its release feed at ${result.value.targetVersion}.`
+            : selfUpdate === "desktop-managed"
+              ? `Desktop app relaunched on ${result.value.targetVersion}.`
+              : `Reconnected on supaterm@${result.value.targetVersion}.`,
       });
     }
     return { status: "updated" };
@@ -356,9 +357,10 @@ export function OutdatedServerUpdateAction({
     toastManager.add({
       type: "success",
       title: `${serverLabel} updated`,
-      description: result.value.upToDate
-        ? `Already current on its release feed at ${result.value.targetVersion}.`
-        : `Reconnected on supaterm@${result.value.targetVersion}.`,
+      description:
+        "upToDate" in result.value && result.value.upToDate
+          ? `Already current on its release feed at ${result.value.targetVersion}.`
+          : `Reconnected on supaterm@${result.value.targetVersion}.`,
     });
   };
   return (

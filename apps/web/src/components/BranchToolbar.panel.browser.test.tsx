@@ -106,6 +106,27 @@ it("keeps the machine picker usable beside a locked workspace", async () => {
   expect(onEnvironmentChange).toHaveBeenCalledWith("remote");
 });
 
+it("shows a started thread's primary machine as a static label in the composer", async () => {
+  await act(async () =>
+    root.render(
+      toolbar({
+        layout: "composer",
+        showEnvironmentIndicator: true,
+        showGitControls: false,
+        availableEnvironments: ["local", "remote"].map((id) => ({
+          environmentId: EnvironmentId.make(id),
+          projectId: ProjectId.make("project"),
+          label: id,
+          isPrimary: id === "local",
+          machine: "server",
+        })),
+      }),
+    ),
+  );
+  expect(container.textContent).toBe("local");
+  expect(container.querySelector("button")).toBeNull();
+});
+
 it.each([
   ["local", null, "/tmp/project"],
   ["worktree", null, null],

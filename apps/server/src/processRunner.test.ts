@@ -202,6 +202,30 @@ describe("runProcess", () => {
     }),
   );
 
+  it.effect("types spawn failures that the platform spawner throws synchronously", () =>
+    Effect.gen(function* () {
+      const defect = Object.assign(new Error("spawn jj ENOTDIR"), { code: "ENOTDIR" });
+      const spawner = makeSpawner(() =>
+        Effect.callback<never, never>(() => {
+          throw defect;
+        }),
+      );
+
+      const error = yield* runWith(spawner)({
+        command: "jj",
+        args: ["--version"],
+        cwd: "/repo",
+      }).pipe(Effect.flip);
+
+      expect(error._tag).toBe("ProcessSpawnError");
+      if (error._tag !== "ProcessSpawnError") {
+        return expect.fail("Expected ProcessSpawnError");
+      }
+      expect(error).toMatchObject({ command: "jj", argumentCount: 1, cwd: "/repo" });
+      expect(error.cause).toBe(defect);
+    }),
+  );
+
   it.effect("fails when output exceeds max buffer in default mode", () =>
     Effect.gen(function* () {
       const spawner = makeSpawner(() => Effect.succeed(makeHandle({ stdout: "x".repeat(2048) })));

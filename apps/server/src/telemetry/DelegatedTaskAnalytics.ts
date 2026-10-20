@@ -1,0 +1,85 @@
+import type { OrchestrationV2DomainEvent } from "@supaterm/contracts";
+import * as DateTime from "effect/DateTime";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Stream from "effect/Stream";
+
+import * as Orchestrator from "../orchestration-v2/Orchestrator.ts";
+import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
+import { forkParked } from "../serverActivation.ts";
+import * as AnalyticsService from "./AnalyticsService.ts";
+import { crossProvider, providerDimensions } from "./ProviderDimensions.ts";
+
+type SubagentEvent = Extract<OrchestrationV2DomainEvent, { readonly type: "subagent.updated" }>;
+
+const FINAL_STATUSES: ReadonlySet<string> = new Set([
+  "completed",
+  "failed",
+  "cancelled",
+  "interrupted",
+]);
+
+export class DelegatedTaskAnalytics extends Context.Service<
+  DelegatedTaskAnalytics,
+  { readonly onSubagent: (event: SubagentEvent) => Effect.Effect<void> }
+>()("supaterm/telemetry/DelegatedTaskAnalytics") {}
+
+const make = Effect.gen(function* () {
+  const orchestrator = yield* Orchestrator.OrchestratorV2;
+  const analytics = yield* AnalyticsService.AnalyticsService;
+  const registry = yield* ProviderRegistry.ProviderRegistry;
+
+  const reported = new Set<string>();
+
+  const onSubagent = (event: SubagentEvent) =>
+    Effect.gen(function* () {
+      const task = event.payload;
+      if (task.origin !== "app_owned" || !FINAL_STATUSES.has(task.status)) return;
+      if (reported.has(task.id)) return;
+      const parent = yield* orchestrator.getThreadShell(task.threadId);
+      const providers = yield* registry.getProviders;
+      const parentDimensions =
+        parent === null
+          ? { provider: "unknown" }
+          : providerDimensions(providers, parent.modelSelection);
+      const child = providerDimensions(providers, {
+        instanceId: task.providerInstanceId,
+        model: task.model ?? "",
+      });
+      const cross = crossProvider(parentDimensions.provider, child.provider);
+      const durationSeconds =
+        task.startedAt !== null && task.completedAt !== null
+          ? Math.max(
+              0,
+              Math.round(
+                (DateTime.toEpochMillis(task.completedAt) -
+                  DateTime.toEpochMillis(task.startedAt)) /
+                  1000,
+              ),
+            )
+          : undefined;
+      yield* analytics.record("mcp.delegated_task.finished", {
+        status: task.status,
+        callerProvider: parentDimensions.provider,
+        ...(parentDimensions.model === undefined ? {} : { callerModel: parentDimensions.model }),
+        targetProvider: child.provider,
+        ...(child.model === undefined ? {} : { targetModel: child.model }),
+        ...(cross === undefined ? {} : { crossProvider: cross }),
+        ...(task.completionWake === undefined ? {} : { completionWake: task.completionWake }),
+        ...(durationSeconds === undefined ? {} : { durationSeconds }),
+      });
+
+      reported.add(task.id);
+    }).pipe(Effect.ignoreCause);
+
+  yield* forkParked(
+    Stream.runForEach(orchestrator.streamDomainEvents, (event) =>
+      event.type === "subagent.updated" ? onSubagent(event) : Effect.void,
+    ),
+  );
+
+  return DelegatedTaskAnalytics.of({ onSubagent });
+});
+
+export const layer = Layer.effect(DelegatedTaskAnalytics, make);

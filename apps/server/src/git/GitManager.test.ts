@@ -47,6 +47,7 @@ import {
 import * as DateTime from "effect/DateTime";
 import { decodeGitHubPullRequestListJson } from "@supaterm/source-control-github/server/gitHubPullRequests";
 import * as GitHubChangeRequestTemplate from "@supaterm/source-control-github/server/gitHubChangeRequestTemplate";
+import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as GitLabCli from "@supaterm/source-control-gitlab/server/GitLabCli";
 import type * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
 import * as TestSourceControlHost from "@supaterm/source-control-testing/TestSourceControlHost";
@@ -720,6 +721,7 @@ function makeManager(input?: {
   setupScriptRunner?: ProjectSetupScriptRunner.ProjectSetupScriptRunner["Service"];
   gitConfigReads?: string[];
   gitCommands?: string[];
+  environment?: NodeJS.ProcessEnv;
   gitSpawnGate?: {
     readonly matches: (args: ReadonlyArray<string>) => boolean;
     readonly reached: Deferred.Deferred<void>;
@@ -847,6 +849,7 @@ function makeManager(input?: {
       yield* input.seed.pipe(Effect.provideContext(stores), Effect.orDie);
     }
     const manager = yield* GitManager.make.pipe(
+      Effect.provideService(HostProcess.Environment, input?.environment ?? {}),
       Effect.provide(layerManager),
       Effect.provideContext(stores),
     );
@@ -2671,6 +2674,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         yield* initRepo(repoDir);
         const forkDir = yield* createBareRemote();
         yield* runGit(repoDir, ["remote", "add", "fork-seed", forkDir]);
+
+        yield* runGit(repoDir, [
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:pingdotgg/codething-mvp.git",
+        ]);
         yield* runGit(repoDir, ["checkout", "-b", "statemachine"]);
         NodeFS.writeFileSync(NodePath.join(repoDir, "fork-pr.txt"), "fork pr\n");
         yield* runGit(repoDir, ["add", "fork-pr.txt"]);
@@ -3797,6 +3807,16 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
     Effect.gen(function* () {
       const repoDir = yield* makeTempDir("supaterm-git-manager-");
       yield* initRepo(repoDir);
+
+      NodeFS.writeFileSync(
+        NodePath.join(repoDir, ".git/info/attributes"),
+        "README.md diff=probe\n",
+      );
+      yield* runGit(repoDir, [
+        "config",
+        "diff.probe.textconv",
+        "supaterm-missing-textconv-for-test",
+      ]);
       NodeFS.writeFileSync(NodePath.join(repoDir, "README.md"), "hello\ncustom\n");
       let generatedCount = 0;
 
@@ -4416,6 +4436,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         yield* runGit(repoDir, ["checkout", "-b", "statemachine"]);
         const forkDir = yield* createBareRemote();
         yield* runGit(repoDir, ["remote", "add", "fork-seed", forkDir]);
+
+        yield* runGit(repoDir, [
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:pingdotgg/codething-mvp.git",
+        ]);
         yield* runGit(repoDir, ["push", "-u", "fork-seed", "statemachine"]);
         yield* configureVisibleRemoteUrlWithLocalRewrite(
           repoDir,
@@ -4460,6 +4487,335 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
             call.includes("pr list --head statemachine --state open --limit 100"),
           ),
         ).toBe(true);
+        expect(ghCalls.some((call) => call.startsWith("pr create "))).toBe(false);
+      }),
+    12_000,
+  );
+
+  it.effect.each([
+    { remoteUrl: "git@github.com:pingdotgg/codething-mvp.git", ghRepo: null, ghResolved: null },
+    {
+      remoteUrl: "git@github.com:pingdotgg/codething-mvp.git",
+      ghRepo: "https://github.com/pingdotgg/codething-mvp?tab=readme#readme",
+      ghResolved: null,
+    },
+    {
+      remoteUrl: "https://github.example.com:8443/pingdotgg/codething-mvp.git",
+      ghRepo: "https://github.example.com:8443/pingdotgg/codething-mvp",
+      ghResolved: null,
+    },
+
+    {
+      remoteUrl: "https://gitlab.example.com:8443/pingdotgg/codething-mvp.git",
+      ghRepo: null,
+      ghResolved: null,
+    },
+
+    {
+      remoteUrl: "https://github.example.com:8443/pingdotgg/codething-mvp.git",
+      ghRepo: null,
+      ghResolved: "acme/demo",
+    },
+    {
+      remoteUrl: "https://github.example.com:8443/pingdotgg/codething-mvp.git",
+      ghRepo: "base",
+      ghResolved: "acme/demo",
+    },
+  ] as const)(
+    "reuses the open same-repository PR when the only remote is not named origin (remote $remoteUrl, GH_REPO $ghRepo, gh-resolved $ghResolved)",
+    ({ remoteUrl, ghRepo, ghResolved }) =>
+      Effect.gen(function* () {
+        const repoDir = yield* makeTempDir("supaterm-git-manager-");
+        yield* initRepo(repoDir);
+        yield* runGit(repoDir, ["checkout", "-b", "dev"]);
+        const remoteDir = yield* createBareRemote();
+        yield* runGit(repoDir, ["remote", "add", "fork", remoteDir]);
+        yield* runGit(repoDir, ["push", "-u", "fork", "dev"]);
+        yield* configureVisibleRemoteUrlWithLocalRewrite(repoDir, "fork", remoteUrl, remoteDir);
+        if (ghResolved !== null) {
+          yield* runGit(repoDir, ["config", "remote.fork.gh-resolved", ghResolved]);
+        }
+        NodeFS.writeFileSync(NodePath.join(repoDir, "changes.txt"), "change\n");
+
+        const { manager, ghCalls } = yield* makeManager({
+          environment: ghRepo === null ? {} : { GH_REPO: ghRepo },
+          ghScenario: {
+            prListByHeadSelector: {
+              dev: encodeCliJson([
+                {
+                  number: 3,
+                  title: "Dev",
+                  url: "https://github.com/pingdotgg/codething-mvp/pull/3",
+                  baseRefName: "main",
+                  headRefName: "dev",
+                  state: "OPEN",
+                  isCrossRepository: false,
+                  headRepository: { nameWithOwner: "pingdotgg/codething-mvp" },
+                  headRepositoryOwner: { login: "pingdotgg" },
+                },
+              ]),
+            },
+          },
+        });
+
+        const result = yield* runStackedAction(manager, {
+          cwd: repoDir,
+          action: "commit_push_pr",
+        });
+
+        expect(result.push.status).toBe("pushed");
+        expect(result.pr.status).toBe("opened_existing");
+        expect(result.pr.number).toBe(3);
+        expect(ghCalls.some((call) => call.startsWith("pr create "))).toBe(false);
+      }),
+    12_000,
+  );
+
+  it.effect(
+    "creates fork PRs with the owner head when gh's default repository is not the only remote",
+    () =>
+      Effect.gen(function* () {
+        const repoDir = yield* makeTempDir("supaterm-git-manager-");
+        yield* initRepo(repoDir);
+        yield* runGit(repoDir, ["checkout", "-b", "dev"]);
+        const forkDir = yield* createBareRemote();
+        yield* runGit(repoDir, ["remote", "add", "fork", forkDir]);
+        yield* runGit(repoDir, ["push", "-u", "fork", "dev"]);
+        yield* configureVisibleRemoteUrlWithLocalRewrite(
+          repoDir,
+          "fork",
+          "https://github.com/contributor/demo.git",
+          forkDir,
+        );
+
+        yield* runGit(repoDir, ["config", "remote.fork.gh-resolved", "acme/demo"]);
+        NodeFS.writeFileSync(NodePath.join(repoDir, "changes.txt"), "change\n");
+
+        const { manager, ghCalls } = yield* makeManager();
+
+        const result = yield* runStackedAction(manager, {
+          cwd: repoDir,
+          action: "commit_push_pr",
+        });
+
+        expect(result.pr.status).toBe("created");
+        expect(
+          ghCalls.some(
+            (call) => call.startsWith("pr create ") && call.includes("--head contributor:dev"),
+          ),
+        ).toBe(true);
+      }),
+    12_000,
+  );
+
+  it.effect.each([
+    { ghRepo: "acme/demo", ghResolved: null, head: "contributor:dev" },
+    { ghRepo: "ghe.example.com/contributor/demo", ghResolved: null, head: "contributor:dev" },
+    { ghRepo: "github.com/Contributor/demo", ghResolved: null, head: "dev" },
+    {
+      ghRepo: "https://github.com/contributor/demo?tab=readme#readme",
+      ghResolved: null,
+      head: "dev",
+    },
+    { ghRepo: "contributor/demo", ghResolved: "acme/demo", head: "dev" },
+    { ghRepo: "acme/demo", ghResolved: "base", head: "contributor:dev" },
+
+    { ghRepo: "junk/extra/contributor/demo", ghResolved: "acme/demo", head: "contributor:dev" },
+    { ghRepo: "base", ghResolved: "acme/demo", head: "contributor:dev" },
+  ] as const)(
+    "creates the PR with head $head when GH_REPO is $ghRepo, gh-resolved is $ghResolved and the only remote is contributor/demo",
+    ({ ghRepo, ghResolved, head }) =>
+      Effect.gen(function* () {
+        const repoDir = yield* makeTempDir("supaterm-git-manager-");
+        yield* initRepo(repoDir);
+        yield* runGit(repoDir, ["checkout", "-b", "dev"]);
+        const forkDir = yield* createBareRemote();
+        yield* runGit(repoDir, ["remote", "add", "fork", forkDir]);
+        yield* runGit(repoDir, ["push", "-u", "fork", "dev"]);
+        yield* configureVisibleRemoteUrlWithLocalRewrite(
+          repoDir,
+          "fork",
+          "https://github.com/contributor/demo.git",
+          forkDir,
+        );
+        if (ghResolved !== null) {
+          yield* runGit(repoDir, ["config", "remote.fork.gh-resolved", ghResolved]);
+        }
+        NodeFS.writeFileSync(NodePath.join(repoDir, "changes.txt"), "change\n");
+
+        const { manager, ghCalls } = yield* makeManager({ environment: { GH_REPO: ghRepo } });
+
+        const result = yield* runStackedAction(manager, {
+          cwd: repoDir,
+          action: "commit_push_pr",
+        });
+
+        expect(result.pr.status).toBe("created");
+        expect(
+          ghCalls.some((call) => call.startsWith("pr create ") && call.includes(`--head ${head} `)),
+        ).toBe(true);
+      }),
+    12_000,
+  );
+
+  it.effect.each([
+    {
+      remoteUrl: "https://github.example.com:8443/contributor/demo.git",
+      ghRepo: "https://github.example.com:9443/contributor/demo",
+      ghResolved: null,
+      head: "contributor:dev",
+    },
+    {
+      remoteUrl: "https://github.example.com:8443/contributor/demo.git",
+      ghRepo: "github.example.com/contributor/demo",
+      ghResolved: null,
+      head: "contributor:dev",
+    },
+    {
+      remoteUrl: "https://github.example.com:8443/contributor/demo.git",
+      ghRepo: "github.example.com:8443/contributor/demo",
+      ghResolved: null,
+      head: "dev",
+    },
+    {
+      remoteUrl: "https://github.example.com/contributor/demo.git",
+      ghRepo: "github.example.com:443/contributor/demo",
+      ghResolved: null,
+      head: "dev",
+    },
+
+    {
+      remoteUrl: "ssh://git@github.example.com:2222/contributor/demo.git",
+      ghRepo: "github.example.com/contributor/demo",
+      ghResolved: null,
+      head: "dev",
+    },
+
+    {
+      remoteUrl: "https://github.example.com:8443/contributor/demo.git",
+      ghRepo: null,
+      ghResolved: "acme/demo",
+      head: "dev",
+    },
+    {
+      remoteUrl: "https://github.example.com/contributor/demo.git",
+      ghRepo: null,
+      ghResolved: "acme/demo",
+      head: "contributor:dev",
+    },
+    {
+      remoteUrl: "https://github.example.com:443/contributor/demo.git",
+      ghRepo: null,
+      ghResolved: "acme/demo",
+      head: "contributor:dev",
+    },
+    {
+      remoteUrl: "git@github.com:contributor/demo.git",
+      ghRepo: null,
+      ghResolved: "acme/demo",
+      head: "contributor:dev",
+    },
+    {
+      remoteUrl: "ssh://git@github.example.com:2222/contributor/demo.git",
+      ghRepo: null,
+      ghResolved: "acme/demo",
+      head: "contributor:dev",
+    },
+  ] as const)(
+    "creates the PR with head $head when the only remote is $remoteUrl, GH_REPO is $ghRepo and gh-resolved is $ghResolved",
+    ({ remoteUrl, ghRepo, ghResolved, head }) =>
+      Effect.gen(function* () {
+        const repoDir = yield* makeTempDir("supaterm-git-manager-");
+        yield* initRepo(repoDir);
+        yield* runGit(repoDir, ["checkout", "-b", "dev"]);
+        const forkDir = yield* createBareRemote();
+        yield* runGit(repoDir, ["remote", "add", "fork", forkDir]);
+        yield* runGit(repoDir, ["push", "-u", "fork", "dev"]);
+        yield* configureVisibleRemoteUrlWithLocalRewrite(repoDir, "fork", remoteUrl, forkDir);
+        if (ghResolved !== null) {
+          yield* runGit(repoDir, ["config", "remote.fork.gh-resolved", ghResolved]);
+        }
+        NodeFS.writeFileSync(NodePath.join(repoDir, "changes.txt"), "change\n");
+
+        const { manager, ghCalls } = yield* makeManager({
+          environment: ghRepo === null ? {} : { GH_REPO: ghRepo },
+        });
+
+        const result = yield* runStackedAction(manager, {
+          cwd: repoDir,
+          action: "commit_push_pr",
+        });
+
+        expect(result.pr.status).toBe("created");
+        expect(
+          ghCalls.some((call) => call.startsWith("pr create ") && call.includes(`--head ${head} `)),
+        ).toBe(true);
+      }),
+    12_000,
+  );
+
+  it.effect(
+    "still treats a fork remote as cross-repository with an upstream remote but no origin",
+    () =>
+      Effect.gen(function* () {
+        const repoDir = yield* makeTempDir("supaterm-git-manager-");
+        yield* initRepo(repoDir);
+        yield* runGit(repoDir, ["checkout", "-b", "dev"]);
+        const forkDir = yield* createBareRemote();
+        yield* runGit(repoDir, ["remote", "add", "fork", forkDir]);
+        yield* runGit(repoDir, ["push", "-u", "fork", "dev"]);
+        yield* configureVisibleRemoteUrlWithLocalRewrite(
+          repoDir,
+          "fork",
+          "https://github.com/contributor/demo.git",
+          forkDir,
+        );
+        const upstreamDir = yield* createBareRemote();
+        yield* runGit(repoDir, ["remote", "add", "upstream", upstreamDir]);
+        yield* runGit(repoDir, ["push", "upstream", "main"]);
+        yield* configureVisibleRemoteUrlWithLocalRewrite(
+          repoDir,
+          "upstream",
+          "https://github.com/acme/demo.git",
+          upstreamDir,
+        );
+        NodeFS.writeFileSync(NodePath.join(repoDir, "changes.txt"), "change\n");
+
+        const sameRepositoryPr = {
+          number: 3,
+          title: "Same-repository decoy",
+          url: "https://github.com/contributor/demo/pull/3",
+          baseRefName: "main",
+          headRefName: "dev",
+          state: "OPEN",
+          isCrossRepository: false,
+          headRepository: { nameWithOwner: "contributor/demo" },
+          headRepositoryOwner: { login: "contributor" },
+        };
+        const { manager, ghCalls } = yield* makeManager({
+          ghScenario: {
+            prListByHeadSelector: {
+              dev: encodeCliJson([
+                sameRepositoryPr,
+                {
+                  ...sameRepositoryPr,
+                  number: 4,
+                  title: "Fork PR",
+                  url: "https://github.com/acme/demo/pull/4",
+                  isCrossRepository: true,
+                },
+              ]),
+            },
+          },
+        });
+
+        const result = yield* runStackedAction(manager, {
+          cwd: repoDir,
+          action: "commit_push_pr",
+        });
+
+        expect(result.pr.status).toBe("opened_existing");
+        expect(result.pr.number).toBe(4);
         expect(ghCalls.some((call) => call.startsWith("pr create "))).toBe(false);
       }),
     12_000,
@@ -4548,6 +4904,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         yield* runGit(repoDir, ["checkout", "-b", "statemachine"]);
         const forkDir = yield* createBareRemote();
         yield* runGit(repoDir, ["remote", "add", "fork-seed", forkDir]);
+
+        yield* runGit(repoDir, [
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:pingdotgg/codething-mvp.git",
+        ]);
         yield* runGit(repoDir, ["push", "-u", "fork-seed", "statemachine"]);
         yield* runGit(repoDir, ["checkout", "-b", "supaterm/pr-142/statemachine"]);
         yield* runGit(repoDir, ["branch", "--set-upstream-to", "fork-seed/statemachine"]);
@@ -4614,6 +4977,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         yield* runGit(repoDir, ["checkout", "-b", "statemachine"]);
         const forkDir = yield* createBareRemote();
         yield* runGit(repoDir, ["remote", "add", "fork-seed", forkDir]);
+
+        yield* runGit(repoDir, [
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:pingdotgg/codething-mvp.git",
+        ]);
         yield* runGit(repoDir, ["push", "-u", "fork-seed", "statemachine"]);
         yield* runGit(repoDir, ["checkout", "-b", "supaterm/pr-142/statemachine"]);
         yield* runGit(repoDir, ["branch", "--set-upstream-to", "fork-seed/statemachine"]);
@@ -4675,6 +5045,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         yield* runGit(repoDir, ["checkout", "-b", "statemachine"]);
         const forkDir = yield* createBareRemote();
         yield* runGit(repoDir, ["remote", "add", "fork-seed", forkDir]);
+
+        yield* runGit(repoDir, [
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:pingdotgg/codething-mvp.git",
+        ]);
         yield* runGit(repoDir, ["push", "-u", "fork-seed", "statemachine"]);
         yield* runGit(repoDir, [
           "config",
@@ -5162,6 +5539,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       yield* initRepo(repoDir);
       const forkDir = yield* createBareRemote();
       yield* runGit(repoDir, ["remote", "add", "fork-seed", forkDir]);
+
+      yield* runGit(repoDir, [
+        "remote",
+        "add",
+        "origin",
+        "git@github.com:pingdotgg/codething-mvp.git",
+      ]);
       yield* runGit(repoDir, ["checkout", "-b", "statemachine"]);
       NodeFS.writeFileSync(NodePath.join(repoDir, "changes.txt"), "change\n");
       yield* runGit(repoDir, ["add", "changes.txt"]);
@@ -6353,6 +6737,85 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
     }),
   );
 
+  it.effect.each([
+    { isCrossRepository: false, padding: 0 },
+    { isCrossRepository: false, padding: 110 },
+    { isCrossRepository: true, padding: 0 },
+    { isCrossRepository: true, padding: 110 },
+  ])(
+    "reuses an existing PR worktree with $padding preceding matching branches (fork: $isCrossRepository)",
+    ({ isCrossRepository, padding }) =>
+      Effect.gen(function* () {
+        const repoDir = yield* makeTempDir("supaterm-git-manager-");
+        yield* initRepo(repoDir);
+        const remoteDir = yield* createBareRemote();
+        yield* runGit(repoDir, ["remote", "add", "origin", remoteDir]);
+        yield* runGit(repoDir, ["push", "-u", "origin", "main"]);
+        const forkDir = isCrossRepository ? yield* createBareRemote() : null;
+        if (forkDir) {
+          yield* runGit(repoDir, ["remote", "add", "fork-seed", forkDir]);
+          yield* runGit(repoDir, ["push", "fork-seed", "main:pr-pagination"]);
+        }
+        const headBranch = "pr-pagination";
+        const localBranch = isCrossRepository ? "supaterm/pr-78/pr-pagination" : headBranch;
+        yield* runGit(repoDir, ["branch", localBranch]);
+        yield* runGit(repoDir, ["push", "origin", `${localBranch}:refs/pull/78/head`]);
+        const worktreePath = NodePath.join(repoDir, "existing-pr");
+        yield* runGit(repoDir, ["worktree", "add", worktreePath, localBranch]);
+        for (let index = 0; index < padding; index++) {
+          yield* runGit(repoDir, [
+            "branch",
+            `a-padding-${String(index).padStart(3, "0")}/${localBranch}`,
+          ]);
+        }
+        const git = yield* GitVcsDriver.GitVcsDriver;
+        const page = yield* git.listRefs({
+          cwd: repoDir,
+          refKind: "local",
+          query: localBranch,
+          refresh: true,
+        });
+        expect(page.nextCursor !== null).toBe(padding > 0);
+        expect(page.refs.some((ref) => ref.name === localBranch)).toBe(padding === 0);
+        const { manager } = yield* makeManager({
+          ghScenario: {
+            repositoryCloneUrls: forkDir
+              ? { "contributor/codething-mvp": { url: forkDir, sshUrl: forkDir } }
+              : {},
+            pullRequest: {
+              number: 78,
+              title: "Paginated PR worktree",
+              url: "https://github.com/pingdotgg/codething-mvp/pull/78",
+              baseRefName: "main",
+              headRefName: headBranch,
+              state: "open",
+              isCrossRepository,
+              ...(isCrossRepository
+                ? {
+                    headRepositoryNameWithOwner: "contributor/codething-mvp",
+                    headRepositoryOwnerLogin: "contributor",
+                  }
+                : {}),
+            },
+          },
+        });
+
+        const result = yield* preparePullRequestThread(manager, {
+          cwd: repoDir,
+          reference: "78",
+          mode: "worktree",
+        });
+        expect(result.worktreePath && NodeFS.realpathSync.native(result.worktreePath)).toBe(
+          NodeFS.realpathSync.native(worktreePath),
+        );
+        expect(result.branch).toBe(localBranch);
+        expect(result.isOnPullRequestHead).toBe(true);
+        expect((yield* runGit(worktreePath, ["branch", "--show-current"])).stdout.trim()).toBe(
+          localBranch,
+        );
+      }),
+  );
+
   it.effect("refreshes a reused PR worktree that has no upstream from the pull request ref", () =>
     Effect.gen(function* () {
       const repoDir = yield* makeTempDir("supaterm-git-manager-");
@@ -6414,7 +6877,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
     }),
   );
 
-  it.effect("never moves an unrelated local branch that shares the fork head branch name", () =>
+  it.effect("preserves an unrelated local branch and upstream that share the fork head name", () =>
     Effect.gen(function* () {
       const repoDir = yield* makeTempDir("supaterm-git-manager-");
       yield* initRepo(repoDir);
@@ -6436,6 +6899,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       );
       yield* runGit(repoDir, ["worktree", "add", mainWorktreePath, "main"]);
       const localMainBefore = (yield* runGit(repoDir, ["rev-parse", "main"])).stdout.trim();
+
+      yield* runGit(repoDir, ["update-ref", "refs/remotes/fork-seed/main", localMainBefore]);
+      const trackingRefsBefore = (yield* runGit(repoDir, [
+        "for-each-ref",
+        "--format=%(refname) %(objectname)",
+        "refs/remotes",
+      ])).stdout;
 
       const setupCalls: ProjectSetupScriptRunner.ProjectSetupScriptRunnerInput[] = [];
       const { manager } = yield* makeManager({
@@ -6479,8 +6949,34 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         localMainBefore,
       );
       expect(NodeFS.existsSync(NodePath.join(mainWorktreePath, "contributor.txt"))).toBe(false);
+      expect(
+        (yield* runGit(mainWorktreePath, [
+          "rev-parse",
+          "--abbrev-ref",
+          "@{upstream}",
+        ])).stdout.trim(),
+      ).toBe("origin/main");
+      expect(result.branch).toBe("supaterm/pr-94/main");
+      expect(result.worktreePath && NodeFS.realpathSync.native(result.worktreePath)).toBe(
+        NodeFS.realpathSync.native(mainWorktreePath),
+      );
+      expect(
+        (yield* runGit(repoDir, [
+          "for-each-ref",
+          "--format=%(refname) %(objectname)",
+          "refs/remotes",
+        ])).stdout,
+      ).toBe(trackingRefsBefore);
+      expect((yield* runGit(mainWorktreePath, ["branch", "--show-current"])).stdout.trim()).toBe(
+        "main",
+      );
       expect(result.isOnPullRequestHead).toBe(false);
       expect(setupCalls).toHaveLength(0);
+
+      yield* (yield* GitVcsDriver.GitVcsDriver).pullCurrentBranch(mainWorktreePath);
+      expect((yield* runGit(mainWorktreePath, ["rev-parse", "HEAD"])).stdout.trim()).toBe(
+        localMainBefore,
+      );
     }),
   );
 
@@ -6624,7 +7120,14 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         "..",
         `pr-reused-fork-${NodePath.basename(repoDir)}`,
       );
-      yield* runGit(repoDir, ["worktree", "add", worktreePath, "feature/pr-reused-fork"]);
+      yield* runGit(repoDir, [
+        "worktree",
+        "add",
+        "-b",
+        "supaterm/pr-83/feature/pr-reused-fork",
+        worktreePath,
+        "feature/pr-reused-fork",
+      ]);
       yield* runGit(worktreePath, ["branch", "--unset-upstream"], true);
 
       const { manager } = yield* makeManager({
@@ -6657,6 +7160,10 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
 
       expect(result.worktreePath && NodeFS.realpathSync.native(result.worktreePath)).toBe(
         NodeFS.realpathSync.native(worktreePath),
+      );
+      expect(result.branch).toBe("supaterm/pr-83/feature/pr-reused-fork");
+      expect((yield* runGit(worktreePath, ["branch", "--show-current"])).stdout.trim()).toBe(
+        result.branch,
       );
       expect(
         (yield* runGit(worktreePath, ["rev-parse", "--abbrev-ref", "@{upstream}"])).stdout.trim(),

@@ -53,7 +53,7 @@ vi.mock(import("@supaterm/client-runtime/state/session"), async (original) => {
 });
 vi.mock(import("../../onboarding/firstRun"), async (original) => ({
   ...(await original()),
-  useCompleteOnboarding: () => state.completeOnboarding,
+  completeOnboarding: state.completeOnboarding,
 }));
 vi.mock(import("../../state/environments"), async (original) => {
   const environment = (environmentId: string) => ({

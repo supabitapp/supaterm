@@ -1,12 +1,34 @@
 import { describe, expect, it } from "vite-plus/test";
 import { EnvironmentId } from "@supaterm/contracts";
 import type { FilePreviewItem } from "../components/FilePreviewModal.types";
-import { filePreviewGallery, filePreviewKey, filePreviewName } from "./filePreviewGallery";
+import {
+  filePreviewGallery,
+  filePreviewKey,
+  filePreviewName,
+  settledPreviewGallery,
+} from "./filePreviewGallery";
 
 const first: FilePreviewItem = { kind: "image", uri: "https://example.com/first.png" };
 const second: FilePreviewItem = { kind: "image", uri: "https://example.com/second.png" };
 
 describe("image preview groups", () => {
+  it("waits for every sibling, then opens without the ones that failed to resolve", () => {
+    const third: FilePreviewItem = { kind: "image", uri: "https://example.com/third.png" };
+    const [firstKey, secondKey, thirdKey] = [first, second, third].map(filePreviewKey);
+    const resolved = { [firstKey!]: "first" };
+    expect(settledPreviewGallery([first, second, third], resolved, new Set())).toBeNull();
+    expect(
+      settledPreviewGallery([first, second, third], resolved, new Set([secondKey!])),
+    ).toBeNull();
+    expect(
+      settledPreviewGallery(
+        [first, second, third],
+        { ...resolved, [thirdKey!]: "third" },
+        new Set([secondKey!]),
+      ),
+    ).toEqual(["first", "third"]);
+  });
+
   it("preserves ordering, removes duplicates and retains the tapped transition source", () => {
     const selected = { ...second, sourceIdentifier: "thumbnail-2" };
     expect(filePreviewGallery(selected, [first, second, first])).toEqual([first, selected]);

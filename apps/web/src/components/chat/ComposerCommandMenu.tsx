@@ -1,4 +1,5 @@
 import { formatProviderSkillDisplayName } from "@supaterm/shared/inlineSkills";
+import type { ComposerPathSearchTarget } from "@supaterm/client-runtime/state/threads";
 import {
   resolveProviderSkillSourceKind,
   type ProviderSkillSourceKind,
@@ -36,6 +37,7 @@ export type ComposerCommandItem =
       type: "path";
       path: string;
       pathKind: ProjectEntry["kind"];
+      searchTarget: ComposerPathSearchTarget;
       label: string;
       description: string;
     }

@@ -1,4 +1,4 @@
-import { act, type ComponentProps } from "react";
+import { act, createRef, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
@@ -28,7 +28,7 @@ vi.mock(import("../../assets/assetUrls"), async (importOriginal) => ({
     resources.map((resource) => `https://assets.test/${resource.attachmentId}`)) as never,
 }));
 
-import { QueuedRunsControl } from "./QueuedRunsControl";
+import { QueuedRunsControl, type QueuedRunsControlHandle } from "./QueuedRunsControl";
 
 const roots: Root[] = [];
 
@@ -160,5 +160,81 @@ describe("QueuedRunsControl attachments and edit mode", () => {
     const view = await render({ editingRunId: "run:queued" as never });
 
     expect(view.textContent).toContain("Queued with a screenshot");
+  });
+});
+
+describe("QueuedRunsControl editLatest", () => {
+  const queuedRun = (id: string, text: string) => ({
+    run: { id: `run:${id}`, userMessageId: `message:${id}` },
+    text,
+    attachments: [],
+  });
+
+  it("edits the newest queued message", async () => {
+    state.projection = { projection: { messages: [] } };
+    state.workflow = {
+      activeRun: { id: "run:active" },
+      canPromoteToSteer: true,
+      canReorder: true,
+      queuedRuns: [queuedRun("first", "first"), queuedRun("second", "second")],
+    };
+    const ref = createRef<QueuedRunsControlHandle>();
+    const onEditQueuedRun = vi.fn();
+
+    await render({ ref, onEditQueuedRun });
+    let handled = false;
+    await act(async () => {
+      handled = ref.current?.editLatest(false) ?? false;
+    });
+
+    expect(handled).toBe(true);
+    expect(onEditQueuedRun).toHaveBeenCalledWith({
+      runId: "run:second",
+      messageId: "message:second",
+      text: "second",
+      attachments: [],
+    });
+  });
+
+  it("does not fall back to an older message while the newest is still saving", async () => {
+    state.projection = { projection: { messages: [] } };
+    state.workflow = {
+      activeRun: { id: "run:active" },
+      canPromoteToSteer: true,
+      canReorder: true,
+      queuedRuns: [queuedRun("first", "first")],
+    };
+    const ref = createRef<QueuedRunsControlHandle>();
+    const onEditQueuedRun = vi.fn();
+
+    await render({
+      ref,
+      onEditQueuedRun,
+      optimisticMessages: [
+        { id: "message:saving" as never, inputIntent: "queued_turn", text: "saving" },
+      ],
+    });
+    let handled = false;
+    await act(async () => {
+      handled = ref.current?.editLatest(false) ?? false;
+    });
+
+    expect(handled).toBe(true);
+    expect(onEditQueuedRun).not.toHaveBeenCalled();
+  });
+
+  it("leaves the key alone when nothing is queued", async () => {
+    state.projection = { projection: { messages: [] } };
+    state.workflow = {
+      activeRun: null,
+      canPromoteToSteer: false,
+      canReorder: false,
+      queuedRuns: [],
+    };
+    const ref = createRef<QueuedRunsControlHandle>();
+
+    await render({ ref });
+
+    expect(ref.current?.editLatest(false)).toBe(false);
   });
 });

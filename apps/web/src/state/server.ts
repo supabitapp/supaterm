@@ -9,6 +9,11 @@ import {
   type ServerProvider,
   type ServerSettings,
 } from "@supaterm/contracts";
+import {
+  AVAILABLE_CONNECTION_STATE,
+  presentEnvironmentConnection,
+  type EnvironmentPresentation,
+} from "@supaterm/client-runtime/connection";
 import { createServerEnvironmentAtoms } from "@supaterm/client-runtime/state/server";
 import { createOutdatedServerUpdateCommand } from "@supaterm/client-runtime/state/outdatedServerUpdate";
 import { createEnvironmentServerConfigsAtom } from "@supaterm/client-runtime/state/shell";
@@ -16,6 +21,7 @@ import { mergeWithDefaultKeybindings } from "@supaterm/shared/keybindings";
 import * as Option from "effect/Option";
 import { AsyncResult, Atom } from "effect/reactivity";
 
+import { isConnectedWithConfig } from "../components/settings/scopedSettings";
 import { environmentCatalog } from "../connection/catalog";
 import { connectionAtomRuntime } from "../connection/runtime";
 import { environmentAtomList } from "./environmentAtomList";
@@ -94,9 +100,51 @@ export const primaryServerProvidersAtom = Atom.make(
     get(primaryServerConfigAtom)?.providers ?? EMPTY_SERVER_PROVIDERS,
 ).pipe(Atom.withLabel("web-primary-server-providers"));
 
-export const primaryServerKeybindingsAtom = Atom.make((get): ServerConfig["keybindings"] =>
-  mergeWithDefaultKeybindings(get(primaryServerConfigAtom)?.keybindings ?? []),
-).pipe(Atom.withLabel("web-primary-server-keybindings"));
+export function createShortcutKeybindingsAtom(input: {
+  readonly primaryEnvironmentIdAtom: Atom.Atom<EnvironmentId | null>;
+  readonly primaryConfigAtom: Atom.Atom<ServerConfig | null>;
+  readonly environmentsAtom: Atom.Atom<
+    ReadonlyMap<EnvironmentId, Pick<EnvironmentPresentation, "connection" | "serverConfig">>
+  >;
+}) {
+  const customAtom = Atom.make((get) => {
+    if (get(input.primaryEnvironmentIdAtom) !== null) {
+      return get(input.primaryConfigAtom)?.keybindings ?? null;
+    }
+    const environments = [...get(input.environmentsAtom).values()];
+    return environments.find(isConnectedWithConfig)?.serverConfig?.keybindings ?? null;
+  });
+  return Atom.make((get): ServerConfig["keybindings"] =>
+    mergeWithDefaultKeybindings(get(customAtom) ?? []),
+  );
+}
+
+const environmentConnectionsAtom = Atom.make((get) => {
+  const environments = new Map<
+    EnvironmentId,
+    Pick<EnvironmentPresentation, "connection" | "serverConfig">
+  >();
+  for (const [environmentId, entry] of get(environmentCatalog.catalogValueAtom).entries) {
+    const state = Option.getOrElse(
+      AsyncResult.value(get(environmentCatalog.stateAtom(environmentId))),
+      () => AVAILABLE_CONNECTION_STATE,
+    );
+    environments.set(environmentId, {
+      connection:
+        entry.unsupportedReason === undefined
+          ? presentEnvironmentConnection(state)
+          : { phase: "unsupported", error: entry.unsupportedReason, traceId: null },
+      serverConfig: get(serverEnvironment.configValueAtom(environmentId)),
+    });
+  }
+  return environments;
+});
+
+export const primaryServerKeybindingsAtom = createShortcutKeybindingsAtom({
+  primaryEnvironmentIdAtom,
+  primaryConfigAtom: primaryServerConfigAtom,
+  environmentsAtom: environmentConnectionsAtom,
+}).pipe(Atom.withLabel("web-primary-server-keybindings"));
 
 export const primaryServerAvailableEditorsAtom = Atom.make(
   (get): ReadonlyArray<EditorId> =>

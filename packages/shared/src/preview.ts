@@ -1,7 +1,36 @@
+import type { BrowserSearchEngine } from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
+
+import { isLocalLoopbackHost } from "./hostClassification.ts";
 
 const TAB_ID_PREFIX = "tab_";
 let nextPreviewTabSequence = 0;
+
+export function previewPdfAssetUrl(rawUrl: string, httpBaseUrl: string | null): string | null {
+  if (httpBaseUrl === null) return null;
+  try {
+    const url = new URL(rawUrl);
+    const baseUrl = new URL(httpBaseUrl);
+    if (
+      (url.protocol !== "http:" && url.protocol !== "https:") ||
+      !url.pathname.startsWith("/api/assets/") ||
+      !/\.pdf$/i.test(url.pathname)
+    ) {
+      return null;
+    }
+    if (
+      url.origin !== baseUrl.origin &&
+      !isLocalLoopbackHost(url.hostname) &&
+      url.hostname !== "0.0.0.0"
+    ) {
+      return url.href;
+    }
+
+    return new URL(`${url.pathname}${url.search}${url.hash}`, baseUrl).href;
+  } catch {
+    return null;
+  }
+}
 
 export function newPreviewTabId(): string {
   nextPreviewTabSequence += 1;
@@ -46,11 +75,9 @@ function previewUrlProtocol(rawUrl: string): string | undefined {
   return /^([A-Za-z][A-Za-z\d+.-]*):/.exec(rawUrl)?.[1]?.toLowerCase().concat(":");
 }
 
-const SEARCH_URL = "https://duckduckgo.com/?q=";
-
 const ADDRESS_HOST_PATTERN = /^(?:localhost|\d{1,3}(?:\.\d{1,3}){3}|\[[\da-f:.]+\])$/i;
 const BARE_HOST_PORT_PATTERN = /^[^/?#:@]+:\d+(?:[/?#]|$)/;
-
+const URL_SCHEME_WITH_AUTHORITY_PATTERN = /^[a-z][a-z\d+.-]*:\/\//i;
 const KNOWN_NON_WEB_SCHEMES: ReadonlySet<string> = new Set([
   "about:",
   "blob:",
@@ -68,9 +95,50 @@ const KNOWN_NON_WEB_SCHEMES: ReadonlySet<string> = new Set([
   "wss:",
 ]);
 
-export function resolveAddressBarInput(rawInput: string): string {
+const BROWSER_SEARCH_URL_TEMPLATES = {
+  duckduckgo: "https://duckduckgo.com/?q=%s",
+  google: "https://www.google.com/search?q=%s",
+  bing: "https://www.bing.com/search?q=%s",
+  brave: "https://search.brave.com/search?q=%s",
+  kagi: "https://kagi.com/search?q=%s",
+  ecosia: "https://www.ecosia.org/search?q=%s",
+} satisfies Record<Exclude<BrowserSearchEngine, "custom">, string>;
+
+function fillSearchUrlTemplate(template: string, query: string): string {
+  return template.replaceAll("%s", encodeURIComponent(query));
+}
+
+export function isValidSearchUrlTemplate(template: string): boolean {
+  if (!template.includes("%s")) return false;
+  try {
+    const authority = (url: URL) => `${url.username}:${url.password}@${url.host}`;
+    const url = new URL(fillSearchUrlTemplate(template, "a"));
+    const other = new URL(fillSearchUrlTemplate(template, "b"));
+    return (
+      (url.protocol === "http:" || url.protocol === "https:") && authority(url) === authority(other)
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function resolveSearchUrlTemplate(settings: {
+  readonly browserSearchEngine: BrowserSearchEngine;
+  readonly browserCustomSearchUrl: string;
+}): string {
+  if (settings.browserSearchEngine !== "custom") {
+    return BROWSER_SEARCH_URL_TEMPLATES[settings.browserSearchEngine];
+  }
+  const custom = settings.browserCustomSearchUrl.trim();
+  return isValidSearchUrlTemplate(custom) ? custom : BROWSER_SEARCH_URL_TEMPLATES.duckduckgo;
+}
+
+export function resolveAddressBarInput(
+  rawInput: string,
+  searchUrlTemplate: string = BROWSER_SEARCH_URL_TEMPLATES.duckduckgo,
+): string {
   const trimmed = rawInput.trim();
-  if (/^[a-z][a-z\d+.-]*:\/\//i.test(trimmed) || trimmed.length === 0)
+  if (URL_SCHEME_WITH_AUTHORITY_PATTERN.test(trimmed) || trimmed.length === 0)
     return normalizePreviewUrl(trimmed);
   if (!/\s/.test(trimmed)) {
     const protocol = previewUrlProtocol(trimmed);
@@ -96,7 +164,7 @@ export function resolveAddressBarInput(rawInput: string): string {
       } catch {}
     }
   }
-  return `${SEARCH_URL}${encodeURIComponent(trimmed)}`;
+  return fillSearchUrlTemplate(searchUrlTemplate, trimmed);
 }
 
 export function normalizePreviewUrl(rawUrl: string): string {
@@ -105,7 +173,7 @@ export function normalizePreviewUrl(rawUrl: string): string {
     throw new PreviewUrlNormalizationError({ inputLength: rawUrl.length, reason: "empty" });
   }
   const useHttp = LOOPBACK_PREFIX_PATTERN.test(trimmed);
-  const candidate = trimmed.includes("://")
+  const candidate = URL_SCHEME_WITH_AUTHORITY_PATTERN.test(trimmed)
     ? trimmed
     : `${useHttp ? "http" : "https"}://${trimmed}`;
   let parsed: URL;

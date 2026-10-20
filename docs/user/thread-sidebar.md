@@ -101,7 +101,7 @@ the thread will land. On mobile, open a thread's menu and choose **Arrange threa
 handle within **Pinned** to reorder, or between **Pinned** and **Active** to pin or unpin. Drop
 onto the **Done** divider to mark a thread as Done. The dragged card shows the action before you
 release it. Expand **Snoozed** or **Done** to drag a parked thread back into either live
-section. Each drop saves; **Done** returns to the thread list. The server saves the pinned order,
+section. Each drop saves; close the sheet to return to the thread list. The server saves the pinned order,
 so it survives a refresh and appears on your other connected devices.
 
 On web and desktop, the list also animates section changes made with thread actions such as

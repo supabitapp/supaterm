@@ -1,11 +1,15 @@
 import { filePreviewDelimiter } from "@supaterm/shared/delimitedPreview";
-import type { EnvironmentId, ScopedThreadRef } from "@supaterm/contracts";
+import type { AssetResource, EnvironmentId, ScopedThreadRef } from "@supaterm/contracts";
 import { formatAttachmentSize } from "@supaterm/client-runtime/state/attachments";
 import { readFilePreviewResponse } from "@supaterm/client-runtime/file-preview";
 import { settlePromise } from "@supaterm/client-runtime/state/runtime";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import * as Cause from "effect/Cause";
-import { filePreviewKind, FILE_TEXT_PREVIEW_MAX_BYTES } from "@supaterm/shared/filePreview";
+import {
+  filePreviewKind,
+  FILE_TEXT_PREVIEW_MAX_BYTES,
+  type FilePreviewKind,
+} from "@supaterm/shared/filePreview";
 import { ChevronRightIcon, DownloadIcon, Trash2Icon, WrapTextIcon, XIcon } from "lucide-react";
 import { Check, Code2, Copy, Eye, Table2 } from "lucide";
 import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -13,10 +17,11 @@ import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } fro
 import { useAssetUrlRefresh } from "~/assets/assetUrls";
 import ChatMarkdown from "~/components/ChatMarkdown";
 import { MorphIcon } from "~/components/MorphIcon";
+import { Button } from "~/components/ui/button";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { toastManager } from "~/components/ui/toast";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
-import { useClientSettings, useUpdateClientSettings } from "~/hooks/useSettings";
+import { useClientSettings, updateClientSettings } from "~/hooks/useSettings";
 import { cn } from "~/lib/utils";
 
 import { AudioPreview } from "./AudioPreview";
@@ -93,30 +98,37 @@ export function AttachmentFilePreview(props: {
   name: string;
   mimeType: string;
   sizeBytes: number;
+  kind?: FilePreviewKind;
   file?: Blob | null;
-  asset?: { environmentId: EnvironmentId; attachmentId: string };
+  asset?:
+    | { environmentId: EnvironmentId; attachmentId: string }
+    | { environmentId: EnvironmentId; resource: Extract<AssetResource, { _tag: "media-file" }> };
   htmlRender?: boolean;
   threadRef?: ScopedThreadRef;
   origin?: string;
   onRemove?: () => void;
   onClose?: () => void;
 }) {
-  const kind = filePreviewKind(props);
-  const delimiter = filePreviewDelimiter(props);
+  const kind = props.kind ?? filePreviewKind(props);
+  const delimiter = kind === "text" ? filePreviewDelimiter(props) : null;
   const renderedMode =
     kind === "markdown" ? "markdown" : kind === "html" ? "html" : delimiter ? "table" : null;
-  const attachmentId = props.asset?.attachmentId;
+  const attachmentId =
+    props.asset && "attachmentId" in props.asset ? props.asset.attachmentId : undefined;
   const { copyToClipboard, isCopied } = useCopyToClipboard({ target: props.name });
   // useAssetUrlRefresh keys its callback on these objects, so they must stay cached.
-  const resource = attachmentId
-    ? {
-        _tag: "attachment" as const,
-        attachmentId,
-        fileName: props.name,
-        mimeType: props.mimeType,
-        disposition: "inline" as const,
-      }
-    : null;
+  const resource =
+    props.asset && "resource" in props.asset
+      ? props.asset.resource
+      : attachmentId
+        ? {
+            _tag: "attachment" as const,
+            attachmentId,
+            fileName: props.name,
+            mimeType: props.mimeType,
+            disposition: "inline" as const,
+          }
+        : null;
   const downloadResource = resource ? { ...resource, disposition: "attachment" as const } : null;
   const refresh = useAssetUrlRefresh(
     props.file ? null : (props.asset?.environmentId ?? null),
@@ -235,7 +247,6 @@ export function AttachmentFilePreview(props: {
   }, [url, needsText, revision, props.sizeBytes, props.file, refresh]);
   const failure = error ?? (needsText ? contentError : null);
   const wordWrap = useClientSettings((settings) => settings.wordWrap);
-  const updateClientSettings = useUpdateClientSettings();
   const showsRawText =
     failure === null &&
     needsText &&
@@ -328,12 +339,18 @@ export function AttachmentFilePreview(props: {
       />
     </div>
   ) : (
-    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1 px-6 text-center">
-      <p className="text-sm font-medium">No preview for this file</p>
-      <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
-        Save it to open in an app that supports {props.name.split(".").at(-1) || "this format"}{" "}
-        files.
-      </p>
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
+      <div className="flex flex-col items-center gap-1">
+        <p className="text-sm font-medium">No preview for this file</p>
+        <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
+          Save it to open in an app that supports {props.name.split(".").at(-1) || "this format"}{" "}
+          files.
+        </p>
+      </div>
+      <Button type="button" variant="outline" size="sm" disabled={saving} onClick={save}>
+        <DownloadIcon />
+        {saving ? "Preparing file…" : "Save file"}
+      </Button>
     </div>
   );
 
@@ -383,7 +400,7 @@ export function AttachmentFilePreview(props: {
             <MorphIcon className="size-3.5" icon={isCopied ? Check : Copy} />
           </FileSurfaceAction>
         ) : null}
-        {url ? (
+        {url && kind !== "unsupported" ? (
           <FileSurfaceAction
             label={saving ? "Preparing file…" : "Save file"}
             disabled={saving}

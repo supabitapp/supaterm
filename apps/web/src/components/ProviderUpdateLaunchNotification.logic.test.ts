@@ -294,13 +294,43 @@ describe("provider update launch notification logic", () => {
   it("describes settings-only updates without one-click support", () => {
     const view = getProviderUpdateInitialToastView({
       updateProviders: [
-        updateCandidate({ driver: driver("codex"), canUpdate: false }),
-        updateCandidate({ driver: driver("cursor"), canUpdate: false }),
+        updateCandidate({ driver: driver("codex") }),
+        updateCandidate({ driver: driver("cursor") }),
       ],
       oneClickProviders: [],
     });
 
     expect(view.description).toBe("Codex and Cursor can be updated from provider settings.");
+  });
+
+  it("sends installs the server cannot update to the tool that installed them", () => {
+    const manual = { canUpdate: false, updateCommand: null };
+    expect(
+      getProviderUpdateInitialToastView({
+        updateProviders: [updateCandidate({ driver: driver("codex"), ...manual })],
+        oneClickProviders: [],
+      }).description,
+    ).toBe("Update Codex with the app or tool that installed it.");
+    expect(
+      getProviderUpdateInitialToastView({
+        updateProviders: [
+          updateCandidate({ driver: driver("codex"), ...manual }),
+          updateCandidate({ driver: driver("cursor") }),
+        ],
+        oneClickProviders: [],
+      }).description,
+    ).toBe(
+      "Cursor can be updated from provider settings. Update Codex with the app or tool that installed it.",
+    );
+    const oneClick = updateCandidate({ driver: driver("claudeAgent") });
+    expect(
+      getProviderUpdateInitialToastView({
+        updateProviders: [oneClick, updateCandidate({ driver: driver("codex"), ...manual })],
+        oneClickProviders: [oneClick],
+      }).description,
+    ).toBe(
+      "Install the update now or review provider settings. Update Codex with the app or tool that installed it.",
+    );
   });
 
   it("uses server update state for running progress", () => {
@@ -495,6 +525,68 @@ describe("provider update launch notification logic", () => {
       tone: "loading",
       title: "Updating Codex",
       description: "Codex update in progress.",
+    });
+  });
+
+  it("shows the active sidebar pill for an update on a non-default instance", () => {
+    const view = getProviderUpdateSidebarPillView([
+      provider({ driver: driver("claudeAgent") }),
+      provider({
+        driver: driver("claudeAgent"),
+        instanceId: instanceId("claude_work"),
+        updateState: {
+          status: "running",
+          startedAt: checkedAt,
+          finishedAt: null,
+          message: "Updating provider.",
+          output: null,
+        },
+      }),
+    ]);
+
+    expect(view).toMatchObject({
+      key: "loading:claudeAgent:running",
+      tone: "loading",
+      title: "Updating Claude",
+      description: "Claude update in progress.",
+    });
+  });
+
+  it("shows the latest terminal sidebar pill across instances of a driver", () => {
+    const view = getProviderUpdateSidebarPillView(
+      [
+        provider({
+          driver: driver("claudeAgent"),
+          updateState: {
+            status: "failed",
+            startedAt: checkedAt,
+            finishedAt: checkedAt,
+            message: "Update command exited with code 1.",
+            output: null,
+          },
+        }),
+        provider({
+          driver: driver("claudeAgent"),
+          instanceId: instanceId("claude_work"),
+          version: "1.1.0",
+          latestVersion: "1.1.0",
+          advisoryStatus: "current",
+          updateState: {
+            status: "succeeded",
+            startedAt: laterCheckedAt,
+            finishedAt: laterCheckedAt,
+            message: "Provider updated.",
+            output: null,
+          },
+        }),
+      ],
+      { visibleAfterIso: sessionStartedAt },
+    );
+
+    expect(view).toMatchObject({
+      key: "succeeded:claudeAgent:2026-04-23T10:01:00.000Z:Provider updated.",
+      tone: "success",
+      title: "Claude updated: v1.1.0",
     });
   });
 

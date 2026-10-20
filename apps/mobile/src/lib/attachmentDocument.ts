@@ -1,3 +1,5 @@
+import { AsyncResult } from "effect/reactivity";
+import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import * as Dialog from "../components/ui/Dialog";
 import { filePreviewDelimiter, parseDelimitedPreview } from "@supaterm/shared/delimitedPreview";
 import type { EnvironmentId } from "@supaterm/contracts";
@@ -5,14 +7,12 @@ import { readFilePreviewResponse } from "@supaterm/client-runtime/file-preview";
 import { filePreviewKind, FILE_TEXT_PREVIEW_MAX_BYTES } from "@supaterm/shared/filePreview";
 import { fetch } from "expo/fetch";
 import { File } from "expo-file-system";
-import { useEffect, useMemo, useRef, useState } from "react";
-
+import { useEffect, useRef, useState } from "react";
 import type { FileBackedComposerAttachment } from "./composerImages";
 import { loadLocalAttachmentPreview } from "./localAttachmentPreview";
 import { downloadAndShareAttachment, shareLocalAttachment } from "./attachmentDownload";
 import { useRefreshAssetUrl } from "../state/assets";
 import { attachmentDocumentPresentation } from "./attachmentDocumentPresentation";
-
 const isLocalUri = (uri: string) => /^(file|content):/.test(uri);
 
 /** Signed asset URLs live for an hour; treat anything older than this as worth re-minting. */
@@ -33,28 +33,28 @@ export function useAttachmentDocument(input: {
   const delimiter = filePreviewDelimiter(input);
   const shareController = useRef<AbortController | null>(null);
   useEffect(() => () => shareController.current?.abort(), []);
-  const resource = useMemo(
-    () => ({
-      _tag: "attachment" as const,
-      attachmentId: input.attachmentId,
-      fileName: input.name,
-      mimeType: input.mimeType,
-      disposition: "inline" as const,
-    }),
-    [input.attachmentId, input.name, input.mimeType],
-  );
+  const resource = {
+    _tag: "attachment" as const,
+    attachmentId: input.attachmentId,
+    fileName: input.name,
+    mimeType: input.mimeType,
+    disposition: "inline" as const,
+  };
   const environmentId = input.attachment ? null : input.environmentId;
   const refresh = useRefreshAssetUrl(environmentId, resource);
   const [localUri, setLocalUri] = useState<string | null>(null);
   const [remoteUri, setRemoteUri] = useState<string | null>(null);
-  const [content, setContent] = useState<{ text: string; truncated: boolean } | null>(null);
-  const table = useMemo(
-    () => (content && delimiter ? parseDelimitedPreview(content.text, delimiter) : null),
-    [content, delimiter],
-  );
+  const [content, setContent] = useState<{
+    text: string;
+    truncated: boolean;
+  } | null>(null);
+  const table = content && delimiter ? parseDelimitedPreview(content.text, delimiter) : null;
   const [error, setError] = useState<string | null>(null);
   const [contentError, setContentError] = useState<string | null>(null);
-  const textReadUrl = useRef<{ uri: string; authorizedAt: number } | null>(null);
+  const textReadUrl = useRef<{
+    uri: string;
+    authorizedAt: number;
+  } | null>(null);
   const [rendered, setRendered] = useState(true);
   const presentation = attachmentDocumentPresentation({
     kind,
@@ -66,13 +66,21 @@ export function useAttachmentDocument(input: {
   const [sharing, setSharing] = useState(false);
   const uri = input.attachment ? localUri : remoteUri;
   const attachment = input.attachment;
-  const [remoteSource, setRemoteSource] = useState({ attachment, refresh, revision });
+  const [remoteSource, setRemoteSource] = useState({
+    attachment,
+    refresh,
+    revision,
+  });
   if (
     remoteSource.attachment !== attachment ||
     remoteSource.refresh !== refresh ||
     remoteSource.revision !== revision
   ) {
-    setRemoteSource({ attachment, refresh, revision });
+    setRemoteSource({
+      attachment,
+      refresh,
+      revision,
+    });
     if (!attachment) {
       setRemoteUri(null);
       setError(null);
@@ -88,7 +96,10 @@ export function useAttachmentDocument(input: {
       .then((url) => {
         if (cancelled) return;
         if (!url) throw new Error("Reconnect to this environment and try again.");
-        textReadUrl.current = { uri: url, authorizedAt: Date.now() };
+        textReadUrl.current = {
+          uri: url,
+          authorizedAt: Date.now(),
+        };
         setRemoteUri(url);
       })
       .catch((cause: unknown) => {
@@ -99,9 +110,15 @@ export function useAttachmentDocument(input: {
       cancelled = true;
     };
   }, [remoteSource]);
-  const [localSource, setLocalSource] = useState({ attachment, revision });
+  const [localSource, setLocalSource] = useState({
+    attachment,
+    revision,
+  });
   if (localSource.attachment !== attachment || localSource.revision !== revision) {
-    setLocalSource({ attachment, revision });
+    setLocalSource({
+      attachment,
+      revision,
+    });
     if (attachment) {
       // A new attachment must not keep the previous file behind it: `share()` would otherwise
       // send the old bytes under the new name if this load fails.
@@ -134,7 +151,13 @@ export function useAttachmentDocument(input: {
   }, [localSource]);
   const needsText = kind === "text" || kind === "markdown" || (kind === "html" && !rendered);
   const sizeBytes = input.sizeBytes;
-  const [textSource, setTextSource] = useState({ uri, needsText, revision, sizeBytes, refresh });
+  const [textSource, setTextSource] = useState({
+    uri,
+    needsText,
+    revision,
+    sizeBytes,
+    refresh,
+  });
   if (
     textSource.uri !== uri ||
     textSource.needsText !== needsText ||
@@ -142,7 +165,13 @@ export function useAttachmentDocument(input: {
     textSource.sizeBytes !== sizeBytes ||
     textSource.refresh !== refresh
   ) {
-    setTextSource({ uri, needsText, revision, sizeBytes, refresh });
+    setTextSource({
+      uri,
+      needsText,
+      revision,
+      sizeBytes,
+      refresh,
+    });
     if (uri && needsText) {
       setContent(null);
       setContentError(null);
@@ -152,7 +181,10 @@ export function useAttachmentDocument(input: {
     if (!uri || !needsText) return;
     const controller = new AbortController();
     const response = isLocalUri(uri)
-      ? Promise.resolve().then(() => ({ ok: true, body: new File(uri).readableStream() }))
+      ? Promise.resolve().then(() => ({
+          ok: true,
+          body: new File(uri).readableStream(),
+        }))
       : (async () => {
           // A signed URL minted when the file opened may have expired by the time the user
           // switches to source; reauthorize before fetching instead of reading a stale link.
@@ -164,14 +196,25 @@ export function useAttachmentDocument(input: {
             target = refreshed;
             if (!controller.signal.aborted) {
               // Keep the source-read URL and its age together without restarting active media.
-              textReadUrl.current = { uri: refreshed, authorizedAt: Date.now() };
+              textReadUrl.current = {
+                uri: refreshed,
+                authorizedAt: Date.now(),
+              };
             }
           }
           return fetch(target, {
             signal: controller.signal,
             headers: {
-              ...(sizeBytes > 0 ? { Range: `bytes=0-${FILE_TEXT_PREVIEW_MAX_BYTES}` } : {}),
-              ...(revision > 0 ? { "Cache-Control": "no-cache" } : {}),
+              ...(sizeBytes > 0
+                ? {
+                    Range: `bytes=0-${FILE_TEXT_PREVIEW_MAX_BYTES}`,
+                  }
+                : {}),
+              ...(revision > 0
+                ? {
+                    "Cache-Control": "no-cache",
+                  }
+                : {}),
             },
           });
         })();
@@ -192,21 +235,33 @@ export function useAttachmentDocument(input: {
     const controller = new AbortController();
     shareController.current = controller;
     const request = {
-      attachment: { name: input.name, mimeType: input.mimeType },
+      attachment: {
+        name: input.name,
+        mimeType: input.mimeType,
+      },
       signal: controller.signal,
     };
-    try {
-      if (isLocalUri(uri)) await shareLocalAttachment({ ...request, uri });
-      else await downloadAndShareAttachment({ ...request, url: (await refresh()) ?? uri });
-    } catch (cause) {
-      if (controller.signal.aborted) return;
+    const result = await settlePromise(async () => {
+      if (isLocalUri(uri))
+        await shareLocalAttachment({
+          ...request,
+          uri,
+        });
+      else
+        await downloadAndShareAttachment({
+          ...request,
+          url: (await refresh()) ?? uri,
+        });
+    });
+    if (shareController.current === controller) shareController.current = null;
+    if (controller.signal.aborted) return;
+    setSharing(false);
+    if (AsyncResult.isFailure(result)) {
+      const cause = squashAtomCommandFailure(result);
       Dialog.alert(
         "Could not share file",
         cause instanceof Error ? cause.message : "Please try again.",
       );
-    } finally {
-      if (shareController.current === controller) shareController.current = null;
-      if (!controller.signal.aborted) setSharing(false);
     }
   };
   return {

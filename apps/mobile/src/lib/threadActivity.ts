@@ -17,7 +17,7 @@ import {
   commandProgramName,
 } from "@supaterm/client-runtime/work-log/command-label";
 import {
-  latestToolGroupImage,
+  toolGroupImages,
   type ToolGroupImage,
   contextCompactionLabel,
   liveThoughtLine,
@@ -64,6 +64,7 @@ import {
   formatSearchToolLabel,
 } from "@supaterm/shared/toolActivity";
 import { formatDuration } from "@supaterm/shared/orchestrationTiming";
+import { truncate } from "@supaterm/shared/String";
 import type { HtmlRenderReference } from "@supaterm/shared/htmlRender";
 import type { McpAppReference } from "@supaterm/shared/mcpApp";
 import {
@@ -72,6 +73,7 @@ import {
   mcpAppFromToolItem,
 } from "@supaterm/shared/toolOutput";
 import * as DateTime from "effect/DateTime";
+import * as Equal from "effect/Equal";
 
 export type PendingApproval = ThreadPendingApproval;
 export type PendingUserInput = ThreadPendingUserInput;
@@ -122,6 +124,7 @@ export interface ThreadFeedActivity {
   readonly workEntry: WorkLogPresentationEntry;
   readonly groupedToolDetail?: boolean;
   readonly live?: boolean;
+  readonly groupStandIn?: { readonly groupId: string; readonly label: string };
   readonly projectedItem: OrchestrationV2ProjectedTurnItem;
 }
 
@@ -199,10 +202,11 @@ type ThreadFeedEntryContent =
       readonly createdAt: string;
       readonly runId: RunId | null;
       readonly activities: ReadonlyArray<ThreadFeedActivity>;
+      readonly images?: ReadonlyArray<ToolGroupImage>;
     }
   | {
       readonly type: "work-toggle";
-      readonly latestImage?: ToolGroupImage | null;
+      readonly images?: ReadonlyArray<ToolGroupImage>;
       readonly id: string;
       readonly createdAt: string;
       readonly runId: RunId | null;
@@ -227,6 +231,7 @@ type ThreadFeedEntryContent =
       readonly runId: RunId;
       readonly label: string;
       readonly expanded: boolean;
+      readonly images: ReadonlyArray<ToolGroupImage>;
     }
   | {
       readonly type: "thinking";
@@ -240,6 +245,7 @@ export interface ThreadFeedLatestRun {
   readonly status: OrchestrationV2RunStatus;
   readonly startedAt: string | null;
   readonly completedAt: string | null;
+  readonly turnEnded?: boolean;
 }
 
 export interface AgentSpawnSummary {
@@ -255,8 +261,10 @@ export interface AgentSpawnSummary {
   }>;
 }
 
+const WORK_LOG_LABEL_MAX_LENGTH = 200;
+
 function compactWorkEntryText(value: string): string {
-  return value.replace(/\s+/gu, " ").trim();
+  return truncate(value.replace(/\s+/gu, " "), WORK_LOG_LABEL_MAX_LENGTH);
 }
 
 export function workEntryRowLabel(entry: WorkLogPresentationEntry, expanded = false): string {
@@ -295,7 +303,7 @@ export function workEntryRowLabel(entry: WorkLogPresentationEntry, expanded = fa
         ? entry.changedFiles[0]!
         : `${entry.changedFiles[0]!} +${entry.changedFiles.length - 1} more`
       : null);
-  if (expanded) return preview?.trim() || entry.label;
+  if (expanded) return preview?.trim() ? truncate(preview, WORK_LOG_LABEL_MAX_LENGTH) : entry.label;
   return preview ? compactWorkEntryText(preview) || entry.label : entry.label;
 }
 
@@ -853,7 +861,7 @@ function singleToolCallLabel(activity: ThreadFeedActivity, expanded: boolean): s
   const presentation = resolveWorkEntryToolPresentation(activity.workEntry, "completed");
   if (presentation) return presentation.displayName;
   const command = activity.workEntry.command?.trim();
-  return command || activity.summary;
+  return command ? truncate(command, WORK_LOG_LABEL_MAX_LENGTH) : activity.summary;
 }
 
 function isEmptyMessage(entry: RawThreadFeedEntry): boolean {
@@ -1004,6 +1012,7 @@ interface ThreadFeedRunFold {
   readonly runId: RunId;
   readonly createdAt: string;
   readonly hiddenEntryIds: ReadonlySet<string>;
+  readonly images: ReadonlyArray<ToolGroupImage>;
   readonly label: string;
 }
 
@@ -1178,6 +1187,13 @@ function deriveThreadFeedRunFolds(
       runId,
       createdAt: firstHiddenEntry.createdAt,
       hiddenEntryIds,
+      images: toolGroupImages(
+        group.entries.flatMap((entry) =>
+          entry.type === "activity-group" && hiddenEntryIds.has(entry.id)
+            ? entry.activities.map((activity) => activity.projectedItem)
+            : [],
+        ),
+      ),
       label: interrupted
         ? duration
           ? `You stopped after ${duration}`
@@ -1269,7 +1285,8 @@ export function deriveThreadFeedPresentation(
         row.runId !== fold.runId ||
         row.createdAt !== fold.createdAt ||
         row.label !== fold.label ||
-        row.expanded !== expanded
+        row.expanded !== expanded ||
+        !Equal.equals(row.images, fold.images)
       ) {
         row = {
           type: "run-fold",
@@ -1278,6 +1295,7 @@ export function deriveThreadFeedPresentation(
           runId: fold.runId,
           label: fold.label,
           expanded,
+          images: fold.images,
         };
         runFoldRowsCache.set(entry, row);
       }
@@ -1291,7 +1309,7 @@ export function deriveThreadFeedPresentation(
       ) {
         let rows = failedActivityGroupsCache.get(entry);
         if (!rows) {
-          rows =
+          rows = (
             entry.activities.length === 1
               ? [entry]
               : entry.activities.map((activity) => ({
@@ -1300,7 +1318,13 @@ export function deriveThreadFeedPresentation(
                   createdAt: activity.createdAt,
                   runId: activity.runId,
                   activities: [activity],
-                }));
+                }))
+          ).map((row) => {
+            const images = toolGroupImages(
+              row.activities.map((activity) => activity.projectedItem),
+            );
+            return images.length > 0 ? { ...row, images } : row;
+          });
           failedActivityGroupsCache.set(entry, rows);
         }
         result.push(...rows);
@@ -1319,9 +1343,10 @@ export function deriveThreadFeedPresentation(
   if (
     isWorking &&
     activeWorkStartedAt !== null &&
+    latestRun?.turnEnded !== true &&
     !result.some(
       (row) =>
-        (row.type === "work-toggle" && row.shimmer) ||
+        row.id === LIVE_ACTIVITY_ROW_ID ||
         (row.type === "activity-group" &&
           isContextCompactionActivityGroup(row) &&
           row.runId === activeRunId &&
@@ -1335,17 +1360,11 @@ export function deriveThreadFeedPresentation(
 
 export function finalizeThreadFeedPresentation(feed: ReadonlyArray<ThreadFeedEntry>) {
   return feed.map((row, index) => {
-    const hideImage =
-      row.type === "work-toggle" && row.latestImage != null && index < feed.length - 1;
     const continuesWorkLog = isWorkLogFeedRow(row) && isWorkLogFeedRow(feed[index + 1]);
-    if (!hideImage && !continuesWorkLog) return row;
+    if (!continuesWorkLog) return row;
     let presented = presentedWorkLogRows.get(row);
-    if (!presented || presented.continuesWorkLog !== continuesWorkLog) {
-      presented = {
-        ...row,
-        continuesWorkLog,
-        ...(hideImage ? { latestImage: null } : {}),
-      };
+    if (!presented) {
+      presented = { ...row, continuesWorkLog };
       presentedWorkLogRows.set(row, presented);
     }
     return presented;
@@ -1527,6 +1546,21 @@ function appendToolGroupRows(
       : singleActivity !== null && !singleActivity.toolLike
         ? singleActivity.workEntry.label
         : groupSummary.summary;
+  const id = shimmer ? LIVE_ACTIVITY_ROW_ID : `${live ? "work-live" : "work-toggle"}:${groupId}`;
+
+  if (singleActivity !== null && singleActivity.workEntry.itemType !== "reasoning") {
+    const images = toolGroupImages(activities.map((activity) => activity.projectedItem));
+    result.push({
+      type: "activity-group",
+      id,
+      createdAt: singleActivity.createdAt,
+      runId: singleActivity.runId,
+      ...(images.length > 0 ? { images } : {}),
+      activities: [{ ...singleActivity, live: shimmer, groupStandIn: { groupId, label: summary } }],
+      continuesWorkLog: true,
+    });
+    return;
+  }
   const primarySourceActivity = activities.find(
     (activity) => activity.workEntry.toolSource !== undefined,
   );
@@ -1550,18 +1584,14 @@ function appendToolGroupRows(
       .toolIcon;
   const summaryToolIcon = live
     ? resolveWorkEntryToolPresentation(latestActivity.workEntry)?.icon
-    : singleActivity !== null &&
-        singleActivity.toolLike &&
-        toolGroupAction(singleActivity.workEntry) !== "edit"
-      ? resolveWorkEntryToolPresentation(singleActivity.workEntry, "completed")?.icon
-      : undefined;
+    : undefined;
   result.push({
     type: "work-toggle",
-    id: shimmer ? LIVE_ACTIVITY_ROW_ID : `${live ? "work-live" : "work-toggle"}:${groupId}`,
+    id,
     createdAt: sourceGroup.createdAt,
     runId: sourceGroup.runId,
     groupId,
-    latestImage: latestToolGroupImage(activities.map((activity) => activity.projectedItem)),
+    images: toolGroupImages(activities.map((activity) => activity.projectedItem)),
     hiddenCount: activities.length,
     expanded,
     summary,

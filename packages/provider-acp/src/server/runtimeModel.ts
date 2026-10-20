@@ -1065,12 +1065,7 @@ const SUPATERM_MCP_TITLE_CALL =
 const SUPATERM_MCP_TITLE_SUFFIX_CALL =
   /^(?<tool>[A-Za-z0-9][A-Za-z0-9_.-]*?)(?: \(supaterm MCP Server\)(?::|$)|[-_.]supaterm$)/i;
 
-/**
- * glm-acp-agent and Kimi CLI register injected MCP tools under their bare
- * names; Kimi additionally appends ": <raw args json>". Safe only because the
- * match is gated on the known Supaterm tool inventory.
- */
-const SUPATERM_MCP_BARE_TITLE_CALL = /^(?<tool>[A-Za-z0-9_]+)(?::\s|$)/;
+const SUPATERM_MCP_BARE_TITLE_CALL = /^(?<tool>[A-Za-z0-9_]+)(?::\s*\{|$)/;
 
 /**
  * ACP has no typed MCP tool-call item, so agents surface MCP calls in agent-specific shapes:

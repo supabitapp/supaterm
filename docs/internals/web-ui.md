@@ -71,7 +71,7 @@ method call on a value the compiler cannot type, such as state, props or a reass
 it reaches a method on a ref, every closure using that ref can lose its scope too, with no
 diagnostic. Compute such flags with operators, like `items.length > 0`. A `use*` helper that calls
 no hook is compiled as a plain function and caches nothing, so a derived-value helper reads its
-source hook itself instead of taking the value as an argument. Lint misses some bailouts, notably `try`
+source hook itself instead of taking the value as an argument. `supaterm/no-hookless-use-function` rejects `use*` functions that call no hook. Lint misses some bailouts, notably `try`
 with `finally` and `throw` inside `try`, so [`reactCompilerCoverage.test.ts`](../../apps/web/src/reactCompilerCoverage.test.ts)
 compiles every file and fails on any skip. Async handlers rarely need `try`: an atom
 command settles into a result, so cleanup can follow the `await`, and `settlePromise` does the same

@@ -12,7 +12,7 @@ import {
   type PendingNewTask,
 } from "./pending-new-tasks-model";
 import { flattenQueuedThreadMessages } from "./thread-outbox-model";
-import { composerDraftsAtom } from "./use-composer-drafts";
+import { newTaskComposerDraftsAtom } from "./use-composer-drafts";
 import { useThreadOutboxMessages } from "./use-thread-outbox";
 
 export type {
@@ -27,7 +27,7 @@ const heldNewTaskDraftAtom = Atom.make<HeldNewTaskDraft | null>(null).pipe(
 );
 
 export function holdNewTaskDraft(draftKey: string): () => void {
-  const draft = appAtomRegistry.get(composerDraftsAtom)[draftKey];
+  const draft = appAtomRegistry.get(newTaskComposerDraftsAtom)[draftKey];
   const held: HeldNewTaskDraft = {
     draftKey,
     content:
@@ -44,7 +44,9 @@ export function holdNewTaskDraft(draftKey: string): () => void {
 }
 
 const pendingDraftTasksAtom = Atom.make((get) =>
-  buildPendingDraftTasks(applyHeldNewTaskDraft(get(composerDraftsAtom), get(heldNewTaskDraftAtom))),
+  buildPendingDraftTasks(
+    applyHeldNewTaskDraft(get(newTaskComposerDraftsAtom), get(heldNewTaskDraftAtom)),
+  ),
 ).pipe(
   Atom.withEquality(Equal.equals),
   Atom.keepAlive,

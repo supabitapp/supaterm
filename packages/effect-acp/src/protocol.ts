@@ -182,6 +182,8 @@ const encodeJsonRpcNotification = Schema.encodeUnknownExit(
   ),
 );
 
+export const RPC_REQUEST_ID_START = 2 ** 30;
+
 const isEffectRpcRequestId = (requestId: AcpError.AcpRequestId): boolean =>
   typeof requestId === "number" && Number.isSafeInteger(requestId);
 

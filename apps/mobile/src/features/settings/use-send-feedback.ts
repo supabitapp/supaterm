@@ -3,6 +3,7 @@ import { StackActions, useNavigation } from "@react-navigation/native";
 import { buildFeedbackPrompt } from "@supaterm/client-runtime/feedback-prompt";
 import {
   isAtomCommandInterrupted,
+  settlePromise,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
 import type { EnvironmentId, ServerConfig } from "@supaterm/contracts";
@@ -31,46 +32,45 @@ export function useSendFeedback() {
     if (inFlight.current) return;
     inFlight.current = true;
     setIsPending(true);
-    try {
-      const result = await openScratch({ environmentId: target.environmentId, input: {} });
-      if (result._tag === "Failure") {
-        if (!isAtomCommandInterrupted(result)) {
-          const error = squashAtomCommandFailure(result);
-          Dialog.alert(
-            "Could not start feedback",
-            error instanceof Error ? error.message : "Try again.",
-          );
-        }
-        return;
-      }
-      const project = result.value;
-      await waitForComposerDraftsLoaded();
-      if (!navigation.isFocused()) return;
-      const draftKey = createNewTaskDraft({
-        environmentId: project.environmentId,
-        projectId: project.id,
-      });
-      setComposerDraftText(
-        draftKey,
-        buildFeedbackPrompt({
-          serverVersion: target.serverConfig.environment.serverVersion,
-          client: `${Platform.OS === "ios" ? "iOS" : "Android"} app ${Constants.expoConfig?.version ?? "0.0.0"}`,
-        }),
+    const opened = await openScratch({ environmentId: target.environmentId, input: {} });
+    const result =
+      opened._tag === "Failure"
+        ? opened
+        : await settlePromise(async () => {
+            const project = opened.value;
+            await waitForComposerDraftsLoaded();
+            if (!navigation.isFocused()) return;
+            const draftKey = createNewTaskDraft({
+              environmentId: project.environmentId,
+              projectId: project.id,
+            });
+            setComposerDraftText(
+              draftKey,
+              buildFeedbackPrompt({
+                serverVersion: target.serverConfig.environment.serverVersion,
+                client: `${Platform.OS === "ios" ? "iOS" : "Android"} app ${Constants.expoConfig?.version ?? "0.0.0"}`,
+              }),
+            );
+            navigation.dispatch(
+              StackActions.replace("NewTaskSheet", {
+                screen: "NewTaskDraft",
+                params: {
+                  draftId: draftKey,
+                  environmentId: String(project.environmentId),
+                  projectId: String(project.id),
+                  title: project.title,
+                },
+              }),
+            );
+          });
+    inFlight.current = false;
+    setIsPending(false);
+    if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+      const error = squashAtomCommandFailure(result);
+      Dialog.alert(
+        "Could not start feedback",
+        error instanceof Error ? error.message : "Try again.",
       );
-      navigation.dispatch(
-        StackActions.replace("NewTaskSheet", {
-          screen: "NewTaskDraft",
-          params: {
-            draftId: draftKey,
-            environmentId: String(project.environmentId),
-            projectId: String(project.id),
-            title: project.title,
-          },
-        }),
-      );
-    } finally {
-      inFlight.current = false;
-      setIsPending(false);
     }
   }
 

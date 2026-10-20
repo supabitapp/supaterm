@@ -13,7 +13,12 @@ import { Keyboard } from "react-native";
 
 import { loadLocalAttachmentPreview } from "../lib/localAttachmentPreview";
 import { useRefreshAssetUrl } from "../state/assets";
-import { filePreviewGallery, filePreviewKey, filePreviewName } from "../lib/filePreviewGallery";
+import {
+  filePreviewGallery,
+  filePreviewKey,
+  filePreviewName,
+  settledPreviewGallery,
+} from "../lib/filePreviewGallery";
 import { FilePreviewGallery } from "./FilePreviewGallery";
 import { FilePreview } from "./FilePreview";
 import type {
@@ -31,8 +36,7 @@ export type {
 function PreviewItemResolver(props: {
   readonly source: FilePreviewItem;
   readonly onResolved: (source: ResolvedFilePreviewSource) => void;
-  readonly onRequestClose: () => void;
-  readonly onOpenError?: (error: unknown) => void;
+  readonly onFailed: (error: unknown, fallbackMessage: string) => void;
 }) {
   const { source } = props;
   const environmentId = "environmentId" in source ? source.environmentId : null;
@@ -42,12 +46,7 @@ function PreviewItemResolver(props: {
   );
   // Resolve once per presentation; background URL refreshes must not reopen the native viewer.
   const [uri, setUri] = useState<string | null>("uri" in source ? source.uri : null);
-  const onRequestClose = useEffectEvent(props.onRequestClose);
-  const onResolutionError = useEffectEvent((error: unknown, fallbackMessage: string) => {
-    if (props.onOpenError) props.onOpenError(error);
-    else Dialog.alert("Could not open preview", fallbackMessage);
-    onRequestClose();
-  });
+  const onResolutionError = useEffectEvent(props.onFailed);
   useEffect(() => Keyboard.dismiss(), []);
   useEffect(() => {
     if (environmentId === null || uri !== null) return;
@@ -110,31 +109,40 @@ function ResolvedFilePreview(props: {
   // Freeze the group at opening; streaming messages and URL refreshes must not reopen the viewer.
   const [items] = useState(() => filePreviewGallery(props.source, []));
   const [resolved, setResolved] = useState<Record<string, ResolvedFilePreviewSource>>({});
+  const [failedKeys, setFailedKeys] = useState<ReadonlySet<string>>(() => new Set());
   const onResolved = useCallback((item: ResolvedFilePreviewSource, key: string) => {
     setResolved((current) => ({ ...current, [key]: item }));
   }, []);
-  const selected = resolved[filePreviewKey(props.source)];
+  const selectedKey = filePreviewKey(props.source);
+  // A sibling that moved or was deleted drops out of the gallery; only the tapped item closes it.
+  const onFailed = (key: string, error: unknown, fallbackMessage: string) => {
+    if (key !== selectedKey) {
+      setFailedKeys((current) => new Set(current).add(key));
+      return;
+    }
+    if (props.onOpenError) props.onOpenError(error);
+    else Dialog.alert("Could not open preview", fallbackMessage);
+    props.onRequestClose();
+  };
+  const selected = resolved[selectedKey];
   const gallery = useMemo(
-    () =>
-      items.flatMap((item) => {
-        const value = resolved[filePreviewKey(item)];
-        return value ? [value] : [];
-      }),
-    [items, resolved],
+    () => settledPreviewGallery(items, resolved, failedKeys),
+    [items, resolved, failedKeys],
   );
-  const ready = selected && gallery.length === items.length;
   return (
     <>
-      {items.map((item) => (
-        <PreviewItemResolver
-          key={filePreviewKey(item)}
-          source={item}
-          onResolved={(value) => onResolved(value, filePreviewKey(item))}
-          onRequestClose={props.onRequestClose}
-          onOpenError={props.onOpenError}
-        />
-      ))}
-      {ready ? (
+      {items.map((item) => {
+        const key = filePreviewKey(item);
+        return (
+          <PreviewItemResolver
+            key={key}
+            source={item}
+            onResolved={(value) => onResolved(value, key)}
+            onFailed={(error, fallbackMessage) => onFailed(key, error, fallbackMessage)}
+          />
+        );
+      })}
+      {selected && gallery ? (
         <FilePreview
           source={{ ...selected, gallery }}
           onRequestClose={props.onRequestClose}

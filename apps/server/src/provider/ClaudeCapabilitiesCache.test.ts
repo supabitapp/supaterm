@@ -32,6 +32,7 @@ const makeTestCache = Effect.fnUntraced(function* () {
   );
   const lookups = yield* Ref.make(0);
   const cache = yield* makeClaudeCapabilitiesCache({
+    validateFallback: () => Effect.succeed(true),
     key: "claude-instance",
     lookup: () =>
       Effect.gen(function* () {

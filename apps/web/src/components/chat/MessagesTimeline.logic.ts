@@ -14,7 +14,7 @@ import {
   commandProgramName,
 } from "@supaterm/client-runtime/work-log/command-label";
 import {
-  latestToolGroupImage,
+  toolGroupImages,
   type ToolGroupImage,
   liveActivityToolStatus,
   normalizeCompactToolLabel,
@@ -22,6 +22,7 @@ import {
   summarizeToolGroup,
   toolGroupAction,
   toolGroupSummaryKind,
+  contextCompactionTokenCounts,
   type ToolGroupSummaryKind,
 } from "@supaterm/client-runtime/work-log/presentation";
 export {
@@ -74,8 +75,8 @@ import {
 } from "@supaterm/shared/toolActivity";
 import { isWindowsAbsolutePath } from "@supaterm/shared/path";
 
-function latestWorkGroupImage(entries: ReadonlyArray<WorkLogEntry>) {
-  return latestToolGroupImage(
+function workGroupImages(entries: ReadonlyArray<WorkLogEntry>) {
+  return toolGroupImages(
     entries.flatMap((entry) => (entry.projectedItem ? [entry.projectedItem] : [])),
   );
 }
@@ -477,7 +478,7 @@ export interface TimelineDurationMessage {
 
 export type TimelineLatestRun = Pick<
   ThreadRunSummary,
-  "runId" | "status" | "startedAt" | "completedAt"
+  "runId" | "status" | "startedAt" | "completedAt" | "turnEnded"
 >;
 
 const LIVE_ACTIVITY_ROW_ID = "live-activity-row";
@@ -501,10 +502,11 @@ type MessagesTimelineRowContent =
       groupedEntries: WorkLogEntry[];
       isExpandedToolGroup: boolean;
       displayLabel?: string;
+      images?: ReadonlyArray<ToolGroupImage>;
     }
   | {
       kind: "work-live";
-      latestImage?: ToolGroupImage | null;
+      images?: ReadonlyArray<ToolGroupImage>;
       id: string;
       createdAt: string;
       entry: WorkLogEntry;
@@ -522,7 +524,7 @@ type MessagesTimelineRowContent =
     }
   | {
       kind: "thinking";
-      latestImage?: ToolGroupImage | null;
+      images?: ReadonlyArray<ToolGroupImage>;
       id: string;
       createdAt: string | null;
       groupId?: string;
@@ -530,7 +532,7 @@ type MessagesTimelineRowContent =
     }
   | {
       kind: "work-toggle";
-      latestImage?: ToolGroupImage | null;
+      images?: ReadonlyArray<ToolGroupImage>;
       id: string;
       createdAt: string;
       runId?: RunId | null;
@@ -551,6 +553,7 @@ type MessagesTimelineRowContent =
       runId: RunId;
       label: string;
       expanded: boolean;
+      images?: ReadonlyArray<ToolGroupImage>;
     }
   | {
       kind: "attempt-fold";
@@ -566,6 +569,7 @@ type MessagesTimelineRowContent =
       id: string;
       createdAt: string;
       label: string;
+      tokenCounts: ReturnType<typeof contextCompactionTokenCounts>;
       active: boolean;
     }
   | {
@@ -713,6 +717,7 @@ interface TurnFold {
   anchorEntryId: string;
   createdAt: string;
   hiddenEntryIds: ReadonlySet<string>;
+  images: ReadonlyArray<ToolGroupImage>;
   label: string;
 }
 
@@ -1092,6 +1097,8 @@ function deriveTurnFolds(input: {
         continue;
       }
       if (entry.kind === "work" && entry.entry.itemType === "notification") continue;
+
+      if (entry.kind === "work" && entry.entry.questionAnswer !== undefined) continue;
       hiddenEntryIds.add(entry.id);
     }
     if (hiddenEntryIds.size === 0) {
@@ -1140,6 +1147,11 @@ function deriveTurnFolds(input: {
       anchorEntryId: group.anchorEntryId,
       createdAt: group.startBoundary ?? firstEntry.createdAt,
       hiddenEntryIds,
+      images: workGroupImages(
+        group.entries.flatMap((entry) =>
+          entry.kind === "work" && hiddenEntryIds.has(entry.id) ? [entry.entry] : [],
+        ),
+      ),
       label,
     });
   }
@@ -1421,6 +1433,7 @@ export function deriveMessagesTimelineRows(input: {
         entry.entry.sourceActivityKind === "runtime.error" ||
         entry.entry.itemType === "system_notice" ||
         entry.entry.itemType === "notification" ||
+        entry.entry.questionAnswer !== undefined ||
         !runIdIsActiveResponse(entry.entry.runId) ||
         entry.entry.sourceActivityKind === "context-compaction" ||
         collapsedEntryIds.has(entry.id) ||
@@ -1472,7 +1485,7 @@ export function deriveMessagesTimelineRows(input: {
               : `work-live:${activeWorkAnchor.id}`,
             createdAt: activeWorkAnchor.createdAt,
             entry: (latestRunningToolEntry ?? latestVisibleToolEntry).entry,
-            latestImage: latestWorkGroupImage(visibleActiveToolEntries.map(({ entry }) => entry)),
+            images: workGroupImages(visibleActiveToolEntries.map(({ entry }) => entry)),
             groupedEntries: visibleActiveToolEntries.map((entry) => entry.entry),
             groupId,
             expanded: input.expandedWorkGroupIds?.has(groupId) ?? false,
@@ -1537,6 +1550,7 @@ export function deriveMessagesTimelineRows(input: {
         runId: turnFold.runId,
         label: turnFold.label,
         expanded: input.expandedRunIds?.has(turnFold.runId) ?? false,
+        images: turnFold.images,
       });
     }
 
@@ -1571,11 +1585,14 @@ export function deriveMessagesTimelineRows(input: {
     ) {
       const active = workEntryIsInActiveRun(timelineEntry.entry);
       hasActiveCompaction ||= active;
+      const compaction = timelineEntry.entry.structuredPayload;
       nextRows.push({
         kind: "context-compaction",
         id: timelineEntry.id,
         createdAt: timelineEntry.createdAt,
         label: timelineEntry.entry.label,
+        tokenCounts:
+          compaction?.type === "compaction" ? contextCompactionTokenCounts(compaction) : null,
         active,
       });
       continue;
@@ -1589,7 +1606,8 @@ export function deriveMessagesTimelineRows(input: {
         timelineEntry.entry.tone === "error" ||
         timelineEntry.entry.sourceActivityKind === "runtime.error" ||
         timelineEntry.entry.itemType === "system_notice" ||
-        timelineEntry.entry.itemType === "notification"
+        timelineEntry.entry.itemType === "notification" ||
+        timelineEntry.entry.questionAnswer !== undefined
       ) {
         nextRows.push({
           kind: "work",
@@ -1597,6 +1615,7 @@ export function deriveMessagesTimelineRows(input: {
           createdAt: timelineEntry.createdAt,
           groupedEntries: [timelineEntry.entry],
           isExpandedToolGroup: false,
+          images: workGroupImages([timelineEntry.entry]),
         });
         continue;
       }
@@ -1612,6 +1631,7 @@ export function deriveMessagesTimelineRows(input: {
           nextEntry.entry.sourceActivityKind === "runtime.error" ||
           nextEntry.entry.itemType === "system_notice" ||
           nextEntry.entry.itemType === "notification" ||
+          nextEntry.entry.questionAnswer !== undefined ||
           activeWorkEntryIds.has(nextEntry.id) ||
           collapsedEntryIds.has(nextEntry.id) ||
           collapsedSupersededEntryIds.has(nextEntry.id) ||
@@ -1639,7 +1659,7 @@ export function deriveMessagesTimelineRows(input: {
             id: `work-live:${timelineEntry.id}`,
             createdAt: timelineEntry.createdAt,
             entry: latestActiveToolEntry,
-            latestImage: latestWorkGroupImage(visibleGroupedEntries),
+            images: workGroupImages(visibleGroupedEntries),
             groupedEntries: visibleGroupedEntries,
             groupId,
             expanded,
@@ -1662,6 +1682,7 @@ export function deriveMessagesTimelineRows(input: {
             createdAt: timelineEntry.createdAt,
             groupedEntries: visibleGroupedEntries,
             isExpandedToolGroup: false,
+            images: workGroupImages(visibleGroupedEntries),
             displayLabel:
               toolGroupAction(singleEntry) === "edit"
                 ? summarizeToolGroup(visibleGroupedEntries).summary
@@ -1703,7 +1724,7 @@ export function deriveMessagesTimelineRows(input: {
             createdAt: timelineEntry.createdAt,
             runId: timelineEntry.entry.runId ?? null,
             groupId,
-            latestImage: latestWorkGroupImage(visibleGroupedEntries),
+            images: workGroupImages(visibleGroupedEntries),
             hiddenCount: visibleGroupedEntries.length,
             expanded,
             summary: usesSingleToolCallLabel
@@ -1875,6 +1896,7 @@ export function deriveMessagesTimelineRows(input: {
   }
   if (
     input.isWorking &&
+    input.latestRun?.turnEnded !== true &&
     !setupOwnsWorkingSlot &&
     !hasActiveCompaction &&
     (!hasActivityRow || latestToolFailed)
@@ -1889,7 +1911,7 @@ export function deriveMessagesTimelineRows(input: {
         createdAt: input.activeTurnStartedAt ?? null,
         groupId,
         expanded,
-        latestImage: latestWorkGroupImage(visibleActiveToolEntries.map(({ entry }) => entry)),
+        images: workGroupImages(visibleActiveToolEntries.map(({ entry }) => entry)),
       });
       if (expanded) {
         nextRows.push(
@@ -1912,16 +1934,11 @@ export function deriveMessagesTimelineRows(input: {
   const result = attachTrailingToolGroupsToAssistant(
     attachCreatedThreadSummaries(nextRows, timelineEntries),
   );
-  const tailRow = result.findLast((row) => row.kind !== "assistant-meta");
-  return result.map((row, index) => {
-    const currentRow =
-      "latestImage" in row && row.latestImage && row !== tailRow
-        ? { ...row, latestImage: null }
-        : row;
-    return timelineRowIsWorkLog(row) && timelineRowIsWorkLog(result[index + 1])
-      ? { ...currentRow, continuesWorkLog: true }
-      : currentRow;
-  });
+  return result.map((row, index) =>
+    timelineRowIsWorkLog(row) && timelineRowIsWorkLog(result[index + 1])
+      ? { ...row, continuesWorkLog: true }
+      : row,
+  );
 }
 
 function timelineRowIsWorkLog(row: MessagesTimelineRow | undefined): boolean {
@@ -2148,7 +2165,7 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.createdAt === bt.createdAt &&
         a.groupId === bt.groupId &&
         a.expanded === bt.expanded &&
-        Equal.equals(a.latestImage, bt.latestImage)
+        Equal.equals(a.images, bt.images)
       );
     }
     case "worktree-setup":
@@ -2167,7 +2184,12 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
 
     case "turn-fold": {
       const bf = b as typeof a;
-      return a.createdAt === bf.createdAt && a.label === bf.label && a.expanded === bf.expanded;
+      return (
+        a.createdAt === bf.createdAt &&
+        a.label === bf.label &&
+        a.expanded === bf.expanded &&
+        Equal.equals(a.images, bf.images)
+      );
     }
 
     case "attempt-fold": {
@@ -2210,6 +2232,7 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
       return (
         a.isExpandedToolGroup === bw.isExpandedToolGroup &&
         a.displayLabel === bw.displayLabel &&
+        Equal.equals(a.images, bw.images) &&
         Equal.equals(a.groupedEntries, bw.groupedEntries)
       );
     }
@@ -2221,7 +2244,7 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.groupId === bw.groupId &&
         a.expanded === bw.expanded &&
         a.active === bw.active &&
-        Equal.equals(a.latestImage, bw.latestImage) &&
+        Equal.equals(a.images, bw.images) &&
         Equal.equals(a.entry, bw.entry) &&
         Equal.equals(a.groupedEntries, bw.groupedEntries)
       );
@@ -2239,7 +2262,7 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.summaryKind === bw.summaryKind &&
         a.toolSurface === bw.toolSurface &&
         Equal.equals(a.toolIcon, bw.toolIcon) &&
-        Equal.equals(a.latestImage, bw.latestImage) &&
+        Equal.equals(a.images, bw.images) &&
         a.hasFailure === bw.hasFailure
       );
     }

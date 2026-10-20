@@ -190,6 +190,12 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
       );
       const capabilitiesProbeCache = yield* makeClaudeCapabilitiesCache({
         key: capabilitiesCacheKey,
+        validateFallback: (capabilities) =>
+          ClaudeResetCredits.readClaudeOrganizationId(accountConfigPath).pipe(
+            Effect.map((workspaceId) => workspaceId === capabilities.workspaceId),
+            Effect.provideService(FileSystem.FileSystem, fileSystem),
+            Effect.provideService(Path.Path, path),
+          ),
         lookup: () =>
           Effect.all([
             probeClaudeCapabilities(effectiveConfig, processEnv, stateDir),

@@ -811,9 +811,10 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
       const probeStatus = yield* Ref.getAndSet(pendingProbe, "idle");
       if (outcome.established) {
         generation = nextGeneration;
+
+        latestFailure = null;
         if (outcome.stable) {
           resetRetryLadder();
-          latestFailure = null;
         }
       }
       if (outcome._tag === "Interrupted") {
@@ -828,7 +829,9 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
         latestFailure = null;
         continue;
       }
-      latestFailure = error;
+      if (!outcome.established) {
+        latestFailure = error;
+      }
       if (error._tag === "ConnectionBlockedError") {
         const blockedIntent = yield* Ref.get(intent);
         yield* setState({
@@ -851,7 +854,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
       if (probeStatus !== "idle") {
         resetRetryLadder();
         attemptWhileOffline = probeStatus === "mobile-resume";
-        yield* setState(connectingState(yield* Ref.get(intent), generation, 1, error));
+        yield* setState(connectingState(yield* Ref.get(intent), generation, 1, latestFailure));
         continue;
       }
 
@@ -865,7 +868,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
         stage: null,
         attempt,
         generation,
-        lastFailure: error,
+        lastFailure: latestFailure,
         retryAt: (yield* Clock.currentTimeMillis) + delayMs,
       });
       const applicationActivated = yield* waitForRetrySignal(delayMs);

@@ -218,6 +218,7 @@ const VcsStatusLocalShape = {
   refName: Schema.NullOr(TrimmedNonEmptyStringSchema),
   hasWorkingTreeChanges: Schema.Boolean,
   workingTree: Schema.Struct({
+    rootPath: Schema.optional(GitFilePath),
     files: Schema.Array(
       Schema.Struct({
         path: GitFilePath,

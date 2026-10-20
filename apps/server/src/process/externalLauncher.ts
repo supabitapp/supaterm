@@ -553,7 +553,9 @@ const resolveEditorLaunch = Effect.fn("resolveEditorLaunch")(function* (
     args:
       command === "explorer.exe" && env.WSL_DISTRO_NAME !== undefined
         ? [resolveWslFileManagerPath(input.cwd, env.WSL_DISTRO_NAME)]
-        : [input.cwd],
+        : platform === "win32"
+          ? [normalizeWindowsFileManagerPath(input.cwd)]
+          : [input.cwd],
   };
 });
 
@@ -659,7 +661,13 @@ const launchAndUnref = Effect.fn("externalLauncher.launchAndUnref")(function* (
   onError: (cause: unknown) => ExternalLauncherError,
 ): Effect.fn.Return<void, ExternalLauncherError, ChildProcessSpawner.ChildProcessSpawner> {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-  const command = ChildProcess.make(launch.command, launch.args, launch.options);
+
+  const { ELECTRON_RUN_AS_NODE: _runAsNode, ...env } = yield* HostProcess.Environment;
+  const command = ChildProcess.make(launch.command, launch.args, {
+    ...launch.options,
+    env,
+    extendEnv: false,
+  });
 
   yield* spawner.spawn(command).pipe(
     Effect.flatMap((handle) => handle.unref),

@@ -4,7 +4,7 @@ import { getImage, Image } from "astro:assets";
 import desktopScreenshot from "../assets/app-desktop.webp";
 import appIcon from "../assets/icon.webp";
 import Layout from "../layouts/Layout.astro";
-import { GITHUB_REPOSITORY_URL, IOS_TESTFLIGHT_URL } from "../lib/site";
+import { GITHUB_REPOSITORY_URL, IOS_TESTFLIGHT_URL, RELAY_REPOSITORY_URL } from "../lib/site";
 
 const screenshot = await getImage({
   src: desktopScreenshot,
@@ -161,9 +161,9 @@ const screenshot = await getImage({
         {[
           "Pairs with a one-time code. No sign-up.",
           "No open ports on your machine.",
-          "Use your own relay, or go direct over Tailscale or SSH.",
+          <Fragment><a href={RELAY_REPOSITORY_URL} target="_blank" rel="noopener noreferrer">Deploy your own relay</a>, or go direct over Tailscale or SSH.</Fragment>,
         ].map((point) => (
-          <div class="relay-footer-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg> {point}</div>
+          <div class="relay-footer-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg> <span>{point}</span></div>
         ))}
         <span class="relay-spec">X25519 · ChaCha20-Poly1305</span>
       </div>
@@ -675,6 +675,18 @@ const screenshot = await getImage({
   .relay-footer-item svg {
     flex-shrink: 0;
     color: var(--accent);
+  }
+
+  .relay-footer-item a {
+    text-decoration: underline;
+    text-decoration-color: rgba(161, 161, 170, 0.4);
+    text-underline-offset: 3px;
+    transition: color 0.3s ease, text-decoration-color 0.3s ease;
+  }
+
+  .relay-footer-item a:hover {
+    color: var(--fg);
+    text-decoration-color: var(--fg);
   }
 
   .relay-spec {

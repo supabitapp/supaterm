@@ -45,6 +45,12 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+export function isConnectedWithConfig(
+  environment: Pick<ScopedSettingsEnvironment, "connection" | "serverConfig">,
+) {
+  return environment.connection.phase === "connected" && environment.serverConfig !== null;
+}
+
 /** The representative supplies display values, never the set of write targets. */
 export function selectScopedSettingsEnvironments<T extends ScopedSettingsEnvironment>(
   scope: ResolvedSettingsScope,
@@ -55,10 +61,7 @@ export function selectScopedSettingsEnvironments<T extends ScopedSettingsEnviron
   const environments = available.filter((environment) =>
     selectedIds.has(environment.environmentId),
   );
-  const connectedEnvironments = environments.filter(
-    (environment) =>
-      environment.connection.phase === "connected" && environment.serverConfig !== null,
-  );
+  const connectedEnvironments = environments.filter(isConnectedWithConfig);
   const environment =
     connectedEnvironments.find((candidate) => candidate.environmentId === primaryEnvironmentId) ??
     connectedEnvironments[0] ??
@@ -232,7 +235,7 @@ export function planScopedSettingsPatch(
               // so complete the patch from the target's effective value.
               const effective = resolveProjectSettings(settings, projectId).settings;
               const next: Record<string, unknown> = { ...current };
-              for (const [key, value] of Object.entries(serverPatch)) {
+              for (const [key, value] of Object.entries<unknown>(serverPatch)) {
                 if (key === "worktreeCleanup" && serverPatch.worktreeCleanup?.mode === "custom") {
                   next[key] = {
                     mode: "custom",
@@ -252,7 +255,20 @@ export function planScopedSettingsPatch(
                   delete next[key];
                   continue;
                 }
-                const base = effective[key as keyof ServerSettings];
+                const base: unknown = effective[key as keyof ServerSettings];
+
+                if (
+                  isPlainObject(value) &&
+                  isPlainObject(base) &&
+                  (key === "defaultModelSelection" ||
+                    key === "sourceControlWriterModelSelection" ||
+                    key === "reviewGuideModelSelection" ||
+                    key === "textGenerationModelSelection") &&
+                  (value.instanceId !== undefined || value.model !== undefined)
+                ) {
+                  next[key] = { instanceId: base.instanceId, model: base.model, ...value };
+                  continue;
+                }
                 next[key] =
                   isPlainObject(value) && isPlainObject(base) ? { ...base, ...value } : value;
               }

@@ -66,6 +66,7 @@ const RawPullRequestSchema = Schema.Struct({
   destination: RawBranchSchema,
   created_on: Schema.String,
   updated_on: Schema.String,
+  closed_on: Schema.optional(Schema.NullOr(Schema.String)),
   reviewers: Schema.optional(Schema.NullOr(Schema.Array(RawUserSchema))),
   participants: Schema.optional(
     Schema.NullOr(
@@ -175,6 +176,7 @@ export interface BitbucketPullRequest {
   readonly mergeability: PullRequestMergeability;
   readonly createdAt: string;
   readonly updatedAt: string;
+  readonly closedAt: string | null;
   readonly body: string;
   readonly reviewRequestLogins: ReadonlyArray<string>;
   readonly reviewers: ReadonlyArray<PullRequestActor>;
@@ -280,6 +282,7 @@ function toPullRequest(raw: Schema.Schema.Type<typeof RawPullRequestSchema>): Bi
     mergeability: "unknown",
     createdAt: toIsoUtc(raw.created_on),
     updatedAt: toIsoUtc(raw.updated_on),
+    closedAt: raw.closed_on == null ? null : toIsoUtc(raw.closed_on),
     body: raw.description ?? "",
     reviewRequestLogins: reviewers.map((reviewer) => reviewer.login),
     reviewers,

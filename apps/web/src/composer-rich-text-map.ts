@@ -94,6 +94,24 @@ function pushBreakRun(acc: RichAccumulator, position?: number): void {
   acc.md += 1;
 }
 
+function pushBlankLineRun(acc: RichAccumulator, pmPos: number): void {
+  acc.runs.push({
+    kind: "prefix",
+    flatStart: acc.flat,
+    docLen: 0,
+    collapsedLen: 1,
+    mdLen: 1,
+    openLen: 0,
+    closeLen: 0,
+    pmPos,
+    mdStart: acc.md,
+    collapsedStart: acc.collapsed,
+  });
+  acc.value += "\n";
+  acc.collapsed += 1;
+  acc.md += 1;
+}
+
 function appendInlineRuns(
   container: ProseMirrorNode,
   contentStart: number,
@@ -400,6 +418,12 @@ export function serializeEditorDoc(doc: ProseMirrorNode): RichDocMap {
   let pmBlockStart = 0;
   blocks.forEach((block, blockIndex) => {
     if (blockIndex > 0 && !isTrailingLineAfterRule(doc, blockIndex)) pushBreakRun(acc);
+    if (
+      blocks[blockIndex - 1]?.type.name === "blockquote" &&
+      block.type.name === "paragraph" &&
+      block.content.size > 0
+    )
+      pushBlankLineRun(acc, pmBlockStart + 1);
     if (LIST_NODE_NAMES.has(block.type.name)) {
       walkList(block, pmBlockStart, acc);
     } else if (block.type.name === "codeBlock") {

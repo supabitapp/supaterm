@@ -28,7 +28,8 @@ const LOWEST_PRINTABLE = 0x20;
 const BACKSLASH = 0x5c;
 
 const utf8 = new TextEncoder();
-const fromUtf8 = new TextDecoder();
+
+const fromUtf8 = new TextDecoder("utf-8", { ignoreBOM: true });
 
 /**
  * A header side's `a/` or `b/` belongs inside the quoting, so pass it in along with the name:

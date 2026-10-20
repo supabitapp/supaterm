@@ -167,7 +167,6 @@ export function useProactivePanels(input: {
       ? resolveProactiveTurnDiffAction({
           checkpoint: completedCheckpoint,
           isGitRepo,
-          activeSurfaceKind: openSurface?.kind ?? null,
         })
       : "ignore";
     proactivePanelObservationRef.current = {
@@ -176,7 +175,13 @@ export function useProactivePanels(input: {
         diffAction === "defer" || shouldDeferLink ? previousRunningTurnId : activeRunningTurnId,
     };
     if (diffAction !== "open" || newlyCompletedTurnId === null) return;
-    if (!panels.openProactive(threadRef, { id: "diff", kind: "diff" }, userActionRevision)) {
+    if (
+      !panels.openProactive(
+        threadRef,
+        { kind: "diff", turnId: newlyCompletedTurnId },
+        userActionRevision,
+      )
+    ) {
       return;
     }
     useDiffPanelStore.getState().selectGitScope(threadRef, "branch");

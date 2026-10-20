@@ -253,6 +253,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["notification toast popup completion input approval failure"],
   },
   {
+    id: "tool-images",
+    title: "Tool images",
+    to: "/settings/general",
+    searchTerms: ["screenshot thumbnail strip gallery tool call output picture"],
+  },
+  {
     id: "response-streaming",
     title: "Response streaming",
     to: "/settings/general",
@@ -721,6 +727,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Open links in",
     to: "/settings/integrations",
     searchTerms: ["links default browser in-app browser external open"],
+  },
+  {
+    id: "browser-search-engine",
+    title: "Search engine",
+    to: "/settings/integrations",
+    searchTerms: ["address bar duckduckgo google bing brave kagi ecosia custom"],
   },
   {
     id: "pull-request-links-open-in-app",

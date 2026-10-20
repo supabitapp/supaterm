@@ -50,17 +50,33 @@ export function toolItemForDisplay(item: OrchestrationV2TurnItem): Orchestration
   }
 }
 
-export function contextCompactionLabel(
-  item: Pick<
-    Extract<OrchestrationV2TurnItem, { type: "compaction" }>,
-    "status" | "beforeTokenCount" | "afterTokenCount"
-  >,
-): string {
-  if (item.status === "running") return "Compacting context";
-  if (item.beforeTokenCount !== undefined && item.afterTokenCount !== undefined) {
-    return `Context compacted ${formatTokens(item.beforeTokenCount)} → ${formatTokens(item.afterTokenCount)} tokens`;
+type CompactionLabelItem = Pick<
+  Extract<OrchestrationV2TurnItem, { type: "compaction" }>,
+  "status" | "beforeTokenCount" | "afterTokenCount"
+>;
+
+export function contextCompactionTokenCounts(
+  item: CompactionLabelItem,
+): { readonly before: string; readonly after: string } | null {
+  if (
+    item.status === "running" ||
+    item.beforeTokenCount === undefined ||
+    item.afterTokenCount === undefined
+  ) {
+    return null;
   }
-  return "Context compacted";
+  return { before: formatTokens(item.beforeTokenCount), after: formatTokens(item.afterTokenCount) };
+}
+
+export function contextCompactionLabel(item: CompactionLabelItem): string {
+  if (item.status === "failed") return "Context compaction failed";
+  if (item.status === "cancelled" || item.status === "interrupted")
+    return "Context compaction stopped";
+  if (item.status === "running") return "Compacting context";
+  const tokens = contextCompactionTokenCounts(item);
+  return tokens
+    ? `Context compacted ${tokens.before} → ${tokens.after} tokens`
+    : "Context compacted";
 }
 
 export interface WorkLogPresentationEntry {
@@ -494,36 +510,46 @@ export interface ViewedImageAsset {
 }
 
 export interface ToolGroupImage {
+  /** Unique per tool call, so the same file read twice still gets two thumbnails. */
+  readonly key: string;
   readonly resource: Extract<AssetResource, { readonly _tag: "media-file" | "tool-output-image" }>;
   readonly alt: string;
   readonly srcFragment?: string;
 }
 
-export function latestToolGroupImage(
+/** Newest first, so a strip shows what just happened without scrolling. */
+export function toolGroupImages(
   rows: ReadonlyArray<OrchestrationV2ProjectedTurnItem>,
   workspaceRoot?: string,
-): ToolGroupImage | null {
-  const row = rows.at(-1);
-  if (!row || row.item.type !== "dynamic_tool") return null;
-  const item = row.item;
-  const imageCount = item.outputImageCount ?? turnItemOutputImages(item).length;
-  if (imageCount > 0) {
-    return {
-      resource: {
-        _tag: "tool-output-image",
-        threadId: row.sourceThreadId,
-        itemId: row.sourceItemId,
-        index: imageCount - 1,
-      },
-      alt: item.title || "Tool output image",
-    };
+): ReadonlyArray<ToolGroupImage> {
+  const images: ToolGroupImage[] = [];
+  for (let rowIndex = rows.length - 1; rowIndex >= 0; rowIndex -= 1) {
+    const row = rows[rowIndex]!;
+    if (row.item.type !== "dynamic_tool") continue;
+    const item = row.item;
+    const imageCount = item.outputImageCount ?? turnItemOutputImages(item).length;
+    for (let index = imageCount - 1; index >= 0; index -= 1) {
+      images.push({
+        key: `${row.sourceItemId}:${index}`,
+        resource: {
+          _tag: "tool-output-image",
+          threadId: row.sourceThreadId,
+          itemId: row.sourceItemId,
+          index,
+        },
+        alt: item.title || "Tool output image",
+      });
+    }
+    const viewedImage =
+      imageCount === 0 && item.viewedImagePath
+        ? resolveViewedImageAsset(item.viewedImagePath, {
+            threadId: row.sourceThreadId,
+            workspaceRoot,
+          })
+        : null;
+    if (viewedImage) images.push({ ...viewedImage, key: `${row.sourceItemId}:viewed` });
   }
-  return item.viewedImagePath
-    ? resolveViewedImageAsset(item.viewedImagePath, {
-        threadId: row.sourceThreadId,
-        workspaceRoot,
-      })
-    : null;
+  return images;
 }
 
 export function resolveViewedImageAsset(

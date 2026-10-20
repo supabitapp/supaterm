@@ -262,6 +262,9 @@ export function connectionRouteAddress(route: ConnectionRoute): string | null {
   return routeHttpBaseUrl(route);
 }
 
+export const hasSavedBearerRoute = (entry: ConnectionCatalogEntry) =>
+  connectionRoutes(entry).some((r) => !isLearned(r) && r.target._tag === "BearerConnectionTarget");
+
 export function advertisedConnectionRoutes(
   config: Pick<ServerConfig, "environment" | "directEndpoints">,
 ) {

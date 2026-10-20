@@ -1,5 +1,7 @@
 {
   "id": "/",
+  "name": "Supaterm",
+  "short_name": "Supaterm",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

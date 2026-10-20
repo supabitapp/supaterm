@@ -1,3 +1,4 @@
+import { AsyncResult } from "effect/reactivity";
 import * as Dialog from "../../components/ui/Dialog";
 import { useAtomRefresh } from "@effect/atom-react";
 import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
@@ -12,11 +13,12 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { canPerformPullRequestAction } from "./pullRequestActions";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
-
 export function usePullRequestAction(params: PullRequestParams, pr: PullRequestDetail | null) {
   const target = pullRequestTarget(params);
   const permissions = usePullRequestPermissions(params, pr);
-  const run = useAtomCommand(composerPullRequests.runAction, { reportFailure: false });
+  const run = useAtomCommand(composerPullRequests.runAction, {
+    reportFailure: false,
+  });
   const refreshDetail = useAtomRefresh(composerPullRequests.detail(target));
   const refreshActivity = useAtomRefresh(composerPullRequests.activity(target));
   const pending = useRef(false);
@@ -27,32 +29,47 @@ export function usePullRequestAction(params: PullRequestParams, pr: PullRequestD
     if (pending.current || !available(action)) return;
     pending.current = true;
     setBusy(true);
-    try {
-      const response = await run({
-        ...target,
-        input: { ...target.input, action, ...(updateMethod ? { updateMethod } : {}) },
-      });
-      if (response._tag === "Failure") throw squashAtomCommandFailure(response);
-      refreshDetail();
-      refreshActivity();
-    } catch (cause) {
+    const response = await run({
+      ...target,
+      input: {
+        ...target.input,
+        action,
+        ...(updateMethod
+          ? {
+              updateMethod,
+            }
+          : {}),
+      },
+    });
+    pending.current = false;
+    setBusy(false);
+    if (AsyncResult.isFailure(response)) {
+      const cause = squashAtomCommandFailure(response);
       Dialog.alert(
         "Couldn't update this pull request",
         cause instanceof Error ? cause.message : "Try again.",
       );
-    } finally {
-      pending.current = false;
-      setBusy(false);
+      return;
     }
+    refreshDetail();
+    refreshActivity();
   };
   const confirm = (action: PullRequestAction, title: string, message: string) =>
     Dialog.alert(title, message, [
-      { text: "Cancel", style: "cancel" },
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
       {
         text: title,
         style: action === "close" || action === "delete-branch" ? "destructive" : "default",
         onPress: () => void perform(action),
       },
     ]);
-  return { available, perform, confirm, busy };
+  return {
+    available,
+    perform,
+    confirm,
+    busy,
+  };
 }

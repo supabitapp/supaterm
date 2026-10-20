@@ -27,6 +27,7 @@ import { WebView } from "react-native-webview";
 import * as Clipboard from "expo-clipboard";
 
 import { AppText } from "../../components/ui/AppText";
+import { PdfPreview } from "../../components/PdfPreview";
 import { downloadAndShareAttachment } from "../../lib/attachmentDownload";
 import { beginForegroundHandoff } from "../../lib/foreground-handoff";
 import { readFreshPreviewStreamAccess, usePreviewStreamAccess } from "../../state/preview";
@@ -40,6 +41,7 @@ import {
 
 export interface PreviewStreamRef {
   readonly command: (input: PreviewStreamInput) => void;
+  readonly paste: () => void;
   readonly togglePictureInPicture: () => void;
 }
 
@@ -58,6 +60,7 @@ type NativeStreamBridge = {
   /** True while frames show, so commands reach the page. Pass a stable function. */
   readonly onStreamingChange?: (streaming: boolean) => void;
   readonly compact?: boolean;
+  readonly pdfUri?: string | null;
 };
 
 async function sendFilesToPage(
@@ -253,6 +256,7 @@ function PreviewStreamDocumentView({
   configuration,
   background,
   compact,
+  pdfUri,
   onUnauthorized,
   onGone,
   onViewport,
@@ -305,6 +309,14 @@ function PreviewStreamDocumentView({
     webView.current?.injectJavaScript(
       `window.SupatermPreviewStream?.command(${JSON.stringify(input)}); true;`,
     );
+
+  const paste = () =>
+    void Clipboard.getStringAsync().then(
+      (text) => {
+        if (text) command({ type: "text", text });
+      },
+      () => Dialog.alert("Could not read the clipboard"),
+    );
   const fail = (message: string) => {
     if (!active.current || failed.current) return;
     failed.current = true;
@@ -333,6 +345,7 @@ function PreviewStreamDocumentView({
   );
   useImperativeHandle(ref, () => ({
     command,
+    paste,
     togglePictureInPicture: () =>
       webView.current?.injectJavaScript("window.SupatermPreviewStream?.pictureInPicture(); true;"),
   }));
@@ -374,91 +387,94 @@ function PreviewStreamDocumentView({
           ) : null}
         </View>
       ) : null}
-      <WebView<object>
-        ref={webView}
-        source={source}
-        originWhitelist={["*"]}
-        scrollEnabled={false}
-        bounces={false}
-        mixedContentMode="always"
-        allowUniversalAccessFromFileURLs
-        contentInsetAdjustmentBehavior="never"
-        setSupportMultipleWindows={false}
-        allowsInlineMediaPlayback
-        allowsPictureInPictureMediaPlayback
-        mediaPlaybackRequiresUserAction={false}
-        style={{ flex: 1, backgroundColor: background }}
-        onError={() => fail("Browser viewer could not load. Reconnect to try again.")}
-        onHttpError={() => fail("Browser viewer could not load. Reconnect to try again.")}
-        onContentProcessDidTerminate={processTerminated}
-        onRenderProcessGone={processTerminated}
-        onShouldStartLoadWithRequest={(request) =>
-          request.url === "about:blank" || request.url === source.baseUrl
-        }
-        onMessage={(event) => {
-          if (!active.current || failed.current) return;
-          const message = previewStreamMessage(event.nativeEvent.data);
-          if (message === null) return;
-          switch (message.type) {
-            case "control": {
-              setControl(message);
-              const previousDialog = dialogRef.current;
-              dialogRef.current = message.dialog;
-              setPromptText((draft) => previewPromptText(previousDialog, message.dialog, draft));
-              onControl?.(message);
-              return;
-            }
-            case "unauthorized":
-              if (!onUnauthorized()) {
-                fail("This session can't open the browser stream. Reconnect to try again.");
-              }
-              return;
-            case "gone":
-              setGone(true);
-              fail("This tab was closed.");
-              onGone?.();
-              return;
-            case "hostSetup":
-              setHostSetup({ need: message.need, command: message.command });
-              fail(previewStreamHostSetupMessage(message));
-              return;
-            case "viewport":
-              onViewport?.(message);
-              return;
-            case "clipboard":
-              void Clipboard.setStringAsync(message.text).catch(() => undefined);
-              return;
-            case "download":
-              offerDownload(message, {
-                environmentId,
-                threadId,
-                tabId,
-              });
-              return;
-            case "fileChooser":
-              setFileChooser(message.chooser);
-              return;
-            case "pictureInPicture":
-              onPictureInPicture?.(message, message.detail);
-              return;
-            case "status":
-              setStarted(true);
-              if (message.status === "error") {
-                fail(message.detail ?? "Browser stream failed.");
+      <View className="relative flex-1">
+        <WebView<object>
+          ref={webView}
+          source={source}
+          originWhitelist={["*"]}
+          scrollEnabled={false}
+          bounces={false}
+          mixedContentMode="always"
+          allowUniversalAccessFromFileURLs
+          contentInsetAdjustmentBehavior="never"
+          setSupportMultipleWindows={false}
+          allowsInlineMediaPlayback
+          allowsPictureInPictureMediaPlayback
+          mediaPlaybackRequiresUserAction={false}
+          style={{ flex: 1, backgroundColor: background }}
+          onError={() => fail("Browser viewer could not load. Reconnect to try again.")}
+          onHttpError={() => fail("Browser viewer could not load. Reconnect to try again.")}
+          onContentProcessDidTerminate={processTerminated}
+          onRenderProcessGone={processTerminated}
+          onShouldStartLoadWithRequest={(request) =>
+            request.url === "about:blank" || request.url === source.baseUrl
+          }
+          onMessage={(event) => {
+            if (!active.current || failed.current) return;
+            const message = previewStreamMessage(event.nativeEvent.data);
+            if (message === null) return;
+            switch (message.type) {
+              case "control": {
+                setControl(message);
+                const previousDialog = dialogRef.current;
+                dialogRef.current = message.dialog;
+                setPromptText((draft) => previewPromptText(previousDialog, message.dialog, draft));
+                onControl?.(message);
                 return;
               }
-              setStatus(message.status);
-              if (message.status === "connecting") {
-                // Dialogs may have closed and reopened while this viewer was disconnected.
-                dialogRef.current = null;
-                setControl(null);
-                onControl?.(null);
-              }
-              onStreamingChange?.(message.status === "streaming");
-              if (message.status === "streaming") onStreaming();
-          }
-        }}
-      />
+              case "unauthorized":
+                if (!onUnauthorized()) {
+                  fail("This session can't open the browser stream. Reconnect to try again.");
+                }
+                return;
+              case "gone":
+                setGone(true);
+                fail("This tab was closed.");
+                onGone?.();
+                return;
+              case "hostSetup":
+                setHostSetup({ need: message.need, command: message.command });
+                fail(previewStreamHostSetupMessage(message));
+                return;
+              case "viewport":
+                onViewport?.(message);
+                return;
+              case "clipboard":
+                void Clipboard.setStringAsync(message.text).catch(() => undefined);
+                return;
+              case "download":
+                offerDownload(message, { environmentId, threadId, tabId });
+                return;
+              case "fileChooser":
+                setFileChooser(message.chooser);
+                return;
+              case "pictureInPicture":
+                onPictureInPicture?.(message, message.detail);
+                return;
+              case "status":
+                setStarted(true);
+                if (message.status === "error") {
+                  fail(message.detail ?? "Browser stream failed.");
+                  return;
+                }
+                setStatus(message.status);
+                if (message.status === "connecting") {
+                  // Dialogs may have closed and reopened while this viewer was disconnected.
+                  dialogRef.current = null;
+                  setControl(null);
+                  onControl?.(null);
+                }
+                onStreamingChange?.(message.status === "streaming");
+                if (message.status === "streaming") onStreaming();
+            }
+          }}
+        />
+        {pdfUri ? (
+          <View className="absolute inset-0">
+            <PdfPreview key={pdfUri} uri={pdfUri} />
+          </View>
+        ) : null}
+      </View>
       {!compact && fileChooser && control?.controller === "you" ? (
         <View className="absolute inset-x-3 top-16 gap-3 rounded-xl border border-secondary-border bg-secondary p-4">
           <AppText className="text-sm text-secondary-foreground">

@@ -525,7 +525,6 @@ export const layer = Layer.effect(
                   scheduledTaskId: active.id,
                   text: prompt,
                   attachments: [],
-                  modelSelection: active.modelSelection,
                   mode: "queue",
                   createdBy: active.createdBy,
                   creationSource: active.creationSource,

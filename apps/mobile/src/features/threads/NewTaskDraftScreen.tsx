@@ -3,6 +3,7 @@ import * as Dialog from "../../components/ui/Dialog";
 import { useAtomValue } from "@effect/atom-react";
 import * as Cause from "effect/Cause";
 import { AsyncResult } from "effect/reactivity";
+import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { clampFileAttachmentUploadBytes } from "@supaterm/client-runtime/state/attachments";
 import {
   nextPastedTextFileName,
@@ -20,11 +21,10 @@ import {
   type NavigationAction,
 } from "@react-navigation/native";
 import {
-  useCallback,
   useContext,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
   type ComponentRef,
@@ -241,7 +241,7 @@ export function NewTaskDraftScreen(props: {
         )
       : undefined;
   const { projectScopes, selectedProject, selectedProjectKey, setProject } = flow;
-  const selectedProjectLabel = useMemo(() => {
+  const selectedProjectLabel = (() => {
     if (!selectedProject) return null;
     const scope = projectScopes.find((candidate) =>
       candidate.projectRefs.some(
@@ -251,7 +251,7 @@ export function NewTaskDraftScreen(props: {
       ),
     );
     return scope?.title ?? selectedProject.title;
-  }, [projectScopes, selectedProject]);
+  })();
   const { connectedEnvironments } = useRemoteConnectionStatus();
   const selectedEnvironmentServerConfig = useEnvironmentServerConfig(
     selectedProject?.environmentId ?? null,
@@ -347,32 +347,26 @@ export function NewTaskDraftScreen(props: {
   const composerDockRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const loadedBranchesProjectKeyRef = useRef<string | null>(null);
   const [isComposerFocused, setIsComposerFocused] = useState(false);
-  const keepFocusedComposerVisible = useCallback(() => {
+  const keepFocusedComposerVisible = () => {
     if (isComposerFocused) {
       composerDockRef.current?.scrollToEnd({ animated: false });
     }
-  }, [isComposerFocused]);
+  };
   useEffect(keepFocusedComposerVisible, [keepFocusedComposerVisible]);
   const [previewVideo, setPreviewVideo] = useState<VideoPreviewSource | null>(null);
   const [previewFile, setPreviewFile] = useState<FilePreviewSource | null>(null);
   const wasFocusedBeforePreviewRef = useRef(false);
-  const openVideoPreview = useCallback(
-    (attachment: DraftComposerFileAttachment, sourceIdentifier: string) => {
-      wasFocusedBeforePreviewRef.current = isComposerFocused;
-      setPreviewFile(null);
-      setPreviewVideo((current) => current ?? { type: "local", attachment, sourceIdentifier });
-    },
-    [isComposerFocused],
-  );
-  const openFilePreview = useCallback(
-    (source: FilePreviewSource) => {
-      wasFocusedBeforePreviewRef.current = isComposerFocused;
-      setPreviewVideo(null);
-      setPreviewFile((current) => current ?? source);
-    },
-    [isComposerFocused],
-  );
-  const closeMediaPreview = useCallback(() => {
+  const openVideoPreview = (attachment: DraftComposerFileAttachment, sourceIdentifier: string) => {
+    wasFocusedBeforePreviewRef.current = isComposerFocused;
+    setPreviewFile(null);
+    setPreviewVideo((current) => current ?? { type: "local", attachment, sourceIdentifier });
+  };
+  const openFilePreview = (source: FilePreviewSource) => {
+    wasFocusedBeforePreviewRef.current = isComposerFocused;
+    setPreviewVideo(null);
+    setPreviewFile((current) => current ?? source);
+  };
+  const closeMediaPreview = () => {
     setPreviewVideo(null);
     setPreviewFile(null);
     if (wasFocusedBeforePreviewRef.current) {
@@ -380,7 +374,7 @@ export function NewTaskDraftScreen(props: {
         if (navigation.isFocused()) promptInputRef.current?.focus();
       }, 100);
     }
-  }, [navigation]);
+  };
   const settingsSheetPresentation = useThreadSettingsSheetPresentation({
     editorRef: promptInputRef,
     isEditorFocused: isComposerFocused,
@@ -409,16 +403,14 @@ export function NewTaskDraftScreen(props: {
     settingsRoutePresentedRef.current = true;
     navigation.dispatch(StackActions.push("ThreadSettings"));
   }, [navigation, settingsSheetPresentation.isVisible]);
-  useFocusEffect(
-    useCallback(() => {
-      if (!settingsRoutePresentedRef.current) {
-        return;
-      }
+  useFocusEffect(() => {
+    if (!settingsRoutePresentedRef.current) {
+      return;
+    }
 
-      settingsRoutePresentedRef.current = false;
-      onSettingsSheetDismissed();
-    }, [onSettingsSheetDismissed]),
-  );
+    settingsRoutePresentedRef.current = false;
+    onSettingsSheetDismissed();
+  });
   useEffect(
     () =>
       // UIKit's completion callback for the sheet dismissal, surfaced by the
@@ -448,6 +440,11 @@ export function NewTaskDraftScreen(props: {
     draftKey: null,
     names: new Set(),
   });
+
+  const isCurrentShareImport = useEffectEvent(
+    (draftKey: string, shareId: string) =>
+      flow.draftKey === draftKey && props.incomingShareId === shareId,
+  );
   const latestDraftKeyRef = useRef(flow.draftKey);
   const latestIncomingShareIdRef = useRef(props.incomingShareId);
   useLayoutEffect(() => {
@@ -499,31 +496,18 @@ export function NewTaskDraftScreen(props: {
   const isImportingContext = flow.draftKey ? contextImports[flow.draftKey] === true : false;
   const isComposerBusy = isIncomingShareTransferPending || flow.submitting || isImportingContext;
   const isComposerInteractionLocked = isComposerBusy || flow.switchingToEnvironmentId !== null;
-  const providerOptionDescriptors = useMemo(
-    () =>
-      resolveProviderOptionDescriptors({
-        capabilities: flow.selectedModelOption?.capabilities,
-        selections: flow.selectedModel?.options,
-      }),
-    [flow.selectedModel?.options, flow.selectedModelOption?.capabilities],
-  );
+  const providerOptionDescriptors = resolveProviderOptionDescriptors({
+    capabilities: flow.selectedModelOption?.capabilities,
+    selections: flow.selectedModel?.options,
+  });
   const { environments, selectedEnvironmentId, switchEnvironment, switchingToEnvironmentId } = flow;
-  const cycleEnvironment = useCallback(() => {
+  const cycleEnvironment = () => {
     if (isComposerBusy) return true;
     const next = nextEnvironmentId(environments, switchingToEnvironmentId ?? selectedEnvironmentId);
     if (next !== null) void switchEnvironment(next);
     return true;
-  }, [
-    environments,
-    isComposerBusy,
-    selectedEnvironmentId,
-    switchEnvironment,
-    switchingToEnvironmentId,
-  ]);
-  const cycleEnvironmentCommands = useMemo(
-    () => (environments.length > 1 ? (["cycleHost"] as const) : []),
-    [environments.length],
-  );
+  };
+  const cycleEnvironmentCommands = environments.length > 1 ? (["cycleHost"] as const) : [];
   useHardwareKeyboardCommand(cycleEnvironmentCommands, cycleEnvironment);
   const offersUsageLimits =
     flow.selectedProviderStatus !== null &&
@@ -535,10 +519,7 @@ export function NewTaskDraftScreen(props: {
     (flow.workspaceMode === "worktree"
       ? selectedProject?.workspaceRoot
       : (flow.selectedWorktreePath ?? selectedProject?.workspaceRoot)) || null;
-  const stripAttachments = useMemo(
-    () => composerStripAttachments(flow.attachments),
-    [flow.attachments],
-  );
+  const stripAttachments = composerStripAttachments(flow.attachments);
   const composerMenu = useComposerCommandMenu({
     draftMessage: flow.prompt,
     ownerKey: flow.draftKey,
@@ -903,8 +884,7 @@ export function NewTaskDraftScreen(props: {
       if (
         !shareImportMountedRef.current ||
         activeShareImportTokenRef.current !== importToken ||
-        latestDraftKeyRef.current !== draftKey ||
-        latestIncomingShareIdRef.current !== shareId
+        !isCurrentShareImport(draftKey, shareId)
       ) {
         return;
       }
@@ -926,8 +906,7 @@ export function NewTaskDraftScreen(props: {
       if (
         !shareImportMountedRef.current ||
         activeShareImportTokenRef.current !== importToken ||
-        latestDraftKeyRef.current !== draftKey ||
-        latestIncomingShareIdRef.current !== shareId
+        !isCurrentShareImport(draftKey, shareId)
       ) {
         // The durable reservation makes an interrupted transfer resume only
         // in this project instead of copying into a second project draft.
@@ -1151,121 +1130,118 @@ export function NewTaskDraftScreen(props: {
     }
   }
 
-  const handleNativePasteImages = useCallback(
-    async (uris: ReadonlyArray<string>) => {
-      try {
-        const insertion = flow.draftKey ? captureComposerDraftInsertion(flow.draftKey) : undefined;
-        const images = await convertPastedImagesToAttachments({
-          uris,
-          existingCount:
-            flow.draftKey && insertion
-              ? countComposerDraftAttachmentsAfterSelection(flow.draftKey, insertion)
-              : flow.attachments.length,
-        });
-        if (images.length > 0) {
-          flow.appendAttachments(images, insertion);
-        }
-      } catch (error) {
-        console.error("[native paste] error converting images", error);
-      }
-    },
-    [flow],
-  );
+  const handleNativePasteImages = async (uris: ReadonlyArray<string>) => {
+    const insertion = flow.draftKey ? captureComposerDraftInsertion(flow.draftKey) : undefined;
+    const existingCount =
+      flow.draftKey && insertion
+        ? countComposerDraftAttachmentsAfterSelection(flow.draftKey, insertion)
+        : flow.attachments.length;
+    const converted = await settlePromise(() =>
+      convertPastedImagesToAttachments({
+        uris,
+        existingCount,
+      }),
+    );
+    if (AsyncResult.isFailure(converted)) {
+      console.error("[native paste] error converting images", squashAtomCommandFailure(converted));
+      return;
+    }
+    if (converted.value.length > 0) flow.appendAttachments(converted.value, insertion);
+  };
 
-  const handleNativePasteText = useCallback(
-    async (paste: ComposerTextPaste) => {
-      const draftKey = flow.draftKey;
-      if (!draftKey) return;
-      const insertion = { text: paste.value, ...paste.selection };
-      const insertPaste = () => {
-        const insertion = replaceTextSelection({
-          value: paste.value,
-          selection: paste.selection,
-          text: paste.text,
-        });
-        const selection = { start: insertion.cursor, end: insertion.cursor };
-        flow.setPrompt(insertion.value);
-        composerMenu.onSelectionChange(selection);
-      };
-      const capabilities = selectedEnvironmentServerConfig?.environment.capabilities;
-      const advertisedMax = capabilities?.fileAttachments?.maxUploadBytes;
-      const maxBytes =
-        advertisedMax === undefined ? null : clampFileAttachmentUploadBytes(advertisedMax);
-      const wouldExceedInputLimit =
-        paste.value.length -
-          Math.max(0, paste.selection.end - paste.selection.start) +
-          paste.text.length >
-        PROVIDER_SEND_TURN_MAX_INPUT_CHARS;
-      const canAttach =
-        maxBytes !== null &&
-        countComposerDraftAttachmentsAfterSelection(draftKey, insertion) <
-          PROVIDER_SEND_TURN_MAX_ATTACHMENTS &&
-        new TextEncoder().encode(paste.text).byteLength <= maxBytes;
-      if (
-        pastedTextDisposition({
-          text: paste.text,
-          wouldExceedInputLimit,
-          canAttach: true,
-        }) === "attachment"
-      ) {
-        if (canAttach && maxBytes !== null) {
-          pendingPastedTextAttachmentCountRef.current += 1;
-          setPendingPastedTextAttachmentCount(pendingPastedTextAttachmentCountRef.current);
-          try {
-            if (pastedTextFileNamesRef.current.draftKey !== draftKey) {
-              pastedTextFileNamesRef.current = { draftKey, names: new Set() };
-            }
-            const reservedNames = pastedTextFileNamesRef.current.names;
-            for (const attachment of flow.attachments) reservedNames.add(attachment.name);
-            const name = nextPastedTextFileName([...reservedNames]);
-            reservedNames.add(name);
-            const attachment = await createPastedTextComposerAttachment({
-              text: paste.text,
-              name,
-              maxBytes,
-            });
-            if (latestDraftKeyRef.current !== draftKey) {
-              await removePersistedComposerAttachmentFile(attachment.fileUri);
-              return;
-            }
-            if (flow.appendAttachments([attachment], insertion) > 0) {
-              await removePersistedComposerAttachmentFile(attachment.fileUri);
-              Dialog.alert(
-                "Could not attach pasted text",
-                `You can attach up to ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS} files per message.`,
-              );
-            }
-          } catch (error) {
+  const handleNativePasteText = async (paste: ComposerTextPaste) => {
+    const draftKey = flow.draftKey;
+    if (!draftKey) return;
+    const insertion = { text: paste.value, ...paste.selection };
+    const insertPaste = () => {
+      const insertion = replaceTextSelection({
+        value: paste.value,
+        selection: paste.selection,
+        text: paste.text,
+      });
+      const selection = { start: insertion.cursor, end: insertion.cursor };
+      flow.setPrompt(insertion.value);
+      composerMenu.onSelectionChange(selection);
+    };
+    const capabilities = selectedEnvironmentServerConfig?.environment.capabilities;
+    const advertisedMax = capabilities?.fileAttachments?.maxUploadBytes;
+    const maxBytes =
+      advertisedMax === undefined ? null : clampFileAttachmentUploadBytes(advertisedMax);
+    const wouldExceedInputLimit =
+      paste.value.length -
+        Math.max(0, paste.selection.end - paste.selection.start) +
+        paste.text.length >
+      PROVIDER_SEND_TURN_MAX_INPUT_CHARS;
+    const canAttach =
+      maxBytes !== null &&
+      countComposerDraftAttachmentsAfterSelection(draftKey, insertion) <
+        PROVIDER_SEND_TURN_MAX_ATTACHMENTS &&
+      new TextEncoder().encode(paste.text).byteLength <= maxBytes;
+    if (
+      pastedTextDisposition({
+        text: paste.text,
+        wouldExceedInputLimit,
+        canAttach: true,
+      }) === "attachment"
+    ) {
+      if (canAttach && maxBytes !== null) {
+        pendingPastedTextAttachmentCountRef.current += 1;
+        setPendingPastedTextAttachmentCount(pendingPastedTextAttachmentCountRef.current);
+        const attached = await settlePromise(async () => {
+          if (pastedTextFileNamesRef.current.draftKey !== draftKey) {
+            pastedTextFileNamesRef.current = { draftKey, names: new Set() };
+          }
+          const reservedNames = pastedTextFileNamesRef.current.names;
+          for (const attachment of flow.attachments) reservedNames.add(attachment.name);
+          const name = nextPastedTextFileName([...reservedNames]);
+          reservedNames.add(name);
+          const attachment = await createPastedTextComposerAttachment({
+            text: paste.text,
+            name,
+            maxBytes,
+          });
+          if (latestDraftKeyRef.current !== draftKey) {
+            await removePersistedComposerAttachmentFile(attachment.fileUri);
+            return;
+          }
+          if (flow.appendAttachments([attachment], insertion) > 0) {
+            await removePersistedComposerAttachmentFile(attachment.fileUri);
             Dialog.alert(
               "Could not attach pasted text",
-              error instanceof Error ? error.message : "Try again.",
+              `You can attach up to ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS} files per message.`,
             );
-          } finally {
-            pendingPastedTextAttachmentCountRef.current = Math.max(
-              0,
-              pendingPastedTextAttachmentCountRef.current - 1,
-            );
-            setPendingPastedTextAttachmentCount(pendingPastedTextAttachmentCountRef.current);
           }
-        } else if (!wouldExceedInputLimit) {
-          insertPaste();
-        } else {
+        });
+        pendingPastedTextAttachmentCountRef.current = Math.max(
+          0,
+          pendingPastedTextAttachmentCountRef.current - 1,
+        );
+        setPendingPastedTextAttachmentCount(pendingPastedTextAttachmentCountRef.current);
+        if (AsyncResult.isFailure(attached)) {
+          const error = squashAtomCommandFailure(attached);
           Dialog.alert(
-            wouldExceedInputLimit
-              ? "Pasted text is too large for this message"
-              : "Could not attach pasted text",
-            wouldExceedInputLimit
-              ? "Remove some text or an attachment, then paste again."
-              : "Remove an attachment or use a smaller paste, then try again.",
+            "Could not attach pasted text",
+            error instanceof Error ? error.message : "Try again.",
           );
         }
         return;
+      } else if (!wouldExceedInputLimit) {
+        insertPaste();
+      } else {
+        Dialog.alert(
+          wouldExceedInputLimit
+            ? "Pasted text is too large for this message"
+            : "Could not attach pasted text",
+          wouldExceedInputLimit
+            ? "Remove some text or an attachment, then paste again."
+            : "Remove an attachment or use a smaller paste, then try again.",
+        );
       }
+      return;
+    }
 
-      insertPaste();
-    },
-    [composerMenu, flow, selectedEnvironmentServerConfig],
-  );
+    insertPaste();
+  };
 
   async function handleStart(): Promise<void> {
     if (
@@ -1372,16 +1348,15 @@ export function NewTaskDraftScreen(props: {
     // Persist before clearing the draft or leaving its editor. This only waits
     // for the local outbox write; server and worktree setup run on the thread.
     flow.setSubmitting(true);
-    try {
-      await enqueueThreadOutboxMessage(message);
-    } catch (error) {
+    const queued = await settlePromise(() => enqueueThreadOutboxMessage(message));
+    flow.setSubmitting(false);
+    if (AsyncResult.isFailure(queued)) {
+      const error = squashAtomCommandFailure(queued);
       Dialog.alert(
         "Could not queue task",
         error instanceof Error ? error.message : "The task could not be saved to the outbox.",
       );
       return;
-    } finally {
-      flow.setSubmitting(false);
     }
     const draftSnapshot = getComposerDraftSnapshot(draftKey);
     if (editingPendingTask) {
@@ -1883,11 +1858,7 @@ export function NewTaskDraftScreen(props: {
         }}
       />
       <Toolbar placement="left">
-        <Toolbar.Button
-          accessibilityLabel="Cancel new task"
-          label="Cancel"
-          onPress={closeNewTask}
-        />
+        <Toolbar.Button accessibilityLabel="Cancel new task" icon="xmark" onPress={closeNewTask} />
       </Toolbar>
 
       {keyboardDismissArea}

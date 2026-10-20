@@ -166,17 +166,9 @@ export const make = Effect.gen(function* () {
           "--",
           "true",
         ]).pipe(Effect.map((result) => result._tag === "Some" && result.value.code === 0));
-      // Stop the whole scope when the kernel kills one of its processes, and
-      // record the result as oom-kill. Scopes take OOMPolicy from systemd 253;
-      // older user managers still get scopes, without the OOM label.
-      const stopOptions = [STOP_TIMEOUT_OPTION];
-      const oomOptions = [...stopOptions, "--property=OOMPolicy=stop"];
-      const scopeOptions = (yield* probe(oomOptions))
-        ? oomOptions
-        : (yield* probe(stopOptions))
-          ? stopOptions
-          : undefined;
-      if (scopeOptions === undefined) {
+
+      const supportsOomPolicy = yield* probe([STOP_TIMEOUT_OPTION, "--property=OOMPolicy=stop"]);
+      if (!supportsOomPolicy && !(yield* probe([STOP_TIMEOUT_OPTION]))) {
         yield* Effect.logInfo("Agent scopes are off: no systemd user manager");
         return undefined;
       }
@@ -197,13 +189,13 @@ export const make = Effect.gen(function* () {
       yield* Effect.logInfo("Agent scopes are on", {
         slice: AGENT_SLICE,
         ...limits,
-        oomPolicy: scopeOptions.length > 0,
+        oomPolicy: supportsOomPolicy,
       });
       return {
         systemdRun,
         systemctl,
         runtimeDir,
-        scopeOptions,
+        supportsOomPolicy,
       };
     }),
   );
@@ -324,23 +316,34 @@ export const make = Effect.gen(function* () {
       sessionId,
       env,
       survivesRestart,
+      shared,
     }) {
       const resolved = yield* resolve(command, env ?? hostEnvironment);
       if (resolved === null) return { command, args };
       const scope = yield* systemd;
       if (scope === undefined) return agentScopeCommand({ command: resolved, args });
       const unit = `supaterm-${name}-${NodeCrypto.randomUUID().slice(0, 8)}.scope`;
+
+      const continuing = shared === true && scope.supportsOomPolicy;
+      const owned = (threadId !== undefined || sessionId !== undefined) && !continuing;
       if (threadId !== undefined || sessionId !== undefined)
-        yield* track(scope.systemctl, scopeKey(threadId ?? "", sessionId), unit);
+        yield* track(
+          scope.systemctl,
+          scopeKey(threadId ?? "", sessionId),
+          owned ? unit : undefined,
+        );
       const systemdScope: AgentSystemdScope = {
         systemdRun: scope.systemdRun,
         runtimeDir: scope.runtimeDir,
         slice: survivesRestart === true ? AGENT_SLICE : ownedSlice,
         unit,
-        options:
-          threadId === undefined && sessionId === undefined
-            ? [...scope.scopeOptions, "--collect"]
-            : scope.scopeOptions,
+        options: [
+          STOP_TIMEOUT_OPTION,
+          ...(scope.supportsOomPolicy
+            ? [`--property=OOMPolicy=${continuing ? "continue" : "stop"}`]
+            : []),
+          ...(owned ? [] : ["--collect"]),
+        ],
       };
       return agentScopeCommand({ command: resolved, args, scope: systemdScope });
     }),

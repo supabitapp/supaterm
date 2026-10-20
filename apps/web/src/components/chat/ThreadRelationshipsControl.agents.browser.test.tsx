@@ -404,12 +404,14 @@ it("opens the correct chat for every workflow phase and unphased member", async 
       {
         instanceId: "claude-personal",
         driver: "claudeAgent",
+        enabled: true,
         displayName: "Personal account",
         models: [],
       },
       {
         instanceId: "claude-work",
         driver: "claudeAgent",
+        enabled: true,
         displayName: "Work account",
         models: [{ slug: "claude-sonnet-4-6", name: "Sonnet" }],
       },
@@ -1089,6 +1091,7 @@ it("shows readable models and only differing workspace details in agent tooltips
       {
         instanceId: "codex",
         driver: "codex",
+        enabled: true,
         displayName: "Work account",
         models: [
           {
@@ -1101,6 +1104,7 @@ it("shows readable models and only differing workspace details in agent tooltips
       {
         instanceId: "codex_personal",
         driver: "codex",
+        enabled: true,
         displayName: "Personal account",
         models: [],
       },

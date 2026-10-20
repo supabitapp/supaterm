@@ -678,7 +678,7 @@ describe("resolveAssistantMessageCopyState", () => {
 
 describe("deriveMessagesTimelineRows", () => {
   it.each([false, true])(
-    "hides earlier group previews when chat advances, working=%s",
+    "keeps every group's images after chat advances, working=%s",
     (isWorking) => {
       const fixture = makeStreamingTimelineFixture("Continuing after the screenshot.");
       const source = fixture.visibleTurnItems.find((row) => row.item.type === "dynamic_tool")!;
@@ -712,37 +712,124 @@ describe("deriveMessagesTimelineRows", () => {
           turnDiffSummaries: [],
           supportsConversationRollback: false,
         });
-      expect(
-        rows(initial).find((row) => row.kind === "work-toggle" || row.kind === "work-live")
-          ?.latestImage,
-      ).toMatchObject({
-        resource: { itemId: initial[1]!.sourceItemId },
-      });
+      const groupImageIds = (timeline: ReturnType<typeof rows>) =>
+        timeline
+          .filter((row) => row.kind === "work-toggle" || row.kind === "work-live")
+          .map((row) =>
+            row.images?.map((image) =>
+              image.resource._tag === "tool-output-image" ? image.resource.itemId : null,
+            ),
+          );
+      const initialIds = [initial[1]!.sourceItemId, initial[0]!.sourceItemId];
+      expect(groupImageIds(rows(initial))).toEqual([initialIds]);
       for (const type of ["assistant_message", "user_message"] as const) {
         const following = fixture.visibleTurnItems.find(
           (row) => row.item.type === type && row.item.runId === fixture.runId,
         )!;
-        const advanced = rows([...initial, { ...following, position: 2 }]);
-        expect(
-          advanced.find((row) => row.kind === "work-toggle" || row.kind === "work-live")
-            ?.latestImage,
-        ).toBeNull();
+        expect(groupImageIds(rows([...initial, { ...following, position: 2 }]))).toEqual([
+          initialIds,
+        ]);
       }
       const assistant = fixture.visibleTurnItems.find(
         (row) => row.item.type === "assistant_message" && row.item.runId === fixture.runId,
       )!;
+      const older = screenshot(3);
       const newer = screenshot(4);
-      const groups = rows([...initial, { ...assistant, position: 2 }, screenshot(3), newer]).filter(
-        (row) => row.kind === "work-toggle" || row.kind === "work-live",
-      );
-      expect(groups.map((row) => row.latestImage?.resource)).toEqual([
-        undefined,
-        expect.objectContaining({ itemId: newer.sourceItemId }),
-      ]);
+      expect(
+        groupImageIds(rows([...initial, { ...assistant, position: 2 }, older, newer])),
+      ).toEqual([initialIds, [newer.sourceItemId, older.sourceItemId]]);
     },
   );
 
-  it("updates and clears a collapsed group's image with the latest tool result", () => {
+  it("shows a folded turn's tool images on its fold row", () => {
+    const fixture = makeStreamingTimelineFixture("Here is what the screenshots show.");
+    const source = fixture.visibleTurnItems.find((row) => row.item.type === "dynamic_tool")!;
+    if (source.item.type !== "dynamic_tool") throw new Error("Expected tool fixture");
+    const screenshot = (position: number) => {
+      const id = TurnItemId.make(`fold-screenshot-${position}`);
+      return {
+        ...source,
+        position,
+        sourceItemId: id,
+        item: { ...source.item, id, output: undefined, outputOmitted: true, outputImageCount: 1 },
+      };
+    };
+    const streamingAssistant = fixture.visibleTurnItems.find(
+      (row) => row.item.type === "assistant_message" && row.item.runId === fixture.runId,
+    )!;
+    if (streamingAssistant.item.type !== "assistant_message") throw new Error("Expected reply");
+    const assistant = {
+      ...streamingAssistant,
+      item: { ...streamingAssistant.item, status: "completed" as const, streaming: false },
+    };
+    const rows = (expandedRunIds: ReadonlySet<RunId>) =>
+      deriveMessagesTimelineRows({
+        timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
+          visibleTurnItems: [screenshot(0), screenshot(1), { ...assistant, position: 2 }],
+          optimisticMessages: [],
+        }),
+        isWorking: false,
+        expandedRunIds,
+        activeTurnStartedAt: null,
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      });
+    const fold = rows(new Set()).find((row) => row.kind === "turn-fold");
+    expect(
+      fold?.kind === "turn-fold"
+        ? fold.images?.map(
+            (image) => image.resource._tag === "tool-output-image" && image.resource.itemId,
+          )
+        : undefined,
+    ).toEqual(["fold-screenshot-1", "fold-screenshot-0"]);
+    expect(
+      rows(new Set([fixture.runId])).some(
+        (row) => row.kind === "work-toggle" && row.images?.length === 2,
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps each screenshot's image when its run fails", () => {
+    const fixture = makeStreamingTimelineFixture();
+    const source = fixture.visibleTurnItems.find((row) => row.item.type === "dynamic_tool")!;
+    if (source.item.type !== "dynamic_tool") throw new Error("Expected tool fixture");
+    const screenshot = (position: number) => {
+      const id = TurnItemId.make(`failed-run-screenshot-${position}`);
+      return {
+        ...source,
+        position,
+        sourceItemId: id,
+        item: { ...source.item, id, output: undefined, outputOmitted: true, outputImageCount: 1 },
+      };
+    };
+    const rows = deriveMessagesTimelineRows({
+      timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
+        visibleTurnItems: [screenshot(0), screenshot(1)],
+        optimisticMessages: [],
+      }),
+      latestRun: {
+        runId: fixture.runId,
+        status: "failed",
+        startedAt: fixture.time(0),
+        completedAt: fixture.time(5),
+      },
+      isWorking: false,
+      activeTurnStartedAt: null,
+      turnDiffSummaries: [],
+      supportsConversationRollback: false,
+    });
+    expect(
+      rows.flatMap((row) =>
+        row.kind === "work"
+          ? (row.images ?? []).map(
+              (image) => image.resource._tag === "tool-output-image" && image.resource.itemId,
+            )
+          : [],
+      ),
+    ).toEqual(["failed-run-screenshot-0", "failed-run-screenshot-1"]);
+  });
+
+  it("adds each tool result's images to a collapsed group", () => {
     const fixture = makeStreamingTimelineFixture();
     const source = fixture.visibleTurnItems.find((row) => row.item.type === "dynamic_tool")!;
     if (source.item.type !== "dynamic_tool") throw new Error("Expected tool fixture");
@@ -774,24 +861,22 @@ describe("deriveMessagesTimelineRows", () => {
         turnDiffSummaries: [],
         supportsConversationRollback: false,
       });
+    const images = (row: MessagesTimelineRow | undefined) =>
+      row?.kind === "work-toggle" ? row.images?.map((image) => image.resource) : undefined;
     const first = rows(0);
-    expect(first.find((row) => row.kind === "work-toggle")).toMatchObject({
-      expanded: false,
-      latestImage: null,
-    });
+    expect(images(first.find((row) => row.kind === "work-toggle"))).toEqual([
+      expect.objectContaining({ itemId: "image-tool-0", index: 1 }),
+      expect.objectContaining({ itemId: "image-tool-0", index: 0 }),
+    ]);
     const stable = computeStableMessagesTimelineRows(first, { byId: new Map(), result: [] });
     const next = computeStableMessagesTimelineRows(rows(1), stable);
-    expect(next.result.find((row) => row.kind === "work-toggle")).toMatchObject({
-      expanded: false,
-      latestImage: { resource: { itemId: "image-tool-1", index: 0 } },
-    });
+    expect(images(next.result.find((row) => row.kind === "work-toggle"))).toEqual([
+      expect.objectContaining({ itemId: "image-tool-1", index: 0 }),
+      expect.objectContaining({ itemId: "image-tool-0", index: 1 }),
+      expect.objectContaining({ itemId: "image-tool-0", index: 0 }),
+    ]);
     expect(next).not.toBe(stable);
-    const cleared = computeStableMessagesTimelineRows(rows(0), next);
-    expect(cleared.result.find((row) => row.kind === "work-toggle")).toMatchObject({
-      expanded: false,
-      latestImage: null,
-    });
-    expect(cleared).not.toBe(next);
+    expect(computeStableMessagesTimelineRows(rows(1), next)).toBe(next);
   });
 
   it("stops stranded thinking after a steer and follows the next thought or tool", () => {
@@ -1216,6 +1301,7 @@ describe("deriveMessagesTimelineRows", () => {
         id: "compaction-entry",
         createdAt: "2026-01-01T00:00:00Z",
         label: "Compacted context 899K → 19K tokens",
+        tokenCounts: null,
         active: false,
       },
     ]);
@@ -1269,6 +1355,7 @@ describe("deriveMessagesTimelineRows", () => {
     expect(completedRows.find((row) => row.kind === "context-compaction")).toMatchObject({
       active: false,
       label: "Context compacted 899K → 19K tokens",
+      tokenCounts: { before: "899K", after: "19K" },
     });
     expect(completedRows.at(-1)?.kind).toBe("thinking");
 
@@ -2048,6 +2135,44 @@ describe("deriveMessagesTimelineRows", () => {
     expect(rows.at(-1)).toMatchObject({ kind: "thinking" });
   });
 
+  it("does not show Thinking once the open run's provider turn has ended", () => {
+    const input = {
+      timelineEntries: [
+        {
+          id: "user-entry",
+          kind: "message" as const,
+          createdAt: "2026-01-01T00:00:00Z",
+          message: {
+            id: "user" as never,
+            role: "user" as const,
+            text: "Take over the queue",
+            runId: "turn-1" as never,
+            createdAt: "2026-01-01T00:00:00Z",
+            updatedAt: "2026-01-01T00:00:00Z",
+            streaming: false,
+          },
+        },
+      ],
+      latestRun: {
+        runId: "turn-1" as never,
+        status: "running" as const,
+        startedAt: "2026-01-01T00:00:00Z",
+        completedAt: null,
+      },
+      isWorking: true,
+      activeTurnStartedAt: "2026-01-01T00:00:00Z",
+      turnDiffSummaries: [],
+      supportsConversationRollback: false,
+    };
+
+    expect(deriveMessagesTimelineRows(input).at(-1)?.kind).toBe("thinking");
+    const ended = deriveMessagesTimelineRows({
+      ...input,
+      latestRun: { ...input.latestRun, turnEnded: true },
+    });
+    expect(ended.some((row) => row.kind === "thinking")).toBe(false);
+  });
+
   it("does not fold the active in-progress turn", () => {
     const rows = deriveMessagesTimelineRows({
       timelineEntries: [
@@ -2484,6 +2609,123 @@ describe("deriveMessagesTimelineRows", () => {
       "work",
       "work",
       "assistant:resume-answer",
+    ]);
+  });
+
+  it("keeps answered questions in their own row outside tool groups and turn folds", () => {
+    const threadId = ThreadId.make("answered-question-thread");
+    const runId = RunId.make("answered-question-run");
+    const requestId = RuntimeRequestId.make("scope-question");
+    const at = (second: number) =>
+      DateTime.makeUnsafe(new Date(Date.UTC(2026, 9, 17, 12, 0, second)).toISOString());
+    const base = (id: string, ordinal: number, second: number) => ({
+      id: TurnItemId.make(id),
+      threadId,
+      runId,
+      nodeId: null,
+      providerThreadId: null,
+      providerTurnId: null,
+      nativeItemRef: null,
+      parentItemId: null,
+      ordinal,
+      status: "completed" as const,
+      title: null,
+      startedAt: at(second),
+      completedAt: at(second),
+      updatedAt: at(second),
+    });
+    const command = (id: string, ordinal: number, second: number) => ({
+      ...base(id, ordinal, second),
+      type: "command_execution" as const,
+      input: `cat ${id}`,
+    });
+    const items = (settled: boolean) =>
+      [
+        {
+          ...base("prompt", 0, 0),
+          type: "user_message" as const,
+          messageId: MessageId.make("prompt"),
+          text: "Pick a repository",
+          attachments: [],
+          inputIntent: "turn_start" as const,
+          createdBy: "user" as const,
+          creationSource: "web" as const,
+        },
+        command("before", 1, 1),
+        {
+          ...base("question", 2, 2),
+          type: "user_input_request" as const,
+          requestId,
+          questions: [],
+          questionAnswer: {
+            requestId,
+            questionTextById: { scope: "Which repository?" },
+            answers: { scope: "The private one" },
+            attachmentsByQuestionId: {},
+          },
+        },
+        command("after", 3, 3),
+        settled
+          ? {
+              ...base("answer", 4, 5),
+              type: "assistant_message" as const,
+              messageId: MessageId.make("answer"),
+              text: "Done",
+              streaming: false,
+            }
+          : { ...command("running", 4, 4), status: "running" as const, completedAt: null },
+      ].map((item, position) => ({
+        position,
+        visibility: "local" as const,
+        sourceThreadId: threadId,
+        sourceItemId: item.id,
+        item,
+      }));
+    const rows = (settled: boolean, expandedRunIds?: ReadonlySet<RunId>) =>
+      deriveMessagesTimelineRows({
+        timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
+          visibleTurnItems: items(settled),
+          optimisticMessages: [],
+        }),
+        latestRun: {
+          runId,
+          status: settled ? "completed" : "running",
+          startedAt: DateTime.formatIso(at(0)),
+          completedAt: settled ? DateTime.formatIso(at(5)) : null,
+        },
+        runningRunId: settled ? null : runId,
+        isWorking: !settled,
+        activeTurnStartedAt: settled ? null : DateTime.formatIso(at(0)),
+        ...(expandedRunIds === undefined ? {} : { expandedRunIds }),
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      });
+    const shape = (timeline: ReadonlyArray<MessagesTimelineRow>) =>
+      timeline.map((row) =>
+        row.kind === "turn-fold"
+          ? "fold"
+          : row.kind === "message"
+            ? `${row.message.role}:${row.message.id}`
+            : row.kind === "work" || row.kind === "work-live"
+              ? `${row.kind}:${row.groupedEntries.map((entry) => entry.id).join(" + ")}`
+              : row.kind,
+      );
+
+    expect(shape(rows(true))).toEqual(["user:prompt", "fold", "work:question", "assistant:answer"]);
+    expect(shape(rows(true, new Set([runId])))).toEqual([
+      "user:prompt",
+      "fold",
+      "work:before",
+      "work:question",
+      "work:after",
+      "assistant:answer",
+    ]);
+    expect(shape(rows(false))).toEqual([
+      "user:prompt",
+      "working",
+      "work:before",
+      "work:question",
+      "work-live:after + running",
     ]);
   });
 

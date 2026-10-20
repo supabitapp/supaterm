@@ -1,4 +1,5 @@
 import * as NodeModule from "node:module";
+import * as NodeNet from "node:net";
 
 import type * as Undici from "undici";
 
@@ -40,4 +41,10 @@ export function installHttp1FetchDispatcher(): void {
  */
 export function keepOutboundFetchOnHttp1(): void {
   if (builtinFetchUsesHttp2(process.versions.undici)) installHttp1FetchDispatcher();
+}
+
+export function extendConnectionAttemptTimeout(): void {
+  NodeNet.setDefaultAutoSelectFamilyAttemptTimeout(
+    Math.max(NodeNet.getDefaultAutoSelectFamilyAttemptTimeout(), 1_000),
+  );
 }

@@ -6,6 +6,7 @@ import type {
 } from "@supaterm/provider-core/server/usage";
 import * as Schema from "effect/Schema";
 
+import { CLAUDE_SYNTHETIC_MODEL } from "../provider/Drivers/claudeUsage.ts";
 import { GUARD_LENGTH, type TranscriptParsePosition } from "./usageTranscriptReader.ts";
 
 // Bump when what a transcript parses to changes; entries from another version are dropped.
@@ -229,6 +230,8 @@ export function decodeScanCache(
       ) {
         return null;
       }
+
+      if (provider === "claude" && model === CLAUDE_SYNTHETIC_MODEL) continue;
 
       records.push({
         provider,

@@ -54,6 +54,7 @@ import {
   type ConnectionRouteAdvertisements,
   entryWithRoutes,
   findRouteToSameAddress,
+  hasSavedBearerRoute,
   mergeLearnedRoutes,
   routeHttpBaseUrl,
   routesAfterRemoving,
@@ -403,7 +404,7 @@ export const make = Effect.gen(function* () {
           const scope = yield* Scope.fork(registryScope);
           const entryRef = yield* Ref.make(entry);
           const supervisor = yield* EnvironmentSupervisor.make(entry, {
-            initiallyDesired: false,
+            initiallyDesired: entry.enabled,
             entryRef,
             learnRoutes: (input) => learnRoutes({ environmentId, ...input }),
           }).pipe(
@@ -413,9 +414,6 @@ export const make = Effect.gen(function* () {
             Scope.provide(scope),
             Effect.onError(() => Scope.close(scope, Exit.void)),
           );
-          if (entry.enabled) {
-            yield* supervisor.connect;
-          }
           yield* SubscriptionRef.update(serviceScopes, (current) => {
             const next = new Map(current);
             next.set(environmentId, { entry: entryRef, supervisor, scope });
@@ -1099,19 +1097,22 @@ export const make = Effect.gen(function* () {
       environmentId,
       Effect.gen(function* () {
         const entry = yield* getEntry(environmentId);
-        if (enabled && entry.unsupportedReason !== undefined) {
+        const retryUnsupported = enabled && entry.unsupportedReason !== undefined;
+        if (retryUnsupported && !hasSavedBearerRoute(entry)) {
           return yield* new ConnectionBlockedError({
             reason: "unsupported",
             detail: entry.unsupportedReason,
           });
         }
-        if (entry.enabled === enabled) {
+        if (entry.enabled === enabled && !retryUnsupported) {
           return;
         }
         if (!(yield* Ref.get(platformEnvironmentIds)).has(environmentId)) {
           yield* registrations.setEnabled(environmentId, enabled);
         }
-        const next: ConnectionCatalogEntry = { ...entry, enabled };
+
+        const { unsupportedReason: _reason, serverUpdateRequired: _update, ...rest } = entry;
+        const next: ConnectionCatalogEntry = { ...(retryUnsupported ? rest : entry), enabled };
         // Update the lease in place so the supervisor keeps its generation and
         // durable streams; `installEntryLocked` would tear it down instead.
         const lease = (yield* SubscriptionRef.get(serviceScopes)).get(environmentId);

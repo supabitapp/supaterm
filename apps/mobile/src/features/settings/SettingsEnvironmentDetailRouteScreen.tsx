@@ -7,12 +7,11 @@ import {
   type EnvironmentId,
   type ServerProvider,
 } from "@supaterm/contracts";
-import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
+import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { AsyncResult } from "effect/reactivity";
 import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
 import { AppText as Text } from "../../components/ui/AppText";
 import { ProviderIcon } from "../../components/ProviderIcon";
 import { ScreenScrollView } from "../../components/ui/ScreenScrollView";
@@ -32,7 +31,6 @@ import {
   findEnvironmentUpdate,
   supportsEnvironmentUpdate,
 } from "./environment-maintenance";
-
 export function SettingsEnvironmentDetailRouteScreen({
   route,
 }: StaticScreenProps<{
@@ -46,7 +44,6 @@ export function SettingsEnvironmentDetailRouteScreen({
     />
   );
 }
-
 function EnvironmentDetail({ environmentId }: { readonly environmentId: EnvironmentId }) {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
@@ -72,7 +69,6 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
   } | null>(null);
   const checkController = useRef<AbortController | null>(null);
   useEffect(() => () => checkController.current?.abort(), []);
-
   const connected = environment?.isEnabled === true && environment.connectionState === "connected";
   const allowed =
     !AsyncResult.isFailure(sessionResult) && canMaintainEnvironment(session, connected);
@@ -89,25 +85,22 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
   const version = config?.environment.serverVersion;
   const checkedRelease = release?.fromVersion === version ? release : null;
   const capabilities = config?.environment.capabilities;
-
   async function run(label: string, action: () => Promise<void>) {
     if (pendingRef.current) return;
     pendingRef.current = true;
     setPending(label);
     setError(null);
     setNotice(null);
-    try {
-      await action();
-    } catch (cause) {
+    const result = await settlePromise(action);
+    pendingRef.current = false;
+    setPending(null);
+    if (AsyncResult.isFailure(result)) {
+      const cause = squashAtomCommandFailure(result);
       setError(
         cause instanceof Error ? cause.message : "The action could not be completed. Try again.",
       );
-    } finally {
-      pendingRef.current = false;
-      setPending(null);
     }
   }
-
   function requestServerUpdate() {
     const targetVersion = checkedRelease?.targetVersion;
     if (disabled || !targetVersion || !capabilities || !supportsEnvironmentUpdate(capabilities))
@@ -116,7 +109,10 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
       `Update ${environment?.environmentLabel ?? "environment"}?`,
       `Install Supaterm ${targetVersion}. ${capabilities.serverSelfUpdate === "desktop-managed" ? "The desktop app will close and relaunch." : "The server will restart and reconnect."} Running threads may be interrupted.`,
       [
-        { text: "Cancel", style: "cancel" },
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
         {
           text: "Update",
           onPress: () =>
@@ -149,7 +145,6 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
       ],
     );
   }
-
   function requestProviderUpdate(provider: ServerProvider) {
     if (
       busy ||
@@ -168,14 +163,15 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
       if (AsyncResult.isFailure(result)) throw squashAtomCommandFailure(result);
     });
   }
-
   return (
     <SettingsScreen title={environment?.environmentLabel ?? "Environment"}>
       <ScreenScrollView
         contentInsetAdjustmentBehavior="automatic"
         className="flex-1"
         contentContainerClassName="gap-6 px-5 pt-4"
-        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
+        contentContainerStyle={{
+          paddingBottom: Math.max(insets.bottom, 18) + 18,
+        }}
       >
         {!environment ? (
           <Text className="text-base text-foreground-muted">
@@ -200,7 +196,12 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
               onAddRoute={() =>
                 navigation.navigate("SettingsSheet", {
                   screen: "SettingsContent",
-                  params: { screen: "SettingsEnvironmentNew", params: { routeFor: environmentId } },
+                  params: {
+                    screen: "SettingsEnvironmentNew",
+                    params: {
+                      routeFor: environmentId,
+                    },
+                  },
                 })
               }
             />
@@ -246,7 +247,8 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
                           : "You are up to date."}
                       </Text>
                     ) : null}
-                    {!supportsEnvironmentUpdate(config.environment.capabilities) ? (
+                    {checkedRelease?.targetVersion &&
+                    !supportsEnvironmentUpdate(config.environment.capabilities) ? (
                       <Text className="text-sm text-foreground-muted">
                         {capabilities?.serverSelfUpdate === "desktop-managed"
                           ? "Update the desktop app on this machine."
@@ -265,19 +267,18 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
                         const controller = new AbortController();
                         checkController.current = controller;
                         const timeout = setTimeout(() => controller.abort(), 20_000);
-                        try {
-                          const targetVersion = await findEnvironmentUpdate(
-                            config.environment.serverVersion,
-                            controller.signal,
-                          );
-                          setRelease({
-                            fromVersion: config.environment.serverVersion,
-                            targetVersion,
-                          });
-                        } finally {
-                          clearTimeout(timeout);
-                          checkController.current = null;
-                        }
+                        const fromVersion = config.environment.serverVersion;
+                        const result = await settlePromise(() =>
+                          findEnvironmentUpdate(fromVersion, controller.signal),
+                        );
+                        clearTimeout(timeout);
+                        checkController.current = null;
+
+                        if (AsyncResult.isFailure(result)) throw squashAtomCommandFailure(result);
+                        setRelease({
+                          fromVersion,
+                          targetVersion: result.value,
+                        });
                       });
                     }}
                   />
@@ -303,7 +304,10 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
                       void run("refresh", async () => {
                         if (!readEnvironmentScope(environmentId, AuthOrchestrationReadScope))
                           return;
-                        const result = await refreshProviders({ environmentId, input: {} });
+                        const result = await refreshProviders({
+                          environmentId,
+                          input: {},
+                        });
                         if (AsyncResult.isFailure(result)) throw squashAtomCommandFailure(result);
                         setNotice("Provider status refreshed.");
                       });

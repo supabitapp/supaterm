@@ -4,9 +4,28 @@ import { usePresence } from "~/hooks/usePresence";
 import { Alert, AlertAction, AlertDescription } from "../ui/alert";
 import { Button } from "../ui/button";
 import { CircleAlertIcon, XIcon } from "lucide-react";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { OpenAI } from "../Icons";
 import { ChatGptUsageButton } from "../settings/ChatGptUsageButton";
+import { ExpandableText } from "../settings/ExpandableText";
+
+export function getThreadErrorBannerMessage(error: string): string {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(error);
+  } catch {
+    return error;
+  }
+  if (typeof payload !== "object" || payload === null || !("error" in payload)) {
+    return error;
+  }
+  const nestedError = payload.error;
+  if (typeof nestedError !== "object" || nestedError === null || !("message" in nestedError)) {
+    return error;
+  }
+  return typeof nestedError.message === "string" && nestedError.message.trim().length > 0
+    ? nestedError.message
+    : error;
+}
 
 export function getThreadErrorBannerKey(threadKey: string, error: string | null): string | null {
   return error === null ? null : `${threadKey}\u0000${error}`;
@@ -76,14 +95,10 @@ export const ThreadErrorBanner = memo(function ThreadErrorBanner({
               <p>Review your usage settings in ChatGPT to continue.</p>
             </div>
           ) : (
-            <Tooltip>
-              <TooltipTrigger render={<div className="line-clamp-3" />}>
-                {banner.error}
-              </TooltipTrigger>
-              <TooltipPopup side="top" className="whitespace-pre-wrap">
-                {banner.error}
-              </TooltipPopup>
-            </Tooltip>
+            <ExpandableText
+              text={banner.error}
+              collapsedText={getThreadErrorBannerMessage(banner.error)}
+            />
           )}
         </AlertDescription>
         {(banner.chatGptUsageLimit || onDismiss) && (

@@ -104,13 +104,14 @@ const make = Effect.gen(function* () {
 
   const requireOwnRepository = Effect.fn("PullRequestReviewGuideService.requireOwnRepository")(
     function* (key: ThreadPullRequestKey, identity: RepositoryIdentity | null | undefined) {
-      if (!repositoryMatchesPullRequest(identity, key)) {
+      if (identity == null || !repositoryMatchesPullRequest(identity, key)) {
         return yield* new PullRequestOperationError({
           operation: "generateReviewGuide",
           detail:
             "Guides are written from this project's checkout, and this pull request is in another repository. Write it from a project that is a checkout of that repository.",
         });
       }
+      return identity.locator;
     },
   );
 
@@ -144,15 +145,39 @@ const make = Effect.gen(function* () {
 
   const checkoutHead = Effect.fn("PullRequestReviewGuideService.checkoutHead")(function* (
     workspaceRoot: string,
-    identityRemote: string | undefined,
+    locator: RepositoryIdentity["locator"],
     detail: PullRequestDetail,
     headSha: string,
     stack: PullRequestStack | null,
     runId: string,
   ) {
-    // The pull request was matched to the repository this remote names. In a checkout of a fork
-    // that is usually `upstream`, and the fork's own `origin` may be stale or lack the change.
-    const remote = identityRemote ?? (yield* git.resolvePrimaryRemoteName(workspaceRoot));
+    const names = yield* git
+      .execute({
+        operation: "PullRequestReviewGuideService.listRemotes",
+        cwd: workspaceRoot,
+        args: ["remote"],
+      })
+      .pipe(Effect.map((result) => result.stdout.split("\n").filter((name) => name.length > 0)));
+    const remote = yield* Effect.findFirst(
+      [locator.remoteName, ...names.filter((name) => name !== locator.remoteName)],
+      (name) =>
+        git
+          .execute({
+            operation: "PullRequestReviewGuideService.remoteUrl",
+            cwd: workspaceRoot,
+            args: ["remote", "get-url", "--", name],
+          })
+          .pipe(
+            Effect.map((result) => result.stdout.trim() === locator.remoteUrl),
+            Effect.orElseSucceed(() => false),
+          ),
+    ).pipe(Effect.map(Option.getOrUndefined));
+    if (remote === undefined) {
+      return yield* new PullRequestOperationError({
+        operation: "generateReviewGuide",
+        detail: "This project's checkout no longer has a remote for the pull request's repository.",
+      });
+    }
     const fetch = (args: ReadonlyArray<string>) =>
       git.execute({
         operation: "PullRequestReviewGuideService.fetch",
@@ -326,7 +351,7 @@ const make = Effect.gen(function* () {
     input: PullRequestRef,
     key: ThreadPullRequestKey,
     workspaceRoot: string,
-    identityRemote: string | undefined,
+    locator: RepositoryIdentity["locator"],
     detail: PullRequestDetail,
     headSha: string,
     runId: string,
@@ -343,7 +368,7 @@ const make = Effect.gen(function* () {
     );
     const { generated, change } = yield* checkoutHead(
       workspaceRoot,
-      identityRemote,
+      locator,
       detail,
       headSha,
       stack,
@@ -407,7 +432,7 @@ const make = Effect.gen(function* () {
       });
     }
     const { key, workspaceRoot, identity } = yield* keyFor(input);
-    yield* requireOwnRepository(key, identity);
+    const locator = yield* requireOwnRepository(key, identity);
     const projectSettings = resolveProjectSettings(settings, input.projectId).settings;
     const providers = yield* providerRegistry.getProviders;
     const modelSelection = ServerSettings.resolveReviewGuideModelSelection(
@@ -494,7 +519,7 @@ const make = Effect.gen(function* () {
       input,
       key,
       workspaceRoot,
-      identity?.locator.remoteName,
+      locator,
       detail,
       currentHeadSha,
       runId,

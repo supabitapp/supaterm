@@ -43,8 +43,8 @@ export function describeProviderInstance(
   return {
     ...entry,
     showBadge: shouldShowInstanceBadge(
-      entry,
-      providers.map((provider) => ({ driverKind: provider.driver })),
+      { ...entry, enabled: snapshot.enabled },
+      providers.map((provider) => ({ driverKind: provider.driver, enabled: provider.enabled })),
     ),
   };
 }

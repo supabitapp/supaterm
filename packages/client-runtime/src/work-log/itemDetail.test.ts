@@ -7,7 +7,7 @@ import {
 import * as DateTime from "effect/DateTime";
 import { describe, expect, it } from "vite-plus/test";
 
-import { latestToolGroupImage } from "./presentation.js";
+import { toolGroupImages } from "./presentation.js";
 import { turnItemOutputImages, turnItemOutputText } from "./itemDetail.ts";
 
 const screenshot = {
@@ -110,8 +110,8 @@ function projectedScreenshot(
   };
 }
 
-describe("latest tool group image", () => {
-  it("clears the screenshot for later text-only and running calls, then shows a new image", () => {
+describe("tool group images", () => {
+  it("collects every image across the group's calls, newest first", () => {
     const first = projectedScreenshot({
       output: undefined,
       outputOmitted: true,
@@ -123,43 +123,50 @@ describe("latest tool group image", () => {
       outputOmitted: true,
     });
     const running = { ...text, item: { ...text.item, status: "running" as const } };
-    expect(latestToolGroupImage([first])?.resource).toEqual({
-      _tag: "tool-output-image",
-      threadId: first.sourceThreadId,
-      itemId: first.sourceItemId,
-      index: 1,
-    });
-    expect(latestToolGroupImage([first, text])).toBeNull();
-    expect(latestToolGroupImage([first, text, running])).toBeNull();
     const newer = projectedScreenshot({
       id: TurnItemId.make("newer"),
       output: undefined,
       outputOmitted: true,
       outputImageCount: 1,
     });
-    expect(latestToolGroupImage([first, text, newer])?.resource).toEqual({
+    const image = (row: OrchestrationV2ProjectedTurnItem, index: number) => ({
       _tag: "tool-output-image",
-      threadId: newer.sourceThreadId,
-      itemId: newer.sourceItemId,
-      index: 0,
+      threadId: row.sourceThreadId,
+      itemId: row.sourceItemId,
+      index,
     });
-    expect(latestToolGroupImage([text])).toBeNull();
-    expect(latestToolGroupImage([])).toBeNull();
+    expect(toolGroupImages([first, text, running, newer]).map((entry) => entry.resource)).toEqual([
+      image(newer, 0),
+      image(first, 1),
+      image(first, 0),
+    ]);
+    expect(toolGroupImages([text, running])).toEqual([]);
+    expect(toolGroupImages([])).toEqual([]);
   });
 
   it("supports image metadata from older servers and viewed file paths", () => {
     const screenshotRow = projectedScreenshot();
-    expect(latestToolGroupImage([screenshotRow])?.resource).toMatchObject({
-      _tag: "tool-output-image",
-      index: 0,
+    const file = projectedScreenshot({
+      id: TurnItemId.make("file"),
+      output: undefined,
+      viewedImagePath: "screens/latest.png",
     });
-    const file = projectedScreenshot({ output: undefined, viewedImagePath: "screens/latest.png" });
-    expect(latestToolGroupImage([screenshotRow, file], "/workspace")?.resource).toEqual({
-      _tag: "media-file",
-      threadId: file.sourceThreadId,
-      path: "/workspace/screens/latest.png",
+    const reread = projectedScreenshot({
+      id: TurnItemId.make("reread"),
+      output: undefined,
+      viewedImagePath: "screens/latest.png",
     });
-    const text = projectedScreenshot({ output: undefined });
-    expect(latestToolGroupImage([screenshotRow, file, text], "/workspace")).toBeNull();
+    expect(
+      toolGroupImages([file, reread], "/workspace").map((entry) => [entry.key, entry.resource]),
+    ).toEqual([
+      ["reread:viewed", expect.objectContaining({ path: "/workspace/screens/latest.png" })],
+      ["file:viewed", expect.objectContaining({ path: "/workspace/screens/latest.png" })],
+    ]);
+    expect(
+      toolGroupImages([screenshotRow, file], "/workspace").map((entry) => entry.resource),
+    ).toEqual([
+      { _tag: "media-file", threadId: file.sourceThreadId, path: "/workspace/screens/latest.png" },
+      expect.objectContaining({ _tag: "tool-output-image", index: 0 }),
+    ]);
   });
 });

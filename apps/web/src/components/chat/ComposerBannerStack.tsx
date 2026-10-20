@@ -276,7 +276,7 @@ export function ComposerBannerStack({ className, items }: ComposerBannerStackPro
               stackExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
             )}
           >
-            <div className="min-h-0 overflow-hidden">
+            <div className="min-h-0 overflow-y-clip">
               <div
                 className={cn(
                   "space-y-2 pb-2 transition-[opacity,translate,visibility] duration-150 ease-out motion-reduce:transition-none",

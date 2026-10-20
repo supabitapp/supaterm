@@ -1,3 +1,4 @@
+import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { useEffect, useRef, useState } from "react";
 import { AuthProvidersManageScope } from "@supaterm/contracts";
 import type { createServerEnvironmentAtoms } from "@supaterm/client-runtime/state/server";
@@ -31,7 +32,7 @@ export function useOrchestrationSkills(
     if (busy.current) return;
     busy.current = true;
     setPending(action);
-    try {
+    const outcome = await settlePromise(async () => {
       const execute = action === "Status" ? read : action === "Install" ? install : uninstall;
       setResults(
         await runOrchestrationSkillsAction(selection, async (environmentId) => {
@@ -51,10 +52,10 @@ export function useOrchestrationSkills(
             : null;
         }),
       );
-    } finally {
-      busy.current = false;
-      setPending(null);
-    }
+    });
+    busy.current = false;
+    setPending(null);
+    if (outcome._tag === "Failure") throw squashAtomCommandFailure(outcome);
   };
   useEffect(() => {
     let active = true;

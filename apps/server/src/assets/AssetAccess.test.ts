@@ -299,6 +299,66 @@ describe("AssetAccess", () => {
     }).pipe(Effect.provide(layerTest)),
   );
 
+  it.effect("downloads any linked file with the same exact-file identity checks as media", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-download-root-" });
+      const outside = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-download-outside-" });
+      for (const name of ["installer.dmg", "report.docx", "archive.zip", "no-extension"]) {
+        for (const directory of [root, outside]) {
+          const filePath = path.join(directory, name);
+          yield* fs.writeFileString(filePath, "shared file bytes");
+          const resource = {
+            _tag: "media-file" as const,
+            threadId: ThreadId.make("thread-1"),
+            path: directory === root ? name : filePath,
+            disposition: "attachment" as const,
+          };
+          const result = yield* issueAssetUrl({ resource, workspaceRoot: root });
+          const suffix = result.relativeUrl.slice(`${ASSET_ROUTE_PREFIX}/`.length);
+          const separator = suffix.indexOf("/");
+          const token = suffix.slice(0, separator);
+          const asset = yield* resolveAsset(token, suffix.slice(separator + 1));
+          expect(asset).toMatchObject({
+            kind: "file",
+            download: true,
+            fileName: name,
+            mimeType: "application/octet-stream",
+          });
+          if (asset?.kind !== "file") throw new Error("Expected a downloadable file");
+          const response = HttpServerResponse.toWeb(yield* assetFileResponse(asset));
+          expect(response.headers.get("content-disposition")).toContain("attachment;");
+          expect(response.headers.get("content-type")).toBe("application/octet-stream");
+          expect(yield* Effect.promise(() => response.text())).toBe("shared file bytes");
+          expect(yield* resolveAsset(token, "sibling.docx")).toBeNull();
+          expect(yield* resolveAsset(token, `../${name}`)).toBeNull();
+          expect(yield* resolveAsset(`${token}tampered`, name)).toBeNull();
+          yield* fs.rename(filePath, `${filePath}.original`);
+          yield* fs.writeFileString(filePath, "replacement bytes");
+          expect(yield* resolveAsset(token, name)).toBeNull();
+        }
+      }
+      const inline = yield* issueAssetUrl({
+        resource: {
+          _tag: "media-file",
+          threadId: ThreadId.make("thread-1"),
+          path: path.join(outside, "installer.dmg"),
+        },
+      }).pipe(Effect.flip);
+      expect(inline._tag).toBe("AssetPreviewTypeValidationError");
+      const directoryError = yield* issueAssetUrl({
+        resource: {
+          _tag: "media-file",
+          threadId: ThreadId.make("thread-1"),
+          path: root,
+          disposition: "attachment",
+        },
+      }).pipe(Effect.flip);
+      expect(directoryError._tag).toBe("AssetWorkspaceAssetNotFoundError");
+    }).pipe(Effect.provide(layerTest)),
+  );
+
   it.effect("reports pixel dimensions from an image header and nothing for other files", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;

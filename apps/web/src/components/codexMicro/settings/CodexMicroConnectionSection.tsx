@@ -15,7 +15,7 @@ import { Switch } from "../../ui/switch";
 import { toastManager } from "../../ui/toast";
 import { SettingsRow, SettingsSection } from "../../settings/settingsLayout";
 import { searchableSetting } from "../../settings/settingsSearch";
-import { useUpdateCodexMicroSettings } from "../useUpdateCodexMicroSettings";
+import { updateCodexMicroSettings } from "../updateCodexMicroSettings";
 import {
   CODEX_MICRO_AUTO_DIM_LABELS,
   CODEX_MICRO_PERMISSION_LABELS,
@@ -127,7 +127,6 @@ export function CodexMicroConnectionSection({
   state: CodexMicroDeviceState | null;
 }) {
   const settings = useClientSettings(selectConnectionSettings);
-  const updateSettings = useUpdateCodexMicroSettings();
   const summary = codexMicroConnectionSummary(settings.enabled, state);
   const details = settings.enabled ? codexMicroDeviceDetails(state) : null;
   const permission = state?.inputMonitoring ?? null;
@@ -162,7 +161,7 @@ export function CodexMicroConnectionSection({
             <Switch
               checked={settings.enabled}
               aria-label="Enable Codex Micro"
-              onCheckedChange={(checked) => void updateSettings({ enabled: checked })}
+              onCheckedChange={(checked) => void updateCodexMicroSettings({ enabled: checked })}
             />
           </>
         }
@@ -189,7 +188,7 @@ export function CodexMicroConnectionSection({
           <BrightnessSlider
             brightness={settings.brightness}
             disabled={disabled}
-            onCommit={(brightness) => void updateSettings({ brightness })}
+            onCommit={(brightness) => void updateCodexMicroSettings({ brightness })}
           />
         }
       />
@@ -202,7 +201,7 @@ export function CodexMicroConnectionSection({
             value={settings.autoDim}
             disabled={disabled}
             onValueChange={(value) => {
-              if (isCodexMicroAutoDim(value)) void updateSettings({ autoDim: value });
+              if (isCodexMicroAutoDim(value)) void updateCodexMicroSettings({ autoDim: value });
             }}
           >
             <SelectTrigger size="sm" className="w-full sm:w-40" aria-label="Auto-dim">

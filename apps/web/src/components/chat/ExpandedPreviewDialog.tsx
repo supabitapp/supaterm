@@ -52,6 +52,7 @@ export function ExpandedPreviewDialog(props: {
           </Button>
           <div
             tabIndex={0}
+            style={props.fit === "fill" ? { padding: 16 } : undefined}
             className="grid h-[min(86vh,calc(100vh-160px))] overflow-auto overscroll-contain rounded-lg bg-background shadow-2xl ring-1 ring-border/70 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset [container-type:size]"
           >
             <div className={FIT_CLASS_NAMES[props.fit]} style={{ zoom }}>

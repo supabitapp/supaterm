@@ -1,3 +1,4 @@
+import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import type { ClientSettings } from "@supaterm/contracts/settings";
 
 import completionUrl from "./assets/notification-completion.mp3";
@@ -17,6 +18,20 @@ export function hasNotificationSound(mode: NotificationMode) {
 
 export function hasDesktopNotifications(mode: NotificationMode) {
   return mode === "notifications" || mode === "notifications-and-sound";
+}
+
+const TAG_HASH_OFFSET_BASIS = 0xcbf29ce484222325n;
+const TAG_HASH_PRIME = 0x100000001b3n;
+const TAG_HASH_MASK = 0xffffffffffffffffn;
+
+export function threadNotificationTag(environmentId: EnvironmentId, threadId: ThreadId): string {
+  const key = `${environmentId}:${threadId}`;
+  let hash = TAG_HASH_OFFSET_BASIS;
+  for (let index = 0; index < key.length; index += 1) {
+    hash ^= BigInt(key.charCodeAt(index));
+    hash = (hash * TAG_HASH_PRIME) & TAG_HASH_MASK;
+  }
+  return hash.toString(16).padStart(16, "0");
 }
 
 let originalFavicon: HTMLLinkElement | undefined;
@@ -67,6 +82,8 @@ export function setNotificationBadge(count: number) {
 let audioContext: AudioContext | undefined;
 const buffers = new Map<string, Promise<AudioBuffer>>();
 
+const playingUntil = new Map<string, number>();
+
 /** Called from a gesture so browsers allow later background playback. */
 export function unlockNotificationAudio() {
   audioContext ??= new AudioContext();
@@ -90,10 +107,13 @@ export async function playNotificationSound(
     }
     const decoded = await buffer;
     if (!shouldPlay() || context.state !== "running") return;
+
+    if (context.currentTime < (playingUntil.get(url) ?? 0)) return;
     const source = context.createBufferSource();
     source.buffer = decoded;
     source.connect(context.destination);
     source.start();
+    playingUntil.set(url, context.currentTime + decoded.duration);
   } catch {
     buffers.delete(url);
   }

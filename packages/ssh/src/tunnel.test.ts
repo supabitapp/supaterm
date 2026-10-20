@@ -11,6 +11,8 @@ import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as PlatformError from "effect/PlatformError";
+import * as Queue from "effect/Queue";
 import * as Result from "effect/Result";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
@@ -128,8 +130,6 @@ describe("ssh tunnel scripts", () => {
       script,
       'SUPATERM_LOCK="$HOME/.supaterm/runtime/versions/.$SUPATERM_ARCHIVE_VERSION.install.lock"',
     );
-    assert.include(script, 'while ! mkdir "$SUPATERM_LOCK" 2>/dev/null; do');
-    assert.include(script, 'mv "$SUPATERM_LOCK/pid.tmp" "$SUPATERM_LOCK/pid"');
     assert.include(script, 'if ! kill -0 "$SUPATERM_LOCK_OWNER" 2>/dev/null; then');
     assert.include(script, 'if [ "$SUPATERM_LOCK_UNOWNED" -ge 5 ]; then');
     assert.include(script, 'if [ "$SUPATERM_LOCK_WAITED" -ge 360 ]; then');
@@ -237,7 +237,6 @@ describe("ssh tunnel scripts", () => {
 
   it("embeds the runner in the launch script byte for byte", () => {
     const runner = SshTunnel.buildRemoteSupatermRunnerScript(ARCHIVE);
-    assert.include(runner, 'printf \'%s\\n\' "$$" > "$SUPATERM_LOCK/pid.tmp"');
     assert.include(SshTunnel.buildRemoteLaunchScript(ARCHIVE), runner);
   });
 
@@ -652,6 +651,237 @@ describe("ssh tunnel scripts", () => {
     },
   );
 
+  it.effect("keeps the stderr reader alive until disconnect", () =>
+    Effect.gen(function* () {
+      const readerStarted = yield* Deferred.make<void>();
+      let readers = 0;
+      let finalized = 0;
+      const stderr = Stream.fromEffect(
+        Effect.sync(() => {
+          readers += 1;
+        }).pipe(Effect.andThen(Deferred.succeed(readerStarted, undefined))),
+      ).pipe(
+        Stream.flatMap(() => Stream.fromEffect(Effect.never)),
+        Stream.ensuring(
+          Effect.sync(() => {
+            finalized += 1;
+          }),
+        ),
+      );
+      const spawner = ChildProcessSpawner.make((command) =>
+        Effect.succeed(
+          commandArgs(command).includes("-N")
+            ? { ...makeRunningProcess(() => undefined), stderr }
+            : makeSuccessfulProcess('{"remotePort":3773}\n'),
+        ),
+      );
+      const httpClient = HttpClient.make((request) =>
+        Deferred.await(readerStarted).pipe(
+          Effect.as(HttpClientResponse.fromWeb(request, new Response("", { status: 200 }))),
+        ),
+      );
+      const layer = Layer.mergeAll(
+        NodeServices.layer,
+        Layer.succeed(ChildProcessSpawner.ChildProcessSpawner, spawner),
+        Layer.succeed(HttpClient.HttpClient, httpClient),
+        Layer.succeed(NetService.NetService, testNetService),
+        SshAuth.SshPasswordPrompt.disabledLayer,
+        SshTunnel.SshEnvironmentManager.layer({ resolveCliRunner: Effect.succeed(ARCHIVE) }),
+      );
+      yield* Effect.gen(function* () {
+        const manager = yield* SshTunnel.SshEnvironmentManager;
+        const target = { alias: "devbox", hostname: "devbox", username: null, port: null };
+        yield* manager.ensureEnvironment(target);
+        assert.equal(readers, 1);
+        assert.equal(finalized, 0, "readiness must not release the stderr reader");
+        yield* manager.disconnectEnvironment(target);
+        assert.equal(finalized, 1, "disconnect must release the stderr reader");
+      }).pipe(Effect.provide(layer), Effect.scoped);
+    }),
+  );
+
+  it.effect("retains a bounded diagnostic tail when the tunnel exits before readiness", () =>
+    Effect.gen(function* () {
+      const diagnostic = "Connection refused: café";
+      const output = new TextEncoder().encode(
+        "old diagnostics\n" + "x".repeat(32_768) + "\n" + diagnostic,
+      );
+      const spawner = ChildProcessSpawner.make((command) =>
+        Effect.succeed(
+          commandArgs(command).includes("-N")
+            ? {
+                ...makeSuccessfulProcess(""),
+                exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(1)),
+                stderr: Stream.make(output.subarray(0, output.length - 1), output.subarray(-1)),
+              }
+            : makeSuccessfulProcess('{"remotePort":3773}\n'),
+        ),
+      );
+      const layer = Layer.mergeAll(
+        NodeServices.layer,
+        Layer.succeed(ChildProcessSpawner.ChildProcessSpawner, spawner),
+        Layer.succeed(HttpClient.HttpClient, hangingHttpClient),
+        Layer.succeed(NetService.NetService, testNetService),
+        SshAuth.SshPasswordPrompt.disabledLayer,
+        SshTunnel.SshEnvironmentManager.layer({ resolveCliRunner: Effect.succeed(ARCHIVE) }),
+      );
+      yield* Effect.gen(function* () {
+        const manager = yield* SshTunnel.SshEnvironmentManager;
+        const result = yield* Effect.result(
+          manager.ensureEnvironment({
+            alias: "devbox",
+            hostname: "devbox",
+            username: null,
+            port: null,
+          }),
+        );
+        assert.isTrue(Result.isFailure(result));
+        if (Result.isFailure(result)) {
+          assert.instanceOf(result.failure, SshCommandError);
+          if (result.failure instanceof SshCommandError) {
+            assert.equal(result.failure.exitCode, 1);
+            assert.equal(result.failure.stderr.length, 16_384);
+            assert.isTrue(result.failure.stderr.endsWith(diagnostic));
+            assert.equal(result.failure.message, result.failure.stderr.trim());
+          }
+        }
+      }).pipe(Effect.provide(layer), Effect.scoped);
+    }),
+  );
+
+  it.effect("reports the real exit when reading tunnel diagnostics fails", () =>
+    Effect.gen(function* () {
+      const diagnostic = "Permission denied (publickey)";
+      const spawner = ChildProcessSpawner.make((command) =>
+        Effect.succeed(
+          commandArgs(command).includes("-N")
+            ? {
+                ...makeSuccessfulProcess(""),
+                exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(255)),
+                stderr: Stream.make(new TextEncoder().encode(diagnostic)).pipe(
+                  Stream.concat(
+                    Stream.fail(
+                      PlatformError.systemError({
+                        _tag: "Unknown",
+                        module: "Stream",
+                        method: "read",
+                        description: "stderr read failed",
+                      }),
+                    ),
+                  ),
+                ),
+              }
+            : makeSuccessfulProcess('{"remotePort":3773}\n'),
+        ),
+      );
+      const layer = Layer.mergeAll(
+        NodeServices.layer,
+        Layer.succeed(ChildProcessSpawner.ChildProcessSpawner, spawner),
+        Layer.succeed(HttpClient.HttpClient, hangingHttpClient),
+        Layer.succeed(NetService.NetService, testNetService),
+        SshAuth.SshPasswordPrompt.disabledLayer,
+        SshTunnel.SshEnvironmentManager.layer({ resolveCliRunner: Effect.succeed(ARCHIVE) }),
+      );
+      yield* Effect.gen(function* () {
+        const manager = yield* SshTunnel.SshEnvironmentManager;
+        const result = yield* Effect.result(
+          manager.ensureEnvironment({
+            alias: "devbox",
+            hostname: "devbox",
+            username: null,
+            port: null,
+          }),
+        );
+        assert.isTrue(Result.isFailure(result));
+        if (Result.isFailure(result)) {
+          assert.instanceOf(result.failure, SshCommandError);
+          if (result.failure instanceof SshCommandError) {
+            assert.equal(result.failure.exitCode, 255);
+            assert.equal(result.failure.stderr, diagnostic);
+          }
+        }
+      }).pipe(Effect.provide(layer), Effect.scoped);
+    }),
+  );
+
+  it.live("drains diagnostics beyond pipe capacity after readiness", () =>
+    Effect.gen(function* () {
+      const nodeSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+      const executable = yield* HostProcess.ExecutablePath;
+      const input = yield* Queue.unbounded<Uint8Array>();
+      const readerStarted = yield* Deferred.make<void>();
+      const tunnelSpawned = yield* Deferred.make<ChildProcessSpawner.ChildProcessHandle>();
+      let finalized = 0;
+      const spawner = ChildProcessSpawner.make((command) =>
+        Effect.gen(function* () {
+          if (!commandArgs(command).includes("-N")) {
+            return makeSuccessfulProcess('{"remotePort":3773}\n');
+          }
+          const child = yield* nodeSpawner.spawn(
+            ChildProcess.make(
+              executable,
+              [
+                "-e",
+                `process.stdin.once("data", () => {
+                process.stderr.write(Buffer.alloc(2 * 1024 * 1024, "x"), () => {
+                  process.stdout.write("diagnostics complete\\n");
+                });
+              });`,
+              ],
+              { stdin: { stream: Stream.fromQueue(input) } },
+            ),
+          );
+          yield* Deferred.succeed(tunnelSpawned, child);
+          return {
+            ...child,
+            stderr: Stream.fromEffect(Deferred.succeed(readerStarted, undefined)).pipe(
+              Stream.flatMap(() => child.stderr),
+              Stream.ensuring(
+                Effect.sync(() => {
+                  finalized += 1;
+                }),
+              ),
+            ),
+          };
+        }),
+      );
+      const httpClient = HttpClient.make((request) =>
+        Deferred.await(readerStarted).pipe(
+          Effect.as(HttpClientResponse.fromWeb(request, new Response("", { status: 200 }))),
+        ),
+      );
+      const layer = Layer.mergeAll(
+        Layer.succeed(ChildProcessSpawner.ChildProcessSpawner, spawner),
+        Layer.succeed(HttpClient.HttpClient, httpClient),
+        Layer.succeed(NetService.NetService, testNetService),
+        SshAuth.SshPasswordPrompt.disabledLayer,
+        SshTunnel.SshEnvironmentManager.layer({ resolveCliRunner: Effect.succeed(ARCHIVE) }),
+      );
+      yield* Effect.gen(function* () {
+        const manager = yield* SshTunnel.SshEnvironmentManager;
+        const target = { alias: "devbox", hostname: "devbox", username: null, port: null };
+        yield* manager.ensureEnvironment(target);
+        const child = yield* Deferred.await(tunnelSpawned);
+        const progress = yield* child.stdout.pipe(
+          Stream.decodeText(),
+          Stream.splitLines,
+          Stream.take(1),
+          Stream.runCollect,
+          Effect.forkScoped,
+        );
+        yield* Queue.offer(input, new TextEncoder().encode("write diagnostics"));
+
+        assert.deepEqual(yield* Fiber.join(progress).pipe(Effect.timeout("5 seconds")), [
+          "diagnostics complete",
+        ]);
+        assert.isTrue(yield* child.isRunning);
+        yield* manager.disconnectEnvironment(target);
+        assert.equal(finalized, 1);
+        assert.isFalse(yield* child.isRunning);
+      }).pipe(Effect.provide(layer), Effect.scoped);
+    }).pipe(Effect.provide(NodeServices.layer), Effect.scoped),
+  );
+
   it.effect.each(["local tunnel", "remote server"] as const)(
     "waits for %s shutdown before reconnecting the same target",
     (stalledStep) =>
@@ -828,13 +1058,22 @@ describe("remote port picker", () => {
   );
 });
 
-const runScript = (home: string, args: ReadonlyArray<string>) =>
+const runScript = (
+  home: string,
+  args: ReadonlyArray<string>,
+  options?: {
+    path?: string;
+    stdin?: Stream.Stream<Uint8Array>;
+    onStderrLine?: (line: string) => Effect.Effect<void>;
+  },
+) =>
   Effect.gen(function* () {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
     const child = yield* spawner.spawn(
       ChildProcess.make("sh", args, {
-        env: { PATH: process.env.PATH ?? "", HOME: home },
+        env: { PATH: options?.path ?? process.env.PATH ?? "", HOME: home },
         extendEnv: false,
+        ...(options?.stdin ? { stdin: { stream: options.stdin } } : {}),
       }),
     );
     const [stdout, stderr, exitCode] = yield* Effect.all(
@@ -848,9 +1087,11 @@ const runScript = (home: string, args: ReadonlyArray<string>) =>
         ),
         child.stderr.pipe(
           Stream.decodeText(),
+          Stream.splitLines,
+          Stream.tap((line) => options?.onStderrLine?.(line) ?? Effect.void),
           Stream.runFold(
             () => "",
-            (acc, chunk) => acc + chunk,
+            (acc, line) => `${acc}${line}\n`,
           ),
         ),
         child.exitCode.pipe(Effect.map(Number)),
@@ -866,7 +1107,8 @@ describe("archive runner script", () => {
   const windowsHost = hostPlatform === "win32";
   const archiveVersion = "1.2.3-preview.20260911.4";
 
-  const runRunner = (home: string, runner: string) => runScript(home, [runner, "--version"]);
+  const runRunner = (home: string, runner: string, options?: Parameters<typeof runScript>[2]) =>
+    runScript(home, [runner, "--version"], options);
 
   const makeMirror = Effect.fn("makeMirror")(function* (root: string) {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -903,10 +1145,43 @@ describe("archive runner script", () => {
         const home = `${root}/home`;
         yield* fs.makeDirectory(home, { recursive: true });
 
-        const results = yield* Effect.all(
-          [runRunner(home, runner), runRunner(home, runner), runRunner(home, runner)],
-          { concurrency: "unbounded" },
-        );
+        const bin = `${root}/bin`;
+        yield* fs.makeDirectory(bin);
+        for (const [name, script] of Object.entries({
+          mkdir: 'PATH=${PATH#*:}\nexec mkdir -p "$@"',
+          tar: 'echo >> "${0%/*}/installs"\necho installing >&2\nread -r release\nPATH=${PATH#*:}\nexec tar "$@"',
+          sleep: 'echo waiting >&2\nPATH=${PATH#*:}\nexec sleep "$@"',
+        })) {
+          yield* fs.writeFileString(`${bin}/${name}`, `#!/bin/sh\n${script}\n`);
+          yield* fs.chmod(`${bin}/${name}`, 0o755);
+        }
+        const path = `${bin}:${process.env.PATH ?? ""}`;
+        const installing = yield* Deferred.make<void>();
+        const contended = yield* Deferred.make<void>();
+
+        const first = yield* runRunner(home, runner, {
+          path,
+          stdin: Stream.fromEffect(
+            Deferred.await(contended).pipe(Effect.as(new TextEncoder().encode("release\n"))),
+          ),
+          onStderrLine: (line) =>
+            line === "installing"
+              ? Deferred.succeed(installing, undefined).pipe(Effect.asVoid)
+              : Effect.void,
+        }).pipe(Effect.forkChild);
+        yield* Deferred.await(installing);
+        const contender = runRunner(home, runner, {
+          path,
+          stdin: Stream.make(new TextEncoder().encode("release\n")),
+          onStderrLine: (line) =>
+            line === "installing" || line === "waiting"
+              ? Deferred.succeed(contended, undefined).pipe(Effect.asVoid)
+              : Effect.void,
+        });
+        const results = yield* Effect.all([Fiber.join(first), contender, contender], {
+          concurrency: "unbounded",
+        });
+        assert.equal(yield* fs.readFileString(`${bin}/installs`), "\n");
         for (const result of results) {
           assert.equal(result.exitCode, 0, result.stderr);
           assert.include(result.stdout, `supaterm v${archiveVersion}`);
@@ -920,13 +1195,12 @@ describe("archive runner script", () => {
 
         const lock = `${versionsDir}/.${archiveVersion}.install.lock`;
         yield* fs.remove(`${versionsDir}/${archiveVersion}`, { recursive: true });
-        yield* fs.makeDirectory(lock);
-        yield* fs.writeFileString(`${lock}/pid`, "999999\n");
+        yield* fs.writeFileString(lock, "999999\n");
         const afterDead = yield* runRunner(home, runner);
         assert.equal(afterDead.exitCode, 0, afterDead.stderr);
 
         yield* fs.remove(`${versionsDir}/${archiveVersion}`, { recursive: true });
-        yield* fs.makeDirectory(lock);
+        yield* fs.writeFileString(lock, "");
         const afterUnowned = yield* runRunner(home, runner);
         assert.equal(afterUnowned.exitCode, 0, afterUnowned.stderr);
         assert.isFalse(yield* fs.exists(lock));

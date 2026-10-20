@@ -2,8 +2,9 @@ import * as Dialog from "./ui/Dialog";
 import { ComposerContextId } from "@supaterm/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
+import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { useNavigation } from "@react-navigation/native";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { EnvironmentId } from "@supaterm/contracts";
 import { encodeComposerContextFragment } from "@supaterm/shared/composerContextClipboard";
 import { collectComposerContextReferences } from "@supaterm/shared/composerContextReferences";
@@ -30,7 +31,6 @@ import {
   composerMentionPath,
   type ComposerDocumentAttachment,
 } from "../lib/composerContext";
-
 export type ComposerEditorProps = NativeComposerEditorProps & {
   readonly draftKey?: string | null;
   readonly environmentId?: EnvironmentId;
@@ -39,7 +39,6 @@ export type ComposerEditorProps = NativeComposerEditorProps & {
   readonly chipsInert?: boolean;
   readonly onInertChipPress?: () => void;
 };
-
 export function ComposerEditor({
   draftKey,
   environmentId,
@@ -59,7 +58,10 @@ export function ComposerEditor({
     history: createComposerDraftContextHistory(),
   }));
   if (contextHistoryEntry.draftKey !== draftKey) {
-    setContextHistoryEntry({ draftKey, history: createComposerDraftContextHistory() });
+    setContextHistoryEntry({
+      draftKey,
+      history: createComposerDraftContextHistory(),
+    });
   }
   const contextHistory = contextHistoryEntry.history;
   useEffect(() => () => contextHistory.dispose(), [contextHistory]);
@@ -71,12 +73,16 @@ export function ComposerEditor({
     props.onChangeText(text);
     if (draftKey) {
       setComposerDraftContext(draftKey, restored.context);
-      appendComposerDraftAttachments(draftKey, restored.attachments, { allowOverflow: true });
+      appendComposerDraftAttachments(draftKey, restored.attachments, {
+        allowOverflow: true,
+      });
     }
   };
-  const [selected, setSelected] = useState<{ source: string; start: number; end: number } | null>(
-    null,
-  );
+  const [selected, setSelected] = useState<{
+    source: string;
+    start: number;
+    end: number;
+  } | null>(null);
   const importRef = useRef<{
     readonly draftKey: string;
     readonly controller: AbortController;
@@ -95,12 +101,18 @@ export function ComposerEditor({
     clipboard: Parameters<NonNullable<NativeComposerEditorProps["onPasteContext"]>>[0],
   ) => {
     if (!draftKey || importRef.current || props.readOnly || props.editable === false) return;
-    const insertion = { text: clipboard.value, ...clipboard.selection };
+    const insertion = {
+      text: clipboard.value,
+      ...clipboard.selection,
+    };
     const controller = new AbortController();
-    importRef.current = { draftKey, controller };
+    importRef.current = {
+      draftKey,
+      controller,
+    };
     setImporting(true);
     setComposerContextImporting(draftKey, true);
-    try {
+    const settled = await settlePromise(async () => {
       const retained = getComposerDraftAfterSelection(draftKey, insertion);
       const result = await importComposerContextClipboard(
         clipboard,
@@ -124,41 +136,38 @@ export function ComposerEditor({
           "Some attachments could not be copied",
           "Reconnect to the source environment and copy them again. References without their files are marked unavailable.",
         );
-    } catch (error) {
-      if (!controller.signal.aborted)
-        Dialog.alert(
-          "Could not paste context",
-          error instanceof Error ? error.message : "Try copying again.",
-        );
-    } finally {
-      setComposerContextImporting(draftKey, false);
-      importRef.current = null;
-      setImporting(false);
+    });
+    setComposerContextImporting(draftKey, false);
+    importRef.current = null;
+    setImporting(false);
+    if (AsyncResult.isFailure(settled) && !controller.signal.aborted) {
+      const error = squashAtomCommandFailure(settled);
+      Dialog.alert(
+        "Could not paste context",
+        error instanceof Error ? error.message : "Try copying again.",
+      );
     }
   };
-  const clipboardFragment = useMemo(
-    () =>
-      environmentId && draft.context
-        ? encodeComposerContextFragment({
-            version: 1,
-            source: { environmentId },
-            records: draft.context.records.map((record) => {
-              if (!("attachmentId" in record)) return record;
-              const attachment = draft.attachments.find(
-                (entry) => entry.id === record.attachmentId,
-              );
-              return {
-                ...record,
-                attachmentId:
-                  attachment?.uploadEnvironmentId === environmentId
-                    ? (attachment.uploadedAttachmentId ?? record.attachmentId)
-                    : record.attachmentId,
-              };
-            }),
-          })
-        : "",
-    [environmentId, draft.context, draft.attachments],
-  );
+  const clipboardFragment =
+    environmentId && draft.context
+      ? encodeComposerContextFragment({
+          version: 1,
+          source: {
+            environmentId,
+          },
+          records: draft.context.records.map((record) => {
+            if (!("attachmentId" in record)) return record;
+            const attachment = draft.attachments.find((entry) => entry.id === record.attachmentId);
+            return {
+              ...record,
+              attachmentId:
+                attachment?.uploadEnvironmentId === environmentId
+                  ? (attachment.uploadedAttachmentId ?? record.attachmentId)
+                  : record.attachmentId,
+            };
+          }),
+        })
+      : "";
   const navigation = useNavigation();
   const selectedReference = selected
     ? collectComposerContextReferences(selected.source)[0]
@@ -228,7 +237,11 @@ export function ComposerEditor({
                 }
               : undefined)
           }
-          {...(selectedSkill?.description ? { skillDescription: selectedSkill.description } : {})}
+          {...(selectedSkill?.description
+            ? {
+                skillDescription: selectedSkill.description,
+              }
+            : {})}
           {...(selectedSkill?.path && onOpenMention
             ? {
                 onOpenSkill: () => {
@@ -257,7 +270,10 @@ export function ComposerEditor({
                     changeText(
                       props.value.slice(0, selected.start) + props.value.slice(selected.end),
                     );
-                    props.onSelectionChange?.({ start: selected.start, end: selected.start });
+                    props.onSelectionChange?.({
+                      start: selected.start,
+                      end: selected.start,
+                    });
                   }
                   setSelected(null);
                 }

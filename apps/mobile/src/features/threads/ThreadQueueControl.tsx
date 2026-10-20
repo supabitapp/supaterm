@@ -1,6 +1,11 @@
 import { type StaticScreenProps, useNavigation } from "@react-navigation/native";
 import { useAtomValue } from "@effect/atom-react";
-import type { EnvironmentId, RunId, ThreadId } from "@supaterm/contracts";
+import {
+  AuthOrchestrationOperateScope,
+  type EnvironmentId,
+  type RunId,
+  type ThreadId,
+} from "@supaterm/contracts";
 import * as Haptics from "expo-haptics";
 import { type RefObject, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Animated, Platform, Pressable, ScrollView, useWindowDimensions, View } from "react-native";
@@ -24,6 +29,7 @@ import { useUniwindTheme } from "../../lib/useUniwindTheme";
 import { beginQueuedRunEdit, useQueuedRunEdit } from "../../state/queued-run-edit";
 import { environmentThreadDetails, threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
+import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
 import {
   REMOVE_QUEUED_MESSAGE_ACCESSIBILITY_LABEL,
   buildCancelQueuedRunCommand,
@@ -46,6 +52,7 @@ export function useThreadQueueWorkflow(target: QueueTarget) {
 
 export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
   const target = route.params;
+  const canOperate = useEnvironmentScope(target.environmentId, AuthOrchestrationOperateScope);
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
@@ -109,20 +116,26 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
   }, [navigation, queuedRuns.length]);
 
   const move = async (runId: RunId, beforeRunId: RunId | null) => {
-    if (busyRef.current || !workflow?.canReorder) return;
+    if (
+      !readEnvironmentScope(target.environmentId, AuthOrchestrationOperateScope) ||
+      busyRef.current ||
+      !workflow?.canReorder
+    )
+      return;
     busyRef.current = true;
     setBusyRunId(runId);
     void Haptics.selectionAsync();
-    try {
-      await reorder({ ...target, input: { threadId: target.threadId, runId, beforeRunId } });
-    } finally {
-      busyRef.current = false;
-      setBusyRunId(null);
-    }
+    await reorder({ ...target, input: { threadId: target.threadId, runId, beforeRunId } });
+    busyRef.current = false;
+    setBusyRunId(null);
   };
 
   const act = async (runId: RunId, action: QueueMessageAction) => {
-    if (busyRef.current) return;
+    if (
+      !readEnvironmentScope(target.environmentId, AuthOrchestrationOperateScope) ||
+      busyRef.current
+    )
+      return;
     const index = queuedRuns.findIndex(({ run }) => run.id === runId);
     if (index < 0) return;
     if (action === "up" && index > 0) {
@@ -154,26 +167,23 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
     busyRef.current = true;
     setBusyRunId(runId);
     void Haptics.selectionAsync();
-    try {
-      if (action === "remove") {
-        await cancel(buildCancelQueuedRunCommand({ ...target, runId }));
-      } else if (workflow?.activeRun && workflow.canPromoteToSteer) {
-        await promote({
-          ...target,
-          input: {
-            threadId: target.threadId,
-            queuedRunId: runId,
-            targetRunId: workflow.activeRun.id,
-          },
-        });
-      }
-    } finally {
-      busyRef.current = false;
-      setBusyRunId(null);
+    if (action === "remove") {
+      await cancel(buildCancelQueuedRunCommand({ ...target, runId }));
+    } else if (workflow?.activeRun && workflow.canPromoteToSteer) {
+      await promote({
+        ...target,
+        input: {
+          threadId: target.threadId,
+          queuedRunId: runId,
+          targetRunId: workflow.activeRun.id,
+        },
+      });
     }
+    busyRef.current = false;
+    setBusyRunId(null);
   };
 
-  const canReorder = workflow?.canReorder === true && queuedRuns.length > 1;
+  const canReorder = canOperate && workflow?.canReorder === true && queuedRuns.length > 1;
   const sourceLayout = dragRows?.find((row) => row.id === draggedRunId);
   const lastLayout = dragRows?.at(-1);
   const insertionOffset =
@@ -210,11 +220,13 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
               {queuedRuns.length}
             </Text>
           </View>
-          <Text className="text-sm text-foreground-muted">
-            {canSteerQueuedMessages
-              ? "Tap to edit · Steer or swipe for more"
-              : "Tap to edit · Swipe for actions"}
-          </Text>
+          {canOperate ? (
+            <Text className="text-sm text-foreground-muted">
+              {canSteerQueuedMessages
+                ? "Tap to edit · Steer or swipe for more"
+                : "Tap to edit · Swipe for actions"}
+            </Text>
+          ) : null}
         </View>
         <Pressable
           accessibilityRole="button"
@@ -245,6 +257,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
             ? threadDragGapOffset(layout.y, sourceLayout.y, sourceLayout.height, insertionOffset)
             : 0;
         const controls = resolveThreadQueueRowControls({
+          canOperate,
           busy: busyRunId !== null || draggedRunId !== null,
           canPromoteToSteer: workflow?.canPromoteToSteer ?? false,
           canReorder: workflow?.canReorder ?? false,
@@ -276,7 +289,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
                 // Outside the swipeable: two pans on one row would race, and
                 // the handle owns vertical movement while the row owns sideways.
                 <QueueDragHandle
-                  disabled={busyRunId !== null}
+                  disabled={!canOperate || busyRunId !== null}
                   title={title}
                   canMoveUp={controls.canMoveUp}
                   canMoveDown={controls.canMoveDown}
@@ -397,17 +410,18 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
               tone="primary"
               fullWidth
               loading={resuming}
-              disabled={resuming || busyRunId !== null}
+              disabled={!canOperate || resuming || busyRunId !== null}
               onPress={async () => {
-                if (busyRef.current) return;
+                if (
+                  !readEnvironmentScope(target.environmentId, AuthOrchestrationOperateScope) ||
+                  busyRef.current
+                )
+                  return;
                 busyRef.current = true;
                 setResuming(true);
-                try {
-                  await resume({ ...target, input: { threadId: target.threadId } });
-                } finally {
-                  busyRef.current = false;
-                  setResuming(false);
-                }
+                await resume({ ...target, input: { threadId: target.threadId } });
+                busyRef.current = false;
+                setResuming(false);
               }}
             />
           </View>

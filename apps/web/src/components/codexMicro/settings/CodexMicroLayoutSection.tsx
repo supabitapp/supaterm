@@ -12,7 +12,7 @@ import { useState } from "react";
 import { useClientSettings } from "../../../hooks/useSettings";
 import { useThreadShells } from "../../../state/entities";
 import { useCodexMicroSlots } from "../codexMicroStore";
-import { useUpdateCodexMicroSettings } from "../useUpdateCodexMicroSettings";
+import { updateCodexMicroSettings } from "../updateCodexMicroSettings";
 import {
   AlertDialog,
   AlertDialogClose,
@@ -94,7 +94,6 @@ function KeyEditor({
 
 export function CodexMicroLayoutSection({ state }: { state: CodexMicroDeviceState | null }) {
   const settings = useClientSettings(selectLayoutSettings);
-  const updateSettings = useUpdateCodexMicroSettings();
   const slots = useCodexMicroSlots();
   const pressedKey = useCodexMicroPressedKey(settings.layout.separateMicrophoneKeys);
   const customAssignments = settings.agentSource === "custom";
@@ -119,7 +118,7 @@ export function CodexMicroLayoutSection({ state }: { state: CodexMicroDeviceStat
   const resetLayout = resetCodexMicroLayout(settings.layout);
   const layoutIsDefault = Equal.equals(resetLayout, settings.layout);
   const saveLayout = (layout: CodexMicroLayout) => {
-    void updateSettings({ layout });
+    void updateCodexMicroSettings({ layout });
   };
 
   const select = (key: CodexMicroKeyId) => {
@@ -161,7 +160,9 @@ export function CodexMicroLayoutSection({ state }: { state: CodexMicroDeviceStat
           layout={settings.layout}
           customAgentKeys={settings.customAgentKeys}
           onLayoutChange={saveLayout}
-          onCustomAgentKeysChange={(customAgentKeys) => void updateSettings({ customAgentKeys })}
+          onCustomAgentKeysChange={(customAgentKeys) =>
+            void updateCodexMicroSettings({ customAgentKeys })
+          }
           onClose={() => setEditing(null)}
         />
       )}

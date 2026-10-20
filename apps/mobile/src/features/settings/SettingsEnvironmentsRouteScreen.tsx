@@ -1,9 +1,7 @@
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
 import { useNavigation } from "@react-navigation/native";
 import type { EnvironmentId } from "@supaterm/contracts";
-import { useCallback } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
 import { SettingsScreen } from "./components/SettingsScreen";
 import { LocalEnvironmentList } from "../connection/LocalEnvironmentList";
 import { GitHubRoutingSettings } from "../connection/GitHubRoutingSettings";
@@ -13,9 +11,7 @@ import {
   applyShowcaseLocalEnvironmentDisplayUrls,
   resolveShowcaseEnvironmentUpdateDisplayUrl,
 } from "../showcase/showcaseEnvironmentRows";
-
 const SHOWCASE_ENABLED = process.env.EXPO_PUBLIC_SHOWCASE === "1";
-
 export function SettingsEnvironmentsRouteScreen() {
   const {
     connectedEnvironments,
@@ -30,43 +26,43 @@ export function SettingsEnvironmentsRouteScreen() {
     ? applyShowcaseLocalEnvironmentDisplayUrls(connectedEnvironments)
     : connectedEnvironments;
   const headerIconColor = useUniwindTheme()["--color-icon"];
-
-  const openEnvironment = useCallback(
-    (environmentId: EnvironmentId) => {
-      navigation.navigate("SettingsSheet", {
-        screen: "SettingsContent",
-        params: { screen: "SettingsEnvironmentDetail", params: { environmentId } },
-      });
+  const openEnvironment = (environmentId: EnvironmentId) => {
+    navigation.navigate("SettingsSheet", {
+      screen: "SettingsContent",
+      params: {
+        screen: "SettingsEnvironmentDetail",
+        params: {
+          environmentId,
+        },
+      },
+    });
+  };
+  const handleUpdateEnvironment = (
+    environmentId: EnvironmentId,
+    updates: {
+      readonly label: string;
+      readonly displayUrl: string;
     },
-    [navigation],
-  );
-  const handleUpdateEnvironment = useCallback(
-    (
-      environmentId: EnvironmentId,
-      updates: { readonly label: string; readonly displayUrl: string },
-    ) => {
-      if (!SHOWCASE_ENABLED) return onUpdateEnvironment(environmentId, updates);
-      const actualEnvironment = connectedEnvironments.find(
-        (environment) => environment.environmentId === environmentId,
-      );
-      const presentedEnvironment = localEnvironments.find(
-        (environment) => environment.environmentId === environmentId,
-      );
-      return onUpdateEnvironment(environmentId, {
-        ...updates,
-        displayUrl:
-          actualEnvironment && presentedEnvironment
-            ? resolveShowcaseEnvironmentUpdateDisplayUrl({
-                actualDisplayUrl: actualEnvironment.displayUrl,
-                presentedDisplayUrl: presentedEnvironment.displayUrl,
-                submittedDisplayUrl: updates.displayUrl,
-              })
-            : updates.displayUrl,
-      });
-    },
-    [connectedEnvironments, localEnvironments, onUpdateEnvironment],
-  );
-
+  ) => {
+    if (!SHOWCASE_ENABLED) return onUpdateEnvironment(environmentId, updates);
+    const actualEnvironment = connectedEnvironments.find(
+      (environment) => environment.environmentId === environmentId,
+    );
+    const presentedEnvironment = localEnvironments.find(
+      (environment) => environment.environmentId === environmentId,
+    );
+    return onUpdateEnvironment(environmentId, {
+      ...updates,
+      displayUrl:
+        actualEnvironment && presentedEnvironment
+          ? resolveShowcaseEnvironmentUpdateDisplayUrl({
+              actualDisplayUrl: actualEnvironment.displayUrl,
+              presentedDisplayUrl: presentedEnvironment.displayUrl,
+              submittedDisplayUrl: updates.displayUrl,
+            })
+          : updates.displayUrl,
+    });
+  };
   return (
     <SettingsScreen
       title="Environments"
@@ -78,7 +74,9 @@ export function SettingsEnvironmentsRouteScreen() {
           onPress: () =>
             navigation.navigate("SettingsSheet", {
               screen: "SettingsContent",
-              params: { screen: "SettingsEnvironmentNew" },
+              params: {
+                screen: "SettingsEnvironmentNew",
+              },
             }),
         },
       ]}

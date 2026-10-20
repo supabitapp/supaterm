@@ -75,7 +75,7 @@ describe("remote helper lifecycle", () => {
           hub,
           `import http from 'node:http'; import fs from 'node:fs';
 if(fs.existsSync('fail-start-once')) {fs.unlinkSync('fail-start-once');process.exit(1);}
-const args=process.argv.slice(2); http.createServer((req,res)=>{res.statusCode=fs.existsSync('unhealthy-'+process.pid)?503:200;res.end('ok');}).listen(Number(args[args.indexOf('--port')+1]),'127.0.0.1');`,
+const args=process.argv.slice(2); fs.writeFileSync('hub-args.json',JSON.stringify(args)); http.createServer((req,res)=>{res.statusCode=fs.existsSync('unhealthy-'+process.pid)?503:200;res.end('ok');}).listen(Number(args[args.indexOf('--port')+1]),'127.0.0.1');`,
         );
         await NodeFSP.writeFile(
           agent,
@@ -91,6 +91,12 @@ else { const child=spawn(process.execPath,[path.join(path.dirname(process.argv[1
         await NodeFSP.copyFile(agent, NodePath.join(NodePath.dirname(agent), "daemon.mjs"));
         const nextHubVersion = DEVICE_HUB_VERSION + "-upgrade";
         const nextAgentVersion = AGENT_DEVICE_VERSION + "-upgrade";
+
+        const hostPlatforms: Record<string, NodeJS.Platform> = { one: "linux", two: "darwin" };
+        const hubArgs = async (owner: string): Promise<ReadonlyArray<string>> =>
+          JSON.parse(
+            await NodeFSP.readFile(NodePath.join(root, `hosts/${owner}/hub-args.json`), "utf8"),
+          );
         let invocation = 0;
         const invoke = async (
           owner: string,
@@ -100,7 +106,8 @@ else { const child=spawn(process.execPath,[path.join(path.dirname(process.argv[1
           const file = NodePath.join(home, `${owner}-${mode}-${invocation++}.cjs`);
           await NodeFSP.writeFile(
             file,
-            `const originalKill = process.kill; process.kill = (pid, signal) => { if (signal === 'SIGTERM') require('node:fs').appendFileSync(${JSON.stringify(NodePath.join(home, "stops"))}, pid+'\\n'); return originalKill(pid, signal); };\n` +
+            `Object.defineProperty(process, 'platform', { value: ${JSON.stringify(hostPlatforms[owner])} });\n` +
+              `const originalKill = process.kill; process.kill = (pid, signal) => { if (signal === 'SIGTERM') require('node:fs').appendFileSync(${JSON.stringify(NodePath.join(home, "stops"))}, pid+'\\n'); return originalKill(pid, signal); };\n` +
               remoteDeviceScript(owner, mode)
                 .replace(DEVICE_HUB_VERSION, upgraded ? nextHubVersion : DEVICE_HUB_VERSION)
                 .replace(AGENT_DEVICE_VERSION, upgraded ? nextAgentVersion : AGENT_DEVICE_VERSION),
@@ -136,6 +143,19 @@ else { const child=spawn(process.execPath,[path.join(path.dirname(process.argv[1
           ]);
           expect(concurrent.hubPort).toBe(manual.hubPort);
           expect(manual.daemonPort).toBeUndefined();
+          expect((await hubArgs("one")).slice(-2)).toEqual(["--platform", "android"]);
+
+          const hubFile = NodePath.join(root, "hosts/one/hub.json");
+          const { platform: _platform, ...unfilteredHub } = JSON.parse(
+            await NodeFSP.readFile(hubFile, "utf8"),
+          );
+          await NodeFSP.writeFile(hubFile, JSON.stringify(unfilteredHub));
+          const filtered = await invoke("one", "start");
+          expect(filtered.hubPort).not.toBe(manual.hubPort);
+          expect(await NodeFSP.readFile(NodePath.join(home, "stops"), "utf8")).toContain(
+            `${unfilteredHub.pid}\n`,
+          );
+          expect((await invoke("one", "start")).hubPort).toBe(filtered.hubPort);
           await expect(
             NodeFSP.stat(NodePath.join(root, "hosts/one/daemon.json")),
           ).rejects.toThrow();
@@ -151,6 +171,8 @@ else { const child=spawn(process.execPath,[path.join(path.dirname(process.argv[1
           const second = await invoke("two", "agent-start");
           const reused = await invoke("one", "agent-start");
           expect(reused.hubPort).toBe(first.hubPort);
+          expect(await hubArgs("two")).not.toContain("--platform");
+          expect((await invoke("two", "start")).hubPort).toBe(second.hubPort);
           expect(reused.daemonPort).toBe(first.daemonPort);
           expect(second.hubPort).not.toBe(first.hubPort);
           expect(second.daemonPort).not.toBe(first.daemonPort);

@@ -1,9 +1,10 @@
+import { AsyncResult } from "effect/reactivity";
 import { useAtomRefresh } from "@effect/atom-react";
 import { StackActions, useNavigation, type StaticScreenProps } from "@react-navigation/native";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
-import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
+import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import type { PullRequestReviewVerdict } from "@supaterm/contracts";
-import { useCallback, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import { Platform, Pressable, View } from "react-native";
 import { clearSubmittedReview } from "./pullRequestReviewDrafts";
@@ -18,7 +19,6 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { PullRequestSheetContent as SheetContent } from "./PullRequestSheetContent";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
-
 function useActionSubmission(params: PullRequestParams) {
   const navigation = useNavigation();
   const refreshDetail = useAtomRefresh(composerPullRequests.detail(pullRequestTarget(params)));
@@ -31,53 +31,76 @@ function useActionSubmission(params: PullRequestParams) {
     pending.current = true;
     setBusy(true);
     setError(null);
-    try {
+    const result = await settlePromise(async () => {
       await operation();
       refreshDetail();
       refreshActivity();
       navigation.goBack();
-    } catch (cause) {
+    });
+    pending.current = false;
+    setBusy(false);
+    if (AsyncResult.isFailure(result)) {
+      const cause = squashAtomCommandFailure(result);
       setError(
         cause instanceof Error
           ? cause.message
           : "The provider could not complete this action. Try again.",
       );
-    } finally {
-      pending.current = false;
-      setBusy(false);
     }
   };
-  return { busy, error, submit };
+  return {
+    busy,
+    error,
+    submit,
+  };
 }
-
 const VERDICTS = [
-  { value: "comment", title: "Comment" },
-  { value: "approve", title: "Approve" },
+  {
+    value: "comment",
+    title: "Comment",
+  },
+  {
+    value: "approve",
+    title: "Approve",
+  },
   {
     value: "request-changes",
     title: "Request changes",
   },
 ] as const;
-
 export function PullRequestReviewSheet({
   route,
-}: StaticScreenProps<PullRequestParams & { readonly mode: "review" | "comment" }>) {
+}: StaticScreenProps<
+  PullRequestParams & {
+    readonly mode: "review" | "comment";
+  }
+>) {
   const params = route.params;
   const target = pullRequestTarget(params);
   const result = useEnvironmentQuery(composerPullRequests.detail(target));
   const { refresh: refreshDetail } = result;
-  useFocusEffect(useCallback(() => refreshDetail(), [refreshDetail]));
+  useFocusEffect(() => refreshDetail());
   const permissions = usePullRequestPermissions(params, result.data);
   const submission = useActionSubmission(params);
-  const review = useAtomCommand(composerPullRequests.submitReview, { reportFailure: false });
-  const comment = useAtomCommand(composerPullRequests.comment, { reportFailure: false });
+  const review = useAtomCommand(composerPullRequests.submitReview, {
+    reportFailure: false,
+  });
+  const comment = useAtomCommand(composerPullRequests.comment, {
+    reportFailure: false,
+  });
   const navigation = useNavigation();
   const store = usePullRequestReviewDraft(params);
   const body = params.mode === "review" ? store.draft.summary : store.draft.comment;
   const setBody = (body: string) =>
     store.update((draft) => ({
       ...draft,
-      ...(params.mode === "review" ? { summary: body } : { comment: body }),
+      ...(params.mode === "review"
+        ? {
+            summary: body,
+          }
+        : {
+            comment: body,
+          }),
     }));
   const stale = store.draft.comments.some((comment) => comment.headSha !== result.data?.headSha);
   const [requestedVerdict, setRequestedVerdict] = useState<PullRequestReviewVerdict>("comment");
@@ -119,12 +142,21 @@ export function PullRequestReviewSheet({
                 ),
               },
             })
-          : await comment({ ...target, input: { ...target.input, body } });
+          : await comment({
+              ...target,
+              input: {
+                ...target.input,
+                body,
+              },
+            });
       if (response._tag === "Failure") throw squashAtomCommandFailure(response);
       store.update((current) =>
         reviewing
           ? clearSubmittedReview(current, submitted)
-          : { ...current, comment: current.comment === submitted.comment ? "" : current.comment },
+          : {
+              ...current,
+              comment: current.comment === submitted.comment ? "" : current.comment,
+            },
       );
       await store.flush();
     });
@@ -156,7 +188,10 @@ export function PullRequestReviewSheet({
     >
       {reviewing && offered.length > 1 ? (
         <SegmentedControl
-          options={offered.map((option) => ({ value: option.value, label: option.title }))}
+          options={offered.map((option) => ({
+            value: option.value,
+            label: option.title,
+          }))}
           selected={verdict?.value ?? "comment"}
           onSelect={(value) => {
             if (!submission.busy) setRequestedVerdict(value);
@@ -183,7 +218,9 @@ export function PullRequestReviewSheet({
         maxLength={65536}
         onChangeText={setBody}
         className="min-h-36 rounded-[20px] bg-grouped-card p-4 text-base text-foreground"
-        style={{ textAlignVertical: "top" }}
+        style={{
+          textAlignVertical: "top",
+        }}
       />
       {reviewing && store.draft.comments.length ? (
         <View className="gap-2">

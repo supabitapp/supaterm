@@ -29,7 +29,7 @@ import { previewRuntimeTabId } from "./previewRuntimeTabId";
 export function ElectronBrowserHost() {
   const previewByThreadKey = useActivePreviewSessions();
   const primaryEnvironmentId = useAtomValue(primaryEnvironmentIdAtom);
-  const sessions = Object.entries(previewByThreadKey).flatMap(([threadKey, previewState]) => {
+  const activeSessions = Object.entries(previewByThreadKey).flatMap(([threadKey, previewState]) => {
     const threadRef = parseScopedThreadKey(threadKey);
     // Only tabs the server backs with this desktop's page render as native webviews.
     return threadRef
@@ -49,6 +49,10 @@ export function ElectronBrowserHost() {
           }))
       : [];
   });
+
+  const sessions = activeSessions.toSorted((left, right) =>
+    left.runtimeTabId < right.runtimeTabId ? -1 : left.runtimeTabId > right.runtimeTabId ? 1 : 0,
+  );
 
   useEffect(() => {
     const preview = window.desktopBridge?.preview;

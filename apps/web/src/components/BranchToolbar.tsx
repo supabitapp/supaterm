@@ -351,9 +351,8 @@ export const BranchToolbar = memo(function BranchToolbar({
     ],
   );
 
-  const showEnvironmentPicker = Boolean(
-    availableEnvironments && availableEnvironments.length > 1 && onEnvironmentChange,
-  );
+  const hasMultipleEnvironments = (availableEnvironments?.length ?? 0) > 1;
+  const showEnvironmentPicker = hasMultipleEnvironments && onEnvironmentChange !== undefined;
   const [stripElement, setStripElement] = useState<HTMLDivElement | null>(null);
   const labelsOverflow = useLabelsOverflow(stripElement);
 
@@ -423,7 +422,7 @@ export const BranchToolbar = memo(function BranchToolbar({
           envLocked={envLocked}
           environmentId={environmentId}
           availableEnvironments={availableEnvironments}
-          {...(showEnvironmentPicker && onEnvironmentChange ? { onEnvironmentChange } : {})}
+          {...(showEnvironmentPicker ? { onEnvironmentChange } : {})}
         />
       ) : null}
       {showGitControls ? (

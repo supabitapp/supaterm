@@ -16,6 +16,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { DraftId } from "../../composerDraftStore";
+import { makeThreadProjectionFixture } from "../../test-fixtures";
 import { usePendingThreadRequestsWithTimerPause } from "./usePendingThreadRequestsWithTimerPause";
 
 const state = vi.hoisted(() => ({ pause: vi.fn(), command: vi.fn() }));
@@ -60,13 +61,15 @@ vi.mock(import("../../state/server"), async (original) => {
 const environmentId = EnvironmentId.make("environment");
 const threadId = ThreadId.make("thread");
 const activeThread = { id: threadId };
-const requestId = RuntimeRequestId.make("question");
+let requestId: RuntimeRequestId;
+let requestSequence = 0;
 const nodeId = NodeId.make("question-node");
 const askedAt = DateTime.makeUnsafe("2026-10-18T00:00:00.000Z");
 
 type RuntimeRequest = OrchestrationV2ThreadProjection["runtimeRequests"][number];
 
 function projection(overrides: Partial<RuntimeRequest> = {}) {
+  const base = makeThreadProjectionFixture();
   const request: RuntimeRequest = {
     id: requestId,
     nodeId,
@@ -116,11 +119,12 @@ function projection(overrides: Partial<RuntimeRequest> = {}) {
       },
     ],
   };
-  const pending: Pick<OrchestrationV2ThreadProjection, "runtimeRequests" | "turnItems"> = {
+  return {
+    ...base,
+    thread: { ...base.thread, id: threadId },
     runtimeRequests: [request],
     turnItems: [item],
   };
-  return pending as OrchestrationV2ThreadProjection;
 }
 
 let root: Root;
@@ -158,6 +162,7 @@ const flushPause = () => act(async () => {});
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.clearAllMocks();
+  requestId = RuntimeRequestId.make(`question-${requestSequence++}`);
   state.pause.mockResolvedValue(AsyncResult.success(undefined));
   container = document.createElement("div");
   document.body.append(container);
@@ -199,10 +204,13 @@ describe("question countdown pause", () => {
 
   it("keeps the countdown running for edits that change no answer", async () => {
     render(projection());
+    const unchangedAnswer = requests.activePendingDraftAnswers.confirm?.customAnswer ?? "";
+    expect(unchangedAnswer).toBe("");
     typeAnswer("scope", "");
+    expect(state.pause).not.toHaveBeenCalled();
     typeAnswer("confirm", "typed into a choice-only question");
     await flushPause();
-    expect(requests.activePendingDraftAnswers.confirm?.customAnswer).toBeUndefined();
+    expect(requests.activePendingDraftAnswers.confirm?.customAnswer ?? "").toBe(unchangedAnswer);
     expect(state.pause).not.toHaveBeenCalled();
   });
 

@@ -1,3 +1,5 @@
+import { AsyncResult } from "effect/reactivity";
+import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import * as Dialog from "../../components/ui/Dialog";
 import { useNavigation, useNavigationState, useRoute } from "@react-navigation/native";
 import {
@@ -35,9 +37,7 @@ import {
   pullRequestAgentPrompt,
   type PullRequestAgentTask,
 } from "./pullRequestAgentTasks";
-
 type LinkedThread = PullRequestLinkedThreadsResult["threads"][number];
-
 export function usePullRequestThreads(
   params: PullRequestParams,
   pr: PullRequestDetail | null,
@@ -49,7 +49,10 @@ export function usePullRequestThreads(
   const parsed = pr ? parseChangeRequestUrl(pr.url) : null;
   const reference = {
     ...target,
-    input: { ...target.input, ...(parsed ? normalizeThreadPullRequestKey(parsed) : {}) },
+    input: {
+      ...target.input,
+      ...(parsed ? normalizeThreadPullRequestKey(parsed) : {}),
+    },
   };
   const key = JSON.stringify(reference);
   const route = useRoute();
@@ -59,9 +62,15 @@ export function usePullRequestThreads(
   const relations = useEnvironmentQuery(
     pr && supported && focused ? composerPullRequests.linkedThreads(reference) : null,
   );
-  const [lastRelations, setLastRelations] = useState({ key, data: relations.data });
+  const [lastRelations, setLastRelations] = useState({
+    key,
+    data: relations.data,
+  });
   if (relations.data && (lastRelations.key !== key || relations.data !== lastRelations.data))
-    setLastRelations({ key, data: relations.data });
+    setLastRelations({
+      key,
+      data: relations.data,
+    });
   const threads =
     (relations.data ?? (lastRelations.key === key ? lastRelations.data : null))?.threads ?? [];
   const connected = usePullRequestConnected(params.environmentId);
@@ -73,8 +82,15 @@ export function usePullRequestThreads(
   const pending = useRef(false);
   const previousPrompts = useRef(new Map<string, string>());
   const openThread = (thread: LinkedThread) => {
-    const destination = { environmentId: params.environmentId, threadId: thread.id };
-    if (Platform.OS === "android") selectAndroidWorkspace({ name: "Thread", params: destination });
+    const destination = {
+      environmentId: params.environmentId,
+      threadId: thread.id,
+    };
+    if (Platform.OS === "android")
+      selectAndroidWorkspace({
+        name: "Thread",
+        params: destination,
+      });
     else navigation.navigate("Thread", destination);
   };
   const [busy, setBusy] = useState(false);
@@ -82,7 +98,7 @@ export function usePullRequestThreads(
     if (!pr || !canAsk || pending.current) return;
     pending.current = true;
     setBusy(true);
-    try {
+    const result = await settlePromise(async () => {
       if (connected && !thread && !canCheckout)
         throw new Error("Starting work from this PR requires source control write access.");
       await waitForComposerDraftsLoaded();
@@ -129,9 +145,16 @@ export function usePullRequestThreads(
           draftKey,
           {
             text: `${formatComposerContextReference(context)} `,
-            context: { version: 1, records: [context] },
+            context: {
+              version: 1,
+              records: [context],
+            },
           },
-          { text: draft.text, start: draft.text.length, end: draft.text.length },
+          {
+            text: draft.text,
+            start: draft.text.length,
+            end: draft.text.length,
+          },
         )
       )
         throw new Error("Remove some context from this thread's draft, then try again.");
@@ -145,13 +168,17 @@ export function usePullRequestThreads(
       else
         navigation.navigate("NewTaskSheet", {
           screen: "NewTaskDraft",
-          params: { draftId: draftKey, title: `Ask about #${pr.number}` },
+          params: {
+            draftId: draftKey,
+            title: `Ask about #${pr.number}`,
+          },
         });
-    } catch (cause) {
+    });
+    pending.current = false;
+    setBusy(false);
+    if (AsyncResult.isFailure(result)) {
+      const cause = squashAtomCommandFailure(result);
       Dialog.alert("Couldn't open a thread", cause instanceof Error ? cause.message : "Try again.");
-    } finally {
-      pending.current = false;
-      setBusy(false);
     }
   };
   return {

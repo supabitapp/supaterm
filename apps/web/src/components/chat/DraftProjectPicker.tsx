@@ -1,3 +1,4 @@
+import { DraftProjectName } from "./DraftProjectName";
 import type { DraftId } from "~/composerDraftStore";
 import {
   useComposerDraftStore,
@@ -369,7 +370,9 @@ export function DraftProjectPicker({
             ) : (
               <FolderIcon className="size-3 shrink-0" />
             )}
-            <ComposerContextLabel>{triggerLabel}</ComposerContextLabel>
+            <ComposerContextLabel>
+              <DraftProjectName value={triggerLabel} />
+            </ComposerContextLabel>
             <ChevronDownIcon className="size-3 shrink-0 opacity-50" />
           </TooltipTrigger>
           <TooltipPopup shortcut={projectPickerShortcut}>Select project</TooltipPopup>

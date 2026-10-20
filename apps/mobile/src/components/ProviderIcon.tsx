@@ -163,33 +163,35 @@ export function ProviderInstanceIcon(props: {
       </View>
       {props.showBadge ? (
         <View
-          className={props.accentColor ? undefined : "bg-card"}
-          style={{
-            position: "absolute",
-            right: -3,
-            bottom: -3,
-            height: 12,
-            minWidth: 12,
-            paddingHorizontal: 2,
-            borderRadius: 999,
-            borderWidth: 1,
-            borderColor: props.surfaceColor,
-            backgroundColor: props.accentColor,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
+          pointerEvents="none"
+          style={{ position: "absolute", right: -3, bottom: -3, width: 32, alignItems: "flex-end" }}
         >
-          <Text
-            className={props.accentColor ? undefined : "text-foreground-muted"}
+          <View
+            className={props.accentColor ? undefined : "bg-card"}
             style={{
-              fontSize: 7,
-              fontWeight: "600",
-              lineHeight: 9,
-              color: props.accentColor ? "#ffffff" : undefined,
+              height: 12,
+              minWidth: 12,
+              paddingHorizontal: 2,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: props.surfaceColor,
+              backgroundColor: props.accentColor,
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
-            {providerInstanceInitials(props.displayName)}
-          </Text>
+            <Text
+              className={props.accentColor ? undefined : "text-foreground-muted"}
+              style={{
+                fontSize: 7,
+                fontWeight: "600",
+                lineHeight: 9,
+                color: props.accentColor ? "#ffffff" : undefined,
+              }}
+            >
+              {providerInstanceInitials(props.displayName)}
+            </Text>
+          </View>
         </View>
       ) : null}
     </View>

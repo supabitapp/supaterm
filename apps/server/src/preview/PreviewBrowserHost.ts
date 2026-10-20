@@ -73,7 +73,19 @@ export class PreviewBrowserLibrariesError extends Schema.TaggedError<PreviewBrow
   }
 }
 
-export type PreviewBrowserHostError = PreviewBrowserSandboxError | PreviewBrowserLibrariesError;
+export class PreviewBrowserRootError extends Schema.TaggedError<PreviewBrowserRootError>()(
+  "PreviewBrowserRootError",
+  {},
+) {
+  override get message(): string {
+    return "Chrome will not start its sandbox as root, so Supaterm's browser cannot run while the Supaterm server runs as root. Run the server as a nonroot user (for example `User=` in its systemd service), or set `SUPATERM_SERVER_BROWSER_SANDBOX=0` to run the browser unsandboxed as root.";
+  }
+}
+
+export type PreviewBrowserHostError =
+  | PreviewBrowserSandboxError
+  | PreviewBrowserLibrariesError
+  | PreviewBrowserRootError;
 
 const MISSING_LIBRARY = /^\s*(\S+) => not found$/gm;
 
@@ -87,7 +99,9 @@ export const diagnoseLaunchFailure = Effect.fn("PreviewBrowserHost.diagnoseLaunc
   }) {
     const { setupCommand } = input;
     if (input.output.includes(NO_SANDBOX_SIGNATURE)) {
-      return new PreviewBrowserSandboxError({ setupCommand });
+      return (yield* HostProcess.UserId) === 0
+        ? new PreviewBrowserRootError()
+        : new PreviewBrowserSandboxError({ setupCommand });
     }
     if ((yield* HostProcess.Platform) !== "linux") return undefined;
     const libraries = yield* missingLibraries(input.executable);

@@ -5,7 +5,7 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../
 import { Switch } from "../../ui/switch";
 import { SettingsRow, SettingsSection } from "../../settings/settingsLayout";
 import { searchableSetting } from "../../settings/settingsSearch";
-import { useUpdateCodexMicroSettings } from "../useUpdateCodexMicroSettings";
+import { updateCodexMicroSettings } from "../updateCodexMicroSettings";
 import {
   CODEX_MICRO_AGENT_SOURCE_OPTIONS,
   CODEX_MICRO_ENCODER_MODE_OPTIONS,
@@ -32,7 +32,6 @@ function OptionLabel({ label, description }: { label: string; description: strin
 
 export function CodexMicroOptionsSection() {
   const settings = useClientSettings(selectOptionSettings);
-  const updateSettings = useUpdateCodexMicroSettings();
   const agentSource = CODEX_MICRO_AGENT_SOURCE_OPTIONS.find(
     (option) => option.value === settings.agentSource,
   );
@@ -47,7 +46,7 @@ export function CodexMicroOptionsSection() {
             value={settings.agentSource}
             onValueChange={(value) => {
               if (isCodexMicroAgentSource(value)) {
-                void updateSettings({ agentSource: value });
+                void updateCodexMicroSettings({ agentSource: value });
               }
             }}
           >
@@ -72,7 +71,7 @@ export function CodexMicroOptionsSection() {
             value={settings.layout.encoderMode}
             onValueChange={(value) => {
               if (isCodexMicroEncoderMode(value)) {
-                void updateSettings({
+                void updateCodexMicroSettings({
                   layout: codexMicroLayoutWithEncoderMode(settings.layout, value),
                 });
               }
@@ -101,7 +100,7 @@ export function CodexMicroOptionsSection() {
             checked={settings.layout.separateMicrophoneKeys}
             aria-label="Use separate microphone keys"
             onCheckedChange={(checked) =>
-              void updateSettings({
+              void updateCodexMicroSettings({
                 layout: { ...settings.layout, separateMicrophoneKeys: checked },
               })
             }
@@ -115,7 +114,9 @@ export function CodexMicroOptionsSection() {
           <Switch
             checked={settings.singleTapFocus}
             aria-label="Focus Supaterm with a single tap"
-            onCheckedChange={(checked) => void updateSettings({ singleTapFocus: checked })}
+            onCheckedChange={(checked) =>
+              void updateCodexMicroSettings({ singleTapFocus: checked })
+            }
           />
         }
       />

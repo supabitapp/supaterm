@@ -3,11 +3,9 @@ import type {
   NativeStackNavigationOptions,
   NativeStackNavigationProp,
 } from "@react-navigation/native-stack";
-import { use, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { isValidElement, use, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { NativeWorkspaceTabActivityContext } from "./v5-workspace-context";
 import type { ColorValue } from "react-native";
-
-export { NativeHeaderToolbar } from "./NativeHeaderToolbar";
 
 export {
   nativeHeaderScrollEdgeEffects,
@@ -77,6 +75,9 @@ function optionsSignature(value: unknown, seen = new WeakSet<object>()): string 
       const object = value as object;
       if (seen.has(object)) return "[circular]";
       seen.add(object);
+      if (isValidElement(value)) {
+        return optionsSignature([value.type, value.key, value.props], seen);
+      }
       if (Array.isArray(value)) {
         return `[${value.map((entry) => optionsSignature(entry, seen)).join(",")}]`;
       }
@@ -121,7 +122,7 @@ function stabilizeOptionFunctions(
     );
   }
   if (value !== null && typeof value === "object") {
-    if (seen.has(value) || "current" in value) return value;
+    if (isValidElement(value) || seen.has(value) || "current" in value) return value;
     seen.add(value);
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>).map(([key, entry]) => [

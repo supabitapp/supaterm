@@ -50,7 +50,7 @@ function outerDocument(src: string, allow: string, secret: string) {
 <style>html,body{margin:0;height:100%;background:transparent}iframe{border:0;display:block;width:100%;height:100%}</style></head>
 <body><iframe id="app" sandbox="allow-scripts allow-forms" allow="${attribute(allow)}"></iframe>
 <script>(function(){var frame=document.getElementById("app"),secret=${JSON.stringify(secret)},loads=0,live=true;
-var send=function(m){window.ReactNativeWebView.postMessage(JSON.stringify({secret:secret,message:m}));};
+var send=function(m){var u=navigator.userActivation;window.ReactNativeWebView.postMessage(JSON.stringify({secret:secret,active:!!(u&&u.isActive)&&document.activeElement===frame,message:m}));};
 frame.addEventListener("load",function(){loads+=1;if(loads>1&&live){live=false;send({supaterm:"navigated"});}});
 window.addEventListener("message",function(e){if(live&&e.source===frame.contentWindow)send(e.data);});
 window.__supatermMcpAppReceive=function(m){live&&frame.contentWindow&&frame.contentWindow.postMessage(m,"*");};
@@ -235,6 +235,7 @@ export function ThreadMcpApp(props: {
   }, [props.environmentId, props.threadId, props.itemId, app.tool]);
   const webView = useRef<WebView<object>>(null);
   const hostRef = useRef<McpAppHost | null>(null);
+  const userActive = useRef(false);
 
   useEffect(() => {
     if (uri === null) return;
@@ -329,7 +330,9 @@ export function ThreadMcpApp(props: {
 
         if (
           mode === "fullscreen" &&
-          (latest.current.awaitingUser || !latest.current.navigation.isFocused())
+          (!userActive.current ||
+            latest.current.awaitingUser ||
+            !latest.current.navigation.isFocused())
         ) {
           return current.displayMode ?? "inline";
         }
@@ -474,7 +477,9 @@ export function ThreadMcpApp(props: {
               setNavigatedAway(true);
               return;
             }
+            userActive.current = envelope.active === true;
             hostRef.current?.receive(message);
+            userActive.current = false;
           }}
         />
       ) : asset._tag === "Failure" || crashed ? (

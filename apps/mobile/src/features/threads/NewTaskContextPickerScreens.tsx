@@ -13,7 +13,7 @@ import {
 } from "@supaterm/client-runtime/state/runtime";
 import * as Haptics from "expo-haptics";
 import { useNavigation } from "@react-navigation/native";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, ScrollView, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -156,7 +156,7 @@ function BranchSelectionRow(props: {
   readonly selected: boolean;
 }) {
   const { branch, onSelect } = props;
-  const onPress = useCallback(() => onSelect(branch), [branch, onSelect]);
+  const onPress = () => onSelect(branch);
 
   return (
     <View
@@ -292,69 +292,58 @@ export function NewTaskBranchPickerRouteScreen() {
     [navigation],
   );
 
-  const selectBranch = useCallback(
-    async (branch: VcsRef) => {
-      const needsCheckout = shouldCheckoutNewTaskBranch({
-        branchIsCurrent: branch.current,
-        branchWorktreePath: branch.worktreePath,
+  const selectBranch = async (branch: VcsRef) => {
+    const needsCheckout = shouldCheckoutNewTaskBranch({
+      branchIsCurrent: branch.current,
+      branchWorktreePath: branch.worktreePath,
+      workspaceMode,
+    });
+    if (selectingBranchNameRef.current !== null || (needsCheckout && !canWriteSourceControl)) {
+      return;
+    }
+    selectingBranchNameRef.current = branch.name;
+    void Haptics.selectionAsync();
+
+    const checkoutAndSelect = async () => {
+      if (!selectedProject) return;
+      setSwitchingBranchName(branch.name);
+      const result = await checkoutNewTaskBranch({
+        branch,
+        project: selectedProject,
         workspaceMode,
+        switchRef,
       });
-      if (selectingBranchNameRef.current !== null || (needsCheckout && !canWriteSourceControl)) {
+      if (result._tag === "Failure") {
+        if (mountedRef.current && navigation.isFocused() && !isAtomCommandInterrupted(result)) {
+          const error = squashAtomCommandFailure(result);
+          Dialog.alert(
+            "Could not switch branch",
+            error instanceof Error ? error.message : "The branch could not be checked out.",
+          );
+        }
         return;
       }
-      selectingBranchNameRef.current = branch.name;
-      void Haptics.selectionAsync();
 
-      const checkoutAndSelect = async () => {
-        if (!selectedProject) return;
-        setSwitchingBranchName(branch.name);
-        const result = await checkoutNewTaskBranch({
-          branch,
-          project: selectedProject,
-          workspaceMode,
-          switchRef,
-        });
-        if (result._tag === "Failure") {
-          if (mountedRef.current && navigation.isFocused() && !isAtomCommandInterrupted(result)) {
-            const error = squashAtomCommandFailure(result);
-            Dialog.alert(
-              "Could not switch branch",
-              error instanceof Error ? error.message : "The branch could not be checked out.",
-            );
-          }
-          return;
-        }
+      // The checkout has already changed the repository. Persist the matching
+      // draft selection even if the native sheet was dismissed while the
+      // command was in flight; only visible-screen work is focus-gated below.
+      selectFlowBranch(result.value);
+      if (!mountedRef.current || !navigation.isFocused()) {
+        return;
+      }
+      setBranchQuery("");
+      allowSelectionNavigationRef.current = true;
+      navigation.goBack();
+    };
 
-        // The checkout has already changed the repository. Persist the matching
-        // draft selection even if the native sheet was dismissed while the
-        // command was in flight; only visible-screen work is focus-gated below.
-        selectFlowBranch(result.value);
-        if (!mountedRef.current || !navigation.isFocused()) {
-          return;
-        }
-        setBranchQuery("");
-        allowSelectionNavigationRef.current = true;
-        navigation.goBack();
-      };
-
-      await checkoutAndSelect().finally(() => {
-        selectingBranchNameRef.current = null;
-        allowSelectionNavigationRef.current = false;
-        if (mountedRef.current) {
-          setSwitchingBranchName(null);
-        }
-      });
-    },
-    [
-      canWriteSourceControl,
-      navigation,
-      selectFlowBranch,
-      selectedProject,
-      setBranchQuery,
-      switchRef,
-      workspaceMode,
-    ],
-  );
+    await checkoutAndSelect().finally(() => {
+      selectingBranchNameRef.current = null;
+      allowSelectionNavigationRef.current = false;
+      if (mountedRef.current) {
+        setSwitchingBranchName(null);
+      }
+    });
+  };
 
   return (
     <BranchPickerScreen
@@ -417,38 +406,26 @@ export function BranchPickerScreen(props: {
     props.branches.find((branch) => branch.current)?.name ??
     props.branches.find((branch) => branch.isDefault)?.name ??
     null;
-  const branchListContentStyle = useMemo(
-    () => ({
-      paddingBottom: usesNativeMailSearchToolbar
-        ? NATIVE_MAIL_SEARCH_TOOLBAR_CONTENT_INSET + 16
-        : Platform.OS === "ios"
-          ? 16
-          : Math.max(insets.bottom, 16) + 16,
-      paddingHorizontal: 16,
-      paddingTop: 16,
-    }),
-    [insets.bottom, usesNativeMailSearchToolbar],
-  );
+  const branchListContentStyle = {
+    paddingBottom: usesNativeMailSearchToolbar
+      ? NATIVE_MAIL_SEARCH_TOOLBAR_CONTENT_INSET + 16
+      : Platform.OS === "ios"
+        ? 16
+        : Math.max(insets.bottom, 16) + 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  };
 
-  const renderBranch = useCallback(
-    ({ item, index }: { readonly item: VcsRef; readonly index: number }) => (
-      <BranchSelectionRow
-        badge={branchBadgeLabel({ branch: item, project: props.project })}
-        branch={item}
-        disabled={props.selectionDisabled ?? false}
-        isFirst={index === 0}
-        isLast={index === props.branches.length - 1}
-        onSelect={props.onSelect}
-        selected={selectedBranchName === item.name}
-      />
-    ),
-    [
-      props.branches.length,
-      props.project,
-      props.onSelect,
-      selectedBranchName,
-      props.selectionDisabled,
-    ],
+  const renderBranch = ({ item, index }: { readonly item: VcsRef; readonly index: number }) => (
+    <BranchSelectionRow
+      badge={branchBadgeLabel({ branch: item, project: props.project })}
+      branch={item}
+      disabled={props.selectionDisabled ?? false}
+      isFirst={index === 0}
+      isLast={index === props.branches.length - 1}
+      onSelect={props.onSelect}
+      selected={selectedBranchName === item.name}
+    />
   );
 
   const branchListHeader = props.worktree ? (
