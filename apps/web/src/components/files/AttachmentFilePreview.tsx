@@ -17,6 +17,7 @@ import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } fro
 import { useAssetUrlRefresh } from "~/assets/assetUrls";
 import ChatMarkdown from "~/components/ChatMarkdown";
 import { MorphIcon } from "~/components/MorphIcon";
+import { Button } from "~/components/ui/button";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { toastManager } from "~/components/ui/toast";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
@@ -338,12 +339,18 @@ export function AttachmentFilePreview(props: {
       />
     </div>
   ) : (
-    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1 px-6 text-center">
-      <p className="text-sm font-medium">No preview for this file</p>
-      <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
-        Save it to open in an app that supports {props.name.split(".").at(-1) || "this format"}{" "}
-        files.
-      </p>
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
+      <div className="flex flex-col items-center gap-1">
+        <p className="text-sm font-medium">No preview for this file</p>
+        <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
+          Save it to open in an app that supports {props.name.split(".").at(-1) || "this format"}{" "}
+          files.
+        </p>
+      </div>
+      <Button type="button" variant="outline" size="sm" disabled={saving} onClick={save}>
+        <DownloadIcon />
+        {saving ? "Preparing file…" : "Save file"}
+      </Button>
     </div>
   );
 
@@ -393,7 +400,7 @@ export function AttachmentFilePreview(props: {
             <MorphIcon className="size-3.5" icon={isCopied ? Check : Copy} />
           </FileSurfaceAction>
         ) : null}
-        {url ? (
+        {url && kind !== "unsupported" ? (
           <FileSurfaceAction
             label={saving ? "Preparing file…" : "Save file"}
             disabled={saving}

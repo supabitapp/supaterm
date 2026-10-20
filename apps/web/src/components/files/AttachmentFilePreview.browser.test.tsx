@@ -160,9 +160,13 @@ describe("binary workspace file", () => {
         />,
       ),
     );
-    await vi.waitFor(() =>
-      expect(container.querySelector('button[aria-label="Save file"]')).not.toBeNull(),
-    );
+    const saveButtons = () =>
+      [...container.querySelectorAll("button")].filter(
+        (button) =>
+          button.textContent === "Save file" || button.getAttribute("aria-label") === "Save file",
+      );
+    await vi.waitFor(() => expect(saveButtons()).toHaveLength(1));
+    expect(saveButtons()[0]?.textContent).toBe("Save file");
     expect(container.textContent).toContain("No preview for this file");
     expect(container.querySelector('[role="alert"]')).toBeNull();
     expect(container.querySelector('button[aria-label="Show table"]')).toBeNull();
