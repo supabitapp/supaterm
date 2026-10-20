@@ -1,4 +1,3 @@
-import { DraftProjectName } from "./DraftProjectName";
 import type { DraftId } from "~/composerDraftStore";
 import {
   useComposerDraftStore,
@@ -45,6 +44,7 @@ import {
   ComboboxItem,
   ComboboxEmpty,
 } from "../ui/combobox";
+import { MiddleTruncate } from "../ui/middle-truncate";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { Kbd } from "../ui/kbd";
 import { ComposerControl } from "./ComposerControl";
@@ -371,7 +371,7 @@ export function DraftProjectPicker({
               <FolderIcon className="size-3 shrink-0" />
             )}
             <ComposerContextLabel>
-              <DraftProjectName value={triggerLabel} />
+              <MiddleTruncate value={triggerLabel} showTitle={false} className="w-full" />
             </ComposerContextLabel>
             <ChevronDownIcon className="size-3 shrink-0 opacity-50" />
           </TooltipTrigger>
