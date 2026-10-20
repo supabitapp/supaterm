@@ -96,6 +96,7 @@ it("forks inherited history in the viewed environment and waits before navigatio
   expect(state.navigate).toHaveBeenCalledWith({
     to: "/$environmentId/$threadId",
     params: { environmentId: thread.environmentId, threadId: input.targetThreadId },
+    replace: false,
   });
   expect(action.disabled).toBe(false);
 });

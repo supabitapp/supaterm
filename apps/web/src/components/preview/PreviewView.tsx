@@ -103,6 +103,7 @@ import {
 import { stackedThreadToast, toastManager } from "~/components/ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { observeResize } from "~/lib/observeResize";
+import { usePaneInputOwner } from "../../chatPanes/paneScope";
 
 interface Props {
   threadRef: ScopedThreadRef;
@@ -893,8 +894,10 @@ export function PreviewView({
 
   // Subscribe only while visible; `toggle-panel` is owned by ChatView's
   // URL-aware handler regardless of whether the panel is currently mounted.
+  const isPaneInputOwner = usePaneInputOwner();
   const onPreviewAction = useEffectEvent(
     (action: Parameters<Parameters<typeof subscribePreviewAction>[0]>[0]) => {
+      if (!isPaneInputOwner()) return;
       switch (action) {
         case "refresh":
           handleRefresh();

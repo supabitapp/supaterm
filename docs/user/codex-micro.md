@@ -41,13 +41,13 @@ the thread's state:
 | Red    | Failed                                  |
 | White  | Idle                                    |
 
-The key for the thread you have open pulses. Lighting turns off after the **Auto-dim** delay and
+The key for the focused thread pulses. Lighting turns off after the **Auto-dim** delay and
 comes back when you use the keyboard or a thread changes state.
 
 ## Keys, stick, and knob
 
 By default the keys toggle Fast mode, approve, decline, fork the thread, and send the message.
-Approve, decline, send, and Fast mode act on the thread you have open. The analog stick opens the
+Approve, decline, send, and Fast mode act on the focused thread. The analog stick opens the
 right panel, moves back and forward, and toggles the sidebar. Turning the knob scrolls the
 conversation, and clicking it jumps to the latest message. Choose **Reasoning effort** under
 **Knob** to change effort instead, or **Custom** to pick your own actions. In the built-in modes,

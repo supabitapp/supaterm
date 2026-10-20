@@ -29,6 +29,8 @@ import {
 } from "./toast.logic";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./tooltip";
 import { useThreadRouteTarget } from "~/hooks/useThreadRouteTarget";
+import { useShallow } from "zustand/react/shallow";
+import { useChatPaneStore } from "~/chatPanes/store";
 
 export type ThreadToastData = {
   threadRef?: ScopedThreadRef | null;
@@ -428,6 +430,19 @@ function useActiveThreadRefFromRoute(): ScopedThreadRef | null {
   return null;
 }
 
+/** Threads on screen: the route's, plus the server threads in the other chat panes. */
+function useVisibleThreadRefs(): ReadonlyArray<ScopedThreadRef> {
+  const activeThreadRef = useActiveThreadRefFromRoute();
+  const paneThreadRefs = useChatPaneStore(
+    useShallow((state) =>
+      (state.layout?.cells ?? []).flatMap((cell) =>
+        cell.target.kind === "server" ? [cell.target.threadRef] : [],
+      ),
+    ),
+  );
+  return activeThreadRef ? [activeThreadRef, ...paneThreadRefs] : paneThreadRefs;
+}
+
 function ThreadToastVisibleAutoDismiss({
   toastId,
   dismissAfterVisibleMs,
@@ -517,10 +532,10 @@ function ToastProvider({ children, position = "top-right", ...props }: ToastProv
 
 function Toasts({ position }: { position: ToastPosition }) {
   const { toasts } = Toast.useToastManager<ThreadToastData>();
-  const activeThreadRef = useActiveThreadRefFromRoute();
+  const visibleThreadRefs = useVisibleThreadRefs();
   const isTop = position.startsWith("top");
   const visibleToasts = toasts.filter((toast) =>
-    shouldRenderThreadScopedToast(toast.data, activeThreadRef),
+    shouldRenderThreadScopedToast(toast.data, visibleThreadRefs),
   );
   const visibleToastLayout = buildVisibleToastLayout(visibleToasts);
 
@@ -679,13 +694,13 @@ function AnchoredToastProvider({ children, ...props }: Toast.Provider.Props) {
 
 function AnchoredToasts() {
   const { toasts } = Toast.useToastManager<ThreadToastData>();
-  const activeThreadRef = useActiveThreadRefFromRoute();
+  const visibleThreadRefs = useVisibleThreadRefs();
 
   return (
     <Toast.Portal data-slot="toast-portal-anchored">
       <Toast.Viewport className="outline-none" data-slot="toast-viewport-anchored">
         {toasts
-          .filter((toast) => shouldRenderThreadScopedToast(toast.data, activeThreadRef))
+          .filter((toast) => shouldRenderThreadScopedToast(toast.data, visibleThreadRefs))
           .map((toast) => {
             const tooltipStyle = toast.data?.tooltipStyle ?? false;
             const positionerProps = toast.positionerProps;

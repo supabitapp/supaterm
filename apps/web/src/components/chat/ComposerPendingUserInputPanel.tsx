@@ -15,6 +15,7 @@ import {
   QuestionAutoDismissCountdown,
 } from "./QuestionAutoDismissTimer";
 import ChatMarkdown from "../ChatMarkdown";
+import { usePaneInputOwner } from "../../chatPanes/paneScope";
 
 interface PendingUserInputPanelProps {
   pendingUserInputs: PendingUserInput[];
@@ -154,11 +155,12 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
   };
 
   const selectOptionFromShortcut = useEffectEvent(handleOptionSelection);
+  const isPaneInputOwner = usePaneInputOwner();
 
   useEffect(() => {
     if (!activeQuestion || responseDisabled || isCollapsed) return;
     const handler = (event: globalThis.KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.metaKey || event.ctrlKey || event.altKey || !isPaneInputOwner()) return;
       const target = event.target;
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
         return;
@@ -180,7 +182,7 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [activeQuestion, isCollapsed, responseDisabled]);
+  }, [activeQuestion, isCollapsed, isPaneInputOwner, responseDisabled]);
 
   if (!activeQuestion) {
     return null;

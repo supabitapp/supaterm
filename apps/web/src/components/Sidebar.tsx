@@ -300,6 +300,9 @@ import {
   type DraftSessionState,
 } from "../composerDraftStore";
 import { useThreadRouteTarget } from "../hooks/useThreadRouteTarget";
+import { useChatPaneStore } from "../chatPanes/store";
+import { useShallow } from "zustand/react/shallow";
+import { openThreadBeside } from "../chatPanes/actions";
 
 // Done-tail paging: recent history is the common lookup; the deep tail
 // stays behind an explicit Show more.
@@ -1349,6 +1352,8 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
   project: ProjectFaviconProject | null;
   projectDisplayName: string | null;
   isActive: boolean;
+  /** Open in a chat pane that is not focused. */
+  inOtherPane: boolean;
   onNavigate: (draftId: DraftId) => void;
   onDiscard: (draftId: DraftId) => void;
   onContextMenu: (draftId: DraftId, position: { x: number; y: number }) => void;
@@ -1412,7 +1417,11 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
           data-testid="sidebar-draft-row"
           className={cn(
             "group/sidebar-row relative w-full cursor-pointer overflow-hidden rounded-md text-left text-sidebar-foreground outline-none select-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-            props.isActive ? "bg-sidebar-row-active" : "bg-transparent hover:bg-sidebar-row-hover",
+            props.isActive
+              ? "bg-sidebar-row-active"
+              : props.inOtherPane
+                ? "bg-sidebar-row-active/50 hover:bg-sidebar-row-hover"
+                : "bg-transparent hover:bg-sidebar-row-hover",
           )}
           onClick={handleActivate}
           onContextMenu={handleContextMenu}
@@ -1486,6 +1495,14 @@ const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
     Schema.Boolean,
   );
   const toggleDraftsShelf = () => setDraftsShelfExpanded((value) => !value);
+  const paneDraftIdList = useChatPaneStore(
+    useShallow((state) =>
+      (state.layout?.cells ?? []).flatMap((cell) =>
+        cell.target.kind === "draft" ? [cell.target.draftId] : [],
+      ),
+    ),
+  );
+  const paneDraftIds = new Set(paneDraftIdList);
   const draftThreadsByThreadKey = useComposerDraftStore((store) => store.draftThreadsByThreadKey);
   const draftsByThreadKey = useComposerDraftStore((store) => store.draftsByThreadKey);
   const [frozenActive, setFrozenActive] = useState<{
@@ -1537,7 +1554,7 @@ const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
   }
   const renderedDrafts = draftsShelfExpanded
     ? drafts
-    : drafts.filter(({ draftId }) => draftId === props.routeDraftId);
+    : drafts.filter(({ draftId }) => draftId === props.routeDraftId || paneDraftIds.has(draftId));
   return (
     <SortableSidebarMarker marker="drafts-block">
       <ul role="presentation" className="flex flex-col gap-px">
@@ -1562,6 +1579,7 @@ const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
               project={props.projectByKey.get(projectKey) ?? null}
               projectDisplayName={props.projectDisplayNameByKey.get(projectKey) ?? null}
               isActive={draftId === props.routeDraftId}
+              inOtherPane={draftId !== props.routeDraftId && paneDraftIds.has(draftId)}
               onNavigate={props.onNavigateToDraft}
               onDiscard={discardComposerDraft}
               onContextMenu={props.onDraftContextMenu}
@@ -1636,6 +1654,8 @@ type SidebarThreadRowProps = {
   snoozeWakeLabelText: string | null;
   wokeAt: string | null;
   isActive: boolean;
+  /** Open in a chat pane that is not focused. */
+  inOtherPane: boolean;
   // The pin and mark-done shortcuts act on the active thread, so only its row receives them.
   pinShortcut: string | null;
   doneShortcut: string | null;
@@ -2061,11 +2081,13 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     variantAction === "reopen" && "[&:not(:hover):not(:focus-within)_*]:text-secondary-label/70",
     props.isActive
       ? "bg-sidebar-row-active text-sidebar-foreground"
-      : isSelected || props.sweepAction !== null
-        ? "bg-sidebar-row-selected text-sidebar-foreground"
-        : shouldRecede
-          ? "text-sidebar-muted-foreground/75 hover:bg-sidebar-row-hover hover:text-sidebar-foreground"
-          : "bg-transparent text-sidebar-foreground hover:bg-sidebar-row-hover",
+      : props.inOtherPane
+        ? "bg-sidebar-row-active/50 text-sidebar-foreground hover:bg-sidebar-row-hover"
+        : isSelected || props.sweepAction !== null
+          ? "bg-sidebar-row-selected text-sidebar-foreground"
+          : shouldRecede
+            ? "text-sidebar-muted-foreground/75 hover:bg-sidebar-row-hover hover:text-sidebar-foreground"
+            : "bg-transparent text-sidebar-foreground hover:bg-sidebar-row-hover",
     shouldRecede &&
       (status === "working" || status === "waiting") &&
       "opacity-70 transition-opacity hover:opacity-100 focus-within:opacity-100 motion-reduce:transition-none",
@@ -2768,6 +2790,14 @@ export default function Sidebar() {
   const contextDragKeyRef = useRef<string | null>(null);
   const routeThreadRef = resolveActiveThreadRouteRef(routeTarget, routeDraftThread);
   const routeThreadKey = routeThreadRef ? scopedThreadKey(routeThreadRef) : null;
+  const paneThreadKeyList = useChatPaneStore(
+    useShallow((state) =>
+      (state.layout?.cells ?? []).flatMap((cell) =>
+        cell.target.kind === "server" ? [scopedThreadKey(cell.target.threadRef)] : [],
+      ),
+    ),
+  );
+  const paneThreadKeys = new Set(paneThreadKeyList);
   // Post-completion navigation validates against the CURRENT route, not the one
   // captured when marking done started: if the user navigated elsewhere while
   // the command was in flight, completing it must not yank them away.
@@ -3253,12 +3283,16 @@ export default function Sidebar() {
     const threads = contextDragThreads();
     const title =
       threadByKeyRef.current.get(contextDragKeyRef.current ?? "")?.title.trim() || "Thread";
-    moveThreadContextDragGhost(point, { title, count: threads.length });
+    moveThreadContextDragGhost(
+      point,
+      { title, count: threads.length },
+      { kind: "threads", threads },
+    );
     return true;
   };
   const dropThreadContextDrag = (point: { x: number; y: number }) => {
     if (!pointerOutsideThreadList(point)) return false;
-    dropThreadContext(point, contextDragThreads());
+    dropThreadContext(point, { kind: "threads", threads: contextDragThreads() });
     return true;
   };
   // useSensor memoizes on the options object; a fresh one each render rebuilds
@@ -4086,6 +4120,7 @@ export default function Sidebar() {
               isRegeneratingTitle,
               isRunning: !threadRuntimeCanArchive(thread.runtime),
               snoozePresets,
+              canOpenBeside: routeTarget !== null && routeThreadKey !== scopedThreadKey(threadRef),
             }),
             position,
           ),
@@ -4101,6 +4136,11 @@ export default function Sidebar() {
           return;
         }
         switch (clicked.value) {
+          case "open-beside":
+            if (!openThreadBeside({ kind: "server", threadRef }, "right")) {
+              void navigateToThread(threadRef);
+            }
+            return;
           case "filter-by-project":
             if (threadProjectGroup) {
               setProjectScopeKey(
@@ -4558,6 +4598,7 @@ export default function Sidebar() {
                       const isActive = routeRowThreadKey === threadKey;
                       return (
                         <SortableThreadRow
+                          inOtherPane={!isActive && paneThreadKeys.has(threadKey)}
                           key={threadKey}
                           sortableId={threadKey}
                           contextDrag={isContextDrag}

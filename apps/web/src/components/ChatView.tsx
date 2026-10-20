@@ -213,6 +213,13 @@ import { writeTextToClipboard } from "../hooks/useCopyToClipboard";
 import { isCommandPaletteOpen } from "../commandPaletteBus";
 import { markDoneAndAdvance } from "../markDoneAndAdvance";
 import { subscribeSnapShotComposerFocus } from "../lib/desktopSnapShot";
+import {
+  useIsPaneInputOwner,
+  usePaneInputOwner,
+  usePaneScope,
+  usePaneThreadNavigation,
+} from "../chatPanes/paneScope";
+import { useChatPaneStore } from "../chatPanes/store";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { FileMetadataThreadProvider } from "../hooks/FileMetadataThreadProvider";
 import {
@@ -250,7 +257,6 @@ import {
 } from "../previewMiniPlayerStore";
 import { threadPullRequestPanelTarget } from "./pullRequest/pullRequestDetail.logic";
 import { RightPanelTabs } from "./RightPanelTabs";
-import { LinkPullRequestDialogHost } from "./pullRequest/LinkPullRequestDialog";
 import { BackgroundWorkIcon, BackgroundWorkTitle } from "./chat/BackgroundWork";
 import { useDeviceState } from "~/state/device";
 import { BranchToolbar, type BranchToolbarHandle } from "./BranchToolbar";
@@ -311,7 +317,7 @@ import {
   deriveLogicalProjectKeyFromSettings,
   selectProjectGroupingSettings,
 } from "../logicalProject";
-import { buildDraftThreadRouteParams, buildThreadRouteParams } from "../threadRoutes";
+import { buildThreadRouteParams } from "../threadRoutes";
 import {
   isSameSidebarThreadRef,
   useSidebarPendingFileDropStore,
@@ -540,9 +546,16 @@ import { useAssetUrls } from "../assets/assetUrls";
 import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "@supaterm/shared/composerContextReferences";
 import { recallableComposerPrompt } from "./chat/composerPromptHistory";
 import { observeResize } from "~/lib/observeResize";
+import {
+  focusAdjacentPaneFromKeyboard,
+  focusPaneIndexFromKeyboard,
+  openThreadPickerBeside,
+} from "../chatPanes/actions";
+import { ChatPaneHeaderControls } from "./chatPanes/ChatPaneHeaderControls";
 
 const EMPTY_PROVIDERS: ServerProvider[] = [];
 const EMPTY_PROVIDER_MODELS: ServerProvider["models"] = [];
+const EMPTY_THREAD_KEYS: ReadonlyArray<string> = [];
 import type { CodexArtifactTemplate } from "@supaterm/shared/codexArtifactTemplates";
 
 const TIMELINE_SCROLL_CANCEL_SENTINEL = Object.freeze({});
@@ -955,6 +968,11 @@ export default function ChatView(props: ChatViewProps) {
     forceExpandedMobileComposer = false,
   } = props;
   const canOperateThread = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
+  const isPaneInputOwner = usePaneInputOwner();
+  const openPaneThread = usePaneThreadNavigation();
+  const paneScope = usePaneScope();
+  const paneSplit = useChatPaneStore((state) => (state.layout?.cells.length ?? 1) > 1);
+  const ownsPaneInput = useIsPaneInputOwner();
   const canQueueMessage = useAtomValue(canQueueComposerMessageAtom(environmentId));
   const canOperateTerminal = useEnvironmentScope(environmentId, AuthTerminalOperateScope);
   const hasTerminalWriteAccess = () =>
@@ -1243,7 +1261,8 @@ export default function ChatView(props: ChatViewProps) {
     window.addEventListener("dragend", clearWorkspaceFileDrag);
     return () => window.removeEventListener("dragend", clearWorkspaceFileDrag);
   }, [isWorkspaceFileDragActive]);
-  const shouldUsePlanSidebarSheet = useMediaQuery(RIGHT_PANEL_INLINE_LAYOUT_MEDIA_QUERY);
+  const viewportUsesPlanSidebarSheet = useMediaQuery(RIGHT_PANEL_INLINE_LAYOUT_MEDIA_QUERY);
+  const shouldUsePlanSidebarSheet = viewportUsesPlanSidebarSheet || paneScope?.narrow === true;
   const isMobileViewport = useMediaQuery("max-sm");
   const threadPanelPopoverAnchorRef = useRef<HTMLElement | null>(null);
   const [terminalFocusRequestId, setTerminalFocusRequestId] = useState(0);
@@ -1656,16 +1675,35 @@ export default function ChatView(props: ChatViewProps) {
     }
   }, [activePreviewMiniPlayer, activePreviewState.sessions, activeThreadRef, previewSessionsReady]);
 
+  // A thread's terminals attach once: a pane never keeps a hidden drawer for a thread another
+  // pane shows, and the panes share one budget of hidden drawers.
+  const otherPaneThreadKeys = useChatPaneStore(
+    useShallow((state) =>
+      paneScope === null || state.layout === null
+        ? EMPTY_THREAD_KEYS
+        : state.layout.cells.flatMap((cell) =>
+            cell.id !== paneScope.paneId && cell.target.kind === "server"
+              ? [scopedThreadKey(cell.target.threadRef)]
+              : [],
+          ),
+    ),
+  );
+  const paneCount = useChatPaneStore((state) => state.layout?.cells.length ?? 1);
   const existingOpenTerminalThreadKeys = (() => {
     const existingThreadKeys = new Set<string>([...serverThreadKeys, ...draftThreadKeys]);
-    return openTerminalThreadKeys.filter((nextThreadKey) => existingThreadKeys.has(nextThreadKey));
+    return openTerminalThreadKeys.filter(
+      (nextThreadKey) =>
+        existingThreadKeys.has(nextThreadKey) && !otherPaneThreadKeys.includes(nextThreadKey),
+    );
   })();
   const reconciledMountedTerminalThreadKeys = reconcileMountedTerminalThreadIds({
-    currentThreadIds: mountedTerminalThreadKeys,
+    currentThreadIds: mountedTerminalThreadKeys.filter(
+      (mountedThreadKey) => !otherPaneThreadKeys.includes(mountedThreadKey),
+    ),
     openThreadIds: existingOpenTerminalThreadKeys,
     activeThreadId: activeThreadKey,
     activeThreadTerminalOpen: activeTerminalDrawerPresence.present,
-    maxHiddenThreadCount: MAX_HIDDEN_MOUNTED_TERMINAL_THREADS,
+    maxHiddenThreadCount: Math.max(1, Math.floor(MAX_HIDDEN_MOUNTED_TERMINAL_THREADS / paneCount)),
   });
   if (
     mountedTerminalThreadKeys.length !== reconciledMountedTerminalThreadKeys.length ||
@@ -2004,10 +2042,7 @@ export default function ChatView(props: ChatViewProps) {
         },
       );
       if (routeKind !== "draft" || draftId !== storedDraftSession.draftId) {
-        await navigate({
-          to: "/draft/$draftId",
-          params: buildDraftThreadRouteParams(storedDraftSession.draftId),
-        });
+        await openPaneThread({ kind: "draft", draftId: storedDraftSession.draftId });
       }
       return storedDraftSession.threadId;
     }
@@ -2033,10 +2068,7 @@ export default function ChatView(props: ChatViewProps) {
         .defaultRuntimeMode,
       ...input,
     });
-    await navigate({
-      to: "/draft/$draftId",
-      params: buildDraftThreadRouteParams(nextDraftId),
-    });
+    await openPaneThread({ kind: "draft", draftId: nextDraftId });
     return nextThreadId;
   };
 
@@ -2749,6 +2781,7 @@ export default function ChatView(props: ChatViewProps) {
     activeThreadKey,
     nextEntries: timelineEntries,
     rememberedForActive: peekRememberedThreadTimeline<typeof timelineEntries>(activeThreadKey),
+    scope: paneScope?.paneId,
   });
   const displayedTimelineKey = displayedTimeline.displayThreadKey ?? routeThreadKey;
   const paintOnlyDisplayedTimeline = isPaintOnlyThreadTimeline(
@@ -2897,15 +2930,25 @@ export default function ChatView(props: ChatViewProps) {
     ) {
       return;
     }
-    rememberReadyThreadTimeline({
-      threadKey: activeThreadKey,
-      entries: timelineEntries,
-      markdownCwd: gitCwd,
-      workspaceRoot: activeWorkspaceRoot ?? null,
-    });
-  }, [activeThreadKey, activeWorkspaceRoot, gitCwd, threadDetailLoading, timelineEntries]);
+    rememberReadyThreadTimeline(
+      {
+        threadKey: activeThreadKey,
+        entries: timelineEntries,
+        markdownCwd: gitCwd,
+        workspaceRoot: activeWorkspaceRoot ?? null,
+      },
+      paneScope?.paneId,
+    );
+  }, [
+    activeThreadKey,
+    activeWorkspaceRoot,
+    gitCwd,
+    paneScope?.paneId,
+    threadDetailLoading,
+    timelineEntries,
+  ]);
   const heldPaintContext = paintOnlyDisplayedTimeline
-    ? peekHeldThreadTimeline<typeof timelineEntries>()
+    ? peekHeldThreadTimeline<typeof timelineEntries>(paneScope?.paneId)
     : null;
   const activeTerminalLaunchContext =
     terminalUiLaunchContext?.threadId === activeThreadId ? terminalUiLaunchContext : null;
@@ -3196,7 +3239,9 @@ export default function ChatView(props: ChatViewProps) {
   const hasReachedSplitLimit =
     (activeTerminalGroup?.terminalIds.length ?? 0) >= MAX_TERMINALS_PER_GROUP;
 
+  // Focus moving into a pane makes it the focused pane, so a pane in the background never takes it.
   const focusComposer = () => {
+    if (!isPaneInputOwner()) return;
     composerRef.current?.focusAtEnd();
   };
   const focusComposerStable = useStableCallback(focusComposer);
@@ -3224,7 +3269,7 @@ export default function ChatView(props: ChatViewProps) {
   useEffect(() => subscribeSnapShotComposerFocus(focusComposerStable), [focusComposerStable]);
   const scheduleComposerFocus = () => {
     window.requestAnimationFrame(() => {
-      focusComposer();
+      focusComposerStable();
     });
   };
   const scheduleComposerFocusStable = useStableCallback(scheduleComposerFocus);
@@ -3836,9 +3881,9 @@ export default function ChatView(props: ChatViewProps) {
   useEffect(
     () =>
       subscribePreviewAction((action) => {
-        if (action === "toggle-panel") togglePreviewPanelStable();
+        if (action === "toggle-panel" && isPaneInputOwner()) togglePreviewPanelStable();
       }),
-    [togglePreviewPanelStable],
+    [isPaneInputOwner, togglePreviewPanelStable],
   );
   const persistThreadSettingsForNextTurn = async (input: {
     threadId: ThreadId;
@@ -4175,8 +4220,8 @@ export default function ChatView(props: ChatViewProps) {
           if (
             !(event.target instanceof Node) ||
             (!scrollNode.contains(event.target) &&
-              event.target !== document.body &&
-              event.target !== document.documentElement) ||
+              ((event.target !== document.body && event.target !== document.documentElement) ||
+                !isPaneInputOwner())) ||
             event.defaultPrevented ||
             event.isComposing ||
             event.altKey ||
@@ -4251,6 +4296,7 @@ export default function ChatView(props: ChatViewProps) {
   }, [
     activeThread?.id,
     composerRef,
+    isPaneInputOwner,
     isTimelineAtLogicalEndStable,
     timelineRealContentOverflowsViewportStable,
   ]);
@@ -4451,6 +4497,7 @@ export default function ChatView(props: ChatViewProps) {
           frame = null;
 
           if (document.querySelector("[data-mcp-app-fullscreen]") !== null) return;
+          if (!isPaneInputOwner()) return;
           if (shouldRefocusComposerOnWindowFocus(document.activeElement)) focusComposerStable();
         });
       });
@@ -4460,7 +4507,13 @@ export default function ChatView(props: ChatViewProps) {
       window.removeEventListener("focus", onWindowFocus);
       if (frame !== null) window.cancelAnimationFrame(frame);
     };
-  }, [activeThread?.id, focusComposerStable, isMobileViewport, terminalUiState.terminalOpen]);
+  }, [
+    activeThread?.id,
+    focusComposerStable,
+    isMobileViewport,
+    isPaneInputOwner,
+    terminalUiState.terminalOpen,
+  ]);
 
   useEffect(() => {
     if (!activeThread?.id) return;
@@ -5434,6 +5487,7 @@ export default function ChatView(props: ChatViewProps) {
     draftThreadRoute: routeKind === "draft",
     turnRunning: phase === "running",
     composerRequiresModifier: composerRequiresModifier(settings.sendShortcut, promptRef.current),
+    paneClosable: paneSplit && !activeRightPanelSurface,
     isWeb: !isElectron,
     isDesktop: isElectron,
   });
@@ -5483,6 +5537,7 @@ export default function ChatView(props: ChatViewProps) {
   };
   useChatShortcuts({
     enabled: activeThreadId !== null,
+    isInputOwner: isPaneInputOwner,
     keybindings,
     scriptKeybindings,
     getShortcutContext: getShortcutContextStable,
@@ -5493,6 +5548,22 @@ export default function ChatView(props: ChatViewProps) {
       focusComposerStable();
     },
     commands: {
+      "pane.close": ({ repeat }) => {
+        if (!paneScope || !paneSplit) return false;
+        if (!repeat) useChatPaneStore.getState().close(paneScope.paneId);
+      },
+      "pane.closeOthers": () => {
+        if (!paneScope || !paneSplit) return false;
+        useChatPaneStore.getState().closeOthers(paneScope.paneId);
+      },
+      "pane.splitRight": () => openThreadPickerBeside("right"),
+      "pane.splitDown": () => openThreadPickerBeside("bottom"),
+      "pane.focusNext": () => focusAdjacentPaneFromKeyboard(1),
+      "pane.focusPrevious": () => focusAdjacentPaneFromKeyboard(-1),
+      "pane.focus.1": () => focusPaneIndexFromKeyboard(0),
+      "pane.focus.2": () => focusPaneIndexFromKeyboard(1),
+      "pane.focus.3": () => focusPaneIndexFromKeyboard(2),
+      "pane.focus.4": () => focusPaneIndexFromKeyboard(3),
       "thread.copyReference": ({ repeat }) => {
         if (!repeat) copyActiveThreadReferenceStable();
       },
@@ -5636,15 +5707,17 @@ export default function ChatView(props: ChatViewProps) {
 
   useEffect(() => {
     return window.desktopBridge?.onMenuAction((action) => {
+      if (!isPaneInputOwner()) return;
       if (action === "rightPanel.toggle") toggleRightPanelStable();
       else if (action === "rightPanel.toggleMaximized") toggleRightPanelMaximizedStable();
     });
-  }, [toggleRightPanelStable, toggleRightPanelMaximizedStable]);
+  }, [isPaneInputOwner, toggleRightPanelStable, toggleRightPanelMaximizedStable]);
 
   // Paste-to-focus: the resting composer blurs on a click into the timeline,
   // so a paste that follows has no editable target and would be dropped.
   useEffect(() => {
     const keyHandler = (event: KeyboardEvent) => {
+      if (!isPaneInputOwner()) return;
       if (
         shouldRedirectInputToComposer(event) &&
         isPasteAsTextShortcut(event, isMacPlatform(navigator.platform))
@@ -5653,7 +5726,7 @@ export default function ChatView(props: ChatViewProps) {
       }
     };
     const handler = (event: ClipboardEvent) => {
-      if (!activeThreadId || isCommandPaletteOpen()) return;
+      if (!activeThreadId || isCommandPaletteOpen() || !isPaneInputOwner()) return;
       if (getTerminalFocusOwner() !== null) return;
       if (composerRef.current?.isModelPickerOpen()) return;
       const text = pasteTextToFocusComposer(event);
@@ -5676,7 +5749,7 @@ export default function ChatView(props: ChatViewProps) {
       window.removeEventListener("keydown", keyHandler, true);
       window.removeEventListener("paste", handler, true);
     };
-  }, [activeThreadId, composerRef]);
+  }, [activeThreadId, composerRef, isPaneInputOwner]);
 
   const onRevertToTurnCount = async (
     turnCount: number,
@@ -5760,7 +5833,7 @@ export default function ChatView(props: ChatViewProps) {
       promptRef.current = nextPrompt;
       composerRef.current?.resetCursorState({ prompt: nextPrompt, cursor: nextPrompt.length });
       requestAnimationFrame(() => {
-        if (currentRouteThreadKeyRef.current === routeThreadKey) composerRef.current?.focusAtEnd();
+        if (currentRouteThreadKeyRef.current === routeThreadKey) focusComposerStable();
       });
     }
   };
@@ -6357,11 +6430,10 @@ export default function ChatView(props: ChatViewProps) {
       clearUsageLimitsFor(routeThreadKey);
       if (submissionIntent === "background") handleNewThreadInActiveProject();
       else if (isLocalDraftThread && targets[0]) {
-        void navigate({
-          to: "/$environmentId/$threadId",
-          params: { environmentId, threadId: targets[0].threadId },
-          replace: true,
-        });
+        void openPaneThread(
+          { kind: "server", threadRef: scopeThreadRef(environmentId, targets[0].threadId) },
+          { replace: true },
+        );
       }
     });
     if (sendResult._tag === "Failure") {
@@ -6837,6 +6909,7 @@ export default function ChatView(props: ChatViewProps) {
               {!rightPanelControlsAtRoot && !rightPanelControlsInPanel ? panelLayoutControls : null}
               {inlineRightPanelOwnsTitleBar ? threadPanelHeaderControl : null}
               <TooltipProvider>
+                <ChatPaneHeaderControls title={activeThread.title} />
                 <ChatHeader
                   activeThreadEnvironmentId={activeThread.environmentId}
                   activeThreadId={activeThread.id}
@@ -7506,8 +7579,10 @@ export default function ChatView(props: ChatViewProps) {
       {rightPanelPresent && shouldUsePlanSidebarSheet && activeThreadRef ? (
         <RightPanelSheet
           animationDurationMs={panelAnimationsActive ? panelAnimationDurationMs : 0}
-          open={rightPanelOpen}
+          // A sheet is modal, so in a split only the pane in use shows its own.
+          open={rightPanelOpen && ownsPaneInput}
           onClose={closePreviewPanelStable}
+          container={paneScope?.element}
         >
           <RightPanelTabs
             mode="sheet"
@@ -7562,7 +7637,6 @@ export default function ChatView(props: ChatViewProps) {
       ) : null}
 
       <RevertConfirmHost threadKey={routeThreadKey} onConfirm={onConfirmRevertStable} />
-      <LinkPullRequestDialogHost />
       <ThreadVisitWatermark threadRef={routeThreadRef} />
       <ExpandedImageDialogHost threadKey={routeThreadKey} />
     </div>
@@ -7587,6 +7661,8 @@ function PreviewSessionSync(props: { readonly threadRef: ScopedThreadRef }) {
 // shell's updatedAt, which ticks while a run streams. Keeping it in a leaf lets
 // ChatView read the quiet shell.
 function ThreadVisitWatermark(props: { readonly threadRef: ScopedThreadRef }) {
+  // A visit syncs read state to every device, so only the pane the user is in counts as reading.
+  const reading = useIsPaneInputOwner();
   const serverThread = useThreadShell(props.threadRef);
   const threadKey = scopedThreadKey(props.threadRef);
   const visitThreadMutation = useAtomCommand(threadEnvironment.visit, { reportFailure: false });
@@ -7594,7 +7670,7 @@ function ThreadVisitWatermark(props: { readonly threadRef: ScopedThreadRef }) {
   const lastVisitDispatchAtRef = useRef(0);
 
   useEffect(() => {
-    if (!serverThread?.id || serverThread.lastVisitedAt === undefined) return;
+    if (!reading || !serverThread?.id || serverThread.lastVisitedAt === undefined) return;
     const threadUpdatedAt = Date.parse(serverThread.updatedAt);
     if (Number.isNaN(threadUpdatedAt)) return;
     const lastVisitedAt = serverThread.lastVisitedAt ? Date.parse(serverThread.lastVisitedAt) : NaN;
@@ -7630,6 +7706,7 @@ function ThreadVisitWatermark(props: { readonly threadRef: ScopedThreadRef }) {
     const timer = setTimeout(dispatch, VISIT_DISPATCH_THROTTLE_MS - elapsed);
     return () => clearTimeout(timer);
   }, [
+    reading,
     threadKey,
     serverThread?.environmentId,
     serverThread?.id,

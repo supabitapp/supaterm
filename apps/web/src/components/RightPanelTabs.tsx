@@ -92,6 +92,7 @@ import { PierreEntryIcon } from "./chat/PierreEntryIcon";
 import { resolvePullRequestState } from "./pullRequest/pullRequestPresentation";
 import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
 import { observeResize } from "~/lib/observeResize";
+import { usePaneInputOwner } from "../chatPanes/paneScope";
 
 interface RightPanelTabsProps {
   mode: PreviewPanelMode;
@@ -387,7 +388,9 @@ function RightPanelEmptyState(props: {
   const highlightIndex =
     availableActions.length === 0 ? -1 : Math.min(highlight, availableActions.length - 1);
 
+  const isPaneInputOwner = usePaneInputOwner();
   const handleShortcut = useEffectEvent((event: KeyboardEvent) => {
+    if (!isPaneInputOwner()) return;
     const action = surfaceShortcutActionForKey(availableActions, event);
     if (!action) return;
     if (document.querySelector(LAUNCHER_SHORTCUT_BLOCKING_LAYERS)) return;
@@ -969,8 +972,9 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
 
   if (props.open === false && addSurfaceMenuOpen) setAddSurfaceMenuOpen(false);
 
+  const isPaneInputOwner = usePaneInputOwner();
   const onNewSurfaceKeyDown = useEffectEvent((event: KeyboardEvent) => {
-    if (event.defaultPrevented || event.isComposing) return;
+    if (event.defaultPrevented || event.isComposing || !isPaneInputOwner()) return;
     if (
       resolveShortcutCommand(event, props.keybindings, {
         context: { ...props.getShortcutContext(), rightPanelOpen: true },

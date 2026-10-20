@@ -4,6 +4,7 @@ import { useLayoutEffect, useRef } from "react";
 
 import { acquireBrowserSurface } from "./browserSurfaceStore";
 import { observeResize } from "../lib/observeResize";
+import { usePaneLayoutVersion } from "../chatPanes/paneScope";
 
 export function BrowserSurfaceSlot(props: {
   readonly tabId: string;
@@ -19,10 +20,12 @@ export function BrowserSurfaceSlot(props: {
     visible,
     cornerRadius = 0,
     zIndex = 30,
-    layoutVersion,
     className,
     fitSourceContent = false,
   } = props;
+  // A pane moving to another spot in a split can keep its size, which no resize observer reports.
+  const paneLayoutVersion = usePaneLayoutVersion();
+  const layoutVersion = `${props.layoutVersion ?? ""}:${paneLayoutVersion ?? ""}`;
   const elementRef = useRef<HTMLDivElement | null>(null);
   const presentationRef = useRef({ visible, cornerRadius, zIndex, layoutVersion });
   const updateRef = useRef<(() => void) | null>(null);

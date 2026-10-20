@@ -6,6 +6,7 @@ import { isOpenFavoriteEditorShortcut } from "../../keybindings";
 import { useRemoteOpenState } from "../../remoteOpen";
 import { shellEnvironment } from "../../state/shell";
 import { useAtomCommand } from "../../state/use-atom-command";
+import { usePaneInputOwner } from "../../chatPanes/paneScope";
 
 export function useOpenFavoriteEditorShortcut({
   enabled,
@@ -23,11 +24,13 @@ export function useOpenFavoriteEditorShortcut({
   const openInEditorMutation = useAtomCommand(shellEnvironment.openInEditor, "open in editor");
   const [preferredEditor] = usePreferredEditor(availableEditors);
   const remote = useRemoteOpenState(environmentId);
+  const isPaneInputOwner = usePaneInputOwner();
 
   useEffect(() => {
     if (!enabled || remote.mode !== "local-exec") return;
     const handler = (event: globalThis.KeyboardEvent) => {
       if (event.defaultPrevented || !isOpenFavoriteEditorShortcut(event, keybindings)) return;
+      if (!isPaneInputOwner()) return;
       if (!openInCwd || !preferredEditor) return;
 
       event.preventDefault();
@@ -44,6 +47,7 @@ export function useOpenFavoriteEditorShortcut({
   }, [
     enabled,
     environmentId,
+    isPaneInputOwner,
     keybindings,
     openInCwd,
     openInEditorMutation,

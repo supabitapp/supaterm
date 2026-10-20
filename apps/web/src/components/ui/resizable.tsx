@@ -1,11 +1,18 @@
 import * as Schema from "effect/Schema";
 import * as React from "react";
 import {
+  Cell,
+  Grid,
+  Gridline,
   Group,
   Panel,
   Separator,
+  useGridRef,
   useGroupRef,
   usePanelCallbackRef,
+  type CellProps,
+  type GridlineProps,
+  type GridProps,
   type GroupProps,
   type PanelProps,
   type PanelSize,
@@ -61,6 +68,9 @@ function ResizablePanel({ style, ...props }: PanelProps) {
   return <Panel data-slot="resizable-panel" style={{ overflow: "hidden", ...style }} {...props} />;
 }
 
+const HANDLE_CLASS_NAME =
+  "relative z-20 outline-none before:absolute after:pointer-events-none after:absolute after:transition-colors after:duration-150 aria-[orientation=vertical]:w-0 aria-[orientation=vertical]:before:inset-y-0 aria-[orientation=vertical]:before:-left-1 aria-[orientation=vertical]:before:w-2 aria-[orientation=vertical]:after:inset-y-0 aria-[orientation=vertical]:after:left-1/2 aria-[orientation=vertical]:after:w-px aria-[orientation=vertical]:after:-translate-x-1/2 aria-[orientation=horizontal]:h-0 aria-[orientation=horizontal]:before:inset-x-0 aria-[orientation=horizontal]:before:-top-1 aria-[orientation=horizontal]:before:h-2 aria-[orientation=horizontal]:after:inset-x-0 aria-[orientation=horizontal]:after:top-1/2 aria-[orientation=horizontal]:after:h-px aria-[orientation=horizontal]:after:-translate-y-1/2 data-[separator=active]:after:bg-primary/60 data-[separator=disabled]:hidden data-[separator=focus]:after:bg-ring data-[separator=hover]:after:bg-border";
+
 /**
  * A zero-thickness divider. The library hit-tests its own widened target; the
  * `before` strip gives double-click a real element to land on. The library's
@@ -69,12 +79,37 @@ function ResizablePanel({ style, ...props }: PanelProps) {
 function ResizableHandle({ className, ...props }: Omit<SeparatorProps, "disableDoubleClick">) {
   return (
     <Separator
-      className={cn(
-        "relative z-20 outline-none before:absolute after:pointer-events-none after:absolute after:transition-colors after:duration-150 aria-[orientation=vertical]:w-0 aria-[orientation=vertical]:before:inset-y-0 aria-[orientation=vertical]:before:-left-1 aria-[orientation=vertical]:before:w-2 aria-[orientation=vertical]:after:inset-y-0 aria-[orientation=vertical]:after:left-1/2 aria-[orientation=vertical]:after:w-px aria-[orientation=vertical]:after:-translate-x-1/2 aria-[orientation=horizontal]:h-0 aria-[orientation=horizontal]:before:inset-x-0 aria-[orientation=horizontal]:before:-top-1 aria-[orientation=horizontal]:before:h-2 aria-[orientation=horizontal]:after:inset-x-0 aria-[orientation=horizontal]:after:top-1/2 aria-[orientation=horizontal]:after:h-px aria-[orientation=horizontal]:after:-translate-y-1/2 data-[separator=active]:after:bg-primary/60 data-[separator=disabled]:hidden data-[separator=focus]:after:bg-ring data-[separator=hover]:after:bg-border",
-        className,
-      )}
+      className={cn(HANDLE_CLASS_NAME, className)}
       data-slot="resizable-handle"
       disableDoubleClick
+      {...props}
+    />
+  );
+}
+
+/** Resizable cells in two dimensions. Cells and gridlines must be its direct children. */
+function ResizableGrid(props: GridProps) {
+  return <Grid data-slot="resizable-grid" {...props} />;
+}
+
+function ResizableGridCell({ style, ...props }: CellProps) {
+  return (
+    <Cell data-slot="resizable-grid-cell" style={{ overflow: "hidden", ...style }} {...props} />
+  );
+}
+
+/**
+ * A zero-thickness gridline drawn like `ResizableHandle`; segments stop beside spanning cells.
+ * The library forwards no DOM attributes, so the accessible name is set on its element.
+ */
+function ResizableGridline({ className, label, ...props }: GridlineProps & { label: string }) {
+  return (
+    <Gridline
+      className={cn(HANDLE_CLASS_NAME, className)}
+      elementRef={(element) => {
+        element?.setAttribute("aria-label", label);
+        element?.setAttribute("data-slot", "resizable-gridline");
+      }}
       {...props}
     />
   );
@@ -274,4 +309,14 @@ function animateToggle(panel: HTMLElement): (() => void) | null {
   return end;
 }
 
-export { ResizableHandle, ResizablePanel, ResizablePanelGroup, useCollapsiblePanel, useGroupRef };
+export {
+  ResizableGrid,
+  ResizableGridCell,
+  ResizableGridline,
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+  useCollapsiblePanel,
+  useGridRef,
+  useGroupRef,
+};

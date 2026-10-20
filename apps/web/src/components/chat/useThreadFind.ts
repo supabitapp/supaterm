@@ -17,6 +17,7 @@ import {
 } from "./threadFind";
 import { subscribeThreadFindOpen } from "./threadFindActionBus";
 import { toastManager } from "../ui/toast";
+import { usePaneInputOwner } from "../../chatPanes/paneScope";
 
 const EMPTY_SKILLS: readonly InlineSkill[] = [];
 
@@ -95,7 +96,14 @@ export function useThreadFind({
     });
   });
   const close = useStableCallback(() => setState(CLOSED_FIND));
-  useEffect(() => subscribeThreadFindOpen(open), [open]);
+  const isPaneInputOwner = usePaneInputOwner();
+  useEffect(
+    () =>
+      subscribeThreadFindOpen(() => {
+        if (isPaneInputOwner()) open();
+      }),
+    [isPaneInputOwner, open],
+  );
 
   const remote = useServerResults(
     isOpen ? thread : null,

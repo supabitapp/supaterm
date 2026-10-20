@@ -1555,6 +1555,16 @@ code,
   -webkit-app-region: no-drag;
 }
 
+/* A chat pane below the window's top edge has no titlebar to drag. */
+[data-chat-pane][data-top-row="false"] .drag-region {
+  -webkit-app-region: no-drag;
+}
+
+/* The drawer caps itself to the window; in a split it must also fit its pane. */
+[data-chat-pane][data-split="true"] [data-thread-terminal-drawer][data-terminal-owner="drawer"] {
+  max-height: 75%;
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: var(--app-scrollbar-width);

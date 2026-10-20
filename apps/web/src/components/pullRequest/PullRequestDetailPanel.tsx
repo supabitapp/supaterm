@@ -195,6 +195,7 @@ import { PullRequestGlyph } from "./pullRequestIcons";
 import { PullRequestGuideTab } from "./PullRequestGuideTab";
 import { guideRunKey, useGuideRunStore } from "./guide/guideRunStore";
 import { useReviewGuideWriter } from "./guide/useReviewGuideWriter";
+import { usePaneInputOwner } from "../../chatPanes/paneScope";
 
 type DetailTab = "summary" | "guide" | "timeline" | "code";
 
@@ -797,8 +798,10 @@ export function PullRequestDetailPanel({
         description: error.message,
       }),
   });
+  const isPaneInputOwner = usePaneInputOwner();
   const copyFromShortcut = useEffectEvent((event: KeyboardEvent) => {
     if (!shortcutsEnabled || event.defaultPrevented || isCommandPaletteOpen()) return;
+    if (!isPaneInputOwner()) return;
     const command = resolveShortcutCommand(event, keybindings, {
       context: getShortcutContext(),
     });

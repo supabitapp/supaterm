@@ -70,6 +70,7 @@ import {
 } from "./threadDetailsPanelStyles";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
 import { useComposerMenuState } from "./useComposerMenuState";
+import { usePaneInputOwner } from "../../chatPanes/paneScope";
 
 type OpenInOption = {
   label: string;
@@ -282,10 +283,12 @@ export const OpenInPicker = memo(function OpenInPicker({
     "editor.openFavorite",
   );
 
+  const isPaneInputOwner = usePaneInputOwner();
   useEffect(() => {
     if (!enableShortcut || !canOpenEditor) return;
     const handler = (e: globalThis.KeyboardEvent) => {
       if (e.defaultPrevented || !isOpenFavoriteEditorShortcut(e, keybindings)) return;
+      if (!isPaneInputOwner()) return;
       if (!openInCwd) return;
       if (!preferredEditor) return;
       if (
@@ -303,6 +306,7 @@ export const OpenInPicker = memo(function OpenInPicker({
     canOpenEditor,
     enableShortcut,
     environmentId,
+    isPaneInputOwner,
     keybindings,
     openInCwd,
     openInEditor,

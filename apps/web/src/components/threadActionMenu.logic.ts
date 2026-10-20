@@ -2,6 +2,7 @@ import type { ContextMenuItem } from "@supaterm/contracts";
 import type { SnoozePreset } from "@supaterm/client-runtime/state/thread-snooze";
 
 export type ThreadActionMenuId =
+  | "open-beside"
   | "new-thread-on-branch"
   | "filter-by-project"
   | "project-settings"
@@ -79,11 +80,14 @@ export interface ThreadActionMenuState {
   /** Archive rejects a thread with an attached provider, so disable it here rather than let the action fail. */
   readonly isRunning: boolean;
   readonly snoozePresets: ReadonlyArray<SnoozePreset>;
+  /** The thread can open in a new chat pane beside the focused one. */
+  readonly canOpenBeside?: boolean;
 }
 
 /** Local navigation, read markers, and copying remain available to read-only clients. */
 export function threadActionRequiresOperate(action: ThreadActionMenuId): boolean {
   return ![
+    "open-beside",
     "new-thread-on-branch",
     "project-settings",
     "mark-unread",
@@ -103,6 +107,9 @@ export function buildThreadActionMenuItems(
   state: ThreadActionMenuState,
 ): ReadonlyArray<ContextMenuItem<ThreadActionMenuId>> {
   const items: ReadonlyArray<ContextMenuItem<ThreadActionMenuId>> = [
+    ...(state.canOpenBeside
+      ? [{ id: "open-beside" as const, label: "Open to the side", icon: "columns-2" }]
+      : []),
     ...(state.branch
       ? [
           {

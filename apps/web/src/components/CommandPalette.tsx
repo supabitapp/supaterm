@@ -63,10 +63,12 @@ import {
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeftIcon,
+  ArrowRightIcon,
   CalendarClockIcon,
   ChartNoAxesColumnIcon,
   CheckIcon,
   ChevronRightIcon,
+  Columns2Icon,
   CornerLeftUpIcon,
   FileSearchIcon,
   FolderGit2Icon,
@@ -81,10 +83,13 @@ import {
   MoonIcon,
   PaletteIcon,
   RotateCcwIcon,
+  Rows2Icon,
   SettingsIcon,
+  SquareIcon,
   SquarePenIcon,
   SunIcon,
   TextSearchIcon,
+  XIcon,
 } from "lucide-react";
 import { requestThreadFindOpen } from "./chat/threadFindActionBus";
 import {
@@ -260,7 +265,7 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "./u
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { ComposerHandleContext, useComposerHandleContext } from "../composerHandleContext";
-import type { ChatComposerHandle } from "./chat/ChatComposer";
+import { createFocusedComposerRef } from "../chatPanes/paneScope";
 import { getProjectOrderKey } from "../logicalProject";
 import { useUiStateStore } from "../uiStateStore";
 import {
@@ -271,6 +276,8 @@ import type { Project } from "../types";
 import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
 import { readPullRequestListPreferences } from "~/components/pullRequest/pullRequestListPreferences";
 import { useThreadRouteTarget } from "../hooks/useThreadRouteTarget";
+import { useChatPaneStore } from "../chatPanes/store";
+import { focusAdjacentPaneFromKeyboard } from "../chatPanes/actions";
 
 const EMPTY_BROWSE_ENTRIES: FilesystemBrowseResult["entries"] = [];
 
@@ -528,7 +535,7 @@ export function CommandPalette({ children }: { children: ReactNode }) {
     dispatch({ _tag: "OpenChildSearch", mode, context });
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const { theme, themeHalves, resolvedTheme, appearanceMode, setAppearanceMode } = useTheme();
-  const composerHandleRef = useRef<ChatComposerHandle | null>(null);
+  const [composerHandleRef] = useState(createFocusedComposerRef);
   const routeTarget = useThreadRouteTarget();
   const routeThreadRef = routeTarget?.kind === "server" ? routeTarget.threadRef : null;
   const terminalOpen = useTerminalUiStateStore((state) =>
@@ -659,6 +666,8 @@ export function CommandPalette({ children }: { children: ReactNode }) {
             dispatch({ _tag: "BackToCommand" });
             return;
           }
+          // Dismissed without picking anything: a pending "open beside" request lapses too.
+          if (!open) useChatPaneStore.getState().cancelOpenToSide();
           setOpen(open);
         }}
       >
@@ -711,6 +720,7 @@ function CommandPaletteDialog(props: {
         return false;
       }}
       onBackdropPointerDown={() => {
+        useChatPaneStore.getState().cancelOpenToSide();
         props.setOpen(false);
       }}
     >
@@ -805,6 +815,7 @@ function OpenCommandPaletteDialog(props: {
       ? null
       : resolveThreadForkSource(activeThreadProjection.projection);
   const paletteRouteTarget = useThreadRouteTarget();
+  const paneSplit = useChatPaneStore((state) => (state.layout?.cells.length ?? 1) > 1);
   const projects = useProjects();
   const referenceThreadRef =
     pathname === "/pull-requests"
@@ -1811,6 +1822,85 @@ function OpenCommandPaletteDialog(props: {
         requestThreadFindOpen();
       },
     });
+  }
+
+  if (paletteRouteTarget) {
+    const openBeside = (edge: "right" | "bottom") => async () => {
+      useChatPaneStore.getState().requestOpenToSide(edge);
+    };
+    actionItems.push(
+      {
+        kind: "action",
+        value: "action:pane-split-right",
+        title: "Open a thread on the right",
+        searchTerms: ["split", "side by side", "pane", "right", "beside"],
+        icon: <Columns2Icon className={ITEM_ICON_CLASS} />,
+        shortcutCommand: "pane.splitRight",
+        keepOpen: true,
+        run: openBeside("right"),
+      },
+      {
+        kind: "action",
+        value: "action:pane-split-down",
+        title: "Open a thread below",
+        searchTerms: ["split", "pane", "down", "below", "stack"],
+        icon: <Rows2Icon className={ITEM_ICON_CLASS} />,
+        shortcutCommand: "pane.splitDown",
+        keepOpen: true,
+        run: openBeside("bottom"),
+      },
+    );
+  }
+
+  if (paneSplit) {
+    const panes = () => useChatPaneStore.getState();
+    actionItems.push(
+      {
+        kind: "action",
+        value: "action:pane-close",
+        title: "Close pane",
+        searchTerms: ["pane", "close", "split"],
+        icon: <XIcon className={ITEM_ICON_CLASS} />,
+        shortcutCommand: "pane.close",
+        run: async () => {
+          const layout = panes().layout;
+          if (layout) panes().close(layout.focusedPaneId);
+        },
+      },
+      {
+        kind: "action",
+        value: "action:pane-close-others",
+        title: "Close other panes",
+        searchTerms: ["pane", "close", "others", "unsplit", "single"],
+        icon: <SquareIcon className={ITEM_ICON_CLASS} />,
+        shortcutCommand: "pane.closeOthers",
+        run: async () => {
+          const layout = panes().layout;
+          if (layout) panes().closeOthers(layout.focusedPaneId);
+        },
+      },
+      {
+        kind: "action",
+        value: "action:pane-focus-next",
+        title: "Focus next pane",
+        searchTerms: ["pane", "focus", "next", "switch"],
+        icon: <ArrowRightIcon className={ITEM_ICON_CLASS} />,
+        shortcutCommand: "pane.focusNext",
+        run: async () => {
+          focusAdjacentPaneFromKeyboard(1);
+        },
+      },
+      {
+        kind: "action",
+        value: "action:pane-equalize",
+        title: "Make panes the same size",
+        searchTerms: ["pane", "equalize", "even", "reset", "size"],
+        icon: <Columns2Icon className={ITEM_ICON_CLASS} />,
+        run: async () => {
+          panes().equalize();
+        },
+      },
+    );
   }
 
   const promptLinkTarget = paletteRouteTarget
@@ -3063,8 +3153,30 @@ function OpenCommandPaletteDialog(props: {
       return;
     }
 
-    if (event.ctrlKey || event.shiftKey || event.altKey || event.metaKey) return;
     const firstItemValue = autoHighlightsFirstRow ? resultRows.itemValues[0] : undefined;
+    // Alt+Enter opens the highlighted thread beside the focused chat pane.
+    if (
+      event.key === "Enter" &&
+      event.altKey &&
+      !event.ctrlKey &&
+      !event.shiftKey &&
+      !event.metaKey &&
+      !event.nativeEvent.isComposing
+    ) {
+      const highlightedItem = findHighlightedCommandPaletteItem(
+        displayedGroups,
+        highlightedItemValue ?? firstItemValue ?? null,
+      );
+      if (highlightedItem?.value.startsWith("thread:")) {
+        (event as typeof event & { preventBaseUIHandler?: () => void }).preventBaseUIHandler?.();
+        event.preventDefault();
+        event.stopPropagation();
+        useChatPaneStore.getState().requestOpenToSide("right");
+        executeItem(highlightedItem);
+      }
+      return;
+    }
+    if (event.ctrlKey || event.shiftKey || event.altKey || event.metaKey) return;
     if (
       event.key === "ArrowDown" &&
       highlightClearedRef.current &&
@@ -3112,15 +3224,27 @@ function OpenCommandPaletteDialog(props: {
       setOpen(false);
     }
 
-    void item.run().catch((error: unknown) => {
-      toastManager.add(
-        stackedThreadToast({
-          type: "error",
-          title: "Unable to run command",
-          description: error instanceof Error ? error.message : "An unexpected error occurred.",
-        }),
-      );
-    });
+    const openToSide = useChatPaneStore.getState().openToSide;
+    void item
+      .run()
+      .catch((error: unknown) => {
+        toastManager.add(
+          stackedThreadToast({
+            type: "error",
+            title: "Unable to run command",
+            description: error instanceof Error ? error.message : "An unexpected error occurred.",
+          }),
+        );
+      })
+      .finally(() => {
+        // A request to open beside the focused pane belongs to this pick. If the pick did not
+        // open a thread, it lapses rather than splitting some later navigation.
+        requestAnimationFrame(() => {
+          if (openToSide !== null && useChatPaneStore.getState().openToSide === openToSide) {
+            useChatPaneStore.getState().cancelOpenToSide();
+          }
+        });
+      });
   }
 
   const handleOpenProjectFromFileManager = async () => {

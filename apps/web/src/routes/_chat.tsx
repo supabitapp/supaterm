@@ -5,7 +5,7 @@ import { useEffect } from "react";
 
 import { registerAppCommandHandler } from "../appCommandBus";
 import { isCommandPaletteOpen, openCommandPalette } from "../commandPaletteBus";
-import { ThreadRouteView } from "../components/ThreadRouteView";
+import { ChatPaneWorkspace } from "../components/chatPanes/ChatPaneWorkspace";
 import { ThreadLinkPrompt } from "../components/promptLinks/ThreadLinkPrompt";
 import { isPreviewAvailableFor } from "../browser/previewRuntime";
 import { usePrimaryEnvironmentId } from "../state/environments";
@@ -92,9 +92,10 @@ function ChatRouteGlobalShortcuts() {
 
       if (command === "projectPicker.toggle") {
         if (repeat) return true;
-        const projectTrigger = document.querySelector<HTMLButtonElement>(
-          "[data-draft-project-trigger]",
-        );
+        const projectTrigger =
+          document.querySelector<HTMLButtonElement>(
+            '[data-chat-pane][data-focused="true"] [data-draft-project-trigger]',
+          ) ?? document.querySelector<HTMLButtonElement>("[data-draft-project-trigger]");
         if (projectTrigger) {
           projectTrigger.focus({ preventScroll: true });
           projectTrigger.click();
@@ -201,7 +202,7 @@ function ChatRouteLayout() {
       {threadTarget?.kind === "server" ? (
         <ThreadLinkPrompt threadRef={threadTarget.threadRef} />
       ) : null}
-      {threadTarget ? <ThreadRouteView target={threadTarget} /> : <Outlet />}
+      {threadTarget ? <ChatPaneWorkspace target={threadTarget} /> : <Outlet />}
     </>
   );
 }

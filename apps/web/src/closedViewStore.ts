@@ -19,7 +19,11 @@ export type ClosedView =
     }
   | { kind: "browser"; threadRef: ScopedThreadRef; snapshot: PreviewSessionSnapshot };
 
-export type ClosedViewEntry = ClosedView & { id: string };
+export type ClosedViewEntry = ClosedView & {
+  id: string;
+  /** When it closed, to order reopening against closed chat panes. Older entries lack it. */
+  closedAt?: number;
+};
 
 interface ClosedViewStoreState {
   entries: ClosedViewEntry[];
@@ -54,7 +58,7 @@ export const useClosedViewStore = create<ClosedViewStoreState>()(
         const id = randomUUID();
         set((state) => ({
           entries: [
-            { ...view, id },
+            { ...view, id, closedAt: Date.now() },
             ...state.entries.filter((entry) => !sameTarget(entry, view)),
           ].slice(0, 20),
         }));

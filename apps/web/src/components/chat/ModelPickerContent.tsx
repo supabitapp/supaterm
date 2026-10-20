@@ -62,6 +62,7 @@ import {
   type ProviderInstanceEntry,
 } from "../../providerInstances";
 import { providerModelKey, sortProviderModelItems } from "../../modelOrdering";
+import { usePaneInputOwner } from "../../chatPanes/paneScope";
 
 type ModelPickerItem = {
   slug: string;
@@ -331,13 +332,16 @@ function ModelPickerList({
 // Capture phase, so model and provider shortcuts win over the composer underneath.
 function WindowKeyDownListener({ onKeyDown }: { onKeyDown: (event: KeyboardEvent) => void }) {
   const handleKeyDown = useEffectEvent(onKeyDown);
+  const isPaneInputOwner = usePaneInputOwner();
   useEffect(() => {
-    const listener = (event: KeyboardEvent) => handleKeyDown(event);
+    const listener = (event: KeyboardEvent) => {
+      if (isPaneInputOwner()) handleKeyDown(event);
+    };
     window.addEventListener("keydown", listener, true);
     return () => {
       window.removeEventListener("keydown", listener, true);
     };
-  }, []);
+  }, [isPaneInputOwner]);
   return null;
 }
 

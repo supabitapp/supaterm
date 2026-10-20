@@ -70,6 +70,23 @@ export const BRANCH_PICKER_JUMP_KEYBINDING_COMMANDS = [
   "branchPicker.jump.9",
 ] as const;
 
+export const PANE_FOCUS_KEYBINDING_COMMANDS = [
+  "pane.focus.1",
+  "pane.focus.2",
+  "pane.focus.3",
+  "pane.focus.4",
+] as const;
+
+const PANE_KEYBINDING_COMMANDS = [
+  "pane.splitRight",
+  "pane.splitDown",
+  "pane.close",
+  "pane.closeOthers",
+  "pane.focusNext",
+  "pane.focusPrevious",
+  ...PANE_FOCUS_KEYBINDING_COMMANDS,
+] as const;
+
 const THREAD_KEYBINDING_COMMANDS = [
   "thread.stop",
   "thread.approve",
@@ -163,6 +180,7 @@ export const STATIC_KEYBINDING_COMMANDS = [
   "usage.period.quarter",
   ...MODEL_PICKER_KEYBINDING_COMMANDS,
   ...THREAD_KEYBINDING_COMMANDS,
+  ...PANE_KEYBINDING_COMMANDS,
 ] as const;
 
 export const SCRIPT_RUN_COMMAND_PATTERN = Schema.TemplateLiteral([

@@ -187,20 +187,6 @@ function claudeContextWindow(modelSelection: ModelSelection): number | null {
   );
 }
 
-interface ClaudeCacheCreation {
-  readonly ephemeral_1h_input_tokens: number;
-  readonly ephemeral_5m_input_tokens: number;
-}
-
-function claudePromptCacheTtlMs(
-  cacheCreation: ClaudeCacheCreation | null | undefined,
-): number | undefined {
-  if (!cacheCreation) return undefined;
-  if (cacheCreation.ephemeral_1h_input_tokens > 0) return 60 * 60_000;
-  if (cacheCreation.ephemeral_5m_input_tokens > 0) return 5 * 60_000;
-  return undefined;
-}
-
 function claudeMessageInputTokens(usage: {
   readonly input_tokens: number;
   readonly cache_creation_input_tokens?: number | null;
@@ -218,7 +204,6 @@ export function claudeProviderTurnTokenUsage(
     readonly input_tokens: number;
     readonly cache_creation_input_tokens?: number | null;
     readonly cache_read_input_tokens?: number | null;
-    readonly cache_creation?: ClaudeCacheCreation | null;
     readonly output_tokens: number;
   },
   modelSelection: ModelSelection,
@@ -226,7 +211,6 @@ export function claudeProviderTurnTokenUsage(
 ) {
   const inputTokens = claudeMessageInputTokens(usage);
   const outputTokens = usage.output_tokens;
-  const promptCacheTtlMs = claudePromptCacheTtlMs(usage.cache_creation);
   return {
     usedTokens: inputTokens + outputTokens,
     maxTokens: claudeContextWindow(modelSelection),
@@ -234,7 +218,6 @@ export function claudeProviderTurnTokenUsage(
     cachedInputTokens: usage.cache_read_input_tokens ?? 0,
     outputTokens,
     reasoningOutputTokens: 0,
-    ...(promptCacheTtlMs === undefined ? {} : { promptCacheTtlMs }),
     updatedAt,
   };
 }
