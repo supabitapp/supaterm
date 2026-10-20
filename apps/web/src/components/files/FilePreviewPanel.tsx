@@ -1374,6 +1374,7 @@ export default function FilePreviewPanel({
               name={fileBasename(relativePath)}
               mimeType="application/octet-stream"
               sizeBytes={0}
+              kind="unsupported"
               asset={{
                 environmentId,
                 resource: {

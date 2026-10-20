@@ -5,7 +5,11 @@ import { readFilePreviewResponse } from "@supaterm/client-runtime/file-preview";
 import { settlePromise } from "@supaterm/client-runtime/state/runtime";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import * as Cause from "effect/Cause";
-import { filePreviewKind, FILE_TEXT_PREVIEW_MAX_BYTES } from "@supaterm/shared/filePreview";
+import {
+  filePreviewKind,
+  FILE_TEXT_PREVIEW_MAX_BYTES,
+  type FilePreviewKind,
+} from "@supaterm/shared/filePreview";
 import { ChevronRightIcon, DownloadIcon, Trash2Icon, WrapTextIcon, XIcon } from "lucide-react";
 import { Check, Code2, Copy, Eye, Table2 } from "lucide";
 import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -93,6 +97,7 @@ export function AttachmentFilePreview(props: {
   name: string;
   mimeType: string;
   sizeBytes: number;
+  kind?: FilePreviewKind;
   file?: Blob | null;
   asset?:
     | { environmentId: EnvironmentId; attachmentId: string }
@@ -103,8 +108,8 @@ export function AttachmentFilePreview(props: {
   onRemove?: () => void;
   onClose?: () => void;
 }) {
-  const kind = filePreviewKind(props);
-  const delimiter = filePreviewDelimiter(props);
+  const kind = props.kind ?? filePreviewKind(props);
+  const delimiter = kind === "text" ? filePreviewDelimiter(props) : null;
   const renderedMode =
     kind === "markdown" ? "markdown" : kind === "html" ? "html" : delimiter ? "table" : null;
   const attachmentId =

@@ -1,4 +1,4 @@
-import { EnvironmentId } from "@supaterm/contracts";
+import { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
@@ -113,5 +113,59 @@ describe("attachment HTML preview recovery", () => {
     await toggleMode("Show rendered page");
     expect(alert()).toBeNull();
     expect(container.querySelector("iframe")?.title).toBe("document.html");
+  });
+});
+
+describe("binary workspace file", () => {
+  let root: Root;
+  let container: HTMLDivElement;
+
+  beforeEach(() => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    refresh.mockReset().mockResolvedValue("data:application/octet-stream,a%00b");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(new Uint8Array([0x61, 0x00, 0x62]))),
+    );
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    container.remove();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("offers a download instead of reading a text-named binary as text", async () => {
+    await act(async () =>
+      root.render(
+        <AttachmentFilePreview
+          name="export.csv"
+          mimeType="application/octet-stream"
+          sizeBytes={0}
+          kind="unsupported"
+          asset={{
+            environmentId: EnvironmentId.make("test-environment"),
+            resource: {
+              _tag: "media-file",
+              threadId: ThreadId.make("thread-1"),
+              path: "/repo/export.csv",
+              disposition: "attachment",
+            },
+          }}
+          origin="File"
+        />,
+      ),
+    );
+    await vi.waitFor(() =>
+      expect(container.querySelector('button[aria-label="Save file"]')).not.toBeNull(),
+    );
+    expect(container.textContent).toContain("No preview for this file");
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.querySelector('button[aria-label="Show table"]')).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
