@@ -35,14 +35,14 @@ export function NativeMermaidBlock({
   useEffect(() => {
     if (!renderDiagram || !width) return;
     let active = true;
-    void renderDiagram(source, { maxWidth: width }).then(
-      (diagram) => {
-        if (active) setResult({ source, diagram });
-      },
-      () => {
-        if (active) setResult({ source, diagram: null });
-      },
-    );
+    const complete = (diagram: Diagram | null) => {
+      if (active) {
+        setResult((previous) =>
+          diagram === null && previous?.source === source ? previous : { source, diagram },
+        );
+      }
+    };
+    void renderDiagram(source, { maxWidth: width }).then(complete, () => complete(null));
     return () => {
       active = false;
     };

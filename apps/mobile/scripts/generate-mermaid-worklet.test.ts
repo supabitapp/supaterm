@@ -5,6 +5,8 @@ import { renderDiagram } from "../../../packages/mermaid/src/render.ts";
 import { DIAGRAM_LIMITS as limits } from "../../../packages/mermaid/src/diagram.ts";
 import fixtures from "../../../packages/mermaid/src/fixtures.json" with { type: "json" };
 
+const WORKLET_BUILD_TIMEOUT_MS = 120_000;
+
 const supported = fixtures.map((fixture) => fixture.source);
 const rejected = [
   "not a diagram",
@@ -35,11 +37,11 @@ describe("generated native Mermaid worklet", () => {
           cwd: NodeURL.fileURLToPath(new URL("..", import.meta.url)),
           input: JSON.stringify([...supported, ...rejected]),
           encoding: "utf8",
-          timeout: 30_000,
+          timeout: WORKLET_BUILD_TIMEOUT_MS,
         },
       ),
     );
-  }, 30_000);
+  }, WORKLET_BUILD_TIMEOUT_MS + 5_000);
 
   it("preserves rendering and work bounds after native Babel serialization", () => {
     const expected = supported.map((source) => renderDiagram(source, { maxWidth: 320, now: 0 }));

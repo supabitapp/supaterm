@@ -110,6 +110,32 @@ afterEach(async () => {
 });
 
 describe("NativeMermaidBlock", () => {
+  it("keeps a working diagram when resizing fails and replaces it after recovery", async () => {
+    const source = "flowchart LR\nA-->B";
+    const renderer = vi
+      .fn()
+      .mockResolvedValueOnce(diagram("wide diagram"))
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(new Error("Renderer unavailable"))
+      .mockResolvedValueOnce(diagram("narrow diagram"))
+      .mockResolvedValue(null);
+    await render(source, renderer);
+    const resize = (width: number) =>
+      act(async () =>
+        root!.root
+          .findByType("View" as never)
+          .props.onLayout({ nativeEvent: { layout: { width } } }),
+      );
+    await resize(320);
+    expect(displayedText()).toBe("wide diagram");
+    await resize(280);
+    expect(displayedText()).toBe("wide diagram");
+    await resize(240);
+    expect(displayedText()).toBe("narrow diagram");
+    await render("invalid replacement", renderer);
+    expect(displayedText()).toBe("invalid replacement");
+  });
+
   it("shows the rendered diagram and copies Mermaid source from either view", async () => {
     const source = "graph LR\nA --> B";
     const renderer = vi.fn().mockResolvedValue(diagram("[A] --> [B]"));

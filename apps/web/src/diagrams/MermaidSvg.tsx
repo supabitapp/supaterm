@@ -34,7 +34,11 @@ export function useMermaidDiagram(source: string, width: number, enabled: boolea
     if (!enabled || width === 0) return;
     let current = true;
     void renderMermaidDiagram(source, { maxWidth: width }).then((diagram) => {
-      if (current) setResult({ source, diagram });
+      if (current) {
+        setResult((previous) =>
+          diagram === null && previous?.source === source ? previous : { source, diagram },
+        );
+      }
     });
     return () => {
       current = false;

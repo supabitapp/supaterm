@@ -71,7 +71,13 @@ export function MermaidDiagramScreen(props: StaticScreenProps<MermaidDiagramRout
     if (!width) return;
     let active = true;
     void renderMermaidDiagram(source, { maxWidth: width }).then((rendered) => {
-      if (active) setResult({ source, diagram: rendered });
+      if (active) {
+        setResult((previous) =>
+          rendered === null && previous?.source === source
+            ? previous
+            : { source, diagram: rendered },
+        );
+      }
     });
     return () => {
       active = false;

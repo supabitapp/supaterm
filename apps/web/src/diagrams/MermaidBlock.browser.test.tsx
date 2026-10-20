@@ -10,6 +10,9 @@ vi.mock(import("./mermaidRenderer"), async (original) => ({
 
 import { MermaidBlock } from "./MermaidBlock";
 import { renderMermaidDiagram } from "./mermaidRenderer";
+import { observeResize } from "../lib/observeResize";
+
+vi.mock("../lib/observeResize", () => ({ observeResize: vi.fn(() => () => {}) }));
 
 // Visibility is reported by hand so each case decides when the fence scrolls into view.
 class TestIntersectionObserver {
@@ -41,6 +44,7 @@ beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("IntersectionObserver", TestIntersectionObserver);
   vi.mocked(renderMermaidDiagram).mockReset();
+  vi.mocked(observeResize).mockClear();
   container = document.body.appendChild(document.createElement("div"));
   root = createRoot(container);
 });
@@ -83,6 +87,34 @@ function deferredResult() {
 }
 
 describe("MermaidBlock", () => {
+  it("keeps a working diagram when resizing fails and replaces it after recovery", async () => {
+    const source = "flowchart LR\nA-->B";
+    vi.mocked(renderMermaidDiagram)
+      .mockResolvedValueOnce(diagram("wide diagram"))
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(diagram("narrow diagram"))
+      .mockResolvedValueOnce(null);
+    await mount(source);
+    await act(async () => TestIntersectionObserver.instances[0]!.visible(true));
+    const blockElement = container.firstElementChild!;
+    const measure = vi
+      .mocked(observeResize)
+      .mock.calls.find(([element]) => element === blockElement)![1];
+    const width = vi.spyOn(blockElement, "clientWidth", "get");
+    await act(async () => {
+      width.mockReturnValue(320);
+      measure([]);
+    });
+    expect(displayedText()).toBe("wide diagram");
+    await act(async () => {
+      width.mockReturnValue(240);
+      measure([]);
+    });
+    expect(displayedText()).toBe("narrow diagram");
+    await act(async () => root.render(block("invalid replacement")));
+    expect(displayedText()).toBe("invalid replacement");
+  });
+
   it("renders only a completed, visible fence", async () => {
     vi.mocked(renderMermaidDiagram).mockResolvedValue(diagram("diagram"));
     await mount("graph TD\n A-->B", false);
