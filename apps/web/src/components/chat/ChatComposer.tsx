@@ -189,6 +189,7 @@ import {
   shouldHandleComposerAttachmentPaste,
 } from "./composerAttachmentFiles";
 import {
+  awaitAttachmentUploads,
   readAttachmentUpload,
   releaseAttachmentUpload,
   releaseDraftAttachment,
@@ -4263,8 +4264,17 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     }, 1200);
   };
 
+  const composerMountedRef = useRef(true);
+  useEffect(() => {
+    composerMountedRef.current = true;
+    return () => {
+      composerMountedRef.current = false;
+    };
+  }, []);
   const composerTargetMovedFrom = (targetKey: string) =>
-    isRevertingCheckpointRef.current || targetKey !== composerDraftTargetKeyRef.current;
+    !composerMountedRef.current ||
+    isRevertingCheckpointRef.current ||
+    targetKey !== composerDraftTargetKeyRef.current;
 
   const verifyStashEntryFiles = async (menuEntry: PromptStashEntry) => {
     const filesToVerify = menuEntry.files ?? [];
@@ -4568,7 +4578,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           ? "Answer the pending question first"
           : !canQueueMessage || !canQueueSelectedProvider
             ? "Sending is unavailable right now"
-            : sendDisabledReason;
+            : isSendBusy || isConnecting
+              ? "Wait for the current send to finish"
+              : sendDisabledReason;
   const stashSendAllBlockedReason = isSendingAllStash
     ? "Sending stashed prompts…"
     : stashSendBlockedReason !== null
@@ -4611,6 +4623,16 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         ) {
           break;
         }
+        // Restored uploads are sendable only once the queue re-verifies them, which a
+        // person restoring by hand waits out without noticing.
+        const restoredUploads = (getComposerDraft(composerDraftTarget)?.files ?? []).filter(
+          (file) => file.uploadedAttachmentId !== undefined,
+        );
+        for (const file of restoredUploads) {
+          startAttachmentUpload({ environmentId, image: file, draftTarget: attachmentDraftTarget });
+        }
+        await awaitAttachmentUploads(restoredUploads.map((file) => file.id));
+        if (composerTargetMovedFrom(targetKey)) break;
         const sending = submitComposerStable(undefined, "queue");
         if (!sending) break;
         await sending;
