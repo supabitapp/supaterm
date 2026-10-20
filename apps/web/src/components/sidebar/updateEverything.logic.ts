@@ -3,6 +3,7 @@ import type { EnvironmentId, ServerConfig } from "@supaterm/contracts";
 import { cliReleaseChannelOf } from "@supaterm/shared/cliRelease";
 
 import {
+  isServerUpdateChannelCompatible,
   resolveServerSelfUpdateCapability,
   resolveVersionMismatch,
   supportsDesktopAppUpdate,
@@ -104,10 +105,7 @@ export function collectServerUpdateTargets(
       continue;
     }
     const serverVersion = config.environment.serverVersion;
-    if (
-      selfUpdate !== "desktop-managed" &&
-      cliReleaseChannelOf(serverVersion) !== cliReleaseChannelOf(targetVersion)
-    ) {
+    if (!isServerUpdateChannelCompatible(serverVersion, targetVersion, selfUpdate)) {
       skip(`on the ${cliReleaseChannelOf(serverVersion)} channel`);
       continue;
     }

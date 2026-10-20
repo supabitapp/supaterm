@@ -1,4 +1,9 @@
-import { EnvironmentId, ORCHESTRATION_PROTOCOL_VERSION } from "@supaterm/contracts";
+import {
+  EnvironmentId,
+  ORCHESTRATION_PROTOCOL_VERSION,
+  type ServerConfig,
+  type ServerSelfUpdateCapability,
+} from "@supaterm/contracts";
 import type { ServerUpdateState } from "@supaterm/client-runtime/state/server";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import serverPackage from "../../server/package.json" with { type: "json" };
@@ -158,24 +163,48 @@ describe("versionSkew", () => {
     expect(resolveVersionMismatch("0.0.34")).toMatchObject({ serverVersion: "0.0.34" });
   });
 
-  it("reads the server version from config descriptors", () => {
-    expect(
-      resolveServerConfigVersionMismatch({
-        environment: {
-          environmentId: EnvironmentId.make("environment-1"),
-          label: "Remote",
-          platform: {
-            os: "darwin",
-            arch: "arm64",
-          },
-          serverVersion: "0.0.33",
-          orchestrationProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION,
-          capabilities: {},
+  const serverConfig = (serverVersion: string, serverSelfUpdate?: ServerSelfUpdateCapability) =>
+    ({
+      environment: {
+        environmentId: EnvironmentId.make("environment-1"),
+        label: "Remote",
+        platform: {
+          os: "darwin",
+          arch: "arm64",
         },
-      }),
-    ).toMatchObject({
+        serverVersion,
+        orchestrationProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION,
+        capabilities: serverSelfUpdate === undefined ? {} : { serverSelfUpdate },
+      },
+    }) satisfies Pick<ServerConfig, "environment">;
+
+  it("reads the server version from config descriptors", () => {
+    expect(resolveServerConfigVersionMismatch(serverConfig("0.0.33"))).toMatchObject({
       serverVersion: "0.0.33",
     });
+  });
+
+  it("does not offer a nightly client's version to a server on the stable channel", () => {
+    branding.APP_VERSION = "0.0.35-nightly.20260818.1124";
+
+    expect(resolveServerConfigVersionMismatch(serverConfig("0.0.34", "boot-service"))).toBeNull();
+    expect(resolveServerConfigVersionMismatch(serverConfig("0.0.34"))).toBeNull();
+  });
+
+  it("does not offer a stable client's version to a server on the nightly channel", () => {
+    expect(
+      resolveServerConfigVersionMismatch(
+        serverConfig("0.0.33-nightly.20260818.1124", "boot-service"),
+      ),
+    ).toBeNull();
+  });
+
+  it("still flags a desktop-hosted server on another channel, which updates from its own feed", () => {
+    branding.APP_VERSION = "0.0.35-nightly.20260818.1124";
+
+    expect(
+      resolveServerConfigVersionMismatch(serverConfig("0.0.34", "desktop-managed")),
+    ).toMatchObject({ serverVersion: "0.0.34" });
   });
 
   it("keys dismissals by environment, client version, and server version", () => {

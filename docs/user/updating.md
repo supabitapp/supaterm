@@ -3,7 +3,10 @@
 The app you use and the server running your agents can be on different machines.
 When a server is behind your web or desktop app, an update notice appears in the
 conversation and **Settings → Connections**. Update the machine named in that
-notice.
+notice. A server installed with the `supaterm` command stays on its release
+channel, so a nightly app does not offer to update a stable server unless the
+server is too old to connect. To switch it, run
+`supaterm update --channel nightly` on its host.
 
 ## Update everything at once
 
