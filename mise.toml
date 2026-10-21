@@ -4,7 +4,7 @@ min_version = "2026.9.7"
 locked = true
 
 [tools]
-node = "24.21.0"
+node = "24.22.1"
 pnpm = "12.10.1"
 "github:voidzero-dev/vite-plus" = "1.0.0"
 gitleaks = "8.30.1"

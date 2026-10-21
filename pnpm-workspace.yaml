@@ -50,7 +50,7 @@ catalog:
   react-dom: 19.3.0
   tailwindcss: 4.3.3
   typescript: 7.0.2
-  undici: 8.11.2
+  undici: 8.12.3
   vite: npm:@voidzero-dev/vite-plus-core@1.0.0
   vite-plus: 1.0.0
   yaml: ^2.9.0
@@ -231,6 +231,8 @@ overrides:
   tailwindcss: "catalog:"
   # Effect 4.0.4 asks for @types/ws 8.18.2; keep one version across the workspace.
   "@types/ws@^8": "catalog:"
+  # @effect/platform-node's HTTP client and our global fetch dispatcher share one patched undici 8.
+  "undici@^8": "catalog:"
   vite: "catalog:"
   vite-plus: "catalog:"
   yaml: "catalog:"

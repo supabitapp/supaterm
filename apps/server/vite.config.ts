@@ -25,7 +25,7 @@ if (!TELEMETRY_CHANNELS.includes(telemetryChannel)) {
 // executable needs a host Node that supports `--build-sea` (25.7+), so this is
 // a separate mode rather than a second entry in the default build.
 const packExecutable = process.env.SUPATERM_PACK_EXE === "1";
-const SEA_NODE_VERSION = "26.8.2";
+const SEA_NODE_VERSION = "26.12.1";
 const SEA_TARGETS = {
   "darwin-arm64": { platform: "darwin", arch: "arm64" },
   "darwin-x64": { platform: "darwin", arch: "x64" },
