@@ -22,11 +22,13 @@ import {
 
 import { useInlineConfirm } from "../../hooks/useInlineConfirm";
 import { cn } from "../../lib/utils";
+import type { SidebarProjectSnapshot } from "../../sidebarProjectGrouping";
 import { useThreadShell } from "../../state/entities";
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { buildThreadRouteParams } from "../../threadRoutes";
+import { ProjectFavicon } from "../ProjectFavicon";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "../ui/menu";
@@ -43,13 +45,13 @@ const RUN_STATUS_BADGE = {
 export function AutomationRow({
   environmentId,
   task,
-  projectName,
+  project,
   now,
   onEdit,
 }: {
   readonly environmentId: EnvironmentId;
   readonly task: ScheduledTask;
-  readonly projectName: string | null;
+  readonly project: SidebarProjectSnapshot | null;
   readonly now: number;
   readonly onEdit: () => void;
 }) {
@@ -93,18 +95,18 @@ export function AutomationRow({
   };
   const target = threadRef ? (thread?.title ?? "Its thread") : "New thread each run";
   return (
-    <article className="flex min-w-0 flex-col gap-3 px-4 py-4 sm:px-5 sm:py-5">
+    <article className="flex min-w-0 flex-col gap-4 px-4 py-4 sm:px-5 sm:py-5">
       <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
           <h3
             className={cn(
-              "text-sm leading-5 font-medium text-pretty wrap-anywhere",
+              "text-sm leading-5 font-medium text-balance wrap-anywhere",
               !task.enabled && "text-muted-foreground",
             )}
           >
             {task.title}
           </h3>
-          <p className="line-clamp-2 max-w-[65ch] text-xs leading-5 text-muted-foreground wrap-anywhere">
+          <p className="line-clamp-2 max-w-[72ch] text-xs leading-5 text-muted-foreground wrap-anywhere">
             {task.prompt}
           </p>
         </div>
@@ -169,38 +171,36 @@ export function AutomationRow({
           </Menu>
         </div>
       </div>
-      <div className="flex min-w-0 flex-col gap-1.5 text-xs">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1.5 text-muted-foreground">
-          <Tooltip>
-            <TooltipTrigger
-              render={<span className="flex min-w-0 max-w-full items-center gap-1.5" />}
-            >
-              <FolderIcon aria-hidden className="size-3.5 shrink-0" />
-              <span className="truncate">{projectName ?? "Project removed"}</span>
-            </TooltipTrigger>
-            <TooltipPopup>{projectName ?? "Project removed"}</TooltipPopup>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={<span className="flex min-w-0 max-w-full items-center gap-1.5" />}
-            >
-              <MessageSquareIcon aria-hidden className="size-3.5 shrink-0" />
-              <span className="truncate">{target}</span>
-            </TooltipTrigger>
-            <TooltipPopup>{target}</TooltipPopup>
-          </Tooltip>
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 tabular-nums">
-          <p className="flex min-w-0 items-start gap-1.5 text-muted-foreground">
-            <Clock3Icon aria-hidden className="size-3.5 shrink-0" />
-            <span>{scheduleLabel(task.schedule)}</span>
-          </p>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-            <span className={task.enabled ? "text-foreground" : "text-muted-foreground"}>
-              {nextRunLabel(task, now)}
+      <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+        <Tooltip>
+          <TooltipTrigger render={<span className="flex min-w-0 max-w-full items-center gap-2" />}>
+            {project ? (
+              <ProjectFavicon project={project} className="pointer-events-none size-4" />
+            ) : (
+              <FolderIcon aria-hidden className="size-4 shrink-0" />
+            )}
+            <span className="truncate text-foreground/80">
+              {project?.displayName ?? "Project removed"}
             </span>
-            <LastRunStatus task={task} now={now} />
-          </div>
+          </TooltipTrigger>
+          <TooltipPopup>{project?.displayName ?? "Project removed"}</TooltipPopup>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger render={<span className="flex min-w-0 max-w-full items-center gap-2" />}>
+            <MessageSquareIcon aria-hidden className="size-4 shrink-0" />
+            <span className="truncate">{target}</span>
+          </TooltipTrigger>
+          <TooltipPopup>{target}</TooltipPopup>
+        </Tooltip>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs tabular-nums">
+        <p className="flex min-w-0 items-start gap-2 text-muted-foreground">
+          <Clock3Icon aria-hidden className="size-4 shrink-0" />
+          <span>{scheduleLabel(task.schedule)}</span>
+        </p>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+          <Badge variant="secondary">{nextRunLabel(task, now)}</Badge>
+          <LastRunStatus task={task} now={now} />
         </div>
       </div>
       {task.lastRunError ? (
@@ -213,14 +213,30 @@ export function AutomationRow({
   );
 }
 
+export function AutomationRowSkeleton() {
+  return (
+    <div aria-hidden className="flex flex-col gap-4 px-4 py-4 sm:px-5 sm:py-5">
+      <div className="flex flex-col gap-2">
+        <div className="h-5 w-1/3 rounded bg-muted" />
+        <div className="h-10 w-4/5 rounded bg-muted/60" />
+      </div>
+      <div className="h-4 w-1/2 rounded bg-muted/60" />
+      <div className="flex items-center justify-between gap-4">
+        <div className="h-4 w-1/3 rounded bg-muted/60" />
+        <div className="h-5.5 w-24 rounded-sm bg-muted/60 sm:h-4.5" />
+      </div>
+    </div>
+  );
+}
+
 function LastRunStatus({ task, now }: { readonly task: ScheduledTask; readonly now: number }) {
   const status = task.lastRunStatus;
   if (status === "never") return null;
   const label = lastRunLabel(task, now);
   if (status === "succeeded") {
     return (
-      <span className="flex items-center gap-1.5 text-muted-foreground">
-        <CheckIcon aria-hidden className="size-3.5 shrink-0" />
+      <span className="flex items-center gap-2 text-muted-foreground">
+        <CheckIcon aria-hidden className="size-4 shrink-0" />
         {label}
       </span>
     );
