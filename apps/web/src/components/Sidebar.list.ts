@@ -105,6 +105,8 @@ export function previewDraggedInbox(
     readonly drag: { readonly activeKey: string; readonly occurredAt: string } | null;
     readonly threadByKey: ReadonlyMap<string, EnvironmentThreadShell>;
     readonly inboxReturnAt: (thread: EnvironmentThreadShell) => number | undefined;
+    readonly workingShelfExpanded: boolean;
+    readonly routeThreadKey: string | null;
   },
 ) {
   if (input.drag === null) return undefined;
@@ -125,9 +127,10 @@ export function previewDraggedInbox(
         ? active
         : sortInboxThreadsByReturn([...active, returning], input.inboxReturnAt),
       working: returningIsWorking ? sortWorkingThreadsBySend([...working, returning]) : working,
-      visibleWorking: returningIsWorking
-        ? sortWorkingThreadsBySend([...visibleWorking, returning])
-        : visibleWorking,
+      visibleWorking:
+        returningIsWorking && (input.workingShelfExpanded || input.routeThreadKey === activeKey)
+          ? sortWorkingThreadsBySend([...visibleWorking, returning])
+          : visibleWorking,
     }),
     other: buildSidebarInboxItems({ ...input, active, working, visibleWorking }),
   };

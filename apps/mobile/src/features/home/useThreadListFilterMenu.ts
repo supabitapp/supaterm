@@ -29,7 +29,7 @@ export function useThreadListFilterMenu(props: HomeListFilterMenuInput) {
       const id = String(index);
       if (item.type === "action") {
         handlers.set(id, item.onPress);
-        return { id, title: item.title, state: item.state };
+        return { id, title: item.title, state: item.state, subtitle: item.subtitle };
       }
       return {
         id,
@@ -37,7 +37,12 @@ export function useThreadListFilterMenu(props: HomeListFilterMenuInput) {
         subactions: item.items.map((action, childIndex) => {
           const childId = `${id}:${childIndex}`;
           handlers.set(childId, action.onPress);
-          return { id: childId, title: action.title, state: action.state };
+          return {
+            id: childId,
+            title: action.title,
+            state: action.state,
+            subtitle: action.subtitle,
+          };
         }),
       };
     });

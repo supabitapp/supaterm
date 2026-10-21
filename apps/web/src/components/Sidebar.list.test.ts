@@ -76,16 +76,24 @@ it("previews an unpinned working thread in the Working shelf and preserves colla
     now,
   };
   expect(buildSidebarInboxItems(input)).toEqual([{ kind: "marker", marker: "working-header" }]);
-  const preview = previewDraggedInbox({
-    ...input,
-    working: [],
-    drag: { activeKey, occurredAt: now },
-    threadByKey: new Map([[activeKey, returning]]),
-    inboxReturnAt: () => undefined,
-  });
-  expect(preview?.active).toEqual([
-    { kind: "marker", marker: "working-header" },
-    { kind: "thread", key: activeKey, section: "working" },
-  ]);
-  expect(preview?.other).toEqual([]);
+  for (const workingShelfExpanded of [false, true]) {
+    for (const routeThreadKey of [null, activeKey]) {
+      const preview = previewDraggedInbox({
+        ...input,
+        working: [],
+        drag: { activeKey, occurredAt: now },
+        threadByKey: new Map([[activeKey, returning]]),
+        inboxReturnAt: () => undefined,
+        workingShelfExpanded,
+        routeThreadKey,
+      });
+      expect(preview?.active).toEqual([
+        { kind: "marker", marker: "working-header" },
+        ...(workingShelfExpanded || routeThreadKey === activeKey
+          ? [{ kind: "thread", key: activeKey, section: "working" }]
+          : []),
+      ]);
+      expect(preview?.other).toEqual([]);
+    }
+  }
 });
