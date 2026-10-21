@@ -2730,9 +2730,10 @@ export default function Sidebar() {
     picker: "project",
     open: projectFilterOpen,
     items: projectScopeItems.filter((item) => item.value !== "all"),
+    fixedChoice: { item: projectScopeItems[0]!, command: "projectPicker.noProject" },
     keybindings,
     onSelect: (item) => {
-      setProjectScopeKey(item.value);
+      setProjectScopeKey(item.value === "all" ? null : item.value);
       setThreadListMenuOpen(false);
     },
   });

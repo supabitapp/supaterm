@@ -89,7 +89,7 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
                       {shortcut}
                     </Kbd>
                   ) : null}
-                  <MenuRadioItemIndicator />
+                  {/* Rows without a gear keep its slot so the shortcuts line up. */}
                   {project ? (
                     <Button
                       size="icon-xs"
@@ -102,7 +102,12 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
                     >
                       <SettingsIcon className="size-3.5" />
                     </Button>
-                  ) : null}
+                  ) : (
+                    <span aria-hidden className="size-7 shrink-0 sm:size-6" />
+                  )}
+                  <span className="flex w-3.5 shrink-0">
+                    <MenuRadioItemIndicator />
+                  </span>
                 </span>
               </MenuRadioItem>
             );
