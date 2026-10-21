@@ -160,10 +160,12 @@ export function sidebarMarkerId(marker: SidebarListMarker): string {
 
 export type SidebarListItem =
   | { readonly kind: "thread"; readonly key: string; readonly section: SidebarSection }
+  | { readonly kind: "group"; readonly key: string; readonly label: string }
   | { readonly kind: "marker"; readonly marker: SidebarListMarker };
 
 export function sidebarListItemId(item: SidebarListItem): string {
-  return item.kind === "thread" ? item.key : sidebarMarkerId(item.marker);
+  if (item.kind === "marker") return sidebarMarkerId(item.marker);
+  return item.kind === "group" ? `sidebar-group:${item.key}` : item.key;
 }
 
 /** The section a slot belongs to, read off the markers around it: from
@@ -216,8 +218,10 @@ export function resolveSidebarDropTarget(
         item.marker === "done-header"
       )
         break;
-    } else if (currentSection === "pinned") pinnedOrder.push(item.key);
-    else activeOrder.push(item.key);
+    } else if (item.kind === "thread") {
+      if (currentSection === "pinned") pinnedOrder.push(item.key);
+      else activeOrder.push(item.key);
+    }
   }
   return { section, pinnedOrder, activeOrder };
 }

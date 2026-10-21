@@ -184,6 +184,19 @@ describe("mobile storage", () => {
     expect(fallback.updatedAt).toEqual(expect.any(Number));
   });
 
+  it.each(["status", "project", "updated"] as const)(
+    "persists %s thread grouping",
+    async (threadGrouping) => {
+      await savePreferencesPatch({ threadGrouping });
+      await expect(loadPreferences()).resolves.toEqual({ threadGrouping });
+    },
+  );
+
+  it("drops invalid thread grouping without discarding other preferences", async () => {
+    mocks.setPreferencesJson(JSON.stringify({ threadGrouping: "unknown", baseFontSize: 17 }), 10);
+    await expect(loadPreferences()).resolves.toEqual({ baseFontSize: 17 });
+  });
+
   it("persists thread list shelf preferences", async () => {
     await expect(
       savePreferencesPatch({

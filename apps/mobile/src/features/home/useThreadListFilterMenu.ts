@@ -10,6 +10,8 @@ export function useThreadListFilterMenu(props: HomeListFilterMenuInput) {
     selectedProjectKey,
     onEnvironmentChange,
     onProjectChange,
+    grouping,
+    onGroupingChange,
   } = props;
   const menu = useMemo(() => {
     const definition = buildHomeListFilterMenu({
@@ -19,6 +21,8 @@ export function useThreadListFilterMenu(props: HomeListFilterMenuInput) {
       selectedProjectKey,
       onEnvironmentChange,
       onProjectChange,
+      grouping,
+      onGroupingChange,
     });
     const handlers = new Map<string, () => void>();
     const actions = definition.items.map((item, index) => {
@@ -48,6 +52,8 @@ export function useThreadListFilterMenu(props: HomeListFilterMenuInput) {
     selectedProjectKey,
     onEnvironmentChange,
     onProjectChange,
+    grouping,
+    onGroupingChange,
   ]);
   return {
     ...menu,

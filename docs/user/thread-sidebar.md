@@ -109,9 +109,9 @@ On web and desktop, the list also animates section changes made with thread acti
 preference. While dragging, rows follow the insertion gap without replaying a second transition
 after the drop.
 
-The active list is ordered by when each thread last came back to you, so you cannot drag or move
-threads within it. The Done shelf lists the most recently finished threads first, and **Show
-more** reveals older history below them.
+In Status grouping, the active list is ordered by when each thread last came back to you.
+You cannot manually reorder threads in the active list. The Done shelf lists the most recently
+finished threads first, and **Show more** reveals older history below them.
 
 If dragging is unavailable for one environment, update the Supaterm server running in that
 environment. Pinned reordering requires server support. Threads from older servers keep their
@@ -126,10 +126,20 @@ rename a thread, regenerate its title, or link and unlink a pull request. These 
 appear on web, desktop, and mobile without requiring the originating browser to remain
 open.
 
+### Group the inbox
+
+Use **Thread list options → Grouping** to choose **Status**, **Project**, or **Updated**.
+Project groups active and working threads by project. Updated groups them into **Today**,
+**Yesterday**, **Last 7 days**, and **Older**, using your local calendar. Activity means sending
+a message, a run being requested or completing, or reopening a thread; streamed output does
+not reorder it.
+Pinned, Snoozed, and Done remain shared shelves in every mode. The choice is saved on this device.
+You can also change it in Settings → General on web and desktop, or Settings → Organization on mobile.
+
 ### Working threads
 
-Threads that are working or monitoring fold into a collapsed **Working** section. A thread
-returns to the top of the active list when it finishes, fails, or needs an approval or answer.
+In Status grouping, threads that are working or monitoring fold into a collapsed **Working**
+section. A thread returns to the top of the active list when it finishes, fails, or needs an approval or answer.
 The Working section lists the thread you last sent work to first. Pinned threads stay in the
 pinned section.
 

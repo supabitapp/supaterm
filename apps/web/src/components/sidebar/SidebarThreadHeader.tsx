@@ -22,6 +22,7 @@ export interface SidebarThreadHeaderProps {
   scopeLabel: string | null;
   /** The project scope combobox, rendered before new project. */
   projectScope: ReactNode;
+  groupingMenu: ReactNode;
   onNewProject: () => void;
 }
 
@@ -29,6 +30,7 @@ export function SidebarThreadHeader({
   rowRef,
   scopeLabel,
   projectScope,
+  groupingMenu,
   onNewProject,
 }: SidebarThreadHeaderProps) {
   return (
@@ -39,6 +41,7 @@ export function SidebarThreadHeader({
       {/* Unfilled: the buttons carry their own hover states, and a background
           well reads far louder on themed palettes than on the base ones. */}
       <div className="flex shrink-0 items-center">
+        {groupingMenu}
         {projectScope}
         <SidebarHeaderIconButton label="Add project" onClick={onNewProject}>
           <FolderPlusIcon />

@@ -125,6 +125,7 @@ export function HomeRouteScreen() {
     options: listOptions,
     setSelectedEnvironmentId,
     setSelectedProjectKey,
+    setThreadGrouping,
   } = useHomeListOptions(availableEnvironmentIds);
   const selectedEnvironmentId = listOptions.selectedEnvironmentId;
   const projectScopeKey = listOptions.selectedProjectKey;
@@ -155,6 +156,8 @@ export function HomeRouteScreen() {
     ? resolvedProjectKey
     : null;
   const threadListFilters = {
+    grouping: listOptions.threadGrouping,
+    onGroupingChange: setThreadGrouping,
     environments,
     projects: projectFilterOptions,
     selectedEnvironmentId,
@@ -298,6 +301,7 @@ export function HomeRouteScreen() {
           onStartNewTask={startNewTask}
           pendingTasks={pendingTasks}
           projectGroupingMode={listOptions.projectGroupingMode}
+          threadGrouping={listOptions.threadGrouping}
           projects={projects}
           projectSortOrder={listOptions.projectSortOrder}
           savedConnectionsById={savedConnectionsById}

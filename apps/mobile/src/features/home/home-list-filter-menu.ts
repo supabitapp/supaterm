@@ -1,3 +1,5 @@
+import { THREAD_GROUPING_OPTIONS } from "@supaterm/client-runtime/state/thread-grouping";
+import type { SidebarThreadGrouping } from "@supaterm/contracts";
 import type { EnvironmentId } from "@supaterm/contracts";
 
 export interface HomeListFilterMenuEnvironment {
@@ -20,6 +22,7 @@ type HomeListFilterMenuAction = {
 
 export type HomeListFilterMenuSubmenu = {
   readonly type: "submenu";
+  readonly kind: "grouping" | "filter";
   readonly title: string;
   readonly items: HomeListFilterMenuAction[];
 };
@@ -30,6 +33,8 @@ export interface HomeListFilterMenu {
 }
 
 export interface HomeListFilterMenuInput {
+  readonly grouping: SidebarThreadGrouping;
+  readonly onGroupingChange: (grouping: SidebarThreadGrouping) => void;
   readonly environments: ReadonlyArray<HomeListFilterMenuEnvironment>;
   readonly projects: ReadonlyArray<HomeListFilterMenuProject>;
   readonly selectedEnvironmentId: EnvironmentId | null;
@@ -43,6 +48,19 @@ export function buildHomeListFilterMenu(props: HomeListFilterMenuInput): HomeLis
 
   items.push({
     type: "submenu",
+    kind: "grouping",
+    title: "Grouping",
+    items: THREAD_GROUPING_OPTIONS.map((option) => ({
+      type: "action",
+      title: option.label,
+      state: option.value === props.grouping ? "on" : "off",
+      onPress: () => props.onGroupingChange(option.value),
+    })),
+  });
+
+  items.push({
+    type: "submenu",
+    kind: "filter",
     title: "Environment",
     items: [
       {
@@ -67,6 +85,7 @@ export function buildHomeListFilterMenu(props: HomeListFilterMenuInput): HomeLis
   if (props.projects.length > 0) {
     items.push({
       type: "submenu",
+      kind: "filter",
       title: "Project",
       items: [
         {

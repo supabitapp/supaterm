@@ -1,3 +1,5 @@
+import { THREAD_GROUPING_OPTIONS } from "@supaterm/client-runtime/state/thread-grouping";
+import { useMobileThreadGrouping } from "../../state/thread-grouping";
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import type { SidebarProjectGroupingMode } from "@supaterm/contracts";
@@ -37,6 +39,7 @@ const GROUPING_OPTIONS: ReadonlyArray<{
 
 export function SettingsProjectGroupingRouteScreen() {
   const insets = useSafeAreaInsets();
+  const { grouping, setGrouping, loaded } = useMobileThreadGrouping();
   const preferencesResult = useAtomValue(mobilePreferencesAtom);
   const savePreferences = useAtomSet(updateMobilePreferencesAtom);
   const preferencesReady = AsyncResult.isSuccess(preferencesResult) && !preferencesResult.waiting;
@@ -53,6 +56,18 @@ export function SettingsProjectGroupingRouteScreen() {
         contentContainerClassName="gap-3 px-5 pt-4"
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
       >
+        <SettingsSection title="Thread grouping">
+          {THREAD_GROUPING_OPTIONS.map((option, index) => (
+            <SettingsChoiceRow
+              key={option.value}
+              label={option.label}
+              selected={grouping === option.value}
+              separated={index > 0}
+              disabled={!loaded}
+              onPress={() => setGrouping(option.value)}
+            />
+          ))}
+        </SettingsSection>
         <SettingsSection title="Project grouping">
           {GROUPING_OPTIONS.map((option, index) => (
             <SettingsChoiceRow

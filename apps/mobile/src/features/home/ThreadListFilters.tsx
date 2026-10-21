@@ -36,14 +36,21 @@ export const ThreadListFilters = memo(function ThreadListFilters(props: HomeList
   );
 });
 
-/** The builder lists each filter's "All" choice first. */
 function ThreadListFilterPill({ filter }: { readonly filter: HomeListFilterMenuSubmenu }) {
   const current = filter.items.find((item) => item.state === "on");
   return (
     <ListFilterMenu
-      label={current?.title ?? filter.title}
-      accessibilityLabel={`Filter threads by ${filter.title.toLowerCase()}`}
-      active={current !== undefined && current !== filter.items[0]}
+      label={
+        filter.kind === "grouping"
+          ? `Group: ${current?.title ?? "Status"}`
+          : (current?.title ?? filter.title)
+      }
+      accessibilityLabel={
+        filter.kind === "grouping"
+          ? "Group threads by"
+          : `Filter threads by ${filter.title.toLowerCase()}`
+      }
+      active={filter.kind === "filter" && current !== undefined && current !== filter.items[0]}
       actions={filter.items.map((item, index) => ({
         id: String(index),
         title: item.title,

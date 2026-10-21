@@ -95,8 +95,12 @@ export function createSidebarSortingStrategy(input: {
   items: readonly SidebarListItem[];
   enabled?: boolean;
   doneOrder: readonly string[];
-  /** Time-ordered inbox: where the lifted row would land. */
-  activeOrder?: readonly string[];
+  inbox:
+    | {
+        readonly active: readonly SidebarListItem[];
+        readonly other: readonly SidebarListItem[];
+      }
+    | undefined;
   doneExpanded: boolean;
   doneVisibleCount?: number;
   routeThreadKey?: string | null;
@@ -116,13 +120,11 @@ export function createSidebarSortingStrategy(input: {
   function project({ rects, activeIndex, overIndex }: Layout) {
     const active = items[activeIndex];
     const over = items[overIndex] ?? active;
-    if (active?.kind !== "thread" || !over || !rects[0]) return [];
+    if (active?.kind !== "thread" || !over || !rects[0] || input.inbox === undefined) return [];
     const target = resolveSidebarDropTarget(items, active.key, sidebarListItemId(over));
     if (!target) return [];
-    const groups: Record<SidebarSection, ThreadItem[]> = {
+    const groups: Record<"pinned" | "snoozed" | "done", ThreadItem[]> = {
       pinned: [],
-      active: [],
-      working: [],
       snoozed: [],
       done: [],
     };
@@ -130,7 +132,7 @@ export function createSidebarSortingStrategy(input: {
     let slimHeight = input.slimHeight;
     let headerScale: number | undefined;
     for (const [index, item] of items.entries()) {
-      if (item.kind === "marker") {
+      if (item.kind !== "thread") {
         if (isShelfHeader(item)) {
           const height = rects[index]?.height;
           if (height) headerScale ??= height / 32;
@@ -140,7 +142,8 @@ export function createSidebarSortingStrategy(input: {
       if (item.section === "pinned" || item.section === "active" || item.section === "working")
         cardHeight ??= rects[index]?.height;
       else slimHeight ??= rects[index]?.height;
-      if (item.key !== active.key) groups[item.section].push(item);
+      if (item.key !== active.key && item.section !== "active" && item.section !== "working")
+        groups[item.section].push(item);
     }
     // Two-line rows are h-12; parked rows/placeholders are h-9.
     const scale =
@@ -148,19 +151,16 @@ export function createSidebarSortingStrategy(input: {
     cardHeight ??= 48 * scale;
     slimHeight ??= 36 * scale;
     const labelHeight = (input.boundaryLabelHeight ?? 0) * scale;
-    const group = groups[target.section];
-    const order =
-      target.section === "pinned"
-        ? target.pinnedOrder
-        : target.section === "done"
-          ? input.doneOrder
-          : (input.activeOrder ?? target.activeOrder);
-    const ranks = new Map(order.map((key, index) => [key, index]));
-    const rank = ranks.get(active.key) ?? Number.POSITIVE_INFINITY;
-    const index = group.findIndex(
-      (item) => (ranks.get(item.key) ?? Number.POSITIVE_INFINITY) > rank,
-    );
-    group.splice(index < 0 ? group.length : index, 0, { ...active, section: target.section });
+    if (target.section !== "active") {
+      const group = groups[target.section];
+      const order = target.section === "pinned" ? target.pinnedOrder : input.doneOrder;
+      const ranks = new Map(order.map((key, index) => [key, index]));
+      const rank = ranks.get(active.key) ?? Number.POSITIVE_INFINITY;
+      const index = group.findIndex(
+        (item) => (ranks.get(item.key) ?? Number.POSITIVE_INFINITY) > rank,
+      );
+      group.splice(index < 0 ? group.length : index, 0, { ...active, section: target.section });
+    }
     const doneOrder = (
       input.doneOrder.length > 0 ? input.doneOrder : groups.done.map((item) => item.key)
     ).filter((key) => key !== active.key || target.section === "done");
@@ -174,7 +174,7 @@ export function createSidebarSortingStrategy(input: {
     groups.done = visible.map((key) => ({ kind: "thread", key, section: "done" }));
     const projected: SidebarListItem[] = [];
     const marker = (name: SidebarListMarker) => projected.push({ kind: "marker", marker: name });
-    const section = (name: "active" | "done") => {
+    const section = (name: "done") => {
       if (groups[name].length > 0) projected.push(...groups[name]);
       else marker(`${name}-placeholder`);
     };
@@ -185,10 +185,16 @@ export function createSidebarSortingStrategy(input: {
       marker("drafts-block");
     }
     marker("pinned-divider");
-    section("active");
-    if (items.some((item) => item.kind === "marker" && item.marker === "working-header")) {
-      marker("working-header");
-      projected.push(...groups.working);
+    const inbox = target.section === "active" ? input.inbox.active : input.inbox.other;
+    projected.push(...inbox);
+    if (
+      !inbox.some((item) => item.kind === "thread" && item.section === "active") &&
+      !inbox.some((item) => item.kind === "group")
+    ) {
+      projected.splice(projected.length - inbox.length, 0, {
+        kind: "marker",
+        marker: "active-placeholder",
+      });
     }
     if (
       groups.snoozed.length > 0 ||
@@ -204,10 +210,12 @@ export function createSidebarSortingStrategy(input: {
       const index = indices.get(sidebarListItemId(item));
       const rect = index === undefined ? undefined : rects[index];
       const fallback =
-        item.kind === "thread" &&
-        (item.section === "pinned" || item.section === "active" || item.section === "working")
-          ? cardHeight
-          : slimHeight;
+        item.kind === "group" || isShelfHeader(item)
+          ? 32 * scale
+          : item.kind === "thread" &&
+              (item.section === "pinned" || item.section === "active" || item.section === "working")
+            ? cardHeight
+            : slimHeight;
       const moved = item.kind === "thread" && item.key === active.key;
       return item.kind === "marker" &&
         (item.marker === "pinned-header" || item.marker === "pinned-divider")

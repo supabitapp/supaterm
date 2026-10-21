@@ -2750,3 +2750,65 @@ describe("Working section", () => {
     ]);
   });
 });
+
+describe("grouped inbox", () => {
+  it.each(["project", "updated"] as const)(
+    "keeps shared shelves and working cards in %s mode",
+    (grouping) => {
+      const active = makeThread({ id: ThreadId.make("active"), title: "Active", createdAt: NOW });
+      const working = makeThread({
+        id: ThreadId.make("working"),
+        title: "Working",
+        createdAt: NOW,
+        runtime: {
+          status: "running",
+          activeRunId: null,
+          providerInstanceId: ProviderInstanceId.make("codex"),
+          providerName: "Codex",
+          lastError: null,
+          updatedAt: NOW,
+        },
+      });
+      const done = makeThread({ id: ThreadId.make("done"), title: "Done", doneOverride: "done" });
+      const pinned = makeThread({ id: ThreadId.make("pinned"), title: "Pinned", pinnedAt: NOW });
+      const input = {
+        grouping,
+        threads: [active, working, done, pinned],
+        environmentId: null,
+        searchQuery: "",
+        now: NOW,
+        groupingProjects: [
+          {
+            key: "project",
+            label: "Project",
+            memberProjectRefs: [{ environmentId, projectId: active.projectId }],
+          },
+        ],
+      };
+      const layout = buildThreadListV2Items(input);
+      expect(layout.activeCount).toBe(2);
+      expect(layout.workingShelfHeaderIndex).toBeNull();
+      expect(
+        layout.items
+          .filter((row) => [active.id, working.id].includes(row.thread.id))
+          .map((row) => row.variant),
+      ).toEqual(["card", "card"]);
+      const list = buildThreadListV2ListItems({ ...layout, pendingTasks: [] });
+      expect(list.filter((row) => row.type === "v2-done-shelf")).toHaveLength(1);
+      expect(list.filter((row) => row.type === "v2-working-shelf")).toHaveLength(0);
+      expect(list.filter((row) => row.type === "v2-group-header")).toHaveLength(1);
+      const collapsed = buildThreadListV2Items({
+        ...input,
+        activeShelfExpanded: false,
+        selectedThreadKey: `${environmentId}:${working.id}`,
+      });
+      expect(collapsed.items.map((row) => row.thread.id)).toEqual([pinned.id, working.id, done.id]);
+      expect(collapsed.items.some((row) => row.groupHeader !== undefined)).toBe(false);
+      expect(
+        buildThreadListV2Items({ ...input, searchQuery: "Working" }).items.map(
+          (row) => row.thread.id,
+        ),
+      ).toEqual([working.id]);
+    },
+  );
+});

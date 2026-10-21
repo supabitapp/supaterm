@@ -13,6 +13,8 @@ import {
   type SetStateAction,
 } from "react";
 
+import { useMobileThreadGrouping } from "../../state/thread-grouping";
+import type { SidebarThreadGrouping } from "@supaterm/contracts";
 import type { ThreadListFilters } from "../../persistence/mobile-preferences";
 import { updateMobilePreferencesAtom } from "../../state/preferences";
 import type { HomeProjectSortOrder } from "./homeThreadList";
@@ -24,6 +26,7 @@ export interface HomeListOptions {
 }
 
 export interface ResolvedHomeListOptions extends HomeListOptions {
+  readonly threadGrouping: SidebarThreadGrouping;
   readonly projectGroupingMode: SidebarProjectGroupingMode;
 }
 
@@ -73,6 +76,7 @@ export function HomeListOptionsProvider({
 
 export function useHomeListOptions(availableEnvironmentIds: ReadonlySet<EnvironmentId>) {
   const shared = useContext(HomeListOptionsContext);
+  const { grouping: threadGrouping, setGrouping: setThreadGrouping } = useMobileThreadGrouping();
   const [localOptions, setLocalOptions] = useState<HomeListOptions>(defaultHomeListOptions);
   const options = shared?.options ?? localOptions;
   const setOptions = shared?.setOptions ?? setLocalOptions;
@@ -87,6 +91,7 @@ export function useHomeListOptions(availableEnvironmentIds: ReadonlySet<Environm
       : { ...options, selectedEnvironmentId };
   const resolvedOptions: ResolvedHomeListOptions = {
     ...availableOptions,
+    threadGrouping,
     projectGroupingMode: shared?.projectGroupingMode ?? "repository",
   };
 
@@ -104,5 +109,6 @@ export function useHomeListOptions(availableEnvironmentIds: ReadonlySet<Environm
     setSelectedEnvironmentId,
     setSelectedProjectKey,
     setProjectSortOrder,
+    setThreadGrouping,
   } as const;
 }

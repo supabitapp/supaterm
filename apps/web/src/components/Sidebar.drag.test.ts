@@ -3,7 +3,7 @@ import { closestCenter, type CollisionDetection } from "@dnd-kit/core";
 import { verticalListSortingStrategy, type SortingStrategy } from "@dnd-kit/sortable";
 import {
   createSidebarCollisionDetection,
-  createSidebarSortingStrategy,
+  createSidebarSortingStrategy as createSortingStrategy,
   restrictBelowSidebarLabel,
 } from "./Sidebar.drag";
 import {
@@ -40,9 +40,11 @@ function layout(
         ? (item.section === "pinned" || item.section === "active" || item.section === "working"
             ? cardHeight
             : 36) * scale
-        : item.marker === "pinned-header" || item.marker === "pinned-divider"
-          ? 0
-          : (item.marker.endsWith("placeholder") ? 0 : 32) * scale;
+        : item.kind === "group"
+          ? 32 * scale
+          : item.marker === "pinned-header" || item.marker === "pinned-divider"
+            ? 0
+            : (item.marker.endsWith("placeholder") ? 0 : 32) * scale;
     const rect = { top, height, bottom: top + height, left: 0, right: 260, width: 260 };
     top += height + 1;
     return rect;
@@ -55,6 +57,46 @@ function layout(
     rects,
     index: 0,
   } satisfies Parameters<SortingStrategy>[0];
+}
+
+type PreviewInput = Omit<Parameters<typeof createSortingStrategy>[0], "inbox"> & {
+  readonly inbox?: Parameters<typeof createSortingStrategy>[0]["inbox"];
+  readonly activeOrder?: readonly string[];
+};
+
+function createSidebarSortingStrategy(input: PreviewInput): SortingStrategy {
+  let previous: { activeIndex: number; overIndex: number; strategy: SortingStrategy } | undefined;
+  return (args) => {
+    if (previous?.activeIndex !== args.activeIndex || previous.overIndex !== args.overIndex) {
+      const active = input.items[args.activeIndex];
+      const over = input.items[args.overIndex];
+      const target =
+        active?.kind === "thread" && over
+          ? resolveSidebarDropTarget(input.items, active.key, sidebarListItemId(over))
+          : null;
+      const other = input.items.filter(
+        (item) =>
+          (item.kind === "thread" &&
+            (item.section === "active" || item.section === "working") &&
+            item !== active) ||
+          (item.kind === "marker" && item.marker === "working-header"),
+      );
+      const activeOrder = input.activeOrder ?? target?.activeOrder ?? [];
+      const returning = activeOrder.map((key) => thread(key, "active"));
+      const working = other.filter(
+        (item) => item.kind === "marker" || (item.kind === "thread" && item.section === "working"),
+      );
+      previous = {
+        activeIndex: args.activeIndex,
+        overIndex: args.overIndex,
+        strategy: createSortingStrategy({
+          ...input,
+          inbox: input.inbox ?? { active: [...returning, ...working], other },
+        }),
+      };
+    }
+    return previous.strategy(args);
+  };
 }
 
 function preview(
@@ -966,4 +1008,52 @@ describe("lifted card clearance", () => {
     expect(511 + apply(511, 36, -500, 96).y).toBe(128);
     expect(511 + apply(511, 36, -500, 136, 114).y).toBe(250);
   });
+});
+
+it("keeps group headings and working rows visible during inbox and Done drag previews", () => {
+  const group: SidebarListItem = { kind: "group", key: "project:p", label: "Project" };
+  const activeInbox = [group, thread("a", "active"), thread("w", "working")];
+  const items = [pinnedHeader, divider, ...activeInbox, doneHeader, thread("d", "done")];
+  for (const over of ["a", sidebarMarkerId("done-header")]) {
+    const transforms = preview(
+      {
+        items,
+        doneOrder: ["a", "d"],
+        doneExpanded: true,
+        inbox: { active: activeInbox, other: [group, thread("w", "working")] },
+      },
+      "a",
+      over,
+    );
+    expect(transforms.get(sidebarListItemId(group))?.scaleY).toBe(1);
+    expect(transforms.get("w")?.scaleY).toBe(1);
+  }
+});
+
+it("reserves a scaled header gap when a drag introduces a new group", () => {
+  const existing: SidebarListItem = { kind: "group", key: "project:one", label: "One" };
+  const introduced: SidebarListItem = { kind: "group", key: "project:two", label: "Two" };
+  const inbox = [existing, thread("a", "active")];
+  const items = [
+    pinnedHeader,
+    thread("p", "pinned"),
+    divider,
+    ...inbox,
+    doneHeader,
+    thread("d", "done"),
+  ];
+  for (const scale of [1, 0.75]) {
+    const transforms = preview(
+      {
+        items,
+        doneOrder: ["d"],
+        doneExpanded: true,
+        inbox: { active: [...inbox, introduced, thread("p", "active")], other: inbox },
+      },
+      "p",
+      "a",
+      scale,
+    );
+    expect(transforms.get(sidebarMarkerId("done-header"))?.y).toBe(32 * scale + 1);
+  }
 });

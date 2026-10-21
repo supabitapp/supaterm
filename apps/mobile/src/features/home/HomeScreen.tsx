@@ -1,3 +1,4 @@
+import type { SidebarThreadGrouping } from "@supaterm/contracts";
 import { useThreadListV2Layout } from "../threads/use-thread-list-v2-layout";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
@@ -67,6 +68,7 @@ import {
   ThreadListV2SnoozedShelfHeader,
   ThreadListV2PinnedShelfHeader,
   ThreadListV2ActiveShelfHeader,
+  ThreadListV2SectionDivider,
   ThreadListV2WorkingShelfHeader,
 } from "../threads/thread-list-v2-items";
 import { useThreadRowProviderInstanceResolver } from "../threads/thread-provider-instance";
@@ -105,6 +107,7 @@ interface HomeScreenProps {
   readonly selectedProjectKey: string | null;
   readonly projectSortOrder: HomeProjectSortOrder;
   readonly projectGroupingMode: SidebarProjectGroupingMode;
+  readonly threadGrouping: SidebarThreadGrouping;
   readonly onSearchQueryChange: (query: string) => void;
   readonly onAddConnection: () => void;
   readonly onOpenSettings: () => void;
@@ -506,6 +509,12 @@ export function HomeScreen(props: HomeScreenProps) {
   const resolveProviderInstance = useThreadRowProviderInstanceResolver(providersByEnvironmentId);
   const pendingOrder = usePendingThreadOrder(nowMinute, snoozeWakeTick);
   const { threadListV2Layout } = useThreadListV2Layout({
+    grouping: props.threadGrouping,
+    groupingProjects: projectScopes.map((scope) => ({
+      key: scope.key,
+      label: scope.title,
+      memberProjectRefs: scope.projectRefs,
+    })),
     threads: props.threads,
     environmentId: props.selectedEnvironmentId,
     projectRefs: v2ScopedProjectGroup === null ? null : v2ScopedProjectGroup.projectRefs,
@@ -601,6 +610,7 @@ export function HomeScreen(props: HomeScreenProps) {
         />
       );
     }
+    if (item.type === "v2-group-header") return <ThreadListV2SectionDivider label={item.label} />;
     if (item.type === "v2-active-header") {
       return (
         <ThreadListV2ActiveShelfHeader

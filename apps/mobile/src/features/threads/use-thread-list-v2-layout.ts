@@ -8,6 +8,8 @@ type ThreadListV2LayoutInput = Required<
 
 /** Keeps Home and the iPad sidebar on the same partition. */
 export function useThreadListV2Layout({
+  grouping,
+  groupingProjects,
   threads,
   environmentId,
   projectRefs,
@@ -28,6 +30,8 @@ export function useThreadListV2Layout({
     threadListInboxReturns.observe(threads);
     // Done threads remain live shells; archived threads stay hidden.
     return buildThreadListV2Items({
+      grouping,
+      groupingProjects,
       pendingOrder,
       threads: threads.filter((thread) => thread.archivedAt === null),
       environmentId,
@@ -59,6 +63,8 @@ export function useThreadListV2Layout({
     searchQuery,
     matchedThreadKeys,
     doneLimit,
+    grouping,
+    groupingProjects,
     threads,
     projectRefs,
   ]);

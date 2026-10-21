@@ -7,6 +7,7 @@ import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 import {
   EnvironmentId,
+  SidebarThreadGrouping,
   PullRequestInvolvement,
   PullRequestListFilters,
   PullRequestListState,
@@ -46,6 +47,7 @@ const PullRequestListPreferences = Schema.Struct({
 });
 export type PullRequestListPreferences = typeof PullRequestListPreferences.Type;
 
+const isThreadGrouping = Schema.is(SidebarThreadGrouping);
 const isThreadListFilters = Schema.is(ThreadListFilters);
 const isPullRequestListPreferences = Schema.is(PullRequestListPreferences);
 
@@ -70,6 +72,7 @@ export interface Preferences {
   readonly followUpBehavior?: FollowUpBehavior;
   readonly microphones?: ReadonlyArray<MicrophoneEntry>;
   readonly projectGroupingMode?: SidebarProjectGroupingMode;
+  readonly threadGrouping?: SidebarThreadGrouping;
   readonly threadListPinnedShelfExpanded?: boolean;
   readonly threadListActiveShelfExpanded?: boolean;
   readonly threadListDoneShelfExpanded?: boolean;
@@ -136,6 +139,7 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     followUpBehavior?: FollowUpBehavior;
     microphones?: ReadonlyArray<MicrophoneEntry>;
     projectGroupingMode?: SidebarProjectGroupingMode;
+    threadGrouping?: SidebarThreadGrouping;
     threadListPinnedShelfExpanded?: boolean;
     threadListActiveShelfExpanded?: boolean;
     threadListDoneShelfExpanded?: boolean;
@@ -223,6 +227,9 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     parsed.projectGroupingMode === "separate"
   ) {
     preferences.projectGroupingMode = parsed.projectGroupingMode;
+  }
+  if (isThreadGrouping(parsed.threadGrouping)) {
+    preferences.threadGrouping = parsed.threadGrouping;
   }
   if (typeof parsed.threadListPinnedShelfExpanded === "boolean") {
     preferences.threadListPinnedShelfExpanded = parsed.threadListPinnedShelfExpanded;

@@ -6,6 +6,8 @@ describe("buildHomeListFilterMenu", () => {
   it("adds a project scope submenu that selects and clears the same scope as the chips", () => {
     const onProjectChange = vi.fn();
     const menu = buildHomeListFilterMenu({
+      grouping: "status",
+      onGroupingChange: vi.fn(),
       environments: [],
       projects: [
         { key: "environment-1:project-1", label: "Codething" },
@@ -20,7 +22,7 @@ describe("buildHomeListFilterMenu", () => {
     const projectMenu = menu.items.find(
       (item) => item.type === "submenu" && item.title === "Project",
     );
-    expect(menu.items.some((item) => item.title === "Settings")).toBe(false);
+    expect(menu.items.map((item) => item.title)).toEqual(["Grouping", "Environment", "Project"]);
     expect(projectMenu).toMatchObject({
       type: "submenu",
       items: [

@@ -1,3 +1,4 @@
+import { THREAD_GROUPING_OPTIONS } from "@supaterm/client-runtime/state/thread-grouping";
 import { settingsScopeEnvironmentLabels } from "./settingsScopeAxis";
 import { useScopedSettingsWriteAllowed } from "./useScopedSettings";
 import { Spinner } from "~/components/ui/spinner";
@@ -526,6 +527,9 @@ export function useSettingsRestore(onRestored?: () => void) {
       ? ["In-app notifications"]
       : []),
     ...(settings.showToolImages !== DEFAULT_UNIFIED_SETTINGS.showToolImages ? ["Tool images"] : []),
+    ...(settings.sidebarThreadGrouping !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadGrouping
+      ? ["Thread grouping"]
+      : []),
     ...(settings.sidebarThreadPreviewCount !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadPreviewCount
       ? ["Visible threads"]
       : []),
@@ -693,6 +697,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       followUpBehavior: DEFAULT_UNIFIED_SETTINGS.followUpBehavior,
       glassOpacity: DEFAULT_UNIFIED_SETTINGS.glassOpacity,
       sidebarThreadPreviewCount: DEFAULT_UNIFIED_SETTINGS.sidebarThreadPreviewCount,
+      sidebarThreadGrouping: DEFAULT_UNIFIED_SETTINGS.sidebarThreadGrouping,
       sidebarProjectGroupingMode: DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode,
       sidebarProjectSortOrder: DEFAULT_UNIFIED_SETTINGS.sidebarProjectSortOrder,
       sidebarAutoMarkDoneAfterDays: DEFAULT_UNIFIED_SETTINGS.sidebarAutoMarkDoneAfterDays,
@@ -2356,6 +2361,47 @@ export function GeneralSettingsPanel() {
       </SettingsSection>
 
       <SettingsSection id="projects" title="Projects">
+        <SettingsRow
+          {...searchableSetting("thread-grouping")}
+          resetAction={
+            settings.sidebarThreadGrouping !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadGrouping ? (
+              <SettingResetButton
+                label="thread grouping"
+                onClick={() =>
+                  updateSettings({
+                    sidebarThreadGrouping: DEFAULT_UNIFIED_SETTINGS.sidebarThreadGrouping,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Select
+              value={settings.sidebarThreadGrouping}
+              onValueChange={(value) => {
+                const option = THREAD_GROUPING_OPTIONS.find((entry) => entry.value === value);
+                if (option) updateSettings({ sidebarThreadGrouping: option.value });
+              }}
+            >
+              <SelectTrigger size="sm" className="w-full sm:w-44" aria-label="Thread grouping">
+                <SelectValue>
+                  {
+                    THREAD_GROUPING_OPTIONS.find(
+                      (option) => option.value === settings.sidebarThreadGrouping,
+                    )?.label
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="end" alignItemWithTrigger={false}>
+                {THREAD_GROUPING_OPTIONS.map((option) => (
+                  <SelectItem hideIndicator key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
+          }
+        />
         <SettingsRow
           {...searchableSetting("project-grouping")}
           description="Combine matching repositories across environments."

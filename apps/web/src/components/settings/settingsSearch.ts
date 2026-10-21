@@ -359,6 +359,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["diff ignore spaces edits default"],
   },
   {
+    id: "thread-grouping",
+    title: "Thread grouping",
+    to: "/settings/general",
+    searchTerms: ["sidebar status project updated date inbox"],
+  },
+  {
     id: "project-grouping",
     title: "Project grouping",
     to: "/settings/general",

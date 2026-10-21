@@ -1,3 +1,8 @@
+import {
+  groupInboxThreads,
+  type ThreadGroupingProject,
+} from "@supaterm/client-runtime/state/thread-grouping";
+import type { SidebarThreadGrouping } from "@supaterm/contracts";
 import { threadPullRequestSearchTerms } from "@supaterm/shared/threadPullRequests";
 import {
   canSnooze,
@@ -246,6 +251,7 @@ export interface ThreadListV2Item {
   readonly snoozed: boolean;
   readonly pinned: boolean;
   readonly isLast: boolean;
+  readonly groupHeader?: { readonly key: string; readonly label: string };
 }
 
 export interface ThreadListV2Layout {
@@ -346,7 +352,14 @@ export interface ThreadListV2DoneShelfListItem {
   readonly disabled: boolean;
 }
 
+export interface ThreadListV2GroupHeaderListItem {
+  readonly type: "v2-group-header";
+  readonly key: string;
+  readonly label: string;
+}
+
 export type ThreadListV2ListItem =
+  | ThreadListV2GroupHeaderListItem
   | ThreadListV2ThreadListItem
   | ThreadListV2PendingListItem
   | ThreadListV2PinnedShelfListItem
@@ -366,6 +379,10 @@ export function threadListV2ListItemsAreEqual(
   item: ThreadListV2ListItem,
 ): boolean {
   switch (item.type) {
+    case "v2-group-header":
+      return (
+        previous.type === item.type && previous.key === item.key && previous.label === item.label
+      );
     case "v2-thread":
       return (
         previous.type === "v2-thread" &&
@@ -448,7 +465,7 @@ export function buildThreadListV2ListItems(input: {
   readonly shelfPreferencesLoading?: boolean;
 }): ThreadListV2ListItem[] {
   const queuedThreadKeys = input.queuedThreadKeys?.size ? input.queuedThreadKeys : undefined;
-  const threadItems = input.items.map((item): ThreadListV2ListItem => {
+  const threadItems = input.items.map((item): ThreadListV2ThreadListItem => {
     const snoozeWakeLabelText =
       item.snoozed && item.thread.snoozedUntil != null && input.snoozeLabelNow !== undefined
         ? snoozeWakeLabel(item.thread.snoozedUntil, { now: input.snoozeLabelNow })
@@ -522,7 +539,13 @@ export function buildThreadListV2ListItems(input: {
       disabled: shelfDisabled,
     });
     if (input.activeShelfExpanded !== false) result.push(...pendingItems);
-    result.push(...threadItems.slice(pinnedEnd, activeEnd));
+    for (let index = pinnedEnd; index < activeEnd; index += 1) {
+      const group = threadItems[index]?.item.groupHeader;
+      if (group) {
+        result.push({ type: "v2-group-header", key: `v2-group:${group.key}`, label: group.label });
+      }
+      result.push(threadItems[index]!);
+    }
   }
   if (workingShelfHeaderIndex !== null && workingCount > 0) {
     result.push({
@@ -594,6 +617,8 @@ function sortDoneThreadsReusingLast(
 }
 
 export function buildThreadListV2Items(input: {
+  readonly grouping?: SidebarThreadGrouping;
+  readonly groupingProjects?: readonly ThreadGroupingProject[];
   readonly pendingOrder?: PendingThreadOrder | null;
   readonly threads: ReadonlyArray<EnvironmentThreadShell>;
   readonly environmentId: EnvironmentId | null;
@@ -696,17 +721,30 @@ export function buildThreadListV2Items(input: {
 
   // The inbox orders by when each thread came back to the user, not the saved
   // arrangement.
-  const orderedActive = sortInboxThreadsByReturn(active, input.inboxReturnAt);
-  const orderedWorking = sortWorkingThreadsBySend(working);
+  const grouping = input.grouping ?? "status";
+  const groups =
+    grouping === "status"
+      ? null
+      : groupInboxThreads({
+          threads: [...active, ...working],
+          ...(grouping === "project"
+            ? { mode: grouping, projects: input.groupingProjects ?? [] }
+            : { mode: grouping, now }),
+        });
+  const orderedInbox =
+    groups === null
+      ? sortInboxThreadsByReturn(active, input.inboxReturnAt)
+      : groups.flatMap((group) => group.threads);
+  const orderedWorking = groups === null ? sortWorkingThreadsBySend(working) : [];
   const orderedSnoozed = [...snoozed].sort(
     (left, right) =>
       parseTimestampMs(left.snoozedUntil ?? "") - parseTimestampMs(right.snoozedUntil ?? ""),
   );
   const selectedThreadKey = input.selectedThreadKey ?? null;
-  const visibleActive =
+  const visibleInbox =
     input.activeShelfExpanded !== false
-      ? orderedActive
-      : orderedActive.filter(
+      ? orderedInbox
+      : orderedInbox.filter(
           (thread) => `${thread.environmentId}:${thread.id}` === selectedThreadKey,
         );
   const visibleWorking =
@@ -758,9 +796,19 @@ export function buildThreadListV2Items(input: {
       isLast: false,
     });
   }
-  for (const thread of visibleActive) {
+  const groupHeaders = new Map(
+    input.activeShelfExpanded === false
+      ? []
+      : groups?.flatMap((group) => {
+          const first = group.threads[0];
+          return first ? [[first, { key: group.key, label: group.label }] as const] : [];
+        }),
+  );
+  for (const thread of visibleInbox) {
+    const groupHeader = groupHeaders.get(thread);
     items.push({
       thread,
+      ...(groupHeader === undefined ? {} : { groupHeader }),
       variant: "card",
       snoozed: false,
       pinned: false,
@@ -804,7 +852,7 @@ export function buildThreadListV2Items(input: {
   return {
     items,
     pinnedCount: pinned.length,
-    activeCount: active.length,
+    activeCount: orderedInbox.length,
     hiddenDoneCount: orderedDone.length - pagedDone.length,
     workingCount: orderedWorking.length,
     workingShelfHeaderIndex,
