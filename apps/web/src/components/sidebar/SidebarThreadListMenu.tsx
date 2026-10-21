@@ -1,5 +1,6 @@
 import { THREAD_GROUPING_OPTIONS } from "@supaterm/client-runtime/state/thread-grouping";
 import { Settings2Icon } from "lucide-react";
+import type { ReactNode } from "react";
 import { cn } from "~/lib/utils";
 import { updateClientSettings, useClientSettings } from "../../hooks/useSettings";
 import {
@@ -15,14 +16,23 @@ import {
 } from "../ui/menu";
 import { SidebarHeaderIconButton } from "./SidebarThreadHeader";
 
-export function SidebarGroupingMenu() {
+export function SidebarThreadListMenu({
+  open,
+  onOpenChange,
+  projectFilter,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  projectFilter: ReactNode;
+}) {
   const grouping = useClientSettings((settings) => settings.sidebarThreadGrouping);
   return (
-    <Menu>
+    <Menu open={open} onOpenChange={onOpenChange}>
       <MenuTrigger render={<SidebarHeaderIconButton label="Thread list options" />}>
         <Settings2Icon />
       </MenuTrigger>
       <MenuPopup align="end">
+        {projectFilter}
         <MenuSub>
           <MenuSubTrigger>
             <span className="flex-1">Grouping</span>
