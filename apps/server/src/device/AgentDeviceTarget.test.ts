@@ -17,6 +17,56 @@ import {
 const exec = NodeUtil.promisify(NodeChildProcess.execFile);
 
 describe("host-bound agent commands", () => {
+  it.effect.skipIf(HostProcess.Platform.defaultValue() === "win32")(
+    "runs both desktop hops as Node with a stripped environment, preserving arguments and exit code",
+    () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const temp = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-device-target-" });
+        const dir = path.join(temp, "quotes '\" $HOME `literal`");
+        yield* fs.makeDirectory(dir);
+        const desktopApp = path.join(dir, "Supaterm");
+        // Dropping Node mode after checking it forces each hop to set it independently.
+        yield* fs.writeFileString(
+          desktopApp,
+          `#!/bin/sh
+if [ "\${ELECTRON_RUN_AS_NODE:-}" != "1" ]; then
+  echo "started the desktop app" >&2
+  exit 134
+fi
+unset ELECTRON_RUN_AS_NODE
+exec '${process.execPath.replaceAll("'", "'\"'\"'")}' "$@"
+`,
+        );
+        yield* fs.chmod(desktopApp, 0o755);
+        const entryPath = path.join(dir, "cli.mjs");
+        yield* fs.writeFileString(
+          entryPath,
+          "console.log(JSON.stringify(process.argv.slice(2))); process.exitCode = 23;",
+        );
+        const shim = yield* ensureAgentDeviceShim({ entryPath, stateDir: dir }).pipe(
+          Effect.provideService(HostProcess.ExecutablePath, desktopApp),
+          Effect.provideService(HostProcess.IsExecutable, false),
+        );
+        const args = [
+          "snapshot",
+          "--config",
+          path.join(dir, "config.json"),
+          "--session",
+          "a!b!c",
+          "",
+        ];
+        yield* Effect.promise(() =>
+          expect(
+            exec(path.join(shim, "agent-device"), args, {
+              env: { PATH: process.env.PATH ?? "", HOME: temp },
+            }),
+          ).rejects.toMatchObject({ code: 23, stdout: `${JSON.stringify(args)}\n`, stderr: "" }),
+        );
+      }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+  );
+
   it.effect("runs two hosts concurrently and only updates the reconnected host", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
@@ -44,7 +94,6 @@ if (process.env.AGENT_DEVICE_DAEMON_BASE_URL) process.exit(2);`,
         yield* writeAgentDeviceConfig(file, {
           baseUrl: `http://127.0.0.1:${1000 + index}`,
           token: `token-${index}`,
-          entryPath,
         });
       const invoke = (file: string) =>
         exec(
@@ -67,10 +116,14 @@ if (process.env.AGENT_DEVICE_DAEMON_BASE_URL) process.exit(2);`,
       yield* writeAgentDeviceConfig(files[0]!, {
         baseUrl: "http://127.0.0.1:2000",
         token: "new",
-        entryPath,
       });
       expect((yield* Effect.promise(() => invoke(files[0]!))).daemonAuthToken).toBe("new");
       expect(yield* fs.readFileString(files[1]!)).toBe(second);
+      // Hosts with a daemon per device get a file per device, apart from the host's own.
+      const perDevice = yield* Effect.forEach(["udid-1", "udid-2"], (device) =>
+        agentDeviceConfigPath(dir, "eas", path, device),
+      );
+      expect(new Set([...perDevice, yield* agentDeviceConfigPath(dir, "eas", path)]).size).toBe(3);
       expect(yield* agentDeviceSession("thread", "mini", "same-id")).not.toBe(
         yield* agentDeviceSession("thread", "android", "same-id"),
       );

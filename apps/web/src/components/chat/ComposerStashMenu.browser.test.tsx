@@ -1,8 +1,7 @@
+import { act, render as renderUi, type Screen } from "../../../test/render";
 import "~/index.css";
 
-import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { pressAgain } from "~/test/inlineConfirm";
 import type { PromptStashEntry } from "../../promptStashStore";
@@ -18,8 +17,9 @@ const entry: PromptStashEntry = {
 
 function renderMenu(props: Partial<Parameters<typeof ComposerStashMenu>[0]> = {}) {
   return act(async () =>
-    root.render(
+    fixtureScreen.rerender(
       <ComposerStashMenu
+        composerFormRef={{ current: null }}
         entries={[entry]}
         stashShortcutLabel={null}
         sendAllBlockedReason={null}
@@ -35,27 +35,20 @@ function renderMenu(props: Partial<Parameters<typeof ComposerStashMenu>[0]> = {}
 
 const escape = () =>
   act(async () => {
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", cancelable: true }));
+    container
+      .querySelector("button")!
+      .dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", cancelable: true, bubbles: true }),
+      );
   });
 
-let root: Root;
+let fixtureScreen: Screen;
 let container: HTMLDivElement;
-
-beforeEach(() => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
-});
-
-afterEach(async () => {
-  await act(async () => root.unmount());
-  container.remove();
-  vi.unstubAllGlobals();
-});
 
 describe("deleting", () => {
   it("deletes on a second press and lets Escape cancel the delete before closing", async () => {
+    await using _fixture = await setup();
+
     const onDelete = vi.fn();
     const onClose = vi.fn();
     await renderMenu({ onDelete, onClose });
@@ -86,6 +79,8 @@ describe("sending all", () => {
     )!;
 
   it("sends on a second press and lets Escape cancel it before closing", async () => {
+    await using _fixture = await setup();
+
     const onSendAll = vi.fn();
     const onClose = vi.fn();
     await renderMenu({ onSendAll, onClose });
@@ -103,6 +98,8 @@ describe("sending all", () => {
   });
 
   it("keeps Enter on a focused Send all from restoring the highlighted prompt", async () => {
+    await using _fixture = await setup();
+
     const onRestore = vi.fn();
     await renderMenu({ onRestore });
 
@@ -117,6 +114,8 @@ describe("sending all", () => {
   });
 
   it("keeps the send button in place while confirming", async () => {
+    await using _fixture = await setup();
+
     await renderMenu();
     const before = sendAllButton().getBoundingClientRect();
 
@@ -128,6 +127,8 @@ describe("sending all", () => {
   });
 
   it("blocks sending when a draft appears after arming", async () => {
+    await using _fixture = await setup();
+
     const onSendAll = vi.fn();
     await renderMenu({ onSendAll });
     await act(async () => sendAllButton().click());
@@ -143,3 +144,18 @@ describe("sending all", () => {
     expect(onSendAll).toHaveBeenCalledOnce();
   });
 });
+
+async function setup() {
+  container = document.createElement("div");
+  document.body.append(container);
+  fixtureScreen = await renderUi(null, { container });
+
+  const ownedScreen = fixtureScreen;
+  return {
+    async [Symbol.asyncDispose]() {
+      await ownedScreen[Symbol.asyncDispose]();
+
+      vi.unstubAllGlobals();
+    },
+  };
+}

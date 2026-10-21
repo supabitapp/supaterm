@@ -53,4 +53,6 @@ export const makeUnsafe = <Key>(): KeyedLock<Key> => {
   } satisfies KeyedLock<Key>;
 };
 
-export const make = <Key>(): Effect.Effect<KeyedLock<Key>> => Effect.sync(makeUnsafe<Key>);
+export const make = Effect.fn("KeyedLock.make")(<Key>(): Effect.Effect<KeyedLock<Key>> =>
+  Effect.sync(makeUnsafe<Key>),
+);

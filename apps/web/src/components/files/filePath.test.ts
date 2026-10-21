@@ -47,6 +47,15 @@ describe("fileBreadcrumbs", () => {
       "\\\\server\\share\\report.md",
     ]);
   });
+
+  it("builds home-relative breadcrumbs with navigable child folders", () => {
+    expect(fileBreadcrumbs("supaterm", "~/.claude/CLAUDE.md")).toEqual([
+      { label: "~", path: "~", kind: "directory" },
+      { label: ".claude", path: "~/.claude", kind: "directory" },
+      { label: "CLAUDE.md", path: "~/.claude/CLAUDE.md", kind: "file" },
+    ]);
+    expect(isListableHostFolder("~/.claude")).toBe(true);
+  });
 });
 
 describe("breadcrumbPathOf", () => {

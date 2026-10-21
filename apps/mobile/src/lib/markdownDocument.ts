@@ -143,6 +143,39 @@ export function markdownWithHtml(markdown: string): string {
   return markdown;
 }
 
+const INLINE_CODE_SPAN = /`+([^`\r\n]+)`+/g;
+
+export function markdownWithInlineFileLinks(markdown: string, fileLink: RegExp): string {
+  if (![...markdown.matchAll(INLINE_CODE_SPAN)].some(([, code]) => fileLink.test(code!.trim())))
+    return markdown;
+  const edits: Array<{ start: number; end: number; content: string }> = [];
+  const visit = (node: MarkdownNode) => {
+    if (node.type === "inlineCode") {
+      const start = node.position?.start.offset;
+      const end = node.position?.end.offset;
+      const escaped = node.value.replace(/[\\[\]&]/g, "\\$&");
+      if (
+        start !== undefined &&
+        end !== undefined &&
+        fileLink.test(node.value) &&
+        !/[<>]/.test(node.value)
+      )
+        edits.push({
+          start,
+          end,
+          content: `[${escaped}](<${escaped}>)`,
+        });
+    } else if (node.type !== "link" && node.type !== "linkReference" && "children" in node)
+      node.children.forEach(visit);
+  };
+  visit(parser.parse(markdown));
+  for (let index = edits.length - 1; index >= 0; index--) {
+    const edit = edits[index]!;
+    markdown = markdown.slice(0, edit.start) + edit.content + markdown.slice(edit.end);
+  }
+  return markdown;
+}
+
 // A delimiter row such as `|---|:--:|`, possibly inside a blockquote or list item.
 function isTableDelimiterRow(line: string): boolean {
   if (!line.includes("-")) return false;

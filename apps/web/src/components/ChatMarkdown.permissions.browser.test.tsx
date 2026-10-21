@@ -9,10 +9,9 @@ import {
   type ThreadPullRequestLink,
 } from "@supaterm/contracts";
 import { AsyncResult } from "effect/reactivity";
-import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
+import { expect, it, vi } from "vite-plus/test";
 
+import { act, render } from "../../test/render";
 import { useRightPanelStore } from "../rightPanelStore";
 
 const state = vi.hoisted(() => ({
@@ -145,10 +144,9 @@ const serverConfig = {
   shellRevealInFileManagerKind: "xdg-open",
   environment: { platform: { os: "linux" }, capabilities: {} },
 };
-const roots: Root[] = [];
-let container: HTMLDivElement;
 
-beforeEach(() => {
+function setup() {
+  using stack = new DisposableStack();
   state.allowed = true;
   state.listeners.clear();
   state.linked = false;
@@ -160,36 +158,35 @@ beforeEach(() => {
   state.openFile.mockReset();
   state.openExternal.mockReset().mockResolvedValue(undefined);
   state.copy.mockReset().mockResolvedValue(undefined);
+  const { openFile } = useRightPanelStore.getState();
   useRightPanelStore.setState({ openFile: state.openFile });
-  vi.spyOn(navigator.clipboard, "writeText").mockImplementation(state.copy);
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-});
-
-afterEach(async () => {
-  for (const root of roots.splice(0)) await act(async () => root.unmount());
-  document.body.replaceChildren();
-  vi.restoreAllMocks();
-  vi.unstubAllGlobals();
-});
+  stack.defer(() => useRightPanelStore.setState({ openFile }));
+  stack.use(vi.spyOn(navigator.clipboard, "writeText").mockImplementation(state.copy));
+  stack.use(
+    vi.spyOn(navigator.clipboard, "write").mockImplementation(async (items) => {
+      const item = items[0]!;
+      await state.copy(await (await item.getType("text/plain")).text());
+    }),
+  );
+  return stack.move();
+}
 
 async function renderMarkdown(text: string) {
-  container = document.body.appendChild(document.createElement("div"));
-  const root = createRoot(container);
-  roots.push(root);
-  await act(async () =>
-    root.render(<ChatMarkdown cwd="/work" threadRef={threadRef} text={text} />),
-  );
-}
-
-function anchor() {
-  return container.querySelector("a")!;
-}
-
-async function openContextMenu() {
-  await act(async () => {
-    anchor().dispatchEvent(
-      new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 10, clientY: 10 }),
-    );
+  const screen = await render(<ChatMarkdown cwd="/work" threadRef={threadRef} text={text} />);
+  const anchor = () => screen.container.querySelector("a")!;
+  return Object.assign(screen, {
+    anchor,
+    openContextMenu: () =>
+      act(async () => {
+        anchor().dispatchEvent(
+          new MouseEvent("contextmenu", {
+            bubbles: true,
+            cancelable: true,
+            clientX: 10,
+            clientY: 10,
+          }),
+        );
+      }),
   });
 }
 
@@ -205,20 +202,43 @@ async function setAllowed(allowed: boolean) {
 }
 
 it("removes host actions after revocation while keeping file preview and copying", async () => {
-  await renderMarkdown("[Readme](docs/readme.md)");
-  await openContextMenu();
+  using _setup = setup();
+  await using screen = await renderMarkdown("[Readme](docs/readme.md)");
+  await screen.openContextMenu();
   expect(offeredActions()).toEqual(["open", "reveal", "copy-relative", "copy-full"]);
   await setAllowed(false);
   state.choose.mockResolvedValue("copy-full");
-  await openContextMenu();
+  await screen.openContextMenu();
   expect(offeredActions()).toEqual(["copy-relative", "copy-full"]);
   await vi.waitFor(() => expect(state.copy).toHaveBeenCalledWith("/work/docs/readme.md"));
-  await act(async () => anchor().click());
+  await act(async () => screen.anchor().click());
   expect(state.openFile).toHaveBeenCalledWith(threadRef, "docs/readme.md", undefined);
   expect(state.openEditor).not.toHaveBeenCalled();
 });
 
+it("starts copying before the nested-file lookup finishes", async () => {
+  using _setup = setup();
+  let finishLookup: () => void = () => {
+    throw new Error("Lookup not started");
+  };
+  state.search.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finishLookup = () =>
+          resolve(AsyncResult.success({ entries: [{ path: "src/readme.md", kind: "file" }] }));
+      }),
+  );
+  state.choose.mockResolvedValue("copy-full");
+  await using screen = await renderMarkdown("`readme.md:10:2`");
+  await screen.openContextMenu();
+  expect(navigator.clipboard.write).toHaveBeenCalledOnce();
+  expect(state.copy).not.toHaveBeenCalled();
+  await act(async () => finishLookup());
+  await vi.waitFor(() => expect(state.copy).toHaveBeenCalledWith("/work/src/readme.md:10:2"));
+});
+
 it("does not launch an editor after revocation during a native context menu", async () => {
+  using _setup = setup();
   let choose: (action: string) => void = () => {
     throw new Error("Menu not opened");
   };
@@ -228,8 +248,8 @@ it("does not launch an editor after revocation during a native context menu", as
         choose = resolve;
       }),
   );
-  await renderMarkdown("[Readme](docs/readme.md)");
-  await openContextMenu();
+  await using screen = await renderMarkdown("[Readme](docs/readme.md)");
+  await screen.openContextMenu();
   expect(offeredActions()).toContain("open");
   await act(async () => {
     state.allowed = false;
@@ -239,6 +259,7 @@ it("does not launch an editor after revocation during a native context menu", as
 });
 
 it("does not reveal a file after revocation during its workspace lookup", async () => {
+  using _setup = setup();
   let finishLookup: () => void = () => {
     throw new Error("Lookup not started");
   };
@@ -249,8 +270,8 @@ it("does not reveal a file after revocation during its workspace lookup", async 
       }),
   );
   state.choose.mockResolvedValue("reveal");
-  await renderMarkdown("[Readme](readme.md)");
-  await openContextMenu();
+  await using screen = await renderMarkdown("[Readme](readme.md)");
+  await screen.openContextMenu();
   expect(state.search).toHaveBeenCalledOnce();
   await act(async () => {
     state.allowed = false;
@@ -262,11 +283,12 @@ it("does not reveal a file after revocation during its workspace lookup", async 
 it.each([false, true])(
   "keeps PR links usable without offering metadata edits (linked=%s)",
   async (linked) => {
+    using _setup = setup();
     state.allowed = false;
     state.linked = linked;
     state.choose.mockResolvedValue("open-external");
-    await renderMarkdown(`[Review](${linkedPullRequest.url})`);
-    await openContextMenu();
+    await using screen = await renderMarkdown(`[Review](${linkedPullRequest.url})`);
+    await screen.openContextMenu();
     expect(offeredActions()).toEqual(["open-external", "copy-link"]);
     await vi.waitFor(() => expect(state.openExternal).toHaveBeenCalledWith(linkedPullRequest.url));
     expect(state.link).not.toHaveBeenCalled();
@@ -277,6 +299,7 @@ it.each([false, true])(
 it.each(["link-to-thread", "unlink-from-thread"])(
   "rechecks %s after a native context menu returns",
   async (action) => {
+    using _setup = setup();
     state.linked = action === "unlink-from-thread";
     const command = action === "link-to-thread" ? state.link : state.unlink;
     let choose: (action: string) => void = () => {
@@ -288,8 +311,8 @@ it.each(["link-to-thread", "unlink-from-thread"])(
           choose = resolve;
         }),
     );
-    await renderMarkdown(`[Review](${linkedPullRequest.url})`);
-    await openContextMenu();
+    await using screen = await renderMarkdown(`[Review](${linkedPullRequest.url})`);
+    await screen.openContextMenu();
     expect(offeredActions()).toContain(action);
     await act(async () => {
       state.allowed = false;
@@ -299,7 +322,7 @@ it.each(["link-to-thread", "unlink-from-thread"])(
 
     await setAllowed(true);
     state.choose.mockResolvedValue(action);
-    await openContextMenu();
+    await screen.openContextMenu();
     await vi.waitFor(() =>
       expect(command).toHaveBeenCalledExactlyOnceWith({
         environmentId: threadRef.environmentId,

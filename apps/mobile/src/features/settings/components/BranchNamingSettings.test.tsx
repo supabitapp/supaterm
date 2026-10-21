@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import type { BranchNamingMode } from "@supaterm/contracts";
 import type { ReactNode } from "react";
 import { act } from "react";

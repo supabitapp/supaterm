@@ -56,6 +56,15 @@ export const reconcileService = Effect.fn("cli.service.reconcile")(function* (op
   } satisfies ServiceReconcileResult;
 });
 
+function formatServiceChange(
+  result: Extract<ServiceReconcileResult, { readonly changed: true }>,
+): string {
+  if (result.plan.handedOff === true) {
+    return `Handed the Supaterm service switch to supaterm@${packageJson.version} to a separate systemd unit, since this session runs inside the service and disconnects when it restarts.\nResult: ${result.plan.logPath}`;
+  }
+  return `${result.previouslyInstalled ? "Updated" : "Installed"} Supaterm service with supaterm@${packageJson.version}.\nLogs: ${result.plan.logPath}`;
+}
+
 export function formatServiceStatus(
   status: BootService.BootServiceStatus,
   cliVersion: string,
@@ -124,9 +133,7 @@ const serviceInstallCommand = Command.make("install", serviceReconcileFlags).pip
           );
           return;
         }
-        yield* Console.log(
-          `${result.previouslyInstalled ? "Updated" : "Installed"} Supaterm service with supaterm@${packageJson.version}.\nLogs: ${result.plan.logPath}`,
-        );
+        yield* Console.log(formatServiceChange(result));
       }),
     ),
   ),
@@ -142,11 +149,15 @@ const serviceRestartCommand = Command.make("restart", projectLocationFlags).pipe
       Effect.gen(function* () {
         const service = yield* BootService.BootService;
         const status = yield* service.status;
-        const restarted = yield* service.restart;
+        const outcome = yield* service.restart;
+        const onVersion =
+          status.installedVersion === undefined ? "" : ` on supaterm@${status.installedVersion}`;
         yield* Console.log(
-          restarted
-            ? `Restarted the Supaterm service${status.installedVersion === undefined ? "" : ` on supaterm@${status.installedVersion}`}.`
-            : "Supaterm service is not installed.",
+          outcome === "restarted"
+            ? `Restarted the Supaterm service${onVersion}.`
+            : outcome === "queued"
+              ? `Queued a restart of the Supaterm service${onVersion}. This session runs inside the service and disconnects when it goes down.\nLogs: ${status.logPath}`
+              : "Supaterm service is not installed.",
         );
       }),
     ),

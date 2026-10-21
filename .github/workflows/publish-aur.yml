@@ -37,6 +37,7 @@ concurrency:
 jobs:
   publish:
     name: Validate and publish
+    if: github.repository == 'supabitapp/supaterm'
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 30
     container:

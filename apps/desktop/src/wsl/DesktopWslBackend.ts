@@ -136,7 +136,7 @@ export const layer = Layer.effect(
                 Ref.set(
                   preflightErrorRef,
                   Option.some(
-                    "Another Supaterm server is using this distro's Supaterm home. Stop it, or pair with it instead.",
+                    "Another Supaterm server is using this distro's Supaterm home, or an older background service is set up for it. Stop that server or pair with it, or try `supaterm update` in the distro. If the older launcher cannot update, run `supaterm service uninstall` and optionally reinstall with `supaterm service install` from a current CLI in the distro. Use `npx supaterm@latest` if `supaterm` is missing or outdated, and pass `--base-dir` with the service's Supaterm home to each command.",
                   ),
                 ),
               ),

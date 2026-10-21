@@ -4,13 +4,13 @@ import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { type EnvironmentMachineKind, resolveEnvironmentMachineKind } from "@supaterm/contracts";
 import { AsyncResult } from "effect/reactivity";
 import { useMemo } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppText as Text } from "../../components/ui/AppText";
 import { SymbolView } from "../../components/ui/AppSymbol";
-import { EnvironmentMachineSymbol } from "../../components/EnvironmentMachineSymbol";
+import { ENVIRONMENT_MACHINE_SYMBOLS } from "../../components/EnvironmentMachineSymbol";
 import { useInlineConfirm } from "../../lib/useInlineConfirm";
 import {
   clearClientCacheAtom,
@@ -162,35 +162,19 @@ function CacheEnvironmentRow(props: {
   const confirm = useInlineConfirm<"clear">();
   const armed = confirm.armed === "clear";
   return (
-    <View
-      className={
-        props.first
-          ? "flex-row items-center gap-3 p-4"
-          : "border-t border-border flex-row items-center gap-3 p-4"
-      }
-    >
-      <EnvironmentMachineSymbol kind={props.machine} size={22} tintColorClassName="accent-icon" />
-      <Text className="min-w-0 flex-1 text-base text-foreground" numberOfLines={1}>
-        {props.environmentLabel}
-      </Text>
-      <Pressable
-        accessibilityLabel={
+    <View className={props.first ? undefined : "border-t border-border"}>
+      <SettingsActionRow
+        icon={ENVIRONMENT_MACHINE_SYMBOLS[props.machine]}
+        label={props.environmentLabel}
+        description={
           armed
             ? `Confirm clearing cache for ${props.environmentLabel}`
-            : `Clear cache for ${props.environmentLabel}`
+            : `Clear ${formatBytes(props.environment.payloadBytes)} of cached data`
         }
-        accessibilityRole="button"
+        tone="danger"
         disabled={props.disabled}
         {...confirm.bind("clear", props.onClear)}
-        className="rounded-full px-3 py-2 disabled:opacity-40"
-      >
-        <Text
-          className="font-supaterm-medium tabular-nums text-danger-foreground"
-          numberOfLines={1}
-        >
-          {armed ? "Confirm clear" : `Clear ${formatBytes(props.environment.payloadBytes)}`}
-        </Text>
-      </Pressable>
+      />
     </View>
   );
 }

@@ -66,14 +66,18 @@ export function getThemePreviewAppearance(): ThemeAppearance | null {
   return themePreviewAppearance;
 }
 
+export function getThemePreviewSidebarArtwork(): boolean | null {
+  return themePreviewAppearance === null ? null : false;
+}
+
 export function subscribeToThemePreview(listener: () => void): () => void {
   themePreviewListeners.add(listener);
   return () => themePreviewListeners.delete(listener);
 }
 
-function setThemePreviewAppearance(next: ThemeAppearance | null): void {
-  if (themePreviewAppearance === next) return;
-  themePreviewAppearance = next;
+function setThemePreviewAppearance(appearance: ThemeAppearance | null): void {
+  if (themePreviewAppearance === appearance) return;
+  themePreviewAppearance = appearance;
   for (const listener of themePreviewListeners) listener();
 }
 

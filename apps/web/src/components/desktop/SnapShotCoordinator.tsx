@@ -1,6 +1,7 @@
 import {
   type DesktopPendingSnapShot,
   type DesktopSnapShotEvent,
+  PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
   PROVIDER_SEND_TURN_MAX_IMAGE_BYTES,
   type ScopedThreadRef,
 } from "@supaterm/contracts";
@@ -13,7 +14,7 @@ import {
 } from "../../composerDraftStore";
 import { useHandleNewThread } from "../../hooks/useHandleNewThread";
 import { useStableCallback } from "../../hooks/useStableCallback";
-import { useClientSettings } from "../../hooks/useSettings";
+import { getClientSettings, useClientSettings } from "../../hooks/useSettings";
 import { readThreadShell } from "../../state/entities";
 import { compressImageToByteLimit, dataUrlToFile } from "../../lib/imageCompression";
 import { resolveThreadActionProjectRef } from "../../lib/chatThreadActions";
@@ -33,10 +34,15 @@ import {
   getDesktopSnapShotBridge,
   type DesktopSnapShotBridge,
 } from "../../lib/desktopSnapShot";
+import {
+  countQuestionRequestAttachments,
+  openQuestionAttachmentDraft,
+} from "../../questionAttachments";
 import { readFileAsDataUrl } from "../ChatView.logic";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 
 type CaptureTarget = DraftId | ScopedThreadRef;
+type CaptureFailure = "missing-project" | "delivery";
 
 function isSameCaptureTarget(a: CaptureTarget, b: CaptureTarget): boolean {
   if (typeof a === "string" || typeof b === "string") return a === b;
@@ -62,6 +68,18 @@ export function resolveExistingSnapShotTarget(
     readThreadShell(target) !== null
     ? target
     : null;
+}
+
+// Pin absence too: a later question must never claim an earlier capture.
+export function resolveSnapShotAttachmentTarget(
+  pins: Map<string, DraftId | null>,
+  id: string,
+  target: CaptureTarget,
+): CaptureTarget {
+  const open = typeof target === "string" ? null : openQuestionAttachmentDraft(target);
+  if (!pins.has(id)) pins.set(id, open?.draftId ?? null);
+  const pinned = pins.get(id);
+  return pinned && pinned === open?.draftId ? pinned : target;
 }
 
 const NEXT_PAINT_FALLBACK_MS = 100;
@@ -140,7 +158,7 @@ async function afterNextPaint(): Promise<void> {
 export async function deliverSnapShot(
   bridge: DesktopSnapShotBridge,
   item: DesktopPendingSnapShot,
-  target: CaptureTarget,
+  resolveTarget: () => CaptureTarget,
 ): Promise<void> {
   const store = useComposerDraftStore.getState();
   updateSnapShotAnimationSource(item.id, item.source);
@@ -154,12 +172,14 @@ export async function deliverSnapShot(
   const file = compressed.file;
   const source = resizeSnapShotSource(capture.source, compressed.imageSize);
   const dataUrl = compressed.recompressed ? await readFileAsDataUrl(file) : capture.dataUrl;
+  const target = resolveTarget();
   const alreadyAttached =
     store.getComposerDraft(target)?.images.some(({ id }) => id === capture.id) ?? false;
-  if (
-    !alreadyAttached &&
-    !store.addImage(target, {
-      type: "image",
+  if (!alreadyAttached) {
+    const questionAttachmentCount =
+      typeof target === "string" ? countQuestionRequestAttachments(target) : null;
+    const image = {
+      type: "image" as const,
       id: capture.id,
       name: file.name,
       mimeType: file.type,
@@ -167,9 +187,14 @@ export async function deliverSnapShot(
       previewUrl: dataUrl,
       file,
       source,
-    })
-  ) {
-    throw new Error("Remove an attachment, then try this capture again.");
+    };
+    // Only question drafts may bypass addImage's thread-session gate.
+    const added =
+      questionAttachmentCount === null
+        ? store.addImage(target, image)
+        : questionAttachmentCount < PROVIDER_SEND_TURN_MAX_ATTACHMENTS &&
+          store.addImages(target, [image]).includes(capture.id);
+    if (!added) throw new Error("Remove an attachment, then try this capture again.");
   }
   const persisted: PersistedComposerImageAttachment = {
     id: capture.id,
@@ -213,11 +238,14 @@ export function SnapShotCoordinator() {
     settings.snapShotPlaySound ? settings.snapShotSound : null,
   );
   const animateCaptures = useClientSettings((settings) => settings.snapShotAnimations);
+  const enabled = useClientSettings((settings) => settings.snapShotEnabled);
   const captureTargetsRef = useRef(new Map<string, Promise<CaptureTarget | null>>());
+  const questionPinsRef = useRef(new Map<string, DraftId | null>());
   const targetResolutionRef = useRef<Promise<CaptureTarget | null> | null>(null);
   const drainingRef = useRef<Promise<void> | null>(null);
   const rerunRequestedRef = useRef(false);
   const soundedCaptureIdsRef = useRef(new Set<string>());
+  const reportedCaptureFailuresRef = useRef(new Map<string, Set<CaptureFailure>>());
   const pendingAnimationStartsRef = useRef(new Set<string>());
 
   // Captures go to the last thread or draft on screen, even from routes that show neither.
@@ -280,7 +308,21 @@ export function SnapShotCoordinator() {
     } catch {}
   };
 
+  const reportOnce = (
+    id: string,
+    failure: CaptureFailure,
+    toast: Parameters<typeof toastManager.add>[0],
+  ) => {
+    if (!getClientSettings().snapShotEnabled) return;
+    const failures = reportedCaptureFailuresRef.current.get(id) ?? new Set<CaptureFailure>();
+    if (failures.has(failure)) return;
+    failures.add(failure);
+    reportedCaptureFailuresRef.current.set(id, failures);
+    toastManager.add(toast);
+  };
+
   const drain = async () => {
+    if (!getClientSettings().snapShotEnabled) return;
     const bridge = getDesktopSnapShotBridge();
     if (!bridge) return;
     if (drainingRef.current) {
@@ -293,19 +335,22 @@ export function SnapShotCoordinator() {
         rerunRequestedRef.current = false;
         const pending = await bridge.listPendingSnapShots();
         for (const item of pending) {
+          if (!getClientSettings().snapShotEnabled) return;
           playCaptureSound(item.id);
           const capturedTarget = await resolveSnapShotDeliveryTarget(
             captureTargetsRef.current,
             item.id,
             resolveCaptureTarget,
           );
+          if (!getClientSettings().snapShotEnabled) return;
           const target = capturedTarget
             ? resolveExistingSnapShotTarget(capturedTarget, routeThreadRef)
             : null;
           if (!target) {
             await dismissSnapShotAnimation(item.id);
-            soundedCaptureIdsRef.current.delete(item.id);
-            toastManager.add(
+            reportOnce(
+              item.id,
+              "missing-project",
               stackedThreadToast({
                 type: "error",
                 title: "Snapshot taken, but no project is available",
@@ -316,13 +361,20 @@ export function SnapShotCoordinator() {
           }
 
           try {
-            await deliverSnapShot(bridge, item, target);
+            // Pending captures may have arrived without a requested event; pin before reading.
+            resolveSnapShotAttachmentTarget(questionPinsRef.current, item.id, target);
+            await deliverSnapShot(bridge, item, () =>
+              resolveSnapShotAttachmentTarget(questionPinsRef.current, item.id, target),
+            );
             captureTargetsRef.current.delete(item.id);
+            questionPinsRef.current.delete(item.id);
             soundedCaptureIdsRef.current.delete(item.id);
+            reportedCaptureFailuresRef.current.delete(item.id);
           } catch (error) {
             await dismissSnapShotAnimation(item.id);
-            soundedCaptureIdsRef.current.delete(item.id);
-            toastManager.add(
+            reportOnce(
+              item.id,
+              "delivery",
               stackedThreadToast({
                 type: "error",
                 title: "Snapshot failed",
@@ -333,10 +385,11 @@ export function SnapShotCoordinator() {
             );
           }
         }
-      } while (rerunRequestedRef.current);
+      } while (rerunRequestedRef.current && getClientSettings().snapShotEnabled);
     })()
       .catch((error: unknown) => {
         dismissAllSnapShotAnimations();
+        if (!getClientSettings().snapShotEnabled) return;
         toastManager.add(
           stackedThreadToast({
             type: "error",
@@ -357,28 +410,36 @@ export function SnapShotCoordinator() {
   const drainPending = useEffectEvent(() => drain());
   const handleSnapShotEvent = useEffectEvent(
     (bridge: DesktopSnapShotBridge, event: DesktopSnapShotEvent) => {
+      if (!getClientSettings().snapShotEnabled) return;
       switch (event.type) {
         case "requested": {
           const current = readSettledTarget(readLastRouteTarget());
           const target = current ? resolveExistingSnapShotTarget(current, routeThreadRef) : null;
           // Creating a new draft would navigate the renderer before a self-capture finishes.
           if (target) {
+            resolveSnapShotAttachmentTarget(questionPinsRef.current, event.id, target);
             void resolveSnapShotDeliveryTarget(captureTargetsRef.current, event.id, () =>
               Promise.resolve(target),
             );
+          } else if (!questionPinsRef.current.has(event.id)) {
+            questionPinsRef.current.set(event.id, null);
           }
           return;
         }
         case "started": {
           playCaptureSound(event.id);
+          const target = resolveSnapShotDeliveryTarget(
+            captureTargetsRef.current,
+            event.id,
+            resolveCaptureTarget,
+          ).then(
+            (target) =>
+              target && resolveSnapShotAttachmentTarget(questionPinsRef.current, event.id, target),
+          );
           if (animateCaptures && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
             void beginSnapShotAnimationWhenReady(
               event.id,
-              resolveSnapShotDeliveryTarget(
-                captureTargetsRef.current,
-                event.id,
-                resolveCaptureTarget,
-              ),
+              target,
               pendingAnimationStartsRef.current,
             );
           }
@@ -388,13 +449,17 @@ export function SnapShotCoordinator() {
           void drain();
           return;
         case "failed": {
-          if (event.id) captureTargetsRef.current.delete(event.id);
+          if (event.id) {
+            captureTargetsRef.current.delete(event.id);
+            questionPinsRef.current.delete(event.id);
+          }
           dismissFailedSnapShot(
             event.id,
             soundedCaptureIdsRef.current,
             pendingAnimationStartsRef.current,
           );
           void bridge.getSnapShotState().then((state) => {
+            if (!getClientSettings().snapShotEnabled) return;
             toastManager.add(
               stackedThreadToast({
                 type: "error",
@@ -412,10 +477,10 @@ export function SnapShotCoordinator() {
   );
   useEffect(() => {
     const bridge = getDesktopSnapShotBridge();
-    if (!bridge) return;
+    if (!bridge || !enabled) return;
     void drainPending();
     return bridge.onSnapShotEvent((event) => handleSnapShotEvent(bridge, event));
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
     const dismissOnBlur = () => {

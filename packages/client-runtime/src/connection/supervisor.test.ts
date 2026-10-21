@@ -1,8 +1,10 @@
 import { EnvironmentId } from "@supaterm/contracts";
 import { describe, expect, it } from "@effect/vitest";
+import * as Cause from "effect/Cause";
 import * as Deferred from "effect/Deferred";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Random from "effect/Random";
@@ -10,6 +12,7 @@ import * as Ref from "effect/Ref";
 import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 import * as TestClock from "effect/testing/TestClock";
+import * as Tracer from "effect/Tracer";
 
 import type { WsRpcProtocolClient } from "../rpc/protocol.ts";
 import {
@@ -309,6 +312,49 @@ describe("retryDelayMs", () => {
 });
 
 describe("EnvironmentSupervisor", () => {
+  it.effect("records connection attempt outcomes with the original failure", () =>
+    Effect.gen(function* () {
+      const spans: Array<Tracer.NativeSpan> = [];
+      const tracer = Tracer.make({
+        span: (options) => {
+          const span = new Tracer.NativeSpan(options);
+          const end = span.end.bind(span);
+          span.end = (endTime, exit) => {
+            end(endTime, exit);
+            spans.push(span);
+          };
+          return span;
+        },
+      });
+      const firstFailure = transient();
+      const harness = yield* makeHarness({
+        prepare: (attempt) =>
+          attempt === 1 ? Effect.fail(firstFailure) : Effect.succeed(PREPARED_CONNECTION),
+      });
+      const supervisor = yield* EnvironmentSupervisor.make(TARGET_ENTRY, {
+        initiallyDesired: true,
+      }).pipe(Effect.provide(harness.dependencies), Effect.withTracer(tracer));
+      yield* awaitState(supervisor.state, (state) => state.phase === "backoff");
+      yield* TestClock.adjust("3 seconds");
+      yield* awaitState(supervisor.state, (state) => state.phase === "connected");
+      const attempts = spans.filter((span) => span.name === "environment.connection.attempt");
+      expect(attempts).toHaveLength(2);
+      const [failed, connected] = attempts;
+      const failedExit = failed?.status._tag === "Ended" ? failed.status.exit : undefined;
+      expect(failedExit && Exit.isFailure(failedExit) ? Cause.squash(failedExit.cause) : null).toBe(
+        firstFailure,
+      );
+      expect(Object.fromEntries(failed?.attributes ?? [])).toMatchObject({
+        "connection.outcome": "failed",
+        "connection.failure.tag": "ConnectionTransientError",
+        "connection.failure.reason": "transport",
+      });
+      expect(Object.fromEntries(connected?.attributes ?? [])).toMatchObject({
+        "connection.outcome": "connected",
+        "connection.route": "public",
+      });
+    }).pipe(Effect.provide(TestClock.layer())),
+  );
   it.effect("keeps desktop activation parked while offline", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness({ networkStatus: "offline" });

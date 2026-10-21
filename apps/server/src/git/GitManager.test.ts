@@ -37,12 +37,15 @@ import {
   DEFAULT_SERVER_SETTINGS,
   EventId,
   GitCommandError,
+  MessageId,
   ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
+  RunId,
   SourceControlProviderError as SourceControlProviderFailure,
   TextGenerationError,
   ThreadId,
+  TurnItemId,
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import { decodeGitHubPullRequestListJson } from "@supaterm/source-control-github/server/gitHubPullRequests";
@@ -52,6 +55,10 @@ import * as GitLabCli from "@supaterm/source-control-gitlab/server/GitLabCli";
 import type * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
 import * as TestSourceControlHost from "@supaterm/source-control-testing/TestSourceControlHost";
 import * as TextGeneration from "../textGeneration/TextGeneration.ts";
+import {
+  fromRunner,
+  decodeJsonReply,
+} from "@supaterm/provider-core/server/textGenerationOperations";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as VcsProcess from "../vcs/VcsProcess.ts";
 import * as VcsDriverRegistry from "../vcs/VcsDriverRegistry.ts";
@@ -96,6 +103,7 @@ interface FakeGhScenario {
     isCrossRepository?: boolean;
     headRepositoryNameWithOwner?: string | null;
     headRepositoryOwnerLogin?: string | null;
+    headSha?: string;
   };
   repositoryCloneUrls?: Record<string, { url: string; sshUrl: string }>;
 
@@ -103,6 +111,8 @@ interface FakeGhScenario {
 
   failCause?: unknown;
   failAfterCalls?: number;
+  /** Check out the pull request head the way gh does: fast-forward only unless forced. */
+  syncCheckoutWithPullHead?: boolean;
 }
 
 function fakeGhOutput(stdout: string): VcsProcess.VcsProcessOutput {
@@ -284,6 +294,18 @@ function initRepo(
   });
 }
 
+const makeGitLabTemplateProvider = Effect.fnUntraced(function* () {
+  const git = yield* GitVcsDriver.GitVcsDriver;
+  return yield* GitLabSourceControlProvider.make.pipe(
+    Effect.provide(
+      Layer.mergeAll(
+        Layer.mock(GitLabCli.GitLabCli)({}),
+        TestSourceControlHost.layer({ git: { execute: git.execute } }),
+      ),
+    ),
+  );
+});
+
 function createBareRemote(): Effect.Effect<
   string,
   PlatformError.PlatformError | GitCommandError,
@@ -456,7 +478,7 @@ function createGitHubProviderWithFakeGh(scenario: FakeGhScenario = {}): {
     if (args[0] === "pr" && args[1] === "create") {
       return Effect.succeed(
         fakeGhOutput(
-          (scenario.createdPrUrl ?? "https://github.com/pingdotgg/codething-mvp/pull/101") + "\n",
+          (scenario.createdPrUrl ?? "https://github.com/supabitapp/supaterm/pull/101") + "\n",
         ),
       );
     }
@@ -465,7 +487,7 @@ function createGitHubProviderWithFakeGh(scenario: FakeGhScenario = {}): {
       const pullRequest: FakePullRequest = scenario.pullRequest ?? {
         number: 101,
         title: "Pull request",
-        url: "https://github.com/pingdotgg/codething-mvp/pull/101",
+        url: "https://github.com/supabitapp/supaterm/pull/101",
         baseRefName: "main",
         headRefName: "feature/pull-request",
         state: "open",
@@ -497,7 +519,29 @@ function createGitHubProviderWithFakeGh(scenario: FakeGhScenario = {}): {
       return Effect.try({
         try: () => {
           const headBranch = scenario.pullRequest?.headRefName;
-          if (headBranch) {
+          if (headBranch && scenario.syncCheckoutWithPullHead) {
+            runGitSyncForFakeGh(input.cwd, [
+              "fetch",
+              "origin",
+              `refs/pull/${scenario.pullRequest?.number}/head`,
+            ]);
+            const existingBranch = NodeChildProcess.spawnSync(
+              "git",
+              ["show-ref", "--verify", "--quiet", `refs/heads/${headBranch}`],
+              { cwd: input.cwd },
+            );
+            if (existingBranch.status === 0) {
+              runGitSyncForFakeGh(input.cwd, ["checkout", headBranch]);
+              runGitSyncForFakeGh(
+                input.cwd,
+                args.includes("--force")
+                  ? ["reset", "--hard", "FETCH_HEAD"]
+                  : ["merge", "--ff-only", "FETCH_HEAD"],
+              );
+            } else {
+              runGitSyncForFakeGh(input.cwd, ["checkout", "-b", headBranch, "FETCH_HEAD"]);
+            }
+          } else if (headBranch) {
             const existingBranch = NodeChildProcess.spawnSync(
               "git",
               ["show-ref", "--verify", "--quiet", `refs/heads/${headBranch}`],
@@ -906,6 +950,12 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         VcsStatusBroadcaster.layer.pipe(
           Layer.provide(
             Layer.succeed(
+              VcsStatusBroadcaster.VcsAutomaticFetchInterval,
+              Effect.succeed(Duration.seconds(1)),
+            ),
+          ),
+          Layer.provide(
+            Layer.succeed(
               GitWorkflowService.GitWorkflowService,
               Context.get(workflowContext, GitWorkflowService.GitWorkflowService),
             ),
@@ -929,10 +979,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       let snapshotCount = 0;
       for (const cwd of [repoDir, worktreeDir]) {
         yield* Stream.runForEach(
-          broadcaster.streamStatus(
-            { cwd, includeRemote: false },
-            { automaticRemoteRefreshInterval: Effect.succeed(Duration.seconds(1)) },
-          ),
+          broadcaster.streamStatus({ cwd, includeRemote: false }),
           (event) => {
             if (
               cwd === worktreeDir &&
@@ -996,7 +1043,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 13,
                 title: "Existing PR",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/13",
+                url: "https://github.com/supabitapp/supaterm/pull/13",
                 baseRefName: "main",
                 headRefName: "feature/status-open-pr",
                 isDraft: true,
@@ -1014,7 +1061,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       expect(status.pr).toEqual({
         number: 13,
         title: "Existing PR",
-        url: "https://github.com/pingdotgg/codething-mvp/pull/13",
+        url: "https://github.com/supabitapp/supaterm/pull/13",
         baseRef: "main",
         headRef: "feature/status-open-pr",
         state: "open",
@@ -1040,7 +1087,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 14,
                 title: "  Existing PR title  \n",
-                url: " https://github.com/pingdotgg/codething-mvp/pull/14 ",
+                url: " https://github.com/supabitapp/supaterm/pull/14 ",
                 baseRefName: " main ",
                 headRefName: "\tfeature/status-trimmed-pr\t",
               },
@@ -1054,7 +1101,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       expect(status.pr).toEqual({
         number: 14,
         title: "Existing PR title",
-        url: "https://github.com/pingdotgg/codething-mvp/pull/14",
+        url: "https://github.com/supabitapp/supaterm/pull/14",
         baseRef: "main",
         headRef: "feature/status-trimmed-pr",
         state: "open",
@@ -1079,14 +1126,14 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 0,
                 title: "invalid",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/0",
+                url: "https://github.com/supabitapp/supaterm/pull/0",
                 baseRefName: "main",
                 headRefName: "feature/invalid",
               },
               {
                 number: 15,
                 title: "  Valid PR title  ",
-                url: " https://github.com/pingdotgg/codething-mvp/pull/15 ",
+                url: " https://github.com/supabitapp/supaterm/pull/15 ",
                 baseRefName: " main ",
                 headRefName: "\tfeature/status-valid-pr-entry\t",
                 headRepository: {
@@ -1106,7 +1153,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       expect(status.pr).toEqual({
         number: 15,
         title: "Valid PR title",
-        url: "https://github.com/pingdotgg/codething-mvp/pull/15",
+        url: "https://github.com/supabitapp/supaterm/pull/15",
         baseRef: "main",
         headRef: "feature/status-valid-pr-entry",
         state: "open",
@@ -1131,7 +1178,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 16,
                 title: "Closed PR",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/16",
+                url: "https://github.com/supabitapp/supaterm/pull/16",
                 baseRefName: "main",
                 headRefName: "feature/status-lowercase-state",
                 state: "closed",
@@ -1140,7 +1187,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 17,
                 title: "Merged PR",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/17",
+                url: "https://github.com/supabitapp/supaterm/pull/17",
                 baseRefName: "main",
                 headRefName: "feature/status-lowercase-state",
                 state: "merged",
@@ -1156,7 +1203,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       expect(status.pr).toEqual({
         number: 17,
         title: "Merged PR",
-        url: "https://github.com/pingdotgg/codething-mvp/pull/17",
+        url: "https://github.com/supabitapp/supaterm/pull/17",
         baseRef: "main",
         headRef: "feature/status-lowercase-state",
         state: "merged",
@@ -1234,7 +1281,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       const existingPr = {
         number: 113,
         title: "Cached PR",
-        url: "https://github.com/pingdotgg/codething-mvp/pull/113",
+        url: "https://github.com/supabitapp/supaterm/pull/113",
         baseRefName: "main",
         headRefName: "feature/status-cache",
       };
@@ -1296,7 +1343,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 230,
                 title: "Warm PR",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/230",
+                url: "https://github.com/supabitapp/supaterm/pull/230",
                 baseRefName: "main",
                 headRefName: "feature/warm-pr",
                 state: "OPEN",
@@ -1338,7 +1385,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
             {
               number,
               title: headRefName,
-              url: `https://github.com/pingdotgg/codething-mvp/pull/${number}`,
+              url: `https://github.com/supabitapp/supaterm/pull/${number}`,
               baseRefName: "main",
               headRefName,
               state: "OPEN",
@@ -1390,7 +1437,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           {
             number,
             title: headRefName,
-            url: `https://github.com/pingdotgg/codething-mvp/pull/${number}`,
+            url: `https://github.com/supabitapp/supaterm/pull/${number}`,
             baseRefName: "main",
             headRefName,
             state: "OPEN",
@@ -1446,7 +1493,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 114,
                 title: "Opened during the turn",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/114",
+                url: "https://github.com/supabitapp/supaterm/pull/114",
                 baseRefName: "main",
                 headRefName: "feature/turn-refresh",
               },
@@ -1547,7 +1594,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 216,
                 title: "Saved branch PR",
-                url: "https://github.com/supabitapp/supacode-next/pull/216",
+                url: "https://github.com/supabitapp/supaterm/pull/216",
                 baseRefName: "main",
                 headRefName: "feature/saved-branch",
                 headRefOid: "a".repeat(40),
@@ -1567,7 +1614,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       expect(pullRequest).toMatchObject({
         number: 216,
         title: "Saved branch PR",
-        url: "https://github.com/supabitapp/supacode-next/pull/216",
+        url: "https://github.com/supabitapp/supaterm/pull/216",
         baseRef: "main",
         headRef: "feature/saved-branch",
         headSha: "a".repeat(40),
@@ -1599,7 +1646,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 221,
                 title: "Merged main PR",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/221",
+                url: "https://github.com/supabitapp/supaterm/pull/221",
                 baseRefName: "develop",
                 headRefName: "main",
                 state: "MERGED",
@@ -1648,7 +1695,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 217,
                 title: "Deleted local branch PR",
-                url: "https://github.com/supabitapp/supacode-next/pull/217",
+                url: "https://github.com/supabitapp/supaterm/pull/217",
                 baseRefName: "main",
                 headRefName: "feature/deleted-local-branch",
                 state: "MERGED",
@@ -1692,13 +1739,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       yield* configureVisibleRemoteUrlWithLocalRewrite(
         repoDir,
         "origin",
-        "git@github.com:pingdotgg/codething-mvp.git",
+        "git@github.com:supabitapp/supaterm.git",
         originDir,
       );
       yield* configureVisibleRemoteUrlWithLocalRewrite(
         repoDir,
         "team/fork",
-        "git@github.com:contributor/codething-mvp.git",
+        "git@github.com:contributor/supaterm.git",
         forkDir,
       );
 
@@ -1709,13 +1756,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 218,
                 title: "Deleted fork branch PR",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/218",
+                url: "https://github.com/supabitapp/supaterm/pull/218",
                 baseRefName: "main",
                 headRefName: "feature/deleted-fork-branch",
                 state: "MERGED",
                 updatedAt: "2026-04-05T15:00:00Z",
                 isCrossRepository: true,
-                headRepository: { nameWithOwner: "contributor/codething-mvp" },
+                headRepository: { nameWithOwner: "contributor/supaterm" },
                 headRepositoryOwner: { login: "contributor" },
               },
             ]),
@@ -1782,13 +1829,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       yield* configureVisibleRemoteUrlWithLocalRewrite(
         repoDir,
         "origin",
-        "git@github.com:pingdotgg/codething-mvp.git",
+        "git@github.com:supabitapp/supaterm.git",
         originDir,
       );
       yield* configureVisibleRemoteUrlWithLocalRewrite(
         repoDir,
         "fork",
-        "git@github.com:contributor/codething-mvp.git",
+        "git@github.com:contributor/supaterm.git",
         forkDir,
       );
 
@@ -1798,23 +1845,23 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
             {
               number: 40,
               title: "Another fork's PR",
-              url: "https://github.com/pingdotgg/codething-mvp/pull/40",
+              url: "https://github.com/supabitapp/supaterm/pull/40",
               baseRefName: "main",
               headRefName: "feature/no-upstream-fork",
               state: "OPEN",
               isCrossRepository: true,
-              headRepository: { nameWithOwner: "someone-else/codething-mvp" },
+              headRepository: { nameWithOwner: "someone-else/supaterm" },
               headRepositoryOwner: { login: "someone-else" },
             },
             {
               number: 41,
               title: "Our fork's PR",
-              url: "https://github.com/pingdotgg/codething-mvp/pull/41",
+              url: "https://github.com/supabitapp/supaterm/pull/41",
               baseRefName: "main",
               headRefName: "feature/no-upstream-fork",
               state: "OPEN",
               isCrossRepository: true,
-              headRepository: { nameWithOwner: "contributor/codething-mvp" },
+              headRepository: { nameWithOwner: "contributor/supaterm" },
               headRepositoryOwner: { login: "contributor" },
             },
           ]),
@@ -1896,19 +1943,19 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       yield* configureVisibleRemoteUrlWithLocalRewrite(
         repoDir,
         "origin",
-        "git@github.com:pingdotgg/codething-mvp.git",
+        "git@github.com:supabitapp/supaterm.git",
         originDir,
       );
       yield* configureVisibleRemoteUrlWithLocalRewrite(
         repoDir,
         "first-fork",
-        "git@github.com:contributor/codething-mvp.git",
+        "git@github.com:contributor/supaterm.git",
         firstForkDir,
       );
       yield* configureVisibleRemoteUrlWithLocalRewrite(
         repoDir,
         "second-fork",
-        "git@github.com:someone-else/codething-mvp.git",
+        "git@github.com:someone-else/supaterm.git",
         secondForkDir,
       );
 
@@ -1918,12 +1965,12 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
             {
               number: 41,
               title: "One fork's PR",
-              url: "https://github.com/pingdotgg/codething-mvp/pull/41",
+              url: "https://github.com/supabitapp/supaterm/pull/41",
               baseRefName: "main",
               headRefName: "feature/ambiguous-fork",
               state: "OPEN",
               isCrossRepository: true,
-              headRepository: { nameWithOwner: "contributor/codething-mvp" },
+              headRepository: { nameWithOwner: "contributor/supaterm" },
               headRepositoryOwner: { login: "contributor" },
             },
           ]),
@@ -1986,13 +2033,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       yield* configureVisibleRemoteUrlWithLocalRewrite(
         repoDir,
         "origin",
-        "git@github.com:pingdotgg/codething-mvp.git",
+        "git@github.com:supabitapp/supaterm.git",
         originDir,
       );
       yield* configureVisibleRemoteUrlWithLocalRewrite(
         repoDir,
         "fork",
-        "git@github.com:contributor/codething-mvp.git",
+        "git@github.com:contributor/supaterm.git",
         forkDir,
       );
 
@@ -2002,12 +2049,12 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
             {
               number: 43,
               title: "Failed probe PR",
-              url: "https://github.com/pingdotgg/codething-mvp/pull/43",
+              url: "https://github.com/supabitapp/supaterm/pull/43",
               baseRefName: "main",
               headRefName: "feature/failed-probe",
               state: "OPEN",
               isCrossRepository: true,
-              headRepository: { nameWithOwner: "contributor/codething-mvp" },
+              headRepository: { nameWithOwner: "contributor/supaterm" },
               headRepositoryOwner: { login: "contributor" },
             },
           ]),
@@ -2034,13 +2081,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       yield* configureVisibleRemoteUrlWithLocalRewrite(
         repoDir,
         "origin",
-        "git@github.com:pingdotgg/codething-mvp.git",
+        "git@github.com:supabitapp/supaterm.git",
         originDir,
       );
       yield* configureVisibleRemoteUrlWithLocalRewrite(
         repoDir,
         "team/fork",
-        "git@github.com:contributor/codething-mvp.git",
+        "git@github.com:contributor/supaterm.git",
         forkDir,
       );
 
@@ -2051,12 +2098,12 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 42,
                 title: "Slash remote PR",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/42",
+                url: "https://github.com/supabitapp/supaterm/pull/42",
                 baseRefName: "main",
                 headRefName: "feature/slash-remote",
                 state: "OPEN",
                 isCrossRepository: true,
-                headRepository: { nameWithOwner: "contributor/codething-mvp" },
+                headRepository: { nameWithOwner: "contributor/supaterm" },
                 headRepositoryOwner: { login: "contributor" },
               },
             ]),
@@ -2143,7 +2190,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 220,
                 title: "Shared cache PR",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/220",
+                url: "https://github.com/supabitapp/supaterm/pull/220",
                 baseRefName: "main",
                 headRefName: "feature/shared-pr-cache",
                 headRefOid: "a".repeat(40),
@@ -2155,7 +2202,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 221,
                 title: "New PR on the same branch",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/221",
+                url: "https://github.com/supabitapp/supaterm/pull/221",
                 baseRefName: "main",
                 headRefName: "feature/shared-pr-cache",
                 headRefOid: "b".repeat(40),
@@ -2185,7 +2232,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         number: 221,
         state: "open",
         headSha: "b".repeat(40),
-        repositoryKey: "github.com/pingdotgg/codething-mvp",
+        repositoryKey: "github.com/supabitapp/supaterm",
       });
       expect(ghCalls.filter((call) => call.startsWith("pr list "))).toHaveLength(2);
     }),
@@ -2204,7 +2251,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       const pullRequest = (number: number, headRefName: string, state: string) => ({
         number,
         title: headRefName,
-        url: `https://github.com/pingdotgg/codething-mvp/pull/${number}`,
+        url: `https://github.com/supabitapp/supaterm/pull/${number}`,
         baseRefName: "main",
         headRefName,
         state,
@@ -2260,7 +2307,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
             {
               number,
               title: headRefName,
-              url: `https://github.com/pingdotgg/codething-mvp/pull/${number}`,
+              url: `https://github.com/supabitapp/supaterm/pull/${number}`,
               baseRefName: "main",
               headRefName,
               state,
@@ -2289,8 +2336,8 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
 
         const announced = yield* Stream.runCollect(Stream.take(changes, 2));
         expect(announced).toEqual([
-          { host: "github.com", repository: "pingdotgg/codething-mvp", number: 402 },
-          { host: "github.com", repository: "pingdotgg/codething-mvp", number: 401 },
+          { host: "github.com", repository: "supabitapp/supaterm", number: 402 },
+          { host: "github.com", repository: "supabitapp/supaterm", number: 401 },
         ]);
       }),
     ),
@@ -2367,7 +2414,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 215,
                 title: "Merged branch was deleted",
-                url: "https://github.com/supabitapp/supacode-next/pull/215",
+                url: "https://github.com/supabitapp/supaterm/pull/215",
                 baseRefName: "main",
                 headRefName: "feature/merged-branch-deleted",
                 state: "MERGED",
@@ -2385,7 +2432,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       expect(status.pr).toEqual({
         number: 215,
         title: "Merged branch was deleted",
-        url: "https://github.com/supabitapp/supacode-next/pull/215",
+        url: "https://github.com/supabitapp/supaterm/pull/215",
         baseRef: "main",
         headRef: "feature/merged-branch-deleted",
         state: "merged",
@@ -2412,7 +2459,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 214,
                 title: "Pushed without upstream",
-                url: "https://github.com/supabitapp/supacode-next/pull/214",
+                url: "https://github.com/supabitapp/supaterm/pull/214",
                 baseRefName: "main",
                 headRefName: "feature/pushed-no-upstream",
                 state: "OPEN",
@@ -2587,7 +2634,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       const provider = yield* GitLabSourceControlProvider.make.pipe(
         Effect.provide(
           GitLabCli.layer.pipe(
-            Layer.provide(
+            Layer.provideMerge(
               TestSourceControlHost.layer({
                 process: {
                   run: (input) =>
@@ -2642,7 +2689,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 1661,
                   title: "Fork PR from main",
-                  url: "https://github.com/supabitapp/supacode-next/pull/1661",
+                  url: "https://github.com/supabitapp/supaterm/pull/1661",
                   baseRefName: "main",
                   headRefName: "main",
                   state: "OPEN",
@@ -2679,7 +2726,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           "remote",
           "add",
           "origin",
-          "git@github.com:pingdotgg/codething-mvp.git",
+          "git@github.com:supabitapp/supaterm.git",
         ]);
         yield* runGit(repoDir, ["checkout", "-b", "statemachine"]);
         NodeFS.writeFileSync(NodePath.join(repoDir, "fork-pr.txt"), "fork pr\n");
@@ -2691,7 +2738,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         yield* configureVisibleRemoteUrlWithLocalRewrite(
           repoDir,
           "fork-seed",
-          "git@github.com:jasonLaster/codething-mvp.git",
+          "git@github.com:jasonLaster/supaterm.git",
           forkDir,
         );
 
@@ -2702,14 +2749,14 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 488,
                   title: "Rebase this PR on latest main",
-                  url: "https://github.com/pingdotgg/codething-mvp/pull/488",
+                  url: "https://github.com/supabitapp/supaterm/pull/488",
                   baseRefName: "main",
                   headRefName: "statemachine",
                   state: "OPEN",
                   updatedAt: "2026-03-10T07:00:00Z",
                   isCrossRepository: true,
                   headRepository: {
-                    nameWithOwner: "jasonLaster/codething-mvp",
+                    nameWithOwner: "jasonLaster/supaterm",
                   },
                   headRepositoryOwner: {
                     login: "jasonLaster",
@@ -2725,7 +2772,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         expect(status.pr).toEqual({
           number: 488,
           title: "Rebase this PR on latest main",
-          url: "https://github.com/pingdotgg/codething-mvp/pull/488",
+          url: "https://github.com/supabitapp/supaterm/pull/488",
           baseRef: "main",
           headRef: "statemachine",
           state: "open",
@@ -2756,7 +2803,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         yield* configureVisibleRemoteUrlWithLocalRewrite(
           repoDir,
           "fork-seed",
-          "git@github.com:contributor/codething-mvp.git",
+          "git@github.com:contributor/supaterm.git",
           forkDir,
         );
 
@@ -2767,14 +2814,14 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 777,
                   title: "Fork PR from main",
-                  url: "https://github.com/pingdotgg/codething-mvp/pull/777",
+                  url: "https://github.com/supabitapp/supaterm/pull/777",
                   baseRefName: "main",
                   headRefName: "main",
                   state: "OPEN",
                   updatedAt: "2026-03-10T07:00:00Z",
                   isCrossRepository: true,
                   headRepository: {
-                    nameWithOwner: "contributor/codething-mvp",
+                    nameWithOwner: "contributor/supaterm",
                   },
                   headRepositoryOwner: {
                     login: "contributor",
@@ -2790,7 +2837,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         expect(status.pr).toEqual({
           number: 777,
           title: "Fork PR from main",
-          url: "https://github.com/pingdotgg/codething-mvp/pull/777",
+          url: "https://github.com/supabitapp/supaterm/pull/777",
           baseRef: "main",
           headRef: "main",
           state: "open",
@@ -2820,14 +2867,14 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         yield* configureVisibleRemoteUrlWithLocalRewrite(
           repoDir,
           "origin",
-          "git@github.com:pingdotgg/codething-mvp.git",
+          "git@github.com:supabitapp/supaterm.git",
           originDir,
         );
         yield* runGit(repoDir, ["config", "remote.origin.pushurl", originDir]);
         yield* configureVisibleRemoteUrlWithLocalRewrite(
           repoDir,
           "my-org/upstream",
-          "ssh://git@github.com/pingdotgg/codething-mvp.git",
+          "ssh://git@github.com/supabitapp/supaterm.git",
           upstreamDir,
         );
         yield* runGit(repoDir, ["config", "remote.my-org/upstream.pushurl", upstreamDir]);
@@ -2842,7 +2889,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 1618,
                   title: "Correct PR",
-                  url: "https://github.com/supabitapp/supacode-next/pull/1618",
+                  url: "https://github.com/supabitapp/supaterm/pull/1618",
                   baseRefName: "main",
                   headRefName: "effect-atom",
                   state: "OPEN",
@@ -2853,7 +2900,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 1518,
                   title: "Wrong PR",
-                  url: "https://github.com/supabitapp/supacode-next/pull/1518",
+                  url: "https://github.com/supabitapp/supaterm/pull/1518",
                   baseRefName: "main",
                   headRefName: "upstream/effect-atom",
                   state: "OPEN",
@@ -2869,7 +2916,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         expect(status.pr).toEqual({
           number: 1618,
           title: "Correct PR",
-          url: "https://github.com/supabitapp/supacode-next/pull/1618",
+          url: "https://github.com/supabitapp/supaterm/pull/1618",
           baseRef: "main",
           headRef: "effect-atom",
           state: "open",
@@ -2879,7 +2926,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           false,
         );
         expect(
-          ghCalls.some((call) => call.includes("pr list --head pingdotgg:upstream/effect-atom ")),
+          ghCalls.some((call) => call.includes("pr list --head supabitapp:upstream/effect-atom ")),
         ).toBe(false);
         expect(
           ghCalls.some((call) =>
@@ -2903,7 +2950,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 22,
                 title: "Merged PR",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/22",
+                url: "https://github.com/supabitapp/supaterm/pull/22",
                 baseRefName: "main",
                 headRefName: "feature/status-merged-pr",
                 state: "MERGED",
@@ -2920,7 +2967,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       expect(status.pr).toEqual({
         number: 22,
         title: "Merged PR",
-        url: "https://github.com/pingdotgg/codething-mvp/pull/22",
+        url: "https://github.com/supabitapp/supaterm/pull/22",
         baseRef: "main",
         headRef: "feature/status-merged-pr",
         state: "merged",
@@ -2941,7 +2988,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 23,
                 title: "Merged PR",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/23",
+                url: "https://github.com/supabitapp/supaterm/pull/23",
                 baseRefName: "feature/status-default-branch-target",
                 headRefName: "main",
                 state: "MERGED",
@@ -2976,7 +3023,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 54,
                 title: "Reverse merge from main",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/54",
+                url: "https://github.com/supabitapp/supaterm/pull/54",
                 baseRefName: "je-filter-list",
                 headRefName: "main",
                 state: "MERGED",
@@ -3013,7 +3060,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 88,
                 title: "Pushed without -u",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/88",
+                url: "https://github.com/supabitapp/supaterm/pull/88",
                 baseRefName: "main",
                 headRefName: "feature/pushed-plain",
                 state: "OPEN",
@@ -3048,13 +3095,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         yield* configureVisibleRemoteUrlWithLocalRewrite(
           repoDir,
           "origin",
-          "git@github.com:pingdotgg/codething-mvp.git",
+          "git@github.com:supabitapp/supaterm.git",
           originDir,
         );
         yield* configureVisibleRemoteUrlWithLocalRewrite(
           repoDir,
           "team/fork",
-          "git@github.com:contributor/codething-mvp.git",
+          "git@github.com:contributor/supaterm.git",
           forkDir,
         );
 
@@ -3065,13 +3112,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 89,
                   title: "Fork PR pushed without -u",
-                  url: "https://github.com/pingdotgg/codething-mvp/pull/89",
+                  url: "https://github.com/supabitapp/supaterm/pull/89",
                   baseRefName: "main",
                   headRefName: "feature/fork-plain",
                   state: "OPEN",
                   updatedAt: "2026-05-01T10:00:00Z",
                   isCrossRepository: true,
-                  headRepository: { nameWithOwner: "contributor/codething-mvp" },
+                  headRepository: { nameWithOwner: "contributor/supaterm" },
                   headRepositoryOwner: { login: "contributor" },
                 },
               ]),
@@ -3102,13 +3149,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       yield* configureVisibleRemoteUrlWithLocalRewrite(
         repoDir,
         "origin",
-        "git@github.com:pingdotgg/codething-mvp.git",
+        "git@github.com:supabitapp/supaterm.git",
         originDir,
       );
       yield* configureVisibleRemoteUrlWithLocalRewrite(
         repoDir,
         "team/fork",
-        "git@github.com:contributor/codething-mvp.git",
+        "git@github.com:contributor/supaterm.git",
         forkDir,
       );
 
@@ -3119,13 +3166,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 91,
                 title: "Fork PR to settle",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/91",
+                url: "https://github.com/supabitapp/supaterm/pull/91",
                 baseRefName: "main",
                 headRefName: "feature/fork-settle",
                 state: "MERGED",
                 updatedAt: "2026-05-02T10:00:00Z",
                 isCrossRepository: true,
-                headRepository: { nameWithOwner: "contributor/codething-mvp" },
+                headRepository: { nameWithOwner: "contributor/supaterm" },
                 headRepositoryOwner: { login: "contributor" },
               },
             ]),
@@ -3165,7 +3212,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 90,
                 title: "Sticky own-name PR",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/90",
+                url: "https://github.com/supabitapp/supaterm/pull/90",
                 baseRefName: "main",
                 headRefName: "feature/sticky-plain",
                 state: "OPEN",
@@ -3201,7 +3248,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 45,
                 title: "Merged PR",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/45",
+                url: "https://github.com/supabitapp/supaterm/pull/45",
                 baseRefName: "main",
                 headRefName: "feature/status-open-over-merged",
                 state: "MERGED",
@@ -3211,7 +3258,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 46,
                 title: "Open PR",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/46",
+                url: "https://github.com/supabitapp/supaterm/pull/46",
                 baseRefName: "main",
                 headRefName: "feature/status-open-over-merged",
                 state: "OPEN",
@@ -3227,7 +3274,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       expect(status.pr).toEqual({
         number: 46,
         title: "Open PR",
-        url: "https://github.com/pingdotgg/codething-mvp/pull/46",
+        url: "https://github.com/supabitapp/supaterm/pull/46",
         baseRef: "main",
         headRef: "feature/status-open-over-merged",
         state: "open",
@@ -3317,7 +3364,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       const existingPr = {
         number: 214,
         title: "Sticky PR",
-        url: "https://github.com/pingdotgg/codething-mvp/pull/214",
+        url: "https://github.com/supabitapp/supaterm/pull/214",
         baseRefName: "main",
         headRefName: "feature/pr-sticky",
       };
@@ -3354,7 +3401,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         const existingPr = {
           number: 214,
           title: "Sticky PR",
-          url: "https://github.com/pingdotgg/codething-mvp/pull/214",
+          url: "https://github.com/supabitapp/supaterm/pull/214",
           baseRefName: "main",
           headRefName: "feature/pr-retarget",
         };
@@ -3396,7 +3443,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       const existingPr = {
         number: 215,
         title: "Sticky first-push PR",
-        url: "https://github.com/pingdotgg/codething-mvp/pull/215",
+        url: "https://github.com/supabitapp/supaterm/pull/215",
         baseRefName: "main",
         headRefName: "feature/pr-sticky-first-push",
       };
@@ -3432,7 +3479,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       const existingPr = {
         number: 216,
         title: "Old remote PR",
-        url: "https://github.com/pingdotgg/codething-mvp/pull/216",
+        url: "https://github.com/supabitapp/supaterm/pull/216",
         baseRefName: "main",
         headRefName: "feature/pr-repointed",
       };
@@ -3471,7 +3518,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       const existingPr = {
         number: 217,
         title: "Config hiccup PR",
-        url: "https://github.com/pingdotgg/codething-mvp/pull/217",
+        url: "https://github.com/supabitapp/supaterm/pull/217",
         baseRefName: "main",
         headRefName: "feature/pr-config-hiccup",
       };
@@ -4112,7 +4159,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 77,
                   title: "Add no-upstream PR flow",
-                  url: "https://github.com/pingdotgg/codething-mvp/pull/77",
+                  url: "https://github.com/supabitapp/supaterm/pull/77",
                   baseRefName: "main",
                   headRefName: "feature/no-upstream-pr",
                 },
@@ -4255,7 +4302,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 303,
                 title: "Create PR only branch",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/303",
+                url: "https://github.com/supabitapp/supaterm/pull/303",
                 baseRefName: "main",
                 headRefName: "feature/create-pr-only",
               },
@@ -4309,7 +4356,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 404,
                 title: "Provider fallback",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/404",
+                url: "https://github.com/supabitapp/supaterm/pull/404",
                 baseRefName: "main",
                 headRefName: "feature/provider-fallback",
               },
@@ -4359,7 +4406,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 505,
                 title: "Master default",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/505",
+                url: "https://github.com/supabitapp/supaterm/pull/505",
                 baseRefName: "master",
                 headRefName: "feature/master-default",
               },
@@ -4398,7 +4445,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 42,
                 title: "Existing PR",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/42",
+                url: "https://github.com/supabitapp/supaterm/pull/42",
                 baseRefName: "main",
                 headRefName: "feature/existing-pr",
               },
@@ -4420,7 +4467,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         cta: {
           kind: "open_pr",
           label: "View PR",
-          url: "https://github.com/pingdotgg/codething-mvp/pull/42",
+          url: "https://github.com/supabitapp/supaterm/pull/42",
         },
       });
       expect(ghCalls.some((call) => call.startsWith("pr view "))).toBe(false);
@@ -4441,13 +4488,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           "remote",
           "add",
           "origin",
-          "git@github.com:pingdotgg/codething-mvp.git",
+          "git@github.com:supabitapp/supaterm.git",
         ]);
         yield* runGit(repoDir, ["push", "-u", "fork-seed", "statemachine"]);
         yield* configureVisibleRemoteUrlWithLocalRewrite(
           repoDir,
           "fork-seed",
-          "git@github.com:octocat/codething-mvp.git",
+          "git@github.com:octocat/supaterm.git",
           forkDir,
         );
 
@@ -4458,13 +4505,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 142,
                   title: "Existing fork PR",
-                  url: "https://github.com/pingdotgg/codething-mvp/pull/142",
+                  url: "https://github.com/supabitapp/supaterm/pull/142",
                   baseRefName: "main",
                   headRefName: "statemachine",
                   state: "OPEN",
                   isCrossRepository: true,
                   headRepository: {
-                    nameWithOwner: "octocat/codething-mvp",
+                    nameWithOwner: "octocat/supaterm",
                   },
                   headRepositoryOwner: {
                     login: "octocat",
@@ -4493,31 +4540,31 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
   );
 
   it.effect.each([
-    { remoteUrl: "git@github.com:pingdotgg/codething-mvp.git", ghRepo: null, ghResolved: null },
+    { remoteUrl: "git@github.com:supabitapp/supaterm.git", ghRepo: null, ghResolved: null },
     {
-      remoteUrl: "git@github.com:pingdotgg/codething-mvp.git",
-      ghRepo: "https://github.com/pingdotgg/codething-mvp?tab=readme#readme",
+      remoteUrl: "git@github.com:supabitapp/supaterm.git",
+      ghRepo: "https://github.com/supabitapp/supaterm?tab=readme#readme",
       ghResolved: null,
     },
     {
-      remoteUrl: "https://github.example.com:8443/pingdotgg/codething-mvp.git",
-      ghRepo: "https://github.example.com:8443/pingdotgg/codething-mvp",
+      remoteUrl: "https://github.example.com:8443/supabitapp/supaterm.git",
+      ghRepo: "https://github.example.com:8443/supabitapp/supaterm",
       ghResolved: null,
     },
 
     {
-      remoteUrl: "https://gitlab.example.com:8443/pingdotgg/codething-mvp.git",
+      remoteUrl: "https://gitlab.example.com:8443/supabitapp/supaterm.git",
       ghRepo: null,
       ghResolved: null,
     },
 
     {
-      remoteUrl: "https://github.example.com:8443/pingdotgg/codething-mvp.git",
+      remoteUrl: "https://github.example.com:8443/supabitapp/supaterm.git",
       ghRepo: null,
       ghResolved: "acme/demo",
     },
     {
-      remoteUrl: "https://github.example.com:8443/pingdotgg/codething-mvp.git",
+      remoteUrl: "https://github.example.com:8443/supabitapp/supaterm.git",
       ghRepo: "base",
       ghResolved: "acme/demo",
     },
@@ -4545,13 +4592,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 3,
                   title: "Dev",
-                  url: "https://github.com/pingdotgg/codething-mvp/pull/3",
+                  url: "https://github.com/supabitapp/supaterm/pull/3",
                   baseRefName: "main",
                   headRefName: "dev",
                   state: "OPEN",
                   isCrossRepository: false,
-                  headRepository: { nameWithOwner: "pingdotgg/codething-mvp" },
-                  headRepositoryOwner: { login: "pingdotgg" },
+                  headRepository: { nameWithOwner: "supabitapp/supaterm" },
+                  headRepositoryOwner: { login: "supabitapp" },
                 },
               ]),
             },
@@ -4838,14 +4885,14 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         yield* configureVisibleRemoteUrlWithLocalRewrite(
           repoDir,
           "origin",
-          "git@github.com:pingdotgg/codething-mvp.git",
+          "git@github.com:supabitapp/supaterm.git",
           originDir,
         );
         yield* runGit(repoDir, ["config", "remote.origin.pushurl", originDir]);
         yield* configureVisibleRemoteUrlWithLocalRewrite(
           repoDir,
           "my-org/upstream",
-          "ssh://git@github.com/pingdotgg/codething-mvp.git",
+          "ssh://git@github.com/supabitapp/supaterm.git",
           upstreamDir,
         );
         yield* runGit(repoDir, ["config", "remote.my-org/upstream.pushurl", upstreamDir]);
@@ -4863,7 +4910,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 1618,
                   title: "Correct PR",
-                  url: "https://github.com/supabitapp/supacode-next/pull/1618",
+                  url: "https://github.com/supabitapp/supaterm/pull/1618",
                   baseRefName: "main",
                   headRefName: "effect-atom",
                 },
@@ -4872,7 +4919,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 1518,
                   title: "Wrong PR",
-                  url: "https://github.com/supabitapp/supacode-next/pull/1518",
+                  url: "https://github.com/supabitapp/supaterm/pull/1518",
                   baseRefName: "main",
                   headRefName: "upstream/effect-atom",
                 },
@@ -4909,7 +4956,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           "remote",
           "add",
           "origin",
-          "git@github.com:pingdotgg/codething-mvp.git",
+          "git@github.com:supabitapp/supaterm.git",
         ]);
         yield* runGit(repoDir, ["push", "-u", "fork-seed", "statemachine"]);
         yield* runGit(repoDir, ["checkout", "-b", "supaterm/pr-142/statemachine"]);
@@ -4917,7 +4964,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         yield* configureVisibleRemoteUrlWithLocalRewrite(
           repoDir,
           "fork-seed",
-          "git@github.com:octocat/codething-mvp.git",
+          "git@github.com:octocat/supaterm.git",
           forkDir,
         );
 
@@ -4929,20 +4976,20 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 41,
                   title: "Unrelated same-repo PR",
-                  url: "https://github.com/pingdotgg/codething-mvp/pull/41",
+                  url: "https://github.com/supabitapp/supaterm/pull/41",
                   baseRefName: "main",
                   headRefName: "statemachine",
                 },
                 {
                   number: 142,
                   title: "Existing fork PR",
-                  url: "https://github.com/pingdotgg/codething-mvp/pull/142",
+                  url: "https://github.com/supabitapp/supaterm/pull/142",
                   baseRefName: "main",
                   headRefName: "statemachine",
                   state: "OPEN",
                   isCrossRepository: true,
                   headRepository: {
-                    nameWithOwner: "octocat/codething-mvp",
+                    nameWithOwner: "octocat/supaterm",
                   },
                   headRepositoryOwner: {
                     login: "octocat",
@@ -4982,7 +5029,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           "remote",
           "add",
           "origin",
-          "git@github.com:pingdotgg/codething-mvp.git",
+          "git@github.com:supabitapp/supaterm.git",
         ]);
         yield* runGit(repoDir, ["push", "-u", "fork-seed", "statemachine"]);
         yield* runGit(repoDir, ["checkout", "-b", "supaterm/pr-142/statemachine"]);
@@ -4990,7 +5037,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         yield* configureVisibleRemoteUrlWithLocalRewrite(
           repoDir,
           "fork-seed",
-          "git@github.com:octocat/codething-mvp.git",
+          "git@github.com:octocat/supaterm.git",
           forkDir,
         );
 
@@ -5001,13 +5048,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 142,
                   title: "Existing fork PR",
-                  url: "https://github.com/pingdotgg/codething-mvp/pull/142",
+                  url: "https://github.com/supabitapp/supaterm/pull/142",
                   baseRefName: "main",
                   headRefName: "statemachine",
                   state: "OPEN",
                   isCrossRepository: true,
                   headRepository: {
-                    nameWithOwner: "octocat/codething-mvp",
+                    nameWithOwner: "octocat/supaterm",
                   },
                   headRepositoryOwner: {
                     login: "octocat",
@@ -5050,21 +5097,21 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           "remote",
           "add",
           "origin",
-          "git@github.com:pingdotgg/codething-mvp.git",
+          "git@github.com:supabitapp/supaterm.git",
         ]);
         yield* runGit(repoDir, ["push", "-u", "fork-seed", "statemachine"]);
         yield* runGit(repoDir, [
           "config",
           "remote.fork-seed.url",
-          "git@github.com:octocat/codething-mvp.git",
+          "git@github.com:octocat/supaterm.git",
         ]);
 
         const { manager, ghCalls } = yield* makeManager({
           ghScenario: {
             prListSequenceByHeadSelector: {
               statemachine: [
-                `[{"number":41,"title":"Ambiguous fork PR","url":"https://github.com/pingdotgg/codething-mvp/pull/41","baseRefName":"main","headRefName":"statemachine","state":"OPEN"}]`,
-                `[{"number":142,"title":"Add stacked git actions","url":"https://github.com/pingdotgg/codething-mvp/pull/142","baseRefName":"main","headRefName":"statemachine","state":"OPEN","isCrossRepository":true,"headRepository":{"nameWithOwner":"octocat/codething-mvp"},"headRepositoryOwner":{"login":"octocat"}}]`,
+                `[{"number":41,"title":"Ambiguous fork PR","url":"https://github.com/supabitapp/supaterm/pull/41","baseRefName":"main","headRefName":"statemachine","state":"OPEN"}]`,
+                `[{"number":142,"title":"Add stacked git actions","url":"https://github.com/supabitapp/supaterm/pull/142","baseRefName":"main","headRefName":"statemachine","state":"OPEN","isCrossRepository":true,"headRepository":{"nameWithOwner":"octocat/supaterm"},"headRepositoryOwner":{"login":"octocat"}}]`,
               ],
             },
           },
@@ -5149,8 +5196,8 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
     Effect.sync(() => {
       const headContext = {
         headBranch: "statemachine",
-        headRepositoryNameWithOwner: "pingdotgg/codething-mvp",
-        headRepositoryOwnerLogin: "pingdotgg",
+        headRepositoryNameWithOwner: "supabitapp/supaterm",
+        headRepositoryOwnerLogin: "supabitapp",
         isCrossRepository: true,
       };
 
@@ -5159,14 +5206,14 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           {
             number: 41,
             title: "Same-repo PR",
-            url: "https://github.com/pingdotgg/codething-mvp/pull/41",
+            url: "https://github.com/supabitapp/supaterm/pull/41",
             baseRefName: "main",
             headRefName: "statemachine",
             state: "open",
             updatedAt: Option.none(),
             isCrossRepository: false,
-            headRepositoryNameWithOwner: "pingdotgg/codething-mvp",
-            headRepositoryOwnerLogin: "pingdotgg",
+            headRepositoryNameWithOwner: "supabitapp/supaterm",
+            headRepositoryOwnerLogin: "supabitapp",
           },
           headContext,
         ),
@@ -5177,14 +5224,14 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           {
             number: 142,
             title: "Fork PR",
-            url: "https://github.com/pingdotgg/codething-mvp/pull/142",
+            url: "https://github.com/supabitapp/supaterm/pull/142",
             baseRefName: "main",
             headRefName: "statemachine",
             state: "open",
             updatedAt: Option.none(),
             isCrossRepository: true,
-            headRepositoryNameWithOwner: "pingdotgg/codething-mvp",
-            headRepositoryOwnerLogin: "pingdotgg",
+            headRepositoryNameWithOwner: "supabitapp/supaterm",
+            headRepositoryOwnerLogin: "supabitapp",
           },
           headContext,
         ),
@@ -5206,7 +5253,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           {
             number: 2284,
             title: "Improve branch mismatch warnings",
-            url: "https://github.com/supabitapp/supacode-next/pull/2284",
+            url: "https://github.com/supabitapp/supaterm/pull/2284",
             baseRefName: "main",
             headRefName: "supaterm/git-audit-stability",
             state: "open",
@@ -5242,6 +5289,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       yield* runGit(repoDir, ["config", "branch.feature-create-pr.gh-merge-base", "main"]);
       let generatedPolicy: TextGeneration.PrContentGenerationInput["policy"] = undefined;
       let generatedChangeRequestTemplate: string | undefined;
+      let generatedThreadContext: string | undefined;
 
       const { manager, ghCalls } = yield* makeManager({
         serverSettings: {
@@ -5254,6 +5302,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           generatePrContent: (input) => {
             generatedPolicy = input.policy;
             generatedChangeRequestTemplate = input.changeRequestTemplate;
+            generatedThreadContext = input.threadContext;
             return Effect.succeed({
               title: "Add stacked git actions",
               body: "## What changed?\nAdded stacked git actions.",
@@ -5267,7 +5316,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 88,
                 title: "Add stacked git actions",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/88",
+                url: "https://github.com/supabitapp/supaterm/pull/88",
                 baseRefName: "main",
                 headRefName: "feature-create-pr",
               },
@@ -5287,11 +5336,311 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         changeRequestInstructions: "Lead with user impact.",
       });
       expect(generatedChangeRequestTemplate).toBe("## What changed?\n\n## Verification");
+      expect(generatedThreadContext).toBeUndefined();
       expect(ghCalls.filter((call) => call.startsWith("pr list "))).toHaveLength(2);
       expect(
         ghCalls.some((call) => call.includes("pr create --base main --head feature-create-pr")),
       ).toBe(true);
       expect(ghCalls.some((call) => call.startsWith("pr view "))).toBe(false);
+    }),
+  );
+
+  it.effect("create_pr sends bounded checks to the model and omits rolled-back runs", () =>
+    Effect.gen(function* () {
+      const repoDir = yield* makeTempDir("supaterm-git-manager-");
+      yield* initRepo(repoDir);
+      yield* runGit(repoDir, ["checkout", "-b", "feature/thread-context"]);
+      NodeFS.writeFileSync(NodePath.join(repoDir, "thread-context.txt"), "context\n");
+      yield* runGit(repoDir, ["add", "thread-context.txt"]);
+      yield* runGit(repoDir, ["commit", "-m", "Thread context"]);
+      const remoteDir = yield* createBareRemote();
+      yield* runGit(repoDir, ["remote", "add", "origin", remoteDir]);
+      const threadId = ThreadId.make("thread:pr-thread-context");
+      const providerInstanceId = ProviderInstanceId.make("codex");
+      const createdAt = DateTime.makeUnsafe("2026-09-27T00:00:00.000Z");
+      const run = (ordinal: number, status: "completed" | "rolled_back") => ({
+        id: RunId.make(`run:pr-thread-context:${ordinal}`),
+        threadId,
+        ordinal,
+        providerInstanceId,
+        modelSelection: { instanceId: providerInstanceId, model: "gpt-5" },
+        providerThreadId: null,
+        userMessageId: MessageId.make(`message:pr-thread-context:${ordinal}`),
+        rootNodeId: null,
+        activeAttemptId: null,
+        status,
+        requestedAt: createdAt,
+        startedAt: createdAt,
+        completedAt: createdAt,
+        checkpointId: null,
+        contextHandoffId: null,
+      });
+      const itemBase = (ordinal: number, runId: RunId) => ({
+        id: TurnItemId.make(`item:pr-thread-context:${ordinal}`),
+        threadId,
+        runId,
+        nodeId: null,
+        providerThreadId: null,
+        providerTurnId: null,
+        nativeItemRef: null,
+        parentItemId: null,
+        ordinal,
+        status: "completed" as const,
+        title: null,
+        startedAt: createdAt,
+        completedAt: createdAt,
+        updatedAt: createdAt,
+      });
+      let generatedThreadContext: string | undefined;
+      let generatedPrompt = "";
+      const writer = fromRunner("test", (request) => {
+        generatedPrompt = request.prompt;
+        return decodeJsonReply(request, "test", '{"title":"Thread context","body":"Body"}');
+      });
+
+      const { manager } = yield* makeManager({
+        textGeneration: {
+          generatePrContent: (input) => {
+            generatedThreadContext = input.threadContext;
+            return writer.generatePrContent(input);
+          },
+        },
+        seed: Effect.gen(function* () {
+          const store = yield* ProjectionStore.ProjectionStoreV2;
+          const completedRun = run(1, "completed");
+          const abandonedRun = run(2, "rolled_back");
+          yield* store.apply({
+            id: EventId.make("event:pr-thread-context:thread"),
+            type: "thread.created",
+            threadId,
+            providerInstanceId,
+            occurredAt: createdAt,
+            payload: {
+              createdBy: "user",
+              creationSource: "web",
+              id: threadId,
+              projectId: ProjectId.make("project:pr-thread-context"),
+              title: "PR thread context",
+              providerInstanceId,
+              modelSelection: { instanceId: providerInstanceId, model: "gpt-5" },
+              runtimeMode: "full-access",
+              interactionMode: "default",
+              branch: null,
+              worktreePath: repoDir,
+              activeProviderThreadId: null,
+              lineage: {
+                parentThreadId: null,
+                relationshipToParent: null,
+                rootThreadId: threadId,
+              },
+              forkedFrom: null,
+              createdAt,
+              updatedAt: createdAt,
+              archivedAt: null,
+              doneOverride: null,
+              doneAt: null,
+              lastVisitedAt: null,
+              deletedAt: null,
+            },
+          });
+          for (const payload of [completedRun, abandonedRun]) {
+            yield* store.apply({
+              id: EventId.make(`event:pr-thread-context:run:${payload.ordinal}`),
+              type: "run.updated",
+              threadId,
+              runId: payload.id,
+              occurredAt: createdAt,
+              payload,
+            });
+          }
+          const items = [
+            {
+              ...itemBase(1, completedRun.id),
+              type: "user_message" as const,
+              messageId: completedRun.userMessageId,
+              createdBy: "user" as const,
+              creationSource: "web" as const,
+              inputIntent: "turn_start" as const,
+              text: "Make the PR writer see the thread",
+              attachments: [],
+            },
+            {
+              ...itemBase(3, completedRun.id),
+              type: "command_execution" as const,
+              input: "vp test run",
+              output: `${"collecting tests\n".repeat(4_000)}Tests 12 passed`,
+              exitCode: 0,
+            },
+            {
+              ...itemBase(4, completedRun.id),
+              type: "command_execution" as const,
+              input: "vp lint",
+              output: "2 lint errors",
+              exitCode: 1,
+            },
+            {
+              ...itemBase(5, abandonedRun.id),
+              type: "command_execution" as const,
+              input: "vp run abandoned",
+              output: "abandoned output",
+              exitCode: 0,
+            },
+          ];
+          for (const payload of items) {
+            yield* store.apply({
+              id: EventId.make(`event:pr-thread-context:${payload.id}`),
+              type: "turn-item.updated",
+              threadId,
+              runId: payload.runId,
+              occurredAt: createdAt,
+              payload,
+            });
+          }
+        }),
+      });
+
+      yield* manager.runStackedAction({
+        actionId: "test-action-id",
+        cwd: repoDir,
+        action: "create_pr",
+        threadId,
+      });
+
+      expect(generatedPrompt).toContain("Command: vp test run\nExit code: 0");
+      expect(generatedPrompt).toContain("Tests 12 passed");
+      expect(generatedPrompt).toContain("Make the PR writer see the thread");
+      expect(generatedPrompt).toContain("Command: vp lint\nExit code: 1");
+      expect(generatedPrompt).toContain("2 lint errors");
+      expect(generatedPrompt).not.toContain("vp run abandoned");
+      expect(generatedPrompt).not.toContain("abandoned output");
+      expect(Buffer.byteLength(generatedThreadContext ?? "")).toBeLessThanOrEqual(16_000);
+    }),
+  );
+
+  it.effect.each([true, false])(
+    "generates GitLab MR content with followChangeRequestTemplates=%s",
+    (followChangeRequestTemplates) =>
+      Effect.gen(function* () {
+        const repoDir = yield* makeTempDir("supaterm-git-manager-");
+        yield* initRepo(repoDir);
+        const templateDir = NodePath.join(repoDir, ".gitlab", "merge_request_templates");
+        NodeFS.mkdirSync(templateDir, { recursive: true });
+        NodeFS.writeFileSync(
+          NodePath.join(templateDir, "dEfAuLt.MD"),
+          "  ## Summary\n\n## Testing\n",
+        );
+        NodeFS.writeFileSync(NodePath.join(templateDir, "Bugfix.md"), "Wrong sibling template");
+        yield* runGit(repoDir, ["add", ".gitlab"]);
+        yield* runGit(repoDir, ["commit", "-m", "Add merge request template"]);
+        yield* runGit(repoDir, ["checkout", "-b", "feature-gitlab-template"]);
+        const remoteDir = yield* createBareRemote();
+        yield* runGit(repoDir, ["remote", "add", "origin", remoteDir]);
+        NodeFS.writeFileSync(NodePath.join(templateDir, "dEfAuLt.MD"), "Wrong feature template");
+        yield* runGit(repoDir, ["add", ".gitlab"]);
+        yield* runGit(repoDir, ["commit", "-m", "Feature commit"]);
+        yield* runGit(repoDir, ["push", "-u", "origin", "feature-gitlab-template"]);
+        yield* runGit(repoDir, ["config", "branch.feature-gitlab-template.gh-merge-base", "main"]);
+        NodeFS.writeFileSync(
+          NodePath.join(templateDir, "dEfAuLt.MD"),
+          "Wrong uncommitted template",
+        );
+        const gitlab = yield* makeGitLabTemplateProvider();
+        const { service: fakeProvider } = createGitHubProviderWithFakeGh({
+          prListSequence: [
+            "[]",
+            JSON.stringify([
+              {
+                number: 7,
+                title: "Follow the GitLab template",
+                url: "https://gitlab.com/group/project/-/merge_requests/7",
+                baseRefName: "main",
+                headRefName: "feature-gitlab-template",
+              },
+            ]),
+          ],
+        });
+        let generatedChangeRequestTemplate: string | undefined;
+
+        const { manager } = yield* makeManager({
+          serverSettings: { sourceControlWritingStyle: { followChangeRequestTemplates } },
+          sourceControlProvider: {
+            ...fakeProvider,
+            kind: SourceControlProviderKind.make("gitlab"),
+            readChangeRequestTemplate: gitlab.readChangeRequestTemplate!,
+          },
+          textGeneration: {
+            generatePrContent: (input) => {
+              generatedChangeRequestTemplate = input.changeRequestTemplate;
+              return Effect.succeed({ title: "Follow the GitLab template", body: "Body" });
+            },
+          },
+        });
+        const result = yield* runStackedAction(manager, { cwd: repoDir, action: "create_pr" });
+
+        expect(result.pr.status).toBe("created");
+        expect(generatedChangeRequestTemplate).toBe(
+          followChangeRequestTemplates ? "## Summary\n\n## Testing" : undefined,
+        );
+      }),
+  );
+
+  it.effect("ignores unavailable or non-regular GitLab default templates", () =>
+    Effect.gen(function* () {
+      const repoDir = yield* makeTempDir("supaterm-git-manager-");
+      yield* initRepo(repoDir);
+      const provider = yield* makeGitLabTemplateProvider();
+      const readTemplate = (treeish = "HEAD") =>
+        provider.readChangeRequestTemplate!({ cwd: repoDir, treeish });
+      expect(yield* readTemplate()).toEqual(Option.none());
+
+      const templateDir = NodePath.join(repoDir, ".gitlab", "merge_request_templates");
+      const templatePath = ".gitlab/merge_request_templates/Default.md";
+      NodeFS.mkdirSync(templateDir, { recursive: true });
+      NodeFS.writeFileSync(NodePath.join(templateDir, "Bugfix.md"), "Not the default");
+      yield* runGit(repoDir, ["add", ".gitlab"]);
+      yield* runGit(repoDir, ["commit", "-m", "Add a selectable template"]);
+      expect(yield* readTemplate()).toEqual(Option.none());
+
+      NodeFS.writeFileSync(NodePath.join(repoDir, templatePath), " \n\n");
+      yield* runGit(repoDir, ["add", ".gitlab"]);
+      yield* runGit(repoDir, ["commit", "-m", "Add a blank default"]);
+      expect(yield* readTemplate()).toEqual(Option.none());
+
+      // Index modes exercise committed symlinks and submodules even on hosts without symlinks.
+      const { stdout: blob } = yield* runGit(repoDir, ["rev-parse", "HEAD:README.md"]);
+      yield* runGit(repoDir, ["update-index", "--cacheinfo", "120000", blob.trim(), templatePath]);
+      yield* runGit(repoDir, ["commit", "-m", "Replace default with a symlink"]);
+      expect(yield* readTemplate()).toEqual(Option.none());
+
+      const { stdout: commit } = yield* runGit(repoDir, ["rev-parse", "HEAD"]);
+      yield* runGit(repoDir, [
+        "update-index",
+        "--cacheinfo",
+        "160000",
+        commit.trim(),
+        templatePath,
+      ]);
+      yield* runGit(repoDir, ["commit", "-m", "Replace default with a submodule"]);
+      expect(yield* readTemplate()).toEqual(Option.none());
+      expect(yield* readTemplate("missing-base")).toEqual(Option.none());
+    }),
+  );
+
+  it.effect("bounds GitLab template content and marks truncation", () =>
+    Effect.gen(function* () {
+      const repoDir = yield* makeTempDir("supaterm-git-manager-");
+      yield* initRepo(repoDir);
+      const templateDir = NodePath.join(repoDir, ".gitlab", "merge_request_templates");
+      const prefix = "a".repeat(8_000);
+      NodeFS.mkdirSync(templateDir, { recursive: true });
+      NodeFS.writeFileSync(NodePath.join(templateDir, "Default.md"), prefix + "EXCLUDED_SUFFIX");
+      yield* runGit(repoDir, ["add", ".gitlab"]);
+      yield* runGit(repoDir, ["commit", "-m", "Add a large template"]);
+      const provider = yield* makeGitLabTemplateProvider();
+
+      expect(yield* provider.readChangeRequestTemplate!({ cwd: repoDir, treeish: "HEAD" })).toEqual(
+        Option.some(prefix + "\n\n[truncated]"),
+      );
     }),
   );
 
@@ -5390,75 +5739,281 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
     }),
   );
 
-  it.effect("generates PR content from branch changes when the remote base advances", () =>
+  it.effect("generates PR content from the created worktree's selected remote base", () =>
     Effect.gen(function* () {
       const repoDir = yield* makeTempDir("supaterm-git-manager-");
       yield* initRepo(repoDir);
-      const remoteDir = yield* createBareRemote();
-      yield* runGit(repoDir, ["remote", "add", "origin", remoteDir]);
-      yield* runGit(repoDir, ["push", "-u", "origin", "main"]);
-      yield* runGit(remoteDir, ["--git-dir=.", "symbolic-ref", "HEAD", "refs/heads/main"]);
+      const originDir = yield* createBareRemote();
+      const upstreamDir = yield* createBareRemote();
+      yield* runGit(repoDir, ["remote", "add", "origin", originDir]);
+      yield* runGit(repoDir, ["remote", "add", "upstream", upstreamDir]);
+      yield* runGit(repoDir, ["checkout", "-b", "fork-release"]);
+      NodeFS.writeFileSync(NodePath.join(repoDir, "fork.txt"), "fork-only work\n");
+      NodeFS.mkdirSync(NodePath.join(repoDir, ".github"));
+      NodeFS.writeFileSync(
+        NodePath.join(repoDir, ".github/pull_request_template.md"),
+        "Fork template",
+      );
+      yield* runGit(repoDir, ["add", "."]);
+      yield* runGit(repoDir, ["commit", "-m", "Fork release commit"]);
+      yield* runGit(repoDir, ["push", "origin", "HEAD:refs/heads/release"]);
+      yield* runGit(repoDir, ["checkout", "-b", "stable", "main"]);
+      NodeFS.writeFileSync(NodePath.join(repoDir, "upstream.txt"), "upstream-only work\n");
+      NodeFS.mkdirSync(NodePath.join(repoDir, ".github"));
+      NodeFS.writeFileSync(
+        NodePath.join(repoDir, ".github/pull_request_template.md"),
+        "Upstream template",
+      );
+      yield* runGit(repoDir, ["add", "."]);
+      yield* runGit(repoDir, ["commit", "-m", "Upstream release commit"]);
+      yield* runGit(repoDir, ["push", "-u", "upstream", "stable:release"]);
+      yield* runGit(repoDir, ["branch", "upstream/release", "fork-release"]);
 
-      const peerDir = yield* makeTempDir("supaterm-git-peer-");
-      yield* runGit(peerDir, ["clone", remoteDir, "."]);
-      yield* runGit(peerDir, ["config", "user.email", "peer@example.com"]);
-      yield* runGit(peerDir, ["config", "user.name", "Peer User"]);
-      NodeFS.writeFileSync(NodePath.join(peerDir, "remote.txt"), "remote\n");
-      yield* runGit(peerDir, ["add", "remote.txt"]);
-      yield* runGit(peerDir, ["commit", "-m", "Remote base commit"]);
-      yield* runGit(peerDir, ["push", "origin", "main"]);
+      const driver = yield* GitVcsDriver.GitVcsDriver;
+      const fetched = yield* driver.fetchWorktreeBaseCommit({ cwd: repoDir, refName: "stable" });
+      expect(fetched).not.toBeNull();
+      const worktreePath = NodePath.join(yield* makeTempDir("supaterm-git-worktrees-"), "feature");
+      yield* driver.createWorktree({
+        cwd: repoDir,
+        path: worktreePath,
+        refName: fetched!.commitSha,
+        newRefName: "feature/from-upstream",
+        baseRefName: `refs/remotes/${fetched!.remoteRefName}`,
+      });
+      NodeFS.writeFileSync(NodePath.join(worktreePath, "feature.txt"), "feature work\n");
+      yield* runGit(worktreePath, ["add", "feature.txt"]);
+      yield* runGit(worktreePath, ["commit", "-m", "Feature commit"]);
+      yield* runGit(worktreePath, ["push", "-u", "origin", "feature/from-upstream"]);
 
-      yield* runGit(repoDir, ["fetch", "origin"]);
-      yield* runGit(repoDir, [
-        "checkout",
-        "--no-track",
-        "-b",
-        "feature/remote-base",
-        "origin/main",
-      ]);
-      NodeFS.writeFileSync(NodePath.join(repoDir, "feature.txt"), "feature\n");
-      yield* runGit(repoDir, ["add", "feature.txt"]);
-      yield* runGit(repoDir, ["commit", "-m", "Feature commit"]);
-      yield* runGit(repoDir, ["push", "-u", "origin", "feature/remote-base"]);
-      yield* runGit(repoDir, ["config", "branch.feature/remote-base.gh-merge-base", "main"]);
-
-      NodeFS.writeFileSync(NodePath.join(peerDir, "later-main.txt"), "unrelated\n");
-      yield* runGit(peerDir, ["add", "later-main.txt"]);
-      yield* runGit(peerDir, ["commit", "-m", "Later main commit"]);
-      yield* runGit(peerDir, ["push", "origin", "main"]);
-      yield* runGit(repoDir, ["fetch", "origin"]);
-
-      let generatedCommitSummary = "";
-      let generatedDiffSummary = "";
-      let generatedDiffPatch = "";
-      const { manager } = yield* makeManager({
-        ghScenario: {
-          prListSequence: ["[]", "[]"],
-        },
+      const generatedInputs: TextGeneration.PrContentGenerationInput[] = [];
+      const { manager, ghCalls } = yield* makeManager({
+        ghScenario: { prListSequence: ["[]", "[]"] },
         textGeneration: {
           generatePrContent: (input) => {
-            generatedCommitSummary = input.commitSummary;
-            generatedDiffSummary = input.diffSummary;
-            generatedDiffPatch = input.diffPatch;
+            generatedInputs.push(input);
             return Effect.succeed({ title: "Feature PR", body: "Feature body" });
           },
         },
       });
-
-      const result = yield* runStackedAction(manager, {
-        cwd: repoDir,
-        action: "create_pr",
-      });
+      const result = yield* runStackedAction(manager, { cwd: worktreePath, action: "create_pr" });
 
       expect(result.pr.status).toBe("created");
-      expect(generatedCommitSummary).toContain("Feature commit");
-      expect(generatedCommitSummary).not.toContain("Remote base commit");
-      expect(generatedCommitSummary).not.toContain("Later main commit");
-      expect(generatedDiffSummary).toContain("feature.txt");
-      expect(generatedDiffSummary).not.toContain("later-main.txt");
-      expect(generatedDiffPatch).toContain("feature.txt");
-      expect(generatedDiffPatch).not.toContain("later-main.txt");
+      expect(generatedInputs).toHaveLength(1);
+      const generated = generatedInputs[0]!;
+      expect.soft(generated.commitSummary).toContain("Feature commit");
+      expect.soft(generated.commitSummary).not.toContain("Upstream release commit");
+      expect.soft(generated.commitSummary).not.toContain("Fork release commit");
+      expect.soft(generated.diffSummary).toContain("feature.txt");
+      expect.soft(generated.diffSummary).not.toContain("upstream.txt");
+      expect.soft(generated.diffSummary).not.toContain("fork.txt");
+      expect.soft(generated.diffPatch).toContain("+feature work");
+      expect.soft(generated.diffPatch).not.toContain("upstream-only work");
+      expect.soft(generated.diffPatch).not.toContain("fork-only work");
+      expect.soft(generated.changeRequestTemplate).toBe("Upstream template");
+      expect(
+        ghCalls.some((call) =>
+          call.includes("pr create --base release --head feature/from-upstream"),
+        ),
+      ).toBe(true);
     }),
+  );
+
+  it.effect(
+    "preserves a local worktree PR base that shadows a remote ref, including legacy bases",
+    () =>
+      Effect.gen(function* () {
+        const repoDir = yield* makeTempDir("supaterm-git-manager-");
+        yield* initRepo(repoDir);
+        const originDir = yield* createBareRemote();
+        const upstreamDir = yield* createBareRemote();
+        yield* runGit(repoDir, ["remote", "add", "origin", originDir]);
+        yield* runGit(repoDir, ["remote", "add", "upstream", upstreamDir]);
+        yield* runGit(repoDir, ["checkout", "-b", "release"]);
+        NodeFS.mkdirSync(NodePath.join(repoDir, ".github"));
+        NodeFS.writeFileSync(NodePath.join(repoDir, "remote.txt"), "remote-only work\n");
+        NodeFS.writeFileSync(
+          NodePath.join(repoDir, ".github/pull_request_template.md"),
+          "Remote release template",
+        );
+        yield* runGit(repoDir, ["add", "."]);
+        yield* runGit(repoDir, ["commit", "-m", "Remote release commit"]);
+        yield* runGit(repoDir, ["push", "upstream", "release"]);
+
+        yield* runGit(repoDir, ["checkout", "-b", "upstream/release", "main"]);
+        NodeFS.mkdirSync(NodePath.join(repoDir, ".github"));
+        NodeFS.writeFileSync(NodePath.join(repoDir, "local.txt"), "local-base work\n");
+        NodeFS.writeFileSync(
+          NodePath.join(repoDir, ".github/pull_request_template.md"),
+          "Local branch template",
+        );
+        yield* runGit(repoDir, ["add", "."]);
+        yield* runGit(repoDir, ["commit", "-m", "Local base commit"]);
+        yield* runGit(repoDir, ["push", "upstream", "refs/heads/upstream/release"]);
+        yield* runGit(repoDir, ["push", "origin", "refs/heads/upstream/release"]);
+
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        const worktreePath = NodePath.join(
+          yield* makeTempDir("supaterm-git-worktrees-"),
+          "feature",
+        );
+        yield* driver.createWorktree({
+          cwd: repoDir,
+          path: worktreePath,
+          refName: "refs/heads/upstream/release",
+          newRefName: "feature/from-local",
+          baseRefName: "refs/heads/upstream/release",
+        });
+        NodeFS.writeFileSync(NodePath.join(worktreePath, "feature.txt"), "feature work\n");
+        yield* runGit(worktreePath, ["add", "feature.txt"]);
+        yield* runGit(worktreePath, ["commit", "-m", "Feature commit"]);
+        yield* runGit(worktreePath, ["push", "-u", "origin", "feature/from-local"]);
+
+        const generatedInputs: TextGeneration.PrContentGenerationInput[] = [];
+        const { manager, ghCalls } = yield* makeManager({
+          ghScenario: { prListSequence: ["[]", "[]", "[]", "[]"] },
+          textGeneration: {
+            generatePrContent: (input) => {
+              generatedInputs.push(input);
+              return Effect.succeed({ title: "Feature PR", body: "Feature body" });
+            },
+          },
+        });
+        const result = yield* runStackedAction(manager, { cwd: worktreePath, action: "create_pr" });
+        expect(result.pr.status).toBe("created");
+
+        // A branch created outside Supaterm has only gh's legacy short base setting.
+        yield* runGit(worktreePath, ["checkout", "-b", "feature/legacy-local-base"]);
+        yield* runGit(worktreePath, [
+          "config",
+          "branch.feature/legacy-local-base.gh-merge-base",
+          "upstream/release",
+        ]);
+        yield* runGit(worktreePath, ["push", "-u", "origin", "feature/legacy-local-base"]);
+        const legacyResult = yield* runStackedAction(manager, {
+          cwd: worktreePath,
+          action: "create_pr",
+        });
+        expect(legacyResult.pr.status).toBe("created");
+        expect(generatedInputs).toHaveLength(2);
+        for (const generated of generatedInputs) {
+          expect.soft(generated.baseBranch).toBe("upstream/release");
+          expect.soft(generated.commitSummary.trim()).toMatch(/^[a-f0-9]+ Feature commit$/);
+          expect.soft(generated.diffSummary).toContain("feature.txt");
+          expect.soft(generated.diffSummary).toContain("1 file changed, 1 insertion(+)");
+          expect.soft(generated.diffPatch).toContain("+feature work");
+          expect.soft(generated.diffPatch).not.toContain("local-base work");
+          expect.soft(generated.diffPatch).not.toContain("remote-only work");
+          expect.soft(generated.diffPatch).not.toContain("pull_request_template.md");
+          expect.soft(generated.changeRequestTemplate).toBe("Local branch template");
+        }
+        expect
+          .soft(ghCalls.filter((call) => call.startsWith("pr create ")))
+          .toEqual([
+            expect.stringContaining("pr create --base upstream/release --head feature/from-local"),
+            expect.stringContaining(
+              "pr create --base upstream/release --head feature/legacy-local-base",
+            ),
+          ]);
+      }),
+  );
+
+  it.effect.each(["main", "release/1.2"])(
+    "generates PR content from branch changes when the remote base advances (%s)",
+    (baseBranch) =>
+      Effect.gen(function* () {
+        const repoDir = yield* makeTempDir("supaterm-git-manager-");
+        yield* initRepo(repoDir);
+        yield* runGit(repoDir, ["branch", "-m", baseBranch]);
+        const remoteDir = yield* createBareRemote();
+        yield* runGit(repoDir, ["remote", "add", "origin", remoteDir]);
+        yield* runGit(repoDir, ["push", "-u", "origin", baseBranch]);
+        yield* runGit(remoteDir, [
+          "--git-dir=.",
+          "symbolic-ref",
+          "HEAD",
+          `refs/heads/${baseBranch}`,
+        ]);
+
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        const worktreePath = NodePath.join(
+          yield* makeTempDir("supaterm-git-worktrees-"),
+          "feature",
+        );
+        yield* driver.createWorktree({
+          cwd: repoDir,
+          path: worktreePath,
+          refName: baseBranch,
+          newRefName: "feature/remote-base",
+          baseRefName: baseBranch,
+        });
+        NodeFS.writeFileSync(NodePath.join(worktreePath, "feature.txt"), "feature\n");
+        yield* runGit(worktreePath, ["add", "feature.txt"]);
+        yield* runGit(worktreePath, ["commit", "-m", "Feature commit"]);
+
+        const peerDir = yield* makeTempDir("supaterm-git-peer-");
+        yield* runGit(peerDir, ["clone", remoteDir, "."]);
+        yield* runGit(peerDir, ["config", "user.email", "peer@example.com"]);
+        yield* runGit(peerDir, ["config", "user.name", "Peer User"]);
+        NodeFS.writeFileSync(NodePath.join(peerDir, "remote.txt"), "remote\n");
+        NodeFS.mkdirSync(NodePath.join(peerDir, ".github"));
+        NodeFS.writeFileSync(
+          NodePath.join(peerDir, ".github/pull_request_template.md"),
+          "Updated main template",
+        );
+        yield* runGit(peerDir, ["add", "."]);
+        yield* runGit(peerDir, ["commit", "-m", "Remote base commit"]);
+        yield* runGit(peerDir, ["push", "origin", baseBranch]);
+
+        NodeFS.writeFileSync(NodePath.join(peerDir, "later-main.txt"), "unrelated\n");
+        yield* runGit(peerDir, ["add", "later-main.txt"]);
+        yield* runGit(peerDir, ["commit", "-m", "Later main commit"]);
+        yield* runGit(peerDir, ["push", "origin", baseBranch]);
+        yield* runGit(worktreePath, ["fetch", "origin"]);
+        yield* runGit(worktreePath, ["rebase", `origin/${baseBranch}`]);
+
+        const preview = yield* driver.getReviewDiffPreview({ cwd: worktreePath });
+        const changes = preview.sources.find((source) => source.kind === "branch-range")!;
+        expect
+          .soft(changes.files)
+          .toEqual([{ path: "feature.txt", previousPath: null, additions: 1, deletions: 0 }]);
+        yield* runGit(worktreePath, ["push", "-u", "origin", "feature/remote-base"]);
+
+        const generatedInputs: TextGeneration.PrContentGenerationInput[] = [];
+        const { manager, ghCalls } = yield* makeManager({
+          ghScenario: {
+            prListSequence: ["[]", "[]"],
+          },
+          textGeneration: {
+            generatePrContent: (input) => {
+              generatedInputs.push(input);
+              return Effect.succeed({ title: "Feature PR", body: "Feature body" });
+            },
+          },
+        });
+
+        const result = yield* runStackedAction(manager, {
+          cwd: worktreePath,
+          action: "create_pr",
+        });
+
+        expect(result.pr.status).toBe("created");
+        expect(generatedInputs).toHaveLength(1);
+        const generated = generatedInputs[0]!;
+        expect.soft(generated.baseBranch).toBe(baseBranch);
+        expect.soft(generated.commitSummary.trim()).toMatch(/^[a-f0-9]+ Feature commit$/);
+        expect.soft(generated.diffSummary).toContain("feature.txt");
+        expect.soft(generated.diffSummary).toContain("1 file changed, 1 insertion(+)");
+        expect.soft(generated.diffPatch).toContain("+feature");
+        expect.soft(generated.diffPatch).not.toContain("remote.txt");
+        expect.soft(generated.diffPatch).not.toContain("later-main.txt");
+        expect.soft(generated.diffPatch).not.toContain("pull_request_template.md");
+        expect.soft(generated.changeRequestTemplate).toBe("Updated main template");
+        expect(
+          ghCalls.some((call) =>
+            call.includes(`pr create --base ${baseBranch} --head feature/remote-base`),
+          ),
+        ).toBe(true);
+      }),
   );
 
   it.effect(
@@ -5482,7 +6037,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 1661,
                   title: "Fork PR with same branch name",
-                  url: "https://github.com/supabitapp/supacode-next/pull/1661",
+                  url: "https://github.com/supabitapp/supaterm/pull/1661",
                   baseRefName: "main",
                   headRefName: "feature/no-fork-match",
                   state: "OPEN",
@@ -5499,7 +6054,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 188,
                   title: "Add stacked git actions",
-                  url: "https://github.com/pingdotgg/codething-mvp/pull/188",
+                  url: "https://github.com/supabitapp/supaterm/pull/188",
                   baseRefName: "main",
                   headRefName: "feature/no-fork-match",
                   state: "OPEN",
@@ -5522,7 +6077,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           cta: {
             kind: "open_pr",
             label: "View PR",
-            url: "https://github.com/pingdotgg/codething-mvp/pull/188",
+            url: "https://github.com/supabitapp/supaterm/pull/188",
           },
         });
         expect(
@@ -5540,12 +6095,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       const forkDir = yield* createBareRemote();
       yield* runGit(repoDir, ["remote", "add", "fork-seed", forkDir]);
 
-      yield* runGit(repoDir, [
-        "remote",
-        "add",
-        "origin",
-        "git@github.com:pingdotgg/codething-mvp.git",
-      ]);
+      yield* runGit(repoDir, ["remote", "add", "origin", "git@github.com:supabitapp/supaterm.git"]);
       yield* runGit(repoDir, ["checkout", "-b", "statemachine"]);
       NodeFS.writeFileSync(NodePath.join(repoDir, "changes.txt"), "change\n");
       yield* runGit(repoDir, ["add", "changes.txt"]);
@@ -5556,7 +6106,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       yield* configureVisibleRemoteUrlWithLocalRewrite(
         repoDir,
         "fork-seed",
-        "git@github.com:octocat/codething-mvp.git",
+        "git@github.com:octocat/supaterm.git",
         forkDir,
       );
 
@@ -5569,13 +6119,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 188,
                   title: "Add stacked git actions",
-                  url: "https://github.com/pingdotgg/codething-mvp/pull/188",
+                  url: "https://github.com/supabitapp/supaterm/pull/188",
                   baseRefName: "main",
                   headRefName: "statemachine",
                   state: "OPEN",
                   isCrossRepository: true,
                   headRepository: {
-                    nameWithOwner: "octocat/codething-mvp",
+                    nameWithOwner: "octocat/supaterm",
                   },
                   headRepositoryOwner: {
                     login: "octocat",
@@ -5686,7 +6236,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 42,
             title: "Resolve PR",
-            url: "https://github.com/pingdotgg/codething-mvp/pull/42",
+            url: "https://github.com/supabitapp/supaterm/pull/42",
             baseRefName: "main",
             headRefName: "feature/resolve-pr",
             state: "open",
@@ -5702,7 +6252,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       expect(result.pullRequest).toEqual({
         number: 42,
         title: "Resolve PR",
-        url: "https://github.com/pingdotgg/codething-mvp/pull/42",
+        url: "https://github.com/supabitapp/supaterm/pull/42",
         baseBranch: "main",
         headBranch: "feature/resolve-pr",
         state: "open",
@@ -5725,7 +6275,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 64,
             title: "Local PR",
-            url: "https://github.com/pingdotgg/codething-mvp/pull/64",
+            url: "https://github.com/supabitapp/supaterm/pull/64",
             baseRefName: "main",
             headRefName: "feature/pr-local",
             state: "open",
@@ -5743,8 +6293,315 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       expect(result.worktreePath).toBeNull();
       const branch = (yield* runGit(repoDir, ["branch", "--show-current"])).stdout.trim();
       expect(branch).toBe("feature/pr-local");
-      expect(ghCalls).toContain("pr checkout 64 --force");
+      expect(ghCalls).toContain("pr checkout 64");
     }),
+  );
+
+  const setUpLocalCheckoutPullRequest = Effect.fnUntraced(function* (
+    reportedHead: (pullHead: string) => string | undefined = (pullHead) => pullHead,
+    syncCheckoutWithPullHead = true,
+    gitSpawnGate?: NonNullable<Parameters<typeof makeManager>[0]>["gitSpawnGate"],
+  ) {
+    const repoDir = yield* makeTempDir("supaterm-git-manager-");
+    yield* initRepo(repoDir);
+    const remoteDir = yield* createBareRemote();
+    yield* runGit(repoDir, ["remote", "add", "origin", remoteDir]);
+    yield* runGit(repoDir, ["push", "-u", "origin", "main"]);
+    yield* runGit(repoDir, ["checkout", "-b", "feature/pr-safe"]);
+    NodeFS.writeFileSync(NodePath.join(repoDir, "pr.txt"), "first\n");
+    yield* runGit(repoDir, ["add", "pr.txt"]);
+    yield* runGit(repoDir, ["commit", "-m", "PR first"]);
+    const firstCommit = (yield* runGit(repoDir, ["rev-parse", "HEAD"])).stdout.trim();
+    NodeFS.writeFileSync(NodePath.join(repoDir, "pr.txt"), "second\n");
+    yield* runGit(repoDir, ["commit", "-am", "PR second"]);
+    const pullHead = (yield* runGit(repoDir, ["rev-parse", "HEAD"])).stdout.trim();
+    yield* runGit(repoDir, ["push", "origin", "HEAD:refs/pull/91/head"]);
+    yield* runGit(repoDir, ["reset", "--hard", firstCommit]);
+    const headSha = reportedHead(pullHead);
+    const { manager, ghCalls } = yield* makeManager({
+      ...(gitSpawnGate ? { gitSpawnGate } : {}),
+      ghScenario: {
+        pullRequest: {
+          number: 91,
+          title: "Safe checkout PR",
+          url: "https://github.com/supabitapp/supaterm/pull/91",
+          baseRefName: "main",
+          headRefName: "feature/pr-safe",
+          state: "open",
+          ...(headSha === undefined ? {} : { headSha }),
+        },
+        syncCheckoutWithPullHead,
+      },
+    });
+    return { repoDir, manager, ghCalls, firstCommit, pullHead };
+  });
+
+  it.effect.each(["switch", "create-and-switch", "feature-branch"] as const)(
+    "local PR checkout excludes a concurrent %s from a nested project with an alternate root",
+    (operation) =>
+      Effect.gen(function* () {
+        const gate = {
+          matches: (args: ReadonlyArray<string>) =>
+            args[0] === "rev-parse" && args[1] === "--verify" && args[2] === "HEAD^{commit}",
+          reached: yield* Deferred.make<void>(),
+          release: yield* Deferred.make<void>(),
+        };
+        const { repoDir, manager, pullHead } = yield* setUpLocalCheckoutPullRequest(
+          (head) => head,
+          false,
+          gate,
+        );
+        const nestedCwd = NodePath.join(repoDir, "nested-project");
+        yield* makeDirectory(nestedCwd);
+        const mainCommit = (yield* runGit(repoDir, ["rev-parse", "main"])).stdout.trim();
+        yield* runGit(repoDir, ["checkout", "main"]);
+        const registry = yield* Layer.build(
+          VcsDriverRegistry.layer.pipe(
+            Layer.provide(VcsProjectConfig.layer),
+            Layer.provide(VcsProcess.layer),
+          ),
+        );
+        const handle = yield* Context.get(registry, VcsDriverRegistry.VcsDriverRegistry).resolve({
+          cwd: repoDir,
+        });
+        const resolvedHandle = {
+          ...handle,
+          repository: { ...handle.repository, rootPath: `${handle.repository.rootPath}/.` },
+        };
+        const fileSystem = yield* FileSystem.FileSystem;
+        const canonicalRoot = yield* fileSystem.realPath(resolvedHandle.repository.rootPath);
+        const git = yield* GitVcsDriver.GitVcsDriver;
+        const events: string[] = [];
+        const workflows = yield* Effect.forEach([0, 1], () =>
+          GitWorkflowService.make.pipe(
+            // Cache the real filesystem result so startImmediately reaches lease acquisition.
+            Effect.provideService(FileSystem.FileSystem, {
+              ...fileSystem,
+              realPath: (root) =>
+                root === resolvedHandle.repository.rootPath
+                  ? Effect.succeed(canonicalRoot)
+                  : fileSystem.realPath(root),
+            }),
+            Effect.provideService(GitManager.GitManager, {
+              ...manager,
+              runStackedAction: (input, options) =>
+                Effect.sync(() => {
+                  events.push("feature-branch");
+                  NodeFS.writeFileSync(
+                    NodePath.join(repoDir, "second-client.txt"),
+                    "second client\n",
+                  );
+                }).pipe(Effect.andThen(manager.runStackedAction(input, options))),
+            }),
+            Effect.provideService(VcsDriverRegistry.VcsDriverRegistry, {
+              ...Context.get(registry, VcsDriverRegistry.VcsDriverRegistry),
+              resolve: ({ cwd }) => Effect.succeed(cwd === repoDir ? handle : resolvedHandle),
+            }),
+            Effect.provideService(GitVcsDriver.GitVcsDriver, {
+              ...git,
+              switchRef: (input) =>
+                Effect.sync(() => events.push("switch")).pipe(Effect.andThen(git.switchRef(input))),
+              createRef: (input) =>
+                Effect.sync(() => events.push("create-and-switch")).pipe(
+                  Effect.andThen(git.createRef(input)),
+                ),
+            }),
+          ),
+        );
+        const preparing = yield* Effect.forkChild(
+          workflows[0]!.preparePullRequestThread({ cwd: repoDir, reference: "91", mode: "local" }),
+        );
+        yield* Deferred.await(gate.reached);
+        const switching = yield* Effect.forkChild(
+          operation === "switch"
+            ? workflows[1]!.switchRef({ cwd: nestedCwd, refName: "main" })
+            : operation === "create-and-switch"
+              ? workflows[1]!.createRef({
+                  cwd: nestedCwd,
+                  refName: "second-client",
+                  switchRef: true,
+                })
+              : workflows[1]!.runStackedAction({
+                  cwd: nestedCwd,
+                  actionId: "second-client-feature-branch",
+                  action: "commit",
+                  featureBranch: true,
+                  commitMessage: "Second client commit",
+                }),
+          { startImmediately: true },
+        );
+        // Both independent server workflows have started, but the second cannot touch Git yet.
+        expect(events).toEqual([]);
+        yield* Deferred.succeed(gate.release, undefined);
+        const prepared = yield* Fiber.join(preparing);
+        const switched = yield* Fiber.join(switching);
+        expect(events).toEqual([operation]);
+        expect(prepared).toMatchObject({ branch: "feature/pr-safe", isOnPullRequestHead: true });
+        expect((yield* runGit(repoDir, ["rev-parse", "main"])).stdout.trim()).toBe(mainCommit);
+        expect((yield* runGit(repoDir, ["rev-parse", "feature/pr-safe"])).stdout.trim()).toBe(
+          pullHead,
+        );
+        expect((yield* runGit(repoDir, ["branch", "--show-current"])).stdout.trim()).toBe(
+          operation === "switch"
+            ? "main"
+            : "branch" in switched
+              ? switched.branch.name
+              : "second-client",
+        );
+        if ("commit" in switched) {
+          expect(switched.commit.status).toBe("created");
+          expect((yield* runGit(repoDir, ["rev-parse", "HEAD^"])).stdout.trim()).toBe(pullHead);
+        }
+      }),
+  );
+
+  it.effect.each([false, true])(
+    "local PR checkout refuses and preserves tracked edits (staged: %s)",
+    (staged) =>
+      Effect.gen(function* () {
+        const { repoDir, manager, ghCalls, firstCommit } = yield* setUpLocalCheckoutPullRequest();
+        NodeFS.writeFileSync(NodePath.join(repoDir, "README.md"), "my unsaved edit\n");
+        if (staged) {
+          yield* runGit(repoDir, ["add", "README.md"]);
+        }
+        const beforeStatus = (yield* runGit(repoDir, ["status", "--porcelain"])).stdout;
+
+        const error = yield* preparePullRequestThread(manager, {
+          cwd: repoDir,
+          reference: "91",
+          mode: "local",
+        }).pipe(Effect.flip);
+
+        expect(error.message).toContain("uncommitted changes");
+        expect(NodeFS.readFileSync(NodePath.join(repoDir, "README.md"), "utf8")).toBe(
+          "my unsaved edit\n",
+        );
+        expect((yield* runGit(repoDir, ["status", "--porcelain"])).stdout).toBe(beforeStatus);
+        expect((yield* runGit(repoDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(firstCommit);
+        expect(ghCalls.some((call) => call.startsWith("pr checkout"))).toBe(false);
+      }),
+  );
+
+  it.effect("local PR checkout refuses a diverged branch and keeps its extra commit", () =>
+    Effect.gen(function* () {
+      const { repoDir, manager, ghCalls } = yield* setUpLocalCheckoutPullRequest();
+      NodeFS.writeFileSync(NodePath.join(repoDir, "mine.txt"), "mine\n");
+      yield* runGit(repoDir, ["add", "mine.txt"]);
+      yield* runGit(repoDir, ["commit", "-m", "My unpublished commit"]);
+      const localCommit = (yield* runGit(repoDir, ["rev-parse", "HEAD"])).stdout.trim();
+      yield* runGit(repoDir, ["checkout", "main"]);
+
+      const error = yield* preparePullRequestThread(manager, {
+        cwd: repoDir,
+        reference: "91",
+        mode: "local",
+      }).pipe(Effect.flip);
+
+      // gh's fast-forward-only update fails rather than resetting the branch.
+      expect(error.message).toContain("GitHub request failed");
+      expect(ghCalls).toContain("pr checkout 91");
+      expect((yield* runGit(repoDir, ["rev-parse", "feature/pr-safe"])).stdout.trim()).toBe(
+        localCommit,
+      );
+      expect((yield* runGit(repoDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(localCommit);
+      expect(NodeFS.readFileSync(NodePath.join(repoDir, "mine.txt"), "utf8")).toBe("mine\n");
+    }),
+  );
+
+  it.effect.each([false, true])(
+    "local PR checkout lands cleanly (existing branch: %s)",
+    (existing) =>
+      Effect.gen(function* () {
+        const { repoDir, manager, pullHead } = yield* setUpLocalCheckoutPullRequest();
+        yield* runGit(repoDir, ["checkout", "main"]);
+        if (!existing) {
+          yield* runGit(repoDir, ["branch", "-D", "feature/pr-safe"]);
+        }
+        NodeFS.writeFileSync(NodePath.join(repoDir, "untracked.txt"), "keep me\n");
+
+        const result = yield* preparePullRequestThread(manager, {
+          cwd: repoDir,
+          reference: "91",
+          mode: "local",
+        });
+
+        expect(result).toMatchObject({
+          branch: "feature/pr-safe",
+          worktreePath: null,
+          isOnPullRequestHead: true,
+        });
+        expect((yield* runGit(repoDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(pullHead);
+        expect(NodeFS.readFileSync(NodePath.join(repoDir, "untracked.txt"), "utf8")).toBe(
+          "keep me\n",
+        );
+      }),
+  );
+
+  it.effect("local PR checkout fast-forwards a branch the host's checkout only switched to", () =>
+    Effect.gen(function* () {
+      // Like Bitbucket or Forgejo without `force`: the existing branch is checked out as it was.
+      const { repoDir, manager, firstCommit, pullHead } = yield* setUpLocalCheckoutPullRequest(
+        (head) => head.slice(0, 12),
+        false,
+      );
+      yield* runGit(repoDir, ["checkout", "main"]);
+      expect((yield* runGit(repoDir, ["rev-parse", "feature/pr-safe"])).stdout.trim()).toBe(
+        firstCommit,
+      );
+
+      const result = yield* preparePullRequestThread(manager, {
+        cwd: repoDir,
+        reference: "91",
+        mode: "local",
+      });
+
+      expect(result).toMatchObject({ branch: "feature/pr-safe", isOnPullRequestHead: true });
+      expect((yield* runGit(repoDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(pullHead);
+    }),
+  );
+
+  it.effect(
+    "local PR checkout keeps a branch that is ahead and reports it is not on the head",
+    () =>
+      Effect.gen(function* () {
+        const { repoDir, manager, pullHead } = yield* setUpLocalCheckoutPullRequest();
+        yield* runGit(repoDir, ["reset", "--hard", pullHead]);
+        NodeFS.writeFileSync(NodePath.join(repoDir, "mine.txt"), "mine\n");
+        yield* runGit(repoDir, ["add", "mine.txt"]);
+        yield* runGit(repoDir, ["commit", "-m", "My unpublished commit"]);
+        const localCommit = (yield* runGit(repoDir, ["rev-parse", "HEAD"])).stdout.trim();
+        yield* runGit(repoDir, ["checkout", "main"]);
+
+        const result = yield* preparePullRequestThread(manager, {
+          cwd: repoDir,
+          reference: "91",
+          mode: "local",
+        });
+
+        expect(result).toMatchObject({ branch: "feature/pr-safe", isOnPullRequestHead: false });
+        expect((yield* runGit(repoDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(localCommit);
+        expect(NodeFS.readFileSync(NodePath.join(repoDir, "mine.txt"), "utf8")).toBe("mine\n");
+      }),
+  );
+
+  it.effect.each([undefined, "0".repeat(40)])(
+    "local PR checkout cannot confirm an unavailable provider head (%s)",
+    (reportedHead) =>
+      Effect.gen(function* () {
+        const { repoDir, manager, pullHead } = yield* setUpLocalCheckoutPullRequest(
+          () => reportedHead,
+        );
+        yield* runGit(repoDir, ["checkout", "main"]);
+
+        const result = yield* preparePullRequestThread(manager, {
+          cwd: repoDir,
+          reference: "91",
+          mode: "local",
+        });
+
+        expect((yield* runGit(repoDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(pullHead);
+        expect(result.isOnPullRequestHead).toBe(false);
+      }),
   );
 
   it.effect(
@@ -5774,16 +6631,16 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
             pullRequest: {
               number: 65,
               title: "Local upstream PR",
-              url: "https://github.com/pingdotgg/codething-mvp/pull/65",
+              url: "https://github.com/supabitapp/supaterm/pull/65",
               baseRefName: "main",
               headRefName: "feature/pr-local-upstream",
               state: "open",
               isCrossRepository: false,
-              headRepositoryNameWithOwner: "pingdotgg/codething-mvp",
-              headRepositoryOwnerLogin: "pingdotgg",
+              headRepositoryNameWithOwner: "supabitapp/supaterm",
+              headRepositoryOwnerLogin: "supabitapp",
             },
             repositoryCloneUrls: {
-              "pingdotgg/codething-mvp": {
+              "supabitapp/supaterm": {
                 url: remoteDir,
                 sshUrl: remoteDir,
               },
@@ -5832,7 +6689,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
             pullRequest: {
               number: 66,
               title: "Local upstream PR without repo metadata",
-              url: "https://github.com/pingdotgg/codething-mvp/pull/66",
+              url: "https://github.com/supabitapp/supaterm/pull/66",
               baseRefName: "main",
               headRefName: "feature/pr-local-no-head-repo",
               state: "open",
@@ -5874,7 +6731,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 77,
             title: "Worktree PR",
-            url: "https://github.com/pingdotgg/codething-mvp/pull/77",
+            url: "https://github.com/supabitapp/supaterm/pull/77",
             baseRefName: "main",
             headRefName: "feature/pr-worktree",
             state: "open",
@@ -6010,16 +6867,16 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 93,
             title: "Missing fork branch",
-            url: "https://github.com/pingdotgg/codething-mvp/pull/93",
+            url: "https://github.com/supabitapp/supaterm/pull/93",
             baseRefName: "main",
             headRefName: "feature/missing-fork-branch",
             state: "open",
             isCrossRepository: true,
-            headRepositoryNameWithOwner: "octocat/codething-mvp",
+            headRepositoryNameWithOwner: "octocat/supaterm",
             headRepositoryOwnerLogin: "octocat",
           },
           repositoryCloneUrls: {
-            "octocat/codething-mvp": {
+            "octocat/supaterm": {
               url: missingForkDir,
               sshUrl: missingForkDir,
             },
@@ -6039,7 +6896,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       expect(error).toMatchObject({
         cwd: repoDir,
         pullRequestNumber: 93,
-        headRepository: "octocat/codething-mvp",
+        headRepository: "octocat/supaterm",
         headBranch: "feature/missing-fork-branch",
         localBranch: "supaterm/pr-93/feature/missing-fork-branch",
       });
@@ -6076,7 +6933,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 177,
             title: "Worktree setup PR",
-            url: "https://github.com/pingdotgg/codething-mvp/pull/177",
+            url: "https://github.com/supabitapp/supaterm/pull/177",
             baseRefName: "main",
             headRefName: "feature/pr-worktree-setup",
             state: "open",
@@ -6129,16 +6986,16 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 81,
             title: "Fork PR",
-            url: "https://github.com/pingdotgg/codething-mvp/pull/81",
+            url: "https://github.com/supabitapp/supaterm/pull/81",
             baseRefName: "main",
             headRefName: "feature/pr-fork",
             state: "open",
             isCrossRepository: true,
-            headRepositoryNameWithOwner: "octocat/codething-mvp",
+            headRepositoryNameWithOwner: "octocat/supaterm",
             headRepositoryOwnerLogin: "octocat",
           },
           repositoryCloneUrls: {
-            "octocat/codething-mvp": {
+            "octocat/supaterm": {
               url: forkDir,
               sshUrl: forkDir,
             },
@@ -6192,16 +7049,16 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 82,
             title: "Local Fork PR",
-            url: "https://github.com/pingdotgg/codething-mvp/pull/82",
+            url: "https://github.com/supabitapp/supaterm/pull/82",
             baseRefName: "main",
             headRefName: "feature/pr-local-fork",
             state: "open",
             isCrossRepository: true,
-            headRepositoryNameWithOwner: "octocat/codething-mvp",
+            headRepositoryNameWithOwner: "octocat/supaterm",
             headRepositoryOwnerLogin: "octocat",
           },
           repositoryCloneUrls: {
-            "octocat/codething-mvp": {
+            "octocat/supaterm": {
               url: forkDir,
               sshUrl: forkDir,
             },
@@ -6250,7 +7107,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 642,
             title: "fix: use commit as the default git action without origin",
-            url: "https://github.com/supabitapp/supacode-next/pull/642",
+            url: "https://github.com/supabitapp/supaterm/pull/642",
             baseRefName: "main",
             headRefName: "fix/git-action-default-without-origin",
             state: "open",
@@ -6258,7 +7115,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
             headRepositoryOwnerLogin: "binbandit",
           },
           repositoryCloneUrls: {
-            "binbandit/supacode-next": {
+            "binbandit/supaterm": {
               url: forkDir,
               sshUrl: forkDir,
             },
@@ -6302,7 +7159,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 78,
             title: "Existing worktree PR",
-            url: "https://github.com/pingdotgg/codething-mvp/pull/78",
+            url: "https://github.com/supabitapp/supaterm/pull/78",
             baseRefName: "main",
             headRefName: "feature/pr-existing-worktree",
             state: "open",
@@ -6366,7 +7223,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 84,
             title: "Reused stale PR",
-            url: "https://github.com/pingdotgg/codething-mvp/pull/84",
+            url: "https://github.com/supabitapp/supaterm/pull/84",
             baseRefName: "main",
             headRefName: "feature/pr-reused-stale",
             state: "open",
@@ -6421,7 +7278,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 85,
             title: "Reused setup PR",
-            url: "https://github.com/pingdotgg/codething-mvp/pull/85",
+            url: "https://github.com/supabitapp/supaterm/pull/85",
             baseRefName: "main",
             headRefName: "feature/pr-reused-setup",
             state: "open",
@@ -6480,7 +7337,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 95,
             title: "Reused current PR",
-            url: "https://github.com/pingdotgg/codething-mvp/pull/95",
+            url: "https://github.com/supabitapp/supaterm/pull/95",
             baseRefName: "main",
             headRefName: "feature/pr-reused-current",
             state: "open",
@@ -6552,7 +7409,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 86,
             title: "Force-pushed PR",
-            url: "https://github.com/pingdotgg/codething-mvp/pull/86",
+            url: "https://github.com/supabitapp/supaterm/pull/86",
             baseRefName: "main",
             headRefName: "feature/pr-force-pushed",
             state: "open",
@@ -6631,7 +7488,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 87,
             title: "Local commit PR",
-            url: "https://github.com/pingdotgg/codething-mvp/pull/87",
+            url: "https://github.com/supabitapp/supaterm/pull/87",
             baseRefName: "main",
             headRefName: "feature/pr-local-commit",
             state: "open",
@@ -6706,7 +7563,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 89,
             title: "Dirty worktree PR",
-            url: "https://github.com/pingdotgg/codething-mvp/pull/89",
+            url: "https://github.com/supabitapp/supaterm/pull/89",
             baseRefName: "main",
             headRefName: "feature/pr-dirty-worktree",
             state: "open",
@@ -6780,19 +7637,19 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         const { manager } = yield* makeManager({
           ghScenario: {
             repositoryCloneUrls: forkDir
-              ? { "contributor/codething-mvp": { url: forkDir, sshUrl: forkDir } }
+              ? { "contributor/supaterm": { url: forkDir, sshUrl: forkDir } }
               : {},
             pullRequest: {
               number: 78,
               title: "Paginated PR worktree",
-              url: "https://github.com/pingdotgg/codething-mvp/pull/78",
+              url: "https://github.com/supabitapp/supaterm/pull/78",
               baseRefName: "main",
               headRefName: headBranch,
               state: "open",
               isCrossRepository,
               ...(isCrossRepository
                 ? {
-                    headRepositoryNameWithOwner: "contributor/codething-mvp",
+                    headRepositoryNameWithOwner: "contributor/supaterm",
                     headRepositoryOwnerLogin: "contributor",
                   }
                 : {}),
@@ -6836,7 +7693,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 90,
             title: "Pull ref only PR",
-            url: "https://github.com/pingdotgg/codething-mvp/pull/90",
+            url: "https://github.com/supabitapp/supaterm/pull/90",
             baseRefName: "main",
             headRefName: "feature/pr-ref-only",
             state: "open",
@@ -6913,16 +7770,16 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 94,
             title: "Fork main collision PR",
-            url: "https://github.com/pingdotgg/codething-mvp/pull/94",
+            url: "https://github.com/supabitapp/supaterm/pull/94",
             baseRefName: "main",
             headRefName: "main",
             state: "open",
             isCrossRepository: true,
-            headRepositoryNameWithOwner: "octocat/codething-mvp",
+            headRepositoryNameWithOwner: "octocat/supaterm",
             headRepositoryOwnerLogin: "octocat",
           },
           repositoryCloneUrls: {
-            "octocat/codething-mvp": {
+            "octocat/supaterm": {
               url: forkDir,
               sshUrl: forkDir,
             },
@@ -7004,16 +7861,16 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
             pullRequest: {
               number: 91,
               title: "Fork main PR",
-              url: "https://github.com/pingdotgg/codething-mvp/pull/91",
+              url: "https://github.com/supabitapp/supaterm/pull/91",
               baseRefName: "main",
               headRefName: "main",
               state: "open",
               isCrossRepository: true,
-              headRepositoryNameWithOwner: "octocat/codething-mvp",
+              headRepositoryNameWithOwner: "octocat/supaterm",
               headRepositoryOwnerLogin: "octocat",
             },
             repositoryCloneUrls: {
-              "octocat/codething-mvp": {
+              "octocat/supaterm": {
                 url: forkDir,
                 sshUrl: forkDir,
               },
@@ -7065,16 +7922,16 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
             pullRequest: {
               number: 92,
               title: "Fork main overwrite PR",
-              url: "https://github.com/pingdotgg/codething-mvp/pull/92",
+              url: "https://github.com/supabitapp/supaterm/pull/92",
               baseRefName: "main",
               headRefName: "main",
               state: "open",
               isCrossRepository: true,
-              headRepositoryNameWithOwner: "octocat/codething-mvp",
+              headRepositoryNameWithOwner: "octocat/supaterm",
               headRepositoryOwnerLogin: "octocat",
             },
             repositoryCloneUrls: {
-              "octocat/codething-mvp": {
+              "octocat/supaterm": {
                 url: forkDir,
                 sshUrl: forkDir,
               },
@@ -7135,16 +7992,16 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 83,
             title: "Reused Fork PR",
-            url: "https://github.com/pingdotgg/codething-mvp/pull/83",
+            url: "https://github.com/supabitapp/supaterm/pull/83",
             baseRefName: "main",
             headRefName: "feature/pr-reused-fork",
             state: "open",
             isCrossRepository: true,
-            headRepositoryNameWithOwner: "octocat/codething-mvp",
+            headRepositoryNameWithOwner: "octocat/supaterm",
             headRepositoryOwnerLogin: "octocat",
           },
           repositoryCloneUrls: {
-            "octocat/codething-mvp": {
+            "octocat/supaterm": {
               url: forkDir,
               sshUrl: forkDir,
             },
@@ -7191,7 +8048,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 184,
             title: "Setup failure PR",
-            url: "https://github.com/pingdotgg/codething-mvp/pull/184",
+            url: "https://github.com/supabitapp/supaterm/pull/184",
             baseRefName: "main",
             headRefName: "feature/pr-setup-failure",
             state: "open",
@@ -7234,7 +8091,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 79,
             title: "Root-only PR",
-            url: "https://github.com/pingdotgg/codething-mvp/pull/79",
+            url: "https://github.com/supabitapp/supaterm/pull/79",
             baseRefName: "main",
             headRefName: "feature/pr-root-only",
             state: "open",
@@ -7407,7 +8264,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 201,
                 title: "PR only branch",
-                url: "https://github.com/pingdotgg/codething-mvp/pull/201",
+                url: "https://github.com/supabitapp/supaterm/pull/201",
                 baseRefName: "main",
                 headRefName: "feature/pr-only-follow-up",
                 state: "OPEN",

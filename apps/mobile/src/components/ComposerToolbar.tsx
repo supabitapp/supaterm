@@ -13,6 +13,8 @@ import {
   type ViewStyle,
 } from "react-native";
 
+import Animated, { FadeIn, LinearTransition } from "react-native-reanimated";
+
 import { cn } from "../lib/cn";
 import { AppText as Text } from "./ui/AppText";
 import { SymbolView } from "./ui/AppSymbol";
@@ -21,6 +23,10 @@ import { useAndroidControlSizing } from "./ui/useAndroidControlSizing";
 const COMPOSER_TOOLBAR_GAP = 8;
 const COMPOSER_TOOLBAR_FADE_WIDTH = 18;
 const COMPOSER_TOOLBAR_SCROLL_EPSILON = 4;
+const INLINE_CONTROL_LABEL_ENTERING = FadeIn.duration(160);
+// Android runs no composer layout transitions, so the toolbar never trails the dock.
+const INLINE_CONTROL_WIDTH_TRANSITION =
+  Platform.OS === "android" ? undefined : LinearTransition.duration(180);
 
 export function ComposerInlineControl(props: {
   readonly accessibilityHint?: string;
@@ -32,6 +38,7 @@ export function ComposerInlineControl(props: {
   readonly renderIcon?: (size: number) => ReactNode;
   readonly label: string;
   readonly secondaryLabel?: string;
+  readonly iconOnly?: boolean;
   readonly maxWidth?: ViewStyle["maxWidth"];
   readonly onPress?: () => void;
   readonly selected?: boolean;
@@ -40,64 +47,85 @@ export function ComposerInlineControl(props: {
   readonly showChevron?: boolean;
 }) {
   const { scale, smallIconSize } = useAndroidControlSizing();
+  // The label fades in as the control widens, and leaves at once: an exiting view keeps
+  // drawing at its old place while the chevron moves into it. The clip keeps content laid out
+  // at the final width inside the frame while it eases there.
+  const animatesLabel = props.iconOnly !== undefined;
   return (
-    <Pressable
-      accessibilityLabel={props.accessibilityLabel ?? props.label}
-      accessibilityHint={props.accessibilityHint}
-      accessibilityRole={props.static ? undefined : "button"}
-      accessibilityState={
-        props.static ? undefined : { disabled: props.disabled, selected: props.selected }
-      }
-      className={cn(
-        "h-11 flex-row items-center rounded-xl active:bg-subtle",
-        props.compact ? "min-w-11 gap-1.5 px-1" : "gap-2 px-2",
-      )}
-      disabled={props.disabled || props.static}
-      onPress={props.onPress}
-      style={{ maxWidth: props.maxWidth ?? 190, opacity: props.disabled ? 0.45 : 1 }}
+    <Animated.View
+      layout={animatesLabel ? INLINE_CONTROL_WIDTH_TRANSITION : undefined}
+      style={{
+        maxWidth: props.maxWidth ?? 190,
+        overflow: animatesLabel ? "hidden" : undefined,
+      }}
     >
-      {props.renderIcon ? (
-        <View
-          className="size-4 shrink-0 items-center justify-center"
-          style={Platform.OS === "android" ? { width: 14 * scale, height: 14 * scale } : undefined}
-        >
-          {props.renderIcon(smallIconSize)}
-        </View>
-      ) : props.icon ? (
-        <SymbolView
-          name={props.icon}
-          size={smallIconSize}
-          tintColorClassName={
-            props.emphasized || props.selected ? "accent-icon" : "accent-icon-muted"
-          }
-          type="monochrome"
-        />
-      ) : null}
-      <Text
+      <Pressable
+        accessibilityLabel={props.accessibilityLabel ?? props.label}
+        accessibilityHint={props.accessibilityHint}
+        accessibilityRole={props.static ? undefined : "button"}
+        accessibilityState={
+          props.static ? undefined : { disabled: props.disabled, selected: props.selected }
+        }
         className={cn(
-          "shrink text-sm font-supaterm-medium",
-          props.emphasized || props.selected ? "text-foreground" : "text-foreground-muted",
+          "h-11 flex-row items-center rounded-xl active:bg-subtle",
+          props.compact ? "min-w-11 gap-1.5 px-1" : "gap-2 px-2",
         )}
-        numberOfLines={1}
+        disabled={props.disabled || props.static}
+        onPress={props.onPress}
+        style={{ opacity: props.disabled ? 0.45 : 1 }}
       >
-        {props.label}
-        {props.secondaryLabel ? (
-          <Text className="font-supaterm-medium text-foreground-muted">
-            {` ${props.secondaryLabel}`}
-          </Text>
+        {props.renderIcon ? (
+          <View
+            className="size-4 shrink-0 items-center justify-center"
+            style={
+              Platform.OS === "android" ? { width: 14 * scale, height: 14 * scale } : undefined
+            }
+          >
+            {props.renderIcon(smallIconSize)}
+          </View>
+        ) : props.icon ? (
+          <SymbolView
+            name={props.icon}
+            size={smallIconSize}
+            tintColorClassName={
+              props.emphasized || props.selected ? "accent-icon" : "accent-icon-muted"
+            }
+            type="monochrome"
+          />
         ) : null}
-      </Text>
-      {props.showChevron === false ? null : (
-        <SymbolView
-          name={props.chevronDirection === "right" ? "chevron.right" : "chevron.down"}
-          size={Math.round(10 * scale)}
-          tintColorClassName={
-            props.emphasized || props.selected ? "accent-icon" : "accent-icon-muted"
-          }
-          type="monochrome"
-        />
-      )}
-    </Pressable>
+        {props.iconOnly ? null : (
+          <Animated.View
+            className="shrink"
+            entering={animatesLabel ? INLINE_CONTROL_LABEL_ENTERING : undefined}
+          >
+            <Text
+              className={cn(
+                "text-sm font-supaterm-medium",
+                props.emphasized || props.selected ? "text-foreground" : "text-foreground-muted",
+              )}
+              numberOfLines={1}
+            >
+              {props.label}
+              {props.secondaryLabel ? (
+                <Text className="font-supaterm-medium text-foreground-muted">
+                  {` ${props.secondaryLabel}`}
+                </Text>
+              ) : null}
+            </Text>
+          </Animated.View>
+        )}
+        {props.showChevron === false ? null : (
+          <SymbolView
+            name={props.chevronDirection === "right" ? "chevron.right" : "chevron.down"}
+            size={Math.round(10 * scale)}
+            tintColorClassName={
+              props.emphasized || props.selected ? "accent-icon" : "accent-icon-muted"
+            }
+            type="monochrome"
+          />
+        )}
+      </Pressable>
+    </Animated.View>
   );
 }
 

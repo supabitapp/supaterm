@@ -47,9 +47,8 @@ function IndexDraftLanding() {
   const [startFailed, setStartFailed] = useState(false);
   const [retryRequest, setRetryRequest] = useState(0);
 
-  const mostRecentProject = bootstrapped
-    ? (sortScopedProjectsForSidebar(projects, threads, "updated_at")[0] ?? null)
-    : null;
+  const mostRecentProject =
+    sortScopedProjectsForSidebar(projects, threads, "updated_at")[0] ?? null;
 
   const startDraft = (project: NonNullable<typeof mostRecentProject>) => {
     if (startingRef.current) {
@@ -82,9 +81,6 @@ function IndexDraftLanding() {
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A draft abandoned for a removed project retries with the next one.
   }, [mostRecentProject, retryRequest, startDraft]);
 
-  if (!bootstrapped) {
-    return null;
-  }
   if (mostRecentProject !== null) {
     return startFailed ? (
       <DraftStartError
@@ -95,7 +91,8 @@ function IndexDraftLanding() {
       />
     ) : null;
   }
-  return <NoProjectsHero />;
+  // A pending environment cannot prove the workspace is empty.
+  return bootstrapped ? <NoProjectsHero /> : null;
 }
 
 function DraftStartError({ onRetry }: { readonly onRetry: () => void }) {

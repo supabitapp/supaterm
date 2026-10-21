@@ -3,12 +3,15 @@ import {
   EnvironmentId,
   PRIMARY_LOCAL_ENVIRONMENT_ID,
   type DesktopBridge,
+  type DesktopSshEnvironmentBootstrap,
   type DesktopSshEnvironmentTarget,
   ORCHESTRATION_PROTOCOL_VERSION,
 } from "@supaterm/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
+import { afterEach, vi } from "vite-plus/test";
+import { ClientCapabilities } from "@supaterm/client-runtime/platform";
 import {
   ConnectionBlockedError,
   ConnectionTransientError,
@@ -18,6 +21,7 @@ import {
   canRetainCachedPlatformRegistrationAfterRefreshFailure,
   canReuseCachedPlatformRegistration,
   disconnectDesktopSshEnvironment,
+  layer,
   isRejectedBootstrapCredentialError,
   isRejectedSecondaryBootstrap,
   nextRejectedSecondaryBootstrap,
@@ -36,6 +40,28 @@ const TARGET: DesktopSshEnvironmentTarget = {
   username: "developer",
   port: 22,
 };
+
+const SSH_BOOTSTRAP = {
+  target: TARGET,
+  httpBaseUrl: "http://127.0.0.1:3201/",
+  wsBaseUrl: "ws://127.0.0.1:3201/",
+  pairingToken: "abandoned-token",
+};
+
+function pendingSetup() {
+  let resolve!: (bootstrap: DesktopSshEnvironmentBootstrap) => void;
+  let reject!: (cause: unknown) => void;
+  const promise = new Promise<DesktopSshEnvironmentBootstrap>((onResolve, onReject) => {
+    resolve = onResolve;
+    reject = onReject;
+  });
+  return { promise, resolve, reject };
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 function makeBridge(
   calls: string[],
@@ -125,17 +151,108 @@ describe("desktop SSH pairing", () => {
     }),
   );
 
+  it.effect("exchanges one setup credential after repeated interrupted provisions", () =>
+    Effect.gen(function* () {
+      const bridge = makeBridge([]);
+      const setup = pendingSetup();
+      const ensure = vi.spyOn(bridge, "ensureSshEnvironment").mockReturnValue(setup.promise);
+      const exchange = vi.spyOn(bridge, "bootstrapSshBearerSession");
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const interrupted = yield* Effect.forkChild(
+          provisionDesktopSshEnvironment(bridge, TARGET),
+          { startImmediately: true },
+        );
+        yield* Fiber.interrupt(interrupted);
+      }
+
+      const retry = yield* Effect.forkChild(provisionDesktopSshEnvironment(bridge, TARGET), {
+        startImmediately: true,
+      });
+      setup.resolve(SSH_BOOTSTRAP);
+      const provisioned = yield* Fiber.join(retry);
+
+      expect(provisioned.bearerToken).toBe("bearer-token");
+      expect(ensure).toHaveBeenCalledExactlyOnceWith(TARGET, { issuePairingToken: true });
+      expect(exchange).toHaveBeenCalledExactlyOnceWith(
+        SSH_BOOTSTRAP.httpBaseUrl,
+        "abandoned-token",
+      );
+    }),
+  );
+
+  it.effect("starts fresh after an abandoned setup settles in success or failure", () =>
+    Effect.gen(function* () {
+      for (const outcome of ["success", "failure"]) {
+        const bridge = makeBridge([]);
+        const setup = pendingSetup();
+        const ensure = vi.spyOn(bridge, "ensureSshEnvironment").mockReturnValueOnce(setup.promise);
+        const exchange = vi.spyOn(bridge, "bootstrapSshBearerSession");
+        const interrupted = yield* Effect.forkChild(
+          provisionDesktopSshEnvironment(bridge, TARGET),
+          { startImmediately: true },
+        );
+        yield* Fiber.interrupt(interrupted);
+        if (outcome === "success") setup.resolve(SSH_BOOTSTRAP);
+        else setup.reject(new Error("remote launch failed"));
+        yield* Effect.promise(() =>
+          setup.promise.then(
+            () => undefined,
+            () => undefined,
+          ),
+        );
+
+        const provisioned = yield* provisionDesktopSshEnvironment(bridge, TARGET);
+
+        expect(provisioned.bearerToken).toBe("bearer-token");
+        expect(ensure).toHaveBeenCalledTimes(2);
+        expect(exchange).toHaveBeenCalledExactlyOnceWith(
+          SSH_BOOTSTRAP.httpBaseUrl,
+          "pairing-token",
+        );
+      }
+    }),
+  );
+
+  it.effect("disconnect invalidates unfinished setup even before provision is interrupted", () =>
+    Effect.gen(function* () {
+      const calls: string[] = [];
+      const bridge = makeBridge(calls);
+      const setup = pendingSetup();
+      const ensure = vi.spyOn(bridge, "ensureSshEnvironment").mockReturnValueOnce(setup.promise);
+      const exchange = vi.spyOn(bridge, "bootstrapSshBearerSession");
+      vi.stubGlobal("window", { desktopBridge: bridge });
+      const ssh = yield* ClientCapabilities.SshEnvironmentGateway.pipe(Effect.provide(layer));
+      const interrupted = yield* Effect.forkChild(ssh.provision(TARGET), {
+        startImmediately: true,
+      });
+      yield* ssh.disconnect(TARGET);
+      yield* Fiber.interrupt(interrupted);
+
+      const retry = yield* Effect.forkChild(ssh.provision(TARGET), { startImmediately: true });
+      setup.resolve(SSH_BOOTSTRAP);
+      const provisioned = yield* Fiber.join(retry);
+
+      expect(provisioned.bearerToken).toBe("bearer-token");
+      expect(ensure).toHaveBeenCalledTimes(2);
+      expect(calls).toEqual(["disconnect", "ensure", "descriptor", "token"]);
+      expect(exchange).toHaveBeenCalledExactlyOnceWith(SSH_BOOTSTRAP.httpBaseUrl, "pairing-token");
+    }),
+  );
+
   it.effect("reconnects with the saved token while it holds every standard scope", () =>
     Effect.gen(function* () {
       const calls: string[] = [];
 
-      const prepared = yield* prepareDesktopSshEnvironment(makeBridge(calls), {
+      const bridge = makeBridge(calls);
+      const ensure = vi.spyOn(bridge, "ensureSshEnvironment");
+      const prepared = yield* prepareDesktopSshEnvironment(bridge, {
         target: TARGET,
         expectedEnvironmentId: EnvironmentId.make("environment-ssh"),
         bearerToken: "saved-token",
       });
 
       expect(prepared.bearerToken).toBe("saved-token");
+      expect(ensure).toHaveBeenCalledExactlyOnceWith(TARGET, { issuePairingToken: false });
       expect(calls).toEqual(["ensure", "descriptor", "session"]);
     }),
   );

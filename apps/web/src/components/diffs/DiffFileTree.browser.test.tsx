@@ -1,10 +1,11 @@
 import type { CodeViewScrollTarget } from "@pierre/diffs";
 import type { FileTree as FileTreeModel } from "@pierre/trees";
-import { act, type ComponentProps } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import type { ComponentProps } from "react";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import type { FileDiffMetadata } from "@pierre/diffs";
+
+import { act, render } from "../../../test/render";
 
 import { DiffFileTree, type DiffFileTreeEntry } from "./DiffFileTree";
 import { diffFileTreeEntries } from "./diffFileTree.logic";
@@ -31,7 +32,6 @@ const entries: DiffFileTreeEntry[] = [
 ];
 
 describe("diff tree file activation", () => {
-  let root: Root | undefined;
   let container: HTMLDivElement;
   const targets: CodeViewScrollTarget[] = [];
   const viewer = {
@@ -42,9 +42,11 @@ describe("diff tree file activation", () => {
   function Panel({
     files = entries,
     selectedPath = null,
+    revealRequestId = 0,
   }: {
     files?: DiffFileTreeEntry[];
     selectedPath?: string | null;
+    revealRequestId?: number;
   }) {
     const reveal = useCodeViewFileReveal(viewer, "working-tree");
     return (
@@ -52,6 +54,7 @@ describe("diff tree file activation", () => {
         entries={files}
         ariaLabel="Working tree files"
         selectedPath={selectedPath}
+        revealRequestId={revealRequestId}
         onSelectFile={(path) => reveal(`${path}\0${path}`)}
       />
     );
@@ -59,9 +62,10 @@ describe("diff tree file activation", () => {
 
   const model = (): FileTreeModel => captured.model as FileTreeModel;
 
-  async function mount(props: Parameters<typeof Panel>[0] = {}) {
-    root ??= createRoot(container);
-    await act(async () => root!.render(<Panel {...props} />));
+  function setup() {
+    targets.length = 0;
+    container = document.createElement("div");
+    container.style.cssText = "display: flex; flex-direction: column; width: 320px; height: 480px";
   }
 
   function row(path: string): HTMLElement {
@@ -73,9 +77,18 @@ describe("diff tree file activation", () => {
     return element!;
   }
 
-  async function activate(path: string, modifiers: MouseEventInit = {}) {
+  function fileRows(): HTMLElement[] {
+    const host = container.querySelector("file-tree-container");
+    return [
+      ...(host?.shadowRoot ?? container).querySelectorAll<HTMLElement>(
+        '[role="treeitem"][data-item-type="file"]',
+      ),
+    ];
+  }
+
+  async function activate(target: string | HTMLElement, modifiers: MouseEventInit = {}) {
     await act(async () => {
-      row(path).dispatchEvent(
+      (typeof target === "string" ? row(target) : target).dispatchEvent(
         new MouseEvent("click", {
           bubbles: true,
           composed: true,
@@ -87,28 +100,14 @@ describe("diff tree file activation", () => {
     });
   }
 
-  beforeEach(() => {
-    targets.length = 0;
-    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-    container = document.createElement("div");
-    container.style.cssText = "display: flex; flex-direction: column; width: 320px; height: 480px";
-    document.body.append(container);
-  });
-
-  afterEach(async () => {
-    await act(async () => root?.unmount());
-    root = undefined;
-    container.remove();
-    vi.unstubAllGlobals();
-  });
-
   it("mounts a file-to-symlink type change as one tree row", async () => {
+    setup();
     const typeChange = diffFileTreeEntries([
       { type: "deleted", name: "AGENTS.md", prevName: "AGENTS.md" } as FileDiffMetadata,
       { type: "new", name: "AGENTS.md", prevName: "AGENTS.md" } as FileDiffMetadata,
       { type: "change", name: "CLAUDE.md", prevName: "CLAUDE.md" } as FileDiffMetadata,
     ]);
-    await mount({ files: [...typeChange] });
+    await using _screen = await render(<Panel files={[...typeChange]} />, { container });
 
     const tree = model();
     expect(tree.getItem("AGENTS.md")?.isDirectory()).toBe(false);
@@ -118,7 +117,8 @@ describe("diff tree file activation", () => {
   });
 
   it("reissues the reveal when the sole selected file is activated again", async () => {
-    await mount();
+    setup();
+    await using _screen = await render(<Panel />, { container });
     await activate("02-short.ts");
     expect(model().getSelectedPaths()).toEqual(["02-short.ts"]);
     await activate("02-short.ts");
@@ -129,7 +129,8 @@ describe("diff tree file activation", () => {
   });
 
   it("reveals newly selected files once in either direction", async () => {
-    await mount();
+    setup();
+    await using _screen = await render(<Panel />, { container });
     await activate("02-short.ts");
     await activate("01-tall.ts");
     await activate("03-medium.ts");
@@ -139,7 +140,8 @@ describe("diff tree file activation", () => {
   });
 
   it("keeps focus-only navigation separate from button activation", async () => {
-    await mount();
+    setup();
+    await using _screen = await render(<Panel />, { container });
     await activate("02-short.ts");
     await act(async () => model().getItem("01-tall.ts")!.focus());
     expect(model().getSelectedPaths()).toEqual(["02-short.ts"]);
@@ -152,7 +154,8 @@ describe("diff tree file activation", () => {
   it.each(["ctrlKey", "metaKey"] as const)(
     "does not reveal a selected file that a %s click deselects",
     async (modifier) => {
-      await mount();
+      setup();
+      await using _screen = await render(<Panel />, { container });
       await activate("02-short.ts");
       await activate("02-short.ts", { [modifier]: true });
       expect(model().getSelectedPaths()).toEqual([]);
@@ -161,7 +164,8 @@ describe("diff tree file activation", () => {
   );
 
   it("lets a click narrow multiple selected files without a second reveal", async () => {
-    await mount();
+    setup();
+    await using _screen = await render(<Panel />, { container });
     await activate("02-short.ts");
     await act(async () => model().getItem("01-tall.ts")!.select());
     expect(model().getSelectedPaths()).toHaveLength(2);
@@ -172,7 +176,11 @@ describe("diff tree file activation", () => {
   });
 
   it("leaves directory selection and expansion to the tree", async () => {
-    await mount({ files: [{ path: "src/app.ts", status: "modified" }] });
+    setup();
+    await using _screen = await render(
+      <Panel files={[{ path: "src/app.ts", status: "modified" }]} />,
+      { container },
+    );
     const directory = model().getItem("src/")!;
     if (!("isExpanded" in directory)) throw new Error("Expected the directory handle");
     expect(directory.isExpanded()).toBe(true);
@@ -184,32 +192,156 @@ describe("diff tree file activation", () => {
   });
 
   it("reorders refreshed files without reopening a collapsed folder", async () => {
+    setup();
     const files: DiffFileTreeEntry[] = [
       { path: "src/state/shell.ts", status: "modified" },
       { path: "src/features/route.ts", status: "added" },
     ];
-    await mount({ files });
+    await using screen = await render(<Panel files={files} />, { container });
     const initialFolder = model().getItem("src/features/")!;
     if (!("collapse" in initialFolder)) throw new Error("Expected the directory handle");
     await act(async () => initialFolder.collapse());
-    await act(async () => {
-      root!.render(<Panel files={[files[1]!, files[0]!]} />);
-    });
+    await screen.rerender(<Panel files={[files[1]!, files[0]!]} />);
     const folder = model().getItem("src/features/")!;
     if (!("isExpanded" in folder)) throw new Error("Expected the directory handle");
     expect(folder.isExpanded()).toBe(false);
   });
 
-  it("does not echo controlled selection, but lets the reader activate it", async () => {
-    await mount({ selectedPath: "02-short.ts" });
-    expect(model().getSelectedPaths()).toEqual(["02-short.ts"]);
+  it("reveals real diff paths and statuses when a directory is replaced by a file", async () => {
+    setup();
+    const files: DiffFileTreeEntry[] = [
+      { path: "office/config.ts", status: "deleted" },
+      { path: "office", status: "added" },
+    ];
+    await using screen = await render(<Panel files={files} selectedPath="office" />, { container });
+    expect(fileRows().map((row) => row.getAttribute("data-item-git-status"))).toEqual([
+      "deleted",
+      "added",
+    ]);
+    expect(fileRows()[1]!.getAttribute("aria-selected")).toBe("true");
     expect(targets).toEqual([]);
-    await activate("02-short.ts");
-    expect(targets).toHaveLength(1);
-    await act(async () => {
-      root!.render(<Panel selectedPath="03-medium.ts" />);
+    await activate(fileRows()[1]!);
+    await activate(fileRows()[0]!);
+    await activate("office/");
+    expect(targets).toEqual([
+      { type: "item", id: "office\0office", align: "start" },
+      { type: "item", id: "office/config.ts\0office/config.ts", align: "start" },
+    ]);
+    expect(row("office/").getAttribute("aria-expanded")).toBe("false");
+    await screen.rerender(<Panel files={files} selectedPath="office/config.ts" />);
+    expect(row("office/").getAttribute("aria-expanded")).toBe("true");
+    expect(fileRows()[0]!.getAttribute("aria-selected")).toBe("true");
+    expect(targets).toHaveLength(2);
+  });
+
+  it("keeps selection, focus, and collapsed folders through a colliding slice and refresh", async () => {
+    setup();
+    const files: DiffFileTreeEntry[] = [
+      { path: "office", status: "deleted" },
+      { path: "src/route.ts", status: "modified" },
+    ];
+    await using screen = await render(<Panel files={files} />, { container });
+    await activate("src/");
+    await activate("office");
+    await act(async () => model().focusPath("office"));
+    expect(model().getFocusedPath()).toBe("office");
+    expect(row("office").getAttribute("aria-selected")).toBe("true");
+    const appended: DiffFileTreeEntry[] = [...files, { path: "office/config.ts", status: "added" }];
+    await screen.rerender(<Panel files={appended} />);
+    expect(row("src/").getAttribute("aria-expanded")).toBe("false");
+    expect(fileRows()[0]!.getAttribute("aria-selected")).toBe("true");
+    expect(row("office/").getAttribute("aria-selected")).toBe("false");
+    expect.soft(model().getFocusedPath()).toBe("office\u200b");
+    expect(targets).toEqual([{ type: "item", id: "office\0office", align: "start" }]);
+    await activate(fileRows()[0]!);
+    await activate(fileRows()[1]!);
+    expect(targets).toEqual([
+      { type: "item", id: "office\0office", align: "start" },
+      { type: "item", id: "office\0office", align: "start" },
+      { type: "item", id: "office/config.ts\0office/config.ts", align: "start" },
+    ]);
+    await activate("office/");
+    await screen.rerender(<Panel files={appended.map((file) => ({ ...file }))} />);
+    expect(row("src/").getAttribute("aria-expanded")).toBe("false");
+    expect(row("office/").getAttribute("aria-expanded")).toBe("false");
+    await activate(fileRows()[0]!);
+    expect(targets.at(-1)).toEqual({ type: "item", id: "office\0office", align: "start" });
+    expect(targets).toHaveLength(4);
+  });
+
+  it("preserves filename and extension icons when files become directory prefixes", async () => {
+    setup();
+    const files: DiffFileTreeEntry[] = [
+      { path: "AGENTS.md", status: "deleted" },
+      { path: "config.ts", status: "deleted" },
+    ];
+    const rootFileIcons = () =>
+      fileRows()
+        .filter((row) => row.getAttribute("aria-level") === "1")
+        .map((row) => row.querySelector('[data-item-section="icon"] use')?.getAttribute("href"));
+    await using screen = await render(<Panel files={files} />, { container });
+    const icons = rootFileIcons();
+    expect(icons).toEqual(["#supaterm-file-icon-agents", "#file-tree-builtin-typescript"]);
+    await screen.rerender(
+      <Panel
+        files={[
+          ...files,
+          { path: "AGENTS.md/note.txt", status: "added" },
+          { path: "config.ts/note.txt", status: "added" },
+        ]}
+      />,
+    );
+    expect(rootFileIcons()).toEqual(icons);
+  });
+
+  it("preserves a collapsed controlled selection through paging until explicitly revealed", async () => {
+    setup();
+    const files: DiffFileTreeEntry[] = [
+      { path: "src/office", status: "deleted" },
+      { path: "src/route.ts", status: "modified" },
+    ];
+    await using screen = await render(<Panel files={files} selectedPath="src/office" />, {
+      container,
     });
-    expect(model().getSelectedPaths()).toEqual(["03-medium.ts"]);
+    expect(model().getSelectedPaths()).toEqual(["src/office"]);
+    expect(targets).toEqual([]);
+    await activate("src/office");
+    expect(targets).toEqual([{ type: "item", id: "src/office\0src/office", align: "start" }]);
+
+    const folder = model().getItem("src/")!;
+    if (!("collapse" in folder)) throw new Error("Expected the directory handle");
+    await act(async () => folder.collapse());
+    expect(row("src/").getAttribute("aria-expanded")).toBe("false");
+    using scroll = vi.spyOn(model(), "scrollToPath");
+    const appended: DiffFileTreeEntry[] = [...files, { path: "src/office/x.ts", status: "added" }];
+    await screen.rerender(<Panel files={appended} selectedPath="src/office" />);
+    expect.soft(row("src/").getAttribute("aria-expanded")).toBe("false");
+    expect.soft(scroll).not.toHaveBeenCalled();
+    const selected = model().getSelectedPaths();
+    expect(selected).toHaveLength(1);
+    expect(model().getItem(selected[0]!)?.isDirectory()).toBe(false);
     expect(targets).toHaveLength(1);
+
+    await act(async () => folder.collapse());
+    scroll.mockClear();
+    await screen.rerender(<Panel files={appended} selectedPath="src/office" revealRequestId={1} />);
+    expect(row("src/").getAttribute("aria-expanded")).toBe("true");
+    expect(model().getSelectedPaths()).toEqual(selected);
+    expect(row(selected[0]!).getAttribute("aria-selected")).toBe("true");
+    expect(scroll).toHaveBeenCalledOnce();
+    expect(targets).toHaveLength(1);
+    await activate(selected[0]!);
+    expect(targets).toEqual([
+      { type: "item", id: "src/office\0src/office", align: "start" },
+      { type: "item", id: "src/office\0src/office", align: "start" },
+    ]);
+
+    await act(async () => folder.collapse());
+    await screen.rerender(
+      <Panel files={appended} selectedPath="src/route.ts" revealRequestId={1} />,
+    );
+    expect(row("src/").getAttribute("aria-expanded")).toBe("true");
+    expect(model().getSelectedPaths()).toEqual(["src/route.ts"]);
+    expect(targets).toHaveLength(2);
   });
 });

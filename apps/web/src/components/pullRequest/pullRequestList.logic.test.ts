@@ -12,6 +12,7 @@ import {
   largestPullRequestReadCount,
   pullRequestQuickActions,
   filterPullRequestsByInvolvement,
+  findProjectForRepository,
   findScopedProject,
   mergePullRequestLists,
   pullRequestEntryKey,
@@ -63,9 +64,9 @@ function entry(
     host: "github.com",
     projectId: "project-1",
     projectTitle: "supaterm",
-    repository: "supabitapp/supacode-next",
+    repository: "supabitapp/supaterm",
     title: "Add the pull requests page",
-    url: `https://github.com/supabitapp/supacode-next/pull/${overrides.number}`,
+    url: `https://github.com/supabitapp/supaterm/pull/${overrides.number}`,
     author: { login: "octocat", name: null, avatarUrl: null },
     headBranch: `feat/branch-${overrides.number}`,
     baseBranch: "main",
@@ -98,7 +99,7 @@ describe("visible pull request line-count targets", () => {
     );
 
     expect(pullRequestStatsBatches(entriesByKey, keys)[0]?.input.refs).toEqual([
-      { projectId: "project-1", repository: "supabitapp/supacode-next", number: 3 },
+      { projectId: "project-1", repository: "supabitapp/supaterm", number: 3 },
     ]);
   });
 
@@ -128,7 +129,7 @@ describe("visible pull request line-count targets", () => {
     );
     expect([...keys]).toEqual([secondKey]);
     expect(pullRequestStatsBatches(entriesByKey, keys)[0]?.input.refs).toEqual([
-      { projectId: "project-1", repository: "supabitapp/supacode-next", number: 2 },
+      { projectId: "project-1", repository: "supabitapp/supaterm", number: 2 },
     ]);
   });
 
@@ -1016,7 +1017,7 @@ describe("the list snapshot across a reload", () => {
     providers: [],
     errors: [{ projectId: "project-1", message: "boom" }],
     truncated: true,
-    nextCursors: { "supabitapp/supacode-next": "cursor-1" },
+    nextCursors: { "supabitapp/supaterm": "cursor-1" },
   } as never;
 
   it("hydrates the retained rows so ghosts never replace them", () => {
@@ -1263,11 +1264,11 @@ describe("merging the environments' own listings", () => {
 
   it("keeps each environment's continuation to itself", () => {
     const merged = mergePullRequestLists([
-      [ENV_1, answer({ nextCursors: { "github.com supabitapp/supacode-next": "cursor-1" } })],
+      [ENV_1, answer({ nextCursors: { "github.com supabitapp/supaterm": "cursor-1" } })],
       [ENV_2, answer()],
     ]);
     expect(merged?.nextCursors).toEqual({
-      [ENV_1]: { "github.com supabitapp/supacode-next": "cursor-1" },
+      [ENV_1]: { "github.com supabitapp/supaterm": "cursor-1" },
     });
   });
 
@@ -1456,7 +1457,7 @@ describe("pull request list overrides", () => {
   const entry = (number: number, state: "open" | "closed" | "merged") =>
     ({
       host: "github.com",
-      repository: "supabitapp/supacode-next",
+      repository: "supabitapp/supaterm",
       number,
       state,
       isDraft: false,
@@ -1606,7 +1607,7 @@ describe("refresh page size", () => {
         entry({
           number: index + 1,
           provider: SourceControlProviderKind.make(provider),
-          repository: `pingdotgg/${name}`,
+          repository: `supabitapp/${name}`,
         }),
       ),
     );
@@ -1618,4 +1619,112 @@ describe("refresh page size", () => {
   it("asks for the whole host where one search reads every repository", () => {
     expect(largestPullRequestReadCount(twoPagesAcrossFourRepositories("github"))).toBe(792);
   });
+});
+
+describe("findProjectForRepository", () => {
+  it("resolves Azure bare names using matching project and environment scope", () => {
+    const azure = (id: string, environmentId: string, path: string) => ({
+      id,
+      environmentId,
+      repositoryIdentity: {
+        canonicalKey: `dev.azure.com/${path}`,
+        locator: { source: "git-remote" as const, remoteName: "origin", remoteUrl: "" },
+        provider: "azure-devops",
+        displayName: path,
+        owner: "contoso",
+        name: path.split("/").at(-1)!,
+      },
+    });
+    const payments = azure("p1", ENV_1, "contoso/payments/_git/api");
+    const billing = azure("p2", ENV_1, "contoso/billing/_git/api");
+    const remoteBilling = azure("p2", ENV_2, "contoso/billing/_git/api");
+    const unrelated = azure("p3", ENV_2, "contoso/billing/_git/web");
+    const projects = [payments, billing, remoteBilling, unrelated];
+
+    expect(findProjectForRepository(projects, { repository: "api" })).toBe(payments);
+    expect(
+      findProjectForRepository(projects, {
+        repository: "api",
+        scopedProjectId: "p2",
+        scopedEnvironmentId: ENV_2,
+      }),
+    ).toBe(remoteBilling);
+    expect(
+      findProjectForRepository(projects, {
+        repository: "api",
+        scopedProjectId: "p3",
+        scopedEnvironmentId: ENV_2,
+      }),
+    ).toBe(payments);
+  });
+
+  it("keeps repository matches on the selected environment when project IDs overlap", () => {
+    const project = (id: string, environmentId: string, repository: string) => ({
+      id,
+      environmentId,
+      repositoryIdentity: {
+        canonicalKey: `github.com/${repository}`,
+        locator: { source: "git-remote" as const, remoteName: "origin", remoteUrl: "" },
+        provider: "github",
+        displayName: repository,
+      },
+    });
+    const unrelated = project("p1", ENV_1, "acme/web");
+    const local = project("p2", ENV_1, "acme/api");
+    const remote = project("p1", ENV_2, "acme/api");
+    const projects = [unrelated, local, remote];
+
+    expect(findProjectForRepository(projects, { repository: "acme/api" })).toBe(local);
+    expect(
+      findProjectForRepository(projects, {
+        repository: "acme/api",
+        selectedEnvironmentId: ENV_2,
+      }),
+    ).toBe(remote);
+    expect(
+      findProjectForRepository(projects, {
+        repository: "acme/web",
+        selectedEnvironmentId: ENV_2,
+      }),
+    ).toBeUndefined();
+    expect(
+      findProjectForRepository(projects, {
+        repository: "acme/api",
+        selectedEnvironmentId: "env-connecting",
+      }),
+    ).toBeUndefined();
+  });
+
+  it.each([
+    ["gitlab", "supabitapp/platform/supaterm", "Supabitapp/Platform/Supaterm"],
+    ["github", "supabitapp/supaterm", "Supabitapp/Supaterm"],
+  ] as const)(
+    "selects the %s repository on the requested host despite a scope on another host",
+    (provider, repository, displayName) => {
+      const project = (host: string) => ({
+        id: host,
+        environmentId: ENV_1,
+        repositoryIdentity: {
+          canonicalKey: `${host}/${repository}`,
+          locator: { source: "git-remote" as const, remoteName: "origin", remoteUrl: "" },
+          provider,
+          displayName,
+          owner: "supabitapp",
+          name: "supaterm",
+        },
+      });
+      const publicProject = project(`${provider}.com`);
+      const enterpriseProject = project(`${provider}.acme.test`);
+      const projects = [publicProject, enterpriseProject];
+
+      expect(
+        findProjectForRepository(projects, {
+          repository: repository.toUpperCase(),
+          host: `${provider}.ACME.TEST`,
+          scopedProjectId: publicProject.id,
+          scopedEnvironmentId: ENV_1,
+        }),
+      ).toBe(enterpriseProject);
+    },
+  );
 });

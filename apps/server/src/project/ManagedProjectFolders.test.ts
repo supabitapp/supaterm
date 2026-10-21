@@ -47,6 +47,7 @@ const layerEnrichment = ProjectEnrichmentService.layer.pipe(
         resolve: () => Effect.succeed(null),
       }),
       Layer.succeed(ProjectFaviconResolver.ProjectFaviconResolver, {
+        invalidate: () => Effect.void,
         resolvePath: () => Effect.succeed(null),
       }),
     ),
@@ -138,6 +139,7 @@ it.effect("offers nothing when the data dir sits inside a Git checkout", () =>
     yield* Effect.gen(function* () {
       const scratch = yield* ManagedProjectFolders.ManagedProjectFolders;
       assert.isTrue(Option.isNone(yield* scratch.scratchRoot));
+      assert.isFalse(yield* scratch.isScratchProject(ProjectId.make("project:any")));
       const failure = yield* Effect.flip(scratch.ensureScratchProject);
       assert.equal(failure._tag, "ScratchUnavailableError");
     }).pipe(Effect.provide(layer(baseDir)));
@@ -283,7 +285,7 @@ it.effect("leaves threads in other projects alone", () =>
       const projects = yield* ProjectService.ProjectService;
       const fileSystem = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
-      yield* scratch.ensureScratchProject;
+      const { projectId: scratchId } = yield* scratch.ensureScratchProject;
       const other = yield* projects.create({
         commandId: CommandId.make("command:other"),
         projectId: ProjectId.make("project:other"),
@@ -299,6 +301,8 @@ it.effect("leaves threads in other projects alone", () =>
       });
       assert.isTrue(Option.isNone(folder));
       assert.deepEqual(yield* fileSystem.readDirectory(yield* requireRoot), []);
+      assert.isTrue(yield* scratch.isScratchProject(scratchId));
+      assert.isFalse(yield* scratch.isScratchProject(other.id));
     }),
   ),
 );

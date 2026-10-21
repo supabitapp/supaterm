@@ -130,10 +130,15 @@ function buildTreeEntries(
     entries.map((entry) => [entry.path, entry.kind] as const),
   );
   const treePaths = entries.map(treePath);
-  const directoryPaths = entries.flatMap((entry) =>
-    entry.kind === "directory" ? [treePath(entry)] : [],
-  );
-  return { entries, entryKinds, treePaths, directoryPaths };
+  const directoryPaths: string[] = [];
+  const expandableDirectoryPaths: string[] = [];
+  for (const entry of entries) {
+    if (entry.kind !== "directory") continue;
+    const path = treePath(entry);
+    directoryPaths.push(path);
+    if (!entry.ignored) expandableDirectoryPaths.push(path);
+  }
+  return { entries, entryKinds, treePaths, directoryPaths, expandableDirectoryPaths };
 }
 
 export default function FileBrowserPanel({
@@ -167,12 +172,8 @@ export default function FileBrowserPanel({
     { environmentId, cwd: hostFolder ? null : cwd, query: query.slice(0, 256) },
     200,
   );
-  const { entries, entryKinds, treePaths, directoryPaths } = buildTreeEntries(
-    directoryEntries,
-    pathSearch.entries,
-    pathSearch.isPending,
-    query,
-  );
+  const { entries, entryKinds, treePaths, directoryPaths, expandableDirectoryPaths } =
+    buildTreeEntries(directoryEntries, pathSearch.entries, pathSearch.isPending, query);
   const entryKindsRef = useRef(entryKinds);
   const previousTreePathsRef = useRef<readonly string[] | null>(null);
   const syncingSelectionRef = useRef(false);
@@ -324,12 +325,16 @@ export default function FileBrowserPanel({
 
   const hasNoSearchMatches = search.value.trim().length > 0 && search.matchingPaths.length === 0;
   const allDirectoriesExpanded = useFileTreeSelector(model, (currentModel) =>
-    areAllDirectoriesExpanded(currentModel, directoryPaths),
+    areAllDirectoriesExpanded(currentModel, expandableDirectoryPaths),
   );
   const toggleAllDirectories = () => {
     const expanded = !(expandAll || allDirectoriesExpanded);
     setExpandAll(expanded);
-    setAllDirectoriesExpanded(model, directoryPaths, expanded);
+    setAllDirectoriesExpanded(
+      model,
+      expanded ? expandableDirectoryPaths : directoryPaths,
+      expanded,
+    );
   };
   const closeSearch = () => {
     setQuery("");
@@ -414,8 +419,9 @@ export default function FileBrowserPanel({
   }, [ready, entryKinds, model, treePaths]);
 
   useEffect(() => {
-    if (expandAll && !query.trim()) setAllDirectoriesExpanded(model, directoryPaths, true);
-  }, [directoryPaths, expandAll, model, query]);
+    if (expandAll && !query.trim())
+      setAllDirectoriesExpanded(model, expandableDirectoryPaths, true);
+  }, [expandableDirectoryPaths, expandAll, model, query]);
 
   useEffect(() => {
     if (!selectedPath) {
@@ -564,7 +570,14 @@ export default function FileBrowserPanel({
         </div>
       ) : null}
       {((!ready && error === null) || pathSearch.isPending) && (
-        <div role="status" className="px-3 py-1 text-xs text-muted-foreground">
+        <div
+          role="status"
+          className={
+            entries.length > 0 && !hasNoSearchMatches
+              ? "sr-only"
+              : "px-3 py-1 text-xs text-muted-foreground"
+          }
+        >
           Loading files…
         </div>
       )}

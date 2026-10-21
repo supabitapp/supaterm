@@ -27,6 +27,7 @@ import {
   type OrchestrationV2Subagent,
   type OrchestrationV2TurnItem,
   type ProviderInstanceId,
+  type ServerProviderModel,
   type ThreadId,
 } from "@supaterm/contracts";
 import { CursorSettings } from "../settings.ts";
@@ -46,7 +47,7 @@ import { mcpToolPresentation } from "@supaterm/provider-core/server/mcpToolPrese
 import * as McpProviderSessions from "@supaterm/provider-core/server/McpProviderSessions";
 import * as McpProviderSession from "@supaterm/provider-core/server/mcpSession";
 import { CursorTransportFailure } from "./transportFailure.ts";
-import { cursorSdkModelSelection } from "./sdkModel.ts";
+import { cursorContextWindowTokens, cursorSdkModelSelection } from "./sdkModel.ts";
 import {
   discoverCursorSkills,
   hasCursorSkillMention,
@@ -182,6 +183,7 @@ export interface CursorRuntimeAgentPolicy {
 
 export function cursorRuntimeAgentPolicy(
   runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
+  platform: NodeJS.Platform,
 ): CursorRuntimeAgentPolicy {
   const sandboxPolicyType =
     typeof runtimePolicy.sandboxPolicy === "object" &&
@@ -190,14 +192,17 @@ export function cursorRuntimeAgentPolicy(
     typeof runtimePolicy.sandboxPolicy.type === "string"
       ? runtimePolicy.sandboxPolicy.type
       : undefined;
+  const autoReview =
+    runtimePolicy.approvalPolicy === undefined
+      ? runtimePolicy.runtimeMode === "approval-required" || runtimePolicy.runtimeMode === "auto"
+      : runtimePolicy.approvalPolicy !== "never";
   return {
-    autoReview:
-      runtimePolicy.approvalPolicy === undefined
-        ? runtimePolicy.runtimeMode === "approval-required" || runtimePolicy.runtimeMode === "auto"
-        : runtimePolicy.approvalPolicy !== "never",
+    autoReview,
+    // The Windows SDK has no filesystem sandbox; omit the default only when
+    // Auto-review still gates execution. Explicit policies remain authoritative.
     sandboxEnabled:
       runtimePolicy.sandboxPolicy === undefined
-        ? runtimePolicy.runtimeMode !== "full-access"
+        ? runtimePolicy.runtimeMode !== "full-access" && !(platform === "win32" && autoReview)
         : sandboxPolicyType !== "dangerFullAccess",
   };
 }
@@ -306,8 +311,9 @@ export function makeCursorAgentOptions(input: {
   readonly runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy;
   readonly threadId: ThreadId;
   readonly mcpSession: McpProviderSession.McpProviderSessionConfig | undefined;
+  readonly platform: NodeJS.Platform;
 }): AgentOptions {
-  const policy = cursorRuntimeAgentPolicy(input.runtimePolicy);
+  const policy = cursorRuntimeAgentPolicy(input.runtimePolicy, input.platform);
   const mcpServers = cursorMcpServers(input.mcpSession);
   return {
     model: cursorSdkModelSelection(input.modelSelection),
@@ -866,6 +872,7 @@ export interface CursorAdapterV2Options {
   readonly instanceId: ProviderInstanceId;
   readonly settings: CursorSettings;
   readonly environment: NodeJS.ProcessEnv;
+  readonly getModels?: () => ReadonlyArray<ServerProviderModel>;
 }
 
 export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
@@ -875,6 +882,7 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
   const path = yield* Path.Path;
   const idAllocator = yield* IdAllocator.IdAllocatorV2;
   const runner = yield* CursorAgentSdk.CursorAgentSdkRunner;
+  const platform = yield* HostProcess.Platform;
   const host = yield* ProviderHost.ProviderHost;
   const mcpSessions = yield* McpProviderSessions.McpProviderSessions;
   const adapterOptions = options;
@@ -898,6 +906,7 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
         });
         const events = yield* Queue.unbounded<ProviderAdapter.ProviderAdapterV2Event>();
         const liveAgent = yield* Ref.make<CursorLiveAgent | null>(null);
+        const warnedUnsupportedSandbox = yield* Ref.make(false);
         const activeTurn = yield* Ref.make<ActiveCursorTurn | null>(null);
         const planIds = yield* Ref.make(new Map<string, OrchestrationV2PlanArtifact["id"]>());
 
@@ -1309,7 +1318,7 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
                     })
                   : {}),
                 toolName: cursorToolName(toolCall),
-                input: toolCall.args,
+                input: toolCall.type === "mcp" ? (toolCall.args.args ?? {}) : toolCall.args,
                 ...(cursorToolOutput(toolCall) === undefined
                   ? {}
                   : { output: cursorToolOutput(toolCall) }),
@@ -2114,17 +2123,30 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
             yield* existing.session.close.pipe(Effect.ignore);
             yield* Ref.set(liveAgent, null);
           }
+          const options = makeCursorAgentOptions({
+            ...(apiKey === undefined ? {} : { apiKey }),
+            modelSelection: openInput.modelSelection,
+            runtimePolicy: openInput.runtimePolicy,
+            platform,
+            threadId: openInput.threadId,
+            mcpSession: yield* mcpSessions.read(openInput.threadId),
+          });
+          if (
+            platform === "win32" &&
+            openInput.runtimePolicy.sandboxPolicy === undefined &&
+            openInput.runtimePolicy.runtimeMode !== "full-access" &&
+            options.local?.sandboxOptions?.enabled === false &&
+            !(yield* Ref.getAndSet(warnedUnsupportedSandbox, true))
+          ) {
+            yield* Effect.logWarning(
+              "Cursor cannot sandbox the filesystem on Windows; this thread runs without filesystem isolation.",
+            );
+          }
           const sdkSession = yield* runner
             .open({
               operation: openInput.operation,
               ...(openInput.agentId === undefined ? {} : { agentId: openInput.agentId }),
-              options: makeCursorAgentOptions({
-                ...(apiKey === undefined ? {} : { apiKey }),
-                modelSelection: openInput.modelSelection,
-                runtimePolicy: openInput.runtimePolicy,
-                threadId: openInput.threadId,
-                mcpSession: yield* mcpSessions.read(openInput.threadId),
-              }),
+              options,
               threadId: openInput.threadId,
               providerSessionId: input.providerSessionId,
             })
@@ -2417,6 +2439,10 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
           driver: CursorAgentSdk.CURSOR_PROVIDER,
           providerSessionId: input.providerSessionId,
           providerSession: session,
+          getModelContextWindow: (selection) =>
+            selection.instanceId === adapterOptions.instanceId
+              ? cursorContextWindowTokens(selection, adapterOptions.getModels?.() ?? [])
+              : undefined,
           events: Stream.fromEffectRepeat(Queue.take(events)),
           ensureThread: Effect.fn("CursorAdapterV2.ensureThread")(
             function* (threadInput: ProviderAdapter.ProviderAdapterV2EnsureThreadInput) {

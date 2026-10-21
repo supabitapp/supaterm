@@ -6,6 +6,7 @@ import {
   MARK_TO_TIPTAP,
   type RichTextMark,
 } from "~/composer-rich-text";
+import { markdownMathRanges } from "@supaterm/shared/markdownMath";
 
 export type SkillMeta = { label: string; description: string | null };
 
@@ -122,10 +123,11 @@ interface DocLine {
   inline: InlineJson[];
 }
 
+/** Null for a `$name` that is not one of the provider's skills: it stays editable text. */
 function atomJsonForSegment(
   segment: Exclude<ReturnType<typeof splitPromptIntoComposerSegments>[number], { type: "text" }>,
-  skillLabelFor: (name: string) => SkillMeta,
-): InlineJson {
+  skillLabelFor: (name: string) => SkillMeta | null,
+): InlineJson | null {
   if (segment.type === "mention") {
     return {
       type: "composer-mention",
@@ -134,6 +136,7 @@ function atomJsonForSegment(
   }
   if (segment.type === "skill") {
     const meta = skillLabelFor(segment.name);
+    if (!meta) return null;
     return {
       type: "composer-skill",
       attrs: {
@@ -225,7 +228,7 @@ function textJsonForSpan(text: string, marks: RichTextMark[]): Record<string, un
  */
 export function buildTiptapContent(
   value: string,
-  skillLabelFor: (name: string) => SkillMeta,
+  skillLabelFor: (name: string) => SkillMeta | null,
   options?: { styling?: boolean; blocks?: boolean; literalText?: boolean; literalLength?: number },
 ): Record<string, unknown>[] {
   if (options?.literalText) {
@@ -245,12 +248,34 @@ export function buildTiptapContent(
 
   const atomSources: string[] = [];
   const literal = value.slice(0, options?.literalLength ?? 0);
-  const text = splitPromptIntoComposerSegments(value.slice(literal.length))
-    .map((segment) => {
-      if (segment.type === "text") return segment.text;
-      atoms.push(atomJsonForSegment(segment, skillLabelFor));
-      atomSources.push(segment.source);
-      return sentinel;
+  const remainder = value.slice(literal.length);
+  const formulas = markdownMathRanges(remainder);
+  let offset = 0;
+  const chunks: Array<{ text: string } | { source: string }> = [];
+  for (const formula of formulas) {
+    chunks.push({ text: remainder.slice(offset, formula.start) }, { source: formula.source });
+    offset = formula.end;
+  }
+  chunks.push({ text: remainder.slice(offset) });
+  // Math stays editable source. Shield its commands and Markdown-like markers
+  // from styling and context-chip parsing, then restore ordinary text nodes.
+  const text = chunks
+    .map((chunk) => {
+      if ("source" in chunk) {
+        atoms.push(textJsonForSpan(chunk.source, []));
+        atomSources.push(chunk.source);
+        return sentinel;
+      }
+      return splitPromptIntoComposerSegments(chunk.text)
+        .map((segment) => {
+          if (segment.type === "text") return segment.text;
+          const atom = atomJsonForSegment(segment, skillLabelFor);
+          if (!atom) return segment.source;
+          atoms.push(atom);
+          atomSources.push(segment.source);
+          return sentinel;
+        })
+        .join("");
     })
     .join("");
   let atomIndex = 0;
@@ -445,7 +470,7 @@ export function buildTiptapContent(
 
 export function buildDocJson(
   value: string,
-  skillLabelFor: (name: string) => SkillMeta,
+  skillLabelFor: (name: string) => SkillMeta | null,
   options?: { styling?: boolean; literalText?: boolean },
 ) {
   const content = buildTiptapContent(value, skillLabelFor, options);

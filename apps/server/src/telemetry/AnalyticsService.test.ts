@@ -16,7 +16,7 @@ import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 
 import * as ServerConfig from "../config.ts";
-import { getTelemetryIdentifier } from "./Identify.ts";
+import { getTelemetryIdentity } from "./Identify.ts";
 import * as AnalyticsService from "./AnalyticsService.ts";
 
 interface RecordedBatchRequest {
@@ -58,7 +58,14 @@ const SentBatch = Schema.fromJsonString(
     batch: Schema.Array(
       Schema.Struct({
         uuid: Schema.String,
-        properties: Schema.Struct({ telemetryChannel: Schema.String }),
+        event: Schema.String,
+        distinct_id: Schema.String,
+        properties: Schema.Struct({
+          telemetryChannel: Schema.String,
+          installId: Schema.optionalKey(Schema.String),
+          ownerSource: Schema.optionalKey(Schema.String),
+          observedBy: Schema.optionalKey(Schema.String),
+        }),
       }),
     ),
   }),
@@ -81,7 +88,21 @@ const respondWithStatus =
   (request) =>
     Effect.succeed(HttpClientResponse.fromWeb(request, new Response(null, { status })));
 
-const sendForTenMinutes = (respond: Respond) =>
+const recordTwentyEvents = Effect.gen(function* () {
+  const analytics = yield* AnalyticsService.AnalyticsService;
+  for (let index = 0; index < 20; index += 1) {
+    yield* analytics.record("test.retry", { index });
+  }
+});
+
+const sendForTenMinutes = (
+  respond: Respond,
+  record: Effect.Effect<
+    void,
+    never,
+    AnalyticsService.AnalyticsService | Effect.Services<typeof getTelemetryIdentity>
+  > = recordTwentyEvents,
+) =>
   Effect.gen(function* () {
     const batches: Array<ReadonlyArray<SentEvent>> = [];
     const client = HttpClient.make((request) =>
@@ -118,10 +139,7 @@ const sendForTenMinutes = (respond: Respond) =>
     );
 
     yield* Effect.gen(function* () {
-      const analytics = yield* AnalyticsService.AnalyticsService;
-      for (let index = 0; index < 20; index += 1) {
-        yield* analytics.record("test.retry", { index });
-      }
+      yield* record;
       for (let second = 0; second < 600; second += 1) {
         yield* TestClock.adjust("1 second");
       }
@@ -176,6 +194,71 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
     }).pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllGlobals()))),
   );
 
+  it.effect("each owner is sent once per process, and every event carries the install id", () =>
+    Effect.gen(function* () {
+      let identity: Effect.Success<typeof getTelemetryIdentity> | null = null;
+      const batches = yield* sendForTenMinutes(
+        respondWithStatus(204),
+        Effect.gen(function* () {
+          identity = yield* getTelemetryIdentity;
+          const analytics = yield* AnalyticsService.AnalyticsService;
+          const provider = { source: "openai", ownerId: "a".repeat(64) } as const;
+          yield* analytics.recordOwners([provider, provider], "server");
+          yield* analytics.recordOwners(
+            [provider, { source: "device", ownerId: "b".repeat(64) }],
+            "client",
+          );
+        }),
+      );
+      const events = batches.flat();
+
+      assert.deepEqual(
+        events.map((event) => [
+          event.event,
+          event.properties.ownerSource,
+          event.properties.observedBy,
+        ]),
+        [
+          ["install.owner_observed", "openai", "server"],
+          ["install.owner_observed", "openai", "client"],
+          ["install.owner_observed", "device", "client"],
+        ],
+      );
+      const { distinctId, installId } = identity!;
+      assert.isString(installId);
+      assert.isTrue(
+        events.every(
+          (event) => event.distinct_id === distinctId && event.properties.installId === installId,
+        ),
+      );
+    }),
+  );
+
+  it.effect("client owner reports cannot use up the server's owner cap", () =>
+    Effect.gen(function* () {
+      const batches = yield* sendForTenMinutes(
+        respondWithStatus(204),
+        Effect.gen(function* () {
+          const analytics = yield* AnalyticsService.AnalyticsService;
+          yield* analytics.recordOwners(
+            Array.from({ length: 1_001 }, (_, index) => ({
+              source: "device" as const,
+              ownerId: index.toString(16).padStart(64, "0"),
+            })),
+            "client",
+          );
+          // The event buffer also holds 1,000, so send the client events first.
+          yield* analytics.flush;
+          yield* analytics.recordOwners([{ source: "openai", ownerId: "a".repeat(64) }], "server");
+        }),
+      );
+      const owners = batches.flat().map((event) => event.properties.observedBy);
+
+      assert.equal(owners.filter((observedBy) => observedBy === "client").length, 1_000);
+      assert.equal(owners.filter((observedBy) => observedBy === "server").length, 1);
+    }),
+  );
+
   it.effect("flush sends all buffered events to the default analytics project", () =>
     Effect.gen(function* () {
       const capturedRequests: Array<RecordedBatchRequest> = [];
@@ -221,8 +304,8 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
 
       yield* Effect.gen(function* () {
         yield* Layer.launch(layerBatchServer).pipe(Effect.forkScoped);
-        const telemetryIdentifier = yield* getTelemetryIdentifier;
-        assert.equal(telemetryIdentifier !== null, true);
+        const { distinctId } = yield* getTelemetryIdentity;
+        assert.equal(distinctId !== null, true);
         const analytics = yield* AnalyticsService.AnalyticsService;
 
         for (let index = 0; index < 45; index += 1) {

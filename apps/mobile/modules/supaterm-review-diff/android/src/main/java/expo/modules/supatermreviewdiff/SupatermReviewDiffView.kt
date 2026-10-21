@@ -142,10 +142,6 @@ class SupatermReviewDiffView(
     canvasView.style = canvasView.style.copy(rowHeightPx = dp(value))
   }
 
-  fun setContentWidth(value: Float) {
-    canvasView.contentWidthPx = max(width, dp(value).toInt())
-  }
-
   fun setContentInsetBottom(value: Float) {
     canvasView.setPadding(0, 0, 0, max(0, dp(value).toInt()))
     canvasView.setVerticalOffset(canvasView.verticalOffset())
@@ -721,6 +717,8 @@ private class DiffCanvasView(context: Context) : View(context) {
   private var codeWrap = CodeWrapLayout.NONE
   private var verticalOffset = 0
   private var horizontalOffset = 0
+
+  private var contentWidthPx = 0
   private val headerPathOffsetsByFileId = mutableMapOf<String, Int>()
   private var lastVisibleRange: Pair<Int, Int>? = null
   var rows: List<DiffRow> = emptyList()
@@ -734,7 +732,12 @@ private class DiffCanvasView(context: Context) : View(context) {
   var tokensByRowId: Map<String, List<DiffToken>> = emptyMap()
     set(value) {
       field = value
-      if (style.wordWrap) rebuildOffsets()
+      if (style.wordWrap) {
+        rebuildOffsets()
+      } else {
+        contentWidthPx = drawing.contentWidth(rows, value, style)
+        setHorizontalOffset(horizontalOffset)
+      }
       invalidate()
     }
   var viewedFileIds: Set<String> = emptySet()
@@ -768,13 +771,6 @@ private class DiffCanvasView(context: Context) : View(context) {
     set(value) {
       field = value
       rebuildOffsets()
-    }
-  var contentWidthPx: Int = (1200 * density).toInt()
-    set(value) {
-      field = max(value, suggestedMinimumWidth)
-      setHorizontalOffset(horizontalOffset)
-      clampHeaderPathOffsets()
-      invalidate()
     }
   var onRowTap: ((DiffRow, String, RowTapTarget) -> Unit)? = null
   var onVisibleRowsChanged: ((Int, Int) -> Unit)? = null
@@ -897,6 +893,7 @@ private class DiffCanvasView(context: Context) : View(context) {
   }
 
   private fun layoutRows() {
+    contentWidthPx = drawing.contentWidth(rows, tokensByRowId, style)
     codeWrap = drawing.codeWrapLayout(rows, tokensByRowId, style, width)
     rowOffsets = IntArray(rows.size + 1)
     rows.forEachIndexed { index, row ->

@@ -56,6 +56,7 @@ jobs:
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 10
     environment: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'build' && inputs.version != '' && 'release' || '' }}
+    if: github.repository == 'supabitapp/supaterm'
     outputs:
       enabled: ${{ steps.expo-token.outputs.present }}
       sha: ${{ steps.source.outputs.sha }}

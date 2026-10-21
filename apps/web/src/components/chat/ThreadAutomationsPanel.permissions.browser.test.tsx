@@ -1,7 +1,5 @@
 import { EnvironmentId, ThreadId, ScheduledTaskId, type ScheduledTask } from "@supaterm/contracts";
-import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
+import { expect, it, vi } from "vite-plus/test";
 
 const state = vi.hoisted(() => ({ allowed: true, toggle: vi.fn(), run: vi.fn() }));
 vi.mock(import("../../state/session"), async (importOriginal) => ({
@@ -35,6 +33,7 @@ vi.mock(import("../../hooks/useNowMinute"), async (importOriginal) => ({
   useNowMinuteMs: () => Date.parse("2026-10-07T00:00:00Z"),
 }));
 
+import { act, render as renderUi } from "../../../test/render";
 import { ThreadAutomationsPanel } from "./ThreadAutomationsPanel";
 const environmentId = EnvironmentId.make("remote");
 const threadId = ThreadId.make("thread");
@@ -46,32 +45,33 @@ const task = {
   schedule: { type: "interval", everyMs: 60000 },
   lastRunStatus: "never",
 } as ScheduledTask;
-let root: Root;
-let container: HTMLDivElement;
-beforeEach(() => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+
+async function setup() {
   state.allowed = true;
   state.toggle.mockReset().mockResolvedValue({ _tag: "Success" });
   state.run.mockReset().mockResolvedValue({ _tag: "Success" });
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
-});
-afterEach(async () => {
-  await act(async () => root.unmount());
-  container.remove();
-  vi.unstubAllGlobals();
-});
 
-async function renderPanel() {
-  await act(async () =>
-    root.render(<ThreadAutomationsPanel environmentId={environmentId} threadId={threadId} />),
-  );
+  await using stack = new AsyncDisposableStack();
+  const screen = stack.use(await renderUi(null));
+  const container = screen.container;
+  async function renderPanel() {
+    await act(
+      async () =>
+        await screen.rerender(
+          <ThreadAutomationsPanel environmentId={environmentId} threadId={threadId} />,
+        ),
+    );
+  }
+
+  const byLabel = (label: string) =>
+    container.querySelector<HTMLElement>(`[aria-label="${label}"]`)!;
+
+  const environment = stack.move();
+  return { renderPanel, byLabel, [Symbol.asyncDispose]: () => environment.disposeAsync() };
 }
-
-const byLabel = (label: string) => container.querySelector<HTMLElement>(`[aria-label="${label}"]`)!;
-
 it.each([true, false])("runs scheduled work only with task permission (%s)", async (allowed) => {
+  await using fixture = await setup();
+  const { renderPanel, byLabel } = fixture;
   state.allowed = allowed;
   await renderPanel();
   await act(async () => byLabel("Run Daily review now").click());
@@ -79,6 +79,8 @@ it.each([true, false])("runs scheduled work only with task permission (%s)", asy
 });
 
 it("rejects a retained toggle after task permission is revoked", async () => {
+  await using fixture = await setup();
+  const { renderPanel, byLabel } = fixture;
   await renderPanel();
   state.allowed = false;
   await act(async () => byLabel("Pause Daily review").click());

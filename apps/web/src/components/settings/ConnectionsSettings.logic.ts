@@ -4,6 +4,7 @@ import {
   AuthTerminalOperateScope,
   AuthTerminalReadScope,
   type DesktopBridge,
+  type DesktopUpdateState,
   type DesktopWslState,
   type RelayConnectionInfo,
   type ServerSettings,
@@ -43,6 +44,10 @@ export function resolvePairingLinkRoutes(
     pairingHints: { ...pairingHints, relayUrl: relay.relayUrl },
   };
 }
+import {
+  getDesktopUpdateDownloadedVersion,
+  resolveDesktopUpdateButtonAction,
+} from "../desktopUpdate.logic";
 
 /**
  * Operating terminals without being able to list them leaves a client
@@ -107,6 +112,38 @@ export function isWslSettingsRowVisible(input: {
 }): boolean {
   const { state, error } = input;
   return state ? state.available || state.enabled || state.wslOnly : error !== null;
+}
+
+/**
+ * Passive label for this machine's Version row once client and server versions
+ * match. The desktop bundles its server, so a pending app update is the only
+ * way it falls behind. Pending states follow the sidebar update control's
+ * action, including retryable failures, so the two never disagree; the sidebar
+ * is where to act. A recheck keeps a downloaded update while `checking`, so it
+ * keeps its label too. `state` is null outside the desktop app.
+ */
+export function resolveLocalVersionStatusLabel(state: DesktopUpdateState | null): string {
+  if (!state) return "Up to date";
+  if (state.status === "downloading") {
+    return state.availableVersion
+      ? `Downloading update ${state.availableVersion}`
+      : "Downloading update";
+  }
+  const action = resolveDesktopUpdateButtonAction(state);
+  if (
+    action === "install" ||
+    state.status === "downloaded" ||
+    (state.status === "checking" && state.downloadedVersion !== null)
+  ) {
+    const version = getDesktopUpdateDownloadedVersion(state);
+    return version ? `Update ${version} downloaded` : "Update downloaded";
+  }
+  if (action === "download") {
+    return state.availableVersion
+      ? `Update ${state.availableVersion} available`
+      : "Update available";
+  }
+  return "Up to date";
 }
 
 export type QrEndpointOption = {

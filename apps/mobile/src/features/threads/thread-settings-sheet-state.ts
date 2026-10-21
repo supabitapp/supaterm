@@ -1,5 +1,5 @@
 import type { ModelOption, ProviderGroup } from "../../lib/modelOptions";
-import type { ProviderInstanceId, ProviderOptionSelection } from "@supaterm/contracts";
+import type { ModelSelection, ProviderInstanceId } from "@supaterm/contracts";
 
 export function modelFavoriteKey(provider: ProviderInstanceId, model: string): string {
   return `${provider}:${model}`;
@@ -39,7 +39,7 @@ export function pendingModelAfterPress(input: {
   readonly current: ModelOption | null;
   readonly pressed: ModelOption;
   readonly pressedIsApplied: boolean;
-  readonly rememberedOptions?: ReadonlyArray<ProviderOptionSelection>;
+  readonly restoreSelection?: (selection: ModelSelection) => ModelSelection;
 }): ModelOption | null {
   if (input.pressedIsApplied) {
     return null;
@@ -47,13 +47,9 @@ export function pendingModelAfterPress(input: {
   if (input.current?.key === input.pressed.key) {
     return input.current;
   }
-  if (input.rememberedOptions === undefined) {
-    return input.pressed;
-  }
-  return {
-    ...input.pressed,
-    selection: { ...input.pressed.selection, options: input.rememberedOptions },
-  };
+  return input.restoreSelection
+    ? { ...input.pressed, selection: input.restoreSelection(input.pressed.selection) }
+    : input.pressed;
 }
 
 export function canCommitPendingModel(

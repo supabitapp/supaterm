@@ -4,9 +4,9 @@ import { assert, it } from "@effect/vitest";
 import { PNG } from "pngjs";
 
 import showcaseConfig, {
-  DEFAULT_SHOWCASE_THEME,
   resolveShowcaseAndroidAbi,
   SHOWCASE_THEMES,
+  DEFAULT_SHOWCASE_THEME,
   type ShowcaseConfig,
   type ShowcaseStoreAssetSpec,
 } from "./mobile-showcase.config.ts";

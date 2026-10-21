@@ -190,46 +190,43 @@ const parseNightlyTag = (
   };
 };
 
-export const resolvePreviousReleaseTag = (
-  channel: ReleaseChannel,
-  currentTag: string,
-  tags: ReadonlyArray<string>,
-) =>
-  Effect.gen(function* () {
-    if (channel === "stable") {
-      const current = parseStableTag(currentTag);
-      if (!current) {
-        return yield* new InvalidReleaseTagError({ channel, currentTag });
-      }
-
-      const candidates = tags
-        .flatMap((tag) => {
-          const parsed = parseStableTag(tag);
-          return parsed !== undefined && compareStableVersions(parsed, current) < 0
-            ? [{ tag, parsed }]
-            : [];
-        })
-        .toSorted((left, right) => compareStableVersions(right.parsed, left.parsed));
-
-      return candidates[0]?.tag;
-    }
-
-    const current = parseNightlyTag(currentTag, channel);
+export const resolvePreviousReleaseTag = Effect.fn(
+  "resolve-previous-release-tag.resolvePreviousReleaseTag",
+)(function* (channel: ReleaseChannel, currentTag: string, tags: ReadonlyArray<string>) {
+  if (channel === "stable") {
+    const current = parseStableTag(currentTag);
     if (!current) {
       return yield* new InvalidReleaseTagError({ channel, currentTag });
     }
 
     const candidates = tags
       .flatMap((tag) => {
-        const parsed = parseNightlyTag(tag, channel);
-        return parsed !== undefined && compareNightlyVersions(parsed, current) < 0
+        const parsed = parseStableTag(tag);
+        return parsed !== undefined && compareStableVersions(parsed, current) < 0
           ? [{ tag, parsed }]
           : [];
       })
-      .toSorted((left, right) => compareNightlyVersions(right.parsed, left.parsed));
+      .toSorted((left, right) => compareStableVersions(right.parsed, left.parsed));
 
     return candidates[0]?.tag;
-  });
+  }
+
+  const current = parseNightlyTag(currentTag, channel);
+  if (!current) {
+    return yield* new InvalidReleaseTagError({ channel, currentTag });
+  }
+
+  const candidates = tags
+    .flatMap((tag) => {
+      const parsed = parseNightlyTag(tag, channel);
+      return parsed !== undefined && compareNightlyVersions(parsed, current) < 0
+        ? [{ tag, parsed }]
+        : [];
+    })
+    .toSorted((left, right) => compareNightlyVersions(right.parsed, left.parsed));
+
+  return candidates[0]?.tag;
+});
 
 const collectStreamAsString = <E>(stream: Stream.Stream<Uint8Array, E>): Effect.Effect<string, E> =>
   stream.pipe(

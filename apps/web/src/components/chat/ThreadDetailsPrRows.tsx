@@ -104,7 +104,7 @@ export function ThreadDetailsPrRows({
       {currentRow}
       <Collapsible open={expanded} className="-mx-1">
         <CollapsiblePanel>
-          <div className="flex flex-col px-1">
+          <div data-thread-details-pr-list className="flex flex-col px-1">
             {rest.map((link) => (
               <ThreadDetailsPrLinkRow
                 key={threadPullRequestKeyOf(link)}

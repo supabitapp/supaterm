@@ -34,6 +34,8 @@ export const DEFAULT_TERMINAL_FONT_FAMILY =
 const CONTENT_PADDING = 4;
 const MIN_SCROLLBAR_THUMB_HEIGHT = 18;
 const CURSOR_BLINK_INTERVAL_MS = 500;
+/** End an unterminated synchronized update instead of freezing the last frame. */
+const SYNCHRONIZED_OUTPUT_RENDER_TIMEOUT_MS = 500;
 const TERMINAL_FONT_LOAD_TEXT = "iMW0@# .";
 const TERMINAL_FONT_LOAD_VARIANTS = [
   "normal 400",
@@ -536,6 +538,7 @@ export class GhosttyTerminalSurface {
   private readonly scrollbarThumb: HTMLDivElement;
   private snapshot: GhosttySnapshot | null = null;
   private frame = 0;
+  private synchronizedRenderTimer: number | null = null;
   private cursorTimer: number | null = null;
   private compositionInputToSuppress: string | null = null;
   private compositionSuppressionTimer: number | null = null;
@@ -578,8 +581,15 @@ export class GhosttyTerminalSurface {
   private focused = false;
   private resizeNotified = false;
   private canvasConfigured = false;
+  private canvasDevicePixelRatio = 0;
+  private pendingCanvasConfiguration: {
+    readonly width: number;
+    readonly height: number;
+    readonly ratio: number;
+  } | null = null;
   private theme: GhosttyTheme;
-  private readonly suppressedKeyCodes = new Set<string>();
+  // App capture can hide keydowns, so only encoded presses qualify for Kitty releases.
+  private readonly encodedKeyCodes = new Set<string>();
   private pasteShortcutToken = 0;
 
   private pasteShortcutGesture: { code: string; readText: string } | null = null;
@@ -723,7 +733,12 @@ export class GhosttyTerminalSurface {
 
   write(data: string): void {
     if (this.disposed) return;
-    this.core.write(data);
+    this.core.write(
+      data,
+      this.synchronizedRenderTimer === null
+        ? undefined
+        : () => this.cancelSynchronizedRenderTimer(),
+    );
     this.synchronizeMouseTrackingState();
     this.cursorOn = true;
     this.scrollbarDirty = true;
@@ -732,6 +747,7 @@ export class GhosttyTerminalSurface {
 
   resetAndWrite(data: string): void {
     if (this.disposed) return;
+    this.cancelSynchronizedRenderTimer();
     this.lastMouseMotionData = "";
     this.core.resetAndWrite(data);
     this.synchronizeMouseTrackingState();
@@ -837,15 +853,18 @@ export class GhosttyTerminalSurface {
     if (
       this.canvas.width !== pixelWidth ||
       this.canvas.height !== pixelHeight ||
-      !this.canvasConfigured
+      !this.canvasConfigured ||
+      this.canvasDevicePixelRatio !== ratio
     ) {
-      this.canvas.width = pixelWidth;
-      this.canvas.height = pixelHeight;
-      this.context.setTransform(ratio, 0, 0, ratio, 0, 0);
-      this.canvasConfigured = true;
+      // A backing-size change clears the canvas. Apply it with the gated paint
+      // so a DPR change cannot erase a frame while synchronized output is open.
+      this.pendingCanvasConfiguration = { width: pixelWidth, height: pixelHeight, ratio };
       this.forceFullRender = true;
       this.scrollbarDirty = true;
       shouldRender = true;
+    } else {
+      // A resize can return to the painted size before its queued frame runs.
+      this.pendingCanvasConfiguration = null;
     }
     const grid = terminalGridSize(width, height, this.metrics, CONTENT_PADDING);
     this.mountHeight = height;
@@ -1040,17 +1059,11 @@ export class GhosttyTerminalSurface {
   }
 
   private readonly onKeyDown = (event: KeyboardEvent) => {
-    // Presses handled outside the terminal must also swallow their release:
-    // beforeKey runs side effects (keybindings, navigation sends), so it cannot
-    // be consulted again on keyup, and Kitty report-event-types sessions would
-    // otherwise receive a release for a press the shell never saw.
-    if (isTerminalAltGraphText(event) || !this.options.beforeKey(event)) {
-      this.suppressedKeyCodes.add(event.code);
-      return;
-    }
+    // A consumed repeat still owes the original encoded press a release.
+    if (!event.repeat) this.encodedKeyCodes.delete(event.code);
+    if (isTerminalAltGraphText(event) || !this.options.beforeKey(event)) return;
 
     if (isTerminalCompositionKey(event, this.composing)) {
-      this.suppressedKeyCodes.add(event.code);
       return;
     }
     const mac = isMacPlatform(navigator.platform);
@@ -1063,7 +1076,6 @@ export class GhosttyTerminalSurface {
     if (selectAllShortcut) {
       event.preventDefault();
       event.stopPropagation();
-      this.suppressedKeyCodes.add(event.code);
       this.selectAll();
       return;
     }
@@ -1084,7 +1096,6 @@ export class GhosttyTerminalSurface {
       if (state !== null) {
         event.preventDefault();
         event.stopPropagation();
-        this.suppressedKeyCodes.add(event.code);
         const delta =
           event.key === "Home"
             ? -state.offset
@@ -1135,11 +1146,9 @@ export class GhosttyTerminalSurface {
           });
         }
       }
-      this.suppressedKeyCodes.add(event.code);
       return;
     }
     if (isTerminalPasteShortcut(event)) {
-      this.suppressedKeyCodes.add(event.code);
       const gesture = { code: event.code, readText: "" };
       this.pasteShortcutGesture = gesture;
       const clipboard = navigator.clipboard;
@@ -1161,7 +1170,7 @@ export class GhosttyTerminalSurface {
     this.clearPrimedCopy();
     const data = this.core.encodeKey(event);
     if (data.length === 0) return;
-    this.suppressedKeyCodes.delete(event.code);
+    this.encodedKeyCodes.add(event.code);
     event.preventDefault();
     event.stopPropagation();
     this.options.onData(data);
@@ -1176,7 +1185,7 @@ export class GhosttyTerminalSurface {
     ) {
       this.pasteShortcutGesture = null;
     }
-    if (this.suppressedKeyCodes.delete(event.code)) return;
+    if (!this.encodedKeyCodes.delete(event.code)) return;
     if (isTerminalCompositionKey(event, this.composing)) {
       return;
     }
@@ -1189,6 +1198,17 @@ export class GhosttyTerminalSurface {
     this.options.onData(data);
   };
 
+  // A release elsewhere must not leave a press for a later app shortcut to inherit.
+  private readonly onWindowKeyUp = (event: KeyboardEvent) => {
+    if (event.composedPath().includes(this.input)) return;
+    this.encodedKeyCodes.delete(event.code);
+  };
+
+  // A fresh press proves a release was missed; repeats can span a focus round trip.
+  private readonly onWindowKeyDown = (event: KeyboardEvent) => {
+    if (!event.repeat) this.encodedKeyCodes.delete(event.code);
+  };
+
   private readonly onFocus = () => {
     this.focused = true;
     this.cursorOn = true;
@@ -1199,9 +1219,6 @@ export class GhosttyTerminalSurface {
     this.focused = false;
     this.pasteShortcutGesture = null;
     this.refreshHoveredLink();
-    // Suppressions survive blur deliberately: a shortcut that moves focus (for
-    // example terminal-toggle) must still swallow its own keyup if focus comes
-    // back before release.
     this.cursorOn = true;
     this.requestRender();
   };
@@ -1752,6 +1769,9 @@ export class GhosttyTerminalSurface {
   private installEvents(): void {
     this.input.addEventListener("keydown", this.onKeyDown);
     this.input.addEventListener("keyup", this.onKeyUp);
+    // App shortcuts stop propagation at window, so observe the same capture target.
+    window.addEventListener("keyup", this.onWindowKeyUp, { capture: true });
+    window.addEventListener("keydown", this.onWindowKeyDown, { capture: true });
     this.input.addEventListener("focus", this.onFocus);
     this.input.addEventListener("blur", this.onBlur);
     this.input.addEventListener("input", this.onInput);
@@ -1780,6 +1800,8 @@ export class GhosttyTerminalSurface {
   private removeEvents(): void {
     this.input.removeEventListener("keydown", this.onKeyDown);
     this.input.removeEventListener("keyup", this.onKeyUp);
+    window.removeEventListener("keyup", this.onWindowKeyUp, { capture: true });
+    window.removeEventListener("keydown", this.onWindowKeyDown, { capture: true });
     this.input.removeEventListener("focus", this.onFocus);
     this.input.removeEventListener("blur", this.onBlur);
     this.input.removeEventListener("input", this.onInput);
@@ -1861,7 +1883,8 @@ export class GhosttyTerminalSurface {
   }
 
   private requestRender(): void {
-    if (this.disposed || !this.visible || !this.hasSize || this.frame !== 0) return;
+    if (this.disposed || !this.visible || !this.hasSize) return;
+    if (this.deferSynchronizedRender() || this.frame !== 0) return;
     this.frame = window.requestAnimationFrame(() => {
       this.frame = 0;
       this.renderFrame();
@@ -1869,6 +1892,7 @@ export class GhosttyTerminalSurface {
   }
 
   private cancelRender(): void {
+    this.cancelSynchronizedRenderTimer();
     if (this.frame !== 0) {
       window.cancelAnimationFrame(this.frame);
       this.frame = 0;
@@ -1877,6 +1901,36 @@ export class GhosttyTerminalSurface {
       window.clearTimeout(this.cursorTimer);
       this.cursorTimer = null;
     }
+  }
+
+  private cancelSynchronizedRenderTimer(): void {
+    if (this.synchronizedRenderTimer === null) return;
+    window.clearTimeout(this.synchronizedRenderTimer);
+    this.synchronizedRenderTimer = null;
+  }
+
+  private deferSynchronizedRender(): boolean {
+    if (!this.core.isSynchronizedOutput()) {
+      this.cancelSynchronizedRenderTimer();
+      return false;
+    }
+    // A frame queued before the opening marker would now consume partial rows.
+    if (this.frame !== 0) {
+      window.cancelAnimationFrame(this.frame);
+      this.frame = 0;
+    }
+    if (this.cursorTimer !== null) {
+      window.clearTimeout(this.cursorTimer);
+      this.cursorTimer = null;
+    }
+    if (this.synchronizedRenderTimer === null) {
+      this.synchronizedRenderTimer = window.setTimeout(() => {
+        this.synchronizedRenderTimer = null;
+        this.core.endSynchronizedOutput();
+        this.renderFrame();
+      }, SYNCHRONIZED_OUTPUT_RENDER_TIMEOUT_MS);
+    }
+    return true;
   }
 
   private renderFrame(): void {
@@ -1890,6 +1944,16 @@ export class GhosttyTerminalSurface {
       this.forceFullRender = true;
       this.cancelRender();
       return;
+    }
+    if (this.deferSynchronizedRender()) return;
+    const canvasConfiguration = this.pendingCanvasConfiguration;
+    if (canvasConfiguration !== null) {
+      this.pendingCanvasConfiguration = null;
+      this.canvas.width = canvasConfiguration.width;
+      this.canvas.height = canvasConfiguration.height;
+      this.context.setTransform(canvasConfiguration.ratio, 0, 0, canvasConfiguration.ratio, 0, 0);
+      this.canvasConfigured = true;
+      this.canvasDevicePixelRatio = canvasConfiguration.ratio;
     }
     this.snapshot = this.core.snapshot();
     if (!this.blinkEnabled()) this.cursorOn = true;

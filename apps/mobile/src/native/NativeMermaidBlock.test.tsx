@@ -44,7 +44,6 @@ const textStyle: NativeMarkdownTextStyle = {
   codeBackgroundColor: "white",
   codeBlockBackgroundColor: "white",
   fileTextColor: "black",
-  skillTextColor: "black",
   quoteMarkerColor: "gray",
   dividerColor: "gray",
   fontSize: 14,

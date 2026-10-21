@@ -65,12 +65,31 @@ export const ConnectionBlockedReason = Schema.Literals([
 ]);
 export type ConnectionBlockedReason = typeof ConnectionBlockedReason.Type;
 
+export const ConnectionHop = Schema.Literals(["device", "relay", "tunnel", "server"]);
+export type ConnectionHop = typeof ConnectionHop.Type;
+
+export const ConnectionFailureCause = Schema.Literals([
+  "host-offline",
+  "relay-busy",
+  "relay-timeout",
+  "relay-unreachable",
+]);
+export type ConnectionFailureCause = typeof ConnectionFailureCause.Type;
+
+const ConnectionFailureFields = {
+  hop: Schema.optionalKey(ConnectionHop),
+  via: Schema.optionalKey(Schema.Literals(["relay", "direct"])),
+  failureCause: Schema.optionalKey(ConnectionFailureCause),
+  httpStatus: Schema.optionalKey(Schema.Number),
+};
+
 export class ConnectionTransientError extends Schema.TaggedError<ConnectionTransientError>()(
   "ConnectionTransientError",
   {
     reason: ConnectionTransientReason,
     detail: Schema.String,
     traceId: Schema.optionalKey(Schema.String),
+    ...ConnectionFailureFields,
   },
 ) {
   override get message(): string {
@@ -84,6 +103,7 @@ export class ConnectionBlockedError extends Schema.TaggedError<ConnectionBlocked
     reason: ConnectionBlockedReason,
     detail: Schema.String,
     traceId: Schema.optionalKey(Schema.String),
+    ...ConnectionFailureFields,
 
     serverUpdateRequired: Schema.optionalKey(Schema.Boolean),
   },

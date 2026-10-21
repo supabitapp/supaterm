@@ -1,3 +1,4 @@
+import { Button } from "../../components/ui/Button";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import * as Dialog from "../../components/ui/Dialog";
 import { makeMcpAppRequests } from "@supaterm/client-runtime/mcp-apps/requests";
@@ -22,7 +23,7 @@ import * as Predicate from "effect/Predicate";
 import Constants from "expo-constants";
 import { useNavigation } from "@react-navigation/native";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Platform, Pressable, View } from "react-native";
+import { Platform, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 
@@ -420,15 +421,16 @@ export function ThreadMcpApp(props: {
         className="items-center justify-center gap-2 rounded-lg border border-border"
       >
         <Text className="text-sm text-foreground-muted">The {app.server} app was closed</Text>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => {
-            setDocumentKey((value) => value + 1);
-            setClosed(false);
-          }}
-        >
-          <Text className="text-sm text-foreground">Show app</Text>
-        </Pressable>
+        <View className="items-center">
+          <Button
+            label="Show app"
+            tone="secondary"
+            onPress={() => {
+              setDocumentKey((value) => value + 1);
+              setClosed(false);
+            }}
+          />
+        </View>
       </View>
     );
   }

@@ -13,6 +13,7 @@ import Animated, {
   LinearTransition,
   ReduceMotion,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
   withTiming,
   type EntryExitAnimationFunction,
@@ -176,6 +177,7 @@ export function ComposerDictationToolbar(props: {
   readonly visible?: boolean;
 }) {
   const face = TOOLBAR_FACES[props.statusKind ?? "draft"];
+  const reducedMotion = useReducedMotion();
   return (
     <Animated.View
       className="relative overflow-hidden"
@@ -186,8 +188,8 @@ export function ComposerDictationToolbar(props: {
         <Animated.View
           key={face.key}
           className="absolute inset-0"
-          entering={face.entering}
-          exiting={face.exiting}
+          entering={reducedMotion ? undefined : face.entering}
+          exiting={reducedMotion ? undefined : face.exiting}
           style={{ backfaceVisibility: "hidden" }}
         >
           {props.children}

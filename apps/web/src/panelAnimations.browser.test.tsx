@@ -1,6 +1,6 @@
-import { act, useLayoutEffect } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { act, render as renderUi, type Screen } from "../test/render";
+import { useLayoutEffect } from "react";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
   PanelAnimationSuppressionProvider,
@@ -9,7 +9,7 @@ import {
   usePanelPresence,
 } from "./panelAnimations";
 
-let root: Root;
+let fixtureScreen: Screen;
 let pendingFrames: FrameRequestCallback[] = [];
 let observed: boolean[] = [];
 let reducedMotion = false;
@@ -41,12 +41,110 @@ function SuppressionProbe({ navigationKey }: { navigationKey: string }) {
   return null;
 }
 
-beforeEach(() => {
+async function paintPendingFrame() {
+  const callback = pendingFrames.shift();
+  await act(() => callback?.(0));
+}
+
+async function setReducedMotion(value: boolean) {
+  await act(() => {
+    reducedMotion = value;
+    for (const listener of mediaListeners) listener();
+  });
+}
+
+describe("panel motion", () => {
+  it("animates by default and follows live system preference changes", async () => {
+    await using _fixture = await setup();
+
+    await act(() => fixtureScreen.rerender(<AnimationProbe />));
+    expect(settings).toEqual({ active: true, durationMs: 200 });
+
+    await setReducedMotion(true);
+    expect(settings).toEqual({ active: false, durationMs: 0 });
+
+    await setReducedMotion(false);
+    expect(settings).toEqual({ active: true, durationMs: 200 });
+  });
+
+  it("skips motion immediately when Reduce Motion is already enabled", async () => {
+    await using _fixture = await setup();
+
+    reducedMotion = true;
+    await act(() => fixtureScreen.rerender(<AnimationProbe />));
+    expect(settings).toEqual({ active: false, durationMs: 0 });
+    await act(() => fixtureScreen.rerender(<AnimationProbe open={false} />));
+    expect(presence).toEqual({ present: false, value: null });
+  });
+
+  it("does not delay restored panels during navigation", async () => {
+    await using _fixture = await setup();
+
+    await act(() =>
+      fixtureScreen.rerender(
+        <PanelAnimationSuppressionProvider value={true}>
+          <AnimationProbe />
+        </PanelAnimationSuppressionProvider>,
+      ),
+    );
+    expect(settings).toEqual({ active: false, durationMs: 0 });
+  });
+
+  it("retains closing content and cancels its pending removal when reopened", async () => {
+    await using _fixture = await setup();
+
+    await act(() => fixtureScreen.rerender(<AnimationProbe />));
+    await act(() => fixtureScreen.rerender(<AnimationProbe open={false} />));
+    expect(presence).toEqual({ present: true, value: "content" });
+    await act(() => vi.advanceTimersByTime(100));
+    await act(() => fixtureScreen.rerender(<AnimationProbe />));
+    await act(() => vi.advanceTimersByTime(200));
+    expect(presence).toEqual({ present: true, value: "content" });
+
+    await act(() => fixtureScreen.rerender(<AnimationProbe open={false} />));
+    await act(() => vi.advanceTimersByTime(200));
+    expect(presence).toEqual({ present: false, value: null });
+  });
+
+  it("finishes an in-flight exit immediately when Reduce Motion is enabled", async () => {
+    await using _fixture = await setup();
+
+    await act(() => fixtureScreen.rerender(<AnimationProbe />));
+    await act(() => fixtureScreen.rerender(<AnimationProbe open={false} />));
+    expect(presence.present).toBe(true);
+    await setReducedMotion(true);
+    expect(presence).toEqual({ present: false, value: null });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe("usePanelNavigationSuppression", () => {
+  it("suppresses initial and navigated panel state until each route has painted", async () => {
+    await using _fixture = await setup(false);
+
+    await act(() => fixtureScreen.rerender(<SuppressionProbe navigationKey="/thread/one" />));
+    expect(observed.at(-1)).toBe(true);
+
+    await paintPendingFrame();
+    expect(observed.at(-1)).toBe(true);
+    await paintPendingFrame();
+    expect(observed.at(-1)).toBe(false);
+
+    await act(() => fixtureScreen.rerender(<SuppressionProbe navigationKey="/thread/two" />));
+    expect(observed.at(-1)).toBe(true);
+
+    await paintPendingFrame();
+    expect(observed.at(-1)).toBe(true);
+    await paintPendingFrame();
+    expect(observed.at(-1)).toBe(false);
+  });
+});
+
+async function setup(fakeClock = true) {
   pendingFrames = [];
   observed = [];
   reducedMotion = false;
   mediaListeners = new Set();
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   // Frames are stepped by hand so each assertion lands between two paints.
   vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
     pendingFrames.push(callback);
@@ -63,103 +161,18 @@ beforeEach(() => {
           mediaListeners.delete(callback),
       }) as unknown as MediaQueryList,
   );
-  root = createRoot(document.createElement("div"));
-});
+  fixtureScreen = await renderUi(null, { router: false });
 
-afterEach(async () => {
-  await act(() => root.unmount());
-  vi.useRealTimers();
-  vi.restoreAllMocks();
-  vi.unstubAllGlobals();
-});
+  if (fakeClock) vi.useFakeTimers();
 
-async function paintPendingFrame() {
-  const callback = pendingFrames.shift();
-  await act(() => callback?.(0));
+  const ownedScreen = fixtureScreen;
+  return {
+    async [Symbol.asyncDispose]() {
+      await ownedScreen[Symbol.asyncDispose]();
+
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    },
+  };
 }
-
-async function setReducedMotion(value: boolean) {
-  await act(() => {
-    reducedMotion = value;
-    for (const listener of mediaListeners) listener();
-  });
-}
-
-describe("panel motion", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  it("animates by default and follows live system preference changes", async () => {
-    await act(() => root.render(<AnimationProbe />));
-    expect(settings).toEqual({ active: true, durationMs: 200 });
-
-    await setReducedMotion(true);
-    expect(settings).toEqual({ active: false, durationMs: 0 });
-
-    await setReducedMotion(false);
-    expect(settings).toEqual({ active: true, durationMs: 200 });
-  });
-
-  it("skips motion immediately when Reduce Motion is already enabled", async () => {
-    reducedMotion = true;
-    await act(() => root.render(<AnimationProbe />));
-    expect(settings).toEqual({ active: false, durationMs: 0 });
-    await act(() => root.render(<AnimationProbe open={false} />));
-    expect(presence).toEqual({ present: false, value: null });
-  });
-
-  it("does not delay restored panels during navigation", async () => {
-    await act(() =>
-      root.render(
-        <PanelAnimationSuppressionProvider value={true}>
-          <AnimationProbe />
-        </PanelAnimationSuppressionProvider>,
-      ),
-    );
-    expect(settings).toEqual({ active: false, durationMs: 0 });
-  });
-
-  it("retains closing content and cancels its pending removal when reopened", async () => {
-    await act(() => root.render(<AnimationProbe />));
-    await act(() => root.render(<AnimationProbe open={false} />));
-    expect(presence).toEqual({ present: true, value: "content" });
-    await act(() => vi.advanceTimersByTime(100));
-    await act(() => root.render(<AnimationProbe />));
-    await act(() => vi.advanceTimersByTime(200));
-    expect(presence).toEqual({ present: true, value: "content" });
-
-    await act(() => root.render(<AnimationProbe open={false} />));
-    await act(() => vi.advanceTimersByTime(200));
-    expect(presence).toEqual({ present: false, value: null });
-  });
-
-  it("finishes an in-flight exit immediately when Reduce Motion is enabled", async () => {
-    await act(() => root.render(<AnimationProbe />));
-    await act(() => root.render(<AnimationProbe open={false} />));
-    expect(presence.present).toBe(true);
-    await setReducedMotion(true);
-    expect(presence).toEqual({ present: false, value: null });
-    expect(vi.getTimerCount()).toBe(0);
-  });
-});
-
-describe("usePanelNavigationSuppression", () => {
-  it("suppresses initial and navigated panel state until each route has painted", async () => {
-    await act(() => root.render(<SuppressionProbe navigationKey="/thread/one" />));
-    expect(observed.at(-1)).toBe(true);
-
-    await paintPendingFrame();
-    expect(observed.at(-1)).toBe(true);
-    await paintPendingFrame();
-    expect(observed.at(-1)).toBe(false);
-
-    await act(() => root.render(<SuppressionProbe navigationKey="/thread/two" />));
-    expect(observed.at(-1)).toBe(true);
-
-    await paintPendingFrame();
-    expect(observed.at(-1)).toBe(true);
-    await paintPendingFrame();
-    expect(observed.at(-1)).toBe(false);
-  });
-});

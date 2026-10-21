@@ -9,9 +9,8 @@ import {
 import * as Cause from "effect/Cause";
 import { DraftId } from "~/composerDraftStore";
 import { AsyncResult } from "effect/reactivity";
-import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
+import { expect, it, vi } from "vite-plus/test";
+import { userEvent } from "vite-plus/test/browser";
 
 const state = vi.hoisted(() => ({
   status: "success" as PullRequestCheck["status"],
@@ -26,7 +25,14 @@ const state = vi.hoisted(() => ({
 
 vi.mock(import("~/state/entities"), async (importOriginal) => ({
   ...(await importOriginal()),
-  useServerConfigs: (() => new Map()) as never,
+  // Rows render a pull request only with a project, so this does not reach tests that pass none.
+  useServerConfigs: (() =>
+    new Map([
+      [
+        EnvironmentId.make("environment"),
+        { environment: { capabilities: { pullRequests: true } } },
+      ],
+    ])) as never,
 }));
 const queryData = () => ({
   projectId: ProjectId.make("project"),
@@ -58,6 +64,16 @@ vi.mock(import("~/state/query"), async (importOriginal) => ({
     select(AsyncResult.success(queryData()))) as never,
   useEnvironmentQueryIsNewer: () => true,
   useEnvironmentQueryRefresh: (() => ({ refresh: vi.fn(), isPending: () => false })) as never,
+  useEnvironmentQuery: (() => ({
+    data: {
+      code: { additions: 1, deletions: 0 },
+      tests: { additions: 0, deletions: 0 },
+      mocks: { additions: 0, deletions: 0 },
+      generated: { additions: 0, deletions: 0 },
+      docs: { additions: 7, deletions: 3 },
+    },
+    isPending: false,
+  })) as never,
 }));
 vi.mock(import("../pullRequest/usePullRequestActions"), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -89,32 +105,8 @@ vi.mock(import("../ui/toast"), async (original) => {
   };
 });
 
+import { act, render as renderUi } from "../../../test/render";
 import { ThreadDetailsPrRow } from "./ThreadDetailsPrRow";
-
-let root: Root;
-let container: HTMLDivElement;
-beforeEach(() => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
-  state.checkoutError = null;
-  state.newThread.mockReset().mockResolvedValue({
-    draftId: DraftId.make("new-draft"),
-    threadId: ThreadId.make("new-thread"),
-  });
-  state.prepareThread.mockReset();
-  state.addToast.mockReset().mockReturnValue("checkout-toast");
-  state.updateToast.mockReset();
-});
-afterEach(() => {
-  act(() => root.unmount());
-  document.body.replaceChildren();
-  vi.unstubAllGlobals();
-  state.status = "success";
-  state.extraStatus = null;
-  state.perform.mockClear();
-});
 
 const renderRow = () => (
   <ThreadDetailsPrRow
@@ -129,44 +121,40 @@ const renderRow = () => (
   />
 );
 
-const mergeButton = () =>
-  [...container.querySelectorAll("button")].find((button) =>
-    button.textContent?.trim().startsWith("Merge"),
-  )!;
-const clickMerge = (timeStamp: number) => act(() => clickAt(mergeButton(), timeStamp));
-const armed = () =>
-  [...container.querySelectorAll("span")].some(
-    (span) => span.textContent === "Confirm" && !span.hasAttribute("aria-hidden"),
-  );
+it("requires a new merge click after passing checks become pending and pass again", async () => {
+  await using screen = await setup();
+  const { clickMerge, armed } = screen;
 
-it("requires a new merge click after passing checks become pending and pass again", () => {
   const start = performance.now();
-  act(() => root.render(renderRow()));
-  clickMerge(start);
+  await act(async () => await screen.rerender(renderRow()));
+  await clickMerge(start);
   expect(armed()).toBe(true);
-  act(() => {
+  await act(async () => {
     state.status = "pending";
-    root.render(renderRow());
+    await screen.rerender(renderRow());
   });
-  act(() => {
+  await act(async () => {
     state.status = "success";
-    root.render(renderRow());
+    await screen.rerender(renderRow());
   });
   expect(armed()).toBe(false);
-  clickMerge(start + 1_000);
+  await clickMerge(start + 1_000);
   expect(armed()).toBe(true);
   expect(state.perform).not.toHaveBeenCalled();
 });
 
-it("merges only on a deliberate second click", () => {
+it("merges only on a deliberate second click", async () => {
+  await using screen = await setup();
+  const { clickMerge, armed } = screen;
+
   const start = performance.now();
-  act(() => root.render(renderRow()));
-  clickMerge(start);
-  clickMerge(start + 150);
-  clickMerge(start + 300);
+  await screen.rerender(renderRow());
+  await clickMerge(start);
+  await clickMerge(start + 150);
+  await clickMerge(start + 300);
   expect(state.perform).not.toHaveBeenCalled();
   expect(armed()).toBe(true);
-  clickMerge(start + 900);
+  await clickMerge(start + 900);
   expect(state.perform).toHaveBeenCalledExactlyOnceWith("merge", "merge");
   expect(armed()).toBe(false);
 });
@@ -177,10 +165,13 @@ it.each<[PullRequestCheck["status"], PullRequestCheck["status"]]>([
   ["success", "action-required"],
   ["success", "pending"],
   ["failure", "pending"],
-])("omits the numeric tally for mixed check results (%s, %s)", (status, extraStatus) => {
+])("omits the numeric tally for mixed check results (%s, %s)", async (status, extraStatus) => {
+  await using screen = await setup();
+  const { container } = screen;
+
   state.status = status;
   state.extraStatus = extraStatus;
-  act(() => root.render(renderRow()));
+  await act(async () => await screen.rerender(renderRow()));
   const counts = [...container.querySelectorAll("*")].filter((element) =>
     /^\d+\/\d+$/.test(element.textContent?.trim() ?? ""),
   );
@@ -188,6 +179,8 @@ it.each<[PullRequestCheck["status"], PullRequestCheck["status"]]>([
 });
 
 it("shows the current checkout recovery detail when fixing checks fails and is retried", async () => {
+  await using screen = await setup();
+  const { container } = screen;
   state.status = "failure";
   const first = new GitManagerError({
     cwd: "/workspace",
@@ -201,7 +194,7 @@ it("shows the current checkout recovery detail when fixing checks fails and is r
     detail: "The worktree directory already exists. Choose another directory.",
   });
   await act(async () => {
-    root.render(
+    await screen.rerender(
       <ThreadDetailsPrRow
         environmentId={EnvironmentId.make("environment")}
         pr={null}
@@ -231,3 +224,52 @@ it("shows the current checkout recovery detail when fixing checks fails and is r
     second.detail,
   ]);
 });
+
+it("splits the change by file kind in the hover card", async () => {
+  await using screen = await setup();
+  await screen.rerender(
+    <ThreadDetailsPrRow
+      environmentId={EnvironmentId.make("environment")}
+      pr={null}
+      number={1}
+      reference={{ repository: "owner/repo", number: 1 }}
+      status={null}
+      project={{ id: ProjectId.make("project"), repositoryIdentity: null } as never}
+      label="Test PR"
+      openAriaLabel="Open PR"
+      onOpen={vi.fn()}
+    />,
+  );
+  await userEvent.hover(screen.getByRole("button", { name: "Open PR" }));
+  await expect
+    .poll(() => document.querySelector('[data-slot="tooltip-popup"][data-open]')?.textContent)
+    .toMatch(/Docs\+7-3/);
+});
+
+async function setup() {
+  state.perform.mockReset();
+  state.checkoutError = null;
+  state.newThread.mockReset().mockResolvedValue({
+    draftId: DraftId.make("new-draft"),
+    threadId: ThreadId.make("new-thread"),
+  });
+  state.prepareThread.mockReset();
+  state.addToast.mockReset().mockReturnValue("checkout-toast");
+  state.updateToast.mockReset();
+
+  state.status = "success";
+  state.extraStatus = null;
+  const screen = await renderUi(null);
+  const { container } = screen;
+  const mergeButton = () =>
+    [...container.querySelectorAll("button")].find((button) =>
+      button.textContent?.trim().startsWith("Merge"),
+    )!;
+  const clickMerge = (timeStamp: number) => act(() => clickAt(mergeButton(), timeStamp));
+  const armed = () =>
+    [...container.querySelectorAll("span")].some(
+      (span) => span.textContent === "Confirm" && !span.hasAttribute("aria-hidden"),
+    );
+
+  return Object.assign(screen, { clickMerge, armed });
+}

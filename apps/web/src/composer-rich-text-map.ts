@@ -1,3 +1,4 @@
+import type { SkillMeta } from "./composer-rich-text-doc";
 import { Fragment, Mark, type Node as ProseMirrorNode } from "@tiptap/pm/model";
 import type { EditorState } from "@tiptap/pm/state";
 import type { Transaction } from "@tiptap/pm/state";
@@ -620,4 +621,83 @@ export function stepCaretAcrossStyledEdge(
   const target = direction === -1 ? edge.before : edge.after;
   if (Mark.sameSet(edge.current, target)) return null;
   return state.tr.setStoredMarks(target);
+}
+
+export interface SkillChipReplacement {
+  from: number;
+  to: number;
+  node: ProseMirrorNode;
+}
+
+/**
+ * Use the same Markdown token boundaries as draft restoration. Apply edits
+ * last-first so positions stay valid and unrelated citation nodes keep their keys.
+ */
+export function skillChipReplacements(
+  doc: ProseMirrorNode,
+  skillLabelFor: (name: string) => SkillMeta | null,
+): SkillChipReplacement[] {
+  const schema = doc.type.schema;
+  const skillType = schema.nodes["composer-skill"];
+  if (!skillType) return [];
+  const replacements: SkillChipReplacement[] = [];
+  doc.descendants((node, pos) => {
+    if (node.type !== skillType) return;
+    const name = typeof node.attrs.skillName === "string" ? node.attrs.skillName : "";
+    if (name && !skillLabelFor(name)) {
+      replacements.push({
+        from: pos,
+        to: pos + node.nodeSize,
+        node: schema.text(readAtomSource(node), node.marks),
+      });
+    }
+  });
+  const map = serializeEditorDoc(doc);
+  let end = 0;
+  for (const segment of splitPromptIntoComposerSegments(map.value)) {
+    const start = end;
+    end += segment.type === "text" ? segment.text.length : segment.source.length;
+    if (segment.type !== "skill") continue;
+    const meta = skillLabelFor(segment.name);
+    if (!meta) continue;
+    // Only text needs converting; an existing chip is a token run.
+    const run = map.runs.find(
+      (candidate) =>
+        candidate.kind === "text" &&
+        candidate.nodeName !== "codeBlock" &&
+        start >= candidate.mdStart + candidate.openLen &&
+        end <= candidate.mdStart + candidate.openLen + candidate.docLen,
+    );
+    if (!run) continue;
+    const from = run.pmPos + (start - run.mdStart - run.openLen);
+    replacements.push({
+      from,
+      to: from + segment.source.length,
+      node: skillType.create(
+        { skillName: segment.name, skillLabel: meta.label, skillDescription: meta.description },
+        null,
+        doc.nodeAt(from)?.marks,
+      ),
+    });
+  }
+  return replacements.sort((left, right) => right.from - left.from);
+}
+
+export function markdownToFlat(map: RichDocMap, markdownOffset: number): number {
+  for (const run of map.runs) {
+    if (markdownOffset < run.mdStart + run.mdLen) {
+      if (run.kind === "prefix") return run.flatStart;
+      if (run.kind === "text" || run.kind === "token") {
+        const within = markdownOffset - run.mdStart;
+        if (within <= run.openLen) return run.flatStart;
+        // A chip is one document position however long its source is.
+        if (run.kind === "token" || within >= run.openLen + run.docLen) {
+          return run.flatStart + run.docLen;
+        }
+        return run.flatStart + (within - run.openLen);
+      }
+      return run.flatStart + (markdownOffset - run.mdStart);
+    }
+  }
+  return map.docLength;
 }

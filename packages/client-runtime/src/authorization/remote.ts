@@ -7,8 +7,11 @@ import {
   type AuthEnvironmentScope,
 } from "@supaterm/contracts";
 import { encodeOAuthScope } from "@supaterm/shared/oauthScope";
+import { hashTelemetryId } from "@supaterm/shared/telemetryId";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import { environmentEndpointUrl } from "../environment/endpoint.ts";
+import * as ClientCapabilities from "../platform/capabilities.ts";
 import {
   executeEnvironmentHttpRequest,
   makeEnvironmentHttpApiGroupClient,
@@ -37,10 +40,22 @@ const clientMetadataTokenExchangeFields = (
   };
 };
 
+export interface ClientOwnerParams {
+  readonly device?: string;
+}
+
+export const readClientOwnerParams = Effect.gen(function* () {
+  const device = yield* (yield* ClientCapabilities.AnalyticsDevice).id;
+  return (
+    Option.isSome(device) ? { device: hashTelemetryId(device.value) } : {}
+  ) satisfies ClientOwnerParams;
+});
+
 export const appendClientConnectionParams = (
   url: URL,
   clientMetadata: AuthClientPresentationMetadata | undefined,
   connectionMethod?: ClientConnectionMethod,
+  owners?: ClientOwnerParams,
 ): void => {
   if (clientMetadata?.surface) {
     url.searchParams.set("clientSurface", clientMetadata.surface);
@@ -78,6 +93,9 @@ export const appendClientConnectionParams = (
   }
   if (connectionMethod) {
     url.searchParams.set("connectionMethod", connectionMethod);
+  }
+  if (owners?.device) {
+    url.searchParams.set("clientDevice", owners.device);
   }
 };
 
@@ -166,6 +184,11 @@ export const resolveRemoteWebSocketConnectionUrl = Effect.fn(
     url.pathname = "/ws";
   }
   url.searchParams.set("wsTicket", issued.ticket);
-  appendClientConnectionParams(url, input.clientMetadata, input.connectionMethod);
+  appendClientConnectionParams(
+    url,
+    input.clientMetadata,
+    input.connectionMethod,
+    yield* readClientOwnerParams,
+  );
   return url.toString();
 });

@@ -1,4 +1,4 @@
-import { RequestActionButton } from "./RequestActionButton";
+import { Button } from "../../components/ui/Button";
 import { QuestionAttachments } from "./QuestionAttachments";
 import * as Haptics from "expo-haptics";
 import type { RuntimeRequestId } from "@supaterm/contracts";
@@ -523,9 +523,8 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
       </QuestionPage>
       <View className="flex-row gap-2.5">
         {questionIndex > 0 ? (
-          <RequestActionButton
+          <Button
             label="Back"
-            size="large"
             tone="secondary"
             disabled={attachmentsPreparing}
             onPress={() => goToQuestion(questionIndex - 1)}
@@ -533,9 +532,9 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
         ) : null}
         <View className="flex-1">
           {isLastQuestion ? (
-            <RequestActionButton
+            <Button
               label={questionCount > 1 ? "Submit answers" : "Submit answer"}
-              size="large"
+              fullWidth
               tone={props.answers ? "primary" : "secondary"}
               disabled={!canSubmit}
               onPress={() => {
@@ -545,9 +544,8 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
               }}
             />
           ) : (
-            <RequestActionButton
+            <Button
               label="Next question"
-              size="large"
               tone={questionAnswered ? "primary" : "secondary"}
               disabled={!questionAnswered}
               onPress={() => goToQuestion(questionIndex + 1)}
@@ -556,20 +554,16 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
         </View>
       </View>
       {props.pendingUserInput.dismissible ? (
-        <Pressable
-          accessibilityRole="button"
-          className="items-center justify-center rounded-2xl px-4 py-2.5 active:opacity-70"
+        <Button
+          label="Dismiss without answering"
+          tone="text"
           disabled={isResponding}
           onPress={() => {
             cancelAutoAdvance();
             playDecisionHaptic(false);
             void props.onDismiss();
           }}
-        >
-          <Text className="font-supaterm-bold text-sm text-foreground-muted">
-            Dismiss without answering
-          </Text>
-        </Pressable>
+        />
       ) : null}
       {!props.canOperateThread ? (
         <Text className="font-sans text-xs text-foreground-tertiary">

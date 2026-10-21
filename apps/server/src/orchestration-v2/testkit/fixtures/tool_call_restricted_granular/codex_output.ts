@@ -1,3 +1,4 @@
+import { assert } from "@effect/vitest";
 import type { ProviderReplayTranscript } from "@supaterm/contracts";
 
 import type { OrchestratorV2ScenarioResult } from "../../OrchestratorScenario.ts";
@@ -33,4 +34,10 @@ export function assertToolCallRestrictedGranularOutput(
   assertRuntimeRequestKinds(projection, ["file-change"]);
   assertAllRuntimeRequestsResolved(projection);
   assertUserMessagesInclude(projection, [TOOL_CALL_WRITE_PROMPT]);
+
+  const approval = projection.turnItems.find((item) => item.type === "approval_request");
+  assert.equal(
+    approval?.prompt,
+    "add /home/replay-user/supaterm/packages/effect-codex-app-server/.codex-probe-write-action.txt",
+  );
 }

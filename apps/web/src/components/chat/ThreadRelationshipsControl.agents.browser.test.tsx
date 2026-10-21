@@ -1,20 +1,22 @@
-import { act, cloneElement, type ReactElement, type ReactNode } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { cloneElement, type ReactElement, type ReactNode } from "react";
+import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 import {
   EnvironmentId,
   ThreadId,
   type ModelSelection,
+  type ScopedThreadRef,
   type ProviderOptionDescriptor,
   type OrchestrationV2ContextTransfer,
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
-import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
+import { expect, it, vi } from "vite-plus/test";
 
 import "~/index.css";
 
 const state = vi.hoisted(() => ({
   stopWorkflowLabel: "environment-data:orchestration:stop-workflow",
   projection: null as unknown,
+  projections: null as Map<string, unknown> | null,
   navigate: vi.fn(),
   shells: [] as unknown[],
   projects: [] as unknown[],
@@ -32,7 +34,14 @@ vi.mock(import("@tanstack/react-router"), async (original) => ({
 }));
 vi.mock(import("../../state/entities"), async (original) => ({
   ...(await original()),
-  useThreadProjection: (() => ({ projection: state.projection })) as never,
+  useThreadProjection: ((ref: ScopedThreadRef | null) =>
+    ref === null
+      ? undefined
+      : {
+          projection: state.projections
+            ? state.projections.get(scopedThreadKey(ref))
+            : state.projection,
+        }) as never,
   useThreadRelationshipShells: ((ref: { readonly environmentId: string }) =>
     (state.shells as ReadonlyArray<{ readonly environmentId: string; readonly source: unknown }>)
       .filter((shell) => shell.environmentId === ref.environmentId)
@@ -92,72 +101,14 @@ vi.mock(import("../ui/tooltip"), async () => {
     TooltipTrigger: (({ render, children }: { render: ReactElement; children: ReactNode }) =>
       cloneElement(render, {}, children)) as never,
     TooltipPopup: (({ children }: { children: ReactNode }) =>
-      state.showTooltips ? children : null) as never,
+      state.showTooltips ? <div role="tooltip">{children}</div> : null) as never,
   };
 });
 
+import { act, render as renderUi } from "../../../test/render";
 import { ThreadRelationshipsPanel } from "./ThreadRelationshipsControl";
 
-let root: Root;
-let container: HTMLDivElement;
-let current: ReactElement;
-
-async function render(element: ReactElement) {
-  current = element;
-  await act(async () => root.render(element));
-}
-// The mocked hooks read `state` while rendering, so a new element picks up changes.
-const update = () => act(async () => root.render(cloneElement(current)));
-const click = (element: HTMLElement) => act(async () => element.click());
-const buttons = () => [...container.querySelectorAll("button")];
-const allByLabel = (label: string) =>
-  buttons().filter((button) => button.getAttribute("aria-label") === label);
-function byLabel(label: string) {
-  const matches = allByLabel(label);
-  if (matches.length !== 1)
-    throw new Error(`Expected one "${label}" button, got ${matches.length}`);
-  return matches[0]!;
-}
-const sectionToggles = (expanded: boolean) =>
-  buttons().filter(
-    (button) =>
-      button.getAttribute("aria-expanded") === String(expanded) &&
-      !button.hasAttribute("aria-label"),
-  );
-function sectionToggle(expanded: boolean) {
-  const [toggle] = sectionToggles(expanded);
-  if (!toggle) throw new Error(`No ${expanded ? "expanded" : "collapsed"} section toggle`);
-  return toggle;
-}
-const heading = () => container.querySelector("h3")?.textContent;
-const groupHeader = (label: string) =>
-  buttons().find(
-    (button) => button.hasAttribute("aria-controls") && button.textContent?.startsWith(label),
-  );
-const buttonsWithLabel = (matches: (label: string) => boolean) =>
-  buttons().filter((button) => matches(button.getAttribute("aria-label") ?? ""));
-// Joins rendered text nodes; `visibleOnly` drops screen-reader-only text.
-function textNodes(separator: string, visibleOnly = false) {
-  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-  const parts: string[] = [];
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    if (visibleOnly && node.parentElement?.closest(".sr-only")) continue;
-    parts.push(node.textContent ?? "");
-  }
-  return parts.join(separator);
-}
-
-beforeEach(() => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
-});
-
-afterEach(async () => {
-  await act(async () => root.unmount());
-  container.remove();
-  vi.unstubAllGlobals();
+async function setup() {
   state.shells = [];
   state.projects = [];
   state.configs.clear();
@@ -168,103 +119,78 @@ afterEach(async () => {
   state.workflowCommand.mockReset().mockResolvedValue({ _tag: "Success" });
   state.toast.mockClear();
   state.projection = null;
-});
+  state.projections = null;
 
-it("separates relationship kinds and collapses each group independently", async () => {
-  const environmentId = EnvironmentId.make("test");
-  const current = {
-    id: "current",
-    status: "failed",
-    activeProviderThreadId: null,
-    lineage: { parentThreadId: "parent", relationshipToParent: "fork" },
-  };
-  const agent = {
-    id: "worker",
-    childThreadId: "worker-chat",
-    driver: "codex",
-    providerInstanceId: "codex",
-    title: "Active worker",
-    status: "running",
-    startedAt: DateTime.makeUnsafe("2026-09-21T12:00:00Z"),
-    completedAt: null,
-    updatedAt: DateTime.makeUnsafe("2026-09-21T12:00:00Z"),
-  };
-  const projection = {
-    thread: current,
-    runs: [],
-    providerThreads: [],
-    providerSessions: [],
-    contextTransfers: [
-      { sourceThreadId: "current", targetThreadId: "transfer", status: "resolved_portable" },
-    ],
-    subagents: [
-      agent,
-      {
-        ...agent,
-        id: "finished",
-        childThreadId: "finished-chat",
-        title: "Finished worker",
-        status: "completed",
-        completedAt: DateTime.makeUnsafe("2026-09-21T12:10:00Z"),
-      },
-    ],
-  };
-  state.projection = projection;
-  state.shells = [
-    current,
-    {
-      id: "parent",
-      title: "Parent conversation",
-      status: "running",
-      lineage: { parentThreadId: null, relationshipToParent: null },
-    },
-    {
-      id: "fork",
-      title: "Forked conversation",
-      status: "completed",
-      lineage: { parentThreadId: "current", relationshipToParent: "fork" },
-    },
-  ].map((source) => ({ environmentId, source }));
-  await render(
-    <ThreadRelationshipsPanel environmentId={environmentId} threadId={ThreadId.make("current")} />,
-  );
-  const rows = (label: string) =>
-    container.querySelector(`ul[aria-label="${label}"]`)?.textContent ?? "";
-  const toggleGroup = (label: string) => click(groupHeader(label)!);
-  expect(rows("Parent")).toContain("Parent conversation");
-  expect(rows("Parent")).not.toContain("Forked conversation");
-  expect(groupHeader("Parent")?.textContent).not.toContain("failed");
-  expect(rows("Forks")).toContain("Forked conversation");
-  expect(rows("Forks")).not.toContain("Active worker");
-  expect(rows("Context transfers")).toContain("Resolved (portable)");
-  expect(rows("Subagents")).toContain("Active worker");
-  expect(container.textContent).not.toContain("Finished worker");
+  await using stack = new AsyncDisposableStack();
+  const screen = stack.use(await renderUi(null));
+  const container = screen.container;
+  let current: ReactElement;
 
-  // A collapsing group keeps its rows until the panel's exit animation ends.
-  await toggleGroup("Forks");
-  await vi.waitFor(() => expect(container.textContent).not.toContain("Forked conversation"));
-  expect(rows("Parent")).toContain("Parent conversation");
-  expect(rows("Subagents")).toContain("Active worker");
-  await toggleGroup("Previous agents");
-  expect(rows("Previous agents")).toContain("Finished worker");
-  expect(rows("Previous agents")).not.toContain("Active worker");
+  async function render(element: ReactElement) {
+    current = element;
+    await act(async () => screen.rerender(element));
+  }
+  // The mocked hooks read `state` while rendering, so a new element picks up changes.
+  const update = async () => await act(async () => screen.rerender(cloneElement(current)));
+  const click = async (element: HTMLElement) => await act(async () => element.click());
+  const buttons = () => [...container.querySelectorAll("button")];
+  const allByLabel = (label: string) =>
+    buttons().filter((button) => button.getAttribute("aria-label") === label);
+  function byLabel(label: string) {
+    const matches = allByLabel(label);
+    if (matches.length !== 1)
+      throw new Error(`Expected one "${label}" button, got ${matches.length}`);
+    return matches[0]!;
+  }
+  const sectionToggles = (expanded: boolean) =>
+    buttons().filter(
+      (button) =>
+        button.getAttribute("aria-expanded") === String(expanded) &&
+        !button.hasAttribute("aria-label"),
+    );
+  function sectionToggle(expanded: boolean) {
+    const [toggle] = sectionToggles(expanded);
+    if (!toggle) throw new Error(`No ${expanded ? "expanded" : "collapsed"} section toggle`);
+    return toggle;
+  }
+  const heading = () => container.querySelector("h3")?.textContent;
+  const buttonsWithLabel = (matches: (label: string) => boolean) =>
+    buttons().filter((button) => matches(button.getAttribute("aria-label") ?? ""));
+  // Joins rendered text nodes; `visibleOnly` drops screen-reader-only text.
+  function textNodes(separator: string, visibleOnly = false) {
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    const parts: string[] = [];
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (visibleOnly && node.parentElement?.closest(".sr-only")) continue;
+      parts.push(node.textContent ?? "");
+    }
+    return parts.join(separator);
+  }
 
-  await toggleGroup("Forks");
-  expect(rows("Forks")).toContain("Forked conversation");
-  await toggleGroup("Previous agents");
-  state.projection = {
-    ...projection,
-    subagents: projection.subagents.map((subagent) => ({ ...subagent, status: "completed" })),
+  const environment = stack.move();
+  return {
+    container,
+    render,
+    update,
+    click,
+    buttons,
+    allByLabel,
+    byLabel,
+    sectionToggles,
+    sectionToggle,
+    heading,
+    buttonsWithLabel,
+    groupHeader: (label: string) =>
+      buttons().find(
+        (button) => button.hasAttribute("aria-controls") && button.textContent?.startsWith(label),
+      ),
+    textNodes,
+    [Symbol.asyncDispose]: () => environment.disposeAsync(),
   };
-  await update();
-  await vi.waitFor(() => expect(container.textContent).not.toContain("Active worker"));
-  expect(groupHeader("Previous agents")?.textContent).toContain("(2)");
-  await toggleGroup("Previous agents");
-  expect(rows("Previous agents")).toContain("Active worker");
-  expect(rows("Previous agents")).toContain("Finished worker");
-});
-
+}
 it("stops the entire native workflow through its parent without changing state before acknowledgement", async () => {
+  await using fixture = await setup();
+  const { render, click, byLabel, buttonsWithLabel } = fixture;
   const coordinator = {
     id: "workflow",
     origin: "provider_native",
@@ -337,12 +263,12 @@ it("stops the entire native workflow through its parent without changing state b
   expect(stopButton().disabled).toBe(true);
   expect(byLabel("Stop subagent Worker").disabled).toBe(true);
   expect(byLabel("Open Checker chat")).toBeDefined();
-  expect(groupHeader("Subagents")?.textContent).toBe("Subagents · 2 running");
+  expect(fixture.groupHeader("Subagents")?.textContent).toBe("Subagents · 2 running");
   await act(async () => {
     acknowledge({ _tag: "Success" });
   });
   expect(stopButton().disabled).toBe(false);
-  expect(groupHeader("Subagents")?.textContent).toBe("Subagents · 2 running");
+  expect(fixture.groupHeader("Subagents")?.textContent).toBe("Subagents · 2 running");
   state.workflowCommand.mockResolvedValueOnce({ _tag: "Failure" });
   await click(stopButton());
   expect(state.toast).toHaveBeenCalledExactlyOnceWith({
@@ -362,6 +288,8 @@ it.each([
   ["codex", "provider_native", "running"],
   ["claudeAgent", "app_owned", "running"],
 ])("does not offer workflow stop for %s %s %s", async (driver, origin, status) => {
+  await using fixture = await setup();
+  const { render, click, allByLabel, byLabel, sectionToggles } = fixture;
   state.projection = {
     thread: { id: "parent", lineage: { relationshipToParent: null } },
     runs: [],
@@ -398,6 +326,8 @@ it.each([
 });
 
 it("opens the correct chat for every workflow phase and unphased member", async () => {
+  await using fixture = await setup();
+  const { render, update, click, byLabel, buttonsWithLabel, textNodes } = fixture;
   state.showTooltips = true;
   state.configs.set("remote", {
     providers: [
@@ -534,6 +464,8 @@ it("opens the correct chat for every workflow phase and unphased member", async 
 });
 
 it("groups and counts a workflow by its run status instead of its coordinator chat", async () => {
+  await using fixture = await setup();
+  const { render, update, click, allByLabel, byLabel, sectionToggle, heading, textNodes } = fixture;
   state.showTooltips = true;
   const coordinator = {
     id: "workflow",
@@ -578,12 +510,12 @@ it("groups and counts a workflow by its run status instead of its coordinator ch
   );
   await render(panel);
   const text = () => textNodes("");
-  expect(groupHeader("Subagents")?.textContent).toBe("Subagents · 1 running");
+  expect(fixture.groupHeader("Subagents")?.textContent).toBe("Subagents · 1 running");
   await click(byLabel("Expand Checkout review"));
   expect(byLabel("Open Checker chat")).toBeDefined();
   state.shells = [{ environmentId: "test", source: { ...child, activityRunStatus: "waiting" } }];
   await update();
-  expect(groupHeader("Subagents")?.textContent).toBe("Subagents · 1 running");
+  expect(fixture.groupHeader("Subagents")?.textContent).toBe("Subagents · 1 running");
   expect(text()).toContain("Inspecting the checkout workflow");
   state.projection = {
     ...projection,
@@ -613,6 +545,8 @@ it.each([
 ])(
   "offers individual Stop for supported $origin $driver subagents with run $runId",
   async ({ driver, origin, runId, canStop }) => {
+    await using fixture = await setup();
+    const { render, update, click, allByLabel, byLabel } = fixture;
     const parent = {
       id: "parent",
       lineage: { relationshipToParent: null },
@@ -731,6 +665,9 @@ it.each([
 );
 
 it("shows the matching child agent details and refreshes them when the agent settles", async () => {
+  await using fixture = await setup();
+  const { render, update, click, buttons, sectionToggles, sectionToggle, heading, textNodes } =
+    fixture;
   const agent = {
     id: "agent-1",
     driver: "codex",
@@ -844,11 +781,87 @@ it("shows the matching child agent details and refreshes them when the agent set
   };
   await update();
   expect(text()).toContain("Subagents · 1 running");
-  await click(groupHeader("Subagents")!);
-  expect(groupHeader("Subagents")?.textContent).toBe("Subagents · 1 running (1)");
+  await click(fixture.groupHeader("Subagents")!);
+  expect(fixture.groupHeader("Subagents")?.textContent).toBe("Subagents · 1 running (1)");
+});
+
+it("keeps active supervisor status, progress, and task timing after its child turn ends", async () => {
+  await using fixture = await setup();
+  const { render, buttons, heading, textNodes, container } = fixture;
+  using _now = vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-09-16T12:05:15Z"));
+  state.showTooltips = true;
+  // The child request follows task creation by milliseconds, but finishing that
+  // turn does not settle a supervisor still waiting on its worker.
+  state.shells = [
+    {
+      environmentId: "test",
+      source: {
+        id: "child-1",
+        title: "Supervisor",
+        status: "completed",
+        activityRunStatus: null,
+        latestRunId: "run-child-1",
+        latestRunRequestedAt: DateTime.makeUnsafe("2026-09-16T12:00:00.003Z"),
+        latestRunStartedAt: DateTime.makeUnsafe("2026-09-16T12:00:01Z"),
+        latestRunCompletedAt: DateTime.makeUnsafe("2026-09-16T12:02:09Z"),
+        lineage: { parentThreadId: "parent", relationshipToParent: "subagent" },
+      },
+    },
+  ];
+  const projection = {
+    thread: {
+      id: "parent",
+      lineage: { relationshipToParent: null },
+      activeProviderThreadId: null,
+    },
+    runs: [],
+    providerThreads: [],
+    providerSessions: [],
+    contextTransfers: [],
+    subagents: [
+      {
+        id: "agent-1",
+        origin: "app_owned",
+        driver: "claudeAgent",
+        providerInstanceId: "claudeAgent",
+        childThreadId: "child-1",
+        title: "Supervisor",
+        prompt: "Coordinate the worker",
+        model: "claude-opus-5-5",
+        status: "running",
+        progress: "Waiting for the worker to finish",
+        result: null,
+        startedAt: DateTime.makeUnsafe("2026-09-16T12:00:00Z"),
+        completedAt: null,
+        updatedAt: DateTime.makeUnsafe("2026-09-16T12:00:00Z"),
+      },
+    ],
+  };
+  for (const status of ["pending", "running", "waiting"]) {
+    state.projection = {
+      ...projection,
+      subagents: [{ ...projection.subagents[0], status }],
+    };
+    await render(
+      <ThreadRelationshipsPanel
+        environmentId={EnvironmentId.make("test")}
+        threadId={ThreadId.make("parent")}
+      />,
+    );
+
+    expect(heading()).toBe("Related threads");
+    expect(textNodes(" ")).not.toContain("Previous agents");
+    expect(buttons().some((button) => button.textContent?.includes("Supervisor"))).toBe(true);
+    const tooltip = container.querySelector('[role="tooltip"]')?.textContent;
+    expect.soft(tooltip).toContain(status);
+    expect.soft(tooltip).toContain("Waiting for the worker to finish");
+    expect.soft(tooltip).toContain("5m 15s");
+  }
 });
 
 it("shows readable models and only differing workspace details in agent tooltips", async () => {
+  await using fixture = await setup();
+  const { render, update, click, sectionToggle, textNodes } = fixture;
   state.showTooltips = true;
   const parent = {
     id: "parent",
@@ -1002,6 +1015,7 @@ it("shows readable models and only differing workspace details in agent tooltips
     [[{ id: "reasoning", value: "low" }], " · low"],
     [[{ id: "variant", value: "high" }], " · high"],
     [[{ id: "reasoningEffort", value: "none" }], " · none"],
+    [[{ id: "reasoning_effort", value: "xhigh" }], " · xhigh"],
     [[{ id: "reasoningEffort", value: true }], ""],
     [[{ id: "serviceTier", value: "fast" }], ""],
     [[], ""],
@@ -1265,6 +1279,8 @@ it("shows readable models and only differing workspace details in agent tooltips
 });
 
 it("shows the parent's own visible status as parent and child activity change", async () => {
+  await using fixture = await setup();
+  const { render, update, textNodes } = fixture;
   const environmentId = EnvironmentId.make("test");
   const parent = {
     id: "parent",
@@ -1308,9 +1324,79 @@ it("shows the parent's own visible status as parent and child activity change", 
   expect(visibleText()).not.toContain("Running");
 });
 
+it("shows the native coordinator status from its member and gives follow-up activity precedence", async () => {
+  await using fixture = await setup();
+  const { render, update, buttons } = fixture;
+  const environmentId = EnvironmentId.make("remote");
+  const coordinator = {
+    id: "coordinator",
+    title: "Workflow coordinator",
+    status: "idle",
+    creationSource: "provider",
+    activeProviderThreadId: null,
+    lineage: { parentThreadId: "parent", relationshipToParent: "subagent" },
+  };
+  const member = {
+    ...coordinator,
+    id: "member",
+    title: "Reviewer",
+    lineage: { parentThreadId: "coordinator", relationshipToParent: "subagent" },
+  };
+  const emptyProjection = {
+    runs: [],
+    nodes: [],
+    providerThreads: [],
+    providerSessions: [],
+    contextTransfers: [],
+    subagents: [],
+  };
+  const rootTurn = {
+    kind: "root_turn",
+    runId: null,
+    status: "failed",
+    startedAt: DateTime.makeUnsafe("2026-09-16T12:00:00Z"),
+    completedAt: DateTime.makeUnsafe("2026-09-16T12:00:10Z"),
+  };
+  state.projections = new Map([
+    ["remote:member", { ...emptyProjection, thread: member, nodes: [rootTurn] }],
+    ["local:coordinator", { ...emptyProjection, thread: coordinator, nodes: [rootTurn] }],
+  ]);
+  state.shells = [coordinator, member].map((source) => ({ environmentId, source }));
+  await render(
+    <ThreadRelationshipsPanel environmentId={environmentId} threadId={ThreadId.make("member")} />,
+  );
+  const coordinatorText = () =>
+    buttons().find((button) => button.textContent?.includes("Workflow coordinator"))?.textContent;
+  expect(coordinatorText()).toMatch(/Workflow coordinator\s*Idle$/);
+
+  for (const [status, label] of [
+    ["running", "Running"],
+    ["completed", "Done"],
+  ]) {
+    state.projections.set("remote:coordinator", {
+      ...emptyProjection,
+      thread: coordinator,
+      nodes: [
+        { ...rootTurn, status, completedAt: status === "running" ? null : rootTurn.completedAt },
+      ],
+    });
+    await update();
+    expect(coordinatorText()).toMatch(new RegExp(`Workflow coordinator\\s*${label}$`));
+  }
+
+  state.shells = [
+    { environmentId, source: { ...coordinator, activityRunStatus: "running" } },
+    { environmentId, source: member },
+  ];
+  await update();
+  expect(coordinatorText()).toMatch(/Workflow coordinator\s*Running$/);
+});
+
 it.each(["source", "target"])(
   "shows transfer lifecycle states when viewing the %s thread",
   async (currentThreadId) => {
+    await using fixture = await setup();
+    const { render, update, textNodes } = fixture;
     const environmentId = EnvironmentId.make("test");
     const threads = ["source", "target"].map((id) => ({
       id,
@@ -1358,3 +1444,99 @@ it.each(["source", "target"])(
     }
   },
 );
+
+it("separates relationship kinds and collapses each group independently", async () => {
+  await using screen = await setup();
+  const { container, render, click, update, groupHeader } = screen;
+  const environmentId = EnvironmentId.make("test");
+  const current = {
+    id: "current",
+    status: "failed",
+    activeProviderThreadId: null,
+    lineage: { parentThreadId: "parent", relationshipToParent: "fork" },
+  };
+  const agent = {
+    id: "worker",
+    childThreadId: "worker-chat",
+    driver: "codex",
+    providerInstanceId: "codex",
+    title: "Active worker",
+    status: "running",
+    startedAt: DateTime.makeUnsafe("2026-09-21T12:00:00Z"),
+    completedAt: null,
+    updatedAt: DateTime.makeUnsafe("2026-09-21T12:00:00Z"),
+  };
+  const projection = {
+    thread: current,
+    runs: [],
+    providerThreads: [],
+    providerSessions: [],
+    contextTransfers: [
+      { sourceThreadId: "current", targetThreadId: "transfer", status: "resolved_portable" },
+    ],
+    subagents: [
+      agent,
+      {
+        ...agent,
+        id: "finished",
+        childThreadId: "finished-chat",
+        title: "Finished worker",
+        status: "completed",
+        completedAt: DateTime.makeUnsafe("2026-09-21T12:10:00Z"),
+      },
+    ],
+  };
+  state.projection = projection;
+  state.shells = [
+    current,
+    {
+      id: "parent",
+      title: "Parent conversation",
+      status: "running",
+      lineage: { parentThreadId: null, relationshipToParent: null },
+    },
+    {
+      id: "fork",
+      title: "Forked conversation",
+      status: "completed",
+      lineage: { parentThreadId: "current", relationshipToParent: "fork" },
+    },
+  ].map((source) => ({ environmentId, source }));
+  await render(
+    <ThreadRelationshipsPanel environmentId={environmentId} threadId={ThreadId.make("current")} />,
+  );
+  const rows = (label: string) =>
+    container.querySelector(`ul[aria-label="${label}"]`)?.textContent ?? "";
+  const toggleGroup = (label: string) => click(groupHeader(label)!);
+  expect(rows("Parent")).toContain("Parent conversation");
+  expect(rows("Parent")).not.toContain("Forked conversation");
+  expect(groupHeader("Parent")?.textContent).not.toContain("failed");
+  expect(rows("Forks")).toContain("Forked conversation");
+  expect(rows("Forks")).not.toContain("Active worker");
+  expect(rows("Context transfers")).toContain("Resolved (portable)");
+  expect(rows("Subagents")).toContain("Active worker");
+  expect(container.textContent).not.toContain("Finished worker");
+
+  // A collapsing group keeps its rows until the panel's exit animation ends.
+  await toggleGroup("Forks");
+  await vi.waitFor(() => expect(container.textContent).not.toContain("Forked conversation"));
+  expect(rows("Parent")).toContain("Parent conversation");
+  expect(rows("Subagents")).toContain("Active worker");
+  await toggleGroup("Previous agents");
+  expect(rows("Previous agents")).toContain("Finished worker");
+  expect(rows("Previous agents")).not.toContain("Active worker");
+
+  await toggleGroup("Forks");
+  expect(rows("Forks")).toContain("Forked conversation");
+  await toggleGroup("Previous agents");
+  state.projection = {
+    ...projection,
+    subagents: projection.subagents.map((subagent) => ({ ...subagent, status: "completed" })),
+  };
+  await update();
+  await vi.waitFor(() => expect(container.textContent).not.toContain("Active worker"));
+  expect(groupHeader("Previous agents")?.textContent).toContain("(2)");
+  await toggleGroup("Previous agents");
+  expect(rows("Previous agents")).toContain("Active worker");
+  expect(rows("Previous agents")).toContain("Finished worker");
+});

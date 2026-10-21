@@ -1,3 +1,7 @@
+import { UNRESPONSIVE_HOST_HINT } from "./network.ts";
+
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const TRANSPORT_ERROR_PATTERNS = [
   /\bSocketCloseError\b/i,
   /\bSocketOpenError\b/i,
@@ -7,6 +11,7 @@ const TRANSPORT_ERROR_PATTERNS = [
   /\bdisconnected\.$/i,
   /\bstopped responding\.$/i,
   /\bcould not establish a WebSocket connection\.$/i,
+  new RegExp(`\\bstopped responding for \\d+s\\. ${escapeRegExp(UNRESPONSIVE_HOST_HINT)}$`, "i"),
   /\bClientProtocolError\b/i,
   /\bRpcClientError\b/i,
   /\bping timeout\b/i,

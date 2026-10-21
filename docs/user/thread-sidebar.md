@@ -159,7 +159,8 @@ Press `Escape` while dragging to cancel.
 
 By default, environments mark inactive threads as Done after three days. Merged pull requests
 mark their linked threads as Done when **Automatically mark merged threads as Done** is enabled. A closed pull request
-can also mark an idle thread as Done. Pins, work in progress, pending questions or approvals, and live background work
+can also mark an idle thread as Done. An empty thread's inactivity counts from when it was created.
+Pins, work in progress, pending questions or approvals, and live background work
 prevent automatic completion. An open pull request does not prevent inactivity
 completion unless you turn on **Keep threads with an open PR**, but an old closed or merged pull request does not mark work as Done if you
 resumed it after it closed. Only your own messages count as resuming. A turn that
@@ -216,8 +217,8 @@ continuation. You can cancel it from the thread. Enable **Auto-resume limited
 threads** in **Settings → General** on web and desktop, or **Settings → Thread
 behavior** on mobile, to schedule limit stops by default.
 The environment must be running when the reset arrives; it resumes overdue
-continuations after a restart. Sending a new message, archiving, or marking the
-thread as Done prevents a pending continuation from starting.
+continuations after a restart. Stopping the thread, sending a new message,
+archiving, or marking it as Done prevents a pending continuation from starting.
 
 Choose **Snooze until reset** to hide the thread until its allowance returns.
 Snooze and auto-resume are independent: snooze alone wakes the thread without
@@ -266,3 +267,6 @@ you confirm; one day means 24 hours. On web and desktop, you can also snooze
 several selected threads together. Choose **Wake thread** to bring a thread back early, or
 **Mark as Done** to move it straight to the Done shelf. On mobile, both appear when you swipe a
 snoozed thread or open its menu.
+A snoozed thread keeps working and stays hidden until its wake time, even while
+its agent wakes itself for background work. It comes back early only when it needs
+an approval or answer from you, when a run fails, or when you send it a message.

@@ -1,30 +1,16 @@
+import { act, render as renderUi, type Screen } from "../../../test/render";
 import "../../index.css";
 
-import { act, type ComponentProps } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { type ComponentProps } from "react";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { RunId } from "@supaterm/contracts";
 
 import { ComposerBannerStack } from "./ComposerBannerStack";
 import { usageLimitRecoveryBannerItem } from "./UsageLimitRecoveryBanner";
 
-let root: Root;
+let fixtureScreen: Screen;
 let container: HTMLDivElement;
-
-beforeEach(() => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
-});
-
-afterEach(async () => {
-  await act(async () => root.unmount());
-  container.remove();
-  vi.restoreAllMocks();
-  vi.unstubAllGlobals();
-});
 
 const nextFrame = () =>
   act(() => new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0))));
@@ -32,7 +18,7 @@ const nextFrame = () =>
 async function render(width: number, description: string) {
   container.style.width = `${width}px`;
   await act(async () =>
-    root.render(
+    fixtureScreen.rerender(
       <ComposerBannerStack
         items={[{ id: "usage", variant: "info", icon: null, title: "Usage limits", description }]}
       />,
@@ -44,6 +30,8 @@ async function render(width: number, description: string) {
 const hasDetails = () => container.querySelector('[aria-label="Show notice details"]') !== null;
 
 it("only offers notice details when the description cannot fit", async () => {
+  await using _fixture = await setup();
+
   await render(700, "OpenCode");
   expect(hasDetails()).toBe(false);
 
@@ -66,6 +54,8 @@ it("only offers notice details when the description cannot fit", async () => {
 it.each([true, false])(
   "keeps connection and usage-limit warnings visible with activity=%s",
   async (withActivity) => {
+    await using _fixture = await setup();
+
     const items: ComponentProps<typeof ComposerBannerStack>["items"] = [
       ...(withActivity
         ? [
@@ -94,7 +84,7 @@ it.each([true, false])(
       }),
       { id: "update", variant: "info", icon: null, title: "Server update available" },
     ];
-    await act(async () => root.render(<ComposerBannerStack items={items} />));
+    await act(async () => fixtureScreen.rerender(<ComposerBannerStack items={items} />));
 
     const connection = page.getByText("Host is reconnecting", { exact: true });
     const limit = page.getByText("Usage limit reached", { exact: true });
@@ -107,15 +97,17 @@ it.each([true, false])(
     await act(async () =>
       page.getByRole("button", { name: "Show other notices" }).element().focus(),
     );
-    await act(async () => userEvent.keyboard("{Enter}"));
+    await userEvent.keyboard("{Enter}");
     await expect.element(update).toBeVisible();
-    await act(async () => userEvent.keyboard("{Escape}"));
+    await userEvent.keyboard("{Escape}");
     await expect.element(update).not.toBeVisible();
     await expect.element(connection).toBeVisible();
     await expect.element(limit).toBeVisible();
 
     await act(async () =>
-      root.render(<ComposerBannerStack items={items.filter((item) => item.id !== "update")} />),
+      fixtureScreen.rerender(
+        <ComposerBannerStack items={items.filter((item) => item.id !== "update")} />,
+      ),
     );
     await expect
       .element(page.getByRole("button", { name: "Show other notices" }))
@@ -140,10 +132,10 @@ describe("notice exits", () => {
     vi.spyOn(Element.prototype, "getAnimations").mockReturnValue([
       { effect: null, finished } as unknown as Animation,
     ]);
-    await act(async () => root.render(<ComposerBannerStack items={items} />));
+    await act(async () => fixtureScreen.rerender(<ComposerBannerStack items={items} />));
   }
   const update = (items: Items) =>
-    act(async () => root.render(<ComposerBannerStack items={items} />));
+    act(async () => fixtureScreen.rerender(<ComposerBannerStack items={items} />));
 
   const banners = () =>
     [...container.querySelectorAll<HTMLElement>('div[data-slot="composer-banner"]')].map((node) => [
@@ -156,6 +148,8 @@ describe("notice exits", () => {
     ]);
 
   it("keeps a removed notice in its place until its exit finishes", async () => {
+    await using _fixture = await setup();
+
     await mountStack([a, b, c]);
     await update([a, c]);
     expect(banners()).toEqual([
@@ -172,6 +166,8 @@ describe("notice exits", () => {
   });
 
   it("raises the next notice only once the departing front has left", async () => {
+    await using _fixture = await setup();
+
     await mountStack([a, b]);
     await update([b]);
     expect(banners()).toEqual([
@@ -184,6 +180,8 @@ describe("notice exits", () => {
   });
 
   it("swaps the activity row without motion", async () => {
+    await using _fixture = await setup();
+
     const activity = {
       id: "activity",
       variant: "default" as const,
@@ -196,6 +194,8 @@ describe("notice exits", () => {
   });
 
   it("reports a dismissal at once and unmounts the notice after its exit", async () => {
+    await using _fixture = await setup();
+
     const onDismiss = vi.fn();
     await mountStack([{ ...notice("notice"), onDismiss }]);
     const dismiss = () =>
@@ -209,3 +209,19 @@ describe("notice exits", () => {
     expect(container.childElementCount).toBe(0);
   });
 });
+
+async function setup() {
+  container = document.createElement("div");
+  document.body.append(container);
+  fixtureScreen = await renderUi(null, { container });
+
+  const ownedScreen = fixtureScreen;
+  return {
+    async [Symbol.asyncDispose]() {
+      await ownedScreen[Symbol.asyncDispose]();
+
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    },
+  };
+}

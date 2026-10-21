@@ -30,7 +30,7 @@ import { visibleThreadPullRequests } from "@supaterm/shared/threadPullRequests";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 
-import { request } from "../rpc/client.ts";
+import { getInitialServerConfig, request } from "../rpc/client.ts";
 
 interface CommandMetadata {
   readonly commandId?: CommandId;
@@ -722,6 +722,17 @@ export const interruptThreadTurn = Effect.fn("EnvironmentCommands.interruptThrea
     });
   }
   let runId = input.runId;
+  if (runId === undefined) {
+    const config = yield* getInitialServerConfig();
+    if (config.environment.capabilities.threadStop === true) {
+      // A paginated projection can omit commands still running from earlier turns.
+      return yield* dispatch({
+        type: "thread.stop",
+        commandId: yield* allocateCommandId(input),
+        threadId: input.threadId,
+      });
+    }
+  }
   if (runId === undefined) {
     const projection = yield* getProjection(input.threadId);
     runId = projection.runs.findLast(

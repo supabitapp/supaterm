@@ -44,6 +44,6 @@ export async function readSupatermProjectFile(
     SUPATERM_PROJECT_FILE_NAME,
     Option.getOrNull(AsyncResult.value(result)),
   );
-  if (data === null || data.truncated) return null;
+  if (data === null || data.exists === false || data.truncated) return null;
   return parseSupatermProjectFile(data.contents);
 }

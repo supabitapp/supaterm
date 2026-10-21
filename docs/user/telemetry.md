@@ -1,7 +1,9 @@
 # Product usage data
 
 The Supaterm server sends product usage events to PostHog through `https://ingest.supaterm.com`,
-associated with a hashed account or installation identifier. Events include the provider, model,
+associated with a hashed account or installation identifier. To count how many installations one person
+uses, the server also sends hashed account identifiers: your Supaterm Connect account, your OpenAI and
+Claude accounts when you are signed in, and a random identifier for each device that connects. Events include the provider, model,
 reasoning effort, permission mode, turn result, duration, release channel, and main-agent token totals when available.
 They also record which features and MCP tools are used, client operation outcomes, and delegated-task
 results, durations, and provider/model choices.

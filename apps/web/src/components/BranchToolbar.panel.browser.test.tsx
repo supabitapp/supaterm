@@ -1,7 +1,7 @@
+import { act, render as renderUi, type Screen } from "../../test/render";
 import { EnvironmentId, ProjectId, ThreadId } from "@supaterm/contracts";
-import { act, type ComponentProps } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
+import { type ComponentProps } from "react";
+import { expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
 import "~/index.css";
@@ -38,24 +38,8 @@ vi.mock(import("../state/entities"), async (original) => ({
 import { BranchToolbar } from "./BranchToolbar";
 import { BranchToolbarEnvironmentSelector } from "./BranchToolbarEnvironmentSelector";
 
-let root: Root;
+let fixtureScreen: Screen;
 let container: HTMLDivElement;
-
-beforeEach(() => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  state.worktreePath = "/tmp/worktree";
-  state.showContextMenu.mockReset().mockResolvedValue("copy-path");
-  state.writeTextToClipboard.mockReset().mockResolvedValue(true);
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
-});
-
-afterEach(async () => {
-  await act(async () => root.unmount());
-  container.remove();
-  vi.unstubAllGlobals();
-});
 
 function toolbar(props: Partial<ComponentProps<typeof BranchToolbar>> = {}) {
   return (
@@ -64,6 +48,9 @@ function toolbar(props: Partial<ComponentProps<typeof BranchToolbar>> = {}) {
       panelSection="workspace"
       environmentId={EnvironmentId.make("local")}
       threadId={ThreadId.make("thread")}
+      projectId={ProjectId.make("project")}
+      worktreePath={state.worktreePath}
+      isServerThread
       showGitControls
       envMode="local"
       envLocked={false}
@@ -76,9 +63,11 @@ function toolbar(props: Partial<ComponentProps<typeof BranchToolbar>> = {}) {
 }
 
 it("keeps the machine picker usable beside a locked workspace", async () => {
+  await using _fixture = await setup();
+
   const onEnvironmentChange = vi.fn();
   await act(async () =>
-    root.render(
+    fixtureScreen.rerender(
       <>
         <BranchToolbarEnvironmentSelector
           displayMode="panel"
@@ -107,8 +96,10 @@ it("keeps the machine picker usable beside a locked workspace", async () => {
 });
 
 it("shows a started thread's primary machine as a static label in the composer", async () => {
+  await using _fixture = await setup();
+
   await act(async () =>
-    root.render(
+    fixtureScreen.rerender(
       toolbar({
         layout: "composer",
         showEnvironmentIndicator: true,
@@ -134,8 +125,10 @@ it.each([
 ] as const)(
   "copies only an existing workspace path with mode %s and worktree %s",
   async (envMode, worktreePath, copiedPath) => {
+    await using _fixture = await setup();
+
     state.worktreePath = worktreePath;
-    await act(async () => root.render(toolbar({ envMode })));
+    await act(async () => fixtureScreen.rerender(toolbar({ envMode })));
     const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
     await act(async () => {
       container.querySelector("[data-composer-context-control]")!.dispatchEvent(event);
@@ -151,3 +144,21 @@ it.each([
     }
   },
 );
+
+async function setup() {
+  state.worktreePath = "/tmp/worktree";
+  state.showContextMenu.mockReset().mockResolvedValue("copy-path");
+  state.writeTextToClipboard.mockReset().mockResolvedValue(true);
+  container = document.createElement("div");
+  document.body.append(container);
+  fixtureScreen = await renderUi(null, { container });
+
+  const ownedScreen = fixtureScreen;
+  return {
+    async [Symbol.asyncDispose]() {
+      await ownedScreen[Symbol.asyncDispose]();
+
+      vi.unstubAllGlobals();
+    },
+  };
+}

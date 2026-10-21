@@ -82,10 +82,13 @@ describe("SupatermProjectFileFromJson", () => {
 });
 
 describe("parseSupatermProjectFile", () => {
-  it("returns the decoded file for valid contents", () => {
-    expect(parseSupatermProjectFile('{ "defaultThreadEnvMode": "worktree" }')).toEqual({
-      defaultThreadEnvMode: "worktree",
-    });
+  it("reads project defaults from JSONC with a URL in a block comment", () => {
+    expect(
+      parseSupatermProjectFile(`{
+        /* See https://supaterm.sh/schema/supaterm.json */
+        "defaultThreadEnvMode": "worktree"
+      }`),
+    ).toEqual({ defaultThreadEnvMode: "worktree" });
   });
 
   it("returns null for malformed or invalid contents", () => {

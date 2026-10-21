@@ -73,13 +73,18 @@ export function resolveComposerTimelineInset(input: {
   currentInset: number;
   overlayHeight: number;
   isResting: boolean;
+  restingOnlyHeight?: number;
+  expandedNoticesHeight?: number;
 }): number {
+  // Expanded notices temporarily cover the timeline. Remove their growth before
+  // rounding so fractional measurements reserve exactly the collapsed height.
+  const overlayHeight = Math.ceil(input.overlayHeight - (input.expandedNoticesHeight ?? 0));
   return input.isResting
     ? Math.max(
         input.currentInset,
-        input.overlayHeight + (input.currentInset === 0 ? COMPOSER_RESTING_EXPANSION_MIN_PX : 0),
+        overlayHeight + (input.currentInset === 0 ? COMPOSER_RESTING_EXPANSION_MIN_PX : 0),
       )
-    : input.overlayHeight;
+    : overlayHeight;
 }
 
 type ComposerUsageMeterSlot = "row" | "context-strip";

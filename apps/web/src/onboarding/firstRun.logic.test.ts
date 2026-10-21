@@ -372,6 +372,17 @@ const bootstrapThread = {
   runtime: null,
 };
 
+const freshBootstrap = {
+  primaryEnvironmentId,
+  serverCwd: "/projects/current",
+  bootstrapProjectId: bootstrapProject.id,
+  bootstrapThreadId: bootstrapThread.id,
+  bootstrapProjectCreated: true,
+  bootstrapThreadCreated: true,
+  projects: [bootstrapProject],
+  threads: [bootstrapThread],
+};
+
 describe("isFreshFirstRunWorkspace", () => {
   it("accepts an empty workspace", () => {
     expect(
@@ -445,8 +456,7 @@ describe("isFreshFirstRunWorkspace", () => {
   it("rejects projects from another environment even when their paths match", () => {
     expect(
       isFreshFirstRunWorkspace({
-        primaryEnvironmentId,
-        serverCwd: "/projects/current",
+        ...freshBootstrap,
         projects: [{ ...bootstrapProject, environmentId: "remote-environment" }],
         threads: [],
       }),
@@ -456,8 +466,7 @@ describe("isFreshFirstRunWorkspace", () => {
   it("rejects threads from another environment", () => {
     expect(
       isFreshFirstRunWorkspace({
-        primaryEnvironmentId,
-        serverCwd: "/projects/current",
+        ...freshBootstrap,
         projects: [bootstrapProject],
         threads: [{ ...bootstrapThread, environmentId: "remote-environment" }],
       }),
@@ -467,8 +476,7 @@ describe("isFreshFirstRunWorkspace", () => {
   it("rejects a thread that does not belong to the bootstrap project", () => {
     expect(
       isFreshFirstRunWorkspace({
-        primaryEnvironmentId,
-        serverCwd: "/projects/current",
+        ...freshBootstrap,
         projects: [bootstrapProject],
         threads: [{ ...bootstrapThread, projectId: "another-project" }],
       }),
@@ -478,8 +486,7 @@ describe("isFreshFirstRunWorkspace", () => {
   it("rejects a thread when there is no bootstrap project", () => {
     expect(
       isFreshFirstRunWorkspace({
-        primaryEnvironmentId,
-        serverCwd: "/projects/current",
+        ...freshBootstrap,
         projects: [],
         threads: [bootstrapThread],
       }),
@@ -489,8 +496,7 @@ describe("isFreshFirstRunWorkspace", () => {
   it("rejects a bootstrap thread that already has a user message", () => {
     expect(
       isFreshFirstRunWorkspace({
-        primaryEnvironmentId,
-        serverCwd: "/projects/current",
+        ...freshBootstrap,
         projects: [bootstrapProject],
         threads: [
           {
@@ -505,8 +511,7 @@ describe("isFreshFirstRunWorkspace", () => {
   it("rejects a bootstrap thread that has started a turn", () => {
     expect(
       isFreshFirstRunWorkspace({
-        primaryEnvironmentId,
-        serverCwd: "/projects/current",
+        ...freshBootstrap,
         projects: [bootstrapProject],
         threads: [{ ...bootstrapThread, latestRun: { id: "first-run" } }],
       }),
@@ -516,8 +521,7 @@ describe("isFreshFirstRunWorkspace", () => {
   it("rejects a bootstrap thread that has a provider session", () => {
     expect(
       isFreshFirstRunWorkspace({
-        primaryEnvironmentId,
-        serverCwd: "/projects/current",
+        ...freshBootstrap,
         projects: [bootstrapProject],
         threads: [{ ...bootstrapThread, runtime: { status: "ready" } }],
       }),

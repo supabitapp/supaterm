@@ -578,15 +578,50 @@ export function collectProviderUsageLimits(
 ): UsageLimitsReport | null {
   const selected = providers.find((provider) => provider.instanceId === instanceId);
   if (!selected || !hasProviderUsageLimits(selected.driver, providers)) return null;
-  const accounts: Array<UsageLimitsReport["accounts"][number]> = [];
+  const resolveKey = accountKeyResolver(providers.filter((provider) => provider.enabled));
+  type NativeSnapshot = { provider: ServerProvider; limits: ServerProviderUsageLimits };
+  const nativeByAccount = new Map<
+    string,
+    { usage: NativeSnapshot; credits: NativeSnapshot | null }
+  >();
   for (const provider of providersWithLimits(providers)) {
-    if (provider.driver !== selected.driver) continue;
+    if (provider.driver !== selected.driver || !provider.usageLimits) continue;
+    const snapshot = { provider, limits: provider.usageLimits };
+    const key = resolveKey(provider) ?? `instance:${provider.instanceId}`;
+    const previous = nativeByAccount.get(key);
+    const previousUsable = previous ? limitsNotice(previous.usage.limits) === null : false;
+    const usable = limitsNotice(snapshot.limits) === null;
+    const providerWins =
+      !previous ||
+      (usable && !previousUsable) ||
+      (usable === previousUsable &&
+        Date.parse(snapshot.limits.checkedAt) > Date.parse(previous.usage.limits.checkedAt));
+    const previousCredit = previous?.credits;
+    const credits =
+      snapshot.limits.resetCredits &&
+      (!previousCredit ||
+        Date.parse(snapshot.limits.checkedAt) > Date.parse(previousCredit.limits.checkedAt))
+        ? snapshot
+        : (previousCredit ?? null);
+    nativeByAccount.set(key, {
+      usage: providerWins ? snapshot : previous.usage,
+      credits,
+    });
+  }
+  const native = [...nativeByAccount.values()];
+  const accounts: Array<UsageLimitsReport["accounts"][number]> = [];
+  for (const {
+    usage: { provider, limits },
+    credits,
+  } of native) {
+    const shownCredits = credits?.limits.resetCredits;
     accounts.push({
       instanceId: provider.instanceId,
       driver: provider.driver,
       ...(provider.auth.label ? { plan: provider.auth.label } : {}),
+      resetCreditInput: { instanceId: credits?.provider.instanceId ?? provider.instanceId },
       ...(provider.displayName ? { displayName: provider.displayName } : {}),
-      limits: provider.usageLimits,
+      limits: shownCredits ? { ...limits, resetCredits: shownCredits } : limits,
     });
   }
   return { createdAt: DateTime.formatIso(DateTime.makeUnsafe(now)), accounts };

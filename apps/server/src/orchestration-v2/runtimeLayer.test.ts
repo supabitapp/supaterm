@@ -25,9 +25,11 @@ import {
   PullRequestOperationError,
   ProviderDriverKind,
   ProviderInstanceId,
+  ProviderSessionId,
   ProviderThreadId,
   ProviderTurnId,
   RunId,
+  ScheduledTaskId,
   ThreadId,
 } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
@@ -76,6 +78,13 @@ import * as RuntimeLayer from "./runtimeLayer.ts";
 import { shellStreamItemFromThreadShell } from "./ShellStream.ts";
 import { CodexProviderCapabilitiesV2 } from "./Adapters/CodexAdapterV2.ts";
 import * as ThreadManagementService from "./ThreadManagementService.ts";
+import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
+import * as ScheduledTaskService from "../scheduledTasks/ScheduledTaskService.ts";
+import * as Scheduler from "../scheduling/Scheduler.ts";
+import * as PreviewManager from "../preview/Manager.ts";
+import * as TerminalManager from "../terminal/Manager.ts";
+import * as ResourceCleanupService from "./ResourceCleanupService.ts";
+import * as ThreadLaunchService from "./ThreadLaunchService.ts";
 import * as ThreadCommandExecutor from "./ThreadCommandExecutor.ts";
 import type * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
 
@@ -189,11 +198,11 @@ const watchedPullRequestDetail = (input: {
   projectId: input.projectId,
   projectTitle: "Watch wake",
   workspaceRoot: "/workspace/watch",
-  repository: "supabitapp/supacode-next",
+  repository: "supabitapp/supaterm",
   number: input.number,
   title: "Watched pull request",
   body: "",
-  url: `https://github.com/supabitapp/supacode-next/pull/${input.number}`,
+  url: `https://github.com/supabitapp/supaterm/pull/${input.number}`,
   author: { login: "agent-user", name: null, avatarUrl: null },
   state: "open",
   isDraft: false,
@@ -283,6 +292,30 @@ const layerTest = Layer.mergeAll(
   Layer.provide(layerPlatformTest),
 );
 
+const layerScheduledTasksTest = ScheduledTaskService.layer.pipe(
+  Layer.provide(
+    Layer.mergeAll(
+      Layer.mock(ThreadLaunchService.ThreadLaunchService)({}),
+      Layer.mock(ThreadManagementService.ThreadManagementService)({}),
+
+      Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
+        namedProjectsRoot: "/projects",
+        isScratchProject: () => Effect.succeed(false),
+      }),
+      Scheduler.layer,
+    ),
+  ),
+);
+const layerResourceCleanupTest = ResourceCleanupService.layer.pipe(
+  Layer.provideMerge(layerScheduledTasksTest),
+  Layer.provide(
+    Layer.mergeAll(
+      Layer.mock(PreviewManager.PreviewManager)({ close: () => Effect.void }),
+      Layer.mock(TerminalManager.TerminalManager)({ close: () => Effect.void }),
+    ),
+  ),
+);
+
 const layerProjectDeletionTest = Layer.mergeAll(
   RuntimeLayer.layer.pipe(Layer.provide(RuntimeLayer.layerProjectService)),
   RuntimeLayer.layerProjectService,
@@ -311,6 +344,7 @@ const layerProjectDeletionTest = Layer.mergeAll(
       normalizeWorkspaceRoot: (workspaceRoot) => Effect.succeed(workspaceRoot),
     }),
   ),
+  Layer.provideMerge(layerResourceCleanupTest),
   Layer.provide(McpSessionRegistryTestkit.layer),
   Layer.provide(McpProviderSessions.layer),
   Layer.provide(SqlitePersistence.layerMemory),
@@ -323,6 +357,101 @@ const layerProjectDeletionTest = Layer.mergeAll(
 );
 
 it.layer(layerProjectDeletionTest)("project deletion during thread commands", (it) => {
+  it.effect.each(["thread", "project"] as const)(
+    "deleting a %s removes its thread-bound automations through the effect worker",
+    (deletion) =>
+      Effect.gen(function* () {
+        const projects = yield* ProjectService.ProjectService;
+        const orchestrator = yield* Orchestrator.OrchestratorV2;
+        const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
+        const tasks = yield* ScheduledTaskService.ScheduledTaskService;
+        const projectId = ProjectId.make(`automation-delete-project:${deletion}`);
+        const threadId = ThreadId.make(`automation-delete-thread:${deletion}`);
+        const otherThreadId = ThreadId.make(`automation-surviving-thread:${deletion}`);
+        yield* projects.create({
+          commandId: CommandId.make(`automation-create-project:${deletion}`),
+          projectId,
+          title: "Automation lifecycle",
+          workspaceRoot: `/work/automation-lifecycle/${deletion}`,
+        });
+        for (const id of [threadId, otherThreadId]) {
+          yield* orchestrator.dispatch({
+            type: "thread.create",
+            commandId: CommandId.make(`automation-create:${id}`),
+            createdBy: "user",
+            creationSource: "web",
+            threadId: id,
+            projectId: id === threadId ? projectId : ProjectId.make("automation-other-project"),
+            title: "Automation target",
+            modelSelection,
+            runtimeMode: "full-access",
+            interactionMode: "default",
+            branch: null,
+            worktreePath: null,
+          });
+        }
+        const save = (name: string, target: ThreadId | null) =>
+          tasks.upsert({
+            id: ScheduledTaskId.make(`automation:${deletion}:${name}`),
+            title: name,
+            prompt: "Check orchestration progress",
+            enabled: true,
+            schedule: { type: "interval", everyMs: 60_000 },
+            projectId,
+            threadId: target,
+            workspaceStrategy: { type: "root" },
+            modelSelection,
+            runtimeMode: "full-access",
+            interactionMode: "default",
+            createdBy: "agent",
+            creationSource: "mcp",
+          });
+        const { task: bound } = yield* save("bound", threadId);
+        const { task: independent } = yield* save("independent", null);
+        yield* save("detached", threadId);
+        const { task: detached } = yield* save("detached", null);
+        yield* save("moved", threadId);
+        const { task: moved } = yield* save("moved", otherThreadId);
+        const { task: other } = yield* save("other", otherThreadId);
+        yield* orchestrator.dispatch({
+          type: "thread.archive",
+          commandId: CommandId.make(`automation-archive:${deletion}`),
+          threadId,
+        });
+        yield* worker.drain();
+        assert.include(
+          (yield* tasks.list()).tasks.map((task) => task.id),
+          bound.id,
+        );
+
+        if (deletion === "thread") {
+          yield* orchestrator.dispatch({
+            type: "thread.delete",
+            commandId: CommandId.make(`automation-delete:${deletion}`),
+            threadId,
+          });
+        } else {
+          yield* projects.delete({
+            commandId: CommandId.make(`automation-delete:${deletion}`),
+            projectId,
+            force: true,
+          });
+        }
+        yield* worker.drain();
+        const remainingIds = (yield* tasks.list()).tasks.map((task) => task.id);
+        assert.notInclude(remainingIds, bound.id);
+        assert.includeMembers(remainingIds, [independent.id, detached.id, moved.id, other.id]);
+        const rejected = yield* tasks.runNow({ id: bound.id }).pipe(Effect.flip);
+        assert.equal(rejected.message, "Schedule task not found.");
+        // Retried cleanup is harmless and cannot affect unrelated tasks.
+        yield* tasks.deleteForThread(threadId);
+        assert.sameMembers(
+          (yield* tasks.list()).tasks.map((task) => task.id),
+          remainingIds,
+        );
+      }),
+  );
+
   it.effect("waits for an in-flight thread update before planning deletion", () =>
     Effect.gen(function* () {
       const projects = yield* ProjectService.ProjectService;
@@ -1756,9 +1885,9 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       const threadId = ThreadId.make("runtime-layer-linked-pull-request-thread");
       const linkedPullRequest = {
         projectId: ProjectId.make("runtime-layer-linked-pull-request-project"),
-        repository: "supabitapp/supacode-next",
+        repository: "supabitapp/supaterm",
         number: 8160,
-        url: "https://github.com/supabitapp/supacode-next/pull/8160",
+        url: "https://github.com/supabitapp/supaterm/pull/8160",
       } as const;
 
       yield* orchestrator.dispatch({
@@ -1853,9 +1982,9 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         },
         branchPullRequest: {
           projectId,
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
           number: 1,
-          url: "https://github.com/supabitapp/supacode-next/pull/1",
+          url: "https://github.com/supabitapp/supaterm/pull/1",
         },
       });
       for (const [index, number] of [2, 2, 1, 3].entries()) {
@@ -1864,9 +1993,9 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           commandId: CommandId.make(`branch-pr-link-${index}`),
           threadId,
           host: "GitHub.com",
-          repository: "SupabitApp/Supacode-Next",
+          repository: "SupabitApp/Supaterm",
           number,
-          url: `https://github.com/supabitapp/supacode-next/pull/${number}`,
+          url: `https://github.com/supabitapp/supaterm/pull/${number}`,
           source: "manual",
         });
         assert.deepEqual(
@@ -1879,7 +2008,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         commandId: CommandId.make("branch-pr-unlink"),
         threadId,
         host: "github.com",
-        repository: "supabitapp/supacode-next",
+        repository: "supabitapp/supaterm",
         number: 1,
       });
       yield* orchestrator.dispatch({
@@ -1887,9 +2016,9 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         commandId: CommandId.make("branch-pr-link-after-unlink"),
         threadId,
         host: "github.com",
-        repository: "supabitapp/supacode-next",
+        repository: "supabitapp/supaterm",
         number: 4,
-        url: "https://github.com/supabitapp/supacode-next/pull/4",
+        url: "https://github.com/supabitapp/supaterm/pull/4",
         source: "manual",
       });
       assert.isTrue((yield* maintenance.rebuild).valid);
@@ -1919,7 +2048,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         branch: null,
         worktreePath: null,
       });
-      const key = { host: "GitHub.com", repository: "SupabitApp/Supacode-Next" };
+      const key = { host: "GitHub.com", repository: "SupabitApp/Supaterm" };
       for (const number of [1, 2]) {
         yield* orchestrator.dispatch({
           type: "thread.pull-request.link",
@@ -1927,7 +2056,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           threadId,
           ...key,
           number,
-          url: `https://github.com/supabitapp/supacode-next/pull/${number}`,
+          url: `https://github.com/supabitapp/supaterm/pull/${number}`,
           source: number === 1 ? "manual" : "stack",
         });
       }
@@ -1936,7 +2065,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         linked?.pullRequests?.map(({ host, repository, number }) => ({ host, repository, number })),
         [1, 2].map((number) => ({
           host: "github.com",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
           number,
         })),
       );
@@ -1967,7 +2096,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         threadId,
         ...key,
         number: 2,
-        url: "https://github.com/supabitapp/supacode-next/pull/2",
+        url: "https://github.com/supabitapp/supaterm/pull/2",
         source: "stack",
       });
       assert.equal(
@@ -1985,7 +2114,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         threadId,
         ...key,
         number: 2,
-        url: "https://github.com/supabitapp/supacode-next/pull/2",
+        url: "https://github.com/supabitapp/supaterm/pull/2",
         source: "manual",
       });
       assert.equal(
@@ -2014,8 +2143,8 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         branch: null,
         worktreePath: null,
       });
-      const key = { host: "github.com", repository: "supabitapp/supacode-next", number: 7 };
-      const url = "https://github.com/supabitapp/supacode-next/pull/7";
+      const key = { host: "github.com", repository: "supabitapp/supaterm", number: 7 };
+      const url = "https://github.com/supabitapp/supaterm/pull/7";
       const watchOf = Effect.map(
         orchestrator.getThreadShell(threadId),
         (thread) => thread?.pullRequests?.[0]?.watch,
@@ -2214,11 +2343,11 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         type: "thread.pull-request.watch" as const,
         threadId,
         host: "github.com",
-        repository: "supabitapp/supacode-next",
+        repository: "supabitapp/supaterm",
         number: 7,
         watching: true,
         link: {
-          url: "https://github.com/supabitapp/supacode-next/pull/7",
+          url: "https://github.com/supabitapp/supaterm/pull/7",
           source: "agent" as const,
         },
       };
@@ -2278,8 +2407,8 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         branch: null,
         worktreePath: null,
       });
-      const run = { host: "github.com", repository: "supabitapp/supacode-next", runId: 42 };
-      const url = "https://github.com/supabitapp/supacode-next/actions/runs/42";
+      const run = { host: "github.com", repository: "supabitapp/supaterm", runId: 42 };
+      const url = "https://github.com/supabitapp/supaterm/actions/runs/42";
       yield* orchestrator.dispatch({
         type: "thread.workflow-run-watch.start",
         commandId: CommandId.make("run-watch-start"),
@@ -2290,7 +2419,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       });
       assert.deepEqual((yield* orchestrator.getThreadShell(threadId))?.pendingBackgroundTasks, [
         {
-          taskId: "workflow-run-watch:github.com/supabitapp/supacode-next#42",
+          taskId: "workflow-run-watch:github.com/supabitapp/supaterm#42",
           description: "Watching Release run",
           kind: "monitor",
         },
@@ -2388,7 +2517,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           commandId: CommandId.make(`run-watch-stops-start-${runId}`),
           threadId,
           host: "github.com",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
           runId,
           name: names[runId],
           url: null,
@@ -2407,7 +2536,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
                         ? null
                         : {
                             host: "github.com",
-                            repository: "supabitapp/supacode-next",
+                            repository: "supabitapp/supaterm",
                             name: "Stuck",
                             url: null,
                             status: "pending" as const,
@@ -2460,7 +2589,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         branch: null,
         worktreePath: null,
       });
-      const run = { host: "github.com", repository: "supabitapp/supacode-next", runId: 7 };
+      const run = { host: "github.com", repository: "supabitapp/supaterm", runId: 7 };
       const watching = (commandId: string, on: boolean) =>
         orchestrator.dispatch(
           on
@@ -2553,10 +2682,10 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         commandId: CommandId.make("pr-watch-unreadable-start"),
         threadId,
         host: "github.com",
-        repository: "supabitapp/supacode-next",
+        repository: "supabitapp/supaterm",
         number: 8,
         watching: true,
-        link: { url: "https://github.com/supabitapp/supacode-next/pull/8", source: "agent" },
+        link: { url: "https://github.com/supabitapp/supaterm/pull/8", source: "agent" },
       });
       const reactor = yield* PullRequestWatchReactor.make.pipe(
         Effect.provide(
@@ -2618,10 +2747,10 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
               commandId: CommandId.make(`watch:${threadId}`),
               threadId,
               host: "github.com",
-              repository: "supabitapp/supacode-next",
+              repository: "supabitapp/supaterm",
               number: 9,
               watching: true,
-              link: { url: "https://github.com/supabitapp/supacode-next/pull/9", source: "agent" },
+              link: { url: "https://github.com/supabitapp/supaterm/pull/9", source: "agent" },
             });
           });
         for (const threadId of threadIds) yield* watchFrom(threadId);
@@ -3036,7 +3165,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         branch: null,
         worktreePath: null,
       });
-      const key = { host: "github.com", repository: "supabitapp/supacode-next", number: 11 };
+      const key = { host: "github.com", repository: "supabitapp/supaterm", number: 11 };
       const watching = (on: boolean, id: string) =>
         orchestrator.dispatch({
           type: "thread.pull-request.watch",
@@ -3044,7 +3173,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           threadId,
           ...key,
           watching: on,
-          link: { url: "https://github.com/supabitapp/supacode-next/pull/11", source: "agent" },
+          link: { url: "https://github.com/supabitapp/supaterm/pull/11", source: "agent" },
         });
       yield* watching(true, "start");
 
@@ -3092,7 +3221,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       assert.deepEqual(ended, [
         {
           threadId,
-          pullRequest: "github.com/supabitapp/supacode-next#11",
+          pullRequest: "github.com/supabitapp/supaterm#11",
           reason: "stopped",
           minutes: 480,
           quietMinutes: 120,
@@ -3136,10 +3265,10 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         commandId: CommandId.make("pr-watch-fingerprint-start"),
         threadId,
         host: "github.com",
-        repository: "supabitapp/supacode-next",
+        repository: "supabitapp/supaterm",
         number: 11,
         watching: true,
-        link: { url: "https://github.com/supabitapp/supacode-next/pull/11", source: "agent" },
+        link: { url: "https://github.com/supabitapp/supaterm/pull/11", source: "agent" },
       });
 
       let fingerprint: { status: string; remarks: string } | "rate-limited" = {
@@ -3267,6 +3396,248 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
     }),
   );
 
+  it.effect.each(["deadline", "fingerprint lost", "fingerprint changed", "mixed-age remarks"])(
+    "delivers edited cached review replies: %s",
+    (mode) =>
+      Effect.gen(function* () {
+        const orchestrator = yield* Orchestrator.OrchestratorV2;
+        const projections = yield* ProjectionStore.ProjectionStoreV2;
+        const projectId = ProjectId.make(`pr-watch-tail-project-${mode}`);
+        const threadId = ThreadId.make(`runtime-pr-watch-tail-${mode}`);
+        const startedAt = "2026-10-02T12:00:00.000Z";
+        yield* TestClock.setTime(Date.parse(startedAt));
+        yield* seedProject({
+          projectId,
+          title: "Watch edited replies",
+          workspaceRoot: "/workspace/watch-tail",
+          defaultModelSelection: null,
+          createdAt: startedAt,
+        });
+        yield* orchestrator.dispatch({
+          type: "thread.create",
+          createdBy: "user",
+          creationSource: "web",
+          commandId: CommandId.make(`pr-watch-tail-create-${mode}`),
+          threadId,
+          projectId,
+          title: "Watch edited replies",
+          modelSelection,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          branch: null,
+          worktreePath: null,
+        });
+        yield* orchestrator.dispatch({
+          type: "thread.pull-request.watch",
+          commandId: CommandId.make(`pr-watch-tail-start-${mode}`),
+          threadId,
+          host: "github.com",
+          repository: "supabitapp/supaterm",
+          number: 12,
+          watching: true,
+          link: { url: "https://github.com/supabitapp/supaterm/pull/12", source: "agent" },
+        });
+        const reply: PullRequestComment = {
+          id: "reply-11",
+          kind: "review-comment",
+          author: { login: "reviewer", name: null, avatarUrl: null },
+          body: "Original feedback.",
+          createdAt: "2026-10-02T11:00:00.000Z",
+          url: null,
+          path: "src/index.ts",
+          reviewState: null,
+        };
+        let replies = Array.from(
+          { length: mode === "fingerprint changed" ? 2 : 1 },
+          (_, index) => ({
+            ...reply,
+            id: `reply-${index}-11`,
+          }),
+        );
+        const reviewThreads = replies.map((reply, index) => ({
+          id: `review-thread-${index}`,
+          path: "src/index.ts",
+          line: index + 1,
+          side: "right" as const,
+          isResolved: false,
+          isOutdated: false,
+          comments: Array.from({ length: 10 }, (_, index) => ({
+            ...reply,
+            id: `${reply.id}-preview-${index}`,
+          })),
+          commentCount: 11,
+          nextCommentsCursor: "after-10",
+        }));
+        let fingerprint: string | null = mode === "mixed-age remarks" ? null : "before";
+        let failPage = false;
+        let activityReads = 0;
+        const pageReads: Array<{ threadId: string; cursor: string }> = [];
+        const expectedPages = reviewThreads.map((thread) => ({
+          threadId: thread.id,
+          cursor: "after-10",
+        }));
+        const reactor = yield* PullRequestWatchReactor.make.pipe(
+          Effect.provide(
+            Layer.mergeAll(
+              NodeServices.layer,
+              Layer.mock(ProjectionStore.ProjectionStoreV2)({
+                getThreadsWithPullRequests: () =>
+                  projections
+                    .getThreadsWithPullRequests()
+                    .pipe(
+                      Effect.map((threads) => threads.filter((thread) => thread.id === threadId)),
+                    ),
+              }),
+              Layer.mock(PullRequestService.PullRequestService)({
+                watchFingerprint: () =>
+                  Effect.succeed(
+                    fingerprint === null ? null : { status: "OPEN pending", remarks: fingerprint },
+                  ),
+                invalidate: () => Effect.void,
+                detail: () =>
+                  Effect.succeed({
+                    ...watchedPullRequestDetail({ projectId, number: 12, at: startedAt }),
+                    checks: [{ name: "test", status: "pending", description: null, url: null }],
+                  }),
+                activity: () =>
+                  Effect.sync(() => {
+                    activityReads += 1;
+                    return {
+                      comments: reviewThreads.flatMap((thread) => thread.comments),
+                      commentCount: reviewThreads.length * 11,
+                      commentsTruncated: true,
+                      reviewThreadsTruncated: false,
+                      reviewThreads,
+                      commits: [],
+                    };
+                  }),
+                threadComments: (input) =>
+                  Effect.suspend(() => {
+                    const index = reviewThreads.findIndex((thread) => thread.id === input.threadId);
+                    assert.isAtLeast(index, 0);
+                    pageReads.push({ threadId: input.threadId, cursor: input.cursor });
+                    return failPage && index === 1
+                      ? Effect.fail(
+                          new PullRequestOperationError({
+                            operation: "threadComments",
+                            detail: "Page unavailable",
+                          }),
+                        )
+                      : Effect.succeed({ comments: [replies[index]!], nextCursor: null });
+                  }),
+              }),
+            ),
+          ),
+        );
+        const messages = orchestrator
+          .getThreadRecords(threadId, ["messages"])
+          .pipe(Effect.map((records) => records.messages));
+        const watch = orchestrator
+          .getThreadShell(threadId)
+          .pipe(Effect.map((thread) => thread?.pullRequests?.[0]?.watch));
+        yield* reactor.sweep;
+        const baseline = yield* watch;
+        replies = replies.map((reply) => ({
+          ...reply,
+          body: "Edited feedback.",
+          editedAt: "2026-10-02T12:00:01.000Z",
+        }));
+
+        if (mode === "mixed-age remarks") {
+          const thread = reviewThreads[0]!;
+          const visibleReply = {
+            ...thread.comments[0]!,
+            body: "Edited visible feedback.",
+            editedAt: "2026-10-02T12:02:00.000Z",
+          };
+          thread.comments[0] = visibleReply;
+          yield* TestClock.adjust("5 minutes");
+          yield* reactor.sweep;
+          const intermediateWatch = yield* watch;
+          const intermediatePageReads = [...pageReads];
+          yield* TestClock.adjust("5 minutes");
+          yield* reactor.sweep;
+          const wakes = yield* messages;
+          assert.isTrue(wakes.every((wake) => wake.notification?.summary === "#12: new comments"));
+          assert.equal((yield* watch)?.remarksThrough, visibleReply.editedAt);
+          assert.deepEqual((yield* watch)?.remarkIds, [visibleReply.id]);
+          assert.deepEqual(pageReads, [...expectedPages, ...expectedPages]);
+          const wakeText = wakes.map((wake) => wake.text).join("\n");
+          for (const reply of [visibleReply, ...replies]) {
+            assert.include(wakeText, reply.body);
+            assert.equal(wakeText.split(reply.body).length - 1, 1);
+          }
+          // A watermark past the deep edit requires a fresh tail, even before its deadline.
+          if (intermediateWatch?.remarksThrough === visibleReply.editedAt) {
+            assert.deepEqual(intermediatePageReads, [...expectedPages, ...expectedPages]);
+          } else {
+            assert.equal(intermediateWatch?.remarksThrough, baseline?.remarksThrough);
+          }
+          yield* reactor.sweep;
+          yield* TestClock.adjust("30 minutes");
+          yield* reactor.sweep;
+          assert.deepEqual(yield* messages, wakes);
+          assert.equal((yield* watch)?.remarksThrough, visibleReply.editedAt);
+          assert.deepEqual(pageReads, [...expectedPages, ...expectedPages, ...expectedPages]);
+          return;
+        }
+
+        if (mode === "fingerprint changed") {
+          yield* TestClock.adjust("1 minute");
+          fingerprint = "after";
+          failPage = true;
+          yield* reactor.sweep;
+          assert.deepEqual(yield* messages, []);
+          assert.deepEqual(yield* watch, baseline);
+          assert.deepEqual(pageReads, [...expectedPages, ...expectedPages]);
+          yield* TestClock.adjust("2 seconds");
+          // Neither deep edit changes the host fingerprint or the thread's comment count.
+          replies = replies.map((reply, index) => ({
+            ...reply,
+            body: `Latest feedback ${index + 1}.`,
+            editedAt: `2026-10-02T12:01:0${index + 1}.000Z`,
+          }));
+          failPage = false;
+        } else {
+          if (mode === "fingerprint lost") fingerprint = null;
+          yield* TestClock.adjust(mode === "deadline" ? "29 minutes" : "5 minutes");
+          yield* reactor.sweep;
+          assert.deepEqual(pageReads, expectedPages);
+          assert.deepEqual(yield* messages, []);
+          // An activity read at five minutes must not move the tail's ten-minute deadline.
+          assert.equal(activityReads, mode === "deadline" ? 1 : 2);
+          yield* TestClock.adjust(mode === "deadline" ? "1 minute" : "5 minutes");
+        }
+        yield* reactor.sweep;
+        const wakes = yield* messages;
+        assert.deepEqual(
+          wakes.map((message) => message.notification?.summary),
+          ["#12: new comments"],
+        );
+        for (const reply of replies) {
+          assert.include(wakes[0]?.text ?? "", reply.body);
+        }
+        assert.notInclude(wakes[0]?.text ?? "", "Original feedback.");
+        assert.deepEqual(
+          pageReads,
+          Array.from(
+            { length: mode === "fingerprint changed" ? 3 : 2 },
+            () => expectedPages,
+          ).flat(),
+        );
+        const latestReply = replies.at(-1)!;
+        assert.equal((yield* watch)?.remarksThrough, latestReply.editedAt);
+        assert.deepEqual((yield* watch)?.remarkIds, [latestReply.id]);
+        yield* reactor.sweep;
+        assert.lengthOf(yield* messages, 1);
+        assert.lengthOf(pageReads, mode === "fingerprint changed" ? 6 : 2);
+        yield* TestClock.adjust("30 minutes");
+        yield* reactor.sweep;
+        assert.lengthOf(yield* messages, 1);
+        assert.lengthOf(pageReads, mode === "fingerprint changed" ? 8 : 3);
+      }),
+  );
+
   it.effect.each([
     "single page",
     "paginated",
@@ -3300,8 +3671,8 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         branch: null,
         worktreePath: null,
       });
-      const key = { host: "github.com", repository: "supabitapp/supacode-next", number: 7 };
-      const url = "https://github.com/supabitapp/supacode-next/pull/7";
+      const key = { host: "github.com", repository: "supabitapp/supaterm", number: 7 };
+      const url = "https://github.com/supabitapp/supaterm/pull/7";
       yield* orchestrator.dispatch({
         type: "thread.pull-request.link",
         commandId: CommandId.make(`pr-watch-wake-link-${mode}`),
@@ -4590,6 +4961,267 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       }),
   );
 
+  it.effect("keeps queued user selections and pauses only the limited provider", () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const eventSink = yield* EventSink.EventSinkV2;
+      const threadId = ThreadId.make("runtime-layer-queue-provider-limit");
+      const queuedSelection = {
+        instanceId: alternateInstanceId,
+        model: "gpt-5.5",
+        options: [{ id: "reasoningEffort", value: "high" }],
+      };
+      yield* orchestrator.dispatch({
+        type: "thread.create",
+        commandId: CommandId.make(`${threadId}:create`),
+        threadId,
+        createdBy: "user",
+        creationSource: "web",
+        projectId: ProjectId.make(`${threadId}:project`),
+        title: "Limited queue",
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: null,
+        worktreePath: process.cwd(),
+      });
+      const selections = [modelSelection, modelSelection, queuedSelection];
+      for (const [index, selection] of selections.entries()) {
+        yield* orchestrator.dispatch({
+          type: "message.dispatch",
+          commandId: CommandId.make(`${threadId}:${index}`),
+          threadId,
+          messageId: MessageId.make(`${threadId}:${index}`),
+          text: `Prompt ${index}`,
+          attachments: [],
+          createdBy: "user",
+          creationSource: "web",
+          modelSelection: selection,
+          dispatchMode: { type: index === 0 ? "start_immediately" : "queue_after_active" },
+        });
+      }
+      const [active, limited, available] = (yield* orchestrator.getThreadProjection(threadId)).runs;
+      assert.isDefined(active);
+      assert.isDefined(limited);
+      assert.isDefined(available);
+      const now = yield* DateTime.now;
+      yield* eventSink.write({
+        events: [
+          {
+            id: EventId.make(`${threadId}:error`),
+            type: "turn-item.updated",
+            threadId,
+            runId: active.id,
+            nodeId: active.rootNodeId!,
+            providerInstanceId: active.providerInstanceId,
+            occurredAt: now,
+            payload: {
+              id: TurnItemId.make(`${threadId}:error`),
+              type: "error",
+              threadId,
+              runId: active.id,
+              nodeId: active.rootNodeId!,
+              providerThreadId: active.providerThreadId,
+              providerTurnId: null,
+              nativeItemRef: null,
+              parentItemId: null,
+              ordinal: 2,
+              status: "failed",
+              title: "Usage limit",
+              startedAt: now,
+              completedAt: now,
+              updatedAt: now,
+              failure: {
+                class: "usage_limit",
+                message: "Usage limit reached",
+                code: "usage_limit",
+                retryable: null,
+              },
+            },
+          },
+          {
+            id: EventId.make(`${threadId}:failed`),
+            type: "run.updated",
+            threadId,
+            runId: active.id,
+            providerInstanceId: active.providerInstanceId,
+            occurredAt: now,
+            payload: { ...active, status: "failed", completedAt: now },
+          },
+          {
+            id: EventId.make(`${threadId}:other-session`),
+            type: "provider-session.attached",
+            threadId,
+            providerInstanceId: alternateInstanceId,
+            occurredAt: now,
+            payload: {
+              id: ProviderSessionId.make(`${threadId}:other-session`),
+              driver,
+              providerInstanceId: alternateInstanceId,
+              status: "error",
+              cwd: process.cwd(),
+              model: queuedSelection.model,
+              capabilities: CodexProviderCapabilitiesV2,
+              createdAt: now,
+              updatedAt: now,
+              lastError: "Unrelated session error on the other provider",
+            },
+          },
+        ],
+      });
+      yield* orchestrator.dispatch({
+        type: "thread.model-selection.set",
+        commandId: CommandId.make(`${threadId}:select-other`),
+        threadId,
+        modelSelection: queuedSelection,
+      });
+      yield* orchestrator.resumeQueuedRuns;
+      const held = yield* orchestrator.getThreadProjection(threadId);
+      assert.equal(held.runs.find((run) => run.id === limited.id)?.status, "queued");
+      const blocked = yield* orchestrator
+        .dispatch({
+          type: "queue.resume",
+          commandId: CommandId.make(`${threadId}:blocked`),
+          threadId,
+        })
+        .pipe(Effect.flip);
+      assert.equal(blocked._tag, "OrchestratorDispatchError");
+
+      yield* orchestrator.dispatch({
+        type: "thread.model-selection.set",
+        commandId: CommandId.make(`${threadId}:select-original`),
+        threadId,
+        modelSelection,
+      });
+      yield* orchestrator.dispatch({
+        type: "queued-run.cancel",
+        commandId: CommandId.make(`${threadId}:cancel-limited`),
+        threadId,
+        runId: limited.id,
+      });
+      yield* orchestrator.resumeQueuedRuns;
+      const after = yield* orchestrator.getThreadProjection(threadId);
+      const started = after.runs.find((run) => run.id === available.id);
+      assert.equal(started?.status, "starting");
+      assert.deepEqual(started?.modelSelection, queuedSelection);
+      assert.deepEqual(after.thread.modelSelection, queuedSelection);
+    }),
+  );
+
+  it.effect.each([
+    ["server", modelSelection],
+    ["provider", modelSelection],
+    ["provider", { ...modelSelection, instanceId: alternateInstanceId }],
+  ] as const)(
+    "delivers a queued monitor update from %s after conversation selection %j",
+    ([creationSource, currentSelection]) =>
+      Effect.gen(function* () {
+        const orchestrator = yield* Orchestrator.OrchestratorV2;
+        const eventSink = yield* EventSink.EventSinkV2;
+        const threadId = ThreadId.make(
+          `runtime-layer-queue-current-conversation-${creationSource}-${currentSelection.instanceId}`,
+        );
+        yield* orchestrator.dispatch({
+          type: "thread.create",
+          commandId: CommandId.make(`${threadId}:create`),
+          threadId,
+          projectId: ProjectId.make(`${threadId}:project`),
+          createdBy: "user",
+          creationSource: "web",
+          title: "Current conversation",
+          modelSelection,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          branch: null,
+          worktreePath: process.cwd(),
+        });
+        for (const type of ["start_immediately", "queue_after_active"] as const) {
+          yield* orchestrator.dispatch({
+            type: "message.dispatch",
+            commandId: CommandId.make(`${threadId}:${type}`),
+            messageId: MessageId.make(`${threadId}:${type}`),
+            threadId,
+            text: type,
+            attachments: [],
+            createdBy: "agent",
+            creationSource,
+            dispatchMode: { type },
+            ...(type === "queue_after_active"
+              ? {
+                  notification: {
+                    source: { kind: "monitor" as const },
+                    outcome: "updated" as const,
+                    summary: "PR update",
+                  },
+                }
+              : {}),
+          });
+        }
+        const before = yield* orchestrator.getThreadProjection(threadId);
+        const [active, queued] = before.runs;
+        assert.isDefined(active);
+        assert.isDefined(queued);
+        const now = yield* DateTime.now;
+        const current = {
+          ...before.providerThreads[0]!,
+          id: ProviderThreadId.make(`${threadId}:current`),
+          updatedAt: now,
+        };
+        yield* orchestrator.dispatch({
+          type: "thread.model-selection.set",
+          commandId: CommandId.make(`${threadId}:select-current`),
+          threadId,
+          modelSelection: currentSelection,
+        });
+        yield* eventSink.write({
+          events: [
+            {
+              id: EventId.make(`${threadId}:completed`),
+              type: "run.updated",
+              threadId,
+              runId: active.id,
+              occurredAt: now,
+              payload: { ...active, status: "completed", completedAt: now },
+            },
+            {
+              id: EventId.make(`${threadId}:conversation`),
+              type: "provider-thread.updated",
+              threadId,
+              occurredAt: now,
+              payload: current,
+            },
+          ],
+        });
+        const expectedThreadId =
+          creationSource === "provider" ? queued.providerThreadId : current.id;
+        yield* orchestrator.resumeQueuedRuns;
+        const after = yield* orchestrator.getThreadProjection(threadId);
+        const delivered = after.runs.find((run) => run.id === queued.id)!;
+        assert.equal(delivered.status, "starting");
+        assert.deepEqual(delivered.modelSelection, modelSelection);
+        assert.equal(delivered.providerInstanceId, modelSelection.instanceId);
+        assert.equal(
+          after.attempts.find((attempt) => attempt.id === delivered.activeAttemptId)
+            ?.providerInstanceId,
+          modelSelection.instanceId,
+        );
+        assert.equal(delivered.providerThreadId, expectedThreadId);
+        assert.equal(after.thread.activeProviderThreadId, expectedThreadId);
+        assert.equal(
+          after.attempts.find((attempt) => attempt.id === delivered.activeAttemptId)
+            ?.providerThreadId,
+          expectedThreadId,
+        );
+        const root = after.nodes.find((node) => node.id === delivered.rootNodeId)!;
+        assert.equal(root.providerThreadId, expectedThreadId);
+        assert.equal(
+          after.checkpointScopes.find((scope) => scope.id === root.checkpointScopeId)
+            ?.providerThreadId,
+          expectedThreadId,
+        );
+      }),
+  );
+
   it.effect("keeps the queue after a user interrupts the active run", () =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
@@ -5219,6 +5851,63 @@ it.layer(layerTest)("snooze queued runs", (it) => {
         }
       }),
   );
+
+  it.effect.each(["notification", "user"] as const)(
+    "a %s message on a snoozed thread keeps the snooze only when automatic",
+    (kind) =>
+      Effect.gen(function* () {
+        const orchestrator = yield* Orchestrator.OrchestratorV2;
+        const threadId = ThreadId.make(`snooze-wake:${kind}`);
+        const snoozedUntil = "2099-07-25T09:00:00.000Z";
+        yield* orchestrator.dispatch({
+          type: "thread.create",
+          commandId: CommandId.make(`create:${threadId}`),
+          threadId,
+          projectId: ProjectId.make("snooze-wake-project"),
+          title: "Snoozed long-running thread",
+          modelSelection,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          branch: null,
+          worktreePath: "/tmp/snooze-wake",
+          createdBy: "user",
+          creationSource: "web",
+        });
+        yield* orchestrator.dispatch({
+          type: "thread.snooze",
+          commandId: CommandId.make(`snooze:${threadId}`),
+          threadId,
+          snoozedUntil,
+        });
+        yield* orchestrator.dispatch({
+          type: "message.dispatch",
+          commandId: CommandId.make(`wake:${threadId}`),
+          threadId,
+          messageId: MessageId.make(`wake:${threadId}`),
+          text: "Continue",
+          attachments: [],
+          modelSelection,
+          dispatchMode: { type: "queue_after_active" },
+          createdBy: kind === "user" ? "user" : "agent",
+          creationSource: kind === "user" ? "web" : "provider",
+          ...(kind === "notification"
+            ? {
+                notification: {
+                  source: { kind: "background_task" as const },
+                  outcome: "updated" as const,
+                  summary: "Background activity updated",
+                },
+              }
+            : {}),
+        });
+        const thread = (yield* orchestrator.getThreadProjection(threadId)).thread;
+        if (kind === "user") {
+          assert.isNull(thread.snoozedUntil);
+        } else {
+          assert.equal(DateTime.formatIso(thread.snoozedUntil!), snoozedUntil);
+        }
+      }),
+  );
 });
 
 it.layer(layerSharedApplicationDataPlaneTest)("snooze projection", (it) => {
@@ -5486,7 +6175,8 @@ it.layer(Layer.fresh(layerSharedApplicationDataPlaneTest))("compact PR events", 
         worktreePath: null,
       });
       const key = { host: "github.com", repository: "supabitapp/supaterm" };
-      for (const number of [1, 2, 3]) {
+      const repositoryWebUrl = "https://github.com/supabitapp/supaterm/pull/2";
+      for (const number of [1, 2]) {
         yield* orchestrator.dispatch({
           type: "thread.pull-request.link",
           commandId: CommandId.make(`compact-pr-link-${number}`),
@@ -5495,8 +6185,31 @@ it.layer(Layer.fresh(layerSharedApplicationDataPlaneTest))("compact PR events", 
           number,
           url: `https://github.com/supabitapp/supaterm/pull/${number}`,
           source: "manual",
+          ...(number === 2 ? { repositoryWebUrl } : {}),
         });
       }
+      const watchedLink = {
+        url: "https://github.com/supabitapp/supaterm/pull/3",
+        repositoryWebUrl: "https://github.com/supabitapp/supaterm/pull/3",
+        source: "manual" as const,
+      };
+      yield* orchestrator.dispatch({
+        type: "thread.pull-request.watch",
+        commandId: CommandId.make("compact-pr-watch-new"),
+        threadId,
+        ...key,
+        number: 3,
+        watching: true,
+        link: watchedLink,
+      });
+      yield* orchestrator.dispatch({
+        type: "thread.pull-request.watch",
+        commandId: CommandId.make("compact-pr-watch-existing"),
+        threadId,
+        ...key,
+        number: 2,
+        watching: true,
+      });
       const before = yield* orchestrator.getThreadShell(threadId);
       yield* orchestrator.dispatch({
         type: "thread.pull-request-link.sync",
@@ -5536,6 +6249,8 @@ it.layer(Layer.fresh(layerSharedApplicationDataPlaneTest))("compact PR events", 
       assert.deepEqual(after?.pullRequests?.[0], before?.pullRequests?.[0]);
       assert.deepEqual(after?.pullRequests?.[2], before?.pullRequests?.[2]);
       assert.equal(after?.pullRequests?.[1]?.stack?.id, "updated");
+      assert.propertyVal(after?.pullRequests?.[1], "repositoryWebUrl", repositoryWebUrl);
+      assert.deepInclude(after?.pullRequests?.[2], watchedLink);
       assert.isTrue((yield* maintenance.rebuild).valid);
       assert.deepEqual(
         (yield* orchestrator.getThreadShell(threadId))?.pullRequests,
@@ -5877,6 +6592,9 @@ it.layer(layerTest)("usage-limit recovery", (it) => {
     "independent-patches",
     "expired-snooze",
     "wake",
+    "stop",
+    "stop-before-arm",
+    "stop-before-arm-mismatched-recovery",
   ] as const)("guards a scheduled usage-limit continuation against %s", (scenario) =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
@@ -6033,8 +6751,68 @@ it.layer(layerTest)("usage-limit recovery", (it) => {
       ].includes(scenario);
       const autoResume = scenario !== "snooze-only" && scenario !== "wake";
       const arm = limitRecoveryCommand(shell, autoResume, DateTime.toEpochMillis(now), snooze);
-      assert.isNotNull(arm);
-      yield* orchestrator.dispatch(arm!);
+      assert(arm?.type === "thread.metadata.update" && arm.limitRecovery != null);
+      const automaticArm = {
+        commandId: arm.commandId,
+        threadId,
+        limitRecovery: arm.limitRecovery,
+      };
+      const stopBeforeArm =
+        scenario === "stop-before-arm" || scenario === "stop-before-arm-mismatched-recovery";
+      if (stopBeforeArm) {
+        if (scenario === "stop-before-arm-mismatched-recovery") {
+          const current = yield* orchestrator.getThreadProjection(threadId);
+          yield* events.write({
+            events: [
+              {
+                id: EventId.make(`recovery:older-window:${scenario}`),
+                type: "thread.metadata-updated",
+                threadId,
+                occurredAt: now,
+                payload: {
+                  ...current.thread,
+                  limitRecovery: {
+                    runId: run.id,
+                    resetAt: DateTime.formatIso(DateTime.add(now, { minutes: 2 })),
+                    autoResume: true,
+                    snooze: false,
+                  },
+                },
+              },
+            ],
+          });
+        }
+        yield* orchestrator.dispatch({
+          type: "thread.stop",
+          commandId: CommandId.make(`recovery:stop:${scenario}`),
+          threadId,
+        });
+        const projections = yield* ProjectionStore.ProjectionStoreV2;
+        assert.isUndefined(
+          (yield* projections.getLimitRecoveryCandidates({
+            now,
+            autoResume: true,
+            snooze: false,
+          })).find((row) => row.id === threadId),
+        );
+        const stoppedShell = (yield* orchestrator.getShellSnapshot()).threads.find(
+          (thread) => thread.id === threadId,
+        )!;
+        assert.isNull(limitRecoveryCommand(stoppedShell, true, DateTime.toEpochMillis(now)));
+        yield* orchestrator.autoArmLimitRecovery(automaticArm);
+        assert.deepEqual((yield* orchestrator.getThreadProjection(threadId)).thread.limitRecovery, {
+          runId: run.id,
+          resetAt,
+          autoResume: false,
+          snooze: false,
+          requestId: CommandId.make(`recovery:stop:${scenario}`),
+        });
+      }
+      const armCommand = stopBeforeArm
+        ? { ...arm, commandId: CommandId.make(`recovery:explicit-rearm:${scenario}`) }
+        : arm;
+      if (stopBeforeArm) yield* orchestrator.dispatch(armCommand);
+      else yield* orchestrator.autoArmLimitRecovery(automaticArm);
       let armedShell = (yield* orchestrator.getShellSnapshot()).threads.find(
         (thread) => thread.id === threadId,
       )!;
@@ -6043,7 +6821,7 @@ it.layer(layerTest)("usage-limit recovery", (it) => {
         resetAt,
         autoResume,
         snooze,
-        requestId: arm!.commandId,
+        requestId: armCommand.commandId,
       });
       if (snooze)
         assert.equal(DateTime.toEpochMillis(armedShell.snoozedUntil!), Date.parse(resetAt));
@@ -6247,6 +7025,17 @@ it.layer(layerTest)("usage-limit recovery", (it) => {
           commandId: CommandId.make(`recovery:settle:${scenario}`),
           threadId,
         });
+      if (scenario === "stop") {
+        yield* orchestrator.dispatch({
+          type: "thread.stop",
+          commandId: CommandId.make(`recovery:stop:${scenario}`),
+          threadId,
+        });
+        const stoppedShell = (yield* orchestrator.getShellSnapshot()).threads.find(
+          (thread) => thread.id === threadId,
+        )!;
+        assert.deepInclude(stoppedShell.limitRecovery, { runId: run.id, autoResume: false });
+      }
       if (scenario === "replacement") {
         const current = yield* orchestrator.getThreadProjection(threadId);
         const error = current.turnItems.find((item) => item.type === "error")!;
@@ -6305,6 +7094,7 @@ it.layer(layerTest)("usage-limit recovery", (it) => {
         after.runs,
         before.runs.length +
           (scenario === "resume" ||
+          stopBeforeArm ||
           scenario === "queued-resume" ||
           scenario === "snooze-resume" ||
           scenario === "wake-preserve-resume" ||
@@ -6317,6 +7107,7 @@ it.layer(layerTest)("usage-limit recovery", (it) => {
         after.messages,
         before.messages.length +
           (scenario === "resume" ||
+          stopBeforeArm ||
           scenario === "queued-resume" ||
           scenario === "snooze-resume" ||
           scenario === "wake-preserve-resume" ||
@@ -6325,6 +7116,28 @@ it.layer(layerTest)("usage-limit recovery", (it) => {
             ? 1
             : 0),
       );
+      if (scenario === "stop") {
+        assert.deepInclude(after.thread.limitRecovery, { runId: run.id, autoResume: false });
+        const projections = yield* ProjectionStore.ProjectionStoreV2;
+        const sweep = { now: yield* DateTime.now, autoResume: true, snooze: false };
+        assert.isUndefined(
+          (yield* projections.getLimitRecoveryCandidates(sweep)).find((row) => row.id === threadId),
+        );
+        yield* orchestrator.dispatch({
+          type: "thread.metadata.update",
+          commandId: CommandId.make("recovery:rearm-after-stop"),
+          threadId,
+          limitRecovery: { runId: run.id, resetAt, autoResume: true },
+        });
+        const rearmed = (yield* projections.getLimitRecoveryCandidates(sweep)).find(
+          (row) => row.id === threadId,
+        )!;
+        assert.isDefined(rearmed);
+        const freshResume = limitRecoveryCommand(rearmed, true, DateTime.toEpochMillis(sweep.now));
+        assert.isNotNull(freshResume);
+        yield* orchestrator.dispatch(freshResume!);
+        assert.lengthOf((yield* orchestrator.getThreadProjection(threadId)).runs, 2);
+      }
       if (scenario === "queued-resume") {
         const held = after.runs[1]!;
         assert.equal(held.status, "queued");

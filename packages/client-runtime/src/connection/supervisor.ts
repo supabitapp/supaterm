@@ -32,6 +32,7 @@ import {
   advertisedConnectionRoutes,
   type ConnectionRouteAdvertisements,
   connectionRouteId,
+  connectionRouteKind,
   connectionRoutes,
   entryWithRoutes,
 } from "./routes.ts";
@@ -350,22 +351,55 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
     );
   });
 
-  const establishConnection = Effect.fnUntraced(function* (
+  const establishConnection = Effect.fn("environment.connection.attempt")(function* (
     attempt: number,
     generation: number,
     lastFailure: ConnectionAttemptError | null,
     synchronizedRoutes: Ref.Ref<number>,
   ) {
+    yield* Effect.annotateCurrentSpan({
+      "connection.attempt": attempt,
+      "connection.generation": generation,
+    });
     const next = yield* attemptEntry;
-    return yield* driver.connect(
-      next.entry,
-      (progress) =>
-        (progress.stage === "synchronizing"
-          ? Ref.update(synchronizedRoutes, (count) => count + 1)
-          : Effect.void
-        ).pipe(Effect.andThen(reportProgress(attempt, generation, lastFailure, progress))),
-      next.preflight,
-    );
+    return yield* driver
+      .connect(
+        next.entry,
+        (progress) =>
+          (progress.stage === "synchronizing"
+            ? Ref.update(synchronizedRoutes, (count) => count + 1)
+            : Effect.void
+          ).pipe(Effect.andThen(reportProgress(attempt, generation, lastFailure, progress))),
+        next.preflight,
+      )
+      .pipe(
+        Effect.onExit(
+          Effect.fnUntraced(function* (exit) {
+            if (Exit.isSuccess(exit)) {
+              const leaseTarget = exit.value.prepared.target;
+              const route = (yield* currentRoutes).find(
+                (candidate) =>
+                  connectionRouteId(candidate.target) === connectionRouteId(leaseTarget),
+              );
+              return yield* Effect.annotateCurrentSpan({
+                "connection.outcome": "connected",
+                "connection.route": connectionRouteKind(
+                  route ?? { target: leaseTarget, profile: Option.none() },
+                ),
+              });
+            }
+            if (Cause.hasInterruptsOnly(exit.cause)) {
+              return yield* Effect.annotateCurrentSpan("connection.outcome", "interrupted");
+            }
+            const failure = exit.cause.reasons.find(Cause.isFailReason)?.error;
+            yield* Effect.annotateCurrentSpan({
+              "connection.outcome": "failed",
+              "connection.failure.tag": failure?._tag ?? "defect",
+              "connection.failure.reason": failure?.reason ?? "defect",
+            });
+          }),
+        ),
+      );
   });
 
   const waitForEstablishmentInterrupt = Effect.fnUntraced(function* (ignoreOffline: boolean) {

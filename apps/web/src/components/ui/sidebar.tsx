@@ -169,6 +169,23 @@ function Sidebar({
     open,
     onCollapse: () => setOpen(false),
   });
+  const desktopSidebarRef = React.useRef<HTMLDivElement>(null);
+  const offcanvasCollapsed = !isMobile && state === "collapsed";
+
+  React.useLayoutEffect(() => {
+    const sidebar = desktopSidebarRef.current;
+    if (!sidebar) return;
+
+    // Transfer focus before inert causes the browser to clear the focused descendant.
+    if (offcanvasCollapsed && sidebar.contains(document.activeElement)) {
+      const wrapper = sidebar.closest('[data-slot="sidebar-wrapper"]');
+      const trigger = Array.from(
+        wrapper?.querySelectorAll<HTMLElement>('[data-sidebar="trigger"]') ?? [],
+      ).find((element) => !sidebar.contains(element));
+      trigger?.focus({ preventScroll: true });
+    }
+    sidebar.toggleAttribute("inert", offcanvasCollapsed);
+  }, [offcanvasCollapsed]);
 
   if (isMobile) {
     return (
@@ -217,6 +234,7 @@ function Sidebar({
       id={`sidebar-${side}`}
     >
       <div
+        ref={desktopSidebarRef}
         className="group flex h-full w-full text-sidebar-foreground"
         data-side={side}
         data-slot="sidebar"

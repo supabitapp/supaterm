@@ -30,6 +30,18 @@ and branch in the thread details card.
 Turn on **Usage limits** to keep the current model's usage limits below the composer after the
 thread starts. This preference applies to the web and desktop clients.
 
+## Math
+
+Turn on **Render math** in **Settings → Appearance** to typeset LaTeX in messages and Markdown
+previews on web, desktop, and mobile. It reads `$…$`, `$$…$$`, `\(…\)`, and `\[…\]`, outside of code.
+Fenced `math` blocks also render. Formulas work in tables, including absolute-value bars.
+Dollar amounts such as `$5 and $10` stay text; write `\$` to keep any other dollar sign literal.
+Wide formulas scroll horizontally while the surrounding text wraps. Copying a formula or
+exporting a table preserves the TeX.
+
+The composer keeps TeX source editable, including when rich text is enabled. The Render math
+preference is saved separately on each device.
+
 ## Motion
 
 Panel motion follows your operating system's **Reduce Motion** preference. Enable it to make panels

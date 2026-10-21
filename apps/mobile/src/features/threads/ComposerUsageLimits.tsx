@@ -1,5 +1,5 @@
 import type { EnvironmentId, UsageLimitsReport } from "@supaterm/contracts";
-import { Pressable, ScrollView, useWindowDimensions, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 
 import { SymbolView } from "../../components/ui/AppSymbol";
 import { ResetCredits } from "../usage/ResetCredits";
@@ -10,14 +10,15 @@ const DRIVER_LABEL: Partial<Record<string, string>> = { codex: "Codex", claudeAg
 export function ComposerUsageLimits({
   report,
   environmentId,
+  maxHeight,
   onClose,
 }: {
   readonly report: UsageLimitsReport;
   readonly environmentId: EnvironmentId;
+  readonly maxHeight: number;
   readonly onClose: () => void;
 }) {
   const now = Date.parse(report.createdAt);
-  const { height } = useWindowDimensions();
   const close = (
     <Pressable
       accessibilityLabel="Dismiss usage limits"
@@ -31,11 +32,7 @@ export function ComposerUsageLimits({
   );
   return (
     <View className="overflow-hidden rounded-[20px] border-continuous bg-card">
-      <ScrollView
-        bounces={false}
-        showsVerticalScrollIndicator={false}
-        style={{ maxHeight: Math.round(height * 0.4) }}
-      >
+      <ScrollView bounces={false} showsVerticalScrollIndicator={false} style={{ maxHeight }}>
         {report.accounts.map((account, index) => {
           const driverLabel = DRIVER_LABEL[account.driver] ?? String(account.driver);
           return (
@@ -60,7 +57,7 @@ export function ComposerUsageLimits({
                   <ResetCredits
                     dense
                     environmentId={environmentId}
-                    input={{ instanceId: account.instanceId }}
+                    input={account.resetCreditInput ?? { instanceId: account.instanceId }}
                     credits={account.limits.resetCredits}
                     now={now}
                   />

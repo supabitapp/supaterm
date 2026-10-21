@@ -28,6 +28,7 @@ function makeShell(input: {
   readonly snoozedAt?: string | null;
   readonly sessionStatus?: "starting" | "running" | "ready" | "error";
   readonly pending?: "approval" | "user-input";
+  readonly turnRequestedAt?: string | null;
   readonly turnCompletedAt?: string | null;
 }): ThreadSnoozeShell {
   const threadId = ThreadId.make("thread-1");
@@ -54,7 +55,7 @@ function makeShell(input: {
         : {
             turnId: TurnId.make("turn-1"),
             state: "completed",
-            requestedAt: SNOOZED_AT,
+            requestedAt: input.turnRequestedAt === undefined ? SNOOZED_AT : input.turnRequestedAt,
             startedAt: null,
             completedAt: input.turnCompletedAt,
             assistantMessageId: null,
@@ -167,13 +168,19 @@ describe("effectiveSnoozed", () => {
     ).toBe(true);
   });
 
-  it("wakes early when a run completes after the snooze was set", () => {
-    expect(
-      effectiveSnoozed(
-        makeShell({ snoozedUntil: FUTURE_WAKE, turnCompletedAt: "2026-04-10T10:30:00.000Z" }),
-        { now: NOW },
-      ),
-    ).toBe(false);
+  it("stays snoozed when a run requested after the snooze completes", () => {
+    const shell = {
+      ...makeShell({ snoozedUntil: FUTURE_WAKE }),
+      latestRun: {
+        status: "completed",
+        requestedAt: "2026-04-10T09:00:00.001Z",
+        startedAt: "2026-04-10T09:15:00.000Z",
+        completedAt: "2026-04-10T10:30:00.000Z",
+      },
+    };
+
+    expect(effectiveSnoozed(shell, { now: NOW })).toBe(true);
+    expect(threadWokeAt(shell, { now: NOW })).toBe(null);
   });
 
   it("ignores runs that completed before the snooze — the user saw that result", () => {
@@ -306,34 +313,41 @@ describe("threadWokeAt", () => {
     expect(threadWokeAt(makeShell({ snoozedUntil: FUTURE_WAKE }), { now: NOW })).toBe(null);
   });
 
-  it("reports the wake time for a timer wake", () => {
+  it("reports the timer wake even after an already-requested run completes", () => {
     expect(threadWokeAt(makeShell({ snoozedUntil: PAST_WAKE }), { now: NOW })).toBe(PAST_WAKE);
+    const shell = makeShell({
+      snoozedUntil: PAST_WAKE,
+      turnCompletedAt: "2026-04-10T09:30:00.000Z",
+    });
+    expect(effectiveSnoozed(shell, { now: NOW })).toBe(false);
+    expect(threadWokeAt(shell, { now: NOW })).toBe(PAST_WAKE);
   });
 
-  it("reports the completion time for an early run-completed wake", () => {
-    expect(
-      threadWokeAt(
-        makeShell({ snoozedUntil: FUTURE_WAKE, turnCompletedAt: "2026-04-10T10:30:00.000Z" }),
-        { now: NOW },
-      ),
-    ).toBe("2026-04-10T10:30:00.000Z");
-  });
-
-  it("falls back to session activity for blocked/failed early wakes", () => {
-    expect(
-      threadWokeAt(makeShell({ snoozedUntil: FUTURE_WAKE, sessionStatus: "error" }), {
-        now: NOW,
-      }),
-    ).toBe("2026-04-10T11:00:00.000Z");
+  it.each([
+    { reason: "failure", sessionStatus: "error" },
+    { reason: "approval", sessionStatus: "ready", pending: "approval" },
+    { reason: "user input", sessionStatus: "ready", pending: "user-input" },
+  ] as const)("reports $reason activity instead of an already-requested completion", (activity) => {
+    const shell = makeShell({
+      ...activity,
+      snoozedUntil: FUTURE_WAKE,
+      turnCompletedAt: "2026-04-10T10:30:00.000Z",
+    });
+    expect(effectiveSnoozed(shell, { now: NOW })).toBe(false);
+    expect(threadWokeAt(shell, { now: NOW })).toBe("2026-04-10T11:00:00.000Z");
   });
 
   it("keeps the early wake authoritative after the scheduled time passes", () => {
-    expect(
-      threadWokeAt(
-        makeShell({ snoozedUntil: PAST_WAKE, turnCompletedAt: "2026-04-10T09:30:00.000Z" }),
-        { now: NOW },
-      ),
-    ).toBe("2026-04-10T09:30:00.000Z");
+    const shell: ThreadSnoozeShell = {
+      ...makeShell({ snoozedUntil: PAST_WAKE }),
+      runtime: { status: "failed", updatedAt: "2026-04-10T11:00:00.000Z" },
+      latestRun: {
+        status: "failed",
+        requestedAt: "2026-04-10T09:15:00.000Z",
+        completedAt: "2026-04-10T09:30:00.000Z",
+      },
+    };
+    expect(threadWokeAt(shell, { now: NOW })).toBe("2026-04-10T09:30:00.000Z");
   });
 });
 

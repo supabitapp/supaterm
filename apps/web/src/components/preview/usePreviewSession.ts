@@ -1,8 +1,12 @@
 "use client";
 
 import { useAtomValue } from "@effect/atom-react";
-import { parseScopedThreadKey, scopedThreadKey } from "@supaterm/client-runtime/environment";
-import type { ScopedThreadRef } from "@supaterm/contracts";
+import {
+  parseScopedThreadKey,
+  scopeThreadRef,
+  scopedThreadKey,
+} from "@supaterm/client-runtime/environment";
+import { type EnvironmentId, type ScopedThreadRef, ThreadId } from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
 import { AsyncResult, Atom } from "effect/reactivity";
 
@@ -11,6 +15,7 @@ import {
   readThreadPreviewState,
   reconcilePreviewServerSessions,
 } from "~/previewStateStore";
+import { isElectron } from "~/env";
 import { previewEnvironment } from "~/state/preview";
 
 class PreviewSessionThreadKeyParseError extends Schema.TaggedError<PreviewSessionThreadKeyParseError>()(
@@ -92,4 +97,38 @@ const previewSessionSyncAtom = Atom.family((threadKey: string) => {
 
 export function usePreviewSession(threadRef: ScopedThreadRef): void {
   useAtomValue(previewSessionSyncAtom(scopedThreadKey(threadRef)));
+}
+
+const inactiveAtom = Atom.make(() => undefined);
+
+// Discover background tabs without listing every thread at startup. Retain each
+// sync for the host's lifetime so later events still arrive while chat is absent.
+const desktopHostedPreviewSyncAtom = Atom.family((environmentId: EnvironmentId) => {
+  const eventsAtom = previewEnvironment.events({ environmentId, input: {} });
+  return Atom.make((get) => {
+    const syncedThreadIds = new Set<string>();
+    get.subscribe(
+      eventsAtom,
+      (result) => {
+        if (!AsyncResult.isSuccess(result) || result.value.type === "closed") return;
+        const threadId = result.value.threadId;
+        if (syncedThreadIds.has(threadId)) return;
+        syncedThreadIds.add(threadId);
+        get.mount(
+          previewSessionSyncAtom(
+            scopedThreadKey(scopeThreadRef(environmentId, ThreadId.make(threadId))),
+          ),
+        );
+      },
+      { immediate: true },
+    );
+  }).pipe(Atom.withLabel(`preview:desktop-hosted-sync:${environmentId}`));
+});
+
+export function useDesktopHostedPreviewSessions(environmentId: EnvironmentId | null): void {
+  useAtomValue(
+    isElectron && environmentId !== null
+      ? desktopHostedPreviewSyncAtom(environmentId)
+      : inactiveAtom,
+  );
 }

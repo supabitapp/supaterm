@@ -63,16 +63,16 @@ const invocation = (
 
 function makeProject(
   repositoryIdentity: OrchestrationProjectShell["repositoryIdentity"] = {
-    canonicalKey: "github.com/supabitapp/supacode-next",
+    canonicalKey: "github.com/supabitapp/supaterm",
     locator: {
       source: "git-remote",
       remoteName: "origin",
-      remoteUrl: "git@github.com:supabitapp/supacode-next.git",
+      remoteUrl: "git@github.com:supabitapp/supaterm.git",
     },
     provider: "github",
-    displayName: "supabitapp/supacode-next",
+    displayName: "supabitapp/supaterm",
     owner: "supabitapp",
-    name: "supacode-next",
+    name: "supaterm",
   },
 ): OrchestrationProjectShell {
   return {
@@ -117,9 +117,9 @@ function makeLink(
   const { headBranch, baseBranch, ...rest } = overrides;
   return {
     host: "github.com",
-    repository: "supabitapp/supacode-next",
+    repository: "supabitapp/supaterm",
     number,
-    url: `https://github.com/supabitapp/supacode-next/pull/${number}`,
+    url: `https://github.com/supabitapp/supaterm/pull/${number}`,
     source: "manual",
     linkedAt: "2026-08-10T00:00:00.000Z",
     snapshot:
@@ -263,13 +263,13 @@ describe("pull request toolkit handlers", () => {
     Effect.gen(function* () {
       const harness = yield* makeHarness();
       const result = yield* harness.call("link_pull_request", {
-        url: "https://github.com/supabitapp/supacode-next/pull/123/files",
+        url: "https://github.com/supabitapp/supaterm/pull/123/files",
       });
       expect(result).toEqual({
         host: "github.com",
-        repository: "supabitapp/supacode-next",
+        repository: "supabitapp/supaterm",
         number: 123,
-        url: "https://github.com/supabitapp/supacode-next/pull/123/files",
+        url: "https://github.com/supabitapp/supaterm/pull/123/files",
         alreadyLinked: false,
       });
       expect(yield* Ref.get(harness.commands)).toMatchObject([
@@ -277,7 +277,7 @@ describe("pull request toolkit handlers", () => {
           type: "thread.pull-request.link",
           threadId: THREAD_ID,
           host: "github.com",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
           number: 123,
           source: "agent",
         },
@@ -289,7 +289,7 @@ describe("pull request toolkit handlers", () => {
     Effect.gen(function* () {
       const harness = yield* makeHarness();
       const result = yield* harness.call("watch_pull_request", {
-        url: "https://github.com/supabitapp/supacode-next/pull/9",
+        url: "https://github.com/supabitapp/supaterm/pull/9",
       });
       expect(result).toMatchObject({ number: 9, watching: false, wasWatching: false });
       expect(yield* Ref.get(harness.commands)).toMatchObject([
@@ -297,7 +297,7 @@ describe("pull request toolkit handlers", () => {
           type: "thread.pull-request.watch",
           number: 9,
           watching: true,
-          link: { url: "https://github.com/supabitapp/supacode-next/pull/9", source: "agent" },
+          link: { url: "https://github.com/supabitapp/supaterm/pull/9", source: "agent" },
         },
       ]);
     }),
@@ -305,9 +305,9 @@ describe("pull request toolkit handlers", () => {
 
   const workflowRun = (input: PullRequestWorkflowRunRef, status: "pending" | "success") => ({
     host: input.host ?? "github.com",
-    repository: input.repository ?? "supabitapp/supacode-next",
+    repository: input.repository ?? "supabitapp/supaterm",
     name: "Release",
-    url: "https://github.com/supabitapp/supacode-next/actions/runs/42",
+    url: "https://github.com/supabitapp/supaterm/actions/runs/42",
     status,
     checks: [],
   });
@@ -335,7 +335,7 @@ describe("pull request toolkit handlers", () => {
           repository: "acme/web",
           runId: 42,
           name: "Release",
-          url: "https://github.com/supabitapp/supacode-next/actions/runs/42",
+          url: "https://github.com/supabitapp/supaterm/actions/runs/42",
         },
       ]);
     }),
@@ -354,7 +354,7 @@ describe("pull request toolkit handlers", () => {
       // A bare id is resolved by the checkout, so nothing but the id is passed on.
       expect(reads).toEqual([{ projectId: PROJECT_ID, runId: 42 }]);
       expect(result).toMatchObject({
-        repository: "supabitapp/supacode-next",
+        repository: "supabitapp/supaterm",
         status: "success",
         watching: false,
       });
@@ -412,12 +412,12 @@ describe("pull request toolkit handlers", () => {
         ]),
       });
       const error = yield* harness
-        .call("watch_pull_request", { repository: "supabitapp/supacode-next", number: 1 })
+        .call("watch_pull_request", { repository: "supabitapp/supaterm", number: 1 })
         .pipe(Effect.flip);
       expect(error).toMatchObject({ _tag: "PullRequestNotOpenError", state: "merged" });
       expect(
         yield* harness.call("unwatch_pull_request", {
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
           number: 3,
         }),
       ).toMatchObject({ wasWatching: true });
@@ -436,7 +436,7 @@ describe("pull request toolkit handlers", () => {
         ]),
       });
       yield* harness.call("watch_pull_request", {
-        repository: "supabitapp/supacode-next",
+        repository: "supabitapp/supaterm",
         number: 1,
       });
       expect(yield* Ref.get(harness.commands)).toMatchObject([
@@ -458,7 +458,7 @@ describe("pull request toolkit handlers", () => {
         },
       });
       const error = yield* harness
-        .call("watch_pull_request", { repository: "supabitapp/supacode-next", number: 1 })
+        .call("watch_pull_request", { repository: "supabitapp/supaterm", number: 1 })
         .pipe(Effect.flip);
       expect(error).toMatchObject({ _tag: "PullRequestWatchFromSubagentError" });
       expect(yield* Ref.get(harness.commands)).toEqual([]);
@@ -553,6 +553,44 @@ describe("pull request toolkit handlers", () => {
     }),
   );
 
+  it.effect("links Azure DevOps Server URLs and numeric references without a known provider", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness({
+        project: makeProject({
+          canonicalKey: "scm.example.test/tfs/collection/project/_git/repo",
+          locator: {
+            source: "git-remote",
+            remoteName: "origin",
+            remoteUrl: "http://dummy:secret@scm.example.test:8080/tfs/Collection/Project/_git/Repo",
+          },
+          provider: "unknown",
+          displayName: "tfs/collection/project/_git/repo",
+        }),
+      });
+      const generated =
+        "http://scm.example.test:8080/tfs/collection/project/_git/repo/pullrequest/124";
+      const fromNumber = yield* harness.call("link_pull_request", {
+        repository: "tfs/Collection/Project/_git/Repo",
+        number: 124,
+      });
+      expect.soft(fromNumber.url).toBe(generated);
+
+      const supplied = "https://scm.example.test/tfs/Collection/Project/_git/Repo/pullrequest/123";
+      const fromUrl = yield* harness.call("link_pull_request", { url: supplied });
+      expect(fromUrl).toEqual({
+        host: "scm.example.test",
+        repository: "tfs/collection/project/_git/repo",
+        number: 123,
+        url: supplied,
+        alreadyLinked: false,
+      });
+      expect(yield* Ref.get(harness.commands)).toMatchObject([
+        { type: "thread.pull-request.link", number: 124, url: generated },
+        { type: "thread.pull-request.link", number: 123, url: supplied },
+      ]);
+    }),
+  );
+
   it.effect("rejects a target that names neither a URL nor repository and number", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness();
@@ -562,7 +600,7 @@ describe("pull request toolkit handlers", () => {
       expect(error).toMatchObject({ _tag: "PullRequestTargetIncompleteError" });
       const unknown = yield* harness
         .call("link_pull_request", {
-          url: "https://github.com/supabitapp/supacode-next/issues/1?token=private-value",
+          url: "https://github.com/supabitapp/supaterm/issues/1?token=private-value",
         })
         .pipe(Effect.flip);
       expect(unknown).toMatchObject({ _tag: "PullRequestUrlInvalidError" });
@@ -579,7 +617,7 @@ describe("pull request toolkit handlers", () => {
           command.type === "thread.pull-request.link" ? "already linked" : null,
       });
       const result = yield* harness.call("link_pull_request", {
-        url: "https://github.com/supabitapp/supacode-next/pull/123",
+        url: "https://github.com/supabitapp/supaterm/pull/123",
       });
       expect(result.alreadyLinked).toBe(true);
     }),
@@ -595,17 +633,17 @@ describe("pull request toolkit handlers", () => {
             : null,
       });
       const linked = yield* harness.call("unlink_pull_request", {
-        repository: "supabitapp/supacode-next",
+        repository: "supabitapp/supaterm",
         number: 5,
       });
       expect(linked).toEqual({
         host: "github.com",
-        repository: "supabitapp/supacode-next",
+        repository: "supabitapp/supaterm",
         number: 5,
         wasLinked: true,
       });
       const missing = yield* harness.call("unlink_pull_request", {
-        url: "https://github.com/supabitapp/supacode-next/pull/9",
+        url: "https://github.com/supabitapp/supaterm/pull/9",
       });
       expect(missing.wasLinked).toBe(false);
       expect(yield* Ref.get(harness.commands)).toMatchObject([
@@ -619,7 +657,7 @@ describe("pull request toolkit handlers", () => {
       makeThread([
         makeLink(42, {
           host: "forge.example",
-          url: "http://forge.example:3000/supabitapp/supacode-next/pulls/42",
+          url: "http://forge.example:3000/supabitapp/supaterm/pulls/42",
         }),
       ]),
     );
@@ -649,9 +687,9 @@ describe("pull request toolkit handlers", () => {
       expect(result.pullRequests.map((entry) => entry.number)).toEqual([3, 1, 2, 10]);
       expect(result.pullRequests[0]).toEqual({
         host: "github.com",
-        repository: "supabitapp/supacode-next",
+        repository: "supabitapp/supaterm",
         number: 3,
-        url: "https://github.com/supabitapp/supacode-next/pull/3",
+        url: "https://github.com/supabitapp/supaterm/pull/3",
         source: "agent",
         watching: false,
         state: "open",
@@ -682,7 +720,7 @@ describe("listThreadPullRequests", () => {
       kind: "native" as const,
       id: "stack-1",
       number: 1,
-      url: "https://github.com/supabitapp/supacode-next/stack/1",
+      url: "https://github.com/supabitapp/supaterm/stack/1",
       base: "main",
       layers: [
         { number: 1, headBranch: "a", state: "open" as const },
@@ -743,7 +781,7 @@ describe("pull request guide tools", () => {
         const result = yield* harness.call("write_pull_request_guides", {
           pullRequests: [
             { url: "https://github.com/acme/web/pull/7" },
-            { repository: "supabitapp/supacode-next", number: 12 },
+            { repository: "supabitapp/supaterm", number: 12 },
             { url: "https://github.com/someone/else/pull/1" },
           ],
         });
@@ -751,7 +789,7 @@ describe("pull request guide tools", () => {
           result.guides.map((guide) => [guide.repository, guide.number, guide.outcome]),
         ).toEqual([
           ["acme/web", 7, "started"],
-          ["supabitapp/supacode-next", 12, "started"],
+          ["supabitapp/supaterm", 12, "started"],
           ["someone/else", 1, "failed"],
         ]);
         expect(result.guides[2]?.detail).toContain("No project in this environment");
@@ -771,7 +809,7 @@ describe("pull request guide tools", () => {
         resolvedIdentity: makeProject().repositoryIdentity,
       });
       const result = yield* harness.call("write_pull_request_guides", {
-        pullRequests: [{ url: "https://github.com/supabitapp/supacode-next/pull/12" }],
+        pullRequests: [{ url: "https://github.com/supabitapp/supaterm/pull/12" }],
       });
       expect(result.guides.map((guide) => guide.outcome)).toEqual(["started"]);
     }),
@@ -800,8 +838,8 @@ describe("pull request guide tools", () => {
       });
       const result = yield* harness.call("write_pull_request_guides", {
         pullRequests: [
-          { repository: "supabitapp/supacode-next", number: 1 },
-          { repository: "supabitapp/supacode-next", number: 2 },
+          { repository: "supabitapp/supaterm", number: 1 },
+          { repository: "supabitapp/supaterm", number: 2 },
         ],
       });
       expect(result.guides.map((guide) => [guide.number, guide.outcome, guide.detail])).toEqual([
@@ -817,8 +855,8 @@ describe("pull request guide tools", () => {
       const result = yield* harness.call("write_pull_request_guides", {
         pullRequests: [
           { url: "https://example.com/not-a-pull-request" },
-          { repository: "supabitapp/supacode-next" },
-          { repository: "supabitapp/supacode-next", number: 5 },
+          { repository: "supabitapp/supaterm" },
+          { repository: "supabitapp/supaterm", number: 5 },
         ],
       });
       expect(result.guides.map((guide) => guide.outcome)).toEqual(["failed", "failed", "started"]);
@@ -839,7 +877,7 @@ describe("pull request guide tools", () => {
           }),
       });
       const result = yield* harness.call("write_pull_request_guides", {
-        pullRequests: [{ repository: "supabitapp/supacode-next", number: 4 }],
+        pullRequests: [{ repository: "supabitapp/supaterm", number: 4 }],
       });
       expect(result.guides.map((guide) => guide.outcome)).toEqual(["running"]);
     }),
@@ -877,7 +915,7 @@ describe("pull request guide tools", () => {
     Effect.gen(function* () {
       const harness = yield* makeHarness();
       const result = yield* harness.call("read_pull_request_guide", {
-        repository: "supabitapp/supacode-next",
+        repository: "supabitapp/supaterm",
         number: 3,
       });
       expect(result).toMatchObject({ number: 3, guide: null, run: null, stale: false });

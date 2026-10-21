@@ -80,6 +80,7 @@ const makeSupervisor = Effect.fn("TestEnvironmentCommands.makeSupervisor")(funct
   readonly projection?: OrchestrationV2ThreadProjection;
   readonly projectionRequests?: ThreadId[];
   readonly advertiseServerResolvedCommandContext?: boolean;
+  readonly advertiseThreadStop?: boolean;
 }) {
   const client = {
     [ORCHESTRATION_V2_WS_METHODS.dispatchCommand]: (command: OrchestrationV2Command) =>
@@ -125,7 +126,7 @@ const makeSupervisor = Effect.fn("TestEnvironmentCommands.makeSupervisor")(funct
     client,
     initialConfig: Effect.succeed({
       environment: {
-        capabilities: {},
+        capabilities: input.advertiseThreadStop === true ? { threadStop: true } : {},
       },
     } as never),
     configChanges: Stream.empty,
@@ -395,8 +396,8 @@ describe("V2 environment commands", () => {
     Effect.gen(function* () {
       const link = {
         host: "github.com",
-        repository: "supabitapp/supacode-next",
-        url: "https://github.com/supabitapp/supacode-next/pull/7",
+        repository: "supabitapp/supaterm",
+        url: "https://github.com/supabitapp/supaterm/pull/7",
         source: "agent" as const,
         linkedAt: "2026-10-05T00:00:00.000Z",
         snapshot: null,
@@ -425,7 +426,7 @@ describe("V2 environment commands", () => {
           workflowRunWatches: [
             {
               host: "github.com",
-              repository: "supabitapp/supacode-next",
+              repository: "supabitapp/supaterm",
               runId: 42,
               name: "CI",
               url: null,
@@ -447,7 +448,7 @@ describe("V2 environment commands", () => {
           commandId: expect.any(String),
           threadId: v2ThreadId,
           host: "github.com",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
           number: 7,
           watching: false,
         },
@@ -456,7 +457,7 @@ describe("V2 environment commands", () => {
           commandId: expect.any(String),
           threadId: v2ThreadId,
           host: "github.com",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
           runId: 42,
         },
       ]);
@@ -942,6 +943,34 @@ describe("V2 environment commands", () => {
       }).pipe(Effect.provide(layerTestCrypto)),
   );
 
+  it.effect("stops a thread without relying on background work in the history window", () =>
+    Effect.gen(function* () {
+      const commands: OrchestrationV2Command[] = [];
+      const projectionRequests: ThreadId[] = [];
+      const supervisor = yield* makeSupervisor({
+        commands,
+        projects: [],
+        projectionRequests,
+        advertiseThreadStop: true,
+      });
+
+      const result = yield* interruptThreadTurn({
+        commandId: CommandId.make("stop-outside-history-window"),
+        threadId: v2ThreadId,
+      }).pipe(Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor));
+
+      expect(result).toEqual({ sequence: 1 });
+      expect(projectionRequests).toEqual([]);
+      expect(commands).toEqual([
+        {
+          type: "thread.stop",
+          commandId: "stop-outside-history-window",
+          threadId: v2ThreadId,
+        },
+      ]);
+    }).pipe(Effect.provide(layerTestCrypto)),
+  );
+
   it.effect("interrupts a known run without fetching the full projection", () =>
     Effect.gen(function* () {
       const commands: OrchestrationV2Command[] = [];
@@ -950,6 +979,7 @@ describe("V2 environment commands", () => {
         commands,
         projects: [],
         projectionRequests,
+        advertiseThreadStop: true,
       });
 
       yield* interruptThreadTurn({

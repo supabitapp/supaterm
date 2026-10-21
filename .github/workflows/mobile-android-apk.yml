@@ -20,6 +20,7 @@ concurrency:
 jobs:
   mirror:
     name: Mirror Play APK
+    if: github.repository == 'supabitapp/supaterm'
     runs-on: depot-ubuntu-24.04
     timeout-minutes: 10
     permissions:

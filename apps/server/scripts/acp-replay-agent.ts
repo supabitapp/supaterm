@@ -146,13 +146,6 @@ function isCleanRuntimeExit(entry: ReplayEntry | undefined): boolean {
   );
 }
 
-function advance(): void {
-  cursor += 1;
-  while (isCleanRuntimeExit(transcript.entries[cursor])) cursor += 1;
-  writeStatus();
-}
-
-/** Callers persist status first: the client may kill this process as soon as it reads the line. */
 function send(message: JsonRpcMessage): void {
   process.stdout.write(`${JSON.stringify(message)}\n`);
 }
@@ -192,8 +185,7 @@ function materializeInbound(value: unknown): unknown {
   );
 }
 
-/** Allocates or consumes the frame's request id and returns its message, or undefined after recording a failure. */
-function prepareInboundMessage(recorded: LogicalFrame): JsonRpcMessage | undefined {
+function inboundMessage(recorded: LogicalFrame): JsonRpcMessage | undefined {
   const frame = materializeInbound(recorded) as LogicalFrame;
   switch (frame.kind) {
     case "notification":
@@ -231,16 +223,19 @@ function prepareInboundMessage(recorded: LogicalFrame): JsonRpcMessage | undefin
   }
 }
 
+// Supaterm may kill the agent after its last reply. Record the batch, including trailing
+// runtime exits, before publishing any frames.
 function flushInbound(): void {
+  const messages: Array<JsonRpcMessage> = [];
   while (!stopped) {
     const entry = transcript.entries[cursor];
-    if (entry === undefined || entry.type === "expect_outbound") return;
+    if (entry === undefined || entry.type === "expect_outbound") break;
     if (entry.type === "runtime_exit") {
       if (!isCleanRuntimeExit(entry)) {
         stopWithFailure(`Recorded runtime exit was ${entry.status ?? "unknown"}`, entry.error);
-        return;
+        break;
       }
-      advance();
+      cursor += 1;
       continue;
     }
     const frame = entry.frame as LogicalFrame;
@@ -251,13 +246,15 @@ function flushInbound(): void {
       typeof frame.method !== "string"
     ) {
       stopWithFailure("Invalid emit_inbound logical ACP frame", entry.frame);
-      return;
+      break;
     }
-    const message = prepareInboundMessage(frame);
-    if (message === undefined) return;
-    advance();
-    send(message);
+    const message = inboundMessage(frame);
+    if (message === undefined) break;
+    messages.push(message);
+    cursor += 1;
   }
+  if (!stopped) writeStatus();
+  messages.forEach(send);
 }
 
 function handleMessage(message: JsonRpcMessage): void {
@@ -284,11 +281,10 @@ function handleMessage(message: JsonRpcMessage): void {
   } else if (actual.kind === "response" && message.id !== undefined && message.id !== null) {
     pendingAgentRequestMethods.delete(String(message.id));
   }
-  advance();
+  cursor += 1;
   flushInbound();
 }
 
-writeStatus();
 flushInbound();
 
 const input = NodeReadline.createInterface({ input: process.stdin, crlfDelay: Infinity });

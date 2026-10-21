@@ -1045,10 +1045,16 @@ describe("RpcSessionFactory", () => {
     }),
   );
 
-  it.effect("closes the session after 15 seconds without a frame from the server", () =>
+  it.effect.each([
+    { relay: false, label: "direct" },
+    { relay: true, label: "relay" },
+  ])("closes the $label session after 15 seconds without a frame from the server", ({ relay }) =>
     Effect.gen(function* () {
       const { factory, sockets } = yield* makeFactory();
-      const session = yield* factory.connect(PREPARED);
+      const session = yield* factory.connect({
+        ...PREPARED,
+        connectionMethod: relay ? "relay" : "direct",
+      });
       const readyFiber = yield* Effect.forkChild(session.ready);
       const closedFiber = yield* Effect.forkChild(Effect.flip(session.closed));
       const socket = yield* awaitSocket(sockets);
@@ -1070,7 +1076,8 @@ describe("RpcSessionFactory", () => {
       expect(error).toBeInstanceOf(ConnectionTransientError);
       expect(error).toMatchObject({
         reason: "transport",
-        detail: "Test environment stopped responding.",
+        detail:
+          "Test environment stopped responding for 15s. It may be overloaded, asleep, or off the network.",
       });
     }).pipe(Effect.scoped, Effect.provide(TestClock.layer())),
   );

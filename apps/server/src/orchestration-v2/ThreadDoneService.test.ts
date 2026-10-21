@@ -153,7 +153,7 @@ describe("isAutoMarkDoneCandidate", () => {
     ).toBe(true);
   });
 
-  it("keeps snoozed threads parked until they wake early on error or completion", () => {
+  it("keeps snoozed threads parked until a fresh failure or timer wake", () => {
     const snoozed = shell({
       snoozedUntil: at(60 * 60 * 1_000),
       snoozedAt: at(-60 * 60 * 1_000),
@@ -162,12 +162,6 @@ describe("isAutoMarkDoneCandidate", () => {
     expect(
       ThreadDoneService.isAutoMarkDoneCandidate(
         shell({ ...snoozed, status: "failed", latestRunCompletedAt: at(-30 * 60 * 1_000) }),
-        NOW_MS,
-      ),
-    ).toBe(true);
-    expect(
-      ThreadDoneService.isAutoMarkDoneCandidate(
-        shell({ ...snoozed, latestRunCompletedAt: at(-30 * 60 * 1_000) }),
         NOW_MS,
       ),
     ).toBe(true);
@@ -312,7 +306,29 @@ describe("resolveAutoMarkDoneAt", () => {
     expect(
       ThreadDoneService.resolveAutoMarkDoneAt({ ...input, autoMarkDoneAfterDays: null }),
     ).toBeNull();
-    expect(ThreadDoneService.resolveAutoMarkDoneAt({ ...input, thread: shell() })).toBeNull();
+  });
+
+  it("anchors an empty thread's inactivity at its creation time", () => {
+    const input = {
+      thread: shell({ createdAt: at(-3 * DAY_MS) }),
+      pullRequest: null,
+      nowMs: NOW_MS,
+      autoMarkDoneAfterDays: 2,
+      autoMarkDoneOnMerge: false,
+    };
+    expect(ThreadDoneService.resolveAutoMarkDoneAt(input)).toEqual(at(-3 * DAY_MS));
+    expect(
+      ThreadDoneService.resolveAutoMarkDoneAt({
+        ...input,
+        thread: shell({ createdAt: at(-DAY_MS) }),
+      }),
+    ).toBeNull();
+    expect(
+      ThreadDoneService.resolveAutoMarkDoneAt({
+        ...input,
+        thread: { ...input.thread, lastSnoozeWakeAt: at(-DAY_MS) },
+      }),
+    ).toBeNull();
   });
 
   it.each(["manual", "timer"])("restarts inactivity on a %s snooze wake", (wake) => {
@@ -1640,7 +1656,29 @@ describe("ThreadDoneServiceV2 single-thread sweeps", () => {
 
 describe("isSnoozed", () => {
   const snoozed = { snoozedAt: at(-2 * DAY_MS), snoozedUntil: at(DAY_MS) };
-  it("wakes for completed work after the snooze, but not an interrupted run", () => {
+  it("keeps a run requested and completed after snoozing parked until the timer", () => {
+    const thread = shell({
+      ...snoozed,
+      status: "completed",
+      latestRunRequestedAt: at(-2 * DAY_MS + 1),
+      latestRunStartedAt: at(-DAY_MS - 1),
+      latestRunCompletedAt: at(-DAY_MS),
+    });
+
+    expect(ThreadDoneService.isSnoozed(thread, NOW_MS)).toBe(true);
+    expect(ThreadDoneService.isAutoMarkDoneCandidate(thread, NOW_MS)).toBe(false);
+    expect(
+      ThreadDoneService.resolveAutoMarkDoneAt({
+        thread,
+        pullRequest: { state: "merged", mergedAt: DateTime.formatIso(at(-1)) },
+        nowMs: NOW_MS,
+        autoMarkDoneAfterDays: null,
+        autoMarkDoneOnMerge: true,
+      }),
+    ).toBeNull();
+  });
+
+  it("keeps quiet and interrupted threads snoozed until the timer expires", () => {
     expect(ThreadDoneService.isSnoozed(shell(snoozed), NOW_MS)).toBe(true);
     expect(
       ThreadDoneService.isSnoozed(
@@ -1648,12 +1686,6 @@ describe("isSnoozed", () => {
         NOW_MS,
       ),
     ).toBe(true);
-    expect(
-      ThreadDoneService.isSnoozed(
-        shell({ ...snoozed, status: "completed", latestRunCompletedAt: at(-DAY_MS) }),
-        NOW_MS,
-      ),
-    ).toBe(false);
     expect(ThreadDoneService.isSnoozed(shell({ ...snoozed, snoozedUntil: at(-1) }), NOW_MS)).toBe(
       false,
     );

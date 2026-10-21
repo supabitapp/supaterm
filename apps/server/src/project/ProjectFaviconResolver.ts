@@ -111,6 +111,8 @@ export class ProjectFaviconResolver extends Context.Service<
       cwd: string,
       faviconPath?: string,
     ) => Effect.Effect<string | null, ProjectFaviconResolutionError>;
+    /** Forgets cached lookups for a workspace whose files changed, such as a finished clone. */
+    readonly invalidate: (cwd: string) => Effect.Effect<void>;
   }
 >()("supaterm/project/ProjectFaviconResolver") {}
 
@@ -238,20 +240,19 @@ export const make = Effect.gen(function* () {
   // matters when the disk is slow. Fibers are joined in order, so a hit returns
   // without waiting for lower-ranked probes (the scope interrupts them), and a
   // failure surfaces only when no earlier probe found a file.
-  const firstInOrder = <A>(
+  const firstInOrder = Effect.fn("ProjectFaviconResolver.firstInOrder")(function* <A>(
     items: ReadonlyArray<A>,
     probe: (item: A) => Effect.Effect<string | null, ProjectFaviconResolutionError>,
-  ) =>
-    Effect.gen(function* () {
-      const fibers = yield* Effect.forEach(items, (item) => Effect.forkScoped(probe(item)));
-      for (const fiber of fibers) {
-        const found = yield* Fiber.join(fiber);
-        if (found) {
-          return found;
-        }
+  ) {
+    const fibers = yield* Effect.forEach(items, (item) => Effect.forkScoped(probe(item)));
+    for (const fiber of fibers) {
+      const found = yield* Fiber.join(fiber);
+      if (found) {
+        return found;
       }
-      return null;
-    }).pipe(Effect.scoped);
+    }
+    return null;
+  }, Effect.scoped);
 
   const resolvePathUncached = Effect.fn("ProjectFaviconResolver.resolvePathUncached")(function* (
     cwd: string,
@@ -341,7 +342,18 @@ export const make = Effect.gen(function* () {
     return yield* Cache.get(faviconCache, key);
   });
 
-  return ProjectFaviconResolver.of({ resolvePath });
+  const invalidate: ProjectFaviconResolver["Service"]["invalidate"] = (cwd) =>
+    Cache.keys(faviconCache).pipe(
+      Effect.flatMap((keys) =>
+        Effect.forEach(
+          Array.from(keys).filter((key) => parseFaviconCacheKey(key).cwd === cwd),
+          (key) => Cache.invalidate(faviconCache, key),
+          { discard: true },
+        ),
+      ),
+    );
+
+  return ProjectFaviconResolver.of({ resolvePath, invalidate });
 });
 
 export const layer = Layer.effect(ProjectFaviconResolver, make);

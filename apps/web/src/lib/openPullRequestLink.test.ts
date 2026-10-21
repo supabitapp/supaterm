@@ -135,20 +135,20 @@ describe("pullRequestCandidateUrlFromReferenceAutolink", () => {
   it("turns GitHub's shared issue route into a pull request candidate", () => {
     expect(
       pullRequestCandidateUrlFromReferenceAutolink(
-        "https://github.com/supabitapp/supacode-next/issues/8600#issuecomment-1",
+        "https://github.com/supabitapp/supaterm/issues/8600#issuecomment-1",
       ),
-    ).toBe("https://github.com/supabitapp/supacode-next/pull/8600#issuecomment-1");
+    ).toBe("https://github.com/supabitapp/supaterm/pull/8600#issuecomment-1");
   });
 
   it("does not reinterpret other issue hosts or malformed references", () => {
     expect(
       pullRequestCandidateUrlFromReferenceAutolink(
-        "https://gitlab.com/supabitapp/supacode-next/-/issues/8600",
+        "https://gitlab.com/supabitapp/supaterm/-/issues/8600",
       ),
     ).toBeNull();
     expect(
       pullRequestCandidateUrlFromReferenceAutolink(
-        "https://github.com/supabitapp/supacode-next/issues/not-a-number",
+        "https://github.com/supabitapp/supaterm/issues/not-a-number",
       ),
     ).toBeNull();
   });
@@ -157,16 +157,16 @@ describe("pullRequestCandidateUrlFromReferenceAutolink", () => {
 describe("matchesLinkedPullRequestUrl", () => {
   const linkedPullRequest = {
     projectId: ProjectId.make("project-1"),
-    repository: "supabitapp/supacode-next",
+    repository: "supabitapp/supaterm",
     number: 42,
-    url: "https://github.com/supabitapp/supacode-next/pull/42",
+    url: "https://github.com/supabitapp/supaterm/pull/42",
   };
 
   it("matches the same pull request without looking up its project", () => {
     expect(
       matchesLinkedPullRequestUrl(
         linkedPullRequest,
-        "https://github.com/SupabitApp/Supacode-Next/pull/42/files",
+        "https://github.com/SupabitApp/Supaterm/pull/42/files",
       ),
     ).toBe(true);
   });
@@ -188,7 +188,7 @@ describe("matchesLinkedPullRequestUrl", () => {
     expect(
       matchesLinkedPullRequestUrl(
         linkedPullRequest,
-        "https://github.com:8443/supabitapp/supacode-next/pull/42",
+        "https://github.com:8443/supabitapp/supaterm/pull/42",
       ),
     ).toBe(true);
   });
@@ -206,13 +206,13 @@ describe("matchesLinkedPullRequestUrl", () => {
     expect(
       matchesLinkedPullRequestUrl(
         linkedPullRequest,
-        "https://github.com/supabitapp/supacode-next/pull/43",
+        "https://github.com/supabitapp/supaterm/pull/43",
       ),
     ).toBe(false);
     expect(
       matchesLinkedPullRequestUrl(
         linkedPullRequest,
-        "https://github.example.com/supabitapp/supacode-next/pull/42",
+        "https://github.example.com/supabitapp/supaterm/pull/42",
       ),
     ).toBe(false);
   });
@@ -252,17 +252,24 @@ describe("findProjectOnChangeRequestHost", () => {
   });
 
   it.each([
-    "ssh.dev.azure.com/v3/org-a/project/web",
-    "vs-ssh.visualstudio.com/v3/org-a/project/web",
-    "org-a.visualstudio.com/defaultcollection/project/_git/web",
-    "dev.azure.com/org-a/project/_git/web",
-  ])("matches Azure browser references against %s", (canonicalKey) => {
+    ["ssh.dev.azure.com/v3/org-a/project/web", "git@ssh.dev.azure.com:v3/org-a/project/web"],
+    [
+      "vs-ssh.visualstudio.com/v3/org-a/project/web",
+      "git@vs-ssh.visualstudio.com:v3/org-a/project/web",
+    ],
+    [
+      "org-a.visualstudio.com/defaultcollection/project/_git/web",
+      "https://org-a.visualstudio.com/DefaultCollection/Project/_git/Web",
+    ],
+    ["dev.azure.com/org-a/project/_git/web", "https://org-a@dev.azure.com/org-a/Project/_git/Web"],
+  ])("matches Azure browser references against %s", (canonicalKey, remoteUrl) => {
     const checkout = project("azure", {
-      canonicalKey,
-      provider: "azure-devops",
+      ...repositoryIdentity("azure-devops", canonicalKey, remoteUrl),
       displayName: canonicalKey.split("/").slice(1).join("/"),
     });
-    const reference = { host: "dev.azure.com", repository: "org-a/project/_git/web", number: 42 };
+    const reference = parseChangeRequestUrl(
+      "https://dev.azure.com/org-a/project/_git/web/pullrequest/42",
+    )!;
     expect(findProjectForChangeRequest([checkout], reference)).toBe(checkout);
     expect(findProjectOnChangeRequestHost([checkout], reference)).toBe(checkout);
     expect(
@@ -369,7 +376,7 @@ describe("findProjectForChangeRequest", () => {
 
   it("matches a nested GitLab group by the whole path below the host", () => {
     // The server identifies a repository by `displayName`, which keeps every group segment; the
-    // two-segment owner/name form would look for `supabitapp/supacode-next` and find nothing.
+    // two-segment owner/name form would look for `supabitapp/supaterm` and find nothing.
     const projects = [
       project({
         canonicalKey: "gitlab.com/supabitapp/platform/supaterm",
@@ -391,7 +398,7 @@ describe("findProjectForChangeRequest", () => {
   it("keeps two hosts apart, so an Enterprise link does not open the public one", () => {
     const projects = [
       project({
-        canonicalKey: "github.com/supabitapp/supacode-next",
+        canonicalKey: "github.com/supabitapp/supaterm",
         provider: "github",
         owner: "supabitapp",
         name: "supaterm",
@@ -400,7 +407,7 @@ describe("findProjectForChangeRequest", () => {
     expect(
       findProjectForChangeRequest(projects, {
         host: "github.acme.test",
-        repository: "supabitapp/supacode-next",
+        repository: "supabitapp/supaterm",
         number: 1,
       }),
     ).toBeUndefined();
@@ -434,7 +441,7 @@ describe("findProjectForChangeRequest", () => {
   it("claims nothing for a lookalike host, which is what keeps a link a link", () => {
     const projects = [
       project({
-        canonicalKey: "github.com/supabitapp/supacode-next",
+        canonicalKey: "github.com/supabitapp/supaterm",
         provider: "github",
         owner: "supabitapp",
         name: "supaterm",
@@ -443,7 +450,7 @@ describe("findProjectForChangeRequest", () => {
     expect(
       findProjectForChangeRequest(projects, {
         host: "github.com-evil.test",
-        repository: "supabitapp/supacode-next",
+        repository: "supabitapp/supaterm",
         number: 1,
       }),
     ).toBeUndefined();

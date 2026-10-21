@@ -10,6 +10,7 @@ import { layerRemoteHttpClient } from "@supaterm/client-runtime/rpc";
 import * as Persistence from "../persistence/layer";
 import { cryptoLayer } from "./crypto";
 import { disposeOnFoundationReplace, type FoundationHotModule } from "./foundation-fast-refresh";
+import { whenProtectedDataAvailable } from "./protectedData";
 
 declare const module: { readonly hot?: FoundationHotModule } | undefined;
 
@@ -30,6 +31,9 @@ const layerRuntime = layerSocket.pipe(
   Layer.provideMerge(layerHttpClient),
   Layer.provideMerge(Persistence.layer),
   Layer.provideMerge(MobileRelayGateway.layer),
+  // These layers read the keychain and the database while they build, and a
+  // failed build is kept for the life of the process.
+  Layer.provide(Layer.effectDiscard(Effect.promise(whenProtectedDataAvailable))),
 );
 
 export const runtime: ManagedRuntime.ManagedRuntime<

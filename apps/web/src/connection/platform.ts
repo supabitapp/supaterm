@@ -50,6 +50,7 @@ import {
 import { clearComposerDraftsEnvironment } from "../composerDraftStore";
 import { isHostedStaticApp } from "../hostedPairing";
 import { isLocalEnvironmentDisabled } from "../localEnvironment";
+import { randomUUID } from "../lib/utils";
 import { acknowledgeRpcRequest, trackRpcRequestSent } from "../rpc/requestLatencyState";
 import {
   desktopLocalConnectionId,
@@ -174,6 +175,36 @@ function sshPreparationError(cause: unknown) {
   });
 }
 
+// IPC keeps running after its waiter is interrupted. A retry can adopt only
+// that interrupted waiter's unfinished setup.
+const pendingSshSetups = new Map<
+  string,
+  { readonly promise: Promise<DesktopSshEnvironmentBootstrap>; signal: AbortSignal }
+>();
+
+const ensureDesktopSshEnvironment = (bridge: DesktopBridge, target: DesktopSshEnvironmentTarget) =>
+  Effect.tryPromise({
+    try: (signal) => {
+      const key = sshTargetKey(target);
+      const pending = pendingSshSetups.get(key);
+      if (pending?.signal.aborted) {
+        pending.signal = signal;
+        return pending.promise;
+      }
+      const setup = {
+        promise: bridge.ensureSshEnvironment(target, { issuePairingToken: true }),
+        signal,
+      };
+      pendingSshSetups.set(key, setup);
+      const forget = () => {
+        if (pendingSshSetups.get(key) === setup) pendingSshSetups.delete(key);
+      };
+      setup.promise.then(forget, forget);
+      return setup.promise;
+    },
+    catch: sshPreparationError,
+  });
+
 export const provisionDesktopSshEnvironment = Effect.fn(
   "web.connectionPlatform.ssh.provisionDesktop",
 )(function* (
@@ -181,13 +212,7 @@ export const provisionDesktopSshEnvironment = Effect.fn(
   target: DesktopSshEnvironmentTarget,
   expectedEnvironmentId?: EnvironmentId,
 ) {
-  const bootstrap = yield* Effect.tryPromise({
-    try: () =>
-      bridge.ensureSshEnvironment(target, {
-        issuePairingToken: true,
-      }),
-    catch: sshPreparationError,
-  });
+  const bootstrap = yield* ensureDesktopSshEnvironment(bridge, target);
   const pairingToken = bootstrap.pairingToken;
   if (pairingToken === null) {
     return yield* new ConnectionBlockedError({
@@ -310,6 +335,19 @@ export const prepareDesktopSshEnvironment = Effect.fn("web.connectionPlatform.ss
   },
 );
 
+const ANALYTICS_DEVICE_ID_KEY = "supaterm:analytics-device-id";
+
+// Lives as long as this browser profile's site data. Storage can be blocked, which only drops the id.
+const analyticsDevice = {
+  id: Effect.try(() => {
+    const existing = window.localStorage.getItem(ANALYTICS_DEVICE_ID_KEY);
+    if (existing) return existing;
+    const created = randomUUID();
+    window.localStorage.setItem(ANALYTICS_DEVICE_ID_KEY, created);
+    return created;
+  }).pipe(Effect.option),
+};
+
 const layerCapabilities = Layer.effectContext(
   Effect.sync(() => {
     const presentation = ClientCapabilities.ClientPresentation.of({
@@ -351,11 +389,13 @@ const layerCapabilities = Layer.effectContext(
         if (bridge === undefined) {
           return;
         }
+        pendingSshSetups.delete(sshTargetKey(target));
         yield* disconnectDesktopSshEnvironment(bridge, target);
       }),
     });
 
     return Context.make(ClientCapabilities.PrimaryEnvironmentAuth, primaryAuth).pipe(
+      Context.add(ClientCapabilities.AnalyticsDevice, analyticsDevice),
       Context.add(ClientCapabilities.ClientPresentation, presentation),
       Context.add(ClientCapabilities.SshEnvironmentGateway, ssh),
     );
@@ -762,11 +802,11 @@ const layerEnvironmentOwnedDataCleanup = Layer.succeed(
 const layerRpcRequestObserver = Layer.succeed(
   EnvironmentRpcRequestObserver,
   EnvironmentRpcRequestObserver.of({
-    observe: ({ environmentId, method }) =>
+    observe: ({ environmentId, environmentLabel, method }) =>
       Effect.sync(() => {
         nextObservedRpcRequestId += 1;
         const requestId = `${environmentId}:${nextObservedRpcRequestId}`;
-        trackRpcRequestSent(requestId, method, `${method} · ${environmentId}`);
+        trackRpcRequestSent(requestId, method, `${method} · ${environmentLabel}`);
         return Effect.sync(() => {
           acknowledgeRpcRequest(requestId);
         });

@@ -38,9 +38,8 @@ class SupatermReviewDiffModule : Module() {
       Prop("rowHeight") { view: SupatermReviewDiffView, rowHeight: Double ->
         view.setRowHeight(rowHeight.toFloat())
       }
-      Prop("contentWidth") { view: SupatermReviewDiffView, contentWidth: Double ->
-        view.setContentWidth(contentWidth.toFloat())
-      }
+      // Accept the shared prop while deriving Android's scroll range from the drawn text.
+      Prop("contentWidth") { _: SupatermReviewDiffView, _: Double -> }
       Prop("contentInsetBottom") { view: SupatermReviewDiffView, value: Double ->
         view.setContentInsetBottom(value.toFloat())
       }

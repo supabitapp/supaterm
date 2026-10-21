@@ -1,4 +1,5 @@
 import type * as React from "react";
+import { useState } from "react";
 import type {
   EnvironmentId,
   PullRequestCheck,
@@ -67,65 +68,79 @@ function ChecksBody({
 }) {
   const openLink = useOpenLink(threadRef);
   const { attention, running, completed } = groupPullRequestChecks(checks);
-  const orderedChecks = [...attention, ...running, ...completed];
+  const [showAll, setShowAll] = useState(false);
+  const canCollapse = attention.length + running.length > 0 && completed.length > 0;
+  const orderedChecks = [...attention, ...running, ...(showAll || !canCollapse ? completed : [])];
   if (checks.length === 0) {
     return <p className="text-muted-foreground text-xs">No checks reported</p>;
   }
   return (
-    <ScrollArea className="max-h-60">
-      <ul className="flex flex-col">
-        {/* Keyed by name and occurrence: the host is the one that decides how many runs
+    <>
+      <ScrollArea className="max-h-60">
+        <ul className="flex flex-col">
+          {/* Keyed by name and occurrence: the host is the one that decides how many runs
           share a name, and a repeated key is a rendering fault rather than a wrong list. */}
-        {withOccurrenceKeys(orderedChecks, (check) => check.name).map(({ item: check, key }) => {
-          const rowClassName = cn(
-            "flex min-h-5 w-full min-w-0 items-center gap-2 rounded-sm py-0.5 text-left text-xs leading-4 pointer-coarse:min-h-11",
-            check.url !== null &&
-              "cursor-pointer transition-[background-color,scale] duration-150 ease-out hover:bg-accent/60 active:scale-[0.96] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring motion-reduce:transition-none",
-          );
-          return (
-            <li key={key}>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    check.url === null ? (
-                      <span className={rowClassName} />
-                    ) : (
-                      <button
-                        type="button"
-                        className={rowClassName}
-                        onClick={(event) => {
-                          if (!check.url) return;
-                          void openLink(check.url, { event }).catch((error: unknown) => {
-                            console.error(error);
-                            toastManager.add({
-                              type: "error",
-                              title: "Unable to open check details",
+          {withOccurrenceKeys(orderedChecks, (check) => check.name).map(({ item: check, key }) => {
+            const rowClassName = cn(
+              "flex min-h-5 w-full min-w-0 items-center gap-2 rounded-sm py-0.5 text-left text-xs leading-4 pointer-coarse:min-h-11",
+              check.url !== null &&
+                "cursor-pointer transition-[background-color,scale] duration-150 ease-out hover:bg-accent/60 active:scale-[0.96] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring motion-reduce:transition-none",
+            );
+            return (
+              <li key={key}>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      check.url === null ? (
+                        <span className={rowClassName} />
+                      ) : (
+                        <button
+                          type="button"
+                          className={rowClassName}
+                          onClick={(event) => {
+                            if (!check.url) return;
+                            void openLink(check.url, { event }).catch((error: unknown) => {
+                              console.error(error);
+                              toastManager.add({
+                                type: "error",
+                                title: "Unable to open check details",
+                              });
                             });
-                          });
-                        }}
-                      />
-                    )
-                  }
-                >
-                  <PullRequestCheckStatusIcon status={check.status} />
-                  <span className="min-w-0 flex-1 truncate">{check.name}</span>
-                  <span className="sr-only">: {pullRequestCheckStatusLabel(check)}</span>
-                </TooltipTrigger>
-                <TooltipPopup side="top">
-                  <div className="flex flex-col gap-1">
-                    <span>{check.name}</span>
-                    <span className="text-muted-foreground">
-                      {pullRequestCheckStatusLabel(check)}
-                    </span>
-                    {check.description ? <span>{check.description}</span> : null}
-                  </div>
-                </TooltipPopup>
-              </Tooltip>
-            </li>
-          );
-        })}
-      </ul>
-    </ScrollArea>
+                          }}
+                        />
+                      )
+                    }
+                  >
+                    <PullRequestCheckStatusIcon status={check.status} />
+                    <span className="min-w-0 flex-1 truncate">{check.name}</span>
+                    <span className="sr-only">: {pullRequestCheckStatusLabel(check)}</span>
+                  </TooltipTrigger>
+                  <TooltipPopup side="top">
+                    <div className="flex flex-col gap-1">
+                      <span>{check.name}</span>
+                      <span className="text-muted-foreground">
+                        {pullRequestCheckStatusLabel(check)}
+                      </span>
+                      {check.description ? <span>{check.description}</span> : null}
+                    </div>
+                  </TooltipPopup>
+                </Tooltip>
+              </li>
+            );
+          })}
+        </ul>
+      </ScrollArea>
+      {canCollapse ? (
+        <Button
+          variant="ghost"
+          size="xs"
+          aria-expanded={showAll}
+          onClick={() => setShowAll(!showAll)}
+        >
+          {showAll ? "Show less" : "Show all"}
+        </Button>
+      ) : null}
+    </>
   );
 }
 

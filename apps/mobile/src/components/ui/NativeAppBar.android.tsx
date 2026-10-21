@@ -10,9 +10,11 @@ export function NativeAppBar(props: {
   readonly title: ReactElement;
   readonly navigationIcon?: ReactElement;
   readonly actions?: ReactElement;
+  /** Shorter bar for a one-row title. */
+  readonly singleLine?: boolean;
 }) {
   const { colors } = useControlTheme();
-  const layout = useToolbarLayout();
+  const layout = useToolbarLayout(false, props.singleLine);
   return (
     <NativeThemeHost matchContents={{ vertical: true }} style={{ width: "100%" }}>
       <TopAppBar

@@ -1,5 +1,5 @@
 import { fileBasename } from "@supaterm/shared/path";
-import { formatFilePathPosition } from "@supaterm/shared/fileLinks";
+import { fileLinkLabel } from "@supaterm/shared/fileLinks";
 import {
   inlineCodeFilePathCandidate,
   normalizeMarkdownLinkDestination,
@@ -279,7 +279,7 @@ export function resolveMarkdownLinkPresentation(href: string): MarkdownLinkPrese
       kind: "file",
       href: normalized,
       icon: resolveMarkdownFileIcon(target.path),
-      label: fileBasename(formatFilePathPosition(target)),
+      label: fileLinkLabel(target, new Map()),
       path: target.path,
       ...(target.line ? { line: target.line } : {}),
       ...(target.column ? { column: target.column } : {}),

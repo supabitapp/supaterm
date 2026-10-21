@@ -67,7 +67,7 @@
   },
   "packageManager": "pnpm@12.10.1",
   "enriched-markdown": {
-    "enableMath": false,
+    "enableMath": true,
     "enableVideo": false
   }
 }

@@ -1409,7 +1409,8 @@ index 914d2dafaafa001c9ab6791a0a0581659295e333..51f9bec5a05fd0d28aa78aff2c595bb9
        scrollVelocity: speed,
 @@ -4958,6 +4958,7 @@ function measureContainersInLayoutEffect(ctx, targetContainerIds = null) {
      if (itemKey !== void 0 && element) {
-       const rect = element.getBoundingClientRect();
+-      const rect = element.getBoundingClientRect();
++      const rect = { height: element.offsetHeight, width: element.offsetWidth };
        setContainerLayoutBaseline(element, rect);
 +      resyncResizeObserver(element, rect);
        measurements.push({
@@ -1554,7 +1555,8 @@ index 95465f2ab89ce41a10553f58af83618f7310e83c..6cd067ceea39488f8302903bcaeddaf5
        scrollVelocity: speed,
 @@ -4937,6 +4937,7 @@ function measureContainersInLayoutEffect(ctx, targetContainerIds = null) {
      if (itemKey !== void 0 && element) {
-       const rect = element.getBoundingClientRect();
+-      const rect = element.getBoundingClientRect();
++      const rect = { height: element.offsetHeight, width: element.offsetWidth };
        setContainerLayoutBaseline(element, rect);
 +      resyncResizeObserver(element, rect);
        measurements.push({
@@ -1700,7 +1702,8 @@ index 914d2dafaafa001c9ab6791a0a0581659295e333..b08ae8de8c224e9021df2a27fb0233b3
  }
 @@ -4958,6 +4965,7 @@ function measureContainersInLayoutEffect(ctx, targetContainerIds = null) {
      if (itemKey !== void 0 && element) {
-       const rect = element.getBoundingClientRect();
+-      const rect = element.getBoundingClientRect();
++      const rect = { height: element.offsetHeight, width: element.offsetWidth };
        setContainerLayoutBaseline(element, rect);
 +      resyncResizeObserver(element, rect);
        measurements.push({
@@ -1878,7 +1881,8 @@ index 95465f2ab89ce41a10553f58af83618f7310e83c..9d50a88e8e9a52d46d2d68b50020af27
  }
 @@ -4937,6 +4944,7 @@ function measureContainersInLayoutEffect(ctx, targetContainerIds = null) {
      if (itemKey !== void 0 && element) {
-       const rect = element.getBoundingClientRect();
+-      const rect = element.getBoundingClientRect();
++      const rect = { height: element.offsetHeight, width: element.offsetWidth };
        setContainerLayoutBaseline(element, rect);
 +      resyncResizeObserver(element, rect);
        measurements.push({

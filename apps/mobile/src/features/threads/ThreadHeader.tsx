@@ -4,7 +4,7 @@ import { ScreenHeaderButton } from "../../components/ui/ScreenHeaderButton";
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
 import type { ThreadInspectorMode } from "./thread-inspector-content-stack";
 import { useThreadHeaderOptions } from "./useThreadHeaderOptions";
-import { useWorkspaceListNavigation } from "../workspace/useAndroidWorkspaceNavigation";
+import { useWorkspaceBackNavigation } from "../workspace/useAndroidWorkspaceNavigation";
 
 import type { AppBarMenu, AppBarMenuItem } from "../../components/ui/AppBar.types";
 
@@ -19,8 +19,9 @@ export function ThreadHeader(
     readonly onOpenFilesInspector: () => void;
   },
 ) {
-  const returnToList = useWorkspaceListNavigation("threads");
-  const { layout, panes, toggleAuxiliaryPane } = useAdaptiveWorkspaceLayout();
+  const goBack = useWorkspaceBackNavigation("threads");
+  const { layout, panes, toggleAuxiliaryPane, composerKeyboardActive } =
+    useAdaptiveWorkspaceLayout();
   const { onOpenTerminal, onMergeBack } = props.gitControls;
   const native = useThreadHeaderOptions(props);
   const androidHeaderMenu = useMemo<AppBarMenu>(() => {
@@ -88,7 +89,7 @@ export function ThreadHeader(
             />
           ) : null
         }
-        onBack={layout.usesSplitView ? undefined : returnToList}
+        onBack={layout.usesSplitView ? undefined : goBack}
         actions={
           props.onReturnToThread
             ? [
@@ -102,6 +103,7 @@ export function ThreadHeader(
         }
         menus={[androidHeaderMenu]}
         hideBottomBorder
+        compact={composerKeyboardActive}
       />
       {native.fallback}
     </>
