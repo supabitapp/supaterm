@@ -68,7 +68,7 @@ import {
   ThreadListV2SnoozedShelfHeader,
   ThreadListV2PinnedShelfHeader,
   ThreadListV2ActiveShelfHeader,
-  ThreadListV2SectionDivider,
+  ThreadListV2GroupHeader,
   ThreadListV2WorkingShelfHeader,
 } from "../threads/thread-list-v2-items";
 import { useThreadRowProviderInstanceResolver } from "../threads/thread-provider-instance";
@@ -482,11 +482,13 @@ export function HomeScreen(props: HomeScreenProps) {
     pinnedShelfExpanded,
     activeShelfExpanded,
     workingShelfExpanded,
+    collapsedGroups,
     toggleDoneShelf,
     toggleSnoozedShelf,
     togglePinnedShelf,
     toggleActiveShelf,
     toggleWorkingShelf,
+    toggleGroup,
   } = useThreadListV2ShelfPreferences();
   const [nowMinute, setNowMinute] = useState(() => new Date().toISOString().slice(0, 16));
   const [snoozeWakeTick, bumpSnoozeWakeTick] = useState(0);
@@ -527,6 +529,7 @@ export function HomeScreen(props: HomeScreenProps) {
     pinnedShelfExpanded,
     activeShelfExpanded,
     workingShelfExpanded,
+    collapsedGroups,
     snoozedShelfExpanded,
     doneShelfExpanded,
     selectedThreadKey: null,
@@ -610,7 +613,18 @@ export function HomeScreen(props: HomeScreenProps) {
         />
       );
     }
-    if (item.type === "v2-group-header") return <ThreadListV2SectionDivider label={item.label} />;
+    if (item.type === "v2-group-header") {
+      return (
+        <ThreadListV2GroupHeader
+          groupKey={item.groupKey}
+          label={item.label}
+          count={item.count}
+          disabled={item.disabled}
+          expanded={item.expanded}
+          onToggle={toggleGroup}
+        />
+      );
+    }
     if (item.type === "v2-active-header") {
       return (
         <ThreadListV2ActiveShelfHeader

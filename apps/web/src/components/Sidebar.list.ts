@@ -1,6 +1,7 @@
 import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/environment";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import {
+  collapseThreadGroups,
   groupInboxThreads,
   type ThreadGroupingProject,
 } from "@supaterm/client-runtime/state/thread-grouping";
@@ -34,6 +35,8 @@ interface SidebarInboxInput {
   readonly visibleWorking: readonly EnvironmentThreadShell[];
   readonly projects: readonly ThreadGroupingProject[];
   readonly now: string;
+  readonly collapsedGroups: ReadonlySet<string>;
+  readonly routeThreadKey: string | null;
 }
 
 export function buildSidebarInboxItems(input: SidebarInboxInput): SidebarListItem[] {
@@ -49,13 +52,24 @@ export function buildSidebarInboxItems(input: SidebarInboxInput): SidebarListIte
     ];
   }
   const workingKeys = new Set(input.working.map(threadShellKey));
-  return groupInboxThreads({
+  const groups = groupInboxThreads({
     threads: [...input.active, ...input.working],
     ...(input.mode === "project"
       ? { mode: input.mode, projects: input.projects }
       : { mode: input.mode, now: input.now }),
-  }).flatMap((group): SidebarListItem[] => [
-    { kind: "group", key: group.key, label: group.label },
+  });
+  return collapseThreadGroups(
+    groups,
+    input.collapsedGroups,
+    (thread) => threadShellKey(thread) === input.routeThreadKey,
+  ).flatMap((group): SidebarListItem[] => [
+    {
+      kind: "group",
+      key: group.key,
+      label: group.label,
+      count: group.count,
+      collapsed: group.collapsed,
+    },
     ...group.threads.map((thread): SidebarListItem => {
       const key = threadShellKey(thread);
       return { kind: "thread", key, section: workingKeys.has(key) ? "working" : "active" };
@@ -95,7 +109,11 @@ export function sidebarListLayoutKey(items: readonly SidebarListItem[]): string 
   return JSON.stringify(
     items.map((item) => [
       sidebarListItemId(item),
-      item.kind === "thread" ? item.section : item.kind === "group" ? item.label : "",
+      item.kind === "thread"
+        ? item.section
+        : item.kind === "group"
+          ? [item.label, item.collapsed, item.count]
+          : "",
     ]),
   );
 }
@@ -106,7 +124,6 @@ export function previewDraggedInbox(
     readonly threadByKey: ReadonlyMap<string, EnvironmentThreadShell>;
     readonly inboxReturnAt: (thread: EnvironmentThreadShell) => number | undefined;
     readonly workingShelfExpanded: boolean;
-    readonly routeThreadKey: string | null;
   },
 ) {
   if (input.drag === null) return undefined;

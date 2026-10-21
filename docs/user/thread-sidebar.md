@@ -134,7 +134,8 @@ Project groups active and working threads by project. Updated groups them into *
 **Yesterday**, **Last 7 days**, and **Older**, using your local calendar. Activity means sending
 a message, a run being requested or completing, or reopening a thread; streamed output does
 not reorder it.
-Pinned, Snoozed, and Done remain shared shelves in every mode. The choice is saved on this device.
+Pinned, Snoozed, and Done remain shared shelves in every mode. Select a group's header to collapse
+it; the thread you have open stays visible. The grouping and collapsed groups are saved on this device.
 You can also change it in Settings → General on web and desktop, or Settings → Organization on mobile.
 
 ### Working threads

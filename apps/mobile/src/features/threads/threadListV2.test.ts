@@ -2803,7 +2803,7 @@ describe("grouped inbox", () => {
         selectedThreadKey: `${environmentId}:${working.id}`,
       });
       expect(collapsed.items.map((row) => row.thread.id)).toEqual([pinned.id, working.id, done.id]);
-      expect(collapsed.items.some((row) => row.groupHeader !== undefined)).toBe(false);
+      expect(collapsed.inboxGroups).toBeNull();
       expect(
         buildThreadListV2Items({ ...input, searchQuery: "Working" }).items.map(
           (row) => row.thread.id,
@@ -2811,4 +2811,47 @@ describe("grouped inbox", () => {
       ).toEqual([working.id]);
     },
   );
+
+  it("collapses a group to its header and the selected thread, counting the hidden rows", () => {
+    const threads = ["a", "b", "c"].map((id) =>
+      makeThread({ id: ThreadId.make(id), title: id, createdAt: NOW }),
+    );
+    const input = {
+      grouping: "project" as const,
+      threads,
+      environmentId: null,
+      searchQuery: "",
+      now: NOW,
+      selectedThreadKey: `${environmentId}:b`,
+      groupingProjects: [
+        {
+          key: "project",
+          label: "Project",
+          memberProjectRefs: [{ environmentId, projectId: threads[0]!.projectId }],
+        },
+      ],
+    };
+    const headers = (collapsedGroups: readonly string[]) => {
+      const layout = buildThreadListV2Items({ ...input, collapsedGroups });
+      return buildThreadListV2ListItems({ ...layout, pendingTasks: [] }).flatMap((row) =>
+        row.type === "v2-group-header"
+          ? [[row.label, row.count, row.expanded]]
+          : row.type === "v2-thread"
+            ? [row.item.thread.id]
+            : [],
+      );
+    };
+    expect(headers([])).toEqual([["Project", 3, true], "a", "b", "c"]);
+    expect(headers(["project:project"])).toEqual([["Project", 3, false], "b"]);
+    expect(
+      buildThreadListV2ListItems({
+        ...buildThreadListV2Items({
+          ...input,
+          selectedThreadKey: null,
+          collapsedGroups: ["project:project"],
+        }),
+        pendingTasks: [],
+      }).filter((row) => row.type === "v2-group-header" || row.type === "v2-thread"),
+    ).toEqual([expect.objectContaining({ type: "v2-group-header", count: 3, expanded: false })]);
+  });
 });

@@ -160,7 +160,13 @@ export function sidebarMarkerId(marker: SidebarListMarker): string {
 
 export type SidebarListItem =
   | { readonly kind: "thread"; readonly key: string; readonly section: SidebarSection }
-  | { readonly kind: "group"; readonly key: string; readonly label: string }
+  | {
+      readonly kind: "group";
+      readonly key: string;
+      readonly label: string;
+      readonly count: number;
+      readonly collapsed: boolean;
+    }
   | { readonly kind: "marker"; readonly marker: SidebarListMarker };
 
 export function sidebarListItemId(item: SidebarListItem): string {

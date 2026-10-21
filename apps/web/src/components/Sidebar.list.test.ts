@@ -25,6 +25,8 @@ it("keeps state on grouped rows and one shared Done shelf", () => {
       },
     ],
     now: "2026-10-21T12:00:00.000Z",
+    collapsedGroups: new Set(),
+    routeThreadKey: null,
   });
   const items = buildSidebarListItems({
     hasThreads: true,
@@ -74,8 +76,11 @@ it("previews an unpinned working thread in the Working shelf and preserves colla
     visibleWorking: [],
     projects: [],
     now,
+    collapsedGroups: new Set<string>(),
   };
-  expect(buildSidebarInboxItems(input)).toEqual([{ kind: "marker", marker: "working-header" }]);
+  expect(buildSidebarInboxItems({ ...input, routeThreadKey: null })).toEqual([
+    { kind: "marker", marker: "working-header" },
+  ]);
   for (const workingShelfExpanded of [false, true]) {
     for (const routeThreadKey of [null, activeKey]) {
       const preview = previewDraggedInbox({
@@ -96,4 +101,37 @@ it("previews an unpinned working thread in the Working shelf and preserves colla
       expect(preview?.other).toEqual([]);
     }
   }
+});
+
+it("collapses a group to its header and the open thread, and counts what it hides", () => {
+  const environmentId = EnvironmentId.make("env");
+  const row = (id: string) => makeThreadFixture({ environmentId, id: ThreadId.make(id) });
+  const threads = [row("a"), row("b"), row("c")];
+  const input = {
+    mode: "project" as const,
+    active: threads,
+    working: [],
+    visibleWorking: [],
+    projects: [
+      {
+        key: "p",
+        label: "Project",
+        memberProjectRefs: [{ environmentId, projectId: threads[0]!.projectId }],
+      },
+    ],
+    now: "2026-10-21T12:00:00.000Z",
+    routeThreadKey: "env:b",
+  };
+  const expanded = buildSidebarInboxItems({ ...input, collapsedGroups: new Set() });
+  const collapsed = buildSidebarInboxItems({ ...input, collapsedGroups: new Set(["project:p"]) });
+  expect(expanded.filter((item) => item.kind === "thread")).toHaveLength(3);
+  expect(collapsed).toEqual([
+    { kind: "group", key: "project:p", label: "Project", count: 3, collapsed: true },
+    { kind: "thread", key: "env:b", section: "active" },
+  ]);
+  expect(sidebarListLayoutKey(collapsed)).not.toEqual(
+    sidebarListLayoutKey(
+      collapsed.map((item) => (item.kind === "group" ? { ...item, count: 4 } : item)),
+    ),
+  );
 });

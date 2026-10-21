@@ -1011,7 +1011,13 @@ describe("lifted card clearance", () => {
 });
 
 it("keeps group headings and working rows visible during inbox and Done drag previews", () => {
-  const group: SidebarListItem = { kind: "group", key: "project:p", label: "Project" };
+  const group: SidebarListItem = {
+    kind: "group",
+    key: "project:p",
+    label: "Project",
+    count: 1,
+    collapsed: false,
+  };
   const activeInbox = [group, thread("a", "active"), thread("w", "working")];
   const items = [pinnedHeader, divider, ...activeInbox, doneHeader, thread("d", "done")];
   for (const over of ["a", sidebarMarkerId("done-header")]) {
@@ -1031,8 +1037,20 @@ it("keeps group headings and working rows visible during inbox and Done drag pre
 });
 
 it("reserves a scaled header gap when a drag introduces a new group", () => {
-  const existing: SidebarListItem = { kind: "group", key: "project:one", label: "One" };
-  const introduced: SidebarListItem = { kind: "group", key: "project:two", label: "Two" };
+  const existing: SidebarListItem = {
+    kind: "group",
+    key: "project:one",
+    label: "One",
+    count: 1,
+    collapsed: false,
+  };
+  const introduced: SidebarListItem = {
+    kind: "group",
+    key: "project:two",
+    label: "Two",
+    count: 1,
+    collapsed: false,
+  };
   const inbox = [existing, thread("a", "active")];
   const items = [
     pinnedHeader,

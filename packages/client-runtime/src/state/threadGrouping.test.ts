@@ -1,7 +1,12 @@
 // @effect-diagnostics globalDate:off -- Native local dates independently verify calendar and DST boundaries.
 import { EnvironmentId, ProjectId, RunId, ThreadId } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
-import { groupInboxThreads, resolveThreadActivityAt } from "./threadGrouping.ts";
+import {
+  collapseThreadGroups,
+  groupInboxThreads,
+  resolveThreadActivityAt,
+  toggleCollapsedThreadGroup,
+} from "./threadGrouping.ts";
 
 const environmentId = EnvironmentId.make("environment-1");
 const projectId = ProjectId.make("project-1");
@@ -135,5 +140,39 @@ describe("thread grouping", () => {
       threads: [thread("z"), thread("a")],
     });
     expect(groups[0]?.threads.map((row) => row.id)).toEqual(["a", "z"]);
+  });
+
+  it("collapses groups to the threads that must stay visible and keeps their full count", () => {
+    const groups = groupInboxThreads({
+      mode: "updated",
+      now,
+      threads: [thread("open", local(10)), thread("other", local(10)), thread("old", local(3))],
+    });
+    const collapsed = collapseThreadGroups(
+      groups,
+      new Set(["updated:today", "updated:older"]),
+      (row) => row.id === "open",
+    );
+    expect(
+      collapsed.map((group) => [
+        group.label,
+        group.collapsed,
+        group.count,
+        group.threads.map((row) => row.id),
+      ]),
+    ).toEqual([
+      ["Today", true, 2, ["open"]],
+      ["Older", true, 1, []],
+    ]);
+  });
+
+  it("toggles a group's collapsed key without touching the others", () => {
+    expect(toggleCollapsedThreadGroup(["updated:today"], "project:a")).toEqual([
+      "updated:today",
+      "project:a",
+    ]);
+    expect(toggleCollapsedThreadGroup(["updated:today", "project:a"], "updated:today")).toEqual([
+      "project:a",
+    ]);
   });
 });

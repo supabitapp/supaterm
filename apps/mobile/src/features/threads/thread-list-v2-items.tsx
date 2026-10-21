@@ -180,13 +180,14 @@ function ThreadListV2Section(props: {
     <>
       <Text
         className={cn(
-          "text-xs",
+          "shrink text-xs",
           sidebarPane ? "text-drawer-foreground-muted" : "text-foreground-tertiary",
         )}
+        numberOfLines={1}
       >
         {props.label}
       </Text>
-      <View className={cn("h-px flex-1", sidebarPane ? "bg-drawer-border" : "bg-border")} />
+      <View className={cn("h-px min-w-2 flex-1", sidebarPane ? "bg-drawer-border" : "bg-border")} />
       {props.disclosure ? (
         <DisclosureChevron
           expanded={props.disclosure.expanded}
@@ -263,6 +264,31 @@ function ThreadListV2ShelfHeader(
     />
   );
 }
+
+export const ThreadListV2GroupHeader = memo(function ThreadListV2GroupHeader(props: {
+  readonly groupKey: string;
+  readonly label: string;
+  readonly count: number;
+  readonly expanded: boolean;
+  readonly disabled?: boolean;
+  readonly onToggle: (groupKey: string) => void;
+  readonly pane?: "screen" | "sidebar";
+}) {
+  const { groupKey, onToggle } = props;
+  return (
+    <ThreadListV2Section
+      label={props.expanded ? props.label : `${props.label} (${props.count})`}
+      pane={props.pane}
+      disclosure={{
+        expanded: props.expanded,
+        disabled: props.disabled,
+        onToggle: () => onToggle(groupKey),
+        accessibilityLabel: `${props.label}, ${props.count} ${props.count === 1 ? "thread" : "threads"}`,
+        accessibilityHint: `${props.expanded ? "Collapses" : "Expands"} the ${props.label} threads.`,
+      }}
+    />
+  );
+});
 
 export const ThreadListV2PinnedShelfHeader = memo(function ThreadListV2PinnedShelfHeader(
   props: ThreadListV2ShelfHeaderProps,

@@ -222,6 +222,15 @@ describe("mobile storage", () => {
     });
   });
 
+  it("persists collapsed thread list groups and drops non-string keys", async () => {
+    await savePreferencesPatch({ threadListCollapsedGroups: ["project:a", "updated:today"] });
+    await expect(loadPreferences()).resolves.toEqual({
+      threadListCollapsedGroups: ["project:a", "updated:today"],
+    });
+    mocks.setPreferencesJson(JSON.stringify({ threadListCollapsedGroups: ["project:a", 1] }), 10);
+    await expect(loadPreferences()).resolves.toEqual({ threadListCollapsedGroups: ["project:a"] });
+  });
+
   it("drops invalid thread list shelf expansion preferences", async () => {
     mocks.setPreferencesJson(
       JSON.stringify({

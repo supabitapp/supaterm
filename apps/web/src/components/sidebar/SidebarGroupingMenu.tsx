@@ -1,5 +1,6 @@
 import { THREAD_GROUPING_OPTIONS } from "@supaterm/client-runtime/state/thread-grouping";
 import { Settings2Icon } from "lucide-react";
+import { cn } from "~/lib/utils";
 import { updateClientSettings, useClientSettings } from "../../hooks/useSettings";
 import {
   Menu,
@@ -16,7 +17,6 @@ import { SidebarHeaderIconButton } from "./SidebarThreadHeader";
 
 export function SidebarGroupingMenu() {
   const grouping = useClientSettings((settings) => settings.sidebarThreadGrouping);
-  const label = THREAD_GROUPING_OPTIONS.find((option) => option.value === grouping)!.label;
   return (
     <Menu>
       <MenuTrigger render={<SidebarHeaderIconButton label="Thread list options" />}>
@@ -26,7 +26,21 @@ export function SidebarGroupingMenu() {
         <MenuSub>
           <MenuSubTrigger>
             <span className="flex-1">Grouping</span>
-            <span className="ml-6 text-muted-foreground">{label}</span>
+            {/* Every label shares one cell so the popup keeps the widest one's
+                width: a resize re-runs collision flipping and moves the menu. */}
+            <span className="ml-6 grid justify-items-end text-muted-foreground">
+              {THREAD_GROUPING_OPTIONS.map((option) => (
+                <span
+                  key={option.value}
+                  className={cn(
+                    "col-start-1 row-start-1",
+                    option.value !== grouping && "invisible",
+                  )}
+                >
+                  {option.label}
+                </span>
+              ))}
+            </span>
           </MenuSubTrigger>
           <MenuSubPopup>
             <MenuRadioGroup

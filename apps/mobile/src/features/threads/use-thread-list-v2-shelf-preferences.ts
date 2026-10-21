@@ -1,6 +1,9 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import { toggleCollapsedThreadGroup } from "@supaterm/client-runtime/state/thread-grouping";
 import { AsyncResult } from "effect/reactivity";
 import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
+
+const NO_COLLAPSED_GROUPS: readonly string[] = [];
 
 export function useThreadListV2ShelfPreferences() {
   const preferencesResult = useAtomValue(mobilePreferencesAtom);
@@ -15,6 +18,8 @@ export function useThreadListV2ShelfPreferences() {
   const doneShelfExpanded = loaded && preferencesResult.value.threadListDoneShelfExpanded === true;
   const workingShelfExpanded =
     loaded && preferencesResult.value.threadListWorkingShelfExpanded === true;
+  const collapsedGroups =
+    (loaded ? preferencesResult.value.threadListCollapsedGroups : undefined) ?? NO_COLLAPSED_GROUPS;
   const togglePinnedShelf = () => {
     if (!loaded) return;
     savePreferences({
@@ -55,6 +60,17 @@ export function useThreadListV2ShelfPreferences() {
       }),
     });
   };
+  const toggleGroup = (key: string) => {
+    if (!loaded) return;
+    savePreferences({
+      transform: (current) => ({
+        threadListCollapsedGroups: toggleCollapsedThreadGroup(
+          current.threadListCollapsedGroups ?? NO_COLLAPSED_GROUPS,
+          key,
+        ),
+      }),
+    });
+  };
   return {
     loaded,
     pinnedShelfExpanded,
@@ -62,10 +78,12 @@ export function useThreadListV2ShelfPreferences() {
     doneShelfExpanded,
     snoozedShelfExpanded,
     workingShelfExpanded,
+    collapsedGroups,
     togglePinnedShelf,
     toggleActiveShelf,
     toggleDoneShelf,
     toggleSnoozedShelf,
     toggleWorkingShelf,
+    toggleGroup,
   } as const;
 }

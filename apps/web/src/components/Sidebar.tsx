@@ -13,7 +13,10 @@ import {
   threadShellKey,
   sidebarListLayoutKey,
 } from "./Sidebar.list";
-import { type ThreadGroupingProject } from "@supaterm/client-runtime/state/thread-grouping";
+import {
+  toggleCollapsedThreadGroup,
+  type ThreadGroupingProject,
+} from "@supaterm/client-runtime/state/thread-grouping";
 import type { SidebarThreadGrouping } from "@supaterm/contracts/settings";
 import { SidebarPendingThreadRow } from "./SidebarPendingThreadRow";
 import { useThreadOutbox } from "../state/threadOutbox";
@@ -401,6 +404,8 @@ const DONE_SHELF_EXPANDED_KEY = "supaterm:sidebar:done-expanded";
 const SNOOZED_SHELF_EXPANDED_KEY = "supaterm:sidebar:snoozed-expanded";
 const WORKING_SHELF_EXPANDED_KEY = "supaterm:sidebar:working-expanded";
 const DRAFTS_SHELF_EXPANDED_KEY = "supaterm:sidebar:drafts-expanded";
+const COLLAPSED_THREAD_GROUPS_KEY = "supaterm:sidebar:collapsed-thread-groups";
+const CollapsedThreadGroups = Schema.Array(Schema.String);
 
 // When this client saw each thread leave the Working shelf.
 // Module scope keeps the inbox order across routes that unmount the sidebar.
@@ -522,6 +527,12 @@ function useSidebarThreads(input: {
     false,
     Schema.Boolean,
   );
+  const [collapsedThreadGroups, setCollapsedThreadGroups] = useLocalStorage(
+    COLLAPSED_THREAD_GROUPS_KEY,
+    [],
+    CollapsedThreadGroups,
+  );
+  const collapsedThreadGroupKeys = new Set(collapsedThreadGroups);
   // The done tail renders in pages: history shouldn't dominate the sidebar,
   // and the common lookups are recent. Paging restarts whenever the project
   // scope changes, so a scope flip never inherits a deep page state.
@@ -587,6 +598,8 @@ function useSidebarThreads(input: {
     visibleWorking: visibleWorkingThreads,
     projects: input.groupingProjects,
     now: groupingNow,
+    collapsedGroups: collapsedThreadGroupKeys,
+    routeThreadKey: routeRowThreadKey,
   });
   const inboxThreadsByKey = new Map(
     [...activeThreads, ...workingThreads].map((thread) => [threadShellKey(thread), thread]),
@@ -633,6 +646,10 @@ function useSidebarThreads(input: {
     toggleSnoozedShelf: () => setSnoozedShelfExpanded((value) => !value),
     workingShelfExpanded,
     toggleWorkingShelf: () => setWorkingShelfExpanded((value) => !value),
+    collapsedThreadGroups,
+    collapsedThreadGroupKeys,
+    toggleThreadGroup: (key: string) =>
+      setCollapsedThreadGroups((keys) => toggleCollapsedThreadGroup(keys, key)),
     visiblePinnedThreads,
     renderedDoneThreads,
     visibleSnoozedThreads,
@@ -2845,6 +2862,9 @@ export default function Sidebar() {
     toggleSnoozedShelf,
     workingShelfExpanded,
     toggleWorkingShelf,
+    collapsedThreadGroups,
+    collapsedThreadGroupKeys,
+    toggleThreadGroup,
     visiblePinnedThreads,
     renderedDoneThreads,
     visibleSnoozedThreads,
@@ -3376,7 +3396,7 @@ export default function Sidebar() {
     pendingThreads.length,
     undoNoticeShown,
   ].join("\n");
-  const listMotionShelfState = `${pinnedShelfExpanded}:${workingShelfExpanded}:${snoozedShelfExpanded}:${doneShelfExpanded}`;
+  const listMotionShelfState = `${pinnedShelfExpanded}:${workingShelfExpanded}:${snoozedShelfExpanded}:${doneShelfExpanded}:${collapsedThreadGroups.join(",")}`;
   const listMotionAnimate =
     dragState === null &&
     (sidebarHasThreadSections || visibleDraftSessionCount > 0 || pendingThreads.length > 0);
@@ -3429,6 +3449,7 @@ export default function Sidebar() {
         routeThreadKey: routeRowThreadKey,
         projects: groupingProjects,
         now: groupingNow,
+        collapsedGroups: collapsedThreadGroupKeys,
       }),
     [
       threadGrouping,
@@ -3441,6 +3462,7 @@ export default function Sidebar() {
       routeRowThreadKey,
       groupingProjects,
       groupingNow,
+      collapsedThreadGroupKeys,
     ],
   );
   const sidebarSortingStrategy = createSidebarSortingStrategy({
@@ -4618,7 +4640,12 @@ export default function Sidebar() {
                       }
                       if (item.kind === "group") {
                         items.push(
-                          <SidebarGroupHeader key={sidebarListItemId(item)} item={item} />,
+                          <SidebarGroupHeader
+                            key={sidebarListItemId(item)}
+                            item={item}
+                            onToggle={toggleThreadGroup}
+                            prepare={prepareShelfMotion}
+                          />,
                         );
                         continue;
                       }

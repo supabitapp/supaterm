@@ -72,7 +72,7 @@ import {
   ThreadListV2SnoozedShelfHeader,
   ThreadListV2PinnedShelfHeader,
   ThreadListV2ActiveShelfHeader,
-  ThreadListV2SectionDivider,
+  ThreadListV2GroupHeader,
   ThreadListV2WorkingShelfHeader,
 } from "./thread-list-v2-items";
 import { useThreadRowProviderInstanceResolver } from "./thread-provider-instance";
@@ -299,11 +299,13 @@ function ThreadNavigationSidebarPane(
     pinnedShelfExpanded,
     activeShelfExpanded,
     workingShelfExpanded,
+    collapsedGroups,
     toggleDoneShelf,
     toggleSnoozedShelf,
     togglePinnedShelf,
     toggleActiveShelf,
     toggleWorkingShelf,
+    toggleGroup,
   } = useThreadListV2ShelfPreferences();
   const [minuteClock] = useState(createMinuteClock);
   const nowMinute = useSyncExternalStore(minuteClock.subscribe, minuteClock.getSnapshot);
@@ -340,6 +342,7 @@ function ThreadNavigationSidebarPane(
     pinnedShelfExpanded,
     activeShelfExpanded,
     workingShelfExpanded,
+    collapsedGroups,
     snoozedShelfExpanded,
     doneShelfExpanded,
     selectedThreadKey: props.selectedThreadKey ?? null,
@@ -581,7 +584,17 @@ function ThreadNavigationSidebarPane(
         );
       }
       case "v2-group-header":
-        return <ThreadListV2SectionDivider label={item.label} pane="sidebar" />;
+        return (
+          <ThreadListV2GroupHeader
+            groupKey={item.groupKey}
+            label={item.label}
+            count={item.count}
+            disabled={item.disabled}
+            expanded={item.expanded}
+            onToggle={toggleGroup}
+            pane="sidebar"
+          />
+        );
       case "v2-active-header":
         return (
           <ThreadListV2ActiveShelfHeader

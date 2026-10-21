@@ -23,6 +23,11 @@ export interface ThreadDisplayGroup<T> {
   readonly threads: readonly T[];
 }
 
+export interface CollapsibleThreadDisplayGroup<T> extends ThreadDisplayGroup<T> {
+  readonly collapsed: boolean;
+  readonly count: number;
+}
+
 type GroupableThread = Pick<
   EnvironmentThreadShell,
   | "id"
@@ -96,4 +101,30 @@ export function groupInboxThreads<T extends GroupableThread>(
     }
   }
   return [...groups.values()].filter((group) => group.threads.length > 0);
+}
+
+/** A collapsed group keeps only the threads `keepVisible` accepts, such as the open one. */
+export function collapseThreadGroups<T>(
+  groups: readonly ThreadDisplayGroup<T>[],
+  collapsedKeys: ReadonlySet<string>,
+  keepVisible: (thread: T) => boolean,
+): CollapsibleThreadDisplayGroup<T>[] {
+  return groups.map((group) => {
+    const collapsed = collapsedKeys.has(group.key);
+    return {
+      ...group,
+      collapsed,
+      count: group.threads.length,
+      threads: collapsed ? group.threads.filter(keepVisible) : group.threads,
+    };
+  });
+}
+
+export function toggleCollapsedThreadGroup(
+  collapsedKeys: readonly string[],
+  key: string,
+): string[] {
+  return collapsedKeys.includes(key)
+    ? collapsedKeys.filter((candidate) => candidate !== key)
+    : [...collapsedKeys, key];
 }
