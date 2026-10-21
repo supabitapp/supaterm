@@ -3,11 +3,20 @@ import * as Schema from "effect/Schema";
 
 import { OutboxTurn, StoredOutboxEntry, encodeStoredOutboxEntry } from "./threadOutboxSchema";
 import { randomUUID } from "../lib/utils";
+import { createIndexedDbTransaction } from "../lib/indexedDb";
 
 const DATABASE_NAME = "supaterm-thread-outbox";
 const LEASE_MS = 60_000;
 const decode = Schema.decodeUnknownSync(StoredOutboxEntry);
-let database: Promise<IDBDatabase> | null = null;
+const beginTransaction = createIndexedDbTransaction({
+  name: DATABASE_NAME,
+  version: 1,
+  upgrade: (database) => {
+    database.createObjectStore("messages", { keyPath: "id" });
+    database.createObjectStore("locks", { keyPath: "scope" });
+  },
+  blockedMessage: "Close other Supaterm tabs to open message storage.",
+});
 let channel: BroadcastChannel | null = null;
 function storageChannel() {
   if (typeof BroadcastChannel !== "undefined") channel ??= new BroadcastChannel(DATABASE_NAME);
@@ -20,40 +29,13 @@ export function subscribeThreadOutboxStorage(listener: () => void) {
   return () => source?.removeEventListener("message", listener);
 }
 
-function openDatabase() {
-  database ??= new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(DATABASE_NAME, 1);
-    request.onupgradeneeded = () => {
-      request.result.createObjectStore("messages", { keyPath: "id" });
-      request.result.createObjectStore("locks", { keyPath: "scope" });
-    };
-    request.onsuccess = () => {
-      request.result.addEventListener("versionchange", () => {
-        request.result.close();
-        database = null;
-      });
-      resolve(request.result);
-    };
-    request.addEventListener("error", () => {
-      database = null;
-      reject(request.error);
-    });
-    request.onblocked = () => {
-      database = null;
-      reject(new Error("Close other Supaterm tabs to open message storage."));
-    };
-  });
-  return database;
-}
-
 async function transaction<A>(
   storeName: string,
   mode: IDBTransactionMode,
   operation: (store: IDBObjectStore, complete: (result: A) => void) => void,
 ): Promise<A> {
-  const db = await openDatabase();
+  const tx = await beginTransaction(storeName, mode);
   return new Promise<A>((resolve, reject) => {
-    const tx = db.transaction(storeName, mode);
     let result: A;
     tx.oncomplete = () => resolve(result);
     tx.addEventListener("error", () => reject(tx.error));

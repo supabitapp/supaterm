@@ -4,28 +4,22 @@ import {
   PROJECT_FAVICON_MAX_DATA_URL_LENGTH,
   PROJECT_FAVICON_THUMBNAIL_SIZE,
 } from "@supaterm/client-runtime/project-favicon-cache";
+import { createIndexedDbTransaction } from "../lib/indexedDb";
 
 const DATABASE_NAME = "supaterm:project-favicons";
 const DATABASE_VERSION = 2;
 const STORE_NAME = "images";
-let database: Promise<IDBDatabase> | undefined;
-
-function openDatabase() {
-  return (database ??= new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
-    request.addEventListener("upgradeneeded", () => {
-      for (const name of request.result.objectStoreNames) {
-        if (name !== STORE_NAME) request.result.deleteObjectStore(name);
-      }
-      if (!request.result.objectStoreNames.contains(STORE_NAME)) {
-        request.result.createObjectStore(STORE_NAME);
-      }
-    });
-    request.addEventListener("success", () => resolve(request.result));
-    request.addEventListener("error", () => reject(request.error));
-    request.addEventListener("blocked", () => reject(new Error("Project icon cache is blocked.")));
-  }));
-}
+const beginTransaction = createIndexedDbTransaction({
+  name: DATABASE_NAME,
+  version: DATABASE_VERSION,
+  upgrade: (database) => {
+    for (const name of database.objectStoreNames) {
+      if (name !== STORE_NAME) database.deleteObjectStore(name);
+    }
+    if (!database.objectStoreNames.contains(STORE_NAME)) database.createObjectStore(STORE_NAME);
+  },
+  blockedMessage: "Project icon cache is blocked.",
+});
 
 function completed(transaction: IDBTransaction) {
   return new Promise<void>((resolve, reject) => {
@@ -39,7 +33,7 @@ async function withStore<A>(
   mode: IDBTransactionMode,
   use: (store: IDBObjectStore) => IDBRequest<A> | void,
 ) {
-  const transaction = (await openDatabase()).transaction(STORE_NAME, mode);
+  const transaction = await beginTransaction(STORE_NAME, mode);
   const request = use(transaction.objectStore(STORE_NAME));
   await completed(transaction);
   return request?.result;
