@@ -8,6 +8,7 @@ const reactTests = [
   "src/features/settings/components/BranchNamingSettings.test.tsx",
   "src/features/threads/use-visible-second-clock.test.tsx",
   "src/features/threads/useThreadHeaderOptions.test.tsx",
+  "src/features/voice-input/useVoiceInputController.test.tsx",
   "src/native/NativeHeaderToolbar.test.tsx",
   "src/state/use-selected-thread-git-actions.test.tsx",
 ];

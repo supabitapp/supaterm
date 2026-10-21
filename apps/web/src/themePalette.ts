@@ -66,10 +66,6 @@ export function getThemePreviewAppearance(): ThemeAppearance | null {
   return themePreviewAppearance;
 }
 
-export function getThemePreviewSidebarArtwork(): boolean | null {
-  return themePreviewAppearance === null ? null : false;
-}
-
 export function subscribeToThemePreview(listener: () => void): () => void {
   themePreviewListeners.add(listener);
   return () => themePreviewListeners.delete(listener);

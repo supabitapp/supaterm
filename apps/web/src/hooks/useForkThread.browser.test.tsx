@@ -1,7 +1,7 @@
 import { EnvironmentId, RunId, ThreadId } from "@supaterm/contracts";
-import { act, useEffect } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
+import { useEffect } from "react";
+import { act, render as renderUi, type Screen } from "../../test/render";
+import { expect, it, vi } from "vite-plus/test";
 
 const state = vi.hoisted(() => ({
   connected: true,
@@ -42,7 +42,7 @@ const thread = {
   title: "A conversation",
 };
 const source = { sourceThreadId: ThreadId.make("inherited-source"), runId: RunId.make("run") };
-let root: Root | null = null;
+let screen: Screen;
 let action: ReturnType<typeof useForkThread>;
 
 function Probe({ disabled }: { disabled: boolean }) {
@@ -54,26 +54,25 @@ function Probe({ disabled }: { disabled: boolean }) {
 }
 
 async function render(disabled = false) {
-  root ??= createRoot(document.createElement("div"));
-  await act(async () => root!.render(<Probe disabled={disabled} />));
+  await screen.rerender(<Probe disabled={disabled} />);
 }
 
-beforeEach(() => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+async function setupTest() {
+  await using resources = new AsyncDisposableStack();
+
   state.connected = true;
   state.permitted = true;
   state.fork.mockClear();
   state.ready.mockReset().mockResolvedValue(true);
   state.navigate.mockClear();
-});
 
-afterEach(async () => {
-  await act(async () => root?.unmount());
-  root = null;
-  vi.unstubAllGlobals();
-});
+  screen = resources.use(await renderUi(null, { router: false }));
+
+  return resources.move();
+}
 
 it("forks inherited history in the viewed environment and waits before navigation", async () => {
+  await using _test = await setupTest();
   await render();
   let resolveReady: (value: boolean) => void = () => undefined;
   const ready = new Promise<boolean>((resolve) => {
@@ -102,6 +101,7 @@ it("forks inherited history in the viewed environment and waits before navigatio
 });
 
 it("does not submit when rewinding, disconnected, or without permission", async () => {
+  await using _test = await setupTest();
   for (const [disabled, connected, permitted] of [
     [true, true, true],
     [false, false, true],
@@ -117,6 +117,7 @@ it("does not submit when rewinding, disconnected, or without permission", async 
 });
 
 it("reports a missing thread shell and lets the user retry after failure", async () => {
+  await using _test = await setupTest();
   await render();
   state.ready.mockResolvedValueOnce(false);
   await act(async () => {

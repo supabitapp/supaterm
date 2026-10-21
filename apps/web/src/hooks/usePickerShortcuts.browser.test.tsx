@@ -1,6 +1,6 @@
-import { act, type ComponentProps } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { type ComponentProps } from "react";
+import { render as renderUi, type Screen } from "../../test/render";
+import { describe, expect, it, vi } from "vite-plus/test";
 import {
   compileResolvedKeybindingsConfig,
   DEFAULT_RESOLVED_KEYBINDINGS,
@@ -29,40 +29,30 @@ function Picker(props: Parameters<typeof usePickerShortcuts<string>>[0]) {
   );
 }
 
-let root: Root;
-let container: HTMLDivElement;
+let screen: Screen;
 const select = vi.fn();
 
-beforeEach(() => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+async function setupTest() {
+  await using resources = new AsyncDisposableStack();
+  resources.use(vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel"));
   select.mockClear();
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
-});
+  screen = resources.use(await renderUi(null, { router: false }));
 
-afterEach(async () => {
-  await act(() => root.unmount());
-  container.remove();
-  vi.restoreAllMocks();
-  vi.unstubAllGlobals();
-});
+  return resources.move();
+}
 
 async function renderPicker(overrides: Partial<ComponentProps<typeof Picker>> = {}) {
-  await act(() =>
-    root.render(
-      <Picker
-        picker="project"
-        open
-        items={["Alpha", "Beta", "Gamma", "Delta"]}
-        keybindings={DEFAULT_RESOLVED_KEYBINDINGS}
-        onSelect={select}
-        {...overrides}
-      />,
-    ),
+  await screen.rerender(
+    <Picker
+      picker="project"
+      open
+      items={["Alpha", "Beta", "Gamma", "Delta"]}
+      keybindings={DEFAULT_RESOLVED_KEYBINDINGS}
+      onSelect={select}
+      {...overrides}
+    />,
   );
-  container.querySelector("input")!.focus();
+  screen.container.querySelector("input")!.focus();
 }
 
 function press(key: string, overrides: KeyboardEventInit = {}) {
@@ -79,6 +69,7 @@ function press(key: string, overrides: KeyboardEventInit = {}) {
 
 describe.each(["project", "host", "branch"] as const)("%s picker shortcuts", (picker) => {
   it("selects a visible choice before a thread shortcut can handle the event", async () => {
+    await using _test = await setupTest();
     await renderPicker({ picker });
     const threadKeyDown = vi.fn();
     window.addEventListener("keydown", threadKeyDown);
@@ -92,10 +83,11 @@ describe.each(["project", "host", "branch"] as const)("%s picker shortcuts", (pi
   });
 
   it("renumbers filtered choices for both selection and hints", async () => {
+    await using _test = await setupTest();
     await renderPicker({ picker });
     await renderPicker({ picker, items: ["Gamma", "Alpha"] });
-    expect(container.textContent).toContain("Gamma ⌘1");
-    expect(container.textContent).toContain("Alpha ⌘2");
+    expect(screen.container.textContent).toContain("Gamma ⌘1");
+    expect(screen.container.textContent).toContain("Alpha ⌘2");
     press("1");
     expect(select).toHaveBeenCalledWith("Gamma");
     expect(press("3").defaultPrevented).toBe(true);
@@ -103,6 +95,7 @@ describe.each(["project", "host", "branch"] as const)("%s picker shortcuts", (pi
   });
 
   it("releases shortcuts when the picker closes", async () => {
+    await using _test = await setupTest();
     await renderPicker({ picker });
     await renderPicker({ picker, open: false });
     expect(press("1").defaultPrevented).toBe(false);
@@ -110,18 +103,20 @@ describe.each(["project", "host", "branch"] as const)("%s picker shortcuts", (pi
   });
 
   it("leaves typing, composition, repeats, and the command palette alone", async () => {
+    await using _test = await setupTest();
     await renderPicker({ picker });
     press("1", { metaKey: false });
     press("1", { repeat: true });
     press("1", { isComposing: true });
     const palette = document.createElement("div");
     palette.setAttribute("data-command-palette", "");
-    container.append(palette);
+    screen.container.append(palette);
     expect(press("1").defaultPrevented).toBe(false);
     expect(select).not.toHaveBeenCalled();
   });
 
   it("uses configured shortcuts and hides hints claimed by another command", async () => {
+    await using _test = await setupTest();
     await renderPicker({
       picker,
       keybindings: compileResolvedKeybindingsConfig([
@@ -130,8 +125,8 @@ describe.each(["project", "host", "branch"] as const)("%s picker shortcuts", (pi
         { key: "mod+1", command: "chat.newLocal" },
       ]),
     });
-    expect(container.textContent).toContain("Beta ⌥B");
-    expect(container.textContent).not.toContain("⌘1");
+    expect(screen.container.textContent).toContain("Beta ⌥B");
+    expect(screen.container.textContent).not.toContain("⌘1");
     expect(press("1").defaultPrevented).toBe(false);
     press("b", { metaKey: false, altKey: true });
     expect(select).toHaveBeenCalledWith("Beta");
@@ -140,12 +135,13 @@ describe.each(["project", "host", "branch"] as const)("%s picker shortcuts", (pi
 
 describe("No project shortcut", () => {
   it("keeps No project on zero while numbered projects follow search results", async () => {
+    await using _test = await setupTest();
     const fixedChoice = { item: "No project", command: "projectPicker.noProject" as const };
     await renderPicker({ fixedChoice });
-    expect(container.textContent).toContain("No project ⌘0");
-    expect(container.textContent).toContain("Alpha ⌘1");
+    expect(screen.container.textContent).toContain("No project ⌘0");
+    expect(screen.container.textContent).toContain("Alpha ⌘1");
     await renderPicker({ fixedChoice, items: ["Gamma"] });
-    expect(container.textContent).toContain("Gamma ⌘1");
+    expect(screen.container.textContent).toContain("Gamma ⌘1");
     expect(press("0").defaultPrevented).toBe(true);
     expect(select).toHaveBeenLastCalledWith("No project");
     press("1");
@@ -153,6 +149,7 @@ describe("No project shortcut", () => {
   });
 
   it("does not select No project when unavailable or closed", async () => {
+    await using _test = await setupTest();
     await renderPicker();
     expect(press("0").defaultPrevented).toBe(false);
     await renderPicker({
@@ -164,6 +161,7 @@ describe("No project shortcut", () => {
   });
 
   it("honors customization and conflicting bindings for No project", async () => {
+    await using _test = await setupTest();
     const fixedChoice = { item: "No project", command: "projectPicker.noProject" as const };
     await renderPicker({
       fixedChoice,
@@ -171,7 +169,7 @@ describe("No project shortcut", () => {
         { key: "alt+n", command: "projectPicker.noProject", when: "projectPickerOpen" },
       ]),
     });
-    expect(container.textContent).toContain("No project ⌥N");
+    expect(screen.container.textContent).toContain("No project ⌥N");
     press("n", { metaKey: false, altKey: true });
     expect(select).toHaveBeenCalledWith("No project");
     select.mockClear();
@@ -182,7 +180,7 @@ describe("No project shortcut", () => {
         { key: "mod+0", command: "chat.newLocal" },
       ]),
     });
-    expect(container.textContent).not.toContain("⌘0");
+    expect(screen.container.textContent).not.toContain("⌘0");
     expect(press("0").defaultPrevented).toBe(false);
     expect(select).not.toHaveBeenCalled();
   });

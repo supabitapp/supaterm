@@ -7,9 +7,9 @@ import {
   ScheduledTaskId,
   type ScheduledTask,
 } from "@supaterm/contracts";
-import { act, type ReactNode } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { type ReactNode } from "react";
+import { act, render as renderUi, type Screen } from "../../../test/render";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import "~/index.css";
 
@@ -207,11 +207,11 @@ const environmentSelect = () => document.getElementById("scheduled-task-environm
 const click = (element: HTMLElement) => act(async () => element.click());
 
 describe("automation permissions", () => {
-  let root: Root;
-  let container: HTMLDivElement;
+  let screen: Screen;
 
-  beforeEach(() => {
-    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  async function setupTest() {
+    await using resources = new AsyncDisposableStack();
+
     state.environments = [environment(primaryId, "Local"), environment(remoteId, "Remote")];
     state.projects = [
       {
@@ -235,19 +235,15 @@ describe("automation permissions", () => {
     state.toggle.mockReset().mockResolvedValue({ _tag: "Success" });
     state.run.mockReset().mockResolvedValue({ _tag: "Success" });
     state.remove.mockReset().mockResolvedValue({ _tag: "Success" });
-    container = document.body.appendChild(document.createElement("div"));
-    root = createRoot(container);
-  });
+    screen = resources.use(await renderUi(null, { router: false }));
 
-  afterEach(async () => {
-    await act(async () => root.unmount());
-    document.body.replaceChildren();
-    vi.unstubAllGlobals();
-  });
+    return resources.move();
+  }
 
-  const renderPage = () => act(async () => root.render(<AutomationsPage />));
+  const renderPage = () => screen.rerender(<AutomationsPage />);
 
   it("creates in a writable connected environment when the default is read-only", async () => {
+    await using _test = await setupTest();
     state.permissions = new Set([remoteId]);
     await renderPage();
 
@@ -259,6 +255,7 @@ describe("automation permissions", () => {
   });
 
   it("creates from an empty environment and rechecks its grant before opening", async () => {
+    await using _test = await setupTest();
     state.permissions = new Set([remoteId]);
     await renderPage();
 
@@ -274,6 +271,7 @@ describe("automation permissions", () => {
   });
 
   it("opens a read-only editor for a deep-linked task without enabling edits", async () => {
+    await using _test = await setupTest();
     const existing = task(primaryProjectId);
     state.tasks.set(primaryId, [existing]);
     state.permissions.delete(primaryId);
@@ -288,6 +286,7 @@ describe("automation permissions", () => {
   });
 
   it("rechecks permission at submit after access is revoked while the editor is open", async () => {
+    await using _test = await setupTest();
     const existing = task(remoteProjectId);
     state.tasks.set(remoteId, [existing]);
     const connectedEnvironments = [state.environments[1] as unknown as EnvironmentPresentation];
@@ -301,7 +300,7 @@ describe("automation permissions", () => {
       />
     );
 
-    await act(async () => root.render(dialog()));
+    await screen.rerender(dialog());
 
     const saveButton = buttonNamed("Save automation") as HTMLButtonElement;
     expect(saveButton.disabled).toBe(false);
@@ -309,12 +308,13 @@ describe("automation permissions", () => {
     await click(saveButton);
 
     expect(state.upsert).not.toHaveBeenCalled();
-    await act(async () => root.render(dialog()));
+    await screen.rerender(dialog());
     expect(document.querySelector("fieldset")?.disabled).toBe(true);
     expect((buttonNamed("Save automation") as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("rechecks permission before a retained edit action opens the editor", async () => {
+    await using _test = await setupTest();
     state.tasks.set(remoteId, [task(remoteProjectId)]);
     await renderPage();
     await click(byLabel("Actions for Read only automation")[0]!);
@@ -328,6 +328,7 @@ describe("automation permissions", () => {
   });
 
   it("folds environments without automations into one line", async () => {
+    await using _test = await setupTest();
     state.tasks.set(remoteId, [task(remoteProjectId)]);
     await renderPage();
 
@@ -337,6 +338,7 @@ describe("automation permissions", () => {
   });
 
   it("lists a single environment's automations and flags a link it does not have", async () => {
+    await using _test = await setupTest();
     state.environments = [environment(remoteId, "Remote")];
     state.tasks.set(remoteId, [task(remoteProjectId)]);
     state.search = { environmentId: remoteId, taskId: ScheduledTaskId.make("missing") };
@@ -348,6 +350,7 @@ describe("automation permissions", () => {
   });
 
   it("blocks retained row actions after the environment grant is revoked", async () => {
+    await using _test = await setupTest();
     state.tasks.set(remoteId, [task(remoteProjectId)]);
     await renderPage();
     const toggle = byLabel("Pause Read only automation")[0]!;

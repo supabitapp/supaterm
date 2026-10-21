@@ -1,7 +1,6 @@
-import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { act, render } from "../../../test/render";
 import { userEvent } from "vite-plus/test/browser";
-import { afterEach, expect, it, vi } from "vite-plus/test";
+import { expect, it, vi } from "vite-plus/test";
 
 import type { SettingsSearchItem } from "./settingsSearch";
 
@@ -46,27 +45,17 @@ vi.mock(import("../sidebar/SidebarChrome"), async (original) => ({
 import { SidebarProvider } from "../ui/sidebar";
 import { SettingsSidebarNav } from "./SettingsSidebarNav";
 
-const roots: Root[] = [];
-afterEach(async () => {
-  for (const root of roots.splice(0)) await act(async () => root.unmount());
-  document.body.replaceChildren();
-});
-
 const highlightedResult = () =>
   document.querySelector('[role="option"][aria-selected="true"]')?.textContent;
 
 it("keeps the clamped highlight when results shrink and then return", async () => {
   searchItems.set(WIDGET_ITEMS);
-  const container = document.body.appendChild(document.createElement("div"));
-  const root = createRoot(container);
-  roots.push(root);
-  await act(async () =>
-    root.render(
-      <SidebarProvider>
-        <SettingsSidebarNav pathname="/settings/general" />
-      </SidebarProvider>,
-    ),
+  await using screen = await render(
+    <SidebarProvider>
+      <SettingsSidebarNav pathname="/settings/general" />
+    </SidebarProvider>,
   );
+  const { container } = screen;
   const search = container.querySelector<HTMLInputElement>('input[aria-label="Search settings"]');
   expect(search).not.toBeNull();
   await userEvent.fill(search!, "widget");

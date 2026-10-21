@@ -261,7 +261,7 @@ function render(props: Partial<ComponentProps<typeof PullRequestDetailPanel>> = 
   return renderUi(
     <PullRequestDetailPanel
       environmentId={threadRef.environmentId}
-      reference={detail}
+      reference={surface}
       context="page"
       shortcutsEnabled={false}
       getShortcutContext={shortcutContext}

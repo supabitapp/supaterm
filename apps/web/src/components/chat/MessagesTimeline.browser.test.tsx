@@ -502,9 +502,12 @@ describe("MessagesTimeline messages", () => {
           findExpanded,
         },
       );
+      screen.container
+        .querySelector("[data-markdown-mermaid]")!
+        .scrollIntoView({ block: "center" });
       const diagram = await vi.waitFor(
         () => {
-          const svg = screen.container.querySelector('[aria-label="Expand diagram"] svg');
+          const svg = screen.container.querySelector('[aria-label="Mermaid diagram"] svg');
           expect(svg).not.toBeNull();
           return svg!;
         },
@@ -527,7 +530,7 @@ describe("MessagesTimeline messages", () => {
         range.setStart(labelText, 2);
         range.setEnd(labelText, 5);
       } else {
-        await click(screen.button("Show code"));
+        await click(screen.button("Source"));
         const code = screen.container.querySelector("pre code")!;
         const firstToken = document.createTreeWalker(code, NodeFilter.SHOW_TEXT).nextNode()!;
         range.setStart(firstToken, 0);
@@ -575,7 +578,7 @@ describe("MessagesTimeline messages", () => {
     ]);
     await vi.waitFor(
       () =>
-        expect(screen.container.querySelector('[aria-label="Expand diagram"] svg')).not.toBeNull(),
+        expect(screen.container.querySelector('[aria-label="Mermaid diagram"] svg')).not.toBeNull(),
       { timeout: 10_000 },
     );
     const paragraphs = [...screen.container.querySelectorAll("p")];

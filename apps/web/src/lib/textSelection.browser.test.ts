@@ -1,16 +1,22 @@
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vite-plus/test";
 import { hasTextSelection } from "./textSelection";
 
-afterEach(() => {
+function mount<T extends HTMLElement>(element: T) {
   document.getSelection()?.removeAllRanges();
-  document.body.replaceChildren();
-});
+  document.body.append(element);
+  return {
+    [Symbol.dispose]() {
+      document.getSelection()?.removeAllRanges();
+      element.remove();
+    },
+  };
+}
 
 describe("hasTextSelection", () => {
   it("distinguishes selected conversation text from a collapsed caret", () => {
     const paragraph = document.createElement("p");
     paragraph.textContent = "Copy this response";
-    document.body.append(paragraph);
+    using _paragraph = mount(paragraph);
     expect(hasTextSelection()).toBe(false);
 
     const range = document.createRange();
@@ -25,7 +31,7 @@ describe("hasTextSelection", () => {
   it.each(["input", "textarea"] as const)("detects selection in a focused %s", (tagName) => {
     const input = document.createElement(tagName);
     input.value = "Copy this draft";
-    document.body.append(input);
+    using _input = mount(input);
     input.focus();
     input.setSelectionRange(0, 4);
     expect(hasTextSelection()).toBe(true);
@@ -39,7 +45,7 @@ describe("hasTextSelection", () => {
     const input = document.createElement("input");
     input.value = "Copy this draft";
     host.attachShadow({ mode: "open" }).append(input);
-    document.body.append(host);
+    using _host = mount(host);
     input.focus();
     input.select();
     expect(hasTextSelection()).toBe(true);
@@ -48,7 +54,7 @@ describe("hasTextSelection", () => {
   it("handles focused inputs without text selection support", () => {
     const input = document.createElement("input");
     input.type = "number";
-    document.body.append(input);
+    using _input = mount(input);
     input.focus();
     expect(hasTextSelection()).toBe(false);
   });

@@ -1,7 +1,6 @@
 import { EnvironmentId, ThreadId } from "@supaterm/contracts";
-import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { act, render as renderUi, type Screen } from "../../test/render";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 // The desktop cases; openPullRequestLink.web.browser.test.tsx covers a plain browser, where
 // isElectron is already false. A mocked module's exports are fixed once it loads.
@@ -19,7 +18,7 @@ vi.mock(import("@tanstack/react-router"), async (original) => ({
 }));
 vi.mock(import("../state/entities"), async (original) => ({
   ...(await original()),
-  useProjects: (() => [
+  readProjects: (() => [
     {
       id: "project-1",
       environmentId: "environment-1",
@@ -71,8 +70,7 @@ const threadRef = {
   threadId: ThreadId.make("thread-1"),
 };
 const parentClick = vi.fn();
-let container: HTMLDivElement;
-let root: Root;
+let screen: Screen;
 
 function Link({ button = false }: { button?: boolean }) {
   const openPrLink = useOpenPrLink(state.withThread ? threadRef : undefined);
@@ -96,26 +94,21 @@ function Link({ button = false }: { button?: boolean }) {
   );
 }
 
-beforeEach(() => {
-  vi.clearAllMocks();
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  state.withThread = false;
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
-});
+async function setupTest() {
+  await using resources = new AsyncDisposableStack();
 
-afterEach(async () => {
-  await act(async () => root.unmount());
-  container.remove();
-  vi.unstubAllGlobals();
-});
+  vi.clearAllMocks();
+  state.withThread = false;
+  screen = resources.use(await renderUi(null, { router: false }));
+
+  return resources.move();
+}
 
 async function clickLink(options: MouseEventInit = {}, button = false) {
-  await act(async () => root.render(<Link button={button} />));
+  await screen.rerender(<Link button={button} />);
   const event = new MouseEvent("click", { bubbles: true, cancelable: true, ...options });
   await act(async () => {
-    container.querySelector("a, button")!.dispatchEvent(event);
+    screen.container.querySelector("a, button")!.dispatchEvent(event);
   });
   expect(parentClick).not.toHaveBeenCalled();
   return event;
@@ -125,6 +118,7 @@ describe("PR link navigation on desktop", () => {
   it.each(["metaKey", "ctrlKey"])(
     "opens desktop %s-clicks externally with in-app browsing preferred",
     async (modifier) => {
+      await using _test = await setupTest();
       state.withThread = true;
       const event = await clickLink({ [modifier]: true });
       expect(event.defaultPrevented).toBe(true);
@@ -135,6 +129,7 @@ describe("PR link navigation on desktop", () => {
   );
 
   it("opens modified buttons externally", async () => {
+    await using _test = await setupTest();
     const event = await clickLink({ metaKey: true }, true);
     expect(event.defaultPrevented).toBe(true);
     expect(state.openExternal).toHaveBeenCalledExactlyOnceWith(url);
@@ -143,6 +138,7 @@ describe("PR link navigation on desktop", () => {
   });
 
   it("opens ordinary clicks in the PR view", async () => {
+    await using _test = await setupTest();
     const event = await clickLink();
     expect(event.defaultPrevented).toBe(true);
     expect(state.navigate).toHaveBeenCalledWith({

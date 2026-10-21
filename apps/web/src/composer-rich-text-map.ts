@@ -484,34 +484,9 @@ export function serializeEditorDoc(doc: ProseMirrorNode): RichDocMap {
   };
 }
 
-function lastRunEnd(map: RichDocMap, space: "collapsed" | "md"): number {
-  const last = map.runs[map.runs.length - 1];
-  if (!last) return 0;
-  return space === "collapsed"
-    ? last.collapsedStart + last.collapsedLen
-    : last.mdStart + last.mdLen;
-}
-
 function runOwnsOffset(run: RichRun, flatOffset: number): boolean {
   const end = run.flatStart + run.docLen;
   return flatOffset < end || (flatOffset === end && run.nodeName === "codeBlock");
-}
-
-export function flatToCollapsed(map: RichDocMap, flatOffset: number): number {
-  const bounded = Math.max(0, Math.min(flatOffset, map.docLength));
-  for (const run of map.runs) {
-    if (runOwnsOffset(run, bounded)) {
-      if (run.kind === "text" || run.kind === "token") {
-        const within = Math.min(
-          bounded - run.flatStart,
-          run.collapsedLen - run.openLen - run.closeLen,
-        );
-        return run.collapsedStart + run.openLen + within;
-      }
-      return run.collapsedStart + (bounded - run.flatStart);
-    }
-  }
-  return lastRunEnd(map, "collapsed");
 }
 
 export function flatToMarkdown(map: RichDocMap, flatOffset: number): number {
@@ -524,27 +499,8 @@ export function flatToMarkdown(map: RichDocMap, flatOffset: number): number {
       return run.mdStart + (bounded - run.flatStart);
     }
   }
-  return lastRunEnd(map, "md");
-}
-
-export function collapsedToFlat(map: RichDocMap, collapsedOffset: number): number {
-  for (const run of map.runs) {
-    if (collapsedOffset < run.collapsedStart + run.collapsedLen) {
-      // Checkbox prefixes and style markers are shown, never edited: every
-      // offset inside them clamps to the adjacent document position.
-      if (run.kind === "prefix") return run.flatStart;
-      if (run.kind === "text" || run.kind === "token") {
-        const within = collapsedOffset - run.collapsedStart;
-        const contentLen = run.collapsedLen - run.openLen - run.closeLen;
-        // Marker characters clamp to the styled edge: they are shown, never edited.
-        if (within <= run.openLen) return run.flatStart;
-        if (within >= run.openLen + contentLen) return run.flatStart + run.docLen;
-        return run.flatStart + (within - run.openLen);
-      }
-      return run.flatStart + (collapsedOffset - run.collapsedStart);
-    }
-  }
-  return map.docLength;
+  const last = map.runs[map.runs.length - 1];
+  return last ? last.mdStart + last.mdLen : 0;
 }
 
 export function flatToPm(map: RichDocMap, flatOffset: number): number {

@@ -10,8 +10,7 @@ const THREAD_DETAILS_PANEL_ROW_SURFACE_CLASS = `${THREAD_DETAILS_PANEL_RESTING_B
 
 export const THREAD_DETAILS_PANEL_ROW_HEIGHT_CLASS = "h-7 pointer-coarse:h-11";
 
-export const THREAD_DETAILS_PANEL_TEXT_CLASS =
-  "text-[13px] leading-4 font-medium text-foreground/80";
+const THREAD_DETAILS_PANEL_TEXT_CLASS = "text-[13px] leading-4 font-medium text-foreground/80";
 
 export const THREAD_DETAILS_PANEL_ROW_CONTENT_CLASS = "gap-2 px-2 text-left";
 

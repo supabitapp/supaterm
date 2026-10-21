@@ -67,86 +67,84 @@ export const make = Effect.gen(function* () {
    * Ends the watch, waking the agent when `wake` is set. The orchestrator applies this only
    * while the same watch is on, so a stop that lands during the read wins.
    */
-  const end = (
+  const end = Effect.fn("WorkflowRunWatchReactor.end")(function* (
     { thread, watch }: WatchTarget,
     reason: string,
     wake?: ReturnType<typeof workflowRunWatchMessage>,
-  ) =>
-    Effect.gen(function* () {
-      const uuid = yield* crypto.randomUUIDv4();
-      yield* engine.dispatch({
-        type: "thread.workflow-run-watch.end",
-        commandId: CommandId.make(`server:run-watch:${thread.id}:${uuid}`),
-        threadId: thread.id,
+  ) {
+    const uuid = yield* crypto.randomUUIDv4();
+    yield* engine.dispatch({
+      type: "thread.workflow-run-watch.end",
+      commandId: CommandId.make(`server:run-watch:${thread.id}:${uuid}`),
+      threadId: thread.id,
+      host: watch.host,
+      repository: watch.repository,
+      runId: watch.runId,
+      startedAt: watch.startedAt,
+      ...(wake === undefined
+        ? {}
+        : { wake: { ...wake, messageId: MessageId.make(`message:run-watch:${uuid}`) } }),
+    });
+    const now = yield* Clock.currentTimeMillis;
+    yield* Effect.logInfo("workflow run watch ended", {
+      threadId: thread.id,
+      run: `${watch.host}/${watch.repository}#${watch.runId}`,
+      reason,
+      minutes: Math.round((now - Date.parse(watch.startedAt)) / 60_000),
+    });
+  });
+
+  const check = Effect.fn("WorkflowRunWatchReactor.check")(function* (target: WatchTarget) {
+    const { thread, watch } = target;
+    const key = targetKey(target);
+    const read = yield* Effect.exit(
+      pullRequests.workflowRun({
+        projectId: thread.projectId,
         host: watch.host,
         repository: watch.repository,
         runId: watch.runId,
-        startedAt: watch.startedAt,
-        ...(wake === undefined
-          ? {}
-          : { wake: { ...wake, messageId: MessageId.make(`message:run-watch:${uuid}`) } }),
-      });
-      const now = yield* Clock.currentTimeMillis;
-      yield* Effect.logInfo("workflow run watch ended", {
-        threadId: thread.id,
-        run: `${watch.host}/${watch.repository}#${watch.runId}`,
-        reason,
-        minutes: Math.round((now - Date.parse(watch.startedAt)) / 60_000),
-      });
-    });
-
-  const check = (target: WatchTarget) =>
-    Effect.gen(function* () {
-      const { thread, watch } = target;
-      const key = targetKey(target);
-      const read = yield* Effect.exit(
-        pullRequests.workflowRun({
-          projectId: thread.projectId,
-          host: watch.host,
-          repository: watch.repository,
-          runId: watch.runId,
-        }),
-      );
-      if (Exit.isFailure(read)) {
-        if (Cause.hasInterruptsOnly(read.cause)) return yield* Effect.failCause(read.cause);
-        // The host's pause refuses later reads without a request, so waiting it out is free.
-        if (PullRequestService.isRateLimited(read.cause)) return;
-        const failures = (readFailures.get(key) ?? 0) + 1;
-        readFailures.set(key, failures);
-        if (failures >= READ_FAILURE_LIMIT) {
-          yield* end(
-            target,
-            "unreadable",
-            workflowRunWatchStoppedMessage(
-              watch,
-              `it failed to read it ${READ_FAILURE_LIMIT} times in a row`,
-            ),
-          ).pipe(Effect.catch(() => end(target, "unreadable")));
-          readFailures.delete(key);
-        }
-        return yield* Effect.failCause(read.cause);
-      }
-      readFailures.delete(key);
-      const run = read.value;
-      if (run === null) {
-        return yield* end(
-          target,
-          "unsupported",
-          workflowRunWatchStoppedMessage(watch, "this project's host has no runs it can read"),
-        );
-      }
-      if (run.status !== "pending") {
-        return yield* end(target, "completed", workflowRunWatchMessage(watch, run));
-      }
-      const now = yield* Clock.currentTimeMillis;
-      if (now - Date.parse(watch.startedAt) >= MAX_WATCH_MS) {
+      }),
+    );
+    if (Exit.isFailure(read)) {
+      if (Cause.hasInterruptsOnly(read.cause)) return yield* Effect.failCause(read.cause);
+      // The host's pause refuses later reads without a request, so waiting it out is free.
+      if (PullRequestService.isRateLimited(read.cause)) return;
+      const failures = (readFailures.get(key) ?? 0) + 1;
+      readFailures.set(key, failures);
+      if (failures >= READ_FAILURE_LIMIT) {
         yield* end(
           target,
-          "expired",
-          workflowRunWatchStoppedMessage(watch, "it was still running after 6 hours"),
-        );
+          "unreadable",
+          workflowRunWatchStoppedMessage(
+            watch,
+            `it failed to read it ${READ_FAILURE_LIMIT} times in a row`,
+          ),
+        ).pipe(Effect.catch(() => end(target, "unreadable")));
+        readFailures.delete(key);
       }
-    });
+      return yield* Effect.failCause(read.cause);
+    }
+    readFailures.delete(key);
+    const run = read.value;
+    if (run === null) {
+      return yield* end(
+        target,
+        "unsupported",
+        workflowRunWatchStoppedMessage(watch, "this project's host has no runs it can read"),
+      );
+    }
+    if (run.status !== "pending") {
+      return yield* end(target, "completed", workflowRunWatchMessage(watch, run));
+    }
+    const now = yield* Clock.currentTimeMillis;
+    if (now - Date.parse(watch.startedAt) >= MAX_WATCH_MS) {
+      yield* end(
+        target,
+        "expired",
+        workflowRunWatchStoppedMessage(watch, "it was still running after 6 hours"),
+      );
+    }
+  });
 
   const sweep = Effect.gen(function* () {
     const threads = yield* projections.getThreadsWithWorkflowRunWatches();

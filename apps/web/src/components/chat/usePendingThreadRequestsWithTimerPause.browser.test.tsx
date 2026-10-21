@@ -11,9 +11,9 @@ import {
 import * as Cause from "effect/Cause";
 import * as DateTime from "effect/DateTime";
 import { AsyncResult } from "effect/reactivity";
-import { act, useLayoutEffect } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { useLayoutEffect } from "react";
+import { act, render as renderUi, type Screen } from "../../../test/render";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { DraftId } from "../../composerDraftStore";
 import { makeThreadProjectionFixture } from "../../test-fixtures";
@@ -127,8 +127,7 @@ function projection(overrides: Partial<RuntimeRequest> = {}) {
   };
 }
 
-let root: Root;
-let container: HTMLDivElement;
+let screen: Screen;
 let requests: ReturnType<typeof usePendingThreadRequestsWithTimerPause>;
 const setThreadError = vi.fn();
 
@@ -152,35 +151,31 @@ function Probe({ serverProjection }: { serverProjection: OrchestrationV2ThreadPr
 }
 
 const render = (serverProjection: OrchestrationV2ThreadProjection) =>
-  act(() => root.render(<Probe serverProjection={serverProjection} />));
+  screen.rerender(<Probe serverProjection={serverProjection} />);
 const typeAnswer = (questionId: string, value: string) =>
   act(() => requests.onChangeActivePendingUserInputCustomAnswer(questionId, value));
 const chooseOption = (questionId: string, value: string) =>
   act(() => requests.onSelectActivePendingUserInputOption(questionId, value));
 const flushPause = () => act(async () => {});
 
-beforeEach(() => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+async function setupTest() {
+  await using resources = new AsyncDisposableStack();
+
   vi.clearAllMocks();
   requestId = RuntimeRequestId.make(`question-${requestSequence++}`);
   state.pause.mockResolvedValue(AsyncResult.success(undefined));
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
-});
+  screen = resources.use(await renderUi(null, { router: false }));
 
-afterEach(() => {
-  act(() => root.unmount());
-  container.remove();
-  vi.unstubAllGlobals();
-});
+  return resources.move();
+}
 
 describe("question countdown pause", () => {
   it("pauses the countdown once when the user starts typing an answer", async () => {
-    render(projection());
+    await using _test = await setupTest();
+    await render(projection());
     expect(requests.supportsQuestionAutoDismiss).toBe(true);
-    typeAnswer("scope", "src");
-    typeAnswer("scope", "src/web");
+    await typeAnswer("scope", "src");
+    await typeAnswer("scope", "src/web");
     await flushPause();
     expect(requests.activePendingDraftAnswers.scope?.customAnswer).toBe("src/web");
     expect(state.pause).toHaveBeenCalledOnce();
@@ -195,41 +190,45 @@ describe("question countdown pause", () => {
   });
 
   it("pauses the countdown when the user chooses an option", async () => {
-    render(projection());
-    chooseOption("confirm", "yes");
+    await using _test = await setupTest();
+    await render(projection());
+    await chooseOption("confirm", "yes");
     await flushPause();
     expect(requests.activePendingDraftAnswers.confirm?.selectedOptionValues).toEqual(["yes"]);
     expect(state.pause).toHaveBeenCalledOnce();
   });
 
   it("keeps the countdown running for edits that change no answer", async () => {
-    render(projection());
+    await using _test = await setupTest();
+    await render(projection());
     const unchangedAnswer = requests.activePendingDraftAnswers.confirm?.customAnswer ?? "";
     expect(unchangedAnswer).toBe("");
-    typeAnswer("scope", "");
+    await typeAnswer("scope", "");
     expect(state.pause).not.toHaveBeenCalled();
-    typeAnswer("confirm", "typed into a choice-only question");
+    await typeAnswer("confirm", "typed into a choice-only question");
     await flushPause();
     expect(requests.activePendingDraftAnswers.confirm?.customAnswer ?? "").toBe(unchangedAnswer);
     expect(state.pause).not.toHaveBeenCalled();
   });
 
   it("never pauses a question that has no countdown", async () => {
-    render(projection({ nativeRequestRef: null }));
-    typeAnswer("scope", "src");
-    chooseOption("confirm", "yes");
+    await using _test = await setupTest();
+    await render(projection({ nativeRequestRef: null }));
+    await typeAnswer("scope", "src");
+    await chooseOption("confirm", "yes");
     await flushPause();
     expect(requests.activePendingDraftAnswers.scope?.customAnswer).toBe("src");
     expect(state.pause).not.toHaveBeenCalled();
   });
 
   it("shows a failed pause on the thread and tries again on the next answer", async () => {
+    await using _test = await setupTest();
     state.pause.mockResolvedValue(AsyncResult.failure(Cause.fail(new Error("Pause rejected"))));
-    render(projection());
-    typeAnswer("scope", "src");
+    await render(projection());
+    await typeAnswer("scope", "src");
     await flushPause();
     expect(setThreadError).toHaveBeenCalledWith(threadId, "Pause rejected");
-    typeAnswer("scope", "src/web");
+    await typeAnswer("scope", "src/web");
     await flushPause();
     expect(state.pause).toHaveBeenCalledTimes(2);
   });

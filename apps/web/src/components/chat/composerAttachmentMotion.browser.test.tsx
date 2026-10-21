@@ -1,18 +1,8 @@
-import { act, useState } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, expect, it, vi } from "vite-plus/test";
+import { useState } from "react";
+import { act, render } from "../../../test/render";
+import { expect, it, vi } from "vite-plus/test";
 
 import { useAttachmentExits, useAttachmentTrayMotion } from "./composerAttachmentMotion";
-
-let root: Root | undefined;
-let container: HTMLDivElement;
-afterEach(async () => {
-  if (root) await act(async () => root!.unmount());
-  root = undefined;
-  container?.remove();
-  vi.restoreAllMocks();
-  vi.unstubAllGlobals();
-});
 
 function Tray({ initial }: { initial: string[] }) {
   const [ids, setIds] = useState(initial);
@@ -37,7 +27,7 @@ function Tray({ initial }: { initial: string[] }) {
 }
 
 async function mountTray(initial: string[]) {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  await using resources = new AsyncDisposableStack();
   const exits = new Map<string, { finished: Promise<void>; finish: () => void }>();
   const exitOf = (id: string) => {
     let exit = exits.get(id);
@@ -52,13 +42,14 @@ async function mountTray(initial: string[]) {
     return exit;
   };
   // Each attachment's exit animation finishes when the test says so.
-  vi.spyOn(Element.prototype, "getAnimations").mockImplementation(function (this: Element) {
-    const id = this instanceof HTMLElement ? this.dataset.composerAttachment : undefined;
-    return id === undefined ? [] : [{ finished: exitOf(id).finished, effect: null } as never];
-  });
-  container = document.body.appendChild(document.createElement("div"));
-  root = createRoot(container);
-  await act(async () => root!.render(<Tray initial={initial} />));
+  resources.use(
+    vi.spyOn(Element.prototype, "getAnimations").mockImplementation(function (this: Element) {
+      const id = this instanceof HTMLElement ? this.dataset.composerAttachment : undefined;
+      return id === undefined ? [] : [{ finished: exitOf(id).finished, effect: null } as never];
+    }),
+  );
+  const screen = resources.use(await render(<Tray initial={initial} />));
+  const { container } = screen;
   const buttons = () => [...container.querySelectorAll("button")];
   const shown = () =>
     buttons().map((button) => [
@@ -73,11 +64,18 @@ async function mountTray(initial: string[]) {
     );
   const draft = () => container.querySelector("div")!.dataset.draft;
   const finishExit = (id: string) => act(async () => exitOf(id).finish());
-  return { draft, shown, remove, finishExit };
+  const cleanup = resources.move();
+  return {
+    draft,
+    shown,
+    remove,
+    finishExit,
+    [Symbol.asyncDispose]: () => cleanup[Symbol.asyncDispose](),
+  };
 }
 
 it("takes a removed attachment out of the draft at once and plays its exit in place", async () => {
-  const tray = await mountTray(["a", "b", "c"]);
+  await using tray = await mountTray(["a", "b", "c"]);
 
   await tray.remove("b");
   expect(tray.draft()).toBe("a c");
@@ -95,7 +93,7 @@ it("takes a removed attachment out of the draft at once and plays its exit in pl
 });
 
 it("keeps overlapping exits in their places", async () => {
-  const tray = await mountTray(["a", "b", "c", "d"]);
+  await using tray = await mountTray(["a", "b", "c", "d"]);
 
   await tray.remove("c");
   await tray.remove("b");
