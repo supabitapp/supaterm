@@ -67,6 +67,7 @@ const MOBILE_BUILD_ENV = {
   ...NodeProcess.env,
   ANDROID_HOME: ANDROID_SDK_ROOT,
   APP_VARIANT: "production",
+  MOBILE_VERSION_POLICY: "appVersion",
   EXPO_NO_GIT_STATUS: "1",
   // Lets the capture build require full screen on iPad so the app can rotate
   // itself to landscape (see app.config.ts).
@@ -992,7 +993,7 @@ async function captureIos(
   outputDirectory: string,
   config: ShowcaseConfig,
   metroHost: string,
-  pairingUrls: ReadonlyArray<string>,
+  createPairingUrls: () => Promise<ReadonlyArray<string>>,
   registerCleanup: (cleanup: IosCaptureCleanup) => void,
 ): Promise<void> {
   const { simulator, createdByRunner } = await ensureIosSimulator(capture.device);
@@ -1027,6 +1028,8 @@ async function captureIos(
   );
   const firstScene = capture.scenes[0] ?? "threads";
   const launchShowcaseApp = async (terminateRunningProcess: boolean) => {
+    const pairingUrls = await createPairingUrls();
+    await NodeFSP.rm(readyPath, { force: true });
     await runCommand("xcrun", [
       "simctl",
       "launch",
@@ -1047,7 +1050,6 @@ async function captureIos(
       capture.device.orientation ?? "portrait",
     ]);
   };
-  await NodeFSP.rm(readyPath, { force: true });
   await NodeFSP.writeFile(scenePath, firstScene);
   await launchShowcaseApp(false);
   for (const [sceneIndex, scene] of capture.scenes.entries()) {
@@ -1462,12 +1464,13 @@ async function main(): Promise<void> {
 
     for (const capture of captures) {
       const pairingHost = capture.device.platform === "ios" ? "127.0.0.1" : "10.0.2.2";
-      const pairingUrls = await Promise.all(
-        showcaseEnvironments.map(async (environment) => {
-          const credential = await issuePairingCredential(environment.baseDir);
-          return buildShowcasePairingUrl(pairingHost, environment.port, credential);
-        }),
-      );
+      const createPairingUrls = () =>
+        Promise.all(
+          showcaseEnvironments.map(async (environment) => {
+            const credential = await issuePairingCredential(environment.baseDir);
+            return buildShowcasePairingUrl(pairingHost, environment.port, credential);
+          }),
+        );
       if (capture.device.platform === "ios") {
         await captureIos(
           capture as ShowcaseCapture & { readonly device: ShowcaseIosDevice },
@@ -1475,7 +1478,7 @@ async function main(): Promise<void> {
           outputDirectory,
           showcaseConfig,
           metroHost,
-          pairingUrls,
+          createPairingUrls,
           (cleanup) => iosCleanups.push(cleanup),
         );
       } else {
@@ -1484,7 +1487,7 @@ async function main(): Promise<void> {
           androidApkPath,
           outputDirectory,
           showcaseConfig,
-          pairingUrls,
+          await createPairingUrls(),
           (cleanup) => androidCleanups.push(cleanup),
         );
       }
