@@ -2631,6 +2631,12 @@ export default function Sidebar() {
   const setPersistedProjectScopeKey = useUiStateStore((store) => store.setSidebarProjectScopeKey);
   const [threadListMenuOpen, setThreadListMenuOpen] = useState(false);
   const [projectFilterOpen, setProjectFilterOpen] = useState(false);
+  // Closing a controlled menu from code skips onOpenChange, so the submenu's
+  // flag, which arms the project shortcuts, has to close with it.
+  const closeThreadListMenu = () => {
+    setThreadListMenuOpen(false);
+    setProjectFilterOpen(false);
+  };
   const allProjectSnapshotsReady = useAllEnvironmentProjectSnapshotsReady();
   const allProjectConfigsReady = useAtomValue(environmentProjects.projectConfigsReadyAtom);
   const outboxEntries = useThreadOutbox();
@@ -2734,7 +2740,7 @@ export default function Sidebar() {
     keybindings,
     onSelect: (item) => {
       setProjectScopeKey(item.value === "all" ? null : item.value);
-      setThreadListMenuOpen(false);
+      closeThreadListMenu();
     },
   });
   const scopedProjectGroup =
@@ -2807,7 +2813,7 @@ export default function Sidebar() {
       event.preventDefault();
       event.stopPropagation();
       suppressNextScopeChangeRef.current = true;
-      setThreadListMenuOpen(false);
+      closeThreadListMenu();
       openProjectSettings(projectGroup);
     },
   );
@@ -4346,9 +4352,9 @@ export default function Sidebar() {
                     <SidebarThreadListMenu
                       open={threadListMenuOpen}
                       onOpenChange={(open) => {
-                        if (open) suppressNextScopeChangeRef.current = false;
-                        else setProjectFilterOpen(false);
-                        setThreadListMenuOpen(open);
+                        if (!open) return closeThreadListMenu();
+                        suppressNextScopeChangeRef.current = false;
+                        setThreadListMenuOpen(true);
                       }}
                       projectFilter={
                         <SidebarProjectFilterSubmenu

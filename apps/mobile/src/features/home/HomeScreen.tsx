@@ -532,7 +532,7 @@ export function HomeScreen(props: HomeScreenProps) {
     collapsedGroups,
     snoozedShelfExpanded,
     doneShelfExpanded,
-    selectedThreadKey: null,
+    selectedThreadKey,
   });
   const nextSnoozeWakeAt = threadListV2Layout.nextSnoozeWakeAt;
   useEffect(() => {
