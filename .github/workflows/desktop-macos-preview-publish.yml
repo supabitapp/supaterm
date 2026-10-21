@@ -27,7 +27,7 @@ jobs:
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.conclusion == 'success'
     # Skipped builds have no bundle. Keep their eligibility check cheap.
-    runs-on: ubuntu-24.04
+    runs-on: depot-ubuntu-24.04
     timeout-minutes: 10
     permissions:
       actions: read
@@ -152,7 +152,7 @@ jobs:
     name: Publish anonymous download
     needs: [resolve, build]
     if: needs.resolve.outputs.eligible == 'true' && needs.build.result == 'success'
-    runs-on: ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 10
     # Its own group, so a publish never cancels a newer commit's signing job
     # (they would share the build group) and is never cancelled mid-upload.
@@ -322,7 +322,7 @@ jobs:
     name: Remove preview download
     if: github.event_name == 'pull_request_target' && github.event.action == 'closed'
     # Runs on every PR close and usually finds nothing. Keep it cheap.
-    runs-on: ubuntu-24.04
+    runs-on: depot-ubuntu-24.04
     timeout-minutes: 10
     # Cleanup runs must complete instead of being canceled mid-delete.
     concurrency:

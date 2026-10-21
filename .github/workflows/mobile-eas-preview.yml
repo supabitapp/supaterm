@@ -26,7 +26,7 @@ jobs:
           - platform: ios
             runner: xcode-27
           - platform: android
-            runner: ubuntu-24.04
+            runner: depot-ubuntu-24.04-8
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     permissions:
