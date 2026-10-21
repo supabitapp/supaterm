@@ -202,7 +202,6 @@ overrides:
   "@effect/platform-node": "catalog:"
   "@effect/platform-node-shared": "catalog:"
   "@effect/vitest": "catalog:"
-  "@effect/vitest>vitest": "-"
   "@expo/dom-webview": 58.0.2
   "@expo/metro-config": 58.0.14
   expo-constants: 58.0.12
@@ -235,6 +234,9 @@ overrides:
   "undici@^8": "catalog:"
   vite: "catalog:"
   vite-plus: "catalog:"
+  # vp test runs the Vitest that Vite+ depends on, and @effect/vitest imports vitest
+  # directly. One version keeps one runner, expect and mock state. Move this with vite-plus.
+  vitest: 5.0.1
   yaml: "catalog:"
 
 packageExtensions:
@@ -260,11 +262,6 @@ packageExtensions:
     # Its generated declarations import core directly through an undeclared dependency.
     dependencies:
       "@react-navigation/core": ^7.21.2
-  # Our patch makes @effect/vitest import vite-plus/test. A catalog: spec here
-  # resolves through the vite-plus override above.
-  "@effect/vitest@*":
-    dependencies:
-      vite-plus: "catalog:"
 
 patchedDependencies:
   react-native-image-viewing@0.2.2: patches/react-native-image-viewing@0.2.2.patch
@@ -273,7 +270,6 @@ patchedDependencies:
   micromark-extension-gfm-table@2.1.1: patches/micromark-extension-gfm-table@2.1.1.patch
   expo-audio@58.0.9: patches/expo-audio@58.0.9.patch
   expo-network@58.0.3: patches/expo-network@58.0.3.patch
-  "@effect/vitest@4.0.5": patches/@effect__vitest@4.0.5.patch
   "@expo/metro-config@58.0.14": patches/@expo__metro-config@58.0.14.patch
   expo-sharing@58.0.19: patches/expo-sharing@58.0.19.patch
   "@ff-labs/fff-node@0.11.0": patches/@ff-labs__fff-node@0.11.0.patch
