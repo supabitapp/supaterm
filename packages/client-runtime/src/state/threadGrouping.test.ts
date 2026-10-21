@@ -76,10 +76,12 @@ describe("thread grouping", () => {
       { ...thread("missing"), environmentId: remote },
     ];
     const groups = groupInboxThreads({ mode: "project", projects, threads });
-    expect(groups.map((group) => [group.label, group.threads.map((row) => row.id)])).toEqual([
-      ["Second", ["second"]],
-      ["Shared", ["local", "remote"]],
-      ["Other projects", ["missing"]],
+    expect(
+      groups.map((group) => [group.label, group.projectKey, group.threads.map((row) => row.id)]),
+    ).toEqual([
+      ["Second", "second", ["second"]],
+      ["Shared", "shared", ["local", "remote"]],
+      ["Other projects", null, ["missing"]],
     ]);
   });
 

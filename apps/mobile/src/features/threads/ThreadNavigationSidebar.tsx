@@ -48,7 +48,7 @@ import { useThreadJumpShortcuts } from "../keyboard/threadKeyboardShortcuts";
 import { useHomeListOptions } from "../home/home-list-options";
 import { useThreadListFilterMenu } from "../home/useThreadListFilterMenu";
 import { buildHomeListFilterMenu } from "../home/home-list-filter-menu";
-import { buildHomeProjectScopes } from "../home/homeThreadList";
+import { buildHomeProjectScopes, findHomeProjectScope } from "../home/homeThreadList";
 import { SwipeableScrollGateProvider, useSwipeableScrollGate } from "../home/thread-swipe-actions";
 import { usePendingTaskListActions } from "../home/usePendingTaskListActions";
 import { useThreadListActions } from "../home/useThreadListActions";
@@ -461,6 +461,7 @@ function ThreadNavigationSidebarPane(
   const listExtraData = {
     selectedThreadKey: props.selectedThreadKey ?? "",
     projectByKey,
+    projectScopes,
     projectTitleByProjectKey,
     savedConnectionsById,
     listEnvironments,
@@ -540,6 +541,7 @@ function ThreadNavigationSidebarPane(
             timeLabel={item.timeLabel}
             project={projectByKey.get(scopeKey) ?? null}
             projectTitle={projectTitleByProjectKey.get(scopeKey)}
+            showProjectIcon={item.showProjectIcon}
             providerInstance={resolveProviderInstance(thread)}
             providers={providersByEnvironmentId.get(thread.environmentId)}
             environmentLabel={
@@ -588,6 +590,7 @@ function ThreadNavigationSidebarPane(
           <ThreadListV2GroupHeader
             groupKey={item.groupKey}
             label={item.label}
+            project={findHomeProjectScope(projectScopes, item.projectKey)?.representative ?? null}
             count={item.count}
             disabled={item.disabled}
             expanded={item.expanded}

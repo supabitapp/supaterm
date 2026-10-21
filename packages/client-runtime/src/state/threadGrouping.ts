@@ -20,6 +20,8 @@ export type ThreadGroupingContext =
 export interface ThreadDisplayGroup<T> {
   readonly key: string;
   readonly label: string;
+  /** The grouped project's key, or null for update-time buckets and "Other projects". */
+  readonly projectKey: string | null;
   readonly threads: readonly T[];
 }
 
@@ -65,17 +67,28 @@ export function groupInboxThreads<T extends GroupableThread>(
         left.thread.id.localeCompare(right.thread.id) ||
         left.thread.environmentId.localeCompare(right.thread.environmentId),
     );
-  const groups = new Map<string, { key: string; label: string; threads: T[] }>();
+  const groups = new Map<
+    string,
+    { key: string; label: string; projectKey: string | null; threads: T[] }
+  >();
   if (input.mode === "project") {
-    const projectGroups = new Map<string, { key: string; label: string; threads: T[] }>();
+    const projectGroups = new Map<
+      string,
+      { key: string; label: string; projectKey: string | null; threads: T[] }
+    >();
     for (const project of input.projects) {
       const key = `project:${project.key}`;
-      const group = { key, label: project.label, threads: [] as T[] };
+      const group = { key, label: project.label, projectKey: project.key, threads: [] as T[] };
       groups.set(key, group);
       for (const ref of project.memberProjectRefs) projectGroups.set(scopedProjectKey(ref), group);
     }
     const fallbackKey = "project:unavailable";
-    const fallback = { key: fallbackKey, label: "Other projects", threads: [] as T[] };
+    const fallback = {
+      key: fallbackKey,
+      label: "Other projects",
+      projectKey: null,
+      threads: [] as T[],
+    };
     groups.set(fallbackKey, fallback);
     for (const { thread } of ordered) {
       const group = projectGroups.get(scopedProjectKey(thread)) ?? fallback;
@@ -93,7 +106,7 @@ export function groupInboxThreads<T extends GroupableThread>(
       { key: "updated:yesterday", label: "Yesterday", start: DateTime.toEpochMillis(yesterday) },
       { key: "updated:week", label: "Last 7 days", start: DateTime.toEpochMillis(week) },
       { key: "updated:older", label: "Older", start: Number.NEGATIVE_INFINITY },
-    ].map((bucket) => ({ ...bucket, threads: [] as T[] }));
+    ].map((bucket) => ({ ...bucket, projectKey: null, threads: [] as T[] }));
     for (const bucket of buckets) groups.set(bucket.key, bucket);
     for (const { thread, activityAt } of ordered) {
       const bucket = buckets.find((candidate) => activityAt >= candidate.start);

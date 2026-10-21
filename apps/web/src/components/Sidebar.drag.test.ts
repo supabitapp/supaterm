@@ -3,8 +3,10 @@ import { closestCenter, type CollisionDetection } from "@dnd-kit/core";
 import { verticalListSortingStrategy, type SortingStrategy } from "@dnd-kit/sortable";
 import {
   createSidebarCollisionDetection,
+  createSidebarGroupCollisionDetection,
   createSidebarSortingStrategy,
   restrictBelowSidebarLabel,
+  sidebarProjectGroupBlocks,
 } from "./Sidebar.drag";
 import {
   resolveSidebarDropTarget,
@@ -1014,6 +1016,7 @@ it("keeps group headings and working rows visible during inbox and Done drag pre
   const group: SidebarListItem = {
     kind: "group",
     key: "project:p",
+    projectKey: "p",
     label: "Project",
     count: 1,
     collapsed: false,
@@ -1040,6 +1043,7 @@ it("reserves a scaled header gap when a drag introduces a new group", () => {
   const existing: SidebarListItem = {
     kind: "group",
     key: "project:one",
+    projectKey: "one",
     label: "One",
     count: 1,
     collapsed: false,
@@ -1047,6 +1051,7 @@ it("reserves a scaled header gap when a drag introduces a new group", () => {
   const introduced: SidebarListItem = {
     kind: "group",
     key: "project:two",
+    projectKey: "two",
     label: "Two",
     count: 1,
     collapsed: false,
@@ -1074,4 +1079,94 @@ it("reserves a scaled header gap when a drag introduces a new group", () => {
     );
     expect(transforms.get(sidebarMarkerId("done-header"))?.y).toBe(32 * scale + 1);
   }
+});
+
+describe("project group drag", () => {
+  const group = (key: string, projectKey: string | null): SidebarListItem => ({
+    kind: "group",
+    key: `project:${key}`,
+    projectKey,
+    label: key,
+    count: 1,
+    collapsed: false,
+  });
+  const first = group("first", "first");
+  const second = group("second", "second");
+  const other = group("unavailable", null);
+  const items = [
+    pinnedHeader,
+    divider,
+    first,
+    thread("f1", "active"),
+    thread("f2", "working"),
+    second,
+    thread("s1", "active"),
+    other,
+    thread("o1", "active"),
+    doneHeader,
+    thread("d", "done"),
+  ];
+
+  it("moves each project with the rows under it and never Other projects", () => {
+    expect(
+      sidebarProjectGroupBlocks(items).map((block) => [block.item.key, block.start, block.end]),
+    ).toEqual([
+      ["project:first", 2, 5],
+      ["project:second", 5, 7],
+    ]);
+  });
+
+  it("previews the dragged project as a header with its rows waiting in its new slot", () => {
+    const strategy = createSidebarSortingStrategy({
+      items,
+      doneOrder: ["d"],
+      doneExpanded: true,
+      inbox: undefined,
+    });
+    const args = layout(items, sidebarListItemId(first), sidebarListItemId(second));
+    const transforms = new Map(
+      items.map((item, index) => [sidebarListItemId(item), strategy({ ...args, index })]),
+    );
+    const top = (id: string) =>
+      args.rects[items.findIndex((item) => sidebarListItemId(item) === id)]!.top;
+    const firstTop = top(sidebarListItemId(first));
+    const secondTop = top(sidebarListItemId(second));
+    const secondSpan = top(sidebarListItemId(other)) - secondTop;
+    expect(transforms.get(sidebarListItemId(second))).toEqual({
+      ...stationary,
+      y: firstTop - secondTop,
+    });
+    expect(transforms.get("s1")?.y).toBe(firstTop - secondTop);
+    expect(transforms.get(sidebarListItemId(first))).toEqual(stationary);
+    expect(transforms.get("f1")).toEqual({ ...stationary, scaleY: 0, y: secondSpan });
+    expect(transforms.get(sidebarListItemId(other))).toEqual(stationary);
+    expect(transforms.get("d")).toEqual(stationary);
+  });
+
+  it("targets the slot nearest the dragged header in that collapsed layout", () => {
+    const { rects } = layout(items, sidebarListItemId(first), sidebarListItemId(first));
+    const detect = createSidebarGroupCollisionDetection(items);
+    const firstHeader = rects[2]!;
+    const secondSpan = rects[7]!.top - rects[5]!.top;
+    const targetAt = (centerY: number) => {
+      const collisionRect = { ...firstHeader, top: centerY - 16, bottom: centerY + 16 };
+      return detect({
+        active: {
+          id: sidebarListItemId(first),
+          data: { current: {} },
+          rect: { current: { initial: firstHeader, translated: collisionRect } },
+        },
+        collisionRect,
+        droppableRects: new Map(
+          items.map((item, index) => [sidebarListItemId(item), rects[index]!]),
+        ),
+        droppableContainers: [],
+        pointerCoordinates: null,
+      })[0]?.id;
+    };
+    const midpoint = firstHeader.top + 16 + secondSpan / 2;
+    expect(targetAt(midpoint - 2)).toBe(sidebarListItemId(first));
+    expect(targetAt(midpoint + 2)).toBe(sidebarListItemId(second));
+    expect(targetAt(rects.at(-1)!.bottom)).toBe(sidebarListItemId(second));
+  });
 });

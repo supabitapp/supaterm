@@ -49,6 +49,7 @@ import {
   DndContext,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
@@ -152,7 +153,7 @@ import { isMacPlatform } from "~/lib/utils";
 import { useOpenPrLink } from "../lib/openPullRequestLink";
 import { readLocalApi } from "../localApi";
 import { useSidebarPendingFileDropStore } from "../sidebarPendingFileDropStore";
-import { selectProjectGroupingSettings } from "../logicalProject";
+import { getProjectOrderKey, selectProjectGroupingSettings } from "../logicalProject";
 import {
   projectGroupMemberKeys,
   projectGroupsSpanEnvironments,
@@ -173,7 +174,7 @@ import { useTerminalFocus } from "../hooks/useTerminalFocus";
 import { registerAppCommandHandler } from "../appCommandBus";
 import { isCommandPaletteOpen, openCommandPalette } from "../commandPaletteBus";
 import { registerMarkDoneAndAdvance } from "../markDoneAndAdvance";
-import { useClientSettings } from "../hooks/useSettings";
+import { updateClientSettings, useClientSettings } from "../hooks/useSettings";
 import { usePickerShortcuts } from "../hooks/usePickerShortcuts";
 import { Kbd } from "./ui/kbd";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
@@ -248,6 +249,7 @@ import {
   shouldNavigateAfterThreadPark,
   shouldRecedeSidebarThread,
   shouldShowSidebarV2Duration,
+  isSidebarGroupId,
   sidebarListItemId,
   sidebarThreadKeyAtY,
   sortInboxThreadsByReturn,
@@ -261,8 +263,10 @@ import {
 import { resolveLocalCheckoutBranchMismatch } from "./BranchToolbar.logic";
 import {
   createSidebarCollisionDetection,
+  createSidebarGroupCollisionDetection,
   createSidebarSortingStrategy,
   restrictBelowSidebarLabel,
+  sidebarProjectGroupBlocks,
 } from "./Sidebar.drag";
 import { SidebarDragLifecycle, SidebarPointerSensor } from "./Sidebar.pointer";
 import { createSidebarListMotion } from "./Sidebar.motion";
@@ -1569,6 +1573,8 @@ type SidebarThreadRowProps = {
   environmentMachine: EnvironmentMachineKind;
   scratchMachineLabel: string | null;
   project: EnvironmentProject | null;
+  /** Off under a project group, whose header already shows the icon. */
+  showProjectIcon: boolean;
   projectDisplayName: string | null;
   providerEntryByInstanceId: ReadonlyMap<string, SidebarProviderEntry>;
   onThreadClick: (event: ReactMouseEvent, threadRef: ScopedThreadRef) => void;
@@ -2367,11 +2373,13 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
           {accessibleTitle}
           <div className="relative z-10 h-12 px-2.5 pt-1.5">
             <div className="flex h-5 min-w-0 items-center gap-1.5">
-              <span className="inline-flex size-4 shrink-0">
-                {props.project ? (
-                  <ProjectFavicon project={props.project} className="size-4" />
-                ) : null}
-              </span>
+              {props.showProjectIcon ? (
+                <span className="inline-flex size-4 shrink-0">
+                  {props.project ? (
+                    <ProjectFavicon project={props.project} className="size-4" />
+                  ) : null}
+                </span>
+              ) : null}
               {/* Left of the status slot, the pin would slide when hover swaps the
                 label for the wider row controls. */}
               {pinIndicator}
@@ -2547,6 +2555,7 @@ export default function Sidebar() {
   const confirmThreadArchive = useClientSettings((s) => s.confirmThreadArchive);
   const timestampFormat = useClientSettings((s) => s.timestampFormat);
   const threadGrouping = useClientSettings((s) => s.sidebarThreadGrouping);
+  const projectSortOrder = useClientSettings((s) => s.sidebarProjectSortOrder);
   const groupingProjects = projectGroups.map((group) => ({
     key: group.projectKey,
     label: group.displayName,
@@ -3190,6 +3199,7 @@ export default function Sidebar() {
     return bounds !== undefined && (point.x < bounds.left || point.x > bounds.right);
   };
   const moveThreadContextDrag = (point: { x: number; y: number }) => {
+    if (contextDragKeyRef.current === null) return false;
     const contextDrag = pointerOutsideThreadList(point);
     setDragState((current) =>
       current === null || current.contextDrag === contextDrag
@@ -3211,7 +3221,7 @@ export default function Sidebar() {
     return true;
   };
   const dropThreadContextDrag = (point: { x: number; y: number }) => {
-    if (!pointerOutsideThreadList(point)) return false;
+    if (contextDragKeyRef.current === null || !pointerOutsideThreadList(point)) return false;
     dropThreadContext(point, { kind: "threads", threads: contextDragThreads() });
     return true;
   };
@@ -3314,6 +3324,15 @@ export default function Sidebar() {
       toastThreadActionFailure("Failed to unpin thread", result),
     );
 
+  const handleGroupDragStart = () => {
+    listMotionRef.current?.suspend();
+    const list = threadListRef.current;
+    const firstGroup = list?.querySelector<HTMLElement>('[data-testid^="sidebar-group-project:"]');
+    dragLabelOffsetRef.current =
+      list && firstGroup
+        ? firstGroup.getBoundingClientRect().top - list.getBoundingClientRect().top
+        : 0;
+  };
   const handleThreadDragStart = (event: DragStartEvent) => {
     const activeKey = String(event.active.id);
     contextDragKeyRef.current = activeKey;
@@ -3508,6 +3527,29 @@ export default function Sidebar() {
       },
     );
   })();
+  const groupCollisionDetection = createSidebarGroupCollisionDetection(sidebarListItems);
+  const sidebarCollisionDetection: CollisionDetection = (args) =>
+    isSidebarGroupId(String(args.active.id))
+      ? groupCollisionDetection(args)
+      : dndCollisionDetection(args);
+  const handleGroupDragEnd = (event: DragEndEvent) => {
+    const blocks = sidebarProjectGroupBlocks(sidebarListItems);
+    const projectKeyOf = (id: string | undefined) =>
+      blocks.find((block) => sidebarListItemId(block.item) === id)?.item.projectKey ?? null;
+    const dragged = projectKeyOf(String(event.active.id));
+    const target = projectKeyOf(event.over === null ? undefined : String(event.over.id));
+    if (dragged === null || target === null || dragged === target) return;
+    const memberKeys = (projectKey: string) =>
+      projectGroupByScopeKey.get(projectKey)?.memberProjects.map(getProjectOrderKey) ?? [];
+    useUiStateStore.getState().reorderProjects(
+      projectGroups.flatMap((group) => group.memberProjects.map(getProjectOrderKey)),
+      memberKeys(dragged),
+      memberKeys(target),
+    );
+    if (projectSortOrder !== "manual") {
+      void updateClientSettings({ sidebarProjectSortOrder: "manual" });
+    }
+  };
   const handleThreadDragEnd = (event: DragEndEvent) => {
     const activeKey = String(event.active.id);
     const activeSection = sectionByThreadKey.get(activeKey);
@@ -4494,11 +4536,19 @@ export default function Sidebar() {
             <DndContext
               sensors={dndSensors}
               autoScroll={!isContextDrag}
-              collisionDetection={dndCollisionDetection}
+              collisionDetection={sidebarCollisionDetection}
               modifiers={dndModifiers}
-              onDragStart={handleThreadDragStart}
+              onDragStart={(event: DragStartEvent) =>
+                isSidebarGroupId(String(event.active.id))
+                  ? handleGroupDragStart()
+                  : handleThreadDragStart(event)
+              }
               onDragOver={handleThreadDragOver}
-              onDragEnd={handleThreadDragEnd}
+              onDragEnd={(event: DragEndEvent) =>
+                isSidebarGroupId(String(event.active.id))
+                  ? handleGroupDragEnd(event)
+                  : handleThreadDragEnd(event)
+              }
             >
               <SidebarDragLifecycle onUnmount={cancelThreadDrag} />
               <SortableContext items={sortableIds} strategy={sidebarSortingStrategy}>
@@ -4522,6 +4572,7 @@ export default function Sidebar() {
                     const renderThreadRow = (
                       thread: EnvironmentThreadShell,
                       section: SidebarSection,
+                      showProjectIcon: boolean,
                     ) => {
                       const threadKey = scopedThreadKey(
                         scopeThreadRef(thread.environmentId, thread.id),
@@ -4587,6 +4638,7 @@ export default function Sidebar() {
                           project={
                             projectByKey.get(`${thread.environmentId}:${thread.projectId}`) ?? null
                           }
+                          showProjectIcon={showProjectIcon}
                           projectDisplayName={
                             projectDisplayNameByKey.get(
                               `${thread.environmentId}:${thread.projectId}`,
@@ -4633,16 +4685,29 @@ export default function Sidebar() {
                         onNavigate={navigateToThread}
                       />
                     ));
+                    let underProjectGroup = false;
                     for (const item of sidebarListItems) {
                       if (item.kind === "thread") {
-                        items.push(renderThreadRow(threadByKey.get(item.key)!, item.section));
+                        items.push(
+                          renderThreadRow(
+                            threadByKey.get(item.key)!,
+                            item.section,
+                            !underProjectGroup,
+                          ),
+                        );
                         continue;
                       }
+                      underProjectGroup = item.kind === "group" && item.projectKey !== null;
                       if (item.kind === "group") {
                         items.push(
                           <SidebarGroupHeader
                             key={sidebarListItemId(item)}
                             item={item}
+                            project={
+                              item.projectKey === null
+                                ? null
+                                : (projectGroupByScopeKey.get(item.projectKey) ?? null)
+                            }
                             onToggle={toggleThreadGroup}
                             prepare={prepareShelfMotion}
                           />,

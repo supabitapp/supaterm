@@ -67,6 +67,7 @@ export function buildSidebarInboxItems(input: SidebarInboxInput): SidebarListIte
       kind: "group",
       key: group.key,
       label: group.label,
+      projectKey: group.projectKey,
       count: group.count,
       collapsed: group.collapsed,
     },

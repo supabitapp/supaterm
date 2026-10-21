@@ -164,14 +164,21 @@ export type SidebarListItem =
       readonly kind: "group";
       readonly key: string;
       readonly label: string;
+      readonly projectKey: string | null;
       readonly count: number;
       readonly collapsed: boolean;
     }
   | { readonly kind: "marker"; readonly marker: SidebarListMarker };
 
+const SIDEBAR_GROUP_PREFIX = "sidebar-group:";
+
 export function sidebarListItemId(item: SidebarListItem): string {
   if (item.kind === "marker") return sidebarMarkerId(item.marker);
-  return item.kind === "group" ? `sidebar-group:${item.key}` : item.key;
+  return item.kind === "group" ? `${SIDEBAR_GROUP_PREFIX}${item.key}` : item.key;
+}
+
+export function isSidebarGroupId(id: string): boolean {
+  return id.startsWith(SIDEBAR_GROUP_PREFIX);
 }
 
 /** The section a slot belongs to, read off the markers around it: from

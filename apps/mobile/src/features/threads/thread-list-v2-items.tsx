@@ -24,7 +24,15 @@ import { resolveThreadListDurationStartedAt } from "@supaterm/client-runtime/sta
 import { canSnooze, resolveSnoozePresets } from "@supaterm/client-runtime/state/thread-snooze";
 import { withOccurrenceKeys } from "@supaterm/shared/occurrenceKeys";
 import type { MenuAction } from "@react-native-menu/menu";
-import { memo, useCallback, useEffect, useMemo, useState, type ComponentProps } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from "react";
 import { Pressable, useWindowDimensions, View } from "react-native";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 
@@ -161,6 +169,7 @@ const SIDEBAR_V2_ROW_RADIUS = 12;
 
 function ThreadListV2Section(props: {
   readonly label: string;
+  readonly icon?: ReactNode;
   readonly pane?: "screen" | "sidebar";
   readonly disclosure?: {
     readonly expanded: boolean;
@@ -178,6 +187,7 @@ function ThreadListV2Section(props: {
   );
   const content = (
     <>
+      {props.icon}
       <Text
         className={cn(
           "shrink text-xs",
@@ -268,16 +278,29 @@ function ThreadListV2ShelfHeader(
 export const ThreadListV2GroupHeader = memo(function ThreadListV2GroupHeader(props: {
   readonly groupKey: string;
   readonly label: string;
+  readonly project?: EnvironmentProject | null;
   readonly count: number;
   readonly expanded: boolean;
   readonly disabled?: boolean;
   readonly onToggle: (groupKey: string) => void;
   readonly pane?: "screen" | "sidebar";
 }) {
-  const { groupKey, onToggle } = props;
+  const { groupKey, onToggle, project } = props;
   return (
     <ThreadListV2Section
       label={props.expanded ? props.label : `${props.label} (${props.count})`}
+      icon={
+        project ? (
+          <ProjectFavicon
+            environmentId={project.environmentId}
+            faviconPath={project.faviconPath}
+            projectIcon={project.projectIcon}
+            size={15}
+            projectTitle={project.title}
+            workspaceRoot={project.workspaceRoot}
+          />
+        ) : undefined
+      }
       pane={props.pane}
       disclosure={{
         expanded: props.expanded,
@@ -593,6 +616,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   readonly snoozePresetMinute: string;
   readonly project: EnvironmentProject | null;
   readonly projectTitle?: string;
+  readonly showProjectIcon?: boolean;
   readonly providers: ReadonlyArray<ThreadListProvider> | undefined;
   readonly providerInstance: ThreadRowProviderInstance | null;
   readonly environmentLabel: string | null;
@@ -656,6 +680,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   } = props;
   const snoozedRow = props.snoozed === true;
   const pinnedRow = props.pinned === true;
+  const iconProject = props.showProjectIcon === false ? null : props.project;
   const environmentConnected = useAtomValue(
     environmentPresentations.presentationAtom(thread.environmentId),
     isEnvironmentConnected,
@@ -1063,14 +1088,14 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   const cardContent = (
     <>
       <View className="flex-row items-center gap-1.5">
-        {props.project ? (
+        {iconProject ? (
           <ProjectFavicon
             environmentId={thread.environmentId}
-            faviconPath={props.project.faviconPath}
-            projectIcon={props.project.projectIcon}
+            faviconPath={iconProject.faviconPath}
+            projectIcon={iconProject.projectIcon}
             size={15}
-            projectTitle={props.project.title}
-            workspaceRoot={props.project.workspaceRoot}
+            projectTitle={iconProject.title}
+            workspaceRoot={iconProject.workspaceRoot}
           />
         ) : null}
         <Text
@@ -1352,15 +1377,15 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
             !environmentConnected && "opacity-50",
           )}
         >
-          {props.project ? (
+          {iconProject ? (
             <View className="opacity-40">
               <ProjectFavicon
                 environmentId={thread.environmentId}
-                faviconPath={props.project.faviconPath}
-                projectIcon={props.project.projectIcon}
+                faviconPath={iconProject.faviconPath}
+                projectIcon={iconProject.projectIcon}
                 size={15}
-                projectTitle={props.project.title}
-                workspaceRoot={props.project.workspaceRoot}
+                projectTitle={iconProject.title}
+                workspaceRoot={iconProject.workspaceRoot}
               />
             </View>
           ) : null}

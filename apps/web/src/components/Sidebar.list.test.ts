@@ -126,7 +126,14 @@ it("collapses a group to its header and the open thread, and counts what it hide
   const collapsed = buildSidebarInboxItems({ ...input, collapsedGroups: new Set(["project:p"]) });
   expect(expanded.filter((item) => item.kind === "thread")).toHaveLength(3);
   expect(collapsed).toEqual([
-    { kind: "group", key: "project:p", label: "Project", count: 3, collapsed: true },
+    {
+      kind: "group",
+      key: "project:p",
+      label: "Project",
+      projectKey: "p",
+      count: 3,
+      collapsed: true,
+    },
     { kind: "thread", key: "env:b", section: "active" },
   ]);
   expect(sidebarListLayoutKey(collapsed)).not.toEqual(

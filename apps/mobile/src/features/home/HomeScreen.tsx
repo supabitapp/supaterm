@@ -618,6 +618,7 @@ export function HomeScreen(props: HomeScreenProps) {
         <ThreadListV2GroupHeader
           groupKey={item.groupKey}
           label={item.label}
+          project={findHomeProjectScope(projectScopes, item.projectKey)?.representative ?? null}
           count={item.count}
           disabled={item.disabled}
           expanded={item.expanded}
@@ -697,6 +698,7 @@ export function HomeScreen(props: HomeScreenProps) {
         snoozeWakeLabelText={item.snoozeWakeLabelText}
         timeLabel={item.timeLabel}
         showTrailingDivider={item.showTrailingDivider}
+        showProjectIcon={item.showProjectIcon}
         project={projectByKey.get(scopedProjectKey(thread.environmentId, thread.projectId)) ?? null}
         projectTitle={v2ProjectTitleByProjectKey.get(
           scopedProjectKey(thread.environmentId, thread.projectId),
@@ -760,6 +762,7 @@ export function HomeScreen(props: HomeScreenProps) {
   // the same reason: the clock text is precomputed per item instead.
   const v2ExtraData = {
     projectByKey,
+    projectScopes,
     projectTitleByProjectKey: v2ProjectTitleByProjectKey,
     listEnvironments,
     savedConnectionsById: props.savedConnectionsById,

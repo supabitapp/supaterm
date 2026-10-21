@@ -257,6 +257,7 @@ export interface ThreadListV2Item {
 export interface ThreadListV2InboxGroup {
   readonly key: string;
   readonly label: string;
+  readonly projectKey: string | null;
   /** Threads in the group, including rows hidden by collapse. */
   readonly count: number;
   readonly collapsed: boolean;
@@ -296,6 +297,7 @@ export interface ThreadListV2ThreadListItem {
   readonly timeLabel: string;
   readonly snoozePresetMinute: string | undefined;
   readonly showTrailingDivider: boolean;
+  readonly showProjectIcon: boolean;
   /**
    * Carried on the item so an outbox write (which never touches the thread
    * shell) reaches the row through recycled-list equality instead of leaving a
@@ -369,6 +371,7 @@ export interface ThreadListV2GroupHeaderListItem {
   readonly key: string;
   readonly groupKey: string;
   readonly label: string;
+  readonly projectKey: string | null;
   readonly count: number;
   readonly expanded: boolean;
   readonly disabled: boolean;
@@ -400,6 +403,7 @@ export function threadListV2ListItemsAreEqual(
         previous.type === item.type &&
         previous.key === item.key &&
         previous.label === item.label &&
+        previous.projectKey === item.projectKey &&
         previous.count === item.count &&
         previous.expanded === item.expanded &&
         previous.disabled === item.disabled
@@ -416,6 +420,7 @@ export function threadListV2ListItemsAreEqual(
         previous.timeLabel === item.timeLabel &&
         previous.snoozePresetMinute === item.snoozePresetMinute &&
         previous.showTrailingDivider === item.showTrailingDivider &&
+        previous.showProjectIcon === item.showProjectIcon &&
         previous.hasQueuedMessages === item.hasQueuedMessages
       );
     case "v2-pending":
@@ -510,6 +515,7 @@ export function buildThreadListV2ListItems(input: {
       timeLabel: resolveThreadListV2ItemTimeLabel(item, snoozeWakeLabelText !== undefined),
       snoozePresetMinute,
       showTrailingDivider: false,
+      showProjectIcon: true,
       hasQueuedMessages:
         queuedThreadKeys?.has(`${item.thread.environmentId}:${item.thread.id}`) === true,
     };
@@ -571,11 +577,17 @@ export function buildThreadListV2ListItems(input: {
           key: `v2-group:${group.key}`,
           groupKey: group.key,
           label: group.label,
+          projectKey: group.projectKey,
           count: group.count,
           expanded: !group.collapsed,
           disabled: shelfDisabled,
         });
-        result.push(...threadItems.slice(index, index + group.rowCount));
+        const rows = threadItems.slice(index, index + group.rowCount);
+        result.push(
+          ...(group.projectKey === null
+            ? rows
+            : rows.map((row) => ({ ...row, showProjectIcon: false }))),
+        );
         index += group.rowCount;
       }
     }
@@ -892,6 +904,7 @@ export function buildThreadListV2Items(input: {
         : groups.map((group) => ({
             key: group.key,
             label: group.label,
+            projectKey: group.projectKey,
             count: group.count,
             collapsed: group.collapsed,
             rowCount: group.threads.length,

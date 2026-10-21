@@ -16,6 +16,7 @@ export function CollapsibleSectionHeader({
   size = "default",
   weight = "medium",
   variant = "default",
+  icon,
   accessory,
   ...buttonProps
 }: Omit<ComponentProps<"button">, "className" | "style" | "aria-expanded"> & {
@@ -24,6 +25,7 @@ export function CollapsibleSectionHeader({
   size?: "default" | "sm";
   weight?: "normal" | "medium";
   variant?: "default" | "panel";
+  icon?: ReactNode;
   accessory?: ReactNode;
 }) {
   return (
@@ -39,6 +41,7 @@ export function CollapsibleSectionHeader({
         tones[tone].label,
       )}
     >
+      {icon}
       <span className="min-w-0 truncate">{children}</span>
       <span aria-hidden className={cn("h-px min-w-2 flex-1", tones[tone].line)} />
       {accessory}

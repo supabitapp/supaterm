@@ -135,7 +135,9 @@ Project groups active and working threads by project. Updated groups them into *
 a message, a run being requested or completing, or reopening a thread; streamed output does
 not reorder it.
 Pinned, Snoozed, and Done remain shared shelves in every mode. Select a group's header to collapse
-it; the thread you have open stays visible. The grouping and collapsed groups are saved on this device.
+it; the thread you have open stays visible. On web and desktop, drag a project's header to reorder
+projects; this sets **Settings → General → Project order** to **Manual**, which the project pickers
+also follow. The grouping, collapsed groups, and project order are saved on this device.
 You can also change it in Settings → General on web and desktop, or Settings → Organization on mobile.
 
 ### Working threads

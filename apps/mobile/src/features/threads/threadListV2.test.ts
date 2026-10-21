@@ -2854,4 +2854,56 @@ describe("grouped inbox", () => {
       }).filter((row) => row.type === "v2-group-header" || row.type === "v2-thread"),
     ).toEqual([expect.objectContaining({ type: "v2-group-header", count: 3, expanded: false })]);
   });
+
+  it("moves the project icon from rows to their project header", () => {
+    const grouped = makeThread({ id: ThreadId.make("grouped"), title: "grouped", createdAt: NOW });
+    const other = makeThread({
+      id: ThreadId.make("other"),
+      title: "other",
+      createdAt: NOW,
+      projectId: ProjectId.make("project-elsewhere"),
+    });
+    const pinned = makeThread({ id: ThreadId.make("pinned"), title: "pinned", pinnedAt: NOW });
+    const done = makeThread({ id: ThreadId.make("done"), title: "done", doneOverride: "done" });
+    const rows = (grouping: "status" | "project" | "updated") =>
+      buildThreadListV2ListItems({
+        ...buildThreadListV2Items({
+          grouping,
+          threads: [grouped, other, pinned, done],
+          environmentId: null,
+          searchQuery: "",
+          now: NOW,
+          groupingProjects: [
+            {
+              key: "project",
+              label: "Project",
+              memberProjectRefs: [{ environmentId, projectId: grouped.projectId }],
+            },
+          ],
+        }),
+        pendingTasks: [],
+      }).flatMap((row): Array<readonly [string, string | boolean | null]> =>
+        row.type === "v2-group-header"
+          ? [[row.label, row.projectKey]]
+          : row.type === "v2-thread"
+            ? [[row.item.thread.id, row.showProjectIcon]]
+            : [],
+      );
+    expect(rows("project")).toEqual([
+      ["pinned", true],
+      ["Project", "project"],
+      ["grouped", false],
+      ["Other projects", null],
+      ["other", true],
+      ["done", true],
+    ]);
+    expect(rows("updated")).toEqual([
+      ["pinned", true],
+      ["Today", null],
+      ["grouped", true],
+      ["other", true],
+      ["done", true],
+    ]);
+    expect(rows("status").every((row) => row[1] === true)).toBe(true);
+  });
 });
