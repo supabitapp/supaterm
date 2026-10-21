@@ -2,7 +2,7 @@
 // @effect-diagnostics globalTimers:off -- Bound calls into the user's desktop session.
 import * as NodeFSP from "node:fs/promises";
 import * as NodePath from "node:path";
-import { Message, sessionBus, type MessageBus, type MessageLike } from "dbus-next";
+import { Message, sessionBus, type MessageBus, type MessageLike } from "@particle/dbus-next";
 import * as Schema from "effect/Schema";
 import type { DesktopCaptureExtensionState } from "@supaterm/contracts";
 

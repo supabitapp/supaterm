@@ -11,7 +11,7 @@ import {
   RequestNameReply,
   Variant,
   type MessageBus,
-} from "dbus-next";
+} from "@particle/dbus-next";
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
 const { connect, resize, imageSize } = vi.hoisted(() => ({
@@ -19,8 +19,8 @@ const { connect, resize, imageSize } = vi.hoisted(() => ({
   resize: vi.fn(() => ({ toPNG: () => Buffer.from("resized") })),
   imageSize: { width: 800, height: 600 },
 }));
-vi.mock("dbus-next", async (original) => ({
-  ...(await original<typeof import("dbus-next")>()),
+vi.mock("@particle/dbus-next", async (original) => ({
+  ...(await original<typeof import("@particle/dbus-next")>()),
   sessionBus: connect,
 }));
 vi.mock("electron", () => ({

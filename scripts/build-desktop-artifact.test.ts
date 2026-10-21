@@ -666,7 +666,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
           "@napi-rs/keyring": "^1.3.0",
           "@supaterm/contracts": "workspace:*",
           "@supaterm/shared": "workspace:*",
-          "dbus-next": "0.10.2",
+          "@particle/dbus-next": "0.11.4",
           effect: "catalog:",
           electron: "41.5.0",
           "electron-updater": "^6.6.2",

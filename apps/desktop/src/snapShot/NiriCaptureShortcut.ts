@@ -1,5 +1,5 @@
 // @effect-diagnostics globalTimers:off -- Bound session-bus registration at a native callback boundary.
-import { Message, MessageType, NameFlag, RequestNameReply, sessionBus } from "dbus-next";
+import { Message, MessageType, NameFlag, RequestNameReply, sessionBus } from "@particle/dbus-next";
 
 import {
   NIRI_CAPTURE_INTERFACE as INTERFACE,

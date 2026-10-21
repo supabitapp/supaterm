@@ -3,7 +3,7 @@ import * as NodeFSP from "node:fs/promises";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import * as NodeEvents from "node:events";
-import type { Message, MessageBus } from "dbus-next";
+import type { Message, MessageBus } from "@particle/dbus-next";
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 import {
   GnomeCaptureSetup,

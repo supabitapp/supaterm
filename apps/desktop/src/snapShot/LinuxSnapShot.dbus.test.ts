@@ -6,7 +6,7 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import * as NodeReadline from "node:readline";
 import * as NodeURL from "node:url";
-import { Message, NameFlag, Variant, sessionBus, type MessageBus } from "dbus-next";
+import { Message, NameFlag, Variant, sessionBus, type MessageBus } from "@particle/dbus-next";
 import { expect, it, vi } from "vite-plus/test";
 
 vi.mock("electron", () => ({

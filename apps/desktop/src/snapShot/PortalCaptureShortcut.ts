@@ -10,7 +10,7 @@ import {
   sessionBus,
   type MessageBus,
   type MessageLike,
-} from "dbus-next";
+} from "@particle/dbus-next";
 import * as Schema from "effect/Schema";
 import type { SnapShotKeyChord } from "@supaterm/contracts";
 import { HYPRLAND_CAPTURE_ACTION, portalShortcutTrigger } from "./linuxCaptureSession.ts";
