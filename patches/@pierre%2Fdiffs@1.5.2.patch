@@ -706,14 +706,13 @@ index 6f66bd3..3125fac 100644
  import { getHighlighterIfLoaded, getSharedHighlighter } from "../highlighter/shared_highlighter.js";
  import { dequeueRender, queueRender } from "../managers/UniversalRenderingManager.js";
  import { areThemesEqual } from "../utils/areThemesEqual.js";
-@@ -691,11 +692,20 @@ var FileDiff = class {
+@@ -691,11 +692,19 @@ var FileDiff = class {
  			this.removeRenderedCode();
  			this.clearAuxiliaryNodes();
  			try {
 -				const hunksResult = this.hunksRenderer.renderDiff(latestDiff, EMPTY_RENDER_RANGE);
 -				if (hunksResult != null) this.applyThemeState(fileContainer, hunksResult.themeStyles, themeType, hunksResult.baseThemeType);
 -				if (hunksResult?.headerElement != null) this.applyHeaderToDOM(hunksResult.headerElement, fileContainer, hunksResult.fileDiff);
-+				// An empty render range still highlights the full diff. Headers only need the theme.
 +				const theme = this.getTheme();
 +				const highlighter = getHighlighterIfLoaded({ theme, lang: "text" });
 +				if (highlighter != null) this.applyThemeState(fileContainer, getHighlighterThemeStyles({ theme, highlighter }), themeType, typeof theme === "string" ? highlighter.getTheme(theme).type : void 0);

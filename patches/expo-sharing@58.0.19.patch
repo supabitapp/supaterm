@@ -112,7 +112,7 @@ diff --git a/plugin/build/ios/xcode/addPbxGroup.js b/plugin/build/ios/xcode/addP
 index 0867938bdc6df7aeba560cb84dc9c9156c842d95..6ff5be15de702c79cc932def1af68e4c801db48e 100644
 --- a/plugin/build/ios/xcode/addPbxGroup.js
 +++ b/plugin/build/ios/xcode/addPbxGroup.js
-@@ -29,9 +29,23 @@ function addPbxGroup(xcodeProject, targetName, shareExtensionFiles, platformProj
+@@ -29,9 +29,21 @@ function addPbxGroup(xcodeProject, targetName, shareExtensionFiles, platformProj
      }).flat();
      // Add generated files
      targetFiles.push(`${targetName}.entitlements`);
@@ -120,8 +120,6 @@ index 0867938bdc6df7aeba560cb84dc9c9156c842d95..6ff5be15de702c79cc932def1af68e4c
      const sharedFiles = Object.values(shareExtensionFiles.sharedFiles ?? []).flat().map((file)=>_path().default.join(sharedFilesPath, file)).map((file)=>_path().default.relative(_path().default.join(platformProjectRoot, targetName, 'shared'), file));
 -    const { uuid: mainGroupUuid } = xcodeProject.addPbxGroup(targetFiles, targetName, targetName);
 +    const { uuid: mainGroupUuid, pbxGroup: mainGroup } = xcodeProject.addPbxGroup(targetFiles, targetName, targetName);
-+    // Xcode 27.2 rejects file references shared between groups. Bypass
-+    // addPbxGroup's path deduplication so the widget keeps its own Info.plist.
 +    const infoPlistReference = xcodeProject.generateUuid();
 +    const fileReferences = xcodeProject.pbxFileReferenceSection();
 +    fileReferences[infoPlistReference] = {
@@ -142,7 +140,7 @@ diff --git a/plugin/src/ios/xcode/addPbxGroup.ts b/plugin/src/ios/xcode/addPbxGr
 index 943c263c0cf58be595bfc9745c91827da81befec..3a99a1822beb25fea3835123b9a4ad7ac3b4f8d5 100644
 --- a/plugin/src/ios/xcode/addPbxGroup.ts
 +++ b/plugin/src/ios/xcode/addPbxGroup.ts
-@@ -19,14 +19,29 @@ export function addPbxGroup(
+@@ -19,14 +19,27 @@ export function addPbxGroup(
  
    // Add generated files
    targetFiles.push(`${targetName}.entitlements`);
@@ -159,8 +157,6 @@ index 943c263c0cf58be595bfc9745c91827da81befec..3a99a1822beb25fea3835123b9a4ad7a
 +    targetName,
 +    targetName
 +  );
-+  // Xcode 27.2 rejects file references shared between groups. Bypass
-+  // addPbxGroup's path deduplication so the widget keeps its own Info.plist.
 +  const infoPlistReference = xcodeProject.generateUuid();
 +  const fileReferences = xcodeProject.pbxFileReferenceSection();
 +  fileReferences[infoPlistReference] = {
