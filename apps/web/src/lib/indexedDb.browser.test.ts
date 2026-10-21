@@ -122,7 +122,7 @@ describe("IndexedDB transaction recovery", () => {
     expect(indexedDB.open).toHaveBeenCalledTimes(2);
   });
 
-  it("surfaces quota errors without reopening or repeating the operation", async () => {
+  it("does not reopen for transaction creation errors unrelated to closure", async () => {
     await using storage = fixture();
     const { read } = storage;
     await completed(await read());
@@ -149,7 +149,7 @@ describe("IndexedDB transaction recovery", () => {
     expect(() => initial.db.transaction("values")).toThrow();
   });
 
-  it("closes late results from blocked opens and shares a new opening attempt", async () => {
+  it("reopens after a blocked open and closes its abandoned result", async () => {
     await using storage = fixture();
     const { read } = storage;
     const initial = await read();

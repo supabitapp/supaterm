@@ -15,7 +15,7 @@ it("persists and removes project icons after the database silently closes", asyn
   await cache.hydrate();
 
   const original = IDBDatabase.prototype.transaction;
-  const closing = vi.spyOn(IDBDatabase.prototype, "transaction").mockImplementationOnce(function (
+  using closing = vi.spyOn(IDBDatabase.prototype, "transaction").mockImplementationOnce(function (
     this: IDBDatabase,
     stores,
     mode,

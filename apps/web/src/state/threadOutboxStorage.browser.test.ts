@@ -5,7 +5,7 @@ import { randomUUID } from "../lib/utils";
 
 import { browserThreadOutboxStorage as storage } from "./threadOutboxStorage";
 
-it("recovers queued messages and delivery leases when the database silently closes", async () => {
+it("preserves queued messages and delivery leases after a silent database close", async () => {
   const id = randomUUID();
   const entry = {
     id,
@@ -39,7 +39,7 @@ it("recovers queued messages and delivery leases when the database silently clos
   await storage.writeMany([entry]);
 
   const original = IDBDatabase.prototype.transaction;
-  const closing = vi.spyOn(IDBDatabase.prototype, "transaction").mockImplementationOnce(function (
+  using closing = vi.spyOn(IDBDatabase.prototype, "transaction").mockImplementationOnce(function (
     this: IDBDatabase,
     stores,
     mode,
