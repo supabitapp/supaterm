@@ -127,6 +127,7 @@ import {
 
 export const COMPOSER_COLLAPSED_CHROME = 60;
 
+const INLINE_EDITOR_HEIGHT = 36;
 const COLLAPSED_EDITOR_DEFAULT_INSET = 6;
 // iOS puts line-height slack above glyphs. DM Sans's lowercase midline is
 // descender (0.31em) + half x-height (0.504em) above the line bottom.
@@ -192,8 +193,6 @@ export interface ThreadComposerProps {
   /** Fires when the command popover opens or closes; hosts clear chrome it would overlap. */
   readonly onCommandMenuOpenChange?: (open: boolean) => void;
 }
-
-const INLINE_EDITOR_HEIGHT = 36;
 
 const COMPOSER_ATTACHMENT_ENTERING =
   Platform.OS === "android"
