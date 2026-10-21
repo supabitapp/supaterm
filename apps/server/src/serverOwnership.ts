@@ -36,6 +36,8 @@ import {
   type PersistedServerRuntimeState,
 } from "./serverRuntimeState.ts";
 
+const OWNERSHIP_LOCK_FIRST_VERSION = "26.10.2-nightly.20261016.229";
+
 export class ServerAlreadyRunningError extends Schema.TaggedError<ServerAlreadyRunningError>()(
   "ServerAlreadyRunningError",
   { stateDir: Schema.String },
@@ -172,7 +174,7 @@ const olderBootServiceHome = Effect.fn("olderBootServiceHome")(
     if (loaded && (yield* fs.exists(NodePath.join(runtimeDir, SERVICE_RESTART_PENDING_FILE)))) {
       return baseDir;
     }
-    return compareExactServiceVersions(version, "26.10.2-nightly.20261016.229") < 0
+    return compareExactServiceVersions(version, OWNERSHIP_LOCK_FIRST_VERSION) < 0
       ? baseDir
       : undefined;
   },
