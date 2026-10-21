@@ -547,7 +547,6 @@ function useSidebarThreads(input: {
   if (partitionNextWakeAt !== nextSnoozeWakeAt) setNextSnoozeWakeAt(partitionNextWakeAt);
 
   const { pinnedThreads, activeThreads, workingThreads, snoozedThreads, doneThreads } = partition;
-  const groupingNow = `${nowMinute}:00.000Z`;
   const visibleDoneThreads = (() => {
     if (doneThreads.length <= doneVisibleCount) return doneThreads;
     const visible = doneThreads.slice(0, doneVisibleCount);
@@ -584,7 +583,6 @@ function useSidebarThreads(input: {
     working: workingThreads,
     visibleWorking: visibleWorkingThreads,
     projects: input.groupingProjects,
-    now: groupingNow,
     collapsedGroups: collapsedThreadGroupKeys,
     routeThreadKey: routeRowThreadKey,
   });
@@ -613,7 +611,6 @@ function useSidebarThreads(input: {
   return {
     routeRowThreadKey,
     inboxItems,
-    groupingNow,
     ...partition,
     threads,
     serverThreadKeys,
@@ -2844,7 +2841,6 @@ export default function Sidebar() {
     visibleSnoozedThreads,
     visibleWorkingThreads,
     inboxItems,
-    groupingNow,
     orderedThreadKeys,
     threadByKey,
     doneThreadKeys,
@@ -3432,7 +3428,6 @@ export default function Sidebar() {
         workingShelfExpanded,
         routeThreadKey: routeRowThreadKey,
         projects: groupingProjects,
-        now: groupingNow,
         collapsedGroups: collapsedThreadGroupKeys,
       }),
     [
@@ -3445,7 +3440,6 @@ export default function Sidebar() {
       workingShelfExpanded,
       routeRowThreadKey,
       groupingProjects,
-      groupingNow,
       collapsedThreadGroupKeys,
     ],
   );

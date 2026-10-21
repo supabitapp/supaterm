@@ -362,7 +362,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "thread-grouping",
     title: "Thread grouping",
     to: "/settings/general",
-    searchTerms: ["sidebar status project updated date inbox"],
+    searchTerms: ["sidebar default status project inbox"],
   },
   {
     id: "project-grouping",

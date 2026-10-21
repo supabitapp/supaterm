@@ -59,7 +59,7 @@ export const SidebarProjectSortOrder = Schema.Literals(["updated_at", "created_a
 export type SidebarProjectSortOrder = typeof SidebarProjectSortOrder.Type;
 export const DEFAULT_SIDEBAR_PROJECT_SORT_ORDER: SidebarProjectSortOrder = "updated_at";
 
-export const SidebarThreadGrouping = Schema.Literals(["status", "project", "updated"]);
+export const SidebarThreadGrouping = Schema.Literals(["status", "project"]);
 export type SidebarThreadGrouping = typeof SidebarThreadGrouping.Type;
 
 export const SidebarThreadSortOrder = Schema.Literals(["updated_at", "created_at"]);

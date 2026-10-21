@@ -1,6 +1,6 @@
 import {
   collapseThreadGroups,
-  groupInboxThreads,
+  groupInboxThreadsByProject,
   type ThreadGroupingProject,
 } from "@supaterm/client-runtime/state/thread-grouping";
 import type { SidebarThreadGrouping } from "@supaterm/contracts";
@@ -774,11 +774,9 @@ export function buildThreadListV2Items(input: {
     grouping === "status"
       ? null
       : collapseThreadGroups(
-          groupInboxThreads({
+          groupInboxThreadsByProject({
             threads: [...active, ...working],
-            ...(grouping === "project"
-              ? { mode: grouping, projects: input.groupingProjects ?? [] }
-              : { mode: grouping, now }),
+            projects: input.groupingProjects ?? [],
           }),
           new Set(input.collapsedGroups),
           (thread) => `${thread.environmentId}:${thread.id}` === selectedThreadKey,

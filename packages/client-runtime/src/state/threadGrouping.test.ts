@@ -1,17 +1,17 @@
-// @effect-diagnostics globalDate:off -- Native local dates independently verify calendar and DST boundaries.
 import { EnvironmentId, ProjectId, RunId, ThreadId } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 import {
   collapseThreadGroups,
-  groupInboxThreads,
+  groupInboxThreadsByProject,
   resolveThreadActivityAt,
   toggleCollapsedThreadGroup,
 } from "./threadGrouping.ts";
 
 const environmentId = EnvironmentId.make("environment-1");
 const projectId = ProjectId.make("project-1");
-const local = (day: number, hour = 0) => new Date(2026, 2, day, hour).toISOString();
-const now = local(10, 12);
+const at = (day: number) => `2026-03-${String(day).padStart(2, "0")}T12:00:00.000Z`;
+const now = at(10);
+const projects = [{ key: "one", label: "One", memberProjectRefs: [{ environmentId, projectId }] }];
 function thread(id: string, activityAt = now) {
   return {
     id: ThreadId.make(id),
@@ -26,32 +26,6 @@ function thread(id: string, activityAt = now) {
 }
 
 describe("thread grouping", () => {
-  it("uses local calendar boundaries and moves groups at midnight", () => {
-    const groups = groupInboxThreads({
-      mode: "updated",
-      now,
-      threads: [
-        thread("today", local(10)),
-        thread("yesterday", local(9)),
-        thread("week", local(4)),
-        thread("older", local(3, 23)),
-      ],
-    });
-    expect(groups.map((group) => [group.label, group.threads.map((row) => row.id)])).toEqual([
-      ["Today", ["today"]],
-      ["Yesterday", ["yesterday"]],
-      ["Last 7 days", ["week"]],
-      ["Older", ["older"]],
-    ]);
-    expect(
-      groupInboxThreads({
-        mode: "updated",
-        now: local(11, 0),
-        threads: [thread("today", local(10))],
-      })[0]?.label,
-    ).toBe("Yesterday");
-  });
-
   it("groups scoped project identities in the supplied order without losing unavailable projects", () => {
     const remote = EnvironmentId.make("environment-2");
     const projects = [
@@ -75,7 +49,7 @@ describe("thread grouping", () => {
       { ...thread("second"), projectId: ProjectId.make("project-2") },
       { ...thread("missing"), environmentId: remote },
     ];
-    const groups = groupInboxThreads({ mode: "project", projects, threads });
+    const groups = groupInboxThreadsByProject({ projects, threads });
     expect(
       groups.map((group) => [group.label, group.projectKey, group.threads.map((row) => row.id)]),
     ).toEqual([
@@ -86,13 +60,13 @@ describe("thread grouping", () => {
   });
 
   it("orders by durable activity and ignores streaming metadata", () => {
-    const older = { ...thread("older", local(3)), updatedAt: now };
-    const newer = thread("newer", local(9));
-    const input = { mode: "updated" as const, now, threads: [older, newer] };
-    expect(groupInboxThreads(input).map((group) => group.threads.map((row) => row.id))).toEqual([
-      ["newer"],
-      ["older"],
-    ]);
+    const older = { ...thread("older", at(3)), updatedAt: now };
+    const newer = thread("newer", at(9));
+    expect(
+      groupInboxThreadsByProject({ projects, threads: [older, newer] })[0]?.threads.map(
+        (row) => row.id,
+      ),
+    ).toEqual(["newer", "older"]);
     expect(resolveThreadActivityAt({ ...older, reopenedAt: now })).toBe(Date.parse(now));
     expect(resolveThreadActivityAt({ ...older, latestUserMessageAt: now })).toBe(
       Date.parse(older.createdAt),
@@ -102,31 +76,31 @@ describe("thread grouping", () => {
     expect(
       resolveThreadActivityAt({
         ...older,
-        latestUserAuthoredMessageAt: local(9),
+        latestUserAuthoredMessageAt: at(9),
         latestUserMessageAt: now,
       }),
-    ).toBe(Date.parse(local(9)));
+    ).toBe(Date.parse(at(9)));
     expect(
       resolveThreadActivityAt({
         ...older,
         latestRun: {
           runId: RunId.make("run"),
           status: "completed",
-          requestedAt: local(9),
+          requestedAt: at(9),
           startedAt: now,
           completedAt: null,
           assistantMessageId: null,
         },
       }),
-    ).toBe(Date.parse(local(9)));
+    ).toBe(Date.parse(at(9)));
     expect(
       resolveThreadActivityAt({
         ...older,
         latestRun: {
           runId: RunId.make("run"),
           status: "completed",
-          requestedAt: local(9),
-          startedAt: local(9),
+          requestedAt: at(9),
+          startedAt: at(9),
           completedAt: now,
           assistantMessageId: null,
         },
@@ -135,24 +109,23 @@ describe("thread grouping", () => {
   });
 
   it("omits empty groups and deterministically orders ties", () => {
-    expect(groupInboxThreads({ mode: "updated", now, threads: [] })).toEqual([]);
-    const groups = groupInboxThreads({
-      mode: "updated",
-      now,
-      threads: [thread("z"), thread("a")],
-    });
+    expect(groupInboxThreadsByProject({ projects, threads: [] })).toEqual([]);
+    const groups = groupInboxThreadsByProject({ projects, threads: [thread("z"), thread("a")] });
     expect(groups[0]?.threads.map((row) => row.id)).toEqual(["a", "z"]);
   });
 
   it("collapses groups to the threads that must stay visible and keeps their full count", () => {
-    const groups = groupInboxThreads({
-      mode: "updated",
-      now,
-      threads: [thread("open", local(10)), thread("other", local(10)), thread("old", local(3))],
+    const groups = groupInboxThreadsByProject({
+      projects,
+      threads: [
+        thread("open"),
+        thread("other"),
+        { ...thread("elsewhere"), projectId: ProjectId.make("missing") },
+      ],
     });
     const collapsed = collapseThreadGroups(
       groups,
-      new Set(["updated:today", "updated:older"]),
+      new Set(["project:one", "project:unavailable"]),
       (row) => row.id === "open",
     );
     expect(
@@ -163,17 +136,17 @@ describe("thread grouping", () => {
         group.threads.map((row) => row.id),
       ]),
     ).toEqual([
-      ["Today", true, 2, ["open"]],
-      ["Older", true, 1, []],
+      ["One", true, 2, ["open"]],
+      ["Other projects", true, 1, []],
     ]);
   });
 
   it("toggles a group's collapsed key without touching the others", () => {
-    expect(toggleCollapsedThreadGroup(["updated:today"], "project:a")).toEqual([
-      "updated:today",
+    expect(toggleCollapsedThreadGroup(["project:b"], "project:a")).toEqual([
+      "project:b",
       "project:a",
     ]);
-    expect(toggleCollapsedThreadGroup(["updated:today", "project:a"], "updated:today")).toEqual([
+    expect(toggleCollapsedThreadGroup(["project:b", "project:a"], "project:b")).toEqual([
       "project:a",
     ]);
   });

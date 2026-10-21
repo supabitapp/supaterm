@@ -1,4 +1,3 @@
-import * as DateTime from "effect/DateTime";
 import type { SidebarThreadGrouping } from "@supaterm/contracts";
 import { scopedProjectKey } from "../environment/index.ts";
 import type { EnvironmentThreadShell } from "./models.ts";
@@ -6,21 +5,16 @@ import type { ProjectGroup } from "./projectGrouping.ts";
 import { toSortableTimestamp } from "./threadSort.ts";
 
 export const THREAD_GROUPING_OPTIONS = [
-  { value: "status", label: "Status" },
+  { value: "status", label: "Default" },
   { value: "project", label: "Project" },
-  { value: "updated", label: "Updated" },
 ] as const satisfies ReadonlyArray<{ value: SidebarThreadGrouping; label: string }>;
 
 export type ThreadGroupingProject = Pick<ProjectGroup, "key" | "label" | "memberProjectRefs">;
 
-export type ThreadGroupingContext =
-  | { readonly mode: "project"; readonly projects: readonly ThreadGroupingProject[] }
-  | { readonly mode: "updated"; readonly now: string };
-
 export interface ThreadDisplayGroup<T> {
   readonly key: string;
   readonly label: string;
-  /** The grouped project's key, or null for update-time buckets and "Other projects". */
+  /** The grouped project's key, or null for "Other projects". */
   readonly projectKey: string | null;
   readonly threads: readonly T[];
 }
@@ -56,9 +50,10 @@ export function resolveThreadActivityAt(thread: GroupableThread): number {
   );
 }
 
-export function groupInboxThreads<T extends GroupableThread>(
-  input: { readonly threads: readonly T[] } & ThreadGroupingContext,
-): ThreadDisplayGroup<T>[] {
+export function groupInboxThreadsByProject<T extends GroupableThread>(input: {
+  readonly threads: readonly T[];
+  readonly projects: readonly ThreadGroupingProject[];
+}): ThreadDisplayGroup<T>[] {
   const ordered = input.threads
     .map((thread) => ({ thread, activityAt: resolveThreadActivityAt(thread) }))
     .sort(
@@ -66,54 +61,32 @@ export function groupInboxThreads<T extends GroupableThread>(
         right.activityAt - left.activityAt ||
         left.thread.id.localeCompare(right.thread.id) ||
         left.thread.environmentId.localeCompare(right.thread.environmentId),
-    );
-  const groups = new Map<
-    string,
-    { key: string; label: string; projectKey: string | null; threads: T[] }
-  >();
-  if (input.mode === "project") {
-    const projectGroups = new Map<
-      string,
-      { key: string; label: string; projectKey: string | null; threads: T[] }
-    >();
-    for (const project of input.projects) {
-      const key = `project:${project.key}`;
-      const group = { key, label: project.label, projectKey: project.key, threads: [] as T[] };
-      groups.set(key, group);
-      for (const ref of project.memberProjectRefs) projectGroups.set(scopedProjectKey(ref), group);
-    }
-    const fallbackKey = "project:unavailable";
-    const fallback = {
-      key: fallbackKey,
-      label: "Other projects",
-      projectKey: null,
+    )
+    .map(({ thread }) => thread);
+  const groups: { key: string; label: string; projectKey: string | null; threads: T[] }[] = [];
+  const groupByProjectRef = new Map<string, (typeof groups)[number]>();
+  for (const project of input.projects) {
+    const group = {
+      key: `project:${project.key}`,
+      label: project.label,
+      projectKey: project.key,
       threads: [] as T[],
     };
-    groups.set(fallbackKey, fallback);
-    for (const { thread } of ordered) {
-      const group = projectGroups.get(scopedProjectKey(thread)) ?? fallback;
-      group.threads.push(thread);
-    }
-  } else {
-    const today = DateTime.startOf(
-      DateTime.makeZonedUnsafe(input.now, { timeZone: DateTime.zoneMakeLocal() }),
-      "day",
-    );
-    const yesterday = DateTime.subtract(today, { days: 1 });
-    const week = DateTime.subtract(today, { days: 6 });
-    const buckets = [
-      { key: "updated:today", label: "Today", start: DateTime.toEpochMillis(today) },
-      { key: "updated:yesterday", label: "Yesterday", start: DateTime.toEpochMillis(yesterday) },
-      { key: "updated:week", label: "Last 7 days", start: DateTime.toEpochMillis(week) },
-      { key: "updated:older", label: "Older", start: Number.NEGATIVE_INFINITY },
-    ].map((bucket) => ({ ...bucket, projectKey: null, threads: [] as T[] }));
-    for (const bucket of buckets) groups.set(bucket.key, bucket);
-    for (const { thread, activityAt } of ordered) {
-      const bucket = buckets.find((candidate) => activityAt >= candidate.start);
-      bucket?.threads.push(thread);
-    }
+    groups.push(group);
+    for (const ref of project.memberProjectRefs)
+      groupByProjectRef.set(scopedProjectKey(ref), group);
   }
-  return [...groups.values()].filter((group) => group.threads.length > 0);
+  const fallback = {
+    key: "project:unavailable",
+    label: "Other projects",
+    projectKey: null,
+    threads: [] as T[],
+  };
+  groups.push(fallback);
+  for (const thread of ordered) {
+    (groupByProjectRef.get(scopedProjectKey(thread)) ?? fallback).threads.push(thread);
+  }
+  return groups.filter((group) => group.threads.length > 0);
 }
 
 /** A collapsed group keeps only the threads `keepVisible` accepts, such as the open one. */

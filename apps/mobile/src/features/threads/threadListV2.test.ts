@@ -2752,65 +2752,62 @@ describe("Working section", () => {
 });
 
 describe("grouped inbox", () => {
-  it.each(["project", "updated"] as const)(
-    "keeps shared shelves and working cards in %s mode",
-    (grouping) => {
-      const active = makeThread({ id: ThreadId.make("active"), title: "Active", createdAt: NOW });
-      const working = makeThread({
-        id: ThreadId.make("working"),
-        title: "Working",
-        createdAt: NOW,
-        runtime: {
-          status: "running",
-          activeRunId: null,
-          providerInstanceId: ProviderInstanceId.make("codex"),
-          providerName: "Codex",
-          lastError: null,
-          updatedAt: NOW,
+  it("keeps shared shelves and working cards in project mode", () => {
+    const active = makeThread({ id: ThreadId.make("active"), title: "Active", createdAt: NOW });
+    const working = makeThread({
+      id: ThreadId.make("working"),
+      title: "Working",
+      createdAt: NOW,
+      runtime: {
+        status: "running",
+        activeRunId: null,
+        providerInstanceId: ProviderInstanceId.make("codex"),
+        providerName: "Codex",
+        lastError: null,
+        updatedAt: NOW,
+      },
+    });
+    const done = makeThread({ id: ThreadId.make("done"), title: "Done", doneOverride: "done" });
+    const pinned = makeThread({ id: ThreadId.make("pinned"), title: "Pinned", pinnedAt: NOW });
+    const input = {
+      grouping: "project" as const,
+      threads: [active, working, done, pinned],
+      environmentId: null,
+      searchQuery: "",
+      now: NOW,
+      groupingProjects: [
+        {
+          key: "project",
+          label: "Project",
+          memberProjectRefs: [{ environmentId, projectId: active.projectId }],
         },
-      });
-      const done = makeThread({ id: ThreadId.make("done"), title: "Done", doneOverride: "done" });
-      const pinned = makeThread({ id: ThreadId.make("pinned"), title: "Pinned", pinnedAt: NOW });
-      const input = {
-        grouping,
-        threads: [active, working, done, pinned],
-        environmentId: null,
-        searchQuery: "",
-        now: NOW,
-        groupingProjects: [
-          {
-            key: "project",
-            label: "Project",
-            memberProjectRefs: [{ environmentId, projectId: active.projectId }],
-          },
-        ],
-      };
-      const layout = buildThreadListV2Items(input);
-      expect(layout.activeCount).toBe(2);
-      expect(layout.workingShelfHeaderIndex).toBeNull();
-      expect(
-        layout.items
-          .filter((row) => [active.id, working.id].includes(row.thread.id))
-          .map((row) => row.variant),
-      ).toEqual(["card", "card"]);
-      const list = buildThreadListV2ListItems({ ...layout, pendingTasks: [] });
-      expect(list.filter((row) => row.type === "v2-done-shelf")).toHaveLength(1);
-      expect(list.filter((row) => row.type === "v2-working-shelf")).toHaveLength(0);
-      expect(list.filter((row) => row.type === "v2-group-header")).toHaveLength(1);
-      const collapsed = buildThreadListV2Items({
-        ...input,
-        activeShelfExpanded: false,
-        selectedThreadKey: `${environmentId}:${working.id}`,
-      });
-      expect(collapsed.items.map((row) => row.thread.id)).toEqual([pinned.id, working.id, done.id]);
-      expect(collapsed.inboxGroups).toBeNull();
-      expect(
-        buildThreadListV2Items({ ...input, searchQuery: "Working" }).items.map(
-          (row) => row.thread.id,
-        ),
-      ).toEqual([working.id]);
-    },
-  );
+      ],
+    };
+    const layout = buildThreadListV2Items(input);
+    expect(layout.activeCount).toBe(2);
+    expect(layout.workingShelfHeaderIndex).toBeNull();
+    expect(
+      layout.items
+        .filter((row) => [active.id, working.id].includes(row.thread.id))
+        .map((row) => row.variant),
+    ).toEqual(["card", "card"]);
+    const list = buildThreadListV2ListItems({ ...layout, pendingTasks: [] });
+    expect(list.filter((row) => row.type === "v2-done-shelf")).toHaveLength(1);
+    expect(list.filter((row) => row.type === "v2-working-shelf")).toHaveLength(0);
+    expect(list.filter((row) => row.type === "v2-group-header")).toHaveLength(1);
+    const collapsed = buildThreadListV2Items({
+      ...input,
+      activeShelfExpanded: false,
+      selectedThreadKey: `${environmentId}:${working.id}`,
+    });
+    expect(collapsed.items.map((row) => row.thread.id)).toEqual([pinned.id, working.id, done.id]);
+    expect(collapsed.inboxGroups).toBeNull();
+    expect(
+      buildThreadListV2Items({ ...input, searchQuery: "Working" }).items.map(
+        (row) => row.thread.id,
+      ),
+    ).toEqual([working.id]);
+  });
 
   it("collapses a group to its header and the selected thread, counting the hidden rows", () => {
     const threads = ["a", "b", "c"].map((id) =>
@@ -2865,7 +2862,7 @@ describe("grouped inbox", () => {
     });
     const pinned = makeThread({ id: ThreadId.make("pinned"), title: "pinned", pinnedAt: NOW });
     const done = makeThread({ id: ThreadId.make("done"), title: "done", doneOverride: "done" });
-    const rows = (grouping: "status" | "project" | "updated") =>
+    const rows = (grouping: "status" | "project") =>
       buildThreadListV2ListItems({
         ...buildThreadListV2Items({
           grouping,
@@ -2894,13 +2891,6 @@ describe("grouped inbox", () => {
       ["Project", "project"],
       ["grouped", false],
       ["Other projects", null],
-      ["other", true],
-      ["done", true],
-    ]);
-    expect(rows("updated")).toEqual([
-      ["pinned", true],
-      ["Today", null],
-      ["grouped", true],
       ["other", true],
       ["done", true],
     ]);

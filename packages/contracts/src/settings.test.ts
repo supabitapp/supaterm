@@ -1275,7 +1275,7 @@ describe("thread grouping preference", () => {
   it("defaults existing client settings to status", () => {
     expect(decodeClientSettings({}).sidebarThreadGrouping).toBe("status");
   });
-  it.each(["status", "project", "updated"])("round trips %s", (sidebarThreadGrouping) => {
+  it.each(["status", "project"])("round trips %s", (sidebarThreadGrouping) => {
     const input = { sidebarThreadGrouping };
     expect(encodeClientSettings(decodeClientSettings(input))).toMatchObject(input);
     expect(decodeClientSettingsPatch(input)).toEqual(input);

@@ -42,7 +42,7 @@ function ThreadListFilterPill({ filter }: { readonly filter: HomeListFilterMenuS
     <ListFilterMenu
       label={
         filter.kind === "grouping"
-          ? `Group: ${current?.title ?? "Status"}`
+          ? `Group: ${current?.title ?? "Default"}`
           : (current?.title ?? filter.title)
       }
       accessibilityLabel={

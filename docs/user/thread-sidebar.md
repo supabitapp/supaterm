@@ -109,7 +109,7 @@ On web and desktop, the list also animates section changes made with thread acti
 preference. While dragging, rows follow the insertion gap without replaying a second transition
 after the drop.
 
-In Status grouping, the active list is ordered by when each thread last came back to you.
+In Default grouping, the active list is ordered by when each thread last came back to you.
 You cannot manually reorder threads in the active list. The Done shelf lists the most recently
 finished threads first, and **Show more** reveals older history below them.
 
@@ -129,12 +129,11 @@ open.
 ### Group the inbox
 
 Use **Thread list options → Grouping**, or the **Group:** menu on iPhone, to choose
-**Status**, **Project**, or **Updated**. On web and desktop, **Thread list options → Project** shows
-a single project's threads; right-click a project there to open its settings.
-Project groups active and working threads by project. Updated groups them into **Today**,
-**Yesterday**, **Last 7 days**, and **Older**, using your local calendar. Activity means sending
-a message, a run being requested or completing, or reopening a thread; streamed output does
-not reorder it.
+**Default** or **Project**. On web and desktop, **Thread list options → Project** shows a single
+project's threads; right-click a project there to open its settings.
+Project groups active and working threads by project, most recent activity first. Activity means
+sending a message, a run being requested or completing, or reopening a thread; streamed output
+does not reorder it.
 Pinned, Snoozed, and Done remain shared shelves in every mode. Select a group's header to collapse
 it; the thread you have open stays visible. On web and desktop, drag a project's header to reorder
 projects; this sets **Settings → General → Project order** to **Manual**, which the project pickers
@@ -143,7 +142,7 @@ You can also change it in Settings → General on web and desktop, or Settings �
 
 ### Working threads
 
-In Status grouping, threads that are working or monitoring fold into a collapsed **Working**
+In Default grouping, threads that are working or monitoring fold into a collapsed **Working**
 section. A thread returns to the top of the active list when it finishes, fails, or needs an approval or answer.
 The Working section lists the thread you last sent work to first. Pinned threads stay in the
 pinned section.

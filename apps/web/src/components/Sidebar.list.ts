@@ -2,7 +2,7 @@ import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/enviro
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import {
   collapseThreadGroups,
-  groupInboxThreads,
+  groupInboxThreadsByProject,
   type ThreadGroupingProject,
 } from "@supaterm/client-runtime/state/thread-grouping";
 import {
@@ -34,7 +34,6 @@ interface SidebarInboxInput {
   readonly working: readonly EnvironmentThreadShell[];
   readonly visibleWorking: readonly EnvironmentThreadShell[];
   readonly projects: readonly ThreadGroupingProject[];
-  readonly now: string;
   readonly collapsedGroups: ReadonlySet<string>;
   readonly routeThreadKey: string | null;
 }
@@ -52,11 +51,9 @@ export function buildSidebarInboxItems(input: SidebarInboxInput): SidebarListIte
     ];
   }
   const workingKeys = new Set(input.working.map(threadShellKey));
-  const groups = groupInboxThreads({
+  const groups = groupInboxThreadsByProject({
     threads: [...input.active, ...input.working],
-    ...(input.mode === "project"
-      ? { mode: input.mode, projects: input.projects }
-      : { mode: input.mode, now: input.now }),
+    projects: input.projects,
   });
   return collapseThreadGroups(
     groups,

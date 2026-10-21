@@ -24,7 +24,6 @@ it("keeps state on grouped rows and one shared Done shelf", () => {
         memberProjectRefs: [{ environmentId, projectId: row("a").projectId }],
       },
     ],
-    now: "2026-10-21T12:00:00.000Z",
     collapsedGroups: new Set(),
     routeThreadKey: null,
   });
@@ -75,7 +74,6 @@ it("previews an unpinned working thread in the Working shelf and preserves colla
     working: [returning],
     visibleWorking: [],
     projects: [],
-    now,
     collapsedGroups: new Set<string>(),
   };
   expect(buildSidebarInboxItems({ ...input, routeThreadKey: null })).toEqual([
@@ -119,7 +117,6 @@ it("collapses a group to its header and the open thread, and counts what it hide
         memberProjectRefs: [{ environmentId, projectId: threads[0]!.projectId }],
       },
     ],
-    now: "2026-10-21T12:00:00.000Z",
     routeThreadKey: "env:b",
   };
   const expanded = buildSidebarInboxItems({ ...input, collapsedGroups: new Set() });
