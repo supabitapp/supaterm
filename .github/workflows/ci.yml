@@ -19,7 +19,7 @@ jobs:
   # passes only when every other job does.
   lint:
     name: Lint
-    runs-on: depot-ubuntu-24.04-32
+    runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -58,7 +58,7 @@ jobs:
 
   typecheck:
     name: Typecheck
-    runs-on: depot-ubuntu-24.04-32
+    runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -78,7 +78,7 @@ jobs:
 
   build:
     name: Build
-    runs-on: depot-ubuntu-24.04-32
+    runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -120,7 +120,7 @@ jobs:
 
   test:
     name: Test
-    runs-on: depot-ubuntu-24.04-32
+    runs-on: depot-ubuntu-24.04-16
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -156,7 +156,7 @@ jobs:
           command -v cc
 
       - name: Test
-        run: vp run --parallel --concurrency-limit 4 --filter '!supaterm' --filter '!@supaterm/monorepo' --filter '!@supaterm/web' --filter '!@supaterm/mobile' test --maxWorkers 8
+        run: vp run --parallel --concurrency-limit 4 --filter '!supaterm' --filter '!@supaterm/monorepo' --filter '!@supaterm/web' --filter '!@supaterm/mobile' test --maxWorkers 4
 
   test_mobile:
     name: Test Mobile ${{ matrix.shard }}
@@ -165,7 +165,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -234,8 +234,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard:
-          [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -343,7 +342,7 @@ jobs:
   # lint runs.
   mobile_native_changes:
     name: Mobile Native Changes
-    runs-on: depot-ubuntu-24.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -483,7 +482,7 @@ jobs:
         mobile_native_static_analysis,
         release_smoke,
       ]
-    runs-on: depot-ubuntu-24.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Require every job to pass
