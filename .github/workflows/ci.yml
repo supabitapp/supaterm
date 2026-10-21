@@ -421,7 +421,7 @@ jobs:
     # Skip only on an explicit "no": a gate job that failed or errored leaves the
     # output empty, and that must run the lint rather than silently skip it.
     if: ${{ !cancelled() && needs.mobile_native_changes.outputs.changed != 'false' }}
-    runs-on: depot-macos-26
+    runs-on: macos-26
     timeout-minutes: 10
     steps:
       - name: Checkout
