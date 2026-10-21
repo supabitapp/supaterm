@@ -17,7 +17,7 @@ jobs:
   trust:
     name: Check PR author trust
     if: github.event.action != 'labeled' || github.event.label.name == 'preview:web'
-    runs-on: depot-ubuntu-24.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       status: ${{ steps.vouch.outputs.status }}
@@ -35,7 +35,7 @@ jobs:
     name: Build web preview
     needs: trust
     if: contains(fromJSON('["bot", "collaborator", "vouched"]'), needs.trust.outputs.status)
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       VITE_HOSTED_APP_URL: https://preview-${{ github.event.pull_request.number }}.supaterm.com

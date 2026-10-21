@@ -53,7 +53,7 @@ concurrency:
 jobs:
   prepare:
     name: Prepare mobile release
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'build' && inputs.version != '' && 'release' || '' }}
     if: github.repository == 'supabitapp/supaterm'
@@ -171,7 +171,7 @@ jobs:
             import fs from "node:fs";
             const include = [
               { platform: "ios", runner: "xcode-27" },
-              { platform: "android", runner: "depot-ubuntu-24.04-8" },
+              { platform: "android", runner: "ubuntu-24.04" },
             ].filter(({ platform }) =>
               process.env.MOBILE_PLATFORM === "all" || platform === process.env.MOBILE_PLATFORM);
             fs.appendFileSync(process.env.GITHUB_OUTPUT, "matrix=" + JSON.stringify({ include }) + "\n");
@@ -347,7 +347,7 @@ jobs:
     name: Submit iOS public beta
     needs: [prepare, production]
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.prepare.result == 'success' && needs.prepare.outputs.enabled == 'true' }}
-    runs-on: depot-ubuntu-24.04
+    runs-on: ubuntu-24.04
     environment: release
     timeout-minutes: 60
     permissions:

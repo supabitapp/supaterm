@@ -31,7 +31,7 @@ permissions:
 
 jobs:
   prepare:
-    runs-on: depot-ubuntu-24.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     if: github.ref == 'refs/heads/main'
     outputs:
@@ -93,7 +93,7 @@ jobs:
     name: Submit ${{ matrix.platform }} for review
     needs: [prepare, capture]
     if: always() && needs.prepare.outputs.enabled == 'true' && (needs.capture.result == 'success' || inputs.screenshots_run_id != '')
-    runs-on: depot-ubuntu-24.04
+    runs-on: ubuntu-24.04
     environment: release
     timeout-minutes: 90
     concurrency:

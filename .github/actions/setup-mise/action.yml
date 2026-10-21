@@ -2,7 +2,7 @@ name: Setup Mise
 description: Install the project runtime tools through Mise
 inputs:
   cache:
-    description: Restore and save the Mise tool cache. Jobs that publish or hold secrets turn it off, because any branch can write the cache on Depot runners.
+    description: Restore and save the Mise tool cache. Jobs that publish or hold secrets turn it off.
     default: "true"
 runs:
   using: composite

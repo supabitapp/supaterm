@@ -19,7 +19,7 @@ jobs:
   # passes only when every other job does.
   lint:
     name: Lint
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -58,7 +58,7 @@ jobs:
 
   typecheck:
     name: Typecheck
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -78,7 +78,7 @@ jobs:
 
   build:
     name: Build
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -126,7 +126,7 @@ jobs:
   # per runner is unchanged.
   test:
     name: Test
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -169,7 +169,7 @@ jobs:
   # release.yml mirrors this test, test_web, and test_server split.
   test_web:
     name: Test Web
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -214,13 +214,13 @@ jobs:
   # one at a time. Sharding spreads them over separate runners instead of
   # separate workers, so no two server test files ever share a machine and the
   # isolation that flag buys is preserved exactly. One file at a time keeps
-  # about 1.5 cores busy, so 4 vCPU runners lose nothing against 8. The shards
+  # about 1.5 cores busy, which fits the standard 4 vCPU runners. The shards
   # split files by recorded duration (apps/server/src/testUtils/weightedShardSequencer.ts).
   # This job sets the workflow's wall time, so it gets more shards than the
   # release run. Past about ten, AcpAdapterV2.test.ts (~54s alone) is the floor.
   test_server:
     name: Test Server ${{ matrix.shard }}
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -302,7 +302,7 @@ jobs:
   # for checks that take under 3s, on the critical path of every PR.
   rust:
     name: Rust
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -333,7 +333,7 @@ jobs:
   # lint runs.
   mobile_native_changes:
     name: Mobile Native Changes
-    runs-on: depot-ubuntu-24.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -431,7 +431,7 @@ jobs:
 
   release_smoke:
     name: Release Smoke
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -472,7 +472,7 @@ jobs:
         mobile_native_static_analysis,
         release_smoke,
       ]
-    runs-on: depot-ubuntu-24.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Require every job to pass
