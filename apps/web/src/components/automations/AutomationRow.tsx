@@ -198,9 +198,9 @@ export function AutomationRow({
           <Clock3Icon aria-hidden className="size-4 shrink-0" />
           <span>{scheduleLabel(task.schedule)}</span>
         </p>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-          <Badge variant="secondary">{nextRunLabel(task, now)}</Badge>
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-x-4 gap-y-1.5">
           <LastRunStatus task={task} now={now} />
+          <Badge variant="secondary">{nextRunLabel(task, now)}</Badge>
         </div>
       </div>
       {task.lastRunError ? (
