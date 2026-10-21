@@ -19,17 +19,14 @@ with it. Who an install belongs to is a separate fact, sent as
 `install.owner_observed`. Owners are resolved at query time in our own store, so
 a rule can change and apply to all history.
 
-[Owner sources](../../apps/server/src/telemetry/Identify.ts), strongest first:
-Supaterm Connect, then the OpenAI and Claude person ids, then the client device. The
-server reports what it can read itself: the linked Connect account and provider
-logins. A connecting client reports its signed-in Connect account and its device,
-which links every environment opened from one phone, browser, or desktop. Use the
-OpenAI `user_id` claim, not the Codex `account_id` (the ChatGPT workspace, which a
-whole Team shares) or the token `sub` (one per login method). Two Connect accounts are never the same person, whatever
-weaker ids they share.
+[Owner sources](../../apps/server/src/telemetry/Identify.ts) are the OpenAI and Claude
+person ids and the client device. The server reports provider logins it can read.
+A connecting client reports its device, which links every environment opened from
+one phone, browser, or desktop. Use the OpenAI `user_id` claim, not the Codex
+`account_id` (the ChatGPT workspace, which a whole Team shares) or the token `sub`
+(one per login method).
 
-Every id is SHA-256 hashed with [one helper](../../packages/shared/src/telemetryId.ts)
-on both sides, so a Connect account hashes the same on the client and the server.
+Every id is SHA-256 hashed with [one helper](../../packages/shared/src/telemetryId.ts).
 The server accepts only hashes from clients.
 
 ## Attribution boundaries

@@ -40,22 +40,16 @@ const clientMetadataTokenExchangeFields = (
   };
 };
 
-export interface ClientOwnerParams {
-  readonly device?: string;
-}
-
-export const readClientOwnerParams = Effect.gen(function* () {
+export const readClientDeviceHash = Effect.gen(function* () {
   const device = yield* (yield* ClientCapabilities.AnalyticsDevice).id;
-  return (
-    Option.isSome(device) ? { device: hashTelemetryId(device.value) } : {}
-  ) satisfies ClientOwnerParams;
+  return Option.isSome(device) ? hashTelemetryId(device.value) : undefined;
 });
 
 export const appendClientConnectionParams = (
   url: URL,
   clientMetadata: AuthClientPresentationMetadata | undefined,
   connectionMethod?: ClientConnectionMethod,
-  owners?: ClientOwnerParams,
+  clientDeviceHash?: string,
 ): void => {
   if (clientMetadata?.surface) {
     url.searchParams.set("clientSurface", clientMetadata.surface);
@@ -94,8 +88,8 @@ export const appendClientConnectionParams = (
   if (connectionMethod) {
     url.searchParams.set("connectionMethod", connectionMethod);
   }
-  if (owners?.device) {
-    url.searchParams.set("clientDevice", owners.device);
+  if (clientDeviceHash) {
+    url.searchParams.set("clientDevice", clientDeviceHash);
   }
 };
 
@@ -188,7 +182,7 @@ export const resolveRemoteWebSocketConnectionUrl = Effect.fn(
     url,
     input.clientMetadata,
     input.connectionMethod,
-    yield* readClientOwnerParams,
+    yield* readClientDeviceHash,
   );
   return url.toString();
 });

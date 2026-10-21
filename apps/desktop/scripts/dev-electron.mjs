@@ -48,7 +48,6 @@ const watchedDirectories = [
 ];
 const forcedShutdownTimeoutMs = 1_500;
 const restartDebounceMs = 120;
-const childTreeGracePeriodMs = 1_200;
 const remoteDebuggingPort = process.env.SUPATERM_DESKTOP_REMOTE_DEBUGGING_PORT?.trim();
 // oxlint-disable-next-line supaterm/no-global-process-runtime -- Standalone dev script has no Effect runtime.
 const hostPlatform = NodeOS.platform();
@@ -81,27 +80,17 @@ let restartQueue = Promise.resolve();
 const expectedExits = new WeakSet();
 const watchers = [];
 
-function killChildTreeByPid(pid, signal) {
-  if (hostPlatform === "win32" || typeof pid !== "number") {
-    return;
-  }
-
-  NodeChildProcess.spawnSync("pkill", [`-${signal}`, "-P", String(pid)], { stdio: "ignore" });
-}
-
-function cleanupStaleDevApps() {
+function signalApp(app, signal) {
   if (hostPlatform === "win32") {
+    app.kill(signal);
     return;
   }
-
-  const escapedDesktopDir = desktopDir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  NodeChildProcess.spawnSync(
-    "pkill",
-    ["-f", "--", `(^| )--supaterm-dev-root=${escapedDesktopDir}( |$)`],
-    {
-      stdio: "ignore",
-    },
-  );
+  if (typeof app.pid !== "number") return;
+  try {
+    process.kill(-app.pid, signal);
+  } catch (error) {
+    if (error.code !== "ESRCH") throw error;
+  }
 }
 
 function startApp() {
@@ -121,6 +110,7 @@ function startApp() {
     cwd: desktopDir,
     env: childEnv,
     stdio: "inherit",
+    detached: hostPlatform !== "win32",
   });
 
   currentApp = app;
@@ -136,6 +126,7 @@ function startApp() {
   });
 
   app.once("exit", (code, signal) => {
+    signalApp(app, "SIGKILL");
     if (currentApp === app) {
       currentApp = null;
     }
@@ -169,18 +160,14 @@ async function stopApp() {
     };
 
     app.once("exit", finish);
-    app.kill("SIGTERM");
-    killChildTreeByPid(app.pid, "TERM");
-    cleanupStaleDevApps();
+    signalApp(app, "SIGTERM");
 
     setTimeout(() => {
       if (settled) {
         return;
       }
 
-      app.kill("SIGKILL");
-      killChildTreeByPid(app.pid, "KILL");
-      cleanupStaleDevApps();
+      signalApp(app, "SIGKILL");
       finish();
     }, forcedShutdownTimeoutMs).unref();
   });
@@ -226,16 +213,6 @@ function startWatchers() {
   }
 }
 
-function killChildTree(signal) {
-  if (hostPlatform === "win32") {
-    return;
-  }
-
-  NodeChildProcess.spawnSync("pkill", [`-${signal}`, "-P", String(process.pid)], {
-    stdio: "ignore",
-  });
-}
-
 async function shutdown(exitCode) {
   if (shuttingDown) return;
   shuttingDown = true;
@@ -250,17 +227,11 @@ async function shutdown(exitCode) {
   }
 
   await stopApp();
-  killChildTree("TERM");
-  await new Promise((resolve) => {
-    setTimeout(resolve, childTreeGracePeriodMs);
-  });
-  killChildTree("KILL");
 
   process.exit(exitCode);
 }
 
 startWatchers();
-cleanupStaleDevApps();
 startApp();
 
 process.once("SIGINT", () => {

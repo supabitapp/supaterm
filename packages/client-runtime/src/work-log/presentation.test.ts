@@ -380,7 +380,7 @@ describe("resolveWorkEntryToolPresentation", () => {
   });
 
   it("distinguishes an interrupted unwatch from a completed unwatch", () => {
-    const entry = { label: "Supaterm-code.unwatch_pull_request" };
+    const entry = { label: "supaterm.unwatch_pull_request" };
     expect(
       (["inProgress", "stopped", "completed"] as const).map(
         (toolLifecycleStatus) =>
@@ -398,7 +398,7 @@ describe("resolveWorkEntryToolPresentation", () => {
       id: "guides",
       createdAt: "2026-10-07T00:00:00.000Z",
       tone: "tool",
-      label: "Supaterm-code.write_pull_request_guides",
+      label: "supaterm.write_pull_request_guides",
       toolLifecycleStatus: "completed",
     } satisfies WorkLogPresentationEntry;
     expect({
@@ -413,7 +413,7 @@ describe("resolveWorkEntryToolPresentation", () => {
   });
 
   it("describes delegated-task cancellation as an ongoing action then a request", () => {
-    const entry = { label: "Supaterm-code.task_cancel" };
+    const entry = { label: "supaterm.task_cancel" };
     expect(
       (["inProgress", "completed"] as const).map(
         (toolLifecycleStatus) =>

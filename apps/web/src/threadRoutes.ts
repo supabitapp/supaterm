@@ -42,7 +42,7 @@ export function resolveThreadRouteRenderState(input: {
   if (input.draftThreadExists || (input.serverThreadExists && !input.serverThreadDeleted)) {
     return "ready";
   }
-  if (!input.bootstrapComplete) {
+  if (!input.bootstrapComplete || input.outboxLoaded === false) {
     return "loading";
   }
   if (

@@ -446,7 +446,7 @@ describe("thread context authorization", () => {
             yield* Stream.runDrain(client[WS_METHODS.gitRunStackedAction](withThread)).pipe(
               Effect.flip,
             ),
-          ).toMatchObject({ requiredPermission: AuthOrchestrationReadScope });
+          ).toMatchObject({ requiredScope: AuthOrchestrationReadScope });
           expect(handled).toEqual(["without-thread"]);
         } else {
           yield* Stream.runDrain(client[WS_METHODS.gitRunStackedAction](withThread));

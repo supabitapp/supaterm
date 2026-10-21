@@ -366,7 +366,7 @@ it.layer(NodeServices.layer)("ensurePinnedRuntimeInstalled", (it) => {
         assert.isTrue(cancelled, "the stalled transfer must be cancelled after one minute");
         const error = yield* Fiber.join(install).pipe(Effect.flip);
         assert.instanceOf(error, PinnedRuntimeInstallError);
-        assert.equal(error.step, "downloading the supaterm release archive (timed out)");
+        assert.equal(error.step, "downloading the Supaterm release archive (timed out)");
         assert.deepEqual(commands, []);
         assert.isTrue(progress.every((event) => event.stage === "download"));
         assert.deepEqual(yield* fs.readDirectory(path.join(baseDir, "runtime", "versions")), []);

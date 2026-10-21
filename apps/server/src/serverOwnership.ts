@@ -172,9 +172,9 @@ const olderBootServiceHome = Effect.fn("olderBootServiceHome")(
     if (loaded && (yield* fs.exists(NodePath.join(runtimeDir, SERVICE_RESTART_PENDING_FILE)))) {
       return baseDir;
     }
-    // Stable 0.1.0 shipped the ownership lock. Earlier lock-aware prereleases
-    // are conservatively refused because older runtimes expose no capability marker.
-    return compareExactServiceVersions(version, "0.1.0") < 0 ? baseDir : undefined;
+    return compareExactServiceVersions(version, "26.10.2-nightly.20261016.229") < 0
+      ? baseDir
+      : undefined;
   },
   Effect.orElseSucceed(() => undefined),
 );

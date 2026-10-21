@@ -41,19 +41,22 @@ vi.mock("../persistence/layer", async () => {
   const Layer = await import("effect/Layer");
   return { layer: Layer.effectDiscard(Effect.promise(mocks.readStorage)) };
 });
-vi.mock("../features/cloud/dpop", async () => ({
-  layer: (await import("effect/Layer")).empty,
+vi.mock("./crypto", async () => ({
+  cryptoLayer: (await import("effect/Layer")).empty,
 }));
-vi.mock("../features/cloud/managedRelayLayer", async () => {
+vi.mock("./relayGateway", async () => {
+  const { RelayGateway } = await import("@supaterm/client-runtime/relay");
   const Layer = await import("effect/Layer");
-  return { layer: () => Layer.empty };
+  return {
+    layer: Layer.succeed(RelayGateway, {
+      available: false,
+      lease: vi.fn(),
+      resolve: vi.fn(),
+      release: vi.fn(),
+      fetch: vi.fn(),
+    }),
+  };
 });
-vi.mock("../features/cloud/publicConfig", () => ({
-  resolveCloudPublicConfig: () => ({ relay: { url: null } }),
-}));
-vi.mock("../features/observability/tracing", async () => ({
-  layer: (await import("effect/Layer")).empty,
-}));
 vi.mock("@supaterm/client-runtime/rpc", async () => {
   const Layer = await import("effect/Layer");
   return { layerRemoteHttpClient: () => Layer.empty };

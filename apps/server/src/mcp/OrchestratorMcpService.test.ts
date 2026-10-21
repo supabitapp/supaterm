@@ -2374,6 +2374,7 @@ describe("OrchestratorMcpService provider resolution", () => {
                         ? [
                             {
                               id: RunId.make("run:mcp-restarted-child"),
+                              delegatedTaskId: taskId,
                               ordinal: 1,
                               status: "running",
                               modelSelection: runSelection,

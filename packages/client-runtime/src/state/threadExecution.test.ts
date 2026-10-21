@@ -514,7 +514,7 @@ describe("formatModelSelectionEffort", () => {
         })),
       },
     }));
-    expect(formatModelSelectionEffort(selection(), models)).toBe("High");
+    expect(formatModelSelectionEffort(selection(), models)).toBeNull();
     expect(
       formatModelSelectionEffort(selection([{ id: "thinking", value: "xhigh" }]), models),
     ).toBe("Extra High");

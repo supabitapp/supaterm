@@ -1,4 +1,5 @@
 import { type ClientConnectionMethod, EnvironmentId } from "@supaterm/contracts";
+import { RelayTunnelFailure } from "@supaterm/shared/relay/protocol";
 import * as Schema from "effect/Schema";
 
 const ConnectionTargetBase = {
@@ -68,12 +69,7 @@ export type ConnectionBlockedReason = typeof ConnectionBlockedReason.Type;
 export const ConnectionHop = Schema.Literals(["device", "relay", "tunnel", "server"]);
 export type ConnectionHop = typeof ConnectionHop.Type;
 
-export const ConnectionFailureCause = Schema.Literals([
-  "host-offline",
-  "relay-busy",
-  "relay-timeout",
-  "relay-unreachable",
-]);
+export const ConnectionFailureCause = RelayTunnelFailure;
 export type ConnectionFailureCause = typeof ConnectionFailureCause.Type;
 
 const ConnectionFailureFields = {

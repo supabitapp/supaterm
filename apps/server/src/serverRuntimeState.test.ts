@@ -41,7 +41,7 @@ const startBesideBootService = Effect.fn("test.startBesideBootService")(function
     yield* fs.makeDirectory(path.join(home, "userdata"), { recursive: true });
   }
   yield* fs.makeDirectory(path.join(serviceHome, "runtime"));
-  const activeVersion = input.activeVersion ?? "0.0.42";
+  const activeVersion = input.activeVersion ?? "26.10.1";
   if (!input.missingServiceState) {
     yield* fs.writeFileString(
       path.join(serviceHome, "runtime", "service-state.json"),
@@ -311,6 +311,11 @@ describe("server ownership", () => {
             outputs: { "launchctl print": { code: 0 } },
             environment: { [SERVICE_LAUNCHER_CONTEXT_ENV]: "{}" },
           },
+          {
+            platform: "darwin",
+            activeVersion: "26.10.2-nightly.20261016.228",
+            outputs: { "launchctl print": { code: 0 } },
+          },
         ] as const) {
           const { result, supatermHome } = yield* startBesideBootService(fixture);
           assert.equal(result._tag, "Failure");
@@ -331,7 +336,7 @@ describe("server ownership", () => {
         Effect.gen(function* () {
           const { result } = yield* startBesideBootService({
             platform: "linux",
-            activeVersion: "0.0.40",
+            activeVersion: "26.10.1",
             npmRuntime: true,
             outputs: {
               "systemctl is-active": { code: 0, stdout: "active\n" },
@@ -349,7 +354,7 @@ describe("server ownership", () => {
         const { result } = yield* startBesideBootService({
           platform: "darwin",
           restartPending: true,
-          activeVersion: "0.1.0",
+          activeVersion: "26.10.3",
           outputs: {
             "launchctl print": { code: 0 },
           },
@@ -358,7 +363,7 @@ describe("server ownership", () => {
       }).pipe(Effect.provide(NodeServices.layer)),
     );
 
-    it.effect("allows lock-aware stable services that are loaded or stopped and enabled", () =>
+    it.effect("allows lock-aware services that are loaded or stopped and enabled", () =>
       Effect.gen(function* () {
         for (const fixture of [
           {
@@ -375,8 +380,10 @@ describe("server ownership", () => {
             },
           },
         ] as const) {
-          const { result } = yield* startBesideBootService({ ...fixture, activeVersion: "0.1.0" });
-          assert.equal(result._tag, "Success");
+          for (const activeVersion of ["26.10.2-nightly.20261016.229", "26.10.2", "26.10.3"]) {
+            const { result } = yield* startBesideBootService({ ...fixture, activeVersion });
+            assert.equal(result._tag, "Success");
+          }
         }
       }).pipe(Effect.provide(NodeServices.layer)),
     );

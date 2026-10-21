@@ -113,39 +113,33 @@ export function mapRemoteEnvironmentError(
   }
 }
 
+const relayTunnelFailures = {
+  "host-offline": {
+    reason: "endpoint-unavailable",
+    detail: "The environment is offline. Make sure Supaterm is running on that computer.",
+    hop: "tunnel",
+  },
+  "relay-busy": {
+    reason: "remote-unavailable",
+    detail: "The relay is busy right now.",
+    hop: "relay",
+  },
+  "relay-timeout": {
+    reason: "timeout",
+    detail: "The relay did not respond in time.",
+    hop: "relay",
+  },
+  "relay-unreachable": {
+    reason: "network",
+    detail: "The relay could not be reached.",
+    hop: "relay",
+  },
+} satisfies Record<RelayTunnelFailure, Pick<ConnectionTransientError, "reason" | "detail" | "hop">>;
+
 function relayTunnelError(failure: RelayTunnelFailure): ConnectionTransientError {
-  switch (failure) {
-    case "host-offline":
-      return new ConnectionTransientError({
-        reason: "endpoint-unavailable",
-        detail: "The environment is offline. Make sure Supaterm is running on that computer.",
-        hop: "tunnel",
-        via: "relay",
-        failureCause: failure,
-      });
-    case "relay-busy":
-      return new ConnectionTransientError({
-        reason: "remote-unavailable",
-        detail: "The relay is busy right now.",
-        hop: "relay",
-        via: "relay",
-        failureCause: failure,
-      });
-    case "relay-timeout":
-      return new ConnectionTransientError({
-        reason: "timeout",
-        detail: "The relay did not respond in time.",
-        hop: "relay",
-        via: "relay",
-        failureCause: failure,
-      });
-    case "relay-unreachable":
-      return new ConnectionTransientError({
-        reason: "network",
-        detail: "The relay could not be reached.",
-        hop: "relay",
-        via: "relay",
-        failureCause: failure,
-      });
-  }
+  return new ConnectionTransientError({
+    ...relayTunnelFailures[failure],
+    via: "relay",
+    failureCause: failure,
+  });
 }

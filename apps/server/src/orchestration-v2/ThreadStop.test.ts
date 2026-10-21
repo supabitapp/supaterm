@@ -726,6 +726,8 @@ it.effect(
       yield* createWatchingThread(threadId, 3);
       yield* watchRun(threadId, 42);
       assert.deepEqual(yield* watchedRuns(threadId), [42]);
+      yield* TestClock.adjust("1 second");
+      const stoppedAt = yield* DateTime.now;
 
       yield* orchestrator.dispatch({
         type: "thread.stop",
@@ -734,6 +736,10 @@ it.effect(
       });
       assert.deepEqual(yield* threadState(threadId), { runs: [], watched: [] });
       assert.deepEqual(yield* watchedRuns(threadId), []);
+      assert.deepEqual(
+        (yield* orchestrator.getThreadProjection(threadId)).thread.updatedAt,
+        stoppedAt,
+      );
 
       const again = yield* orchestrator.dispatch({
         type: "thread.stop",

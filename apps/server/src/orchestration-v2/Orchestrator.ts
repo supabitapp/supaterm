@@ -8745,19 +8745,22 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       liveness.set(providerThreadId, live);
       return live;
     });
-    const stillReportsBackgroundWork = Effect.fnUntraced(function* (
+    const shouldPreserveBackgroundTasks = Effect.fnUntraced(function* (
       providerThread: OrchestrationV2ProviderThread,
     ) {
       if (providerThread.providerSessionId == null) return false;
       const session = yield* providerSessions
         .get(providerThread.providerSessionId)
         .pipe(Effect.orElseSucceed(() => Option.none()));
-      if (Option.isNone(session) || session.value.hasPendingBackgroundWorkForThread === undefined) {
-        return false;
+      if (Option.isNone(session)) return false;
+      if (session.value.hasPendingBackgroundWorkForThread === undefined) {
+        return (
+          providerThread.lastRunOrdinal !== null &&
+          providerThread.lastRunOrdinal > input.throughRunOrdinal
+        );
       }
       return yield* session.value
         .hasPendingBackgroundWorkForThread(providerThread)
-        // A failed probe cannot confirm that the work ended.
         .pipe(Effect.catchCause(() => Effect.succeed(true)));
     });
     for (const item of pendingBackgroundTurnItems({
@@ -8862,19 +8865,10 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       }
     }
     for (const providerThread of input.projection.providerThreads) {
-      // A live process owns its roster except when this Stop just returned
-      // without a terminal event. Do not clear a later run's roster on the
-      // same provider thread, or a different live provider thread's roster.
-      const stoppedRunOwnsRoster =
-        providerThread.id === input.stoppedProviderThreadId &&
-        providerThread.lastRunOrdinal !== null &&
-        providerThread.lastRunOrdinal <= input.throughRunOrdinal;
       if ((providerThread.pendingBackgroundTasks?.length ?? 0) === 0) continue;
       if (providerThread.id === input.stoppedProviderThreadId) {
-        // A refused newer start can take ownership and reject the stopped
-        // turn's roster clear. Reconcile it without hiding surviving work.
-        if (yield* stillReportsBackgroundWork(providerThread)) continue;
-      } else if ((yield* hasLiveSession(providerThread.id)) && !stoppedRunOwnsRoster) {
+        if (yield* shouldPreserveBackgroundTasks(providerThread)) continue;
+      } else if (yield* hasLiveSession(providerThread.id)) {
         continue;
       }
       yield* emitEvent({
@@ -9206,17 +9200,6 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         payload: thread,
       });
     }
-    // Carries the pull request watches' end too, as the later of the two events. Stop is
-    // activity, and this event's payload sets the thread's update time.
-    if ((thread.workflowRunWatches ?? []).length > 0) {
-      yield* emitEvent({
-        type: "thread.workflow-run-watch-synced",
-        threadId: thread.id,
-        providerInstanceId: thread.providerInstanceId,
-        occurredAt: input.now,
-        payload: { ...endWatches(thread), updatedAt: input.now },
-      });
-    }
     const queuedRuns = runs.filter((run) => run.status === "queued");
     const queuedMessages =
       queuedRuns.length === 0
@@ -9265,17 +9248,27 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         payload: { ...run, queueHeld: true },
       });
     }
-    const pullRequests = thread.pullRequests ?? [];
-    if (pullRequests.some((link) => link.watch !== undefined)) {
+    const hasPullRequestWatches = thread.pullRequests?.some((link) => link.watch !== undefined);
+    const hasWorkflowRunWatches = (thread.workflowRunWatches?.length ?? 0) > 0;
+    if (hasPullRequestWatches || hasWorkflowRunWatches) {
+      thread = { ...endWatches(thread), updatedAt: input.now };
+    }
+    if (hasPullRequestWatches) {
       yield* emitEvent({
         type: "thread.pull-request-synced",
         threadId: thread.id,
         providerInstanceId: thread.providerInstanceId,
         occurredAt: input.now,
-        payload: {
-          ...thread,
-          pullRequests: pullRequests.map((link) => withPullRequestWatch(link, undefined)),
-        },
+        payload: thread,
+      });
+    }
+    if (hasWorkflowRunWatches) {
+      yield* emitEvent({
+        type: "thread.workflow-run-watch-synced",
+        threadId: thread.id,
+        providerInstanceId: thread.providerInstanceId,
+        occurredAt: input.now,
+        payload: thread,
       });
     }
     const cohortRunIds = new Set(input.cohortRunIds);

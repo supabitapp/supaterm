@@ -167,17 +167,19 @@ describe("threadRoutes", () => {
     ).toBe("ready");
   });
 
-  it("waits for durable pending threads to load before treating a route as missing", () => {
+  it("waits for durable pending threads even when the server reports the thread missing", () => {
+    const input = {
+      bootstrapComplete: true,
+      serverThreadExists: false,
+      serverThreadDeleted: false,
+      unlistedThreadDetail: { ...EMPTY_ENVIRONMENT_THREAD_STATE, status: "deleted" as const },
+      draftThreadExists: false,
+    };
+    expect(resolveThreadRouteRenderState({ ...input, outboxLoaded: false })).toBe("loading");
     expect(
-      resolveThreadRouteRenderState({
-        bootstrapComplete: true,
-        serverThreadExists: false,
-        serverThreadDeleted: false,
-        unlistedThreadDetail: EMPTY_ENVIRONMENT_THREAD_STATE,
-        draftThreadExists: false,
-        outboxLoaded: false,
-      }),
-    ).toBe("loading");
+      resolveThreadRouteRenderState({ ...input, outboxLoaded: true, pendingThreadExists: true }),
+    ).toBe("ready");
+    expect(resolveThreadRouteRenderState({ ...input, outboxLoaded: true })).toBe("missing");
   });
   it.each([
     { status: "cached", source: "server thread" },
