@@ -3332,8 +3332,7 @@ export default function Sidebar() {
   const showWorkingShelf = inboxItems.some(
     (item) => item.kind === "marker" && item.marker === "working-header",
   );
-  const inboxCount =
-    activeThreads.length + (threadGrouping === "status" ? 0 : workingThreads.length);
+  const inboxCount = activeThreads.length + (showWorkingShelf ? 0 : workingThreads.length);
   const sidebarListItemsFresh = buildSidebarListItems({
     hasThreads: sidebarHasThreadSections,
     pinned: visiblePinnedThreads,

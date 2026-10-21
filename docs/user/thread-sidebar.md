@@ -128,7 +128,8 @@ open.
 
 ### Group the inbox
 
-Use **Thread list options → Grouping** to choose **Status**, **Project**, or **Updated**.
+Use **Thread list options → Grouping**, or the **Group:** menu on iPhone, to choose
+**Status**, **Project**, or **Updated**.
 Project groups active and working threads by project. Updated groups them into **Today**,
 **Yesterday**, **Last 7 days**, and **Older**, using your local calendar. Activity means sending
 a message, a run being requested or completing, or reopening a thread; streamed output does

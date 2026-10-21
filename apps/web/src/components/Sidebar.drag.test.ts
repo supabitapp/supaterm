@@ -3,7 +3,7 @@ import { closestCenter, type CollisionDetection } from "@dnd-kit/core";
 import { verticalListSortingStrategy, type SortingStrategy } from "@dnd-kit/sortable";
 import {
   createSidebarCollisionDetection,
-  createSidebarSortingStrategy as createSortingStrategy,
+  createSidebarSortingStrategy,
   restrictBelowSidebarLabel,
 } from "./Sidebar.drag";
 import {
@@ -59,12 +59,12 @@ function layout(
   } satisfies Parameters<SortingStrategy>[0];
 }
 
-type PreviewInput = Omit<Parameters<typeof createSortingStrategy>[0], "inbox"> & {
-  readonly inbox?: Parameters<typeof createSortingStrategy>[0]["inbox"];
+type PreviewInput = Omit<Parameters<typeof createSidebarSortingStrategy>[0], "inbox"> & {
+  readonly inbox?: Parameters<typeof createSidebarSortingStrategy>[0]["inbox"];
   readonly activeOrder?: readonly string[];
 };
 
-function createSidebarSortingStrategy(input: PreviewInput): SortingStrategy {
+function withStatusInbox(input: PreviewInput): SortingStrategy {
   let previous: { activeIndex: number; overIndex: number; strategy: SortingStrategy } | undefined;
   return (args) => {
     if (previous?.activeIndex !== args.activeIndex || previous.overIndex !== args.overIndex) {
@@ -89,7 +89,7 @@ function createSidebarSortingStrategy(input: PreviewInput): SortingStrategy {
       previous = {
         activeIndex: args.activeIndex,
         overIndex: args.overIndex,
-        strategy: createSortingStrategy({
+        strategy: createSidebarSortingStrategy({
           ...input,
           inbox: input.inbox ?? { active: [...returning, ...working], other },
         }),
@@ -100,12 +100,12 @@ function createSidebarSortingStrategy(input: PreviewInput): SortingStrategy {
 }
 
 function preview(
-  input: Parameters<typeof createSidebarSortingStrategy>[0],
+  input: Parameters<typeof withStatusInbox>[0],
   active: string,
   over: string,
   scale = 1,
 ) {
-  const strategy = createSidebarSortingStrategy(input);
+  const strategy = withStatusInbox(input);
   const args = layout(input.items, active, over, scale);
   return new Map(
     input.items.map((item, index) => [sidebarListItemId(item), strategy({ ...args, index })]),
@@ -314,7 +314,7 @@ describe("sidebar drag projection", () => {
       rect.top -= draftsHeight;
       rect.bottom -= draftsHeight;
     }
-    const strategy = createSidebarSortingStrategy({
+    const strategy = withStatusInbox({
       items,
       doneOrder: ["s"],
       doneExpanded: true,
@@ -341,7 +341,7 @@ describe("sidebar drag projection", () => {
       rect.top += 100;
       rect.bottom += 100;
     }
-    const strategy = createSidebarSortingStrategy({
+    const strategy = withStatusInbox({
       items,
       doneOrder: ["s"],
       doneExpanded: true,
@@ -402,7 +402,7 @@ describe("sidebar drag projection", () => {
       doneHeader,
       thread("s", "done"),
     ];
-    const strategy = createSidebarSortingStrategy({
+    const strategy = withStatusInbox({
       items,
       doneOrder: over === sidebarMarkerId("done-header") ? ["a1", "s"] : ["s"],
       doneExpanded: true,
@@ -432,7 +432,7 @@ describe("sidebar drag projection", () => {
     ["p1", "p2"],
     ["p2", "p1"],
   ])("preserves existing pinned transforms from %s to %s", (active, over) => {
-    const strategy = createSidebarSortingStrategy({
+    const strategy = withStatusInbox({
       items: pinned,
       doneOrder: [],
       doneExpanded: true,
@@ -469,7 +469,7 @@ describe("sidebar drag projection", () => {
       doneHeader,
       thread("s", "done"),
     ];
-    const strategy = createSidebarSortingStrategy({
+    const strategy = withStatusInbox({
       items,
       doneOrder: [],
       doneExpanded: true,
@@ -595,7 +595,7 @@ describe("sidebar drag projection", () => {
         rect.bottom += 32;
       }
     }
-    const strategy = createSidebarSortingStrategy({
+    const strategy = withStatusInbox({
       items,
       doneOrder: [],
       doneExpanded: false,
@@ -815,7 +815,7 @@ describe("sidebar drag projection", () => {
   });
 
   it("updates the projection when the target or measured geometry changes", () => {
-    const strategy = createSidebarSortingStrategy({
+    const strategy = withStatusInbox({
       items: pinned,
       doneOrder: [],
       doneExpanded: true,
@@ -861,7 +861,7 @@ describe("sidebar drag projection", () => {
       doneHeader,
       marker("done-placeholder"),
     ];
-    const strategy = createSidebarSortingStrategy({
+    const strategy = withStatusInbox({
       items,
       doneOrder: [],
       doneExpanded: false,
