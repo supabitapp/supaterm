@@ -128,6 +128,9 @@ returns to the remembered selection.
 
 Leaving reasoning level or service tier unset uses the provider's own configuration.
 
+On mobile, long-press the bolt in the composer to choose from the selected model's
+service tiers. Tap it to toggle fast mode.
+
 ## Quote an assistant response
 
 On web and desktop, select text within one assistant response and choose
