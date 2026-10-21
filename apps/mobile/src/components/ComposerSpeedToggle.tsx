@@ -6,7 +6,7 @@ import {
 import type { ProviderOptionDescriptor, ProviderOptionSelection } from "@supaterm/contracts";
 import { getProviderOptionCurrentValue } from "@supaterm/shared/model";
 import * as Haptics from "expo-haptics";
-import { Pressable } from "react-native";
+import { Platform, Pressable } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { withUniwind } from "uniwind";
 
@@ -91,6 +91,11 @@ export function ComposerSpeedToggle(props: {
       title={descriptor.label}
       shouldOpenOnLongPress
       preservesKeyboard
+      onOpenMenu={() => {
+        if (Platform.OS === "ios") {
+          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+        }
+      }}
       actions={descriptor.options.map((option) => ({
         id: option.id,
         title: option.label,
