@@ -12,6 +12,7 @@ import {
   CheckIcon,
   ChevronDownIcon,
   Columns2Icon,
+  FileSymlinkIcon,
   FolderTreeIcon,
   PilcrowIcon,
   Rows3Icon,
@@ -168,17 +169,34 @@ function DiffFileHeaderSuffix({
   hasStat,
   error,
   truncated,
+  onOpenFile,
   onRetry,
 }: {
   filePath: string;
   hasStat: boolean;
   error: boolean;
   truncated: boolean;
+  onOpenFile: (path: string) => void;
   onRetry: (path: string) => void;
 }) {
   return (
     <>
       <DiffFilePathCopyButton filePath={filePath} />
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              size="icon-micro"
+              variant="ghost-muted"
+              aria-label={`Open ${filePath}`}
+              onClick={() => onOpenFile(filePath)}
+            />
+          }
+        >
+          <FileSymlinkIcon className="size-3" />
+        </TooltipTrigger>
+        <TooltipPopup>Open file</TooltipPopup>
+      </Tooltip>
       {hasStat ? (
         <DiffFileStatus error={error} truncated={truncated} retry={() => onRetry(filePath)} />
       ) : null}
@@ -630,6 +648,7 @@ export default function DiffPanel({
       },
     });
   };
+  const stableOpenDiffFile = useStableCallback(openDiffFile);
   // Every file header holds these; a new identity per collapse change would redraw them all.
   const toggleDiffFileCollapsed = useStableCallback((fileKey: string) => {
     updateCollapsedDiffFiles((current) => {
@@ -1070,15 +1089,6 @@ export default function DiffPanel({
                         return;
                       }
                     }
-                    const title = composedPath.find(
-                      (node): node is HTMLElement =>
-                        node instanceof HTMLElement && node.hasAttribute("data-title"),
-                    );
-                    const filePath = title?.textContent;
-                    if (filePath) {
-                      openDiffFile(filePath);
-                      return;
-                    }
                     const header = composedPath.find(
                       (node): node is HTMLElement =>
                         node instanceof HTMLElement && node.hasAttribute("data-diffs-header"),
@@ -1130,6 +1140,7 @@ export default function DiffPanel({
                           hasStat={fileStats.has(path)}
                           error={state?.error ?? false}
                           truncated={state?.truncated ?? false}
+                          onOpenFile={stableOpenDiffFile}
                           onRetry={retry}
                         />
                       );
