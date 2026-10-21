@@ -103,7 +103,6 @@ import { ComposerQueuedEditAttachments } from "./ComposerQueuedEdit";
 import { useComposerCommandMenu } from "./use-composer-command-menu";
 import {
   ComposerDictationConfirmAction,
-  ComposerDictationStartAction,
   ComposerDictationLeadingAction,
   ComposerDictationDraftContent,
   ComposerDictationStatus,
@@ -194,9 +193,6 @@ export interface ThreadComposerProps {
   readonly onCommandMenuOpenChange?: (open: boolean) => void;
 }
 
-const INLINE_EDITOR_MIN_WIDTH = "40%";
-// The one-row editor's horizontal padding plus room for the caret.
-const INLINE_EDITOR_TEXT_SLACK = 10;
 const INLINE_EDITOR_HEIGHT = 36;
 
 const COMPOSER_ATTACHMENT_ENTERING =
@@ -496,38 +492,8 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const isExpanded =
     !voiceInput.isBusy && (isFocused || settingsSheetPresentation.keepsComposerExpanded);
   const { setComposerEditing } = useAdaptiveWorkspaceLayout();
-  // The composer stays one row, with the model picker in it, until the draft would
-  // wrap. Then the draft stacks above the controls and returns to the row once it
-  // fits again. The native editor reports its laid-out text size: more than one
-  // line means the draft wrapped where it is, and the widest line is a one-line
-  // draft's natural width, which is compared with the row's text area so a draft
-  // laid out in the wider card still returns to the row when it fits, including
-  // when the pane widens. The measurements live in refs and only the verdict is
-  // state, so a keystroke that keeps the verdict costs no extra render.
-  const draftSizeRef = useRef({ width: 0, height: 0 });
-  const rowGeometryRef = useRef({ surfaceWidth: 0, leadingWidth: 0, trailingWidth: 0 });
-  const [draftOverflowsRow, setDraftOverflowsRow] = useState(false);
-  const lineHeight = bodyText.lineHeight;
-  const updateDraftOverflow = () => {
-    const { width, height } = draftSizeRef.current;
-    const row = rowGeometryRef.current;
-    const rowTextWidth =
-      row.surfaceWidth - row.leadingWidth - row.trailingWidth - INLINE_EDITOR_TEXT_SLACK;
-    setDraftOverflowsRow(
-      height > lineHeight * 1.5 || (row.surfaceWidth > 0 && width > rowTextWidth),
-    );
-  };
-  const measureRow = (key: keyof typeof rowGeometryRef.current, value: number) => {
-    if (rowGeometryRef.current[key] === value) return;
-    rowGeometryRef.current = { ...rowGeometryRef.current, [key]: value };
-    updateDraftOverflow();
-  };
-  const usesCard = isExpanded && draftMessage.length > 0 && draftOverflowsRow;
-  const showsCompactDictation = isVoiceInputPresented && !usesCard;
-  const isToolbarVisible = usesCard || isVoiceInputPresented;
-  const hasEditingAttachments =
-    (queuedEdit !== null && queuedEdit.existingAttachments.length > 0) ||
-    stripAttachments.length > 0;
+  const showsCompactDictation = isVoiceInputPresented && !isExpanded;
+  const isToolbarVisible = isExpanded || isVoiceInputPresented;
   const attachmentBlockReason = composerAttachmentUploadBlockReason({
     environmentId: props.environmentId,
     attachments: draftAttachments,
@@ -548,8 +514,8 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const canSend = canSubmitDraft && hasContent && !voiceInput.blocksSubmission;
 
   useEffect(() => {
-    onExpandedChange?.(usesCard);
-  }, [usesCard, onExpandedChange]);
+    onExpandedChange?.(isExpanded);
+  }, [isExpanded, onExpandedChange]);
   useEffect(() => () => setComposerEditing(false), [setComposerEditing]);
 
   const commandMenuTrigger =
@@ -598,12 +564,16 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const onEditorFocusChange = props.onEditorFocusChange;
   const handleFocus = () => {
     setIsFocused(true);
+    onExpandedChange?.(true);
     onEditorFocusChange?.(true);
     setComposerEditing(true);
   };
 
   const handleBlur = () => {
     setIsFocused(false);
+    if (!settingsSheetPresentation.keepsComposerExpanded) {
+      onExpandedChange?.(false);
+    }
     onEditorFocusChange?.(false);
     setComposerEditing(false);
   };
@@ -755,74 +725,12 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     </ComposerDictationTrailingActions>
   );
 
-  // Removable attachments: inside the card, or above the focused one-row composer.
-  const editingAttachments = hasEditingAttachments ? (
-    <>
-      {queuedEdit !== null && queuedEdit.existingAttachments.length > 0 ? (
-        <Animated.View
-          className="px-[14px] pb-2.5"
-          entering={COMPOSER_ATTACHMENT_ENTERING}
-          exiting={FadeOut.duration(120)}
-        >
-          <ComposerQueuedEditAttachments
-            environmentId={props.environmentId}
-            attachments={queuedEdit.existingAttachments}
-            disabled={queuedEdit.saving || voiceInput.isBusy}
-            onRemove={queuedEdit.onRemoveExistingAttachment}
-          />
-        </Animated.View>
-      ) : null}
-      {stripAttachments.length > 0 ? (
-        <Animated.View
-          className="px-[14px] pb-2.5"
-          entering={COMPOSER_ATTACHMENT_ENTERING}
-          exiting={FadeOut.duration(120)}
-        >
-          <ComposerAttachmentStrip
-            environmentId={props.environmentId}
-            attachments={stripAttachments}
-            onRemove={voiceInput.isBusy ? () => undefined : props.onRemoveDraftImage}
-            onPressPreview={voiceInput.isBusy ? undefined : onPressPreview}
-            onPressVideo={voiceInput.isBusy ? undefined : onPressVideo}
-            onPressDocument={
-              voiceInput.isBusy
-                ? undefined
-                : (attachment) =>
-                    openDraftDocument({
-                      attachmentId: attachment.id,
-                      name: attachment.name,
-                      mimeType: attachment.mimeType,
-                      sizeBytes: attachment.sizeBytes,
-                    })
-            }
-          />
-        </Animated.View>
-      ) : null}
-    </>
-  ) : null;
-
-  // The row and the card's toolbar share this picker. It shrinks to the provider
-  // icon once the draft has text, so the draft keeps the width.
-  const modelControl = (
-    <View className="min-w-0 shrink">
-      <ComposerModelControl
-        descriptors={providerOptionDescriptors}
-        selectedModel={currentModelSelection}
-        reportedModelSelection={props.reportedModelSelection}
-        modelOption={currentModelOption}
-        label={currentModelOption?.label ?? currentModelSelection.model}
-        iconOnly={draftMessage.length > 0}
-        onPress={openSettings}
-      />
-    </View>
-  );
-
   return (
     <Animated.View
       className="px-[12px]"
       style={{
-        paddingTop: usesCard ? 8 : 6,
-        paddingBottom: (props.bottomInset ?? 0) + (usesCard ? 8 : 6),
+        paddingTop: isExpanded ? 8 : 6,
+        paddingBottom: (props.bottomInset ?? 0) + (isExpanded ? 8 : 6),
         backgroundColor:
           Platform.OS === "android" ? themeColorWithAlpha(composerPanel, 1) : undefined,
       }}
@@ -841,7 +749,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       <Animated.View
         className="relative w-full self-center"
         style={{ maxWidth: props.contentMaxWidth }}
-        onLayout={(event) => measureRow("surfaceWidth", event.nativeEvent.layout.width)}
       >
         {commandMenuTrigger ? (
           <ComposerPopoverAnchor>
@@ -887,9 +794,10 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
         <ComposerSurface
           transparent={voiceInput.isBusy}
           style={
-            usesCard
+            isExpanded
               ? {
                   borderRadius: 26,
+                  minHeight: 140,
                   overflow: "hidden" as const,
                   paddingBottom: 6,
                   paddingTop: 14,
@@ -904,13 +812,12 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                 }
           }
         >
-          {isExpanded && !usesCard ? editingAttachments : null}
           <ComposerDictationDraftContent
-            className={usesCard ? undefined : "flex-row items-center"}
-            compact={!usesCard}
+            className={isExpanded ? undefined : "flex-row items-center"}
+            compact={!isExpanded}
             hidden={showsCompactDictation}
           >
-            {!usesCard ? (
+            {!isExpanded ? (
               <ComposerAttachmentButton
                 supportsFiles={Boolean(
                   props.serverConfig?.environment.capabilities.fileAttachments,
@@ -919,16 +826,49 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                 onPickFiles={props.onPickDraftFiles}
               />
             ) : null}
-            {usesCard ? editingAttachments : null}
+            {isExpanded && queuedEdit !== null && queuedEdit.existingAttachments.length > 0 ? (
+              <Animated.View
+                className="px-[14px] pb-2.5"
+                entering={COMPOSER_ATTACHMENT_ENTERING}
+                exiting={FadeOut.duration(120)}
+              >
+                <ComposerQueuedEditAttachments
+                  environmentId={props.environmentId}
+                  attachments={queuedEdit.existingAttachments}
+                  disabled={queuedEdit.saving || voiceInput.isBusy}
+                  onRemove={queuedEdit.onRemoveExistingAttachment}
+                />
+              </Animated.View>
+            ) : null}
+            {isExpanded && stripAttachments.length > 0 ? (
+              <Animated.View
+                className="px-[14px] pb-2.5"
+                entering={COMPOSER_ATTACHMENT_ENTERING}
+                exiting={FadeOut.duration(120)}
+              >
+                <ComposerAttachmentStrip
+                  environmentId={props.environmentId}
+                  attachments={stripAttachments}
+                  onRemove={voiceInput.isBusy ? () => undefined : props.onRemoveDraftImage}
+                  onPressPreview={voiceInput.isBusy ? undefined : onPressPreview}
+                  onPressVideo={voiceInput.isBusy ? undefined : onPressVideo}
+                  onPressDocument={
+                    voiceInput.isBusy
+                      ? undefined
+                      : (attachment) =>
+                          openDraftDocument({
+                            attachmentId: attachment.id,
+                            name: attachment.name,
+                            mimeType: attachment.mimeType,
+                            sizeBytes: attachment.sizeBytes,
+                          })
+                  }
+                />
+              </Animated.View>
+            ) : null}
             <Animated.View
-              className={usesCard ? "px-[14px]" : "min-w-0 flex-1 px-[4px]"}
-              style={usesCard ? undefined : { minWidth: INLINE_EDITOR_MIN_WIDTH }}
+              className={isExpanded ? "px-[14px]" : "min-w-0 flex-1 px-[4px]"}
               layout={COMPOSER_LAYOUT_TRANSITION}
-              onLayout={
-                usesCard
-                  ? undefined
-                  : (event) => measureRow("leadingWidth", event.nativeEvent.layout.x)
-              }
             >
               <ComposerEditor
                 hidden={props.hidden}
@@ -1039,27 +979,22 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                     : FOLLOW_UP_ACTION_LABEL[sendPresentation.alternate]
                 }
                 scrollEnabled={isExpanded}
-                singleLineCentered={!usesCard}
+                singleLineCentered={!isExpanded}
                 contentInsetVertical={
-                  usesCard || Platform.OS === "android" ? 0 : collapsedEditorInset(bodyText)
+                  isExpanded || Platform.OS === "android" ? 0 : collapsedEditorInset(bodyText)
                 }
-                onContentSizeChange={(size) => {
-                  draftSizeRef.current = size;
-                  updateDraftOverflow();
-                }}
                 style={
-                  usesCard
+                  isExpanded
                     ? {
-                        // A stacked draft shows two to four lines, then scrolls.
-                        minHeight: lineHeight * 2 + 8,
-                        maxHeight: lineHeight * 4 + 8,
+                        minHeight: 72,
+                        maxHeight: 160,
                         paddingVertical: 4,
                       }
                     : {
                         // Large text sizes need room for one full line plus the iOS inset.
                         height: Math.max(
                           INLINE_EDITOR_HEIGHT,
-                          Math.ceil(lineHeight) +
+                          Math.ceil(bodyText.lineHeight) +
                             (Platform.OS === "android" ? 0 : 2 * collapsedEditorInset(bodyText)),
                         ),
                       }
@@ -1093,44 +1028,8 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                 ) : null}
               </View>
             ) : null}
-            {!usesCard ? (
-              <View
-                className="min-w-0 shrink flex-row items-center"
-                onLayout={(event) => measureRow("trailingWidth", event.nativeEvent.layout.width)}
-              >
-                {modelControl}
-                <ComposerDictationStartAction
-                  state={voiceInput.state}
-                  isAvailable={voiceInput.isAvailable}
-                  onStart={startDictation}
-                  onCancel={voiceInput.cancel}
-                />
-                {showStopAction ? (
-                  <ComposerActionButton
-                    accessibilityLabel="Stop agent"
-                    icon="stop.fill"
-                    variant="danger"
-                    disabled={!props.canOperateThread}
-                    onPress={props.onStopThread}
-                  />
-                ) : showResumeAction ? (
-                  <ComposerActionButton
-                    accessibilityLabel="Resume queue"
-                    icon="play"
-                    disabled={!props.canOperateThread || resumingQueue}
-                    onPress={() => void handleResumeQueue()}
-                  />
-                ) : (
-                  <SendActionButton
-                    accessibilityLabel={sendBlockedReason ?? sendLabel}
-                    presentation={sendPresentation}
-                    disabled={!canSend}
-                    onSend={handleSend}
-                  />
-                )}
-              </View>
-            ) : null}
-            {usesCard ? <View className="h-1" /> : null}
+            {!isExpanded ? draftAction : null}
+            {isExpanded ? <View className="h-1" /> : null}
           </ComposerDictationDraftContent>
           <Animated.View
             accessibilityElementsHidden={!isToolbarVisible}
@@ -1139,7 +1038,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
             layout={COMPOSER_LAYOUT_TRANSITION}
             pointerEvents={isToolbarVisible ? "auto" : "none"}
             style={
-              usesCard
+              isExpanded
                 ? undefined
                 : {
                     position: "absolute",
@@ -1181,7 +1080,16 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                       onPickMedia={props.onPickDraftMedia}
                       onPickFiles={props.onPickDraftFiles}
                     />
-                    {modelControl}
+                    <View className="min-w-0 shrink">
+                      <ComposerModelControl
+                        descriptors={providerOptionDescriptors}
+                        selectedModel={currentModelSelection}
+                        reportedModelSelection={props.reportedModelSelection}
+                        modelOption={currentModelOption}
+                        label={currentModelOption?.label ?? currentModelSelection.model}
+                        onPress={openSettings}
+                      />
+                    </View>
                     <ComposerSpeedToggle
                       provider={currentModelOption?.providerDriver}
                       descriptors={providerOptionDescriptors}

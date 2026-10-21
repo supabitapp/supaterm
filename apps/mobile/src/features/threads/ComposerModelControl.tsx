@@ -16,7 +16,6 @@ export function ComposerModelControl(props: {
   readonly reportedModelSelection?: ModelSelection | null;
   readonly modelOption: ModelOption | null;
   readonly label: string;
-  readonly iconOnly?: boolean;
   readonly disabled?: boolean;
   readonly onPress: () => void;
 }) {
@@ -54,7 +53,6 @@ export function ComposerModelControl(props: {
         />
       )}
       label={props.label}
-      iconOnly={props.iconOnly}
       secondaryLabel={reasoningLabel}
       maxWidth="100%"
       onPress={props.onPress}
