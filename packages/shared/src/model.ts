@@ -37,6 +37,24 @@ export function createModelCapabilities(input: {
   };
 }
 
+export function filterCustomModelCapabilities(
+  driverKind: ProviderDriverKind | null,
+  capabilities: ModelCapabilities | null | undefined,
+): ModelCapabilities | null {
+  if (
+    driverKind !== "claudeAgent" ||
+    !capabilities?.optionDescriptors?.some((descriptor) => descriptor.id === "fastMode")
+  ) {
+    return capabilities ?? null;
+  }
+  return {
+    ...capabilities,
+    optionDescriptors: capabilities.optionDescriptors.filter(
+      (descriptor) => descriptor.id !== "fastMode",
+    ),
+  };
+}
+
 function getRawSelectionValueById(
   selections: ReadonlyArray<ProviderOptionSelection> | null | undefined,
   id: string,

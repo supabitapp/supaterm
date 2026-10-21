@@ -34,6 +34,7 @@ import {
 
 import {
   type CustomModelDefinition,
+  filterCustomModelCapabilities,
   readCustomModelEntries,
   toCustomModelSetting,
 } from "@supaterm/shared/model";
@@ -157,6 +158,7 @@ function nextConfigBlobWithValue(
 }
 
 export function deriveProviderModelsForDisplay(input: {
+  readonly driver: ProviderDriverKind;
   readonly liveModels: ReadonlyArray<ServerProviderModel> | undefined;
   readonly customModels: ReadonlyArray<CustomModelDefinition>;
 }): ReadonlyArray<ServerProviderModel> {
@@ -167,19 +169,19 @@ export function deriveProviderModelsForDisplay(input: {
   );
   const serverModels = input.liveModels?.filter((model) => !model.isCustom) ?? [];
   const serverSlugs = new Set(serverModels.map((model) => model.slug));
-  const customModels = input.customModels.flatMap((entry) =>
-    serverSlugs.has(entry.slug)
-      ? []
-      : [
-          {
-            slug: entry.slug,
-            name: entry.name,
-            isCustom: true,
-            capabilities:
-              entry.capabilities ?? liveCustomModelsBySlug.get(entry.slug)?.capabilities ?? null,
-          },
-        ],
-  );
+  const customModels = input.customModels.flatMap((entry) => {
+    if (serverSlugs.has(entry.slug)) return [];
+    const capabilities =
+      entry.capabilities ?? liveCustomModelsBySlug.get(entry.slug)?.capabilities ?? null;
+    return [
+      {
+        slug: entry.slug,
+        name: entry.name,
+        isCustom: true,
+        capabilities: filterCustomModelCapabilities(input.driver, capabilities),
+      },
+    ];
+  });
   return [...serverModels, ...customModels];
 }
 
@@ -729,6 +731,7 @@ export function ProviderInstanceCard({
       ? NO_CUSTOM_MODELS
       : readCustomModelEntries(storedCustomModels);
   const modelsForDisplay = deriveProviderModelsForDisplay({
+    driver: instance.driver,
     liveModels: liveProvider?.models,
     customModels,
   });

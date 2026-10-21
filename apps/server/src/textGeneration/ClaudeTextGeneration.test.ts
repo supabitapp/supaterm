@@ -69,6 +69,7 @@ function withFakeClaudeEnv<A, E, R>(
     configDirMustBe?: string;
     cwdMustNotBe?: string;
     claudeConfig?: Partial<ClaudeSettings>;
+    fastModeBlocked?: Effect.Effect<boolean>;
   },
   effectFn: (textGeneration: TextGeneration.TextGeneration["Service"]) => Effect.Effect<A, E, R>,
 ) {
@@ -193,12 +194,34 @@ function withFakeClaudeEnv<A, E, R>(
       config,
       undefined,
       Effect.succeed(SYNTHETIC_CLAUDE_MODEL_CATALOG),
+      input.fastModeBlocked,
     );
     return yield* effectFn(textGeneration);
   }).pipe(Effect.scoped);
 }
 
 it.layer(layerClaudeTextGenerationTest)("ClaudeTextGeneration", (it) => {
+  it.effect("overrides saved Fast for structured generation while unavailable", () =>
+    withFakeClaudeEnv(
+      {
+        output: JSON.stringify({ structured_output: { title: "Title" } }),
+        argsMustContain: '--settings {"disableAllHooks":true,"fastMode":false}',
+        fastModeBlocked: Effect.succeed(true),
+      },
+      (generation) =>
+        generation
+          .generateThreadTitle({
+            cwd: process.cwd(),
+            message: "Summarize this work",
+            modelSelection: createModelSelection(
+              ProviderInstanceId.make("claudeAgent"),
+              SYNTHETIC_CLAUDE_CAPABLE_MODEL,
+              [{ id: "fastMode", value: true }],
+            ),
+          })
+          .pipe(Effect.tap((result) => Effect.sync(() => expect(result.title).toBe("Title")))),
+    ),
+  );
   it.effect("kills a stalled CLI when the request times out", () =>
     Effect.gen(function* () {
       const probe = yield* makeProcessProbe;
@@ -225,9 +248,15 @@ it.layer(layerClaudeTextGenerationTest)("ClaudeTextGeneration", (it) => {
   );
 
   it.effect.each([
-    { thinking: true, settings: '{"disableAllHooks":true,"alwaysThinkingEnabled":true}' },
-    { thinking: false, settings: '{"disableAllHooks":true,"alwaysThinkingEnabled":false}' },
-    { thinking: undefined, settings: '{"disableAllHooks":true}' },
+    {
+      thinking: true,
+      settings: '{"disableAllHooks":true,"alwaysThinkingEnabled":true,"fastMode":false}',
+    },
+    {
+      thinking: false,
+      settings: '{"disableAllHooks":true,"alwaysThinkingEnabled":false,"fastMode":false}',
+    },
+    { thinking: undefined, settings: '{"disableAllHooks":true,"fastMode":false}' },
   ])("forwards only the explicit thinking choice ($thinking)", ({ thinking, settings }) =>
     withFakeClaudeEnv(
       {

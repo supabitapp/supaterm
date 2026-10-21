@@ -296,6 +296,7 @@ it.layer(NodeServices.layer)("Claude capability probe SDK boundary", (it) => {
 
       assert.deepEqual(capabilities, {
         email: "dev@example.com",
+        fastModeDisabledReason: "extra_usage_disabled",
         subscriptionType: "pro",
         tokenSource: "oauth",
         apiKeySource: undefined,

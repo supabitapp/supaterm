@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-19T07:21:38Z",
+  "updatedAt": "2026-10-21T00:00:00Z",
   "compatibility": [
     {
       "driver": "codex",
@@ -378,11 +378,6 @@
                   }
                 ],
                 "promptInjectedValues": ["ultrathink"]
-              },
-              {
-                "id": "fastMode",
-                "label": "Fast Mode",
-                "type": "boolean"
               }
             ]
           },
@@ -427,11 +422,6 @@
                   }
                 ],
                 "promptInjectedValues": ["ultrathink"]
-              },
-              {
-                "id": "fastMode",
-                "label": "Fast Mode",
-                "type": "boolean"
               },
               {
                 "id": "contextWindow",
@@ -494,11 +484,6 @@
                     "label": "Max"
                   }
                 ]
-              },
-              {
-                "id": "fastMode",
-                "label": "Fast Mode",
-                "type": "boolean"
               }
             ]
           },

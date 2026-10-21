@@ -42,6 +42,7 @@ lines.on("line", (line) => {
       output_style: "default",
       available_output_styles: ["default"],
       models: [],
+      fast_mode_disabled_reason: "extra_usage_disabled",
       account: { email: "dev@example.com", subscriptionType: "pro", tokenSource: "oauth" },
     });
   }

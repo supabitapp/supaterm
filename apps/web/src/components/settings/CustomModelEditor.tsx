@@ -45,7 +45,9 @@ export function CustomModelEditor({
   onSave,
   onCancel,
 }: CustomModelEditorProps) {
-  const [draft, setDraft] = useState<CustomModelDraft>(() => draftFromDefinition(entry));
+  const [draft, setDraft] = useState<CustomModelDraft>(() =>
+    draftFromDefinition(entry, driverKind),
+  );
   const [error, setError] = useState<string | null>(null);
   const presets = driverKind ? (DESCRIPTOR_PRESETS_BY_KIND[driverKind] ?? []) : [];
   const startFromCandidates = builtInModels.filter(

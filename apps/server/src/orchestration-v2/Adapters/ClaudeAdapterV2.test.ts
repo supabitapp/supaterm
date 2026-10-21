@@ -57,6 +57,7 @@ import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
+import * as Ref from "effect/Ref";
 import * as Exit from "effect/Exit";
 import * as FileSystem from "effect/FileSystem";
 import * as Fiber from "effect/Fiber";
@@ -2697,6 +2698,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
     readonly nativeSessionId?: string;
     readonly settings?: ClaudeSettings;
 
+    readonly fastModeBlocked?: Effect.Effect<boolean>;
     readonly freshQueueOnReopen?: boolean;
     readonly forkSession?: ClaudeAdapterV2.ClaudeAgentSdkQueryRunnerShape["forkSession"];
     readonly allocateSessionId?: Effect.Effect<string>;
@@ -2759,6 +2761,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       const adapter = yield* ClaudeAdapterV2.makeClaudeAdapterV2({
         instanceId: ClaudeAdapterV2.CLAUDE_DEFAULT_INSTANCE_ID,
         settings: options?.settings ?? DEFAULT_CLAUDE_SETTINGS,
+        ...(options?.fastModeBlocked ? { fastModeBlocked: options.fastModeBlocked } : {}),
         environment: options?.environment ?? {},
         attachmentsDir,
         fileSystem,
@@ -2939,6 +2942,62 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       };
     });
   const makeWakeHarness = makeWakeHarnessWithOptions();
+
+  it.effect(
+    "forces saved Fast off at launch and updates an existing process when availability changes",
+    () =>
+      Effect.gen(function* () {
+        const blocked = yield* Ref.make(true);
+        const harness = yield* makeWakeHarnessWithOptions({ fastModeBlocked: Ref.get(blocked) });
+        const now = yield* DateTime.now;
+        const modelSelection = {
+          instanceId: ClaudeAdapterV2.CLAUDE_DEFAULT_INSTANCE_ID,
+          model: "claude-opus-5-5",
+          options: [
+            { id: "fastMode", value: true },
+            { id: "effort", value: "xhigh" },
+          ],
+        } satisfies ModelSelection;
+        const turn = (ordinal: number) =>
+          makeClaudeTestTurnInput({
+            threadId: harness.threadId,
+            providerThread: harness.providerThread,
+            now,
+            attemptId: RunAttemptId.make(`attempt-fast-availability:${ordinal}`),
+            text: `Request ${ordinal}`,
+            attachments: [],
+            providerTurnOrdinal: ordinal,
+            modelSelection,
+          });
+        const settle = Effect.gen(function* () {
+          yield* harness.offerAndWait(turnOneResult);
+          yield* Queue.take(harness.terminalReceipts);
+        });
+        yield* harness.runtime.startTurn(turn(1));
+        const originalOptions = harness.getOpenedOptions();
+        assert.include(originalOptions?.settings, { fastMode: false });
+        yield* settle;
+        yield* Ref.set(blocked, false);
+        yield* harness.runtime.startTurn(turn(2));
+        yield* settle;
+        yield* Ref.set(blocked, true);
+        yield* harness.runtime.startTurn(turn(3));
+        yield* settle;
+        assert.strictEqual(harness.getOpenedOptions(), originalOptions);
+        assert.deepEqual(harness.liveSelectionChanges, [
+          { model: "claude-opus-5-5" },
+          { effortLevel: "xhigh", fastMode: true, ultracode: null },
+          { model: "claude-opus-5-5" },
+          { effortLevel: "xhigh", fastMode: false, ultracode: null },
+        ]);
+        assert.equal(modelSelection.options[0]?.value, true);
+      }).pipe(
+        Effect.scoped,
+        Effect.provide(
+          Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
+        ),
+      ),
+  );
 
   it.effect("dismisses an unanswered question without approving or choosing an option", () =>
     Effect.gen(function* () {
@@ -3850,7 +3909,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
             { model: "claude-opus-5-5" },
             { effortLevel: "xhigh", fastMode: true, ultracode: true },
             { model: "claude-sonnet-4-6" },
-            { effortLevel: "high", fastMode: null, ultracode: null },
+            { effortLevel: "high", fastMode: false, ultracode: null },
           ]);
           assert.strictEqual(harness.getOpenedOptions(), originalOptions);
           assert.lengthOf(harness.offeredMessages, 4);
@@ -6704,7 +6763,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
                 tools: { type: "preset", preset: "claude_code" },
                 permissionMode: "bypassPermissions",
                 allowDangerouslySkipPermissions: true,
-                settings: { showThinkingSummaries: true },
+                settings: { showThinkingSummaries: true, fastMode: false },
                 sessionId: WAKE_NATIVE_SESSION,
               },
             },

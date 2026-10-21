@@ -256,6 +256,7 @@ export type ClaudeCapabilitiesProbe = {
    * the subscription/token fields are absent and auth is external AWS creds.
    */
   readonly apiProvider: string | undefined;
+  readonly fastModeDisabledReason?: string;
   readonly slashCommands: ReadonlyArray<ServerProviderSlashCommand>;
   /**
    * Subscription windows from the SDK's `get_usage` control request, or
@@ -412,6 +413,9 @@ const probeClaudeCapabilities = (
           tokenSource: account?.tokenSource,
           apiKeySource: account?.apiKeySource,
           apiProvider: account?.apiProvider,
+          ...(init.fast_mode_disabled_reason === undefined
+            ? {}
+            : { fastModeDisabledReason: init.fast_mode_disabled_reason }),
           slashCommands: parseClaudeInitializationCommands(init.commands),
           ...(usage ? { usage, usageCheckedAt } : {}),
         } satisfies ClaudeCapabilitiesProbe;

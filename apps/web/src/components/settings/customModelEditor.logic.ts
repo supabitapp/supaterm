@@ -3,7 +3,11 @@ import {
   ProviderDriverKind,
   type ProviderOptionDescriptor,
 } from "@supaterm/contracts";
-import { type CustomModelDefinition, createModelCapabilities } from "@supaterm/shared/model";
+import {
+  type CustomModelDefinition,
+  createModelCapabilities,
+  filterCustomModelCapabilities,
+} from "@supaterm/shared/model";
 
 export interface EditorChoice {
   readonly key: string;
@@ -71,7 +75,6 @@ export const DESCRIPTOR_PRESETS_BY_KIND: Partial<
         { id: "max", label: "Max" },
       ],
     },
-    { id: "fastMode", label: "Fast Mode", type: "boolean" },
     { id: "thinking", label: "Thinking", type: "boolean" },
   ],
   [ProviderDriverKind.make("cursor")]: [
@@ -179,11 +182,16 @@ function descriptorToEditor(descriptor: ProviderOptionDescriptor): EditorDescrip
   };
 }
 
-export function draftFromDefinition(entry: CustomModelDefinition): CustomModelDraft {
+export function draftFromDefinition(
+  entry: CustomModelDefinition,
+  driverKind: ProviderDriverKind | null = null,
+): CustomModelDraft {
   return {
     slug: entry.slug,
     name: entry.name === entry.slug ? "" : entry.name,
-    descriptors: (entry.capabilities?.optionDescriptors ?? []).map(descriptorToEditor),
+    descriptors: (
+      filterCustomModelCapabilities(driverKind, entry.capabilities)?.optionDescriptors ?? []
+    ).map(descriptorToEditor),
   };
 }
 
@@ -192,7 +200,7 @@ export function descriptorsFromCapabilities(
   capabilities: ModelCapabilities | null | undefined,
   driverKind: ProviderDriverKind | null,
 ): EditorDescriptor[] {
-  return (capabilities?.optionDescriptors ?? [])
+  return (filterCustomModelCapabilities(driverKind, capabilities)?.optionDescriptors ?? [])
     .filter((descriptor) => driverKind !== "claudeAgent" || descriptor.id !== "contextWindow")
     .map(descriptorToEditor);
 }
