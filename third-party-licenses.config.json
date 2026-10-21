@@ -335,7 +335,7 @@
       "bundles": ["ios", "android", "mobile", "web", "desktop"],
       "license": "MIT",
       "name": "micromark-extension-llm-math",
-      "version": "3.1.0",
+      "version": "3.1.1-20250610",
       "sourceUrl": "https://github.com/ofk/micromark-extension-llm-math",
       "generatedNotices": [
         {

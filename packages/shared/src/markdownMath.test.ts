@@ -261,6 +261,14 @@ describe("chat math parsing", () => {
       ["display", "\\sum_i x_i"],
     ]);
   });
+
+  it.each(["Text\n\\[\n ", "\\[\n x\n "])(
+    "keeps an unfinished display block ending in whitespace as text: %j",
+    (source) => {
+      expect(formulas(source)).toEqual([]);
+      expect(markdownMathRanges(source)).toEqual([]);
+    },
+  );
 });
 
 describe("math in GFM tables", () => {

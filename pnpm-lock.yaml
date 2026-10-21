@@ -273,8 +273,8 @@ overrides:
   expo-sharing>@expo/config-plugins: 58.0.9
   expo-sharing>@expo/config-types: 58.0.3
   '@pierre/diffs>@shikijs/transformers': ^4.2.0
-  remark-math>micromark-extension-math: npm:micromark-extension-llm-math@3.1.0
-  micromark-extension-gfm-table: 2.1.1
+  remark-math>micromark-extension-math: npm:micromark-extension-llm-math@3.1.1-20250610
+  micromark-extension-gfm-table: 2.1.2
   '@tailwindcss/node': 4.3.3
   '@tailwindcss/oxide': 4.3.3
   '@tailwindcss/vite': 4.3.3
@@ -312,8 +312,8 @@ patchedDependencies:
   expo-network@58.0.3: cd09b6d1744dde4efa081b5619ebcff38877d98f7502a51cab121629dece8237
   expo-sharing@58.0.19: ab9ac48a902451bdf8061be4421ae33cd3b26178428bff79dd05bb18e94212e2
   mdast-util-math@3.0.0: afe6b2c89e1eaddfd3c90cf2723f12c9a17d513e65beff51653781486013251c
-  micromark-extension-gfm-table@2.1.1: 9ad23a530e45d9f83cba1da8654fe16d5af8b59d5c73d5c7a7c91fd25b9be1d8
-  micromark-extension-llm-math@3.1.0: 49ab4815c18b003f6af998dcc6c258c17a21b50b2cc87745f12d4bd8b6d591f9
+  micromark-extension-gfm-table@2.1.2: 402d3326edb13ea048fd36fa0cdd74638d4ee53836ee3ae775f85f152ce1a379
+  micromark-extension-llm-math@3.1.1-20250610: 1715fefd4c556fa3b4dcb2f59514bc2d8abf5fe6933a08d06f093a52e92ffd69
   node-pty@1.2.0-beta.15: f1e680afec85f650699ea756f91f469844ec4c976f4f168492a45c6b3f67d651
   react-native-enriched-markdown@1.2.0-supacode.16: b988a345e90576862e23f4b494bd4aa1ffe89020b700e3adcce318fdd27c6ef2
   react-native-gesture-handler@3.3.0: abe20e1d1c23549297cbbc818e14fe479b41455930d9663135d6b40fe359b626
@@ -9073,8 +9073,8 @@ packages:
   micromark-extension-gfm-strikethrough@2.1.0:
     resolution: {integrity: sha512-ADVjpOOkjz1hhkZLlBiYA9cR2Anf8F4HqZUO6e5eDcPQd0Txw5fxLzzxnEkSkfnD0wziSGiv7sYhk/ktvbf1uw==}
 
-  micromark-extension-gfm-table@2.1.1:
-    resolution: {integrity: sha512-t2OU/dXXioARrC6yWfJ4hqB7rct14e8f7m0cbI5hUmDyyIlwv5vEtooptH8INkbLzOatzKuVbQmAYcbWoyz6Dg==}
+  micromark-extension-gfm-table@2.1.2:
+    resolution: {integrity: sha512-pRzm4kDTu0MjlmBkxmS9yYhw60nncfcEwu9NNdPFSQEFXS95ZKyIIyTSHu/o3ReBUrLKYEq+7YaXCRn/bPB4MA==}
 
   micromark-extension-gfm-tagfilter@2.0.0:
     resolution: {integrity: sha512-xHlTOmuCSotIA8TW1mDIM6X2O1SiX5P9IuDtqGonFhEK0qgRI4yeC6vMxEV2dgyr2TiD+2PQ10o+cOhdVAcwfg==}
@@ -9085,8 +9085,8 @@ packages:
   micromark-extension-gfm@3.0.0:
     resolution: {integrity: sha512-vsKArQsicm7t0z2GugkCKtZehqUm31oeGBV/KVSorWSy8ZlNAv7ytjFhvaryUiCUJYqs+NoE6AFhpQvBTM6Q4w==}
 
-  micromark-extension-llm-math@3.1.0:
-    resolution: {integrity: sha512-VIYHuIEk0gpHrojEtNGaxGwdpSLtdWYlLL2vu9PM4M1ilEtak10S8F9zzbNAPBNRoWFs/bjs+J7R3yUBoIQUEA==}
+  micromark-extension-llm-math@3.1.1-20250610:
+    resolution: {integrity: sha512-sI1JuyhP5v4ALRKOtOeh/hEfuf+xQwRXfX4/Rg55cwv1ySzQdRW/UoIKPtVbiXgnrI8oBh0BrFo2k9M3q1VJ9g==}
 
   micromark-factory-destination@2.0.1:
     resolution: {integrity: sha512-Xe6rDdJlkmbFRExpTOmRj9N3MaWmbAgdpSrBQvCFqhezUn4AHqJHbaEnfbVYYiexVSs//tqOdY/DxhjdCiJnIA==}
@@ -18972,7 +18972,7 @@ snapshots:
       micromark-util-symbol: 2.0.1
       micromark-util-types: 2.0.2
 
-  micromark-extension-gfm-table@2.1.1(patch_hash=9ad23a530e45d9f83cba1da8654fe16d5af8b59d5c73d5c7a7c91fd25b9be1d8):
+  micromark-extension-gfm-table@2.1.2(patch_hash=402d3326edb13ea048fd36fa0cdd74638d4ee53836ee3ae775f85f152ce1a379):
     dependencies:
       devlop: 1.1.0
       micromark-factory-space: 2.0.1
@@ -18997,13 +18997,13 @@ snapshots:
       micromark-extension-gfm-autolink-literal: 2.1.0
       micromark-extension-gfm-footnote: 2.1.0
       micromark-extension-gfm-strikethrough: 2.1.0
-      micromark-extension-gfm-table: 2.1.1(patch_hash=9ad23a530e45d9f83cba1da8654fe16d5af8b59d5c73d5c7a7c91fd25b9be1d8)
+      micromark-extension-gfm-table: 2.1.2(patch_hash=402d3326edb13ea048fd36fa0cdd74638d4ee53836ee3ae775f85f152ce1a379)
       micromark-extension-gfm-tagfilter: 2.0.0
       micromark-extension-gfm-task-list-item: 2.1.0
       micromark-util-combine-extensions: 2.0.1
       micromark-util-types: 2.0.2
 
-  micromark-extension-llm-math@3.1.0(patch_hash=49ab4815c18b003f6af998dcc6c258c17a21b50b2cc87745f12d4bd8b6d591f9):
+  micromark-extension-llm-math@3.1.1-20250610(patch_hash=1715fefd4c556fa3b4dcb2f59514bc2d8abf5fe6933a08d06f093a52e92ffd69):
     dependencies:
       '@types/katex': 0.16.8
       devlop: 1.1.0
@@ -20315,7 +20315,7 @@ snapshots:
     dependencies:
       '@types/mdast': 4.0.4
       mdast-util-math: 3.0.0(patch_hash=afe6b2c89e1eaddfd3c90cf2723f12c9a17d513e65beff51653781486013251c)(supports-color@8.1.1)
-      micromark-extension-math: micromark-extension-llm-math@3.1.0(patch_hash=49ab4815c18b003f6af998dcc6c258c17a21b50b2cc87745f12d4bd8b6d591f9)
+      micromark-extension-math: micromark-extension-llm-math@3.1.1-20250610(patch_hash=1715fefd4c556fa3b4dcb2f59514bc2d8abf5fe6933a08d06f093a52e92ffd69)
       unified: 11.0.5
     transitivePeerDependencies:
       - supports-color

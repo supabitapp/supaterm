@@ -207,8 +207,8 @@ overrides:
   "expo-sharing>@expo/config-types": 58.0.3
   "@pierre/diffs>@shikijs/transformers": ^4.2.0
   # Resolve below remark-math so Vite, Metro and Node use the same tokenizer.
-  "remark-math>micromark-extension-math": npm:micromark-extension-llm-math@3.1.0
-  micromark-extension-gfm-table: 2.1.1
+  "remark-math>micromark-extension-math": npm:micromark-extension-llm-math@3.1.1-20250610
+  micromark-extension-gfm-table: 2.1.2
   # Keep one copy of these native-binary packages. lightningcss ships 11 platform binaries per
   # version, and the workspaces' tailwindcss ^4 ranges drift into two 4.3.x copies of the family.
   "@tailwindcss/node": "catalog:"
@@ -263,8 +263,8 @@ packageExtensions:
 patchedDependencies:
   react-native-image-viewing@0.2.2: patches/react-native-image-viewing@0.2.2.patch
   mdast-util-math@3.0.0: patches/mdast-util-math@3.0.0.patch
-  micromark-extension-llm-math@3.1.0: patches/micromark-extension-llm-math@3.1.0.patch
-  micromark-extension-gfm-table@2.1.1: patches/micromark-extension-gfm-table@2.1.1.patch
+  micromark-extension-llm-math@3.1.1-20250610: patches/micromark-extension-llm-math@3.1.1-20250610.patch
+  micromark-extension-gfm-table@2.1.2: patches/micromark-extension-gfm-table@2.1.2.patch
   expo-audio@58.0.9: patches/expo-audio@58.0.9.patch
   expo-network@58.0.3: patches/expo-network@58.0.3.patch
   "@expo/metro-config@58.0.14": patches/@expo__metro-config@58.0.14.patch
