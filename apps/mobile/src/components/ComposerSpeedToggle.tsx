@@ -91,7 +91,7 @@ export function ComposerSpeedToggle(props: {
       title={descriptor.label}
       shouldOpenOnLongPress
       preservesKeyboard
-      style={{ borderRadius: 12, overflow: "hidden" }}
+      style={{ borderRadius: 10.5, overflow: "hidden" }}
       onOpenMenu={() => {
         if (Platform.OS === "ios") {
           void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
