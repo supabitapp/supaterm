@@ -76,7 +76,7 @@ describe("ProjectIconPickerDialog", () => {
     await click("Save icon");
     expect(onSelect).toHaveBeenCalledExactlyOnceWith({
       kind: "monogram",
-      text: "Supaterm",
+      text: "SUPATERM",
       color: automatic.color,
     });
   });

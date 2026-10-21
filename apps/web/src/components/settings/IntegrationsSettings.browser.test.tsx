@@ -1,3 +1,5 @@
+import "~/index.css";
+
 import { page } from "vite-plus/test/browser";
 import { DEFAULT_CLIENT_SETTINGS, DEFAULT_UNIFIED_SETTINGS } from "@supaterm/contracts";
 import { StrictMode } from "react";
@@ -30,12 +32,6 @@ vi.mock(import("../../hooks/useSettings"), async (original) => ({
   usePrimarySettingsAvailable: () => true,
   usePrimarySettings: (() => DEFAULT_UNIFIED_SETTINGS) as never,
   useUpdatePrimarySettings: (() => vi.fn()) as never,
-}));
-// The scoped agent-access row needs the settings layout's scope provider;
-// this test covers the device-local browser rows only.
-vi.mock(import("./ProjectDefaultsSettings"), async (original) => ({
-  ...(await original()),
-  AgentBrowserAccessRow: (() => null) as never,
 }));
 vi.mock(import("./SettingsScopeContext"), async (original) => ({
   ...(await original()),

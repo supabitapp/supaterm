@@ -54,6 +54,7 @@ function setup() {
   openChangeRequestLink.mockReset().mockReturnValue(false);
   showError.mockClear();
   onClose.mockClear();
+  onOpen.mockClear();
 }
 
 function renderDialog() {
@@ -114,7 +115,8 @@ async function renderInline() {
 }
 
 it("opens the page in the panel beside the full screen action", async () => {
-  await renderInline();
+  setup();
+  await using _screen = await renderInline();
   await click("Open in panel");
   expect(onOpen).toHaveBeenCalledWith(
     expect.objectContaining({ id: "html", mimeType: "text/html", htmlRender: true }),

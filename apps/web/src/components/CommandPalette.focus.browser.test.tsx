@@ -91,7 +91,8 @@ async function renderPalette(children: ReactNode) {
 }
 
 async function flushFocus() {
-  await act(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+  await act(() => vi.advanceTimersByTimeAsync(0));
+  await act(() => vi.advanceTimersToNextFrame());
 }
 
 async function dismissPalette() {

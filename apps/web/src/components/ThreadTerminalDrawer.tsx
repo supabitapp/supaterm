@@ -1519,8 +1519,6 @@ export default function ThreadTerminalDrawer({
     activeTerminalGroup?.terminalIds ??
     (normalizedTerminalIds.length > 0 ? [resolvedActiveTerminalId] : []);
   const hasTerminalSidebar = normalizedTerminalIds.length > 1;
-  const splitTerminalGroup =
-    activeTerminalGroup && activeTerminalGroup.terminalIds.length > 1 ? activeTerminalGroup : null;
   const showGroupHeaders =
     resolvedTerminalGroups.length > 1 ||
     resolvedTerminalGroups.some((terminalGroup) => terminalGroup.terminalIds.length > 1);
@@ -1835,14 +1833,14 @@ export default function ThreadTerminalDrawer({
           )}
         >
           <div className="min-w-0 flex-1">
-            {splitTerminalGroup ? (
+            {activeTerminalGroup ? (
               <TerminalSplitPanels
-                idPrefix={`${scopedThreadKey(threadRef)}:${splitTerminalGroup.id}:`}
-                group={splitTerminalGroup}
+                idPrefix={`${scopedThreadKey(threadRef)}:${activeTerminalGroup.id}:`}
+                group={activeTerminalGroup}
                 disabled={!visible}
                 activeTerminalId={resolvedActiveTerminalId}
                 onActiveTerminalChange={onActiveTerminalChange}
-                onLayoutChange={(layout) => onSplitLayoutChange(splitTerminalGroup.id, layout)}
+                onLayoutChange={(layout) => onSplitLayoutChange(activeTerminalGroup.id, layout)}
                 onDividerRelease={() => setSplitFocusRequestId((value) => value + 1)}
                 renderTerminal={renderTerminalViewport}
               />

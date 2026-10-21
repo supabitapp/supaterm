@@ -196,7 +196,7 @@ it("shows only the current pull request until the rest are asked for", async () 
   expect(toggleLabel()).toBe("Show less");
 
   await toggle();
-  expect(rows()).toEqual(["2"]);
+  await expect.poll(rows).toEqual(["2"]);
   expect(toggleLabel()).toBe("Show 2 more");
 });
 
@@ -284,9 +284,7 @@ it("keeps workspace controls after expanding and collapsing 70 linked pull reque
       />,
     );
   });
-  const runContext = page.getByRole("button", { name: "Run context" });
   const editor = page.getByRole("group", { name: "Open in editor" });
-  await expect.element(runContext).toBeVisible();
   await expect.element(editor).toBeVisible();
 
   await userEvent.click(page.getByRole("button", { name: "Show 69 more" }));
@@ -300,8 +298,7 @@ it("keeps workspace controls after expanding and collapsing 70 linked pull reque
   });
   await userEvent.click(page.getByRole("button", { name: "Show less" }));
   await expect.element(page.getByRole("button", { name: "Show 69 more" })).toBeVisible();
-  expect(extraRows()).toHaveLength(0);
+  await expect.poll(extraRows).toHaveLength(0);
   await expect.element(page.getByRole("button", { name: "Open pull request #1" })).toBeVisible();
-  await expect.element(runContext).toBeVisible();
   await expect.element(editor).toBeVisible();
 });

@@ -27,7 +27,13 @@ vi.mock("../state/entities", () => ({
   useProject: () => null,
 }));
 vi.mock("../state/filesystem", () => ({ useFilesystemReadAccess: () => ({ canReadFiles: true }) }));
-vi.mock("../state/server", () => ({ serverEnvironment: { configValueAtom: () => configAtom } }));
+vi.mock(import("../state/server"), async (original) => {
+  const actual = await original();
+  return {
+    ...actual,
+    serverEnvironment: { ...actual.serverEnvironment, configValueAtom: () => configAtom },
+  };
+});
 vi.mock("../state/vcs", () => ({ vcsEnvironment: { status: () => null, listRefs: () => null } }));
 vi.mock("../state/review", () => ({
   reviewEnvironment: {
