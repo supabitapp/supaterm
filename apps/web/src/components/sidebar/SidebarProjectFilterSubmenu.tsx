@@ -77,7 +77,8 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
                   {project ? (
                     <ProjectFavicon project={project} className="size-4 shrink-0" />
                   ) : (
-                    <FolderIcon className="size-4 shrink-0" />
+                    // Menu items pull svgs in by 2px; favicons aren't svgs, so this one opts out to line up.
+                    <FolderIcon className="mx-0! size-4 shrink-0" />
                   )}
                   <span className="min-w-0 flex-1 truncate">{item.label}</span>
                   {project && environments ? (
