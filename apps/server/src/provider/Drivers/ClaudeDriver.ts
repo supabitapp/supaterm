@@ -30,8 +30,10 @@ import {
   probeClaudeWorkspaceSnapshot,
 } from "../ClaudeProvider.ts";
 import { makeManagedServerProvider } from "@supaterm/provider-core/server/managedProvider";
+import type { ServerProviderDraft } from "@supaterm/provider-core/server/snapshotProbe";
 import * as ModelCatalog from "@supaterm/provider-core/server/ModelCatalog";
 import { resolveClaudeModelCatalog } from "../ClaudeModelCatalog.ts";
+import { filterClaudeFastModeModels, makeClaudeFastModeAvailability } from "../ClaudeFastMode.ts";
 import {
   defaultProviderContinuationIdentity,
   type ProviderDriver,
@@ -54,6 +56,7 @@ import {
 import {
   makeClaudeCapabilitiesCacheKey,
   makeClaudeContinuationGroupKey,
+  makeClaudeEnvironment,
   resolveClaudeHomePath,
 } from "./ClaudeHome.ts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
@@ -156,6 +159,17 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
       });
 
       const scopedLimitNames = yield* makeClaudeScopedLimitNames;
+      const fastMode = yield* makeClaudeFastModeAvailability(
+        accountConfigPath,
+        yield* makeClaudeEnvironment(effectiveConfig, processEnv),
+      );
+      const filterFastMode = (provider: ServerProviderDraft) =>
+        fastMode.refresh.pipe(
+          Effect.map((blocked) => ({
+            ...provider,
+            models: filterClaudeFastModeModels(provider.models, blocked),
+          })),
+        );
       const orchestrationAdapter = yield* createClaudeAdapterV2(
         {
           instanceId,
@@ -165,7 +179,11 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
           enabled,
           config,
         },
-        { scopedLimitNames, onUsageLimits: (update) => snapshot.applyUsageLimits(update) },
+        {
+          scopedLimitNames,
+          onUsageLimits: (update) => snapshot.applyUsageLimits(update),
+          fastModeBlocked: fastMode.isBlocked,
+        },
       ).pipe(
         Effect.mapError(
           (cause) =>
@@ -181,6 +199,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
         effectiveConfig,
         processEnv,
         modelCatalog,
+        fastMode.isBlocked,
       );
 
       const capabilitiesCacheKey = yield* makeClaudeCapabilitiesCacheKey(
@@ -215,7 +234,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
             Effect.flatMap((catalog) =>
               checkClaudeProviderStatus(
                 effectiveConfig,
-                () => capabilitiesProbeCache.get,
+                () => capabilitiesProbeCache.get.pipe(Effect.tap(fastMode.update)),
                 processEnv,
                 stateDir,
                 catalog,
@@ -228,6 +247,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
                   ),
               ),
             ),
+            Effect.flatMap(filterFastMode),
             Effect.map(stampIdentity),
           ),
         ),
@@ -245,6 +265,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
         initialSnapshot: (settings) =>
           modelCatalog.pipe(
             Effect.flatMap((catalog) => makePendingClaudeProvider(settings.provider, catalog)),
+            Effect.flatMap(filterFastMode),
             Effect.map(stampIdentity),
           ),
         checkProvider,

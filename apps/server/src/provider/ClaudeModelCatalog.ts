@@ -8,6 +8,7 @@ import {
 } from "@supaterm/contracts";
 import * as Option from "effect/Option";
 import {
+  filterCustomModelCapabilities,
   getModelSelectionStringOptionValue,
   getProviderOptionCurrentValue,
   getProviderOptionDescriptors,
@@ -106,7 +107,7 @@ export function scopeClaudeModelCatalog(
         slug: entry.slug,
         name: entry.name,
         isCustom: true,
-        capabilities: entry.capabilities,
+        capabilities: filterCustomModelCapabilities(CLAUDE, entry.capabilities),
       },
       runtime: {},
       compatibility: {},

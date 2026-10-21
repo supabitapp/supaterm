@@ -3,6 +3,10 @@ import { describe, expect, it } from "@effect/vitest";
 import { ProviderInstanceId, type ModelSelection } from "@supaterm/contracts";
 
 import { compileClaudeModelSelection } from "./claudeModelOptions.ts";
+import {
+  BUNDLED_CLAUDE_MODEL_CATALOG,
+  scopeClaudeModelCatalog,
+} from "./provider/ClaudeModelCatalog.ts";
 
 const selection = (
   model: string,
@@ -14,6 +18,58 @@ const selection = (
 });
 
 describe("compileClaudeModelSelection", () => {
+  it("does not borrow built-in Fast support for a custom model that shadows its alias", () => {
+    const catalog = scopeClaudeModelCatalog(BUNDLED_CLAUDE_MODEL_CATALOG, [
+      {
+        slug: "opus",
+        capabilities: { optionDescriptors: [{ id: "fastMode", label: "Fast", type: "boolean" }] },
+      },
+    ]);
+    const custom = compileClaudeModelSelection(
+      selection("opus", [{ id: "fastMode", value: true }]),
+      catalog,
+    );
+    const builtin = compileClaudeModelSelection(
+      selection("claude-opus-5-5", [{ id: "fastMode", value: true }]),
+      catalog,
+    );
+    expect(custom.apiModelId).toBe("opus");
+    expect(custom.settings.fastMode).toBe(false);
+    expect(builtin.settings.fastMode).toBe(true);
+  });
+  it("suppresses custom Fast without changing the existing root model compilation", () => {
+    const saved = selection("opus", [
+      { id: "fastMode", value: true },
+      { id: "effort", value: "max" },
+    ]);
+    const previous = compileClaudeModelSelection(saved);
+    const custom = compileClaudeModelSelection(saved, undefined, { customModels: ["opus"] });
+    expect(custom).toMatchObject({
+      apiModelId: previous.apiModelId,
+      effort: previous.effort,
+      promptEffort: previous.promptEffort,
+      settings: { ...previous.settings, fastMode: false },
+    });
+  });
+  it("forces saved Fast off while blocked and changes the live query identity on recovery", () => {
+    const saved = selection("claude-opus-5-5", [{ id: "fastMode", value: true }]);
+    const blocked = compileClaudeModelSelection(saved, undefined, { fastModeBlocked: true });
+    const recovered = compileClaudeModelSelection(saved);
+    expect(blocked.settings.fastMode).toBe(false);
+    expect(recovered.settings.fastMode).toBe(true);
+    expect(blocked.queryIdentity).not.toBe(recovered.queryIdentity);
+    expect(saved.options).toEqual([{ id: "fastMode", value: true }]);
+  });
+
+  it.each(["claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-5", "custom"])(
+    "sends Fast off for unsupported model %s",
+    (model) => {
+      expect(
+        compileClaudeModelSelection(selection(model, [{ id: "fastMode", value: true }])).settings
+          .fastMode,
+      ).toBe(false);
+    },
+  );
   it("compiles context, effort, and settings together", () => {
     expect(
       compileClaudeModelSelection(
@@ -26,17 +82,17 @@ describe("compileClaudeModelSelection", () => {
     ).toMatchObject({
       apiModelId: "claude-opus-4-6[1m]",
       effort: "max",
-      settings: { fastMode: true },
+      settings: { fastMode: false },
     });
   });
 
   it("compiles fast mode only for models that expose it", () => {
     expect(
-      compileClaudeModelSelection(selection("claude-opus-4-6", [{ id: "fastMode", value: true }]))
+      compileClaudeModelSelection(selection("claude-opus-4-8", [{ id: "fastMode", value: true }]))
         .settings,
     ).toEqual({ fastMode: true });
     expect(
-      compileClaudeModelSelection(selection("claude-opus-4-6", [{ id: "fastMode", value: false }]))
+      compileClaudeModelSelection(selection("claude-opus-4-8", [{ id: "fastMode", value: false }]))
         .settings,
     ).toEqual({ fastMode: false });
   });
@@ -72,6 +128,6 @@ describe("compileClaudeModelSelection", () => {
     expect(
       compileClaudeModelSelection(selection("claude-haiku-4-5", [{ id: "thinking", value: false }]))
         .settings,
-    ).toEqual({ alwaysThinkingEnabled: false });
+    ).toEqual({ alwaysThinkingEnabled: false, fastMode: false });
   });
 });

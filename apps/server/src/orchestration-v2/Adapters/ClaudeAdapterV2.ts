@@ -1072,13 +1072,14 @@ function claudeLiveSelectionFlagSettings(
 ): ClaudeFlagSettings {
   return {
     ...(selection.effort === undefined ? {} : { effortLevel: selection.effort as EffortLevel }),
-    fastMode: selection.settings.fastMode ?? null,
+    fastMode: selection.settings.fastMode,
     ultracode: selection.settings.ultracode ?? null,
   };
 }
 
 export function makeClaudeQueryOptions(input: {
   readonly modelSelection: ModelSelection;
+  readonly compiledSelection?: CompiledClaudeModelSelection;
   readonly nativeThreadId: string;
   readonly resume: boolean;
   readonly resumeSessionAt?: string;
@@ -1097,7 +1098,11 @@ export function makeClaudeQueryOptions(input: {
   readonly supportedDialogKinds?: ClaudeQueryOptions["supportedDialogKinds"];
   readonly allowDangerouslySkipPermissions?: boolean;
 }): ClaudeAgentSdkQueryOptions {
-  const compiledSelection = compileClaudeModelSelection(input.modelSelection);
+  const compiledSelection =
+    input.compiledSelection ??
+    compileClaudeModelSelection(input.modelSelection, BUNDLED_CLAUDE_MODEL_CATALOG, {
+      customModels: input.settings?.customModels ?? [],
+    });
   const {
     "permission-mode": launchArgPermissionMode,
     "dangerously-skip-permissions": launchArgSkipPermissions,
@@ -1113,16 +1118,11 @@ export function makeClaudeQueryOptions(input: {
     ? { resume: input.nativeThreadId }
     : { sessionId: input.nativeThreadId };
   const selectedTools = input.tools ?? CLAUDE_CODE_PRESET_TOOLS;
-  const selectionSettings =
-    Object.keys(compiledSelection.settings).length === 0
-      ? undefined
-      : (compiledSelection.settings as ClaudeSdkSettings);
+  const selectionSettings = compiledSelection.settings as ClaudeSdkSettings;
   const querySettings =
-    selectionSettings === undefined
-      ? input.sdkSettings
-      : typeof input.sdkSettings === "object" && input.sdkSettings !== null
-        ? ({ ...input.sdkSettings, ...selectionSettings } as ClaudeSdkSettings)
-        : selectionSettings;
+    typeof input.sdkSettings === "object" && input.sdkSettings !== null
+      ? ({ ...input.sdkSettings, ...selectionSettings } as ClaudeSdkSettings)
+      : selectionSettings;
   const effectiveQuerySettings =
     input.settings?.autoCompactWindow === undefined || input.settings.autoCompactWindow.length === 0
       ? querySettings
@@ -3415,6 +3415,7 @@ export interface ClaudeAdapterV2Options {
   readonly queryRunner: ClaudeAgentSdkQueryRunnerShape;
   readonly scopedLimitNames?: Ref.Ref<ClaudeScopedLimitNames>;
   readonly onUsageLimits?: ManagedServerProvider["applyUsageLimits"];
+  readonly fastModeBlocked?: Effect.Effect<boolean>;
   readonly continuationRequests?: {
     readonly offer: (
       request: ProviderContinuationRequests.ProviderContinuationRequest,
@@ -8517,7 +8518,14 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               : { allowedTools: queryPolicy.allowedTools }),
           });
           const queryPolicyKey = claudeEffectiveQueryPolicyKey(queryPolicy, mcpOverrides);
-          const compiledSelection = compileClaudeModelSelection(turnInput.modelSelection);
+          const compiledSelection = compileClaudeModelSelection(
+            turnInput.modelSelection,
+            BUNDLED_CLAUDE_MODEL_CATALOG,
+            {
+              fastModeBlocked: yield* adapterOptions.fastModeBlocked ?? Effect.succeed(false),
+              customModels: adapterOptions.settings.customModels,
+            },
+          );
           const resumeSessionAt = yield* getNativeConversationHeadId(turnInput.providerThread);
           const existing = yield* Ref.get(queryContext);
           // A continuation prompts nothing: it drains output the live process
@@ -8613,6 +8621,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             ));
           const queryOptions = makeClaudeQueryOptions({
             modelSelection: turnInput.modelSelection,
+            compiledSelection,
             nativeThreadId,
             resume: shouldResume,
             ...(resumeSessionAt === undefined ? {} : { resumeSessionAt }),
@@ -9694,7 +9703,10 @@ export type ClaudeAdapterV2DriverEnv =
 export const createClaudeAdapterV2 = Effect.fn("ClaudeAdapterV2Driver.create")(
   function* (
     input: ProviderAdapterDriverCreateInput<ClaudeSettings>,
-    hooks: Pick<ClaudeAdapterV2Options, "scopedLimitNames" | "onUsageLimits"> = {},
+    hooks: Pick<
+      ClaudeAdapterV2Options,
+      "scopedLimitNames" | "onUsageLimits" | "fastModeBlocked"
+    > = {},
   ) {
     const { instanceId, environment, enabled, config } = input;
     const fileSystem = yield* FileSystem.FileSystem;

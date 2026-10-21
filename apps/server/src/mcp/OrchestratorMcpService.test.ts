@@ -1771,6 +1771,112 @@ describe("OrchestratorMcpService provider resolution", () => {
     }),
   );
 
+  it.effect("allows delegated Fast off but rejects enabling an unavailable Claude option", () =>
+    Effect.gen(function* () {
+      const instanceId = ProviderInstanceId.make("claudeAgent");
+      const driver = ProviderDriverKind.make("claudeAgent");
+      const model = "claude-opus-5-5";
+      const task = {
+        id: taskId,
+        threadId: parentThreadId,
+        runId: parentRunId,
+        parentNodeId,
+        origin: "app_owned",
+        createdBy: "agent",
+        driver,
+        providerInstanceId: instanceId,
+        providerThreadId: null,
+        childThreadId,
+        nativeTaskRef: null,
+        prompt: "Review the diff.",
+        title: null,
+        model,
+        status: "running",
+        result: null,
+        startedAt: null,
+        completedAt: null,
+      };
+      const commands: Array<unknown> = [];
+      const dependencies = Layer.mergeAll(
+        NodeServices.layer,
+        ServerSettings.layerTest(),
+        Layer.mock(ThreadManagementService.ThreadManagementService)({
+          hasReceipt: () => Effect.succeed(false),
+          assertProviderInstanceEnabled: () => Effect.void,
+          getThreadRecords: (id) =>
+            Effect.succeed(id === parentThreadId ? parentProjection([task]) : childProjection),
+          dispatch: (command) =>
+            Effect.sync(() => {
+              commands.push(command);
+              return {
+                sequence: 1,
+                storedEvents: [
+                  {
+                    sequence: 1,
+                    commandId: null,
+                    event: { type: "subagent.updated", payload: task },
+                  },
+                ],
+              } as never;
+            }),
+        }),
+        providerRegistryLayer([
+          {
+            ...providerSnapshot({ instanceId, driver, model }),
+            models: [
+              {
+                slug: model,
+                name: model,
+                isCustom: false,
+                capabilities: { optionDescriptors: [] },
+              },
+            ],
+          },
+        ]),
+        adapterRegistryLayer([instanceId]),
+        Layer.mock(ScheduledTaskService.ScheduledTaskService)({}),
+        Layer.mock(ProjectService.ProjectService)({}),
+      );
+      yield* Effect.gen(function* () {
+        const service = yield* OrchestratorMcpService.OrchestratorMcpService;
+        for (const [index, options] of [
+          [{ id: "fastMode", value: true }],
+          [
+            { id: "fastMode", value: false },
+            { id: "fastMode", value: false },
+          ],
+          [{ id: "otherOption", value: false }],
+        ].entries()) {
+          const rejected = yield* service
+            .delegateTask(scope, {
+              task: "Review the diff.",
+              target: { providerInstanceId: instanceId, model, options },
+              mode: "async",
+              clientRequestId: `fast-unavailable-${index}`,
+            })
+            .pipe(Effect.flip);
+          assert.equal(rejected.code, "invalid_request");
+        }
+        assert.lengthOf(commands, 0);
+        const accepted = yield* service.delegateTask(scope, {
+          task: "Review the diff.",
+          target: {
+            providerInstanceId: instanceId,
+            model,
+            options: [{ id: "fastMode", value: false }],
+          },
+          mode: "async",
+          clientRequestId: "fast-explicit-off",
+        });
+        assert.equal(accepted.status, "running");
+        assert.lengthOf(commands, 1);
+        assert.deepInclude(commands[0], {
+          modelSelection: { instanceId, model, options: [{ id: "fastMode", value: false }] },
+        });
+      }).pipe(Effect.provide(layerOrchestratorService.pipe(Layer.provide(dependencies))));
+    }),
+  );
+
   it.effect(
     "inherits an available parent instance for driver-only targets and otherwise selects a healthy peer",
     () =>

@@ -48,6 +48,7 @@ import {
   type OrchestratorMcpThreadWaitInput,
   type OrchestratorMcpThreadWaitResult,
   type ProviderInteractionMode,
+  type ProviderDriverKind,
   type ProviderInstanceId,
   type ProviderOptionDescriptor,
   type ProviderOptionSelection,
@@ -299,6 +300,7 @@ function providerConstraints(
 function invalidOptionSelections(
   selections: ReadonlyArray<ProviderOptionSelection>,
   descriptors: ReadonlyArray<ProviderOptionDescriptor> | undefined,
+  driver: ProviderDriverKind,
 ): ReadonlyArray<string> {
   const problems: Array<string> = [];
   const seen = new Set<string>();
@@ -311,6 +313,9 @@ function invalidOptionSelections(
     if (descriptors === undefined) continue;
     const descriptor = descriptors.find((candidate) => candidate.id === selection.id);
     if (descriptor === undefined) {
+      if (driver === "claudeAgent" && selection.id === "fastMode" && selection.value === false) {
+        continue;
+      }
       const known = descriptors.map((candidate) => candidate.id).join(", ");
       problems.push(`Unknown option ${selection.id}; supported options: ${known || "none"}.`);
       continue;
@@ -1288,7 +1293,7 @@ const make = Effect.gen(function* () {
       if (requestedOptions !== undefined) {
         const descriptors = provider.models.find((candidate) => candidate.slug === model)
           ?.capabilities?.optionDescriptors;
-        const invalid = invalidOptionSelections(requestedOptions, descriptors);
+        const invalid = invalidOptionSelections(requestedOptions, descriptors, provider.driver);
         if (invalid.length > 0) {
           return yield* failure(
             "invalid_request",

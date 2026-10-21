@@ -796,6 +796,42 @@ it.layer(
       );
     });
 
+    it("keeps explicitly removed Claude capabilities removed across refresh and recovery", () => {
+      const previous: ServerProvider = {
+        instanceId: ProviderInstanceId.make("claudeAgent"),
+        driver: ProviderDriverKind.make("claudeAgent"),
+        status: "ready",
+        enabled: true,
+        installed: true,
+        auth: { status: "authenticated" },
+        checkedAt: "2026-10-21T00:00:00.000Z",
+        version: "2.1.304",
+        models: [
+          {
+            slug: "custom",
+            name: "Custom",
+            isCustom: true,
+            capabilities: { optionDescriptors: [booleanDescriptor("fastMode", "Fast Mode")] },
+          },
+        ],
+        slashCommands: [],
+        skills: [],
+      };
+      const next = {
+        ...previous,
+        models: previous.models.map((model) => ({
+          ...model,
+          capabilities: { optionDescriptors: [] },
+        })),
+      };
+      const blocked = ProviderRegistry.mergeProviderSnapshot(previous, next);
+      assert.deepEqual(blocked.models, next.models);
+      assert.deepEqual(
+        ProviderRegistry.mergeProviderSnapshot(blocked, previous).models,
+        previous.models,
+      );
+    });
+
     it("does not bring back models the installed CLI is too old to run", () => {
       const pendingProvider = {
         instanceId: ProviderInstanceId.make("claudeAgent"),

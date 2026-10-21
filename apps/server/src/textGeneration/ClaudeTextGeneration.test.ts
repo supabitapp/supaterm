@@ -62,6 +62,7 @@ function withFakeClaudeEnv<A, E, R>(
     configDirMustBe?: string;
     cwdMustNotBe?: string;
     claudeConfig?: Partial<ClaudeSettings>;
+    fastModeBlocked?: Effect.Effect<boolean>;
   },
   effectFn: (textGeneration: TextGeneration.TextGeneration["Service"]) => Effect.Effect<A, E, R>,
 ) {
@@ -186,12 +187,34 @@ function withFakeClaudeEnv<A, E, R>(
       config,
       undefined,
       Effect.succeed(SYNTHETIC_CLAUDE_MODEL_CATALOG),
+      input.fastModeBlocked,
     );
     return yield* effectFn(textGeneration);
   }).pipe(Effect.scoped);
 }
 
 it.layer(layerClaudeTextGenerationTest)("ClaudeTextGeneration", (it) => {
+  it.effect("overrides saved Fast for structured generation while unavailable", () =>
+    withFakeClaudeEnv(
+      {
+        output: JSON.stringify({ structured_output: { title: "Title" } }),
+        argsMustContain: '--settings {"disableAllHooks":true,"fastMode":false}',
+        fastModeBlocked: Effect.succeed(true),
+      },
+      (generation) =>
+        generation
+          .generateThreadTitle({
+            cwd: process.cwd(),
+            message: "Summarize this work",
+            modelSelection: createModelSelection(
+              ProviderInstanceId.make("claudeAgent"),
+              SYNTHETIC_CLAUDE_CAPABLE_MODEL,
+              [{ id: "fastMode", value: true }],
+            ),
+          })
+          .pipe(Effect.tap((result) => Effect.sync(() => expect(result.title).toBe("Title")))),
+    ),
+  );
   it.effect("forwards Claude thinking settings without passing unsupported effort", () =>
     withFakeClaudeEnv(
       {
@@ -201,7 +224,8 @@ it.layer(layerClaudeTextGenerationTest)("ClaudeTextGeneration", (it) => {
             body: "",
           },
         }),
-        argsMustContain: '--settings {"disableAllHooks":true,"alwaysThinkingEnabled":false}',
+        argsMustContain:
+          '--settings {"disableAllHooks":true,"alwaysThinkingEnabled":false,"fastMode":false}',
         argsMustNotContain: "--effort",
       },
       (textGeneration) =>
