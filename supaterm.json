@@ -22,6 +22,16 @@
       "icon": "play"
     },
     {
+      "name": "Start Desktop Development",
+      "command": "vp run dev:desktop",
+      "icon": "play"
+    },
+    {
+      "name": "Start Mobile Development",
+      "command": "vp run --filter @supaterm/mobile dev:client",
+      "icon": "play"
+    },
+    {
       "name": "Run Test Suite",
       "command": "vp run test",
       "icon": "test"
