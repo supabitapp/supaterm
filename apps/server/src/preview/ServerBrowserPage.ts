@@ -18,7 +18,7 @@ import {
   type PreviewAutomationWaitForInput,
 } from "@supaterm/contracts";
 import { constVoid } from "effect/Function";
-import type { CDPSession, Frame, Locator, Page } from "playwright-core";
+import type { CDPSession, ConsoleMessage, Frame, Locator, Page } from "playwright-core";
 import * as NodeCrypto from "node:crypto";
 import { BrowserControlInterrupted } from "./SessionControl.ts";
 
@@ -149,6 +149,54 @@ const SNAPSHOT_SCRIPT = `(() => {
 })()`;
 
 const MASKED_VALUE = "••••••••";
+
+/**
+ * A `data:` URL carries its content, which can be a whole file, and URLs and diagnostics
+ * reach tool results and provider logs. Keeps only the media type: the payload can hold any
+ * character and parameters are page-chosen too.
+ */
+export const withoutDataPayload = (url: string) => {
+  // Read the scheme as a browser would: it ignores leading controls and spaces, and tabs and
+  // newlines anywhere. A snapshot's YAML value may be quoted and escaped; an escape that isn't a
+  // tab or newline still decodes to something that can't start a scheme.
+  const value = url
+    .replace(/^["']/, "")
+    .replace(/\\(x[\da-f]{2}|u[\da-f]{4}|.)/gi, (_escape, code: string) =>
+      code.length > 1
+        ? String.fromCharCode(Number.parseInt(code.slice(1), 16))
+        : ({ t: "\t", n: "\n", r: "\r", '"': '"', "\\": "\\" }[code] ?? "\u0001"),
+    )
+    .replace(/[\t\n\r]/g, "")
+    // eslint-disable-next-line no-control-regex -- URL parsing ignores these controls.
+    .replace(/^[\u0000-\u0020]+/, "");
+  const parsed = /^data:([^,;]*)/i.exec(value);
+  if (!parsed) return url;
+  const type = parsed[1]!.trim();
+  const mediaType = /^[\w.+-]{1,64}\/[\w.+-]{1,64}$/.test(type) ? type : "";
+  return `data:${mediaType},…`;
+};
+
+/**
+ * Chromium's own console messages, which carry no arguments, quote `data:` URLs whole, as in a
+ * blocked navigation or a CSP violation. Everything after the first one goes, since Chromium
+ * accepts any type and a payload can hold any character. What a page logs itself is its own
+ * text, like anything else it shows, so it stays.
+ */
+export const consoleText = (message: ConsoleMessage) =>
+  message.args().length > 0
+    ? message.text()
+    : message.text().replace(/(?<![a-z\d])data:[^,;]*[,;][\s\S]*/i, withoutDataPayload);
+
+// Split on LF alone: a value keeps any U+2028 that a multiline regex would treat as a line end.
+const withoutTreeDataPayloads = (tree: string) =>
+  tree
+    .split("\n")
+    .map((line) => {
+      const url = /^(\s*- \/url: )(.*)$/s.exec(line);
+      return url ? url[1] + withoutDataPayload(url[2]!) : line;
+    })
+    .join("\n");
+
 // The broker waits 15s for the host; a snapshot, retry included, answers well before.
 const SNAPSHOT_TIMEOUT_MS = 10_000;
 // How long a frame in another process gets to answer; one that crashed never does.
@@ -373,19 +421,77 @@ const maskTree = (tree: string, dotted: RegExp) =>
     })
     .join("\n");
 
+/** Chromium sizes the capture, so the reported size is read from the PNG header. */
+const pngSize = (base64: string) => {
+  const header = Buffer.from(base64.slice(0, 32), "base64");
+  return { width: header.readUInt32BE(16), height: header.readUInt32BE(20) };
+};
+
+type Viewport = { readonly width: number; readonly height: number };
+
+/**
+ * A page's display ratio and CSS viewport, read in an isolated world since page script can
+ * reassign `devicePixelRatio`, `innerWidth`, and `innerHeight` in its own, and its page zoom.
+ */
+export const readPageMetrics = async (cdp: CDPSession) => {
+  const { frameTree } = await cdp.send("Page.getFrameTree");
+  const { executionContextId } = await cdp.send("Page.createIsolatedWorld", {
+    frameId: frameTree.frame.id,
+    worldName: "supaterm-preview-metrics",
+  });
+  let { cssVisualViewport } = await cdp.send("Page.getLayoutMetrics");
+  // Desktop zoom applies asynchronously; bracket the CSS metrics to reject a torn read.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const zoom = cssVisualViewport.zoom ?? 1;
+    const { result } = await cdp.send("Runtime.evaluate", {
+      expression: "({ ratio: devicePixelRatio, width: innerWidth, height: innerHeight })",
+      contextId: executionContextId,
+      returnByValue: true,
+    });
+    ({ cssVisualViewport } = await cdp.send("Page.getLayoutMetrics"));
+    if ((cssVisualViewport.zoom ?? 1) === zoom) {
+      const { ratio, width, height } = result.value as {
+        readonly ratio: number;
+        readonly width: number;
+        readonly height: number;
+      };
+      return {
+        ratio,
+        width,
+        height,
+        zoom,
+        offset: { x: cssVisualViewport.pageX * zoom, y: cssVisualViewport.pageY * zoom },
+      };
+    }
+  }
+  throw new Error(
+    "The page's zoom kept changing while the snapshot read its size. Try the snapshot again.",
+  );
+};
+
 // Scaled captures repaint live screencasts, so callers pause them. Clips use document offsets.
 export const captureViewport = async (
   page: Page,
   cdp: CDPSession,
-  options: { readonly format: "png" | "jpeg"; readonly quality?: number; readonly scale: number },
+  options: {
+    readonly format: "png" | "jpeg";
+    readonly quality?: number;
+    readonly scale: number;
+    readonly viewport?: Viewport;
+    readonly offset?: { readonly x: number; readonly y: number } | undefined;
+  },
 ) => {
   let clip;
   if (options.scale < 1) {
-    const viewport = page.viewportSize() ?? { width: 1280, height: 800 };
-    const { cssVisualViewport } = await cdp.send("Page.getLayoutMetrics");
+    const viewport = options.viewport ?? page.viewportSize() ?? { width: 1280, height: 800 };
+    let offset = options.offset;
+    if (!offset) {
+      const { cssVisualViewport } = await cdp.send("Page.getLayoutMetrics");
+      const zoom = cssVisualViewport.zoom ?? 1;
+      offset = { x: cssVisualViewport.pageX * zoom, y: cssVisualViewport.pageY * zoom };
+    }
     clip = {
-      x: cssVisualViewport.pageX,
-      y: cssVisualViewport.pageY,
+      ...offset,
       ...viewport,
       scale: options.scale,
     };
@@ -401,18 +507,39 @@ export const captureViewport = async (
 type SnapshotInput = {
   readonly page: Page;
   readonly cdp: CDPSession;
-  readonly renderScale: number;
+  /** Headless pages render at the scale the server set; a desktop page at its display's. */
+  readonly renderScale: number | "display";
   readonly consoleEntries: ReadonlyArray<PreviewAutomationConsoleEntry>;
   readonly networkEntries: ReadonlyArray<PreviewAutomationNetworkEntry>;
   readonly actionTimeline: PreviewAutomationSnapshot["actionTimeline"];
+};
+
+/** The scale a page renders at and its viewport in device-independent pixels, a clip's units. */
+const renderingOf = async (input: SnapshotInput) => {
+  if (input.renderScale !== "display") {
+    const viewport = input.page.viewportSize() ?? { width: 1280, height: 800 };
+    return { renderScale: input.renderScale, viewport, offset: undefined };
+  }
+  // The display ratio a desktop page reports includes its page zoom, and its sizes are CSS pixels.
+  const page = await readPageMetrics(input.cdp);
+  return {
+    renderScale: page.ratio / page.zoom,
+    offset: page.offset,
+    viewport: {
+      width: Math.round(page.width * page.zoom),
+      height: Math.round(page.height * page.zoom),
+    },
+  };
 };
 
 const capture = async (
   input: SnapshotInput,
   deadline: number,
 ): Promise<PreviewAutomationSnapshot> => {
-  const viewport = input.page.viewportSize() ?? { width: 1280, height: 800 };
-  const scale = Math.min(1, MAX_SCREENSHOT_WIDTH / (viewport.width * input.renderScale));
+  const { renderScale, viewport, offset } = await renderingOf(input);
+  // A late metrics reply must not begin a capture after viewers have resumed.
+  if (Date.now() >= deadline) throw tooBusy();
+  const scale = Math.min(1, MAX_SCREENSHOT_WIDTH / (viewport.width * renderScale));
   const state = refsFor(input.page);
   invalidateRefs(input.page);
   const generation = state.generation;
@@ -427,7 +554,7 @@ const capture = async (
         "url" | "title" | "loading" | "visibleText" | "interactiveElements"
       >
     >,
-    captureViewport(input.page, input.cdp, { format: "png", scale }),
+    captureViewport(input.page, input.cdp, { format: "png", scale, viewport, offset }),
   ]);
   void pageAndScreenshot.catch(constVoid);
   // Leaves time for the second read; a frame that never loads holds the tree until then.
@@ -455,7 +582,10 @@ const capture = async (
   const [page, data] = await pageAndScreenshot;
   if (state.generation !== generation) throw pageChanged();
   const mask = (text: string) => (dotted ? text.replace(dotted, MASKED_VALUE) : text);
-  const accessibilityTree = (dotted ? maskTree(tree, dotted) : tree)
+  // Redacted before the cut, so a payload crossing it can't leave its start showing, and before
+  // masking, which could hide the `data:` scheme behind a password value's dots.
+  const redacted = withoutTreeDataPayloads(tree);
+  const accessibilityTree = (dotted ? maskTree(redacted, dotted) : redacted)
     .slice(0, MAX_VISIBLE_TEXT_LENGTH)
     .replace(/\[ref=((?:f\d+)?e\d+)\]/g, (_match, nativeRef: string) => {
       const ref = `supaterm-${generation}-${nativeRef}`;
@@ -474,8 +604,7 @@ const capture = async (
     screenshot: {
       mimeType: "image/png",
       data,
-      width: Math.round(viewport.width * input.renderScale * scale),
-      height: Math.round(viewport.height * input.renderScale * scale),
+      ...pngSize(data),
     },
   };
 };

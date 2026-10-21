@@ -179,6 +179,25 @@ describe("DesktopLinuxUrlHandler", () => {
     assert.include(entry, "Icon=/home/al ice/icons/Supaterm\\\\x.png");
   });
 
+  it.each([
+    {
+      execTarget: "/opt/Supaterm(beta)/supaterm.AppImage",
+      execLine: 'Exec="/opt/Supaterm(beta)/supaterm.AppImage" %U',
+    },
+    {
+      execTarget: "/opt/supaterm%20code/supaterm.AppImage",
+      execLine: "Exec=/opt/supaterm%%20code/supaterm.AppImage %U",
+    },
+  ])("renders the handler Exec line for $execTarget", ({ execTarget, execLine }) => {
+    const entry = DesktopLinuxUrlHandler.renderUrlHandlerDesktopEntry({
+      displayName: "Supaterm",
+      execTarget,
+      scheme: "supaterm",
+    });
+
+    assert.include(entry.split("\n"), execLine);
+  });
+
   it("carries structured context on registration errors", () => {
     const writeError = new DesktopLinuxUrlHandler.DesktopLinuxUrlHandlerRegistrationError({
       step: "write-desktop-entry",
@@ -222,7 +241,7 @@ describe("DesktopLinuxUrlHandler", () => {
         );
         assert.include(
           recorded.files[0]?.content,
-          'Exec="/home/alice/Applications/Supaterm.AppImage" %U',
+          "Exec=/home/alice/Applications/Supaterm.AppImage %U",
         );
         assert.include(recorded.files[0]?.content, "MimeType=x-scheme-handler/supaterm;");
         assert.deepEqual(recorded.commands, [
@@ -247,7 +266,12 @@ describe("DesktopLinuxUrlHandler", () => {
 
       assert.include(
         recorded.files[0]?.content,
-        `Exec=${DesktopLinuxUrlHandler.escapeDesktopEntryExecArgument(process.execPath)} %U`,
+        DesktopLinuxUrlHandler.renderUrlHandlerDesktopEntry({
+          displayName: "Supaterm",
+          execTarget: process.execPath,
+          scheme: "supaterm",
+          iconPath: "/home/alice/.local/share/icons/com.supaterm.desktop.desktop.png",
+        }),
       );
     });
   });

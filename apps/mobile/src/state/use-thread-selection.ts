@@ -156,20 +156,12 @@ function useResolvedThreadSelection(params: ThreadSelectionRouteParams | undefin
     const message = queued ?? outcome?.message ?? null;
     return message === null ? null : { message, outcome };
   })();
-  // Until the creation is delivered the server has no thread to subscribe
-  // to; subscribing anyway would retry "not found" for the whole setup.
-  const selectedThreadDetailRef =
-    selectedThreadShell !== null ||
-    pendingCreation === null ||
-    pendingCreation.outcome?.kind === "delivered"
-      ? selectedThreadRef
-      : null;
   const [previousCreation, setPreviousCreation] = useState<PendingThreadCreation | null>(null);
   const needsDetail =
     selectedThreadShell === null || pendingCreation !== null || previousCreation !== null;
   const selectedThreadDetailState = useEnvironmentThread(
-    needsDetail ? (selectedThreadDetailRef?.environmentId ?? null) : null,
-    needsDetail ? (selectedThreadDetailRef?.threadId ?? null) : null,
+    needsDetail ? (selectedThreadRef?.environmentId ?? null) : null,
+    needsDetail ? (selectedThreadRef?.threadId ?? null) : null,
   );
   const selectedThreadDetail = Option.getOrNull(selectedThreadDetailState.data);
   const selectedThread =
@@ -212,7 +204,6 @@ function useResolvedThreadSelection(params: ThreadSelectionRouteParams | undefin
     selectedThreadRef,
     selectedThread,
     selectedThreadCreation,
-    selectedThreadDetailRef,
     selectedThreadProject,
     selectedEnvironmentConnection,
     selectedEnvironmentRuntime,

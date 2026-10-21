@@ -7,6 +7,10 @@
       "types": "./src/markdownImageEmbeds.ts",
       "import": "./src/markdownImageEmbeds.ts"
     },
+    "./changedFileKind": {
+      "types": "./src/changedFileKind.ts",
+      "import": "./src/changedFileKind.ts"
+    },
     "./githubMarkdownLinks": {
       "types": "./src/githubMarkdownLinks.ts",
       "import": "./src/githubMarkdownLinks.ts"
@@ -170,6 +174,10 @@
     "./desktopBootstrapToken": {
       "types": "./src/desktopBootstrapToken.ts",
       "import": "./src/desktopBootstrapToken.ts"
+    },
+    "./telemetryId": {
+      "types": "./src/telemetryId.ts",
+      "import": "./src/telemetryId.ts"
     },
     "./oauthScope": {
       "types": "./src/oauthScope.ts",
@@ -486,6 +494,10 @@
     "./relay/name": {
       "types": "./src/relay/name.ts",
       "import": "./src/relay/name.ts"
+    },
+    "./markdownMath": {
+      "types": "./src/markdownMath.ts",
+      "import": "./src/markdownMath.ts"
     }
   },
   "scripts": {
@@ -499,12 +511,14 @@
     "@supaterm/contracts": "workspace:*",
     "effect": "catalog:",
     "mdast-util-directive": "catalog:",
+    "mdast-util-to-hast": "^13.2.1",
     "micromark-extension-directive": "catalog:",
     "micromark-util-character": "catalog:",
     "rehype-raw": "catalog:",
     "rehype-sanitize": "catalog:",
     "remark-breaks": "catalog:",
     "remark-gfm": "catalog:",
+    "remark-math": "6.0.0",
     "remark-parse": "catalog:",
     "remark-rehype": "catalog:",
     "unified": "catalog:",
@@ -513,6 +527,7 @@
   "devDependencies": {
     "@effect/platform-node": "catalog:",
     "@effect/vitest": "catalog:",
+    "@types/mdast": "^4.0.4",
     "@types/node": "catalog:",
     "micromark-util-types": "catalog:",
     "vite-plus": "catalog:"

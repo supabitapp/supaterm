@@ -124,6 +124,7 @@ describe("pi Supaterm MCP injection", () => {
       environment: {},
       mcpSession,
       extensionPath: "/tmp/cache/pi-supaterm-mcp-extension.ts",
+      sessionPath: "/fake/persisted.jsonl",
       ephemeral: true,
       disableExtensions: true,
       disableTools: true,

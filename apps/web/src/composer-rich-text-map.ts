@@ -1,3 +1,4 @@
+import type { SkillMeta } from "./composer-rich-text-doc";
 import { Fragment, Mark, type Node as ProseMirrorNode } from "@tiptap/pm/model";
 import type { EditorState } from "@tiptap/pm/state";
 import type { Transaction } from "@tiptap/pm/state";
@@ -483,34 +484,9 @@ export function serializeEditorDoc(doc: ProseMirrorNode): RichDocMap {
   };
 }
 
-function lastRunEnd(map: RichDocMap, space: "collapsed" | "md"): number {
-  const last = map.runs[map.runs.length - 1];
-  if (!last) return 0;
-  return space === "collapsed"
-    ? last.collapsedStart + last.collapsedLen
-    : last.mdStart + last.mdLen;
-}
-
 function runOwnsOffset(run: RichRun, flatOffset: number): boolean {
   const end = run.flatStart + run.docLen;
   return flatOffset < end || (flatOffset === end && run.nodeName === "codeBlock");
-}
-
-export function flatToCollapsed(map: RichDocMap, flatOffset: number): number {
-  const bounded = Math.max(0, Math.min(flatOffset, map.docLength));
-  for (const run of map.runs) {
-    if (runOwnsOffset(run, bounded)) {
-      if (run.kind === "text" || run.kind === "token") {
-        const within = Math.min(
-          bounded - run.flatStart,
-          run.collapsedLen - run.openLen - run.closeLen,
-        );
-        return run.collapsedStart + run.openLen + within;
-      }
-      return run.collapsedStart + (bounded - run.flatStart);
-    }
-  }
-  return lastRunEnd(map, "collapsed");
 }
 
 export function flatToMarkdown(map: RichDocMap, flatOffset: number): number {
@@ -523,27 +499,8 @@ export function flatToMarkdown(map: RichDocMap, flatOffset: number): number {
       return run.mdStart + (bounded - run.flatStart);
     }
   }
-  return lastRunEnd(map, "md");
-}
-
-export function collapsedToFlat(map: RichDocMap, collapsedOffset: number): number {
-  for (const run of map.runs) {
-    if (collapsedOffset < run.collapsedStart + run.collapsedLen) {
-      // Checkbox prefixes and style markers are shown, never edited: every
-      // offset inside them clamps to the adjacent document position.
-      if (run.kind === "prefix") return run.flatStart;
-      if (run.kind === "text" || run.kind === "token") {
-        const within = collapsedOffset - run.collapsedStart;
-        const contentLen = run.collapsedLen - run.openLen - run.closeLen;
-        // Marker characters clamp to the styled edge: they are shown, never edited.
-        if (within <= run.openLen) return run.flatStart;
-        if (within >= run.openLen + contentLen) return run.flatStart + run.docLen;
-        return run.flatStart + (within - run.openLen);
-      }
-      return run.flatStart + (collapsedOffset - run.collapsedStart);
-    }
-  }
-  return map.docLength;
+  const last = map.runs[map.runs.length - 1];
+  return last ? last.mdStart + last.mdLen : 0;
 }
 
 export function flatToPm(map: RichDocMap, flatOffset: number): number {
@@ -620,4 +577,83 @@ export function stepCaretAcrossStyledEdge(
   const target = direction === -1 ? edge.before : edge.after;
   if (Mark.sameSet(edge.current, target)) return null;
   return state.tr.setStoredMarks(target);
+}
+
+export interface SkillChipReplacement {
+  from: number;
+  to: number;
+  node: ProseMirrorNode;
+}
+
+/**
+ * Use the same Markdown token boundaries as draft restoration. Apply edits
+ * last-first so positions stay valid and unrelated citation nodes keep their keys.
+ */
+export function skillChipReplacements(
+  doc: ProseMirrorNode,
+  skillLabelFor: (name: string) => SkillMeta | null,
+): SkillChipReplacement[] {
+  const schema = doc.type.schema;
+  const skillType = schema.nodes["composer-skill"];
+  if (!skillType) return [];
+  const replacements: SkillChipReplacement[] = [];
+  doc.descendants((node, pos) => {
+    if (node.type !== skillType) return;
+    const name = typeof node.attrs.skillName === "string" ? node.attrs.skillName : "";
+    if (name && !skillLabelFor(name)) {
+      replacements.push({
+        from: pos,
+        to: pos + node.nodeSize,
+        node: schema.text(readAtomSource(node), node.marks),
+      });
+    }
+  });
+  const map = serializeEditorDoc(doc);
+  let end = 0;
+  for (const segment of splitPromptIntoComposerSegments(map.value)) {
+    const start = end;
+    end += segment.type === "text" ? segment.text.length : segment.source.length;
+    if (segment.type !== "skill") continue;
+    const meta = skillLabelFor(segment.name);
+    if (!meta) continue;
+    // Only text needs converting; an existing chip is a token run.
+    const run = map.runs.find(
+      (candidate) =>
+        candidate.kind === "text" &&
+        candidate.nodeName !== "codeBlock" &&
+        start >= candidate.mdStart + candidate.openLen &&
+        end <= candidate.mdStart + candidate.openLen + candidate.docLen,
+    );
+    if (!run) continue;
+    const from = run.pmPos + (start - run.mdStart - run.openLen);
+    replacements.push({
+      from,
+      to: from + segment.source.length,
+      node: skillType.create(
+        { skillName: segment.name, skillLabel: meta.label, skillDescription: meta.description },
+        null,
+        doc.nodeAt(from)?.marks,
+      ),
+    });
+  }
+  return replacements.sort((left, right) => right.from - left.from);
+}
+
+export function markdownToFlat(map: RichDocMap, markdownOffset: number): number {
+  for (const run of map.runs) {
+    if (markdownOffset < run.mdStart + run.mdLen) {
+      if (run.kind === "prefix") return run.flatStart;
+      if (run.kind === "text" || run.kind === "token") {
+        const within = markdownOffset - run.mdStart;
+        if (within <= run.openLen) return run.flatStart;
+        // A chip is one document position however long its source is.
+        if (run.kind === "token" || within >= run.openLen + run.docLen) {
+          return run.flatStart + run.docLen;
+        }
+        return run.flatStart + (within - run.openLen);
+      }
+      return run.flatStart + (markdownOffset - run.mdStart);
+    }
+  }
+  return map.docLength;
 }

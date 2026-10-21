@@ -32,13 +32,13 @@ import { usePullRequestPermissions } from "./usePullRequestPermissions";
 import { usePullRequestAction } from "./usePullRequestAction";
 
 import { useFocusEffect, useNavigation, type StaticScreenProps } from "@react-navigation/native";
-import { useAtomRefresh } from "@effect/atom-react";
+import { RegistryContext, useAtomRefresh } from "@effect/atom-react";
 
 import { type PullRequestDetail, type PullRequestListEntry } from "@supaterm/contracts";
 import { PullRequestOverviewLoading } from "./PullRequestOverviewLoading";
 import { copyPullRequestLink, sharePullRequestLink } from "./pullRequestLink";
 import { pullRequestStatus } from "./pullRequestStatus";
-import { useEffect, useRef, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import {
   Linking,
   Platform,
@@ -76,8 +76,7 @@ import {
   PullRequestDiffStats,
   PullRequestReadStatus,
 } from "./PullRequestPresentation";
-import { usePullRequestFilesContent } from "./PullRequestFiles";
-
+import { usePullRequestFilesSection } from "./PullRequestFiles";
 import { PullRequestDescription } from "./PullRequestDescription";
 import { PullRequestMarkdownRepository } from "./PullRequestMarkdown";
 import {
@@ -260,7 +259,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
   const requestedSection = useRef(section);
   const [listAnimationsReady, setListAnimationsReady] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
-  const filesContent = usePullRequestFilesContent({ params });
+  const filesContent = usePullRequestFilesSection(params);
   const guidesEnabled = useReviewGuidesEnabled(params);
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>(DEFAULT_ACTIVITY_FILTER);
   const activityContent = usePullRequestActivityRows(params, activityFilter);
@@ -320,13 +319,22 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
   const stack = usePullRequestStack(params, pr);
   const refreshActivity = useAtomRefresh(composerPullRequests.activity(requestTarget(params)));
   const refreshGuide = useAtomRefresh(composerPullRequests.reviewGuide(requestTarget(params)));
-  const refresh = () => {
-    pullRefresh.onRefresh();
-    if (guidesEnabled) refreshGuide();
-    stack.refresh();
-    refreshActivity();
-    filesContent.refresh();
-  };
+  const registry = use(RegistryContext);
+  const refresh = () =>
+    pullRefresh.onRefresh(async (signal) => {
+      const target = requestTarget(params);
+      await composerPullRequests.invalidate
+        .run(registry, {
+          environmentId: target.environmentId,
+          input: { reference: target.input },
+        })
+        .catch(() => undefined);
+      if (signal.aborted) return;
+      if (guidesEnabled) refreshGuide();
+      stack.refresh();
+      refreshActivity();
+      filesContent.refresh();
+    });
   const jumpToFiles = () => {
     scrollViews.current.overview?.scrollToOffset({
       offset: bodyY.current + filesY.current - insets.top,

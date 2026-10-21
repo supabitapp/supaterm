@@ -1,7 +1,7 @@
 // @effect-diagnostics globalDate:off -- UI snooze presets use local calendar boundaries and Intl labels.
 import * as DateTime from "effect/DateTime";
 
-import type { PendingSubagentRequest } from "./models.ts";
+import type { EnvironmentThreadShell, PendingSubagentRequest } from "./models.ts";
 
 interface SnoozeRunLike {
   readonly turnId?: unknown;
@@ -71,6 +71,7 @@ export function hasQueuedTurnStart(
 }
 
 export interface ThreadSnoozeShell extends QueuedThreadShell {
+  readonly source?: Pick<EnvironmentThreadShell["source"], "pendingRuntimeRequest">;
   readonly snoozedUntil?: string | null;
   readonly snoozedAt?: string | null;
   readonly hasPendingApprovals: boolean;
@@ -80,25 +81,14 @@ export interface ThreadSnoozeShell extends QueuedThreadShell {
 
 export function threadRaisedHandWhileSnoozed(shell: ThreadSnoozeShell): boolean {
   if (shell.hasPendingApprovals || shell.hasPendingUserInput) return true;
+  if (shell.source?.pendingRuntimeRequest != null) return true;
   if (shell.pendingSubagentRequest != null) return true;
-  const latestRun = shell.latestRun ?? shell.latestTurn ?? null;
   const failedAt = failureEdgeAt(shell);
-  if (
+  return (
     failedAt !== undefined &&
     (shell.snoozedAt == null ||
       (failedAt != null && Date.parse(failedAt) > Date.parse(shell.snoozedAt)))
-  ) {
-    return true;
-  }
-  if (
-    shell.snoozedAt != null &&
-    (latestRun?.state === "completed" || latestRun?.status === "completed") &&
-    latestRun.completedAt != null &&
-    Date.parse(latestRun.completedAt) > Date.parse(shell.snoozedAt)
-  ) {
-    return true;
-  }
-  return false;
+  );
 }
 
 function failureEdgeAt(shell: ThreadSnoozeShell): string | null | undefined {
@@ -131,10 +121,12 @@ export function canSnooze(
     | "latestRun"
     | "session"
     | "runtime"
+    | "source"
   >,
   options: { readonly now: string },
 ): boolean {
   if (shell.hasPendingApprovals || shell.hasPendingUserInput) return false;
+  if (shell.source?.pendingRuntimeRequest != null) return false;
   if (shell.pendingSubagentRequest != null) return false;
   if (hasQueuedTurnStart(shell, options)) return false;
   return true;
@@ -163,15 +155,7 @@ export function threadWokeAt(
   // indicator the user already cleared by visiting (snoozedUntil is newer
   // than that visit's lastVisitedAt).
   if (threadRaisedHandWhileSnoozed(shell)) {
-    const latestRun = shell.latestRun ?? shell.latestTurn ?? null;
-    if (
-      shell.snoozedAt != null &&
-      (latestRun?.state === "completed" || latestRun?.status === "completed") &&
-      latestRun.completedAt != null &&
-      Date.parse(latestRun.completedAt) > Date.parse(shell.snoozedAt)
-    ) {
-      return latestRun.completedAt;
-    }
+    // An old failure must not replace the activity time of an approval or input wake.
     const failedAt = failureEdgeAt(shell);
     if (
       failedAt != null &&

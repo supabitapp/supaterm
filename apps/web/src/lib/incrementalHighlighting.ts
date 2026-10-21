@@ -1,73 +1,106 @@
-import type { DiffsHighlighter } from "@pierre/diffs";
+import {
+  createHastElement,
+  createTextNodeElement,
+  renderTokenLines,
+  type DiffsHighlighter,
+  type DiffsStreamTokenizer,
+  type ThemedToken,
+} from "@pierre/diffs";
 
 import type { DiffThemeName } from "./diffRendering";
 
-function codeChildren(root: ReturnType<DiffsHighlighter["codeToHast"]>) {
-  const pre = root.children.find((node) => node.type === "element" && node.tagName === "pre");
-  if (pre?.type !== "element") throw new Error("Missing highlighted pre element");
-  const code = pre.children.find((node) => node.type === "element" && node.tagName === "code");
-  if (code?.type !== "element") throw new Error("Missing highlighted code element");
-  return code.children;
+function highlightedDocument(
+  highlighter: DiffsHighlighter,
+  themeName: DiffThemeName,
+  children: ReturnType<typeof renderTokenLines>,
+) {
+  const theme = highlighter.getTheme(themeName);
+  return {
+    type: "root" as const,
+    children: [
+      createHastElement({
+        tagName: "pre",
+        properties: {
+          class: "diffs",
+          style: `color:${theme.fg};background-color:${theme.bg}`,
+          tabIndex: 0,
+        },
+        children: [createHastElement({ tagName: "code", children })],
+      }),
+    ],
+  };
+}
+
+export type HighlightedDocument = ReturnType<typeof highlightedDocument>;
+
+export function highlightCodeDocument(
+  highlighter: DiffsHighlighter,
+  code: string,
+  language: string,
+  theme: DiffThemeName,
+) {
+  const { tokens } = highlighter.codeToTokens(code, { lang: language, theme });
+  const children = renderTokenLines(tokens, { cacheHtmlStyles: true }).flatMap((line, index) =>
+    index === 0 ? [line] : [createTextNodeElement("\n"), line],
+  );
+  return highlightedDocument(highlighter, theme, children);
 }
 
 export function createIncrementalHighlightedDocument(
   highlighter: DiffsHighlighter,
   language: string,
   theme: DiffThemeName,
-): (code: string) => ReturnType<DiffsHighlighter["codeToHast"]> {
-  const options = { lang: language, theme };
-  const newline = { type: "text" as const, value: "\n" };
-  let cached:
-    | {
-        prefix: string;
-        state: ReturnType<DiffsHighlighter["getLastGrammarState"]>;
-        children: ReturnType<typeof codeChildren>;
-      }
-    | undefined;
+) {
+  let stream: DiffsStreamTokenizer | undefined;
+  let source = "";
+  let completed: ReturnType<typeof renderTokenLines> = [];
 
-  return (code: string) => {
-    // Plain text and ANSI do not have a TextMate grammar state. A CR at the end
-    // of a chunk can still become a CRLF, so keep that input on the full path.
+  const dispose = () => {
+    stream?.dispose();
+    stream = undefined;
+    source = "";
+    completed = [];
+  };
+
+  const highlight = (code: string) => {
     if (
-      !language ||
-      ["text", "plaintext", "plain", "txt", "ansi"].includes(language) ||
+      language === "ansi" ||
+      language === "markdown" ||
+      language === "md" ||
+      language === "mdx" ||
       code.includes("\r")
     ) {
-      return highlighter.codeToHast(code, options);
+      dispose();
+      return highlightCodeDocument(highlighter, code, language, theme);
     }
-    if (cached && !code.startsWith(cached.prefix)) cached = undefined;
-    // Markdown ends fenced code with a newline even while its last line is still
-    // streaming. Caching that line would invalidate the prefix on the next delta.
-    const withoutFinalNewline = code.endsWith("\n") ? code.slice(0, -1) : code;
-    const end = withoutFinalNewline.lastIndexOf("\n") + 1;
-    if (end > (cached?.prefix.length ?? 0)) {
-      // Omit the final newline: Shiki would tokenize an extra empty line and
-      // advance the grammar state twice before we process the following line.
-      const root = highlighter.codeToHast(code.slice(cached?.prefix.length ?? 0, end - 1), {
-        ...options,
-        ...(cached ? { grammarState: cached.state } : {}),
-      });
-      const state = highlighter.getLastGrammarState(root);
-      if (!state) {
-        cached = undefined;
-        return highlighter.codeToHast(code, options);
+
+    const input = code.endsWith("\n") ? code.slice(0, -1) : code;
+    if (!input.startsWith(source)) dispose();
+    stream ??= highlighter.createStreamTokenizer({ lang: language, theme });
+    const result = stream.enqueue(input.slice(source.length));
+    if (result instanceof Promise) {
+      dispose();
+      return highlightCodeDocument(highlighter, code, language, theme);
+    }
+    source = input;
+
+    let line: ThemedToken[] = [];
+    for (const token of result.stable) {
+      if (token.content === "\n") {
+        completed.push(...renderTokenLines([line], { cacheHtmlStyles: true }));
+        completed.push(createTextNodeElement("\n"));
+        line = [];
+      } else {
+        line.push(token);
       }
-      cached = {
-        prefix: code.slice(0, end),
-        state,
-        children: [...(cached ? [...cached.children, newline] : []), ...codeChildren(root)],
-      };
     }
-    const prefix = cached;
-    if (!prefix) return highlighter.codeToHast(code, options);
-    return highlighter.codeToHast(code.slice(prefix.prefix.length), {
-      ...options,
-      grammarState: prefix.state,
-      transformers: [
-        {
-          code: (node) => ({ ...node, children: [...prefix.children, newline, ...node.children] }),
-        },
-      ],
-    });
+    const tail = renderTokenLines([result.unstable], { cacheHtmlStyles: true });
+    if (code.endsWith("\n")) {
+      tail.push(createTextNodeElement("\n"), ...renderTokenLines([[]], {}));
+    }
+    return highlightedDocument(highlighter, theme, [...completed, ...tail]);
   };
+
+  highlight.dispose = dispose;
+  return highlight;
 }

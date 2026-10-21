@@ -728,8 +728,23 @@ async function warmMetroBundle(
   host: string,
   config: ShowcaseConfig,
 ): Promise<void> {
-  const url = `http://${host}:${config.metroPort}/apps/mobile/index.bundle?platform=${platform}&dev=true&minify=false`;
-  await runCommand("curl", ["--fail", "--silent", "--show-error", "--output", "/dev/null", url]);
+  const url = `http://${host}:${config.metroPort}/`;
+  const curlOptions = ["--fail", "--silent", "--show-error", "--max-time", "300"];
+  const manifest = JSON.parse(
+    await commandOutput("curl", [
+      ...curlOptions,
+      "--header",
+      `Expo-Platform: ${platform}`,
+      "--header",
+      "Accept: application/expo+json",
+      url,
+    ]),
+  ) as { readonly launchAsset?: { readonly url?: unknown } };
+  const bundleUrl = manifest.launchAsset?.url;
+  if (typeof bundleUrl !== "string" || bundleUrl.length === 0) {
+    throw new Error(`Metro's ${platform} manifest did not contain a launch asset URL.`);
+  }
+  await runCommand("curl", [...curlOptions, "--output", "/dev/null", bundleUrl]);
 }
 
 async function buildIos(): Promise<string> {

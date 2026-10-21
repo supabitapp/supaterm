@@ -14,7 +14,7 @@ You can add more computers before continuing. **Add a computer** connects
 directly to a server on your network or tailnet.
 [Install the CLI](./install.md#command-line), start the server with `supaterm serve`,
 then run `supaterm pair --tailscale` and paste the pairing link. You can also run
-`supaterm serve --host <address>` and use `supaterm pair` when the server is already
+`supaterm serve --host <address>` and use `supaterm pair --no-relay` when the server is already
 reachable on your network.
 
 Saved computers are selected by default. Uncheck any you do not want to set up;
@@ -50,7 +50,8 @@ one group. Directories that are not git repositories sit under "Other folders".
 
 The default selection includes git repositories active within the last 30 days
 with at least three conversations. Use the checkboxes, or "Select all" and
-"Select none", to change the selection. Linked git worktrees, Codex scratch
+"Select none", to change the selection. Linked worktrees of bare repositories
+can be offered as separate projects. Other linked git worktrees, Codex scratch
 directories under `Documents/Codex`, and anything under `Downloads` are not
 offered.
 

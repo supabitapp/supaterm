@@ -26,7 +26,7 @@ inspecting or seeding SQLite. Stop the test server before direct fixture writes.
 Call `preview_status`, then `preview_open` if the Browser panel is
 closed. Navigate to the complete startup pairing URL once with
 `preview_navigate`, then use `preview_snapshot` and Supaterm's interaction tools.
-If the token was consumed or expired, run `node apps/server/src/bin.ts pair`
+If the token was consumed or expired, run `node apps/server/src/bin.ts pair --no-relay`
 for a fresh one. Keep using the same tab.
 
 ## Verify and retain

@@ -111,7 +111,7 @@ function UsageLimitsBannerBody({
               {account.limits.resetCredits ? (
                 <ResetCredits
                   environmentId={environmentId}
-                  input={{ instanceId: account.instanceId }}
+                  input={account.resetCreditInput ?? { instanceId: account.instanceId }}
                   credits={account.limits.resetCredits}
                   now={now}
                 />

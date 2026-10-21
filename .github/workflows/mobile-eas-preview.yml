@@ -49,7 +49,7 @@ jobs:
           else
             echo "EXPO_TOKEN is not available; skipping mobile preview."
           fi
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         if: steps.expo-token.outputs.present == 'true'
         with:
           ref: ${{ github.event.pull_request.head.sha }}
@@ -73,7 +73,7 @@ jobs:
       - id: history
         name: Find a compatible preview build
         if: steps.expo-token.outputs.present == 'true'
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9.0.0
         env:
           MOBILE_VERSION: ${{ steps.config.outputs.version }}
           MOBILE_FINGERPRINT: ${{ steps.config.outputs.fingerprint }}
@@ -113,7 +113,7 @@ jobs:
           echo "url=$url" >> "$GITHUB_OUTPUT"
       - name: Record completed preview build
         if: steps.upload.outcome == 'success'
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9.0.0
         env:
           MOBILE_VERSION: ${{ steps.config.outputs.version }}
           MOBILE_FINGERPRINT: ${{ steps.build.outputs.fingerprint }}
@@ -145,7 +145,7 @@ jobs:
           echo "group=$group" >> "$GITHUB_OUTPUT"
       - name: Link preview on PR
         if: steps.update.outcome == 'success'
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9.0.0
         env:
           MOBILE_BUILD_URL: ${{ steps.upload.outputs.url || steps.history.outputs.url }}
           MOBILE_UPDATE_GROUP: ${{ steps.update.outputs.group }}

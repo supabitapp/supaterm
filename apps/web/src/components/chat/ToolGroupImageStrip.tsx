@@ -69,7 +69,7 @@ export function ToolGroupImageStrip(props: {
         "mt-1 transition-[opacity,translate] duration-180 ease-drawer data-enter:starting:-translate-y-1 data-enter:starting:opacity-0 data-ending-style:-translate-y-1 data-ending-style:opacity-0 data-ending-style:duration-140 motion-reduce:transition-none",
       )}
     >
-      <div className="flex gap-1.5 overflow-x-auto pb-1">
+      <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {visible.map((image, index) => (
           <div
             key={image.key}

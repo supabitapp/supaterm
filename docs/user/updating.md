@@ -3,7 +3,10 @@
 The app you use and the server running your agents can be on different machines.
 When a server is behind your web or desktop app, an update notice appears in the
 conversation and **Settings → Connections**. Update the machine named in that
-notice.
+notice. A server installed with the `supaterm` command stays on its release
+channel, so a nightly app does not offer to update a stable server unless the
+server is too old to connect. To switch it, run
+`supaterm update --channel nightly` on its host.
 
 ## Update everything at once
 
@@ -112,6 +115,15 @@ directory and pair with the running server.
 **Update all** updates every outdated provider on every connected environment
 at once. Hover it to see which providers it will update. Providers that only
 offer a manual update command are not included.
+
+After a successful provider CLI update, Supaterm refreshes model discovery for
+every enabled instance of that provider using its own configuration. Connected
+clients receive the refreshed catalogs automatically. Provider update checks
+must be enabled to download the latest Supaterm model catalog.
+
+Provider updates do not restart running chats. An existing session can keep
+using the previous CLI until it ends. If discovery fails, check the provider
+status and refresh it again.
 
 ## Mobile updates
 

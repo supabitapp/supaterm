@@ -10,7 +10,7 @@ import { AuthOrchestrationOperateScope, resolveEnvironmentMachineKind } from "@s
 
 import { isElectron } from "../../env";
 import { useNowMinuteMs } from "../../hooks/useNowMinute";
-import { projectGroupMemberKeys } from "../../sidebarProjectGrouping";
+import { projectGroupMemberKeys, type SidebarProjectSnapshot } from "../../sidebarProjectGrouping";
 import {
   useEnvironments,
   usePrimaryEnvironmentId,
@@ -37,7 +37,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "..
 import { SidebarInset } from "../ui/sidebar";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { AutomationEditorDialog } from "./AutomationEditorDialog";
-import { AutomationRow } from "./AutomationRow";
+import { AutomationRow, AutomationRowSkeleton } from "./AutomationRow";
 import { automationsScopeSearch, matchesAutomationScope } from "./automations.logic";
 
 const route = getRouteApi("/_chat/automations");
@@ -69,9 +69,9 @@ export function AutomationsPage() {
     writableEnvironments.find(
       (entry) => entry.environmentId === defaultEnvironment?.environmentId,
     ) ?? writableEnvironments[0];
-  const projectNameByKey = new Map(
+  const projectByKey = new Map(
     groups.flatMap((group) =>
-      [...projectGroupMemberKeys(group)].map((key) => [key, group.displayName] as const),
+      [...projectGroupMemberKeys(group)].map((key) => [key, group] as const),
     ),
   );
   const [editor, setEditor] = useState<{
@@ -150,7 +150,7 @@ export function AutomationsPage() {
             ) : states.length > 1 ? (
               <AutomationEnvironmentList
                 states={states}
-                projectNameByKey={projectNameByKey}
+                projectByKey={projectByKey}
                 linkUnavailable={linkUnavailable}
                 creationEnvironment={creationEnvironment}
                 onCreate={openForCreate}
@@ -159,7 +159,7 @@ export function AutomationsPage() {
             ) : states[0] ? (
               <AutomationEnvironmentSection
                 state={states[0]}
-                projectNameByKey={projectNameByKey}
+                projectByKey={projectByKey}
                 linkUnavailable={linkUnavailable}
                 creationEnvironment={creationEnvironment}
                 onCreate={openForCreate}
@@ -233,7 +233,7 @@ function useAutomationEnvironmentStates(
 }
 
 interface AutomationListProps {
-  readonly projectNameByKey: ReadonlyMap<string, string>;
+  readonly projectByKey: ReadonlyMap<string, SidebarProjectSnapshot>;
   /** A linked automation that its loaded environment does not have. */
   readonly linkUnavailable: boolean;
   readonly creationEnvironment: EnvironmentPresentation | undefined;
@@ -248,7 +248,7 @@ interface AutomationListProps {
  */
 function AutomationEnvironmentList({
   states,
-  projectNameByKey,
+  projectByKey,
   linkUnavailable,
   creationEnvironment,
   onCreate,
@@ -314,7 +314,7 @@ function AutomationEnvironmentList({
               <AutomationRows
                 environmentId={environment.environmentId}
                 tasks={tasks}
-                projectNameByKey={projectNameByKey}
+                projectByKey={projectByKey}
                 onEdit={onEdit}
               />
             </SettingsGroup>
@@ -355,7 +355,7 @@ function AutomationEnvironmentList({
 
 function AutomationEnvironmentSection({
   state: { environment, connected, tasks, error },
-  projectNameByKey,
+  projectByKey,
   linkUnavailable,
   creationEnvironment,
   onCreate,
@@ -373,23 +373,10 @@ function AutomationEnvironmentSection({
         ) : error !== null ? (
           <AutomationNotice title="Could not load automations" description={error} error />
         ) : !tasks ? (
-          <div role="status" aria-label="Loading automations">
+          <div role="status" aria-label="Loading automations" className="divide-y divide-border/50">
             <span className="sr-only">Loading automations…</span>
             {[0, 1].map((index) => (
-              <div
-                key={index}
-                aria-hidden
-                className="flex flex-col gap-3 px-4 py-4 sm:px-5 sm:py-5"
-              >
-                <div className="flex flex-col gap-1.5">
-                  <div className="h-5 w-1/3 rounded bg-muted" />
-                  <div className="h-10 w-4/5 rounded bg-muted/60" />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <div className="h-4 w-1/2 rounded bg-muted/60" />
-                  <div className="h-4 w-2/3 rounded bg-muted/60" />
-                </div>
-              </div>
+              <AutomationRowSkeleton key={index} />
             ))}
           </div>
         ) : (
@@ -405,7 +392,7 @@ function AutomationEnvironmentSection({
               <AutomationRows
                 environmentId={environment.environmentId}
                 tasks={tasks}
-                projectNameByKey={projectNameByKey}
+                projectByKey={projectByKey}
                 onEdit={onEdit}
               />
             )}
@@ -419,12 +406,12 @@ function AutomationEnvironmentSection({
 function AutomationRows({
   environmentId,
   tasks,
-  projectNameByKey,
+  projectByKey,
   onEdit,
 }: {
   readonly environmentId: EnvironmentId;
   readonly tasks: readonly ScheduledTask[];
-  readonly projectNameByKey: ReadonlyMap<string, string>;
+  readonly projectByKey: ReadonlyMap<string, SidebarProjectSnapshot>;
   readonly onEdit: (environmentId: EnvironmentId, task: ScheduledTask) => void;
 }) {
   const now = useNowMinuteMs();
@@ -433,7 +420,7 @@ function AutomationRows({
       key={task.id}
       environmentId={environmentId}
       task={task}
-      projectName={projectNameByKey.get(`${environmentId}:${task.projectId}`) ?? null}
+      project={projectByKey.get(`${environmentId}:${task.projectId}`) ?? null}
       now={now}
       onEdit={() => onEdit(environmentId, task)}
     />

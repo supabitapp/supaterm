@@ -1700,8 +1700,8 @@ export const make = Effect.gen(function* () {
       ),
       Effect.mapError((cause) => new DesktopSnapShotError({ operation: "list-pending", cause })),
     ),
-    read: (id) =>
-      Effect.gen(function* () {
+    read: Effect.fn("DesktopSnapShot.read")(
+      function* (id) {
         const metadata = yield* fileSystem
           .readFileString(path.join(captureDirectory, `${id}.json`))
           .pipe(Effect.flatMap(decodePendingCaptureJson));
@@ -1710,11 +1710,14 @@ export const make = Effect.gen(function* () {
           ...metadata,
           dataUrl: `data:image/png;base64,${Base64.encode(png)}`,
         };
-      }).pipe(
-        Effect.mapError(
-          (cause) => new DesktopSnapShotError({ operation: "read", captureId: id, cause }),
+      },
+      (effect, id) =>
+        effect.pipe(
+          Effect.mapError(
+            (cause) => new DesktopSnapShotError({ operation: "read", captureId: id, cause }),
+          ),
         ),
-      ),
+    ),
     setAnimationDestination: (id, destination) =>
       Effect.promise(async () => {
         if (linuxFeedback?.id === id && destination.relativeFrame) {

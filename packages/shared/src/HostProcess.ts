@@ -22,6 +22,16 @@ export const Hostname = Context.Reference<string>("@supaterm/shared/HostProcess/
   defaultValue: () => NodeOS.hostname(),
 });
 
+export const Username = Context.Reference<string | null>("@supaterm/shared/HostProcess/Username", {
+  defaultValue: () => {
+    try {
+      return NodeOS.userInfo().username.trim() || null;
+    } catch {
+      return null;
+    }
+  },
+});
+
 export const HomeDirectory = Context.Reference<string>(
   "@supaterm/shared/HostProcess/HomeDirectory",
   {

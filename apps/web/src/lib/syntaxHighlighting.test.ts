@@ -7,6 +7,7 @@ const { getSharedHighlighter } = vi.hoisted(() => ({
 
 vi.mock("@pierre/diffs", () => ({
   getSharedHighlighter,
+  canUseWASM: () => true,
 }));
 
 import { getSyntaxHighlighterPromise } from "./syntaxHighlighting";

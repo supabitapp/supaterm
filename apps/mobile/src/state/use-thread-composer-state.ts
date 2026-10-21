@@ -53,7 +53,7 @@ import {
 } from "../lib/composerImages";
 import type { DraftComposerImageAttachment } from "../lib/composerImages";
 import { scopedThreadKey } from "../lib/scopedEntities";
-import { buildThreadFeed } from "../lib/threadActivity";
+import { buildThreadFeed, createThreadFeedCache } from "../lib/threadActivity";
 import { acknowledgedThreadMessagesAtom } from "./acknowledged-thread-messages";
 import {
   appendPendingThreadMessages,
@@ -181,7 +181,7 @@ export function useThreadComposerState() {
   const {
     selectedThread: selectedThreadShell,
     selectedThreadCreation,
-    selectedThreadDetailRef,
+    selectedThreadRef,
     selectedEnvironmentRuntime,
   } = useThreadSelection();
   const selectedThreadProjection = useSelectedThreadProjection();
@@ -246,6 +246,7 @@ export function useThreadComposerState() {
   // detail is usually present but empty during a worktree checkout, so this
   // cannot be an either/or with the loaded messages.
   const pendingCreationMessage = selectedThreadCreation?.message ?? null;
+  const [feedCache] = useState(createThreadFeedCache);
   const selectedThreadFeed = (() => {
     const pendingCreation =
       pendingCreationMessage !== null &&
@@ -257,6 +258,7 @@ export function useThreadComposerState() {
         anchoredMessages: pendingCreation,
         attempts: selectedThreadAttempts,
         nodes: selectedThreadNodes,
+        cache: feedCache,
       }),
       pendingCreation.length > 0 ? pendingCreationMessage : null,
       selectedThreadQueuedMessages.some(
@@ -279,9 +281,9 @@ export function useThreadComposerState() {
     ? (preferencesResult.value.followUpBehavior ?? DEFAULT_FOLLOW_UP_BEHAVIOR)
     : DEFAULT_FOLLOW_UP_BEHAVIOR;
   const queueWorkflow = useAtomValue(
-    selectedThreadDetailRef === null
+    selectedThreadRef === null
       ? EMPTY_QUEUE_WORKFLOW_ATOM
-      : environmentThreadDetails.queueWorkflowAtom(selectedThreadDetailRef),
+      : environmentThreadDetails.queueWorkflowAtom(selectedThreadRef),
   );
   const queuedRunEdit = useQueuedRunEdit(selectedThreadKey);
   const composerDraftKey =
@@ -294,10 +296,13 @@ export function useThreadComposerState() {
   const selectedThreadQueueCount = selectedThreadQueuedMessages.length;
   const selectedThread = selectedThreadShell;
   const modelSelection = selectedDraft.modelSelection ?? selectedThread?.modelSelection ?? null;
+  const serverConfig = selectedEnvironmentRuntime?.serverConfig;
   const pendingHandoff = resolvePendingHandoff(
     selectedThreadProjection?.projection,
-    modelSelection,
-    selectedEnvironmentRuntime?.serverConfig?.providers ?? [],
+    isModelSelectionUnavailable(serverConfig, modelSelection, selectedThread?.projectId ?? null)
+      ? null
+      : modelSelection,
+    serverConfig?.providers ?? [],
   );
   const runtimeMode = selectedDraft.runtimeMode ?? selectedThread?.runtimeMode ?? null;
   const canSwitchThreadProvider = threadAllowsProviderSwitch({

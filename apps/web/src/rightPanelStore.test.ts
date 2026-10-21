@@ -3,6 +3,7 @@ import { type EnvironmentId, RunId, ThreadId } from "@supaterm/contracts";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { useClosedViewStore } from "./closedViewStore";
+import { reopenClosedView } from "./reopenClosedView";
 import {
   pullRequestSurface,
   pullRequestSurfaceId,
@@ -45,7 +46,7 @@ describe("rightPanelStore", () => {
     const store = useRightPanelStore.getState();
     const pr = pullRequestSurface({
       projectId: "project-a",
-      repository: "pingdotgg/supaterm",
+      repository: "supabitapp/supaterm",
       number: 42,
     });
     store.openFile(refA, "src/app.ts");
@@ -222,7 +223,7 @@ describe("rightPanelStore", () => {
   const completedDiff = { kind: "diff", turnId: RunId.make("turn-1") } as const;
   const linkedPullRequest = pullRequestSurface({
     projectId: "project-a",
-    repository: "supabitapp/supacode-next",
+    repository: "supabitapp/supaterm",
     number: 42,
   });
 
@@ -303,8 +304,63 @@ describe("rightPanelStore", () => {
     });
   });
 
-  it("allows automatic panels for a later turn after a manual choice", () => {
+  it.each([
+    {
+      surface: linkedPullRequest,
+      choose: () => useRightPanelStore.getState().openFile(refA, "notes.md"),
+    },
+    {
+      surface: { id: "pull-requests", kind: "pull-requests" } as const,
+      choose: () => useRightPanelStore.getState().openBrowser(refA, "tab-a"),
+    },
+  ])(
+    "preserves the selected tab and hidden panel when $surface.kind already exists",
+    ({ surface, choose }) => {
+      const store = useRightPanelStore.getState();
+      store.openProactive(refA, surface, store.getUserActionRevision(refA));
+      choose();
+      const chosen = selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA);
+
+      // Re-entry captures a fresh revision; the existing tab must still preserve the choice.
+      expect(store.openProactive(refA, surface, store.getUserActionRevision(refA))).toBe(false);
+      expect(selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA)).toEqual(
+        chosen,
+      );
+
+      store.close(refA);
+      expect(store.openProactive(refA, surface, store.getUserActionRevision(refA))).toBe(false);
+      expect(selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA)).toEqual({
+        ...chosen,
+        isOpen: false,
+      });
+    },
+  );
+
+  it("retargets an existing PR tab but respects a later manual choice", () => {
     const store = useRightPanelStore.getState();
+    const relinkedPullRequest = pullRequestSurface({ ...linkedPullRequest, number: 43 });
+    store.openPullRequest(refA, relinkedPullRequest);
+    store.openPullRequest(refA, linkedPullRequest);
+    const revision = store.getUserActionRevision(refA);
+
+    expect(store.openProactive(refA, relinkedPullRequest, revision, true)).toBe(true);
+    expect(selectActiveRightPanelSurface(useRightPanelStore.getState().byThreadKey, refA)).toEqual(
+      relinkedPullRequest,
+    );
+
+    store.close(refA);
+    expect(store.openProactive(refA, linkedPullRequest, revision, true)).toBe(false);
+    expect(
+      selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA),
+    ).toMatchObject({
+      activeSurfaceId: relinkedPullRequest.id,
+      isOpen: false,
+    });
+  });
+
+  it("refocuses an existing diff for a later turn after a manual choice", () => {
+    const store = useRightPanelStore.getState();
+    store.openProactive(refA, completedDiff, store.getUserActionRevision(refA));
     const firstTurnRevision = store.getUserActionRevision(refA);
     store.openFile(refA, "src/app.ts");
     expect(store.openProactive(refA, completedDiff, firstTurnRevision)).toBe(false);
@@ -467,7 +523,7 @@ describe("rightPanelStore", () => {
   it("drops the pull-request list's shared panel so a restart opens the page fresh", () => {
     const surface = pullRequestSurface({
       projectId: "project-a",
-      repository: "supabitapp/supacode-next",
+      repository: "supabitapp/supaterm",
       number: 4909,
     });
     const panelState = { isOpen: true, activeSurfaceId: surface.id, surfaces: [surface] };
@@ -962,11 +1018,11 @@ describe("rightPanelStore", () => {
   });
 
   it("tracks one surface per pull request", () => {
-    const first = { projectId: "project-a", repository: "supabitapp/supacode-next", number: 4909 };
-    const second = { projectId: "project-a", repository: "supabitapp/supacode-next", number: 4910 };
+    const first = { projectId: "project-a", repository: "supabitapp/supaterm", number: 4909 };
+    const second = { projectId: "project-a", repository: "supabitapp/supaterm", number: 4910 };
     useRightPanelStore.getState().openPullRequest(refA, first);
     useRightPanelStore.getState().openPullRequest(refA, second);
-    const url = "https://gitlab.example.com/supabitapp/supacode-next/-/merge_requests/4909";
+    const url = "https://gitlab.example.com/supabitapp/supaterm/-/merge_requests/4909";
     useRightPanelStore.getState().openPullRequest(refA, { ...first, url });
     useRightPanelStore.getState().openPullRequest(refA, first);
 
@@ -980,6 +1036,62 @@ describe("rightPanelStore", () => {
       selectActiveRightPanelSurface(useRightPanelStore.getState().byThreadKey, refA),
     ).toMatchObject({ url });
     expect(state.surfaces[1]).not.toHaveProperty("url");
+  });
+
+  it("restores each environment, thread and PR surface's detail tab after reload and URL reopen", async () => {
+    const pr = { projectId: "project-a", repository: "supabitapp/supaterm", number: 4909 };
+    const otherPr = { ...pr, projectId: "project-b" };
+    const otherEnvironment = scopeThreadRef("env-2" as EnvironmentId, refA.threadId);
+    const selections = [
+      [refA, pr, "code"],
+      [refB, pr, "guide"],
+      [otherEnvironment, pr, "timeline"],
+      [refA, otherPr, "summary"],
+    ] as const;
+    const store = useRightPanelStore.getState();
+    for (const [ref, reference, tab] of selections) {
+      store.openPullRequest(ref, reference);
+      store.setPullRequestDetailTab(ref, pullRequestSurfaceId(reference), "guide");
+      store.setPullRequestDetailTab(ref, pullRequestSurfaceId(reference), tab);
+    }
+
+    store.openPullRequest(refA, pr);
+    const revision = store.getUserActionRevision(refA);
+    store.setPullRequestDetailTab(refA, pullRequestSurfaceId(pr), "timeline");
+    expect(store.openProactive(refA, linkedPullRequest, revision)).toBe(true);
+    expect(selectActiveRightPanelSurface(useRightPanelStore.getState().byThreadKey, refA)).toEqual(
+      linkedPullRequest,
+    );
+    store.setPullRequestDetailTab(refA, pullRequestSurfaceId(pr), "code");
+
+    const { storage, name } = useRightPanelStore.persist.getOptions();
+    const saved = await storage!.getItem(name!);
+    expect(saved).not.toBeNull();
+    useRightPanelStore.setState({ byThreadKey: {} });
+    await storage!.setItem(name!, saved!);
+    await useRightPanelStore.persist.rehydrate();
+
+    for (const [ref, reference, tab] of selections) {
+      store.openPullRequest(ref, {
+        ...reference,
+        url: `https://github.com/${reference.repository}/pull/${reference.number}`,
+      });
+      const active = selectActiveRightPanelSurface(useRightPanelStore.getState().byThreadKey, ref);
+      expect(active?.id).toBe(pullRequestSurfaceId(reference));
+      expect(active?.kind === "pull-request" && (active.detailTab ?? "summary")).toBe(tab);
+      store.closeSurface(ref, active!.id);
+      await reopenClosedView(useClosedViewStore.getState().entries[0]!, {
+        workspaceAvailable: true,
+        openPreview: () => {
+          throw new Error("A PR tab must not create a browser session");
+        },
+      });
+      const reopened = selectActiveRightPanelSurface(
+        useRightPanelStore.getState().byThreadKey,
+        ref,
+      );
+      expect(reopened?.kind === "pull-request" && (reopened.detailTab ?? "summary")).toBe(tab);
+    }
   });
 
   it("keeps matching repository and number on different hosts as separate tabs", () => {
@@ -998,7 +1110,7 @@ describe("rightPanelStore", () => {
     const local = {
       environmentId: "local",
       projectId: "project-a",
-      repository: "supabitapp/supacode-next",
+      repository: "supabitapp/supaterm",
       number: 4909,
     };
     const remote = { ...local, environmentId: "remote" };
@@ -1019,13 +1131,13 @@ describe("rightPanelStore", () => {
     const fromServerA = {
       environmentId: "server-a",
       projectId: "project-a",
-      repository: "supabitapp/supacode-next",
+      repository: "supabitapp/supaterm",
       number: 1,
     };
     const fromServerB = {
       environmentId: "server-b",
       projectId: "project-b",
-      repository: "supabitapp/supacode-next",
+      repository: "supabitapp/supaterm",
       number: 2,
     };
 

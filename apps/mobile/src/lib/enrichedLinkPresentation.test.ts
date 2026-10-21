@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vite-plus/test";
-import type { ComposerContextId, ReviewCommentContextRecord } from "@supaterm/contracts";
+import type {
+  ComposerContextId,
+  ComposerContextRecord,
+  ReviewCommentContextRecord,
+} from "@supaterm/contracts";
 import {
   enrichedContextLinkPresentation,
   enrichedLinkVariantPattern,
+  enrichedSkillInstructionsPath,
   enrichedSkillLinkRegex,
   enrichedSkillReference,
   ENRICHED_INLINE_FILE_LINK_REGEX,
@@ -54,6 +59,25 @@ describe("Enriched link presentation", () => {
       expect(regex.test(`${sigil}${sigil}check`)).toBe(false);
     },
   );
+  it("opens skill instructions only for filesystem paths", () => {
+    expect(
+      enrichedSkillInstructionsPath({
+        name: "ketchup",
+        path: "/home/me/.claude/skills/ketchup/SKILL.md",
+      }),
+    ).toBe("/home/me/.claude/skills/ketchup/SKILL.md");
+    expect(
+      enrichedSkillInstructionsPath({ name: "review", path: "C:\\skills\\review\\SKILL.md" }),
+    ).toBe("C:\\skills\\review\\SKILL.md");
+    expect(
+      enrichedSkillInstructionsPath({
+        name: "workspace-skill",
+        path: "acp://skill/workspace-skill",
+      }),
+    ).toBeUndefined();
+    expect(enrichedSkillInstructionsPath({ name: "bare" })).toBeUndefined();
+  });
+
   it("matches only the complete URL, including literal regex metacharacters", () => {
     const url = "file:///workspace/app[1].tsx?line=3+4";
     const pattern = new RegExp(enrichedLinkVariantPattern(url));
@@ -88,25 +112,60 @@ describe("Enriched link presentation", () => {
     };
     expect(
       enrichedContextLinkPresentation("supaterm-context://v1/review-comment/review_1", [record]),
-    ).toEqual({ color: "#8a70dd", icon: "git" });
-    expect(
-      enrichedContextLinkPresentation("supaterm-context://v1/review-comment/review_2", [record]),
-    ).toEqual({ color: "#8a70dd", icon: "markdown" });
+    ).toEqual({ accent: "#8a70dd", icon: { kind: "chip", name: "git-merge" } });
   });
 
-  it("retains recognizable presentation for unavailable and future context kinds", () => {
+  it("shows a context the message no longer carries as an unavailable chip", () => {
+    expect(enrichedContextLinkPresentation("supaterm-context://v1/terminal/missing", [])).toEqual({
+      icon: { kind: "chip", name: "circle-dashed" },
+    });
+  });
+
+  it("keeps each kind's own look when no records are known", () => {
     expect(enrichedContextLinkPresentation("supaterm-context://v1/terminal/missing")).toEqual({
-      color: "#009f6e",
-      icon: "bash",
+      accent: "#009f6e",
+      icon: { kind: "chip", name: "terminal" },
     });
     expect(enrichedContextLinkPresentation("supaterm-context://v1/skill/missing")).toEqual({
-      color: "#b261be",
-      icon: "mcp",
+      accent: "#b261be",
+      icon: { kind: "chip", name: "skill" },
     });
     expect(enrichedContextLinkPresentation("supaterm-context://v1/future/missing")).toEqual({
-      color: "#0090cd",
-      icon: "default",
+      icon: { kind: "chip", name: "circle-dashed" },
     });
     expect(enrichedContextLinkPresentation("https://example.com/terminal/missing")).toBeUndefined();
+  });
+
+  it("uses the file-type icon and size for attachments and mentions", () => {
+    const records: ReadonlyArray<ComposerContextRecord> = [
+      {
+        version: 1,
+        contextId: "file_1" as ComposerContextId,
+        kind: "file",
+        label: "notes.md",
+        attachmentId: "attachment_1",
+        name: "notes.md",
+        mimeType: "text/markdown",
+        sizeBytes: 2048,
+      },
+      {
+        version: 1,
+        contextId: "mention_1" as ComposerContextId,
+        kind: "mention",
+        label: "math.ts",
+        path: "src/math.ts",
+      },
+    ];
+    expect(enrichedContextLinkPresentation("supaterm-context://v1/file/file_1", records)).toEqual({
+      accent: "#0090cd",
+      icon: { kind: "file", name: "markdown" },
+      label: "notes.md · 2 KB",
+    });
+    expect(
+      enrichedContextLinkPresentation("supaterm-context://v1/mention/mention_1", records),
+    ).toEqual({
+      accent: "#0096af",
+      icon: { kind: "file", name: "typescript" },
+    });
   });
 });

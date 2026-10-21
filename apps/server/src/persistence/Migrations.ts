@@ -69,6 +69,13 @@ const assertKnownMigrationHistory = Effect.fn("assertKnownMigrationHistory")(fun
 const ensureUnrecordedSchema = Effect.fn("ensureUnrecordedSchema")(function* () {
   const sql = yield* SqlClient.SqlClient;
   yield* sql`
+    CREATE INDEX IF NOT EXISTS orchestration_v2_provider_turns_codex_native_id_idx
+    ON orchestration_v2_projection_provider_turns (
+      json_extract(payload_json, '$.nativeTurnRef.nativeId')
+    )
+    WHERE json_extract(payload_json, '$.nativeTurnRef.driver') = 'codex'
+  `;
+  yield* sql`
     CREATE INDEX IF NOT EXISTS orchestration_v2_projection_turn_items_failed_error_idx
     ON orchestration_v2_projection_turn_items(
       thread_id, run_id, node_id, updated_at DESC, ordinal DESC, turn_item_id DESC

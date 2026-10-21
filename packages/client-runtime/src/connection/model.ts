@@ -1,4 +1,5 @@
 import { type ClientConnectionMethod, EnvironmentId } from "@supaterm/contracts";
+import { RelayTunnelFailure } from "@supaterm/shared/relay/protocol";
 import * as Schema from "effect/Schema";
 
 const ConnectionTargetBase = {
@@ -65,12 +66,26 @@ export const ConnectionBlockedReason = Schema.Literals([
 ]);
 export type ConnectionBlockedReason = typeof ConnectionBlockedReason.Type;
 
+export const ConnectionHop = Schema.Literals(["device", "relay", "tunnel", "server"]);
+export type ConnectionHop = typeof ConnectionHop.Type;
+
+export const ConnectionFailureCause = RelayTunnelFailure;
+export type ConnectionFailureCause = typeof ConnectionFailureCause.Type;
+
+const ConnectionFailureFields = {
+  hop: Schema.optionalKey(ConnectionHop),
+  via: Schema.optionalKey(Schema.Literals(["relay", "direct"])),
+  failureCause: Schema.optionalKey(ConnectionFailureCause),
+  httpStatus: Schema.optionalKey(Schema.Number),
+};
+
 export class ConnectionTransientError extends Schema.TaggedError<ConnectionTransientError>()(
   "ConnectionTransientError",
   {
     reason: ConnectionTransientReason,
     detail: Schema.String,
     traceId: Schema.optionalKey(Schema.String),
+    ...ConnectionFailureFields,
   },
 ) {
   override get message(): string {
@@ -84,6 +99,7 @@ export class ConnectionBlockedError extends Schema.TaggedError<ConnectionBlocked
     reason: ConnectionBlockedReason,
     detail: Schema.String,
     traceId: Schema.optionalKey(Schema.String),
+    ...ConnectionFailureFields,
 
     serverUpdateRequired: Schema.optionalKey(Schema.Boolean),
   },

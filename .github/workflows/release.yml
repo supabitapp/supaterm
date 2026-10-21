@@ -49,6 +49,7 @@ jobs:
   # have already run. Automatic runs also check for new commits here.
   resolve_commit:
     name: Resolve release commit
+    if: github.repository == 'supabitapp/supaterm'
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 5
     outputs:
@@ -57,14 +58,14 @@ jobs:
       has_changes: ${{ steps.resolve.outputs.has_changes }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           sparse-checkout: .github/scripts
 
       - id: resolve
         name: Resolve release commit
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9.0.0
         env:
           DISPATCH_CHANNEL: ${{ inputs.channel }}
         with:
@@ -104,7 +105,7 @@ jobs:
     if: |
       needs.resolve_commit.result == 'success' &&
       (github.event_name != 'schedule' || needs.resolve_commit.outputs.has_changes == 'true')
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: depot-ubuntu-24.04-16
     timeout-minutes: 10
     outputs:
       release_channel: ${{ steps.release_meta.outputs.release_channel }}
@@ -118,7 +119,7 @@ jobs:
       ref: ${{ needs.resolve_commit.outputs.ref }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.resolve_commit.outputs.ref }}
@@ -239,7 +240,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -259,17 +260,15 @@ jobs:
       - name: Typecheck
         run: vp run typecheck
 
-  # Keep tests on their own runners, using the same package split and server
-  # shards as CI, so the release check job does not spend its budget on tests.
   test:
     name: Release tests
     needs: [preflight]
     if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' }}
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: depot-ubuntu-24.04-16
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -290,25 +289,104 @@ jobs:
           sudo sed -i 's|http://|https://|g' /etc/apt/ci-ubuntu-mirrors.txt /etc/apt/sources.list.d/ubuntu.sources
           sudo apt-get update && sudo apt-get install -y libsecret-1-dev pkg-config build-essential
 
-      - name: Install Chromium for web browser tests
-        run: node apps/web/node_modules/playwright/cli.js install --with-deps --only-shell chromium
-
       - name: Test
-        run: vp run --parallel --concurrency-limit 4 --filter '!supaterm' --filter '!@supaterm/monorepo' test
+        run: vp run --parallel --concurrency-limit 4 --filter '!supaterm' --filter '!@supaterm/monorepo' --filter '!@supaterm/web' --filter '!@supaterm/mobile' test --maxWorkers 4
 
-  test_server:
-    name: Release server tests ${{ matrix.shard }}
+  test_mobile:
+    name: Release mobile tests ${{ matrix.shard }}
     needs: [preflight]
     if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' }}
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: depot-ubuntu-24.04-16
     timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6]
+        shard: [1, 2]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ needs.preflight.outputs.ref }}
+
+      - name: Setup Mise
+        uses: ./.github/actions/setup-mise
+        with:
+          cache: false
+      - name: Install workspace dependencies
+        run: mise exec -- vp install
+
+      - name: Test
+        run: vp run --filter @supaterm/mobile test --shard ${{ matrix.shard }}/${{ strategy.job-total }} --maxWorkers 8
+
+  test_web:
+    name: Release web tests ${{ matrix.shard }}
+    needs: [preflight]
+    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' }}
+    runs-on: depot-ubuntu-24.04-16
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ needs.preflight.outputs.ref }}
+          sparse-checkout: |
+            /*
+            !/.repos/
+          sparse-checkout-cone-mode: false
+
+      - name: Setup Mise
+        uses: ./.github/actions/setup-mise
+        with:
+          cache: false
+      - name: Install workspace dependencies
+        run: mise exec -- vp install
+
+      - name: Resolve Playwright version
+        id: playwright_version
+        run: echo "version=$(node -p "require('./apps/web/node_modules/playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Chromium
+        id: chromium_cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright_version.outputs.version }}
+
+      - name: Install Chromium for web browser tests
+        if: steps.chromium_cache.outputs.cache-hit != 'true'
+        run: node apps/web/node_modules/playwright/cli.js install --only-shell chromium
+
+      - name: Install missing Chromium system dependencies
+        run: |
+          browser=$(find "$HOME/.cache/ms-playwright" -name chrome-headless-shell -type f -print -quit)
+          test -n "$browser"
+          if ldd "$browser" | grep '=> not found'; then
+            node apps/web/node_modules/playwright/cli.js install-deps chromium
+          fi
+
+      - name: Test
+        run: vp run --filter @supaterm/web test --shard ${{ matrix.shard }}/${{ strategy.job-total }} --maxWorkers 8
+
+  # Server test files run one at a time, so more small runners beat fewer big ones.
+  test_server:
+    name: Release server tests ${{ matrix.shard }}
+    needs: [preflight]
+    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' }}
+    runs-on: depot-ubuntu-24.04-8
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -335,7 +413,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -466,7 +544,7 @@ jobs:
       ref: ${{ needs.preflight.outputs.ref }}
       release_channel: ${{ needs.preflight.outputs.release_channel }}
       label: Linux arm64
-      runner: depot-ubuntu-24.04-arm-16
+      runner: depot-ubuntu-24.04-arm-32
       platform: linux
       target: AppImage
       arch: arm64
@@ -488,7 +566,7 @@ jobs:
       ref: ${{ needs.preflight.outputs.ref }}
       release_channel: ${{ needs.preflight.outputs.release_channel }}
       label: Windows x64
-      runner: windows-2025
+      runner: depot-windows-2025-32
       platform: win
       target: nsis
       arch: x64
@@ -496,6 +574,8 @@ jobs:
       resource_key: win32-x64
       cli_archive: true
 
+  # Windows arm64 runners have 4 vCPUs, and the packaging is mostly CPU-bound,
+  # so the build runs on Linux and only the native checks run on arm64.
   desktop_win_arm64:
     name: Desktop Windows arm64
     needs: [preflight, build_bundle]
@@ -507,7 +587,8 @@ jobs:
       ref: ${{ needs.preflight.outputs.ref }}
       release_channel: ${{ needs.preflight.outputs.release_channel }}
       label: Windows arm64
-      runner: windows-11-arm
+      runner: depot-ubuntu-24.04-32
+      verify_runner: windows-11-arm
       platform: win
       target: nsis
       arch: arm64
@@ -528,7 +609,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -556,6 +637,8 @@ jobs:
         preflight,
         quality,
         test,
+        test_web,
+        test_mobile,
         test_server,
         check_cli_publish,
         desktop_mac_arm64,
@@ -565,14 +648,14 @@ jobs:
         desktop_win_x64,
         desktop_win_arm64,
       ]
-    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.quality.result == 'success' && needs.test.result == 'success' && needs.test_server.result == 'success' && needs.check_cli_publish.result == 'success' && needs.desktop_mac_arm64.result == 'success' && needs.desktop_mac_x64.result == 'success' && needs.desktop_linux_x64.result == 'success' && needs.desktop_linux_arm64.result == 'success' && needs.desktop_win_x64.result == 'success' && needs.desktop_win_arm64.result == 'success' }}
+    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.quality.result == 'success' && needs.test.result == 'success' && needs.test_web.result == 'success' && needs.test_mobile.result == 'success' && needs.test_server.result == 'success' && needs.check_cli_publish.result == 'success' && needs.desktop_mac_arm64.result == 'success' && needs.desktop_mac_x64.result == 'success' && needs.desktop_linux_x64.result == 'success' && needs.desktop_linux_arm64.result == 'success' && needs.desktop_win_x64.result == 'success' && needs.desktop_win_arm64.result == 'success' }}
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 30
     permissions:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -746,7 +829,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -781,7 +864,7 @@ jobs:
     name: Build hosted web app
     needs: [preflight]
     if: ${{ !cancelled() && needs.preflight.result == 'success' && needs.preflight.outputs.release_channel != 'preview' }}
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: depot-ubuntu-24.04-32
     timeout-minutes: 10
     env:
       APP_VERSION: ${{ needs.preflight.outputs.version }}
@@ -789,7 +872,7 @@ jobs:
       VITE_HOSTED_APP_CHANNEL: ${{ needs.preflight.outputs.release_channel == 'stable' && 'latest' || 'nightly' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -821,7 +904,7 @@ jobs:
       WEB_CHANNEL: ${{ needs.preflight.outputs.release_channel == 'stable' && 'latest' || 'nightly' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -852,7 +935,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -880,7 +963,7 @@ jobs:
     environment: release
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -910,7 +993,7 @@ jobs:
     environment: release
     steps:
       - name: Checkout release tooling
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.preflight.outputs.ref }}
           persist-credentials: false
@@ -937,7 +1020,7 @@ jobs:
           permission-contents: write
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0

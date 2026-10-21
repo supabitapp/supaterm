@@ -31,7 +31,6 @@ import * as DesktopEnvironment from "./DesktopEnvironment.ts";
 import { makeComponentLogger } from "./DesktopObservability.ts";
 
 const MAX_REQUEST_BYTES = 64 * 1024;
-const REQUEST_TIMEOUT_MS = 15_000;
 const isDesktopAppActivationRequest = Schema.is(DesktopAppActivationRequest);
 
 export class DesktopAppActivationStartError extends Schema.TaggedError<DesktopAppActivationStartError>()(
@@ -314,7 +313,6 @@ export const make = Effect.gen(function* () {
   let detachRendererListeners: (() => void) | null = null;
 
   const broker = new DesktopAppActivationBroker({
-    requestTimeoutMs: REQUEST_TIMEOUT_MS,
     activate: () => {
       void runPromise(
         desktopWindow.activate.pipe(
@@ -338,7 +336,15 @@ export const make = Effect.gen(function* () {
           startDesktopAppControlServer({
             ...address,
             userId,
-            handle: (request) => broker.request(request),
+            handle: (request) =>
+              desktopEnvironment.platform === "win32" && request.type === "add-connection"
+                ? Promise.resolve(
+                    invalidResponse(
+                      request.requestId,
+                      "Add connections through Settings → Connections on Windows.",
+                    ),
+                  )
+                : broker.request(request),
             cancel: (requestId) => broker.cancel(requestId),
             onReclaimError: (cause) =>
               void runPromise(

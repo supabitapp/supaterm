@@ -1,10 +1,10 @@
-import { SourceControlProviderKind } from "@supaterm/contracts";
+import { SourceControlProviderKind, VcsProcessExitError } from "@supaterm/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as NodeV8 from "node:v8";
 import * as NodeVM from "node:vm";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import * as KeyValueStore from "effect/persistence/KeyValueStore";
-import { assert, it } from "@effect/vitest";
+import { assert, expect, it } from "@effect/vitest";
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Deferred from "effect/Deferred";
@@ -39,8 +39,14 @@ import * as PullRequestFilesViewed from "../persistence/PullRequestFilesViewed.t
 import * as RepositoryIdentityResolver from "../project/RepositoryIdentityResolver.ts";
 import * as SourceControlProviderRegistry from "../sourceControl/SourceControlProviderRegistry.ts";
 import * as SourceControlRateLimit from "@supaterm/source-control-core/server/SourceControlRateLimit";
+import * as GitLabCli from "@supaterm/source-control-gitlab/server/GitLabCli";
+import * as GitLabPullRequestCli from "@supaterm/source-control-gitlab/server/GitLabPullRequestCli";
+import * as GitLabPullRequestProvider from "@supaterm/source-control-gitlab/server/GitLabPullRequestProvider";
 import * as ForgejoCli from "@supaterm/source-control-forgejo/server/ForgejoCli";
 import * as ForgejoPullRequestProvider from "@supaterm/source-control-forgejo/server/ForgejoPullRequestProvider";
+import * as BitbucketApi from "@supaterm/source-control-bitbucket/server/BitbucketApi";
+import * as BitbucketPullRequestApi from "@supaterm/source-control-bitbucket/server/BitbucketPullRequestApi";
+import * as BitbucketPullRequestProvider from "@supaterm/source-control-bitbucket/server/BitbucketPullRequestProvider";
 import * as GitHubRest from "@supaterm/source-control-github/server/GitHubRest";
 import * as GitHubCredentials from "@supaterm/source-control-github/server/GitHubCredentials";
 import * as GitHubPullRequestApi from "@supaterm/source-control-github/server/GitHubPullRequestApi";
@@ -684,6 +690,7 @@ it.effect("sends v26.10.1 clients only actions they can decode, branch deletion 
               viewerPermissions: GitHubPullRequestProvider.gitHubViewerPermissions({
                 canWrite: true,
                 canDeleteBranch: true,
+                autoMergeAllowed: true,
                 canTriage: true,
                 canUpdate: true,
                 canUpdateBranch: true,
@@ -841,7 +848,7 @@ it.effect("reads nothing from a host with no implementation, but reports it", ()
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
         project({ id: "p2", title: "notes", workspaceRoot: "/b" }),
         project({
@@ -868,7 +875,7 @@ it.effect("reads nothing from a host with no implementation, but reports it", ()
 
     const result = yield* service.list({ state: "open" });
 
-    assert.deepStrictEqual(listed, ["supabitapp/supacode-next"]);
+    assert.deepStrictEqual(listed, ["supabitapp/supaterm"]);
     assert.strictEqual(result.entries[0]?.provider, "github");
     assert.deepStrictEqual(
       result.providers.map((summary) => ({
@@ -893,7 +900,7 @@ it.effect("asks for a whole page of a host, and for the reader's own size when g
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
       ],
       providers: [
@@ -921,7 +928,7 @@ it.effect("says where each repository carries on, and from nothing it has run ou
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
         project({ id: "p2", title: "web", workspaceRoot: "/b", repository: "acme/web" }),
       ],
@@ -930,7 +937,7 @@ it.effect("says where each repository carries on, and from nothing it has run ou
           listChangeRequests: ({ repository }) =>
             Effect.succeed({
               items: [changeRequest(1, "2026-07-02T00:00:00Z")],
-              truncated: repository === "supabitapp/supacode-next",
+              truncated: repository === "supabitapp/supaterm",
               continues: true,
             }),
         }),
@@ -940,7 +947,7 @@ it.effect("says where each repository carries on, and from nothing it has run ou
     const result = yield* service.list({ state: "open" });
 
     assert.deepStrictEqual(result.nextCursors, {
-      "github.com supabitapp/supacode-next": "2026-07-02T00:00:00Z|1|1",
+      "github.com supabitapp/supaterm": "2026-07-02T00:00:00Z|1|1",
     });
   }),
 );
@@ -953,7 +960,7 @@ it.effect("offers no continuation for a host that cannot be carried on from", ()
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
       ],
       providers: [
@@ -1009,6 +1016,82 @@ it.effect("uses a provider's raw cursor advance when it consumed malformed rows"
   }),
 );
 
+it.effect("continues Bitbucket listings through tied timestamps and terminates", () =>
+  Effect.gen(function* () {
+    const boundary = "2026-10-12T00:00:00.000Z";
+    const older = "2026-10-11T00:00:00.000Z";
+    const rows = [1, 2, 3, 4, 5].map((id) => ({
+      id,
+      title: `Pull request ${id}`,
+      state: "OPEN",
+      created_on: older,
+      updated_on: id <= 3 ? boundary : older,
+      source: { branch: { name: `feat/${id}` } },
+      destination: { branch: { name: "main" } },
+      links: { html: { href: `https://bitbucket.org/acme/web/pull-requests/${id}` } },
+    }));
+    const provider = yield* BitbucketPullRequestProvider.make.pipe(
+      Effect.provide(
+        BitbucketPullRequestApi.layer.pipe(
+          Layer.provide(
+            Layer.mock(BitbucketApi.BitbucketApi)({
+              request: ({ url }) => {
+                if (url === "/user") {
+                  return Effect.succeed({
+                    body: JSON.stringify({ nickname: "bilal" }),
+                    truncated: false,
+                  });
+                }
+                const filter =
+                  new URL(url, "https://api.bitbucket.org").searchParams.get("q") ?? "";
+                const updatedBefore = /updated_on <= (\S+)/.exec(filter)?.[1];
+                const excluded = new Set(
+                  Array.from(filter.matchAll(/id != (\d+)/g), (match) => Number(match[1])),
+                );
+                const values = rows.filter(
+                  (row) =>
+                    (updatedBefore === undefined || row.updated_on <= updatedBefore) &&
+                    !excluded.has(row.id),
+                );
+                return Effect.succeed({ body: JSON.stringify({ values }), truncated: false });
+              },
+            }),
+          ),
+        ),
+      ),
+    );
+    const service = yield* makeService({
+      projects: [
+        project({
+          id: "p1",
+          title: "web",
+          workspaceRoot: "/w",
+          repository: "acme/web",
+          provider: "bitbucket",
+          host: "bitbucket.org",
+        }),
+      ],
+      providers: [provider],
+    });
+    let page = yield* service.list({ state: "open", limit: 2 });
+    assert.deepStrictEqual(
+      page.entries.map((entry) => entry.number),
+      [1, 2],
+    );
+    for (const expected of [[3, 4], [5]]) {
+      assert.isTrue(page.truncated);
+      assert.isNotEmpty(page.nextCursors);
+      page = yield* service.list({ state: "open", limit: 2, cursors: page.nextCursors });
+      assert.deepStrictEqual(
+        page.entries.map((entry) => entry.number),
+        expected,
+      );
+    }
+    assert.isFalse(page.truncated);
+    assert.deepStrictEqual(page.nextCursors, {});
+  }),
+);
+
 it.effect("reads only the repositories it was asked to carry on with", () =>
   Effect.gen(function* () {
     const listed: string[] = [];
@@ -1019,7 +1102,7 @@ it.effect("reads only the repositories it was asked to carry on with", () =>
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
         project({ id: "p2", title: "web", workspaceRoot: "/b", repository: "acme/web" }),
       ],
@@ -1040,7 +1123,9 @@ it.effect("reads only the repositories it was asked to carry on with", () =>
     });
 
     assert.deepStrictEqual(listed, ["acme/web"]);
-    assert.deepStrictEqual(cursors, [{ updatedBefore: "2026-07-02T00:00:00Z", delivered: 99 }]);
+    assert.deepStrictEqual(cursors, [
+      { updatedBefore: "2026-07-02T00:00:00Z", delivered: 99, seenAt: [7] },
+    ]);
     assert.strictEqual(result.providers.length, 1);
   }),
 );
@@ -1053,7 +1138,7 @@ it.effect("keeps a row already sent at the boundary instant from arriving twice"
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
       ],
       providers: [
@@ -1074,7 +1159,7 @@ it.effect("keeps a row already sent at the boundary instant from arriving twice"
 
     const result = yield* service.list({
       state: "open",
-      cursors: { "github.com supabitapp/supacode-next": "2026-07-02T00:00:00Z|1|7" },
+      cursors: { "github.com supabitapp/supaterm": "2026-07-02T00:00:00Z|1|7" },
     });
 
     assert.deepStrictEqual(
@@ -1082,7 +1167,7 @@ it.effect("keeps a row already sent at the boundary instant from arriving twice"
       [8, 9],
     );
     assert.deepStrictEqual(result.nextCursors, {
-      "github.com supabitapp/supacode-next": "2026-07-01T00:00:00Z|3|9",
+      "github.com supabitapp/supaterm": "2026-07-01T00:00:00Z|3|9",
     });
   }),
 );
@@ -1095,7 +1180,7 @@ it.effect("keeps the earlier exclusions when a slice ends on the instant it bega
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
       ],
       providers: [
@@ -1115,7 +1200,7 @@ it.effect("keeps the earlier exclusions when a slice ends on the instant it bega
 
     const result = yield* service.list({
       state: "open",
-      cursors: { "github.com supabitapp/supacode-next": "2026-07-02T00:00:00Z|1|6" },
+      cursors: { "github.com supabitapp/supaterm": "2026-07-02T00:00:00Z|1|6" },
     });
 
     assert.deepStrictEqual(
@@ -1123,7 +1208,7 @@ it.effect("keeps the earlier exclusions when a slice ends on the instant it bega
       [7, 8],
     );
     assert.deepStrictEqual(result.nextCursors, {
-      "github.com supabitapp/supacode-next": "2026-07-02T00:00:00Z|3|6,7,8",
+      "github.com supabitapp/supaterm": "2026-07-02T00:00:00Z|3|6,7,8",
     });
   }),
 );
@@ -1136,7 +1221,7 @@ it.effect("refuses a continuation it did not issue, before asking any host anyth
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
       ],
       providers: [
@@ -1149,7 +1234,7 @@ it.effect("refuses a continuation it did not issue, before asking any host anyth
     const error = yield* Effect.flip(
       service.list({
         state: "open",
-        cursors: { "github.com supabitapp/supacode-next": "yesterday" },
+        cursors: { "github.com supabitapp/supaterm": "yesterday" },
       }),
     );
 
@@ -1169,7 +1254,7 @@ it.effect("calls a transient viewer failure a failed operation, not a signed-out
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
       ],
       providers: [
@@ -1201,7 +1286,7 @@ it.effect("reports an unusable host over a merely failing one", () =>
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
         project({
           id: "p2",
@@ -1245,7 +1330,7 @@ it.effect("lists every host that has an implementation", () =>
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
         project({
           id: "p2",
@@ -1297,7 +1382,7 @@ it.effect("narrows the listing to one host when asked", () =>
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
         project({
           id: "p2",
@@ -1381,7 +1466,7 @@ it.effect("keeps one host listed when another is not set up", () =>
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
         project({
           id: "p2",
@@ -1431,7 +1516,7 @@ it.effect("fails as unavailable only when no host can be read", () =>
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
       ],
       providers: [
@@ -1461,13 +1546,13 @@ it.effect("reads a repository once when several worktrees share it", () =>
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
         project({
           id: "p2",
           title: "supaterm worktree",
           workspaceRoot: "/b",
-          repository: "SupabitApp/Supacode-Next",
+          repository: "SupabitApp/Supaterm",
         }),
       ],
       providers: [
@@ -1499,14 +1584,19 @@ it.effect("keeps healthy repositories when one of them cannot be read", () =>
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
-        project({ id: "p2", title: "broken", workspaceRoot: "/b", repository: "pingdotgg/broken" }),
+        project({
+          id: "p2",
+          title: "broken",
+          workspaceRoot: "/b",
+          repository: "supabitapp/broken",
+        }),
       ],
       providers: [
         fakeProvider(SourceControlProviderKind.make("github"), {
           listChangeRequests: (input) =>
-            input.repository === "pingdotgg/broken"
+            input.repository === "supabitapp/broken"
               ? Effect.fail(requestFailed)
               : Effect.succeed({
                   items: [changeRequest(1, "2026-07-02T00:00:00Z")],
@@ -1882,6 +1972,7 @@ it.effect("keeps branch deletion on the credential that passed source repository
                   mergeCommitAllowed: true,
                   squashMergeAllowed: true,
                   rebaseMergeAllowed: true,
+                  autoMergeAllowed: true,
                   viewerPermission: "READ",
                   pullRequest: {
                     viewerCanUpdate: false,
@@ -2020,7 +2111,7 @@ it.effect("gates arming a merge for later exactly as it gates merging now", () =
       service.runAction({ ...reference, action: "enable-auto-merge", mergeMethod: "squash" }),
     );
     assert.strictEqual(refused._tag, "PullRequestOperationError");
-    assert.include(refused.message, "merged for you once it is ready");
+    assert.include(refused.message, "the repository has to allow it");
     assert.strictEqual(ranWith, null);
 
     const wrongStrategy = yield* Effect.flip(
@@ -2539,7 +2630,7 @@ it.effect("flags a review request for the viewer but not on their own change req
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
       ],
       providers: [
@@ -2578,7 +2669,7 @@ it.effect("refuses a repository that does not belong to the requested project", 
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
       ],
       providers: [fakeProvider(SourceControlProviderKind.make("github"))],
@@ -3206,7 +3297,7 @@ it.effect("rejects an empty comment before reaching the host", () =>
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
       ],
       providers: [
@@ -3219,7 +3310,7 @@ it.effect("rejects an empty comment before reaching the host", () =>
     const error = yield* service
       .comment({
         projectId: "p1" as ProjectId,
-        repository: "supabitapp/supacode-next",
+        repository: "supabitapp/supaterm",
         number: 1,
         body: "   ",
       })
@@ -3291,7 +3382,7 @@ it.effect("refuses line comments on a host that takes only a summary", () =>
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
       ],
       providers: [
@@ -3314,7 +3405,7 @@ it.effect("refuses line comments on a host that takes only a summary", () =>
     const error = yield* Effect.flip(
       service.submitReview({
         projectId: "p1" as ProjectId,
-        repository: "supabitapp/supacode-next",
+        repository: "supabitapp/supaterm",
         number: 1,
         verdict: "comment",
         body: "",
@@ -3337,7 +3428,7 @@ it.effect(
             id: "p1",
             title: "supaterm",
             workspaceRoot: "/a",
-            repository: "supabitapp/supacode-next",
+            repository: "supabitapp/supaterm",
           }),
         ],
         providers: [
@@ -3351,7 +3442,7 @@ it.effect(
       });
       const reference = {
         projectId: "p1" as ProjectId,
-        repository: "supabitapp/supacode-next",
+        repository: "supabitapp/supaterm",
         number: 1,
       };
 
@@ -3373,7 +3464,7 @@ it.effect("refuses to resolve a conversation on a host that cannot", () =>
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
       ],
       providers: [
@@ -3395,7 +3486,7 @@ it.effect("refuses to resolve a conversation on a host that cannot", () =>
     });
     const reference = {
       projectId: "p1" as ProjectId,
-      repository: "supabitapp/supacode-next",
+      repository: "supabitapp/supaterm",
       number: 1,
     };
 
@@ -3419,7 +3510,7 @@ it.effect("refuses to react on a host with no reactions", () =>
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
       ],
       providers: [
@@ -3442,7 +3533,7 @@ it.effect("refuses to react on a host with no reactions", () =>
     const error = yield* Effect.flip(
       service.setReaction({
         projectId: "p1" as ProjectId,
-        repository: "supabitapp/supacode-next",
+        repository: "supabitapp/supaterm",
         number: 1,
         content: "heart",
         reacted: true,
@@ -3461,7 +3552,7 @@ it.effect("refuses to react on a host whose capabilities omit reactions entirely
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
       ],
       providers: [
@@ -3483,7 +3574,7 @@ it.effect("refuses to react on a host whose capabilities omit reactions entirely
     const error = yield* Effect.flip(
       service.setReaction({
         projectId: "p1" as ProjectId,
-        repository: "supabitapp/supacode-next",
+        repository: "supabitapp/supaterm",
         number: 1,
         content: "heart",
         reacted: true,
@@ -3507,7 +3598,7 @@ it.effect("passes a reaction through with its subject id on a host that has them
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
       ],
       providers: [
@@ -3526,7 +3617,7 @@ it.effect("passes a reaction through with its subject id on a host that has them
 
     yield* service.setReaction({
       projectId: "p1" as ProjectId,
-      repository: "supabitapp/supacode-next",
+      repository: "supabitapp/supaterm",
       number: 1,
       subjectId: "IC_1",
       content: "heart",
@@ -3583,7 +3674,7 @@ it.effect("refuses an empty reply before it reaches the host", () =>
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
       ],
       providers: [
@@ -3596,7 +3687,7 @@ it.effect("refuses an empty reply before it reaches the host", () =>
     const error = yield* Effect.flip(
       service.replyToThread({
         projectId: "p1" as ProjectId,
-        repository: "supabitapp/supacode-next",
+        repository: "supabitapp/supaterm",
         number: 1,
         threadId: "t1",
         body: "   ",
@@ -3616,7 +3707,7 @@ it.effect("refuses a merge strategy the host does not offer", () =>
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
       ],
       providers: [
@@ -3641,7 +3732,7 @@ it.effect("refuses a merge strategy the host does not offer", () =>
     });
     const reference = {
       projectId: "p1" as ProjectId,
-      repository: "supabitapp/supacode-next",
+      repository: "supabitapp/supaterm",
       number: 1,
     };
 
@@ -3698,7 +3789,7 @@ it.effect("asks every host the reader's search, rather than filtering what came 
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
         project({
           id: "p2",
@@ -3729,7 +3820,7 @@ it.effect("asks for no search when the reader has typed nothing", () =>
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
       ],
       providers: [
@@ -3757,13 +3848,13 @@ it.effect("asks another checkout who is signed in when the first one cannot answ
           id: "p1",
           title: "supaterm (stale worktree)",
           workspaceRoot: "/gone",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
         project({
           id: "p2",
           title: "supaterm",
           workspaceRoot: "/healthy",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
       ],
       providers: [
@@ -4712,7 +4803,7 @@ it.effect("reads a host's repositories in one search, and files the rows back un
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
         project({ id: "p2", title: "web", workspaceRoot: "/b", repository: "acme/web" }),
         project({
@@ -4734,7 +4825,7 @@ it.effect("reads a host's repositories in one search, and files the rows back un
             return Effect.succeed({
               items: [
                 batchedChangeRequest(1, "acme/web", "2026-07-03T00:00:00Z"),
-                batchedChangeRequest(2, "supabitapp/supacode-next", "2026-07-02T00:00:00Z"),
+                batchedChangeRequest(2, "supabitapp/supaterm", "2026-07-02T00:00:00Z"),
               ],
               truncated: false,
             });
@@ -4755,7 +4846,7 @@ it.effect("reads a host's repositories in one search, and files the rows back un
 
     const result = yield* service.list({ state: "open" });
 
-    assert.deepStrictEqual(asked, [["supabitapp/supacode-next", "acme/web"]]);
+    assert.deepStrictEqual(asked, [["supabitapp/supaterm", "acme/web"]]);
     assert.deepStrictEqual(separately, ["group/project"]);
     assert.deepStrictEqual(
       result.entries.map((entry) => [entry.projectId, entry.number]),
@@ -4775,7 +4866,7 @@ it.effect("carries every repository of a slice on from the oldest row in it", ()
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
         project({ id: "p2", title: "web", workspaceRoot: "/b", repository: "acme/web" }),
         project({ id: "p3", title: "docs", workspaceRoot: "/c", repository: "acme/docs" }),
@@ -4786,7 +4877,7 @@ it.effect("carries every repository of a slice on from the oldest row in it", ()
             Effect.succeed({
               items: [
                 batchedChangeRequest(1, "acme/web", "2026-07-03T00:00:00Z"),
-                batchedChangeRequest(2, "supabitapp/supacode-next", "2026-07-02T00:00:00Z"),
+                batchedChangeRequest(2, "supabitapp/supaterm", "2026-07-02T00:00:00Z"),
                 batchedChangeRequest(3, "acme/web", "2026-07-02T00:00:00Z"),
               ],
               truncated: true,
@@ -4799,7 +4890,7 @@ it.effect("carries every repository of a slice on from the oldest row in it", ()
 
     assert.isTrue(result.truncated);
     assert.deepStrictEqual(result.nextCursors, {
-      "github.com supabitapp/supacode-next": "2026-07-02T00:00:00Z|1|2",
+      "github.com supabitapp/supaterm": "2026-07-02T00:00:00Z|1|2",
       "github.com acme/web": "2026-07-02T00:00:00Z|2|3",
     });
   }),
@@ -4836,7 +4927,7 @@ it.effect("carries a slice on without sending the rows it already sent", () =>
       [4],
     );
     assert.deepStrictEqual(result.nextCursors, {
-      "github.com acme/web": "2026-07-02T00:00:00Z|2|3,3,4",
+      "github.com acme/web": "2026-07-02T00:00:00Z|2|3,4",
     });
   }),
 );
@@ -6496,6 +6587,65 @@ it.effect("names the signed-in account in the detail, and says nothing where the
   }),
 );
 
+it.effect("partial host viewed writes invalidate marks but keep the diff cached", () =>
+  Effect.gen(function* () {
+    let diffReads = 0;
+    const states = new Map<string, "viewed" | "unviewed">([
+      ["a.ts", "unviewed"],
+      ["b.ts", "unviewed"],
+    ]);
+    const service = yield* makeService({
+      projects: [project({ id: "p1", title: "web", workspaceRoot: "/a", repository: "acme/web" })],
+      providers: [
+        fakeProvider(SourceControlProviderKind.make("github"), {
+          capabilities: {
+            ...fakeProvider(SourceControlProviderKind.make("github")).capabilities,
+            viewedFiles: "host",
+          },
+          getDiff: () =>
+            Effect.sync(() => {
+              diffReads += 1;
+              return { patch: "@@", truncated: false, nextCursor: null };
+            }),
+          getFilesViewed: () =>
+            Effect.sync(() => ({
+              files: [...states].map(([path, state]) => ({ path, state })),
+              truncated: false,
+            })),
+          setFilesViewed: () =>
+            Effect.gen(function* () {
+              states.set("a.ts", "viewed");
+              return yield* new PullRequestProviderError({
+                provider: SourceControlProviderKind.make("github"),
+                operation: "setFilesViewed",
+                reason: "failed",
+                detail: "Second mutation refused",
+              });
+            }),
+        }),
+      ],
+    });
+    const ref = { projectId: "p1" as ProjectId, repository: "acme/web", number: 10 };
+    yield* service.diff(ref);
+    assert.deepStrictEqual((yield* service.filesViewed(ref)).files, [
+      { path: "a.ts", state: "unviewed" },
+      { path: "b.ts", state: "unviewed" },
+    ]);
+    yield* Effect.flip(
+      service.setFilesViewed({
+        ...ref,
+        files: [...states.keys()].map((path) => ({ path, viewed: true })),
+      }),
+    );
+    yield* service.diff(ref);
+    assert.strictEqual(diffReads, 1);
+    assert.deepStrictEqual((yield* service.filesViewed(ref)).files, [
+      { path: "a.ts", state: "viewed" },
+      { path: "b.ts", state: "unviewed" },
+    ]);
+  }),
+);
+
 it.effect("keeps the diff cached across a file being ticked off", () =>
   Effect.gen(function* () {
     let diffReads = 0;
@@ -6507,7 +6657,7 @@ it.effect("keeps the diff cached across a file being ticked off", () =>
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
       ],
       providers: [
@@ -6540,7 +6690,7 @@ it.effect("keeps the diff cached across a file being ticked off", () =>
     });
     const reference = {
       projectId: "p1" as ProjectId,
-      repository: "supabitapp/supacode-next",
+      repository: "supabitapp/supaterm",
       number: 1,
     };
 
@@ -8006,6 +8156,86 @@ it.effect.each([
     }),
 );
 
+it.effect("pauses uncached GitLab activity after only the reactions endpoint is rate limited", () =>
+  Effect.gen(function* () {
+    let commandCalls = 0;
+    const provider = yield* GitLabPullRequestProvider.make.pipe(
+      Effect.provide(
+        GitLabPullRequestCli.layer.pipe(
+          Layer.provide(GitLabCli.layer),
+          Layer.provide(
+            TestSourceControlHost.layer({
+              process: {
+                run: (input) =>
+                  Effect.suspend(() => {
+                    commandCalls += 1;
+                    return input.args[1] === "graphql"
+                      ? Effect.fail(
+                          new VcsProcessExitError({
+                            operation: input.operation,
+                            command: input.command,
+                            cwd: input.cwd,
+                            exitCode: 1,
+                            detail: "API rate limit exceeded.",
+                            failureKind: "rate-limited",
+                          }),
+                        )
+                      : Effect.succeed(TestSourceControlHost.processOutput("[]"));
+                  }),
+              },
+            }),
+          ),
+        ),
+      ),
+    );
+    const service = yield* makeService({
+      projects: [
+        project({
+          id: "p1",
+          title: "web",
+          workspaceRoot: "/repo",
+          repository: "acme/web",
+          provider: "gitlab",
+          host: "gitlab.example.test",
+        }),
+      ],
+      providers: [provider],
+    });
+    const reference = { projectId: "p1" as ProjectId, repository: "acme/web", number: 1 };
+
+    expect(yield* Effect.result(service.activity(reference))).toMatchObject({
+      _tag: "Failure",
+      failure: {
+        _tag: "PullRequestOperationError",
+        cause: {
+          _tag: "PullRequestProviderError",
+          reason: "rate-limited",
+          cause: { _tag: "GitLabCliRateLimitError" },
+        },
+      },
+    });
+    const firstCommandCalls = commandCalls;
+    assert.isAbove(firstCommandCalls, 0);
+
+    // A different merge request cannot reuse the first request's cached failure.
+    expect(yield* Effect.result(service.activity({ ...reference, number: 2 }))).toMatchObject({
+      _tag: "Failure",
+      failure: {
+        _tag: "PullRequestOperationError",
+        cause: {
+          _tag: "PullRequestProviderError",
+          reason: "rate-limited",
+          cause: {
+            _tag: "SourceControlRateLimitPausedError",
+            host: "gitlab.example.test",
+          },
+        },
+      },
+    });
+    assert.strictEqual(commandCalls, firstCommandCalls);
+  }),
+);
+
 it.effect("expands only files the change request changes, across every slice of its diff", () =>
   Effect.gen(function* () {
     const read: Array<string> = [];
@@ -8015,7 +8245,7 @@ it.effect("expands only files the change request changes, across every slice of 
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
       ],
       providers: [
@@ -8055,7 +8285,7 @@ it.effect("expands only files the change request changes, across every slice of 
         }),
       ],
     });
-    const ref = { projectId: "p1" as ProjectId, repository: "supabitapp/supacode-next", number: 1 };
+    const ref = { projectId: "p1" as ProjectId, repository: "supabitapp/supaterm", number: 1 };
 
     yield* service.diffFileContents({
       ...ref,
@@ -8097,7 +8327,7 @@ it.effect("checks expanded files against a diff too large to cache without fetch
           id: "p1",
           title: "supaterm",
           workspaceRoot: "/a",
-          repository: "supabitapp/supacode-next",
+          repository: "supabitapp/supaterm",
         }),
       ],
       providers: [
@@ -8123,7 +8353,7 @@ it.effect("checks expanded files against a diff too large to cache without fetch
         }),
       ],
     });
-    const ref = { projectId: "p1" as ProjectId, repository: "supabitapp/supacode-next", number: 1 };
+    const ref = { projectId: "p1" as ProjectId, repository: "supabitapp/supaterm", number: 1 };
     for (const name of ["a.ts", "b.ts"]) {
       yield* service.diffFileContents({
         ...ref,

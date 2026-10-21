@@ -1,7 +1,7 @@
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@supaterm/shared/keybindings";
-import { act, type ComponentProps } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { type ComponentProps } from "react";
+import { render as renderUi, type Screen } from "../../../test/render";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
 
 import { ComposerPrimaryActions } from "./ComposerPrimaryActions";
@@ -26,29 +26,24 @@ const baseProps = {
   onInterrupt: () => {},
 } satisfies Props;
 
-let root: Root;
-let container: HTMLDivElement;
+let screen: Screen;
 
-beforeEach(() => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
-});
+async function setupTest() {
+  await using resources = new AsyncDisposableStack();
 
-afterEach(async () => {
-  await act(async () => root.unmount());
-  container.remove();
-  vi.unstubAllGlobals();
-});
+  screen = resources.use(await renderUi(null, { router: false }));
+
+  return resources.move();
+}
 
 const render = (overrides: Partial<Props> = {}) =>
-  act(async () => root.render(<ComposerPrimaryActions {...baseProps} {...overrides} />));
+  screen.rerender(<ComposerPrimaryActions {...baseProps} {...overrides} />);
 const button = (label: string) =>
-  container.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+  screen.container.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
 
 describe("ComposerPrimaryActions", () => {
   it("renders a queue action alongside stop while running with a sendable draft", async () => {
+    await using _test = await setupTest();
     await render({ isRunning: true, canInterrupt: true, followUpBehavior: "queue" });
 
     expect(button("Stop generation")).not.toBeNull();
@@ -56,6 +51,7 @@ describe("ComposerPrimaryActions", () => {
   });
 
   it("keeps stop as the only action while running with an empty composer", async () => {
+    await using _test = await setupTest();
     await render({
       isRunning: true,
       canInterrupt: true,
@@ -65,7 +61,7 @@ describe("ComposerPrimaryActions", () => {
 
     expect(button("Stop generation")).not.toBeNull();
     expect(button("Queue message")).toBeNull();
-    expect(container.querySelectorAll("button")).toHaveLength(1);
+    expect(screen.container.querySelectorAll("button")).toHaveLength(1);
   });
 
   async function expectSendTooltip(overrides: Partial<Props>, backgroundLabel: string) {
@@ -79,10 +75,12 @@ describe("ComposerPrimaryActions", () => {
   }
 
   it("lists the background send for a new thread", async () => {
+    await using _test = await setupTest();
     await expectSendTooltip({ isDraftThread: true }, "Send in background");
   });
 
   it("lists sending into a new thread from an existing thread", async () => {
+    await using _test = await setupTest();
     await expectSendTooltip({ sendShortcut: "mod-enter" }, "Send and start new thread");
   });
 });

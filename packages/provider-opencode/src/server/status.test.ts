@@ -1,4 +1,5 @@
 import * as NodeAssert from "node:assert/strict";
+import * as NodeSqlite from "node:sqlite";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it } from "@effect/vitest";
@@ -98,6 +99,137 @@ it.effect("reads Go limits with the instance's XDG credentials and preserves res
   }),
 );
 
+it.effect(
+  "uses the selected public Console key for Go limits, falling back only on auth rejection",
+  () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const dataHome = yield* fs.makeTempDirectoryScoped();
+      yield* fs.makeDirectory(`${dataHome}/opencode`);
+      yield* fs.writeFileString(
+        `${dataHome}/opencode/auth.json`,
+        JSON.stringify({ "opencode-go": { type: "api", key: "go-key" } }),
+      );
+      const database = yield* Effect.acquireRelease(
+        Effect.sync(() => new NodeSqlite.DatabaseSync(`${dataHome}/opencode/opencode.db`)),
+        (database) => Effect.sync(() => database.close()),
+      );
+      database.exec(
+        "CREATE TABLE credential (id text PRIMARY KEY, integration_id text, value text, active integer, time_created integer, time_updated integer)",
+      );
+      const insert = database.prepare("INSERT INTO credential VALUES (?, ?, ?, ?, ?, ?)");
+      const window = { percent: 1, resetsAt: "2026-09-17T12:00:00.000Z" };
+      const consoleKey = { type: "key", key: "console-key" };
+      const fingerprints = new Map([
+        ["console-key", "3e45cfde9158185930d4cc7020a4e390895574fd54bd8f9631d23a336bbf94f0"], // gitleaks:allow
+        ["go-key", "d0e590e93fc9bd9353f2b993c0c287391cae505da2a78cb698b75418d2f5367e"], // gitleaks:allow
+        ["inline-key", "85649de18e63305548b6407e185f708483727ee6189cc4bc9512ddb17e23e776"], // gitleaks:allow
+      ]);
+      for (const {
+        consoleRow = consoleKey,
+        active = 1,
+        consoleStatus = 200,
+        inline = false,
+        databaseFile,
+        requested,
+      } of [
+        {
+          consoleRow: { ...consoleKey, metadata: { server: "https://opencode.ai/console" } },
+          requested: ["console-key"],
+        },
+        { consoleStatus: 401, requested: ["console-key", "go-key"] },
+        { consoleStatus: 403, requested: ["console-key", "go-key"] },
+        { consoleStatus: 500, requested: ["console-key"] },
+        { active: 0, requested: ["go-key"] },
+        {
+          consoleRow: {
+            type: "oauth",
+            methodID: "device",
+            access: "token",
+            refresh: "refresh",
+            expires: 0,
+          },
+          requested: ["go-key"],
+        },
+        {
+          consoleRow: { ...consoleKey, metadata: { server: "https://console.example" } },
+          requested: ["go-key"],
+        },
+        { inline: true, requested: ["inline-key"] },
+        { databaseFile: "selected.db", requested: ["console-key"] },
+        { databaseFile: ":memory:", requested: ["go-key"] },
+        { active: null, requested: ["console-key"] },
+      ]) {
+        database.exec("DELETE FROM credential");
+        insert.run("cred_selected", "opencode", JSON.stringify(consoleRow), active, 2, 2);
+        // Legacy selections follow creation order, even when an older key was updated later.
+        insert.run(
+          "cred_older",
+          "opencode",
+          JSON.stringify({ type: "key", key: "old-key" }),
+          active === null ? null : 0,
+          1,
+          9,
+        );
+        insert.run("cred_other", "other", JSON.stringify(consoleKey), 1, 10, 10);
+        if (databaseFile === "selected.db") {
+          yield* fs.writeFile(
+            `${dataHome}/opencode/selected.db`,
+            yield* fs.readFile(`${dataHome}/opencode/opencode.db`),
+          );
+          database
+            .prepare("UPDATE credential SET value = ? WHERE id = 'cred_selected'")
+            .run(JSON.stringify({ type: "key", key: "old-key" }));
+        }
+        const before = yield* fs.readFile(`${dataHome}/opencode/opencode.db`);
+        const authorizations: string[] = [];
+        const limits = yield* readOpenCodeGoUsageLimits({
+          enabled: true,
+          serverUrl: "",
+          environment: {
+            XDG_DATA_HOME: dataHome,
+            ...(databaseFile !== undefined ? { OPENCODE_DB: databaseFile } : {}),
+            ...(inline
+              ? { OPENCODE_AUTH_CONTENT: '{"opencode-go":{"type":"api","key":"inline-key"}}' }
+              : {}),
+          },
+        }).pipe(
+          Effect.provideService(
+            HttpClient.HttpClient,
+            HttpClient.make((request) => {
+              NodeAssert.equal(request.url, "https://opencode.ai/zen/go/v1/usage");
+              const key = (request.headers.authorization ?? "").replace("Bearer ", "");
+              authorizations.push(key);
+              // The legacy key is expired in the regression; it only works in fallback scenarios.
+              const status =
+                key === "console-key" ? consoleStatus : requested.includes(key) ? 200 : 401;
+              return Effect.succeed(
+                HttpClientResponse.fromWeb(
+                  request,
+                  Response.json(
+                    { usage: { rolling: window, weekly: window, monthly: window } },
+                    { status },
+                  ),
+                ),
+              );
+            }),
+          ),
+        );
+        NodeAssert.deepEqual(authorizations, requested);
+        NodeAssert.deepEqual(yield* fs.readFile(`${dataHome}/opencode/opencode.db`), before);
+        NodeAssert.equal(
+          limits.unavailable?.reason,
+          consoleStatus === 500 ? "probeFailed" : undefined,
+        );
+        NodeAssert.equal(limits.windows.length, consoleStatus === 500 ? 0 : 3);
+        NodeAssert.equal(
+          limits.credentialFingerprint,
+          consoleStatus === 500 ? undefined : fingerprints.get(requested.at(-1)!),
+        );
+      }
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+);
+
 it.effect("does not read local credentials for external or disabled OpenCode instances", () =>
   Effect.gen(function* () {
     for (const settings of [
@@ -166,6 +298,7 @@ const runtimeMock = {
     inventoryError: null as Error | null,
     connectionError: null as Error | null,
     inventoryCwd: null as string | null,
+    startCalls: 0,
     closeCalls: 0,
     sdkClientInputs: [] as Array<{
       baseUrl: string;
@@ -186,6 +319,7 @@ const runtimeMock = {
     this.state.inventoryError = null;
     this.state.connectionError = null;
     this.state.inventoryCwd = null;
+    this.state.startCalls = 0;
     this.state.closeCalls = 0;
     this.state.sdkClientInputs.length = 0;
     this.state.inventory = {
@@ -199,6 +333,7 @@ const runtimeMock = {
 const OpenCodeRuntimeTestDouble: OpenCodeRuntime.OpenCodeRuntime["Service"] = {
   startOpenCodeServerProcess: ({ serverPassword, environment }) =>
     Effect.gen(function* () {
+      runtimeMock.state.startCalls += 1;
       yield* Effect.addFinalizer(() =>
         Effect.sync(() => {
           runtimeMock.state.closeCalls += 1;
@@ -551,6 +686,40 @@ it.layer(layerTest)("checkOpenCodeProviderStatus", (it) => {
     }),
   );
 
+  it.effect("reports the upgraded CLI without restarting a borrowed OpenCode server", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const settings = makeOpenCodeSettings();
+        const owner = yield* OpenCodeServerOwner.make({
+          binaryPath: settings.binaryPath,
+          directory: process.cwd(),
+        });
+        yield* owner.withServer(() =>
+          Effect.gen(function* () {
+            runtimeMock.state.versionStdout = "opencode 1.14.20\n";
+            const snapshot = yield* checkOpenCodeProviderStatus(
+              settings,
+              process.cwd(),
+              probeOpenCodeRuntime(settings).pipe(
+                Effect.provideService(
+                  HttpClient.HttpClient,
+                  replayOpenCodeServer(OPENCODE_1_RESPONSES, settings.serverPassword),
+                ),
+                Effect.provideService(OpenCodeRuntime.OpenCodeRuntime, OpenCodeRuntimeTestDouble),
+              ),
+              Effect.succeed([]),
+            ).pipe(Effect.provideService(OpenCodeServerOwner.OpenCodeServerOwner, owner));
+
+            NodeAssert.equal(snapshot.version, "1.14.19");
+            NodeAssert.equal(snapshot.installedVersion, "1.14.20");
+            NodeAssert.equal(runtimeMock.state.startCalls, 1);
+            NodeAssert.equal(runtimeMock.state.closeCalls, 0);
+          }),
+        );
+      }),
+    ),
+  );
+
   it.effect("lists a local OpenCode 2 binary's models in Full access only, never via 1.x", () =>
     Effect.gen(function* () {
       runtimeMock.state.versionStdout = "opencode v2.0.18\n";
@@ -572,6 +741,7 @@ it.layer(layerTest)("checkOpenCodeProviderStatus", (it) => {
 
       NodeAssert.equal(snapshot.status, "ready");
       NodeAssert.equal(snapshot.version, "2.0.18");
+      NodeAssert.equal("installedVersion" in snapshot, false);
       NodeAssert.deepEqual(snapshot.supportedRuntimeModes, [
         "approval-required",
         "auto-accept-edits",
@@ -652,11 +822,14 @@ it.layer(layerTest)("checkOpenCodeProviderStatus", (it) => {
 
   it.effect("reports local model inventory failures without treating them as empty", () =>
     Effect.gen(function* () {
+      runtimeMock.state.versionStdout = "opencode 1.14.20\n";
       runtimeMock.state.inventoryError = new Error("opencode models failed");
       const snapshot = yield* checkProvider(makeOpenCodeSettings());
 
       NodeAssert.equal(snapshot.status, "error");
       NodeAssert.equal(snapshot.installed, true);
+      NodeAssert.equal(snapshot.version, "1.14.19");
+      NodeAssert.equal(snapshot.installedVersion, "1.14.20");
       NodeAssert.equal(snapshot.models.length, 0);
       NodeAssert.equal(
         snapshot.message,
@@ -669,6 +842,7 @@ it.layer(layerTest)("checkOpenCodeProviderStatus", (it) => {
 it.layer(layerTest)("checkOpenCodeProviderStatus with configured server URL", (it) => {
   it.effect("does not send a local environment password to a configured server", () =>
     Effect.gen(function* () {
+      runtimeMock.state.versionStdout = "opencode 1.14.20\n";
       const snapshot = yield* checkProvider(
         makeOpenCodeSettings({ serverUrl: "http://127.0.0.1:9999" }),
         process.cwd(),
@@ -676,6 +850,7 @@ it.layer(layerTest)("checkOpenCodeProviderStatus with configured server URL", (i
       );
 
       NodeAssert.equal(snapshot.version, "1.14.19");
+      NodeAssert.equal("installedVersion" in snapshot, false);
       NodeAssert.deepEqual(runtimeMock.state.sdkClientInputs, [
         {
           baseUrl: "http://127.0.0.1:9999",
@@ -700,6 +875,7 @@ it.layer(layerTest)("checkOpenCodeProviderStatus with configured server URL", (i
 
       NodeAssert.equal(snapshot.status, "warning");
       NodeAssert.equal(snapshot.version, "2.0.18");
+      NodeAssert.equal("installedVersion" in snapshot, false);
       NodeAssert.deepEqual(snapshot.supportedRuntimeModes, [
         "approval-required",
         "auto-accept-edits",

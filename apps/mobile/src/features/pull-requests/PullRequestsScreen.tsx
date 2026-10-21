@@ -1,3 +1,4 @@
+import { Button } from "../../components/ui/Button";
 import {
   applyPullRequestDraftFilterChange,
   parsePullRequestQuery,
@@ -13,7 +14,6 @@ import { useAtomValue } from "@effect/atom-react";
 import {
   Keyboard,
   Platform,
-  Pressable,
   RefreshControl,
   ScrollView,
   View,
@@ -340,15 +340,14 @@ export function PullRequestsScreen(
               />
             </View>
           ) : result.loadMoreError ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Retry loading more pull requests"
-              onPress={() => void result.loadMore(true)}
-              className="items-center gap-2 px-8 py-4"
-            >
+            <View className="items-center gap-2 px-8 py-4">
               <Text className="text-xs text-foreground-muted">{result.loadMoreError}</Text>
-              <Text className="text-sm font-supaterm-medium text-link">Try again</Text>
-            </Pressable>
+              <Button
+                label="Try again"
+                accessibilityLabel="Retry loading more pull requests"
+                onPress={() => void result.loadMore(true)}
+              />
+            </View>
           ) : undefined
         }
         ListEmptyComponent={

@@ -1,3 +1,4 @@
+import { EMPTY_ENVIRONMENT_THREAD_STATE } from "@supaterm/client-runtime/state/threads";
 import { useAtomValue } from "@effect/atom-react";
 import type {
   EnvironmentProject,
@@ -53,6 +54,7 @@ const EMPTY_THREAD_SHELL_ATOM = Atom.make<EnvironmentThreadShell | null>(null).p
 const EMPTY_THREAD_PROJECTION_ATOM = Atom.make<EnvironmentThread | null>(null).pipe(
   Atom.withLabel("web-thread-projection:empty"),
 );
+const EMPTY_THREAD_STATE_ATOM = Atom.make(EMPTY_ENVIRONMENT_THREAD_STATE);
 const EMPTY_THREAD_STATUS_ATOM = Atom.make<EnvironmentThreadStatus>("empty").pipe(
   Atom.withLabel("web-thread-status:empty"),
 );
@@ -79,8 +81,8 @@ export function setActiveEnvironmentId(environmentId: EnvironmentId | null): voi
   appAtomRegistry.set(activeEnvironmentIdAtom, environmentId);
 }
 
-export function useThreadRefs(): ReadonlyArray<ScopedThreadRef> {
-  return useAtomValue(environmentThreadShells.threadRefsAtom);
+export function useThreadRefs(enabled = true): ReadonlyArray<ScopedThreadRef> {
+  return useAtomValue(enabled ? environmentThreadShells.threadRefsAtom : EMPTY_THREAD_REFS_ATOM);
 }
 
 export function useEnvironmentThreadRefs(
@@ -363,4 +365,10 @@ export function useThreadRelationshipShells(
   ref: ScopedThreadRef,
 ): ReadonlyArray<OrchestrationV2ThreadShell> {
   return useAtomValue(relationshipShellsAtomFamily(threadKey(ref)));
+}
+
+export function useThreadState(ref: ScopedThreadRef | null) {
+  return useAtomValue(
+    ref === null ? EMPTY_THREAD_STATE_ATOM : environmentThreadDetails.stateAtom(ref),
+  );
 }

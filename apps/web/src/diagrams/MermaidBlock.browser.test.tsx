@@ -1,7 +1,6 @@
 import type { Diagram } from "@supaterm/mermaid/diagram";
-import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { act, render as renderUi, stubGlobal, type Screen } from "../../test/render";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock(import("./mermaidRenderer"), async (original) => ({
   ...(await original()),
@@ -36,40 +35,38 @@ const diagram = (text: string): Diagram => ({
   type: "flowchart",
 });
 
-let root: Root;
-let container: HTMLDivElement;
+let screen: Screen;
 
-beforeEach(() => {
+async function setupTest() {
+  await using resources = new AsyncDisposableStack();
+  resources.defer(() => {
+    vi.restoreAllMocks();
+  });
+
   TestIntersectionObserver.instances = [];
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  vi.stubGlobal("IntersectionObserver", TestIntersectionObserver);
+  resources.use(stubGlobal("IntersectionObserver", TestIntersectionObserver));
   vi.mocked(renderMermaidDiagram).mockReset();
   vi.mocked(observeResize).mockClear();
-  container = document.body.appendChild(document.createElement("div"));
-  root = createRoot(container);
-});
+  screen = resources.use(await renderUi(null, { router: false }));
 
-afterEach(async () => {
-  await act(async () => root.unmount());
-  container.remove();
-  vi.restoreAllMocks();
-  vi.unstubAllGlobals();
-});
+  return resources.move();
+}
 
 function block(source: string, complete = true, title: string | null = null) {
   return <MermaidBlock source={source} complete={complete} title={title} />;
 }
 
 async function mount(source: string, complete = true) {
-  await act(async () => root.render(block(source, complete)));
+  await screen.rerender(block(source, complete));
 }
 
 function displayedText() {
-  return (container.querySelector("code") ?? container.querySelector("svg text"))!.textContent;
+  return (screen.container.querySelector("code") ?? screen.container.querySelector("svg text"))!
+    .textContent;
 }
 
 function button(label: string) {
-  const found = [...container.querySelectorAll("button")].find(
+  const found = [...screen.container.querySelectorAll("button")].find(
     (item) => item.textContent === label || item.getAttribute("aria-label") === label,
   );
   if (!found) throw new Error(`Missing button ${label}`);
@@ -88,6 +85,7 @@ function deferredResult() {
 
 describe("MermaidBlock", () => {
   it("keeps a working diagram when resizing fails and replaces it after recovery", async () => {
+    await using _test = await setupTest();
     const source = "flowchart LR\nA-->B";
     vi.mocked(renderMermaidDiagram)
       .mockResolvedValueOnce(diagram("wide diagram"))
@@ -96,7 +94,7 @@ describe("MermaidBlock", () => {
       .mockResolvedValueOnce(null);
     await mount(source);
     await act(async () => TestIntersectionObserver.instances[0]!.visible(true));
-    const blockElement = container.firstElementChild!;
+    const blockElement = screen.container.firstElementChild!;
     const measure = vi
       .mocked(observeResize)
       .mock.calls.find(([element]) => element === blockElement)![1];
@@ -111,22 +109,24 @@ describe("MermaidBlock", () => {
       measure([]);
     });
     expect(displayedText()).toBe("narrow diagram");
-    await act(async () => root.render(block("invalid replacement")));
+    await screen.rerender(block("invalid replacement"));
     expect(displayedText()).toBe("invalid replacement");
   });
 
   it("renders only a completed, visible fence", async () => {
+    await using _test = await setupTest();
     vi.mocked(renderMermaidDiagram).mockResolvedValue(diagram("diagram"));
     await mount("graph TD\n A-->B", false);
     expect(displayedText()).toBe("graph TD\n A-->B");
     await act(async () => TestIntersectionObserver.instances[0]!.visible(true));
     expect(renderMermaidDiagram).not.toHaveBeenCalled();
-    await act(async () => root.render(block("graph TD\n A-->B")));
+    await screen.rerender(block("graph TD\n A-->B"));
     expect(displayedText()).toBe("diagram");
     expect(renderMermaidDiagram).toHaveBeenCalledTimes(1);
   });
 
   it("preserves source until visible and copies Mermaid source from either view", async () => {
+    await using _test = await setupTest();
     const writeText = vi
       .spyOn(navigator.clipboard, "writeText")
       .mockImplementation(async () => undefined);
@@ -147,6 +147,7 @@ describe("MermaidBlock", () => {
   });
 
   it("opens the rendered diagram full screen from either view", async () => {
+    await using _test = await setupTest();
     vi.mocked(renderMermaidDiagram).mockResolvedValue(diagram("┌───┐\n│ A │\n└───┘"));
     await mount("graph TD\n A");
     expect(() => button("Open full screen")).toThrow();
@@ -158,15 +159,17 @@ describe("MermaidBlock", () => {
   });
 
   it("keeps original source after failure without retrying on ordinary rerenders", async () => {
+    await using _test = await setupTest();
     vi.mocked(renderMermaidDiagram).mockResolvedValue(null);
     await mount("unsupported");
     await act(async () => TestIntersectionObserver.instances[0]!.visible(true));
-    await act(async () => root.render(block("unsupported", true, "Example")));
+    await screen.rerender(block("unsupported", true, "Example"));
     expect(displayedText()).toBe("unsupported");
     expect(renderMermaidDiagram).toHaveBeenCalledTimes(1);
   });
 
   it("copies diagrams on remote HTTP pages without the Clipboard API", async () => {
+    await using _test = await setupTest();
     vi.spyOn(navigator, "clipboard", "get").mockReturnValue(undefined as never);
     let copiedText: string | undefined;
     const execCommand = vi.spyOn(document, "execCommand").mockImplementation(() => {
@@ -183,6 +186,7 @@ describe("MermaidBlock", () => {
   });
 
   it("ignores a result for an outdated source", async () => {
+    await using _test = await setupTest();
     const first = deferredResult();
     const second = deferredResult();
     vi.mocked(renderMermaidDiagram)
@@ -190,10 +194,8 @@ describe("MermaidBlock", () => {
       .mockReturnValueOnce(second.promise);
     await mount("first");
     await act(async () => TestIntersectionObserver.instances[0]!.visible(true));
-    await act(async () => {
-      root.render(block("second"));
-      first.resolve(diagram("stale diagram"));
-    });
+    await screen.rerender(block("second"));
+    await act(async () => first.resolve(diagram("stale diagram")));
     expect(displayedText()).toBe("second");
     await act(async () => second.resolve(diagram("second diagram")));
     expect(displayedText()).toBe("second diagram");

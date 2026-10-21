@@ -2,11 +2,11 @@ import { ThreadDetailsComboboxControl } from "./chat/ThreadDetailsControl";
 import { ComposerContextLabel } from "./ComposerContextLabel";
 import { Tooltip, TooltipTrigger, TooltipPopup } from "./ui/tooltip";
 import type { EnvironmentId } from "@supaterm/contracts";
-import { ScaleIcon } from "lucide-react";
+import { PlusIcon, ScaleIcon } from "lucide-react";
 import { useAtomValue } from "@effect/atom-react";
 import { memo, useState } from "react";
 
-import type { EnvironmentOption } from "./BranchToolbar.logic";
+import { type EnvironmentOption } from "./BranchToolbar.logic";
 import { cn } from "../lib/utils";
 import { useShortcutLabel } from "../hooks/useShortcutLabel";
 import { usePickerShortcuts } from "../hooks/usePickerShortcuts";
@@ -36,7 +36,13 @@ interface BranchToolbarEnvironmentSelectorProps {
   availableEnvironments: readonly EnvironmentOption[];
   onEnvironmentChange?: (environmentId: EnvironmentId) => void;
   displayMode?: "toolbar" | "panel";
+  onAddToMachine?: (() => void) | undefined;
 }
+
+// Action values cannot collide with server-minted environment IDs.
+const AUTO_VALUE = "action:auto";
+const ADD_MACHINE_VALUE = "action:add-machine";
+const environmentValue = (id: EnvironmentId) => `env:${id}`;
 
 export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvironmentSelector({
   autoEnvironmentLabel,
@@ -46,6 +52,7 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
   availableEnvironments,
   onEnvironmentChange,
   displayMode = "toolbar",
+  onAddToMachine,
 }: BranchToolbarEnvironmentSelectorProps) {
   const composerFloatingLayerProps = useComposerMenuProps();
   const hostShortcut = useShortcutLabel(displayMode === "toolbar" ? "composer.host" : null);
@@ -58,12 +65,13 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
 
   const environmentItems = [
     ...(onAutoEnvironment
-      ? [{ value: "auto", label: autoEnvironmentLabel ?? "Auto balance" }]
+      ? [{ value: AUTO_VALUE, label: autoEnvironmentLabel ?? "Auto balance" }]
       : []),
     ...availableEnvironments.map((env) => ({
-      value: env.environmentId,
+      value: environmentValue(env.environmentId),
       label: env.label,
     })),
+    ...(onAddToMachine ? [{ value: ADD_MACHINE_VALUE, label: "Add to another machine" }] : []),
   ];
   const filteredEnvironmentItems = environmentItems.filter((item) =>
     hostFilter.contains(item.label, query),
@@ -73,8 +81,14 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
     if (!nextOpen) setQuery("");
   };
   const selectEnvironmentItem = (item: (typeof environmentItems)[number]) => {
-    if (item.value === "auto") onAutoEnvironment?.();
-    else onEnvironmentChange?.(item.value as EnvironmentId);
+    if (item.value === ADD_MACHINE_VALUE) onAddToMachine?.();
+    else if (item.value === AUTO_VALUE) onAutoEnvironment?.();
+    else {
+      const environment = availableEnvironments.find(
+        (candidate) => environmentValue(candidate.environmentId) === item.value,
+      );
+      if (environment) onEnvironmentChange?.(environment.environmentId);
+    }
   };
   const hostJumpLabels = usePickerShortcuts({
     picker: "host",
@@ -92,7 +106,7 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
   // the glass seam joining it to the composer assumes a fixed strip height, so
   // a shorter label would drag the seam out of line whenever this label is the
   // only thing in the strip.
-  if (envLocked || onEnvironmentChange === undefined) {
+  if (envLocked || (onEnvironmentChange === undefined && onAddToMachine === undefined)) {
     const lockedRow = (
       <span
         className={cn(
@@ -129,7 +143,8 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
       itemToStringValue={(item) => item.value}
       value={
         environmentItems.find(
-          (item) => item.value === (autoEnvironmentLabel ? "auto" : environmentId),
+          (item) =>
+            item.value === (autoEnvironmentLabel ? AUTO_VALUE : environmentValue(environmentId)),
         ) ?? null
       }
       onValueChange={(item) => {
@@ -192,13 +207,16 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
         <ComboboxList>
           {(item: (typeof environmentItems)[number]) => (
             <ComboboxItem key={item.value} value={item}>
-              {item.value === "auto" ? (
+              {item.value === ADD_MACHINE_VALUE ? (
+                <PlusIcon className="size-3" />
+              ) : item.value === AUTO_VALUE ? (
                 <ScaleIcon className="size-3" />
               ) : (
                 <EnvironmentMachineIcon
                   kind={
-                    availableEnvironments.find((env) => env.environmentId === item.value)
-                      ?.machine ?? "server"
+                    availableEnvironments.find(
+                      (env) => environmentValue(env.environmentId) === item.value,
+                    )?.machine ?? "server"
                   }
                   className="size-3"
                 />

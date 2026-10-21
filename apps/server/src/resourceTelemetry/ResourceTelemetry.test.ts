@@ -21,6 +21,11 @@ import * as NativeTelemetryClient from "./NativeTelemetryClient.ts";
 import * as ResourceAttribution from "./ResourceAttribution.ts";
 import * as ResourceTelemetry from "./ResourceTelemetry.ts";
 
+const providerPid = process.pid + 1;
+const returningPid = process.pid + 2;
+const electronPid = process.pid + 3;
+const monitorPid = process.pid + 4;
+
 function processSample(
   input: Partial<ResourceMonitorProcessSample> &
     Pick<ResourceMonitorProcessSample, "pid" | "ppid" | "startTimeMs">,
@@ -56,7 +61,7 @@ function nativeSnapshot(input: {
       cpuTimeMs: input.sequence * 10,
     }),
     processSample({
-      pid: 4_242,
+      pid: providerPid,
       ppid: process.pid,
       startTimeMs: 200,
       name: "codex",
@@ -65,7 +70,7 @@ function nativeSnapshot(input: {
       ioWriteBytes: input.childWriteBytes,
     }),
     processSample({
-      pid: 5_000,
+      pid: electronPid,
       ppid: 1,
       startTimeMs: 300,
       name: "electron",
@@ -73,7 +78,7 @@ function nativeSnapshot(input: {
       cpuTimeMs: input.sequence * 20,
     }),
     processSample({
-      pid: 9_000,
+      pid: monitorPid,
       ppid: process.pid,
       startTimeMs: 400,
       name: "supaterm-resource-monitor",
@@ -111,7 +116,7 @@ function desktopSnapshot(sampledAtUnixMs: number): DesktopHostTelemetrySnapshot 
     type: "desktopTelemetry",
     sequence: 1,
     sampledAtUnixMs,
-    electronPid: 5_000,
+    electronPid,
     power: {
       source: "electron-main",
       idle: "false",
@@ -127,7 +132,7 @@ function desktopSnapshot(sampledAtUnixMs: number): DesktopHostTelemetrySnapshot 
     speedLimitPercent: Option.some(90),
     electronProcesses: [
       {
-        pid: 5_000,
+        pid: electronPid,
         creationTimeMs: 300,
         type: "Browser",
         name: "electron",
@@ -154,16 +159,16 @@ describe("ResourceTelemetry", () => {
           childWriteBytes: index * 100,
         });
         const processes = sample.processes
-          .filter((entry) => entry.pid === process.pid || entry.pid === 4_242)
+          .filter((entry) => entry.pid === process.pid || entry.pid === providerPid)
           .map((entry) =>
-            entry.pid === 4_242
+            entry.pid === providerPid
               ? { ...entry, startTimeMs: index }
               : { ...entry, ioWriteBytes: index * 100 },
           );
         if (index === 0 || index === 2) {
           processes.push(
             processSample({
-              pid: 4_243,
+              pid: returningPid,
               ppid: process.pid,
               startTimeMs: 500,
               cpuTimeMs: index === 0 ? 100 : 350,
@@ -198,12 +203,14 @@ describe("ResourceTelemetry", () => {
           cpuTimeMs: (sampleCount - 1) * 10,
           ioWriteBytes: (sampleCount - 1) * 100,
         });
-        const children = history.topProcesses.filter((entry) => entry.identity.pid === 4_242);
+        const children = history.topProcesses.filter((entry) => entry.identity.pid === providerPid);
         expect(children).toHaveLength(sampleCount);
         for (const child of children) {
           expect(child).toMatchObject({ sampleCount: 1, cpuTimeMs: 0, ioWriteBytes: 0 });
         }
-        expect(history.topProcesses.find((entry) => entry.identity.pid === 4_243)).toMatchObject({
+        expect(
+          history.topProcesses.find((entry) => entry.identity.pid === returningPid),
+        ).toMatchObject({
           sampleCount: 2,
           cpuTimeMs: 250,
           ioWriteBytes: 4_000,
@@ -307,7 +314,7 @@ describe("ResourceTelemetry", () => {
           sampledAtUnixMs,
           childCpuTimeMs: 100,
           childWriteBytes: 1_000,
-          externalProcesses: [{ pid: 5_000, startTimeMs: 300 }],
+          externalProcesses: [{ pid: electronPid, startTimeMs: 300 }],
         });
         const desktop = {
           ...desktopSnapshot(sampledAtUnixMs),
@@ -336,9 +343,9 @@ describe("ResourceTelemetry", () => {
           return yield* telemetry.refresh;
         }).pipe(Effect.provide(layerTelemetry));
 
-        expect(snapshot.processes.find((entry) => entry.identity.pid === 5_000)?.category).toBe(
-          "electron-main",
-        );
+        expect(
+          snapshot.processes.find((entry) => entry.identity.pid === electronPid)?.category,
+        ).toBe("electron-main");
         expect(snapshot.groups.electron.processStarts).toBe(1);
         expect(snapshot.groups.backend.processStarts).toBe(3);
       }),
@@ -574,7 +581,7 @@ describe("ResourceTelemetry", () => {
           version: 3,
           type: "hello",
           sidecarVersion: "0.1.0",
-          sidecarPid: 9_000,
+          sidecarPid: monitorPid,
           platform: "test",
           arch: "test",
           capabilities: {
@@ -629,7 +636,7 @@ describe("ResourceTelemetry", () => {
         const telemetry = yield* ResourceTelemetry.ResourceTelemetry;
         const attribution = yield* ResourceAttribution.ResourceAttribution;
 
-        expect(yield* Ref.get(externalProcesses)).toEqual([{ pid: 5_000, startTimeMs: 300 }]);
+        expect(yield* Ref.get(externalProcesses)).toEqual([{ pid: electronPid, startTimeMs: 300 }]);
 
         yield* attribution.record({
           component: "provider-event-log",
@@ -657,7 +664,7 @@ describe("ResourceTelemetry", () => {
 
         yield* TestClock.adjust(Duration.seconds(1));
         const second = yield* telemetry.refresh;
-        const codex = second.processes.find((entry) => entry.identity.pid === 4_242);
+        const codex = second.processes.find((entry) => entry.identity.pid === providerPid);
         expect(codex?.cpuPercent).toBe(25);
         expect(codex?.ioWriteBytesPerSecond).toBe(4_000);
         expect(second.groups.backend.ioWriteBytes).toBe(4_000);
@@ -671,13 +678,13 @@ describe("ResourceTelemetry", () => {
         });
         expect(history.retainedSampleCount).toBeGreaterThan(0);
         expect(
-          history.topProcesses.find((entry) => entry.identity.pid === 4_242)?.sampleCount,
+          history.topProcesses.find((entry) => entry.identity.pid === providerPid)?.sampleCount,
         ).toBe(2);
-        expect(history.topProcesses.find((entry) => entry.identity.pid === 4_242)?.cpuTimeMs).toBe(
-          250,
-        );
         expect(
-          history.topProcesses.find((entry) => entry.identity.pid === 4_242)?.ioWriteBytes,
+          history.topProcesses.find((entry) => entry.identity.pid === providerPid)?.cpuTimeMs,
+        ).toBe(250);
+        expect(
+          history.topProcesses.find((entry) => entry.identity.pid === providerPid)?.ioWriteBytes,
         ).toBe(4_000);
         expect(history.buckets.reduce((total, bucket) => total + bucket.ioWriteBytes, 0)).toBe(
           4_000,

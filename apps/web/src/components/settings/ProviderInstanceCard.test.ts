@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import type { ServerProviderModel } from "@supaterm/contracts";
+import { ProviderDriverKind, type ServerProviderModel } from "@supaterm/contracts";
 
 import {
   deriveProviderModelsForDisplay,
@@ -9,6 +9,21 @@ import {
 } from "./ProviderInstanceCard";
 
 describe("deriveProviderModelsForDisplay", () => {
+  it("does not restore unsupported Claude Fast from a saved custom definition", () => {
+    const capabilities = {
+      optionDescriptors: [{ id: "fastMode", label: "Fast Mode", type: "boolean" as const }],
+    };
+    const customModels = [{ slug: "custom", name: "Custom", capabilities }];
+    const models = deriveProviderModelsForDisplay({
+      driver: ProviderDriverKind.make("claudeAgent"),
+      liveModels: [
+        { ...customModels[0]!, isCustom: true, capabilities: { optionDescriptors: [] } },
+      ],
+      customModels,
+    });
+    expect(models[0]?.capabilities?.optionDescriptors).toEqual([]);
+    expect(customModels[0]?.capabilities).toBe(capabilities);
+  });
   it("uses current config custom models instead of stale live custom rows", () => {
     const liveModels: ReadonlyArray<ServerProviderModel> = [
       {
@@ -33,6 +48,7 @@ describe("deriveProviderModelsForDisplay", () => {
 
     expect(
       deriveProviderModelsForDisplay({
+        driver: ProviderDriverKind.make("codex"),
         liveModels,
         customModels: [{ slug: "kept-custom", name: "kept-custom", capabilities: null }],
       }).map((model) => model.slug),
@@ -58,6 +74,7 @@ describe("deriveProviderModelsForDisplay", () => {
     ];
 
     const display = deriveProviderModelsForDisplay({
+      driver: ProviderDriverKind.make("codex"),
       liveModels,
       customModels: [
         { slug: "bare", name: "bare", capabilities: null },

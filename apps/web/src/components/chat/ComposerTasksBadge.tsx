@@ -10,6 +10,7 @@ export interface ComposerTasksProgress {
   readonly step: string;
   readonly completedSteps: number;
   readonly totalSteps: number;
+  readonly live: boolean;
 }
 
 export interface ComposerTaskStep {
@@ -182,7 +183,7 @@ export const ComposerTasksContent = memo(function ComposerTasksContent({
                       "block wrap-anywhere",
                       step.status === "completed"
                         ? "text-muted-foreground/55"
-                        : step.status === "inProgress"
+                        : step.status === "inProgress" && progress.live
                           ? "text-foreground/90"
                           : "text-muted-foreground/70",
                     )}
@@ -197,7 +198,7 @@ export const ComposerTasksContent = memo(function ComposerTasksContent({
                     >
                       {step.durationMs !== undefined
                         ? formatDuration(step.durationMs)
-                        : step.status === "inProgress"
+                        : step.status === "inProgress" && progress.live
                           ? "now"
                           : null}
                     </span>

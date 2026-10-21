@@ -53,6 +53,26 @@ describe("runMigrations", () => {
     }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
   );
 
+  it.effect("indexes native usage lookup without changing recorded migrations", () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* runMigrations();
+      const plan = yield* sql<{ readonly detail: string }>`
+        EXPLAIN QUERY PLAN SELECT provider_turn_id
+        FROM orchestration_v2_projection_provider_turns
+        WHERE json_extract(payload_json, '$.nativeTurnRef.driver') = 'codex'
+          AND json_extract(payload_json, '$.nativeTurnRef.nativeId') IN ('native-turn')
+      `;
+      assert.isTrue(
+        plan.some((row) =>
+          row.detail.includes("USING INDEX orchestration_v2_provider_turns_codex_native_id_idx"),
+        ),
+      );
+      assert.deepStrictEqual(yield* runMigrations(), []);
+      assert.deepStrictEqual(yield* history, migrationManifest);
+    }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
+  );
+
   it.effect("refuses a database whose migration history came from another build", () =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;

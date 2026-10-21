@@ -1,7 +1,7 @@
 import { EnvironmentId, type OrchestrationSkillsStatus } from "@supaterm/contracts";
-import { act, useLayoutEffect } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { useLayoutEffect } from "react";
+import { act, render as renderUi, type Screen } from "../../test/render";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { useOrchestrationSkills } from "./useOrchestrationSkills";
 
@@ -81,7 +81,7 @@ let statusCommand: ReturnType<typeof makeCommand>;
 let installCommand: ReturnType<typeof makeCommand>;
 let uninstallCommand: ReturnType<typeof makeCommand>;
 let commands: Parameters<typeof useOrchestrationSkills>[1];
-let root: Root | undefined;
+let screen: Screen;
 const latest: { current: ReturnType<typeof useOrchestrationSkills> | undefined } = {
   current: undefined,
 };
@@ -104,14 +104,14 @@ async function mount() {
   const initialStatus = new Promise<void>((resolve) => {
     resolveInitialStatus = resolve;
   });
-  root = createRoot(document.createElement("div"));
-  await act(async () => root!.render(<Probe />));
+  await screen.rerender(<Probe />);
   await act(async () => initialStatus);
   resolveInitialStatus = undefined;
 }
 
-beforeEach(() => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+async function setupTest() {
+  await using resources = new AsyncDisposableStack();
+
   testState.permissions.clear();
   testState.statuses.clear();
   testState.commandCalls.length = 0;
@@ -125,16 +125,15 @@ beforeEach(() => {
     orchestrationSkillsInstall: installCommand,
     orchestrationSkillsUninstall: uninstallCommand,
   } as unknown as Parameters<typeof useOrchestrationSkills>[1];
-});
 
-afterEach(async () => {
-  await act(async () => root?.unmount());
-  root = undefined;
-  vi.unstubAllGlobals();
-});
+  screen = resources.use(await renderUi(null, { router: false }));
+
+  return resources.move();
+}
 
 describe("orchestration skill permissions", () => {
   it("runs only on permitted environments and preserves denied environments' status", async () => {
+    await using _test = await setupTest();
     testState.permissions.add(String(local.environmentId));
     testState.statuses.set(String(local.environmentId), skillsStatus(false));
     testState.statuses.set(String(remote.environmentId), installedStatus);
@@ -159,6 +158,7 @@ describe("orchestration skill permissions", () => {
   });
 
   it("rechecks a revoked grant before dispatch and retains the last known status", async () => {
+    await using _test = await setupTest();
     testState.permissions.add(String(local.environmentId));
     testState.statuses.set(String(local.environmentId), installedStatus);
     testState.statuses.set(String(remote.environmentId), installedStatus);
@@ -174,7 +174,7 @@ describe("orchestration skill permissions", () => {
     expect(current().installed).toBe(true);
     expect(current().error).toBe(false);
 
-    await act(async () => root?.render(<Probe />));
+    await screen.rerender(<Probe />);
     expect(current().canUninstall).toBe(false);
     expect(current().notices).toContain(
       "Local: This connection does not have permission to manage provider skills.",
@@ -182,6 +182,7 @@ describe("orchestration skill permissions", () => {
   });
 
   it("retains the last known status when authorization fails after a grant is revoked", async () => {
+    await using _test = await setupTest();
     testState.permissions.add(String(local.environmentId));
     testState.statuses.set(String(local.environmentId), installedStatus);
     testState.statuses.set(String(remote.environmentId), installedStatus);

@@ -15,20 +15,33 @@ import { AsyncResult, Atom } from "effect/reactivity";
 
 import { environmentCatalog } from "../connection/catalog";
 import { connectionAtomRuntime } from "../connection/runtime";
+import { pendingThreadCreationOutcomesAtom } from "./pending-thread-creation";
 import { environmentSnapshotAtom } from "./shell";
+import { threadOutboxManager } from "./thread-outbox";
+import { createThreadDetailReadiness } from "./thread-detail-readiness";
 
 export const threadEnvironment = createThreadEnvironmentAtoms(
   connectionAtomRuntime,
   environmentSnapshotAtom,
 );
-export const environmentThreads = createEnvironmentThreadStateAtoms(connectionAtomRuntime);
-export const environmentThreadDetails = createEnvironmentThreadDetailAtoms(
-  environmentThreads.stateAtom,
-);
 export const environmentThreadShells = createEnvironmentThreadShellAtoms({
   catalogValueAtom: environmentCatalog.catalogValueAtom,
   snapshotAtom: threadEnvironment.snapshotAtom,
 });
+
+const threadDetailReadyAtom = createThreadDetailReadiness({
+  threadShellAtom: environmentThreadShells.threadShellAtom,
+  outcomesAtom: pendingThreadCreationOutcomesAtom,
+  queuedMessagesAtom: threadOutboxManager.queuedMessagesByThreadKeyAtom,
+});
+
+export const environmentThreads = createEnvironmentThreadStateAtoms(
+  connectionAtomRuntime,
+  (environmentId, threadId) => threadDetailReadyAtom({ environmentId, threadId }),
+);
+export const environmentThreadDetails = createEnvironmentThreadDetailAtoms(
+  environmentThreads.stateAtom,
+);
 
 export const runningThreadKeepAliveAtom = createRunningThreadKeepAliveAtom({
   environmentIdsAtom: Atom.map(environmentCatalog.catalogValueAtom, (catalog) => [

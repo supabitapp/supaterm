@@ -1,10 +1,11 @@
+import { Button } from "../../components/ui/Button";
 import { AuthSettingsWriteScope } from "@supaterm/contracts";
 import { readEnvironmentScope, useEnvironmentsWithScope } from "../../state/session";
 import { AutoMarkDoneDaysField } from "./components/AutoMarkDoneDaysField";
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { useRef, useState } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DEFAULT_SERVER_SETTINGS } from "@supaterm/contracts";
@@ -242,16 +243,12 @@ function ThreadBehaviorSettingsRows() {
             <Text className="text-sm text-foreground-muted">
               {mismatches.map((mismatch) => mismatch.label).join(", ")}
             </Text>
-            <Pressable
-              accessibilityRole="button"
+            <Button
+              label="Apply automatic completion defaults"
+              tone="secondary"
               disabled={disabled}
               onPress={() => writeToAll(autoMarkDonePatch)}
-              className="self-start rounded-full bg-subtle px-4 py-2 active:opacity-70"
-            >
-              <Text className="text-sm font-supaterm-medium text-foreground">
-                Apply automatic completion defaults
-              </Text>
-            </Pressable>
+            />
           </View>
         </SettingsSection>
       ) : null}

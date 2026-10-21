@@ -37,6 +37,24 @@ export function createModelCapabilities(input: {
   };
 }
 
+export function filterCustomModelCapabilities(
+  driverKind: ProviderDriverKind | null,
+  capabilities: ModelCapabilities | null | undefined,
+): ModelCapabilities | null {
+  if (
+    driverKind !== "claudeAgent" ||
+    !capabilities?.optionDescriptors?.some((descriptor) => descriptor.id === "fastMode")
+  ) {
+    return capabilities ?? null;
+  }
+  return {
+    ...capabilities,
+    optionDescriptors: capabilities.optionDescriptors.filter(
+      (descriptor) => descriptor.id !== "fastMode",
+    ),
+  };
+}
+
 function getRawSelectionValueById(
   selections: ReadonlyArray<ProviderOptionSelection> | null | undefined,
   id: string,
@@ -114,6 +132,20 @@ export function modelSelectionsEqual(left: ModelSelection, right: ModelSelection
       ([id, value], index) => id === rightOptions[index]?.[0] && value === rightOptions[index]?.[1],
     )
   );
+}
+
+/**
+ * Whether a composer's draft model pick is what the thread already runs. Web sends
+ * `fastMode: false` for models with a fast toggle while mobile omits it, so off counts as unset.
+ */
+export function draftModelPickMatchesThread(pick: ModelSelection, thread: ModelSelection): boolean {
+  const withoutFastModeOff = (selection: ModelSelection) =>
+    createModelSelection(
+      selection.instanceId,
+      selection.model,
+      selection.options?.filter((option) => option.id !== "fastMode" || option.value !== false),
+    );
+  return modelSelectionsEqual(withoutFastModeOff(pick), withoutFastModeOff(thread));
 }
 
 function resolveDescriptorChoiceValue(
@@ -211,6 +243,17 @@ function getReportedOptionValue(
   )
     return undefined;
   return getRawSelectionValueById(reportedSelection.options, id);
+}
+
+export function getProviderOptionStatedValue(
+  id: string,
+  selection?: ModelSelection | null,
+  reportedSelection?: ModelSelection | null,
+) {
+  return (
+    getRawSelectionValueById(selection?.options, id) ??
+    getReportedOptionValue(id, selection, reportedSelection)
+  );
 }
 
 export function getProviderOptionCurrentValue(

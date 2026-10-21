@@ -48,9 +48,9 @@ function link(
 ): ThreadPullRequestLink {
   return {
     host: "github.com",
-    repository: "supabitapp/supacode-next",
+    repository: "supabitapp/supaterm",
     number,
-    url: `https://github.com/supabitapp/supacode-next/pull/${number}`,
+    url: `https://github.com/supabitapp/supaterm/pull/${number}`,
     source: "manual",
     linkedAt: `2026-01-01T00:00:${String(number).padStart(2, "0")}.000Z`,
     snapshot: null,
@@ -85,14 +85,14 @@ describe("threadPullRequestKeysEqual", () => {
   it("ignores host and repository case", () => {
     expect(
       threadPullRequestKeysEqual(
-        { host: "GitHub.com", repository: "SupabitApp/supacode-next", number: 1 },
-        { host: "github.com", repository: "supabitapp/supacode-next", number: 1 },
+        { host: "GitHub.com", repository: "SupabitApp/supaterm", number: 1 },
+        { host: "github.com", repository: "supabitapp/supaterm", number: 1 },
       ),
     ).toBe(true);
     expect(
       threadPullRequestKeysEqual(
-        { host: "github.com", repository: "supabitapp/supacode-next", number: 1 },
-        { host: "gitlab.com", repository: "supabitapp/supacode-next", number: 1 },
+        { host: "github.com", repository: "supabitapp/supaterm", number: 1 },
+        { host: "gitlab.com", repository: "supabitapp/supaterm", number: 1 },
       ),
     ).toBe(false);
   });
@@ -125,7 +125,7 @@ describe("resolveThreadCurrentPullRequest", () => {
       kind: "native" as const,
       id: "s1",
       number: 1,
-      url: "https://github.com/supabitapp/supacode-next/stacks/1",
+      url: "https://github.com/supabitapp/supaterm/stacks/1",
       base: "main",
       layers: [
         { number: 10, headBranch: "a", state: "open" as const },
@@ -215,12 +215,69 @@ describe("resolveThreadPullRequestChains", () => {
     });
   });
 
+  it("uses a later complete native snapshot for layer order and the current pull request", () => {
+    const links = [18, 20, 83, 84].map((number) =>
+      link(number, {
+        linkedAt: "2026-01-01T00:00:00.000Z",
+        snapshot: snapshot(),
+        stack: {
+          kind: "native",
+          id: "80",
+          number: 80,
+          url: "https://github.com/supabitapp/supaterm/stacks/80",
+          base: "main",
+          layers: (number < 83
+            ? [79, 37, 38, 39, 76, 18, 20]
+            : [79, 37, 38, 39, 76, 18, 20, 83, 84]
+          ).map((number) => ({ number, headBranch: `pr-${number}`, state: "open" })),
+        },
+      }),
+    );
+    expect
+      .soft(
+        resolveThreadPullRequestChains(links).map((chain) =>
+          chain.layers.map((layer) => layer.number),
+        ),
+      )
+      .toEqual([[18, 20, 83, 84]]);
+    expect(resolveThreadCurrentPullRequest(links)).toMatchObject({
+      kind: "stack",
+      top: { number: 84 },
+      open: [{ number: 84 }, { number: 83 }, { number: 20 }, { number: 18 }],
+    });
+  });
+
+  it("uses the earliest longest partial snapshot and appends missing members in stored order", () => {
+    const links = [
+      [3, 2],
+      [9, 2, 3],
+      [9, 3, 2],
+      [9, 3, 2],
+    ].map((numbers, index) =>
+      link(index + 1, {
+        stack: {
+          kind: "native",
+          id: "s1",
+          number: 1,
+          url: "https://github.com/supabitapp/supaterm/stacks/1",
+          base: "main",
+          layers: numbers.map((number) => ({ number, headBranch: `pr-${number}`, state: "open" })),
+        },
+      }),
+    );
+    expect(
+      resolveThreadPullRequestChains(links).map((chain) =>
+        chain.layers.map((layer) => layer.number),
+      ),
+    ).toEqual([[2, 3, 1, 4]]);
+  });
+
   it("uses the native stack order when the host provides one", () => {
     const stack = {
       kind: "native" as const,
       id: "s1",
       number: 1,
-      url: "https://github.com/supabitapp/supacode-next/stacks/1",
+      url: "https://github.com/supabitapp/supaterm/stacks/1",
       base: "main",
       layers: [
         { number: 5, headBranch: "a", state: "merged" as const },
@@ -304,7 +361,7 @@ describe("chain selection and badge state", () => {
       kind: "native" as const,
       id: "native-1",
       number: 1,
-      url: "https://github.com/supabitapp/supacode-next/stacks/1",
+      url: "https://github.com/supabitapp/supaterm/stacks/1",
       base: "main",
       layers: [
         { number: 2, headBranch: "base", state: "merged" as const },
@@ -345,7 +402,7 @@ describe("chain selection and badge state", () => {
 
   it("keeps branch matching case-sensitive while ignoring repository case", () => {
     const bottom = link(1, {
-      repository: "SupabitApp/Supacode-Next",
+      repository: "SupabitApp/Supaterm",
       snapshot: snapshot({ headBranch: "Base" }),
     });
     const top = link(2, { snapshot: snapshot({ headBranch: "top", baseBranch: "base" }) });
@@ -406,20 +463,15 @@ describe("threadPullRequestSearchTerms", () => {
     (pullRequests) => {
       const branchPullRequest = {
         projectId: ProjectId.make("project"),
-        repository: "supabitapp/supacode-next",
+        repository: "supabitapp/supaterm",
         number: 11809,
-        url: "https://github.com/supabitapp/supacode-next/pull/11809",
+        url: "https://github.com/supabitapp/supaterm/pull/11809",
       };
       const terms = threadPullRequestSearchTerms({
         pullRequests,
         branchPullRequest,
       });
-      for (const query of [
-        "11809",
-        "#11809",
-        "supabitapp/supacode-next#11809",
-        branchPullRequest.url,
-      ]) {
+      for (const query of ["11809", "#11809", "supabitapp/supaterm#11809", branchPullRequest.url]) {
         expect(terms.some((term) => term.includes(query))).toBe(true);
       }
       if (pullRequests?.length) expect(terms).toContain("#34");
@@ -435,8 +487,8 @@ describe("threadPullRequestSearchTerms", () => {
       ],
     });
     expect(terms).toContain("#12");
-    expect(terms).toContain("supabitapp/supacode-next#12");
-    expect(terms).toContain("https://github.com/supabitapp/supacode-next/pull/12");
+    expect(terms).toContain("supabitapp/supaterm#12");
+    expect(terms).toContain("https://github.com/supabitapp/supaterm/pull/12");
     expect(terms).toContain("Fix login");
     expect(terms).toContain("#34");
     expect(terms.join(" ")).not.toContain("56");

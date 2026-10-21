@@ -404,7 +404,7 @@ export const make = Effect.gen(function* () {
           const scope = yield* Scope.fork(registryScope);
           const entryRef = yield* Ref.make(entry);
           const supervisor = yield* EnvironmentSupervisor.make(entry, {
-            initiallyDesired: entry.enabled,
+            initiallyDesired: entry.enabled && entry.unsupportedReason === undefined,
             entryRef,
             learnRoutes: (input) => learnRoutes({ environmentId, ...input }),
           }).pipe(
@@ -422,14 +422,7 @@ export const make = Effect.gen(function* () {
           yield* SubscriptionRef.changes(supervisor.state).pipe(
             Stream.runForEach((state) =>
               state.phase === "blocked" && state.lastFailure?.reason === "unsupported"
-                ? setCompatibility(environmentId, state.lastFailure).pipe(
-                    Effect.catch((error) =>
-                      Effect.logWarning("Could not disable an unsupported environment.", {
-                        environmentId,
-                        error,
-                      }),
-                    ),
-                  )
+                ? setCompatibility(environmentId, state.lastFailure)
                 : Effect.void,
             ),
             Effect.forkIn(scope),
@@ -675,7 +668,7 @@ export const make = Effect.gen(function* () {
           const entry: ConnectionCatalogEntry =
             previous?.unsupportedReason !== undefined &&
             gitHubRoutingConnectionKey(previous) === gitHubRoutingConnectionKey(registered)
-              ? { ...registered, enabled: false, ...unsupportedState(previous) }
+              ? { ...registered, ...unsupportedState(previous) }
               : registered;
           const persisted = (yield* Ref.get(persistedEnvironmentIds)).has(target.environmentId);
           if (
@@ -1186,26 +1179,20 @@ export const make = Effect.gen(function* () {
           serverUpdateRequired: _previousUpdateRequired,
           ...rest
         } = entry;
+        // Compatibility pauses connections without changing the user's saved on/off choice.
         const next: ConnectionCatalogEntry =
           error === null
             ? rest
             : {
                 ...rest,
-                enabled: false,
                 unsupportedReason: error.message,
                 ...(error.serverUpdateRequired === true ? { serverUpdateRequired: true } : {}),
               };
-        if (
-          error !== null &&
-          entry.enabled &&
-          !(yield* Ref.get(platformEnvironmentIds)).has(environmentId)
-        ) {
-          yield* registrations.setEnabled(environmentId, false);
-        }
         const lease = (yield* SubscriptionRef.get(serviceScopes)).get(environmentId);
         if (lease !== undefined) {
           yield* Ref.set(lease.entry, next);
           if (error !== null) yield* lease.supervisor.disconnect;
+          else if (next.enabled) yield* lease.supervisor.connect;
         }
         yield* SubscriptionRef.update(entries, (current) =>
           new Map(current).set(environmentId, next),

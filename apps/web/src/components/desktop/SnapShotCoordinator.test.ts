@@ -224,7 +224,7 @@ describe("window capture delivery", () => {
         item.source,
       );
 
-      const delivery = deliverSnapShot(bridge, item, target);
+      const delivery = deliverSnapShot(bridge, item, () => target);
       await vi.advanceTimersByTimeAsync(0);
 
       const draft = useComposerDraftStore.getState().getComposerDraft(target);
@@ -330,7 +330,7 @@ describe("durable snapshot delivery", () => {
           });
           void store.syncPersistedAttachments(target, [capture]);
         }
-        await expect(deliverSnapShot(bridge, capture, target)).rejects.toThrow(
+        await expect(deliverSnapShot(bridge, capture, () => target)).rejects.toThrow(
           "could not be saved",
         );
         expect(acknowledgeSnapShot).not.toHaveBeenCalled();
@@ -338,7 +338,7 @@ describe("durable snapshot delivery", () => {
           useComposerDraftStore.getState().getComposerDraft(target)?.nonPersistedImageIds,
         ).toContain(capture.id);
         storage.setItem.mockImplementation(write);
-        await deliverSnapShot(bridge, capture, target);
+        await deliverSnapShot(bridge, capture, () => target);
         expect(acknowledgeSnapShot).toHaveBeenCalledExactlyOnceWith(capture.id);
         expect(useComposerDraftStore.getState().getComposerDraft(target)?.images).toHaveLength(1);
         expect(

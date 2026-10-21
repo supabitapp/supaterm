@@ -607,6 +607,7 @@ type ThreadStatusInput = Pick<
 > & {
   lastVisitedAt?: string | null | undefined;
   pendingBackgroundTasks?: SidebarThreadSummary["pendingBackgroundTasks"] | undefined;
+  blockedOnThreadWait?: boolean | undefined;
 };
 
 export interface ThreadJumpHintVisibilityController {
@@ -829,17 +830,6 @@ export function isContextMenuPointerDown(input: {
   return input.isMac && input.button === 0 && input.ctrlKey;
 }
 
-// ── Sidebar v2 status model ─────────────────────────────────────────
-// Six visual states, three colors: color is reserved for "act now"
-// (approval), "in motion" (working), and "broken" (failed). Ready is the
-// unlabeled resting state — the agent stopped and is waiting on the user,
-// whether it finished, asked a question, or proposed a plan. Waiting
-// (runtime status "idle") is the agent stopped with background work that will
-// wake it (subagents, monitors): it stays in flight like working, rather than
-// showing Done. Commands it left running, such as a dev
-// server, do not hold the thread; it reads as ready.
-// Unread completion is tracked separately: it describes whether a ready
-// thread needs attention, not what the thread is currently doing.
 export type SidebarThreadStatus =
   | "approval"
   | "input"
@@ -866,7 +856,11 @@ export function shouldRecedeSidebarThread(input: {
 
 type SidebarThreadStatusInput = Pick<
   SidebarThreadSummary,
-  "hasPendingApprovals" | "hasPendingUserInput" | "pendingSubagentRequest" | "runtime"
+  | "hasPendingApprovals"
+  | "hasPendingUserInput"
+  | "pendingSubagentRequest"
+  | "runtime"
+  | "blockedOnThreadWait"
 >;
 
 export function resolveSidebarThreadStatus(thread: SidebarThreadStatusInput): SidebarThreadStatus {
@@ -875,6 +869,9 @@ export function resolveSidebarThreadStatus(thread: SidebarThreadStatusInput): Si
   }
   if (thread.hasPendingUserInput || thread.pendingSubagentRequest === "user_input") {
     return "input";
+  }
+  if (thread.runtime?.status === "running" && thread.blockedOnThreadWait === true) {
+    return "waiting";
   }
   if (
     thread.runtime !== null &&
@@ -1032,7 +1029,10 @@ export function resolveThreadStatusPill(input: {
     };
   }
 
-  if (thread.runtime?.status === "running" || thread.runtime?.status === "waiting") {
+  if (
+    (thread.runtime?.status === "running" && thread.blockedOnThreadWait !== true) ||
+    thread.runtime?.status === "waiting"
+  ) {
     return {
       label: "Working",
       colorClass: "text-sky-600 dark:text-sky-300/80",
@@ -1054,7 +1054,10 @@ export function resolveThreadStatusPill(input: {
     };
   }
 
-  if (backgroundWorkHoldsCompletion(thread.pendingBackgroundTasks ?? [])) {
+  if (
+    (thread.runtime?.status === "running" && thread.blockedOnThreadWait === true) ||
+    backgroundWorkHoldsCompletion(thread.pendingBackgroundTasks ?? [])
+  ) {
     return {
       label: "Waiting",
       colorClass: "text-sky-600 dark:text-sky-300/80",

@@ -9,9 +9,9 @@ import {
   ThreadId,
   type ScopedThreadRef,
 } from "@supaterm/contracts";
-import { act, useLayoutEffect } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { useLayoutEffect } from "react";
+import { act, render as renderUi, type Screen } from "../../../test/render";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { useComposerDraftStore } from "../../composerDraftStore";
 import type { PendingThreadTurn } from "../../state/threadOutbox";
@@ -40,7 +40,10 @@ vi.mock("../../state/threadOutbox", () => ({
   webThreadOutbox: { pause: outbox.pause },
   replaceThreadOutboxTurn: outbox.replace,
 }));
-vi.mock("@tanstack/react-router", () => ({ useNavigate: () => outbox.navigate }));
+vi.mock(import("@tanstack/react-router"), async (original) => ({
+  ...(await original()),
+  useNavigate: () => outbox.navigate,
+}));
 
 const environmentId = EnvironmentId.make("environment");
 const threadId = ThreadId.make("thread");
@@ -99,8 +102,7 @@ const sendContext: ReturnType<ChatComposerHandle["getSendContext"]> = {
   interactionMode: "default",
 };
 
-let root: Root;
-let container: HTMLDivElement;
+let screen: Screen;
 let edit: ReturnType<typeof useQueuedRunEditWithOutbox>;
 const composer: Pick<ChatComposerHandle, "focusAtEnd" | "getSendContext" | "resetCursorState"> = {
   focusAtEnd: vi.fn(),
@@ -131,35 +133,32 @@ function Probe() {
   return null;
 }
 
-const render = () => act(() => root.render(<Probe />));
+const render = () => screen.rerender(<Probe />);
 
 async function beginOutboxEdit() {
   await act(() => edit.outbox.beginEdit(entry));
   expect(edit.outbox.isEditing).toBe(true);
 }
 
-beforeEach(() => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+async function setupTest() {
+  await using resources = new AsyncDisposableStack();
+  resources.defer(() => {
+    useComposerDraftStore.setState({ draftsByThreadKey: {} });
+  });
+
   vi.clearAllMocks();
   outbox.queued.isSaving = false;
   outbox.queued.draftTarget = routeThreadRef;
   outbox.pause.mockResolvedValue(true);
   outbox.replace.mockResolvedValue(null);
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
-  render();
-});
+  screen = resources.use(await renderUi(<Probe />, { router: false }));
 
-afterEach(() => {
-  act(() => root.unmount());
-  container.remove();
-  useComposerDraftStore.setState({ draftsByThreadKey: {} });
-  vi.unstubAllGlobals();
-});
+  return resources.move();
+}
 
 describe("queued-run editing with the outbox", () => {
   it("hands the composer to an outbox edit and cancels a queued-run edit", async () => {
+    await using _test = await setupTest();
     expect(edit.draftTarget).toBe(routeThreadRef);
     await beginOutboxEdit();
     expect(outbox.queued.cancelEdit).toHaveBeenCalledOnce();
@@ -169,8 +168,9 @@ describe("queued-run editing with the outbox", () => {
   });
 
   it("closes the outbox edit and hands the composer back when a queued-run edit starts", async () => {
+    await using _test = await setupTest();
     await beginOutboxEdit();
-    act(() => edit.beginEdit(queuedRequest));
+    await act(() => edit.beginEdit(queuedRequest));
     expect(edit.outbox.isEditing).toBe(false);
     expect(outbox.queued.beginEdit).toHaveBeenCalledWith(queuedRequest);
     expect(outbox.pause).toHaveBeenLastCalledWith(entry.id, false);
@@ -179,6 +179,7 @@ describe("queued-run editing with the outbox", () => {
   });
 
   it("does not save while another send or a queued-run save is in flight", async () => {
+    await using _test = await setupTest();
     await beginOutboxEdit();
     await act(() =>
       edit.outbox.saveEdit(
@@ -187,7 +188,7 @@ describe("queued-run editing with the outbox", () => {
       ),
     );
     outbox.queued.isSaving = true;
-    render();
+    await render();
     expect(edit.isSaving).toBe(true);
     await act(() =>
       edit.outbox.saveEdit(
@@ -200,13 +201,14 @@ describe("queued-run editing with the outbox", () => {
   });
 
   it("saves the composer's message and model into the pending message", async () => {
+    await using _test = await setupTest();
     const savedThread = { environmentId, threadId: ThreadId.make("saved") };
     let finishSave!: (value: typeof savedThread) => void;
     outbox.replace.mockReturnValue(new Promise((resolve) => (finishSave = resolve)));
     await beginOutboxEdit();
     const sendInFlightRef = { current: false };
     let saving!: Promise<void>;
-    act(() => {
+    await act(() => {
       saving = edit.outbox.saveEdit(
         { runtimeMode: "approval-required", sendInFlightRef },
         setThreadError,
@@ -238,6 +240,7 @@ describe("queued-run editing with the outbox", () => {
   });
 
   it("keeps the edit open and shows why a save failed", async () => {
+    await using _test = await setupTest();
     outbox.replace.mockRejectedValue(new Error("Delivery has already started."));
     await beginOutboxEdit();
     const sendInFlightRef = { current: false };

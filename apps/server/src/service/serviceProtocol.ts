@@ -4,6 +4,7 @@ import type { ServerSelfUpdateOutcome } from "@supaterm/contracts";
 // or the installed runtime tree changes incompatibly; launchers survive self-updates.
 export const SERVICE_LAUNCHER_PROTOCOL = 3 as const;
 export const SERVICE_LAUNCHER_CONTEXT_ENV = "SUPATERM_SERVICE_LAUNCHER_CONTEXT";
+export const SERVICE_ENV_FILE = "service.env";
 export const SERVICE_STATE_FILE = "service-state.json";
 /** Written by `supaterm update` when the unit was repointed at a new version but the
     running service was deliberately left on the old one. The launcher removes

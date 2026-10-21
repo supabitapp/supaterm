@@ -189,35 +189,36 @@ const resolveInstallLauncher = Effect.gen(function* () {
  * installs. `args` are quoted for the host's shell: POSIX, or PowerShell on
  * Windows.
  */
-export const resolveHostCliCommand = (subcommand: string, args: ReadonlyArray<string> = []) =>
-  Effect.gen(function* () {
-    const platform = yield* HostProcess.Platform;
-    const withArgs = (prefix: string) =>
-      [prefix, ...args.map((arg) => hostShellWord(platform, arg))].join(" ");
-    const command = yield* resolveCliCommand(subcommand);
-    if (command !== `supaterm ${subcommand}`)
-      return { command: withArgs(command), launcher: false };
-    if (yield* isCommandAvailable("supaterm"))
-      return { command: withArgs(command), launcher: false };
-    const launcher = yield* resolveInstallLauncher;
-    if (Option.isNone(launcher)) return { command: withArgs(command), launcher: false };
-    const quoted = launcher.value.words.map((word) => hostShellWord(platform, word)).join(" ");
-    // PowerShell runs a quoted path only through the call operator.
-    const call = platform === "win32" ? `& ${quoted}` : quoted;
-    const runAsNode = launcher.value.runAsNode ? electronRunAsNodePrefix(platform) : "";
-    return { command: withArgs(`${runAsNode}${call} ${subcommand}`), launcher: true };
-  });
+export const resolveHostCliCommand = Effect.fn("invocation.resolveHostCliCommand")(function* (
+  subcommand: string,
+  args: ReadonlyArray<string> = [],
+) {
+  const platform = yield* HostProcess.Platform;
+  const withArgs = (prefix: string) =>
+    [prefix, ...args.map((arg) => hostShellWord(platform, arg))].join(" ");
+  const command = yield* resolveCliCommand(subcommand);
+  if (command !== `supaterm ${subcommand}`) return { command: withArgs(command), launcher: false };
+  if (yield* isCommandAvailable("supaterm")) return { command: withArgs(command), launcher: false };
+  const launcher = yield* resolveInstallLauncher;
+  if (Option.isNone(launcher)) return { command: withArgs(command), launcher: false };
+  const quoted = launcher.value.words.map((word) => hostShellWord(platform, word)).join(" ");
+  // PowerShell runs a quoted path only through the call operator.
+  const call = platform === "win32" ? `& ${quoted}` : quoted;
+  const runAsNode = launcher.value.runAsNode ? electronRunAsNodePrefix(platform) : "";
+  return { command: withArgs(`${runAsNode}${call} ${subcommand}`), launcher: true };
+});
 
-export const resolveRootCliCommand = (subcommand: string) =>
-  Effect.gen(function* () {
-    const { command, launcher } = yield* resolveHostCliCommand(subcommand);
-    if (launcher) return `sudo ${command}`;
-    const executablePath = yield* HostProcess.ExecutablePath;
-    const systemNode = ROOT_PATH_DIRECTORIES.some((directory) =>
-      executablePath.startsWith(`${directory}/`),
-    );
-    return systemNode ? `sudo ${command}` : `sudo env "PATH=$PATH" ${command}`;
-  });
+export const resolveRootCliCommand = Effect.fn("invocation.resolveRootCliCommand")(function* (
+  subcommand: string,
+) {
+  const { command, launcher } = yield* resolveHostCliCommand(subcommand);
+  if (launcher) return `sudo ${command}`;
+  const executablePath = yield* HostProcess.ExecutablePath;
+  const systemNode = ROOT_PATH_DIRECTORIES.some((directory) =>
+    executablePath.startsWith(`${directory}/`),
+  );
+  return systemNode ? `sudo ${command}` : `sudo env "PATH=$PATH" ${command}`;
+});
 
 const ROOT_PATH_DIRECTORIES = [
   "/usr/local/sbin",

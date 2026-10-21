@@ -1,5 +1,5 @@
 import type { DiffsHighlighter } from "@pierre/diffs";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { DiffThemeName } from "../lib/diffRendering";
 import { createIncrementalHighlightedDocument } from "../lib/incrementalHighlighting";
@@ -24,6 +24,7 @@ export function useIncrementalHighlightedDocument(
     highlight: enabled ? createIncrementalHighlightedDocument(highlighter, language, theme) : null,
   });
   const [current, setCurrent] = useState(create);
+  useEffect(() => () => current.highlight?.dispose(), [current]);
   if (
     current.enabled !== enabled ||
     current.highlighter !== highlighter ||

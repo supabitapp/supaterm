@@ -10,7 +10,7 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as HttpClient from "effect/http/HttpClient";
 
-import { appendClientConnectionParams } from "../authorization/remote.ts";
+import { appendClientConnectionParams, readClientDeviceHash } from "../authorization/remote.ts";
 import * as RemoteEnvironmentAuthorization from "../authorization/service.ts";
 import * as ClientCapabilities from "../platform/capabilities.ts";
 import {
@@ -75,12 +75,13 @@ const isBearerCredential = Schema.is(BearerConnectionCredential);
 function primarySocketUrl(
   target: PrimaryConnectionTarget,
   clientMetadata: AuthClientPresentationMetadata | undefined,
+  clientDeviceHash: string | undefined,
 ): string {
   const url = new URL(target.wsBaseUrl);
   if (url.pathname === "" || url.pathname === "/") {
     url.pathname = "/ws";
   }
-  appendClientConnectionParams(url, clientMetadata, "direct");
+  appendClientConnectionParams(url, clientMetadata, "direct", clientDeviceHash);
   return url.toString();
 }
 
@@ -98,7 +99,7 @@ const makePrimaryBroker = Effect.fn("clientRuntime.connection.broker.makePrimary
         environmentId: target.environmentId,
         label: target.label,
         httpBaseUrl: target.httpBaseUrl,
-        socketUrl: primarySocketUrl(target, presentation.metadata),
+        socketUrl: primarySocketUrl(target, presentation.metadata, yield* readClientDeviceHash),
         httpAuthorization: null,
         connectionMethod: "direct",
         target,
@@ -277,7 +278,7 @@ export const make = Effect.gen(function* () {
     const descriptor = yield* fetchRemoteEnvironmentDescriptor({
       httpBaseUrl: prepared.httpBaseUrl,
     }).pipe(
-      Effect.mapError(mapRemoteEnvironmentError),
+      Effect.mapError((error) => mapRemoteEnvironmentError(error, prepared.connectionMethod)),
       Effect.provideService(HttpClient.HttpClient, httpClient),
     );
     if (descriptor.environmentId !== target.environmentId) {

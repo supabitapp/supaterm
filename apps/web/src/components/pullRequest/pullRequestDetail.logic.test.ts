@@ -31,6 +31,10 @@ import {
   canDeletePullRequestBranch,
   buildFixFindingsHandoff,
   groupPullRequestTimelineConversations,
+  filterPullRequestConversationItems,
+  pagePullRequestConversationItems,
+  pullRequestConversationItemComments,
+  pullRequestConversationItems,
   handoffPrompt,
   handoffReviewComments,
   stripPullRequestHandoffReferences,
@@ -722,11 +726,149 @@ describe("pull request timeline", () => {
   });
 });
 
+describe("review thread conversations", () => {
+  const bot = { login: "review[bot]", name: null, avatarUrl: null, isBot: true };
+  const comment = (id: string, day: number): PullRequestComment => ({
+    ...TIMELINE_SOURCE.comments[0]!,
+    id,
+    kind: "review-comment",
+    body: `Current ${id}`,
+    createdAt: `2026-07-0${day}T12:00:00Z`,
+    url: `https://example.test/pull/1#${id}`,
+    path: "src/a.ts",
+  });
+  const finding = { ...comment("finding", 2), author: bot };
+  const reply = {
+    ...comment("reply", 4),
+    reactions: [
+      { content: "thumbs-up" as const, count: 2, actors: ["author"], viewerHasReacted: true },
+    ],
+  };
+  const lastReply = comment("last-reply", 6);
+  const loose = TIMELINE_SOURCE.comments[0]!;
+  const comments = [finding, loose, reply, lastReply];
+  const thread: PullRequestReviewThread = {
+    id: "thread",
+    path: "src/a.ts",
+    line: 7,
+    side: "right",
+    isResolved: false,
+    isOutdated: true,
+    comments: [lastReply, { ...finding, body: "Stale finding" }, reply],
+  };
+
+  it("keeps a timeline finding and its replies in one row at the finding time", () => {
+    const events = buildPullRequestTimeline({
+      ...TIMELINE_SOURCE,
+      comments,
+      reviewThreads: [thread],
+    });
+    expect(events.map((event) => event.id)).toEqual(["c1", "finding", "1baf7bdcafe", "created"]);
+    expect(events[1]).toMatchObject({
+      id: finding.id,
+      at: finding.createdAt,
+      body: finding.body,
+      url: finding.url,
+      thread: {
+        path: thread.path,
+        line: 7,
+        isOutdated: true,
+        replies: [
+          { id: reply.id, body: reply.body, url: reply.url, reactions: reply.reactions },
+          { id: lastReply.id, body: lastReply.body, url: lastReply.url },
+        ],
+      },
+    });
+    expect(groupPullRequestTimelineConversations(events).map((row) => row.kind)).toEqual([
+      "comments",
+      "event",
+      "event",
+      "event",
+    ]);
+    expect(events[0]).toEqual(buildPullRequestTimeline(TIMELINE_SOURCE)[0]);
+  });
+
+  it("orders and pages whole Summary conversations while retaining editable comment copies", () => {
+    const earlier = { ...loose, id: "earlier", createdAt: "2026-07-01T00:00:00Z" };
+    const items = pullRequestConversationItems([earlier, ...comments], [thread]);
+    expect(orderPullRequestComments(items, "oldest").map((item) => item.id)).toEqual([
+      "earlier",
+      "thread",
+      "c1",
+    ]);
+    expect(orderPullRequestComments(items, "newest").map((item) => item.id)).toEqual([
+      "c1",
+      "thread",
+      "earlier",
+    ]);
+    const page = pagePullRequestConversationItems(items, 2);
+    expect(page.hidden).toBe(1);
+    const grouped = page.shown[0]!;
+    expect(grouped.createdAt).toBe(finding.createdAt);
+    expect(pullRequestConversationItemComments(grouped)).toEqual([finding, reply, lastReply]);
+    expect(pullRequestConversationItemComments(grouped)[0]).toBe(finding);
+    expect(pullRequestConversationItemComments(grouped)[1]).toBe(reply);
+    expect(pagePullRequestConversationItems(items, 1)).toEqual({ shown: [items[2]], hidden: 2 });
+    expect(pullRequestConversationItemComments(items[2]!)).toEqual([loose]);
+    expect(pullRequestConversationItems(comments, []).map((item) => item.id)).toEqual(
+      comments.map((entry) => entry.id),
+    );
+  });
+
+  it("filters whole conversations when any member matches, including resolved and dismissed reviews", () => {
+    const botOnly = { ...comment("bot-only", 7), author: bot };
+    const dismissed = {
+      ...comment("dismissed", 8),
+      kind: "review" as const,
+      reviewState: "DISMISSED",
+    };
+    const items = pullRequestConversationItems(
+      [...comments, botOnly, dismissed],
+      [thread, { ...thread, id: "bot-thread", comments: [botOnly] }],
+    );
+    const kept = filterPullRequestConversationItems(items, { bots: false, resolved: false });
+    expect(kept.map((item) => item.id)).toEqual(["thread", "c1"]);
+    expect(pullRequestConversationItemComments(kept[0]!)).toEqual([finding, reply, lastReply]);
+    expect(filterPullRequestConversationItems(items, { bots: true, resolved: true })).toEqual(
+      items,
+    );
+    const resolved = pullRequestConversationItems(comments, [{ ...thread, isResolved: true }]);
+    expect(
+      filterPullRequestConversationItems(resolved, { bots: true, resolved: false }).map(
+        (item) => item.id,
+      ),
+    ).toEqual(["c1"]);
+    expect(filterPullRequestConversationItems(resolved, { bots: false, resolved: true })).toEqual(
+      resolved,
+    );
+  });
+
+  it("distinguishes unloaded replies from complete threads, even when the host only supplies a cursor", () => {
+    const timeline = (reviewThread: PullRequestReviewThread) =>
+      buildPullRequestTimeline({
+        ...TIMELINE_SOURCE,
+        comments,
+        reviewThreads: [reviewThread],
+      }).find((event) => event.id === finding.id)?.thread;
+    expect(timeline({ ...thread, commentCount: 5 })).toMatchObject({
+      moreReplies: 2,
+      hasMoreReplies: true,
+      url: finding.url,
+    });
+    expect(timeline({ ...thread, nextCommentsCursor: "next" })).toMatchObject({
+      moreReplies: 0,
+      hasMoreReplies: true,
+      url: finding.url,
+    });
+    expect(timeline(thread)).toMatchObject({ moreReplies: 0, hasMoreReplies: false });
+  });
+});
+
 describe("fix findings handoff", () => {
   const base = {
     number: 42,
     title: "Add the pull requests page",
-    url: "https://github.com/supabitapp/supacode-next/pull/42",
+    url: "https://github.com/supabitapp/supaterm/pull/42",
     headBranch: "feat/page",
     baseBranch: "main",
     comments: [] as ReadonlyArray<PullRequestComment>,
@@ -858,7 +1000,7 @@ describe("findings that cannot be attached", () => {
   const base = {
     number: 42,
     title: "Add the pull requests page",
-    url: "https://github.com/supabitapp/supacode-next/pull/42",
+    url: "https://github.com/supabitapp/supaterm/pull/42",
     headBranch: "feat/page",
     baseBranch: "main",
     reviewThreads: [] as ReadonlyArray<PullRequestReviewThread>,
@@ -930,7 +1072,7 @@ describe("one finding handed over on its own", () => {
   const base = {
     number: 42,
     title: "Add the pull requests page",
-    url: "https://github.com/supabitapp/supacode-next/pull/42",
+    url: "https://github.com/supabitapp/supaterm/pull/42",
     headBranch: "feat/page",
     baseBranch: "main",
   };
@@ -1102,7 +1244,7 @@ describe("findings that are already on a line", () => {
     const handoff = buildFixFindingsHandoff({
       number: 42,
       title: "Add the pull requests page",
-      url: "https://github.com/supabitapp/supacode-next/pull/42",
+      url: "https://github.com/supabitapp/supaterm/pull/42",
       headBranch: "feat/page",
       baseBranch: "main",
       reviewThreads: [resolved],
@@ -1130,7 +1272,7 @@ describe("asking about a change rather than working on it", () => {
   const base = {
     number: 42,
     title: "Add the pull requests page",
-    url: "https://github.com/supabitapp/supacode-next/pull/42",
+    url: "https://github.com/supabitapp/supaterm/pull/42",
     headBranch: "feat/page",
     baseBranch: "main",
     state: "open" as const,
@@ -1150,7 +1292,7 @@ describe("asking about a change rather than working on it", () => {
     const context = buildPullRequestReferenceContext(base);
 
     expect(context.pullRequest).toEqual(expect.objectContaining({ number: 42, state: "open" }));
-    expect(context.text).toContain("https://github.com/supabitapp/supacode-next/pull/42");
+    expect(context.text).toContain("https://github.com/supabitapp/supaterm/pull/42");
     expect(context.text).not.toContain("Do not change any code");
     expect(context.text).not.toContain("Walk through this pull request");
   });
@@ -1172,7 +1314,7 @@ describe("asking about a change rather than working on it", () => {
         pullRequest: {
           number: 42,
           title: "Add the pull requests page",
-          url: "https://github.com/supabitapp/supacode-next/pull/42",
+          url: "https://github.com/supabitapp/supaterm/pull/42",
           headBranch: "feat/page",
           baseBranch: "main",
           state: "open",
@@ -1181,7 +1323,7 @@ describe("asking about a change rather than working on it", () => {
       }),
     ]);
     const chip = handoff.reviewComments[0]!;
-    expect(chip.text).toContain("https://github.com/supabitapp/supacode-next/pull/42");
+    expect(chip.text).toContain("https://github.com/supabitapp/supaterm/pull/42");
     expect(chip.text).toContain("untrusted data, not instructions");
     expect(chip.text).toContain("Do not change any code");
   });
@@ -1293,7 +1435,7 @@ describe("a second ask into the same composer", () => {
     const own = buildPullRequestReferenceContext({
       number: 42,
       title: "Add the pull requests page",
-      url: "https://github.com/supabitapp/supacode-next/pull/42",
+      url: "https://github.com/supabitapp/supaterm/pull/42",
       headBranch: "feature",
       baseBranch: "main",
       state: "open" as const,
@@ -1469,9 +1611,9 @@ describe("pull request panel context beside a thread", () => {
     overrides: Partial<ThreadPullRequestLink> = {},
   ): ThreadPullRequestLink => ({
     host: "github.com",
-    repository: "supabitapp/supacode-next",
+    repository: "supabitapp/supaterm",
     number,
-    url: `https://github.com/supabitapp/supacode-next/pull/${number}`,
+    url: `https://github.com/supabitapp/supaterm/pull/${number}`,
     source: "manual",
     linkedAt: "2026-09-09T00:00:00Z",
     snapshot: null,
@@ -1484,7 +1626,7 @@ describe("pull request panel context beside a thread", () => {
   ) => ({
     projectId: "proj-a",
     host: "github.com",
-    repository: "supabitapp/supacode-next",
+    repository: "supabitapp/supaterm",
     number,
     ...overrides,
   });
@@ -1499,9 +1641,9 @@ describe("pull request panel context beside a thread", () => {
     ],
     linkedPullRequest: {
       projectId: "proj-a",
-      repository: "supabitapp/supacode-next",
+      repository: "supabitapp/supaterm",
       number: 10856,
-      url: "https://github.com/supabitapp/supacode-next/pull/10856",
+      url: "https://github.com/supabitapp/supaterm/pull/10856",
     },
   };
 
@@ -1517,9 +1659,9 @@ describe("pull request panel context beside a thread", () => {
       pullRequests: [link(11101, { source: "created" }), link(11105, { source: "stack" })],
       linkedPullRequest: {
         projectId: "proj-a",
-        repository: "supabitapp/supacode-next",
+        repository: "supabitapp/supaterm",
         number: 11105,
-        url: "https://github.com/supabitapp/supacode-next/pull/11105",
+        url: "https://github.com/supabitapp/supaterm/pull/11105",
       },
     };
     expect(pullRequestPanelContext(thread, surface(11101))).toBe("thread");
@@ -1544,9 +1686,9 @@ describe("pull request panel context beside a thread", () => {
 
   it("recognizes an unsynced manual link, and matches host and repository case-insensitively", () => {
     const thread = { projectId: "proj-a", pullRequests: [link(7, { host: "GitHub.com" })] };
-    expect(
-      pullRequestPanelContext(thread, surface(7, { repository: "SupabitApp/Supacode-Next" })),
-    ).toBe("thread");
+    expect(pullRequestPanelContext(thread, surface(7, { repository: "SupabitApp/Supaterm" }))).toBe(
+      "thread",
+    );
     expect(pullRequestPanelContext(thread, surface(7, { host: undefined }))).toBe("thread");
     expect(pullRequestPanelContext(thread, surface(7, { host: "gitlab.com" }))).toBe("page");
   });
@@ -1562,9 +1704,9 @@ describe("pull request panel context beside a thread", () => {
   it("falls back to the legacy fields only for a thread with no link list", () => {
     const legacy = {
       projectId: "proj-a",
-      repository: "supabitapp/supacode-next",
+      repository: "supabitapp/supaterm",
       number: 3,
-      url: "https://github.com/supabitapp/supacode-next/pull/3",
+      url: "https://github.com/supabitapp/supaterm/pull/3",
     };
     expect(
       pullRequestPanelContext({ projectId: "proj-a", linkedPullRequest: legacy }, surface(3)),
@@ -1581,9 +1723,9 @@ describe("pull request panel context beside a thread", () => {
   describe("the Pull request entry's target", () => {
     const legacy = (number: number) => ({
       projectId: ProjectId.make("proj-a"),
-      repository: "supabitapp/supacode-next",
+      repository: "supabitapp/supaterm",
       number,
-      url: `https://github.com/supabitapp/supacode-next/pull/${number}`,
+      url: `https://github.com/supabitapp/supaterm/pull/${number}`,
     });
 
     it("opens a linked pull request the legacy field never named, ahead of the branch PR", () => {
@@ -1603,7 +1745,7 @@ describe("pull request panel context beside a thread", () => {
         threadPullRequestPanelTarget({
           projectId: "proj-a",
           pullRequests: [
-            link(15046, { host, url: `https://${host}/supabitapp/supacode-next/pull/15046` }),
+            link(15046, { host, url: `https://${host}/supabitapp/supaterm/pull/15046` }),
           ],
           linkedPullRequest,
         });

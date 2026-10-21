@@ -1,7 +1,8 @@
 // @effect-diagnostics nodeBuiltinImport:off - plain local servers stand in for LAN services.
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { describe, expect, it } from "@effect/vitest";
-import { ThreadId } from "@supaterm/contracts";
+import { EnvironmentId, ProviderInstanceId, ThreadId } from "@supaterm/contracts";
+import * as McpProviderSessions from "@supaterm/provider-core/server/McpProviderSessions";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import {
   HTML_RENDER_MEASURE_FONTS,
@@ -47,6 +48,7 @@ const layerHtmlRender = (
         }),
       ),
     ),
+    Layer.provideMerge(McpProviderSessions.layer),
     Layer.provideMerge(ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-html-render-" })),
     Layer.provideMerge(NodeServices.layer),
   );
@@ -122,6 +124,28 @@ describe("HtmlRender", () => {
       expect(prepared.indexOf('<style id="supaterm-theme">')).toBeLessThan(
         prepared.indexOf("<title>"),
       );
+    }).pipe(Effect.provide(layerTest)),
+  );
+
+  it.effect("rejects viewport height units, which make the fitted frame grow without end", () =>
+    Effect.gen(function* () {
+      const htmlRender = yield* HtmlRender.HtmlRender;
+      for (const page of [
+        "<style>main{min-height:100vh}</style>",
+        "<style media=screen>main{height: calc(100dvh - 2rem)}",
+        "<div style='top:.5svh'></div>",
+        "<div style=height:100vh></div>",
+      ]) {
+        const error = yield* htmlRender.prepare(page).pipe(Effect.flip);
+        expect(error).toBeInstanceOf(HtmlRender.HtmlRenderViewportHeightError);
+      }
+      yield* htmlRender.prepare(
+        '<style>main{width:100vw;height:320px}</style><img src="data:image/png;base64,AB1vh+2vh/3vhC">',
+      );
+      yield* htmlRender.prepare(
+        "<p>Avoid 100vh here.</p><!-- <div style=\"height:100vh\"></div> --><script>const unit = '100vh';</script>",
+      );
+      yield* htmlRender.prepare(`<style>${"1".repeat(200_000)}vx</style>`);
     }).pipe(Effect.provide(layerTest)),
   );
 
@@ -204,10 +228,22 @@ describe("HtmlRender", () => {
       const fileSystem = yield* FileSystem.FileSystem;
       const config = yield* ServerConfig.ServerConfig;
       const htmlRender = yield* HtmlRender.HtmlRender;
+      const mcpSessions = yield* McpProviderSessions.McpProviderSessions;
+      const threadId = ThreadId.make("thread-html-render");
+      const session = {
+        environmentId: EnvironmentId.make("html-render-environment"),
+        threadId,
+        providerSessionId: "first-credential",
+        providerInstanceId: ProviderInstanceId.make("claude"),
+        endpoint: "http://localhost:8311/mcp",
+        authorizationHeader: "Bearer first-token",
+        browserToolsAvailable: false,
+      };
+      yield* mcpSessions.set(session);
 
       const reference = yield* htmlRender.publish({
-        threadId: ThreadId.make("thread-html-render"),
-        html: "<p>Quarterly revenue</p>",
+        threadId,
+        html: `<p>Quarterly revenue</p>${" ".repeat(8_000)}`,
         title: "  Revenue  ",
         height: 9_000,
       });
@@ -225,32 +261,62 @@ describe("HtmlRender", () => {
       const html = yield* fileSystem.readFileString(stored ?? "");
       expect(html).toContain('<style id="supaterm-theme">');
       expect(html).toContain("<p>Quarterly revenue</p>");
+      // Antigravity reports the call without its result, so the thread's
+      // provider session keeps the page for one call with these arguments.
+      const page = {
+        html: `<p>Quarterly revenue</p>${" ".repeat(8_000)}`,
+        title: "  Revenue  ",
+        height: 9_000,
+      };
+      expect(
+        yield* mcpSessions.takeHtmlRender(threadId, {
+          ...page,
+          html: page.html.replace("revenue", "expense"),
+        }),
+      ).toBe(undefined);
+      expect(yield* mcpSessions.takeHtmlRender(threadId, page)).toEqual(reference);
+      expect(yield* mcpSessions.takeHtmlRender(threadId, page)).toBe(undefined);
+      const reused = yield* htmlRender.publish({ threadId, ...page });
+      yield* mcpSessions.set({ ...session, browserToolsAvailable: true });
+      expect(yield* mcpSessions.takeHtmlRender(threadId, page)).toEqual(reused);
+
+      yield* htmlRender.publish({ threadId, ...page });
+      yield* mcpSessions.set({
+        ...session,
+        providerSessionId: "replacement-credential",
+        providerInstanceId: ProviderInstanceId.make("antigravity"),
+        authorizationHeader: "Bearer replacement-token",
+      });
+      const replacement = yield* htmlRender.publish({ threadId, ...page });
+      expect(yield* mcpSessions.takeHtmlRender(threadId, page)).toEqual(replacement);
+      expect(yield* mcpSessions.takeHtmlRender(threadId, page)).toBe(undefined);
+      // Clearing the thread's MCP session drops the pages it kept.
+      yield* htmlRender.publish({ threadId, ...page });
+      yield* mcpSessions.clear(threadId);
+      expect(yield* mcpSessions.takeHtmlRender(threadId, page)).toBe(undefined);
     }).pipe(Effect.provide(layerTest)),
   );
 
   it.effect("removes the page when publishing is interrupted", () =>
     Effect.gen(function* () {
+      const threadId = ThreadId.make("thread-html-cancel");
+      const page = { html: "<p>x</p>", title: "X", height: 200 };
       const measuring = yield* Deferred.make<void>();
       yield* Effect.gen(function* () {
         const fileSystem = yield* FileSystem.FileSystem;
         const config = yield* ServerConfig.ServerConfig;
         const htmlRender = yield* HtmlRender.HtmlRender;
+        const mcpSessions = yield* McpProviderSessions.McpProviderSessions;
         const storedPages = fileSystem
           .readDirectory(config.attachmentsDir, { recursive: true })
           .pipe(Effect.map((names) => names.filter((name) => name.endsWith(".html"))));
 
-        const publishing = yield* htmlRender
-          .publish({
-            threadId: ThreadId.make("thread-html-cancel"),
-            html: "<p>x</p>",
-            title: "X",
-            height: 200,
-          })
-          .pipe(Effect.forkChild);
+        const publishing = yield* htmlRender.publish({ threadId, ...page }).pipe(Effect.forkChild);
         yield* Deferred.await(measuring);
         expect(yield* storedPages).toHaveLength(1);
         yield* Fiber.interrupt(publishing);
         expect(yield* storedPages).toEqual([]);
+        expect(yield* mcpSessions.takeHtmlRender(threadId, page)).toBe(undefined);
       }).pipe(
         Effect.provide(
           layerHtmlRender(

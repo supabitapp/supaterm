@@ -3,6 +3,7 @@ import { assert, expect, it } from "@effect/vitest";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as NetService from "@supaterm/shared/Net";
 import * as ConfigProvider from "effect/ConfigProvider";
+import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -90,7 +91,10 @@ it("reports a newer installed service and tells the CLI to catch up to it", () =
 
 const newerServiceStatus = { ...status, current: false, installedVersion: "999.0.0" };
 
-function makeTestService(serviceStatus: BootService.BootServiceStatus) {
+function makeTestService(
+  serviceStatus: BootService.BootServiceStatus,
+  restartOutcome: "restarted" | "queued" = "restarted",
+) {
   const installOptions: Array<Parameters<BootService.BootService["Service"]["install"]>[0]> = [];
   const restarts: Array<true> = [];
   const service = BootService.BootService.of({
@@ -98,7 +102,7 @@ function makeTestService(serviceStatus: BootService.BootServiceStatus) {
     withStopped: (operation) => operation,
     restart: Effect.sync(() => {
       restarts.push(true);
-      return serviceStatus.installed;
+      return serviceStatus.installed ? restartOutcome : "skipped";
     }),
     install: (options) =>
       Effect.sync(() => {
@@ -136,6 +140,74 @@ it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))("service commands
 
       expect(restarts).toEqual([true]);
       expect(installOptions).toEqual([]);
+    }),
+  );
+
+  it.effect("restart from inside the service says the restart is only queued", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-service-cli-test-" });
+      const { service } = makeTestService({ ...status, installedVersion: "0.0.30" }, "queued");
+      vi.spyOn(BootService, "layer").mockReturnValue(
+        Layer.succeed(BootService.BootService, service),
+      );
+      const lines: Array<string> = [];
+      const testConsole = {
+        ...globalThis.console,
+        log: (...args: ReadonlyArray<unknown>) => {
+          lines.push(args.map(String).join(" "));
+        },
+      } satisfies Console.Console;
+
+      yield* Command.runWith(serviceCommand, { version: packageJson.version })([
+        "restart",
+        "--base-dir",
+        baseDir,
+      ]).pipe(
+        Effect.provideService(HostProcess.Environment, {}),
+        Effect.provideService(Console.Console, testConsole),
+        Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} }))),
+      );
+
+      const output = lines.join("\n");
+      expect(output).not.toContain("Restarted");
+      expect(output).toContain("Queued a restart of the Supaterm service on supaterm@0.0.30");
+      expect(output).toContain(`Logs: ${status.logPath}`);
+    }),
+  );
+
+  it.effect("install reports a handed-off switch as pending", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-service-cli-test-" });
+      const { service } = makeTestService({ ...status, current: false });
+      vi.spyOn(BootService, "layer").mockReturnValue(
+        Layer.succeed(BootService.BootService, {
+          ...service,
+          install: (options) =>
+            service.install(options).pipe(Effect.map((plan) => ({ ...plan, handedOff: true }))),
+        }),
+      );
+      const lines: string[] = [];
+      yield* Command.runWith(serviceCommand, { version: packageJson.version })([
+        "install",
+        "--base-dir",
+        baseDir,
+      ]).pipe(
+        Effect.provideService(HostProcess.Environment, {}),
+        Effect.provideService(Console.Console, {
+          ...globalThis.console,
+          log: (...args) => {
+            lines.push(args.map(String).join(" "));
+          },
+        }),
+        Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} }))),
+      );
+
+      const output = lines.join("\n");
+      expect(output).not.toMatch(/(?:Installed|Updated) Supaterm service/);
+      expect(output).toContain("separate systemd unit");
+      expect(output).toContain(status.logPath);
     }),
   );
 

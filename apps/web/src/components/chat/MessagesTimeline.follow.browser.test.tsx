@@ -1,8 +1,8 @@
+import { act, render as renderUi, type Screen } from "../../../test/render";
 import { EnvironmentId, MessageId } from "@supaterm/contracts";
 import type { LegendListRef } from "@legendapp/list/react";
-import { act, createRef, type ComponentProps, type ReactNode } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { createRef, type ComponentProps, type ReactNode } from "react";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 // These cases assert the end-follow decisions the timeline hands its list, so the list renders
 // its rows plainly and reports whether it is asked to keep the end in view.
@@ -42,6 +42,7 @@ function baseProps(): Omit<TimelineProps, "timelineEntries"> {
   threadCount += 1;
   return {
     isWorking: false,
+    emptyPlaceholderInset: 0,
     activeTurnInProgress: false,
     listRef: createRef<LegendListRef | null>(),
     latestRun: null,
@@ -70,32 +71,9 @@ function baseProps(): Omit<TimelineProps, "timelineEntries"> {
   };
 }
 
-let root: Root;
+let fixtureScreen: Screen;
 let container: HTMLDivElement;
 const frames = new Map<number, FrameRequestCallback>();
-
-beforeEach(() => {
-  frames.clear();
-  let nextFrame = 0;
-  // Frames are stepped by hand so each assertion lands between two paints.
-  vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
-    frames.set(++nextFrame, callback);
-    return nextFrame;
-  });
-  vi.spyOn(window, "cancelAnimationFrame").mockImplementation((frame) => {
-    frames.delete(frame);
-  });
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  container = document.body.appendChild(document.createElement("div"));
-  root = createRoot(container);
-});
-
-afterEach(async () => {
-  await act(async () => root.unmount());
-  container.remove();
-  vi.restoreAllMocks();
-  vi.unstubAllGlobals();
-});
 
 async function flushFrames(count: number) {
   for (let index = 0; index < count; index += 1) {
@@ -114,6 +92,8 @@ describe("MessagesTimeline end-follow", () => {
   ])(
     "returns output closed at the live edge to the end after rows stream in: $liveFollowEnabled",
     async ({ liveFollowEnabled, returnsToEnd }) => {
+      await using _fixture = await setup();
+
       const props = baseProps();
       let timelineIsAtEnd = true;
       const scrollToEnd = vi.fn(() => {
@@ -126,7 +106,7 @@ describe("MessagesTimeline end-follow", () => {
       } as unknown as LegendListRef;
       const onToolOutputCollapsedAtEnd = vi.fn();
       await act(async () =>
-        root.render(
+        fixtureScreen.rerender(
           <MessagesTimeline
             {...props}
             liveFollowEnabled={liveFollowEnabled}
@@ -169,6 +149,8 @@ describe("MessagesTimeline end-follow", () => {
   );
 
   it("holds end-follow off until a disclosure nested in a row settles", async () => {
+    await using _fixture = await setup();
+
     const following = () =>
       container
         .querySelector('[data-testid="legend-list"]')
@@ -179,7 +161,7 @@ describe("MessagesTimeline end-follow", () => {
         : `Line ${index + 1}: ${"verbose prompt content ".repeat(8).trim()}`,
     ).join("\n");
     await act(async () =>
-      root.render(
+      fixtureScreen.rerender(
         <MessagesTimeline
           {...baseProps()}
           timelineEntries={[
@@ -214,3 +196,28 @@ describe("MessagesTimeline end-follow", () => {
     expect(following()).toBe(true);
   });
 });
+
+async function setup() {
+  frames.clear();
+  let nextFrame = 0;
+  // Frames are stepped by hand so each assertion lands between two paints.
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    frames.set(++nextFrame, callback);
+    return nextFrame;
+  });
+  vi.spyOn(window, "cancelAnimationFrame").mockImplementation((frame) => {
+    frames.delete(frame);
+  });
+  container = document.body.appendChild(document.createElement("div"));
+  fixtureScreen = await renderUi(null, { container });
+
+  const ownedScreen = fixtureScreen;
+  return {
+    async [Symbol.asyncDispose]() {
+      await ownedScreen[Symbol.asyncDispose]();
+
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    },
+  };
+}

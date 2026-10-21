@@ -25,6 +25,8 @@ const RIGHT_PANEL_KINDS = [
 ] as const;
 export type RightPanelKind = (typeof RIGHT_PANEL_KINDS)[number];
 
+export type PullRequestDetailTab = "summary" | "guide" | "timeline" | "code";
+
 export interface DeviceTabTarget {
   hostId: string;
   deviceId: string;
@@ -75,6 +77,7 @@ export type RightPanelSurface =
       repository: string;
       number: number;
       url?: string;
+      detailTab?: PullRequestDetailTab;
     }
   | { id: "pull-requests"; kind: "pull-requests" };
 
@@ -121,6 +124,7 @@ interface RightPanelStoreState {
       | Extract<RightPanelSurface, { kind: "pull-request" | "pull-requests" }>
       | { kind: "diff"; turnId: RunId },
     expectedUserActionRevision: number,
+    activateExisting?: boolean,
   ) => boolean;
   open: (
     ref: ScopedThreadRef,
@@ -153,7 +157,13 @@ interface RightPanelStoreState {
       repository: string;
       number: number;
       url?: string;
+      detailTab?: PullRequestDetailTab;
     },
+  ) => void;
+  setPullRequestDetailTab: (
+    ref: ScopedThreadRef,
+    surfaceId: string,
+    detailTab: PullRequestDetailTab,
   ) => void;
   openTerminal: (ref: ScopedThreadRef, terminalId: string) => void;
   splitTerminal: (
@@ -280,6 +290,7 @@ export function pullRequestSurface(target: {
   repository: string;
   number: number;
   url?: string;
+  detailTab?: PullRequestDetailTab;
 }): PullRequestSurface {
   return {
     id: pullRequestSurfaceId(target),
@@ -290,6 +301,7 @@ export function pullRequestSurface(target: {
     repository: target.repository,
     number: target.number,
     ...(typeof target.url === "string" ? { url: target.url } : {}),
+    ...(target.detailTab === undefined ? {} : { detailTab: target.detailTab }),
   };
 }
 
@@ -452,7 +464,7 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
       closeRevisionByThreadKey: {},
       getUserActionRevision: (ref) =>
         get().userActionRevisionByThreadKey[scopedThreadKey(ref)] ?? 0,
-      openProactive: (ref, request, expectedUserActionRevision) => {
+      openProactive: (ref, request, expectedUserActionRevision, activateExisting = false) => {
         let opened = false;
         set((state) => {
           const threadKey = scopedThreadKey(ref);
@@ -475,6 +487,15 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
           }
           if (
             (state.userActionRevisionByThreadKey[threadKey] ?? 0) !== expectedUserActionRevision
+          ) {
+            return state;
+          }
+          // Keep an existing PR tab where the user left it when revisiting a thread.
+          if (
+            !activateExisting &&
+            selectThreadRightPanelState(state.byThreadKey, ref).surfaces.some(
+              (entry) => entry.id === request.id,
+            )
           ) {
             return state;
           }
@@ -546,12 +567,31 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
               ? {
                   ...next,
                   surfaces: next.surfaces.map((entry) =>
-                    entry.id === surface.id ? surface : entry,
+                    entry.id === surface.id && entry.kind === "pull-request"
+                      ? { ...entry, ...surface }
+                      : entry,
                   ),
                 }
               : next;
           }),
         ),
+      setPullRequestDetailTab: (ref, surfaceId, detailTab) =>
+        set((state) => {
+          const threadKey = scopedThreadKey(ref);
+          const existing = state.byThreadKey[threadKey]?.surfaces.find(
+            (surface) => surface.id === surfaceId,
+          );
+          if (existing?.kind !== "pull-request" || (existing.detailTab ?? "summary") === detailTab)
+            return state;
+          return automaticUpdate(state, threadKey, (current) => ({
+            ...current,
+            surfaces: current.surfaces.map((surface) =>
+              surface.id === surfaceId && surface.kind === "pull-request"
+                ? { ...surface, detailTab }
+                : surface,
+            ),
+          }));
+        }),
       openFile: (ref, requestedPath, line) =>
         set((state) =>
           userAction(state, scopedThreadKey(ref), (current) => {

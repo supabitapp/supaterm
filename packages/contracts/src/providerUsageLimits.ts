@@ -86,6 +86,7 @@ export const UsageLimitsReport = Schema.Struct({
   accounts: Schema.Array(
     Schema.Struct({
       instanceId: ProviderInstanceId,
+      resetCreditInput: Schema.optional(ProviderConsumeResetCreditInput),
       driver: ProviderDriverKind,
       plan: Schema.optional(TrimmedNonEmptyString),
       displayName: Schema.optional(Schema.String),

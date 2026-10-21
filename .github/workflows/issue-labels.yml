@@ -24,7 +24,7 @@ jobs:
       issues: write
     steps:
       - name: Ensure managed issue labels exist
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9.0.0
         with:
           script: |
             const managedLabels = [

@@ -22,14 +22,14 @@ import {
 
 describe("normalizeGitRemoteUrl", () => {
   it("canonicalizes equivalent GitHub remotes across protocol variants", () => {
-    expect(normalizeGitRemoteUrl("git@github.com:supabitapp/supacode-next.git")).toBe(
-      "github.com/supabitapp/supacode-next",
+    expect(normalizeGitRemoteUrl("git@github.com:supabitapp/supaterm.git")).toBe(
+      "github.com/supabitapp/supaterm",
     );
-    expect(normalizeGitRemoteUrl("https://github.com/supabitapp/supacode-next.git")).toBe(
-      "github.com/supabitapp/supacode-next",
+    expect(normalizeGitRemoteUrl("https://github.com/supabitapp/supaterm.git")).toBe(
+      "github.com/supabitapp/supaterm",
     );
-    expect(normalizeGitRemoteUrl("ssh://git@github.com/supabitapp/supacode-next")).toBe(
-      "github.com/supabitapp/supacode-next",
+    expect(normalizeGitRemoteUrl("ssh://git@github.com/supabitapp/supaterm")).toBe(
+      "github.com/supabitapp/supaterm",
     );
   });
 
@@ -58,6 +58,14 @@ describe("normalizeGitRemoteUrl", () => {
     expect(normalizeGitRemoteUrl("deploy@bitbucket.org:workspace/repo.git")).toBe(
       "bitbucket.org/workspace/repo",
     );
+    expect(normalizeGitRemoteUrl("code.example.test:team/repo.git")).toBe(
+      "code.example.test/team/repo",
+    );
+    expect(normalizeGitRemoteUrl("git@code.example.test:/team/repo.git")).toBe(
+      "code.example.test/team/repo",
+    );
+    expect(normalizeGitRemoteUrl("C:/repos/project")).toBe("c:/repos/project");
+    expect(normalizeGitRemoteUrl("git@x:team/project.git")).toBe("x/team/project");
   });
 
   it("gives an Azure DevOps repository the same key over SSH as over HTTPS", () => {
@@ -85,8 +93,8 @@ describe("normalizeGitRemoteUrl", () => {
     expect(normalizeGitRemoteUrl("git@ssh.dev.azure.com:v4/Supaterm/Platform/Supaterm")).toBe(
       "ssh.dev.azure.com/v4/supaterm/platform/supaterm",
     );
-    expect(normalizeGitRemoteUrl("git@ssh.dev.azure.com:v3/supabitapp/supacode-next")).toBe(
-      "ssh.dev.azure.com/v3/supabitapp/supacode-next",
+    expect(normalizeGitRemoteUrl("git@ssh.dev.azure.com:v3/supabitapp/supaterm")).toBe(
+      "ssh.dev.azure.com/v3/supabitapp/supaterm",
     );
   });
 });
@@ -99,12 +107,12 @@ describe("parseOriginUrlFromGitConfig", () => {
       '[remote "upstream"]',
       "\turl = https://github.com/other/repo.git",
       '[remote "origin"]',
-      "\turl = git@github.com:supabitapp/supacode-next.git",
+      "\turl = git@github.com:supabitapp/supaterm.git",
       "\tfetch = +refs/heads/*:refs/remotes/origin/*",
       '[branch "main"]',
       "\tremote = origin",
     ].join("\n");
-    expect(parseOriginUrlFromGitConfig(config)).toBe("git@github.com:supabitapp/supacode-next.git");
+    expect(parseOriginUrlFromGitConfig(config)).toBe("git@github.com:supabitapp/supaterm.git");
   });
 
   it("strips inline comments and quotes from the url value", () => {
@@ -213,20 +221,14 @@ describe("parseGitRemoteVerboseOutput", () => {
 describe("parseGitHubRepositoryNameWithOwnerFromRemoteUrl", () => {
   it("extracts the owner and repository from common GitHub remote shapes", () => {
     expect(
-      parseGitHubRepositoryNameWithOwnerFromRemoteUrl(
-        "git@github.com:supabitapp/supacode-next.git",
-      ),
-    ).toBe("supabitapp/supacode-next");
+      parseGitHubRepositoryNameWithOwnerFromRemoteUrl("git@github.com:supabitapp/supaterm.git"),
+    ).toBe("supabitapp/supaterm");
     expect(
-      parseGitHubRepositoryNameWithOwnerFromRemoteUrl(
-        "https://github.com/supabitapp/supacode-next.git",
-      ),
-    ).toBe("supabitapp/supacode-next");
+      parseGitHubRepositoryNameWithOwnerFromRemoteUrl("https://github.com/supabitapp/supaterm.git"),
+    ).toBe("supabitapp/supaterm");
     expect(
-      parseGitHubRepositoryNameWithOwnerFromRemoteUrl(
-        "ssh://github.com/supabitapp/supacode-next.git",
-      ),
-    ).toBe("supabitapp/supacode-next");
+      parseGitHubRepositoryNameWithOwnerFromRemoteUrl("ssh://github.com/supabitapp/supaterm.git"),
+    ).toBe("supabitapp/supaterm");
   });
 });
 

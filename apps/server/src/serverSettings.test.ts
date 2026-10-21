@@ -13,6 +13,7 @@ import {
 import { createModelSelection } from "@supaterm/shared/model";
 import { assert, it } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Fiber from "effect/Fiber";
@@ -464,6 +465,70 @@ it.layer(NodeServices.layer)("server settings", (it) => {
           ],
         ),
       );
+    }).pipe(Effect.provide(layerServerSettings())),
+  );
+
+  it.effect("keeps an external settings edit that the watcher has not reloaded yet", () =>
+    Effect.gen(function* () {
+      const config = yield* ServerConfig.ServerConfig;
+      const fs = yield* FileSystem.FileSystem;
+      const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
+      yield* serverSettings.getSettings;
+
+      yield* writeFileStringAtomically({
+        filePath: config.settingsPath,
+        contents: `{ "responseStreamingMode": "turn" }`,
+      });
+      yield* serverSettings.updateSettings({
+        observability: { otlpTracesUrl: "http://localhost:4318/v1/traces" },
+      });
+
+      const saved = yield* decodeServerSettingsJson(yield* fs.readFileString(config.settingsPath));
+      assert.equal(saved.responseStreamingMode, "turn");
+      assert.equal(saved.observability.otlpTracesUrl, "http://localhost:4318/v1/traces");
+
+      yield* writeFileStringAtomically({
+        filePath: config.settingsPath,
+        contents: `{ "responseStreamingMode": "paragraph" }`,
+      });
+      const instanceId = ProviderInstanceId.make("acpRegistry_kilo");
+      yield* serverSettings.updateProviderInstance({
+        operation: "upsert",
+        instanceId,
+        instance: {
+          driver: ProviderDriverKind.make("acpRegistry"),
+          displayName: "Kilo",
+          config: { agentId: "kilo", distribution: "auto" },
+        },
+      });
+
+      const afterProviderSave = yield* decodeServerSettingsJson(
+        yield* fs.readFileString(config.settingsPath),
+      );
+      assert.equal(afterProviderSave.responseStreamingMode, "paragraph");
+      assert.equal(afterProviderSave.providerInstances[instanceId]?.displayName, "Kilo");
+    }).pipe(Effect.provide(layerServerSettings())),
+  );
+
+  it.effect("refuses to save over a settings file it cannot parse", () =>
+    Effect.gen(function* () {
+      const config = yield* ServerConfig.ServerConfig;
+      const fs = yield* FileSystem.FileSystem;
+      const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
+      yield* serverSettings.getSettings;
+      const raw = `{ "responseStreamingMode": "turn", `;
+      yield* fs.writeFileString(config.settingsPath, raw);
+
+      const error = yield* Effect.flip(
+        serverSettings.updateSettings({
+          observability: { otlpTracesUrl: "http://localhost:4318/v1/traces" },
+        }),
+      );
+
+      assert.equal(error.operation, "read-file");
+      assert.equal(error.settingsPath, config.settingsPath);
+      assert.instanceOf(error.cause, Error);
+      assert.equal(yield* fs.readFileString(config.settingsPath), raw);
     }).pipe(Effect.provide(layerServerSettings())),
   );
 
@@ -1144,6 +1209,62 @@ it.layer(NodeServices.layer)("server settings", (it) => {
     }).pipe(Effect.provide(layerServerSettings())),
   );
 
+  it.effect("writes only non-default settings to disk", () =>
+    Effect.gen(function* () {
+      const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
+      const serverConfig = yield* ServerConfig.ServerConfig;
+      const fileSystem = yield* FileSystem.FileSystem;
+      yield* serverSettings.updateSettings({
+        addProjectBaseDirectory: "~/Development",
+        observability: {
+          otlpTracesUrl: "http://localhost:4318/v1/traces",
+          otlpMetricsUrl: "http://localhost:4318/v1/metrics",
+        },
+        automaticGitFetchInterval: Duration.seconds(10),
+      });
+
+      const raw = yield* fileSystem.readFileString(serverConfig.settingsPath);
+      assert.deepEqual(JSON.parse(raw), {
+        addProjectBaseDirectory: "~/Development",
+        observability: {
+          otlpTracesUrl: "http://localhost:4318/v1/traces",
+          otlpMetricsUrl: "http://localhost:4318/v1/metrics",
+        },
+        backgroundActivity: {
+          schemaVersion: 1,
+          profile: "custom",
+          baseProfile: "balanced",
+          overrides: {
+            automaticGitFetchInterval: 10_000,
+          },
+        },
+      });
+    }).pipe(Effect.provide(layerServerSettings())),
+  );
+
+  it.effect("saves a writing style whose other fields are defaults", () =>
+    Effect.gen(function* () {
+      const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
+      const serverConfig = yield* ServerConfig.ServerConfig;
+      const fileSystem = yield* FileSystem.FileSystem;
+      yield* serverSettings.updateSettings({
+        sourceControlWritingStyle: { mode: "conventional_commits" },
+      });
+      yield* serverSettings.updateSettings({ addProjectBaseDirectory: "~/Development" });
+
+      const raw = yield* fileSystem.readFileString(serverConfig.settingsPath);
+      assert.deepEqual(JSON.parse(raw), {
+        addProjectBaseDirectory: "~/Development",
+        sourceControlWritingStyle: { mode: "conventional_commits" },
+      });
+      assert.deepEqual((yield* serverSettings.getSettings).sourceControlWritingStyle, {
+        mode: "conventional_commits",
+        customInstructions: "",
+        followChangeRequestTemplates: true,
+      });
+    }).pipe(Effect.provide(layerServerSettings())),
+  );
+
   it.effect("keeps the inline value on disk when secret migration fails", () => {
     const cause = new ServerSecretStore.SecretStorePersistError({
       resource: "provider environment secret",
@@ -1319,6 +1440,17 @@ it.layer(NodeServices.layer)("server settings", (it) => {
             bitbucket: { email: "me@example.test", accessToken: "bitbucket-secret" },
             gitcafe: { token: "gitcafe-secret" },
           },
+          easDeviceHosts: [
+            {
+              kind: "eas",
+              id: "eas",
+              label: "EAS Simulator",
+              accessToken: "expo-secret",
+              maxSessionMinutes: 30,
+              idleMinutes: 10,
+              maxConcurrentSessions: 2,
+            },
+          ],
         });
         const values = [
           "config-secret",
@@ -1326,6 +1458,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
           "github-secret",
           "bitbucket-secret",
           "gitcafe-secret",
+          "expo-secret",
         ];
         const client = ServerSettingsModule.redactServerSettingsForClient(saved);
         const disk = yield* fs.readFileString(config.settingsPath);
@@ -1339,6 +1472,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
         const echoed = yield* service.updateSettings({
           providerInstances: client.providerInstances,
           sourceControlHosts: client.sourceControlHosts,
+          easDeviceHosts: client.easDeviceHosts,
         });
         for (const value of values) assert.include(JSON.stringify(echoed), value);
         const renamed = yield* service.updateProviderInstance({

@@ -52,12 +52,15 @@ describe("requestLatencyState", () => {
     expect(getSlowRpcAckRequests()).toEqual([]);
   });
 
-  it("ignores usage summary requests", () => {
-    trackRpcRequestSent("1", WS_METHODS.serverGetUsageSummary);
-    vi.advanceTimersByTime(SLOW_RPC_ACK_THRESHOLD_MS * 2);
+  it.each([WS_METHODS.serverGetUsageSummary, WS_METHODS.serverReportClientActivity])(
+    "ignores background request %s",
+    (method) => {
+      trackRpcRequestSent("1", method);
+      vi.advanceTimersByTime(SLOW_RPC_ACK_THRESHOLD_MS * 2);
 
-    expect(getSlowRpcAckRequests()).toEqual([]);
-  });
+      expect(getSlowRpcAckRequests()).toEqual([]);
+    },
+  );
 
   it.each(Object.values(WS_METHODS).filter((method) => method.startsWith("pullRequests.")))(
     "ignores pull request workspace request %s",
@@ -80,20 +83,23 @@ describe("requestLatencyState", () => {
     expect(getSlowRpcAckRequests()).toEqual([]);
   });
 
-  it("gives provider updates a longer threshold before warning", () => {
-    trackRpcRequestSent("1", WS_METHODS.serverUpdateProvider, "server.updateProvider · env-1");
-    vi.advanceTimersByTime(LONG_RUNNING_RPC_ACK_THRESHOLD_MS - 1);
-    expect(getSlowRpcAckRequests()).toEqual([]);
+  it.each([WS_METHODS.serverUpdateProvider, WS_METHODS.vcsRefreshStatus])(
+    "gives %s a longer threshold before warning",
+    (method) => {
+      trackRpcRequestSent("1", method, `${method} · env-1`);
+      vi.advanceTimersByTime(LONG_RUNNING_RPC_ACK_THRESHOLD_MS - 1);
+      expect(getSlowRpcAckRequests()).toEqual([]);
 
-    vi.advanceTimersByTime(1);
-    expect(getSlowRpcAckRequests()).toMatchObject([
-      {
-        requestId: "1",
-        tag: "server.updateProvider · env-1",
-        thresholdMs: LONG_RUNNING_RPC_ACK_THRESHOLD_MS,
-      },
-    ]);
-  });
+      vi.advanceTimersByTime(1);
+      expect(getSlowRpcAckRequests()).toMatchObject([
+        {
+          requestId: "1",
+          tag: `${method} · env-1`,
+          thresholdMs: LONG_RUNNING_RPC_ACK_THRESHOLD_MS,
+        },
+      ]);
+    },
+  );
 
   it("evicts the oldest pending requests once the tracker reaches capacity", () => {
     for (let index = 0; index < MAX_TRACKED_RPC_ACK_REQUESTS + 1; index += 1) {

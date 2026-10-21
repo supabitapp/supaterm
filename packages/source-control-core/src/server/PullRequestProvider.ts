@@ -156,6 +156,11 @@ export interface ProviderListCursor {
    */
   readonly updatedBefore: string;
   readonly delivered: number;
+  /**
+   * Rows already handed over at `updatedBefore`. Timestamp-paged hosts can exclude these before
+   * applying their limit so a full page of tied updates does not repeat the same prefix.
+   */
+  readonly seenAt?: ReadonlyArray<number> | undefined;
 }
 
 export interface ProviderBatchedChangeRequest extends ProviderChangeRequest {
@@ -219,6 +224,16 @@ export interface ProviderDiffFileContents {
 export interface ProviderFilesViewed {
   readonly files: ReadonlyArray<PullRequestFileViewed>;
   /** The host has more files than were read, so the ones missing here are not "unviewed". */
+  readonly truncated: boolean;
+}
+
+export interface ProviderFileStats {
+  readonly files: ReadonlyArray<{
+    readonly path: string;
+    readonly additions: number;
+    readonly deletions: number;
+  }>;
+  /** The host has more files than were read. */
   readonly truncated: boolean;
 }
 
@@ -417,6 +432,11 @@ export interface PullRequestProviderApi {
   readonly getFilesViewed?: (
     input: ProviderRepositoryRef & { readonly number: number },
   ) => Effect.Effect<ProviderFilesViewed, PullRequestProviderError>;
+
+  /** Line counts for every changed file. Optional: a host without one shows no breakdown. */
+  readonly getFileStats?: (
+    input: ProviderRepositoryRef & { readonly number: number },
+  ) => Effect.Effect<ProviderFileStats, PullRequestProviderError>;
 
   /**
    * A host with no bulk form is still owed one round trip for the batch rather than one per

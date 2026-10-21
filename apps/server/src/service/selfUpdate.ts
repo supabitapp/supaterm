@@ -22,6 +22,7 @@ import { HttpClient } from "effect/http";
 
 import { CLI_RELEASE_BASE_URL_ENV } from "@supaterm/shared/cliRelease";
 
+import packageJson from "../../package.json" with { type: "json" };
 import * as ServerConfig from "../config.ts";
 import * as DesktopAppUpdate from "../desktopUpdate/DesktopAppUpdate.ts";
 import * as ProcessRunner from "../processRunner.ts";
@@ -30,6 +31,7 @@ import {
   pinnedRuntimeCommand,
   PinnedRuntimeInstallError,
   PinnedRuntimePreflightBlockedError,
+  prunePinnedRuntimes,
 } from "./pinnedRuntime.ts";
 import { decodeServicePreflightResult } from "./servicePreflight.ts";
 import * as ServiceLauncherClient from "./serviceLauncherClient.ts";
@@ -76,6 +78,19 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
     yield* Config.String(CLI_RELEASE_BASE_URL_ENV).pipe(Config.option),
   );
   const inFlight = yield* Ref.make(false);
+
+  // A managed server starting means its launcher has settled on a version, so runtimes left by
+  // earlier updates can go.
+  if (launcher.managed) {
+    yield* prunePinnedRuntimes({ baseDir: serverConfig.baseDir, keep: [packageJson.version] }).pipe(
+      Effect.tap((removed) =>
+        removed.length === 0
+          ? Effect.void
+          : Effect.logInfo("Removed unused supaterm runtimes.", { versions: removed }),
+      ),
+      Effect.forkScoped,
+    );
+  }
 
   const capability: ServerSelfUpdateCapability | null =
     serverConfig.mode === "desktop" ? "desktop-managed" : launcher.managed ? "boot-service" : null;

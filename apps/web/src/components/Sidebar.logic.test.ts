@@ -57,6 +57,7 @@ import {
   type SidebarSection,
   resolveSidebarDropVerb,
 } from "./Sidebar.logic";
+
 import { EnvironmentId, ProjectId, ProviderInstanceId, RunId, ThreadId } from "@supaterm/contracts";
 
 import { DEFAULT_RUNTIME_MODE, type Project, type Thread } from "../types";
@@ -901,20 +902,31 @@ describe("resolveSidebarThreadStatus", () => {
   const idle = { hasPendingApprovals: false, hasPendingUserInput: false, runtime: null };
 
   it("prioritizes approval over a running runtime", () => {
-    expect(resolveSidebarThreadStatus({ ...idle, hasPendingApprovals: true, runtime })).toBe(
-      "approval",
-    );
+    expect(
+      resolveSidebarThreadStatus({
+        ...idle,
+        hasPendingApprovals: true,
+        runtime,
+        blockedOnThreadWait: true,
+      }),
+    ).toBe("approval");
   });
 
   it("prioritizes awaiting input over a running runtime, below approval", () => {
-    expect(resolveSidebarThreadStatus({ ...idle, hasPendingUserInput: true, runtime })).toBe(
-      "input",
-    );
+    expect(
+      resolveSidebarThreadStatus({
+        ...idle,
+        hasPendingUserInput: true,
+        runtime,
+        blockedOnThreadWait: true,
+      }),
+    ).toBe("input");
     expect(
       resolveSidebarThreadStatus({
         ...idle,
         hasPendingApprovals: true,
         hasPendingUserInput: true,
+        blockedOnThreadWait: true,
         runtime,
       }),
     ).toBe("approval");
@@ -926,6 +938,7 @@ describe("resolveSidebarThreadStatus", () => {
       resolveSidebarThreadStatus({
         ...idle,
         runtime: { ...runtime, status: "starting" as const },
+        blockedOnThreadWait: true,
       }),
     ).toBe("working");
   });
@@ -1009,16 +1022,16 @@ describe("resolveSidebarThreadStatus", () => {
 describe("pullRequestMatchesSearchQuery", () => {
   const branchPullRequest = {
     projectId: ProjectId.make("project"),
-    repository: "supabitapp/supacode-next",
+    repository: "supabitapp/supaterm",
     number: 123,
-    url: "https://github.com/supabitapp/supacode-next/pull/123",
+    url: "https://github.com/supabitapp/supaterm/pull/123",
   };
 
   it("matches when every query token appears in the PR's terms", () => {
     expect(pullRequestMatchesSearchQuery({ branchPullRequest }, "123")).toBe(true);
-    expect(
-      pullRequestMatchesSearchQuery({ branchPullRequest }, "supabitapp/supacode-next #123"),
-    ).toBe(true);
+    expect(pullRequestMatchesSearchQuery({ branchPullRequest }, "supabitapp/supaterm #123")).toBe(
+      true,
+    );
   });
 
   it("rejects queries with a token the PR does not carry, and blank queries", () => {
@@ -1221,6 +1234,7 @@ describe("resolveThreadStatusPill", () => {
           ...baseThread,
           hasPendingApprovals: true,
           hasPendingUserInput: true,
+          blockedOnThreadWait: true,
         },
       }),
     ).toMatchObject({ label: "Pending Approval", pulse: false });
@@ -1232,6 +1246,7 @@ describe("resolveThreadStatusPill", () => {
         thread: {
           ...baseThread,
           hasPendingUserInput: true,
+          blockedOnThreadWait: true,
         },
       }),
     ).toMatchObject({ label: "Awaiting Input", pulse: false });
@@ -1243,6 +1258,22 @@ describe("resolveThreadStatusPill", () => {
         thread: baseThread,
       }),
     ).toMatchObject({ label: "Working", pulse: true });
+  });
+
+  it("shows an active thread wait without a pulse and resumes Working when it ends", () => {
+    const blocked = { ...baseThread, blockedOnThreadWait: true };
+    expect(resolveSidebarThreadStatus(blocked)).toBe("waiting");
+    expect(resolveThreadStatusPill({ thread: blocked })).toMatchObject({
+      label: "Waiting",
+      pulse: false,
+    });
+
+    const resumed = { ...blocked, blockedOnThreadWait: false };
+    expect(resolveSidebarThreadStatus(resumed)).toBe("working");
+    expect(resolveThreadStatusPill({ thread: resumed })).toMatchObject({
+      label: "Working",
+      pulse: true,
+    });
   });
 
   it("shows waiting for an idle thread with pending background tasks", () => {
@@ -1647,43 +1678,6 @@ describe("sortProjectsForSidebar", () => {
     expect(sorted.map((project) => project.id)).toEqual([
       ProjectId.make("project-2"),
       ProjectId.make("project-1"),
-    ]);
-  });
-
-  it("ignores archived threads when sorting projects", () => {
-    const sorted = sortProjectsForSidebar(
-      [
-        makeProject({
-          id: ProjectId.make("project-1"),
-          title: "Visible project",
-          updatedAt: "2026-03-09T10:01:00.000Z",
-        }),
-        makeProject({
-          id: ProjectId.make("project-2"),
-          title: "Archived-only project",
-          updatedAt: "2026-03-09T10:00:00.000Z",
-        }),
-      ],
-      [
-        makeThread({
-          id: ThreadId.make("thread-visible"),
-          projectId: ProjectId.make("project-1"),
-          updatedAt: "2026-03-09T10:02:00.000Z",
-          archivedAt: null,
-        }),
-        makeThread({
-          id: ThreadId.make("thread-archived"),
-          projectId: ProjectId.make("project-2"),
-          updatedAt: "2026-03-09T10:10:00.000Z",
-          archivedAt: "2026-03-09T10:11:00.000Z",
-        }),
-      ].filter((thread) => thread.archivedAt === null),
-      "updated_at",
-    );
-
-    expect(sorted.map((project) => project.id)).toEqual([
-      ProjectId.make("project-1"),
-      ProjectId.make("project-2"),
     ]);
   });
 

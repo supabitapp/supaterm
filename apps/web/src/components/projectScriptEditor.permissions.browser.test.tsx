@@ -1,3 +1,4 @@
+import { act, render, type Screen } from "../../test/render";
 import {
   AuthOrchestrationOperateScope,
   AuthSettingsWriteScope,
@@ -6,9 +7,7 @@ import {
 } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
 import { AsyncResult } from "effect/reactivity";
-import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
 
 const permissions = vi.hoisted(() => ({
@@ -62,22 +61,14 @@ const request: ProjectScriptEditorRequest = {
 };
 
 describe("ProjectScriptEditorDialog", () => {
-  let root: Root;
-
-  beforeEach(() => {
-    root = createRoot(document.createElement("div"));
+  function setup() {
     permissions.canWriteSettings = false;
     permissions.canEditProject = true;
-    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  });
-
-  afterEach(async () => {
-    await act(async () => root.unmount());
-    vi.restoreAllMocks();
-    vi.unstubAllGlobals();
-  });
+    permissions.listeners.clear();
+  }
 
   async function openEditor(
+    screen: Screen,
     onSubmit = vi.fn().mockResolvedValue(AsyncResult.success(undefined)),
     editorRequest = request,
     actions = { onDelete: vi.fn(), onClose: vi.fn() },
@@ -85,18 +76,16 @@ describe("ProjectScriptEditorDialog", () => {
       | typeof AuthOrchestrationOperateScope
       | typeof AuthSettingsWriteScope = AuthOrchestrationOperateScope,
   ) {
-    await act(async () =>
-      root.render(
-        <ProjectScriptEditorDialog
-          environmentId={EnvironmentId.make("script-editor-test")}
-          editScope={editScope}
-          request={editorRequest}
-          scripts={[]}
-          onSubmit={onSubmit}
-          onDelete={actions.onDelete}
-          onClose={actions.onClose}
-        />,
-      ),
+    await screen.rerender(
+      <ProjectScriptEditorDialog
+        environmentId={EnvironmentId.make("script-editor-test")}
+        editScope={editScope}
+        request={editorRequest}
+        scripts={[]}
+        onSubmit={onSubmit}
+        onDelete={actions.onDelete}
+        onClose={actions.onClose}
+      />,
     );
   }
 
@@ -113,10 +102,18 @@ describe("ProjectScriptEditorDialog", () => {
   it.each([null, "test"])(
     "saves a settings action without task access (id: %s)",
     async (scriptId) => {
+      setup();
+      await using screen = await render(null);
       permissions.canEditProject = false;
       permissions.canWriteSettings = true;
       const onSubmit = vi.fn().mockResolvedValue(AsyncResult.success(undefined));
-      await openEditor(onSubmit, { ...request, scriptId }, undefined, AuthSettingsWriteScope);
+      await openEditor(
+        screen,
+        onSubmit,
+        { ...request, scriptId },
+        undefined,
+        AuthSettingsWriteScope,
+      );
       permissions.canWriteSettings = false;
       await submit();
       expect(onSubmit).not.toHaveBeenCalled();
@@ -130,10 +127,12 @@ describe("ProjectScriptEditorDialog", () => {
   );
 
   it("rechecks settings access before deleting a settings action", async () => {
+    setup();
+    await using screen = await render(null);
     permissions.canEditProject = false;
     permissions.canWriteSettings = true;
     const actions = { onDelete: vi.fn(), onClose: vi.fn() };
-    await openEditor(undefined, request, actions, AuthSettingsWriteScope);
+    await openEditor(screen, undefined, request, actions, AuthSettingsWriteScope);
     await act(async () => deleteButton().click());
     permissions.canWriteSettings = false;
     await pressAgain(deleteButton());
@@ -145,13 +144,15 @@ describe("ProjectScriptEditorDialog", () => {
   });
 
   it("clears an old shortcut when adding an action with no shortcut", async () => {
+    setup();
+    await using screen = await render(null);
     permissions.canWriteSettings = true;
     let persistedKeybinding: string | null = "mod+k";
     const onSubmit = vi.fn(async (_id: string | null, input: NewProjectScriptInput) => {
       if (input.keybinding !== undefined) persistedKeybinding = input.keybinding;
       return AsyncResult.success(undefined);
     });
-    await openEditor(onSubmit, {
+    await openEditor(screen, onSubmit, {
       scriptId: null,
       initial: { ...request.initial, keybinding: null },
     });
@@ -165,6 +166,8 @@ describe("ProjectScriptEditorDialog", () => {
   it.each([false, true])(
     "re-adds a deleted action while preserving its shortcut without settings access (revoked: %s)",
     async (revokeBeforeSubmit) => {
+      setup();
+      await using screen = await render(null);
       permissions.canWriteSettings = revokeBeforeSubmit;
       const persisted = { name: null as string | null, keybinding: "mod+k" as string | null };
       const onSubmit = vi.fn(async (_id: string | null, input: NewProjectScriptInput) => {
@@ -177,7 +180,7 @@ describe("ProjectScriptEditorDialog", () => {
         if (input.keybinding !== undefined) persisted.keybinding = input.keybinding;
         return AsyncResult.success(undefined);
       });
-      await openEditor(onSubmit, {
+      await openEditor(screen, onSubmit, {
         scriptId: null,
         initial: { ...request.initial, keybinding: null },
       });
@@ -193,15 +196,17 @@ describe("ProjectScriptEditorDialog", () => {
   it.each([false, true])(
     "requires settings access to override a retained shortcut when re-adding an action (revoked: %s)",
     async (revokeBeforeSubmit) => {
+      setup();
+      await using screen = await render(null);
       permissions.canWriteSettings = true;
-      vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux");
+      using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux");
       const persisted = { name: null as string | null, keybinding: "mod+k" as string | null };
       const onSubmit = vi.fn(async (_id: string | null, input: NewProjectScriptInput) => {
         persisted.name = input.name;
         if (input.keybinding !== undefined) persisted.keybinding = input.keybinding;
         return AsyncResult.success(undefined);
       });
-      await openEditor(onSubmit, {
+      await openEditor(screen, onSubmit, {
         scriptId: null,
         initial: { ...request.initial, keybinding: null },
       });
@@ -220,6 +225,8 @@ describe("ProjectScriptEditorDialog", () => {
   it.each([false, true])(
     "preserves a concurrent shortcut change when saving only the script (settings access: %s)",
     async (canWriteSettings) => {
+      setup();
+      await using screen = await render(null);
       permissions.canWriteSettings = canWriteSettings;
       const persisted = { name: request.initial.name, keybinding: request.initial.keybinding };
       const onSubmit = vi.fn(async (_id: string | null, input: NewProjectScriptInput) => {
@@ -227,7 +234,7 @@ describe("ProjectScriptEditorDialog", () => {
         if (input.keybinding !== undefined) persisted.keybinding = input.keybinding;
         return AsyncResult.success(undefined);
       });
-      await openEditor(onSubmit);
+      await openEditor(screen, onSubmit);
 
       persisted.keybinding = "mod+j";
       const name = document.querySelector<HTMLInputElement>("#script-name")!;
@@ -243,9 +250,11 @@ describe("ProjectScriptEditorDialog", () => {
   it.each([false, true])(
     "enforces settings access when submitting an explicit shortcut clear (revoked: %s)",
     async (revokeBeforeSubmit) => {
+      setup();
+      await using screen = await render(null);
       permissions.canWriteSettings = true;
       const onSubmit = vi.fn().mockResolvedValue(AsyncResult.success(undefined));
-      await openEditor(onSubmit);
+      await openEditor(screen, onSubmit);
       await pressInShortcutField("{Backspace}");
       if (revokeBeforeSubmit) permissions.canWriteSettings = false;
       await submit();
@@ -264,10 +273,12 @@ describe("ProjectScriptEditorDialog", () => {
   it.each([false, true])(
     "requires project access to save even with settings access (revoked: %s)",
     async (revokeBeforeSubmit) => {
+      setup();
+      await using screen = await render(null);
       permissions.canEditProject = revokeBeforeSubmit;
       permissions.canWriteSettings = true;
       const onSubmit = vi.fn().mockResolvedValue(AsyncResult.success(undefined));
-      await openEditor(onSubmit);
+      await openEditor(screen, onSubmit);
 
       permissions.canEditProject = false;
       await submit();
@@ -280,8 +291,10 @@ describe("ProjectScriptEditorDialog", () => {
   );
 
   it("rechecks project access before deleting from an already armed confirmation", async () => {
+    setup();
+    await using screen = await render(null);
     const actions = { onDelete: vi.fn(), onClose: vi.fn() };
-    await openEditor(undefined, request, actions);
+    await openEditor(screen, undefined, request, actions);
     await act(async () => deleteButton().click());
 
     permissions.canEditProject = false;

@@ -34,6 +34,7 @@ import {
 
 import {
   type CustomModelDefinition,
+  filterCustomModelCapabilities,
   readCustomModelEntries,
   toCustomModelSetting,
 } from "@supaterm/shared/model";
@@ -67,9 +68,9 @@ import { readCodexSetupMode } from "./CodexSetupSection.logic";
 import {
   getProviderVersionAdvisoryPresentation,
   PROVIDER_STATUS_STYLES,
+  getProviderStatusKey,
   getProviderSummary,
   getProviderVersionLabel,
-  type ProviderStatusKey,
 } from "./providerStatus";
 
 const ENVIRONMENT_VARIABLE_NAME_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
@@ -157,6 +158,7 @@ function nextConfigBlobWithValue(
 }
 
 export function deriveProviderModelsForDisplay(input: {
+  readonly driver: ProviderDriverKind;
   readonly liveModels: ReadonlyArray<ServerProviderModel> | undefined;
   readonly customModels: ReadonlyArray<CustomModelDefinition>;
 }): ReadonlyArray<ServerProviderModel> {
@@ -167,19 +169,19 @@ export function deriveProviderModelsForDisplay(input: {
   );
   const serverModels = input.liveModels?.filter((model) => !model.isCustom) ?? [];
   const serverSlugs = new Set(serverModels.map((model) => model.slug));
-  const customModels = input.customModels.flatMap((entry) =>
-    serverSlugs.has(entry.slug)
-      ? []
-      : [
-          {
-            slug: entry.slug,
-            name: entry.name,
-            isCustom: true,
-            capabilities:
-              entry.capabilities ?? liveCustomModelsBySlug.get(entry.slug)?.capabilities ?? null,
-          },
-        ],
-  );
+  const customModels = input.customModels.flatMap((entry) => {
+    if (serverSlugs.has(entry.slug)) return [];
+    const capabilities =
+      entry.capabilities ?? liveCustomModelsBySlug.get(entry.slug)?.capabilities ?? null;
+    return [
+      {
+        slug: entry.slug,
+        name: entry.name,
+        isCustom: true,
+        capabilities: filterCustomModelCapabilities(input.driver, capabilities),
+      },
+    ];
+  });
   return [...serverModels, ...customModels];
 }
 
@@ -651,13 +653,12 @@ export function ProviderInstanceCard({
   projectOverride,
 }: ProviderInstanceCardProps) {
   const enabled = projectOverride?.effectiveEnabled ?? resolveProviderInstanceEnabled(instance);
+  const effectiveProvider = liveProvider && { ...liveProvider, enabled };
   const compatibility = enabled ? liveProvider?.compatibilityAdvisory : undefined;
-  const statusKey: ProviderStatusKey = enabled
-    ? ((liveProvider?.status as ProviderStatusKey | undefined) ?? "warning")
-    : "disabled";
+  const statusKey = enabled ? getProviderStatusKey(effectiveProvider) : "disabled";
   const statusStyle = PROVIDER_STATUS_STYLES[statusKey];
   const summary = enabled
-    ? getProviderSummary(liveProvider && { ...liveProvider, enabled: true })
+    ? getProviderSummary(effectiveProvider)
     : { headline: "Disabled", detail: null };
   const authEmail = liveProvider?.auth.email?.trim();
   const isAuthenticated = enabled && liveProvider?.auth.status === "authenticated";
@@ -730,6 +731,7 @@ export function ProviderInstanceCard({
       ? NO_CUSTOM_MODELS
       : readCustomModelEntries(storedCustomModels);
   const modelsForDisplay = deriveProviderModelsForDisplay({
+    driver: instance.driver,
     liveModels: liveProvider?.models,
     customModels,
   });

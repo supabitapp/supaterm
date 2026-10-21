@@ -123,6 +123,7 @@ export function fromRunner(
         diffPatch: input.diffPatch,
         policy: input.policy,
         changeRequestTemplate: input.changeRequestTemplate,
+        threadContext: input.threadContext,
       }),
     });
     return { title: sanitizePrTitle(generated.title), body: generated.body.trim() };

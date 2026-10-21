@@ -30,7 +30,6 @@ import {
   THREAD_DETAILS_PANEL_ICON_CLASS,
   THREAD_DETAILS_PANEL_ROW_CONTENT_CLASS,
   THREAD_DETAILS_PANEL_ROW_HEIGHT_CLASS,
-  THREAD_DETAILS_PANEL_TEXT_CLASS,
 } from "./threadDetailsPanelStyles";
 
 const STATUS_DOT_CLASS: Record<ScheduledTask["lastRunStatus"], string> = {
@@ -63,6 +62,13 @@ function AutomationStatusIcon({ task, now }: { task: ScheduledTask; now: number 
       <TooltipPopup>{label}</TooltipPopup>
     </Tooltip>
   );
+}
+
+function taskScheduleLine(task: ScheduledTask, now: number) {
+  const schedule = scheduleLabel(task.schedule);
+  if (!task.enabled) return `${schedule} · paused`;
+  if (task.nextRunAt === null) return schedule;
+  return `${schedule} · ${nextRunLabel(task, now)}`;
 }
 
 export function ThreadAutomationsPanel(props: {
@@ -179,14 +185,20 @@ export function ThreadAutomationsPanel(props: {
             )}
           >
             <AutomationStatusIcon task={task} now={now} />
-            <div className="min-w-0 flex-1">
-              <span className={cn("block truncate", THREAD_DETAILS_PANEL_TEXT_CLASS)}>
-                {task.title}
-              </span>
-              <p className="truncate text-2xs text-muted-foreground">
-                {scheduleLabel(task.schedule)} · {nextRunLabel(task, now)}
-              </p>
-            </div>
+            <Tooltip>
+              <TooltipTrigger render={<div className="min-w-0 flex-1" />}>
+                <span className="block truncate text-sm font-medium text-foreground/80">
+                  {task.title}
+                </span>
+                <p className="truncate text-2xs text-muted-foreground">
+                  {taskScheduleLine(task, now)}
+                </p>
+              </TooltipTrigger>
+              <TooltipPopup side="left">
+                <p className="font-medium">{task.title}</p>
+                <p className="text-muted-foreground">{taskScheduleLine(task, now)}</p>
+              </TooltipPopup>
+            </Tooltip>
             <Tooltip>
               <TooltipTrigger
                 render={

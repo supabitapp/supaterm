@@ -2,7 +2,7 @@ import { Editor } from "@tiptap/core";
 import { TaskList } from "@tiptap/extension-task-list";
 import { TextSelection } from "@tiptap/pm/state";
 import StarterKit from "@tiptap/starter-kit";
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vite-plus/test";
 
 import {
   backspaceAcrossList,
@@ -17,12 +17,7 @@ import {
 import { buildDocJson, buildTiptapContent } from "./composer-rich-text-doc";
 import { serializeEditorDoc } from "./composer-rich-text-map";
 
-const editors: Editor[] = [];
-afterEach(() => {
-  for (const editor of editors.splice(0)) editor.destroy();
-});
-
-function makeEditor(value: string) {
+function makeEditor(value: string): Editor & Disposable {
   const editor = new Editor({
     extensions: [
       StarterKit.configure({
@@ -44,12 +39,11 @@ function makeEditor(value: string) {
     ],
     content: buildDocJson(value, (name) => ({ label: name, description: null })),
   });
-  editors.push(editor);
-  return editor;
+  return Object.assign(editor, { [Symbol.dispose]: () => editor.destroy() });
 }
 
 function splitLastItem(value: string, type: "listItem" | "taskItem", overrides: object) {
-  const editor = makeEditor(value);
+  using editor = makeEditor(value);
   editor.view.dispatch(editor.state.tr.setSelection(TextSelection.atEnd(editor.state.doc)));
   editor.commands.splitListItem(type, overrides);
   editor.view.dispatch(editor.state.tr.insertText("b"));
@@ -85,7 +79,8 @@ function placeCaret(editor: Editor, text: string, offset = 0) {
 
 function storedDraft(editor: Editor) {
   const stored = serializeEditorDoc(editor.state.doc).value;
-  expect(makeEditor(stored).state.doc.toString()).toBe(editor.state.doc.toString());
+  using reloaded = makeEditor(stored);
+  expect(reloaded.state.doc.toString()).toBe(editor.state.doc.toString());
   return stored;
 }
 
@@ -99,7 +94,7 @@ describe("Shift+Enter twice on an item", () => {
     ["- [ ] a\n  - [ ] x", "- [ ] a\n  - [ ] x\n- [ ] b"],
     ["- [x] a\n  - [ ] x\n- [ ] c", "- [x] a\n  - [ ] x\n- [ ] b\n- [ ] c"],
   ])("after x in %j writes %j", (value, expected) => {
-    const editor = makeEditor(value);
+    using editor = makeEditor(value);
     let caret = -1;
     editor.state.doc.descendants((node, pos) => {
       if (node.isText && node.text === "x") caret = pos + 1;
@@ -113,7 +108,8 @@ describe("Shift+Enter twice on an item", () => {
     const stored = serializeEditorDoc(editor.state.doc).value;
     expect(stored).toBe(expected);
 
-    expect(makeEditor(stored).state.doc.toString()).toBe(editor.state.doc.toString());
+    using reloaded = makeEditor(stored);
+    expect(reloaded.state.doc.toString()).toBe(editor.state.doc.toString());
   });
 });
 
@@ -123,7 +119,7 @@ describe("Shift+Enter in the middle of an ordered list", () => {
     ["1) a\n2) x\n3) c", "1) a\n2) x\n3) b\n4) c"],
     ["1. a\n   1. x\n   2. c\n2. d", "1. a\n   1. x\n   2. b\n   3. c\n2. d"],
   ])("after x in %j writes %j", (value, expected) => {
-    const editor = makeEditor(value);
+    using editor = makeEditor(value);
     placeCaret(editor, "x", 1);
     expect(splitOrLiftListItem(editor)).toBe(true);
     editor.view.dispatch(editor.state.tr.insertText("b"));
@@ -133,7 +129,7 @@ describe("Shift+Enter in the middle of an ordered list", () => {
 
 describe("Shift+Enter on an empty task under a bullet", () => {
   it.each(["- a\n  - [ ] x", "- [ ] a\n  - x"])("in %j keeps the draft honest", (value) => {
-    const editor = makeEditor(value);
+    using editor = makeEditor(value);
     placeCaret(editor, "x", 1);
     splitOrLiftListItem(editor);
     splitOrLiftListItem(editor);
@@ -152,7 +148,7 @@ describe("Backspace at the start of a line", () => {
     ["- a\n  - x\nb", "b", "- a\n  - xb"],
     ["1. a\nb", "b", "1. ab"],
   ])("in %j at %s writes %j", (value, at, expected) => {
-    const editor = makeEditor(value);
+    using editor = makeEditor(value);
     placeCaret(editor, at);
     expect(backspaceAcrossList(editor)).toBe(true);
     expect(storedDraft(editor)).toBe(expected);
@@ -162,7 +158,7 @@ describe("Backspace at the start of a line", () => {
     ["- a\n```\nl1\nl2\n```", "- a\nl1\nl2"],
     ["p\n```ts\nl1\n```", "p\nl1"],
   ])("removes the fence of %j rather than joining its code up", (value, expected) => {
-    const editor = makeEditor(value);
+    using editor = makeEditor(value);
     placeCaret(editor, "l1");
     editor.commands.keyboardShortcut("Backspace");
     expect(storedDraft(editor)).toBe(expected);
@@ -175,14 +171,14 @@ describe("Delete at the end of a line", () => {
     ["- a\n  - x\n- c", "- ax\n- c"],
     ["- a\n\nb", "- a\nb"],
   ])("in %j writes %j", (value, expected) => {
-    const editor = makeEditor(value);
+    using editor = makeEditor(value);
     placeCaret(editor, "a", 1);
     expect(deleteAcrossList(editor)).toBe(true);
     expect(storedDraft(editor)).toBe(expected);
   });
 
   it.each(["- a\n```\nl1\n```", "a\n```\nl1\n```"])("leaves the fence in %j alone", (value) => {
-    const editor = makeEditor(value);
+    using editor = makeEditor(value);
     placeCaret(editor, "a", 1);
     editor.commands.keyboardShortcut("Delete");
     expect(storedDraft(editor)).toBe(value);
@@ -191,7 +187,7 @@ describe("Delete at the end of a line", () => {
 
 describe("blocks that a list item or quote cannot hold", () => {
   it("puts lines pasted at the end of an item after the list", () => {
-    const editor = makeEditor("- a");
+    using editor = makeEditor("- a");
     editor.view.dispatch(editor.state.tr.setSelection(TextSelection.atEnd(editor.state.doc)));
     const lines = buildTiptapContent("one\ntwo", (name) => ({ label: name, description: null }));
     editor.commands.insertContent(lines);
@@ -199,7 +195,7 @@ describe("blocks that a list item or quote cannot hold", () => {
   });
 
   it("will not make a task list inside a quote", () => {
-    const editor = makeEditor("> q");
+    using editor = makeEditor("> q");
     placeCaret(editor, "q");
     expect(editor.commands.wrapInList("taskList")).toBe(false);
     expect(storedDraft(editor)).toBe("> q");
@@ -215,7 +211,7 @@ describe("[ ] typed at the start of a bullet item", () => {
     ["- [ ]x\n  - y", "- [ ] x\n  - y"],
     ["-   [ ]x", "-   [ ] x"],
   ])("makes the item in %j a task where it stands", (value, expected) => {
-    const editor = makeEditor(value);
+    using editor = makeEditor(value);
     placeCaret(editor, "[ ]x");
     const from = editor.state.selection.from;
     editor.view.dispatch(
@@ -232,7 +228,7 @@ describe("[ ] typed at the start of a bullet item", () => {
 
 describe("a rule at the end of the draft", () => {
   it("keeps an empty line after it to type on", () => {
-    const editor = makeEditor("a\n---");
+    using editor = makeEditor("a\n---");
 
     editor.view.dispatch(
       editor.state.tr.delete(editor.state.doc.content.size - 2, editor.state.doc.content.size),

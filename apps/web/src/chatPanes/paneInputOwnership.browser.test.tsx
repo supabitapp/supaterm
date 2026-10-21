@@ -1,30 +1,25 @@
 import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@supaterm/shared/keybindings";
-import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { act, render as renderUi, type Screen } from "../../test/render";
+import { describe, expect, it } from "vite-plus/test";
 
 import { dispatchAppCommand } from "../appCommandBus";
 import { useChatShortcuts } from "../components/chat/useChatShortcuts";
 import { PaneScopeProvider, usePaneInputOwner } from "./paneScope";
 import { useChatPaneStore } from "./store";
 
-let root: Root;
-let container: HTMLDivElement;
+let screen: Screen;
 
-beforeEach(() => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
-});
+async function setupTest() {
+  await using resources = new AsyncDisposableStack();
+  resources.defer(() => {
+    useChatPaneStore.setState({ layout: null, closed: [], openToSide: null });
+  });
 
-afterEach(async () => {
-  await act(() => root.unmount());
-  container.remove();
-  useChatPaneStore.setState({ layout: null, closed: [], openToSide: null });
-  vi.unstubAllGlobals();
-});
+  screen = resources.use(await renderUi(null, { router: false }));
+
+  return resources.move();
+}
 
 function PaneShortcuts({ onFind }: { onFind: () => void }) {
   const isInputOwner = usePaneInputOwner();
@@ -58,6 +53,7 @@ const thread = (id: string) => ({
 
 describe("chat shortcuts in a split", () => {
   it.each(["keyboard", "command"])("run only in the focused pane via %s", async (input) => {
+    await using _test = await setupTest();
     const store = useChatPaneStore.getState();
     store.reconcileRoute(thread("a"), { width: 1600, height: 900 });
     const first = useChatPaneStore.getState().layout!.focusedPaneId;
@@ -70,17 +66,15 @@ describe("chat shortcuts in a split", () => {
       collapsed: false,
       element: null,
     });
-    await act(() =>
-      root.render(
-        <>
-          <PaneScopeProvider value={scope(first)}>
-            <PaneShortcuts onFind={() => found.push("first")} />
-          </PaneScopeProvider>
-          <PaneScopeProvider value={scope(second)}>
-            <PaneShortcuts onFind={() => found.push("second")} />
-          </PaneScopeProvider>
-        </>,
-      ),
+    await screen.rerender(
+      <>
+        <PaneScopeProvider value={scope(first)}>
+          <PaneShortcuts onFind={() => found.push("first")} />
+        </PaneScopeProvider>
+        <PaneScopeProvider value={scope(second)}>
+          <PaneShortcuts onFind={() => found.push("second")} />
+        </PaneScopeProvider>
+      </>,
     );
     const pressFind = () =>
       input === "command"
@@ -99,7 +93,7 @@ describe("chat shortcuts in a split", () => {
     pressFind();
     expect(found).toEqual(["second"]);
 
-    act(() => useChatPaneStore.getState().focus(first));
+    await act(() => useChatPaneStore.getState().focus(first));
     pressFind();
     expect(found).toEqual(["second", "first"]);
   });

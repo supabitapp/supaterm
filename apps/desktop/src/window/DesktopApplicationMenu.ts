@@ -258,6 +258,16 @@ export const make = Effect.gen(function* () {
             visible: false,
             click: zoomClick("in"),
           },
+          ...(environment.platform === "darwin"
+            ? [
+                {
+                  label: "Zoom In",
+                  accelerator: "CmdOrCtrl+Shift+=",
+                  visible: false,
+                  click: zoomClick("in"),
+                },
+              ]
+            : []),
           { label: "Zoom Out", accelerator: "CmdOrCtrl+-", click: zoomClick("out") },
 
           {

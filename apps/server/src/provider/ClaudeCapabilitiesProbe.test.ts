@@ -296,6 +296,7 @@ it.layer(NodeServices.layer)("Claude capability probe SDK boundary", (it) => {
 
       assert.deepEqual(capabilities, {
         email: "dev@example.com",
+        fastModeDisabledReason: "extra_usage_disabled",
         subscriptionType: "pro",
         tokenSource: "oauth",
         apiKeySource: undefined,
@@ -311,6 +312,7 @@ it.layer(NodeServices.layer)("Claude capability probe SDK boundary", (it) => {
           rate_limits_available: true,
           rate_limits: { five_hour: { utilization: 12, resets_at: "2026-07-18T14:39:00Z" } },
         },
+        usageCheckedAt: "1970-01-01T00:00:00.000Z",
       });
 
       const invocation = JSON.parse(yield* fs.readFileString(invocationPath)) as {

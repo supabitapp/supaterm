@@ -23,6 +23,7 @@ import {
   ThreadId,
 } from "@supaterm/contracts";
 import { sanitizeNewRefName } from "@supaterm/shared/git";
+import { threadContextsOutsideEnvironment } from "@supaterm/shared/composerContextReferences";
 import { resolveNewThreadEnvMode, resolveProjectSettings } from "@supaterm/shared/projectSettings";
 import { parseSupatermProjectFile } from "@supaterm/shared/supatermProjectFile";
 import * as Arr from "effect/Array";
@@ -518,13 +519,19 @@ export function NewTaskFlowProvider(props: React.PropsWithChildren) {
     canReadFiles && selectedProject !== null && selectedProject.workspaceRoot !== ""
       ? projectEnvironment.readFile({
           environmentId: selectedProject.environmentId,
-          input: { cwd: selectedProject.workspaceRoot, relativePath: SUPATERM_PROJECT_FILE_NAME },
+          input: {
+            cwd: selectedProject.workspaceRoot,
+            relativePath: SUPATERM_PROJECT_FILE_NAME,
+            allowMissing: true,
+          },
         })
       : null,
   );
   const supatermProjectFileData = supatermProjectFileQuery.data as ProjectReadFileResult | null;
   const supatermProjectFile =
-    supatermProjectFileData === null || supatermProjectFileData.truncated
+    supatermProjectFileData === null ||
+    supatermProjectFileData.exists === false ||
+    supatermProjectFileData.truncated
       ? null
       : parseSupatermProjectFile(supatermProjectFileData.contents);
   const projectSettings = resolveProjectSettings(
@@ -1016,6 +1023,15 @@ export function NewTaskFlowProvider(props: React.PropsWithChildren) {
         selectedProject.id,
       ) ?? selectedModel;
     if ((text.length === 0 && draft.attachments.length === 0) || !draftModelSelection) {
+      return null;
+    }
+    if (
+      threadContextsOutsideEnvironment({
+        text: draft.text,
+        records: draft.context?.records ?? [],
+        environmentId: selectedProject.environmentId,
+      }).length > 0
+    ) {
       return null;
     }
     const workspaceSelection = canChooseWorkspace ? draft.workspaceSelection : undefined;

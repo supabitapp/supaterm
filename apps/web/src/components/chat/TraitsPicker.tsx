@@ -23,6 +23,7 @@ import {
   type SpeedToggle,
   type SpeedToggleLevel,
 } from "@supaterm/client-runtime/provider-speed-toggle";
+import { REASONING_EFFORT_OPTION_IDS } from "@supaterm/client-runtime/state/thread-execution";
 import { memo } from "react";
 import { BrainIcon, ZapIcon } from "lucide-react";
 import { UltrafastIcon } from "../Icons";
@@ -100,10 +101,7 @@ type TraitsPersistence =
 const ULTRATHINK_PROMPT_PREFIX = "Ultrathink:\n";
 
 const REASONING_SELECT_DESCRIPTOR_IDS: ReadonlySet<string> = new Set([
-  "reasoningEffort",
-  "reasoning",
-  "effort",
-  "variant",
+  ...REASONING_EFFORT_OPTION_IDS,
   "thinking",
 ]);
 

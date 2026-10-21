@@ -5,6 +5,7 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
 import {
+  EnvironmentId,
   ProjectId,
   ThreadId,
   type DesktopAppActivationRequest,
@@ -96,6 +97,15 @@ describe("desktop app control server", () => {
           userId,
           handle: async (input) => {
             received.push(input);
+            if (input.type === "add-connection") {
+              return {
+                version: 1,
+                requestId: input.requestId,
+                ok: true,
+                result: "connection-added",
+                environmentId: EnvironmentId.make("remote-environment"),
+              };
+            }
             return {
               version: 1,
               requestId: input.requestId,
@@ -113,6 +123,19 @@ describe("desktop app control server", () => {
 
         expect(received).toHaveLength(1);
         expect(response).toMatchObject({ ok: true, requestId: "request-1" });
+        const connectionRequest = {
+          version: 1,
+          requestId: "request-2",
+          type: "add-connection",
+          pairingUrl: "https://remote.example/pair#token=secret",
+        } as const;
+        const connectionResponse = await exchange(target.address, connectionRequest);
+        expect(received[1]).toEqual(connectionRequest);
+        expect(connectionResponse).toMatchObject({
+          ok: true,
+          result: "connection-added",
+          environmentId: "remote-environment",
+        });
         await server.close();
         openServers.splice(openServers.indexOf(server), 1);
         if (target.directory !== null) {

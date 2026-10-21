@@ -61,4 +61,13 @@ describe("ExecutionEnvironmentDescriptor", () => {
       }).capabilities.fileAttachments,
     ).toEqual({ maxUploadBytes: 50 * 1024 * 1024 });
   });
+  it("enables thread Stop only when advertised by the server", () => {
+    expect(decodeDescriptor(descriptor).capabilities.threadStop).toBeUndefined();
+    expect(
+      decodeDescriptor({
+        ...descriptor,
+        capabilities: { ...descriptor.capabilities, threadStop: true },
+      }).capabilities.threadStop,
+    ).toBe(true);
+  });
 });

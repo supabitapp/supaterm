@@ -1,6 +1,14 @@
+import type { ConnectionAttemptError } from "@supaterm/client-runtime/connection";
+import type { ConnectionPersistenceError } from "@supaterm/client-runtime/platform";
+import type { AtomCommandResult } from "@supaterm/client-runtime/state/runtime";
+import * as Cause from "effect/Cause";
+import * as Option from "effect/Option";
 import type {
   DesktopAppActivationFailure,
   DesktopAppActivationRequest,
+  DesktopAppOpenWorkspaceRequest,
+  DesktopAppAddConnectionRequest,
+  DesktopAppActivationPlatform,
   DesktopAppActivationResponse,
   EnvironmentId,
   ExecutionEnvironmentPlatformOs,
@@ -45,7 +53,7 @@ function failure(
 }
 
 function desktopPlatformToEnvironmentOs(
-  platform: DesktopAppActivationRequest["platform"],
+  platform: DesktopAppActivationPlatform,
 ): ExecutionEnvironmentPlatformOs {
   return platform === "win32" ? "windows" : platform;
 }
@@ -55,7 +63,7 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 export async function handleDesktopAppActivationRequest(
-  request: DesktopAppActivationRequest,
+  request: DesktopAppOpenWorkspaceRequest,
   dependencies: DesktopAppActivationDependencies,
 ): Promise<DesktopAppActivationResponse> {
   const target = dependencies.getTarget();
@@ -116,4 +124,78 @@ export async function handleDesktopAppActivationRequest(
       errorMessage(error, "Supaterm could not open a new thread for the project."),
     );
   }
+}
+
+export async function handleDesktopAppConnectionRequest(
+  request: DesktopAppAddConnectionRequest,
+  registerPairing: (input: {
+    readonly pairingUrl: string;
+  }) => Promise<
+    AtomCommandResult<EnvironmentId, ConnectionAttemptError | ConnectionPersistenceError>
+  >,
+): Promise<DesktopAppActivationResponse> {
+  const result = await registerPairing({ pairingUrl: request.pairingUrl });
+  if (result._tag === "Success") {
+    return {
+      version: 1,
+      requestId: request.requestId,
+      ok: true,
+      result: "connection-added",
+      environmentId: result.value,
+    };
+  }
+  const error = Cause.findErrorOption(result.cause);
+  if (Option.isNone(error)) {
+    return failure(
+      request.requestId,
+      "internal-error",
+      "Supaterm could not complete the connection request.",
+    );
+  }
+  if (error.value._tag === "ConnectionPersistenceError") {
+    return failure(
+      request.requestId,
+      "connection-save-failed",
+      "Supaterm could not save the connection. Check secure storage and try pairing again.",
+    );
+  }
+  return failure(
+    request.requestId,
+    "pairing-failed",
+    "Supaterm could not pair with the environment. Check its address and use a fresh pairing link.",
+  );
+}
+
+export function createDesktopAppActivationRunner() {
+  let running = false;
+  return async (
+    request: DesktopAppActivationRequest,
+    process: (request: DesktopAppActivationRequest) => Promise<DesktopAppActivationResponse>,
+    complete: (response: DesktopAppActivationResponse) => Promise<void>,
+  ) => {
+    if (running) {
+      await complete(
+        failure(
+          request.requestId,
+          "request-busy",
+          "The desktop app is handling another command. Try again after it finishes.",
+        ),
+      );
+      return;
+    }
+    running = true;
+    let response: DesktopAppActivationResponse;
+    try {
+      response = await process(request);
+    } catch {
+      response = failure(
+        request.requestId,
+        "internal-error",
+        "Supaterm could not complete the desktop request.",
+      );
+    } finally {
+      running = false;
+    }
+    await complete(response);
+  };
 }

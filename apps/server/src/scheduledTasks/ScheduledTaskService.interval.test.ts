@@ -10,6 +10,7 @@ import { afterEach, vi } from "vite-plus/test";
 import * as ThreadLaunchService from "../orchestration-v2/ThreadLaunchService.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
+import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
 import * as Scheduler from "../scheduling/Scheduler.ts";
 import { ServerActivation } from "../serverActivation.ts";
 import * as ScheduledTaskService from "./ScheduledTaskService.ts";
@@ -21,6 +22,10 @@ const dependencies = Layer.mergeAll(
   Scheduler.layer,
   Layer.mock(ThreadLaunchService.ThreadLaunchService)({
     launch: () => Effect.die("synthetic dispatch failure"),
+  }),
+  Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
+    namedProjectsRoot: "/projects",
+    isScratchProject: () => Effect.succeed(false),
   }),
   Layer.mock(ThreadManagementService.ThreadManagementService)({}),
 );
@@ -87,6 +92,7 @@ it.effect.each([
 
       const completed = yield* service.runNow({ id: created.task.id });
       expect(completed.task.lastRunStatus).toBe("failed");
+      expect(completed.threadId).toBeNull();
       expect(completed.task.runCount).toBe(1);
       expect(completed.task.nextRunAt).toBe(expected);
       expect((yield* service.list()).tasks[0]?.nextRunAt).toBe(expected);

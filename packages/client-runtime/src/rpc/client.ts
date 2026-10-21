@@ -31,6 +31,7 @@ export class EnvironmentRpcUnavailableError extends Schema.TaggedError<Environme
 
 export interface EnvironmentRpcRequestObservation {
   readonly environmentId: string;
+  readonly environmentLabel: string;
   readonly method: string;
 }
 
@@ -147,6 +148,13 @@ const currentSession = Effect.fn("EnvironmentRpc.currentSession")(function* () {
   );
 });
 
+export const getInitialServerConfig = Effect.fn("EnvironmentRpc.getInitialServerConfig")(
+  function* () {
+    const session = yield* currentSession();
+    return yield* session.initialConfig;
+  },
+);
+
 /** Installed by the shared command boundary. A missing boundary denies protected writes. */
 export class RpcPermissionGuard extends Context.Reference<{
   readonly authorize: (
@@ -196,6 +204,7 @@ export const requestGuarded = Effect.fn("EnvironmentRpc.request")(function* <
   ) => Effect.Effect<EnvironmentRpcSuccess<TTag>, EnvironmentRpcFailure<TTag>>;
   const completeObservation = yield* observer.observe({
     environmentId: supervisor.target.environmentId,
+    environmentLabel: supervisor.target.label,
     method: tag,
   });
   return yield* method(input).pipe(Effect.ensuring(completeObservation));

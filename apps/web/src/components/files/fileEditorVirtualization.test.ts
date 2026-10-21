@@ -198,7 +198,7 @@ beforeAll(async () => {
   await getSharedHighlighter({
     themes: ["pierre-dark"],
     langs: ["text"],
-    preferredHighlighter: "shiki-wasm",
+    preferredHighlighter: "highlights",
   });
 });
 
@@ -243,7 +243,7 @@ async function makeFixture(
       overflow,
       disableFileHeader: true,
       theme: "pierre-dark",
-      preferredHighlighter: "shiki-wasm",
+      preferredHighlighter: "highlights",
       useTokenTransformer: true,
       controlledSelection: true,
     },
@@ -641,7 +641,7 @@ async function makeEditorFixture(lineCount: number) {
   const highlighter = await getSharedHighlighter({
     themes: ["pierre-dark"],
     langs: ["text"],
-    preferredHighlighter: "shiki-wasm",
+    preferredHighlighter: "highlights",
   });
   const editor = new Editor("file");
   editors.push(editor);

@@ -92,6 +92,12 @@ function createMeasurements(bundle: string, initialHeight: number) {
   );
   class Element {
     height = initialHeight;
+    get offsetHeight() {
+      return this.height;
+    }
+    get offsetWidth() {
+      return 400;
+    }
     getBoundingClientRect() {
       return { height: this.height, width: 400, left: 0, top: 0 };
     }

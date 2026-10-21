@@ -14,6 +14,8 @@ import type {
   ProjectEntry,
   ProjectListEntriesInput,
   ProjectListEntriesResult,
+  ProjectListIgnoredFilesInput,
+  ProjectListIgnoredFilesResult,
   ProjectSearchContentsInput,
   ProjectSearchContentsResult,
   ProjectSearchEntriesInput,
@@ -99,12 +101,18 @@ export class WorkspaceEntries extends Context.Service<
     readonly search: (
       input: ProjectSearchEntriesInput,
     ) => Effect.Effect<ProjectSearchEntriesResult, WorkspaceEntriesError>;
+    readonly listIgnoredFiles: (
+      input: ProjectListIgnoredFilesInput,
+    ) => Effect.Effect<ProjectListIgnoredFilesResult, WorkspaceEntriesError>;
     readonly searchContents: (
       input: ProjectSearchContentsInput,
     ) => Effect.Effect<ProjectSearchContentsResult, WorkspaceEntriesError>;
     readonly refresh: (cwd: string) => Effect.Effect<void>;
   }
 >()("supaterm/workspace/WorkspaceEntries") {}
+
+/** Ignored files offered for copying; more than this is a build folder, not config. */
+const IGNORED_FILES_LIMIT = 200;
 
 /** Paths sent to one `git check-ignore` call when labelling a folder's children. */
 const IGNORE_CHECK_CHUNK_SIZE = 1000;
@@ -160,20 +168,21 @@ export const make = Effect.gen(function* () {
         if (!(yield* RcMap.has(workspaceSearchIndexes.rcMap, indexKey))) {
           continue;
         }
-        const recoverRefreshFailure = (
-          cause:
-            | WorkspaceSearchIndex.WorkspaceSearchIndexCreateFailed
-            | WorkspaceSearchIndex.WorkspaceSearchIndexScanTimedOut
-            | WorkspaceSearchIndex.WorkspaceSearchIndexRefreshFailed,
-        ) =>
-          Effect.gen(function* () {
+        const recoverRefreshFailure = Effect.fn("WorkspaceEntries.recoverRefreshFailure")(
+          function* (
+            cause:
+              | WorkspaceSearchIndex.WorkspaceSearchIndexCreateFailed
+              | WorkspaceSearchIndex.WorkspaceSearchIndexScanTimedOut
+              | WorkspaceSearchIndex.WorkspaceSearchIndexRefreshFailed,
+          ) {
             yield* Effect.logWarning("Failed to refresh workspace search index", {
               cwd,
               variant,
               cause,
             });
             yield* workspaceSearchIndexes.invalidate(indexKey);
-          });
+          },
+        );
         yield* Effect.gen(function* () {
           const searchIndex = yield* WorkspaceSearchIndex.WorkspaceSearchIndex;
           yield* searchIndex.refresh();
@@ -387,7 +396,56 @@ export const make = Effect.gen(function* () {
     },
   );
 
-  return WorkspaceEntries.of({ browse, list, refresh, search, searchContents });
+  const listIgnoredFiles: WorkspaceEntries["Service"]["listIgnoredFiles"] = Effect.fn(
+    "WorkspaceEntries.listIgnoredFiles",
+  )(function* (input) {
+    const normalizedCwd = yield* normalizeWorkspaceRoot(input.cwd);
+    // `--directory` reports a folder holding nothing but ignored files as one
+    // `name/` entry, which is how `node_modules` and build output drop out.
+    const result = yield* vcsProcess
+      .run({
+        operation: "WorkspaceEntries.listIgnoredFiles",
+        command: "git",
+        args: [
+          "-c",
+          "core.fsmonitor=false",
+          "ls-files",
+          "--others",
+          "--ignored",
+          "--exclude-standard",
+          "--directory",
+          "--no-empty-directory",
+          "-z",
+        ],
+        cwd: normalizedCwd,
+        allowNonZeroExit: true,
+        timeoutMs: 10_000,
+        maxOutputBytes: 4 * 1024 * 1024,
+      })
+      .pipe(Effect.orElseSucceed(() => undefined));
+    if (!result || result.exitCode !== 0) return { files: [], truncated: false };
+    const paths = result.stdout
+      .split("\0")
+      .filter((entry) => entry.length > 0 && !entry.endsWith("/"))
+      .toSorted();
+    const files = yield* Effect.promise(() =>
+      Promise.all(
+        paths.slice(0, IGNORED_FILES_LIMIT).map(async (relativePath) => {
+          // lstat: a symlink usually points outside the workspace, where reads refuse to go.
+          const stat = await NodeFSP.lstat(path.join(normalizedCwd, relativePath)).catch(
+            () => null,
+          );
+          return stat?.isFile() ? { path: relativePath, byteLength: stat.size } : null;
+        }),
+      ),
+    );
+    return {
+      files: files.filter((file) => file !== null),
+      truncated: paths.length > IGNORED_FILES_LIMIT,
+    };
+  });
+
+  return WorkspaceEntries.of({ browse, list, listIgnoredFiles, refresh, search, searchContents });
 });
 
 export const layer = Layer.effect(WorkspaceEntries, make).pipe(

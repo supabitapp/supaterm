@@ -1,3 +1,4 @@
+import { isProviderSkillUserInvocable } from "@supaterm/client-runtime/providerSkills";
 import { filePreviewKind } from "@supaterm/shared/filePreview";
 import { videoMimeType } from "@supaterm/shared/video";
 import {
@@ -9,6 +10,7 @@ import {
   type PullRequestContextMetadata,
   type ReviewCommentContextRecord,
   type ScopedThreadRef,
+  type ServerProviderSkill,
   type ThreadContextRecord,
 } from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
@@ -146,11 +148,32 @@ export function pullRequestComposerContext(
   };
 }
 
-export function composerContextEditorTokens(text: string, tokens: readonly ComposerInlineToken[]) {
+export function composerSkillLabels(
+  skills: ReadonlyArray<
+    Pick<ServerProviderSkill, "name" | "displayName" | "enabled" | "userInvocable">
+  >,
+) {
+  return new Map(
+    skills.flatMap((skill) =>
+      isProviderSkillUserInvocable(skill)
+        ? [[skill.name, skill.displayName?.trim() || skill.name] as const]
+        : [],
+    ),
+  );
+}
+
+export function composerContextEditorTokens(
+  text: string,
+  tokens: readonly ComposerInlineToken[],
+  knownSkills: { has(name: string): boolean },
+) {
   const references = collectComposerContextReferences(text);
   return [
     ...tokens.filter(
-      (token) => !references.some((ref) => token.start < ref.end && token.end > ref.start),
+      (token) =>
+        // `$HOME` and other `$name` text that is not one of the provider's skills stays prose.
+        (token.type !== "skill" || knownSkills.has(token.value)) &&
+        !references.some((ref) => token.start < ref.end && token.end > ref.start),
     ),
     ...references.map((ref) => ({
       type: "context" as const,

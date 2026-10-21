@@ -328,39 +328,20 @@ export function openCodeCommandsToServerProviderSlashCommands(
   return commands;
 }
 
-export const makePendingOpenCodeProvider = (
-  openCodeSettings: OpenCodeSettings,
-): Effect.Effect<ServerProviderDraft> =>
-  Effect.gen(function* () {
-    const checkedAt = yield* Effect.map(DateTime.now, DateTime.formatIso);
-    const models = providerModelsFromSettings(
-      [],
-      openCodeSettings.customModels,
-      DEFAULT_OPENCODE_MODEL_CAPABILITIES,
-    );
+export const makePendingOpenCodeProvider = Effect.fn(
+  "OpencodeProviderStatus.makePendingOpenCodeProvider",
+)(function* (openCodeSettings: OpenCodeSettings): Effect.fn.Return<ServerProviderDraft> {
+  const checkedAt = yield* Effect.map(DateTime.now, DateTime.formatIso);
+  const models = providerModelsFromSettings(
+    [],
+    openCodeSettings.customModels,
+    DEFAULT_OPENCODE_MODEL_CAPABILITIES,
+  );
 
-    if (!openCodeSettings.enabled) {
-      return buildServerProvider({
-        presentation: OPENCODE_PRESENTATION,
-        enabled: false,
-        checkedAt,
-        models,
-        probe: {
-          installed: false,
-          version: null,
-          status: "warning",
-          auth: { status: "unknown" },
-          message:
-            openCodeSettings.serverUrl.trim().length > 0
-              ? "OpenCode is disabled in Supaterm settings. A server URL is configured."
-              : "OpenCode is disabled in Supaterm settings.",
-        },
-      });
-    }
-
+  if (!openCodeSettings.enabled) {
     return buildServerProvider({
       presentation: OPENCODE_PRESENTATION,
-      enabled: true,
+      enabled: false,
       checkedAt,
       models,
       probe: {
@@ -368,10 +349,28 @@ export const makePendingOpenCodeProvider = (
         version: null,
         status: "warning",
         auth: { status: "unknown" },
-        message: "OpenCode provider status has not been checked in this session yet.",
+        message:
+          openCodeSettings.serverUrl.trim().length > 0
+            ? "OpenCode is disabled in Supaterm settings. A server URL is configured."
+            : "OpenCode is disabled in Supaterm settings.",
       },
     });
+  }
+
+  return buildServerProvider({
+    presentation: OPENCODE_PRESENTATION,
+    enabled: true,
+    checkedAt,
+    models,
+    probe: {
+      installed: false,
+      version: null,
+      status: "warning",
+      auth: { status: "unknown" },
+      message: "OpenCode provider status has not been checked in this session yet.",
+    },
   });
+});
 
 export interface OpenCode2Model {
   readonly providerID: string;
@@ -459,16 +458,14 @@ export interface OpenCode2Workspace {
  * for the directory end the scan. `scanned` must be listening before `read` runs, since
  * the read is what starts the scan.
  */
-export const loadOpenCode2Workspace = <E>(
-  read: Effect.Effect<OpenCode2Workspace, E>,
-  scanned: Effect.Effect<void>,
-) =>
-  Effect.gen(function* () {
+export const loadOpenCode2Workspace = Effect.fn("OpencodeProviderStatus.loadOpenCode2Workspace")(
+  function* <E>(read: Effect.Effect<OpenCode2Workspace, E>, scanned: Effect.Effect<void>) {
     const first = yield* read;
     if (first.commands.length > 0) return first;
     yield* scanned.pipe(Effect.timeoutOption("10 seconds"));
     return yield* read;
-  });
+  },
+);
 
 export function openCode2SkillsToServerProviderSkills(
   skills: OpenCode2Workspace["skills"],
@@ -675,7 +672,6 @@ export const checkOpenCodeProviderStatus = Effect.fn("checkOpenCodeProviderStatu
   if (probed.generation === "v2") {
     return yield* checkOpenCode2(openCodeSettings, probed.version, checkedAt, loadOpenCode2Models);
   }
-  let version: string | null = probed.version;
   if (compareSemverVersions(probed.version, OpenCodeRuntime.MINIMUM_OPENCODE_VERSION) < 0) {
     return buildServerProvider({
       presentation: OPENCODE_PRESENTATION,
@@ -692,20 +688,23 @@ export const checkOpenCodeProviderStatus = Effect.fn("checkOpenCodeProviderStatu
     });
   }
 
-  const loadInventory = (server: {
+  const installedVersion = isExternalServer ? {} : { installedVersion: probed.version };
+  let version = probed.version;
+  const loadInventory = Effect.fnUntraced(function* (server: {
     readonly url: string;
     readonly serverPassword?: string;
     readonly version: string;
-  }) =>
-    openCodeRuntime
-      .loadOpenCodeInventory(
-        openCodeRuntime.createOpenCodeSdkClient({
-          baseUrl: server.url,
-          directory: cwd,
-          ...(server.serverPassword !== undefined ? { serverPassword: server.serverPassword } : {}),
-        }),
-      )
-      .pipe(Effect.map((inventory) => ({ inventory, version: server.version })));
+  }) {
+    // Preserve the helper's version even when its inventory request fails.
+    version = server.version;
+    return yield* openCodeRuntime.loadOpenCodeInventory(
+      openCodeRuntime.createOpenCodeSdkClient({
+        baseUrl: server.url,
+        directory: cwd,
+        ...(server.serverPassword !== undefined ? { serverPassword: server.serverPassword } : {}),
+      }),
+    );
+  });
   const inventoryEffect = isExternalServer
     ? openCodeRuntime
         .connectToOpenCodeServer({
@@ -730,41 +729,43 @@ export const checkOpenCodeProviderStatus = Effect.fn("checkOpenCodeProviderStatu
     ),
   );
   if (inventoryExit._tag === "Failure") {
-    return fallback(Cause.squash(inventoryExit.cause), version, "inventory");
+    return {
+      ...fallback(Cause.squash(inventoryExit.cause), version, "inventory"),
+      ...installedVersion,
+    };
   }
 
-  version = inventoryExit.value.version;
-
   const models = providerModelsFromSettings(
-    flattenOpenCodeModels(inventoryExit.value.inventory),
+    flattenOpenCodeModels(inventoryExit.value),
     customModels,
     DEFAULT_OPENCODE_MODEL_CAPABILITIES,
   );
-  const skills = openCodeSkillsToServerProviderSkills(inventoryExit.value.inventory.skills);
-  const connectedCount = inventoryExit.value.inventory.providerList.connected.length;
-  return buildServerProvider({
-    presentation: OPENCODE_PRESENTATION,
-    enabled: true,
-    checkedAt,
-    models,
-    skills,
-    slashCommands: openCodeCommandsToServerProviderSlashCommands(
-      inventoryExit.value.inventory.commands,
-    ),
-    probe: {
-      installed: true,
-      version,
-      status: connectedCount > 0 ? "ready" : "warning",
-      auth: {
-        status: connectedCount > 0 ? "authenticated" : "unknown",
-        type: "opencode",
+  const skills = openCodeSkillsToServerProviderSkills(inventoryExit.value.skills);
+  const connectedCount = inventoryExit.value.providerList.connected.length;
+  return {
+    ...buildServerProvider({
+      presentation: OPENCODE_PRESENTATION,
+      enabled: true,
+      checkedAt,
+      models,
+      skills,
+      slashCommands: openCodeCommandsToServerProviderSlashCommands(inventoryExit.value.commands),
+      probe: {
+        installed: true,
+        version,
+        status: connectedCount > 0 ? "ready" : "warning",
+        auth: {
+          status: connectedCount > 0 ? "authenticated" : "unknown",
+          type: "opencode",
+        },
+        message:
+          connectedCount > 0
+            ? `${connectedCount} upstream provider${connectedCount === 1 ? "" : "s"} connected through ${isExternalServer ? "the configured OpenCode server" : "OpenCode"}.`
+            : isExternalServer
+              ? "Connected to the configured OpenCode server, but it did not report any connected upstream providers."
+              : "OpenCode is available, but it did not report any connected upstream providers.",
       },
-      message:
-        connectedCount > 0
-          ? `${connectedCount} upstream provider${connectedCount === 1 ? "" : "s"} connected through ${isExternalServer ? "the configured OpenCode server" : "OpenCode"}.`
-          : isExternalServer
-            ? "Connected to the configured OpenCode server, but it did not report any connected upstream providers."
-            : "OpenCode is available, but it did not report any connected upstream providers.",
-    },
-  });
+    }),
+    ...installedVersion,
+  };
 });

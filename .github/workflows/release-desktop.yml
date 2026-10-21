@@ -56,6 +56,13 @@ on:
         required: false
         default: false
         type: boolean
+      # A runner of the target's own platform and architecture, for a `runner`
+      # that cannot execute the target. The build job skips everything that
+      # runs the packaged binaries, and a second job runs it there.
+      verify_runner:
+        required: false
+        default: ""
+        type: string
       version:
         required: true
         type: string
@@ -87,6 +94,7 @@ jobs:
       INPUTS_RESOURCE_KEY: ${{ inputs.resource_key }}
       INPUTS_VERSION: ${{ inputs.version }}
       INPUTS_RELEASE_CHANNEL: ${{ inputs.release_channel }}
+      INPUTS_VERIFY_RUNNER: ${{ inputs.verify_runner }}
     steps:
       # This repository is public, so Git needs no credentials. checkout's
       # credential cleanup runs submodule foreach even with submodules disabled,
@@ -105,39 +113,6 @@ jobs:
           git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
           git fetch --no-tags --depth=1 origin "$CHECKOUT_REF"
           git -c checkout.workers=0 checkout --detach FETCH_HEAD
-
-      # The runner's PowerShell 7.6/.NET 10 intermittently crashes during signing:
-      # https://github.com/dotnet/runtime/issues/131636
-      # Put the .NET 8 release first for both workflow shells and electron-builder.
-      - name: Use PowerShell 7.4 for Windows ARM builds
-        if: inputs.platform == 'win' && inputs.arch == 'arm64'
-        shell: powershell
-        run: |
-          $ErrorActionPreference = "Stop"
-          $ProgressPreference = "SilentlyContinue"
-          $version = "7.4.20"
-          $archive = Join-Path $env:RUNNER_TEMP "PowerShell-$version-win-arm64.zip"
-          $installDir = Join-Path $env:RUNNER_TEMP "powershell-$version-arm64"
-          Invoke-WebRequest -UseBasicParsing `
-            -Uri "https://github.com/PowerShell/PowerShell/releases/download/v$version/PowerShell-$version-win-arm64.zip" `
-            -OutFile $archive
-          $expectedHash = "67eff749d5dae357501c95a3eec1dcd93f669824e3ca2b1d2adcdecdebf04f35"
-          if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne $expectedHash) {
-            throw "PowerShell archive checksum mismatch"
-          }
-          Expand-Archive -Path $archive -DestinationPath $installDir
-          $installDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          & "$installDir\pwsh.exe" -NoProfile -NonInteractive -Command '$PSVersionTable; [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture'
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Verify Windows ARM PowerShell selection
-        if: inputs.platform == 'win' && inputs.arch == 'arm64'
-        shell: pwsh
-        run: |
-          $expectedPath = Join-Path $env:RUNNER_TEMP "powershell-7.4.20-arm64\pwsh.exe"
-          if ((Get-Command pwsh.exe).Source -ne $expectedPath -or $PSVersionTable.PSVersion -ne [version]"7.4.20") {
-            throw "Windows ARM builds must use the pinned PowerShell runtime"
-          }
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
@@ -213,7 +188,7 @@ jobs:
       # monitor, the desktop build's preflight skips its MSVC check, and node-pty
       # ships prebuilt Windows binaries, so the 30-60s install is skipped too.
       - name: Install Spectre-mitigated MSVC libs
-        if: inputs.platform == 'win' && steps.resource_monitor_cache.outputs.cache-hit != 'true'
+        if: runner.os == 'Windows' && steps.resource_monitor_cache.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
@@ -229,27 +204,21 @@ jobs:
             exit $code
           }
 
-      - uses: ./.github/actions/setup-apt-mirrors
-        if: inputs.platform == 'linux'
+      - name: Install cargo-xwin
+        if: runner.os != 'Windows' && inputs.platform == 'win' && steps.resource_monitor_cache.outputs.cache-hit != 'true'
+        uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2
+        with:
+          tool: cargo-xwin@0.23.1
 
-      - name: Install Linux desktop build libraries
-        if: inputs.platform == 'linux'
+      # Built here rather than inside the desktop build so the CLI archive,
+      # which bundles the same binary, can be built and uploaded first.
+      - name: Build resource monitor
+        if: steps.resource_monitor_cache.outputs.cache-hit != 'true'
         shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libsecret-1-dev libudev-dev libusb-1.0-0-dev pkg-config
-          if ! command -v magick >/dev/null 2>&1 && ! command -v convert >/dev/null 2>&1; then
-              sudo apt-get install -y imagemagick
-          fi
-
-          if command -v magick >/dev/null 2>&1; then
-              magick -version
-          else
-              convert -version
-          fi
+        run: cargo ${{ runner.os != 'Windows' && inputs.platform == 'win' && 'xwin build' || 'build' }} --locked --release --manifest-path native/resource-monitor/Cargo.toml --target "${INPUTS_RUST_TARGET}"
 
       - name: Prepare Azure Trusted Signing
-        if: inputs.platform == 'win'
+        if: inputs.platform == 'win' && runner.os == 'Windows'
         shell: pwsh
         env:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -310,67 +279,37 @@ jobs:
             Select-Object -Unique
           "PSModulePath=$($modulePathEntries -join ';')" >> $env:GITHUB_ENV
 
-      # The WSL backend runs the Linux CLI archive inside the distro, so the
-      # Windows desktop embeds the same-arch archive the release attaches.
-      # This job starts alongside that Linux job instead of after it, and the
-      # Linux job uploads the archive partway through, so the wait is placed
-      # after all other setup. It stops early if the Linux job ended without
-      # uploading the archive.
-      - name: Wait for Linux CLI archive
-        if: inputs.platform == 'win'
-        shell: pwsh
-        timeout-minutes: 40
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          ARTIFACT: cli-linux-${{ inputs.arch }}
-          LINUX_JOB: Build Linux ${{ inputs.arch }}
+      # Off Windows, scripts/lib/windows-jsign.ts signs through jsign instead of
+      # the TrustedSigning PowerShell module.
+      - name: Install jsign
+        if: inputs.platform == 'win' && runner.os != 'Windows'
+        shell: bash
         run: |
-          $headers = @{ Authorization = "Bearer $env:GITHUB_TOKEN"; Accept = "application/vnd.github+json" }
-          $run = "$env:GITHUB_API_URL/repos/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
-          function Test-Archive {
-            (Invoke-RestMethod -Headers $headers -Uri "$run/artifacts?name=$env:ARTIFACT").total_count -gt 0
-          }
-          $missingSince = $null
-          while ($true) {
-            try {
-              if (Test-Archive) {
-                Write-Host "$env:ARTIFACT is ready."
-                exit 0
-              }
-              $jobs = Invoke-RestMethod -Headers $headers -Uri "$run/attempts/$env:GITHUB_RUN_ATTEMPT/jobs?per_page=100"
-              $linux = $jobs.jobs | Where-Object { $_.name.EndsWith($env:LINUX_JOB) } | Select-Object -First 1
-              if (-not $linux) {
-                # Both jobs start together, so a Linux job still missing after a
-                # few minutes means a renamed or skipped job, not a slow one.
-                if (-not $missingSince) {
-                  $missingSince = Get-Date
-                } elseif (((Get-Date) - $missingSince).TotalMinutes -ge 5) {
-                  Write-Host "::error::No job named '$env:LINUX_JOB' in this run, so $env:ARTIFACT will not arrive."
-                  exit 1
-                }
-              } elseif ($linux.conclusion) {
-                # The upload may have landed between the two requests above.
-                if (Test-Archive) {
-                  Write-Host "$env:ARTIFACT is ready."
-                  exit 0
-                }
-                Write-Host "::error::$env:LINUX_JOB ended ($($linux.conclusion)) without uploading $env:ARTIFACT."
-                exit 1
-              }
-            } catch {
-              Write-Warning "Could not read this run's artifacts or jobs: $($_.Exception.Message)"
-            }
-            Write-Host "Waiting for $env:ARTIFACT..."
-            Start-Sleep -Seconds 10
-          }
+          set -euo pipefail
+          dir="$RUNNER_TEMP/jsign"
+          mkdir -p "$dir"
+          curl -fsSL --retry 3 -o "$dir/jsign.jar" https://github.com/ebourg/jsign/releases/download/7.6/jsign-7.6.jar
+          echo "6cf58aa080e7ff82656f320cff8d4a3bff30408df8766806dcba3740dd839fa5  $dir/jsign.jar" | sha256sum -c -
+          printf '#!/bin/sh\nexec java -jar "%s" "$@"\n' "$dir/jsign.jar" > "$dir/jsign"
+          chmod +x "$dir/jsign"
+          echo "SUPATERM_JSIGN=$dir/jsign" >> "$GITHUB_ENV"
 
-      - name: Download Linux CLI archive for WSL
-        if: inputs.platform == 'win'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: cli-linux-${{ inputs.arch }}
-          path: wsl-runtime
+      # The desktop build applies the same branding to apps/server/dist/client
+      # (resolveDesktopWebAssetBrand in scripts/build-desktop-artifact.ts); the
+      # CLI archive below ships that client and is now built first.
+      - name: Apply web client branding
+        if: inputs.cli_archive
+        shell: bash
+        run: |
+          brand=production
+          if [[ "${INPUTS_VERSION}" =~ -nightly\.[0-9]{8}\.[0-9]+$ ]]; then brand=nightly; fi
+          node scripts/apply-web-brand-assets.ts "$brand" apps/server/dist/client
 
+      # The single-executable is built with a Node that supports --build-sea
+      # (25.7+); the repo itself stays on the engines.node version. A native
+      # build injects into the runner's own Node: tsdown's cross-target download
+      # path runs `tar` on a drive-letter path on Windows, which GNU tar reads as
+      # a remote host. Off Windows, a Windows target downloads its node.exe.
       - name: Load Apple signing credentials
         if: inputs.platform == 'mac'
         uses: ./.github/actions/load-release-secrets
@@ -378,90 +317,6 @@ jobs:
           profile: apple
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
-      - name: Prepare optional Touch ID provisioning profile
-        if: inputs.platform == 'mac'
-        shell: bash
-        env:
-          MACOS_PROVISIONING_PROFILE: ${{ secrets.MACOS_PROVISIONING_PROFILE }}
-        run: |
-          if [[ -n "$MACOS_PROVISIONING_PROFILE" ]]; then
-            profile_path="$RUNNER_TEMP/supaterm.provisionprofile"
-            printf '%s' "$MACOS_PROVISIONING_PROFILE" | base64 --decode > "$profile_path"
-            chmod 600 "$profile_path"
-            echo "SUPATERM_MACOS_PROVISIONING_PROFILE=$profile_path" >> "$GITHUB_ENV"
-          fi
-
-      - name: Build desktop artifact
-        shell: bash
-        env:
-          pnpm_config_cache_dir: ${{ runner.temp }}/pnpm-metadata
-          SUPATERM_DESKTOP_REUSE_RESOURCE_MONITOR: ${{ steps.resource_monitor_cache.outputs.cache-hit == 'true' }}
-          SUPATERM_DESKTOP_REUSE_LINUX_CAPTURE_HELPERS: ${{ steps.capture_helper_cache.outputs.cache-hit == 'true' }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
-          AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
-          AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME }}
-          AZURE_TRUSTED_SIGNING_PUBLISHER_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_PUBLISHER_NAME }}
-        run: |
-          args=(
-            --platform "${INPUTS_PLATFORM}"
-            --target "${INPUTS_TARGET}"
-            --arch "${INPUTS_ARCH}"
-            --build-version "${INPUTS_VERSION}"
-            --skip-build
-            --verbose
-          )
-
-          has_all() {
-            for value in "$@"; do
-              if [[ -z "$value" ]]; then
-                return 1
-              fi
-            done
-            return 0
-          }
-
-          if [[ "${INPUTS_PLATFORM}" == "mac" ]]; then
-            if has_all "$CSC_LINK" "$CSC_KEY_PASSWORD" "$APPLE_API_KEY" "$APPLE_API_KEY_ID" "$APPLE_API_ISSUER"; then
-              key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
-              printf '%s' "$APPLE_API_KEY" > "$key_path"
-              export APPLE_API_KEY="$key_path"
-
-              echo "macOS signing enabled."
-              args+=(--signed)
-            else
-              echo "macOS signing disabled (missing one or more Apple signing secrets)."
-            fi
-          elif [[ "${INPUTS_PLATFORM}" == "win" ]]; then
-            # Embed the Linux CLI archive built by the same-arch Linux job as
-            # the WSL runtime. Required for a working WSL backend on Windows.
-            args+=(--wsl-runtime "$GITHUB_WORKSPACE"/wsl-runtime/supaterm-*-linux-"${INPUTS_ARCH}".tar.gz)
-            if has_all \
-              "$AZURE_TENANT_ID" \
-              "$AZURE_CLIENT_ID" \
-              "$AZURE_CLIENT_SECRET" \
-              "$AZURE_TRUSTED_SIGNING_ENDPOINT" \
-              "$AZURE_TRUSTED_SIGNING_ACCOUNT_NAME" \
-              "$AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME" \
-              "$AZURE_TRUSTED_SIGNING_PUBLISHER_NAME"; then
-              echo "Windows signing enabled (Azure Trusted Signing)."
-              args+=(--signed)
-            else
-              echo "Windows signing disabled (missing one or more Azure Trusted Signing secrets)."
-            fi
-          else
-            echo "Signing disabled for ${INPUTS_PLATFORM}."
-          fi
-
-          vp run dist:desktop:artifact "${args[@]}"
-
-      # The single-executable is built with a Node that supports --build-sea
-      # (25.7+); the repo itself stays on the engines.node version. It always
-      # injects into the runner's own Node: tsdown's cross-target download path
-      # runs `tar` on a drive-letter path on Windows, which GNU tar reads as a
-      # remote host, and a cross-built macOS binary cannot be smoke-tested.
       - name: Build CLI single-executable
         if: inputs.cli_archive
         shell: bash
@@ -470,8 +325,15 @@ jobs:
           # the runner, and only exact versions have a dist directory. Keep in
           # step with SEA_NODE_VERSION in apps/server/vite.config.ts.
           VP_NODE_VERSION: "26.8.2"
+          # The executable bundles the server again, so it needs the same stamp
+          # as release.yml's JS bundle.
           SUPATERM_TELEMETRY_CHANNEL: ${{ github.repository == 'supabitapp/supaterm' && inputs.release_channel || 'dev' }}
-        run: node apps/server/scripts/cli.ts build-exe --verbose
+        run: |
+          args=(build-exe --verbose)
+          if [[ "$RUNNER_OS" != "Windows" && "$INPUTS_PLATFORM" == "win" ]]; then
+            args+=(--target "win-$INPUTS_ARCH")
+          fi
+          node apps/server/scripts/cli.ts "${args[@]}"
 
       - name: Import macOS signing certificate for the CLI archive
         if: inputs.cli_archive && inputs.platform == 'mac'
@@ -543,7 +405,7 @@ jobs:
             --output-dir release-cli
 
       - name: Smoke-test CLI archive
-        if: inputs.cli_archive
+        if: inputs.cli_archive && inputs.verify_runner == ''
         shell: bash
         run: node scripts/smoke-cli-archive.ts --archive release-cli/* --expect-version "${INPUTS_VERSION}"
 
@@ -554,6 +416,200 @@ jobs:
           name: cli-${{ inputs.platform }}-${{ inputs.arch }}
           path: release-cli/*
           if-no-files-found: error
+
+      - uses: ./.github/actions/setup-apt-mirrors
+        if: inputs.platform == 'linux'
+
+      - name: Install Linux desktop build libraries
+        if: inputs.platform == 'linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsecret-1-dev libudev-dev libusb-1.0-0-dev pkg-config
+          if ! command -v magick >/dev/null 2>&1 && ! command -v convert >/dev/null 2>&1; then
+              sudo apt-get install -y imagemagick
+          fi
+
+          if command -v magick >/dev/null 2>&1; then
+              magick -version
+          else
+              convert -version
+          fi
+
+      # The WSL backend runs the Linux CLI archive inside the distro, so the
+      # Windows desktop embeds the same-arch archive the release attaches.
+      # This job starts alongside that Linux job instead of after it, and the
+      # Linux job uploads the archive partway through, so the wait is placed
+      # after all other setup. It stops early if the Linux job ended without
+      # uploading the archive.
+      - name: Wait for Linux CLI archive
+        if: inputs.platform == 'win'
+        shell: node {0}
+        timeout-minutes: 40
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ARTIFACT: cli-linux-${{ inputs.arch }}
+          LINUX_JOB: Build Linux ${{ inputs.arch }}
+        run: |
+          const { setTimeout: delay } = require("node:timers/promises");
+          const { GITHUB_TOKEN, GITHUB_API_URL, GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT, ARTIFACT, LINUX_JOB } = process.env;
+          const run = `${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}`;
+          const read = async (path) => {
+            const response = await fetch(`${run}/${path}`, {
+              headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: "application/vnd.github+json" },
+              signal: AbortSignal.timeout(30_000),
+            });
+            if (!response.ok) throw new Error(`GitHub returned ${response.status}`);
+            return response.json();
+          };
+          const hasArchive = async () => (await read(`artifacts?name=${encodeURIComponent(ARTIFACT)}`)).total_count > 0;
+          async function waitForArchive() {
+            let missingSince = null;
+            while (true) {
+              try {
+                if (await hasArchive()) return console.log(`${ARTIFACT} is ready.`);
+                const { jobs } = await read(`attempts/${GITHUB_RUN_ATTEMPT}/jobs?per_page=100`);
+                const linux = jobs.find((job) => job.name.endsWith(LINUX_JOB));
+                if (!linux) {
+                  missingSince ??= Date.now();
+                  if (Date.now() - missingSince >= 5 * 60_000) {
+                    console.error(`::error::No job named '${LINUX_JOB}' in this run.`);
+                    process.exitCode = 1;
+                    return;
+                  }
+                } else if (linux.conclusion) {
+                  if (await hasArchive()) return console.log(`${ARTIFACT} is ready.`);
+                  console.error(`::error::${LINUX_JOB} ended (${linux.conclusion}) without uploading ${ARTIFACT}.`);
+                  process.exitCode = 1;
+                  return;
+                }
+              } catch (error) {
+                console.warn(`Could not read this run's artifacts or jobs: ${error.message}`);
+              }
+              console.log(`Waiting for ${ARTIFACT}...`);
+              await delay(10_000);
+            }
+          }
+          waitForArchive().catch((error) => { console.error(error); process.exitCode = 1; });
+
+      - name: Download Linux CLI archive for WSL
+        if: inputs.platform == 'win'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: cli-linux-${{ inputs.arch }}
+          path: wsl-runtime
+
+      - name: Prepare optional Touch ID provisioning profile
+        if: inputs.platform == 'mac'
+        shell: bash
+        env:
+          MACOS_PROVISIONING_PROFILE: ${{ secrets.MACOS_PROVISIONING_PROFILE }}
+        run: |
+          if [[ -n "$MACOS_PROVISIONING_PROFILE" ]]; then
+            profile_path="$RUNNER_TEMP/supaterm.provisionprofile"
+            printf '%s' "$MACOS_PROVISIONING_PROFILE" | base64 --decode > "$profile_path"
+            chmod 600 "$profile_path"
+            echo "SUPATERM_MACOS_PROVISIONING_PROFILE=$profile_path" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build desktop artifact
+        shell: bash
+        env:
+          pnpm_config_cache_dir: ${{ runner.temp }}/pnpm-metadata
+          SUPATERM_DESKTOP_REUSE_RESOURCE_MONITOR: true
+          SUPATERM_DESKTOP_REUSE_LINUX_CAPTURE_HELPERS: ${{ steps.capture_helper_cache.outputs.cache-hit == 'true' }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
+          AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME }}
+          AZURE_TRUSTED_SIGNING_PUBLISHER_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_PUBLISHER_NAME }}
+        run: |
+          args=(
+            --platform "${INPUTS_PLATFORM}"
+            --target "${INPUTS_TARGET}"
+            --arch "${INPUTS_ARCH}"
+            --build-version "${INPUTS_VERSION}"
+            --skip-build
+            --verbose
+          )
+          if [[ -n "${INPUTS_VERIFY_RUNNER}" ]]; then
+            args+=(--keep-stage)
+          fi
+
+          has_all() {
+            for value in "$@"; do
+              if [[ -z "$value" ]]; then
+                return 1
+              fi
+            done
+            return 0
+          }
+
+          if [[ "${INPUTS_PLATFORM}" == "mac" ]]; then
+            if has_all "$CSC_LINK" "$CSC_KEY_PASSWORD" "$APPLE_API_KEY" "$APPLE_API_KEY_ID" "$APPLE_API_ISSUER"; then
+              key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+              printf '%s' "$APPLE_API_KEY" > "$key_path"
+              export APPLE_API_KEY="$key_path"
+
+              echo "macOS signing enabled."
+              args+=(--signed)
+            else
+              echo "macOS signing disabled (missing one or more Apple signing secrets)."
+            fi
+          elif [[ "${INPUTS_PLATFORM}" == "win" ]]; then
+            # Embed the Linux CLI archive built by the same-arch Linux job as
+            # the WSL runtime. Required for a working WSL backend on Windows.
+            args+=(--wsl-runtime "$GITHUB_WORKSPACE"/wsl-runtime/supaterm-*-linux-"${INPUTS_ARCH}".tar.gz)
+            if has_all \
+              "$AZURE_TENANT_ID" \
+              "$AZURE_CLIENT_ID" \
+              "$AZURE_CLIENT_SECRET" \
+              "$AZURE_TRUSTED_SIGNING_ENDPOINT" \
+              "$AZURE_TRUSTED_SIGNING_ACCOUNT_NAME" \
+              "$AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME" \
+              "$AZURE_TRUSTED_SIGNING_PUBLISHER_NAME"; then
+              echo "Windows signing enabled (Azure Trusted Signing)."
+              args+=(--signed)
+            else
+              echo "Windows signing disabled (missing one or more Azure Trusted Signing secrets)."
+            fi
+          else
+            echo "Signing disabled for ${INPUTS_PLATFORM}."
+          fi
+
+          vp run dist:desktop:artifact "${args[@]}"
+
+      # The verify job runs what this host could not: the packaged natives and
+      # the CLI. Its scripts are bundled so that job needs no install.
+      - name: Stage verification inputs
+        if: inputs.verify_runner != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p verify
+          unpacked=$(ls -d "${TMPDIR:-/tmp}"/supaterm-desktop-"${INPUTS_PLATFORM}"-stage-*/app/dist/"${INPUTS_PLATFORM}"-"${INPUTS_ARCH}"-unpacked)
+          tar -C "$(dirname "$unpacked")" -cf verify/unpacked.tar "$(basename "$unpacked")"
+          esbuild=scripts/node_modules/.bin/esbuild
+          banner="import{createRequire as __cr}from'node:module';const require=__cr(import.meta.url);"
+          # build-desktop-artifact.ts's own import.meta.main guard must not run
+          # its CLI inside the verify bundle.
+          "$esbuild" scripts/verify-windows-desktop-artifact.ts --bundle --platform=node --format=esm \
+            --target=node24 --define:import.meta.main=false --banner:js="$banner" \
+            --outfile=verify/verify-windows-desktop-artifact.mjs
+          "$esbuild" scripts/smoke-cli-archive.ts --bundle --platform=node --format=esm \
+            --target=node24 --banner:js="$banner" --outfile=verify/smoke-cli-archive.mjs
+
+      - name: Upload verification inputs
+        if: inputs.verify_runner != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: verify-${{ inputs.platform }}-${{ inputs.arch }}
+          path: verify/*
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 1
 
       - name: Collect release assets
         shell: bash
@@ -626,3 +682,85 @@ jobs:
           name: resource-monitor-${{ inputs.resource_key }}
           path: resource-monitor-publish/${{ inputs.resource_key }}/*
           if-no-files-found: error
+
+  verify:
+    name: Verify
+    needs: [build]
+    if: inputs.verify_runner != ''
+    runs-on: ${{ inputs.verify_runner }}
+    timeout-minutes: 15
+    env:
+      INPUTS_PLATFORM: ${{ inputs.platform }}
+      INPUTS_ARCH: ${{ inputs.arch }}
+      INPUTS_VERSION: ${{ inputs.version }}
+    steps:
+      - name: Download verification inputs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: verify-${{ inputs.platform }}-${{ inputs.arch }}
+          path: verify
+
+      - name: Download CLI archive
+        if: inputs.cli_archive
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: cli-${{ inputs.platform }}-${{ inputs.arch }}
+          path: release-cli
+
+      - name: Verify packaged natives
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -C verify -xf verify/unpacked.tar
+          node verify/verify-windows-desktop-artifact.mjs \
+            --app-dir "$(cygpath -w "$PWD/verify/${INPUTS_PLATFORM}-${INPUTS_ARCH}-unpacked")" \
+            --arch "${INPUTS_ARCH}" --build-version "${INPUTS_VERSION}" --verbose
+
+      - name: Smoke-test CLI archive
+        if: inputs.cli_archive
+        shell: bash
+        run: node verify/smoke-cli-archive.mjs --archive release-cli/* --expect-version "${INPUTS_VERSION}"
+
+      # cargo-xwin links this binary on Linux, and nothing else runs it before users do.
+      # Node rather than pwsh: PowerShell on Windows ARM crashes intermittently
+      # (https://github.com/dotnet/runtime/issues/131636), which is why this
+      # target stopped building on Windows.
+      - name: Smoke-test resource monitor
+        shell: bash
+        env:
+          MONITOR: verify/${{ inputs.platform }}-${{ inputs.arch }}-unpacked/resources/resource-monitor/supaterm-resource-monitor.exe
+          EXPECTED_ARCH: ${{ inputs.arch == 'arm64' && 'aarch64' || 'x86_64' }}
+        run: |
+          node --input-type=module <<'EOF'
+          import { spawn } from "node:child_process";
+          const monitor = spawn(process.env.MONITOR, { stdio: ["pipe", "pipe", "inherit"] });
+          monitor.stdout.setEncoding("utf8");
+          let output = "";
+          const exited = new Promise((resolve) => monitor.on("close", resolve));
+          const hello = await new Promise((resolve, reject) => {
+            monitor.on("error", reject);
+            monitor.on("close", () => reject(new Error(`Resource monitor exited before hello: ${output}`)));
+            monitor.stdout.on("data", (chunk) => {
+              output += chunk;
+              const end = output.indexOf("\n");
+              if (end !== -1) resolve(JSON.parse(output.slice(0, end)));
+            });
+          });
+          if (hello.type !== "hello" || hello.arch !== process.env.EXPECTED_ARCH) {
+            throw new Error(`Unexpected hello: ${JSON.stringify(hello)}`);
+          }
+          const send = (message) => monitor.stdin.write(`${JSON.stringify({ version: hello.version, ...message })}\n`);
+          send({ type: "configure", rootPid: process.pid, sampleIntervalMs: 1000 });
+          send({ type: "sampleNow", requestId: "verify" });
+          monitor.stdin.end();
+          const exitCode = await exited;
+          const sample = output
+            .split("\n")
+            .filter((line) => line.trim())
+            .map((line) => JSON.parse(line))
+            .find((message) => message.requestId === "verify");
+          if (exitCode !== 0 || sample?.type !== "snapshot" || !sample.processes.some((p) => p.pid === process.pid)) {
+            throw new Error(`Resource monitor exited ${exitCode} with: ${output}`);
+          }
+          console.log(`Resource monitor sampled ${sample.scannedProcessCount} processes.`);
+          EOF

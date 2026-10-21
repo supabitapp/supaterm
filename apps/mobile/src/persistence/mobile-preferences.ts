@@ -59,6 +59,7 @@ export interface Preferences {
   readonly terminalFontSize?: number | null;
   readonly codeFontSize?: number | null;
   readonly codeWordBreak?: boolean;
+  readonly mathRenderingEnabled?: boolean;
   readonly collapsedProjectGroups?: readonly string[];
   /** Environments whose "reclaim database space" notice was dismissed. */
   readonly dismissedDatabaseStorageNotices?: readonly string[];
@@ -126,6 +127,7 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     terminalFontSize?: number | null;
     codeFontSize?: number | null;
     codeWordBreak?: boolean;
+    mathRenderingEnabled?: boolean;
     collapsedProjectGroups?: readonly string[];
     dismissedDatabaseStorageNotices?: readonly string[];
     composerEnterBehavior?: ComposerEnterBehavior;
@@ -182,6 +184,8 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     preferences.codeFontSize = parsed.codeFontSize;
   }
   if (typeof parsed.codeWordBreak === "boolean") preferences.codeWordBreak = parsed.codeWordBreak;
+  if (typeof parsed.mathRenderingEnabled === "boolean")
+    preferences.mathRenderingEnabled = parsed.mathRenderingEnabled;
   if (Array.isArray(parsed.collapsedProjectGroups)) {
     preferences.collapsedProjectGroups = parsed.collapsedProjectGroups.filter(
       (key): key is string => typeof key === "string",

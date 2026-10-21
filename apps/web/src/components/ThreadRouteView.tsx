@@ -20,6 +20,7 @@ import { useEnvironmentThreadRefs, useThreadRefs, useQuietThreadShell } from "..
 import { useEnvironmentShellStatus } from "../state/shell";
 import { usePendingThreadCreation, useThreadOutboxLoaded } from "../state/threadOutbox";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
+import { useThreadState } from "../state/entities";
 import {
   buildThreadRouteParams,
   isThreadRouteSnapshotAuthoritative,
@@ -105,10 +106,19 @@ export function ThreadRouteView({ target, paneId }: { target: ThreadRouteTarget;
   const environmentHasDraftThreads = useComposerDraftStore((store) =>
     serverThreadRef ? store.hasDraftThreadsInEnvironment(serverThreadRef.environmentId) : false,
   );
+  // Until the shell lists the thread, its own load (HTTP, then the socket)
+  // decides whether it exists. Read only then: once listed, ChatView keeps
+  // this stream open and its updates need not re-render the route.
+  const unlistedThreadRef =
+    target.kind === "server" && serverThreadShell === null && draftThread === null
+      ? target.threadRef
+      : null;
+  const unlistedThreadDetail = useThreadState(unlistedThreadRef);
   const renderState = resolveThreadRouteRenderState({
     bootstrapComplete,
     serverThreadExists: serverThreadShell !== null,
     serverThreadDeleted: serverThreadShell?.deletedAt != null,
+    unlistedThreadDetail,
     draftThreadExists: draftThread !== null,
     pendingThreadExists: pendingCreation !== null,
     outboxLoaded,

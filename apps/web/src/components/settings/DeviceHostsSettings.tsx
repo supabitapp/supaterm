@@ -42,6 +42,7 @@ import { DeviceHostEditor } from "./DeviceHostEditor";
 import { useHostConnectionChecks } from "./useHostConnectionChecks";
 import { deviceHostConnectionKey } from "./deviceHostConnectionChecks";
 import { settingsScopeEnvironmentLabel, settingsScopeEnvironmentLabels } from "./settingsScopeAxis";
+import { DeviceHostDiagnostics } from "../device/DeviceSetup";
 
 export function DeviceHostsSettings(props: { environmentId: EnvironmentId | null }) {
   const { scope, environments, connectedEnvironments } = useSettingsScope();
@@ -145,7 +146,7 @@ export function DeviceHostsSettings(props: { environmentId: EnvironmentId | null
           }
           onClick={() => {
             setOriginalHost(null);
-            setEditing({ id: randomUUID(), label: "", target: "" });
+            setEditing({ kind: "ssh", id: randomUUID(), label: "", target: "" });
           }}
         >
           <PlusIcon className="size-3.5" /> Add host
@@ -389,20 +390,24 @@ function DeviceHostList({
                 ),
               },
             ]
-          : platforms
-              .filter((platform) => platform.available)
-              .map((platform) => ({
-                key: platform.platform,
-                label: platform.platform === "ios" ? "iOS available" : "Android available",
-                warning: false,
-                icon:
-                  platform.platform === "ios" ? (
-                    // The Apple mark is bottom-heavy; lift it so it does not dip under the label.
-                    <AppleIcon className="size-3.5 -translate-y-px" />
-                  ) : (
-                    <AndroidIcon className="size-3.5" />
-                  ),
-              }));
+          : platforms.flatMap((platform) =>
+              platform.available
+                ? [
+                    {
+                      key: platform.platform,
+                      label: platform.platform === "ios" ? "iOS available" : "Android available",
+                      warning: false,
+                      icon:
+                        platform.platform === "ios" ? (
+                          // The Apple mark is bottom-heavy; lift it so it does not dip under the label.
+                          <AppleIcon className="size-3.5 -translate-y-px" />
+                        ) : (
+                          <AndroidIcon className="size-3.5" />
+                        ),
+                    },
+                  ]
+                : [],
+            );
         return (
           <div key={host.id} className="flex items-center gap-2 border-t border-border/50 py-2.5">
             <div className="min-w-0 flex-1">
@@ -433,6 +438,21 @@ function DeviceHostList({
                 ))}
               </div>
               <p className="truncate text-xs text-muted-foreground">{host.target}</p>
+              {results.flatMap((result) =>
+                result.status?.status === "ready" && result.status.androidDiscoveryIncomplete
+                  ? [
+                      <p
+                        key={result.environmentId}
+                        role="status"
+                        className="mt-1 text-xs text-warning"
+                      >
+                        {compact ? `${result.label}: ` : ""}
+                        {result.status?.detail ??
+                          "The Android device list may be incomplete. Refresh devices to try again."}
+                      </p>,
+                    ]
+                  : [],
+              )}
               {compact ? (
                 <Collapsible>
                   <div className="min-w-0 text-xs [--inline-button-white-space:normal]">
@@ -460,6 +480,12 @@ function DeviceHostList({
                             <p role="status" className="text-xs text-destructive">
                               {result.error}
                             </p>
+                          ) : null}
+                          {result.state ? (
+                            <DeviceHostDiagnostics
+                              hosts={[result.host]}
+                              hostStatuses={result.state.hostStatuses}
+                            />
                           ) : null}
                           {result.versions}
                           {result.check?.status === "local" ? (
@@ -494,6 +520,18 @@ function DeviceHostList({
                   </details>
                 </div>
               ) : null}
+              {!compact
+                ? results.map((result) =>
+                    result.state ? (
+                      <DeviceHostDiagnostics
+                        key={result.environmentId}
+                        className="mt-1"
+                        hosts={[result.host]}
+                        hostStatuses={result.state.hostStatuses}
+                      />
+                    ) : null,
+                  )
+                : null}
             </div>
             {!compact && progress ? (
               <span

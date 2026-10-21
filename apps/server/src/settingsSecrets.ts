@@ -2,6 +2,7 @@ import {
   AntigravitySettings,
   ClaudeSettings,
   CodexSettings,
+  EasDeviceHostConfig,
   type ServerSettings,
   secretSettingsFields,
 } from "@supaterm/contracts";
@@ -29,6 +30,7 @@ const providerSecretFields = new Map([
       [definition.driverKind, secretSettingsFields(definition.settingsSchema)] as const,
   ),
 ]);
+const easDeviceHostSecretFields = secretSettingsFields(EasDeviceHostConfig);
 const encode = (value: string) => Buffer.from(value, "utf8").toString("base64url");
 
 export interface SettingsSecret {
@@ -125,5 +127,16 @@ export function mapSettingsSecrets(
     ]),
   ) as ServerSettings["sourceControlHosts"];
 
-  return { ...settings, providerInstances, sourceControlHosts };
+  const easDeviceHosts = settings.easDeviceHosts.map(
+    (host) =>
+      mapFields(
+        host,
+        easDeviceHostSecretFields,
+        (field, serverHost) =>
+          `device-host-${encode(host.id)}-${encode(field)}` +
+          (serverHost === null ? "" : `-${encode(serverHost)}`),
+      ) as EasDeviceHostConfig,
+  );
+
+  return { ...settings, providerInstances, sourceControlHosts, easDeviceHosts };
 }

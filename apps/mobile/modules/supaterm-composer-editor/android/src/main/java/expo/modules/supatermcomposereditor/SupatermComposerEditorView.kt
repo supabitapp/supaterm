@@ -57,6 +57,7 @@ class SupatermComposerEditorView(context: Context, appContext: AppContext) : Exp
   private var applyingNativeValue = false
   private var desiredLineHeightPx = 0
   private var lastContentHeight = 0
+  private var lastContentWidth = 0
   private var contentInsetVertical = 0
   private var tokensJson = "[]"
   private var tokens: List<ComposerToken> = emptyList()
@@ -424,12 +425,19 @@ class SupatermComposerEditorView(context: Context, appContext: AppContext) : Exp
   }
 
   private fun emitContentSizeIfNeeded() {
-    val height = editor.layout?.height ?: editor.measuredHeight
-    val contentHeight = height + contentInsetVertical * 2
-    if (contentHeight == lastContentHeight) return
+    // The laid-out text without insets. A one-line draft reports its natural width, so
+    // JS can tell whether it fits a narrower row than the one it is laid out in; past
+    // one line only the height matters. Trailing whitespace hangs past a line without
+    // wrapping it, so getLineMax leaves it out.
+    val layout = editor.layout
+    val contentHeight = layout?.height ?: editor.measuredHeight
+    val contentWidth = if (layout?.lineCount == 1) layout.getLineMax(0).toInt() else 0
+    if (contentHeight == lastContentHeight && contentWidth == lastContentWidth) return
     lastContentHeight = contentHeight
+    lastContentWidth = contentWidth
+    val density = resources.displayMetrics.density
     onComposerContentSizeChange(
-      mapOf("height" to contentHeight / resources.displayMetrics.density),
+      mapOf("width" to contentWidth / density, "height" to contentHeight / density),
     )
   }
 
@@ -754,16 +762,22 @@ internal class SelectionAwareEditText(context: Context) : EditText(context) {
     return shouldIntercept
   }
 
-  // coerceToText opens content: URIs synchronously. Leave URI-backed
-  // clipboard items to Android's normal paste path so the UI thread never
-  // reads an arbitrary provider just to measure a text paste.
-  private fun ClipData.plainText(): String? =
-    takeIf { itemCount > 0 }
-      ?.getItemAt(0)
-      ?.takeIf { it.uri == null }
-      ?.coerceToText(context)
-      ?.toString()
-      ?.takeIf(String::isNotEmpty)
+  // Match native paste's newlines, including empty items.
+  // URI-backed clips stay native: coerceToText can read a provider synchronously.
+  private fun ClipData.plainText(): String? {
+    var joined: StringBuilder? = null
+    for (index in 0 until itemCount) {
+      val item = getItemAt(index)
+      if (item.uri != null) return null
+      val itemText = item.coerceToText(context) ?: continue
+      if (joined == null) {
+        joined = StringBuilder(itemText)
+      } else {
+        joined.append('\n').append(itemText)
+      }
+    }
+    return joined?.toString()?.takeIf(String::isNotEmpty)
+  }
 
   override fun onKeyShortcut(keyCode: Int, event: KeyEvent): Boolean {
     if (keyCode == KeyEvent.KEYCODE_V && event.isCtrlPressed && event.isShiftPressed) {

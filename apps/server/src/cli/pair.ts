@@ -6,9 +6,7 @@
  * database, then confirms the process is actually answering by fetching its
  * public environment descriptor. Inside a linked git worktree the worktree's
  * own `.supaterm` is checked first (matching dev-runner precedence); otherwise the
- * shared Supaterm home. `--tailscale` publishes the server over Tailscale Serve
- * HTTPS and pairs through the tailnet URL instead; `--relay` pairs through the
- * server's Encrypted Relay address, which works for hosts no client manages directly.
+ * shared Supaterm home.
  */
 import {
   type AuthEnvironmentScope,
@@ -108,6 +106,15 @@ export class MagicDnsNameMissingError extends Schema.TaggedError<MagicDnsNameMis
   }
 }
 
+export class TailscaleServeNotEnabledError extends Schema.TaggedError<TailscaleServeNotEnabledError>()(
+  "TailscaleServeNotEnabledError",
+  {},
+) {
+  override get message(): string {
+    return "Tailscale Serve is not enabled on your tailnet. Enable HTTPS certificates at https://login.tailscale.com/admin/dns, then run this command again.";
+  }
+}
+
 export class ServesOtherEnvironmentError extends Schema.TaggedError<ServesOtherEnvironmentError>()(
   "ServesOtherEnvironmentError",
   { servePort: Schema.Number },
@@ -185,7 +192,7 @@ export const resolveTailscaleLocalTarget = (
       ? { localPort }
       : { localPort, localHost: devUrl.hostname };
   }
-  if (state.host !== undefined && !isWildcardHost(state.host) && !isLoopbackHost(state.host)) {
+  if (state.host !== undefined && !isWildcardHost(state.host)) {
     return { localPort: state.port, localHost: formatHostForUrl(state.host) };
   }
   return { localPort: state.port };
@@ -216,10 +223,12 @@ type EnvironmentProbeResult =
   | { readonly _tag: "unreachable" }
   | { readonly _tag: "not-a-supaterm-server" };
 
-const probeEnvironmentDescriptor = (
+const probeEnvironmentDescriptor: (
   baseUrl: string,
-): Effect.Effect<EnvironmentProbeResult, never, HttpClient.HttpClient> =>
-  Effect.gen(function* () {
+) => Effect.Effect<EnvironmentProbeResult, never, HttpClient.HttpClient> = Effect.fn(
+  "pair.probeEnvironmentDescriptor",
+)(
+  function* (baseUrl: string) {
     const client = yield* HttpClient.HttpClient;
     const request = HttpClientRequest.get(new URL(WELL_KNOWN_ENVIRONMENT_PATH, baseUrl).toString());
     const response = yield* client.execute(request).pipe(
@@ -238,7 +247,9 @@ const probeEnvironmentDescriptor = (
       Effect.mapError(() => ({ _tag: "not-a-supaterm-server" }) as const),
     );
     return { _tag: "descriptor", descriptor } as const;
-  }).pipe(Effect.catch((outcome) => Effect.succeed(outcome)));
+  },
+  Effect.catch((outcome) => Effect.succeed(outcome)),
+);
 
 interface DiscoveredPairTarget {
   readonly baseDir: string;
@@ -378,6 +389,11 @@ const resolveTailscalePairingBase = Effect.fn("pair.resolveTailscalePairingBase"
     if (status.magicDnsName === null) {
       return yield* new MagicDnsNameMissingError();
     }
+    // Without the capability `tailscale serve` blocks on an enablement URL
+    // until it times out, which names neither the setting nor where to change it.
+    if (status.httpsServeEnabled === false) {
+      return yield* new TailscaleServeNotEnabledError();
+    }
     const baseUrl = buildTailscaleHttpsBaseUrl({
       magicDnsName: status.magicDnsName,
       servePort: input.servePort,
@@ -502,9 +518,9 @@ const tailscaleFlag = Flag.Boolean("tailscale").pipe(
 
 const relayFlag = Flag.Boolean("relay").pipe(
   Flag.withDescription(
-    "Pair through the server's Encrypted Relay address. Encrypted Relay must be on for the server.",
+    "Activate and pair through Encrypted Relay by default, unless --tailscale is selected. Use --no-relay for direct pairing. Encrypted Relay must be enabled in server settings.",
   ),
-  Flag.withDefault(false),
+  Flag.optional,
 );
 
 const tailscaleServePortFlag = Flag.Int("tailscale-serve-port").pipe(
@@ -530,14 +546,15 @@ export const pairCommand = Command.make("pair", {
       const cliLogLevel = yield* GlobalFlag.LogLevel;
       const logLevel = Option.getOrElse(cliLogLevel, () => "Warn" as const);
 
-      if (flags.relay && flags.tailscale) return yield* new PairRouteConflictError();
+      const useRelay = Option.getOrElse(flags.relay, () => !flags.tailscale);
+      if (useRelay && flags.tailscale) return yield* new PairRouteConflictError();
       const target = yield* discoverPairTarget(Option.getOrUndefined(flags.baseDir));
       const config = yield* makePairServerConfig({ target, logLevel });
 
       const notes: Array<string> = [];
       let relayUrl = target.descriptor.relayUrl;
       let pairingBaseUrl: string;
-      if (flags.relay) {
+      if (useRelay) {
         const prepared = yield* prepareRelay(target, config).pipe(
           Effect.catchTags({
             RelayPreparationError: (error) =>
@@ -545,6 +562,7 @@ export const pairCommand = Command.make("pair", {
                 ? Effect.fail(new PublicRelayOffError({ settingsPath: config.settingsPath }))
                 : Effect.fail(error),
           }),
+          Effect.tapError(() => Console.error("Pass --no-relay to pair directly instead.")),
         );
         const { relayEndpoint } = prepared;
         relayUrl = prepared.relayUrl;

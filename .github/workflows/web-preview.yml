@@ -35,7 +35,7 @@ jobs:
     name: Build web preview
     needs: trust
     if: contains(fromJSON('["bot", "collaborator", "vouched"]'), needs.trust.outputs.status)
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: depot-ubuntu-24.04-16
     timeout-minutes: 10
     env:
       VITE_HOSTED_APP_URL: https://preview-${{ github.event.pull_request.number }}.supaterm.com

@@ -165,18 +165,8 @@ export function isAutoMarkDoneCandidate(
   if (thread.activityRunStatus != null) return false;
   if (backgroundWorkHoldsCompletion(thread.pendingBackgroundTasks ?? [])) return false;
   if (threadHasQueuedTurnStart(thread, nowMs)) return false;
-  const snoozedUntilMs = toMillis(thread.snoozedUntil);
-  if (snoozedUntilMs === null || snoozedUntilMs <= nowMs) return true;
-  // A snoozed thread that woke early (error or completed work) can be marked done;
-  // one still parked on its wake time keeps its stronger statement.
-  const snoozedAtMs = toMillis(thread.snoozedAt);
-  const completedAtMs = toMillis(thread.latestRunCompletedAt);
-  const wokeOnError =
-    thread.status === "failed" &&
-    (snoozedAtMs === null || (completedAtMs !== null && completedAtMs > snoozedAtMs));
-  const wokeOnCompletion =
-    snoozedAtMs !== null && completedAtMs !== null && completedAtMs > snoozedAtMs;
-  return wokeOnError || wokeOnCompletion;
+
+  return !isSnoozed(thread, nowMs);
 }
 
 export function isSnoozed(
@@ -195,12 +185,7 @@ export function isSnoozed(
     thread.status === "failed" &&
     (snoozedAtMs === null || (completedAtMs !== null && completedAtMs > snoozedAtMs));
 
-  const wokeOnCompletion =
-    thread.status === "completed" &&
-    snoozedAtMs !== null &&
-    completedAtMs !== null &&
-    completedAtMs > snoozedAtMs;
-  return !wokeOnError && !wokeOnCompletion;
+  return !wokeOnError;
 }
 
 export function resolveAutoMarkDoneAt(input: {
@@ -229,24 +214,25 @@ export function resolveAutoMarkDoneAt(input: {
           };
   }
   if (!isAutoMarkDoneCandidate(thread, input.nowMs)) return null;
-  const activityAtMs = latestMillis([
-    toMillis(thread.latestUserMessageAt),
-    toMillis(thread.latestRunRequestedAt),
-    toMillis(thread.latestRunStartedAt),
-    toMillis(thread.latestRunCompletedAt),
-  ]);
+  const activityAtMs =
+    latestMillis([
+      toMillis(thread.latestUserMessageAt),
+      toMillis(thread.latestRunRequestedAt),
+      toMillis(thread.latestRunStartedAt),
+      toMillis(thread.latestRunCompletedAt),
+    ]) ?? DateTime.toEpochMillis(thread.createdAt);
   if (
     pullRequest !== null &&
     pullRequestMarksDone(thread, pullRequest, input.autoMarkDoneOnMerge)
   ) {
-    return activityAtMs === null ? thread.createdAt : DateTime.makeUnsafe(activityAtMs);
+    return DateTime.makeUnsafe(activityAtMs);
   }
   const hasOpenPullRequest =
     pullRequest === null
       ? thread.linkedPullRequest != null || thread.branchPullRequest != null
       : pullRequest.state === "open";
   if (input.autoMarkDoneKeepPullRequests === true && hasOpenPullRequest) return null;
-  if (input.autoMarkDoneAfterDays === null || activityAtMs === null) return null;
+  if (input.autoMarkDoneAfterDays === null) return null;
   // A passed wake timer restarts inactivity. An earlier wake can only delay completion.
   const snoozedUntilMs = toMillis(thread.snoozedUntil);
   const timerWakeAtMs =

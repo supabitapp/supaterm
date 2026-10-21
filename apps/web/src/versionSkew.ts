@@ -5,6 +5,7 @@ import type {
   ServerSelfUpdateCapability,
 } from "@supaterm/contracts";
 import type { ServerUpdateState } from "@supaterm/client-runtime/state/server";
+import { cliReleaseChannelOf } from "@supaterm/shared/cliRelease";
 import { compareSemverVersions, parseSemver } from "@supaterm/shared/semver";
 import * as Schema from "effect/Schema";
 
@@ -80,7 +81,29 @@ export function resolveVersionMismatch(
 export function resolveServerConfigVersionMismatch(
   serverConfig: Pick<ServerConfig, "environment"> | null | undefined,
 ): VersionMismatch | null {
-  return resolveVersionMismatch(serverConfig?.environment.serverVersion);
+  const mismatch = resolveVersionMismatch(serverConfig?.environment.serverVersion);
+  if (
+    mismatch === null ||
+    !isServerUpdateChannelCompatible(
+      mismatch.serverVersion,
+      mismatch.clientVersion,
+      resolveServerSelfUpdateCapability(serverConfig),
+    )
+  ) {
+    return null;
+  }
+  return mismatch;
+}
+
+export function isServerUpdateChannelCompatible(
+  serverVersion: string,
+  targetVersion: string,
+  selfUpdate: ServerSelfUpdateCapability | null,
+): boolean {
+  return (
+    selfUpdate === "desktop-managed" ||
+    cliReleaseChannelOf(serverVersion) === cliReleaseChannelOf(targetVersion)
+  );
 }
 
 export function resolveServerSelfUpdateCapability(

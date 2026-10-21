@@ -7,6 +7,7 @@ import {
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as Deferred from "effect/Deferred";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Equal from "effect/Equal";
 import * as Exit from "effect/Exit";
@@ -24,6 +25,7 @@ import * as RpcSerialization from "effect/rpc/RpcSerialization";
 import * as Socket from "effect/socket/Socket";
 
 import { makeWsRpcProtocolClient, PING_TIMEOUT, type WsRpcProtocolClient } from "./protocol.ts";
+import { UNRESPONSIVE_HOST_HINT } from "../errors/network.ts";
 import type {
   ConnectionAttemptError,
   ConnectionTransientError,
@@ -110,27 +112,39 @@ function serverConfigReplayEvents(
   return [snapshot, ...(state.themesEvent === undefined ? [] : [state.themesEvent])];
 }
 
+const PING_TIMEOUT_SECONDS = Duration.toSeconds(PING_TIMEOUT);
+
 function mapSessionRpcError(
   error: InitialConfigError | ProbeError | ServerConfigSubscriptionError,
+  via: "relay" | "direct",
 ): ConnectionAttemptError {
   switch (error._tag) {
     case "EnvironmentAuthorizationError":
       return new ConnectionBlockedError({
         reason: "permission",
         detail: error.message,
+        hop: "server",
+        via,
       });
     case "KeybindingsConfigParseError":
     case "ServerSettingsError":
       return new ConnectionTransientErrorClass({
         reason: "remote-unavailable",
         detail: error.message,
+        hop: "server",
+        via,
       });
     case "RpcClientError":
       return new ConnectionTransientErrorClass({
         reason: "transport",
         detail: error.message,
+        ...socketFailureLocation(via),
       });
   }
+}
+
+function socketFailureLocation(via: "relay" | "direct") {
+  return { hop: via === "relay" ? "tunnel" : "server", via } as const;
 }
 
 /** @public Service construction is part of the canonical Effect module API. */
@@ -142,6 +156,9 @@ export const make = Effect.fn("RpcSessionFactory.make")(function* (
     options.environmentThemes === true ? { environmentThemes: true } : {};
 
   const connect = Effect.fnUntraced(function* (connection: PreparedConnection) {
+    const via = connection.connectionMethod === "relay" ? "relay" : "direct";
+    const mapRpcError = (error: Parameters<typeof mapSessionRpcError>[0]) =>
+      mapSessionRpcError(error, via);
     yield* Effect.annotateCurrentSpan({
       "connection.environment.id": connection.environmentId,
     });
@@ -160,8 +177,9 @@ export const make = Effect.fn("RpcSessionFactory.make")(function* (
               detail: !wasConnected
                 ? `${connection.label} could not establish a WebSocket connection.`
                 : timedOut
-                  ? `${connection.label} stopped responding.`
+                  ? `${connection.label} stopped responding for ${PING_TIMEOUT_SECONDS}s. ${UNRESPONSIVE_HOST_HINT}`
                   : `${connection.label} disconnected.`,
+              ...socketFailureLocation(via),
             }),
           ),
         ),
@@ -190,6 +208,12 @@ export const make = Effect.fn("RpcSessionFactory.make")(function* (
     );
     const protocolContext = yield* Layer.build(layerProtocol).pipe(
       Effect.withSpan("environment.websocket.connect"),
+    );
+    yield* Deferred.await(connected).pipe(
+      Effect.raceFirst(Deferred.await(disconnected)),
+      Effect.withSpan("environment.websocket.open"),
+      Effect.ignore,
+      Effect.forkScoped,
     );
     const protocolClient = yield* makeWsRpcProtocolClient.pipe(Effect.provide(protocolContext));
     const initialConfigDeferred = yield* Deferred.make<ServerConfig>();
@@ -250,7 +274,7 @@ export const make = Effect.fn("RpcSessionFactory.make")(function* (
         }
         return Effect.all([
           Deferred.failCause(serverConfigExit, exit.cause),
-          Deferred.failCause(configSubscriptionClosed, Cause.map(exit.cause, mapSessionRpcError)),
+          Deferred.failCause(configSubscriptionClosed, Cause.map(exit.cause, mapRpcError)),
         ]).pipe(Effect.asVoid);
       }),
     );
@@ -258,7 +282,7 @@ export const make = Effect.fn("RpcSessionFactory.make")(function* (
     const initialConfig = Effect.raceFirst(
       Deferred.await(initialConfigDeferred),
       Deferred.await(serverConfigExit).pipe(
-        Effect.mapError(mapSessionRpcError),
+        Effect.mapError(mapRpcError),
         Effect.flatMap(() => Effect.fail(configSubscriptionEndedError)),
       ),
     ).pipe(
@@ -351,7 +375,7 @@ export const make = Effect.fn("RpcSessionFactory.make")(function* (
     );
     const probe = initialConfig.pipe(
       Effect.flatMap(() =>
-        protocolClient[WS_METHODS.serverProbe]({}).pipe(Effect.mapError(mapSessionRpcError)),
+        protocolClient[WS_METHODS.serverProbe]({}).pipe(Effect.mapError(mapRpcError)),
       ),
       Effect.asVoid,
       Effect.withSpan("clientRuntime.connection.rpcSession.probe"),

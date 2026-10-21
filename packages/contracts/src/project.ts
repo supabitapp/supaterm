@@ -281,6 +281,25 @@ export const ProjectListEntriesResult = Schema.Struct({
 });
 export type ProjectListEntriesResult = typeof ProjectListEntriesResult.Type;
 
+// Untracked files git ignores. Wholly ignored folders such as `node_modules`
+// are left out, so the list stays small enough to pick from.
+export const ProjectListIgnoredFilesInput = Schema.Struct({
+  cwd: TrimmedNonEmptyString,
+});
+export type ProjectListIgnoredFilesInput = typeof ProjectListIgnoredFilesInput.Type;
+
+export const ProjectIgnoredFile = Schema.Struct({
+  path: TrimmedNonEmptyString,
+  byteLength: NonNegativeInt,
+});
+export type ProjectIgnoredFile = typeof ProjectIgnoredFile.Type;
+
+export const ProjectListIgnoredFilesResult = Schema.Struct({
+  files: Schema.Array(ProjectIgnoredFile),
+  truncated: Schema.Boolean,
+});
+export type ProjectListIgnoredFilesResult = typeof ProjectListIgnoredFilesResult.Type;
+
 export const ProjectEntriesFailure = Schema.Literals([
   "workspace_root_not_found",
   "workspace_root_create_failed",
@@ -395,6 +414,8 @@ export const ProjectReadFileInput = Schema.Struct({
   // Workspace-relative, or an absolute host path for a file outside the
   // workspace. Only workspace-relative paths can be written back.
   relativePath: TrimmedNonEmptyString.check(Schema.isMaxLength(PROJECT_READ_FILE_PATH_MAX_LENGTH)),
+  // Optional files can be absent without failing the read.
+  allowMissing: Schema.optional(Schema.Boolean),
 });
 export type ProjectReadFileInput = typeof ProjectReadFileInput.Type;
 
@@ -403,6 +424,8 @@ export const ProjectReadFileResult = Schema.Struct({
   contents: Schema.String,
   byteLength: NonNegativeInt,
   truncated: Schema.Boolean,
+  // Omitted by older servers; false only for an absent optional file.
+  exists: Schema.optional(Schema.Boolean),
 });
 export type ProjectReadFileResult = typeof ProjectReadFileResult.Type;
 

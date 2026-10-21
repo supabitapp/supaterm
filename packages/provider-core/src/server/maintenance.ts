@@ -7,6 +7,7 @@ export interface ProviderMaintenanceCapabilities {
   readonly update: ProviderMaintenanceCommandAction | null;
 
   readonly latestVersion?: string | null;
+
   readonly lookupLatestVersion?: Effect.Effect<string | null>;
   readonly compareVersions?: (current: string, latest: string) => number;
   readonly installPath?: string;

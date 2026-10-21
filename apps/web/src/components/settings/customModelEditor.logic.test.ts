@@ -19,6 +19,40 @@ const draft = (overrides: Partial<CustomModelDraft>): CustomModelDraft => ({
 });
 
 describe("customModelEditor.logic", () => {
+  it("does not offer or copy Fast for custom Claude models", () => {
+    const claude = ProviderDriverKind.make("claudeAgent");
+    expect(DESCRIPTOR_PRESETS_BY_KIND[claude]?.some((preset) => preset.id === "fastMode")).toBe(
+      false,
+    );
+    expect(
+      descriptorsFromCapabilities(
+        { optionDescriptors: [{ id: "fastMode", label: "Fast", type: "boolean" }] },
+        claude,
+      ),
+    ).toEqual([]);
+  });
+  it("hides legacy custom Fast when reopening Claude models and preserves other providers", () => {
+    const entry = {
+      slug: "custom",
+      name: "Custom",
+      capabilities: {
+        optionDescriptors: [
+          { id: "fastMode", label: "Fast", type: "boolean" as const, currentValue: true },
+          { id: "thinking", label: "Thinking", type: "boolean" as const },
+        ],
+      },
+    };
+    expect(
+      draftFromDefinition(entry, ProviderDriverKind.make("claudeAgent")).descriptors.map(
+        (descriptor) => descriptor.id,
+      ),
+    ).toEqual(["thinking"]);
+    expect(
+      draftFromDefinition(entry, ProviderDriverKind.make("cursor")).descriptors.map(
+        (descriptor) => descriptor.id,
+      ),
+    ).toEqual(["fastMode", "thinking"]);
+  });
   it("round-trips a definition through the draft, marking the current value as default", () => {
     const definition = definitionFromDraft(
       draft({

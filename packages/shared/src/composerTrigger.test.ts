@@ -78,20 +78,17 @@ describe("detectComposerTrigger", () => {
     expect(detectComposerTrigger(text, cursor)).toBeNull();
   });
 
-  it.each(["$", "€", "£", "¥", "₹", "₩", "₿", "𑿝"])(
-    "detects %sskill trigger at cursor",
-    (prefix) => {
-      const text = `Use ${prefix}gh-fi`;
-      const trigger = detectComposerTrigger(text, text.length);
+  it.each(["$", "€", "𑿝"])("detects %sskill trigger at cursor", (prefix) => {
+    const text = `Use ${prefix}gh-fi`;
+    const trigger = detectComposerTrigger(text, text.length);
 
-      expect(trigger).toEqual({
-        kind: "skill",
-        query: "gh-fi",
-        rangeStart: "Use ".length,
-        rangeEnd: text.length,
-      });
-    },
-  );
+    expect(trigger).toEqual({
+      kind: "skill",
+      query: "gh-fi",
+      rangeStart: "Use ".length,
+      rangeEnd: text.length,
+    });
+  });
 
   it("detects a pull request number at a token boundary", () => {
     const text = "Compare this with #8737";

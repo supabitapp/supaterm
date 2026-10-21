@@ -1,8 +1,13 @@
 import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import type { DesktopAppActivationRequest } from "@supaterm/contracts";
-import { useEffect, useEffectEvent, useRef } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 
-import { handleDesktopAppActivationRequest } from "../../desktopAppActivation";
+import {
+  createDesktopAppActivationRunner,
+  handleDesktopAppActivationRequest,
+  handleDesktopAppConnectionRequest,
+} from "../../desktopAppActivation";
+import { connectPairing } from "../../connection/onboarding";
 import { useNewThreadHandler } from "../../hooks/useHandleNewThread";
 import { findProjectByPath, inferProjectTitleFromPath } from "../../lib/projectPaths";
 import { newProjectId } from "../../lib/utils";
@@ -16,7 +21,11 @@ export function DesktopAppActivationCoordinator() {
   const primaryEnvironment = usePrimaryEnvironment();
   const createProject = useAtomCommand(projectEnvironment.create, { reportFailure: false });
   const openThread = useNewThreadHandler();
-  const queueRef = useRef(Promise.resolve());
+  const registerPairing = useAtomCommand(connectPairing, {
+    reportFailure: false,
+    reportDefect: false,
+  });
+  const [runRequest] = useState(createDesktopAppActivationRunner);
   const activation = window.desktopBridge?.appActivation;
   const shellHasSnapshot = useEnvironmentShellHasSnapshot(
     primaryEnvironment?.environmentId ?? null,
@@ -27,8 +36,11 @@ export function DesktopAppActivationCoordinator() {
     primaryEnvironment.serverConfig !== null &&
     shellHasSnapshot;
 
-  const processRequest = useEffectEvent(async (request: DesktopAppActivationRequest) =>
-    handleDesktopAppActivationRequest(request, {
+  const processRequest = useEffectEvent(async (request: DesktopAppActivationRequest) => {
+    if (request.type === "add-connection") {
+      return handleDesktopAppConnectionRequest(request, registerPairing);
+    }
+    return handleDesktopAppActivationRequest(request, {
       getTarget: () => {
         if (
           primaryEnvironment?.connection.phase !== "connected" ||
@@ -68,19 +80,17 @@ export function DesktopAppActivationCoordinator() {
         await waitForProject(projectRef);
       },
       openThread: (projectRef) => openThread(projectRef),
-    }),
-  );
+    });
+  });
 
   useEffect(() => {
     if (!ready || activation === undefined) return;
 
     let subscribed = true;
     const unsubscribe = activation.onRequest((request) => {
-      queueRef.current = queueRef.current.then(async () => {
-        const response = await processRequest(request);
-        await activation.complete(response);
-      });
-      queueRef.current = queueRef.current.catch(() => undefined);
+      void runRequest(request, processRequest, (response) => activation.complete(response)).catch(
+        () => undefined,
+      );
     });
     // Skip readiness if React runs cleanup before this subscription can receive requests.
     queueMicrotask(() => {
@@ -91,7 +101,7 @@ export function DesktopAppActivationCoordinator() {
       void activation.setReady(false).catch(() => undefined);
       unsubscribe();
     };
-  }, [activation, ready]);
+  }, [activation, ready, runRequest]);
 
   return null;
 }

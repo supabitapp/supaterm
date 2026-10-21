@@ -23,7 +23,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -40,7 +40,7 @@ jobs:
       - name: Lint GitHub Actions
         run: mise exec -- jactionlint --format github --shellcheck=shellcheck
       - name: Install workspace dependencies
-        run: mise exec -- vp install
+        uses: ./.github/actions/setup-ci-deps
       - name: Ensure Electron runtime is installed
         run: vp run --filter @supaterm/desktop ensure:electron
 
@@ -62,14 +62,14 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
       - name: Install workspace dependencies
-        run: mise exec -- vp install
+        uses: ./.github/actions/setup-ci-deps
       - name: Ensure Electron runtime is installed
         run: vp run --filter @supaterm/desktop ensure:electron
 
@@ -82,7 +82,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -101,7 +101,7 @@ jobs:
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
       - name: Install workspace dependencies
-        run: mise exec -- vp install
+        uses: ./.github/actions/setup-ci-deps
       - name: Ensure Electron runtime is installed
         run: vp run --filter @supaterm/desktop ensure:electron
 
@@ -118,19 +118,13 @@ jobs:
       - name: Verify preload bundle output
         run: node apps/desktop/scripts/verify-preload-bundle.mjs
 
-  # Everything except `supaterm` (apps/server) and the web app, which has its own job
-  # below. `--parallel` drops the package dependency ordering that `vp run`
-  # applies by default: these `test` tasks declare no `dependsOn` and resolve
-  # workspace deps from source, so ordering only bought us idle runners between
-  # dependency layers. The concurrency limit stays at the default 4 so peak load
-  # per runner is unchanged.
   test:
     name: Test
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: depot-ubuntu-24.04-16
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -148,7 +142,7 @@ jobs:
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
       - name: Install workspace dependencies
-        run: mise exec -- vp install
+        uses: ./.github/actions/setup-ci-deps
       - name: Ensure Electron runtime is installed
         run: vp run --filter @supaterm/desktop ensure:electron
 
@@ -162,24 +156,48 @@ jobs:
           command -v cc
 
       - name: Test
-        run: vp run --parallel --concurrency-limit 4 --filter '!supaterm' --filter '!@supaterm/monorepo' --filter '!@supaterm/web' test
+        run: vp run --parallel --concurrency-limit 4 --filter '!supaterm' --filter '!@supaterm/monorepo' --filter '!@supaterm/web' --filter '!@supaterm/mobile' test --maxWorkers 4
 
-  # The web suite is the largest outside the server. In the shared Test job it
-  # started last and ran alone for about 40s after everything else finished.
-  test_web:
-    name: Test Web
-    runs-on: depot-ubuntu-24.04-8
+  test_mobile:
+    name: Test Mobile ${{ matrix.shard }}
+    runs-on: depot-ubuntu-24.04-16
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
       - name: Install workspace dependencies
-        run: mise exec -- vp install
+        uses: ./.github/actions/setup-ci-deps
+
+      - name: Test
+        run: vp run --filter @supaterm/mobile test --shard ${{ matrix.shard }}/${{ strategy.job-total }} --maxWorkers 8
+
+  test_web:
+    name: Test Web ${{ matrix.shard }}
+    runs-on: depot-ubuntu-24.04-16
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Mise
+        uses: ./.github/actions/setup-mise
+      - name: Install workspace dependencies
+        uses: ./.github/actions/setup-ci-deps
 
       # The browser project runs React tests in headless Chromium. Same cache key as
       # test_server, so both jobs share one downloaded browser.
@@ -207,34 +225,26 @@ jobs:
           fi
 
       - name: Test
-        run: vp run --filter @supaterm/web test
+        run: vp run --filter @supaterm/web test --shard ${{ matrix.shard }}/${{ strategy.job-total }} --maxWorkers 8
 
-  # apps/server sets `fileParallelism: false`, so its test files run strictly
-  # one at a time. Sharding spreads them over separate runners instead of
-  # separate workers, so no two server test files ever share a machine and the
-  # isolation that flag buys is preserved exactly. One file at a time keeps
-  # about 1.5 cores busy, so 4 vCPU runners lose nothing against 8. The shards
-  # split files by recorded duration (apps/server/src/testUtils/weightedShardSequencer.ts).
-  # This job sets the workflow's wall time, so it gets more shards than the
-  # release run. Past about ten, AcpAdapterV2.test.ts (~54s alone) is the floor.
   test_server:
     name: Test Server ${{ matrix.shard }}
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
       - name: Install workspace dependencies
-        run: mise exec -- vp install
+        uses: ./.github/actions/setup-ci-deps
       # Cache the pinned browser and skip apt unless shared libraries are missing.
       - name: Resolve Playwright version
         id: playwright_version
@@ -301,11 +311,11 @@ jobs:
   # for checks that take under 3s, on the critical path of every PR.
   rust:
     name: Rust
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -332,7 +342,7 @@ jobs:
   # lint runs.
   mobile_native_changes:
     name: Mobile Native Changes
-    runs-on: depot-ubuntu-24.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -414,7 +424,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -430,13 +440,18 @@ jobs:
 
   release_smoke:
     name: Release Smoke
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: depot-ubuntu-24.04-16
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
+          sparse-checkout: |
+            /*
+            !/.repos/
+            !/apps/mobile/modules/supaterm-terminal/Vendor/**/*.a
+          sparse-checkout-cone-mode: false
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
@@ -460,13 +475,14 @@ jobs:
         build,
         test,
         test_web,
+        test_mobile,
         test_server,
         rust,
         mobile_native_changes,
         mobile_native_static_analysis,
         release_smoke,
       ]
-    runs-on: depot-ubuntu-24.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Require every job to pass

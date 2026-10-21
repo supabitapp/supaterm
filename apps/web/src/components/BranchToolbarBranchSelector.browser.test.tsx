@@ -1,8 +1,8 @@
 import { scopeProjectRef } from "@supaterm/client-runtime/environment";
 import { EnvironmentId, ProjectId, ThreadId } from "@supaterm/contracts";
-import { act, type ComponentProps } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { type ComponentProps } from "react";
+import { act, render as renderUi, type Screen } from "../../test/render";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 const commands = vi.hoisted(() => ({
   switchRef: vi.fn(),
@@ -123,8 +123,7 @@ const remoteProjectRef = scopeProjectRef(
   EnvironmentId.make("remote"),
   ProjectId.make("remote-project"),
 );
-let container: HTMLDivElement;
-let root: Root;
+let screen: Screen;
 
 function deferredCheckout() {
   type Result = { _tag: "Success"; value: { refName: string } };
@@ -135,8 +134,12 @@ function deferredCheckout() {
   return { promise, resolve };
 }
 
-beforeEach(async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+async function setupTest() {
+  await using resources = new AsyncDisposableStack();
+  resources.defer(() => {
+    useComposerDraftStore.getState().clearDraftThread(draftId);
+  });
+
   commands.switchRef.mockReset();
   commands.createRef.mockReset();
   useComposerDraftStore
@@ -146,11 +149,8 @@ beforeEach(async () => {
       branch: null,
       environmentSelection: "auto",
     });
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
-  await act(() =>
-    root.render(
+  screen = resources.use(
+    await renderUi(
       <BranchToolbarBranchSelector
         environmentId={environmentId}
         threadId={threadId}
@@ -159,20 +159,16 @@ beforeEach(async () => {
         startFromOrigin={false}
         onStartFromOriginChange={vi.fn()}
       />,
+      { router: false },
     ),
   );
-});
 
-afterEach(async () => {
-  await act(() => root.unmount());
-  container.remove();
-  useComposerDraftStore.getState().clearDraftThread(draftId);
-  vi.unstubAllGlobals();
-});
+  return resources.move();
+}
 
 async function chooseBranch(action: "switch" | "create") {
   if (action === "create") {
-    const input = container.querySelector("input")!;
+    const input = screen.container.querySelector("input")!;
     await act(() => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
         input,
@@ -181,7 +177,7 @@ async function chooseBranch(action: "switch" | "create") {
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
   }
-  const button = [...container.querySelectorAll("button")].find((element) =>
+  const button = [...screen.container.querySelectorAll("button")].find((element) =>
     action === "switch"
       ? element.textContent === "feature/selected"
       : element.textContent?.startsWith("__create_new_branch__:"),
@@ -191,6 +187,7 @@ async function chooseBranch(action: "switch" | "create") {
 
 describe.each(["switch", "create"] as const)("%s branch host routing", (action) => {
   it("pins the host before checkout finishes", async () => {
+    await using _test = await setupTest();
     const checkout = deferredCheckout();
     const command = action === "switch" ? commands.switchRef : commands.createRef;
     command.mockReturnValue(checkout.promise);
@@ -212,6 +209,7 @@ describe.each(["switch", "create"] as const)("%s branch host routing", (action) 
   });
 
   it("keeps a later host choice when the old checkout finishes", async () => {
+    await using _test = await setupTest();
     const checkout = deferredCheckout();
     const command = action === "switch" ? commands.switchRef : commands.createRef;
     command.mockReturnValue(checkout.promise);

@@ -8,12 +8,12 @@ import {
   type UnifiedSettings,
 } from "@supaterm/contracts";
 import { AsyncResult, type Atom } from "effect/reactivity";
-import { act, type ReactNode } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import type { ReactNode } from "react";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
 import "~/index.css";
+import { act, render } from "../../../test/render";
 
 const state = vi.hoisted(() => ({
   providers: null as unknown as Atom.Writable<ReadonlyArray<ServerProvider>>,
@@ -188,31 +188,26 @@ function provider(): ServerProvider {
   };
 }
 
-let root: Root;
-let container: HTMLDivElement;
-
 const setProviders = (providers: ReadonlyArray<ServerProvider>) =>
   act(async () => appAtomRegistry.set(state.providers, providers));
 
-async function render(options?: {
+function panel(options?: {
   readonly readOnly?: boolean;
   readonly targetInstanceId?: ProviderInstanceId;
 }) {
-  await act(async () =>
-    root.render(
-      <RegistryContext.Provider value={appAtomRegistry}>
-        <div className="@container/providers">
-          <EnvironmentProviderSettings
-            environmentId={environmentId}
-            environmentLabel="Remote device"
-            {...(options?.readOnly === undefined ? {} : { readOnly: options.readOnly })}
-            {...(options?.targetInstanceId === undefined
-              ? {}
-              : { targetInstanceId: options.targetInstanceId })}
-          />
-        </div>
-      </RegistryContext.Provider>,
-    ),
+  return (
+    <RegistryContext.Provider value={appAtomRegistry}>
+      <div className="@container/providers">
+        <EnvironmentProviderSettings
+          environmentId={environmentId}
+          environmentLabel="Remote device"
+          {...(options?.readOnly === undefined ? {} : { readOnly: options.readOnly })}
+          {...(options?.targetInstanceId === undefined
+            ? {}
+            : { targetInstanceId: options.targetInstanceId })}
+        />
+      </div>
+    </RegistryContext.Provider>
   );
 }
 
@@ -223,8 +218,7 @@ const addProvider = () => page.getByRole("button", { name: "Add provider" }).fir
 const select = (name: string) => button(`Select ${name}`);
 const deleteButton = (id: string) => button(`Delete instance ${id}`);
 
-beforeEach(async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+async function setup() {
   await page.viewport(1280, 900);
   state.settings = DEFAULT_UNIFIED_SETTINGS;
   state.canManageProviders = true;
@@ -242,20 +236,12 @@ beforeEach(async () => {
   state.uninstall.mockReset().mockResolvedValue(AsyncResult.success({}));
   state.acceptUrlAuth.mockReset().mockResolvedValue(AsyncResult.success({ accepted: true }));
   await setProviders([]);
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
-});
-
-afterEach(async () => {
-  await act(async () => root.unmount());
-  container.remove();
-  vi.unstubAllGlobals();
-});
+}
 
 describe("EnvironmentProviderSettings routing", () => {
   it("shows Codex and Claude while hiding untouched disabled provider slots", async () => {
-    await render();
+    await setup();
+    await using _screen = await render(panel());
     await expect.element(select("Codex")).toBeVisible();
     await expect.element(select("Claude")).toBeVisible();
     for (const label of ["Cursor", "Grok", "Pi", "OpenCode", "Antigravity"]) {
@@ -264,6 +250,7 @@ describe("EnvironmentProviderSettings routing", () => {
   });
 
   it("keeps explicitly configured providers visible when disabled", async () => {
+    await setup();
     state.settings = {
       ...DEFAULT_UNIFIED_SETTINGS,
       providerInstances: {
@@ -273,11 +260,12 @@ describe("EnvironmentProviderSettings routing", () => {
         },
       },
     };
-    await render();
+    await using _screen = await render(panel());
     await expect.element(select("Grok")).toBeVisible();
   });
 
   it("keeps legacy provider configuration visible when disabled", async () => {
+    await setup();
     state.settings = {
       ...DEFAULT_UNIFIED_SETTINGS,
       providerInstances: {
@@ -288,12 +276,13 @@ describe("EnvironmentProviderSettings routing", () => {
         },
       },
     };
-    await render();
+    await using _screen = await render(panel());
     await expect.element(select("Grok")).toBeVisible();
   });
 
   it("reads and writes settings on the selected environment", async () => {
-    await render();
+    await setup();
+    await using _screen = await render(panel());
     await expect.element(select("Codex")).toBeVisible();
     expect(new Set(state.readEnvironmentIds)).toEqual(new Set([environmentId]));
     expect(new Set(state.updateEnvironmentIds)).toEqual(new Set([environmentId]));
@@ -301,8 +290,9 @@ describe("EnvironmentProviderSettings routing", () => {
   });
 
   it("routes refresh and provider update commands to the selected environment", async () => {
+    await setup();
     await setProviders([provider()]);
-    await render();
+    await using _screen = await render(panel());
 
     await userEvent.click(refreshButton());
     expect(state.refresh).toHaveBeenCalledWith({
@@ -319,6 +309,7 @@ describe("EnvironmentProviderSettings routing", () => {
   });
 
   it("opens the requested provider instance instead of the first provider", async () => {
+    await setup();
     state.settings = {
       ...DEFAULT_UNIFIED_SETTINGS,
       providerInstances: {
@@ -330,13 +321,14 @@ describe("EnvironmentProviderSettings routing", () => {
       },
     };
     await setProviders([provider()]);
-    await render({ targetInstanceId: customId });
+    await using _screen = await render(panel({ targetInstanceId: customId }));
     await expect.element(deleteButton(customId)).toBeVisible();
   });
 
   it("saves model favorites and visibility on the selected environment", async () => {
+    await setup();
     await setProviders([provider()]);
-    await render();
+    await using _screen = await render(panel());
 
     await userEvent.click(button("Add Chosen to favorites"));
     expect(state.toggleFavorite).toHaveBeenCalledExactlyOnceWith(codexId, "chosen");
@@ -349,8 +341,9 @@ describe("EnvironmentProviderSettings routing", () => {
   });
 
   it("does not substitute another account when the requested instance was removed", async () => {
+    await setup();
     await setProviders([provider()]);
-    await render({ targetInstanceId: customId });
+    await using _screen = await render(panel({ targetInstanceId: customId }));
     await expect
       .element(page.getByText("This provider instance is no longer available on this device."))
       .toBeVisible();
@@ -358,6 +351,7 @@ describe("EnvironmentProviderSettings routing", () => {
   });
 
   it("keeps provider selection available while write controls are read only", async () => {
+    await setup();
     state.canWriteSettings = false;
     state.settings = {
       ...DEFAULT_UNIFIED_SETTINGS,
@@ -370,19 +364,20 @@ describe("EnvironmentProviderSettings routing", () => {
       },
     };
     await setProviders([provider()]);
-    await render({ readOnly: true });
+    await using screen = await render(panel({ readOnly: true }));
 
     await expect.element(page.getByRole("heading", { name: "Limited permissions" })).toBeVisible();
     await userEvent.click(select("Work"));
     await expect.element(deleteButton(customId)).toBeInTheDocument();
-    expect(container.querySelector("[inert]")).not.toBeNull();
+    expect(screen.container.querySelector("[inert]")).not.toBeNull();
     await expect.element(refreshButton()).toBeVisible();
     await expect.element(addProvider()).not.toBeInTheDocument();
   });
 
   it("keeps the editable layout interactive when not read only", async () => {
+    await setup();
     await setProviders([provider()]);
-    await render();
+    await using _screen = await render(panel());
     await expect.element(page.getByText("Limited permissions")).not.toBeInTheDocument();
     await expect.element(refreshButton()).toBeVisible();
     await expect.element(addProvider()).toBeVisible();
@@ -390,28 +385,31 @@ describe("EnvironmentProviderSettings routing", () => {
   });
 
   it("removes an open add-instance dialog when the provider grant is revoked", async () => {
-    await render();
+    await setup();
+    await using screen = await render(panel());
     await userEvent.click(addProvider());
     await expect.element(page.getByRole("dialog")).toBeVisible();
 
     state.canManageProviders = false;
-    await render({ readOnly: true });
+    await screen.rerender(panel({ readOnly: true }));
     await vi.waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull());
     expect(state.updateSettings).not.toHaveBeenCalled();
   });
 
   it("keeps Advanced visible when search targets the provider health interval", async () => {
-    await render();
+    await setup();
+    await using screen = await render(panel());
     await expect.element(page.getByText("Advanced", { exact: true })).toBeVisible();
-    expect(container.querySelector("#provider-health-check-interval")).not.toBeNull();
+    expect(screen.container.querySelector("#provider-health-check-interval")).not.toBeNull();
 
     state.searchTargetId = "provider-health-check-interval";
-    await render();
+    await screen.rerender(panel());
     await expect.element(page.getByText("Advanced", { exact: true })).toBeVisible();
-    expect(container.querySelector("#provider-health-check-interval")).not.toBeNull();
+    expect(screen.container.querySelector("#provider-health-check-interval")).not.toBeNull();
   });
 
   it("deletes and resets provider configuration without erasing shared preferences", async () => {
+    await setup();
     state.settings = {
       ...DEFAULT_UNIFIED_SETTINGS,
       providerInstances: {
@@ -427,7 +425,7 @@ describe("EnvironmentProviderSettings routing", () => {
       },
       favorites: [{ provider: customId, model: "favorite" }],
     };
-    await render();
+    await using _screen = await render(panel());
     await userEvent.click(select("Work"));
     await userEvent.click(deleteButton(customId));
     expect(state.mutateProviderInstance).not.toHaveBeenCalled();
@@ -448,6 +446,7 @@ describe("EnvironmentProviderSettings routing", () => {
   });
 
   it("updates one provider instance without sending a stale whole map", async () => {
+    await setup();
     state.settings = {
       ...DEFAULT_UNIFIED_SETTINGS,
       providerInstances: {
@@ -458,7 +457,7 @@ describe("EnvironmentProviderSettings routing", () => {
         },
       },
     };
-    await render();
+    await using _screen = await render(panel());
     await userEvent.click(page.getByRole("switch", { name: "Enable Work" }).first());
 
     expect(state.mutateProviderInstance).toHaveBeenCalledWith(
@@ -472,6 +471,7 @@ describe("EnvironmentProviderSettings routing", () => {
   });
 
   it("lets the server decide managed ACP cleanup after an atomic delete", async () => {
+    await setup();
     const firstId = ProviderInstanceId.make("acpRegistry_kilo_one");
     const secondId = ProviderInstanceId.make("acpRegistry_kilo_two");
     const registryInstance = (displayName: string) => ({
@@ -487,7 +487,7 @@ describe("EnvironmentProviderSettings routing", () => {
         [secondId]: registryInstance("Kilo two"),
       },
     };
-    await render();
+    await using _screen = await render(panel());
     await userEvent.click(select("Kilo one"));
     await userEvent.click(deleteButton(firstId));
     await pressAgain(button(`Confirm delete instance ${firstId}`).element());
@@ -502,6 +502,7 @@ describe("EnvironmentProviderSettings routing", () => {
   });
 
   it("keeps the signed-in ACP account visible when login methods are no longer advertised", async () => {
+    await setup();
     const instanceId = ProviderInstanceId.make("acpRegistry_devin");
     state.settings = {
       ...DEFAULT_UNIFIED_SETTINGS,
@@ -522,11 +523,12 @@ describe("EnvironmentProviderSettings routing", () => {
         setup: { canAuthenticate: false, canInstall: false },
       },
     ]);
-    await render({ targetInstanceId: instanceId });
+    await using _screen = await render(panel({ targetInstanceId: instanceId }));
     await expect.element(page.getByRole("heading", { name: "Account" })).toBeVisible();
   });
 
   it("routes explicit ACP browser authentication consent to the selected environment", async () => {
+    await setup();
     const instanceId = ProviderInstanceId.make("acpRegistry_antigravity");
     const action = {
       elicitationId: "google-login-1",
@@ -551,7 +553,7 @@ describe("EnvironmentProviderSettings routing", () => {
         auth: { status: "unauthenticated", action },
       },
     ]);
-    await render({ targetInstanceId: instanceId });
+    await using _screen = await render(panel({ targetInstanceId: instanceId }));
     const link = page.getByRole("link", { name: "Continue authentication" });
     link.element().addEventListener("click", (event) => event.preventDefault());
     await userEvent.click(link);

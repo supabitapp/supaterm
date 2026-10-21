@@ -1,12 +1,12 @@
-import type { DiffsHighlighter } from "@pierre/diffs";
 import { withOccurrenceKeys } from "@supaterm/shared/occurrenceKeys";
 import { toHtml } from "hast-util-to-html";
 import { toJsxRuntime } from "hast-util-to-jsx-runtime";
 import { cloneElement, isValidElement, memo, type DOMAttributes } from "react";
 import { Fragment, jsx, jsxs } from "react/jsx-runtime";
 
-type HighlightedRoot = ReturnType<DiffsHighlighter["codeToHast"]>;
-type HighlightedNode = HighlightedRoot["children"][number];
+import type { HighlightedDocument } from "../../lib/incrementalHighlighting";
+
+type HighlightedNode = HighlightedDocument["children"][number]["children"][number];
 const runtime = { Fragment, jsx, jsxs };
 
 function elementShell(node: Extract<HighlightedNode, { type: "element" }>) {
@@ -28,7 +28,7 @@ const HighlightedLine = memo(function HighlightedLine({ node }: { node: Highligh
  * Keep their DOM mounted too: replacing the entire pre makes the browser parse
  * and resolve styles for thousands of unchanged token spans on each update.
  */
-export function HighlightedCodeLines({ root }: { root: HighlightedRoot }) {
+export function HighlightedCodeLines({ root }: { root: HighlightedDocument }) {
   const pre = root.children[0];
   if (pre?.type !== "element" || pre.tagName !== "pre") return toJsxRuntime(root, runtime);
   const code = pre.children[0];

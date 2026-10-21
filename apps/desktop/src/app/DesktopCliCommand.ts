@@ -88,15 +88,17 @@ export const make = Effect.gen(function* () {
       Effect.orElseSucceed(() => false),
     );
 
-  const isOurLink = (link: string) =>
-    Effect.gen(function* () {
+  const isOurLink = Effect.fn("DesktopCliCommand.isOurLink")(
+    function* (link: string) {
       yield* fs.readLink(link);
 
       const info = yield* fs.stat(link);
       if (info.type !== "File" || Number(info.size) > 16_384) return false;
       const content = yield* fs.readFileString(link);
       return content.includes(DesktopCliShim.MARKER);
-    }).pipe(Effect.orElseSucceed(() => false));
+    },
+    Effect.orElseSucceed(() => false),
+  );
 
   const powershell = (env: Record<string, string>) =>
     Effect.scoped(

@@ -43,6 +43,7 @@ import {
   extractXAiBackgroundTaskCompletion,
   extractXAiKilledBackgroundTasks,
   extractXAiMonitorTaskId,
+  xAiBackgroundShellTaskId,
   isXAiPersistentMonitor,
   extractXAiExitPlanMarkdown,
   registerXAiSubagentFinished,
@@ -56,7 +57,10 @@ import {
 } from "./xaiAcpExtension.ts";
 import { mergeProviderInstanceEnvironment } from "@supaterm/provider-core/server/instanceEnvironment";
 import { acpPermissionDisposition } from "@supaterm/provider-acp/server/clientPolicy";
-import { sessionModelStateFromInitialize } from "@supaterm/provider-acp/server/runtimeModel";
+import {
+  findModelConfigOption,
+  sessionModelStateFromInitialize,
+} from "@supaterm/provider-acp/server/runtimeModel";
 import * as AcpSessionRuntime from "@supaterm/provider-acp/server/AcpSessionRuntime";
 import * as ProviderEventLoggers from "@supaterm/provider-core/server/ProviderEventLoggers";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
@@ -261,33 +265,34 @@ export function makeGrokAcpAdapterFlavor(
         ? window
         : undefined;
     },
-    applyModelSelection: ({ runtime, startResult, modelSelection }) =>
-      Effect.gen(function* () {
-        const legacy = startResult.initializeResult.protocolVersion === 1;
-        const options = legacy ? [] : yield* runtime.getConfigOptions;
-        const configuredModel = options.find((option) => option.category === "model")?.currentValue;
-        const requestedReasoningEffort = options.some((option) => option.id === "reasoningEffort")
-          ? undefined
-          : getModelSelectionStringOptionValue(modelSelection, "reasoningEffort");
-        return yield* applyGrokAcpModelSelection({
-          runtime: legacy
-            ? runtime
-            : {
-                setSessionModel: (model, meta) =>
-                  meta
-                    ? runtime.setSessionModel(model, meta)
-                    : runtime.setModel(model).pipe(Effect.as({})),
-              },
-          currentModelId: legacy
-            ? currentGrokModelIdFromSessionSetup(startResult.sessionSetupResult)
-            : typeof configuredModel === "string"
-              ? configuredModel
-              : undefined,
-          requestedModelId: resolveGrokAcpBaseModelId(modelSelection.model),
-          requestedReasoningEffort,
-          mapError: (cause) => cause,
-        });
-      }),
+    applyModelSelection: Effect.fn("GrokAdapter.applyModelSelection")(function* ({
+      runtime,
+      startResult,
+      modelSelection,
+    }) {
+      const legacy = startResult.initializeResult.protocolVersion === 1;
+      const options = legacy ? [] : yield* runtime.getConfigOptions;
+      const configuredModel = findModelConfigOption(options)?.currentValue;
+      const requestedReasoningEffort = options.some((option) => option.id === "reasoningEffort")
+        ? undefined
+        : getModelSelectionStringOptionValue(modelSelection, "reasoningEffort");
+      return yield* applyGrokAcpModelSelection({
+        runtime: legacy
+          ? runtime
+          : {
+              setSessionModel: (model, meta) =>
+                meta
+                  ? runtime.setSessionModel(model, meta)
+                  : runtime.setModel(model).pipe(Effect.as({})),
+            },
+        currentModelId: legacy
+          ? currentGrokModelIdFromSessionSetup(startResult.sessionSetupResult)
+          : configuredModel,
+        requestedModelId: resolveGrokAcpBaseModelId(modelSelection.model),
+        requestedReasoningEffort,
+        mapError: (cause) => cause,
+      });
+    }),
     makeRuntime:
       options.makeRuntime ??
       (({ runtimePolicy, ...input }) =>
@@ -328,6 +333,7 @@ export function makeGrokAcpAdapterFlavor(
         homeDirectory,
       }),
     extractBackgroundTaskId: extractXAiMonitorTaskId,
+    isBackgroundCommandTool: (toolCall) => xAiBackgroundShellTaskId(toolCall) !== undefined,
     extractBackgroundToolMutation: extractXAiAcpBackgroundToolMutation,
     extractBackgroundTaskCompletion: (toolCall) => [
       ...extractXAiBackgroundTaskCompletion(toolCall),

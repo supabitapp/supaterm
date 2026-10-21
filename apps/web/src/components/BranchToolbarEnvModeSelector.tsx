@@ -1,3 +1,4 @@
+import { formatFilePathForClipboard } from "@supaterm/client-runtime/media-actions";
 import { ThreadDetailsComboboxControl, ThreadDetailsControl } from "./chat/ThreadDetailsControl";
 import { ComposerContextLabel } from "./ComposerContextLabel";
 import { CheckIcon, CopyIcon, FolderGit2Icon, FolderGitIcon, FolderIcon } from "lucide-react";
@@ -103,7 +104,7 @@ export const BranchToolbarEnvModeSelector = memo(function BranchToolbarEnvModeSe
       })
       .then((action) => {
         if (action !== "copy-path") return;
-        void writeTextToClipboard(workspacePath, "workspace path").then(
+        void writeTextToClipboard(formatFilePathForClipboard(workspacePath), "workspace path").then(
           (didCopy) => {
             if (didCopy) {
               toastManager.add({

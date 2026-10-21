@@ -11,18 +11,12 @@ import { usePullRequestPermissions } from "./usePullRequestPermissions";
 import { annotatePullRequestDiff, reviewPosition } from "./pullRequestDiffComments";
 import { usePullRequestFileFilter } from "./usePullRequestFileFilter";
 import { isPullRequestTestFile } from "./pullRequestFileFilters";
-import {
-  StackActions,
-  useFocusEffect,
-  useNavigation,
-  useRoute,
-  type StaticScreenProps,
-} from "@react-navigation/native";
+import { useFocusEffect, useNavigation, type StaticScreenProps } from "@react-navigation/native";
 
 import { pullRequestReviewKey } from "./pullRequestReviewDrafts";
 
 import { useEffect, useRef, useState } from "react";
-import { Platform, Pressable, StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -60,38 +54,11 @@ import {
   type PullRequestDiffParams,
 } from "./usePullRequestDiff";
 import { PullRequestReadStatus } from "./PullRequestPresentation";
-import { PullRequestFiles } from "./PullRequestFiles";
-import { PullRequestSheetContent } from "./PullRequestSheetContent";
+export { PullRequestFilesSheet as PullRequestFilesRouteScreen } from "./PullRequestFiles";
 
 import { usePullRequestToolbarHeight } from "./usePullRequestToolbarHeight";
 
 const EMPTY_IDS: readonly string[] = [];
-
-export function PullRequestFilesRouteScreen({ route }: StaticScreenProps<PullRequestDiffParams>) {
-  const navigation = useNavigation();
-  const fileSelectionId = useRoute().key;
-  return (
-    <PullRequestSheetContent
-      title="Changed files"
-      scrollable={false}
-      subtitle={`#${route.params.number}${route.params.commit ? ` · ${route.params.commit.slice(0, 7)}` : ` · ${route.params.repository}`}`}
-    >
-      <PullRequestFiles
-        params={route.params}
-        groupByDirectory
-        onSelectFile={(path) =>
-          navigation.dispatch(
-            StackActions.popTo("PullRequestFile", {
-              ...route.params,
-              path,
-              fileSelectionId,
-            }),
-          )
-        }
-      />
-    </PullRequestSheetContent>
-  );
-}
 
 export function PullRequestFileRouteScreen({
   route,
@@ -551,13 +518,9 @@ export function PullRequestFileRouteScreen({
           </View>
         ) : null}
         {result.error && result.nextCursor ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={result.refresh}
-            className="min-h-11 items-center justify-center py-2"
-          >
-            <Text className="text-sm font-supaterm-medium">Retry loading remaining files</Text>
-          </Pressable>
+          <View className="self-center">
+            <Button label="Retry loading remaining files" tone="text" onPress={result.refresh} />
+          </View>
         ) : null}
         {parsed.kind === "files" && parsed.notice ? (
           <Text className="px-4 py-2 text-2xs text-foreground-muted">{parsed.notice}</Text>

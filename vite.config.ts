@@ -3,6 +3,8 @@ import { defineConfig } from "vite-plus";
 import * as NodeURL from "node:url";
 import antiSlop from "ultracite/oxlint/anti-slop";
 
+const DOM_TEST_ENVIRONMENT_ALLOWLIST: Array<string> = [];
+
 const RESTRICTED_IMPORT_PATHS = [
   {
     name: "@supaterm/client-runtime",
@@ -88,6 +90,7 @@ export default defineConfig({
       "**/routeTree.gen.ts",
       "**/*.graphql.ts",
       "packages/source-control-github/schema/**",
+      "apps/server/schema/**",
       "apps/mobile/android/**",
       "apps/mobile/ios/**",
       "apps/mobile/uniwind-types.d.ts",
@@ -114,6 +117,7 @@ export default defineConfig({
       "**/routeTree.gen.ts",
       "**/*.graphql.ts",
       "packages/source-control-github/schema/**",
+      "apps/server/schema/**",
       "apps/mobile/android/**",
       "apps/mobile/ios/**",
       "apps/mobile/uniwind-types.d.ts",
@@ -189,6 +193,7 @@ export default defineConfig({
       "supaterm/no-unscoped-has": "error",
       "supaterm/namespace-node-imports": "error",
       "supaterm/prefer-catch-tags": "error",
+      "supaterm/prefer-effect-fn": "error",
       "supaterm/require-centered-scroll-gutter": "error",
       "supaterm/require-suppression-reason": "error",
     },
@@ -218,6 +223,23 @@ export default defineConfig({
       {
         files: ["**/*.live.test.ts"],
         rules: { "test-waits/no-long-waits": "off" },
+      },
+      {
+        files: [
+          "**/*.{test,spec,testkit}.{ts,tsx}",
+          "**/{test,tests,testkit,testing,fixtures,integration}/**",
+          "packages/provider-testing/**",
+        ],
+        rules: { "supaterm/prefer-effect-fn": "off" },
+      },
+      {
+        files: ["apps/web/**/*.test.{ts,tsx}"],
+        rules: { "supaterm/require-disposable-render": "error" },
+      },
+      {
+        files: ["apps/**/src/**", "packages/**/src/**"],
+        excludeFiles: DOM_TEST_ENVIRONMENT_ALLOWLIST,
+        rules: { "supaterm/no-dom-test-environment": "error" },
       },
       {
         files: ["packages/client-runtime/src/state/**", "apps/{web,mobile,desktop}/src/**"],

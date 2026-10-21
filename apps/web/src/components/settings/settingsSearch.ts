@@ -231,7 +231,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "start-from-origin",
-    title: "Start from origin",
+    title: "Start from remote",
     to: "/settings/general",
     scope: "project-defaults",
     searchTerms: ["new worktrees latest matching remote branch local"],
@@ -542,6 +542,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     to: "/settings/appearance",
     searchTerms: ["typography text grayscale anti aliasing macos thin"],
     macOnly: true,
+  },
+  {
+    id: "math-rendering",
+    title: "Render math",
+    to: "/settings/appearance",
+    searchTerms: ["latex tex katex equations formulas markdown"],
   },
   {
     id: "word-wrap",

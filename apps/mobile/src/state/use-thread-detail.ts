@@ -26,10 +26,10 @@ export function useThreadDetail(target: ThreadDetailTarget) {
 }
 
 export function useSelectedThreadDetailState() {
-  const { selectedThreadDetailRef } = useThreadSelection();
+  const { selectedThreadRef } = useThreadSelection();
   return useEnvironmentThread(
-    selectedThreadDetailRef?.environmentId ?? null,
-    selectedThreadDetailRef?.threadId ?? null,
+    selectedThreadRef?.environmentId ?? null,
+    selectedThreadRef?.threadId ?? null,
   );
 }
 
@@ -45,10 +45,10 @@ export function useThreadProjection(target: ThreadDetailTarget): EnvironmentThre
 }
 
 export function useSelectedThreadProjection(): EnvironmentThread | null {
-  const { selectedThreadDetailRef } = useThreadSelection();
+  const { selectedThreadRef } = useThreadSelection();
   return useThreadProjection({
-    environmentId: selectedThreadDetailRef?.environmentId ?? null,
-    threadId: selectedThreadDetailRef?.threadId ?? null,
+    environmentId: selectedThreadRef?.environmentId ?? null,
+    threadId: selectedThreadRef?.threadId ?? null,
   });
 }
 
@@ -58,22 +58,22 @@ const EMPTY_QUEUED_COUNT_ATOM = Atom.make(0);
 const EMPTY_TURN_SUBAGENTS_ATOM = Atom.make<ThreadTurnSubagents | null>(null);
 
 export function useSelectedThreadComposerMetadata() {
-  const { selectedThreadDetailRef } = useThreadSelection();
+  const { selectedThreadRef } = useThreadSelection();
   const reportedModelSelection = useAtomValue(
-    selectedThreadDetailRef === null
+    selectedThreadRef === null
       ? EMPTY_THREAD_PROJECTION_ATOM
-      : environmentThreadDetails.threadAtom(selectedThreadDetailRef),
+      : environmentThreadDetails.threadAtom(selectedThreadRef),
     selectReportedModelSelection,
   );
   const queuedCount = useAtomValue(
-    selectedThreadDetailRef === null
+    selectedThreadRef === null
       ? EMPTY_QUEUED_COUNT_ATOM
-      : environmentThreadDetails.queuedCountAtom(selectedThreadDetailRef),
+      : environmentThreadDetails.queuedCountAtom(selectedThreadRef),
   );
   const turnSubagents = useAtomValue(
-    selectedThreadDetailRef === null
+    selectedThreadRef === null
       ? EMPTY_TURN_SUBAGENTS_ATOM
-      : environmentThreadDetails.turnSubagentsAtom(selectedThreadDetailRef),
+      : environmentThreadDetails.turnSubagentsAtom(selectedThreadRef),
   );
   return { reportedModelSelection, queuedCount, turnSubagents };
 }
@@ -92,10 +92,10 @@ export function useThreadVisibleTurnItems(
 }
 
 export function useSelectedThreadVisibleTurnItems(): OrchestrationV2ThreadProjection["visibleTurnItems"] {
-  const { selectedThreadDetailRef } = useThreadSelection();
+  const { selectedThreadRef } = useThreadSelection();
   return useThreadVisibleTurnItems({
-    environmentId: selectedThreadDetailRef?.environmentId ?? null,
-    threadId: selectedThreadDetailRef?.threadId ?? null,
+    environmentId: selectedThreadRef?.environmentId ?? null,
+    threadId: selectedThreadRef?.threadId ?? null,
   });
 }
 
@@ -103,19 +103,19 @@ const EMPTY_WORKTREE_PATH_ATOM = Atom.make<string | null>(null);
 const EMPTY_PENDING_REQUESTS_ATOM = Atom.make<PendingThreadRequests | null>(null);
 
 export function useSelectedThreadWorktreePath() {
-  const { selectedThreadDetailRef } = useThreadSelection();
+  const { selectedThreadRef } = useThreadSelection();
   return useAtomValue(
-    selectedThreadDetailRef === null
+    selectedThreadRef === null
       ? EMPTY_WORKTREE_PATH_ATOM
-      : environmentThreadDetails.worktreePathAtom(selectedThreadDetailRef),
+      : environmentThreadDetails.worktreePathAtom(selectedThreadRef),
   );
 }
 
 export function useSelectedThreadPendingRequests() {
-  const { selectedThreadDetailRef } = useThreadSelection();
+  const { selectedThreadRef } = useThreadSelection();
   return useAtomValue(
-    selectedThreadDetailRef === null
+    selectedThreadRef === null
       ? EMPTY_PENDING_REQUESTS_ATOM
-      : environmentThreadDetails.pendingRequestsAtom(selectedThreadDetailRef),
+      : environmentThreadDetails.pendingRequestsAtom(selectedThreadRef),
   );
 }

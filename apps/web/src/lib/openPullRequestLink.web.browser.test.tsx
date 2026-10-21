@@ -1,6 +1,5 @@
-import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { act, render as renderUi, type Screen } from "../../test/render";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 // The plain browser cases: no desktop bridge, so isElectron is false as in a web client.
 const state = vi.hoisted(() => ({
@@ -15,7 +14,7 @@ vi.mock(import("@tanstack/react-router"), async (original) => ({
 }));
 vi.mock(import("../state/entities"), async (original) => ({
   ...(await original()),
-  useProjects: (() => [
+  readProjects: (() => [
     {
       id: "project-1",
       environmentId: "environment-1",
@@ -64,8 +63,7 @@ import { useOpenPrLink } from "./openPullRequestLink";
 
 const url = "https://github.com/acme/app/pull/42";
 const parentClick = vi.fn();
-let container: HTMLDivElement;
-let root: Root;
+let screen: Screen;
 
 function Link({ button = false }: { button?: boolean }) {
   const openPrLink = useOpenPrLink();
@@ -89,22 +87,17 @@ function Link({ button = false }: { button?: boolean }) {
   );
 }
 
-beforeEach(() => {
-  vi.clearAllMocks();
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
-});
+async function setupTest() {
+  await using resources = new AsyncDisposableStack();
 
-afterEach(async () => {
-  await act(async () => root.unmount());
-  container.remove();
-  vi.unstubAllGlobals();
-});
+  vi.clearAllMocks();
+  screen = resources.use(await renderUi(null, { router: false }));
+
+  return resources.move();
+}
 
 async function clickLink(options: MouseEventInit = {}, button = false) {
-  await act(async () => root.render(<Link button={button} />));
+  await screen.rerender(<Link button={button} />);
   const event = new MouseEvent("click", { bubbles: true, cancelable: true, ...options });
   let defaultPrevented: boolean | undefined;
   // Record what the link decided, then keep the real browser from following it. React handles
@@ -113,9 +106,9 @@ async function clickLink(options: MouseEventInit = {}, button = false) {
     defaultPrevented = seen.defaultPrevented;
     seen.preventDefault();
   };
-  container.addEventListener("click", stopNavigation, { once: true });
+  screen.container.addEventListener("click", stopNavigation, { once: true });
   await act(async () => {
-    container.querySelector("a, button")!.dispatchEvent(event);
+    screen.container.querySelector("a, button")!.dispatchEvent(event);
   });
   expect(parentClick).not.toHaveBeenCalled();
   return defaultPrevented;
@@ -129,6 +122,7 @@ describe("PR link navigation in a browser", () => {
   it.each(["metaKey", "ctrlKey"])(
     "preserves native browser %s-click navigation",
     async (modifier) => {
+      await using _test = await setupTest();
       expect(await clickLink({ [modifier]: true })).toBe(false);
       expect(state.openExternal).not.toHaveBeenCalled();
       expect(state.openPreview).not.toHaveBeenCalled();
@@ -137,6 +131,7 @@ describe("PR link navigation in a browser", () => {
   );
 
   it("opens modified buttons externally", async () => {
+    await using _test = await setupTest();
     expect(await clickLink({ metaKey: true }, true)).toBe(true);
     expect(state.openExternal).toHaveBeenCalledExactlyOnceWith(url);
     expect(state.openPreview).not.toHaveBeenCalled();
@@ -144,6 +139,7 @@ describe("PR link navigation in a browser", () => {
   });
 
   it("opens ordinary clicks in the PR view", async () => {
+    await using _test = await setupTest();
     expect(await clickLink()).toBe(true);
     expect(state.navigate).toHaveBeenCalledWith({
       to: "/pull-requests",

@@ -1,8 +1,8 @@
 import { EnvironmentId } from "@supaterm/contracts";
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@supaterm/shared/keybindings";
-import { act, Fragment, useState, type ReactNode } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { Fragment, useState, type ReactNode } from "react";
+import { act, render as renderUi, stubGlobal, type Screen } from "../../test/render";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { BranchToolbarEnvironmentSelector } from "./BranchToolbarEnvironmentSelector";
 import { BranchPicker } from "./BranchPicker";
@@ -123,36 +123,33 @@ function RefPicker() {
   );
 }
 
-let root: Root;
-let container: HTMLDivElement;
-beforeEach(() => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
-  vi.stubGlobal(
-    "ResizeObserver",
-    class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    },
+let screen: Screen;
+async function setupTest() {
+  await using resources = new AsyncDisposableStack();
+  resources.use(vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel"));
+  resources.use(
+    stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    ),
   );
   Object.defineProperty(Element.prototype, "getAnimations", {
     configurable: true,
     value: () => [],
   });
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
-});
-afterEach(async () => {
-  await act(() => root.unmount());
-  container.remove();
-  vi.restoreAllMocks();
-  vi.unstubAllGlobals();
-});
+  screen = resources.use(await renderUi(null, { router: false }));
+
+  return resources.move();
+}
 
 async function openPicker(label: string) {
-  await act(() => container.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!.click());
+  await act(() =>
+    screen.container.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!.click(),
+  );
 }
 async function search(query: string) {
   const input = document.querySelector<HTMLInputElement>('input[data-slot="combobox-input"]')!;
@@ -174,36 +171,39 @@ async function pressNumber(key: string) {
 
 describe.each(["toolbar", "panel"] as const)("host picker in %s", (displayMode) => {
   it("selects the filtered host, resets search, and can return to auto balance", async () => {
-    await act(() => root.render(<HostPicker displayMode={displayMode} />));
+    await using _test = await setupTest();
+    await screen.rerender(<HostPicker displayMode={displayMode} />);
     await openPicker("Run on");
     await search("linux");
     await pressNumber("1");
-    expect(container.querySelector("output")!.textContent).toBe("linux");
+    expect(screen.container.querySelector("output")!.textContent).toBe("linux");
     await openPicker("Run on");
     await pressNumber("4");
-    expect(container.querySelector("output")!.textContent).toBe("desktop");
+    expect(screen.container.querySelector("output")!.textContent).toBe("desktop");
     await openPicker("Run on");
     await pressNumber("1");
-    expect(container.querySelector("output")!.textContent).toBe("auto");
+    expect(screen.container.querySelector("output")!.textContent).toBe("auto");
   });
 
   it("releases number shortcuts if the host becomes locked", async () => {
-    await act(() => root.render(<HostPicker displayMode={displayMode} />));
+    await using _test = await setupTest();
+    await screen.rerender(<HostPicker displayMode={displayMode} />);
     await openPicker("Run on");
-    await act(() => root.render(<HostPicker displayMode={displayMode} locked />));
+    await screen.rerender(<HostPicker displayMode={displayMode} locked />);
     expect((await pressNumber("4")).defaultPrevented).toBe(false);
-    expect(container.querySelector("output")!.textContent).toBe("laptop");
+    expect(screen.container.querySelector("output")!.textContent).toBe("laptop");
   });
 });
 
 it("numbers enabled refs, skips actions, and follows the filtered branch list", async () => {
-  await act(() => root.render(<RefPicker />));
+  await using _test = await setupTest();
+  await screen.rerender(<RefPicker />);
   await openPicker("Select branch");
   await pressNumber("1");
-  expect(container.querySelector("output")!.textContent).toBe("main");
+  expect(screen.container.querySelector("output")!.textContent).toBe("main");
   await openPicker("Select branch");
   await search("feature");
   await pressNumber("1");
-  expect(container.querySelector("output")!.textContent).toBe("feature");
+  expect(screen.container.querySelector("output")!.textContent).toBe("feature");
   expect((await pressNumber("1")).defaultPrevented).toBe(false);
 });

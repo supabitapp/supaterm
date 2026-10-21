@@ -39,7 +39,7 @@ jobs:
       platform: ${{ steps.matrix.outputs.platform }}
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-mise
@@ -47,7 +47,7 @@ jobs:
           cache: false
       - id: artifacts
         name: Verify the production workflow and available builds
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9.0.0
         env:
           BUILD_RUN_ID: ${{ inputs.build_run_id }}
         with:
@@ -113,7 +113,7 @@ jobs:
       MOBILE_VERSION_CODE: ${{ matrix.versionCode }}
       MOBILE_STORE_ASSETS: ${{ github.workspace }}/artifacts/app-store/fastlane/${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ inputs.review_ref || inputs.source_sha }}

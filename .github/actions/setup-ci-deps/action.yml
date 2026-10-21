@@ -1,0 +1,21 @@
+name: Install full workspace dependencies
+description: Install the full workspace with a separate dependency cache
+runs:
+  using: composite
+  steps:
+    - name: Resolve pnpm store path
+      id: pnpm_store
+      shell: bash
+      run: echo "path=$(mise exec -- vp pm cache dir)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache full pnpm store
+      uses: actions/cache@v6
+      with:
+        path: ${{ steps.pnpm_store.outputs.path }}
+        key: pnpm-full-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json') }}
+        restore-keys: |
+          pnpm-full-v1-${{ runner.os }}-${{ runner.arch }}-
+
+    - name: Install dependencies
+      shell: bash
+      run: mise exec -- vp install

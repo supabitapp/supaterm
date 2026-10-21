@@ -25,6 +25,7 @@ import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../termina
 import { type TerminalSplitLayout } from "../types";
 import { useThreadTerminalActions } from "./terminal/useThreadTerminalActions";
 import ThreadTerminalDrawer from "./ThreadTerminalDrawer";
+import { resolveTerminalWorktreePath } from "./ChatView.logic";
 
 /** Where a drawer or panel opens new terminals when a script run overrides the thread's own. */
 export type PersistentTerminalLaunchContext = {
@@ -81,6 +82,7 @@ interface PersistentThreadTerminalDrawerProps {
   threadRef: { environmentId: EnvironmentId; threadId: ThreadId };
   threadId: ThreadId;
   active: boolean;
+  composerHeight: number;
   launchContext: PersistentTerminalLaunchContext | null;
   focusRequestId: number;
   splitShortcutLabel: string | undefined;
@@ -95,6 +97,7 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
   threadRef,
   threadId,
   active,
+  composerHeight,
   launchContext,
   focusRequestId,
   splitShortcutLabel,
@@ -281,6 +284,8 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
           runtimeEnv={runtimeEnv}
           visible={visible}
           height={terminalUiState.terminalHeight}
+          composerHeight={composerHeight}
+
           terminalIds={canOperateTerminal ? terminalUiState.terminalIds : serverOrderedTerminalIds}
           activeTerminalId={terminalUiState.activeTerminalId}
           terminalGroups={terminalUiState.terminalGroups}
@@ -361,8 +366,11 @@ export const PersistentThreadTerminalPanel = memo(function PersistentThreadTermi
   const activeSummary =
     knownTerminalSessions?.find((session) => session.target.terminalId === surface.activeTerminalId)
       ?.state.summary ?? null;
-  const worktreePath =
-    launchContext?.worktreePath ?? activeSummary?.worktreePath ?? threadWorktreePath;
+  const worktreePath = resolveTerminalWorktreePath({
+    launchContext,
+    summary: activeSummary,
+    threadWorktreePath,
+  });
   const cwd =
     launchContext?.cwd ??
     activeSummary?.cwd ??
@@ -384,8 +392,11 @@ export const PersistentThreadTerminalPanel = memo(function PersistentThreadTermi
         .hasRunningSubprocess ?? false,
     );
     if (!project) continue;
-    const terminalWorktreePath =
-      launchContext?.worktreePath ?? summary?.worktreePath ?? threadWorktreePath;
+    const terminalWorktreePath = resolveTerminalWorktreePath({
+      launchContext,
+      summary,
+      threadWorktreePath,
+    });
     terminalLaunchLocationsById.set(terminalId, {
       cwd:
         launchContext?.cwd ??

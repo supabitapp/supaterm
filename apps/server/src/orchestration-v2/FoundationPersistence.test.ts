@@ -1,3 +1,5 @@
+import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as ServerSettings from "../serverSettings.ts";
 import { assert, it } from "@effect/vitest";
 import {
@@ -30,8 +32,10 @@ import * as Deferred from "effect/Deferred";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Path from "effect/Path";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Scheduler from "effect/Scheduler";
@@ -3468,4 +3472,73 @@ it.effect("publishes live events in commit order across concurrent writers", () 
       );
     }).pipe(Effect.provide(layerEventSink));
   }).pipe(Effect.provide(layerDatabase)),
+);
+
+it.effect("allows writes while compaction waits for the reader to discover obsolete events", () =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const directory = yield* fs.makeTempDirectoryScoped({ prefix: "compaction-reader-" });
+    const database = SqlitePersistence.layerFromPath(path.join(directory, "statev2.sqlite"));
+    const maintenanceLayer = ProjectionMaintenance.layer.pipe(
+      Layer.provide(Layer.merge(EventStore.layer, ProjectionStore.layer)),
+      Layer.provideMerge(database),
+    );
+    yield* Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
+      const now = DateTime.formatIso(yield* DateTime.now);
+      for (const [version, eventId] of [
+        [1, "obsolete"],
+        [2, "latest"],
+      ] as const) {
+        yield* sql`
+            INSERT INTO orchestration_events (
+              event_id, aggregate_kind, stream_id, stream_version, event_type,
+              occurred_at, actor_kind, payload_json, metadata_json, application_event_version
+            ) VALUES (
+              ${eventId}, 'thread', 'thread:compaction', ${version}, 'thread.metadata-updated',
+              ${now}, 'user', '{}', '{}', 2
+            )
+          `;
+      }
+      yield* sql`CREATE TABLE concurrent_writes (value TEXT)`;
+      const readerHeld = yield* Deferred.make<void>();
+      const releaseReader = yield* Deferred.make<void>();
+      const reader = yield* sql
+        .withTransaction(
+          Deferred.succeed(readerHeld, undefined).pipe(
+            Effect.andThen(Deferred.await(releaseReader)),
+          ),
+        )
+        .pipe(NodeSqliteClient.readOnly, Effect.forkChild);
+      yield* Deferred.await(readerHeld);
+      const discoveryStarted = yield* Deferred.make<Tracer.Span>();
+      const observeDiscovery: Statement.Transformer = (statement, _sql, _fiber, span) => {
+        const [query] = statement.compile();
+        const pageQuery = /^\s*SELECT\s+event\.sequence/;
+        return pageQuery.test(query)
+          ? Deferred.succeed(discoveryStarted, span).pipe(Effect.as(statement))
+          : Effect.succeed(statement);
+      };
+      const compacted = yield* Deferred.make<void>();
+      const compaction = yield* maintenance.compactEventStore.pipe(
+        Effect.provideService(Statement.CurrentTransformer, observeDiscovery),
+        Effect.provideService(Statement.SpanPropagationEnabled, true),
+        Effect.tap(() => Deferred.succeed(compacted, undefined)),
+        Effect.forkChild,
+      );
+      const discoverySpan = yield* Deferred.await(discoveryStarted);
+      yield* sql`INSERT INTO concurrent_writes VALUES ('committed')`;
+      assert.isFalse(yield* Deferred.isDone(compacted));
+      assert.deepEqual(yield* sql`SELECT value FROM concurrent_writes`, [{ value: "committed" }]);
+      yield* Deferred.succeed(releaseReader, undefined);
+      yield* Fiber.join(reader);
+      const result = yield* Fiber.join(compaction);
+      assert.equal(discoverySpan.attributes.get("db.connection"), "reader");
+      assert.equal(result.deletedEventCount, 1);
+      const retained = yield* sql`SELECT event_id AS id FROM orchestration_events`;
+      assert.deepEqual(retained, [{ id: "latest" }]);
+    }).pipe(Effect.provide(maintenanceLayer));
+  }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );

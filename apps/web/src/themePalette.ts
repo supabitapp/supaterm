@@ -71,9 +71,9 @@ export function subscribeToThemePreview(listener: () => void): () => void {
   return () => themePreviewListeners.delete(listener);
 }
 
-function setThemePreviewAppearance(next: ThemeAppearance | null): void {
-  if (themePreviewAppearance === next) return;
-  themePreviewAppearance = next;
+function setThemePreviewAppearance(appearance: ThemeAppearance | null): void {
+  if (themePreviewAppearance === appearance) return;
+  themePreviewAppearance = appearance;
   for (const listener of themePreviewListeners) listener();
 }
 

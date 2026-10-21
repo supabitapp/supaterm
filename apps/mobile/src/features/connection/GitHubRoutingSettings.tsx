@@ -1,3 +1,4 @@
+import { ListChoiceRow } from "../../components/ui/ListChoiceRow";
 import * as Dialog from "../../components/ui/Dialog";
 import { useAtomValue } from "@effect/atom-react";
 import {
@@ -11,7 +12,7 @@ import { useState } from "react";
 import { Pressable, View } from "react-native";
 
 import { AppText as Text } from "../../components/ui/AppText";
-import { SymbolView } from "../../components/ui/AppSymbol";
+
 import { environmentCatalog } from "../../connection/catalog";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { SettingsSection } from "../settings/components/SettingsSection";
@@ -82,12 +83,12 @@ export function GitHubRoutingSettings() {
               </Pressable>
               <MotionPresence visible={expanded === environmentId}>
                 {options.map((option) => (
-                  <Pressable
+                  <ListChoiceRow
                     key={option.value}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: selected === option.value, disabled }}
+                    label={option.label}
+                    description={option.description}
+                    selected={selected === option.value}
                     disabled={disabled}
-                    className="flex-row items-center gap-4 p-4 disabled:opacity-50"
                     onPress={() => {
                       setSaving(true);
                       void update({ environmentId, permission: option.value }).then((result) => {
@@ -99,22 +100,7 @@ export function GitHubRoutingSettings() {
                           );
                       });
                     }}
-                  >
-                    <View className="min-w-0 flex-1 gap-1">
-                      <Text className="text-base text-foreground">{option.label}</Text>
-                      <Text className="text-sm leading-normal text-foreground-muted">
-                        {option.description}
-                      </Text>
-                    </View>
-                    {selected === option.value ? (
-                      <SymbolView
-                        name="checkmark"
-                        size={18}
-                        tintColorClassName="accent-icon"
-                        weight="semibold"
-                      />
-                    ) : null}
-                  </Pressable>
+                  />
                 ))}
               </MotionPresence>
             </View>

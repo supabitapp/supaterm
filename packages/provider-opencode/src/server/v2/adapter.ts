@@ -21,6 +21,8 @@ import {
   type OrchestrationV2ConversationMessage,
   type OrchestrationV2ExecutionNode,
   type OrchestrationV2ProviderCapabilities,
+  type OrchestrationV2ProviderFailure,
+  type OrchestrationV2ProviderRetry,
   type OrchestrationV2ProviderSession,
   type OrchestrationV2ProviderThread,
   type OrchestrationV2ProviderTurn,
@@ -73,7 +75,10 @@ import {
   type BackgroundWorkReport,
 } from "@supaterm/provider-core/server/notification";
 import * as ProviderContinuationRequests from "@supaterm/provider-core/server/ProviderContinuationRequests";
-import { makeProviderFailure } from "@supaterm/provider-core/server/failure";
+import {
+  makeProviderFailure,
+  makeProviderRetryTurnItem,
+} from "@supaterm/provider-core/server/failure";
 import {
   makeSubagentChildThread,
   makeSubagentConversationArtifacts,
@@ -209,6 +214,13 @@ interface ActiveTurn {
   before: string | null | undefined;
   compaction: { readonly nativeId: string; readonly startedAt: DateTime.Utc } | undefined;
   compactions: number;
+  retry:
+    | {
+        readonly retry: OrchestrationV2ProviderRetry;
+        readonly failure: OrchestrationV2ProviderFailure;
+        readonly startedAt: DateTime.Utc;
+      }
+    | undefined;
   interrupted: boolean;
   unsent: boolean;
   readonly steers: Set<string>;
@@ -801,6 +813,16 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
     const runningCalls = (thread: ThreadState): ReadonlyArray<SubagentCall> =>
       sessionsOf(thread).flatMap((state) => [...state.calls.values()]);
 
+    /**
+     * The calls a subagent session answers for: the one that launched it and
+     * the ones that joined it while it ran.
+     */
+    const callsAttachedTo = (child: ThreadState): ReadonlyArray<SubagentCall> => {
+      const parent = child.subagent?.call.state;
+      if (parent === undefined) return [];
+      return [...parent.calls.values()].filter((candidate) => candidate.child === child);
+    };
+
     const callsAbove = (sessionId: string) => {
       const calls: Array<SubagentCall> = [];
       let current = threads.get(sessionId);
@@ -831,11 +853,12 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
 
     const hasBackground = (thread: ThreadState) => sessionsOf(thread).some(owesWork);
 
-    const setSessionStatus = (
-      status: OrchestrationV2ProviderSession["status"],
-      lastError: string | null,
-    ) =>
-      Effect.gen(function* () {
+    const setSessionStatus =
+      /* Provider events include streaming deltas; avoid a span for each update. */
+      Effect.fnUntraced(function* (
+        status: OrchestrationV2ProviderSession["status"],
+        lastError: string | null,
+      ) {
         if (session.status === status && session.lastError === lastError) return;
         session = { ...session, status, lastError, updatedAt: yield* DateTime.now };
         yield* emit({ type: "provider_session.updated", driver, providerSession: session });
@@ -1043,6 +1066,58 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       if (status !== "running") turn.compaction = undefined;
     });
 
+    const emitRetry = Effect.fnUntraced(function* (
+      state: ThreadState,
+      turn: ActiveTurn,
+      status: "running" | TurnTerminal["status"],
+      failure?: OrchestrationV2ProviderFailure,
+    ) {
+      const retry = turn.retry;
+      if (retry === undefined) return;
+      yield* emit({
+        type: "turn_item.updated",
+        driver,
+        turnItem: makeProviderRetryTurnItem({
+          driver,
+          threadId: turn.input.threadId,
+          runId: turn.input.runId,
+          nodeId: turn.input.rootNodeId,
+          providerThreadId: state.providerThread.id,
+          providerTurnId: turn.providerTurn.id,
+          itemOrdinal: ordinalOf(turn, `terminal-failure:${turn.providerTurn.id}`),
+          failure: failure ?? retry.failure,
+          retry: retry.retry,
+          status,
+          startedAt: retry.startedAt,
+          updatedAt: yield* DateTime.now,
+        }),
+      });
+    });
+
+    const updateRetry = Effect.fnUntraced(function* (
+      state: ThreadState,
+      turn: ActiveTurn,
+      { attempt, error }: Pick<EventOf<"session.retry.scheduled">["data"], "attempt" | "error">,
+      delayMs: number,
+    ) {
+      turn.retry = {
+        retry: {
+          // OpenCode counts the first request as attempt 1, so its first retry is attempt 2.
+          attempt: Math.max(1, attempt - 1),
+          maxAttempts: null,
+          retryDelayMs: Math.max(0, Math.trunc(delayMs)),
+        },
+        failure: makeProviderFailure({
+          message: error.message,
+          code: error.type,
+          class: "provider_error",
+          retryable: true,
+        }),
+        startedAt: turn.retry?.startedAt ?? (yield* DateTime.now),
+      };
+      yield* emitRetry(state, turn, "running");
+    });
+
     const emitProviderTurn = (
       state: ThreadState,
       turn: ActiveTurn,
@@ -1075,6 +1150,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       before: undefined,
       compaction: undefined,
       compactions: 0,
+      retry: undefined,
       interrupted: false,
       unsent: false,
       steers: new Set(),
@@ -1528,6 +1604,12 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
         });
       }
       yield* emitCompaction(state, turn, terminal.status === "failed" ? "failed" : "interrupted");
+      yield* emitRetry(
+        state,
+        turn,
+        terminal.status,
+        terminal.status === "failed" ? terminal.failure : undefined,
+      );
       const window = windowOf(turn.input.runtimePolicy.cwd, turn.input.modelSelection.model);
       const lastStep = turn.lastStep;
       yield* emitProviderTurn(state, turn, {
@@ -1556,6 +1638,17 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
         const call = state.subagent.call;
         if (!call.background && terminal.status !== "completed") {
           yield* settleCall(call, terminal.status);
+        }
+        if (terminal.status === "failed") {
+          // A background call is settled by the report its parent reads, and a
+          // child that failed has no report to read: every call attached to it
+          // has to end with the failure, or the background ones keep the thread
+          // showing work that is gone. Which of them joined the child last
+          // does not matter: a foreground call is one until it is marked
+          // background, and the earlier background call outlives that window.
+          for (const attached of callsAttachedTo(state)) {
+            yield* settleCall(attached, terminal.status, terminal.failure.message);
+          }
         }
         return;
       }
@@ -1590,6 +1683,9 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
               status: "failed",
               failure: terminal.failure,
               failureItemOrdinal: ordinalOf(turn, `terminal-failure:${turn.providerTurn.id}`),
+              ...(turn.retry === undefined
+                ? {}
+                : { retry: turn.retry.retry, retryStartedAt: turn.retry.startedAt }),
             }
           : { ...base, status: terminal.status, failure: null },
       );
@@ -1963,6 +2059,16 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       turn: ActiveTurn,
       event: OpenCode2Client.OpenCode2StreamEvent,
     ) {
+      // OpenCode sends nothing when a retry goes through; the provider's first output marks it.
+      if (
+        turn.retry !== undefined &&
+        (event.type === "session.text.started" ||
+          event.type === "session.reasoning.started" ||
+          event.type === "session.tool.input.started")
+      ) {
+        yield* emitRetry(state, turn, "completed");
+        turn.retry = undefined;
+      }
       switch (event.type) {
         case "session.text.started":
         case "session.reasoning.started":
@@ -2065,6 +2171,8 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
           turn.usage.reasoning += tokens.reasoning;
           return;
         }
+        case "session.retry.scheduled":
+          return yield* updateRetry(state, turn, event.data, event.data.at - event.created);
         case "session.execution.started":
           turn.heldEnd = undefined;
           return;
@@ -2080,7 +2188,11 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
             failure: makeProviderFailure({
               message: event.data.error.message,
               code: event.data.error.type,
-              class: "provider_error",
+              class:
+                event.data.error.type === "provider.quota" ||
+                event.data.error.type === "provider.rate-limit"
+                  ? "usage_limit"
+                  : "provider_error",
             }),
           });
         default:
@@ -2427,6 +2539,24 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       if (!found) return undefined;
       const recent = before !== undefined && before !== null ? read.slice(0, -1) : read;
       const idle = recent.find((message) => message.type === "idle");
+      const assistant = recent.find((message) => message.type === "assistant");
+      if (assistant?.retry !== undefined) {
+        // Snapshots omit when the retry was scheduled, so only its remaining delay is known.
+        yield* updateRetry(
+          state,
+          turn,
+          assistant.retry,
+          DateTime.toEpochMillis(assistant.retry.at) - DateTime.toEpochMillis(yield* DateTime.now),
+        );
+      } else if (
+        turn.retry !== undefined &&
+        assistant !== undefined &&
+        assistant.error === undefined &&
+        assistant.content.length > 0
+      ) {
+        yield* emitRetry(state, turn, "completed");
+        turn.retry = undefined;
+      }
       for (const message of recent.toReversed()) {
         if (message.type !== "assistant" || state.active !== turn) continue;
         const ordinals = { text: 0, reasoning: 0 };
@@ -3025,55 +3155,54 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
         if (turn !== undefined) turn.before = before;
       });
 
-    const beginTurn = (
+    const beginTurn = Effect.fn("OpenCode2Adapter.beginTurn")(function* (
       state: ThreadState,
       turnInput: ProviderAdapter.ProviderAdapterV2TurnInput,
       awaitingStart: boolean,
-    ) =>
-      Effect.gen(function* () {
-        const startedAt = yield* DateTime.now;
-        const nativeTurnId = `${state.sessionId}:attempt:${turnInput.attemptId}`;
-        const providerTurn: OrchestrationV2ProviderTurn = {
-          id: idAllocator.derive.providerTurn({ driver, nativeTurnId }),
-          providerThreadId: turnInput.providerThread.id,
-          nodeId: turnInput.rootNodeId,
-          runAttemptId: turnInput.attemptId,
-          nativeTurnRef: ref(
-            isContinuation(turnInput)
-              ? wakeTurnId(state.sessionId, turnInput.attemptId)
-              : turnPromptId(state.sessionId, turnInput.attemptId),
-            "weak",
-          ),
-          ordinal: turnInput.providerTurnOrdinal,
-          status: "running",
-          startedAt,
-          completedAt: null,
-        };
-        const turn = makeTurn(turnInput, providerTurn, { scope: "", awaitingStart });
-        if (streamFailure !== undefined) {
-          return yield* new ProviderAdapter.ProviderAdapterEventStreamError({
-            driver,
-            providerSessionId: input.providerSessionId,
-            cause: streamFailure,
-          });
-        }
-        state.active = turn;
-        yield* emitProviderTurn(state, turn, providerTurn);
-        state.providerThread = {
-          ...state.providerThread,
-          status: "active",
-          firstRunOrdinal: state.providerThread.firstRunOrdinal ?? turnInput.runOrdinal,
-          lastRunOrdinal: turnInput.runOrdinal,
-          updatedAt: startedAt,
-        };
-        yield* emit({
-          type: "provider_thread.updated",
+    ) {
+      const startedAt = yield* DateTime.now;
+      const nativeTurnId = `${state.sessionId}:attempt:${turnInput.attemptId}`;
+      const providerTurn: OrchestrationV2ProviderTurn = {
+        id: idAllocator.derive.providerTurn({ driver, nativeTurnId }),
+        providerThreadId: turnInput.providerThread.id,
+        nodeId: turnInput.rootNodeId,
+        runAttemptId: turnInput.attemptId,
+        nativeTurnRef: ref(
+          isContinuation(turnInput)
+            ? wakeTurnId(state.sessionId, turnInput.attemptId)
+            : turnPromptId(state.sessionId, turnInput.attemptId),
+          "weak",
+        ),
+        ordinal: turnInput.providerTurnOrdinal,
+        status: "running",
+        startedAt,
+        completedAt: null,
+      };
+      const turn = makeTurn(turnInput, providerTurn, { scope: "", awaitingStart });
+      if (streamFailure !== undefined) {
+        return yield* new ProviderAdapter.ProviderAdapterEventStreamError({
           driver,
-          providerThread: state.providerThread,
+          providerSessionId: input.providerSessionId,
+          cause: streamFailure,
         });
-        yield* setSessionStatus("running", null);
-        return turn;
+      }
+      state.active = turn;
+      yield* emitProviderTurn(state, turn, providerTurn);
+      state.providerThread = {
+        ...state.providerThread,
+        status: "active",
+        firstRunOrdinal: state.providerThread.firstRunOrdinal ?? turnInput.runOrdinal,
+        lastRunOrdinal: turnInput.runOrdinal,
+        updatedAt: startedAt,
+      };
+      yield* emit({
+        type: "provider_thread.updated",
+        driver,
+        providerThread: state.providerThread,
       });
+      yield* setSessionStatus("running", null);
+      return turn;
+    });
 
     const replay = Effect.fnUntraced(function* (wake: Wake) {
       wake.dropped = true;
@@ -3318,8 +3447,8 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
         selection.instanceId === instanceId
           ? windowOf(cwd === undefined ? session.cwd : cwd, selection.model)
           : undefined,
-      ensureThread: (threadInput) =>
-        Effect.gen(function* () {
+      ensureThread: Effect.fn("OpenCode2Adapter.ensureThread")(
+        function* (threadInput) {
           if (threadInput.existingProviderThread?.nativeThreadRef != null) {
             return yield* runtime.resumeThread({
               providerThread: threadInput.existingProviderThread,
@@ -3384,19 +3513,22 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
           );
           state.policy = policy;
           return state.providerThread;
-        }).pipe(
-          Effect.mapError((cause) =>
-            isProviderAdapterError(cause)
-              ? cause
-              : new ProviderAdapter.ProviderAdapterEnsureThreadError({
-                  driver,
-                  threadId: threadInput.threadId,
-                  cause,
-                }),
+        },
+        (effect, threadInput) =>
+          effect.pipe(
+            Effect.mapError((cause) =>
+              isProviderAdapterError(cause)
+                ? cause
+                : new ProviderAdapter.ProviderAdapterEnsureThreadError({
+                    driver,
+                    threadId: threadInput.threadId,
+                    cause,
+                  }),
+            ),
           ),
-        ),
-      resumeThread: (threadInput) =>
-        Effect.gen(function* () {
+      ),
+      resumeThread: Effect.fn("OpenCode2Adapter.resumeThread")(
+        function* (threadInput) {
           const sessionId = yield* sessionIdOf(threadInput.providerThread);
           if (threadInput.runtimePolicy !== undefined) {
             yield* readModelsOnce(threadInput.runtimePolicy.cwd);
@@ -3420,22 +3552,25 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
             });
           }
           return state.providerThread;
-        }).pipe(
-          Effect.mapError((cause) =>
-            isProviderAdapterError(cause)
-              ? cause
-              : new ProviderAdapter.ProviderAdapterResumeThreadError({
-                  driver,
-                  providerSessionId: input.providerSessionId,
-                  providerThreadId: threadInput.providerThread.id,
-                  cause,
-                }),
+        },
+        (effect, threadInput) =>
+          effect.pipe(
+            Effect.mapError((cause) =>
+              isProviderAdapterError(cause)
+                ? cause
+                : new ProviderAdapter.ProviderAdapterResumeThreadError({
+                    driver,
+                    providerSessionId: input.providerSessionId,
+                    providerThreadId: threadInput.providerThread.id,
+                    cause,
+                  }),
+            ),
           ),
-        ),
+      ),
       compactThread: (turnInput) =>
         runtime.startTurn({ ...turnInput, message: { ...turnInput.message, text: "/compact" } }),
-      startTurn: (turnInput) =>
-        Effect.gen(function* () {
+      startTurn: Effect.fn("OpenCode2Adapter.startTurn")(
+        function* (turnInput) {
           // Waited out before the session's gate, so a rollback or fork is not
           // held behind a reconnect.
           if (streamFailure !== undefined) {
@@ -3578,21 +3713,24 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
                 : Effect.void,
             ),
           );
-        }).pipe(
-          Effect.mapError((cause) =>
-            isProviderAdapterError(cause)
-              ? cause
-              : new ProviderAdapter.ProviderAdapterTurnStartError({
-                  driver,
-                  threadId: turnInput.threadId,
-                  providerThreadId: turnInput.providerThread.id,
-                  runId: turnInput.runId,
-                  cause,
-                }),
+        },
+        (effect, turnInput) =>
+          effect.pipe(
+            Effect.mapError((cause) =>
+              isProviderAdapterError(cause)
+                ? cause
+                : new ProviderAdapter.ProviderAdapterTurnStartError({
+                    driver,
+                    threadId: turnInput.threadId,
+                    providerThreadId: turnInput.providerThread.id,
+                    runId: turnInput.runId,
+                    cause,
+                  }),
+            ),
           ),
-        ),
-      steerTurn: (steerInput) =>
-        Effect.gen(function* () {
+      ),
+      steerTurn: Effect.fn("OpenCode2Adapter.steerTurn")(
+        function* (steerInput) {
           const sessionId = yield* sessionIdOf(steerInput.providerThread);
           const state = threads.get(sessionId);
           const turn = state?.active;
@@ -3654,20 +3792,23 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
                 ),
               ),
             );
-        }).pipe(
-          Effect.mapError((cause) =>
-            isProviderAdapterError(cause)
-              ? cause
-              : new ProviderAdapter.ProviderAdapterSteerRunError({
-                  driver,
-                  providerThreadId: steerInput.providerThread.id,
-                  providerTurnId: steerInput.providerTurnId,
-                  cause,
-                }),
+        },
+        (effect, steerInput) =>
+          effect.pipe(
+            Effect.mapError((cause) =>
+              isProviderAdapterError(cause)
+                ? cause
+                : new ProviderAdapter.ProviderAdapterSteerRunError({
+                    driver,
+                    providerThreadId: steerInput.providerThread.id,
+                    providerTurnId: steerInput.providerTurnId,
+                    cause,
+                  }),
+            ),
           ),
-        ),
-      interruptTurn: (interruptInput) =>
-        Effect.gen(function* () {
+      ),
+      interruptTurn: Effect.fn("OpenCode2Adapter.interruptTurn")(
+        function* (interruptInput) {
           const sessionId = yield* sessionIdOf(interruptInput.providerThread);
           const state = threads.get(sessionId);
           if (state === undefined) return;
@@ -3712,40 +3853,42 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
               detail: `OpenCode session ${sessionId} had nothing running to stop`,
             });
           }
-        }).pipe(
-          Effect.mapError((cause) =>
-            isProviderAdapterError(cause)
-              ? cause
-              : new ProviderAdapter.ProviderAdapterInterruptError({
-                  driver,
-                  providerThreadId: interruptInput.providerThread.id,
-                  providerTurnId: interruptInput.providerTurnId,
-                  cause,
-                }),
+        },
+        (effect, interruptInput) =>
+          effect.pipe(
+            Effect.mapError((cause) =>
+              isProviderAdapterError(cause)
+                ? cause
+                : new ProviderAdapter.ProviderAdapterInterruptError({
+                    driver,
+                    providerThreadId: interruptInput.providerThread.id,
+                    providerTurnId: interruptInput.providerTurnId,
+                    cause,
+                  }),
+            ),
           ),
-        ),
-      unloadThread: ({ providerThread }) =>
-        Effect.gen(function* () {
-          const nativeId = providerThread.nativeThreadRef?.nativeId;
-          const state = nativeId == null ? undefined : threads.get(nativeId);
-          if (
-            nativeId == null ||
-            state === undefined ||
-            state.active !== undefined ||
-            hasBackground(state)
-          ) {
-            return;
-          }
-          threads.delete(nativeId);
-          for (const [child, owner] of childOwners) {
-            if (owner !== state) continue;
-            childOwners.delete(child);
-            threads.delete(child);
-          }
-          if (state.mcp !== undefined) yield* removeMcp(state.mcp);
-        }),
-      respondToRuntimeRequest: (requestInput) =>
-        Effect.gen(function* () {
+      ),
+      unloadThread: Effect.fn("OpenCode2Adapter.unloadThread")(function* ({ providerThread }) {
+        const nativeId = providerThread.nativeThreadRef?.nativeId;
+        const state = nativeId == null ? undefined : threads.get(nativeId);
+        if (
+          nativeId == null ||
+          state === undefined ||
+          state.active !== undefined ||
+          hasBackground(state)
+        ) {
+          return;
+        }
+        threads.delete(nativeId);
+        for (const [child, owner] of childOwners) {
+          if (owner !== state) continue;
+          childOwners.delete(child);
+          threads.delete(child);
+        }
+        if (state.mcp !== undefined) yield* removeMcp(state.mcp);
+      }),
+      respondToRuntimeRequest: Effect.fn("OpenCode2Adapter.respondToRuntimeRequest")(
+        function* (requestInput) {
           const entry = pending.get(requestInput.requestId);
           if (entry === undefined || entry.answering) {
             return yield* new ProviderAdapter.ProviderAdapterProtocolError({
@@ -3818,34 +3961,40 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
               );
           yield* forgetRequest(entry);
           if (!delivered) yield* abandonRequest(asker, "answer not delivered");
-        }).pipe(
-          Effect.mapError((cause) =>
-            isProviderAdapterError(cause)
-              ? cause
-              : new ProviderAdapter.ProviderAdapterRuntimeRequestResponseError({
-                  driver,
-                  requestId: requestInput.requestId,
-                  cause,
-                }),
+        },
+        (effect, requestInput) =>
+          effect.pipe(
+            Effect.mapError((cause) =>
+              isProviderAdapterError(cause)
+                ? cause
+                : new ProviderAdapter.ProviderAdapterRuntimeRequestResponseError({
+                    driver,
+                    requestId: requestInput.requestId,
+                    cause,
+                  }),
+            ),
           ),
-        ),
-      readThreadSnapshot: ({ providerThread }) =>
-        Effect.gen(function* () {
+      ),
+      readThreadSnapshot: Effect.fn("OpenCode2Adapter.readThreadSnapshot")(
+        function* ({ providerThread }) {
           const sessionId = yield* sessionIdOf(providerThread);
           return yield* snapshotOf(providerThread, sessionId);
-        }).pipe(
-          Effect.mapError((cause) =>
-            isProviderAdapterError(cause)
-              ? cause
-              : new ProviderAdapter.ProviderAdapterReadThreadSnapshotError({
-                  driver,
-                  providerThreadId: providerThread.id,
-                  cause,
-                }),
+        },
+        (effect, { providerThread }) =>
+          effect.pipe(
+            Effect.mapError((cause) =>
+              isProviderAdapterError(cause)
+                ? cause
+                : new ProviderAdapter.ProviderAdapterReadThreadSnapshotError({
+                    driver,
+                    providerThreadId: providerThread.id,
+                    cause,
+                  }),
+            ),
           ),
-        ),
-      rollbackThread: (rollbackInput) =>
-        Effect.gen(function* () {
+      ),
+      rollbackThread: Effect.fn("OpenCode2Adapter.rollbackThread")(
+        function* (rollbackInput) {
           const { providerThread, target } = rollbackInput;
           const sessionId = yield* sessionIdOf(providerThread);
           yield* ensureQuiet(sessionId, "roll back");
@@ -3878,21 +4027,24 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
           );
           for (const turn of snapshot.providerTurns) kept.set(turn.id, turn);
           return { ...snapshot, providerTurns: [...kept.values()] };
-        }).pipe(
-          exclusive(rollbackInput.providerThread),
-          Effect.mapError((cause) =>
-            isProviderAdapterError(cause)
-              ? cause
-              : new ProviderAdapter.ProviderAdapterRollbackThreadError({
-                  driver,
-                  providerThreadId: rollbackInput.providerThread.id,
-                  checkpointId: rollbackInput.target.checkpointId,
-                  cause,
-                }),
+        },
+        (effect, rollbackInput) =>
+          effect.pipe(
+            exclusive(rollbackInput.providerThread),
+            Effect.mapError((cause) =>
+              isProviderAdapterError(cause)
+                ? cause
+                : new ProviderAdapter.ProviderAdapterRollbackThreadError({
+                    driver,
+                    providerThreadId: rollbackInput.providerThread.id,
+                    checkpointId: rollbackInput.target.checkpointId,
+                    cause,
+                  }),
+            ),
           ),
-        ),
-      forkThread: (forkInput) =>
-        Effect.gen(function* () {
+      ),
+      forkThread: Effect.fn("OpenCode2Adapter.forkThread")(
+        function* (forkInput) {
           const source = forkInput.sourceProviderThread;
           const sourceId = yield* sessionIdOf(source);
           // OpenCode forks whatever history the source has, so a fork taken
@@ -3957,18 +4109,21 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
             });
           }
           return state.providerThread;
-        }).pipe(
-          exclusive(forkInput.sourceProviderThread),
-          Effect.mapError((cause) =>
-            isProviderAdapterError(cause)
-              ? cause
-              : new ProviderAdapter.ProviderAdapterForkThreadError({
-                  driver,
-                  providerThreadId: forkInput.sourceProviderThread.id,
-                  cause,
-                }),
+        },
+        (effect, forkInput) =>
+          effect.pipe(
+            exclusive(forkInput.sourceProviderThread),
+            Effect.mapError((cause) =>
+              isProviderAdapterError(cause)
+                ? cause
+                : new ProviderAdapter.ProviderAdapterForkThreadError({
+                    driver,
+                    providerThreadId: forkInput.sourceProviderThread.id,
+                    cause,
+                  }),
+            ),
           ),
-        ),
+      ),
     };
     return runtime;
   });
@@ -3980,21 +4135,24 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
     planSelectionTransition: () => Effect.succeed(turnScopedSelectionTransition()),
     // The session borrows the instance's server for as long as it is open, so a
     // spawned server is not idle-stopped under a long tool call.
-    openSession: (input) =>
-      Effect.gen(function* () {
+    openSession: Effect.fn("OpenCode2Adapter.borrowAndOpenSession")(
+      function* (input) {
         const scope = yield* Scope.make();
         yield* Effect.addFinalizer((exit) => Scope.close(scope, exit));
         const connection = yield* borrow.pipe(Effect.provideService(Scope.Scope, scope));
         return yield* openSession(input, { connection, scope });
-      }).pipe(
-        Effect.mapError(
-          (cause) =>
-            new ProviderAdapter.ProviderAdapterOpenSessionError({
-              driver,
-              providerSessionId: input.providerSessionId,
-              cause,
-            }),
+      },
+      (effect, input) =>
+        effect.pipe(
+          Effect.mapError(
+            (cause) =>
+              new ProviderAdapter.ProviderAdapterOpenSessionError({
+                driver,
+                providerSessionId: input.providerSessionId,
+                cause,
+              }),
+          ),
         ),
-      ),
+    ),
   });
 });

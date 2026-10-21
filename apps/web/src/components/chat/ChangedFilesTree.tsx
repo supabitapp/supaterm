@@ -19,7 +19,7 @@ import { useTimelineDisclosureToggle } from "./timelineDisclosure";
 import { observeResize } from "~/lib/observeResize";
 
 const EMPTY_DIRECTORY_OVERRIDES: Record<string, boolean> = {};
-const VIRTUALIZE_AFTER_FILES = 250;
+const VIRTUALIZE_AFTER_ROWS = 250;
 const ROW_OVERSCAN = 8;
 
 interface ChangedFileRow {
@@ -175,9 +175,7 @@ export const ChangedFilesTree = memo(function ChangedFilesTree(props: {
   };
 
   const rows = collectExpandedRows(treeNodes, expandedDirectories, allDirectoriesExpanded);
-  const virtualized =
-    rows.reduce((count, row) => count + (row.node.kind === "file" ? 1 : 0), 0) >
-    VIRTUALIZE_AFTER_FILES;
+  const virtualized = rows.length > VIRTUALIZE_AFTER_ROWS;
 
   const renderRow = ({ node, depth }: ChangedFileRow) => {
     const leftPadding = 8 + depth * 14;
@@ -189,7 +187,7 @@ export const ChangedFilesTree = memo(function ChangedFilesTree(props: {
           type="button"
           data-scroll-anchor-ignore
           aria-expanded={isExpanded}
-          className="group flex h-7 w-full items-center gap-2 rounded-md py-1.5 pr-2 text-left transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+          className="group flex h-7 w-full cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 text-left transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
           style={{ paddingLeft: `${leftPadding}px` }}
           onClick={(event) => {
             onDisclosureToggle(event.currentTarget, isExpanded);
@@ -217,7 +215,7 @@ export const ChangedFilesTree = memo(function ChangedFilesTree(props: {
       <button
         key={`file:${node.path}`}
         type="button"
-        className="group flex h-7 w-full items-center gap-2 rounded-md py-1.5 pr-2 text-left transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+        className="group flex h-7 w-full cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 text-left transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
         style={{ paddingLeft: `${leftPadding}px` }}
         onClick={() => onOpenTurnDiff(runId, node.path)}
         onContextMenu={

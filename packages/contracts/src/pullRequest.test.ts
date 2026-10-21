@@ -6,6 +6,8 @@ import {
   PullRequestActionInput,
   PullRequestCapabilities,
   PullRequestListedAction,
+  PullRequestChangeBreakdown,
+  PullRequestDetail,
   PullRequestFilesViewedResult,
   PullRequestListInput,
   PullRequestListResult,
@@ -13,14 +15,20 @@ import {
   PullRequestSetFilesViewedInput,
   PullRequestViewerPermissions,
   pullRequestActionAllowed,
+  PullRequestSubmitReviewInput,
   pullRequestHostOf,
   resolvePullRequestAuthorFilter,
 } from "./pullRequest.ts";
 
-const decodeListResult = Schema.decodeUnknownSync(PullRequestListResult);
+const decodeListResult = Schema.decodeUnknownSync(Schema.toCodecJson(PullRequestListResult));
+const decodeDetail = Schema.decodeUnknownSync(Schema.toCodecJson(PullRequestDetail));
+const decodeChangeBreakdown = Schema.decodeUnknownSync(
+  Schema.toCodecJson(PullRequestChangeBreakdown),
+);
 const decodeListInput = Schema.decodeUnknownSync(PullRequestListInput);
 const decodeReviewerRequest = Schema.decodeUnknownSync(PullRequestReviewerRequestInput);
-const decodeAction = Schema.decodeUnknownSync(PullRequestActionInput);
+const decodeAction = Schema.decodeUnknownSync(Schema.toCodecJson(PullRequestActionInput));
+const decodeReview = Schema.decodeUnknownSync(Schema.toCodecJson(PullRequestSubmitReviewInput));
 const decodeSetFilesViewed = Schema.decodeUnknownSync(PullRequestSetFilesViewedInput);
 const decodeFilesViewed = Schema.decodeUnknownSync(PullRequestFilesViewedResult);
 
@@ -50,10 +58,10 @@ const LIST_RESULT: PullRequestListResult = {
       host: "github.com",
       projectId: "project-1" as PullRequestListResult["entries"][number]["projectId"],
       projectTitle: "supaterm",
-      repository: "supabitapp/supacode-next",
+      repository: "supabitapp/supaterm",
       number: 1,
       title: "Add a pull requests page",
-      url: "https://github.com/supabitapp/supacode-next/pull/1",
+      url: "https://github.com/supabitapp/supaterm/pull/1",
       author: { login: "octocat", name: null, avatarUrl: null },
       headBranch: "feat/page",
       baseBranch: "main",
@@ -70,7 +78,7 @@ const LIST_RESULT: PullRequestListResult = {
   ],
   errors: [],
   truncated: false,
-  nextCursors: { "github.com supabitapp/supacode-next": "2026-07-02T00:00:00Z|1|1" },
+  nextCursors: { "github.com supabitapp/supaterm": "2026-07-02T00:00:00Z|1|1" },
 };
 
 describe("PullRequestListResult", () => {
@@ -105,6 +113,18 @@ describe("PullRequestListResult", () => {
     expect(decoded).toStrictEqual(LIST_RESULT);
   });
 
+  it("loads a newer server's list response, dropping unknown provider actions in order", () => {
+    const decoded = decodeListResult({
+      ...LIST_RESULT,
+      providers: [{ ...LIST_RESULT.providers[0], actions: ["close", "archive", "merge"] }],
+    });
+
+    expect(decoded).toEqual({
+      ...LIST_RESULT,
+      providers: [{ ...LIST_RESULT.providers[0], actions: ["close", "merge"] }],
+    });
+  });
+
   it("keys a viewer by host, so two hosts of one kind stay separate accounts", () => {
     const decoded = decodeListResult({
       ...LIST_RESULT,
@@ -131,7 +151,7 @@ describe("PullRequestListInput", () => {
   });
 
   it("takes back the continuation a result handed out, keyed the way it arrived", () => {
-    const cursors = { "github.com supabitapp/supacode-next": "2026-07-02T00:00:00Z|99|1,2" };
+    const cursors = { "github.com supabitapp/supaterm": "2026-07-02T00:00:00Z|99|1,2" };
 
     expect(decodeListInput({ state: "open", cursors }).cursors).toStrictEqual(cursors);
   });
@@ -277,6 +297,63 @@ describe("PullRequestCapabilities", () => {
     expect(decodeCapabilities(base).deleteBranch).toBeUndefined();
     expect(decodeCapabilities({ ...base, deleteBranch: true }).deleteBranch).toBe(true);
   });
+
+  it("loads a newer server's detail response, dropping unknown options in order", () => {
+    const options = {
+      actions: ["close", "archive", "merge"],
+      verdicts: ["request-changes", "block", "approve"],
+      updateMethods: ["rebase", "fast-forward", "merge"],
+    };
+    const detail = {
+      ...LIST_RESULT.entries[0],
+      workspaceRoot: "/workspace/supaterm",
+      body: "",
+      changedFiles: 1,
+      mergedAt: null,
+      closedAt: null,
+      reviewers: [],
+      checks: [],
+      mergeCapabilities: { merge: true, squash: true, rebase: true },
+      capabilities: {
+        ...base,
+        actions: options.actions,
+        mergeMethods: ["squash", "fast-forward", "merge"],
+        updateMethods: options.updateMethods,
+        review: { ...base.review, verdicts: options.verdicts },
+      },
+      viewerPermissions: { ...options, comment: true, resolve: true, requestReviewers: true },
+    };
+    const decoded = decodeDetail(detail);
+
+    expect(decoded.capabilities).toEqual({
+      ...base,
+      actions: ["close", "merge"],
+      mergeMethods: ["squash", "merge"],
+      updateMethods: ["rebase", "merge"],
+      review: { ...base.review, verdicts: ["request-changes", "approve"] },
+    });
+    expect(decoded.viewerPermissions).toEqual({
+      actions: ["close", "merge"],
+      verdicts: ["request-changes", "approve"],
+      updateMethods: ["rebase", "merge"],
+      comment: true,
+      resolve: true,
+      requestReviewers: true,
+    });
+    expect(decoded.title).toBe(detail.title);
+  });
+});
+
+describe("pull request mutation requests", () => {
+  it("still rejects unknown actions, merge methods, and review verdicts on the wire", () => {
+    const ref = { projectId: "project-1", repository: "acme/web", number: 7 };
+
+    expect(() => decodeAction({ ...ref, action: "archive" })).toThrow();
+    expect(() => decodeAction({ ...ref, action: "merge", mergeMethod: "fast-forward" })).toThrow();
+    const review = { ...ref, body: "", comments: [], verdict: "approve" };
+    expect(decodeReview(review).verdict).toBe("approve");
+    expect(() => decodeReview({ ...review, verdict: "block" })).toThrow();
+  });
 });
 
 describe("action lists from a newer server", () => {
@@ -412,5 +489,25 @@ describe("naming the file a tick belongs to", () => {
         files: [{ path: `src/${"a".repeat(4096)}.ts`, viewed: true }],
       }),
     ).toThrow();
+  });
+});
+
+describe("PullRequestChangeBreakdown", () => {
+  it("reads a breakdown from a server that predates the docs kind", () => {
+    const line = { additions: 1, deletions: 0 };
+    expect(
+      decodeChangeBreakdown({
+        code: line,
+        tests: line,
+        mocks: line,
+        generated: line,
+      }),
+    ).toEqual({
+      code: line,
+      tests: line,
+      mocks: line,
+      generated: line,
+      docs: { additions: 0, deletions: 0 },
+    });
   });
 });

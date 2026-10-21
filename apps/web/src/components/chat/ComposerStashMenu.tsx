@@ -1,5 +1,5 @@
 import { ArrowUpIcon, BookmarkIcon, FileIcon, FileTextIcon, XIcon } from "lucide-react";
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState, type RefObject } from "react";
 import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
 
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";
@@ -41,6 +41,7 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
   entries: ReadonlyArray<PromptStashEntry>;
   stashShortcutLabel: string | null;
   sendAllBlockedReason: string | null;
+  composerFormRef: RefObject<HTMLFormElement | null>;
   onRestore: (entry: PromptStashEntry) => void;
   onDelete: (entry: PromptStashEntry) => void;
   onSendAll: () => void;
@@ -49,6 +50,7 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
   const {
     entries,
     stashShortcutLabel,
+    composerFormRef,
     sendAllBlockedReason,
     onRestore,
     onDelete,
@@ -86,6 +88,16 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (
+        !(target instanceof Node) ||
+        (target !== document.body &&
+          !(target instanceof Element && target.closest('[data-prompt-stash-badge="true"]')) &&
+          !drawerRef.current?.contains(target) &&
+          !composerFormRef.current?.querySelector('textarea, [role="textbox"]')?.contains(target))
+      ) {
+        return;
+      }
       if (event.key === "Escape") {
         if (confirm.armed !== null || sendAllConfirm.armed !== null) return;
         event.preventDefault();
@@ -130,6 +142,7 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
     window.addEventListener("keydown", handler, true);
     return () => window.removeEventListener("keydown", handler, true);
   }, [
+    composerFormRef,
     confirm.armed,
     sendAllConfirm.armed,
     entries,
