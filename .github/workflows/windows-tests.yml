@@ -19,14 +19,25 @@ on:
         description: "Space-separated test files relative to the package directory. Empty runs the package's whole suite. Requires package."
         type: string
         default: ""
+      runner:
+        description: Windows x64 runner
+        type: choice
+        default: depot-windows-2025-32
+        options:
+          - windows-2025
+          - depot-windows-2025-32
+      build_desktop:
+        description: Build and verify an unsigned Windows x64 installer before testing
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
   test:
-    name: Test (${{ inputs.package || 'all non-server' }})
-    runs-on: depot-windows-2025-32
+    name: Test (${{ inputs.package || 'all non-server' }}, ${{ inputs.runner }})
+    runs-on: ${{ inputs.runner }}
     timeout-minutes: 45
     steps:
       - name: Checkout
@@ -36,6 +47,12 @@ jobs:
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
+      - name: Show runner capacity
+        shell: pwsh
+        run: |
+          Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors
+          node -p "JSON.stringify({cpus: require('node:os').availableParallelism(), memoryGiB: require('node:os').totalmem() / 2 ** 30})"
+
       - name: Resolve package cache path
         id: package_cache_path
         shell: pwsh
@@ -51,8 +68,40 @@ jobs:
         run: vp install
 
       - name: Ensure Electron runtime is installed
-        if: inputs.package == '' || inputs.package == 'apps/desktop'
+        if: inputs.build_desktop || inputs.package == '' || inputs.package == 'apps/desktop'
         run: vp run --filter "@supaterm/desktop" ensure:electron
+
+      - name: Setup Rust for desktop packaging
+        if: inputs.build_desktop
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
+        with:
+          toolchain: stable
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install Spectre-mitigated MSVC libs
+        if: inputs.build_desktop
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $installPath = & $vswhere -products * -latest -property installationPath
+          $setupExe = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe"
+          $proc = Start-Process -FilePath $setupExe `
+            -ArgumentList "modify", "--installPath", "`"$installPath`"", "--add", `
+            "Microsoft.VisualStudio.Component.VC.Runtimes.x86.x64.Spectre", "--quiet", "--norestart" `
+            -Wait -PassThru -NoNewWindow
+          if ($null -eq $proc -or $proc.ExitCode -ne 0) {
+            $code = if ($null -ne $proc) { $proc.ExitCode } else { 1 }
+            Write-Error "Visual Studio Installer failed with exit code $code"
+            exit $code
+          }
+
+      - name: Build desktop pipeline
+        if: inputs.build_desktop
+        run: vp run build:desktop
+
+      - name: Package and verify unsigned Windows installer
+        if: inputs.build_desktop
+        run: vp run dist:desktop:artifact --platform win --target nsis --arch x64 --skip-build --verbose
 
       # The web test script runs its browser project in headless Chromium, which
       # installing dependencies does not download. Keyed like ci.yml's cache.
