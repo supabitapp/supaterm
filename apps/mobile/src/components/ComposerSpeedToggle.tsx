@@ -52,7 +52,7 @@ export function ComposerSpeedToggle(props: {
       accessibilityHint={offersTierChoice ? "Hold to choose a service tier" : undefined}
       accessibilityRole="button"
       accessibilityState={{ disabled: props.disabled, selected: on }}
-      className="size-[44px] shrink-0 items-center justify-center rounded-full active:opacity-70 disabled:opacity-50"
+      className="size-[44px] shrink-0 items-center justify-center rounded-xl active:bg-subtle disabled:opacity-50"
       disabled={props.disabled}
       onPress={() => selectValue(getSpeedToggleNextValue(speedToggle))}
     >
@@ -91,6 +91,7 @@ export function ComposerSpeedToggle(props: {
       title={descriptor.label}
       shouldOpenOnLongPress
       preservesKeyboard
+      style={{ borderRadius: 12, overflow: "hidden" }}
       onOpenMenu={() => {
         if (Platform.OS === "ios") {
           void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
