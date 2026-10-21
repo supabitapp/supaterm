@@ -27,7 +27,7 @@ import { useFilesystemReadAccess } from "~/state/filesystem";
 import { useOpenInPreferredEditor } from "../editorPreferences";
 import { useFileContextMenuHandler } from "../fileContextMenu";
 import { type DraftId } from "../composerDraftStore";
-import { openDiffFilePrimaryAction } from "../diffFileActions";
+import { openDiffFilePrimaryAction, resolveDiffPathForWorkspace } from "../diffFileActions";
 import { useCheckpointDiff } from "~/lib/checkpointDiffState";
 import { cn } from "~/lib/utils";
 import {
@@ -166,6 +166,7 @@ function DiffFileCollapseToggle({
 
 function DiffFileHeaderSuffix({
   filePath,
+  canOpenFile,
   hasStat,
   error,
   truncated,
@@ -173,6 +174,7 @@ function DiffFileHeaderSuffix({
   onRetry,
 }: {
   filePath: string;
+  canOpenFile: boolean;
   hasStat: boolean;
   error: boolean;
   truncated: boolean;
@@ -189,13 +191,14 @@ function DiffFileHeaderSuffix({
               size="icon-micro"
               variant="ghost-muted"
               aria-label={`Open ${filePath}`}
-              onClick={() => onOpenFile(filePath)}
+              aria-disabled={!canOpenFile}
+              onClick={canOpenFile ? () => onOpenFile(filePath) : undefined}
             />
           }
         >
           <FileSymlinkIcon className="size-3" />
         </TooltipTrigger>
-        <TooltipPopup>Open file</TooltipPopup>
+        <TooltipPopup>{canOpenFile ? "Open file" : "File is outside this workspace"}</TooltipPopup>
       </Tooltip>
       {hasStat ? (
         <DiffFileStatus error={error} truncated={truncated} retry={() => onRetry(filePath)} />
@@ -1137,6 +1140,13 @@ export default function DiffPanel({
                       return (
                         <DiffFileHeaderSuffix
                           filePath={path}
+                          canOpenFile={
+                            resolveDiffPathForWorkspace({
+                              filePath: path,
+                              workspaceRoot: activeCwd,
+                              repositoryRoot: activeRepositoryRoot,
+                            }) !== null
+                          }
                           hasStat={fileStats.has(path)}
                           error={state?.error ?? false}
                           truncated={state?.truncated ?? false}
