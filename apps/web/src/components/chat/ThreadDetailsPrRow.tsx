@@ -288,7 +288,7 @@ export function ThreadDetailsPrRow({
     toastManager.add({
       type: "success",
       title: "Added to the composer",
-      description: "The task is in the composer — read it over, then send.",
+      description: "The task is in the composer. Read it over, then send.",
     });
   };
 
