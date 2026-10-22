@@ -56,6 +56,7 @@ import { makeManagedCodexProvider } from "./CodexManagedProvider.ts";
 import { codexUsageReader } from "./codexUsage.ts";
 import { codexTranscriptionStatus, makeCodexTranscription } from "../CodexTranscription.ts";
 import * as CodexInstallation from "../CodexInstallation.ts";
+import * as CodexManagedTokenBroker from "../CodexManagedTokenBroker.ts";
 import * as ServerSecretStore from "../../auth/ServerSecretStore.ts";
 import * as ServerEnvironment from "../../environment/ServerEnvironment.ts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
@@ -100,7 +101,8 @@ export type CodexDriverEnv =
   | ServerConfig.ServerConfig
   | ServerSecretStore.ServerSecretStore
   | ServerEnvironment.ServerEnvironmentIdentity
-  | CodexInstallation.CodexInstallation;
+  | CodexInstallation.CodexInstallation
+  | CodexManagedTokenBroker.CodexManagedTokenBroker;
 
 export const CodexDriver: ProviderDriver<
   CodexSettings,
