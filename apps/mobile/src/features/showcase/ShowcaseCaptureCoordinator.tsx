@@ -8,6 +8,7 @@ import {
   useNavigation,
 } from "@react-navigation/native";
 import { AsyncResult } from "effect/reactivity";
+import { requireOptionalNativeModule } from "expo";
 
 import { useConnectionController } from "../connection/useConnectionController";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
@@ -90,6 +91,18 @@ export function ShowcaseCaptureCoordinator(props: { readonly pathname: string })
 
 function EnabledShowcaseCaptureCoordinator(props: { readonly pathname: string }) {
   const navigation = useNavigation();
+  useEffect(() => {
+    const menu = requireOptionalNativeModule<{
+      closeMenu(): void;
+      setToolsButtonVisible(visible: boolean): void;
+    }>("ExpoDevMenu");
+    // The dev menu can open after bundle loading and block orientation requests.
+    const timer = setInterval(() => {
+      menu?.closeMenu();
+      menu?.setToolsButtonVisible(false);
+    }, 1_000);
+    return () => clearInterval(timer);
+  }, []);
   const { connectPairingUrl } = useConnectionController();
   const {
     isReady: appearancePreferencesReady,
