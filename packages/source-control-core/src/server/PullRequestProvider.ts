@@ -346,7 +346,7 @@ export interface PullRequestProviderApi {
 
   readonly getChangeRequestChecks?: (
     input: ProviderRepositoryRef & { readonly number: number },
-  ) => Effect.Effect<PullRequestChecks, PullRequestProviderError>;
+  ) => Effect.Effect<Pick<PullRequestChecks, "state" | "checks">, PullRequestProviderError>;
 
   /**
    * A CI run and its jobs, as checks. Only hosts whose runs have ids implement it. Without a

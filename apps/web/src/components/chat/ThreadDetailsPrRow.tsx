@@ -65,6 +65,7 @@ import {
   buildSubagentFixChecksPrompt,
   buildSubagentResolveConflictsPrompt,
   classifyPullRequestChecks,
+  resolvePullRequestDetailChecks,
   describePullRequestChecks,
   isPullRequestConflicting,
   resolvePullRequestMergeMethod,
@@ -169,12 +170,7 @@ export function ThreadDetailsPrRow({
   const checksSettledEmpty = useEnvironmentQuerySelector(checksAtom, isSettledWithoutChecks);
   const checksQuery = useEnvironmentQueryRefresh(checksAtom);
   const checksAreNewer = useEnvironmentQueryIsNewer(checksAtom, detailAtom);
-  const detail =
-    detailData === null
-      ? null
-      : checksData !== null && checksAreNewer
-        ? { ...detailData, ...checksData }
-        : detailData;
+  const detail = resolvePullRequestDetailChecks(detailData, checksData, checksAreNewer);
   const open = reference !== null && (detail?.state ?? pr?.state) === "open";
   const refreshKey = `${environmentId}:${project?.id}:${reference?.host}:${reference?.repository}:${number}`;
   useLiveRefresh(
