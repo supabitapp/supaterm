@@ -1,3 +1,4 @@
+import { isWindowsPlatform } from "../lib/utils";
 import {
   type PendingSubagentRequest,
   presentThreadShell,
@@ -223,6 +224,7 @@ function EnvironmentNotifications({
           body: thread.title,
           tag: threadNotificationTag(environmentId, thread.id),
           silent: true,
+          requireInteraction: kind === "completion" && isWindowsPlatform(navigator.platform),
         });
         onNotification(environmentId, notification);
         notification.addEventListener("click", () => {

@@ -806,6 +806,7 @@ function deriveSupersededAttemptFolds(
       completeAttemptIds.has(entry.attempt.id) ||
       unfoldedRunIds.has(entry.attempt.runId) ||
       (entry.kind === "message" && entry.message.role === "user") ||
+      (entry.kind === "event" && entry.projectedItem.item.type === "handoff") ||
       entry.kind === "html-render" ||
       entry.kind === "mcp-app" ||
       timelineEntryIsPersistentResourceCard(entry) ||
@@ -2152,7 +2153,8 @@ function replaceStreamingMessageRows(
     return null;
   }
   const replacements = new Map<ChatMessage, Extract<TimelineEntry, { kind: "message" }>>();
-  for (const [index, entry] of timelineEntries.entries()) {
+  for (let index = 0; index < timelineEntries.length; index += 1) {
+    const entry = timelineEntries[index]!;
     const previousEntry = previousEntries[index]!;
     if (entry === previousEntry) continue;
     if (

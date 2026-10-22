@@ -37,7 +37,7 @@ import {
   type IconComponent,
   MessagesSquareIcon,
   RedoIcon,
-  UndoIcon,
+  PencilIcon,
 } from "@supaterm/icons";
 import { Link as LinkIconNode } from "@supaterm/icons/nodes";
 import { DisclosureChevron } from "../ui/disclosure-chevron";
@@ -488,7 +488,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
                           src={image.previewUrl}
                           alt={image.name}
                           decoding="async"
-                          className="block size-full object-cover"
+                          className="block size-full transform-gpu object-cover"
                         />
                       </button>
                     ) : (
@@ -691,7 +691,7 @@ function RevertUserMessageButton({
           />
         }
       >
-        <UndoIcon className="size-3" />
+        <PencilIcon className="size-3" />
       </TooltipTrigger>
       <TooltipPopup side="top">Edit from here</TooltipPopup>
     </Tooltip>
