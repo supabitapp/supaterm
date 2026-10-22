@@ -8,7 +8,6 @@ import {
 import { useEffect, useEffectEvent, useState } from "react";
 
 import { usePullRequestChecksRefresh } from "~/hooks/usePullRequestChecksRefresh";
-import { useServerConfigs } from "~/state/entities";
 import { useEnvironmentQuery } from "~/state/query";
 import { useEnvironmentScope } from "~/state/session";
 import {
@@ -50,11 +49,8 @@ export function usePullRequestDetail(
   const activityQuery = useEnvironmentQuery(
     pullRequestEnvironment.activity({ environmentId, input: reference }),
   );
-  const serverConfigs = useServerConfigs();
-  const supportsChecks =
-    serverConfigs.get(environmentId)?.environment.capabilities.pullRequestChecks === true;
   const checksQuery = useEnvironmentQuery(
-    supportsChecks && detailQuery.data !== null
+    detailQuery.data !== null
       ? pullRequestEnvironment.checks({ environmentId, input: reference })
       : null,
   );
@@ -67,10 +63,7 @@ export function usePullRequestDetail(
     refresh: () => {
       if (!checksQuery.isPending && !detailQuery.isPending) checksQuery.refresh();
     },
-    enabled:
-      liveDetail?.state === "open" &&
-      supportsChecks &&
-      !(checksQuery.isSuccess && checksQuery.data === null),
+    enabled: liveDetail?.state === "open" && !(checksQuery.isSuccess && checksQuery.data === null),
     key: `workspace-pr-checks:${environmentId}:${reference.projectId}:${reference.host}:${reference.repository}:${reference.number}`,
     checks: liveDetail?.checks ?? [],
   });
