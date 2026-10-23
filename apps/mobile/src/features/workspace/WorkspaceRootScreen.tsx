@@ -5,6 +5,7 @@ import { useKeyboardState } from "react-native-keyboard-controller";
 import { SafeAreaInsetsContext, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CompactBrandTitle } from "../../components/CompactBrandTitle";
+import { isDuoDevice } from "../../lib/device-type";
 import { AndroidScreenHeader } from "../../components/ui/AndroidScreenHeader";
 import { NativeStackScreenOptions } from "../../native/StackHeader";
 import { NativePrimaryColumnContext } from "../../native/v5-workspace-context";
@@ -25,7 +26,7 @@ import {
   useWorkspaceTabs,
 } from "./WorkspaceTabsContext";
 import { WorkspaceToolbar } from "./WorkspaceToolbar";
-import { workspaceToolbarHeight } from "./workspace-tabs-state";
+import { WORKSPACE_TOOLBAR, workspaceToolbarHeight } from "./workspace-tabs-state";
 import { WorkspaceSidebarTabs } from "./WorkspaceSidebarTabs";
 import { useSidebarWorkspaceTabs } from "./useSidebarWorkspaceTabs";
 
@@ -89,11 +90,13 @@ function WorkspaceRootContent() {
   );
   const tab = state.tabs[state.selectedTab];
   const bottomClearance =
-    Platform.OS === "ios"
-      ? Math.max(insets.bottom, keyboardHeight) + 16
-      : keyboardHeight > 0 && tab.searchMode !== "resting"
-        ? keyboardHeight + 64
-        : Math.max(insets.bottom, 12) + workspaceToolbarHeight(tab.searchMode) + 16;
+    Platform.OS === "ios" && isDuoDevice(deviceType)
+      ? Math.max(insets.bottom, 12, keyboardHeight + 8) + WORKSPACE_TOOLBAR.height + 16
+      : Platform.OS === "ios"
+        ? Math.max(insets.bottom, keyboardHeight) + 16
+        : keyboardHeight > 0 && tab.searchMode !== "resting"
+          ? keyboardHeight + 64
+          : Math.max(insets.bottom, 12) + workspaceToolbarHeight(tab.searchMode) + 16;
   const context = useMemo(() => ({ ...workspace, bottomClearance }), [workspace, bottomClearance]);
 
   return (
@@ -110,7 +113,6 @@ function WorkspaceRootContent() {
               headerShown: true,
               unstable_headerLeftItems: () => [],
               headerTitle: renderHeaderTitle,
-              ...(state.selectedTab === "threads" ? {} : { nativeSidebarFilter: undefined }),
             }}
           />
         ) : (

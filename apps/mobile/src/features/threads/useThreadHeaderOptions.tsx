@@ -97,23 +97,6 @@ export function useThreadHeaderOptions(props: {
     [navigation],
   );
 
-  const duoRightHeaderItems = useMemo<NativeHeaderItems>(
-    () => [
-      ...rightHeaderItems,
-      { type: "spacing", spacing: 8 },
-      withNativeGlassHeaderItem({
-        type: "button" as const,
-        axisBehavior: "verticalPreferred",
-        identifier: "thread-right-new-task",
-        label: "New task",
-        accessibilityLabel: "New task",
-        icon: { name: "square.and.pencil", type: "sfSymbol" as const },
-        onPress: startNewTask,
-      }),
-    ],
-    [rightHeaderItems, startNewTask],
-  );
-
   const options: AppNativeStackNavigationOptions = {
     headerShown: true,
     headerTitle: props.title,
@@ -124,7 +107,8 @@ export function useThreadHeaderOptions(props: {
       : canGoBack
         ? undefined
         : () => compactHomeHeaderItems,
-    unstable_headerRightItems: () => (usesDuoHeader ? duoRightHeaderItems : rightHeaderItems),
+    // The workspace navigator adds compose to the Duo detail column's bar.
+    unstable_headerRightItems: () => rightHeaderItems,
     unstable_headerToolbarItems: () => [],
     unstable_headerSubtitle: props.usesNativeHeaderGlass ? props.subtitle : undefined,
     contentStyle: undefined,
@@ -136,7 +120,6 @@ export function useThreadHeaderOptions(props: {
     optionsVersion: [
       splitLeftHeaderItems,
       rightHeaderItems,
-      duoRightHeaderItems,
       usesDuoHeader,
       environmentId,
       threadId,
