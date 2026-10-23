@@ -29,6 +29,7 @@ import {
 import { useQueuedRunEditWithOutbox } from "./chat/useQueuedRunEditWithOutbox";
 import { ThreadVisitWatermark } from "./chat/ThreadVisitWatermark";
 import { ChatTerminalDrawers } from "./chat/ChatTerminalDrawers";
+import { ChatRightPanel } from "./chat/ChatRightPanel";
 import { useDraftHeroLayoutTransition } from "./chat/useDraftHeroLayoutTransition";
 import { useLocalDispatchState } from "./chat/useLocalDispatchState";
 import { draftFanoutSelectionsAtom, draftSendState, rewindToMessage } from "./chat/chatViewSend";
@@ -262,7 +263,6 @@ import {
   usePreviewMiniPlayerStore,
 } from "../previewMiniPlayerStore";
 import { threadPullRequestPanelTarget } from "./pullRequest/pullRequestDetail.logic";
-import { RightPanelTabs } from "./RightPanelTabs";
 import { BackgroundWorkIcon, BackgroundWorkTitle } from "./chat/BackgroundWork";
 import { useDeviceState } from "~/state/device";
 import { BranchToolbar, type BranchToolbarHandle } from "./BranchToolbar";
@@ -504,7 +504,6 @@ import {
 import { useLocalStorage } from "~/hooks/useLocalStorage";
 import { useComposerHandleContext } from "../composerHandleContext";
 import { releaseDraftAttachments } from "../lib/attachmentUploadQueue";
-import { RightPanelSheet } from "./RightPanelSheet";
 import { previewEnvironment } from "../state/preview";
 import { clampFileAttachmentUploadBytes } from "@supaterm/client-runtime/state/attachments";
 import { appAtomRegistry } from "../rpc/atomRegistry";
@@ -518,11 +517,7 @@ import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { useAtomQueryRunner } from "../state/use-atom-query-runner";
 import { Button, InlineButton } from "./ui/button";
 import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
-import {
-  PreviewPanelGroup,
-  PreviewPanelInline,
-  PreviewPanelSibling,
-} from "./preview/PreviewPanelLayout";
+import { PreviewPanelGroup, PreviewPanelSibling } from "./preview/PreviewPanelLayout";
 import { ServerUpdateAction, serverUpdateStageLabel } from "./ServerUpdateAction";
 import { useAutoBalanceUpdateBanner } from "./chat/useAutoBalanceUpdateBanner";
 import { InlineConfirmButton } from "./InlineConfirm";
@@ -6823,6 +6818,58 @@ export default function ChatView(props: ChatViewProps) {
     />
   ) : null;
 
+  const rightPanelProps = {
+    open: rightPanelOpen,
+    maximized: rightPanelMaximized,
+    keybindings,
+    getShortcutContext: getShortcutContextStable,
+    layoutControls: rightPanelOpen ? (
+      <TooltipProvider>
+        <div className="mr-px flex items-center">{panelToggleControls}</div>
+      </TooltipProvider>
+    ) : null,
+    widthStorageKey: `supaterm:preview-panel-width:${activeThreadKey}`,
+    // A sheet is modal, so in a split only the pane in use shows its own.
+    sheetOpen: rightPanelOpen && ownsPaneInput,
+    sheetContainer: paneScope?.element,
+    sheetAnimationDurationMs: panelAnimationsActive ? panelAnimationDurationMs : 0,
+    onClose: closePreviewPanelStable,
+    surfaces: renderedRightPanelSurfaces,
+    environmentId: activeThreadRef?.environmentId ?? null,
+    activeSurfaceId: renderedRightPanelSurface?.id ?? null,
+    pendingSurfaceIds: pendingFileSurfaceIds,
+    previewSessions: activePreviewState.sessions,
+    desktopByTabId: activePreviewState.desktopByTabId,
+    previewRuntimeTabId: resolvePreviewRuntimeTabId,
+    terminalLabelsById: activeTerminalLabelsById,
+    onActivate: activateRightPanelSurfaceStable,
+    onCloseSurface: closeRightPanelSurfaceStable,
+    onRenameDevice: (surfaceId: string, title: string) => {
+      if (activeThreadRef)
+        useRightPanelStore.getState().renameDevice(activeThreadRef, surfaceId, title);
+    },
+    onCloseOtherSurfaces: closeOtherRightPanelSurfacesStable,
+    onCloseSurfacesToRight: closeRightPanelSurfacesToRightStable,
+    onCloseAllSurfaces: closeAllRightPanelSurfacesStable,
+    onMoveSurface: moveRightPanelSurfaceStable,
+    onCopyFilePath: copyRightPanelFilePathStable,
+    onAddBrowser: () => createBrowserSurface(),
+    onAddBrowserInProfile: createBrowserSurfaceStable,
+    onAddTerminal: addTerminalSurfaceStable,
+    onAddDiff: addDiffSurfaceStable,
+    onAddFiles: addFilesSurfaceStable,
+    onAddPullRequest: addPullRequestSurfaceStable,
+    onAddPullRequests: addPullRequestsSurfaceStable,
+    onAddDevice: addDeviceSurfaceStable,
+    browserAvailable: canOperatePreview && browserAvailable,
+    terminalAvailable: activeProject !== null && canOperateTerminal,
+    diffAvailable: isServerThread && isGitRepo,
+    filesAvailable: activeProject !== null,
+    pullRequestAvailable: pullRequestSurfaceAvailable,
+    pullRequestsAvailable: pullRequestsSurfaceAvailable,
+    deviceAvailable: activeThreadRef !== null,
+    children: rightPanelContent,
+  };
   const content = (
     <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-background">
       <DeviceSetupDialogHost
@@ -7475,115 +7522,11 @@ export default function ChatView(props: ChatViewProps) {
         </PreviewPanelSibling>
 
         {rightPanelPresent && !shouldUsePlanSidebarSheet && activeThreadRef ? (
-          <PreviewPanelInline
-            open={rightPanelOpen}
-            widthStorageKey={`supaterm:preview-panel-width:${activeThreadKey}`}
-            onCollapse={closePreviewPanelStable}
-          >
-            <RightPanelTabs
-              mode="inline"
-              open={rightPanelOpen}
-              keybindings={keybindings}
-              getShortcutContext={getShortcutContextStable}
-              maximized={rightPanelMaximized}
-              surfaces={renderedRightPanelSurfaces}
-              environmentId={activeThreadRef.environmentId}
-              activeSurfaceId={renderedRightPanelSurface?.id ?? null}
-              pendingSurfaceIds={pendingFileSurfaceIds}
-              previewSessions={activePreviewState.sessions}
-              desktopByTabId={activePreviewState.desktopByTabId}
-              previewRuntimeTabId={resolvePreviewRuntimeTabId}
-              terminalLabelsById={activeTerminalLabelsById}
-              onActivate={activateRightPanelSurfaceStable}
-              onCloseSurface={closeRightPanelSurfaceStable}
-              onRenameDevice={(surfaceId, title) => {
-                if (activeThreadRef)
-                  useRightPanelStore.getState().renameDevice(activeThreadRef, surfaceId, title);
-              }}
-              onCloseOtherSurfaces={closeOtherRightPanelSurfacesStable}
-              onCloseSurfacesToRight={closeRightPanelSurfacesToRightStable}
-              onCloseAllSurfaces={closeAllRightPanelSurfacesStable}
-              onMoveSurface={moveRightPanelSurfaceStable}
-              onCopyFilePath={copyRightPanelFilePathStable}
-              onAddBrowser={() => createBrowserSurface()}
-              onAddBrowserInProfile={createBrowserSurfaceStable}
-              onAddTerminal={addTerminalSurfaceStable}
-              onAddDiff={addDiffSurfaceStable}
-              onAddFiles={addFilesSurfaceStable}
-              onAddPullRequest={addPullRequestSurfaceStable}
-              onAddPullRequests={addPullRequestsSurfaceStable}
-              onAddDevice={addDeviceSurfaceStable}
-              browserAvailable={canOperatePreview && browserAvailable}
-              terminalAvailable={activeProject !== null && canOperateTerminal}
-              diffAvailable={isServerThread && isGitRepo}
-              filesAvailable={activeProject !== null}
-              pullRequestAvailable={pullRequestSurfaceAvailable}
-              pullRequestsAvailable={pullRequestsSurfaceAvailable}
-              deviceAvailable={activeThreadRef !== null}
-            >
-              {rightPanelContent}
-            </RightPanelTabs>
-          </PreviewPanelInline>
+          <ChatRightPanel sheet={false} {...rightPanelProps} />
         ) : null}
       </PreviewPanelGroup>
       {rightPanelPresent && shouldUsePlanSidebarSheet && activeThreadRef ? (
-        <RightPanelSheet
-          animationDurationMs={panelAnimationsActive ? panelAnimationDurationMs : 0}
-          // A sheet is modal, so in a split only the pane in use shows its own.
-          open={rightPanelOpen && ownsPaneInput}
-          onClose={closePreviewPanelStable}
-          container={paneScope?.element}
-        >
-          <RightPanelTabs
-            mode="sheet"
-            open={rightPanelOpen}
-            keybindings={keybindings}
-            getShortcutContext={getShortcutContextStable}
-            layoutControls={
-              rightPanelOpen ? (
-                <TooltipProvider>
-                  <div className="mr-px flex items-center">{panelToggleControls}</div>
-                </TooltipProvider>
-              ) : null
-            }
-            surfaces={renderedRightPanelSurfaces}
-            environmentId={activeThreadRef.environmentId}
-            activeSurfaceId={renderedRightPanelSurface?.id ?? null}
-            pendingSurfaceIds={pendingFileSurfaceIds}
-            previewSessions={activePreviewState.sessions}
-            desktopByTabId={activePreviewState.desktopByTabId}
-            previewRuntimeTabId={resolvePreviewRuntimeTabId}
-            terminalLabelsById={activeTerminalLabelsById}
-            onActivate={activateRightPanelSurfaceStable}
-            onCloseSurface={closeRightPanelSurfaceStable}
-            onRenameDevice={(surfaceId, title) => {
-              if (activeThreadRef)
-                useRightPanelStore.getState().renameDevice(activeThreadRef, surfaceId, title);
-            }}
-            onCloseOtherSurfaces={closeOtherRightPanelSurfacesStable}
-            onCloseSurfacesToRight={closeRightPanelSurfacesToRightStable}
-            onCloseAllSurfaces={closeAllRightPanelSurfacesStable}
-            onMoveSurface={moveRightPanelSurfaceStable}
-            onCopyFilePath={copyRightPanelFilePathStable}
-            onAddBrowser={() => createBrowserSurface()}
-            onAddBrowserInProfile={createBrowserSurfaceStable}
-            onAddTerminal={addTerminalSurfaceStable}
-            onAddDiff={addDiffSurfaceStable}
-            onAddFiles={addFilesSurfaceStable}
-            onAddPullRequest={addPullRequestSurfaceStable}
-            onAddPullRequests={addPullRequestsSurfaceStable}
-            onAddDevice={addDeviceSurfaceStable}
-            browserAvailable={canOperatePreview && browserAvailable}
-            terminalAvailable={activeProject !== null && canOperateTerminal}
-            diffAvailable={isServerThread && isGitRepo}
-            filesAvailable={activeProject !== null}
-            pullRequestAvailable={pullRequestSurfaceAvailable}
-            pullRequestsAvailable={pullRequestsSurfaceAvailable}
-            deviceAvailable={activeThreadRef !== null}
-          >
-            {rightPanelContent}
-          </RightPanelTabs>
-        </RightPanelSheet>
+        <ChatRightPanel sheet {...rightPanelProps} />
       ) : null}
 
       <RevertConfirmHost threadKey={routeThreadKey} onConfirm={onConfirmRevertStable} />
