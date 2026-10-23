@@ -341,6 +341,9 @@ function focusComposerEditor(editorRef: RefObject<ComposerEditorHandle | null>) 
   editorRef.current?.focus();
 }
 
+/** Space below the composer pill, inside the bottom inset it is given. */
+export const THREAD_COMPOSER_BOTTOM_GUTTER = 6;
+
 export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps) {
   const project = useProject(scopeProjectRef(props.environmentId, props.selectedThread.projectId));
   const { themeVariables: materialTheme } = useAppearancePreferences();
@@ -732,7 +735,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       className="px-[12px]"
       style={{
         paddingTop: isExpanded ? 8 : 6,
-        paddingBottom: (props.bottomInset ?? 0) + (isExpanded ? 8 : 6),
+        paddingBottom: (props.bottomInset ?? 0) + (isExpanded ? 8 : THREAD_COMPOSER_BOTTOM_GUTTER),
         backgroundColor:
           Platform.OS === "android" ? themeColorWithAlpha(composerPanel, 1) : undefined,
       }}

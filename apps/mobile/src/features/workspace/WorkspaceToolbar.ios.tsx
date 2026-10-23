@@ -11,7 +11,7 @@ import { SymbolView } from "../../components/ui/AppSymbol";
 import { GlassSurface } from "../../components/ui/GlassSurface";
 import { isDuoDevice } from "../../lib/device-type";
 import { NATIVE_LIQUID_GLASS_SUPPORTED } from "../../native/native-glass";
-import { useDeviceType } from "../../native/native-layout-metrics";
+import { useDeviceType, useDuoBottomBarInset } from "../../native/native-layout-metrics";
 import { NativeStackScreenOptions } from "../../native/StackHeader";
 import { NativeWorkspaceTabActivityContext } from "../../native/v5-workspace-context";
 import { useHardwareKeyboardCommand } from "../keyboard/hardwareKeyboardCommands";
@@ -74,6 +74,7 @@ export function WorkspaceToolbar(props: {
   // each fold replaces the search field.
   const listSearch = isDuoDevice(deviceType);
   const insets = useSafeAreaInsets();
+  const bottomBarInset = useDuoBottomBarInset();
   const { isTabActive } = workspace;
   const tabActive = use(NativeWorkspaceTabActivityContext)?.active ?? true;
   const { panes, togglePrimarySidebar } = useAdaptiveWorkspaceLayout();
@@ -193,7 +194,7 @@ export function WorkspaceToolbar(props: {
         ) : null}
       </Toolbar>
       {listSearch ? (
-        <AboveKeyboard bottom={Math.max(insets.bottom, 12)}>
+        <AboveKeyboard bottom={bottomBarInset ?? Math.max(insets.bottom, 12)}>
           <WorkspaceSearchField
             ref={fieldRef}
             tab={selectedTab}
