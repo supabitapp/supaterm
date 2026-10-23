@@ -1,4 +1,4 @@
-import { canQueueComposerMessageAtom, readCanQueueComposerMessage } from "../state/composerQueue";
+import { canQueueComposerMessageAtom } from "../state/composerQueue";
 import {
   pendingThreadCreationMessage,
   resolvePendingThreadCreation,
@@ -12,20 +12,14 @@ import { ThreadFind, ThreadFindCanvas, type ThreadFindControls } from "./chat/Th
 import { THREAD_FIND_BAR_RESERVED_HEIGHT } from "./chat/ThreadFindBar";
 import { usageLimitRecoveryBannerItem } from "./chat/UsageLimitRecoveryBanner";
 import {
-  planComposerTurn,
-  sendTitleFallbackLabels,
-  snapshotComposerSend,
   deriveAvailableRevertTurnCounts,
   deriveThreadPendingBackgroundTasks,
   deriveWorkspaceMutationId,
   presentThreadShellFromProjection,
-  formatOutgoingPrompt,
   isCompactCommandMessage,
   type LocalThreadErrorEntry,
   makeThreadErrorSetter,
-  mergeDirectPreviewAnnotation,
   resolveDraftHeroState,
-  shouldDockDraftHeroForSubmission,
 } from "./ChatView.logic";
 import { useQueuedRunEditWithOutbox } from "./chat/useQueuedRunEditWithOutbox";
 import { ThreadVisitWatermark } from "./chat/ThreadVisitWatermark";
@@ -40,6 +34,7 @@ import { useTimelineRewind } from "./chat/useTimelineRewind";
 import { useComposerSelection } from "./chat/useComposerSelection";
 import { useRightPanelActions } from "./chat/useRightPanelActions";
 import { useThreadLifecycle } from "./chat/useThreadLifecycle";
+import { useComposerSend } from "./chat/useComposerSend";
 import { type TerminalLaunchContext, useChatTerminalActions } from "./chat/useChatTerminalActions";
 import { useDraftEnvironmentRouting } from "./chat/useDraftEnvironmentRouting";
 import { branchMismatchBannerItem } from "./chat/ThreadActivityBanners";
@@ -50,12 +45,7 @@ import {
 import { usePasteToFocusComposer } from "./chat/usePasteToFocusComposer";
 import { useDraftHeroLayoutTransition } from "./chat/useDraftHeroLayoutTransition";
 import { useLocalDispatchState } from "./chat/useLocalDispatchState";
-import {
-  draftFanoutSelectionsAtom,
-  draftSendState,
-  type MultipleModelTarget,
-  resolveMultipleModelTargets,
-} from "./chat/chatViewSend";
+import { draftFanoutSelectionsAtom, draftSendState } from "./chat/chatViewSend";
 import {
   isPaintOnlyThreadTimeline,
   peekHeldThreadTimeline,
@@ -77,7 +67,7 @@ import {
   latestExecutedRun,
   latestRootProviderFailure,
 } from "@supaterm/shared/orchestrationV2ThreadError";
-import { headlineUsageWindows, isUsageLimitsCommand } from "@supaterm/shared/usageLimits";
+import { headlineUsageWindows } from "@supaterm/shared/usageLimits";
 import { feedbackBannerItem } from "./chat/ComposerFeedback";
 import { useUsageLimitsPanel } from "./chat/useUsageLimitsPanel";
 import { useWorktreeSetup } from "./chat/useWorktreeSetup";
@@ -102,9 +92,7 @@ import {
   ProviderInteractionMode,
   RuntimeMode,
 } from "@supaterm/contracts";
-import { deriveThreadTitleSeed } from "@supaterm/client-runtime/operations";
 import { SPEED_TOGGLE_LABELS } from "@supaterm/client-runtime/provider-speed-toggle";
-import { declinePendingApprovals } from "@supaterm/client-runtime/state/thread-requests";
 import {
   deriveProviderSubagentStatus,
   deriveReportedModelSelection,
@@ -123,9 +111,7 @@ import { resolvePendingHandoff } from "@supaterm/client-runtime/handoff";
 import { HandoffRow } from "./chat/V2LifecycleRow";
 import {
   codexFeedbackMessage,
-  parseCodexFeedbackCommand,
   shouldShowLoadEarlierControl,
-  submitCodexFeedback,
   type CodexFeedbackSubmission,
 } from "@supaterm/client-runtime/state/threads";
 import {
@@ -156,7 +142,6 @@ import { useShallow } from "zustand/react/shallow";
 import {
   isAtomCommandInterrupted,
   mapAtomCommandResult,
-  settlePromise,
   squashAtomCommandFailure,
   type AtomCommandResult,
 } from "@supaterm/client-runtime/state/runtime";
@@ -164,7 +149,7 @@ import { AsyncResult } from "effect/reactivity";
 import { isElectron } from "../env";
 import { useDiffPanelStore } from "../diffPanelStore";
 import { useActiveThreadRef } from "../hooks/useActiveThreadRef";
-import { type ComposerSubmissionIntent, composerRequiresModifier } from "../composer-logic";
+import { composerRequiresModifier } from "../composer-logic";
 import {
   derivePhase,
   deriveTimelineEntriesFromVisibleTurnItemsWithState,
@@ -183,12 +168,7 @@ import { DEFAULT_INTERACTION_MODE, type ChatMessage } from "../types";
 import { useTheme } from "../hooks/useTheme";
 import { writeTextToClipboard } from "../hooks/useCopyToClipboard";
 import { subscribeSnapShotComposerFocus } from "../lib/desktopSnapShot";
-import {
-  useIsPaneInputOwner,
-  usePaneInputOwner,
-  usePaneScope,
-  usePaneThreadNavigation,
-} from "../chatPanes/paneScope";
+import { useIsPaneInputOwner, usePaneInputOwner, usePaneScope } from "../chatPanes/paneScope";
 import { useChatPaneStore } from "../chatPanes/store";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { FileMetadataThreadProvider } from "../hooks/FileMetadataThreadProvider";
@@ -231,7 +211,7 @@ import { cn } from "~/lib/utils";
 import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "~/workspaceTitlebar";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { projectScriptIdFromCommand } from "~/projectScripts";
-import { newMessageId, newThreadId } from "~/lib/utils";
+import { newMessageId } from "~/lib/utils";
 import { registerFaviconProjectForThread } from "~/browserFaviconStore";
 import {
   applyProviderInstanceSettings,
@@ -259,7 +239,6 @@ import {
   useSidebarPendingFileDropStore,
 } from "../sidebarPendingFileDropStore";
 import {
-  markPromotedDraftThreadByRef,
   composerDraftHasUserContent,
   type ComposerFileAttachment,
   type ComposerImageAttachment,
@@ -268,14 +247,7 @@ import {
   DraftId,
 } from "../composerDraftStore";
 import { type TerminalContextDraft } from "../lib/terminalContext";
-import {
-  collectInlineContextIds,
-  ensureInlineContextReferences,
-} from "../lib/composerContextReferences";
-import {
-  buildMessageContext,
-  previewAnnotationContextReference,
-} from "../lib/composerContextRecords";
+import { collectInlineContextIds } from "../lib/composerContextReferences";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { useKnownTerminalSessions, useThreadRunningTerminalIds } from "../state/terminalSessions";
 import { useEnvironmentQuery } from "../state/query";
@@ -366,20 +338,14 @@ import {
   deriveLatestContextWindowSnapshot,
   latestProviderTurnTokenUsage,
 } from "../lib/contextWindow";
-import {
-  MOBILE_COMPOSER_VIEW_TRANSITION_NAME,
-  runMobileComposerTransition,
-} from "./chat/draftHeroTransition";
+import { MOBILE_COMPOSER_VIEW_TRANSITION_NAME } from "./chat/draftHeroTransition";
 import { animationsSettled } from "../lib/motion";
 import { ScrollToEndPill } from "./chat/ScrollToEndPill";
 import { WorkspaceDropOverlay } from "./WorkspaceDropOverlay";
-import type { ComposerDispatchMode } from "@supaterm/client-runtime/state/composer-dispatch";
 import {
-  buildExpiredTerminalContextToastCopy,
   buildLocalDraftThread,
   collectUserMessageBlobPreviewUrls,
   deriveCommittedServerUserMessageIds,
-  deriveComposerSendState,
   dismissBranchMismatchForSession,
   shouldRenderPreviewMiniPlayer,
   deriveLockedProvider,
@@ -387,18 +353,15 @@ import {
   resolveComposerProviderSelection,
   resolveThreadMetadataUpdateForNextTurn,
   resolveSendEnvMode,
-  shouldRequireWorktreeBaseBranch,
   revokeUserMessagePreviewUrls,
   startNewThreadForProject,
   codexArtifactTemplatePromptToAppend,
   shouldRefocusComposerOnWindowFocus,
 } from "./ChatView.logic";
 import { useComposerHandleContext } from "../composerHandleContext";
-import { releaseDraftAttachments } from "../lib/attachmentUploadQueue";
 import { clampFileAttachmentUploadBytes } from "@supaterm/client-runtime/state/attachments";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { enqueueThreadOutboxTurns, usePendingThreadCreation } from "../state/threadOutbox";
-import { captureOutboxAttachments } from "../state/threadOutboxEditing";
 import { ThreadOutboxControl, type ThreadOutboxControlHandle } from "./chat/ThreadOutboxControl";
 import { assetEnvironment } from "../state/assets";
 import { readEnvironmentScope, readPreparedConnection } from "../state/session";
@@ -407,10 +370,6 @@ import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { useAtomQueryRunner } from "../state/use-atom-query-runner";
 import { TooltipProvider } from "./ui/tooltip";
 import { PreviewPanelGroup, PreviewPanelSibling } from "./preview/PreviewPanelLayout";
-import {
-  ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
-  threadContextsOutsideEnvironment,
-} from "@supaterm/shared/composerContextReferences";
 import { observeResize } from "~/lib/observeResize";
 import {
   focusAdjacentPaneFromKeyboard,
@@ -498,7 +457,6 @@ export default function ChatView(props: ChatViewProps) {
   } = props;
   const canOperateThread = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
   const isPaneInputOwner = usePaneInputOwner();
-  const openPaneThread = usePaneThreadNavigation();
   const paneScope = usePaneScope();
   const paneSplit = useChatPaneStore((state) => (state.layout?.cells.length ?? 1) > 1);
   const ownsPaneInput = useIsPaneInputOwner();
@@ -527,15 +485,6 @@ export default function ChatView(props: ChatViewProps) {
     reportFailure: false,
   });
   const setThreadInteractionMode = useOrchestrationCommand(threadEnvironment.setInteractionMode, {
-    reportFailure: false,
-  });
-  const startThreadTurn = useOrchestrationCommand(threadEnvironment.startTurn, {
-    reportFailure: false,
-  });
-  const resumeThreadQueue = useOrchestrationCommand(threadEnvironment.resumeThreadQueue, {
-    reportFailure: false,
-  });
-  const uploadThreadFeedback = useOrchestrationCommand(threadEnvironment.uploadFeedback, {
     reportFailure: false,
   });
   const createAttachmentAssetUrl = useAtomQueryRunner(assetEnvironment.createUrl, {
@@ -711,7 +660,6 @@ export default function ChatView(props: ChatViewProps) {
     return draft ? composerDraftHasUserContent({ ...draft, prompt: "" }) : false;
   });
   const setComposerDraftPrompt = useComposerDraftStore((store) => store.setPrompt);
-  const clearComposerDraftContent = useComposerDraftStore((store) => store.clearComposerContent);
   const setDraftThreadContext = useComposerDraftStore((store) => store.setDraftThreadContext);
   const composerImagesRef = useRef<ComposerImageAttachment[]>([]);
   const composerFilesRef = useRef<ComposerFileAttachment[]>([]);
@@ -800,10 +748,6 @@ export default function ChatView(props: ChatViewProps) {
   const { sendInFlight: sendInFlightRef } = draftSendState(routeThreadKey);
   const isSendInFlight = useEffectEvent(() => sendInFlightRef.current);
   const isSendInFlightStable = useStableCallback(() => sendInFlightRef.current);
-  const [resumingThreadKeys, setResumingThreadKeys] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
-  const isResuming = resumingThreadKeys.has(routeThreadKey);
   const multipleModelSelections = useAtomValue(fanoutSelectionsAtom);
   const setMultipleModelSelections = (
     selections: SetStateAction<ReadonlyArray<ModelSelection> | null>,
@@ -1445,13 +1389,6 @@ export default function ChatView(props: ChatViewProps) {
     composerRef,
     setThreadError,
   });
-  // A send awaits its approval declines, so it reads the approvals pending by then.
-  const pendingApprovalsRef = useRef(pendingApprovals);
-  const respondingRequestIdsRef = useRef(respondingRequestIds);
-  useLayoutEffect(() => {
-    pendingApprovalsRef.current = pendingApprovals;
-    respondingRequestIdsRef.current = respondingRequestIds;
-  }, [pendingApprovals, respondingRequestIds]);
   // A pending approval or question is part of the key: once it is answered,
   // from this client or any other, the agent resumes and spends quota.
   const usageLimitsKey =
@@ -3026,670 +2963,70 @@ export default function ChatView(props: ChatViewProps) {
     void sendStandaloneCommand("/compact", "Failed to compact context.");
   };
 
-  const onResume = async () => {
-    if (
-      !activeThread ||
-      (resumableRunId === null && !hasHeldQueuedRuns) ||
-      isSendBusy ||
-      isResuming ||
-      isConnecting ||
-      isRevertingCheckpoint ||
-      threadDetailLoading ||
-      activeEnvironmentUnavailable ||
-      sendInFlightRef.current
-    ) {
-      return;
-    }
-    const threadId = activeThread.id;
-    sendInFlightRef.current = true;
-    setResumingThreadKeys((current) => new Set(current).add(routeThreadKey));
-    setThreadError(threadId, null);
-    // Commands settle into a result, so this always runs.
-    const resume = async () => {
-      if (resumableRunId === null) {
-        return resumeThreadQueue({ environmentId, input: { threadId } });
-      }
-      const createdAt = new Date().toISOString();
-      const settingsResult = await persistThreadSettingsForNextTurn({
-        threadId,
-        createdAt,
-        ...(localCheckoutBranchMismatch
-          ? { branch: localCheckoutBranchMismatch.currentBranch }
-          : {}),
-        runtimeMode,
-        interactionMode,
-      });
-      if (settingsResult._tag === "Failure") return settingsResult;
-      const modelSelection = composerRef.current?.getSendContext().selectedModelSelection;
-      const turnResult = await startThreadTurn({
-        environmentId,
-        input: {
-          threadId,
-          manualContinuationOfRunId: resumableRunId,
-          ...(modelSelection ? { modelSelection } : {}),
-          message: {
-            messageId: newMessageId(),
-            role: "user",
-            text: "Continue where you left off.",
-            attachments: [],
-          },
-          runtimeMode,
-          interactionMode,
-          dispatchMode: "start",
-        },
-      });
-      if (turnResult._tag === "Failure" || !hasHeldQueuedRuns) return turnResult;
-      clearUsageLimitsFor(routeThreadKey);
-      return resumeThreadQueue({ environmentId, input: { threadId } });
-    };
-    const result = await resume();
-    if (result._tag === "Failure") {
-      if (!isAtomCommandInterrupted(result)) {
-        const error = squashAtomCommandFailure(result);
-        setThreadError(
-          threadId,
-          error instanceof Error ? error.message : "Could not resume thread.",
-        );
-      }
-    } else {
-      clearUsageLimitsFor(routeThreadKey);
-      if (currentRouteThreadKeyRef.current === routeThreadKey) scrollToEnd();
-    }
-    sendInFlightRef.current = false;
-    setResumingThreadKeys((current) => {
-      const next = new Set(current);
-      next.delete(routeThreadKey);
-      return next;
-    });
-  };
-
-  const onSend = async (
-    e?: { preventDefault: () => void },
-    dispatchMode: ComposerDispatchMode = "auto",
-    submissionIntent: ComposerSubmissionIntent = "foreground",
-    directAnnotation?: {
-      annotation: PreviewAnnotationPayload;
-      image: ComposerImageAttachment | null;
-    },
-  ) => {
-    e?.preventDefault();
-    // What the user pressed send on; declining approvals below takes a round trip, and a
-    // redirect must not go out for a draft that changed meanwhile.
-    const promptAtSend = promptRef.current;
-    if (queuedRunEdit.outbox.isEditing) {
-      if (!directAnnotation)
-        await queuedRunEdit.outbox.saveEdit({ runtimeMode, sendInFlightRef }, setThreadError);
-      return;
-    }
-
-    if (
-      usageLimitsOffered &&
-      usageLimitsKey !== null &&
-      !directAnnotation &&
-      !composerHasNonPromptContent &&
-      isUsageLimitsCommand(promptRef.current)
-    ) {
-      if (openUsageLimits()) {
-        promptRef.current = "";
-        setComposerDraftPrompt(composerDraftTarget, "");
-        composerRef.current?.resetCursorState();
-      }
-      return;
-    }
-
-    const notifyDirectAnnotationAttached = () => {
-      if (!directAnnotation) return;
-      toastManager.add(
-        stackedThreadToast({
-          type: "info",
-          title: "Annotation attached to draft",
-          description: "Sending is unavailable right now. Finish the current action, then send.",
-        }),
-      );
-    };
-    if (
-      !readCanQueueComposerMessage(environmentId) ||
-      !activeThread ||
-      isSendBusy ||
-      isConnecting ||
-      isRevertingCheckpoint ||
-      !clientSettingsHydrated ||
-      (threadDetailLoading && !activeEnvironmentUnavailable) ||
-      readPendingEnvironmentChange() !== null ||
-      sendInFlightRef.current ||
-      feedbackUploadsInFlightRef.current.has(routeThreadKey)
-    ) {
-      notifyDirectAnnotationAttached();
-      return;
-    }
-    if (needsLoadBalancing) {
-      toastManager.add({
-        type: "warning",
-        title: loadBalancing.pending
-          ? "Checking machine resources"
-          : "Choose a machine to continue",
-        description: loadBalancing.pending
-          ? "Resource checks are still running. You can choose a machine in the composer."
-          : referencedThreadContexts.length > 0 &&
-              !logicalProjectEnvironments.some((candidate) =>
-                referencedThreadContexts.every(
-                  (record) => record.environmentId === candidate.environmentId,
-                ),
-              )
-            ? "No machine can read every attached thread. Choose a machine in the composer or remove the threads."
-            : "No eligible machine has available resources. Choose a machine in the composer to override.",
-      });
-      return;
-    }
-    const sendCtx = composerRef.current?.getSendContext();
-    if (activePendingProgress && sendCtx?.answeringPendingUserInput !== false) {
-      if (directAnnotation || !readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) {
-        notifyDirectAnnotationAttached();
-        return;
-      }
-      onAdvanceActivePendingUserInput();
-      return;
-    }
-    if (!sendCtx?.providerAvailable) {
-      notifyDirectAnnotationAttached();
-      return;
-    }
-    const multipleModelSelections = sendCtx.multipleModelSelections;
-    if (multipleModelSelections !== null && serverConfig == null) {
-      setThreadError(
-        activeThread.id,
-        "Connect to this environment before starting multiple models.",
-      );
-      return;
-    }
-    if (
-      multipleModelSelections !== null &&
-      (!isLocalDraftThread ||
-        !isGitRepo ||
-        shouldRequireWorktreeBaseBranch({
-          shouldCreateWorktree: true,
-          activeThreadBranch,
-          refsSettled: worktreeBaseRefsSettled,
-          environmentUnavailable: activeEnvironmentUnavailable,
-        }) ||
-        multipleModelSelections.length === 0)
-    ) {
-      toastManager.add(
-        stackedThreadToast({
-          type: "warning",
-          title: "Choose models and a base branch",
-          description:
-            "Multiple models need a new thread in a Git project. Each gets its own worktree.",
-        }),
-      );
-      return;
-    }
-    const {
-      images: sendContextImages,
-      files: composerFiles,
-      terminalContexts: composerTerminalContexts,
-      previewAnnotations: sendContextPreviewAnnotations,
-      reviewComments: composerReviewComments,
-      threadContexts: composerThreadContexts,
-      selectedProvider: ctxSelectedProvider,
-      selectedModel: ctxSelectedModel,
-      selectedProviderModels: ctxSelectedProviderModels,
-      selectedPromptEffort: ctxSelectedPromptEffort,
-      selectedModelSelection: ctxSelectedModelSelection,
-      interactionMode: sendInteractionMode,
-    } = sendCtx;
-    const { images: composerImages, previewAnnotations: composerPreviewAnnotations } =
-      mergeDirectPreviewAnnotation({
-        images: sendContextImages,
-        fileCount: composerFiles.length,
-        previewAnnotations: sendContextPreviewAnnotations,
-        direct: directAnnotation,
-      });
-    // A direct "send annotation" writes the draft and sends in the same tick; the reference
-    // must be in the text now, not after the next render.
-    const promptForSend = directAnnotation
-      ? ensureInlineContextReferences(promptRef.current, [
-          previewAnnotationContextReference(directAnnotation.annotation),
-        ])
-      : promptRef.current;
-    const strandedThread = threadContextsOutsideEnvironment({
-      text: promptForSend,
-      records: composerThreadContexts,
-      environmentId,
-    })[0];
-    if (strandedThread) {
-      const owner = environmentById.get(strandedThread.environmentId)?.label ?? "its machine";
-      toastManager.add(
-        stackedThreadToast({
-          type: "warning",
-          title: "Attached thread is on another machine",
-          description: `This machine's agent can't read "${strandedThread.title}". Remove it, or switch back to ${owner} to send.`,
-        }),
-      );
-      return;
-    }
-    if (queuedRunEdit.isEditing) {
-      // Edit mode repurposes the composer: sending saves the queued message
-      // in place instead of dispatching a new turn.
-      await queuedRunEdit.saveEdit(
-        {
-          prompt: promptForSend,
-          images: composerImages,
-          files: composerFiles,
-          terminalContexts: composerTerminalContexts,
-          reviewComments: composerReviewComments,
-          previewAnnotations: composerPreviewAnnotations,
-          threadContexts: composerThreadContexts,
-        },
-        setThreadError,
-      );
-      return;
-    }
-    const {
-      trimmedPrompt: trimmed,
-      sendableTerminalContexts: sendableComposerTerminalContexts,
-      expiredTerminalContextCount,
-      hasSendableContent,
-    } = deriveComposerSendState({
-      prompt: promptForSend,
-      imageCount: composerImages.length + composerFiles.length,
-      terminalContexts: composerTerminalContexts,
-      elementContextCount:
-        composerPreviewAnnotations.length +
-        composerReviewComments.length +
-        composerThreadContexts.length,
-    });
-    const feedbackCommand =
-      ctxSelectedProvider === "codex" &&
-      composerImages.length === 0 &&
-      composerFiles.length === 0 &&
-      sendableComposerTerminalContexts.length === 0 &&
-      composerPreviewAnnotations.length === 0 &&
-      composerReviewComments.length === 0 &&
-      composerThreadContexts.length === 0
-        ? parseCodexFeedbackCommand(trimmed)
-        : null;
-    if (feedbackCommand && multipleModelSelections === null) {
-      if (!isServerThread || activeThread.activeProviderThreadId === null) {
-        toastManager.add(
-          stackedThreadToast({
-            type: "warning",
-            title: "Start a Codex thread first",
-            description: "Send a message before you submit feedback.",
-          }),
-        );
-        return;
-      }
-      feedbackUploadsInFlightRef.current.add(routeThreadKey);
-      await submitCodexFeedback({
-        submission: {
-          id: newMessageId(),
-          command: trimmed,
-          createdAt: new Date().toISOString(),
-        },
-        clearDraft: () => {
-          promptRef.current = "";
-          clearComposerDraftContent(composerDraftTarget);
-          composerRef.current?.resetCursorState();
-        },
-        onUpdate: (submission) => {
-          setFeedbackSubmissionsByThreadKey((current) => {
-            const existing = current[routeThreadKey] ?? [];
-            const found = existing.some((entry) => entry.id === submission.id);
-            return {
-              ...current,
-              [routeThreadKey]: found
-                ? existing.map((entry) => (entry.id === submission.id ? submission : entry))
-                : [...existing, submission],
-            };
-          });
-        },
-        upload: () =>
-          uploadThreadFeedback({
-            environmentId: activeThread.environmentId,
-            input: { threadId: activeThread.id, ...feedbackCommand },
-          }),
-      }).finally(() => {
-        feedbackUploadsInFlightRef.current.delete(routeThreadKey);
-      });
-
-      return;
-    }
-    if (!hasSendableContent) {
-      if (expiredTerminalContextCount > 0) {
-        const toastCopy = buildExpiredTerminalContextToastCopy(
-          expiredTerminalContextCount,
-          "empty",
-        );
-        toastManager.add(
-          stackedThreadToast({
-            type: "warning",
-            title: toastCopy.title,
-            description: toastCopy.description,
-          }),
-        );
-      }
-      return;
-    }
-    if (!activeProject) {
-      toastManager.add(
-        stackedThreadToast({
-          type: "warning",
-          title: "Choose a project first",
-          description: "This draft no longer points to an available project.",
-        }),
-      );
-      return;
-    }
-    const threadIdForSend = activeThread.id;
-    const {
-      shouldCreateWorktree,
-      missingWorktreeBaseBranch,
-      baseBranchForWorktree,
-      turnDispatchMode,
-      shouldQueueBehindActiveRun,
-    } = planComposerTurn({
-      sendQueuesBehindSetup,
-      isLocalDraftThread,
-      sendEnvMode,
-      worktreePath: activeThread.worktreePath,
-      activeThreadBranch,
-      worktreeBaseRefsSettled,
-      environmentUnavailable: activeEnvironmentUnavailable,
-      phase,
-      dispatchMode,
-    });
-    if (missingWorktreeBaseBranch) {
-      setThreadError(threadIdForSend, "Select a base branch before sending in New worktree mode.");
-      return;
-    }
-
-    const sendSnapshot = snapshotComposerSend({
-      prompt: promptForSend,
-      images: composerImages,
-      files: composerFiles,
-      terminalContexts: composerTerminalContexts,
-      sendableTerminalContexts: sendableComposerTerminalContexts,
-      previewAnnotations: composerPreviewAnnotations,
-      reviewComments: composerReviewComments,
-      threadContexts: composerThreadContexts,
-    });
-    const composerAttachmentsSnapshot = sendSnapshot.attachments;
-    const messageTextForSend = sendSnapshot.messageText;
-    // Records bind attachments by their local id; the outbox rebinds them to the upload id
-    // on delivery and the server to the persisted id.
-    const outgoingMessageContext = buildMessageContext({
-      terminalContexts: sendSnapshot.terminalContexts,
-      reviewComments: sendSnapshot.reviewComments,
-      previewAnnotations: sendSnapshot.previewAnnotations,
-      threadContexts: sendSnapshot.threadContexts,
-      attachments: composerAttachmentsSnapshot.map((attachment) => ({
-        attachment,
-        attachmentId: attachment.id,
-      })),
-    });
-    const messageIdForSend = newMessageId();
-    const messageCreatedAt = new Date().toISOString();
-    const outgoingMessageText = formatOutgoingPrompt({
-      provider: ctxSelectedProvider,
-      model: ctxSelectedModel,
-      models: ctxSelectedProviderModels,
-      effort: ctxSelectedPromptEffort,
-      text: messageTextForSend || ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
-    });
-    if (composerRef.current?.validateProviderInput(outgoingMessageText) === false) {
-      return;
-    }
-
-    const multipleTargets: MultipleModelTarget[] = [];
-    for (const target of resolveMultipleModelTargets({
-      selections: multipleModelSelections ?? [],
-      providerInstanceEntries,
-      messageText: messageTextForSend,
-      interactionMode: sendInteractionMode,
-    })) {
-      if ("error" in target) {
-        setThreadError(threadIdForSend, target.error);
-        return;
-      }
-      if (composerRef.current?.validateProviderInput(target.text) === false) return;
-      multipleTargets.push(target);
-    }
-
-    sendInFlightRef.current = true;
-    // A message sent while approvals are pending redirects the agent. They are declined only
-    // here, after everything above has accepted the send and before the message enters the
-    // outbox, so local commands and rejected drafts leave them alone.
-    const approvalsToDecline =
-      currentRouteThreadKeyRef.current === routeThreadKey
-        ? pendingApprovalsRef.current.filter((approval) =>
-            sendCtx.shownPendingApprovalIds.includes(approval.requestId),
-          )
-        : [];
-    if (approvalsToDecline.length > 0) {
-      // A draft edited since send, or a paste still landing in it, is no longer the message
-      // the user sent.
-      const attachmentIdsAtSend = composerAttachmentsSnapshot.map((attachment) => attachment.id);
-      // A direct annotation send writes its image and reference into the draft as it sends,
-      // so the live draft may still lack them; anything else differing is a real edit.
-      const annotationImageId = directAnnotation?.image?.id;
-      const attachmentIdsBeforeAnnotation = attachmentIdsAtSend.filter(
-        (id) => id !== annotationImageId,
-      );
-      const sameIds = (left: ReadonlyArray<string>, right: ReadonlyArray<string>) =>
-        left.length === right.length && left.every((id, index) => id === right[index]);
-      const draftChangedSinceSend = () => {
-        if (composerRef.current?.hasPendingAttachments() === true) return true;
-        const sendContext = composerRef.current?.getSendContext();
-        const attachmentIds = sendContext
-          ? [...sendContext.images, ...sendContext.files].map((attachment) => attachment.id)
-          : attachmentIdsAtSend;
-        const promptUnchanged =
-          promptRef.current === promptAtSend || promptRef.current === promptForSend;
-        const attachmentsUnchanged =
-          sameIds(attachmentIds, attachmentIdsAtSend) ||
-          (annotationImageId !== undefined &&
-            sameIds(attachmentIds, attachmentIdsBeforeAnnotation));
-        return !promptUnchanged || !attachmentsUnchanged;
-      };
-      const draftBeforeDecline = useComposerDraftStore
-        .getState()
-        .getComposerDraft(composerDraftTarget);
-      const changedBeforeDecline = draftChangedSinceSend();
-      const pendingIdsBeforeDecline = new Set(
-        pendingApprovalsRef.current.map((approval) => approval.requestId),
-      );
-      const approvalResponding = approvalsToDecline.some((approval) =>
-        respondingRequestIdsRef.current.includes(approval.requestId),
-      );
-      const declined =
-        !changedBeforeDecline &&
-        !approvalResponding &&
-        (await declinePendingApprovals(approvalsToDecline, onRespondToApprovalStable).catch(
-          () => false,
-        ));
-      const draftChanged =
-        changedBeforeDecline ||
-        draftChangedSinceSend() ||
-        useComposerDraftStore.getState().getComposerDraft(composerDraftTarget) !==
-          draftBeforeDecline;
-      // An approval that arrived during the decline would block the redirect; keep the draft so
-      // the next send declines it too.
-      const approvalArrived = pendingApprovalsRef.current.some(
-        (approval) => !pendingIdsBeforeDecline.has(approval.requestId),
-      );
-      if (
-        !declined ||
-        draftChanged ||
-        approvalArrived ||
-        currentRouteThreadKeyRef.current !== routeThreadKey
-      ) {
-        sendInFlightRef.current = false;
-        if (draftChanged || approvalResponding || (declined && approvalArrived)) {
-          toastManager.add({
-            type: "info",
-            title: draftChanged
-              ? declined
-                ? "Approval declined. Your message changed, so it wasn't sent."
-                : "Your message changed, so it wasn't sent."
-              : approvalResponding
-                ? "An approval is already being answered, so your message wasn't sent."
-                : "Another approval arrived, so your message wasn't sent.",
-            description: "Send again when it's ready.",
-          });
-        }
-        return;
-      }
-    }
-    const savedDraft = useComposerDraftStore.getState().getComposerDraft(composerDraftTarget);
-    // Anything thrown while saving to the outbox shows on the thread; the send flag still clears.
-    const sendResult = await settlePromise(async () => {
-      const title = deriveThreadTitleSeed({
-        text: trimmed,
-        attachments: composerAttachmentsSnapshot.map((attachment) => ({
-          type: attachment.type,
-          name: attachment.name,
-        })),
-        fallbackLabels: sendTitleFallbackLabels(sendSnapshot),
-      });
-      const localAttachments = captureOutboxAttachments(environmentId, composerAttachmentsSnapshot);
-      const targets =
-        multipleModelSelections === null
-          ? [
-              {
-                threadId: threadIdForSend,
-                messageId: messageIdForSend,
-                selection: ctxSelectedModelSelection,
-                text: outgoingMessageText,
-                interactionMode: sendInteractionMode,
-              },
-            ]
-          : multipleTargets.map((target) => ({
-              ...target,
-              threadId: newThreadId(),
-              messageId: newMessageId(),
-            }));
-      await enqueueThreadOutboxTurns(
-        targets.map((target) => {
-          const prepareWorktree = multipleModelSelections !== null || shouldCreateWorktree;
-          const worktree = prepareWorktree
-            ? {
-                projectCwd: activeProject.workspaceRoot,
-                ...(multipleModelSelections !== null ? { requireWorktree: true } : {}),
-                ...(startFromOrigin ? { startFromOrigin: true } : {}),
-              }
-            : undefined;
-          const pendingWorktree = worktree && !activeThreadBranch ? worktree : undefined;
-          const bootstrap = isLocalDraftThread
-            ? {
-                createThread: {
-                  projectId: activeProject.id,
-                  title,
-                  modelSelection: target.selection,
-                  runtimeMode,
-                  interactionMode: target.interactionMode,
-                  branch: activeThreadBranch,
-                  worktreePath: multipleModelSelections === null ? activeThread.worktreePath : null,
-                  createdAt: activeThread.createdAt,
-                },
-                ...(worktree && activeThreadBranch
-                  ? {
-                      prepareWorktree: {
-                        ...worktree,
-                        baseBranch: activeThreadBranch,
-                      },
-                      runSetupScript: true,
-                    }
-                  : {}),
-              }
-            : undefined;
-          return {
-            environmentId,
-            input: {
-              threadId: target.threadId,
-              message: {
-                messageId: target.messageId,
-                role: "user" as const,
-                text: target.text,
-                attachments: [],
-                ...(outgoingMessageContext ? { context: outgoingMessageContext } : {}),
-              },
-              modelSelection: target.selection,
-              titleSeed: title,
-              runtimeMode,
-              interactionMode: target.interactionMode,
-              // Like mobile, a delayed steer follows current server state at delivery.
-              dispatchMode: turnDispatchMode === "steer" ? ("auto" as const) : turnDispatchMode,
-              ...(bootstrap ? { bootstrap } : {}),
-              createdAt: messageCreatedAt,
-            },
-            localAttachments,
-            ...(pendingWorktree ? { pendingWorktree } : {}),
-            ...(localCheckoutBranchMismatch
-              ? { branch: localCheckoutBranchMismatch.currentBranch }
-              : {}),
-            ...(draftId && multipleModelSelections === null ? { draftId } : {}),
-            background: submissionIntent === "background",
-          };
-        }),
-      );
-      if (multipleModelSelections === null && !shouldQueueBehindActiveRun) {
-        // Anchor the sent turn when its acknowledged row arrives in the transcript.
-        anchorNewTurn(
-          scopedThreadKey(scopeThreadRef(environmentId, threadIdForSend)),
-          messageIdForSend,
-        );
-      }
-      if (
-        multipleModelSelections === null &&
-        shouldDockDraftHeroForSubmission({ isDraftHeroState, activeThreadKey, submissionIntent }) &&
-        activeThreadKey
-      ) {
-        await runMobileComposerTransition(
-          () => {
-            captureDraftHeroLayout();
-            setDockedDraftHeroThreadKey(activeThreadKey);
-          },
-          { active: panelAnimationsActive, durationMs: panelAnimationDurationMs },
-        );
-      }
-      if (!sendQueuesBehindSetup) {
-        beginWorktreeSetup(
-          multipleModelSelections === null && baseBranchForWorktree
-            ? { environmentId, threadId: threadIdForSend }
-            : null,
-        );
-      }
-      if (useComposerDraftStore.getState().getComposerDraft(composerDraftTarget) === savedDraft) {
-        promptRef.current = "";
-        clearComposerDraftContent(composerDraftTarget);
-        composerRef.current?.resetCursorState();
-      }
-      // The outbox owns its own bytes. References recovered without bytes stay owned until delivery.
-      releaseDraftAttachments(
-        composerAttachmentsSnapshot.filter((attachment) => attachment.file !== null),
-      );
-      setThreadError(threadIdForSend, null);
-      if (isLocalDraftThread && multipleModelSelections === null)
-        markPromotedDraftThreadByRef(scopeThreadRef(environmentId, threadIdForSend));
-      clearUsageLimitsFor(routeThreadKey);
-      if (submissionIntent === "background") handleNewThreadInActiveProject();
-      else if (isLocalDraftThread && targets[0]) {
-        void openPaneThread(
-          { kind: "server", threadRef: scopeThreadRef(environmentId, targets[0].threadId) },
-          { replace: true },
-        );
-      }
-    });
-    if (sendResult._tag === "Failure") {
-      const error = squashAtomCommandFailure(sendResult);
-      setThreadError(
-        threadIdForSend,
-        error instanceof Error ? error.message : "Could not save the pending message.",
-      );
-    }
-    sendInFlightRef.current = false;
-  };
+  const { onSend, onResume, isResuming } = useComposerSend({
+    environmentId,
+    routeThreadKey,
+    currentRouteThreadKeyRef,
+    draftId,
+    activeThread,
+    activeThreadKey,
+    activeThreadBranch,
+    activeProject,
+    isServerThread,
+    isLocalDraftThread,
+    isGitRepo,
+    hasHeldQueuedRuns,
+    resumableRunId,
+    phase,
+    runtimeMode,
+    interactionMode,
+    sendEnvMode,
+    startFromOrigin,
+    worktreeBaseRefsSettled,
+    localCheckoutBranchMismatch,
+    clientSettingsHydrated,
+    serverConfig,
+    environmentById,
+    logicalProjectEnvironments,
+    providerInstanceEntries,
+    referencedThreadContexts,
+    composerHasNonPromptContent,
+    composerRef,
+    composerDraftTarget,
+    promptRef,
+    feedbackUploadsInFlightRef,
+    queuedRunEdit,
+    isConnecting,
+    isRevertingCheckpoint,
+    threadDetailLoading,
+    activeEnvironmentUnavailable,
+    isSendBusy,
+    sendQueuesBehindSetup,
+    isDraftHeroState,
+    panelAnimationsActive,
+    panelAnimationDurationMs,
+    usageLimitsKey,
+    usageLimitsOffered,
+    openUsageLimits,
+    clearUsageLimitsFor,
+    needsLoadBalancing,
+    loadBalancing,
+    readPendingEnvironmentChange,
+    pendingApprovals,
+    respondingRequestIds,
+    activePendingProgress,
+    onAdvanceActivePendingUserInput,
+    onRespondToApproval: onRespondToApprovalStable,
+    beginWorktreeSetup,
+    captureDraftHeroLayout,
+    setDockedDraftHeroThreadKey,
+    setFeedbackSubmissionsByThreadKey,
+    setThreadError,
+    scrollToEnd,
+    anchorNewTurn,
+    handleNewThreadInActiveProject,
+    persistThreadSettingsForNextTurn,
+  });
 
   const onWorktreeSetupWorkLocally = () => {
     if (!worktreeSetup || worktreeSetup.phase !== "running" || !draftId) {
@@ -3769,6 +3106,7 @@ export default function ChatView(props: ChatViewProps) {
     void onComposerSendStable();
   }, [
     composerDraftTarget,
+    feedbackUploadsInFlightRef,
     onComposerSendStable,
     routeThreadKey,
     sendEnvMode,
