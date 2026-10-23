@@ -11,6 +11,7 @@ import { useThreadOutboxAttachments } from "../state/threadOutboxEditing";
 import { ThreadFind, ThreadFindCanvas, type ThreadFindControls } from "./chat/ThreadFindProvider";
 import { THREAD_FIND_BAR_RESERVED_HEIGHT } from "./chat/ThreadFindBar";
 import { usageLimitRecoveryBannerItem } from "./chat/UsageLimitRecoveryBanner";
+import { announcedRun, isDetailBehindShell } from "./chat/threadActivityAnnouncement";
 import {
   deriveAvailableRevertTurnCounts,
   deriveThreadPendingBackgroundTasks,
@@ -3532,11 +3533,32 @@ export default function ChatView(props: ChatViewProps) {
                     }
                     isCompacting={!paintOnlyDisplayedTimeline && isCompacting}
                     awaitingUser={
-                      !paintOnlyDisplayedTimeline &&
-                      (activePendingApproval !== null ||
-                        activePendingUserInput !== null ||
-                        activeThreadShell?.hasPendingUserInput === true)
+                      paintOnlyDisplayedTimeline
+                        ? null
+                        : activePendingApproval !== null
+                          ? "approval"
+                          : activePendingUserInput !== null ||
+                              activeThreadShell?.hasPendingUserInput === true
+                            ? "input"
+                            : null
                     }
+                    awaitingRequestId={
+                      paintOnlyDisplayedTimeline
+                        ? null
+                        : (activePendingApproval?.requestId ??
+                          activePendingUserInput?.requestId ??
+                          null)
+                    }
+                    announcedRun={
+                      paintOnlyDisplayedTimeline
+                        ? null
+                        : announcedRun(activeActivityRun, serverProjection?.runs ?? [])
+                    }
+                    detailBehindShell={
+                      !paintOnlyDisplayedTimeline &&
+                      isDetailBehindShell(activeLatestRun, activeThreadShell?.latestRun ?? null)
+                    }
+                    announceTurnStatus={!isProviderSubagent}
                     activeTurnStartedAt={paintOnlyDisplayedTimeline ? null : activeWorkStartedAt}
                     worktreeSetup={paintOnlyDisplayedTimeline ? null : worktreeSetup}
                     onCancelWorktreeSetup={onCancelWorktreeSetupStable}

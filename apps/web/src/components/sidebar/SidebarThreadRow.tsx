@@ -1414,7 +1414,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                   ) : null}
                   {topStatus && (showDuration || topStatusKind === "connecting") ? (
                     <span className={cn("whitespace-nowrap", topStatus.className)}>
-                      <span role="status">{topStatus.label}</span>
+                      <span role={props.isRouteThread || props.inOtherPane ? undefined : "status"}>
+                        {topStatus.label}
+                      </span>
                       {showDuration ? (
                         <span aria-hidden>
                           {" "}
