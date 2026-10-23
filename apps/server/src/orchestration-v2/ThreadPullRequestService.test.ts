@@ -334,6 +334,12 @@ describe("ThreadPullRequestServiceV2 reads", () => {
           Layer.mock(GitManager.GitManager)({}),
           Layer.mock(PullRequestService.PullRequestService)({}),
           Layer.mock(RepositoryIdentityResolver.RepositoryIdentityResolver)({}),
+          // A foreground client keeps periodic discovery running.
+          Layer.mock(BackgroundPolicy.BackgroundPolicy)({
+            hasDemand: () => Effect.succeed(true),
+            shouldRunScopeWork: () => Effect.succeed(true),
+            shouldRunOpportunisticWork: Effect.succeed(true),
+          }),
           Layer.succeed(ServerActivation.ServerActivation, Deferred.await(activation)),
           Layer.succeed(
             Crypto.Crypto,
