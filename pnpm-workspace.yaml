@@ -308,11 +308,6 @@ peerDependencyRules:
 publicHoistPattern:
   - "@cursor/sdk-*"
 
-supportedArchitectures:
-  cpu: [current, x64]
-  libc: [current, glibc]
-  os: [current, linux]
-
 # Expose undeclared @types dependencies beside packages outside the worktree.
 configDependencies:
   "@pnpm/plugin-types-fixer": 0.1.0
