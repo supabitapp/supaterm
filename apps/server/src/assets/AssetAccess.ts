@@ -399,6 +399,7 @@ const finalizeAbsoluteMediaFileAsset = Effect.fn("AssetAccess.finalizeAbsoluteMe
                 : Effect.succeed(null),
               (dimensions) => ({
                 identity: { device: file.info.dev.toString(), inode: file.info.ino.toString() },
+                fileRevision: `${file.info.dev}:${file.info.ino}:${file.info.size}:${file.info.mtimeNs}:${file.info.ctimeNs}`,
                 dimensions,
               }),
             ),
@@ -424,6 +425,7 @@ const finalizeAbsoluteMediaFileAsset = Effect.fn("AssetAccess.finalizeAbsoluteMe
         expiresAt: input.expiresAt,
       },
       fileName: path.basename(canonicalFile),
+      fileRevision: opened.fileRevision,
       imageDimensions: opened.dimensions,
     };
   },
@@ -526,6 +528,7 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
   let fileName: string;
   let sourcePath: string | undefined;
   let imageDimensions: ImageDimensions | null = null;
+  let fileRevision: string | undefined;
 
   switch (input.resource._tag) {
     case "media-file": {
@@ -553,6 +556,7 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
       claims = finalized.claims;
       fileName = finalized.fileName;
       imageDimensions = finalized.imageDimensions;
+      fileRevision = finalized.fileRevision;
       break;
     }
     case "workspace-file": {
@@ -596,6 +600,7 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
         claims = finalized.claims;
         fileName = finalized.fileName;
         imageDimensions = finalized.imageDimensions;
+        fileRevision = finalized.fileRevision;
         break;
       }
       const workspaceRoot = yield* workspacePaths.normalizeWorkspaceRoot(draftWorkspaceRoot).pipe(
@@ -851,6 +856,7 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
     expiresAt,
     ...(sourcePath !== undefined ? { sourcePath } : {}),
     ...(imageDimensions !== null ? { imageDimensions } : {}),
+    ...(fileRevision !== undefined ? { fileRevision } : {}),
   };
 });
 
