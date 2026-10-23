@@ -28,6 +28,7 @@ import {
 } from "./ChatView.logic";
 import { useQueuedRunEditWithOutbox } from "./chat/useQueuedRunEditWithOutbox";
 import { ThreadVisitWatermark } from "./chat/ThreadVisitWatermark";
+import { ChatTerminalDrawers } from "./chat/ChatTerminalDrawers";
 import { useDraftHeroLayoutTransition } from "./chat/useDraftHeroLayoutTransition";
 import { useLocalDispatchState } from "./chat/useLocalDispatchState";
 import { draftFanoutSelectionsAtom, draftSendState, rewindToMessage } from "./chat/chatViewSend";
@@ -273,7 +274,6 @@ import { isEditableFocused } from "../lib/editableFocus";
 import { hasTextSelection } from "../lib/textSelection";
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@supaterm/shared/keybindings";
 import { shortcutLabelForCommand } from "../keybindings";
-import { PersistentThreadTerminalDrawer } from "./PersistentThreadTerminals";
 import {
   AlarmClockIcon,
   CheckCircle2Icon,
@@ -387,7 +387,6 @@ import {
   useThreadHistory,
   useQuietThreadShell,
   useChildThreadInputs,
-  useThreadRefs,
   useThreadVisibleTurnItems,
   useThreadCheckpointSummaries,
   readThreadShell,
@@ -473,7 +472,6 @@ import { ScrollToEndPill } from "./chat/ScrollToEndPill";
 import { WorkspaceDropOverlay } from "./WorkspaceDropOverlay";
 import type { ComposerDispatchMode } from "@supaterm/client-runtime/state/composer-dispatch";
 import {
-  MAX_HIDDEN_MOUNTED_TERMINAL_THREADS,
   branchMismatchKey,
   buildExpiredTerminalContextToastCopy,
   buildLocalDraftThread,
@@ -492,7 +490,6 @@ import {
   LastInvokedScriptByProjectSchema,
   deriveLockedProvider,
   resolveFileAttachmentUrl,
-  reconcileMountedTerminalThreadIds,
   resolveComposerProviderSelection,
   getAntigravitySendBlockReason,
   resolveThreadMetadataUpdateForNextTurn,
@@ -556,7 +553,6 @@ import { ChatPaneHeaderControls } from "./chatPanes/ChatPaneHeaderControls";
 
 const EMPTY_PROVIDERS: ServerProvider[] = [];
 const EMPTY_PROVIDER_MODELS: ServerProvider["models"] = [];
-const EMPTY_THREAD_KEYS: ReadonlyArray<string> = [];
 import type { CodexArtifactTemplate } from "@supaterm/shared/codexArtifactTemplates";
 
 const TIMELINE_SCROLL_CANCEL_SENTINEL = Object.freeze({});
@@ -1058,31 +1054,12 @@ export default function ChatView(props: ChatViewProps) {
   const terminalUiState = useTerminalUiStateStore((state) =>
     selectThreadTerminalUiState(state.terminalUiStateByThreadKey, routeThreadRef),
   );
-  const openTerminalThreadKeys = useTerminalUiStateStore(
-    useShallow((state) =>
-      Object.entries(state.terminalUiStateByThreadKey).flatMap(
-        ([nextThreadKey, nextTerminalUiState]) =>
-          nextTerminalUiState.terminalOpen ? [nextThreadKey] : [],
-      ),
-    ),
-  );
   const storeSetTerminalOpen = useTerminalUiStateStore((s) => s.setTerminalOpen);
   const storeEnsureTerminal = useTerminalUiStateStore((state) => state.ensureTerminal);
   const storeSplitTerminal = useTerminalUiStateStore((s) => s.splitTerminal);
   const storeSplitTerminalVertical = useTerminalUiStateStore((s) => s.splitTerminalVertical);
   const storeNewTerminal = useTerminalUiStateStore((s) => s.newTerminal);
   const storeCloseTerminal = useTerminalUiStateStore((s) => s.closeTerminal);
-  const serverThreadRefs = useThreadRefs();
-  const serverThreadKeys = serverThreadRefs.map(scopedThreadKey);
-  const draftThreadsByThreadKey = useComposerDraftStore((store) => store.draftThreadsByThreadKey);
-  const draftThreadKeys = Object.values(draftThreadsByThreadKey).map((draftThread) =>
-    scopedThreadKey(scopeThreadRef(draftThread.environmentId, draftThread.threadId)),
-  );
-  const [mountedTerminalThreadKeys, setMountedTerminalThreadKeys] = useState<string[]>([]);
-  const mountedTerminalThreadRefs = mountedTerminalThreadKeys.flatMap((mountedThreadKey) => {
-    const mountedThreadRef = parseScopedThreadKey(mountedThreadKey);
-    return mountedThreadRef ? [{ key: mountedThreadKey, threadRef: mountedThreadRef }] : [];
-  });
 
   const fallbackDraftProjectRef = draftThread
     ? scopeProjectRef(draftThread.environmentId, draftThread.projectId)
@@ -1345,13 +1322,6 @@ export default function ChatView(props: ChatViewProps) {
   const rightPanelOpen = rightPanelState.isOpen;
   const { active: panelAnimationsActive, durationMs: panelAnimationDurationMs } =
     usePanelAnimationSettings();
-  const activeTerminalDrawerPresence = usePanelPresence(
-    Boolean(activeThreadKey && terminalUiState.terminalOpen),
-    true,
-    panelAnimationsActive,
-    activeThreadKey,
-    panelAnimationDurationMs,
-  );
   const rightPanelPresenceValue = {
     activeSurface: activeRightPanelSurface,
     surfaces: rightPanelState.surfaces,
@@ -1416,44 +1386,6 @@ export default function ChatView(props: ChatViewProps) {
     }
   }, [activePreviewMiniPlayer, activePreviewState.sessions, activeThreadRef, previewSessionsReady]);
 
-  // A thread's terminals attach once: a pane never keeps a hidden drawer for a thread another
-  // pane shows, and the panes share one budget of hidden drawers.
-  const otherPaneThreadKeys = useChatPaneStore(
-    useShallow((state) =>
-      paneScope === null || state.layout === null
-        ? EMPTY_THREAD_KEYS
-        : state.layout.cells.flatMap((cell) =>
-            cell.id !== paneScope.paneId && cell.target.kind === "server"
-              ? [scopedThreadKey(cell.target.threadRef)]
-              : [],
-          ),
-    ),
-  );
-  const paneCount = useChatPaneStore((state) => state.layout?.cells.length ?? 1);
-  const existingOpenTerminalThreadKeys = (() => {
-    const existingThreadKeys = new Set<string>([...serverThreadKeys, ...draftThreadKeys]);
-    return openTerminalThreadKeys.filter(
-      (nextThreadKey) =>
-        existingThreadKeys.has(nextThreadKey) && !otherPaneThreadKeys.includes(nextThreadKey),
-    );
-  })();
-  const reconciledMountedTerminalThreadKeys = reconcileMountedTerminalThreadIds({
-    currentThreadIds: mountedTerminalThreadKeys.filter(
-      (mountedThreadKey) => !otherPaneThreadKeys.includes(mountedThreadKey),
-    ),
-    openThreadIds: existingOpenTerminalThreadKeys,
-    activeThreadId: activeThreadKey,
-    activeThreadTerminalOpen: activeTerminalDrawerPresence.present,
-    maxHiddenThreadCount: Math.max(1, Math.floor(MAX_HIDDEN_MOUNTED_TERMINAL_THREADS / paneCount)),
-  });
-  if (
-    mountedTerminalThreadKeys.length !== reconciledMountedTerminalThreadKeys.length ||
-    mountedTerminalThreadKeys.some(
-      (mountedThreadKey, index) => mountedThreadKey !== reconciledMountedTerminalThreadKeys[index],
-    )
-  ) {
-    setMountedTerminalThreadKeys(reconciledMountedTerminalThreadKeys);
-  }
   const latestRunSettled = isLatestRunSettled(activeLatestRun, activeRuntime);
   const activePlan = deriveActivePlanState(serverProjection, activeActivityRun?.runId);
   const activeActivityRunSettled = isLatestRunSettled(activeActivityRun, activeRuntime);
@@ -7526,29 +7458,19 @@ export default function ChatView(props: ChatViewProps) {
               </ThreadFindCanvas>
             </div>
 
-            {mountedTerminalThreadRefs.map(
-              ({ key: mountedThreadKey, threadRef: mountedThreadRef }) => (
-                <PersistentThreadTerminalDrawer
-                  key={mountedThreadKey}
-                  threadRef={mountedThreadRef}
-                  threadId={mountedThreadRef.threadId}
-                  active={mountedThreadKey === activeThreadKey}
-                  composerHeight={mountedThreadKey === activeThreadKey ? composerReservedHeight : 0}
-                  launchContext={
-                    mountedThreadKey === activeThreadKey
-                      ? (activeTerminalLaunchContext ?? null)
-                      : null
-                  }
-                  focusRequestId={mountedThreadKey === activeThreadKey ? terminalFocusRequestId : 0}
-                  splitShortcutLabel={splitTerminalShortcutLabel ?? undefined}
-                  splitVerticalShortcutLabel={splitTerminalVerticalShortcutLabel ?? undefined}
-                  newShortcutLabel={newTerminalShortcutLabel ?? undefined}
-                  closeShortcutLabel={closeTerminalShortcutLabel ?? undefined}
-                  keybindings={keybindings}
-                  onAddTerminalContext={addTerminalContextToDraftStable}
-                />
-              ),
-            )}
+            <ChatTerminalDrawers
+              activeThreadKey={activeThreadKey}
+              activeTerminalOpen={Boolean(terminalUiState.terminalOpen)}
+              composerHeight={composerReservedHeight}
+              launchContext={activeTerminalLaunchContext ?? null}
+              focusRequestId={terminalFocusRequestId}
+              splitShortcutLabel={splitTerminalShortcutLabel ?? undefined}
+              splitVerticalShortcutLabel={splitTerminalVerticalShortcutLabel ?? undefined}
+              newShortcutLabel={newTerminalShortcutLabel ?? undefined}
+              closeShortcutLabel={closeTerminalShortcutLabel ?? undefined}
+              keybindings={keybindings}
+              onAddTerminalContext={addTerminalContextToDraftStable}
+            />
           </div>
         </PreviewPanelSibling>
 
