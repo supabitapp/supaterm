@@ -48,6 +48,7 @@ import {
   NativeWorkspaceTabActivityContext,
 } from "../../native/v5-workspace-context";
 import { nativeHeaderScrollEdgeEffects } from "../../native/scrollEdgeEffects";
+import { useRestingTopOffset } from "../../native/useRestingTopOffset";
 import {
   useNativeColumnLayoutMetrics,
   useNativeLayoutMetrics,
@@ -232,6 +233,7 @@ function HomeTopContentSpacer() {
 function HomeScrollView(props: ComponentProps<typeof ScrollView>) {
   const insets = useSafeAreaInsets();
   const primaryColumn = use(NativePrimaryColumnContext);
+  const restingOffset = useRestingTopOffset(insets.top, props);
   if (Platform.OS !== "ios") return <ScrollView {...props} />;
 
   return (
@@ -245,12 +247,11 @@ function HomeScrollView(props: ComponentProps<typeof ScrollView>) {
     >
       <ScrollView
         {...props}
-
+        {...restingOffset}
         className={cn(props.className, primaryColumn ? "bg-drawer" : "bg-screen")}
 
         automaticallyAdjustContentInsets={false}
         contentInsetAdjustmentBehavior="never"
-        contentOffset={props.contentOffset ?? { x: 0, y: -insets.top }}
       />
     </ScrollViewMarker>
   );
