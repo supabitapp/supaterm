@@ -1041,6 +1041,21 @@ export function deriveTimelineEntriesFromVisibleTurnItemsWithState(
   };
 }
 
+export function createTimelineEntriesProjector() {
+  let previous: {
+    readonly threadKey: string | null;
+    readonly projection: TimelineEntriesProjection;
+  } | null = null;
+  return (input: TimelineEntriesInput, threadKey: string | null) => {
+    const projection = deriveTimelineEntriesFromVisibleTurnItemsWithState(
+      input,
+      previous?.threadKey === threadKey ? previous.projection : null,
+    );
+    previous = { threadKey, projection };
+    return projection.entries;
+  };
+}
+
 // Run ordinals keep increasing after a rewind; only visible local runs define predecessors.
 export function deriveRevertTurnCountByUserMessageId(input: {
   readonly timelineEntries: ReadonlyArray<TimelineEntry>;

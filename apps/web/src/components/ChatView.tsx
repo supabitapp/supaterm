@@ -153,9 +153,7 @@ import { useActiveThreadRef } from "../hooks/useActiveThreadRef";
 import { composerRequiresModifier } from "../composer-logic";
 import {
   derivePhase,
-  deriveTimelineEntriesFromVisibleTurnItemsWithState,
-  type TimelineEntriesInput,
-  type TimelineEntriesProjection,
+  createTimelineEntriesProjector,
   deriveActivePlanState,
   selectComposerTasksPlan,
   deriveActiveWorkStartedAt,
@@ -430,21 +428,6 @@ const noopHeldAttachment = (_attachment: ChatFileAttachment) => {};
 function useChatComposerRef() {
   const localComposerRef = useRef<ChatComposerHandle | null>(null);
   return useComposerHandleContext() ?? localComposerRef;
-}
-
-function createTimelineEntriesProjector() {
-  let previous: {
-    readonly threadKey: string | null;
-    readonly projection: TimelineEntriesProjection;
-  } | null = null;
-  return (input: TimelineEntriesInput, threadKey: string | null) => {
-    const projection = deriveTimelineEntriesFromVisibleTurnItemsWithState(
-      input,
-      previous?.threadKey === threadKey ? previous.projection : null,
-    );
-    previous = { threadKey, projection };
-    return projection.entries;
-  };
 }
 
 export default function ChatView(props: ChatViewProps) {
