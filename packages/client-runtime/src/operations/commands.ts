@@ -709,19 +709,36 @@ export const startThreadTurn = Effect.fn("EnvironmentCommands.startThreadTurn")(
 export const interruptThreadTurn = Effect.fn("EnvironmentCommands.interruptThreadTurn")(function* (
   input: InterruptThreadTurnInput,
 ) {
+  let threadId = input.threadId;
   if (input.subagentId !== undefined) {
     const projection = yield* getProjection(input.threadId);
     const subagent = projection.subagents.find((agent) => agent.id === input.subagentId);
-    if (subagent?.runId == null) return { sequence: 0 };
-    return yield* dispatch({
-      type: "subagent.stop",
-      commandId: yield* allocateCommandId(input),
-      threadId: input.threadId,
-      runId: subagent.runId,
-      subagentId: subagent.id,
-    });
+    if (subagent?.origin === "app_owned" && subagent.childThreadId !== null) {
+      // The parent ends the task even when its child lost track of it (#19002). Older
+      // servers reject this for app-owned tasks, so the child stop below still runs.
+      if (subagent.runId !== null) {
+        yield* dispatch({
+          type: "subagent.stop",
+          commandId: yield* allocateCommandId({}),
+          threadId: input.threadId,
+          runId: subagent.runId,
+          subagentId: subagent.id,
+        }).pipe(Effect.ignore);
+      }
+      threadId = subagent.childThreadId;
+    } else {
+      if (subagent?.runId == null) return { sequence: 0 };
+      return yield* dispatch({
+        type: "subagent.stop",
+        commandId: yield* allocateCommandId(input),
+        threadId: input.threadId,
+        runId: subagent.runId,
+        subagentId: subagent.id,
+      });
+    }
   }
-  let runId = input.runId;
+  // A run named by the caller belongs to the parent, not the rerouted child.
+  let runId = threadId === input.threadId ? input.runId : undefined;
   if (runId === undefined) {
     const config = yield* getInitialServerConfig();
     if (config.environment.capabilities.threadStop === true) {
@@ -729,12 +746,12 @@ export const interruptThreadTurn = Effect.fn("EnvironmentCommands.interruptThrea
       return yield* dispatch({
         type: "thread.stop",
         commandId: yield* allocateCommandId(input),
-        threadId: input.threadId,
+        threadId,
       });
     }
   }
   if (runId === undefined) {
-    const projection = yield* getProjection(input.threadId);
+    const projection = yield* getProjection(threadId);
     runId = projection.runs.findLast(
       (run) =>
         run.status === "preparing" ||
@@ -763,7 +780,7 @@ export const interruptThreadTurn = Effect.fn("EnvironmentCommands.interruptThrea
         result = yield* dispatch({
           type: "thread.pull-request.watch",
           commandId: yield* allocateCommandId(result.sequence === 0 ? input : {}),
-          threadId: input.threadId,
+          threadId,
           host: link.host,
           repository: link.repository,
           number: link.number,
@@ -787,7 +804,7 @@ export const interruptThreadTurn = Effect.fn("EnvironmentCommands.interruptThrea
   return yield* dispatch({
     type: "run.interrupt",
     commandId: yield* allocateCommandId(input),
-    threadId: input.threadId,
+    threadId,
     runId,
     holdQueue: true,
   });
