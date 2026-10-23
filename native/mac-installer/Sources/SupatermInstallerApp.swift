@@ -157,8 +157,6 @@ struct TransferRate {
 
 struct InstallerView: View {
   @ObservedObject var installer: Installer
-  @State private var jokes = StatusJokes.all.shuffled()
-  @State private var startedAt = Date()
 
   var body: some View {
     HStack(alignment: .top, spacing: 20) {
@@ -166,7 +164,7 @@ struct InstallerView: View {
         .resizable()
         .frame(width: 64, height: 64)
       VStack(alignment: .leading, spacing: 10) {
-        title
+        Text(title)
           .font(.title3.weight(.semibold))
         content
       }
@@ -178,22 +176,12 @@ struct InstallerView: View {
     .onAppear { installer.start() }
   }
 
-  // While nothing needs the user, the title rotates through jokes and the
-  // detail line carries the real status.
-  @ViewBuilder
-  private var title: some View {
+  private var title: String {
     switch installer.phase {
-    case .waitingForQuit:
-      Text("Quit Supaterm to continue")
-    case .installed:
-      Text("Supaterm is installed")
-    case .failed:
-      Text("Supaterm wasn't installed")
-    case .preparing, .downloading, .verifying, .installing, .opening:
-      TimelineView(.periodic(from: startedAt, by: 3)) { context in
-        let index = Int(context.date.timeIntervalSince(startedAt) / 3) % jokes.count
-        Text("\(jokes[index])…")
-      }
+    case .waitingForQuit: "Quit Supaterm to continue"
+    case .installed: "Supaterm is installed"
+    case .failed: "Supaterm wasn't installed"
+    case .preparing, .downloading, .verifying, .installing, .opening: "Installing Supaterm…"
     }
   }
 
