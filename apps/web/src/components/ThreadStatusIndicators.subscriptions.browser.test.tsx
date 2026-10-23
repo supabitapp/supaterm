@@ -84,7 +84,11 @@ vi.mock(import("../state/pullRequests"), async (importOriginal) => {
       summaries(input.number)) as never,
   };
 });
-import { ThreadPullRequestBadgeControl, ThreadRowLeadingStatus } from "./ThreadStatusIndicators";
+import {
+  ThreadPullRequestBadgeControl,
+  ThreadRowLeadingStatus,
+  ThreadSearchPullRequestNumber,
+} from "./ThreadStatusIndicators";
 
 // The lease overscans 160px around a 20px viewport, a 340px band. With 45px rows the band
 // covers exactly 8 rows at each scroll position below.
@@ -244,4 +248,44 @@ it("keeps a long PR hover list in the viewport and lets the last row be selected
   );
   await userEvent.click(lastRow);
   expect(onOpenPullRequest).toHaveBeenCalledExactlyOnceWith(expect.anything(), lastRow.href);
+});
+
+it("shows the sidebar's PR badge in thread search when the query matches any linked PR", async () => {
+  const link = (number: number, state: "open" | "merged"): ThreadPullRequestLink => ({
+    host: "github.com",
+    repository: "example/repo",
+    number,
+    url: `https://github.com/example/repo/pull/${number}`,
+    source: "manual",
+    linkedAt: "2026-09-04T00:00:00.000Z",
+    snapshot: {
+      state,
+      title: `Linked PR ${number}`,
+      headBranch: `feature/${number}`,
+      baseBranch: "main",
+      isDraft: false,
+      updatedAt: "2026-09-04T00:00:00.000Z",
+      syncedAt: "2026-09-04T00:00:00.000Z",
+    },
+    stack: null,
+  });
+  const thread = makeThreadFixture({
+    id: ThreadId.make("search-thread"),
+    pullRequests: [link(7, "open"), link(8, "merged")],
+  });
+  await using screen = await render(
+    <AppAtomRegistryProvider>
+      <span data-testid="match">
+        <ThreadSearchPullRequestNumber thread={thread} query="#8" />
+      </span>
+      <span data-testid="miss">
+        <ThreadSearchPullRequestNumber thread={thread} query="#9" />
+      </span>
+    </AppAtomRegistryProvider>,
+  );
+  const match = screen.container.querySelector('[data-testid="match"] > span')!;
+  expect(match.textContent).toBe("+2");
+  expect(match.getAttribute("aria-label")).toContain("and 1 more linked; overall open");
+  expect(match.querySelector("svg")).not.toBeNull();
+  expect(screen.container.querySelector('[data-testid="miss"]')!.childElementCount).toBe(0);
 });
