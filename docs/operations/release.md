@@ -52,6 +52,7 @@ bumps require a new store binary under the existing OTA fingerprint policy.
   - macOS `x64` DMG
   - Linux `x64` and `arm64` AppImage and `.deb`, from one electron-builder run. The `.deb` updates in the app through electron-updater, which installs it with `dpkg`.
   - Windows `x64` and `arm64` NSIS installer
+- The macOS arm64 job also builds `supaterm-installer.dmg` from `native/mac-installer` (`scripts/build-mac-installer.ts`). Nightly builds it so a broken build shows up there first, but only stable releases publish it. It is a small universal app, and the website's macOS buttons link to it. When opened, it reads `latest-mac.yml` from the release marked latest, downloads the `-arm64.zip` or `-x64.zip` it lists from tag `v<version>`, and checks the sha512, our team ID, and notarization before installing. Copies people have already downloaded keep depending on that feed name, those zip suffixes, the tag format, and the team ID, so changing any of them breaks installers in the wild. It always installs stable, which is why nightly releases do not carry it.
 - Publishes one GitHub Release with all produced files.
   - Stable tags with a suffix after `X.Y.Z` (for example `1.2.3-alpha.1`) are published as GitHub prereleases.
   - Only plain stable `X.Y.Z` releases are marked as the repository's latest release.

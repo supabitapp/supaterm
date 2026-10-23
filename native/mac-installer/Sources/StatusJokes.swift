@@ -1,0 +1,28 @@
+enum StatusJokes {
+  static let all = [
+    "Removing “You’re absolutely right!”",
+    "Un-deleting the tests the agent “fixed”",
+    "Double-checking “production-ready”",
+    "Compacting the context window",
+    "Spawning a few more subagents",
+    "Trying a different approach",
+    "Finally seeing the issue now",
+    "Taking the ✨ out of commit messages",
+    "Talking the agent out of a full rewrite",
+    "Replacing “Perfect!” with a passing test",
+    "Checkpointing, just in case",
+    "Waking up your snoozed threads",
+    "Letting the code get a little weird",
+    "Asking before rm -rf",
+    "Counting tokens, then counting again",
+    "Reticulating worktrees",
+    "Turning “TODO: later” into later",
+    "Negotiating with the rate limiter",
+    "Writing a summary nobody asked for",
+    "Merging the worktree back gently",
+    "Keeping your GPU out of this",
+    "Reading the diff so you don’t have to",
+    "Approving the approval prompt",
+    "Teaching agents to say “I’m not sure”",
+  ]
+}

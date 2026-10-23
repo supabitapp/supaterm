@@ -489,6 +489,7 @@ jobs:
       rust_target: aarch64-apple-darwin
       resource_key: darwin-arm64
       cli_archive: true
+      mac_installer: ${{ needs.preflight.outputs.release_channel != 'preview' }}
 
   desktop_mac_x64:
     name: Desktop macOS x64

@@ -30,6 +30,7 @@ import {
   STAGE_INSTALL_ARGS,
 } from "./build-desktop-artifact.ts";
 import { selectCliRuntimeExternalDependencies } from "./lib/cli-external-packages.ts";
+import { codesignArgs, MacSigningConfig, notarytoolSubmitArgs } from "./lib/mac-signing.ts";
 import { signWithJsign } from "./lib/windows-jsign.ts";
 import { windowsSystemTar } from "./lib/windows-tar.ts";
 import { resolveCatalogDependencies } from "./lib/resolve-catalog.ts";
@@ -260,13 +261,6 @@ const stageWebClient = Effect.fn("stageWebClient")(function* (source: string, ta
   }
 });
 
-const MacSigningConfig = Config.all({
-  identity: Config.String("SUPATERM_CLI_MAC_SIGN_IDENTITY").pipe(Config.option),
-  appleApiKey: Config.String("APPLE_API_KEY").pipe(Config.option),
-  appleApiKeyId: Config.String("APPLE_API_KEY_ID").pipe(Config.option),
-  appleApiIssuer: Config.String("APPLE_API_ISSUER").pipe(Config.option),
-});
-
 /**
  * Apple Silicon refuses to run unsigned Mach-O binaries at all, so the
  * executable is always signed: ad hoc when no identity is configured, or with
@@ -281,8 +275,7 @@ const signMacArchiveContents = Effect.fn("signMacArchiveContents")(function* (in
 }) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const signing = yield* MacSigningConfig;
-  const identity = Option.getOrUndefined(signing.identity)?.trim() || "-";
+  const { identity, notary } = yield* MacSigningConfig;
 
   const entitlements = path.join(input.repoRoot, "apps/server/resources/cli-entitlements.plist");
   const libraries = (yield* fs.readDirectory(input.contentDir, { recursive: true }))
@@ -297,26 +290,23 @@ const signMacArchiveContents = Effect.fn("signMacArchiveContents")(function* (in
 
   for (const target of [...libraries, input.executablePath]) {
     yield* runCommand(
-      ChildProcess.make("codesign", [
-        "--force",
-        "--sign",
-        identity,
-        ...(identity === "-" ? [] : ["--options", "runtime", "--timestamp"]),
-        ...(target === input.executablePath ? ["--entitlements", entitlements] : []),
-        target,
-      ]),
+      ChildProcess.make(
+        "codesign",
+        codesignArgs(
+          identity,
+          target,
+          target === input.executablePath ? ["--entitlements", entitlements] : [],
+        ),
+      ),
       `codesign ${path.relative(input.contentDir, target)}`,
     );
   }
   if (identity === "-") {
-    yield* Effect.log("[cli-archive] Signed ad hoc (no SUPATERM_CLI_MAC_SIGN_IDENTITY).");
+    yield* Effect.log("[cli-archive] Signed ad hoc (no SUPATERM_MAC_SIGN_IDENTITY).");
     return;
   }
 
-  const apiKey = Option.getOrUndefined(signing.appleApiKey);
-  const apiKeyId = Option.getOrUndefined(signing.appleApiKeyId);
-  const apiIssuer = Option.getOrUndefined(signing.appleApiIssuer);
-  if (!apiKey || !apiKeyId || !apiIssuer) {
+  if (!notary) {
     yield* Effect.logWarning(
       "[cli-archive] Developer ID signed but not notarized (missing APPLE_API_KEY*).",
     );
@@ -330,18 +320,7 @@ const signMacArchiveContents = Effect.fn("signMacArchiveContents")(function* (in
     "ditto (notarization zip)",
   );
   yield* runCommand(
-    ChildProcess.make("xcrun", [
-      "notarytool",
-      "submit",
-      notarizeZip,
-      "--key",
-      apiKey,
-      "--key-id",
-      apiKeyId,
-      "--issuer",
-      apiIssuer,
-      "--wait",
-    ]),
+    ChildProcess.make("xcrun", notarytoolSubmitArgs(notarizeZip, notary)),
     "notarytool submit",
   ).pipe(Effect.ensuring(fs.remove(notarizeZip, { force: true }).pipe(Effect.ignore)));
   yield* Effect.log("[cli-archive] Notarized supaterm.");
