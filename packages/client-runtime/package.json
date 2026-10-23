@@ -27,6 +27,10 @@
       "types": "./src/previewZoom.ts",
       "default": "./src/previewZoom.ts"
     },
+    "./workspace-basename-lookup": {
+      "types": "./src/workspaceBasenameLookup.ts",
+      "default": "./src/workspaceBasenameLookup.ts"
+    },
     "./composerThreadItems": {
       "types": "./src/composerThreadItems.ts",
       "default": "./src/composerThreadItems.ts"
