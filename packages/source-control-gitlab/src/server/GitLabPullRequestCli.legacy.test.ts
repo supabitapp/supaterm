@@ -74,7 +74,7 @@ layer("legacy GitLab diff requests through GitLabCli", (it) => {
         expect(result.patch.endsWith("\n")).toBe(true);
       }
       expect(run.mock.calls.map(([call]) => call.args)).toEqual([
-        ["api", "projects/acme%2Fnested%2Fweb/merge_requests/7/diffs?per_page=100&page=1"],
+        ["api", "projects/acme%2Fnested%2Fweb/merge_requests/7/diffs?per_page=30&page=1"],
         ["api", "projects/acme%2Fnested%2Fweb/merge_requests/7/changes?access_raw_diffs=true"],
       ]);
       expect(run.mock.calls[1]?.[0]).toMatchObject({
@@ -188,7 +188,7 @@ layer("legacy GitLab diff requests through GitLabCli", (it) => {
   );
   it.effect("keeps modern pagination without requesting legacy changes", () =>
     Effect.gen(function* () {
-      run.mockReturnValueOnce(output(Array.from({ length: 100 }, () => file)));
+      run.mockReturnValueOnce(output(Array.from({ length: 30 }, () => file)));
       run.mockReturnValueOnce(output([file]));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
       const first = yield* cli.getMergeRequestDiff(input);
@@ -198,7 +198,7 @@ layer("legacy GitLab diff requests through GitLabCli", (it) => {
       ).toBeNull();
       expect(run).toHaveBeenCalledTimes(2);
       expect(run.mock.calls[1]?.[0].args).toContain(
-        "projects/acme%2Fnested%2Fweb/merge_requests/7/diffs?per_page=100&page=2",
+        "projects/acme%2Fnested%2Fweb/merge_requests/7/diffs?per_page=30&page=2",
       );
     }),
   );
