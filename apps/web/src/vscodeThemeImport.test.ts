@@ -6,6 +6,7 @@ import {
   themeColorDistance,
   themeColorToHex,
   THEME_FILE_VERSION,
+  toCanonicalThemeColor,
 } from "./themePalette";
 import {
   isVsCodeThemeFile,
@@ -34,6 +35,11 @@ function contrastRatio(first: string, second: string): number {
   const lighter = Math.max(luminance(first), luminance(second));
   const darker = Math.min(luminance(first), luminance(second));
   return (lighter + 0.05) / (darker + 0.05);
+}
+
+function oklchParts(value: string): { chroma: number; hue: number } {
+  const [, chroma, hue] = /^oklch\(\S+ (\S+) (\S+)\)$/.exec(value)!;
+  return { chroma: Number(chroma), hue: Number(hue) };
 }
 
 const VSCODE_DARK = {
@@ -444,6 +450,45 @@ describe("VS Code theme import", () => {
     });
     expect(asHex(theme.colors.text)).not.toBe("#111111");
     expect(contrastRatio(theme.colors.text, theme.colors.canvas)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it.each([
+    ["dark", "#282828"],
+    ["light", "#ffffff"],
+  ] as const)(
+    "keeps a dim status color's hue on a %s canvas instead of replacing it",
+    (type, canvas) => {
+      const theme = parseVsCodeThemeFile({
+        name: "Gruvbox",
+        type,
+        colors: {
+          "editor.background": canvas,
+          "editorError.foreground": "#fb4934",
+          "editorWarning.foreground": "#b57614",
+        },
+      });
+      for (const [role, source] of [
+        ["error", "#fb4934"],
+        ["warning", "#b57614"],
+      ] as const) {
+        const imported = oklchParts(theme.colors[role]);
+        expect(contrastRatio(theme.colors[role], theme.colors.canvas)).toBeGreaterThanOrEqual(4.5);
+        expect(imported.chroma).toBeGreaterThan(0.1);
+        // 8-bit sRGB can only approximate the source hue at the new lightness.
+        expect(
+          Math.abs(imported.hue - oklchParts(toCanonicalThemeColor(source)!).hue),
+        ).toBeLessThan(2);
+      }
+    },
+  );
+
+  it("keeps the derived status color when the file hides its own", () => {
+    const theme = parseVsCodeThemeFile({
+      name: "Hidden squiggles",
+      type: "dark",
+      colors: { "editor.background": "#101010", "editorError.foreground": "#ff000000" },
+    });
+    expect(oklchParts(theme.colors.error).chroma).toBeGreaterThan(0.1);
   });
 
   it("stays readable when the file replaces a surface but not its foreground", () => {
