@@ -63,6 +63,8 @@ const imageProps = {
         <p class="intel-note without-installer">
           On an Intel Mac? <a data-asset="x64.dmg" href={RELEASES_URL}>Download the x64 build</a>.
         </p>
+        <p class="cli-note cli-line--stable">Or install with Homebrew:</p>
+        <code class="cli-line cli-line--stable">brew install supaterm</code>
       </section>
 
       <!-- Windows -->
@@ -413,7 +415,7 @@ const imageProps = {
     display: none;
   }
 
-  /* The CLI ships on both trains; only the install command differs. */
+  /* The CLI ships on both trains with different install commands. Homebrew only carries stable. */
   .cli-line--nightly,
   .download-page[data-channel="nightly"] .cli-line--stable {
     display: none;
