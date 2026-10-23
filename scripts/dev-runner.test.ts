@@ -66,6 +66,7 @@ const devServerInput = {
   devUrl: undefined,
   dryRun: false,
   share: false,
+  built: false,
   runArgs: ["--inspect", "secret-token-value"],
 } as const;
 
@@ -1019,10 +1020,16 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
     // per-module waterfall pays a tailnet round trip per import level. The
     // runner defaults bundled dev on for the spawned stack, but only
     // defaults: an explicit SUPATERM_BUNDLED_DEV (even "0") must pass through.
-    describe("--share bundled dev default", () => {
-      const shareSpawnedEnv = (input: { readonly ambientBundledDev: string | undefined }) =>
+    describe("--share spawn wiring", () => {
+      const shareSpawned = (input: {
+        readonly ambientBundledDev?: string | undefined;
+        readonly built?: boolean;
+        readonly host?: string;
+      }) =>
         Effect.gen(function* () {
           let captured: Record<string, string | undefined> | undefined;
+          let vpArgs: ReadonlyArray<string> = [];
+          const tailscaleCalls: Array<ReadonlyArray<string>> = [];
           const spawnerLayer = Layer.succeed(
             ChildProcessSpawner.ChildProcessSpawner,
             ChildProcessSpawner.make((command) => {
@@ -1033,8 +1040,10 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
               };
               if (spawned.command === "vp") {
                 captured = spawned.options?.env;
+                vpArgs = spawned.args;
                 return Effect.succeed(mockProcess(0));
               }
+              tailscaleCalls.push(spawned.args);
               return Effect.succeed(
                 ChildProcessSpawner.makeHandle({
                   pid: ChildProcessSpawner.ProcessId(2),
@@ -1064,6 +1073,8 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
             mode: "dev",
             port: undefined,
             share: true,
+            built: input.built ?? false,
+            host: input.host,
           }).pipe(
             Effect.provide(Layer.mergeAll(emptyConfigLayer, netServiceLayer, spawnerLayer)),
             Effect.provideService(HostProcess.Platform, "linux"),
@@ -1075,20 +1086,54 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
             ),
           );
 
-          return captured;
+          return { env: captured, vpArgs, tailscaleCalls };
         });
 
       it.effect("defaults SUPATERM_BUNDLED_DEV=1 for a shared run", () =>
         Effect.gen(function* () {
-          const env = yield* shareSpawnedEnv({ ambientBundledDev: undefined });
+          const { env } = yield* shareSpawned({ ambientBundledDev: undefined });
           assert.equal(env?.SUPATERM_BUNDLED_DEV, "1");
         }),
       );
 
       it.effect("keeps an explicit SUPATERM_BUNDLED_DEV=0 opt-out", () =>
         Effect.gen(function* () {
-          const env = yield* shareSpawnedEnv({ ambientBundledDev: "0" });
+          const { env } = yield* shareSpawned({ ambientBundledDev: "0" });
           assert.equal(env?.SUPATERM_BUNDLED_DEV, "0");
+        }),
+      );
+
+      it.effect("--built serves the backend on the web port's tailnet URL", () =>
+        Effect.gen(function* () {
+          const { env, vpArgs, tailscaleCalls } = yield* shareSpawned({ built: true });
+          assert.include(vpArgs, "dev:built");
+          assert.equal(env?.SUPATERM_BUILT_DEV, "1");
+          assert.equal(env?.SUPATERM_BUNDLED_DEV, undefined);
+          assert.equal(env?.VITE_DEV_SERVER_URL, `https://host.example.ts.net:${env?.PORT}/`);
+          const serve = tailscaleCalls.find((args) => args.includes("--bg"));
+          assert.deepEqual(serve?.slice(-2), [
+            `--https=${env?.PORT}`,
+            `http://127.0.0.1:${env?.SUPATERM_PORT}`,
+          ]);
+        }),
+      );
+
+      it.effect("--built --host ::1 targets the backend's IPv6 loopback", () =>
+        Effect.gen(function* () {
+          const { env, tailscaleCalls } = yield* shareSpawned({ built: true, host: "::1" });
+          const serve = tailscaleCalls.find((args) => args.includes("--bg"));
+          assert.equal(serve?.at(-1), `http://[::1]:${env?.SUPATERM_PORT}`);
+        }),
+      );
+
+      it.effect("without --built keeps Vite behind the tailnet URL", () =>
+        Effect.gen(function* () {
+          const { env, vpArgs, tailscaleCalls } = yield* shareSpawned({});
+          assert.include(vpArgs, "dev");
+          assert.notInclude(vpArgs, "dev:built");
+          assert.equal(env?.SUPATERM_BUNDLED_DEV, "1");
+          const serve = tailscaleCalls.find((args) => args.includes("--bg"));
+          assert.equal(serve?.at(-1), `http://localhost:${env?.PORT}`);
         }),
       );
 
@@ -1120,6 +1165,33 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           assert.equal(captured?.SUPATERM_BUNDLED_DEV, undefined);
         }),
       );
+    });
+
+    it.effect.each([
+      { mode: "dev", share: false },
+      { mode: "dev:web", share: true },
+      { mode: "dev:desktop", share: true },
+    ] as const)("rejects --built for $mode with share=$share", ({ mode, share }) => {
+      const spawnerLayer = Layer.succeed(
+        ChildProcessSpawner.ChildProcessSpawner,
+        ChildProcessSpawner.make(() => Effect.succeed(mockProcess(0))),
+      );
+
+      return Effect.gen(function* () {
+        const error = yield* runDevRunnerWithInput({
+          ...devServerInput,
+          mode,
+          port: undefined,
+          share,
+          built: true,
+        }).pipe(
+          Effect.provide(Layer.mergeAll(emptyConfigLayer, netServiceLayer, spawnerLayer)),
+          Effect.provideService(HostProcess.Platform, "linux"),
+          Effect.flip,
+        );
+
+        assert.equal(error._tag, "DevRunnerBuiltNeedsShareError");
+      });
     });
 
     it.effect("spawns nothing when --dry-run is combined with --share", () => {
