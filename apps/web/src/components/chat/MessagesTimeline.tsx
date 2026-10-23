@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react";
 import { useRenderedAppearance } from "../../hooks/useTheme";
 import type { Root, RootContent } from "mdast";
 import { ThreadFindTimelineContext } from "./ThreadFindProvider";
@@ -531,7 +530,6 @@ interface MessagesTimelineProps {
   cancelPositionRestoreRef?: React.RefObject<(() => void) | null> | undefined;
   hideEmptyPlaceholder?: boolean;
   loading?: boolean;
-  composerOverlayHeight?: number;
   /** Composer space to center the empty state against; held steady through collapse. */
   emptyPlaceholderInset: number;
   topFadeEnabled?: boolean;
@@ -626,7 +624,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
   cancelPositionRestoreRef,
   hideEmptyPlaceholder = false,
   loading = false,
-  composerOverlayHeight = 0,
   emptyPlaceholderInset,
   topFadeEnabled = false,
   historyControls,
@@ -1117,13 +1114,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
     </TimelineListFooter>
   );
 
-  const timelineMaskStyle =
-    composerOverlayHeight === 0
-      ? undefined
-      : ({
-          "--timeline-composer-overlay-height": `${composerOverlayHeight}px`,
-        } as CSSProperties);
-
   const measureContentOverflow = () =>
     timelineContentOverflowsViewport(listRef.current?.getState?.(), {
       composerInset: contentInsetEndAdjustment,
@@ -1548,62 +1538,54 @@ const ConversationTimeline = memo(function ConversationTimeline({
                 onCite={onCiteAssistantText}
               />
             ) : null}
-            <div
+            <LegendList<MessagesTimelineRow>
+              ref={setTimelineList}
+              data={rows}
+              extraData={listExtraData}
+              keyExtractor={keyExtractor}
+              getItemType={getItemType}
+              renderItem={renderItem}
+              estimatedItemSize={90}
+              initialScrollAtEnd={
+                !findActive && citationRequest === null && rememberedPosition?.atEnd !== false
+              }
+              // Legend needs a data refresh to mount new pins without a scroll event.
+              dataVersion={readyCitationRequest?.key ?? listIdentityKey}
+              {...(alwaysRender ? { alwaysRender } : {})}
+              onLoad={handleListLoad}
+              {...(anchoredEndSpace ? { anchoredEndSpace } : {})}
+              contentInsetEndAdjustment={anchoredEndSpace ? contentInsetEndAdjustment : 0}
+              maintainScrollAtEnd={
+                citationPositioning ||
+                (restoringThreadPosition && rememberedPosition?.atEnd === false) ||
+                anchoredEndSpace ||
+                !liveFollowEnabled ||
+                fullscreenAppRowId !== null ||
+                disclosureToggleSettling
+                  ? false
+                  : isWorking && !prefersReducedMotion && settlingListIdentity === null
+                    ? TIMELINE_MAINTAIN_SCROLL_AT_END_SMOOTH
+                    : TIMELINE_MAINTAIN_SCROLL_AT_END
+              }
+              maintainVisibleContentPosition={
+                findActive ||
+                citationPositioning ||
+                (restoringThreadPosition && rememberedPosition?.atEnd === false)
+                  ? false
+                  : maintainVisibleContentPosition
+              }
+              maintainScrollAtEndThreshold={1}
+              onScroll={handleScroll}
+              onStartReached={handleHistoryPrefetch}
+              onStartReachedThreshold={THREAD_HISTORY_PREFETCH_VIEWPORTS}
+              onItemSizeChanged={handleItemSizeChanged}
               className={cn(
-                "h-full min-h-0",
-                composerOverlayHeight > 0 && "virtualized-scroll-fade timeline-scroll-bottom-fade",
+                "messages-timeline-scroll scrollbar-gutter-both h-full min-h-0 overflow-x-hidden overscroll-y-contain [overflow-anchor:none]",
+                topFadeEnabled && "topbar-scroll-fade",
               )}
-              style={timelineMaskStyle}
-            >
-              <LegendList<MessagesTimelineRow>
-                ref={setTimelineList}
-                data={rows}
-                extraData={listExtraData}
-                keyExtractor={keyExtractor}
-                getItemType={getItemType}
-                renderItem={renderItem}
-                estimatedItemSize={90}
-                initialScrollAtEnd={
-                  !findActive && citationRequest === null && rememberedPosition?.atEnd !== false
-                }
-                // Legend needs a data refresh to mount new pins without a scroll event.
-                dataVersion={readyCitationRequest?.key ?? listIdentityKey}
-                {...(alwaysRender ? { alwaysRender } : {})}
-                onLoad={handleListLoad}
-                {...(anchoredEndSpace ? { anchoredEndSpace } : {})}
-                contentInsetEndAdjustment={anchoredEndSpace ? contentInsetEndAdjustment : 0}
-                maintainScrollAtEnd={
-                  citationPositioning ||
-                  (restoringThreadPosition && rememberedPosition?.atEnd === false) ||
-                  anchoredEndSpace ||
-                  !liveFollowEnabled ||
-                  fullscreenAppRowId !== null ||
-                  disclosureToggleSettling
-                    ? false
-                    : isWorking && !prefersReducedMotion && settlingListIdentity === null
-                      ? TIMELINE_MAINTAIN_SCROLL_AT_END_SMOOTH
-                      : TIMELINE_MAINTAIN_SCROLL_AT_END
-                }
-                maintainVisibleContentPosition={
-                  findActive ||
-                  citationPositioning ||
-                  (restoringThreadPosition && rememberedPosition?.atEnd === false)
-                    ? false
-                    : maintainVisibleContentPosition
-                }
-                maintainScrollAtEndThreshold={1}
-                onScroll={handleScroll}
-                onStartReached={handleHistoryPrefetch}
-                onStartReachedThreshold={THREAD_HISTORY_PREFETCH_VIEWPORTS}
-                onItemSizeChanged={handleItemSizeChanged}
-                className={cn(
-                  "messages-timeline-scroll scrollbar-gutter-both h-full min-h-0 overflow-x-hidden overscroll-y-contain [overflow-anchor:none]",
-                  topFadeEnabled && "topbar-scroll-fade",
-                )}
-                ListHeaderComponent={listHeader}
-                ListFooterComponent={timelineListFooter}
-              />
-            </div>
+              ListHeaderComponent={listHeader}
+              ListFooterComponent={timelineListFooter}
+            />
             <TimelineMinimap
               items={minimapItems}
               hasPersistentGutter={minimapHasPersistentGutter}

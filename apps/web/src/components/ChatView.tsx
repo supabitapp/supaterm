@@ -7360,7 +7360,6 @@ export default function ChatView(props: ChatViewProps) {
                     onAnchorReady={onTimelineAnchorReadyStable}
                     onAnchorSizeChanged={onTimelineAnchorSizeChangedStable}
                     contentInsetEndAdjustment={composerTimelineInset}
-                    composerOverlayHeight={isDraftHeroState ? 0 : composerTimelineInset}
                     emptyPlaceholderInset={composerReservedHeight}
                     liveFollowEnabled={!paintOnlyDisplayedTimeline && timelineLiveFollowEnabled}
                     onIsAtEndChange={onIsAtEndChangeStable}
