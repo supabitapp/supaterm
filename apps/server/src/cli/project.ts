@@ -3,6 +3,7 @@ import {
   CommandId,
   EnvironmentHttpApi,
   EnvironmentHttpCommonError,
+  EnvironmentRequestInvalidError,
   type ProjectMutation,
   type ProjectSnapshot,
   ProjectId,
@@ -17,7 +18,7 @@ import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as References from "effect/References";
 import * as Schema from "effect/Schema";
-import { Argument, Command, Flag, GlobalFlag } from "effect/cli";
+import { Argument, CliError, Command, Flag, GlobalFlag } from "effect/cli";
 import { FetchHttpClient, HttpClient, HttpClientError } from "effect/http";
 import * as HttpApiClient from "effect/http-api/HttpApiClient";
 
@@ -53,6 +54,7 @@ type ProjectCommandExecutionMode = "live" | "offline";
 type ProjectCliDispatchCommand = ProjectMutation;
 
 const isEnvironmentHttpCommonError = Schema.is(EnvironmentHttpCommonError);
+const isEnvironmentRequestInvalidError = Schema.is(EnvironmentRequestInvalidError);
 
 export class ProjectCommandIdGenerationError extends Schema.TaggedError<ProjectCommandIdGenerationError>()(
   "ProjectCommandIdGenerationError",
@@ -157,6 +159,19 @@ export class ProjectAlreadyExistsError extends Schema.TaggedError<ProjectAlready
   }
 }
 
+export class ProjectHasThreadsError extends Schema.TaggedError<ProjectHasThreadsError>()(
+  "ProjectHasThreadsError",
+  {
+    operation: Schema.Literal("removeProject"),
+    projectId: ProjectId,
+    title: Schema.String,
+  },
+) {
+  override get message(): string {
+    return `Project '${this.title}' still has threads. Re-run with --force to remove it and delete all of its threads.`;
+  }
+}
+
 export const ProjectCommandError = Schema.Union([
   ProjectCommandIdGenerationError,
   ProjectLiveServerDeclaredResponseError,
@@ -166,8 +181,32 @@ export const ProjectCommandError = Schema.Union([
   ProjectIdentifierEmptyError,
   ProjectNotFoundError,
   ProjectAlreadyExistsError,
+  ProjectHasThreadsError,
 ]);
 export type ProjectCommandError = typeof ProjectCommandError.Type;
+
+const isOfflineProjectNotEmptyError = Schema.is(ProjectService.ProjectNotEmptyError);
+const isProjectLiveServerDeclaredResponseError = Schema.is(ProjectLiveServerDeclaredResponseError);
+
+const isProjectNotEmptyFailure = (error: Error) =>
+  isOfflineProjectNotEmptyError(error) ||
+  (isProjectLiveServerDeclaredResponseError(error) &&
+    isEnvironmentRequestInvalidError(error.cause) &&
+    error.cause.reason === "project_not_empty");
+
+// These carry complete user-facing messages; anything else keeps its full cause for debugging.
+const isUserFacingProjectFailure = Schema.is(
+  Schema.Union([
+    ProjectTitleEmptyError,
+    ProjectIdentifierEmptyError,
+    ProjectNotFoundError,
+    ProjectAlreadyExistsError,
+    ProjectHasThreadsError,
+    ProjectLiveServerDeclaredResponseError,
+    ServerOwnership.ServerAlreadyRunningError,
+    ServerOwnership.OlderBootServiceError,
+  ]),
+);
 
 export function projectCommandErrorFromLiveServerRequest(cause: unknown): ProjectCommandError {
   if (isEnvironmentHttpCommonError(cause)) {
@@ -451,6 +490,9 @@ const runProjectMutation = Effect.fn("runProjectMutation")(function* (
         Layer.provide(Layer.succeed(References.MinimumLogLevel, minimumLogLevel)),
       ),
     ),
+    Effect.catchIf(isUserFacingProjectFailure, (cause) =>
+      Effect.fail(new CliError.UserError({ cause })),
+    ),
   );
 });
 
@@ -533,7 +575,17 @@ const projectRemoveCommand = Command.make("remove", {
           commandId: CommandId.make(yield* projectCommandUuid),
           projectId: project.id,
           force: flags.force,
-        });
+        }).pipe(
+          Effect.catchIf(isProjectNotEmptyFailure, () =>
+            Effect.fail(
+              new ProjectHasThreadsError({
+                operation: "removeProject",
+                projectId: project.id,
+                title: project.title,
+              }),
+            ),
+          ),
+        );
         return `Removed project ${project.id} (${project.title}).`;
       }),
     ),

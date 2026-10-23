@@ -19,11 +19,10 @@ import { projectMutationOperation } from "./ProjectMutation.ts";
 export const failProjectMutation = Effect.fn("environment.projects.failMutation")(function* (
   cause: ProjectService.ProjectServiceError | ServerRuntimeStartup.ServerRuntimeStartupError,
 ) {
-  if (
-    cause._tag === "ProjectNotFoundError" ||
-    cause._tag === "ProjectConflictError" ||
-    cause._tag === "ProjectNotEmptyError"
-  ) {
+  if (cause._tag === "ProjectNotEmptyError") {
+    return yield* failEnvironmentInvalidRequest("project_not_empty");
+  }
+  if (cause._tag === "ProjectNotFoundError" || cause._tag === "ProjectConflictError") {
     return yield* failEnvironmentInvalidRequest("invalid_command");
   }
   return yield* failEnvironmentInternal("project_mutation_failed", cause);

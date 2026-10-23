@@ -23,7 +23,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as References from "effect/References";
 import * as Stream from "effect/Stream";
-import { Command } from "effect/cli";
+import { CliError, Command } from "effect/cli";
 
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import { cli } from "../binCli.ts";
@@ -286,7 +286,8 @@ it.layer(NodeServices.layer)("project deletion with native V2 threads", (it) => 
         }),
       );
 
-      assert.include(error.message, "not empty");
+      assert.instanceOf(error, CliError.UserError);
+      assert.include(error.message, "still has threads. Re-run with --force");
       assert.deepEqual(
         (yield* readProjects(baseDir)).projects.map((entry) => entry.id),
         [project.id],

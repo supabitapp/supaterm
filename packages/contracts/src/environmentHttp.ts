@@ -72,6 +72,7 @@ export const EnvironmentRequestInvalidReason = Schema.Literals([
   "invalid_scope",
   "scope_not_granted",
   "invalid_command",
+  "project_not_empty",
   "invalid_history_cursor",
   "thread_transcript_too_large",
 ]);
