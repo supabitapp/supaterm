@@ -1,9 +1,22 @@
+import { type OrchestrationV2ProviderTurn, type RunAttemptId } from "@supaterm/contracts";
+import {
+  deriveLatestThreadRun,
+  deriveThreadRuntime,
+} from "@supaterm/client-runtime/state/thread-execution";
+import { derivePendingBackgroundWork } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
+import {
+  latestUnheldRun,
+  usageLimitRunPresentedAsLatest,
+} from "@supaterm/shared/orchestrationV2ThreadError";
 import * as Option from "effect/Option";
 import type { SetStateAction } from "react";
 import { applyClaudePromptEffortPrefix, resolvePromptInjectedEffort } from "@supaterm/shared/model";
 import { getProviderModelCapabilities } from "../providerModels";
 import { sanitizeThreadErrorMessage } from "~/rpc/transportError";
-import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
+import type {
+  EnvironmentThread,
+  EnvironmentThreadShell,
+} from "@supaterm/client-runtime/state/shell";
 import {
   ANTIGRAVITY_DEFAULT_MODEL,
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
@@ -66,6 +79,8 @@ import {
   resolveSelectableProviderInstanceEntry,
   type ProviderInstanceEntry,
 } from "../providerInstances";
+
+type ThreadProjection = EnvironmentThread["projection"];
 
 export const LAST_INVOKED_SCRIPT_BY_PROJECT_KEY = "supaterm:last-invoked-script-by-project";
 export const MAX_HIDDEN_MOUNTED_TERMINAL_THREADS = 10;
@@ -1366,4 +1381,138 @@ export function makeModelDisabledReason(
     });
     return reason ? `${reason.description} Start a new thread to use this model.` : null;
   };
+}
+
+/** A thread shell built from its loaded detail, for direct links that hydrate the detail first. */
+export function presentThreadShellFromProjection(
+  environmentId: EnvironmentId,
+  threadId: ThreadId,
+  projection: ThreadProjection,
+) {
+  const latestRun = deriveLatestThreadRun(projection);
+  const runtime = deriveThreadRuntime(projection);
+  const pendingRuntimeRequest =
+    projection.runtimeRequests.findLast((request) => request.status === "pending") ?? null;
+  // Direct links can hydrate detail before the thread enters the shell index.
+  return {
+    ...presentThreadShell(environmentId, {
+      ...projection.thread,
+      latestRunId: latestRun?.runId ?? null,
+      activeRunId: runtime?.activeRunId ?? null,
+      status: runtime?.status ?? "idle",
+      pendingRuntimeRequest,
+      latestVisibleMessage: null,
+      latestUserMessageAt:
+        projection.messages.findLast((message) => message.role === "user")?.updatedAt ?? null,
+      hasActionableProposedPlan: projection.plans.some(
+        (plan) => plan.kind === "proposed_plan" && plan.status === "active",
+      ),
+      providerInstanceHistory: [
+        ...new Set(
+          projection.providerThreads
+            .filter((thread) => thread.appThreadId === threadId && thread.ownerNodeId === null)
+            .map((thread) => thread.providerInstanceId),
+        ),
+      ],
+      goal:
+        projection.providerThreads.find(
+          (thread) => thread.id === projection.thread.activeProviderThreadId,
+        )?.goal ?? null,
+      itemCount: projection.turnItems.length,
+      visibleItemCount: projection.visibleTurnItems.length,
+      updatedAt: projection.updatedAt,
+    }),
+    latestRun,
+    runtime,
+  };
+}
+
+/** Background work the provider still runs after the latest run ended. */
+export function deriveThreadPendingBackgroundTasks(projection: ThreadProjection | null) {
+  if (projection === null) return [];
+  const sessionError =
+    projection.providerSessions.findLast(
+      (session) => session.providerInstanceId === projection.thread.providerInstanceId,
+    )?.lastError ?? null;
+  const latestRun =
+    usageLimitRunPresentedAsLatest(projection.runs, projection.turnItems, sessionError) ??
+    latestUnheldRun(projection.runs);
+  return [
+    ...derivePendingBackgroundWork({
+      latestRun,
+      providerThreads: projection.providerThreads,
+      turnItems: projection.turnItems,
+      activeProviderThreadId: projection.thread.activeProviderThreadId,
+      runs: projection.runs,
+      pullRequests: projection.thread.pullRequests,
+      workflowRunWatches: projection.thread.workflowRunWatches,
+    }),
+  ];
+}
+
+/**
+ * Run ordinals the conversation can be reverted to: those whose provider turn belongs to the
+ * active provider thread, plus 0 for the thread start. Empty without a live provider session
+ * on the thread's selected instance.
+ */
+export function deriveAvailableRevertTurnCounts(projection: ThreadProjection | null) {
+  const available = new Set<number>();
+  const providerThread = projection?.providerThreads.find(
+    (candidate) => candidate.id === projection.thread.activeProviderThreadId,
+  );
+  if (
+    !providerThread?.providerSessionId ||
+    providerThread.providerInstanceId !== projection?.thread.modelSelection.instanceId
+  )
+    return available;
+  available.add(0);
+  const attemptsById = new Map(projection.attempts.map((attempt) => [attempt.id, attempt]));
+  const providerTurnsById = new Map<
+    OrchestrationV2ProviderTurn["id"],
+    OrchestrationV2ProviderTurn
+  >();
+  const latestTurnByAttempt = new Map<RunAttemptId, OrchestrationV2ProviderTurn>();
+  for (const turn of projection.providerTurns) {
+    providerTurnsById.set(turn.id, turn);
+    if (turn.runAttemptId === null) continue;
+    const latest = latestTurnByAttempt.get(turn.runAttemptId);
+    if (latest === undefined || turn.ordinal > latest.ordinal) {
+      latestTurnByAttempt.set(turn.runAttemptId, turn);
+    }
+  }
+  for (const run of projection.runs) {
+    if (run.activeAttemptId === null) continue;
+    const attempt = attemptsById.get(run.activeAttemptId);
+    const providerTurn =
+      latestTurnByAttempt.get(run.activeAttemptId) ??
+      (attempt?.providerTurnId == null ? undefined : providerTurnsById.get(attempt.providerTurnId));
+    // A ready file checkpoint alone cannot restore the provider conversation.
+    if (providerTurn?.providerThreadId === providerThread.id) available.add(run.ordinal);
+  }
+  return available;
+}
+
+/**
+ * Changes when the agent may have changed the workspace, so file views refresh. File tools are
+ * explicit; completed commands are included because a shell command can mutate the workspace
+ * without reporting the paths it touched.
+ */
+export function deriveWorkspaceMutationId(
+  visibleTurnItems: ReadonlyArray<OrchestrationV2ProjectedTurnItem>,
+  latestCheckpointCompletedAt: string | null,
+) {
+  let itemId: string | null = null;
+  for (let index = visibleTurnItems.length - 1; index >= 0; index -= 1) {
+    const item = visibleTurnItems[index]?.item;
+    if (!item) continue;
+    if (item.type !== "command_execution" && item.type !== "file_change") continue;
+    if (item.status === "pending" || item.status === "running" || item.status === "waiting") {
+      continue;
+    }
+    itemId = item.id;
+    break;
+  }
+  return itemId === null && latestCheckpointCompletedAt === null
+    ? null
+    : JSON.stringify([itemId, latestCheckpointCompletedAt]);
 }
