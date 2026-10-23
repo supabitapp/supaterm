@@ -10,15 +10,16 @@ import { CLAUDE_SYNTHETIC_MODEL } from "../provider/Drivers/claudeUsage.ts";
 import { GUARD_LENGTH, type TranscriptParsePosition } from "./usageTranscriptReader.ts";
 
 // Bump when what a transcript parses to changes; entries from another version are dropped.
-const USAGE_SCAN_CACHE_VERSION = 7 as const;
+const USAGE_SCAN_CACHE_VERSION = 8 as const;
 
 /**
  * Each cache version writes its own file in the state directory. An older
  * server sharing that directory cannot read a newer cache and would replace
  * it, dropping saved usage for deleted transcripts. Separate files keep both.
  */
-export const SCAN_CACHE_FILE_NAME = "usage-scan-cache-v7.json";
+export const SCAN_CACHE_FILE_NAME = "usage-scan-cache-v8.json";
 export const LEGACY_SCAN_CACHE_FILE_NAMES = [
+  "usage-scan-cache-v7.json",
   "usage-scan-cache-v6.json",
   "usage-scan-cache-v5.json",
   "usage-scan-cache.json",
@@ -308,9 +309,9 @@ export function decodeScanCache(
       continue;
     }
     // Keep history for deleted rollouts, but re-parse incompatible reducer state.
-    // Only Codex requires new provenance state in v7.
+    // Older Codex entries lack provenance state (v7) or misread compaction and resume counters (v8).
     const legacy =
-      format.state !== undefined && (version < 6 || (entry.p === "codex" && version < 7));
+      format.state !== undefined && (version < 6 || (entry.p === "codex" && version < 8));
     // A corrupt state disqualifies the entry: resuming with it would attach
     // appended usage to the wrong model or replay fork-copied history.
     if (!legacy && !isValidState.get(entry.p)?.(entry.cs)) continue;
