@@ -280,6 +280,7 @@ function WorkspaceColumns(
             />
             <ColumnContent>
               <WorkspaceEmptyDetail
+                tab={selectedTab}
                 onStartNewTask={
                   // The Duo detail bar already carries compose.
                   detailCompose ? undefined : openNewTask
