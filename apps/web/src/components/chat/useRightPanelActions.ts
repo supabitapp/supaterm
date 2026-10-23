@@ -31,6 +31,7 @@ import { stackedThreadToast, toastManager } from "../ui/toast";
 import { openDeviceSetupDialog } from "./ChatOverlayHosts";
 import { previewEnvironment } from "../../state/preview";
 import { useAtomCommand } from "../../state/use-atom-command";
+import type { ChatShortcutCommands } from "./useChatShortcuts";
 
 interface RightPanelActionsInput {
   readonly routeKind: "server" | "draft";
@@ -57,6 +58,7 @@ interface RightPanelActionsInput {
   readonly explicitDiffOpenRef: { current: ScopedThreadRef | null };
   readonly setTerminalFocusRequestId: Dispatch<SetStateAction<number>>;
   readonly onDiffPanelOpen: (() => void) | undefined;
+  readonly closeRightPanelSurface: (surface: RightPanelSurface) => void;
 }
 
 /**
@@ -89,6 +91,7 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     explicitDiffOpenRef,
     setTerminalFocusRequestId,
     onDiffPanelOpen,
+    closeRightPanelSurface,
   } = input;
   const isPaneInputOwner = usePaneInputOwner();
   const openPreview = useAtomCommand(previewEnvironment.open, { reportFailure: false });
@@ -103,7 +106,6 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
       useRightPanelStore.getState().toggle(activeThreadRef, "diff");
     }
   };
-  const onToggleDiffStable = useStableCallback(onToggleDiff);
 
   const createBrowserSurface = (profileId?: string) => {
     if (!activeThreadRef || !canOperatePreview) return;
@@ -305,7 +307,21 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
   };
   const onOpenTurnDiffStable = useStableCallback(onOpenTurnDiff);
 
+  const shortcuts = {
+    "rightPanel.toggle": () => toggleRightPanel(),
+    "rightPanel.toggleMaximized": ({ repeat }) => {
+      if (!repeat) toggleRightPanelMaximized();
+    },
+    "threadPanel.toggle": () => toggleThreadPanel(),
+    "rightPanel.close": ({ repeat }) => {
+      if (!activeRightPanelSurface) return false;
+      if (!repeat) closeRightPanelSurface(activeRightPanelSurface);
+    },
+    "diff.toggle": () => onToggleDiff(),
+  } satisfies ChatShortcutCommands;
+
   return {
+    shortcuts,
     activateRightPanelSurfaceStable,
     addDeviceSurfaceStable,
     addDiffSurfaceStable,
@@ -318,7 +334,6 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     createBrowserSurfaceStable,
     moveRightPanelSurfaceStable,
     onOpenTurnDiffStable,
-    onToggleDiffStable,
     openChangesFromThreadPanelStable,
     openFileSurfaceStable,
     toggleRightPanelMaximizedStable,

@@ -3,6 +3,7 @@ import { expect, it } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
 
 import { render } from "../../../test/render";
+import type { ChatComposerHandle } from "./ChatComposer";
 import { useChatShortcuts } from "./useChatShortcuts";
 
 const shortcutContext = {
@@ -51,10 +52,17 @@ function Chat(props: { composerKeys: string[]; launcher?: { keys: string; receiv
     scriptKeybindings: [],
     getShortcutContext: () => shortcutContext,
     threadFindActive: false,
-    typeIntoComposer: (key) => {
-      props.composerKeys.push(key);
-      return true;
+    // Type-to-focus only calls insertTextAtEnd, so the stand-in composer implements just that.
+    composerRef: {
+      current: {
+        insertTextAtEnd: (key: string) => {
+          props.composerKeys.push(key);
+          return true;
+        },
+      } as Partial<ChatComposerHandle> as ChatComposerHandle,
     },
+    branchToolbarRef: { current: null },
+    composerShortcutAvailability: { draftProjectControls: true, branchPicker: true },
     closeThreadFind: () => {},
     commands: {},
     fallback: () => undefined,

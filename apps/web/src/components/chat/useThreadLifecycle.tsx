@@ -23,7 +23,9 @@ import {
   RuntimeMode,
 } from "@supaterm/contracts";
 import { effectiveSnoozed, threadWokeAt } from "@supaterm/client-runtime/state/thread-snooze";
-import { useAcknowledgeThreadWoke } from "../../hooks/useThreadActions";
+import { useAcknowledgeThreadWoke, useThreadActions } from "../../hooks/useThreadActions";
+import { markDoneAndAdvance } from "../../markDoneAndAdvance";
+import type { ChatShortcutCommands } from "./useChatShortcuts";
 import { useNowMinute } from "../../hooks/useNowMinute";
 import { scopedThreadKey, scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { useEffect, useRef, useState } from "react";
@@ -32,6 +34,7 @@ import {
   isAtomCommandInterrupted,
   settlePromise,
   squashAtomCommandFailure,
+  type AtomCommandResult,
 } from "@supaterm/client-runtime/state/runtime";
 import { AlarmClockIcon, CheckCircle2Icon } from "lucide-react";
 import { stackedThreadToast, toastManager } from "../ui/toast";
@@ -73,6 +76,7 @@ interface ThreadLifecycleInput {
   readonly activeThreadRef: ScopedThreadRef | null;
   readonly activeThreadKey: string | null;
   readonly activeThreadShell: EnvironmentThreadShell | null;
+  readonly isServerThread: boolean;
   readonly activeLatestRun: EnvironmentThreadShell["latestRun"];
   readonly activeProjectCwd: string | null;
   readonly serverConfig: EnvironmentPresentation["serverConfig"] | null;
@@ -114,6 +118,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     activeThreadRef,
     activeThreadKey,
     activeThreadShell,
+    isServerThread,
     activeLatestRun,
     activeProjectCwd,
     serverConfig,
@@ -545,14 +550,51 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
       />
     ) : null;
   })();
+  const { markThreadDone, pinThread, confirmAndUnpinThread } = useThreadActions();
+  const toastThreadActionFailure =
+    (title: string) => (result: AtomCommandResult<unknown, unknown>) => {
+      if (result._tag !== "Failure" || isAtomCommandInterrupted(result)) return;
+      const error = squashAtomCommandFailure(result);
+      toastManager.add(
+        stackedThreadToast({
+          type: "error",
+          title,
+          description: error instanceof Error ? error.message : "An error occurred.",
+        }),
+      );
+    };
+  const shortcuts = {
+    "thread.mark-done": () => {
+      if (!readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) return false;
+      if (!isServerThread || !activeThreadRef || !supportsMarkDone) return;
+      if (activeThreadDone) {
+        void handleReopenActiveThread();
+        return;
+      }
+      if (markDoneAndAdvance(activeThreadRef)) return;
+      void markThreadDone(activeThreadRef).then(
+        toastThreadActionFailure("Failed to mark thread as Done"),
+      );
+    },
+    "thread.pin": () => {
+      if (!readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) return false;
+      if (!isServerThread || !activeThreadRef || !supportsPinning) return;
+      void (
+        activeThreadPinned ? confirmAndUnpinThread(activeThreadRef) : pinThread(activeThreadRef)
+      ).then(
+        toastThreadActionFailure(
+          activeThreadPinned ? "Failed to unpin thread" : "Failed to pin thread",
+        ),
+      );
+    },
+  } satisfies ChatShortcutCommands;
+
   return {
+    shortcuts,
     activeBranchMismatchKey,
-    activeThreadDone,
-    activeThreadPinned,
     backgroundWorkBanner,
     childInputBanner,
     goalBanner,
-    handleReopenActiveThreadStable,
     handleSwitchCheckoutToThreadStable,
     isRestoringThreadBranch,
     onOpenRelatedThread,
@@ -560,8 +602,6 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     sendStandaloneCommand,
     setBranchMismatchDismissTick,
     showBranchMismatchBanner,
-    supportsMarkDone,
-    supportsPinning,
     threadStatusLine,
   };
 }

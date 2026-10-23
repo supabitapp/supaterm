@@ -25,6 +25,7 @@ import { useOrchestrationCommand } from "../../state/use-orchestration-command";
 import { useAtomQueryRunner } from "../../state/use-atom-query-runner";
 import { rewindToMessage } from "./chatViewSend";
 import { makeThreadErrorSetter } from "../ChatView.logic";
+import type { ChatShortcutCommands } from "./useChatShortcuts";
 import { resolveThreadForkSource } from "@supaterm/client-runtime/state/thread-workflows";
 
 interface TimelineRewindInput {
@@ -194,7 +195,14 @@ export function useTimelineRewind(input: TimelineRewindInput) {
   };
   const onRevertTimelineTurnStable = useStableCallback(onRevertTimelineTurn);
 
+  const shortcuts = {
+    "thread.fork": ({ repeat }) => {
+      if (!forkSource || forkDisabled) return false;
+      if (!repeat) void onForkFromRun(forkSource);
+    },
+  } satisfies ChatShortcutCommands;
   return {
+    shortcuts,
     forkSource,
     forkDisabled,
     onConfirmRevertStable,

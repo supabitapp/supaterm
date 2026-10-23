@@ -32,6 +32,7 @@ import type { EnvironmentThread } from "@supaterm/client-runtime/state/shell";
 import type { deriveThreadActivityRun } from "@supaterm/client-runtime/state/thread-execution";
 import type { EnvironmentThreadStatus } from "@supaterm/client-runtime/state/threads";
 import type { TimelineEntry } from "../../session-logic";
+import type { ChatShortcutCommands } from "./useChatShortcuts";
 
 const TIMELINE_SCROLL_CANCEL_SENTINEL = Object.freeze({});
 const CONVERSATION_SCROLL_STEP_PX = 160;
@@ -656,7 +657,15 @@ export function useTimelineFollow(input: TimelineFollowInput) {
     setTimelineAnchor({ threadKey, messageId });
   };
 
+  // Codex Micro's conversation chords scroll the timeline a step at a time.
+  const shortcuts = {
+    "conversation.scrollUp": () => scrollConversation(-1),
+    "conversation.scrollDown": () => scrollConversation(1),
+    "conversation.scrollToEnd": () => scrollToEnd(true),
+  } satisfies ChatShortcutCommands;
+
   return {
+    shortcuts,
     showScrollToBottom,
     timelineLiveFollowEnabled,
     cancelPositionRestoreRef,
@@ -666,7 +675,6 @@ export function useTimelineFollow(input: TimelineFollowInput) {
     onComposerPageScrollKeyUpStable,
     onComposerPageScrollReleaseStable,
     scrollToEnd,
-    scrollConversation,
     onTimelineAnchorReadyStable,
     onTimelineAnchorSizeChangedStable,
     onToolOutputCollapsedAtEndStable,

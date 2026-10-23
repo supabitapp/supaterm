@@ -41,6 +41,7 @@ import { useLocalStorage } from "~/hooks/useLocalStorage";
 import { previewEnvironment } from "../../state/preview";
 import { readEnvironmentScope } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
+import type { ChatShortcutCommands } from "./useChatShortcuts";
 
 const SCRIPT_TERMINAL_COLS = 120;
 const SCRIPT_TERMINAL_ROWS = 30;
@@ -133,7 +134,6 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
     if (!activeThreadRef) return;
     storeSetTerminalOpen(activeThreadRef, open);
   };
-  const setTerminalOpenStable = useStableCallback(setTerminalOpen);
   const toggleTerminalVisibility = () => {
     if (!activeThreadRef) return;
     const nextOpen = !terminalUiState.terminalOpen;
@@ -173,7 +173,6 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
     setTerminalFocusRequestId((value) => value + 1);
     void launched.result;
   };
-  const splitTerminalStable = useStableCallback(splitTerminal);
   const createNewTerminal = () => {
     if (!activeThreadRef) return;
     const launched = terminalActions.launchTerminal({
@@ -183,7 +182,6 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
     setTerminalFocusRequestId((value) => value + 1);
     void launched.result;
   };
-  const createNewTerminalStable = useStableCallback(createNewTerminal);
   const closeTerminal = (terminalId: string) => {
     if (!hasTerminalWriteAccess() || !activeThreadRef) return;
     terminalActions.closeTerminalSession(terminalId);
@@ -391,7 +389,6 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
         closeTerminal(terminalId);
     });
   };
-  const requestCloseTerminalStable = useStableCallback(requestCloseTerminal);
   const requestClosePanelTerminal = (terminalId: string) => {
     if (!hasTerminalWriteAccess()) return;
     void confirmTerminalClose([terminalCloseTarget(terminalId)]).then((confirmed) => {
@@ -399,22 +396,58 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
         closePanelTerminal(terminalId);
     });
   };
-  const requestClosePanelTerminalStable = useStableCallback(requestClosePanelTerminal);
+  const openTerminalIfClosed = () => {
+    if (!terminalUiState.terminalOpen) setTerminalOpen(true);
+  };
+  // A focused right-panel terminal takes the split/new/close chords; otherwise they act on the drawer.
+  const shortcuts = {
+    "terminal.toggle": () => {
+      if (
+        !terminalUiState.terminalOpen &&
+        !readEnvironmentScope(environmentId, AuthTerminalReadScope) &&
+        !hasTerminalWriteAccess()
+      )
+        return false;
+      toggleTerminalVisibility();
+    },
+    "terminal.split": ({ terminalFocusOwner }) => {
+      if (!hasTerminalWriteAccess()) return false;
+      if (terminalFocusOwner === "right-panel") return void splitPanelTerminal();
+      openTerminalIfClosed();
+      splitTerminal();
+    },
+    "terminal.splitVertical": ({ terminalFocusOwner }) => {
+      if (!hasTerminalWriteAccess()) return false;
+      if (terminalFocusOwner === "right-panel") return void splitPanelTerminal("vertical");
+      openTerminalIfClosed();
+      splitTerminal("vertical");
+    },
+    "terminal.close": ({ terminalFocusOwner }) => {
+      if (!hasTerminalWriteAccess()) return false;
+      if (terminalFocusOwner === "right-panel" && activeRightPanelSurface?.kind === "terminal") {
+        requestClosePanelTerminal(activeRightPanelSurface.activeTerminalId);
+        return;
+      }
+      if (terminalUiState.terminalOpen) requestCloseTerminal(terminalUiState.activeTerminalId);
+    },
+    "terminal.new": ({ terminalFocusOwner }) => {
+      if (!hasTerminalWriteAccess()) return false;
+      if (terminalFocusOwner === "right-panel") return void addTerminalSurface();
+      openTerminalIfClosed();
+      createNewTerminal();
+    },
+  } satisfies ChatShortcutCommands;
   return {
+    shortcuts,
     activatePanelTerminalStable,
     addTerminalContextToDraftStable,
     addTerminalSurfaceStable,
     closePanelTerminalStable,
-    createNewTerminalStable,
     lastInvokedScriptByProjectId,
-    requestClosePanelTerminalStable,
-    requestCloseTerminalStable,
     runProjectScriptStable,
     runShellCommandStable,
-    setTerminalOpenStable,
     splitPanelTerminalStable,
     splitPanelTerminalVerticalStable,
-    splitTerminalStable,
     toggleTerminalVisibilityStable,
   };
 }
