@@ -1,5 +1,3 @@
-"use client";
-
 import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/environment";
 import { settlePromise } from "@supaterm/client-runtime/state/runtime";
 import { previewStreamDownloadUrl } from "@supaterm/client-runtime/preview/server-browser-stream";

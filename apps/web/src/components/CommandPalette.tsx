@@ -1,5 +1,3 @@
-"use client";
-
 import { visibleThreadPullRequests } from "@supaterm/shared/threadPullRequests";
 
 import {
