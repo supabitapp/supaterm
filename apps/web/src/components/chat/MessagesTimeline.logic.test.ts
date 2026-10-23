@@ -2071,6 +2071,147 @@ describe("deriveMessagesTimelineRows", () => {
     },
   );
 
+  it("splits a settled turn's work at each steer and keeps the total time on top", () => {
+    const runId = RunId.make("steered-run");
+    const time = (second: number) => new Date(Date.UTC(2026, 0, 1, 0, 0, second)).toISOString();
+    const message = (
+      id: string,
+      second: number,
+      role: "user" | "assistant",
+      inputIntent?: "turn_start" | "steer",
+    ): TimelineEntry => ({
+      kind: "message",
+      id,
+      createdAt: time(second),
+      message: {
+        id: MessageId.make(id),
+        role,
+        text: id,
+        runId,
+        ...(inputIntent ? { inputIntent } : {}),
+        createdAt: time(second),
+        updatedAt: time(second),
+        streaming: false,
+      },
+    });
+    const work = (id: string, second: number): TimelineEntry => ({
+      kind: "work",
+      id,
+      createdAt: time(second),
+      entry: { id, createdAt: time(second), runId, label: "Ran command", tone: "tool" },
+    });
+    const rows = (expandedRunIds: ReadonlySet<RunId>) =>
+      deriveMessagesTimelineRows({
+        timelineEntries: [
+          message("prompt", 0, "user", "turn_start"),
+          work("work-before-steer", 4),
+          message("steer", 10, "user", "steer"),
+          work("work-after-steer", 15),
+          message("final", 30, "assistant"),
+        ],
+        latestRun: { runId, status: "completed", startedAt: time(0), completedAt: time(30) },
+        isWorking: false,
+        expandedRunIds,
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      });
+
+    const segmentKey = RunId.make(`${runId}:steer:steer`);
+    const collapsed = rows(new Set());
+    expect(collapsed.map((row) => row.id)).toEqual([
+      "prompt",
+      `turn-fold:${runId}`,
+      "steer",
+      `turn-fold:${segmentKey}`,
+      "final",
+    ]);
+    expect(collapsed[1]).toMatchObject({ label: "Worked for 30s" });
+    expect(collapsed[3]).toMatchObject({ label: "Continued for 20s", createdAt: time(10) });
+
+    expect(rows(new Set([segmentKey])).map((row) => row.id)).toEqual([
+      "prompt",
+      `turn-fold:${runId}`,
+      "steer",
+      `turn-fold:${segmentKey}`,
+      "work-after-steer",
+      "final",
+    ]);
+  });
+
+  it("gives each steer segment's fold only that segment's tool images", () => {
+    const fixture = makeStreamingTimelineFixture();
+    const source = fixture.visibleTurnItems.find((row) => row.item.type === "dynamic_tool")!;
+    const toolItem = source.item;
+    if (toolItem.type !== "dynamic_tool") throw new Error("Expected tool fixture");
+    const runId = RunId.make("steered-image-run");
+    const time = (second: number) => new Date(Date.UTC(2026, 0, 1, 0, 0, second)).toISOString();
+    const message = (
+      id: string,
+      second: number,
+      role: "user" | "assistant",
+      inputIntent?: "turn_start" | "steer",
+    ): TimelineEntry => ({
+      kind: "message",
+      id,
+      createdAt: time(second),
+      message: {
+        id: MessageId.make(id),
+        role,
+        text: id,
+        runId,
+        ...(inputIntent ? { inputIntent } : {}),
+        createdAt: time(second),
+        updatedAt: time(second),
+        streaming: false,
+      },
+    });
+    const screenshot = (id: string, second: number): TimelineEntry => {
+      const itemId = TurnItemId.make(id);
+      return {
+        kind: "work",
+        id,
+        createdAt: time(second),
+        entry: {
+          id,
+          createdAt: time(second),
+          runId,
+          label: "Took screenshot",
+          tone: "tool",
+          projectedItem: {
+            ...source,
+            sourceItemId: itemId,
+            item: { ...toolItem, id: itemId, output: undefined, outputImageCount: 1 },
+          },
+        },
+      };
+    };
+    const rows = deriveMessagesTimelineRows({
+      timelineEntries: [
+        message("prompt", 0, "user", "turn_start"),
+        screenshot("before-steer", 4),
+        message("steer", 10, "user", "steer"),
+        screenshot("after-steer", 15),
+        message("final", 30, "assistant"),
+      ],
+      latestRun: { runId, status: "completed", startedAt: time(0), completedAt: time(30) },
+      isWorking: false,
+      expandedRunIds: new Set(),
+      turnDiffSummaries: [],
+      supportsConversationRollback: false,
+    });
+    expect(
+      rows.flatMap((row) =>
+        row.kind === "turn-fold"
+          ? [
+              (row.images ?? []).map(
+                (image) => image.resource._tag === "tool-output-image" && image.resource.itemId,
+              ),
+            ]
+          : [],
+      ),
+    ).toEqual([["before-steer"], ["after-steer"]]);
+  });
+
   it("keeps the previous turn folded while a newly sent message awaits its turn", () => {
     const rows = deriveMessagesTimelineRows({
       timelineEntries: [
@@ -5125,6 +5266,49 @@ describe("linked timeline resources", () => {
       "turn-fold:resource-run",
       "intro",
       "created",
+      "final",
+      "summary:created",
+      "assistant-meta:final",
+    ]);
+  });
+
+  it("shows a created chat after a steer only when that steer's segment is open", () => {
+    const message = (id: string, role: "user" | "assistant", second: number) => ({
+      kind: "message" as const,
+      id,
+      createdAt: `2026-09-08T10:00:0${second}Z`,
+      message: {
+        id: MessageId.make(id),
+        role,
+        text: id,
+        runId,
+        ...(role === "user" ? { inputIntent: "steer" as const } : {}),
+        streaming: false,
+        createdAt: `2026-09-08T10:00:0${second}Z`,
+        updatedAt: `2026-09-08T10:00:0${second}Z`,
+      },
+    });
+    const timelineEntries = [
+      message("intro", "assistant", 0),
+      message("steer", "user", 1),
+      event("created", "thread_created"),
+      message("after-steer", "assistant", 3),
+      message("final", "assistant", 4),
+    ];
+    const segmentKey = RunId.make(`${runId}:steer:steer`);
+    const rowIds = (expanded: RunId[]) =>
+      deriveMessagesTimelineRows({
+        ...common,
+        timelineEntries,
+        expandedRunIds: new Set(expanded),
+      }).map((row) => row.id);
+    expect(rowIds([runId])).not.toContain("created");
+    expect(rowIds([segmentKey])).toEqual([
+      `turn-fold:${runId}`,
+      "steer",
+      `turn-fold:${segmentKey}`,
+      "created",
+      "after-steer",
       "final",
       "summary:created",
       "assistant-meta:final",
