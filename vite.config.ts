@@ -5,6 +5,30 @@ import antiSlop from "ultracite/oxlint/anti-slop";
 
 const DOM_TEST_ENVIRONMENT_ALLOWLIST: Array<string> = [];
 
+const TEST_EXCLUDE = [
+  "**/.supacode/**",
+  "**/.supaterm/**",
+  "**/node_modules/**",
+  "**/dist/**",
+  "**/dist-electron/**",
+  "**/.{idea,git,cache,output,temp}/**",
+];
+
+// Directories whose tests belong to a package's own test config. desktop also
+// owns the kde-snap-shot tests through its `include`.
+const TEST_CONFIG_PACKAGES = [
+  "apps/desktop",
+  "apps/mobile",
+  "apps/server",
+  "apps/web",
+  "packages/client-runtime",
+];
+
+// `vp test run <file>` from the repo root hands each file to its package's
+// config. Packages that borrow this config (`--config ../../vite.config.ts`) run
+// from their own directory, as CI does, so they keep one plain project.
+const isRepoRootTestRun = process.cwd() === import.meta.dirname;
+
 const RESTRICTED_IMPORT_PATHS = [
   {
     name: "@supaterm/client-runtime",
@@ -57,21 +81,35 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    exclude: [
-      "**/.supacode/**",
-      "**/.supaterm/**",
-      "**/node_modules/**",
-      "**/dist/**",
-      "**/dist-electron/**",
-      "**/.{idea,git,cache,output,temp}/**",
-    ],
+    exclude: TEST_EXCLUDE,
     hookTimeout: 60_000,
     testTimeout: 60_000,
     setupFiles: [
       NodeURL.fileURLToPath(
         new URL("./packages/shared/src/testing/longTempDir.ts", import.meta.url),
       ),
+      NodeURL.fileURLToPath(
+        new URL("./packages/shared/src/testing/providerEnv.ts", import.meta.url),
+      ),
     ],
+    ...(isRepoRootTestRun
+      ? {
+          projects: [
+            ...TEST_CONFIG_PACKAGES,
+            {
+              extends: true,
+              test: {
+                name: "root",
+                exclude: [
+                  ...TEST_EXCLUDE,
+                  ...TEST_CONFIG_PACKAGES.map((dir) => `${dir}/**`),
+                  "native/kde-snap-shot/**",
+                ],
+              },
+            },
+          ],
+        }
+      : {}),
   },
   staged: {
     "*": "vp fmt --no-error-on-unmatched-pattern",
