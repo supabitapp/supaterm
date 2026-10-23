@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   detectComposerTrigger,
+  extendReplacementRangeForTrailingSpace,
   replaceTextRange,
   serializeComposerFileLink,
 } from "./composerTrigger.ts";
@@ -195,6 +196,15 @@ describe("replaceTextRange", () => {
       text: "hello ",
       cursor: 6,
     });
+  });
+});
+
+describe("extendReplacementRangeForTrailingSpace", () => {
+  it("swallows one existing space after the range when the replacement ends with one", () => {
+    expect(extendReplacementRangeForTrailingSpace("@fi rest", 3, "@file ")).toBe(4);
+    expect(extendReplacementRangeForTrailingSpace("@firest", 3, "@file ")).toBe(3);
+    expect(extendReplacementRangeForTrailingSpace("@fi rest", 3, "@file")).toBe(3);
+    expect(extendReplacementRangeForTrailingSpace("@fi", 3, "@file ")).toBe(3);
   });
 });
 
