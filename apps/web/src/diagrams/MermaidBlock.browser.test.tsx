@@ -125,6 +125,36 @@ describe("MermaidBlock", () => {
     expect(renderMermaidDiagram).toHaveBeenCalledTimes(1);
   });
 
+  it("strips active content from rendered diagrams and keeps their accessible name", async () => {
+    await using _test = await setupTest();
+    vi.mocked(renderMermaidDiagram).mockResolvedValue({
+      ...diagram("label"),
+      svg: [
+        '<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="d-title" onload="alert(1)">',
+        '<title id="d-title">Build</title><style>text{fill:red}</style>',
+        '<a href="https://example.com"><text>link</text></a>',
+        '<image href="https://example.com/x.png"/>',
+        "<foreignObject><div>html</div></foreignObject>",
+        '<text style="fill:var(--pele-fg)">label</text></svg>',
+      ].join(""),
+    });
+    await mount("graph TD\n A");
+    await act(async () => TestIntersectionObserver.instances[0]!.visible(true));
+    const svg = screen.container.querySelector("svg text")!.closest("svg")!;
+    expect(svg.outerHTML).not.toMatch(
+      /<a\b|<image\b|<foreignObject\b|<style\b|onload|example\.com/i,
+    );
+    expect(svg.getAttribute("role")).toBe("img");
+    expect(svg.getAttribute("aria-labelledby")).toBe(svg.querySelector("title")!.id);
+    expect([...svg.querySelectorAll("text")].map((text) => text.textContent)).toEqual([
+      "link",
+      "label",
+    ]);
+    expect(svg.querySelector("text:last-of-type")!.getAttribute("style")).toBe(
+      "fill:var(--pele-fg)",
+    );
+  });
+
   it("preserves source until visible and copies Mermaid source from either view", async () => {
     await using _test = await setupTest();
     const writeText = vi

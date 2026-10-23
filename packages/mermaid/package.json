@@ -11,7 +11,7 @@
     "test": "vp test run --config ../../vite.config.ts --dir ."
   },
   "dependencies": {
-    "pele": "1.7.0"
+    "pele": "1.8.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",
