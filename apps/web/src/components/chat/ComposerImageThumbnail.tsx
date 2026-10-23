@@ -2,6 +2,7 @@ import { memo, useEffect, useState, type ReactNode } from "react";
 
 import {
   createComposerImageThumbnail,
+  readComposerImageThumbnail,
   type ComposerImageThumbnailMode,
 } from "../../lib/imageCompression";
 import { cn } from "../../lib/utils";
@@ -34,7 +35,10 @@ export const ComposerImageThumbnail = memo(function ComposerImageThumbnail({
       active = false;
     };
   }, [file, mode]);
-  const src = preview?.file === file && preview.mode === mode ? preview.src : null;
+  const src =
+    preview?.file === file && preview.mode === mode
+      ? preview.src
+      : (readComposerImageThumbnail(file, mode) ?? null);
   return src ? (
     <img
       src={src}
