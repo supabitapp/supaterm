@@ -437,7 +437,7 @@ const makeEventStore = Effect.gen(function* () {
         ])}
       ORDER BY sequence ASC
       LIMIT ${input.limit}
-    `;
+    `.pipe(NodeSqliteClient.readOnly);
 
   const appendAgentEvents: OrchestrationEventStore["Service"]["appendAgentEvents"] = (input) =>
     Effect.forEach(
@@ -613,6 +613,7 @@ const makeEventStore = Effect.gen(function* () {
         LIMIT ${Math.max(0, Math.floor(input.maxEvents)) + 1}
       )
     `.pipe(
+      NodeSqliteClient.readOnly,
       Effect.mapError(toPersistenceSqlError("OrchestrationEventStore.getAgentReplayStats:query")),
       Effect.map((rows) => ({
         eventCount: rows[0]?.eventCount ?? 0,
@@ -636,6 +637,7 @@ const makeEventStore = Effect.gen(function* () {
         AND aggregate_kind = 'thread'
         ${threadId === undefined ? sql`` : sql`AND stream_id = ${threadId}`}
     `.pipe(
+      NodeSqliteClient.readOnly,
       Effect.map((rows) => rows[0]?.sequence ?? 0),
       Effect.mapError(toPersistenceSqlError("OrchestrationEventStore.latestAgentSequence:query")),
     );
@@ -647,6 +649,7 @@ const makeEventStore = Effect.gen(function* () {
     WHERE aggregate_kind = 'project'
       OR (application_event_version = 2 AND aggregate_kind = 'thread')
   `.pipe(
+    NodeSqliteClient.readOnly,
     Effect.map((rows) => rows[0]?.sequence ?? 0),
     Effect.mapError(
       toPersistenceSqlError("OrchestrationEventStore.latestApplicationSequence:query"),
