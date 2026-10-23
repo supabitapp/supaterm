@@ -17692,13 +17692,13 @@ describe("ClaudeAdapterV2 background wake turns", () => {
           const NESTED_TOOL_USE_ID = "toolu-steer-nested";
           const FINISHED_TOOL_USE_ID = "toolu-steer-finished";
           const calls: Array<string> = [];
-          const backgroundRequest = yield* Deferred.make<void>();
+          const backgroundRequested = yield* Deferred.make<void>();
           let beforeAnswer: Effect.Effect<void> = Effect.void;
-          const fileSystem = yield* FileSystem.FileSystem;
+          const lateAnswer = yield* Deferred.make<void>();
           const harness = yield* makeWakeHarnessWithOptions({
             backgroundTasks: (toolUseId) =>
               Effect.sync(() => calls.push(toolUseId)).pipe(
-                Effect.andThen(Deferred.succeed(backgroundRequest, undefined)),
+                Effect.andThen(Deferred.succeed(backgroundRequested, undefined)),
                 Effect.andThen(
                   backgrounding === "answers after the turn ended" ||
                     backgrounding === "answers after the subagent ran again"
@@ -17713,18 +17713,11 @@ describe("ClaudeAdapterV2 background wake turns", () => {
                       : backgrounding === "never answers"
                         ? Effect.never
                         : backgrounding === "answers after the steer went out"
-                          ? Effect.sleep("6 seconds").pipe(Effect.as(true))
+                          ? Deferred.await(lateAnswer).pipe(Effect.as(true))
                           : Effect.succeed(true),
                 ),
               ),
-          }).pipe(
-            Effect.provideService(FileSystem.FileSystem, {
-              ...fileSystem,
-              exists: () => Effect.succeed(false),
-              readDirectory: () => Effect.succeed([]),
-              readFileString: () => Effect.succeed("{}"),
-            }),
-          );
+          });
           const idAllocator = yield* IdAllocator.IdAllocatorV2;
           const attemptId = RunAttemptId.make("attempt-steer-foreground-subagent");
           const input = makeClaudeTestTurnInput({
@@ -17873,12 +17866,15 @@ describe("ClaudeAdapterV2 background wake turns", () => {
                 ),
               );
           }
-          const steering = yield* Effect.forkScoped(steer);
+          // Started at once so the steer reads its backgrounding deadline before
+          // this test moves the clock. Its message is built with real file I/O,
+          // so a scheduled start could read the clock after the moves below.
+          const steering = yield* Effect.forkScoped(steer, { startImmediately: true });
           if (
             backgrounding === "never answers" ||
             backgrounding === "answers after the steer went out"
           ) {
-            yield* Deferred.await(backgroundRequest);
+            yield* Deferred.await(backgroundRequested);
             assert.equal(harness.offeredMessages.length, offered);
             yield* TestClock.adjust("5 seconds");
           }
@@ -17895,7 +17891,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
           assert.equal(harness.offeredMessages.at(-1)?.priority, "now");
           if (backgrounding === "never answers") {
             for (let repeat = 1; repeat <= 2; repeat++) {
-              const again = yield* Effect.forkScoped(steer);
+              const again = yield* Effect.forkScoped(steer, { startImmediately: true });
               yield* TestClock.adjust("5 seconds");
               assert.isTrue(Exit.isSuccess(yield* Fiber.await(again)));
               assert.equal(harness.offeredMessages.length, offered + 1 + repeat);
@@ -17903,7 +17899,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
             assert.deepEqual(calls, [FOREGROUND_TOOL_USE_ID]);
           }
           if (backgrounding === "answers after the steer went out") {
-            yield* TestClock.adjust("1 second");
+            yield* Deferred.succeed(lateAnswer, undefined);
           } else if (
             backgrounding !== "succeeds" &&
             backgrounding !== "answers after the subagent ran again"
