@@ -28,7 +28,7 @@ import type {
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -897,7 +897,6 @@ export function ResourceTelemetryDiagnostics({
         refreshHistory();
         const selectedHistory = selectedHistoryRef.current;
         if (
-          environmentIdRef.current === environmentId &&
           selectedHistory.environmentId === environmentId &&
           selectedHistory.windowMs !== windowMs
         ) {

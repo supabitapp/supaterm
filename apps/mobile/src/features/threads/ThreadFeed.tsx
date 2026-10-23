@@ -828,6 +828,7 @@ const THREAD_MEDIA_VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 0 };
 
 // UIKit does not find a feed that mounts after the screen appears, as on a draft's first send.
 // Unregistered, the header loses its scroll-edge blur and the title draws over the feed.
+// Header minimization observes this scroll view.
 function ThreadFeedScrollView(props: ComponentPropsWithRef<typeof Animated.ScrollView>) {
   return (
     <NativeScrollViewMarker style={{ flex: 1 }}>
