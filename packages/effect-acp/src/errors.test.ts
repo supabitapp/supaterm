@@ -81,14 +81,16 @@ describe("effect-acp errors", () => {
     });
   });
 
-  it("does not expose legacy diagnostic detail as the transport message", () => {
+  it("includes the authored detail but not the cause in the transport message", () => {
     const cause = new Error("connection refused at a private endpoint");
     const error = new AcpError.AcpTransportError({
-      detail: cause.message,
+      detail: "ACP replay did not consume all frames",
       cause,
     });
 
-    expect(error.message).toBe("ACP transport operation failed.");
+    expect(error.message).toBe(
+      "ACP transport operation failed: ACP replay did not consume all frames.",
+    );
     expect(error.cause).toBe(cause);
   });
 
