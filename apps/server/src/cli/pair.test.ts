@@ -13,6 +13,7 @@ import {
 import * as NetService from "@supaterm/shared/Net";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { assert, describe, expect, it } from "@effect/vitest";
+import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
@@ -508,6 +509,49 @@ describe("supaterm pair", () => {
       );
       assert.include(rendered, "No running Supaterm server found.");
     }).pipe(Effect.provide(NodeServices.layer)),
+  );
+
+  // regression: minting opens the target database with this checkout's
+  // migrations, so a worktree must never fall back to the live install.
+  it.effect("does not fall back to the shared home from a linked worktree", () =>
+    withDescriptorServer((origin) =>
+      Effect.gen(function* () {
+        const root = NodeFS.mkdtempSync(
+          NodePath.join(NodeOS.tmpdir(), "supaterm-pair-worktree-test-"),
+        );
+        const worktree = NodePath.join(root, "worktree");
+        NodeFS.mkdirSync(worktree);
+        NodeFS.writeFileSync(
+          NodePath.join(worktree, ".git"),
+          `gitdir: ${NodePath.join(root, "repo", ".git", "worktrees", "worktree")}\n`,
+        );
+        const sharedHome = NodePath.join(root, "shared");
+        yield* persistServerRuntimeState({
+          path: NodePath.join(sharedHome, "userdata", "server-runtime.json"),
+          state: yield* makePersistedServerRuntimeState({
+            config: { host: "127.0.0.1", devUrl: undefined },
+            port: Number(new URL(origin).port),
+          }),
+        });
+
+        const error = yield* provideCliTestLayers(
+          runCli(["pair"]).pipe(
+            Effect.provideService(HostProcess.WorkingDirectory, worktree),
+            Effect.provide(
+              ConfigProvider.layer(ConfigProvider.fromEnv({ env: { SUPATERM_HOME: sharedHome } })),
+            ),
+            Effect.flip,
+          ),
+        );
+
+        assert.include(String(error), "No running Supaterm server found.");
+        assert.include(String(error), "pass --base-dir");
+        assert.notInclude(String(error), sharedHome);
+        assert.deepEqual(NodeFS.readdirSync(NodePath.join(sharedHome, "userdata")), [
+          "server-runtime.json",
+        ]);
+      }),
+    ).pipe(Effect.provide(NodeServices.layer)),
   );
 
   // Without the capability `tailscale serve` blocks on an enablement URL, so

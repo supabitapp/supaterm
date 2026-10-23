@@ -46,9 +46,13 @@ describe("AcpMcpStdioBridge", () => {
     }),
   );
 
-  it.effect("calls one tool through a fresh authenticated MCP session", () =>
+  it.effect("calls one tool through a fresh authenticated MCP session and ends it", () =>
     Effect.gen(function* () {
-      const requests: Array<{ readonly body: unknown; readonly headers: Headers }> = [];
+      const requests: Array<{
+        readonly method: string | undefined;
+        readonly body: unknown;
+        readonly headers: Headers;
+      }> = [];
       const result = yield* callAcpMcpTool({
         endpoint: "http://127.0.0.1:1/mcp",
         authorization: "Bearer bridge-test",
@@ -57,9 +61,9 @@ describe("AcpMcpStdioBridge", () => {
         fetchImplementation: async (_url, init) => {
           const headers = new Headers(init?.headers);
           const body: unknown = JSON.parse(String(init?.body ?? "{}"));
-          requests.push({ body, headers });
+          requests.push({ method: init?.method, body, headers });
           const request = body as { readonly id?: unknown; readonly method?: unknown };
-          if (request.method === "notifications/initialized") {
+          if (init?.method === "DELETE" || request.method === "notifications/initialized") {
             return new Response(null, { status: 202 });
           }
           return new Response(
@@ -79,7 +83,7 @@ describe("AcpMcpStdioBridge", () => {
       });
 
       expect(result).toEqual({ structuredContent: { providers: ["codex"] } });
-      expect(requests).toHaveLength(3);
+      expect(requests).toHaveLength(4);
       expect(requests[0]?.headers.get("authorization")).toBe("Bearer bridge-test");
       expect(requests[1]?.headers.get("mcp-session-id")).toBe("session-42");
       expect(requests[2]?.headers.get("mcp-protocol-version")).toBe("2025-06-18");
@@ -87,6 +91,8 @@ describe("AcpMcpStdioBridge", () => {
         method: "tools/call",
         params: { name: "orchestrator_capabilities", arguments: {} },
       });
+      expect(requests[3]?.method).toBe("DELETE");
+      expect(requests[3]?.headers.get("mcp-session-id")).toBe("session-42");
     }),
   );
 

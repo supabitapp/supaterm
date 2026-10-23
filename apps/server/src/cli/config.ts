@@ -1,3 +1,5 @@
+import { resolveWorktreeSupatermHome } from "@supaterm/shared/devHome";
+import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as NetService from "@supaterm/shared/Net";
 import {
   OtlpHeadersFromString,
@@ -488,6 +490,19 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
   };
 
   return config;
+});
+
+/**
+ * Same precedence as dev-runner: without --base-dir, a linked worktree's own
+ * `.supaterm` is the only home that counts. Commands that open the target
+ * database run this checkout's migrations, so falling back to the shared home
+ * could migrate the live install with unreleased schema.
+ */
+export const resolveCliWorktreeHome = Effect.fn("config.resolveCliWorktreeHome")(function* (
+  explicitBaseDir: Option.Option<string>,
+) {
+  if (Option.exists(explicitBaseDir, (value) => value.trim().length > 0)) return undefined;
+  return yield* resolveWorktreeSupatermHome(yield* HostProcess.WorkingDirectory);
 });
 
 export const resolveCliAuthConfig = (

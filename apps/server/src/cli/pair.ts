@@ -4,9 +4,9 @@
  *
  * Discovery reads the `server-runtime.json` a live server persists next to its
  * database, then confirms the process is actually answering by fetching its
- * public environment descriptor. Inside a linked git worktree the worktree's
- * own `.supaterm` is checked first (matching dev-runner precedence); otherwise the
- * shared Supaterm home.
+ * public environment descriptor. Inside a linked git worktree only the
+ * worktree's own `.supaterm` is checked (matching dev-runner precedence);
+ * otherwise the shared Supaterm home.
  */
 import {
   type AuthEnvironmentScope,
@@ -16,7 +16,6 @@ import {
   ExecutionEnvironmentDescriptor,
   PortSchema,
 } from "@supaterm/contracts";
-import { resolveWorktreeSupatermHome } from "@supaterm/shared/devHome";
 import { buildPairingUrl } from "@supaterm/shared/remote";
 import { relayName } from "@supaterm/shared/relay/name";
 import * as NodeOS from "node:os";
@@ -58,7 +57,7 @@ import {
   resolveHeadlessConnectionString,
 } from "../startupAccess.ts";
 import { authScopesFlag } from "./authScopes.ts";
-import { baseDirFlag, DurationFromString } from "./config.ts";
+import { baseDirFlag, DurationFromString, resolveCliWorktreeHome } from "./config.ts";
 
 const WELL_KNOWN_ENVIRONMENT_PATH = "/.well-known/supaterm/environment";
 const PAIR_PROBE_TIMEOUT = Duration.millis(2_500);
@@ -77,12 +76,16 @@ export class NoRunningServerError extends Schema.TaggedError<NoRunningServerErro
   "NoRunningServerError",
   {
     checkedStatePaths: Schema.Array(Schema.String),
+    inLinkedWorktree: Schema.Boolean,
   },
 ) {
   override get message(): string {
     return [
       "No running Supaterm server found.",
       ...this.checkedStatePaths.map((statePath) => `  checked ${statePath}`),
+      ...(this.inLinkedWorktree
+        ? ["In a linked worktree, pass --base-dir to pair with a server outside it."]
+        : []),
       "Start one with `supaterm serve`.",
     ].join("\n");
   }
@@ -262,16 +265,12 @@ const discoverPairTarget = Effect.fn("pair.discoverPairTarget")(function* (
   explicitBaseDir: string | undefined,
 ) {
   const bases: Array<string> = [];
-  if (explicitBaseDir !== undefined && explicitBaseDir.trim().length > 0) {
+  const worktreeHome = yield* resolveCliWorktreeHome(Option.fromUndefinedOr(explicitBaseDir));
+  if (worktreeHome !== undefined) {
+    bases.push(worktreeHome);
+  } else if (explicitBaseDir !== undefined && explicitBaseDir.trim().length > 0) {
     bases.push(yield* resolveBaseDir(explicitBaseDir));
   } else {
-    // Same precedence as dev-runner: inside a linked worktree its own `.supaterm`
-    // outranks the shared home, so `supaterm pair` in a worktree pairs with the dev
-    // server under test rather than the daily-driver install.
-    const worktreeHome = yield* resolveWorktreeSupatermHome(process.cwd());
-    if (worktreeHome !== undefined) {
-      bases.push(worktreeHome);
-    }
     const envHome = yield* Config.String("SUPATERM_HOME").pipe(Config.option);
     bases.push(yield* resolveBaseDir(Option.getOrUndefined(envHome)));
   }
@@ -308,7 +307,10 @@ const discoverPairTarget = Effect.fn("pair.discoverPairTarget")(function* (
       } satisfies DiscoveredPairTarget;
     }
   }
-  return yield* new NoRunningServerError({ checkedStatePaths });
+  return yield* new NoRunningServerError({
+    checkedStatePaths,
+    inLinkedWorktree: worktreeHome !== undefined,
+  });
 });
 
 /**
