@@ -38,6 +38,7 @@ import { useProjectCloneBanner } from "./chat/useProjectCloneBanner";
 import { useAttachmentPreviewHandoff } from "./chat/useAttachmentPreviewHandoff";
 import { usePullRequestDraftThread } from "./chat/usePullRequestDraftThread";
 import { useTimelineFollow } from "./chat/useTimelineFollow";
+import { useTimelineRewind } from "./chat/useTimelineRewind";
 import { useDraftEnvironmentRouting } from "./chat/useDraftEnvironmentRouting";
 import {
   backgroundWorkBannerItem,
@@ -52,7 +53,7 @@ import {
 import { usePasteToFocusComposer } from "./chat/usePasteToFocusComposer";
 import { useDraftHeroLayoutTransition } from "./chat/useDraftHeroLayoutTransition";
 import { useLocalDispatchState } from "./chat/useLocalDispatchState";
-import { draftFanoutSelectionsAtom, draftSendState, rewindToMessage } from "./chat/chatViewSend";
+import { draftFanoutSelectionsAtom, draftSendState } from "./chat/chatViewSend";
 import {
   isPaintOnlyThreadTimeline,
   peekHeldThreadTimeline,
@@ -123,10 +124,7 @@ import {
   resolveWorkflowOpening,
   workflowOpeningParentThreadId,
 } from "@supaterm/client-runtime/state/subagentRuntime";
-import {
-  resolveThreadForkSource,
-  threadSupportsProviderHandoff,
-} from "@supaterm/client-runtime/state/thread-workflows";
+import { threadSupportsProviderHandoff } from "@supaterm/client-runtime/state/thread-workflows";
 import { resolvePendingHandoff } from "@supaterm/client-runtime/handoff";
 import { HandoffRow } from "./chat/V2LifecycleRow";
 import {
@@ -178,10 +176,8 @@ import {
 } from "@supaterm/client-runtime/state/runtime";
 import { AsyncResult } from "effect/reactivity";
 import { isElectron } from "../env";
-import { readLocalApi } from "../localApi";
 import { useDiffPanelStore } from "../diffPanelStore";
 import { useActiveThreadRef } from "../hooks/useActiveThreadRef";
-import { useForkThread } from "../hooks/useForkThread";
 import { type ComposerSubmissionIntent, composerRequiresModifier } from "../composer-logic";
 import {
   derivePhase,
@@ -361,7 +357,6 @@ import { ExpandedImageDialogHost, openExpandedImagePreview } from "./chat/Expand
 import {
   DeviceSetupDialogHost,
   openDeviceSetupDialog,
-  openRevertConfirm,
   PullRequestThreadDialogHost,
   RevertConfirmHost,
 } from "./chat/ChatOverlayHosts";
@@ -624,9 +619,6 @@ export default function ChatView(props: ChatViewProps) {
   });
   const loadEarlierThreadHistory = useAtomCommand(threadEnvironment.loadEarlierHistory, {
     label: "load earlier thread history",
-    reportFailure: false,
-  });
-  const revertThreadCheckpoint = useOrchestrationCommand(threadEnvironment.revertCheckpoint, {
     reportFailure: false,
   });
   const openPreview = useAtomCommand(previewEnvironment.open, { reportFailure: false });
@@ -3705,26 +3697,35 @@ export default function ChatView(props: ChatViewProps) {
     terminalUiOpenByThreadRef.current[activeThreadKey] = current;
   }, [activeThreadKey, focusComposerStable, terminalUiState.terminalOpen]);
 
-  const { onForkFromRun: forkFromRun, disabled: forkDisabled } = useForkThread(
-    isServerThread ? activeThread : null,
-    isRevertingCheckpoint || threadDetailLoading || activeEnvironmentUnavailable,
-  );
-  const forkSource = serverProjection === null ? null : resolveThreadForkSource(serverProjection);
-  const onForkFromRun = async (source: {
-    readonly sourceThreadId: ThreadId;
-    readonly runId: RunId;
-  }) => {
-    try {
-      await forkFromRun(source);
-    } catch (error) {
-      if (!activeThread) return;
-      setThreadError(
-        activeThread.id,
-        error instanceof Error ? error.message : "Failed to fork this response.",
-      );
-    }
-  };
-  const onForkFromRunStable = useStableCallback(onForkFromRun);
+  const {
+    forkSource,
+    forkDisabled,
+    onConfirmRevertStable,
+    onForkFromRunStable,
+    onRevertTimelineTurnStable,
+  } = useTimelineRewind({
+    environmentId,
+    routeThreadRef,
+    routeThreadKey,
+    currentRouteThreadKeyRef,
+    serverProjection,
+    activeThread,
+    isServerThread,
+    timelineMessages,
+    phase,
+    isConnecting,
+    isSendBusy,
+    isRevertingCheckpoint,
+    threadDetailLoading,
+    supportsConversationRollback,
+    activeEnvironmentUnavailable,
+    activeEnvironmentUnavailableLabel,
+    promptRef,
+    composerRef,
+    composerDraftTarget,
+    setThreadError,
+    focusComposer: focusComposerStable,
+  });
 
   const getShortcutContext = (eventTarget: EventTarget | null = document.activeElement) => ({
     terminalFocus: getTerminalFocusOwner() !== null,
@@ -3965,87 +3966,6 @@ export default function ChatView(props: ChatViewProps) {
   }, [isPaneInputOwner, toggleRightPanelStable, toggleRightPanelMaximizedStable]);
 
   usePasteToFocusComposer(activeThreadId, composerRef);
-
-  const onRevertToTurnCount = async (
-    turnCount: number,
-    messageId: MessageId,
-    restoreFiles?: boolean,
-  ) => {
-    const localApi = readLocalApi();
-    if (
-      !localApi ||
-      !activeThread ||
-      isRevertingCheckpoint ||
-      !readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)
-    )
-      return;
-    const message = timelineMessages.find((message) => message.id === messageId);
-    if (!message || message.role !== "user") return;
-
-    if (!supportsConversationRollback) {
-      setThreadError(
-        activeThread.id,
-        "This provider does not support reverting conversation history. Start a new thread instead.",
-      );
-      return;
-    }
-    if (activeEnvironmentUnavailable && activeEnvironmentUnavailableLabel) {
-      setThreadError(
-        activeThread.id,
-        `Reconnect ${activeEnvironmentUnavailableLabel} before reverting checkpoints.`,
-      );
-      return;
-    }
-    if (phase === "running" || isSendBusy || isConnecting) {
-      setThreadError(activeThread.id, "Interrupt the current turn before reverting checkpoints.");
-      return;
-    }
-    if (restoreFiles === undefined) {
-      openRevertConfirm(routeThreadKey, { turnCount, messageId });
-      return;
-    }
-
-    useComposerDraftStore.setState((store) => ({
-      rewindingThreadKeys: new Set(store.rewindingThreadKeys).add(routeThreadKey),
-    }));
-    setThreadError(activeThread.id, null);
-    const rewind = await rewindToMessage({
-      message,
-      environmentId,
-      routeThreadRef,
-      threadId: activeThread.id,
-      turnCount,
-      restoreFiles,
-      // Keep the live checkpoint identity when command context refetches a bounded window.
-      checkpoint: findRevertCheckpoint(serverProjection?.checkpoints ?? [], turnCount),
-      draftTarget: composerDraftTarget,
-      composerHasPendingAttachments: composerRef.current?.hasPendingAttachments() === true,
-      createAssetUrl: createAttachmentAssetUrl,
-      revertThreadCheckpoint,
-    });
-    useComposerDraftStore.setState((store) => {
-      const remaining = new Set(store.rewindingThreadKeys);
-      remaining.delete(routeThreadKey);
-      return { rewindingThreadKeys: remaining };
-    });
-    if (rewind.error !== null) {
-      setThreadError(activeThread.id, rewind.error);
-      return;
-    }
-    if (currentRouteThreadKeyRef.current === routeThreadKey) {
-      const nextPrompt = rewind.prompt;
-      promptRef.current = nextPrompt;
-      composerRef.current?.resetCursorState({ prompt: nextPrompt, cursor: nextPrompt.length });
-      requestAnimationFrame(() => {
-        if (currentRouteThreadKeyRef.current === routeThreadKey) focusComposerStable();
-      });
-    }
-  };
-  const onRevertToTurnCountStable = useStableCallback(onRevertToTurnCount);
-  const onConfirmRevert = (turnCount: number, messageId: MessageId, restoreFiles: boolean) => {
-    void onRevertToTurnCount(turnCount, messageId, restoreFiles);
-  };
-  const onConfirmRevertStable = useStableCallback(onConfirmRevert);
 
   const onCompactContext = () => {
     if (compactDisabled) return;
@@ -4968,10 +4888,6 @@ export default function ChatView(props: ChatViewProps) {
     onDiffPanelOpen?.();
   };
   const onOpenTurnDiffStable = useStableCallback(onOpenTurnDiff);
-  const onRevertTimelineTurn = (targetTurnCount: number, messageId: MessageId) => {
-    void onRevertToTurnCountStable(targetTurnCount, messageId);
-  };
-  const onRevertTimelineTurnStable = useStableCallback(onRevertTimelineTurn);
 
   const pendingSidebarFileDrops = useSidebarPendingFileDropStore((state) => state.pending);
   const consumePendingFileDrop = useSidebarPendingFileDropStore(
