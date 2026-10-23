@@ -9,6 +9,11 @@ import {
   usageLimitRunPresentedAsLatest,
 } from "@supaterm/shared/orchestrationV2ThreadError";
 import * as Option from "effect/Option";
+import type { ComposerDispatchMode } from "@supaterm/client-runtime/state/composer-dispatch";
+import type { ThreadContextRecord } from "@supaterm/contracts";
+import { removeInlineContextReference } from "~/lib/composerContextReferences";
+import { terminalContextReference } from "../lib/composerContextRecords";
+import type { ReviewCommentContext } from "../reviewCommentContext";
 import type { SetStateAction } from "react";
 import { applyClaudePromptEffortPrefix, resolvePromptInjectedEffort } from "@supaterm/shared/model";
 import { getProviderModelCapabilities } from "../providerModels";
@@ -63,7 +68,12 @@ import {
   type Thread,
   type TurnDiffSummary,
 } from "../types";
-import type { ComposerImageAttachment, DraftId, DraftThreadState } from "../composerDraftStore";
+import type {
+  ComposerFileAttachment,
+  ComposerImageAttachment,
+  DraftId,
+  DraftThreadState,
+} from "../composerDraftStore";
 import * as Schema from "effect/Schema";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { environmentThreadDetails } from "../state/threads";
@@ -1515,4 +1525,78 @@ export function deriveWorkspaceMutationId(
   return itemId === null && latestCheckpointCompletedAt === null
     ? null
     : JSON.stringify([itemId, latestCheckpointCompletedAt]);
+}
+
+/** What the composer held when the user pressed send, after a direct annotation merged in. */
+export interface ComposerSendContents {
+  readonly prompt: string;
+  readonly images: ReadonlyArray<ComposerImageAttachment>;
+  readonly files: ReadonlyArray<ComposerFileAttachment>;
+  readonly terminalContexts: ReadonlyArray<TerminalContextDraft>;
+  readonly sendableTerminalContexts: ReadonlyArray<TerminalContextDraft>;
+  readonly previewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
+  readonly reviewComments: ReadonlyArray<ReviewCommentContext>;
+  readonly threadContexts: ReadonlyArray<ThreadContextRecord>;
+}
+
+/**
+ * Copies the composer contents a send dispatches. Terminal contexts that lost
+ * their text are dropped from both the contexts and the prompt's inline references.
+ */
+export function snapshotComposerSend(contents: ComposerSendContents) {
+  const images = [...contents.images];
+  const files = [...contents.files];
+  const terminalContexts = [...contents.sendableTerminalContexts];
+  return {
+    images,
+    files,
+    attachments: [...images, ...files],
+    terminalContexts,
+    previewAnnotations: [...contents.previewAnnotations],
+    reviewComments: [...contents.reviewComments],
+    threadContexts: [...contents.threadContexts],
+    messageText: contents.terminalContexts
+      .filter((context) => !terminalContexts.includes(context))
+      .reduce(
+        (text, context) =>
+          removeInlineContextReference(text, terminalContextReference(context).contextId).prompt,
+        contents.prompt,
+      )
+      .trim(),
+  };
+}
+
+export type ComposerSendSnapshot = ReturnType<typeof snapshotComposerSend>;
+
+/**
+ * How a composer send dispatches: whether a new draft gets a worktree, and whether the
+ * message waits behind other work. Only a local draft can create a worktree, and a missing
+ * base branch blocks it only once the branch list has loaded.
+ */
+export function planComposerTurn(input: {
+  readonly sendQueuesBehindSetup: boolean;
+  readonly isLocalDraftThread: boolean;
+  readonly sendEnvMode: DraftThreadEnvMode;
+  readonly worktreePath: string | null;
+  readonly activeThreadBranch: string | null;
+  readonly worktreeBaseRefsSettled: boolean;
+  readonly environmentUnavailable: boolean;
+  readonly phase: SessionPhase;
+  readonly dispatchMode: ComposerDispatchMode;
+}) {
+  const shouldCreateWorktree =
+    input.isLocalDraftThread && input.sendEnvMode === "worktree" && !input.worktreePath;
+  return {
+    shouldCreateWorktree,
+    missingWorktreeBaseBranch: shouldRequireWorktreeBaseBranch({
+      shouldCreateWorktree,
+      activeThreadBranch: input.activeThreadBranch,
+      refsSettled: input.worktreeBaseRefsSettled,
+      environmentUnavailable: input.environmentUnavailable,
+    }),
+    baseBranchForWorktree: shouldCreateWorktree ? input.activeThreadBranch : null,
+    turnDispatchMode: input.sendQueuesBehindSetup ? ("queue" as const) : input.dispatchMode,
+    shouldQueueBehindActiveRun:
+      input.sendQueuesBehindSetup || (input.phase === "running" && input.dispatchMode === "queue"),
+  };
 }

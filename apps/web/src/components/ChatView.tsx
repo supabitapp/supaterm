@@ -12,6 +12,8 @@ import { ThreadFind, ThreadFindCanvas, type ThreadFindControls } from "./chat/Th
 import { THREAD_FIND_BAR_RESERVED_HEIGHT } from "./chat/ThreadFindBar";
 import { usageLimitRecoveryBannerItem } from "./chat/UsageLimitRecoveryBanner";
 import {
+  planComposerTurn,
+  snapshotComposerSend,
   deriveAvailableRevertTurnCounts,
   deriveThreadPendingBackgroundTasks,
   deriveWorkspaceMutationId,
@@ -47,7 +49,12 @@ import {
 import { usePasteToFocusComposer } from "./chat/usePasteToFocusComposer";
 import { useDraftHeroLayoutTransition } from "./chat/useDraftHeroLayoutTransition";
 import { useLocalDispatchState } from "./chat/useLocalDispatchState";
-import { draftFanoutSelectionsAtom, draftSendState } from "./chat/chatViewSend";
+import {
+  draftFanoutSelectionsAtom,
+  draftSendState,
+  type MultipleModelTarget,
+  resolveMultipleModelTargets,
+} from "./chat/chatViewSend";
 import {
   isPaintOnlyThreadTimeline,
   peekHeldThreadTimeline,
@@ -126,11 +133,7 @@ import {
   scopeProjectRef,
   scopeThreadRef,
 } from "@supaterm/client-runtime/environment";
-import {
-  createModelSelection,
-  formatModelSlugName,
-  resolveSelectableModel,
-} from "@supaterm/shared/model";
+import { formatModelSlugName, resolveSelectableModel } from "@supaterm/shared/model";
 import { projectScriptCwd, resolveProjectScripts } from "@supaterm/shared/projectScripts";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 import { sourceControlRepositorySelector } from "@supaterm/shared/sourceControl";
@@ -244,10 +247,6 @@ import {
 import { usePanelAnimationSettings, usePanelPresence } from "../panelAnimations";
 import { useNewThreadHandler } from "../hooks/useHandleNewThread";
 import { useOpenPanelPullRequestUrl } from "../hooks/useOpenPanelPullRequestUrl";
-import {
-  getComposerPromptInjectionState,
-  getComposerProviderState,
-} from "./chat/composerProviderState";
 import { isPreviewFocused } from "../lib/previewFocus";
 import { getTerminalFocusOwner } from "../lib/terminalFocus";
 import {
@@ -271,14 +270,11 @@ import { formatTerminalContextLabel, type TerminalContextDraft } from "../lib/te
 import {
   collectInlineContextIds,
   ensureInlineContextReferences,
-  removeInlineContextReference,
 } from "../lib/composerContextReferences";
 import {
   buildMessageContext,
   previewAnnotationContextReference,
-  terminalContextReference,
 } from "../lib/composerContextRecords";
-import { type ReviewCommentContext } from "../reviewCommentContext";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { useKnownTerminalSessions, useThreadRunningTerminalIds } from "../state/terminalSessions";
 import { useEnvironmentQuery } from "../state/query";
@@ -388,7 +384,6 @@ import {
   deriveLockedProvider,
   resolveFileAttachmentUrl,
   resolveComposerProviderSelection,
-  getAntigravitySendBlockReason,
   resolveThreadMetadataUpdateForNextTurn,
   resolveSendEnvMode,
   shouldRequireWorktreeBaseBranch,
@@ -3386,56 +3381,54 @@ export default function ChatView(props: ChatViewProps) {
       return;
     }
     const threadIdForSend = activeThread.id;
-    const shouldCreateWorktree =
-      isLocalDraftThread && sendEnvMode === "worktree" && !activeThread.worktreePath;
-    const baseBranchForWorktree = shouldCreateWorktree ? activeThreadBranch : null;
-    if (
-      shouldRequireWorktreeBaseBranch({
-        shouldCreateWorktree,
-        activeThreadBranch,
-        refsSettled: worktreeBaseRefsSettled,
-        environmentUnavailable: activeEnvironmentUnavailable,
-      })
-    ) {
+    const {
+      shouldCreateWorktree,
+      missingWorktreeBaseBranch,
+      baseBranchForWorktree,
+      turnDispatchMode,
+      shouldQueueBehindActiveRun,
+    } = planComposerTurn({
+      sendQueuesBehindSetup,
+      isLocalDraftThread,
+      sendEnvMode,
+      worktreePath: activeThread.worktreePath,
+      activeThreadBranch,
+      worktreeBaseRefsSettled,
+      environmentUnavailable: activeEnvironmentUnavailable,
+      phase,
+      dispatchMode,
+    });
+    if (missingWorktreeBaseBranch) {
       setThreadError(threadIdForSend, "Select a base branch before sending in New worktree mode.");
       return;
     }
 
-    const composerImagesSnapshot = [...composerImages];
-    const composerFilesSnapshot = [...composerFiles];
-    const composerAttachmentsSnapshot = [...composerImagesSnapshot, ...composerFilesSnapshot];
-    const composerTerminalContextsSnapshot = [...sendableComposerTerminalContexts];
-    const composerPreviewAnnotationsSnapshot = [...composerPreviewAnnotations];
-    const composerReviewCommentsSnapshot: ReviewCommentContext[] = [...composerReviewComments];
-    const composerThreadContextsSnapshot = [...composerThreadContexts];
-    const messageTextForSend = composerTerminalContexts
-      .filter((context) => !composerTerminalContextsSnapshot.includes(context))
-      .reduce(
-        (text, context) =>
-          removeInlineContextReference(text, terminalContextReference(context).contextId).prompt,
-        promptForSend,
-      )
-      .trim();
-    // Records bind attachments by the id each side knows: the local id for the optimistic
-    // row, the upload id (or local id on the data-URL path) on the wire; the server
-    // rebinds them to the persisted id.
-    const buildOutgoingMessageContext = (attachmentIds: ReadonlyArray<string>) =>
-      buildMessageContext({
-        terminalContexts: composerTerminalContextsSnapshot,
-        reviewComments: composerReviewCommentsSnapshot,
-        previewAnnotations: composerPreviewAnnotationsSnapshot,
-        threadContexts: composerThreadContextsSnapshot,
-        attachments: composerAttachmentsSnapshot.map((attachment, index) => ({
-          attachment,
-          attachmentId: attachmentIds[index] ?? attachment.id,
-        })),
-      });
-    const outgoingMessageContext = buildOutgoingMessageContext(
-      composerAttachmentsSnapshot.map((attachment) => attachment.id),
-    );
+    const sendSnapshot = snapshotComposerSend({
+      prompt: promptForSend,
+      images: composerImages,
+      files: composerFiles,
+      terminalContexts: composerTerminalContexts,
+      sendableTerminalContexts: sendableComposerTerminalContexts,
+      previewAnnotations: composerPreviewAnnotations,
+      reviewComments: composerReviewComments,
+      threadContexts: composerThreadContexts,
+    });
+    const composerAttachmentsSnapshot = sendSnapshot.attachments;
+    const messageTextForSend = sendSnapshot.messageText;
+    // Records bind attachments by their local id; the outbox rebinds them to the upload id
+    // on delivery and the server to the persisted id.
+    const outgoingMessageContext = buildMessageContext({
+      terminalContexts: sendSnapshot.terminalContexts,
+      reviewComments: sendSnapshot.reviewComments,
+      previewAnnotations: sendSnapshot.previewAnnotations,
+      threadContexts: sendSnapshot.threadContexts,
+      attachments: composerAttachmentsSnapshot.map((attachment) => ({
+        attachment,
+        attachmentId: attachment.id,
+      })),
+    });
     const messageIdForSend = newMessageId();
     const messageCreatedAt = new Date().toISOString();
-    const turnDispatchMode = sendQueuesBehindSetup ? "queue" : dispatchMode;
     const outgoingMessageText = formatOutgoingPrompt({
       provider: ctxSelectedProvider,
       model: ctxSelectedModel,
@@ -3447,48 +3440,19 @@ export default function ChatView(props: ChatViewProps) {
       return;
     }
 
-    const multipleTargets: Array<{
-      readonly selection: ModelSelection;
-      readonly text: string;
-      readonly interactionMode: ProviderInteractionMode;
-    }> = [];
-    for (const selection of multipleModelSelections ?? []) {
-      const provider = providerInstanceEntries.find(
-        (entry) => entry.instanceId === selection.instanceId,
-      );
-      if (!provider?.enabled || !provider.isAvailable || provider.status !== "ready") {
-        setThreadError(threadIdForSend, `Provider for ${selection.model} is unavailable.`);
+    const multipleTargets: MultipleModelTarget[] = [];
+    for (const target of resolveMultipleModelTargets({
+      selections: multipleModelSelections ?? [],
+      providerInstanceEntries,
+      messageText: messageTextForSend,
+      interactionMode: sendInteractionMode,
+    })) {
+      if ("error" in target) {
+        setThreadError(threadIdForSend, target.error);
         return;
       }
-      const providerBlockReason = getAntigravitySendBlockReason(provider.snapshot, selection.model);
-      if (providerBlockReason) {
-        setThreadError(threadIdForSend, providerBlockReason);
-        return;
-      }
-      const providerState = getComposerProviderState({
-        provider: provider.driverKind,
-        model: selection.model,
-        models: provider.models,
-        modelOptions: selection.options,
-        promptInjectionState: getComposerPromptInjectionState(messageTextForSend),
-      });
-      const text = formatOutgoingPrompt({
-        provider: provider.driverKind,
-        model: selection.model,
-        models: provider.models,
-        effort: providerState.promptEffort,
-        text: messageTextForSend || ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
-      });
-      if (composerRef.current?.validateProviderInput(text) === false) return;
-      multipleTargets.push({
-        selection: createModelSelection(
-          selection.instanceId,
-          selection.model,
-          providerState.modelOptionsForDispatch,
-        ),
-        text,
-        interactionMode: sendInteractionMode,
-      });
+      if (composerRef.current?.validateProviderInput(target.text) === false) return;
+      multipleTargets.push(target);
     }
 
     sendInFlightRef.current = true;
@@ -3585,7 +3549,7 @@ export default function ChatView(props: ChatViewProps) {
           type: attachment.type,
           name: attachment.name,
         })),
-        fallbackLabels: composerTerminalContextsSnapshot.map(formatTerminalContextLabel),
+        fallbackLabels: sendSnapshot.terminalContexts.map(formatTerminalContextLabel),
       });
       const localAttachments = captureOutboxAttachments(environmentId, composerAttachmentsSnapshot);
       const targets =
@@ -3668,11 +3632,7 @@ export default function ChatView(props: ChatViewProps) {
           };
         }),
       );
-      if (
-        multipleModelSelections === null &&
-        !sendQueuesBehindSetup &&
-        !(phase === "running" && dispatchMode === "queue")
-      ) {
+      if (multipleModelSelections === null && !shouldQueueBehindActiveRun) {
         // Anchor the sent turn when its acknowledged row arrives in the transcript.
         anchorNewTurn(
           scopedThreadKey(scopeThreadRef(environmentId, threadIdForSend)),

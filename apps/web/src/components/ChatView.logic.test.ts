@@ -1,6 +1,8 @@
 import {
   deriveAvailableRevertTurnCounts,
   deriveWorkspaceMutationId,
+  planComposerTurn,
+  snapshotComposerSend,
   findRecordedWorktreeSetup,
   isThreadWokeUnseen,
   mergeDirectPreviewAnnotation,
@@ -17,6 +19,8 @@ import {
   type ServerProvider,
 } from "@supaterm/contracts";
 import { deriveProviderInstanceEntries, NO_PROVIDER_MODEL_SELECTION } from "../providerInstances";
+import { ensureInlineContextReferences } from "../lib/composerContextReferences";
+import { terminalContextReference } from "../lib/composerContextRecords";
 import { headlineUsageWindows } from "@supaterm/shared/usageLimits";
 import { selectThreadDiffPanelSelection, useDiffPanelStore } from "../diffPanelStore";
 import {
@@ -2637,5 +2641,97 @@ describe("deriveWorkspaceMutationId", () => {
     expect(deriveWorkspaceMutationId([item("reply", "assistant_message", "completed")], null)).toBe(
       null,
     );
+  });
+});
+
+describe("snapshotComposerSend", () => {
+  const expired = {
+    id: "ctx-expired",
+    threadId,
+    terminalId: "default",
+    terminalLabel: "Terminal 1",
+    lineStart: 4,
+    lineEnd: 4,
+    text: "",
+    createdAt: now,
+  };
+  const live = { ...expired, id: "ctx-live", text: "pnpm test", lineStart: 9, lineEnd: 9 };
+  const contents = {
+    prompt: ensureInlineContextReferences("run", [
+      terminalContextReference(expired),
+      terminalContextReference(live),
+    ]),
+    images: [],
+    files: [],
+    terminalContexts: [expired, live],
+    sendableTerminalContexts: [live],
+    previewAnnotations: [],
+    reviewComments: [],
+    threadContexts: [],
+  };
+
+  it("drops expired terminal contexts from the contexts and from the prompt", () => {
+    const snapshot = snapshotComposerSend(contents);
+
+    expect(snapshot.terminalContexts).toEqual([live]);
+    expect(snapshot.messageText).toBe(
+      ensureInlineContextReferences("run", [terminalContextReference(live)]).trim(),
+    );
+  });
+});
+
+describe("planComposerTurn", () => {
+  const base = {
+    sendQueuesBehindSetup: false,
+    isLocalDraftThread: true,
+    sendEnvMode: "worktree" as const,
+    worktreePath: null,
+    activeThreadBranch: "main",
+    worktreeBaseRefsSettled: true,
+    environmentUnavailable: false,
+    phase: "ready" as const,
+    dispatchMode: "auto" as const,
+  };
+
+  it("prepares a worktree from the selected branch on a new draft", () => {
+    expect(planComposerTurn(base)).toMatchObject({
+      shouldCreateWorktree: true,
+      missingWorktreeBaseBranch: false,
+      baseBranchForWorktree: "main",
+      shouldQueueBehindActiveRun: false,
+    });
+  });
+
+  it("refuses a new worktree without a base branch once the branches have loaded", () => {
+    expect(planComposerTurn({ ...base, activeThreadBranch: null })).toMatchObject({
+      missingWorktreeBaseBranch: true,
+      baseBranchForWorktree: null,
+    });
+    expect(
+      planComposerTurn({ ...base, activeThreadBranch: null, worktreeBaseRefsSettled: false })
+        .missingWorktreeBaseBranch,
+    ).toBe(false);
+  });
+
+  it("never creates a worktree for a thread the server already has", () => {
+    expect(planComposerTurn({ ...base, isLocalDraftThread: false })).toMatchObject({
+      shouldCreateWorktree: false,
+      baseBranchForWorktree: null,
+    });
+  });
+
+  it("queues behind setup or a running turn only when asked to", () => {
+    expect(planComposerTurn({ ...base, sendQueuesBehindSetup: true })).toMatchObject({
+      turnDispatchMode: "queue",
+      shouldQueueBehindActiveRun: true,
+    });
+    const running = { ...base, isLocalDraftThread: false, phase: "running" as const };
+    expect(planComposerTurn({ ...running, dispatchMode: "queue" }).shouldQueueBehindActiveRun).toBe(
+      true,
+    );
+    expect(planComposerTurn({ ...running, dispatchMode: "steer" })).toMatchObject({
+      turnDispatchMode: "steer",
+      shouldQueueBehindActiveRun: false,
+    });
   });
 });

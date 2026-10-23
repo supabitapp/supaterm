@@ -4,6 +4,7 @@ import {
   type ModelSelection,
   type ScopedThreadRef,
   type ThreadId,
+  type ProviderInteractionMode,
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
 } from "@supaterm/contracts";
 import { Atom } from "effect/reactivity";
@@ -20,7 +21,16 @@ import {
   type DraftId,
   useComposerDraftStore,
 } from "../../composerDraftStore";
-import { prepareRevertedMessageAttachments, waitForRevertedMessage } from "../ChatView.logic";
+import {
+  formatOutgoingPrompt,
+  getAntigravitySendBlockReason,
+  prepareRevertedMessageAttachments,
+  waitForRevertedMessage,
+} from "../ChatView.logic";
+import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "@supaterm/shared/composerContextReferences";
+import { createModelSelection } from "@supaterm/shared/model";
+import type { ProviderInstanceEntry } from "../../providerInstances";
+import { getComposerPromptInjectionState, getComposerProviderState } from "./composerProviderState";
 import { readPreparedConnection } from "../../state/session";
 import { recallableComposerPrompt } from "./composerPromptHistory";
 
@@ -140,4 +150,55 @@ export async function rewindToMessage(input: {
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Failed to revert thread state." };
   }
+}
+
+export interface MultipleModelTarget {
+  readonly selection: ModelSelection;
+  readonly text: string;
+  readonly interactionMode: ProviderInteractionMode;
+}
+
+/**
+ * The thread each selected model starts for a multiple-model send, in
+ * selection order, or why that model cannot take the message.
+ */
+export function resolveMultipleModelTargets(input: {
+  readonly selections: ReadonlyArray<ModelSelection>;
+  readonly providerInstanceEntries: ReadonlyArray<ProviderInstanceEntry>;
+  readonly messageText: string;
+  readonly interactionMode: ProviderInteractionMode;
+}): Array<MultipleModelTarget | { readonly error: string }> {
+  const { messageText } = input;
+  return input.selections.map((selection) => {
+    const provider = input.providerInstanceEntries.find(
+      (entry) => entry.instanceId === selection.instanceId,
+    );
+    if (!provider?.enabled || !provider.isAvailable || provider.status !== "ready") {
+      return { error: `Provider for ${selection.model} is unavailable.` };
+    }
+    const providerBlockReason = getAntigravitySendBlockReason(provider.snapshot, selection.model);
+    if (providerBlockReason) return { error: providerBlockReason };
+    const providerState = getComposerProviderState({
+      provider: provider.driverKind,
+      model: selection.model,
+      models: provider.models,
+      modelOptions: selection.options,
+      promptInjectionState: getComposerPromptInjectionState(messageText),
+    });
+    return {
+      selection: createModelSelection(
+        selection.instanceId,
+        selection.model,
+        providerState.modelOptionsForDispatch,
+      ),
+      text: formatOutgoingPrompt({
+        provider: provider.driverKind,
+        model: selection.model,
+        models: provider.models,
+        effort: providerState.promptEffort,
+        text: messageText || ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
+      }),
+      interactionMode: input.interactionMode,
+    };
+  });
 }
