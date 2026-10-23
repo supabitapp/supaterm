@@ -2878,6 +2878,19 @@ describe("AcpAdapterV2", () => {
       yield* Effect.addFinalizer(() =>
         Effect.sync(() => cleanupPublishedDetachedFixture(commandPidPath)),
       );
+      // The ownership observer adds every process it identifies to its ledger in the same
+      // synchronous pass, so once the published processes are identified, Supaterm owns them
+      // and the agent can exit.
+      const linuxProcessTree = AcpSessionRuntime.makePosixProcessTreeController("linux");
+      const identified = new Set<number>();
+      const recorded = yield* Deferred.make<void>();
+      let published: ReadonlyArray<number> = [];
+      const settleRecorded = () => {
+        if (published.length > 0 && published.every((pid) => identified.has(pid))) {
+          Deferred.doneUnsafe(recorded, Effect.void);
+        }
+      };
+      let providerRuntime: AcpSessionRuntime.AcpSessionRuntime["Service"] | undefined;
       const instanceId = ProviderInstanceId.make("acp-test-provider-exit");
       const adapter = yield* makeAcpAdapterV2({
         instanceId,
@@ -2891,11 +2904,26 @@ describe("AcpAdapterV2", () => {
             ownDescendantProcessGroups: true,
             ownDetachedProcessGroup: true,
             processGroupTerminationGrace: 0,
+            posixProcessTreeController: {
+              ...linuxProcessTree,
+              identity: (pid) => {
+                const identity = linuxProcessTree.identity(pid);
+                if (identity !== undefined) {
+                  identified.add(pid);
+                  settleRecorded();
+                }
+                return identity;
+              },
+            },
             environment: {
               SUPATERM_ACP_EMIT_RUNNING_COMMAND_THEN_HANG: "1",
               SUPATERM_ACP_EXIT_AFTER_RUNNING_COMMAND_LAUNCH: "1",
               SUPATERM_ACP_RUNNING_COMMAND_PID_PATH: commandPidPath,
               SUPATERM_ACP_RUNNING_COMMAND_SEPARATE_SESSION: "1",
+            },
+            wrapRuntime: (runtime) => {
+              providerRuntime = runtime;
+              return runtime;
             },
           }),
         },
@@ -2931,11 +2959,15 @@ describe("AcpAdapterV2", () => {
         )
         .pipe(Effect.exit, Effect.forkScoped);
 
-      const published = yield* waitForPublishedProcessIds(fileSystem, commandPidPath, 3);
-      assert.isTrue(Option.isSome(published), "detached fixture must publish all process IDs");
-      const pids = Option.getOrThrow(published);
+      const publishedIds = yield* waitForPublishedProcessIds(fileSystem, commandPidPath, 3);
+      assert.isTrue(Option.isSome(publishedIds), "detached fixture must publish all process IDs");
+      published = Option.getOrThrow(publishedIds);
+      settleRecorded();
+      yield* Deferred.await(recorded);
+      assert.isDefined(providerRuntime);
+      yield* providerRuntime.notify("_test/exit", { code: 0 });
       assert.isTrue(
-        Option.isSome(yield* waitForProcessesToExit(pids)),
+        Option.isSome(yield* waitForProcessesToExit(published)),
         "provider termination must reap the detached launcher, Bash, and sleep processes",
       );
     }).pipe(Effect.provide(layerTest), Effect.scoped),

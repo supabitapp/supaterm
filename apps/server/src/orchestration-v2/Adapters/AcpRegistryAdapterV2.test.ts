@@ -491,7 +491,19 @@ describe("AcpRegistryAdapterV2", () => {
       readonly storedModePick?: string;
       readonly turnModels?: ReadonlyArray<string>;
     }) {
-      const childProcessSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+      const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+      // Scope release gives the replay agent at most a second to exit, so the status
+      // read below waits for the agent itself instead of racing its last write.
+      const agentExits: Array<Effect.Effect<void>> = [];
+      const childProcessSpawner = ChildProcessSpawner.make((command) =>
+        spawner
+          .spawn(command)
+          .pipe(
+            Effect.tap((handle) =>
+              Effect.sync(() => agentExits.push(Effect.ignore(handle.exitCode))),
+            ),
+          ),
+      );
       const fileSystem = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const replayDir = yield* fileSystem.makeTempDirectoryScoped({
@@ -616,6 +628,7 @@ describe("AcpRegistryAdapterV2", () => {
           current = target;
         }
       }).pipe(Effect.scoped);
+      yield* Effect.all(agentExits, { discard: true });
       yield* makeAcpReplayCompletenessAssertion(fileSystem, statusPath, transcript);
       return { configurations };
     });

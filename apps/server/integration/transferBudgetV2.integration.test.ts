@@ -1,5 +1,6 @@
 // @effect-diagnostics nodeBuiltinImport:off - Measures real local HTTP/WebSocket sockets.
 import * as NodeHttp from "node:http";
+import * as NodeUtil from "node:util";
 import { assert, it } from "@effect/vitest";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeHttpPlatform from "@effect/platform-node/NodeHttpPlatform";
@@ -295,15 +296,26 @@ it.live(
             const sq = yield* subscribe(shell, "shell", sequence);
             const ttq = yield* subscribe(second, "thread", sequence);
             const ssq = yield* subscribe(second, "shell", sequence);
-            const queues = [tq, sq, ttq, ssq];
-            for (const queue of queues) assert.equal(yield* synchronized(queue), "replay");
+            for (const queue of [tq, sq, ttq, ssq])
+              assert.equal(yield* synchronized(queue), "replay");
             const writeUntilDelivered = (events: ReadonlyArray<OrchestrationV2DomainEvent>) =>
               Effect.gen(function* () {
                 const last = (yield* sink.write({ events })).at(-1)!;
-                for (const queue of queues)
+                for (const queue of [tq, ttq])
                   yield* collectUntil(
                     queue,
                     (item) => "sequence" in item && item.sequence >= last.sequence,
+                  );
+                // Shell items carry the shell read when their batch is projected, and unchanged
+                // shells are skipped, so a turn split across batches may never yield an item at
+                // the last sequence. Wait for the final shell instead.
+                const finalShell = yield* projection.getThreadShell(THREAD_ID);
+                for (const queue of [sq, ssq])
+                  yield* collectUntil(
+                    queue,
+                    (item) =>
+                      item.kind === "thread.updated" &&
+                      NodeUtil.isDeepStrictEqual(item.thread, finalShell),
                   );
               });
             // The completion marker is sent before the live subscription attaches,
