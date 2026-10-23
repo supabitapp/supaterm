@@ -15,6 +15,7 @@ import { userEvent } from "vite-plus/test/browser";
 const state = vi.hoisted(() => ({
   status: "success" as PullRequestCheck["status"],
   extraStatus: null as PullRequestCheck["status"] | null,
+  mergeMethods: ["merge"] as Array<"merge" | "squash" | "rebase">,
   perform: vi.fn(),
   newThread: vi.fn(),
   prepareThread: vi.fn(),
@@ -54,9 +55,13 @@ const queryData = () => ({
     description: null,
     url: null,
   })),
-  capabilities: { actions: ["merge"], mergeMethods: ["merge"] },
+  capabilities: { actions: ["merge"], mergeMethods: state.mergeMethods },
   viewerPermissions: { actions: ["merge"] },
-  mergeCapabilities: { merge: true, squash: false, rebase: false },
+  mergeCapabilities: {
+    merge: state.mergeMethods.includes("merge"),
+    squash: state.mergeMethods.includes("squash"),
+    rebase: state.mergeMethods.includes("rebase"),
+  },
 });
 vi.mock(import("~/state/query"), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -106,6 +111,7 @@ vi.mock(import("../ui/toast"), async (original) => {
 });
 
 import { act, render as renderUi } from "../../../test/render";
+import { useUiStateStore } from "~/uiStateStore";
 import { ThreadDetailsPrRow } from "./ThreadDetailsPrRow";
 
 const renderRow = () => (
@@ -120,6 +126,19 @@ const renderRow = () => (
     onOpen={vi.fn()}
   />
 );
+
+it("merges with the last selected merge method", async () => {
+  await using screen = await setup();
+  const { clickMerge } = screen;
+
+  state.mergeMethods = ["merge", "squash"];
+  useUiStateStore.getState().setPullRequestMergeMethod("squash");
+  const start = performance.now();
+  await act(async () => await screen.rerender(renderRow()));
+  await clickMerge(start);
+  await clickMerge(start + 900);
+  expect(state.perform).toHaveBeenCalledExactlyOnceWith("merge", "squash");
+});
 
 it("requires a new merge click after passing checks become pending and pass again", async () => {
   await using screen = await setup();
@@ -259,6 +278,8 @@ async function setup() {
 
   state.status = "success";
   state.extraStatus = null;
+  state.mergeMethods = ["merge"];
+  useUiStateStore.getState().setPullRequestMergeMethod("merge");
   const screen = await renderUi(null);
   const { container } = screen;
   const mergeButton = () =>
