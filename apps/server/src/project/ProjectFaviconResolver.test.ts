@@ -1,6 +1,5 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it, describe, expect } from "@effect/vitest";
-import * as Deferred from "effect/Deferred";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -406,38 +405,19 @@ it.layer(layerTest)("ProjectFaviconResolverLive", (it) => {
 
     it.effect("breaks ties between equally ranked package icons by package name", () =>
       Effect.gen(function* () {
-        const fileSystem = yield* FileSystem.FileSystem;
+        const resolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;
         const path = yield* Path.Path;
         const cwd = yield* makeTempDir;
-        yield* writeTextFile(cwd, "apps/alpha/public/favicon.svg", "<svg>alpha</svg>");
         yield* writeTextFile(cwd, "apps/beta/public/favicon.svg", "<svg>beta</svg>");
-        const alphaPath = path.join(cwd, "apps", "alpha");
-        const betaPath = path.join(cwd, "apps", "beta");
-        const betaStatted = yield* Deferred.make<void>();
-        const resolver = yield* makeResolverWithFileSystem(
-          FileSystem.FileSystem.of({
-            ...fileSystem,
-            stat: (filePath) => {
-              if (filePath === alphaPath) {
-                return Deferred.await(betaStatted).pipe(Effect.andThen(fileSystem.stat(filePath)));
-              }
-              if (filePath === betaPath) {
-                return fileSystem
-                  .stat(filePath)
-                  .pipe(Effect.tap(Deferred.succeed(betaStatted, undefined)));
-              }
-              return fileSystem.stat(filePath);
-            },
-          }),
-        );
+        yield* writeTextFile(cwd, "apps/alpha/public/favicon.svg", "<svg>alpha</svg>");
 
         expect(yield* resolver.resolvePath(cwd)).toBe(
-          path.join(alphaPath, "public", "favicon.svg"),
+          path.join(cwd, "apps", "alpha", "public", "favicon.svg"),
         );
       }),
     );
 
-    it.effect("does not inspect package entries beyond the cap", () =>
+    it.effect("does not probe package entries beyond the cap", () =>
       Effect.gen(function* () {
         const fileSystem = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
@@ -447,18 +427,18 @@ it.layer(layerTest)("ProjectFaviconResolverLive", (it) => {
         }
         yield* writeTextFile(cwd, "apps/app-63/public/favicon.svg", "<svg>last</svg>");
         yield* writeTextFile(cwd, "apps/zz-unreadable/README.md", "");
-        const unreadablePath = path.join(cwd, "apps", "zz-unreadable");
+        const unreadablePrefix = path.join(cwd, "apps", "zz-unreadable") + path.sep;
         const resolver = yield* makeResolverWithFileSystem(
           FileSystem.FileSystem.of({
             ...fileSystem,
             stat: (filePath) =>
-              filePath === unreadablePath
+              filePath.startsWith(unreadablePrefix)
                 ? Effect.fail(
                     PlatformError.systemError({
                       _tag: "PermissionDenied",
                       module: "FileSystem",
                       method: "stat",
-                      pathOrDescriptor: unreadablePath,
+                      pathOrDescriptor: filePath,
                     }),
                   )
                 : fileSystem.stat(filePath),
@@ -471,16 +451,17 @@ it.layer(layerTest)("ProjectFaviconResolverLive", (it) => {
       }),
     );
 
-    it.effect("ignores regular files beside monorepo packages", () =>
+    it.effect("skips candidate paths that pass through a regular file", () =>
       Effect.gen(function* () {
         const resolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;
         const path = yield* Path.Path;
         const cwd = yield* makeTempDir;
         yield* writeTextFile(cwd, "apps/README.md", "# apps");
-        yield* writeTextFile(cwd, "apps/web/public/favicon.ico", "web");
+        yield* writeTextFile(cwd, "apps/api/app", "binary");
+        yield* writeTextFile(cwd, "apps/web/assets/logo.svg", "<svg>web</svg>");
 
         expect(yield* resolver.resolvePath(cwd)).toBe(
-          path.join(cwd, "apps", "web", "public", "favicon.ico"),
+          path.join(cwd, "apps", "web", "assets", "logo.svg"),
         );
       }),
     );

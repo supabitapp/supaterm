@@ -1,4 +1,3 @@
-import * as Arr from "effect/Array";
 import * as Cache from "effect/Cache";
 import * as Context from "effect/Context";
 import * as Duration from "effect/Duration";
@@ -133,14 +132,18 @@ function extractIconHref(source: string): string | null {
   return null;
 }
 
-const optionOnNotFound = <A, R>(
+// ENOTDIR, EISDIR, and ELOOP surface as BadResource. A candidate below a regular file,
+// such as `app/favicon.ico` beside a binary named `app`, is as absent as a missing one.
+const optionWhenMissing = <A, R>(
   effect: Effect.Effect<A, PlatformError.PlatformError, R>,
 ): Effect.Effect<Option.Option<A>, PlatformError.PlatformError, R> =>
   effect.pipe(
     Effect.asSome,
     Effect.catchTags({
       PlatformError: (error) =>
-        error.reason._tag === "NotFound" ? Effect.succeed(Option.none<A>()) : Effect.fail(error),
+        error.reason._tag === "NotFound" || error.reason._tag === "BadResource"
+          ? Effect.succeed(Option.none<A>())
+          : Effect.fail(error),
     }),
   );
 
@@ -180,7 +183,7 @@ export const make = Effect.gen(function* () {
       if (Option.isNone(candidate)) {
         continue;
       }
-      const stats = yield* optionOnNotFound(fileSystem.stat(candidate.value.absolutePath)).pipe(
+      const stats = yield* optionWhenMissing(fileSystem.stat(candidate.value.absolutePath)).pipe(
         Effect.mapError(
           (cause) =>
             new ProjectFaviconResolutionError({
@@ -221,7 +224,9 @@ export const make = Effect.gen(function* () {
             }),
         ),
       );
-    const source = yield* optionOnNotFound(fileSystem.readFileString(sourcePath.absolutePath)).pipe(
+    const source = yield* optionWhenMissing(
+      fileSystem.readFileString(sourcePath.absolutePath),
+    ).pipe(
       Effect.mapError(
         (cause) =>
           new ProjectFaviconResolutionError({
@@ -285,50 +290,29 @@ export const make = Effect.gen(function* () {
     );
   });
 
-  // Probing below a regular file fails with ENOTDIR rather than NotFound, so only
-  // directories are returned.
   const listPackageDirectories = Effect.fn("ProjectFaviconResolver.listPackageDirectories")(
     function* (
       projectCwd: string,
       parent: string,
     ): Effect.fn.Return<ReadonlyArray<string>, ProjectFaviconResolutionError> {
-      const listFailed = (absolutePath: string) => (cause: PlatformError.PlatformError) =>
-        new ProjectFaviconResolutionError({
-          operation: "list-packages",
-          workspaceRoot: projectCwd,
-          relativePath: path.relative(projectCwd, absolutePath),
-          absolutePath,
-          cause,
-        });
-      const isDirectory = (absolutePath: string) =>
-        optionOnNotFound(fileSystem.stat(absolutePath)).pipe(
-          Effect.map((stats) => Option.isSome(stats) && stats.value.type === "Directory"),
-          Effect.mapError(listFailed(absolutePath)),
-        );
-
       const parentPath = path.join(projectCwd, parent);
-      if (!(yield* isDirectory(parentPath))) {
-        return [];
-      }
-      const names = yield* fileSystem
-        .readDirectory(parentPath)
-        .pipe(Effect.mapError(listFailed(parentPath)));
-      const candidates = names.filter((name) => !name.startsWith(".")).toSorted();
-      const packages: Array<string> = [];
-      // Batched so entries past the cap are never stat'ed; forEach keeps input order,
-      // which decides ties between equally ranked icons.
-      for (const batch of Arr.chunksOf(candidates, MAX_PACKAGES_PER_PARENT)) {
-        const isPackage = yield* Effect.forEach(
-          batch,
-          (name) => isDirectory(path.join(parentPath, name)),
-          { concurrency: "unbounded" },
-        );
-        packages.push(...batch.filter((_, index) => isPackage[index]));
-        if (packages.length >= MAX_PACKAGES_PER_PARENT) {
-          break;
-        }
-      }
-      return packages.slice(0, MAX_PACKAGES_PER_PARENT).map((name) => path.join(parent, name));
+      const names = yield* optionWhenMissing(fileSystem.readDirectory(parentPath)).pipe(
+        Effect.mapError(
+          (cause) =>
+            new ProjectFaviconResolutionError({
+              operation: "list-packages",
+              workspaceRoot: projectCwd,
+              relativePath: parent,
+              absolutePath: parentPath,
+              cause,
+            }),
+        ),
+      );
+      return Option.getOrElse(names, () => [])
+        .filter((name) => !name.startsWith("."))
+        .toSorted()
+        .slice(0, MAX_PACKAGES_PER_PARENT)
+        .map((name) => path.join(parent, name));
     },
   );
 
@@ -404,7 +388,7 @@ export const make = Effect.gen(function* () {
       return null;
     }
 
-    const stats = yield* optionOnNotFound(fileSystem.stat(cached)).pipe(
+    const stats = yield* optionWhenMissing(fileSystem.stat(cached)).pipe(
       Effect.mapError(
         (cause) =>
           new ProjectFaviconResolutionError({
