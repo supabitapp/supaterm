@@ -84,6 +84,11 @@ export function FloatingWorkingControl(props: {
   const { width: windowWidth } = useWindowDimensions();
   const [overlayWidth, setOverlayWidth] = useState(windowWidth);
   const [queueWidth, setQueueWidth] = useState(0);
+  const [actionWidth, setActionWidth] = useState(0);
+  const action =
+    props.status?.kind === "background" || props.status?.kind === "lifecycle"
+      ? props.status.action
+      : null;
   const [agentsWidth, setAgentsWidth] = useState(0);
   const hasQueue = props.queuedCount > 0;
   const hasPreview = props.devicePreview !== null || props.browserPreview !== null;
@@ -95,6 +100,7 @@ export function FloatingWorkingControl(props: {
     Math.min(overlayWidth, windowWidth) -
       CONTROL_HEIGHT -
       32 -
+      (action !== null ? actionWidth : 0) -
       (hasQueue ? queueWidth : 0) -
       (hasAgents ? agentsWidth : 0) -
       (hasPreview ? previewWidth : 0),
@@ -183,13 +189,16 @@ export function FloatingWorkingControl(props: {
       : null,
   ].filter((action) => action !== null);
   const statusInteractive =
-    props.status?.kind === "connection" || props.status?.kind === "child-input";
+    props.status?.kind === "connection" ||
+    props.status?.kind === "child-input" ||
+    props.status?.kind === "background";
   const statusAction =
     props.status !== null && !statusInteractive && companionActions.length === 1
       ? companionActions[0]
       : undefined;
   const StatusContainer = statusAction ? Pressable : View;
-  const capsuleInteractive = statusInteractive || hasQueue || hasAgents || hasPreview;
+  const capsuleInteractive =
+    statusInteractive || action !== null || hasQueue || hasAgents || hasPreview;
   const statusContent =
     props.status !== null ? (
       <StatusContainer
@@ -228,6 +237,22 @@ export function FloatingWorkingControl(props: {
       style={NATIVE_LIQUID_GLASS_SUPPORTED ? hiddenStyle : undefined}
     >
       {statusContent}
+      {action !== null ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={action.accessibilityLabel}
+          accessibilityState={{ disabled: action.disabled }}
+          disabled={action.disabled}
+          onPress={action.onPress}
+          onLayout={(event) => setActionWidth(settleWidth(event.nativeEvent.layout.width))}
+          className={`h-11 flex-row items-center gap-1.5 px-3 active:opacity-70 ${action.disabled ? "opacity-50" : ""}`}
+        >
+          <View className="mr-1 h-4 w-px bg-border" />
+          <Text className="font-supaterm-medium text-xs text-foreground" numberOfLines={1}>
+            {action.label}
+          </Text>
+        </Pressable>
+      ) : null}
       {hasPreview ? (
         <View
           className="h-11 flex-row items-center"
@@ -455,16 +480,38 @@ function FloatingStatusLabel(props: {
       </StatusLabelRow>
     );
   }
+  if (props.status.kind === "lifecycle") {
+    return (
+      <StatusLabelRow
+        key="lifecycle"
+        accessibilityLabel={props.status.label}
+        className="gap-2"
+        onLayout={props.onLayout}
+      >
+        <SymbolView
+          name={props.status.state === "done" ? "checkmark.circle" : "clock"}
+          size={13}
+          tintColorClassName="foreground"
+          type="monochrome"
+        />
+        <Text className="shrink font-supaterm-medium text-xs text-foreground" numberOfLines={1}>
+          {props.status.label}
+        </Text>
+      </StatusLabelRow>
+    );
+  }
   if (props.status.kind === "background") {
     return (
       <StatusLabelRow
         key="background"
         accessibilityLabel={props.status.accessibilityLabel}
+        accessibilityRole="button"
+        onPress={props.status.onPress}
         className="gap-2"
         onLayout={props.onLayout}
       >
         <SymbolView
-          name={props.status.waiting ? { ios: "bolt", android: "bolt" } : "terminal"}
+          name={props.status.waiting ? "person.2" : "terminal"}
           size={13}
           tintColorClassName="foreground"
           type="monochrome"

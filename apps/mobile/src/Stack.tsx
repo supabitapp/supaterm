@@ -65,6 +65,7 @@ import { GitConfirmSheet } from "./features/threads/git/GitConfirmSheet";
 import { GitOverviewSheet } from "./features/threads/git/GitOverviewSheet";
 import { ThreadPullRequestsSheet } from "./features/threads/ThreadPullRequestsSheet";
 import { ThreadAgentsSheet } from "./features/threads/ThreadAgentsSheet";
+import { ThreadBackgroundWorkSheet } from "./features/threads/ThreadBackgroundWorkSheet";
 import { ThreadQueueSheet } from "./features/threads/ThreadQueueControl";
 import { ThreadRouteScreen } from "./features/threads/ThreadRouteScreen";
 import { McpAppFullscreenScreen } from "./features/threads/McpAppFullscreenScreen";
@@ -535,6 +536,7 @@ const WORKSPACE_OVERLAY_ROUTES = new Set([
   "SettingsLegal",
   "SettingsSheet",
   "ThreadAgents",
+  "ThreadBackgroundWork",
   "ThreadPullRequests",
   "ThreadQueue",
   "ThreadReviewComment",
@@ -856,6 +858,15 @@ const RootStackConfig = createWorkspaceStackNavigator({
         sheetAllowedDetents: Platform.OS === "android" ? "fitToContents" : [0.4],
         sheetCornerRadius: Platform.OS === "android" ? 28 : undefined,
         sheetExpandsWhenScrolledToEdge: false,
+        sheetGrabberVisible: true,
+      },
+    }),
+    ThreadBackgroundWork: createNativeStackScreen({
+      screen: ThreadBackgroundWorkSheet,
+      options: {
+        ...FORM_SHEET_PRESENTATION_OPTIONS,
+        headerShown: false,
+        sheetAllowedDetents: [0.5, 0.9],
         sheetGrabberVisible: true,
       },
     }),
