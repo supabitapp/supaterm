@@ -49,6 +49,7 @@ import { gitCommandDuration, gitCommandsTotal, withMetrics } from "../observabil
 import * as GitVcsDriver from "./GitVcsDriver.ts";
 import { removeEmptyDirectory } from "./removeEmptyDirectory.ts";
 import { explicitBareRepositoryEnv, gitConfigEnv } from "./VcsProcess.ts";
+import { removeLinkedWorktree } from "./worktreeRemoval.ts";
 import { resolveWorktreesDirectory } from "../worktreesDirectory.ts";
 import {
   parseRemoteNames,
@@ -4176,20 +4177,20 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     "removeWorktree",
   )(function* (input) {
     const target = path.resolve(input.cwd, input.path);
-
-    const args = ["-c", "status.showUntrackedFiles=normal", "worktree", "remove"];
-    if (input.force) {
-      args.push("--force");
-    }
-    args.push("--", target);
-    const result = yield* executeGitWithStableDiagnostics(
-      "GitVcsDriver.removeWorktree",
-      input.cwd,
-      args,
-      {
-        timeoutMs: WORKTREE_REMOVE_TIMEOUT_MS,
-        allowNonZeroExit: true,
-      },
+    const result = yield* removeLinkedWorktree({
+      operation: "GitVcsDriver.removeWorktree",
+      cwd: input.cwd,
+      worktreePath: target,
+      force: input.force === true,
+      execute,
+      run: (args) =>
+        executeGitWithStableDiagnostics("GitVcsDriver.removeWorktree", input.cwd, args, {
+          timeoutMs: WORKTREE_REMOVE_TIMEOUT_MS,
+          allowNonZeroExit: true,
+        }).pipe(Effect.map((result) => ({ ...result, args }))),
+    }).pipe(
+      Effect.provideService(FileSystem.FileSystem, fileSystem),
+      Effect.provideService(Path.Path, path),
     );
     if (result.exitCode === 0) {
       // Git for Windows never descends into NTFS junctions, such as pnpm's
@@ -4221,7 +4222,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     // than an error.
     const alreadyGone =
       isMissingWorktreeStderr(result.stderr) &&
-      !(yield* fileSystem.exists(input.path).pipe(Effect.orElseSucceed(() => false)));
+      !(yield* fileSystem.exists(target).pipe(Effect.orElseSucceed(() => false)));
     if (alreadyGone) {
       yield* pruneWorktrees({ cwd: input.cwd });
       return;
@@ -4230,7 +4231,11 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       `GitVcsDriver.removeWorktree: git worktree remove exited with code ${result.exitCode} for ${input.path} (stderr length ${result.stderr.length}).`,
     );
     return yield* new GitCommandError({
-      ...gitCommandContext({ operation: "GitVcsDriver.removeWorktree", cwd: input.cwd, args }),
+      ...gitCommandContext({
+        operation: "GitVcsDriver.removeWorktree",
+        cwd: input.cwd,
+        args: result.args,
+      }),
       detail: "git worktree remove failed",
       ...(result.exitCode === null ? {} : { exitCode: result.exitCode }),
       stdoutLength: result.stdout.length,
