@@ -189,3 +189,5 @@ export function useAttachmentExits<T>(
 
   return { items: shown, exit, presence };
 }
+
+export type AttachmentExits<T> = ReturnType<typeof useAttachmentExits<T>>;
