@@ -55,7 +55,6 @@ export function SettingsEnvironmentFilterHeader(props: {
       options={{
         unstable_headerRightItems: () => [
           withNativeGlassHeaderItem({
-            axisBehavior: "horizontalOnly",
             accessibilityLabel: "Filter settings environments and projects",
             icon: { name: filterIcon, type: "sfSymbol" },
             label: "",
@@ -124,7 +123,6 @@ export function SettingsEnvironmentFilterHeader(props: {
           ...(closeSettings
             ? [
                 withNativeGlassHeaderItem({
-                  axisBehavior: "horizontalOnly",
                   accessibilityLabel: "Close settings",
                   icon: { name: "xmark", type: "sfSymbol" },
                   identifier: "settings-close",
