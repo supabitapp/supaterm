@@ -349,6 +349,74 @@ it.layer(layerTest)("ProjectFaviconResolverLive", (it) => {
       }),
     );
 
+    it.effect("prefers a root icon over monorepo package icons", () =>
+      Effect.gen(function* () {
+        const resolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "apps/web/public/favicon.svg", "<svg>web</svg>");
+        yield* writeTextFile(cwd, "assets/logo.png", "root");
+
+        expect(yield* resolver.resolvePath(cwd)).toBe(path.join(cwd, "assets", "logo.png"));
+      }),
+    );
+
+    it.effect("ranks monorepo package icons by candidate before package name", () =>
+      Effect.gen(function* () {
+        const resolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "apps/mobile/assets/icon.png", "mobile");
+        yield* writeTextFile(cwd, "apps/web/public/favicon.svg", "<svg>web</svg>");
+
+        expect(yield* resolver.resolvePath(cwd)).toBe(
+          path.join(cwd, "apps", "web", "public", "favicon.svg"),
+        );
+      }),
+    );
+
+    it.effect("prefers apps over packages in a monorepo", () =>
+      Effect.gen(function* () {
+        const resolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "packages/ui/favicon.svg", "<svg>ui</svg>");
+        yield* writeTextFile(cwd, "apps/web/assets/logo.png", "web");
+
+        expect(yield* resolver.resolvePath(cwd)).toBe(
+          path.join(cwd, "apps", "web", "assets", "logo.png"),
+        );
+      }),
+    );
+
+    it.effect("resolves icon hrefs relative to the monorepo package that declares them", () =>
+      Effect.gen(function* () {
+        const resolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "apps/web/index.html", '<link rel="icon" href="/brand.svg">');
+        yield* writeTextFile(cwd, "apps/web/public/brand.svg", "<svg>brand</svg>");
+
+        expect(yield* resolver.resolvePath(cwd)).toBe(
+          path.join(cwd, "apps", "web", "public", "brand.svg"),
+        );
+      }),
+    );
+
+    it.effect("ignores regular files beside monorepo packages", () =>
+      Effect.gen(function* () {
+        const resolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "apps/README.md", "# apps");
+        yield* writeTextFile(cwd, "apps/web/public/favicon.ico", "web");
+
+        expect(yield* resolver.resolvePath(cwd)).toBe(
+          path.join(cwd, "apps", "web", "public", "favicon.ico"),
+        );
+      }),
+    );
+
     it.effect("returns null when no icon is present", () =>
       Effect.gen(function* () {
         const resolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;
