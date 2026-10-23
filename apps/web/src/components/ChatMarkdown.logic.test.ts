@@ -7,7 +7,7 @@ import {
   canUseMarkdownFileShellActions,
   markdownFileCopyMenuItems,
   shouldUseMarkdownFileBrowserPrimaryAction,
-} from "./ChatMarkdown";
+} from "./chat/MarkdownFileLink.logic";
 
 describe("canUseMarkdownFileShellActions", () => {
   const environmentId = EnvironmentId.make("environment-1");
