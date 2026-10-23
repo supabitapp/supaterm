@@ -2,6 +2,7 @@ import {
   deriveAvailableRevertTurnCounts,
   deriveWorkspaceMutationId,
   planComposerTurn,
+  sendTitleFallbackLabels,
   snapshotComposerSend,
   findRecordedWorktreeSetup,
   isThreadWokeUnseen,
@@ -2677,6 +2678,14 @@ describe("snapshotComposerSend", () => {
     expect(snapshot.messageText).toBe(
       ensureInlineContextReferences("run", [terminalContextReference(live)]).trim(),
     );
+  });
+
+  it("titles a message without text after its first terminal context", () => {
+    expect(sendTitleFallbackLabels(snapshotComposerSend(contents))).toEqual([
+      "Terminal 1 line 9",
+      undefined,
+      undefined,
+    ]);
   });
 });
 

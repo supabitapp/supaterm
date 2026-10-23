@@ -12,7 +12,12 @@ import * as Option from "effect/Option";
 import type { ComposerDispatchMode } from "@supaterm/client-runtime/state/composer-dispatch";
 import type { ThreadContextRecord } from "@supaterm/contracts";
 import { removeInlineContextReference } from "~/lib/composerContextReferences";
-import { terminalContextReference } from "../lib/composerContextRecords";
+import {
+  previewAnnotationContextLabel,
+  reviewCommentContextLabel,
+  terminalContextReference,
+} from "../lib/composerContextRecords";
+import { formatTerminalContextLabel } from "../lib/terminalContext";
 import type { ReviewCommentContext } from "../reviewCommentContext";
 import type { SetStateAction } from "react";
 import { applyClaudePromptEffortPrefix, resolvePromptInjectedEffort } from "@supaterm/shared/model";
@@ -1599,4 +1604,16 @@ export function planComposerTurn(input: {
     shouldQueueBehindActiveRun:
       input.sendQueuesBehindSetup || (input.phase === "running" && input.dispatchMode === "queue"),
   };
+}
+
+/** Fallback title sources for a message with no text of its own. */
+export function sendTitleFallbackLabels(snapshot: ComposerSendSnapshot) {
+  const terminalContext = snapshot.terminalContexts[0];
+  const reviewComment = snapshot.reviewComments[0];
+  const previewAnnotation = snapshot.previewAnnotations[0];
+  return [
+    terminalContext ? formatTerminalContextLabel(terminalContext) : undefined,
+    reviewComment ? `Review: ${reviewCommentContextLabel(reviewComment)}` : undefined,
+    previewAnnotation ? previewAnnotationContextLabel(previewAnnotation) : undefined,
+  ];
 }

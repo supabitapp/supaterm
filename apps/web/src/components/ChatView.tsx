@@ -13,6 +13,7 @@ import { THREAD_FIND_BAR_RESERVED_HEIGHT } from "./chat/ThreadFindBar";
 import { usageLimitRecoveryBannerItem } from "./chat/UsageLimitRecoveryBanner";
 import {
   planComposerTurn,
+  sendTitleFallbackLabels,
   snapshotComposerSend,
   deriveAvailableRevertTurnCounts,
   deriveThreadPendingBackgroundTasks,
@@ -266,7 +267,7 @@ import {
   useComposerDraftStore,
   DraftId,
 } from "../composerDraftStore";
-import { formatTerminalContextLabel, type TerminalContextDraft } from "../lib/terminalContext";
+import { type TerminalContextDraft } from "../lib/terminalContext";
 import {
   collectInlineContextIds,
   ensureInlineContextReferences,
@@ -3549,7 +3550,7 @@ export default function ChatView(props: ChatViewProps) {
           type: attachment.type,
           name: attachment.name,
         })),
-        fallbackLabels: sendSnapshot.terminalContexts.map(formatTerminalContextLabel),
+        fallbackLabels: sendTitleFallbackLabels(sendSnapshot),
       });
       const localAttachments = captureOutboxAttachments(environmentId, composerAttachmentsSnapshot);
       const targets =
