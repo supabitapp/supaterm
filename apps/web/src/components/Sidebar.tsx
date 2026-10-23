@@ -196,6 +196,11 @@ import { createSidebarListMotion } from "./Sidebar.motion";
 import { resolveSnoozePresets, snoozeWakeLabel, type SnoozePreset } from "./Sidebar.snooze";
 import { deriveProviderEntriesByEnvironment } from "../providerInstances";
 import { useStableCallback } from "../hooks/useStableCallback";
+import {
+  completeSidebarRouteReveal,
+  pendingSidebarRouteReveal,
+  type SidebarRouteReveal,
+} from "./sidebar/routeReveal";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { SidebarContent, SidebarGroup, useSidebar } from "./ui/sidebar";
 import { SidebarChromeFooter, SidebarChromeHeader } from "./sidebar/SidebarChrome";
@@ -762,7 +767,7 @@ function toastThreadActionFailure(title: string, result: AtomCommandResult<unkno
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReveal }) {
   const {
     projects,
     serverConfigs,
@@ -1124,6 +1129,35 @@ export default function Sidebar() {
         scopedProjectKeys.has(`${entry.payload.environmentId}:${creation.projectId}`))
     );
   });
+
+  // History, the command palette, and links can open a thread the project
+  // scope hides or the list has scrolled away. A remount starts the list at
+  // the top, so each mount also scrolls to the open thread once, without
+  // widening the scope.
+  const mountRevealOwed = useRef(true);
+  const revealRouteRow = useStableCallback(() => {
+    const pendingKey = pendingSidebarRouteReveal(routeReveal, routeRowThreadKey);
+    const revealKey = pendingKey ?? (mountRevealOwed.current ? routeRowThreadKey : null);
+    if (revealKey === null) return;
+    const thread = threads.find((candidate) => threadShellKey(candidate) === revealKey);
+    if (thread === undefined) return;
+    if (
+      pendingKey !== null &&
+      scopedProjectKeys !== null &&
+      filterSidebarV2VisibleThreads([thread], scopedProjectKeys).length === 0 &&
+      filterSidebarV2VisibleThreads([thread], null).length === 1
+    ) {
+      // The row renders under the widened scope; scroll on that pass.
+      setProjectScopeKey(null);
+      return;
+    }
+    const activeRow = document.querySelector('[data-sidebar="content"] [aria-current="page"]');
+    if (!activeRow) return;
+    completeSidebarRouteReveal(routeReveal);
+    mountRevealOwed.current = false;
+    activeRow.scrollIntoView({ block: "nearest" });
+  });
+  useEffect(revealRouteRow, [revealRouteRow, routeRowThreadKey, threads, projectScopeKey]);
 
   const orderedThreadKeysRef = useRef(orderedThreadKeys);
   // Handlers read these through refs: depending on per-update Map/Set
