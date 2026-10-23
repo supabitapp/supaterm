@@ -36,6 +36,7 @@ import { ChatTerminalDrawers } from "./chat/ChatTerminalDrawers";
 import { ChatRightPanel } from "./chat/ChatRightPanel";
 import { ChatBannerLane } from "./chat/ChatBannerLane";
 import { useProjectCloneBanner } from "./chat/useProjectCloneBanner";
+import { useAttachmentPreviewHandoff } from "./chat/useAttachmentPreviewHandoff";
 import { usePasteToFocusComposer } from "./chat/usePasteToFocusComposer";
 import { useDraftHeroLayoutTransition } from "./chat/useDraftHeroLayoutTransition";
 import { useLocalDispatchState } from "./chat/useLocalDispatchState";
@@ -188,7 +189,6 @@ import { type ComposerSubmissionIntent, composerRequiresModifier } from "../comp
 import {
   derivePhase,
   deriveTimelineEntriesFromVisibleTurnItemsWithState,
-  selectHandoffImageResources,
   type TimelineEntriesInput,
   type TimelineEntriesProjection,
   deriveActivePlanState,
@@ -480,7 +480,6 @@ import {
   resolveThreadMetadataUpdateForNextTurn,
   resolveSendEnvMode,
   shouldRequireWorktreeBaseBranch,
-  revokeBlobPreviewUrl,
   revokeUserMessagePreviewUrls,
   startNewThreadForProject,
   codexArtifactTemplatePromptToAppend,
@@ -518,7 +517,6 @@ import {
   serverUpdateGuidance,
   supportsDesktopAppUpdate,
 } from "../versionSkew";
-import { useAssetUrls } from "../assets/assetUrls";
 import {
   ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
   threadContextsOutsideEnvironment,
@@ -907,10 +905,6 @@ export default function ChatView(props: ChatViewProps) {
   const feedbackUploading = feedbackSubmissions.some(
     (submission) => submission.status === "uploading",
   );
-  const optimisticUserMessagesRef = useRef(optimisticUserMessages);
-  useLayoutEffect(() => {
-    optimisticUserMessagesRef.current = optimisticUserMessages;
-  });
   const [localDraftErrorsByDraftId, setLocalDraftErrorsByDraftId] = useState<
     Record<string, LocalThreadErrorEntry>
   >({});
@@ -944,9 +938,6 @@ export default function ChatView(props: ChatViewProps) {
   const [terminalFocusRequestId, setTerminalFocusRequestId] = useState(0);
   const [terminalUiLaunchContext, setTerminalUiLaunchContext] =
     useState<TerminalLaunchContext | null>(null);
-  const [attachmentPreviewHandoffByMessageId, setAttachmentPreviewHandoffByMessageId] = useState<
-    Record<string, string[]>
-  >({});
   const [lastInvokedScriptByProjectId, setLastInvokedScriptByProjectId] = useLocalStorage(
     LAST_INVOKED_SCRIPT_BY_PROJECT_KEY,
     {},
@@ -970,8 +961,6 @@ export default function ChatView(props: ChatViewProps) {
     resolveTimelineIsAtEnd(legendListRef.current?.getState()) ?? isAtEndRef.current;
   const isTimelineAtLogicalEndStable = useStableCallback(isTimelineAtLogicalEnd);
   const [timelineOverflows, setTimelineOverflows] = useState(false);
-  const attachmentPreviewHandoffByMessageIdRef = useRef<Record<string, string[]>>({});
-  const attachmentPreviewPromotionInFlightByMessageIdRef = useRef<Record<string, true>>({});
   const fanoutSelectionsAtom = draftFanoutSelectionsAtom(routeThreadKey);
   const { sendInFlight: sendInFlightRef } = draftSendState(routeThreadKey);
   const isSendInFlight = useEffectEvent(() => sendInFlightRef.current);
@@ -2024,69 +2013,6 @@ export default function ChatView(props: ChatViewProps) {
   const sendQueuesBehindSetup = isServerThread
     ? activeRunPreparing || activeActivityRun?.status === "starting"
     : pendingThreadCreation !== null;
-  useEffect(() => {
-    attachmentPreviewHandoffByMessageIdRef.current = attachmentPreviewHandoffByMessageId;
-  }, [attachmentPreviewHandoffByMessageId]);
-  const clearAttachmentPreviewHandoff = (
-    messageId: MessageId,
-    previewUrls?: ReadonlyArray<string>,
-  ) => {
-    delete attachmentPreviewPromotionInFlightByMessageIdRef.current[messageId];
-    const currentPreviewUrls =
-      previewUrls ?? attachmentPreviewHandoffByMessageIdRef.current[messageId] ?? [];
-    setAttachmentPreviewHandoffByMessageId((existing) => {
-      if (!(messageId in existing)) {
-        return existing;
-      }
-      const next = { ...existing };
-      delete next[messageId];
-      attachmentPreviewHandoffByMessageIdRef.current = next;
-      return next;
-    });
-    for (const previewUrl of currentPreviewUrls) {
-      revokeBlobPreviewUrl(previewUrl);
-    }
-  };
-  const clearAttachmentPreviewHandoffStable = useStableCallback(clearAttachmentPreviewHandoff);
-  const clearAttachmentPreviewHandoffs = () => {
-    attachmentPreviewPromotionInFlightByMessageIdRef.current = {};
-    for (const previewUrls of Object.values(attachmentPreviewHandoffByMessageIdRef.current)) {
-      for (const previewUrl of previewUrls) {
-        revokeBlobPreviewUrl(previewUrl);
-      }
-    }
-    attachmentPreviewHandoffByMessageIdRef.current = {};
-    setAttachmentPreviewHandoffByMessageId({});
-  };
-  const clearAttachmentPreviewHandoffsStable = useStableCallback(clearAttachmentPreviewHandoffs);
-  useEffect(() => {
-    return () => {
-      clearAttachmentPreviewHandoffsStable();
-      for (const message of optimisticUserMessagesRef.current) {
-        revokeUserMessagePreviewUrls(message);
-      }
-    };
-  }, [clearAttachmentPreviewHandoffsStable]);
-  const handoffAttachmentPreviews = (messageId: MessageId, previewUrls: string[]) => {
-    if (previewUrls.length === 0) return;
-
-    const previousPreviewUrls = attachmentPreviewHandoffByMessageIdRef.current[messageId] ?? [];
-    const nextPreviewUrlSet = new Set(previewUrls);
-    for (const previewUrl of previousPreviewUrls) {
-      if (!nextPreviewUrlSet.has(previewUrl)) {
-        revokeBlobPreviewUrl(previewUrl);
-      }
-    }
-    setAttachmentPreviewHandoffByMessageId((existing) => {
-      const next = {
-        ...existing,
-        [messageId]: previewUrls,
-      };
-      attachmentPreviewHandoffByMessageIdRef.current = next;
-      return next;
-    });
-  };
-  const handoffAttachmentPreviewsStable = useStableCallback(handoffAttachmentPreviews);
   const downloadFileAttachment = async (attachment: ChatFileAttachment) => {
     const connection = readPreparedConnection(environmentId);
     if (!connection) {
@@ -2121,132 +2047,8 @@ export default function ChatView(props: ChatViewProps) {
     }
   };
   const openFileAttachmentStable = useStableCallback(openFileAttachment);
-  const serverAttachmentResources = selectHandoffImageResources(
-    Object.keys(attachmentPreviewHandoffByMessageId).length === 0
-      ? undefined
-      : serverVisibleTurnItems.flatMap(({ item }) =>
-          item.type === "user_message"
-            ? [{ id: item.messageId, role: "user" as const, attachments: item.attachments }]
-            : [],
-        ),
-    attachmentPreviewHandoffByMessageId,
-  );
-  const serverAttachmentUrls = useAssetUrls(environmentId, serverAttachmentResources);
-  const serverAttachmentUrlById = new Map(
-    serverAttachmentResources.flatMap((resource, index) => {
-      const url = serverAttachmentUrls[index];
-      return url ? [[resource.attachmentId, url] as const] : [];
-    }),
-  );
-  useEffect(() => {
-    if (typeof Image === "undefined" || serverVisibleTurnItems.length === 0) {
-      return;
-    }
-
-    const cleanups: Array<() => void> = [];
-    const userMessagesById = new Map(
-      serverVisibleTurnItems.flatMap((row) =>
-        row.item.type === "user_message" ? [[String(row.item.messageId), row.item] as const] : [],
-      ),
-    );
-
-    for (const [messageId, handoffPreviewUrls] of Object.entries(
-      attachmentPreviewHandoffByMessageId,
-    )) {
-      if (attachmentPreviewPromotionInFlightByMessageIdRef.current[messageId]) {
-        continue;
-      }
-
-      const serverMessage = userMessagesById.get(messageId);
-      if (serverMessage === undefined || serverMessage.attachments.length === 0) {
-        continue;
-      }
-
-      const serverPreviewUrls = serverMessage.attachments.flatMap((attachment) =>
-        attachment.type === "image"
-          ? [serverAttachmentUrlById.get(attachment.id)].filter(
-              (previewUrl): previewUrl is string => previewUrl !== undefined,
-            )
-          : [],
-      );
-      if (
-        serverPreviewUrls.length === 0 ||
-        serverPreviewUrls.length !== handoffPreviewUrls.length ||
-        serverPreviewUrls.some((previewUrl) => previewUrl.startsWith("blob:"))
-      ) {
-        continue;
-      }
-
-      attachmentPreviewPromotionInFlightByMessageIdRef.current[messageId] = true;
-
-      let cancelled = false;
-      const imageInstances: HTMLImageElement[] = [];
-
-      const preloadServerPreviews = Promise.all(
-        serverPreviewUrls.map(
-          (previewUrl) =>
-            new Promise<void>((resolve, reject) => {
-              const image = new Image();
-              imageInstances.push(image);
-              const handleLoad = () => resolve();
-              const handleError = () =>
-                reject(new Error(`Failed to load server preview for ${messageId}.`));
-              image.addEventListener("load", handleLoad, { once: true });
-              image.addEventListener("error", handleError, { once: true });
-              image.src = previewUrl;
-            }),
-        ),
-      );
-
-      void preloadServerPreviews
-        .then(() => {
-          if (cancelled) {
-            return;
-          }
-          clearAttachmentPreviewHandoffStable(messageId as MessageId, handoffPreviewUrls);
-        })
-        .catch(() => {
-          if (!cancelled) {
-            delete attachmentPreviewPromotionInFlightByMessageIdRef.current[messageId];
-          }
-        });
-
-      cleanups.push(() => {
-        cancelled = true;
-        delete attachmentPreviewPromotionInFlightByMessageIdRef.current[messageId];
-        for (const image of imageInstances) {
-          image.src = "";
-        }
-      });
-    }
-
-    return () => {
-      for (const cleanup of cleanups) {
-        cleanup();
-      }
-    };
-  }, [
-    attachmentPreviewHandoffByMessageId,
-    clearAttachmentPreviewHandoffStable,
-    serverAttachmentUrlById,
-    serverVisibleTurnItems,
-  ]);
-  const timelineAttachmentUrlById = (() => {
-    const urls = new Map(serverAttachmentUrlById);
-    for (const row of serverVisibleTurnItems) {
-      if (row.item.type !== "user_message") continue;
-      const handoffUrls = attachmentPreviewHandoffByMessageId[row.item.messageId];
-      if (handoffUrls === undefined) continue;
-      let imageIndex = 0;
-      for (const attachment of row.item.attachments) {
-        if (attachment.type !== "image") continue;
-        const handoffUrl = handoffUrls[imageIndex];
-        imageIndex += 1;
-        if (handoffUrl !== undefined) urls.set(attachment.id, handoffUrl);
-      }
-    }
-    return urls;
-  })();
+  const { handoffAttachmentPreviewsStable, timelineAttachmentUrlById } =
+    useAttachmentPreviewHandoff({ environmentId, serverVisibleTurnItems, optimisticUserMessages });
   const anchoredTimelineMessages = feedbackSubmissions.flatMap((submission) =>
     submission.status === "interrupted"
       ? []
