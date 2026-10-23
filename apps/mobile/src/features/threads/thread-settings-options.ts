@@ -1,11 +1,11 @@
 import type { ProviderOptionDescriptor, RuntimeMode } from "@supaterm/contracts";
 
 /**
- * Prompt-injected values (ultrathink and friends) are filtered from the
- * descriptor metadata; ultracode is a real option but a workflow trigger, not a
- * reasoning level.
+ * The slider holds reasoning levels only. Prompt-injected values (ultrathink and
+ * friends) rewrite the prompt instead, and ultracode is a real option but a
+ * workflow trigger; both stay reachable through the descriptor's full choice list.
  */
-const HIDDEN_EFFORT_OPTION_IDS: ReadonlySet<string> = new Set(["ultracode"]);
+const NON_LEVEL_OPTION_IDS: ReadonlySet<string> = new Set(["ultracode"]);
 
 export const RUNTIME_MODE_CHOICES: ReadonlyArray<{
   readonly mode: RuntimeMode;
@@ -51,21 +51,17 @@ export function compatibleRuntimeModeForChoices(
     : (choices[0]?.mode ?? runtimeMode);
 }
 
-export function selectableChoices(
-  descriptor: Extract<ProviderOptionDescriptor, { type: "select" }>,
-) {
-  const injected = new Set(descriptor.promptInjectedValues ?? []);
-  return descriptor.options.filter(
-    (option) => !injected.has(option.id) && !HIDDEN_EFFORT_OPTION_IDS.has(option.id),
-  );
-}
+export { selectableProviderOptionChoices as selectableChoices } from "@supaterm/client-runtime/model-traits";
 
 /** Maps the current effort to a stop without substituting a different level. */
 export function reasoningSliderOptions(
   descriptor: Extract<ProviderOptionDescriptor, { type: "select" }>,
   currentValue: string | boolean | undefined,
 ) {
-  const choices = selectableChoices(descriptor);
+  const injected = new Set(descriptor.promptInjectedValues ?? []);
+  const choices = descriptor.options.filter(
+    (option) => !injected.has(option.id) && !NON_LEVEL_OPTION_IDS.has(option.id),
+  );
   const selectedIndex = choices.findIndex((choice) => choice.id === currentValue);
   return selectedIndex < 0 ? null : { choices, selectedIndex };
 }

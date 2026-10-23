@@ -621,6 +621,8 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     ...(lockedProviderInstanceId ? { lockedProviderInstanceId } : {}),
     providerGroups: threadProviderGroups,
     selectedModel: currentModelSelection,
+    prompt: draftMessage,
+    onPromptChange: (text) => setComposerDraftText(composerDraftKey, text),
     reportedModelSelection: props.reportedModelSelection,
     onSelectModel: (option) => onUpdateModelSelection(withRememberedModelOptions(option.selection)),
     restoreSelection: withRememberedModelOptions,
@@ -1094,6 +1096,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                         reportedModelSelection={props.reportedModelSelection}
                         modelOption={currentModelOption}
                         label={currentModelOption?.label ?? currentModelSelection.model}
+                        prompt={draftMessage}
                         onPress={openSettings}
                       />
                     </View>

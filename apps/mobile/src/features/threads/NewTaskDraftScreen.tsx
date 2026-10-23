@@ -1787,6 +1787,7 @@ export function NewTaskDraftScreen(props: {
                       selectedModel={flow.selectedModel}
                       modelOption={flow.selectedModelOption}
                       label={flow.selectedModelOption?.label ?? "Choose model"}
+                      prompt={flow.prompt}
                       disabled={isComposerInteractionLocked}
                       onPress={settingsSheetPresentation.open}
                     />
