@@ -12,7 +12,7 @@ const failureMessages = (error: unknown) => {
   for (let depth = 0; depth < MAX_CAUSE_DEPTH && current instanceof Error; depth++) {
     const message = current.message.trim();
     if (message.length > 0 && !messages.some((seen) => seen.includes(message))) {
-      messages.push(message.replaceAll("\n", "\n  "));
+      messages.push(message);
     }
     current = current.cause;
   }
@@ -38,7 +38,9 @@ export const reportCliFailure = Effect.fnUntraced(function* (cause: Cause.Cause<
     formatter.formatError(
       new CliError.UserError({
         cause: error,
-        userMessage: [headline, ...causes.map((message) => `Caused by: ${message}`)].join("\n  "),
+        userMessage: [headline, ...causes.map((message) => `Caused by: ${message}`)]
+          .join("\n")
+          .replaceAll("\n", "\n  "),
       }),
     ),
   );
