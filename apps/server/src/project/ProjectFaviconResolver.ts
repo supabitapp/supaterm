@@ -1,3 +1,4 @@
+import * as Arr from "effect/Array";
 import * as Cache from "effect/Cache";
 import * as Context from "effect/Context";
 import * as Duration from "effect/Duration";
@@ -312,11 +313,21 @@ export const make = Effect.gen(function* () {
       const names = yield* fileSystem
         .readDirectory(parentPath)
         .pipe(Effect.mapError(listFailed(parentPath)));
-      const packages = yield* Effect.filter(
-        names.filter((name) => !name.startsWith(".")).toSorted(),
-        (name) => isDirectory(path.join(parentPath, name)),
-        { concurrency: "unbounded" },
-      );
+      const candidates = names.filter((name) => !name.startsWith(".")).toSorted();
+      const packages: Array<string> = [];
+      // Batched so entries past the cap are never stat'ed; forEach keeps input order,
+      // which decides ties between equally ranked icons.
+      for (const batch of Arr.chunksOf(candidates, MAX_PACKAGES_PER_PARENT)) {
+        const isPackage = yield* Effect.forEach(
+          batch,
+          (name) => isDirectory(path.join(parentPath, name)),
+          { concurrency: "unbounded" },
+        );
+        packages.push(...batch.filter((_, index) => isPackage[index]));
+        if (packages.length >= MAX_PACKAGES_PER_PARENT) {
+          break;
+        }
+      }
       return packages.slice(0, MAX_PACKAGES_PER_PARENT).map((name) => path.join(parent, name));
     },
   );

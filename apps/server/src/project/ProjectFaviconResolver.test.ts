@@ -1,5 +1,6 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it, describe, expect } from "@effect/vitest";
+import * as Deferred from "effect/Deferred";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -399,6 +400,73 @@ it.layer(layerTest)("ProjectFaviconResolverLive", (it) => {
 
         expect(yield* resolver.resolvePath(cwd)).toBe(
           path.join(cwd, "apps", "web", "public", "brand.svg"),
+        );
+      }),
+    );
+
+    it.effect("breaks ties between equally ranked package icons by package name", () =>
+      Effect.gen(function* () {
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "apps/alpha/public/favicon.svg", "<svg>alpha</svg>");
+        yield* writeTextFile(cwd, "apps/beta/public/favicon.svg", "<svg>beta</svg>");
+        const alphaPath = path.join(cwd, "apps", "alpha");
+        const betaPath = path.join(cwd, "apps", "beta");
+        const betaStatted = yield* Deferred.make<void>();
+        const resolver = yield* makeResolverWithFileSystem(
+          FileSystem.FileSystem.of({
+            ...fileSystem,
+            stat: (filePath) => {
+              if (filePath === alphaPath) {
+                return Deferred.await(betaStatted).pipe(Effect.andThen(fileSystem.stat(filePath)));
+              }
+              if (filePath === betaPath) {
+                return fileSystem
+                  .stat(filePath)
+                  .pipe(Effect.tap(Deferred.succeed(betaStatted, undefined)));
+              }
+              return fileSystem.stat(filePath);
+            },
+          }),
+        );
+
+        expect(yield* resolver.resolvePath(cwd)).toBe(
+          path.join(alphaPath, "public", "favicon.svg"),
+        );
+      }),
+    );
+
+    it.effect("does not inspect package entries beyond the cap", () =>
+      Effect.gen(function* () {
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        for (let index = 0; index < 64; index += 1) {
+          yield* writeTextFile(cwd, `apps/app-${String(index).padStart(2, "0")}/README.md`, "");
+        }
+        yield* writeTextFile(cwd, "apps/app-63/public/favicon.svg", "<svg>last</svg>");
+        yield* writeTextFile(cwd, "apps/zz-unreadable/README.md", "");
+        const unreadablePath = path.join(cwd, "apps", "zz-unreadable");
+        const resolver = yield* makeResolverWithFileSystem(
+          FileSystem.FileSystem.of({
+            ...fileSystem,
+            stat: (filePath) =>
+              filePath === unreadablePath
+                ? Effect.fail(
+                    PlatformError.systemError({
+                      _tag: "PermissionDenied",
+                      module: "FileSystem",
+                      method: "stat",
+                      pathOrDescriptor: unreadablePath,
+                    }),
+                  )
+                : fileSystem.stat(filePath),
+          }),
+        );
+
+        expect(yield* resolver.resolvePath(cwd)).toBe(
+          path.join(cwd, "apps", "app-63", "public", "favicon.svg"),
         );
       }),
     );
