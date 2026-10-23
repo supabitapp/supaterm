@@ -942,7 +942,7 @@ describe("deleted thread worktrees", () => {
     }).pipe(Effect.provide(cleanupTestLayer), Effect.scoped),
   );
 
-  it.effect("waits out the settle grace of a subagent that just settled", () =>
+  it.effect("waits out the done grace of a subagent just marked done", () =>
     Effect.gen(function* () {
       yield* TestClock.setTime(NOW_MS);
       const fixture = yield* cleanupFixture({
@@ -957,7 +957,7 @@ describe("deleted thread worktrees", () => {
       expect(report.entries[0]).toMatchObject({
         threadId: owner.id,
         outcome: "kept",
-        reason: "Settled moments ago",
+        reason: "Marked done moments ago",
       });
       expect(yield* fixture.fs.exists(fixture.worktree)).toBe(true);
     }).pipe(Effect.provide(cleanupTestLayer), Effect.scoped),
