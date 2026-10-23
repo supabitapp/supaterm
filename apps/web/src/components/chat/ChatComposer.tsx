@@ -114,6 +114,7 @@ import { useComposerImageGroups } from "./useComposerImageGroups";
 import { useComposerStash } from "./useComposerStash";
 import { useComposerContextImport } from "./useComposerContextImport";
 import { useComposerAttachmentIntake } from "./useComposerAttachmentIntake";
+import { ComposerControlsBar } from "./ComposerControlsBar";
 import { useInputsChanged, useInputsChangedWhileActive } from "./useInputsChanged";
 import { useComposerFocusState } from "./useComposerFocusState";
 import { useComposerMultilinePrompt } from "./useComposerMultilinePrompt";
@@ -209,7 +210,6 @@ import {
   composerSuggestionOptionId,
 } from "./ComposerCommandMenu";
 import { ComposerPendingApprovalActions } from "./ComposerPendingApprovalActions";
-import { CompactComposerControlsMenu } from "./CompactComposerControlsMenu";
 import {
   ComposerAttachButton,
   ComposerAttachmentFileList,
@@ -219,22 +219,15 @@ import {
   ComposerRestingImagePreviews,
 } from "./ComposerAttachmentStrip";
 import { ComposerPrimaryActions } from "./ComposerPrimaryActions";
-import {
-  ComposerFooterModeControls,
-  ComposerFooterPrimaryActions,
-  ComposerModelPicker,
-} from "./ComposerFooterControls";
+import { ComposerFooterPrimaryActions } from "./ComposerFooterControls";
 import { ComposerPendingApprovalPanel } from "./ComposerPendingApprovalPanel";
 import { ComposerPendingUserInputPanel } from "./ComposerPendingUserInputPanel";
-import { ComposerControlSeparator } from "./ComposerControl";
 import { resolveComposerMenuActiveItemId } from "./composerMenuHighlight";
 import { buildPullRequestReferenceContext } from "../pullRequest/pullRequestDetail.logic";
 import {
   getComposerPromptInjectionState,
   getComposerReasoningStep,
   getComposerSpeedToggleChange,
-  renderProviderTraitsMenuContent,
-  renderProviderTraitsPicker,
 } from "./composerProviderState";
 import { readPromptUltrathink } from "./TraitsPicker";
 import { providerSupportsManualCompaction } from "./ContextWindow.logic";
@@ -1285,33 +1278,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const editPromptFromTraitsStable = useStableCallback(editPromptFromTraits);
   const promptUltrathink = readPromptUltrathink(prompt);
 
-  const providerTraitsMenuContent = renderProviderTraitsMenuContent({
-    provider: selectedProvider,
-    instanceId: selectedInstanceId,
-    ...(routeKind === "server" ? { threadRef: routeThreadRef } : {}),
-    ...(routeKind === "draft" && draftId ? { draftId } : {}),
-    model: selectedModel,
-    models: selectedProviderModels,
-    modelOptions: composerModelOptions?.[selectedInstanceId],
-    reportedModelSelection,
-    promptUltrathink,
-    onPromptEdit: editPromptFromTraitsStable,
-  });
-  const providerTraitsPickerInput = {
-    provider: selectedProvider,
-    instanceId: selectedInstanceId,
-    ...(routeKind === "server" ? { threadRef: routeThreadRef } : {}),
-    ...(routeKind === "draft" && draftId ? { draftId } : {}),
-    model: selectedModel,
-    models: selectedProviderModels,
-    modelOptions: composerModelOptions?.[selectedInstanceId],
-    reportedModelSelection,
-    promptUltrathink,
-    onPromptEdit: editPromptFromTraitsStable,
-    isComposerOwned: true,
-    shortcutLabel: shortcutLabelForCommand(keybindings, "composer.effort"),
-  } satisfies Parameters<typeof renderProviderTraitsPicker>[0];
-  const providerTraitsPicker = renderProviderTraitsPicker(providerTraitsPickerInput);
   const [inlineRestingControlsHost, setInlineRestingControlsHost] = useState<HTMLDivElement | null>(
     null,
   );
@@ -2745,159 +2711,54 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const iconOnlyBlockCount = composerControlsCollapsed
     ? restingControlsIconOnlyBlockCount
     : expandedControlsIconOnlyBlockCount;
-  const restingProviderTraitsPicker = renderProviderTraitsPicker({
-    ...providerTraitsPickerInput,
-    size: composerControlsCollapsed ? "xs" : "sm",
-    hidden: composerControlsHidden || restingHiddenBlockCount > 1,
-  });
-  const restingBlockDefs = [
-    ...(providerTraitsPicker
-      ? [
-          {
-            id: "traits",
-            content: (
-              <>
-                <ComposerControlSeparator size={composerControlsCollapsed ? "xs" : "sm"} />
-                {restingProviderTraitsPicker}
-              </>
-            ),
-          },
-        ]
-      : []),
-    {
-      id: "mode",
-      content: (
-        <ComposerFooterModeControls
-          keybindings={keybindings}
-          runtimeMode={compatibleRuntimeMode}
-          runtimeModeOptions={compatibleRuntimeModeOptions}
-          size={composerControlsCollapsed ? "xs" : "sm"}
-          hidden={composerControlsHidden || restingHiddenBlockCount > 0}
-          onRuntimeModeChange={handleRuntimeModeChange}
-        />
-      ),
-    },
-  ];
-  const hiddenRestingBlockIds = restingBlockDefs
-    .slice(restingBlockDefs.length - restingHiddenBlockCount)
-    .map((def) => def.id);
-  // Its own element, so typing (which rebuilds the controls around it) leaves it cached.
-  const composerModelPicker = (
-    <ComposerModelPicker
+  const composerControls = (
+    <ComposerControlsBar
       environmentId={environmentId}
-      compact={false}
-      isComposerOwned
-      disabled={providerCatalogPending || isSendBusy}
+      routeKind={routeKind}
+      routeThreadRef={routeThreadRef}
+      draftId={draftId}
+      selectedProvider={selectedProvider}
+      selectedInstanceId={selectedInstanceId}
+      selectedModel={selectedModel}
+      selectedProviderModels={selectedProviderModels}
+      composerModelOptions={composerModelOptions}
+      reportedModelSelection={reportedModelSelection}
+      promptUltrathink={promptUltrathink}
+      onPromptEdit={editPromptFromTraitsStable}
+      compatibleRuntimeMode={compatibleRuntimeMode}
+      compatibleRuntimeModeOptions={compatibleRuntimeModeOptions}
+      handleRuntimeModeChange={handleRuntimeModeChange}
+      composerControlsCollapsed={composerControlsCollapsed}
+      composerControlsHidden={composerControlsHidden}
+      restingHiddenBlockCount={restingHiddenBlockCount}
+      iconOnlyBlockCount={iconOnlyBlockCount}
+      showInlineRestingControls={showInlineRestingControls}
+      showLeadingSeparator={
+        composerControlsCollapsed &&
+        restingControlsHost !== null &&
+        restingControlsHaveLeadingContext
+      }
+      onOpenProviderSetup={onOpenProviderSetup}
+      providerCatalogPending={providerCatalogPending}
+      isSendBusy={isSendBusy}
       multipleModelsEnabled={routeKind === "draft" && supportsMultipleModels}
       multipleModelSelections={multipleModelSelections}
       onMultipleModelSelectionsChange={setMultipleModelSelections}
       selectedModelSelection={selectedModelSelection}
       onProviderModelSelect={onProviderModelSelect}
-      activeInstanceId={
-        providerCatalogPending
-          ? (activeThreadModelSelection?.instanceId ?? selectedInstanceId)
-          : selectedInstanceId
-      }
-      model={
-        providerCatalogPending
-          ? (activeThreadModelSelection?.model ?? selectedModelForPickerWithCustomFallback)
-          : selectedModelForPickerWithCustomFallback
-      }
+      activeThreadModelSelection={activeThreadModelSelection}
+      selectedModelForPickerWithCustomFallback={selectedModelForPickerWithCustomFallback}
       lockedProvider={lockedProvider}
       lockedContinuationGroupKey={lockedContinuationGroupKey}
-      instanceEntries={providerInstanceEntries}
+      providerInstanceEntries={providerInstanceEntries}
       keybindings={keybindings}
       modelOptionsByInstance={modelOptionsByInstance}
-      size={composerControlsCollapsed ? "xs" : "sm"}
-      triggerClassName={
-        composerControlsCollapsed
-          ? cn(
-              "min-w-13 shrink text-xs!",
-              !showInlineRestingControls &&
-                "@max-[640px]/composer-surface:[&_[data-chat-provider-model-picker-label]]:w-0 @max-[640px]/composer-surface:[&_[data-chat-provider-model-picker-label]]:flex-none",
-            )
-          : "-ms-2.5 min-w-13"
-      }
       terminalOpen={terminalOpen}
-      open={isComposerModelPickerOpen}
-      instanceIndicatorBackground={
-        composerControlsCollapsed
-          ? "color-mix(in srgb, var(--chat-composer-glass-surface) var(--glass-opacity), transparent)"
-          : "var(--contrast-input)"
-      }
-      {...(composerProviderState.modelPickerIconClassName || composerControlsCollapsed
-        ? {
-            activeProviderIconClassName: cn(
-              composerProviderState.modelPickerIconClassName,
-              composerControlsCollapsed &&
-                "fill-muted-foreground/70! text-muted-foreground/70! [&_path]:fill-muted-foreground/70! [&_rect]:fill-muted-foreground/70! [&_[data-icon-detail]]:fill-transparent! [&[data-provider-package-icon]]:opacity-70 [&[data-provider-package-icon]_path:not([data-icon-detail])]:fill-muted-foreground!",
-            ),
-          }
-        : {})}
-      onOpenChange={setIsComposerModelPickerOpen}
+      modelPickerOpen={isComposerModelPickerOpen}
+      onModelPickerOpenChange={setIsComposerModelPickerOpen}
+      modelPickerIconClassName={composerProviderState.modelPickerIconClassName}
       getModelDisabledReason={getModelDisabledReason}
-      onOpenProviderSetup={onOpenProviderSetup}
     />
-  );
-  const composerControls = (
-    <>
-      {composerControlsCollapsed &&
-      restingControlsHost !== null &&
-      restingControlsHaveLeadingContext ? (
-        <ComposerControlSeparator
-          size="xs"
-          className="@max-[400px]/composer-surface:hidden"
-          data-resting-controls-separator="true"
-        />
-      ) : null}
-      {composerModelPicker}
-
-      <>
-        {restingBlockDefs.map((def, index) => {
-          const hidden = index >= restingBlockDefs.length - restingHiddenBlockCount;
-          return (
-            <div
-              key={def.id}
-              data-resting-block={def.id}
-              data-composer-block-icon-only={
-                index >= restingBlockDefs.length - iconOnlyBlockCount ? "true" : "false"
-              }
-              aria-hidden={hidden || undefined}
-              inert={hidden || undefined}
-              className={cn(
-                "flex w-max min-w-max shrink-0 items-center gap-1",
-                hidden && "pointer-events-none invisible absolute",
-                index >= restingBlockDefs.length - iconOnlyBlockCount &&
-                  "[&_[data-composer-control-label]]:pointer-events-none [&_[data-composer-control-label]]:invisible [&_[data-composer-control-label]]:absolute [&_[data-composer-control-label]]:w-max [&_[data-composer-control-label]]:max-w-none [&_[data-composer-control-compact-icon]]:[visibility:inherit] [&_[data-composer-control-compact-icon]]:relative",
-              )}
-            >
-              {def.content}
-            </div>
-          );
-        })}
-        <div
-          data-resting-controls-overflow
-          aria-hidden={hiddenRestingBlockIds.length === 0 || undefined}
-          inert={hiddenRestingBlockIds.length === 0 || undefined}
-          className={cn(
-            "min-w-0 shrink-0",
-            hiddenRestingBlockIds.length === 0 && "pointer-events-none invisible absolute",
-          )}
-        >
-          <CompactComposerControlsMenu
-            runtimeMode={compatibleRuntimeMode}
-            runtimeModeOptions={compatibleRuntimeModeOptions}
-            size={composerControlsCollapsed ? "xs" : "sm"}
-            hidden={composerControlsHidden || hiddenRestingBlockIds.length === 0}
-            keybindings={keybindings}
-            traitsMenuContent={
-              hiddenRestingBlockIds.includes("traits") ? providerTraitsMenuContent : undefined
-            }
-            onRuntimeModeChange={handleRuntimeModeChange}
-          />
-        </div>
-      </>
-    </>
   );
   const showTasksTab =
     !hasBannerItems &&
