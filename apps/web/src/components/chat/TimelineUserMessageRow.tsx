@@ -1,5 +1,9 @@
 import { TimelineRowCtx, type TimelineRow, TimelineRowActivityCtx } from "./timelineRowContext";
-import { MessageAuthorHeading, MESSAGE_HEADING_LEVEL } from "./TimelineRowParts";
+import {
+  MessageAuthorHeading,
+  MESSAGE_HEADING_LEVEL,
+  TimelineRowTimestamp,
+} from "./TimelineRowParts";
 import { resolvePreviewAnnotationImage } from "./TimelineUserMessageRow.logic";
 import { UserMessageContextReferenceChip } from "./UserMessageContextChips";
 import { shouldCollapseUserMessage } from "./MessagesTimeline.logic";
@@ -7,6 +11,8 @@ import { findRevealRef } from "./markdownFindContext";
 import { ThreadId, type MessageId, type ServerProviderSkill } from "@supaterm/contracts";
 import { resolveUserMessagePresentation } from "@supaterm/client-runtime/user-message";
 import { Link } from "@tanstack/react-router";
+import { useEnvironmentQuery } from "../../state/query";
+import { serverEnvironment } from "../../state/server";
 import {
   collectComposerContextReferences,
   replaceComposerContextReferences,
@@ -23,7 +29,8 @@ import {
   isVideoAttachment,
 } from "../../types";
 import ChatMarkdown, { type ChatMarkdownContextReference } from "../ChatMarkdown";
-import { EyeIcon, DownloadIcon, Redo2Icon, Undo2Icon } from "lucide-react";
+import { CalendarClockIcon, EyeIcon, DownloadIcon, Redo2Icon, Undo2Icon } from "lucide-react";
+import { DisclosureChevron } from "../ui/disclosure-chevron";
 import { Link as LinkIconNode } from "lucide";
 import { InlineButton, Button } from "../ui/button";
 import { useAssetUrlState, useAssetUrlRefresh, useAssetUrls } from "../../assets/assetUrls";
@@ -111,8 +118,126 @@ export function UserMessageRow({ row }: { row: Extract<TimelineRow, { kind: "mes
       environmentId={ctx.activeThreadEnvironmentId}
       onOpenThread={(threadId) => ctx.onOpenThread(ThreadId.make(threadId))}
     />
+  ) : resolveUserMessagePresentation(row.message).attribution === "automation" ? (
+    <AutomationMessageRow row={row} />
   ) : (
     <UserTimelineRow row={row} />
+  );
+}
+
+/** Automation prompts are long, repeated runbooks; a folded bubble keeps them out of the way. */
+function AutomationMessageRow({ row }: { row: Extract<TimelineRow, { kind: "message" }> }) {
+  const ctx = use(TimelineRowCtx);
+  const [expanded, toggleExpanded, setExpanded] = useTimelineDisclosure();
+  const revealRef = findRevealRef(() => setExpanded(true));
+  const { text, scheduledTaskId } = resolveUserMessagePresentation(row.message);
+  const tasksQuery = useEnvironmentQuery(
+    scheduledTaskId
+      ? serverEnvironment.scheduledTasksLive({
+          environmentId: ctx.activeThreadEnvironmentId,
+          input: {},
+        })
+      : null,
+  );
+  const taskTitle = tasksQuery.data?.tasks.find((task) => task.id === scheduledTaskId)?.title;
+  const summary = taskTitle ?? text.trim().split(/\r?\n/, 1)[0] ?? "";
+
+  const revertTurnCount = row.revertTurnCount;
+  const promptLink = promptLinkFor(text);
+  // Find reads the DOM, so a folded prompt stays mounted but hidden while find is open.
+  const bodyMounted = expanded || ctx.findActive;
+
+  return (
+    <div className="group flex flex-col items-end gap-1" data-user-message-attribution="automation">
+      {row.message.inputIntent === "steer" ||
+      row.message.inputIntent === "promoted_queued_to_steer" ? (
+        <UserMessageIntentMarker intent={row.message.inputIntent} />
+      ) : null}
+      <div
+        className={cn(
+          "min-w-0 max-w-[80%] rounded-2xl bg-message text-message-foreground",
+          expanded && "w-full",
+        )}
+      >
+        <button
+          type="button"
+          aria-expanded={expanded}
+          onClick={toggleExpanded}
+          className="flex w-full min-w-0 items-center gap-1.5 rounded-2xl px-3 py-2 text-left text-sm focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          <CalendarClockIcon className="size-4 shrink-0 stroke-2 text-muted-foreground" />
+          <span className="shrink-0 text-muted-foreground">Automation</span>
+          <span className="min-w-0 flex-1 truncate">{summary}</span>
+          <span className="text-muted-foreground">
+            <DisclosureChevron open={expanded} size="sm" />
+          </span>
+        </button>
+        {bodyMounted ? (
+          // `beforematch` does not bubble, so the reveal listener sits on the hidden fold itself.
+          <div
+            ref={revealRef}
+            hidden={!expanded}
+            className={cn("px-3 pb-3", !ctx.findActive && "max-h-96 overflow-auto")}
+            data-thread-find-text="true"
+          >
+            <UserMessageBody text={text} skills={ctx.skills} markdownCwd={ctx.markdownCwd} />
+          </div>
+        ) : null}
+      </div>
+      <UserMessageProjectedStatus row={row} />
+      {expanded ? (
+        <div className="flex w-full max-w-[80%] items-center justify-end pe-1 text-xs tabular-nums opacity-0 transition-opacity duration-150 pointer-coarse:opacity-100 focus-within:opacity-100 group-hover:opacity-100">
+          <div className="flex shrink-0 items-center gap-2">
+            {scheduledTaskId ? (
+              <Link
+                to="/automations"
+                search={{ environmentId: ctx.activeThreadEnvironmentId, taskId: scheduledTaskId }}
+                className="rounded-sm text-xs text-muted-foreground hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                Open automation
+              </Link>
+            ) : null}
+            <TimelineRowTimestamp
+              createdAt={row.message.createdAt}
+              timestampFormat={ctx.timestampFormat}
+              alwaysVisible
+            />
+            <div className="flex items-center gap-0.5">
+              {typeof revertTurnCount === "number" && (
+                <RevertUserMessageButton turnCount={revertTurnCount} messageId={row.message.id} />
+              )}
+              <MessageCopyButton text={text} variant="ghost" />
+              {promptLink !== null && (
+                <MessageCopyButton
+                  text={promptLink}
+                  label="Copy prompt link"
+                  icon={LinkIconNode}
+                  variant="ghost"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function UserMessageProjectedStatus({ row }: { row: Extract<TimelineRow, { kind: "message" }> }) {
+  const status = row.projectedItem?.item.status;
+  if (
+    status === undefined ||
+    status === "completed" ||
+    status === "pending" ||
+    status === "waiting"
+  )
+    return null;
+  return (
+    <div className="me-1 flex items-center gap-1.5">
+      <span className="rounded-full border border-destructive/25 bg-destructive/8 px-1.5 py-0.5 text-3xs font-medium text-destructive">
+        {status}
+      </span>
+    </div>
   );
 }
 
@@ -248,27 +373,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
 
   return (
     <div className="group flex flex-col items-end gap-1">
-      {userMessage.attribution === "automation" ? (
-        <p
-          className="me-1 text-2xs text-muted-foreground/70"
-          data-user-message-attribution="automation"
-        >
-          {userMessage.scheduledTaskId ? (
-            <Link
-              to="/automations"
-              search={{
-                environmentId: ctx.activeThreadEnvironmentId,
-                taskId: userMessage.scheduledTaskId,
-              }}
-              className="rounded-sm hover:text-muted-foreground hover:underline focus-visible:outline-2 focus-visible:outline-ring"
-            >
-              Sent by automation
-            </Link>
-          ) : (
-            "Sent by automation"
-          )}
-        </p>
-      ) : userMessage.attribution === "supaterm" ? (
+      {userMessage.attribution === "supaterm" ? (
         <p
           className="me-1 text-2xs text-muted-foreground/70"
           data-user-message-attribution="supaterm"
@@ -410,16 +515,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
           />
         </div>
       </div>
-      {row.projectedItem &&
-      row.projectedItem.item.status !== "completed" &&
-      row.projectedItem.item.status !== "pending" &&
-      row.projectedItem.item.status !== "waiting" ? (
-        <div className="me-1 flex items-center gap-1.5">
-          <span className="rounded-full border border-destructive/25 bg-destructive/8 px-1.5 py-0.5 text-3xs font-medium text-destructive">
-            {row.projectedItem.item.status}
-          </span>
-        </div>
-      ) : null}
+      <UserMessageProjectedStatus row={row} />
       <div className="flex w-full max-w-[80%] items-center justify-end pe-1 text-xs tabular-nums opacity-0 transition-opacity duration-150 pointer-coarse:opacity-100 focus-within:opacity-100 group-hover:opacity-100">
         <div className="flex shrink-0 items-center gap-2">
           <Tooltip>
