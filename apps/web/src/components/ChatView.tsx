@@ -34,6 +34,7 @@ import { useQueuedRunEditWithOutbox } from "./chat/useQueuedRunEditWithOutbox";
 import { ThreadVisitWatermark } from "./chat/ThreadVisitWatermark";
 import { ChatTerminalDrawers } from "./chat/ChatTerminalDrawers";
 import { ChatRightPanel } from "./chat/ChatRightPanel";
+import { ChatBannerLane } from "./chat/ChatBannerLane";
 import { usePasteToFocusComposer } from "./chat/usePasteToFocusComposer";
 import { useDraftHeroLayoutTransition } from "./chat/useDraftHeroLayoutTransition";
 import { useLocalDispatchState } from "./chat/useLocalDispatchState";
@@ -430,15 +431,12 @@ import {
 } from "./BranchToolbar.logic";
 import {
   getProviderStatusBannerKey,
-  ProviderStatusBanner,
   shouldShowProviderStatusBanner,
 } from "./chat/ProviderStatusBanner";
 import {
-  dismissThreadErrorBannerForSession,
   getThreadErrorBannerKey,
   isThreadErrorBannerDismissedForSession,
   shouldShowThreadErrorBanner,
-  ThreadErrorBanner,
 } from "./chat/ThreadErrorBanner";
 import { QueuedRunsControl, type QueuedRunsControlHandle } from "./chat/QueuedRunsControl";
 import { useThreadLinkedPullRequest } from "./pullRequest/useThreadLinkedPullRequest";
@@ -6766,28 +6764,23 @@ export default function ChatView(props: ChatViewProps) {
               >
                 <ThreadFind onClose={focusComposerStable} />
                 <WorkspaceDropOverlay active={isWorkspaceFileDragActive} />
-                <div className="chat-banner-lane pointer-events-none absolute top-0 z-20 flex flex-col">
-                  <ProviderStatusBanner
-                    key={`provider:${routeThreadKey}`}
-                    status={visibleProviderStatus}
-                    onDismiss={() => setDismissedProviderStatusBannerKey(providerStatusBannerKey)}
-                    onOpenProviderSetup={openProviderSetupStable}
-                  />
-                  <ThreadErrorBanner
-                    key={`error:${routeThreadKey}`}
-                    error={timelineThreadError}
-                    errorClass={
-                      localServerError === null && visibleThreadError === serverRuntime?.lastError
-                        ? (serverRuntime?.lastErrorClass ?? null)
-                        : null
-                    }
-                    onDismiss={() => {
-                      setThreadError(activeThread.id, null);
-                      dismissThreadErrorBannerForSession(threadErrorBannerKey);
-                      setThreadErrorBannerDismissTick((tick) => tick + 1);
-                    }}
-                  />
-                </div>
+                <ChatBannerLane
+                  routeThreadKey={routeThreadKey}
+                  providerStatus={visibleProviderStatus}
+                  providerStatusBannerKey={providerStatusBannerKey}
+                  setDismissedProviderStatusBannerKey={setDismissedProviderStatusBannerKey}
+                  onOpenProviderSetup={openProviderSetupStable}
+                  threadId={activeThread.id}
+                  threadError={timelineThreadError}
+                  threadErrorClass={
+                    localServerError === null && visibleThreadError === serverRuntime?.lastError
+                      ? (serverRuntime?.lastErrorClass ?? null)
+                      : null
+                  }
+                  threadErrorBannerKey={threadErrorBannerKey}
+                  setThreadError={setThreadError}
+                  setThreadErrorBannerDismissTick={setThreadErrorBannerDismissTick}
+                />
                 <div className="relative flex min-h-0 flex-1 flex-col bg-background">
                   <MessagesTimeline
                     citationRequest={paintOnlyDisplayedTimeline ? null : citationRequest}
