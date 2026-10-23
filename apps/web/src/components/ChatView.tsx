@@ -35,6 +35,7 @@ import { useComposerSelection } from "./chat/useComposerSelection";
 import { useRightPanelActions } from "./chat/useRightPanelActions";
 import { useThreadLifecycle } from "./chat/useThreadLifecycle";
 import { useComposerSend } from "./chat/useComposerSend";
+import { useComposerResume } from "./chat/useComposerResume";
 import { type TerminalLaunchContext, useChatTerminalActions } from "./chat/useChatTerminalActions";
 import { useDraftEnvironmentRouting } from "./chat/useDraftEnvironmentRouting";
 import { branchMismatchBannerItem } from "./chat/ThreadActivityBanners";
@@ -2963,7 +2964,28 @@ export default function ChatView(props: ChatViewProps) {
     void sendStandaloneCommand("/compact", "Failed to compact context.");
   };
 
-  const { onSend, onResume, isResuming } = useComposerSend({
+  const { onResume, isResuming } = useComposerResume({
+    environmentId,
+    routeThreadKey,
+    currentRouteThreadKeyRef,
+    activeThread,
+    resumableRunId,
+    hasHeldQueuedRuns,
+    isSendBusy,
+    isConnecting,
+    isRevertingCheckpoint,
+    threadDetailLoading,
+    activeEnvironmentUnavailable,
+    runtimeMode,
+    interactionMode,
+    localCheckoutBranchMismatch,
+    composerRef,
+    persistThreadSettingsForNextTurn,
+    clearUsageLimitsFor,
+    scrollToEnd,
+    setThreadError,
+  });
+  const { onSend } = useComposerSend({
     environmentId,
     routeThreadKey,
     currentRouteThreadKeyRef,
@@ -2975,11 +2997,8 @@ export default function ChatView(props: ChatViewProps) {
     isServerThread,
     isLocalDraftThread,
     isGitRepo,
-    hasHeldQueuedRuns,
-    resumableRunId,
     phase,
     runtimeMode,
-    interactionMode,
     sendEnvMode,
     startFromOrigin,
     worktreeBaseRefsSettled,
@@ -3022,10 +3041,8 @@ export default function ChatView(props: ChatViewProps) {
     setDockedDraftHeroThreadKey,
     setFeedbackSubmissionsByThreadKey,
     setThreadError,
-    scrollToEnd,
     anchorNewTurn,
     handleNewThreadInActiveProject,
-    persistThreadSettingsForNextTurn,
   });
 
   const onWorktreeSetupWorkLocally = () => {

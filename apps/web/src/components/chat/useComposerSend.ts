@@ -31,11 +31,7 @@ import { declinePendingApprovals } from "@supaterm/client-runtime/state/thread-r
 import { deriveThreadTitleSeed } from "@supaterm/client-runtime/operations";
 import { enqueueThreadOutboxTurns } from "../../state/threadOutbox";
 import { ensureInlineContextReferences } from "../../lib/composerContextReferences";
-import {
-  isAtomCommandInterrupted,
-  settlePromise,
-  squashAtomCommandFailure,
-} from "@supaterm/client-runtime/state/runtime";
+import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { isUsageLimitsCommand } from "@supaterm/shared/usageLimits";
 import { newMessageId, newThreadId } from "~/lib/utils";
 import {
@@ -57,17 +53,9 @@ import {
   type DraftThreadEnvMode,
   type ComposerThreadTarget,
 } from "../../composerDraftStore";
-import type {
-  EnvironmentId,
-  ProviderInteractionMode,
-  RunId,
-  RuntimeMode,
-  ThreadContextRecord,
-  ThreadId,
-} from "@supaterm/contracts";
+import type { EnvironmentId, RuntimeMode, ThreadContextRecord } from "@supaterm/contracts";
 import type { CodexFeedbackSubmission } from "@supaterm/client-runtime/state/threads";
-import type { AtomCommandResult } from "@supaterm/client-runtime/state/runtime";
-import { type Dispatch, type SetStateAction, useLayoutEffect, useRef, useState } from "react";
+import { type Dispatch, type SetStateAction, useLayoutEffect, useRef } from "react";
 import type { ComposerHandleRef } from "../../composerHandleContext";
 import type { SessionPhase } from "../../types";
 import type { EnvironmentPresentation } from "../../state/environments";
@@ -102,11 +90,8 @@ interface ComposerSendInput {
   readonly isServerThread: boolean;
   readonly isLocalDraftThread: boolean;
   readonly isGitRepo: boolean;
-  readonly hasHeldQueuedRuns: boolean;
-  readonly resumableRunId: RunId | null;
   readonly phase: SessionPhase;
   readonly runtimeMode: RuntimeMode;
-  readonly interactionMode: ProviderInteractionMode;
   readonly sendEnvMode: DraftThreadEnvMode;
   readonly startFromOrigin: boolean;
   readonly worktreeBaseRefsSettled: boolean;
@@ -154,22 +139,14 @@ interface ComposerSendInput {
     SetStateAction<Record<string, ReadonlyArray<CodexFeedbackSubmission>>>
   >;
   readonly setThreadError: ReturnType<typeof makeThreadErrorSetter>;
-  readonly scrollToEnd: TimelineFollow["scrollToEnd"];
   readonly anchorNewTurn: TimelineFollow["anchorNewTurn"];
   readonly handleNewThreadInActiveProject: () => void;
-  readonly persistThreadSettingsForNextTurn: (input: {
-    threadId: ThreadId;
-    createdAt: string;
-    branch?: string;
-    runtimeMode: RuntimeMode;
-    interactionMode: ProviderInteractionMode;
-  }) => Promise<AtomCommandResult<void, unknown>>;
 }
 
 /**
  * Every way the composer sends: a new message through the IndexedDB outbox, an outbox or
- * queued-message edit save, the Codex feedback and usage-limits commands, and resuming an
- * interrupted run. A send that redirects pending approvals declines them before it enqueues.
+ * queued-message edit save, and the Codex feedback and usage-limits commands. A send that
+ * redirects pending approvals declines them before it enqueues.
  */
 export function useComposerSend(input: ComposerSendInput) {
   const {
@@ -184,11 +161,8 @@ export function useComposerSend(input: ComposerSendInput) {
     isServerThread,
     isLocalDraftThread,
     isGitRepo,
-    hasHeldQueuedRuns,
-    resumableRunId,
     phase,
     runtimeMode,
-    interactionMode,
     sendEnvMode,
     startFromOrigin,
     worktreeBaseRefsSettled,
@@ -231,28 +205,16 @@ export function useComposerSend(input: ComposerSendInput) {
     setDockedDraftHeroThreadKey,
     setFeedbackSubmissionsByThreadKey,
     setThreadError,
-    scrollToEnd,
     anchorNewTurn,
     handleNewThreadInActiveProject,
-    persistThreadSettingsForNextTurn,
   } = input;
   const openPaneThread = usePaneThreadNavigation();
-  const startThreadTurn = useOrchestrationCommand(threadEnvironment.startTurn, {
-    reportFailure: false,
-  });
-  const resumeThreadQueue = useOrchestrationCommand(threadEnvironment.resumeThreadQueue, {
-    reportFailure: false,
-  });
   const uploadThreadFeedback = useOrchestrationCommand(threadEnvironment.uploadFeedback, {
     reportFailure: false,
   });
   const setComposerDraftPrompt = useComposerDraftStore((store) => store.setPrompt);
   const clearComposerDraftContent = useComposerDraftStore((store) => store.clearComposerContent);
   const { sendInFlight: sendInFlightRef } = draftSendState(routeThreadKey);
-  const [resumingThreadKeys, setResumingThreadKeys] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
-  const isResuming = resumingThreadKeys.has(routeThreadKey);
   // A send awaits its approval declines, so it reads the approvals pending by then.
   const pendingApprovalsRef = useRef(pendingApprovals);
   const respondingRequestIdsRef = useRef(respondingRequestIds);
@@ -260,83 +222,6 @@ export function useComposerSend(input: ComposerSendInput) {
     pendingApprovalsRef.current = pendingApprovals;
     respondingRequestIdsRef.current = respondingRequestIds;
   }, [pendingApprovals, respondingRequestIds]);
-
-  const onResume = async () => {
-    if (
-      !activeThread ||
-      (resumableRunId === null && !hasHeldQueuedRuns) ||
-      isSendBusy ||
-      isResuming ||
-      isConnecting ||
-      isRevertingCheckpoint ||
-      threadDetailLoading ||
-      activeEnvironmentUnavailable ||
-      sendInFlightRef.current
-    ) {
-      return;
-    }
-    const threadId = activeThread.id;
-    sendInFlightRef.current = true;
-    setResumingThreadKeys((current) => new Set(current).add(routeThreadKey));
-    setThreadError(threadId, null);
-    // Commands settle into a result, so this always runs.
-    const resume = async () => {
-      if (resumableRunId === null) {
-        return resumeThreadQueue({ environmentId, input: { threadId } });
-      }
-      const createdAt = new Date().toISOString();
-      const settingsResult = await persistThreadSettingsForNextTurn({
-        threadId,
-        createdAt,
-        ...(localCheckoutBranchMismatch
-          ? { branch: localCheckoutBranchMismatch.currentBranch }
-          : {}),
-        runtimeMode,
-        interactionMode,
-      });
-      if (settingsResult._tag === "Failure") return settingsResult;
-      const modelSelection = composerRef.current?.getSendContext().selectedModelSelection;
-      const turnResult = await startThreadTurn({
-        environmentId,
-        input: {
-          threadId,
-          manualContinuationOfRunId: resumableRunId,
-          ...(modelSelection ? { modelSelection } : {}),
-          message: {
-            messageId: newMessageId(),
-            role: "user",
-            text: "Continue where you left off.",
-            attachments: [],
-          },
-          runtimeMode,
-          interactionMode,
-          dispatchMode: "start",
-        },
-      });
-      if (turnResult._tag === "Failure" || !hasHeldQueuedRuns) return turnResult;
-      clearUsageLimitsFor(routeThreadKey);
-      return resumeThreadQueue({ environmentId, input: { threadId } });
-    };
-    const result = await resume();
-    if (result._tag === "Failure") {
-      if (!isAtomCommandInterrupted(result)) {
-        const error = squashAtomCommandFailure(result);
-        setThreadError(
-          threadId,
-          error instanceof Error ? error.message : "Could not resume thread.",
-        );
-      }
-    } else {
-      clearUsageLimitsFor(routeThreadKey);
-      if (currentRouteThreadKeyRef.current === routeThreadKey) scrollToEnd();
-    }
-    sendInFlightRef.current = false;
-    setResumingThreadKeys((current) => {
-      const next = new Set(current);
-      next.delete(routeThreadKey);
-      return next;
-    });
-  };
 
   const onSend = async (
     e?: { preventDefault: () => void },
@@ -926,5 +811,5 @@ export function useComposerSend(input: ComposerSendInput) {
     sendInFlightRef.current = false;
   };
 
-  return { onSend, onResume, isResuming };
+  return { onSend };
 }
