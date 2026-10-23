@@ -1502,7 +1502,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         onSwipeableWillOpen={props.onSwipeableWillOpen}
         primaryAction={primaryAction}
         secondaryAction={secondaryAction}
-        resetKey={`${threadKey}:${variant}:${snoozedRow}:${thread.doneAt}:${thread.reopenedAt}:${thread.snoozedUntil}`}
+        resetKey={`${threadKey}:${variant}:${snoozedRow}:${thread.doneAt}:${thread.reopenedAt}:${thread.snoozedUntil}:${thread.pinnedAt}`}
         simultaneousWith={props.simultaneousSwipeGesture}
         threadTitle={thread.title}
       >

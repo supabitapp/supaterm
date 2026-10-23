@@ -450,10 +450,15 @@ export function useThreadListActions(): {
     // Pinning clears snooze, so older Done or Snoozed undos would fight this pin.
     ThreadUndo.invalidate("mark-done", scopedThreadKey(thread.environmentId, thread.id));
     ThreadUndo.invalidate("snooze", scopedThreadKey(thread.environmentId, thread.id));
-    const result = await pinMutation({
-      environmentId: thread.environmentId,
-      input: { threadId: thread.id, ...(orderKey !== undefined ? { orderKey } : {}) },
-    });
+    const result = await withThreadDismissal(
+      scopedThreadKey(thread.environmentId, thread.id),
+      () =>
+        pinMutation({
+          environmentId: thread.environmentId,
+          input: { threadId: thread.id, ...(orderKey !== undefined ? { orderKey } : {}) },
+        }),
+      (result) => result._tag === "Success",
+    );
     if (result._tag === "Failure") {
       const error = Cause.squash(result.cause);
       Dialog.alert(
@@ -478,10 +483,15 @@ export function useThreadListActions(): {
     selectionHaptic();
     const plan = ThreadUndo.planThreadUndo("unpin", undoSnapshot(thread));
     const claim = ThreadUndo.begin("pin", scopedThreadKey(thread.environmentId, thread.id));
-    const result = await unpinMutation({
-      environmentId: thread.environmentId,
-      input: { threadId: thread.id },
-    });
+    const result = await withThreadDismissal(
+      scopedThreadKey(thread.environmentId, thread.id),
+      () =>
+        unpinMutation({
+          environmentId: thread.environmentId,
+          input: { threadId: thread.id },
+        }),
+      (result) => result._tag === "Success",
+    );
     if (result._tag === "Failure") {
       claim.finish();
       const error = Cause.squash(result.cause);
