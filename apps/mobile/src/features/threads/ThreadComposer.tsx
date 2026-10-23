@@ -483,6 +483,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       if (canSend) void handleSend();
     },
   });
+  const isSubmissionLocked = queuedEdit?.saving === true || voiceInput.blocksSubmission;
   const voicePresentation = resolveVoiceComposerPresentation(
     voiceInput.state,
     voiceInput.elapsedSeconds,
@@ -510,7 +511,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     !contextImports[composerDraftKey] &&
     sendBlockedReason === null &&
     !modelUnavailable;
-  const canSend = canSubmitDraft && hasContent && !voiceInput.blocksSubmission;
+  const canSend = canSubmitDraft && hasContent && !isSubmissionLocked;
 
   useEffect(() => {
     onExpandedChange?.(isExpanded);
@@ -518,7 +519,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   useEffect(() => () => setComposerEditing(false), [setComposerEditing]);
 
   const commandMenuTrigger =
-    !voiceInput.isBusy &&
+    !isSubmissionLocked &&
     composerMenu.trigger &&
     (composerMenu.items.length > 0 || composerMenu.trigger.kind === "pull-request")
       ? composerMenu.trigger
@@ -577,7 +578,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     setComposerEditing(false);
   };
   const handleSend = async (followUp?: ActiveTurnComposerAction) => {
-    if (voiceInput.blocksSubmission || pendingPastedTextAttachmentCountRef.current > 0) return;
+    if (isSubmissionLocked || pendingPastedTextAttachmentCountRef.current > 0) return;
     if (usageLimitsOffered && isUsageLimitsCommand(draftMessage) && draftAttachments.length === 0) {
       if (openUsageLimits()) onChangeDraftMessage("");
       return;
@@ -687,7 +688,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     <ComposerDictationTrailingActions
       state={voiceInput.state}
       isAvailable={voiceInput.isAvailable}
-      disabled={queuedEdit?.saving}
+      disabled={isSubmissionLocked}
       reservesSendWidth={isExpanded}
       onStart={startDictation}
       onCancel={voiceInput.cancel}
@@ -818,6 +819,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
           >
             {!isExpanded ? (
               <ComposerAttachmentButton
+                disabled={isSubmissionLocked}
                 supportsFiles={Boolean(
                   props.serverConfig?.environment.capabilities.fileAttachments,
                 )}
@@ -834,7 +836,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                 <ComposerQueuedEditAttachments
                   environmentId={props.environmentId}
                   attachments={queuedEdit.existingAttachments}
-                  disabled={queuedEdit.saving || voiceInput.isBusy}
+                  disabled={isSubmissionLocked}
                   onRemove={queuedEdit.onRemoveExistingAttachment}
                 />
               </Animated.View>
@@ -848,11 +850,11 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                 <ComposerAttachmentStrip
                   environmentId={props.environmentId}
                   attachments={stripAttachments}
-                  onRemove={voiceInput.isBusy ? () => undefined : props.onRemoveDraftImage}
-                  onPressPreview={voiceInput.isBusy ? undefined : onPressPreview}
-                  onPressVideo={voiceInput.isBusy ? undefined : onPressVideo}
+                  onRemove={isSubmissionLocked ? () => undefined : props.onRemoveDraftImage}
+                  onPressPreview={isSubmissionLocked ? undefined : onPressPreview}
+                  onPressVideo={isSubmissionLocked ? undefined : onPressVideo}
                   onPressDocument={
-                    voiceInput.isBusy
+                    isSubmissionLocked
                       ? undefined
                       : (attachment) =>
                           openDraftDocument({
@@ -888,13 +890,18 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                 multiline
                 value={draftMessage}
                 // The save uses a draft snapshot; further typing would be discarded on success.
-                readOnly={voiceInput.freezesEditor || queuedEdit?.saving === true}
+                readOnly={isSubmissionLocked}
                 skills={composerMenu.skills}
                 selection={composerMenu.selection}
-                onChangeText={props.onChangeDraftMessage}
+                onChangeText={(text) => {
+                  if (!isSubmissionLocked) props.onChangeDraftMessage(text);
+                }}
                 onSelectionChange={composerMenu.onSelectionChange}
-                onPasteImages={(uris) => void props.onNativePasteImages(uris)}
+                onPasteImages={(uris) => {
+                  if (!isSubmissionLocked) void props.onNativePasteImages(uris);
+                }}
                 onPasteText={(paste) => {
+                  if (isSubmissionLocked) return;
                   const insertPaste = () => {
                     const insertion = replaceTextSelection({
                       value: paste.value,
@@ -1014,8 +1021,8 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                     size={30}
                     borderRadius={8}
                     compact
-                    onPressPreview={onPressPreview}
-                    onPressVideo={onPressVideo}
+                    onPressPreview={isSubmissionLocked ? undefined : onPressPreview}
+                    onPressVideo={isSubmissionLocked ? undefined : onPressVideo}
                   />
                 ))}
                 {stripAttachments.length > 3 ? (
@@ -1073,6 +1080,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                 ) : (
                   <>
                     <ComposerAttachmentButton
+                      disabled={isSubmissionLocked}
                       supportsFiles={Boolean(
                         props.serverConfig?.environment.capabilities.fileAttachments,
                       )}
