@@ -12,6 +12,8 @@ import { RowPressable } from "../../components/ui/RowPressable";
 import { CustomSnoozeSheet } from "./CustomSnoozeSheet";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { threadArrangementOpenAtom } from "../../state/thread-order";
+import { threadEnvironment } from "../../state/threads";
+import { useAtomCommand } from "../../state/use-atom-command";
 import { useAtomValue } from "@effect/atom-react";
 import { isEnvironmentConnected } from "@supaterm/client-runtime/connection";
 import type {
@@ -606,6 +608,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   readonly hasQueuedMessages?: boolean;
   readonly snoozed?: boolean;
   readonly pinned?: boolean;
+  readonly wokeAt: string | null;
   readonly snoozeWakeLabelText?: string;
   /** Preformatted against the parent clock (row order timestamp: done stamp
       on done rows, latest activity otherwise). Blank while a status label
@@ -705,12 +708,6 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   const handleOpenPullRequests = useCallback(() => {
     if (pr) onOpenThreadPullRequests(thread, pr);
   }, [onOpenThreadPullRequests, pr, thread]);
-  // VoiceOver cannot focus the badge inside the accessible row, so the row
-  // exposes the same action.
-  const rowAccessibilityActions = useMemo(
-    () => (prBadgeLabel ? [{ name: "openPullRequests", label: prBadgeLabel }] : undefined),
-    [prBadgeLabel],
-  );
 
   const theme = useUniwindTheme();
   const sidebarPane = props.pane === "sidebar";
@@ -729,6 +726,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
 
   const status = resolveThreadListV2Status(thread);
   const isUnread = status === "ready" && threadHasUnseenCompletion(thread);
+  const showsWoke = environmentConnected && status === "ready" && props.wokeAt !== null;
   const rowStatusLabel = resolveThreadListV2RowStatusLabel({
     environmentConnected,
     status,
@@ -763,6 +761,23 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   // The timestamp is precomputed on the list item (same stamps the done
   // tail sorts by) so a minute tick only re-renders rows that draw it.
   const timeLabel = props.timeLabel;
+
+  const visitThread = useAtomCommand(threadEnvironment.visit, { reportFailure: false });
+  const handleAcknowledgeWoke = useCallback(() => {
+    if (props.wokeAt === null) return;
+    void visitThread({
+      environmentId: thread.environmentId,
+      input: { threadId: thread.id, visitedAt: props.wokeAt },
+    });
+  }, [props.wokeAt, thread.environmentId, thread.id, visitThread]);
+  // VoiceOver cannot focus buttons inside the accessible row.
+  const rowAccessibilityActions = useMemo(
+    () => [
+      ...(prBadgeLabel ? [{ name: "openPullRequests", label: prBadgeLabel }] : []),
+      ...(showsWoke ? [{ name: "dismissWoke", label: "Dismiss Woke notification" }] : []),
+    ],
+    [prBadgeLabel, showsWoke],
+  );
 
   const handleDelete = useCallback(() => onDeleteThread(thread), [onDeleteThread, thread]);
   const handleRename = useCallback(() => onRenameThread(thread), [onRenameThread, thread]);
@@ -1123,7 +1138,34 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
             type="monochrome"
           />
         ) : null}
-        {statusLabel ? (
+        {showsWoke ? (
+          <Pressable
+            className="-m-2.5 flex-row items-center gap-1 p-2.5"
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss Woke notification"
+            onPress={handleAcknowledgeWoke}
+            onLongPress={() => undefined}
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+          >
+            <SymbolView
+              name="bell.badge"
+              size={13}
+              tintColorClassName={
+                selected ? selectedThreadRowColors.iconTintClassName : "accent-warning-foreground"
+              }
+              type="monochrome"
+              weight="semibold"
+            />
+            <Text
+              className={cn(
+                "text-xs font-supaterm-bold",
+                selected ? selectedThreadRowColors.foregroundClassName : "text-warning-foreground",
+              )}
+            >
+              Woke
+            </Text>
+          </Pressable>
+        ) : statusLabel ? (
           <View className="flex-row items-center gap-1">
             <SymbolView
               name={statusLabel.icon}
@@ -1332,6 +1374,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         accessibilityActions={rowAccessibilityActions}
         onAccessibilityAction={(event) => {
           if (event.nativeEvent.actionName === "openPullRequests") handleOpenPullRequests();
+          if (event.nativeEvent.actionName === "dismissWoke") handleAcknowledgeWoke();
         }}
         onPress={() => {
           close();
