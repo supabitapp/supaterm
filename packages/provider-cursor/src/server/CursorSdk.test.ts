@@ -69,6 +69,16 @@ if (mode === "cursor-shell") {
     }),
   );
   setTimeout(() => process.exit(0), 500);
+} else if (mode === "closed-stream-write") {
+  // Shaped like the SDK's minified class: the constructor is not named after the error.
+  class o extends Error {
+    name = "WriteIterableClosedError";
+  }
+  Promise.reject(new o("WritableIterable is closed"));
+  setTimeout(() => process.exit(0), 500);
+} else if (mode === "closed-stream-message") {
+  Promise.reject(new Error("WritableIterable is closed"));
+  setTimeout(() => process.exit(0), 500);
 } else if (mode === "other-rejection") {
   Promise.reject(new Error("boom"));
   setTimeout(() => process.exit(0), 500);
@@ -158,6 +168,18 @@ describe("Cursor shell spawn guard", () => {
     const result = await runProbe("other-spawn");
     expect(result.code).toBe(1);
     expect(result.stderr).toContain("spawn git ENOENT");
+    expect(result.stderr).not.toContain("The server will keep running.");
+  });
+
+  it("keeps the process alive when the SDK writes to a closed exec stream", async () => {
+    const result = await runProbe("closed-stream-write");
+    expect(result.code).toBe(0);
+    expect(result.stderr).toContain("wrote to a closed exec stream");
+  });
+
+  it("still exits when only the message looks like a closed-stream write", async () => {
+    const result = await runProbe("closed-stream-message");
+    expect(result.code).toBe(1);
     expect(result.stderr).not.toContain("The server will keep running.");
   });
 
