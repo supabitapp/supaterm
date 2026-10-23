@@ -8,7 +8,9 @@ import {
 import { resolveNewThreadEnvMode, resolveProjectSettings } from "@supaterm/shared/projectSettings";
 
 import { type DraftId, type DraftThreadEnvMode, useComposerDraftStore } from "~/composerDraftStore";
+import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { readProject, readThreadShells } from "~/state/entities";
+import { environmentSummaries } from "~/state/presentation";
 import type { Project } from "~/types";
 import {
   hasExplicitComposerModelSelection,
@@ -29,8 +31,14 @@ export async function resolveNewDraftWorkspace(
   const project = readProject(projectRef) ?? undefined;
   const serverSettings = serverConfig?.settings ?? DEFAULT_SERVER_SETTINGS;
   const projectSettings = resolveProjectSettings(serverSettings, project?.id ?? null, project);
+  // Environment queries wait for a connection, so reading the project file on an
+  // offline machine would never settle and the draft would never open.
   const projectFile =
-    project !== undefined && projectSettings.settings.defaultThreadEnvMode === null
+    project !== undefined &&
+    projectSettings.settings.defaultThreadEnvMode === null &&
+    appAtomRegistry
+      .get(environmentSummaries.connectedEnvironmentIdsAtom)
+      .includes(project.environmentId)
       ? await readSupatermProjectFile(project.environmentId, project.workspaceRoot)
       : null;
   const envMode = resolveNewThreadEnvMode({
