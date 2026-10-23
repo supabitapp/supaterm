@@ -31,6 +31,7 @@ import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 
 import { getInitialServerConfig, request } from "../rpc/client.ts";
+import { deriveThreadQueueWorkflowState } from "../state/threadWorkflows.ts";
 
 interface CommandMetadata {
   readonly commandId?: CommandId;
@@ -210,6 +211,10 @@ export interface MergeThreadBackInput extends CommandMetadata {
   readonly sourceThreadId: ThreadId;
   readonly targetThreadId: ThreadId;
   readonly runId: RunId;
+}
+
+export interface ResumeThreadQueueInput extends ThreadCommandInput {
+  readonly runId?: RunId;
 }
 
 export interface ReorderQueuedRunInput extends ThreadCommandInput {
@@ -920,9 +925,34 @@ export const mergeThreadBack = Effect.fn("EnvironmentCommands.mergeThreadBack")(
   });
 });
 
+/** With a run id, sends that queued message now instead of the first one. */
 export const resumeThreadQueue = Effect.fn("EnvironmentCommands.resumeThreadQueue")(function* (
-  input: ThreadCommandInput,
+  input: ResumeThreadQueueInput,
 ) {
+  if (input.runId !== undefined) {
+    const config = yield* getInitialServerConfig();
+    if (config.environment.capabilities.queuedRunStart === true) {
+      return yield* dispatch({
+        type: "queued-run.start",
+        commandId: yield* allocateCommandId(input),
+        threadId: input.threadId,
+        runId: input.runId,
+      });
+    }
+    // Older servers reject queued-run.start, so the message moves to the front
+    // of the queue and the queue resumes from it.
+    const first = deriveThreadQueueWorkflowState(yield* getProjection(input.threadId)).queuedRuns[0]
+      ?.run;
+    if (first !== undefined && first.id !== input.runId) {
+      yield* dispatch({
+        type: "queued-run.reorder",
+        commandId: yield* allocateCommandId({}),
+        threadId: input.threadId,
+        runId: input.runId,
+        beforeRunId: first.id,
+      });
+    }
+  }
   return yield* dispatch({
     type: "queue.resume",
     commandId: yield* allocateCommandId(input),

@@ -52,6 +52,7 @@ import {
   reorderQueuedRun,
   revertThreadCheckpoint,
   markThreadDone,
+  resumeThreadQueue,
   startThreadTurn,
   reopenThread,
   updateProject,
@@ -81,6 +82,7 @@ const makeSupervisor = Effect.fn("TestEnvironmentCommands.makeSupervisor")(funct
   readonly projectionRequests?: ThreadId[];
   readonly advertiseServerResolvedCommandContext?: boolean;
   readonly advertiseThreadStop?: boolean;
+  readonly advertiseQueuedRunStart?: boolean;
 }) {
   const client = {
     [ORCHESTRATION_V2_WS_METHODS.dispatchCommand]: (command: OrchestrationV2Command) =>
@@ -126,7 +128,10 @@ const makeSupervisor = Effect.fn("TestEnvironmentCommands.makeSupervisor")(funct
     client,
     initialConfig: Effect.succeed({
       environment: {
-        capabilities: input.advertiseThreadStop === true ? { threadStop: true } : {},
+        capabilities: {
+          ...(input.advertiseThreadStop === true ? { threadStop: true } : {}),
+          ...(input.advertiseQueuedRunStart === true ? { queuedRunStart: true } : {}),
+        },
       },
     } as never),
     configChanges: Stream.empty,
@@ -212,6 +217,71 @@ describe("V2 environment commands", () => {
           faviconPath: null,
           defaultThreadEnvMode: null,
         },
+      ]);
+    }).pipe(Effect.provide(layerTestCrypto)),
+  );
+
+  it.effect("distinguishes sending a selected queued message from resuming queue order", () =>
+    Effect.gen(function* () {
+      const commands: OrchestrationV2Command[] = [];
+      const supervisor = yield* makeSupervisor({
+        commands,
+        projects: [],
+        advertiseQueuedRunStart: true,
+      });
+      const threadId = ThreadId.make("thread-1");
+      yield* resumeThreadQueue({
+        commandId: CommandId.make("send-selected"),
+        threadId,
+        runId: RunId.make("selected"),
+      }).pipe(Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor));
+      yield* resumeThreadQueue({
+        commandId: CommandId.make("resume-queue"),
+        threadId,
+      }).pipe(Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor));
+
+      expect(commands).toEqual([
+        { type: "queued-run.start", commandId: "send-selected", threadId, runId: "selected" },
+        { type: "queue.resume", commandId: "resume-queue", threadId },
+      ]);
+    }).pipe(Effect.provide(layerTestCrypto)),
+  );
+
+  it.effect("moves the selected message to the front on servers without queued-run.start", () =>
+    Effect.gen(function* () {
+      const commands: OrchestrationV2Command[] = [];
+      const queuedRun = (id: string, ordinal: number) => ({
+        ...v2Projection.runs[0]!,
+        id: RunId.make(id),
+        ordinal,
+        status: "queued" as const,
+        queueHeld: true,
+        userMessageId: MessageId.make(`message:${id}`),
+      });
+      const supervisor = yield* makeSupervisor({
+        commands,
+        projects: [],
+        projection: {
+          ...v2Projection,
+          runs: [queuedRun("first", 2), queuedRun("selected", 3)],
+          messages: [],
+        },
+      });
+      yield* resumeThreadQueue({
+        commandId: CommandId.make("send-selected"),
+        threadId: v2ThreadId,
+        runId: RunId.make("selected"),
+      }).pipe(Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor));
+
+      expect(commands).toEqual([
+        {
+          type: "queued-run.reorder",
+          commandId: expect.any(String),
+          threadId: v2ThreadId,
+          runId: "selected",
+          beforeRunId: "first",
+        },
+        { type: "queue.resume", commandId: "send-selected", threadId: v2ThreadId },
       ]);
     }).pipe(Effect.provide(layerTestCrypto)),
   );
