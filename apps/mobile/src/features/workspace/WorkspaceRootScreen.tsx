@@ -97,7 +97,7 @@ function WorkspaceRootContent() {
         WORKSPACE_TOOLBAR.height +
         16
       : Platform.OS === "ios"
-        ? Math.max(insets.bottom, keyboardHeight) + 16
+        ? Math.max(insets.bottom, keyboardHeight) + (sidebarPicker ? 80 : 16)
         : keyboardHeight > 0 && tab.searchMode !== "resting"
           ? keyboardHeight + 64
           : Math.max(insets.bottom, 12) + workspaceToolbarHeight(tab.searchMode) + 16;
@@ -144,7 +144,6 @@ function WorkspaceRootContent() {
             ]}
           />
         )}
-        {sidebarPicker ? <WorkspaceSidebarTabs /> : null}
         <SafeAreaInsetsContext value={sidebarPicker ? { ...insets, top: 0 } : insets}>
           {state.selectedTab === "threads" ? (
             <HomeRouteScreen />
@@ -152,6 +151,7 @@ function WorkspaceRootContent() {
             <PullRequestsScreen sidebar={sidebarTabs !== null} />
           )}
         </SafeAreaInsetsContext>
+        {sidebarPicker ? <WorkspaceSidebarTabs /> : null}
         <WorkspaceToolbar sidebar={sidebarNavigation} onNewTask={startNewTask} />
       </View>
     </WorkspaceTabsContext>

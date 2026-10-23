@@ -491,6 +491,7 @@ export function ComposerDictationPrimaryAction(props: {
  */
 export function ComposerDictationTrailingActions(props: {
   readonly children?: ReactNode;
+  readonly size?: "regular" | "large";
   readonly state: VoiceInputState;
   readonly isAvailable: boolean;
   readonly disabled?: boolean;
@@ -512,6 +513,7 @@ export function ComposerDictationTrailingActions(props: {
 }
 
 export function ComposerDictationStartAction(props: {
+  readonly size?: "regular" | "large";
   readonly state: VoiceInputState;
   readonly isAvailable: boolean;
   readonly disabled?: boolean;
@@ -539,7 +541,7 @@ export function ComposerDictationStartAction(props: {
     >
       <SymbolView
         name="mic"
-        size={20}
+        size={props.size === "large" ? 24 : 20}
         weight="semibold"
         tintColorClassName="accent-icon"
         type="monochrome"

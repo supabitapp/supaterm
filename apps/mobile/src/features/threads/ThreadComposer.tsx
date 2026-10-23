@@ -1,3 +1,4 @@
+import { useSidebarWorkspaceTabs } from "../workspace/useSidebarWorkspaceTabs";
 import { Button } from "../../components/ui/Button";
 import * as Dialog from "../../components/ui/Dialog";
 import type { ComposerTextPaste } from "../../native/SupatermComposerEditor.types";
@@ -214,6 +215,7 @@ const FOLLOW_UP_ACTION_SUBTITLE = {
 } as const;
 
 function SendActionButton(props: {
+  readonly size?: "regular" | "large";
   readonly accessibilityLabel: string;
   readonly presentation: ComposerSendPresentation;
   readonly disabled: boolean;
@@ -222,6 +224,7 @@ function SendActionButton(props: {
   const { presentation } = props;
   const button = (
     <ComposerActionButton
+      size={props.size}
       accessibilityLabel={props.accessibilityLabel}
       icon={presentation.icon}
       variant="primary"
@@ -494,6 +497,9 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const isVoiceInputPresented = voicePresentation.statusLabel !== null;
   const isExpanded =
     !voiceInput.isBusy && (isFocused || settingsSheetPresentation.keepsComposerExpanded);
+  // The iPad sidebar's native tab bar is taller, so the collapsed row's controls grow to match.
+  const rowControlSize =
+    useSidebarWorkspaceTabs() === "picker" && !isExpanded ? "large" : "regular";
   const { setComposerEditing } = useAdaptiveWorkspaceLayout();
   const showsCompactDictation = isVoiceInputPresented && !isExpanded;
   const isToolbarVisible = isExpanded || isVoiceInputPresented;
@@ -691,6 +697,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   };
   const draftAction = (
     <ComposerDictationTrailingActions
+      size={rowControlSize}
       state={voiceInput.state}
       isAvailable={voiceInput.isAvailable}
       disabled={isSubmissionLocked}
@@ -700,6 +707,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     >
       {showStopAction ? (
         <ComposerActionButton
+          size={rowControlSize}
           accessibilityLabel="Stop agent"
           disabled={!props.canOperateThread}
           icon="stop.fill"
@@ -711,6 +719,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
         />
       ) : showResumeAction ? (
         <ComposerActionButton
+          size={rowControlSize}
           accessibilityLabel="Resume queue"
           disabled={resumingQueue || !props.canOperateThread}
           icon="play"
@@ -721,6 +730,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
         />
       ) : hasContent || !voiceInput.isAvailable ? (
         <SendActionButton
+          size={rowControlSize}
           accessibilityLabel={sendBlockedReason ?? sendLabel}
           presentation={sendPresentation}
           disabled={!canSend}
@@ -824,6 +834,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
           >
             {!isExpanded ? (
               <ComposerAttachmentButton
+                size={rowControlSize}
                 disabled={isSubmissionLocked}
                 supportsFiles={Boolean(
                   props.serverConfig?.environment.capabilities.fileAttachments,

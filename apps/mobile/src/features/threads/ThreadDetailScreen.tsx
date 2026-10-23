@@ -1,3 +1,4 @@
+import { useSidebarWorkspaceTabs } from "../workspace/useSidebarWorkspaceTabs";
 import {
   isAtomCommandInterrupted,
   settlePromise,
@@ -577,10 +578,13 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
   // Android Back hides the keyboard without blurring. Keep its safe-area padding
   // fixed through the animation and cancel it with matching composer/list offsets.
   const bottomBarInset = useDuoBottomBarInset();
+  const hasSidebarTabBar = useSidebarWorkspaceTabs() === "picker";
   // The pill already adds its own gutter; iPad and Duo align its edge with the native bar.
   const alignedBottomInset =
     bottomBarInset ??
-    (Platform.OS === "ios" && Platform.isPad ? Math.max(insets.bottom, 12) : undefined);
+    (Platform.OS === "ios" && Platform.isPad
+      ? Math.max(insets.bottom, 12) - (hasSidebarTabBar ? 5 : 0)
+      : undefined);
   // A hardware keyboard can focus the editor without occupying any screen height.
   const composerBottomInset =
     Platform.OS === "ios" && (composerExpanded || liveKeyboardHeight > 0)
@@ -835,7 +839,9 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
     ) ||
     (props.historyControls?.hasMoreHistory === true &&
       props.selectedThread.latestUserMessageAt !== null);
-  const composerChrome = composerExpanded ? COMPOSER_EXPANDED_CHROME : COMPOSER_COLLAPSED_CHROME;
+  const composerChrome = composerExpanded
+    ? COMPOSER_EXPANDED_CHROME
+    : COMPOSER_COLLAPSED_CHROME + (hasSidebarTabBar ? 14 : 0);
   const composerOverlapHeight = composerChrome + composerBottomInset;
   const [collapsedUserInputRequestId, setCollapsedUserInputRequestId] =
     useState<RuntimeRequestId | null>(null);
