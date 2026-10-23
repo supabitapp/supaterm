@@ -76,6 +76,7 @@ describe("mobile workspace projection", () => {
       networkStatus: "offline",
       environments,
       shellSummary: EMPTY_SHELL_SUMMARY,
+      hasSyncingConnectedEnvironment: false,
     });
 
     expect(state.connectionState).toBe("offline");
@@ -93,12 +94,14 @@ describe("mobile workspace projection", () => {
       networkStatus: "online",
       environments,
       shellSummary: EMPTY_SHELL_SUMMARY,
+      hasSyncingConnectedEnvironment: true,
     });
 
     expect(state.connectingEnvironments).toHaveLength(1);
     expect(state.connectingEnvironments[0]?.connectionState).toBe("reconnecting");
     expect(state.hasConnectingEnvironment).toBe(true);
     expect(state.hasReadyEnvironment).toBe(true);
+    expect(state.hasSyncingConnectedEnvironment).toBe(true);
   });
 
   it("keeps retained snapshots visible while reconnecting without claiming readiness", () => {
@@ -108,10 +111,12 @@ describe("mobile workspace projection", () => {
       networkStatus: "online",
       environments,
       shellSummary: CACHED_SHELL_SUMMARY,
+      hasSyncingConnectedEnvironment: false,
     });
 
     expect(state.hasLoadedShellSnapshot).toBe(true);
     expect(state.hasPendingShellSnapshot).toBe(true);
+    expect(state.hasSyncingConnectedEnvironment).toBe(false);
     expect(state.hasReadyEnvironment).toBe(false);
     expect(state.connectionState).toBe("reconnecting");
   });
