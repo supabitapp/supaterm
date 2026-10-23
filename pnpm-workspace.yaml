@@ -53,8 +53,8 @@ catalog:
   tailwindcss: 4.3.3
   typescript: 7.0.2
   undici: 8.12.3
-  vite: npm:@voidzero-dev/vite-plus-core@1.0.0
-  vite-plus: 1.0.0
+  vite: npm:@voidzero-dev/vite-plus-core@1.3.0
+  vite-plus: 1.3.0
   yaml: ^2.9.0
   # Markdown pipeline: the server counts find matches with the same parser the
   # web renders with, so both must resolve to one version.
@@ -235,7 +235,7 @@ overrides:
   vite-plus: "catalog:"
   # vp test runs the Vitest that Vite+ depends on, and @effect/vitest imports vitest
   # directly. One version keeps one runner, expect and mock state. Move this with vite-plus.
-  vitest: 5.0.1
+  vitest: 5.0.5
   yaml: "catalog:"
 
 packageExtensions:
