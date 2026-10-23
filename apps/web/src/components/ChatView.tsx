@@ -38,6 +38,7 @@ import { useTimelineFollow } from "./chat/useTimelineFollow";
 import { useTimelineRewind } from "./chat/useTimelineRewind";
 import { useComposerSelection } from "./chat/useComposerSelection";
 import { useRightPanelActions } from "./chat/useRightPanelActions";
+import { type TerminalLaunchContext, useChatTerminalActions } from "./chat/useChatTerminalActions";
 import { useDraftEnvironmentRouting } from "./chat/useDraftEnvironmentRouting";
 import {
   backgroundWorkBannerItem,
@@ -67,7 +68,6 @@ import { useLogicalProjectEnvironments } from "../hooks/useLogicalProjectEnviron
 import { useStableCallback } from "../hooks/useStableCallback";
 import { useProjectScriptEditing } from "./chat/useProjectScriptEditing";
 import { RightPanelSurfaceContent } from "./chat/RightPanelSurfaceContent";
-import { useThreadTerminalActions } from "./terminal/useThreadTerminalActions";
 import { usePendingThreadRequestsWithTimerPause } from "./chat/usePendingThreadRequestsWithTimerPause";
 import { isScratchProject } from "@supaterm/client-runtime/state/projects";
 import { visibleThreadPullRequests } from "@supaterm/shared/threadPullRequests";
@@ -81,7 +81,6 @@ import { useUsageLimitsPanel } from "./chat/useUsageLimitsPanel";
 import { useWorktreeSetup } from "./chat/useWorktreeSetup";
 import { useChatShortcuts, type ChatShortcutHandler } from "./chat/useChatShortcuts";
 import { ComposerUsageMeter } from "./chat/ComposerUsageMeter";
-import { getTerminalLabel } from "@supaterm/shared/terminalLabels";
 import {
   AuthOrchestrationOperateScope,
   AuthSourceControlWriteScope,
@@ -94,7 +93,6 @@ import {
   type EnvironmentId,
   type MessageId,
   type ModelSelection,
-  type ProjectScript,
   type PreviewAnnotationPayload,
   type ServerProvider,
   type ScopedThreadRef,
@@ -142,11 +140,7 @@ import {
   formatModelSlugName,
   resolveSelectableModel,
 } from "@supaterm/shared/model";
-import {
-  projectScriptCwd,
-  projectScriptTerminalInput,
-  resolveProjectScripts,
-} from "@supaterm/shared/projectScripts";
+import { projectScriptCwd, resolveProjectScripts } from "@supaterm/shared/projectScripts";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 import { sourceControlRepositorySelector } from "@supaterm/shared/sourceControl";
 import { resolveThreadReferenceCopyTarget } from "@supaterm/shared/threadReference";
@@ -190,7 +184,7 @@ import {
 } from "../session-logic";
 import { type LegendListRef } from "@legendapp/list/react";
 import { useWorkspaceMutationRefresh } from "../hooks/useWorkspaceMutationRefresh";
-import { DEFAULT_INTERACTION_MODE, MAX_TERMINALS_PER_GROUP, type ChatMessage } from "../types";
+import { DEFAULT_INTERACTION_MODE, type ChatMessage } from "../types";
 import { useTheme } from "../hooks/useTheme";
 import { writeTextToClipboard } from "../hooks/useCopyToClipboard";
 import { markDoneAndAdvance } from "../markDoneAndAdvance";
@@ -218,8 +212,6 @@ import {
   useRightPanelStore,
 } from "../rightPanelStore";
 import { isPreviewSupportedInRuntime, useThreadPreviewState } from "../previewStateStore";
-import { openUrlInPreview } from "../browser/openFileInPreview";
-import { resolveDiscoveredServerUrl } from "../browser/browserTargetResolver";
 import { previewRuntimeTabId } from "../browser/previewRuntimeTabId";
 import { ThreadPreviewMiniPlayer } from "./preview/ThreadPreviewMiniPlayer";
 import { usePreviewSession } from "./preview/usePreviewSession";
@@ -268,10 +260,8 @@ import {
   getComposerPromptInjectionState,
   getComposerProviderState,
 } from "./chat/composerProviderState";
-import { confirmTerminalClose } from "../lib/terminalCloseConfirm";
 import { isPreviewFocused } from "../lib/previewFocus";
 import { getTerminalFocusOwner } from "../lib/terminalFocus";
-import { findReusableProjectScriptTerminal } from "../lib/projectScriptTerminal";
 import {
   deriveLogicalProjectKeyFromSettings,
   selectProjectGroupingSettings,
@@ -290,11 +280,7 @@ import {
   useComposerDraftStore,
   DraftId,
 } from "../composerDraftStore";
-import {
-  formatTerminalContextLabel,
-  type TerminalContextDraft,
-  type TerminalContextSelection,
-} from "../lib/terminalContext";
+import { formatTerminalContextLabel, type TerminalContextDraft } from "../lib/terminalContext";
 import {
   collectInlineContextIds,
   ensureInlineContextReferences,
@@ -420,8 +406,6 @@ import {
   isBranchMismatchDismissedForSession,
   shouldShowBranchMismatchBanner,
   shouldRenderPreviewMiniPlayer,
-  LAST_INVOKED_SCRIPT_BY_PROJECT_KEY,
-  LastInvokedScriptByProjectSchema,
   deriveLockedProvider,
   resolveFileAttachmentUrl,
   resolveComposerProviderSelection,
@@ -434,10 +418,8 @@ import {
   codexArtifactTemplatePromptToAppend,
   shouldRefocusComposerOnWindowFocus,
 } from "./ChatView.logic";
-import { useLocalStorage } from "~/hooks/useLocalStorage";
 import { useComposerHandleContext } from "../composerHandleContext";
 import { releaseDraftAttachments } from "../lib/attachmentUploadQueue";
-import { previewEnvironment } from "../state/preview";
 import { clampFileAttachmentUploadBytes } from "@supaterm/client-runtime/state/attachments";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { enqueueThreadOutboxTurns, usePendingThreadCreation } from "../state/threadOutbox";
@@ -472,9 +454,6 @@ const EMPTY_PROVIDER_SKILLS: ServerProvider["skills"] = [];
 
 const EMPTY_PENDING_FILE_SURFACE_IDS: ReadonlySet<string> = new Set();
 
-const SCRIPT_TERMINAL_COLS = 120;
-const SCRIPT_TERMINAL_ROWS = 30;
-
 type ChatViewProps =
   | {
       environmentId: EnvironmentId;
@@ -494,12 +473,6 @@ type ChatViewProps =
       routeKind: "draft";
       draftId: DraftId;
     };
-
-interface TerminalLaunchContext {
-  threadId: ThreadId;
-  cwd: string;
-  worktreePath: string | null;
-}
 
 function isAnimatingSize(element: Element): boolean {
   return element
@@ -557,8 +530,6 @@ export default function ChatView(props: ChatViewProps) {
   const ownsPaneInput = useIsPaneInputOwner();
   const canQueueMessage = useAtomValue(canQueueComposerMessageAtom(environmentId));
   const canOperateTerminal = useEnvironmentScope(environmentId, AuthTerminalOperateScope);
-  const hasTerminalWriteAccess = () =>
-    readEnvironmentScope(environmentId, AuthTerminalOperateScope);
   const canReadTerminal = useEnvironmentScope(environmentId, AuthTerminalReadScope);
   const draftId = routeKind === "draft" ? props.draftId : null;
   const handleNewThread = useNewThreadHandler();
@@ -607,7 +578,6 @@ export default function ChatView(props: ChatViewProps) {
     label: "load earlier thread history",
     reportFailure: false,
   });
-  const openPreview = useAtomCommand(previewEnvironment.open, { reportFailure: false });
   const { environments } = useEnvironments();
   const providersByEnvironment = useEnvironmentProviders();
   const primaryEnvironment = usePrimaryEnvironment();
@@ -842,11 +812,6 @@ export default function ChatView(props: ChatViewProps) {
   const [terminalFocusRequestId, setTerminalFocusRequestId] = useState(0);
   const [terminalUiLaunchContext, setTerminalUiLaunchContext] =
     useState<TerminalLaunchContext | null>(null);
-  const [lastInvokedScriptByProjectId, setLastInvokedScriptByProjectId] = useLocalStorage(
-    LAST_INVOKED_SCRIPT_BY_PROJECT_KEY,
-    {},
-    LastInvokedScriptByProjectSchema,
-  );
   const legendListRef = useRef<LegendListRef | null>(null);
   const getTimelineScrollableNode = () => legendListRef.current?.getScrollableNode() ?? null;
   const getTimelineScrollableNodeStable = useStableCallback(getTimelineScrollableNode);
@@ -884,12 +849,6 @@ export default function ChatView(props: ChatViewProps) {
   const terminalUiState = useTerminalUiStateStore((state) =>
     selectThreadTerminalUiState(state.terminalUiStateByThreadKey, routeThreadRef),
   );
-  const storeSetTerminalOpen = useTerminalUiStateStore((s) => s.setTerminalOpen);
-  const storeEnsureTerminal = useTerminalUiStateStore((state) => state.ensureTerminal);
-  const storeSplitTerminal = useTerminalUiStateStore((s) => s.splitTerminal);
-  const storeSplitTerminalVertical = useTerminalUiStateStore((s) => s.splitTerminalVertical);
-  const storeNewTerminal = useTerminalUiStateStore((s) => s.newTerminal);
-  const storeCloseTerminal = useTerminalUiStateStore((s) => s.closeTerminal);
 
   const fallbackDraftProjectRef = draftThread
     ? scopeProjectRef(draftThread.environmentId, draftThread.projectId)
@@ -1071,7 +1030,6 @@ export default function ChatView(props: ChatViewProps) {
     ]),
   );
   const activeThreadRef = useActiveThreadRef(activeThread);
-  const terminalActions = useThreadTerminalActions(activeThreadRef);
   const activeThreadKey = activeThreadRef ? scopedThreadKey(activeThreadRef) : null;
   const activeEnvironmentServerBrowser = useEnvironmentSupportsServerBrowser(
     activeThreadRef?.environmentId ?? null,
@@ -1975,17 +1933,6 @@ export default function ChatView(props: ChatViewProps) {
     sendInFlightRef,
   });
 
-  const activeTerminalGroup =
-    terminalUiState.terminalGroups.find(
-      (group) => group.id === terminalUiState.activeTerminalGroupId,
-    ) ??
-    terminalUiState.terminalGroups.find((group) =>
-      group.terminalIds.includes(terminalUiState.activeTerminalId),
-    ) ??
-    null;
-  const hasReachedSplitLimit =
-    (activeTerminalGroup?.terminalIds.length ?? 0) >= MAX_TERMINALS_PER_GROUP;
-
   // Focus moving into a pane makes it the focused pane, so a pane in the background never takes it.
   const focusComposer = () => {
     if (!isPaneInputOwner()) return;
@@ -2069,207 +2016,43 @@ export default function ChatView(props: ChatViewProps) {
   const cancelQueuedMessageEdit = () =>
     queuedRunEdit.outbox.isEditing ? queuedRunEdit.outbox.cancelEdit() : queuedRunEdit.cancelEdit();
   const cancelQueuedMessageEditStable = useStableCallback(cancelQueuedMessageEdit);
-  const addTerminalContextToDraft = (selection: TerminalContextSelection) => {
-    composerRef.current?.addTerminalContext(selection);
-  };
-  const addTerminalContextToDraftStable = useStableCallback(addTerminalContextToDraft);
-  const setTerminalOpen = (open: boolean) => {
-    if (!activeThreadRef) return;
-    storeSetTerminalOpen(activeThreadRef, open);
-  };
-  const setTerminalOpenStable = useStableCallback(setTerminalOpen);
-  const toggleTerminalVisibility = () => {
-    if (!activeThreadRef) return;
-    const nextOpen = !terminalUiState.terminalOpen;
-    if (
-      nextOpen &&
-      !readEnvironmentScope(environmentId, AuthTerminalReadScope) &&
-      !hasTerminalWriteAccess()
-    )
-      return;
-    if (nextOpen && hasTerminalWriteAccess() && terminalUiState.terminalIds.length === 0) {
-      // Server-created setup terminals exist before this client's drawer mounts.
-      // Reuse them before allocating a shell from the still-empty UI state.
-      const existingTerminalId =
-        runningTerminalIds.find((id) => !panelTerminalIds.has(id)) ??
-        activeServerOrderedTerminalIds.find((id) => !panelTerminalIds.has(id));
-      if (existingTerminalId !== undefined) {
-        storeEnsureTerminal(activeThreadRef, existingTerminalId, { open: true, active: true });
-        return;
-      }
-      void terminalActions.launchTerminal({
-        place: (terminalId) => storeEnsureTerminal(activeThreadRef, terminalId, { open: true }),
-      })?.result;
-      return;
-    }
-    setTerminalOpen(nextOpen);
-  };
-  const toggleTerminalVisibilityStable = useStableCallback(toggleTerminalVisibility);
-  const splitTerminal = (direction: "horizontal" | "vertical" = "horizontal") => {
-    if (!activeThreadRef || hasReachedSplitLimit) return;
-    const launched = terminalActions.launchTerminal({
-      place: (terminalId) =>
-        direction === "vertical"
-          ? storeSplitTerminalVertical(activeThreadRef, terminalId)
-          : storeSplitTerminal(activeThreadRef, terminalId),
-    });
-    if (!launched) return;
-    setTerminalFocusRequestId((value) => value + 1);
-    void launched.result;
-  };
-  const splitTerminalStable = useStableCallback(splitTerminal);
-  const createNewTerminal = () => {
-    if (!activeThreadRef) return;
-    const launched = terminalActions.launchTerminal({
-      place: (terminalId) => storeNewTerminal(activeThreadRef, terminalId),
-    });
-    if (!launched) return;
-    setTerminalFocusRequestId((value) => value + 1);
-    void launched.result;
-  };
-  const createNewTerminalStable = useStableCallback(createNewTerminal);
-  const closeTerminal = (terminalId: string) => {
-    if (!hasTerminalWriteAccess() || !activeThreadRef) return;
-    terminalActions.closeTerminalSession(terminalId);
-    storeCloseTerminal(activeThreadRef, terminalId);
-    setTerminalFocusRequestId((value) => value + 1);
-  };
-  const runProjectScript = async (
-    script: ProjectScript,
-    options?: {
-      cwd?: string;
-      env?: Record<string, string>;
-      worktreePath?: string | null;
-      preferNewTerminal?: boolean;
-      rememberAsLastInvoked?: boolean;
-      shellHistory?: "preserve" | "suppress";
-    },
-  ) => {
-    if (!hasTerminalWriteAccess() || !activeThreadId || !activeProject || !activeThread) return;
-    if (options?.rememberAsLastInvoked !== false) {
-      setLastInvokedScriptByProjectId((current) => {
-        if (current[activeProject.id] === script.id) return current;
-        return { ...current, [activeProject.id]: script.id };
-      });
-    }
-    const targetCwd = options?.cwd ?? gitCwd ?? activeProject.workspaceRoot;
-    const reusableTerminalId =
-      options?.preferNewTerminal ||
-      !canReuseTerminal ||
-      !readEnvironmentScope(environmentId, AuthTerminalReadScope)
-        ? null
-        : findReusableProjectScriptTerminal({
-            drawerTerminalIds: [
-              ...new Set([...terminalUiState.terminalIds, ...activeServerOrderedTerminalIds]),
-            ],
-            activeTerminalId: terminalUiState.activeTerminalId,
-            panelTerminalIds,
-            runningTerminalIds,
-          });
-    const targetWorktreePath = options?.worktreePath ?? activeThread.worktreePath ?? null;
 
-    setTerminalUiLaunchContext({
-      threadId: activeThreadId,
-      cwd: targetCwd,
-      worktreePath: targetWorktreePath,
-    });
-    if (!activeThreadRef) {
-      return;
-    }
-    setTerminalFocusRequestId((value) => value + 1);
-
-    const launched = terminalActions.launchTerminal({
-      place: (terminalId) =>
-        reusableTerminalId === null
-          ? storeNewTerminal(activeThreadRef, terminalId)
-          : storeEnsureTerminal(activeThreadRef, terminalId, { open: true }),
-      ...(reusableTerminalId === null
-        ? { size: { cols: SCRIPT_TERMINAL_COLS, rows: SCRIPT_TERMINAL_ROWS } }
-        : { terminalId: reusableTerminalId }),
-      location: { cwd: targetCwd, worktreePath: targetWorktreePath },
-      ...(options?.env ? { extraEnv: options.env } : {}),
-    });
-    if (!launched) return;
-    const targetTerminalId = launched.terminalId;
-    const openResult = await launched.result;
-    if (openResult._tag === "Failure") {
-      if (!isAtomCommandInterrupted(openResult)) {
-        const error = squashAtomCommandFailure(openResult);
-        setThreadError(
-          activeThreadId,
-          error instanceof Error ? error.message : `Failed to run script "${script.name}".`,
-        );
-      }
-      return;
-    }
-
-    const writeResult = await terminalActions.writeToTerminal(
-      targetTerminalId,
-      options?.shellHistory === "preserve"
-        ? `${script.command}\r`
-        : projectScriptTerminalInput(script.command),
-    );
-    if (!writeResult) return;
-    if (writeResult._tag === "Failure") {
-      if (!isAtomCommandInterrupted(writeResult)) {
-        const error = squashAtomCommandFailure(writeResult);
-        setThreadError(
-          activeThreadId,
-          error instanceof Error ? error.message : `Failed to run script "${script.name}".`,
-        );
-      }
-      return;
-    }
-    if (script.autoOpenPreview && script.previewUrl && isPreviewSupportedInRuntime()) {
-      let previewUrl: string;
-      try {
-        previewUrl = resolveDiscoveredServerUrl(activeThreadRef.environmentId, script.previewUrl, {
-          requireReachable: true,
-        });
-      } catch (error) {
-        toastManager.add({
-          type: "error",
-          title: "Could not open preview",
-          description: error instanceof Error ? error.message : "An unexpected error occurred.",
-        });
-        return;
-      }
-      const previewResult = await openUrlInPreview({
-        threadRef: activeThreadRef,
-        url: previewUrl,
-        openPreview,
-      });
-      if (previewResult._tag === "Failure" && !isAtomCommandInterrupted(previewResult)) {
-        const error = squashAtomCommandFailure(previewResult);
-        toastManager.add(
-          stackedThreadToast({
-            type: "error",
-            title: "Could not open preview",
-            description: error instanceof Error ? error.message : "An unexpected error occurred.",
-          }),
-        );
-      }
-    }
-  };
-  const runProjectScriptStable = useStableCallback(runProjectScript);
-
-  const runProjectScriptRef = useRef(runProjectScriptStable);
-  useLayoutEffect(() => {
-    runProjectScriptRef.current = runProjectScriptStable;
-  }, [runProjectScriptStable]);
-  const runShellCommand = (command: string) => {
-    void runProjectScriptRef.current(
-      {
-        id: "chat-code-block",
-        name: "Chat code block",
-        command,
-        icon: "play",
-        runOnWorktreeCreate: false,
-      },
-      { rememberAsLastInvoked: false, shellHistory: "preserve" },
-    );
-  };
-  const runShellCommandStable = useStableCallback(runShellCommand);
+  const {
+    activatePanelTerminalStable,
+    addTerminalContextToDraftStable,
+    addTerminalSurfaceStable,
+    closePanelTerminalStable,
+    createNewTerminalStable,
+    lastInvokedScriptByProjectId,
+    requestClosePanelTerminalStable,
+    requestCloseTerminalStable,
+    runProjectScriptStable,
+    runShellCommandStable,
+    setTerminalOpenStable,
+    splitPanelTerminalStable,
+    splitPanelTerminalVerticalStable,
+    splitTerminalStable,
+    toggleTerminalVisibilityStable,
+  } = useChatTerminalActions({
+    environmentId,
+    composerRef,
+    terminalUiState,
+    activeThread,
+    activeThreadId,
+    activeThreadRef,
+    activeProject,
+    activeRightPanelSurface,
+    runningTerminalIds,
+    activeServerOrderedTerminalIds,
+    activeTerminalLabelsById,
+    activeTerminalHasRunningSubprocessById,
+    panelTerminalIds,
+    canReuseTerminal,
+    gitCwd,
+    setTerminalFocusRequestId,
+    setTerminalUiLaunchContext,
+    setThreadError,
+  });
 
   const {
     saveProjectScript: saveProjectScriptStable,
@@ -2372,84 +2155,6 @@ export default function ChatView(props: ChatViewProps) {
     visiblePullRequestCount,
     onDiffPanelOpen,
   });
-  const addTerminalSurface = () => {
-    if (!activeThreadRef) return;
-    const launched = terminalActions.launchTerminal({
-      place: (terminalId) =>
-        useRightPanelStore.getState().openTerminal(activeThreadRef, terminalId),
-    });
-    if (!launched) return;
-    setTerminalFocusRequestId((value) => value + 1);
-    void launched.result;
-  };
-  const addTerminalSurfaceStable = useStableCallback(addTerminalSurface);
-  const splitPanelTerminal = (direction: "horizontal" | "vertical" = "horizontal") => {
-    if (
-      !activeThreadRef ||
-      activeRightPanelSurface?.kind !== "terminal" ||
-      activeRightPanelSurface.terminalIds.length >= MAX_TERMINALS_PER_GROUP
-    ) {
-      return;
-    }
-    const surfaceId = activeRightPanelSurface.id;
-    const launched = terminalActions.launchTerminal({
-      place: (terminalId) =>
-        useRightPanelStore
-          .getState()
-          .splitTerminal(activeThreadRef, surfaceId, terminalId, direction),
-    });
-    if (!launched) return;
-    setTerminalFocusRequestId((value) => value + 1);
-    void launched.result;
-  };
-  const splitPanelTerminalStable = useStableCallback(splitPanelTerminal);
-  const splitPanelTerminalVertical = () => {
-    splitPanelTerminal("vertical");
-  };
-  const splitPanelTerminalVerticalStable = useStableCallback(splitPanelTerminalVertical);
-  const activatePanelTerminal = (terminalId: string) => {
-    if (!activeThreadRef || activeRightPanelSurface?.kind !== "terminal") return;
-    useRightPanelStore
-      .getState()
-      .activateTerminal(activeThreadRef, activeRightPanelSurface.id, terminalId);
-    setTerminalFocusRequestId((value) => value + 1);
-  };
-  const activatePanelTerminalStable = useStableCallback(activatePanelTerminal);
-  const closePanelTerminal = (terminalId: string) => {
-    if (
-      !hasTerminalWriteAccess() ||
-      !activeThreadRef ||
-      activeRightPanelSurface?.kind !== "terminal"
-    )
-      return;
-    terminalActions.closeTerminalSession(terminalId);
-    storeCloseTerminal(activeThreadRef, terminalId);
-    useRightPanelStore
-      .getState()
-      .closeTerminal(activeThreadRef, activeRightPanelSurface.id, terminalId);
-    setTerminalFocusRequestId((value) => value + 1);
-  };
-  const closePanelTerminalStable = useStableCallback(closePanelTerminal);
-  const terminalCloseTarget = (terminalId: string) => ({
-    label: activeTerminalLabelsById.get(terminalId) ?? getTerminalLabel(terminalId),
-    hasRunningSubprocess: activeTerminalHasRunningSubprocessById.get(terminalId) ?? false,
-  });
-  const requestCloseTerminal = (terminalId: string) => {
-    if (!hasTerminalWriteAccess()) return;
-    void confirmTerminalClose([terminalCloseTarget(terminalId)]).then((confirmed) => {
-      if (confirmed && readEnvironmentScope(environmentId, AuthTerminalOperateScope))
-        closeTerminal(terminalId);
-    });
-  };
-  const requestCloseTerminalStable = useStableCallback(requestCloseTerminal);
-  const requestClosePanelTerminal = (terminalId: string) => {
-    if (!hasTerminalWriteAccess()) return;
-    void confirmTerminalClose([terminalCloseTarget(terminalId)]).then((confirmed) => {
-      if (confirmed && readEnvironmentScope(environmentId, AuthTerminalOperateScope))
-        closePanelTerminal(terminalId);
-    });
-  };
-  const requestClosePanelTerminalStable = useStableCallback(requestClosePanelTerminal);
   useEffect(() => {
     if (!canMaximizeRightPanel || !activeThreadRef) return;
     if (useRightPanelStore.getState().consumeMaximizeRequest(activeThreadRef))
