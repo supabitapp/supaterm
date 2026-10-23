@@ -603,7 +603,9 @@ export function NewTaskDraftScreen(props: {
     Boolean(flow.selectedModel) &&
     isIncomingShareReady &&
     !isImportingShare &&
-    pendingPastedTextAttachmentCount === 0;
+    pendingPastedTextAttachmentCount === 0 &&
+    // Until the repository check answers, a saved worktree selection may belong to a non-git folder.
+    !(flow.workspaceMode === "worktree" && !flow.isGitRepoKnown);
   const canStart = canSubmitDraft && hasContent && !voiceInput.blocksSubmission;
   const startTaskLabel =
     taskPermissionReason ??
@@ -1602,7 +1604,7 @@ export function NewTaskDraftScreen(props: {
       <ComposerInlineControl
         accessibilityHint={`Switches to ${flow.workspaceMode === "local" ? "a new worktree" : "the current checkout"}`}
         accessibilityLabel={workspaceLabel}
-        disabled={isComposerInteractionLocked || voiceInput.isBusy}
+        disabled={isComposerInteractionLocked || voiceInput.isBusy || !flow.isGitRepo}
         renderIcon={(size) => (
           <NewTaskWorkspaceIcon
             workspaceMode={flow.workspaceMode}
@@ -1619,7 +1621,7 @@ export function NewTaskDraftScreen(props: {
       <ComposerInlineControl
         accessibilityLabel={`${flow.workspaceMode === "worktree" ? "Base branch" : "Branch"}: ${selectedBranchLabel}`}
         chevronDirection="right"
-        disabled={isComposerInteractionLocked}
+        disabled={isComposerInteractionLocked || !flow.isGitRepo}
         icon="arrow.triangle.branch"
         label={showBranchLoading ? "Loading branches…" : selectedBranchLabel}
         maxWidth={190}
