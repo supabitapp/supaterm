@@ -343,6 +343,10 @@
       "types": "./src/state/threadSubagents.ts",
       "default": "./src/state/threadSubagents.ts"
     },
+    "./state/thread-undo": {
+      "types": "./src/state/threadUndo.ts",
+      "default": "./src/state/threadUndo.ts"
+    },
     "./state/thread-snooze": {
       "types": "./src/state/threadSnooze.ts",
       "default": "./src/state/threadSnooze.ts"
