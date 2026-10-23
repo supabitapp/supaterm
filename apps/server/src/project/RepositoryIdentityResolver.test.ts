@@ -488,6 +488,7 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
       expect(identity?.displayName).toBe("supabitapp/supaterm");
       expect(identity?.origin).toEqual({
         canonicalKey: "github.com/julius/supaterm-fork",
+        remoteUrl: "git@github.com:julius/supaterm-fork.git",
         displayName: "julius/supaterm-fork",
       });
     }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
