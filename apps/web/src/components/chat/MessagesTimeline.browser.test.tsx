@@ -715,10 +715,10 @@ describe("MessagesTimeline messages", () => {
       await using screen = await renderTimeline([
         message("Review this area", { createdBy: "agent", creationSource: "provider" }),
       ]);
-      expect(screen.text()).toContain("Sent by another agent");
+      expect(screen.buttons(/^Agent/)).toHaveLength(1);
     }
     await using screen = await renderTimeline([message("Review this area")]);
-    expect(screen.text()).not.toContain("Sent by another agent");
+    expect(screen.buttons(/^Agent/)).toHaveLength(0);
   });
 
   it("shows steer intent ahead of committed user messages", async () => {
@@ -1763,6 +1763,64 @@ describe("MessagesTimeline automation prompts", () => {
     expect(screen.buttons("Edit from here")).toHaveLength(0);
     await click(screen.button(/^Automation/));
     expect(screen.buttons("Edit from here")).toHaveLength(1);
+  });
+});
+
+const SENDER_THREAD_ID = ThreadId.make("thread-sender");
+const AGENT_MESSAGE = "Review finished\n\nThe migration drops the index before backfilling it.";
+
+describe("MessagesTimeline agent messages", () => {
+  it("folds a message from another agent into a one-line preview", async () => {
+    setup();
+    const onOpenThread = vi.fn();
+    await using screen = await renderTimeline(
+      [message(AGENT_MESSAGE, { createdBy: "agent", senderThreadId: SENDER_THREAD_ID })],
+      { onOpenThread },
+    );
+    const row = screen.button(/^Agent/);
+    expect(row.textContent).toContain("Review finished");
+    expect(row.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.text()).not.toContain("drops the index");
+    expect(screen.buttons("Open thread")).toHaveLength(0);
+
+    await click(row);
+    expect(screen.text()).toContain("The migration drops the index before backfilling it.");
+    await click(screen.button("Open thread"));
+    expect(onOpenThread).toHaveBeenCalledWith(SENDER_THREAD_ID);
+
+    await click(screen.button(/^Agent/));
+    expect(screen.text()).not.toContain("drops the index");
+  });
+
+  it("leaves messages sent by Supaterm as full bubbles", async () => {
+    setup();
+    await using screen = await renderTimeline([
+      message(AGENT_MESSAGE, { createdBy: "agent", creationSource: "server" }),
+    ]);
+    expect(screen.buttons(/^Agent/)).toHaveLength(0);
+    expect(screen.text()).toContain("drops the index");
+  });
+
+  it("reveals a find match inside a folded agent message", async () => {
+    setup();
+    const text = `${"Checked the next file.\n\n".repeat(16)}The migration drops the index.`;
+    await using screen = await renderTimeline(
+      [message(text, { createdBy: "agent", senderThreadId: SENDER_THREAD_ID })],
+      {
+        findExpanded: true,
+        findQuery: "drops the index",
+        activeFindMatch: { entryId: "entry-message-1", runId: null, occurrence: 0 },
+      },
+    );
+    await vi.waitFor(() =>
+      expect(screen.button(/^Agent/).getAttribute("aria-expanded")).toBe("true"),
+    );
+    const { range } = collectThreadFindRanges(screen.container, "drops the index")[0]!;
+    const body = screen.container.querySelector("[data-user-message-body]")!;
+    expect(range.getBoundingClientRect().height).toBeGreaterThan(0);
+    expect(range.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      body.getBoundingClientRect().bottom,
+    );
   });
 });
 
