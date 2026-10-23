@@ -19,8 +19,12 @@ https://<environment-address>/mcp
 The copied URL uses the route this device is connected over, so an agent on the
 same device can reach it.
 
-- **An agent on your own computers** can use a LAN or Tailscale address that reaches
-  the environment, or `localhost` on the host. See [remote access](./remote-access.md).
+- **An agent on your own computers** can use `localhost` on the host or any
+  `https` address, such as [Tailscale HTTPS](./remote-access.md#tailscale-https).
+  Signing in sends the agent's credentials to the environment, and agents only
+  do that over `https` or to `localhost`. A plain-`http` LAN or Tailscale
+  address, like `http://100.x.y.z:3773`, lets an agent find the environment but
+  not finish signing in.
 - **A hosted agent**, such as ChatGPT or a bot running in the cloud, must reach
   the environment from the internet. Use an HTTPS address exposed by your host or reverse proxy. A Tailscale
   address only works from your own tailnet.
