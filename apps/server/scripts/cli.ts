@@ -19,6 +19,7 @@ import {
   ServerCliDevelopmentIconTargetMissingError,
   ServerCliExecutableImportError,
 } from "./cliErrors.ts";
+import { SEA_NODE_VERSION } from "./seaNodeVersion.ts";
 
 const RepoRoot = Effect.service(Path.Path).pipe(
   Effect.flatMap((path) => path.fromFileUrl(new URL("../../..", import.meta.url))),
@@ -117,7 +118,17 @@ const buildExeCmd = Command.make(
       const serverDir = path.join(repoRoot, "apps/server");
 
       yield* Effect.log("[cli] Building single-executable...");
-      const spawnCommand = yield* resolveSpawnCommand("vp", ["pack"]);
+      // `vp env exec --node` selects the runtime in managed and system-first
+      // modes alike. The pack runs on it, and a native build embeds it.
+      const spawnCommand = yield* resolveSpawnCommand("vp", [
+        "env",
+        "exec",
+        "--node",
+        SEA_NODE_VERSION,
+        "--",
+        "vp",
+        "pack",
+      ]);
       yield* runCommand(
         ChildProcess.make(spawnCommand.command, spawnCommand.args, {
           cwd: serverDir,
@@ -149,7 +160,7 @@ const buildExeCmd = Command.make(
     }),
 ).pipe(
   Command.withDescription(
-    "Build the server as a Node single-executable (needs a Node 25.7+ host for --build-sea). The binary still resolves native packages from a node_modules tree beside it.",
+    `Build the server as a Node ${SEA_NODE_VERSION} single-executable. vp runs the pack on that Node, and native builds reject any other host version. The binary still resolves native packages from a node_modules tree beside it.`,
   ),
 );
 

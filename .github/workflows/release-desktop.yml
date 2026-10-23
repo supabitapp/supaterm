@@ -222,10 +222,6 @@ jobs:
           if [[ "${INPUTS_VERSION}" =~ -nightly\.[0-9]{8}\.[0-9]+$ ]]; then brand=nightly; fi
           node scripts/apply-web-brand-assets.ts "$brand" apps/server/dist/client
 
-      # The single-executable is built with a Node that supports --build-sea
-      # (25.7+); the repo itself stays on the engines.node version. A native
-      # build injects into the runner's own Node; a Windows target downloads its
-      # node.exe.
       - name: Load Apple signing credentials
         if: inputs.platform == 'mac'
         uses: ./.github/actions/load-release-secrets
@@ -233,14 +229,14 @@ jobs:
           profile: apple
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
+      # build-exe runs the pack on SEA_NODE_VERSION
+      # (apps/server/scripts/seaNodeVersion.ts) while the repo stays on the mise
+      # Node. Native builds embed that executable; cross-target builds download
+      # the same version for their target.
       - name: Build CLI single-executable
         if: inputs.cli_archive
         shell: bash
         env:
-          # The exact version, not a major: vp downloads it from nodejs.org/dist on
-          # the runner, and only exact versions have a dist directory. Keep in
-          # step with SEA_NODE_VERSION in apps/server/vite.config.ts.
-          VP_NODE_VERSION: "26.12.1"
           # The executable bundles the server again, so it needs the same stamp
           # as release.yml's JS bundle.
           SUPATERM_TELEMETRY_CHANNEL: ${{ github.repository == 'supabitapp/supaterm' && inputs.release_channel || 'dev' }}
