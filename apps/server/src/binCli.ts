@@ -15,6 +15,7 @@ import { pairCommand } from "./cli/pair.ts";
 import { extendConnectionAttemptTimeout, keepOutboundFetchOnHttp1 } from "./outboundHttp.ts";
 import { sharedServerCommandFlags } from "./cli/config.ts";
 import { projectCommand } from "./cli/project.ts";
+import { reportCliFailure } from "./cli/reportFailure.ts";
 import { runDefaultServerCommand, serveCommand, startCommand } from "./cli/server.ts";
 import { updateCommand } from "./cli/update.ts";
 import { uninstallCommand } from "./cli/uninstall.ts";
@@ -74,8 +75,9 @@ export function runCli() {
   extendConnectionAttemptTimeout();
   keepOutboundFetchOnHttp1();
   Command.run(cli, { version: packageJson.version }).pipe(
+    Effect.tapCause(reportCliFailure),
     Effect.scoped,
     Effect.provide(layerCliRuntime),
-    NodeRuntime.runMain,
+    NodeRuntime.runMain({ disableErrorReporting: true }),
   );
 }

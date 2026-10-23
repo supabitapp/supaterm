@@ -18,7 +18,7 @@ import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as References from "effect/References";
 import * as Schema from "effect/Schema";
-import { Argument, CliError, Command, Flag, GlobalFlag } from "effect/cli";
+import { Argument, Command, Flag, GlobalFlag } from "effect/cli";
 import { FetchHttpClient, HttpClient, HttpClientError } from "effect/http";
 import * as HttpApiClient from "effect/http-api/HttpApiClient";
 
@@ -193,20 +193,6 @@ const isProjectNotEmptyFailure = (error: Error) =>
   (isProjectLiveServerDeclaredResponseError(error) &&
     isEnvironmentRequestInvalidError(error.cause) &&
     error.cause.reason === "project_not_empty");
-
-// These carry complete user-facing messages; anything else keeps its full cause for debugging.
-const isUserFacingProjectFailure = Schema.is(
-  Schema.Union([
-    ProjectTitleEmptyError,
-    ProjectIdentifierEmptyError,
-    ProjectNotFoundError,
-    ProjectAlreadyExistsError,
-    ProjectHasThreadsError,
-    ProjectLiveServerDeclaredResponseError,
-    ServerOwnership.ServerAlreadyRunningError,
-    ServerOwnership.OlderBootServiceError,
-  ]),
-);
 
 export function projectCommandErrorFromLiveServerRequest(cause: unknown): ProjectCommandError {
   if (isEnvironmentHttpCommonError(cause)) {
@@ -489,9 +475,6 @@ const runProjectMutation = Effect.fn("runProjectMutation")(function* (
         Layer.provide(ServerConfig.layer(config)),
         Layer.provide(Layer.succeed(References.MinimumLogLevel, minimumLogLevel)),
       ),
-    ),
-    Effect.catchIf(isUserFacingProjectFailure, (cause) =>
-      Effect.fail(new CliError.UserError({ cause })),
     ),
   );
 });

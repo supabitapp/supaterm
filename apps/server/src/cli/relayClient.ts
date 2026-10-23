@@ -4,7 +4,7 @@ import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { Command, Flag } from "effect/cli";
+import { CliError, Command, Flag } from "effect/cli";
 import { HttpRouter } from "effect/http";
 import * as ServerConfig from "../config.ts";
 import * as RelayCompanion from "../relay/RelayCompanion.ts";
@@ -17,12 +17,12 @@ export const relayClientCommand = Command.make("relay-client", {
   Command.withHandler(
     Effect.fn("relayClient.run")(function* ({ port }) {
       if (port < 1 || port > 65535)
-        return yield* Effect.die(new Error("Choose a port from 1 to 65535."));
+        return yield* new CliError.UserError({ cause: "Choose a port from 1 to 65535." });
       const staticDir = yield* ServerConfig.resolveStaticDir();
       if (!staticDir)
-        return yield* Effect.die(
-          new Error("The browser client is missing. Build apps/web before running relay-client."),
-        );
+        return yield* new CliError.UserError({
+          cause: "The browser client is missing. Build apps/web before running relay-client.",
+        });
       const app = HttpRouter.serve(RelayCompanionHttp.layer(staticDir), {
         disableListenLog: true,
         disableLogger: true,

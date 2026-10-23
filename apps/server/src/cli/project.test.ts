@@ -23,7 +23,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as References from "effect/References";
 import * as Stream from "effect/Stream";
-import { CliError, Command } from "effect/cli";
+import { Command } from "effect/cli";
 
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import { cli } from "../binCli.ts";
@@ -41,6 +41,7 @@ import * as SupatermProjectFileLoader from "../project/SupatermProjectFileLoader
 import * as ServerSettings from "../serverSettings.ts";
 import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
 import {
+  ProjectHasThreadsError,
   ProjectLiveServerDeclaredResponseError,
   ProjectLiveServerRequestError,
   projectCommandErrorFromLiveServerRequest,
@@ -286,7 +287,7 @@ it.layer(NodeServices.layer)("project deletion with native V2 threads", (it) => 
         }),
       );
 
-      assert.instanceOf(error, CliError.UserError);
+      assert.instanceOf(error, ProjectHasThreadsError);
       assert.include(error.message, "still has threads. Re-run with --force");
       assert.deepEqual(
         (yield* readProjects(baseDir)).projects.map((entry) => entry.id),
