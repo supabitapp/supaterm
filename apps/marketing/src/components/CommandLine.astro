@@ -1,0 +1,175 @@
+---
+import type { HTMLAttributes } from "astro/types";
+
+interface Props extends HTMLAttributes<"div"> {
+  command: string;
+}
+
+// The rest props carry the parent's scope attribute, so its styles still reach this element.
+const { command, class: className, ...rest } = Astro.props;
+---
+
+<div class:list={["command-line", className]} {...rest}>
+  <code class="command-text">{command}</code>
+  <button type="button" class="command-copy" data-command={command} aria-label="Copy command">
+    <svg class="command-icon command-icon--copy" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="8" y="8" width="14" height="14" rx="2"></rect>
+      <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+    </svg>
+    <svg class="command-icon command-icon--check" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M20 6 9 17l-5-5"></path>
+    </svg>
+  </button>
+  <span class="command-status" role="status"></span>
+</div>
+
+<script>
+  const COPIED_FOR_MS = 1500;
+  const timers = new WeakMap<HTMLButtonElement, number>();
+
+  function selectText(element: Element) {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }
+
+  document.querySelectorAll<HTMLButtonElement>(".command-copy").forEach((button) => {
+    const line = button.closest(".command-line");
+    const status = line?.querySelector(".command-status");
+    button.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(button.dataset.command ?? "");
+      } catch {
+        // Without clipboard access, select the command so ⌘C / Ctrl+C still works.
+        const text = line?.querySelector(".command-text");
+        if (text) selectText(text);
+        return;
+      }
+      button.dataset.copied = "";
+      button.setAttribute("aria-label", "Copied");
+      if (status) status.textContent = "Copied to clipboard";
+      clearTimeout(timers.get(button));
+      timers.set(
+        button,
+        window.setTimeout(() => {
+          delete button.dataset.copied;
+          button.setAttribute("aria-label", "Copy command");
+          if (status) status.textContent = "";
+        }, COPIED_FOR_MS),
+      );
+    });
+  });
+</script>
+
+<style>
+  .command-line {
+    align-self: flex-start;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    max-width: 100%;
+    padding: 0.25rem 0.25rem 0.25rem 0.9rem;
+    border-radius: 10px;
+    border: 1px solid rgba(105, 111, 234, 0.35);
+    background: rgba(21, 20, 67, 0.3);
+  }
+
+  .command-text {
+    min-width: 0;
+    overflow-x: auto;
+    white-space: pre;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--fg);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  }
+
+  .command-text::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .command-text::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+  }
+
+  .command-copy {
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    color: var(--fg-dim);
+    transition-property: color, background-color, transform;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+  }
+
+  /* 30px visible, 40px to click. */
+  .command-copy::before {
+    content: "";
+    position: absolute;
+    inset: -5px;
+  }
+
+  .command-copy:hover,
+  .command-copy[data-copied] {
+    color: var(--fg);
+    background-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .command-copy:active {
+    transform: scale(0.96);
+  }
+
+  .command-copy:focus-visible {
+    border-radius: 6px;
+  }
+
+  .command-icon {
+    grid-area: 1 / 1;
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition-property: opacity, transform;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+  }
+
+  .command-icon--check,
+  .command-copy[data-copied] .command-icon--copy {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+
+  .command-copy[data-copied] .command-icon--check {
+    opacity: 1;
+    transform: none;
+  }
+
+  .command-status {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .command-copy,
+    .command-icon {
+      transition: none;
+    }
+  }
+</style>
