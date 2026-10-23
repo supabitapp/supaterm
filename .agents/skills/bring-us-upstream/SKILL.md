@@ -53,13 +53,6 @@ Trace architectural changes through fork-only consumers and check their behavior
 
 Before opening a PR or reporting completion, reconcile every CSV row with the approved scope and final integrated tree, including required configuration and preserved fork behavior. Recheck "already present" skips affected by other ports or merges, returning invalidated rows to `Pending`. Resolve or explicitly report remaining pending rows.
 
-Then check for removals that did not land:
-
-```bash
-node .agents/skills/bring-us-upstream/scripts/find-unlanded-removals.ts \
-  --upstream <t3code checkout> --base <base> --end <end>
-```
-
-It lists lines that any commit in the range removed, that upstream's end state no longer has, and that our copy of the same file still has, each under the commit that removed it. Scanning per commit catches changes added and reverted inside the range. Map every candidate to its CSV row: a `Skip` whose evidence covers it, `Pending` until the removal lands, or a note showing it is not a missed removal.
+Then check for removals that did not land. In the upstream checkout, walk `git log -p -U0 -M --no-merges <base>..<end>` commit by commit, not the range's net diff, so changes added and reverted inside the range still count. For each removed line of at least 30 characters, outside lockfiles, keep it if upstream's `<end>` copy of that file no longer has it and our copy of the same file still does, after renaming upstream names such as `@t3tools/` to `@supaterm/`. Map every remaining line to its CSV row: a `Skip` whose evidence covers it, `Pending` until the removal lands, or a note showing it is not a missed removal.
 
 Report what changed, what was skipped, validation, and remaining manual checks. Commit, push, and create a PR only when authorized. State the exact upstream base and end SHAs in the PR body so the next port starts there. Post the final CSV as a collapsed PR comment, split across comments if needed, so later audits can see each row's decision.
