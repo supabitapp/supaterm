@@ -205,12 +205,11 @@ const CLEARED_TABLES: ReadonlyArray<string> = [
 
 const PROVIDER_SESSIONS_TABLE = "orchestration_v2_projection_provider_sessions";
 
+// Done threads stay: they are most of real history, and the UI shows them.
 const rootIsVisible = (sql: SqlClient.SqlClient) => sql`
   root.deleted_at IS NULL
   AND json_extract(root.payload_json, '$.deletedAt') IS NULL
-  AND json_extract(root.payload_json, '$.archivedAt') IS NULL
-  AND json_extract(root.payload_json, '$.doneAt') IS NULL
-  AND json_extract(root.payload_json, '$.doneOverride') IS NOT 'done'`;
+  AND json_extract(root.payload_json, '$.archivedAt') IS NULL`;
 
 /**
  * Build the snapshot from this checkout's schema, then copy the visible
@@ -308,7 +307,7 @@ const pruneSnapshot = Effect.fn("pruneDevDbSnapshot")(function* (input: RunMigra
     FROM orchestration_v2_projection_threads`;
 
   yield* sql`CREATE TEMP TABLE stopped_families AS
-    SELECT f.root_id, root.project_id, MAX(f.updated_at) AS updated_at
+    SELECT f.root_id, root.project_id, MAX(f.updated_at) AS updated_at, COUNT(*) AS size
     FROM thread_families f
     JOIN orchestration_v2_projection_threads root ON root.thread_id = f.root_id
     WHERE ${rootIsVisible(sql)}
@@ -340,6 +339,9 @@ const pruneSnapshot = Effect.fn("pruneDevDbSnapshot")(function* (input: RunMigra
           ) AS recency_rank
         FROM stopped_families sf
         JOIN kept_projects kp ON kp.project_id = sf.project_id
+        -- One orchestrator family can hold hundreds of subagents and most of
+        -- the database, so a family larger than the limit is skipped.
+        WHERE sf.size <= ${input.threadsPerProject}
       )
       WHERE recency_rank <= ${input.threadsPerProject}
     )`;
@@ -537,7 +539,7 @@ export const migrateDevDbCommand = Command.make(
     threadsPerProject: Flag.Int("threads-per-project").pipe(
       Flag.withDefault(10),
       Flag.withDescription(
-        "How many recent stopped threads, with their forks and subagents, to keep per project.",
+        "How many recent stopped threads, with their forks and subagents, to keep per project. A family with more threads than this is skipped.",
       ),
     ),
     baseDir: Flag.String("base-dir").pipe(
