@@ -123,7 +123,15 @@ for the security model.
 
 ## Checks
 
-Run checks for the files and packages you changed:
+`vp run check:changed` runs CI's fast checks for your branch's changes: format and lint of the
+changed files, `knip:check` when code or a manifest changes, the generated GraphQL checks, typecheck
+of the affected packages and their dependents, and the test files beside the changed files. It maps
+files to packages with [changed-packages.ts](../../scripts/lib/changed-packages.ts) and compares
+against the merge base with `origin/main`, or with a ref you pass. A changed `package.json` or a path
+the mapping does not recognize affects every package. CI still runs the full test suites and the
+jobs the summary lists, so a local pass does not promise a green CI run.
+
+While you iterate, run single checks:
 
 ```sh
 vp test run <files>
