@@ -209,6 +209,7 @@ import type { ThreadContentPresentation } from "./threadContentPresentation";
 import {
   resolveThreadFeedLiveFollow,
   resolveThreadFeedReflowAnchor,
+  resolveThreadFeedReflowOffset,
   resolveThreadFeedReflowScroll,
   type ThreadFeedLiveFollowEvent,
   type ThreadFeedReflowAnchor,
@@ -296,6 +297,9 @@ const FEED_PADDING_TOP = 12;
 // scrolls for 100ms after it compensates a size change, and a deferred restore could land
 // under a drag that starts meanwhile.
 const FEED_REFLOW_SETTLE_MS = 200;
+// A fold resizes the feed in steps about 200ms apart. Holding the place taken at the first step
+// across all of them keeps a passing moment off the end from re-anchoring the rest to a row.
+const FEED_REFLOW_HOLD_MS = 600;
 const USER_BUBBLE_HORIZONTAL_PADDING = 3.5 * 3.5;
 const ASSISTANT_ROW_HORIZONTAL_PADDING = 3.5;
 const THREAD_FEED_DISCLOSURE_ENTER_TRANSITION = FadeIn.duration(MOTION_ENTER_DURATION_MS)
@@ -1865,8 +1869,11 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   // A width change re-wraps every row at once, and LegendList re-measures them over the next
   // commits. Its end threshold and MVCP only see the new geometry, so the reader's place is
   // taken before any row lands: the end while following, otherwise the row under the header.
+  // On iOS, LegendList keeps that place in the same commit as every re-measure. Android's
+  // list moves only while its MVCP is on, which following turns off, so it restores after.
   // undefined: no reflow. null: a reflow with nothing to restore.
   const reflowAnchorRef = useRef<ThreadFeedReflowAnchor | null | undefined>(undefined);
+  const reflowAnchorsSizeChanges = Platform.OS === "ios";
   const [reflowFollowsEnd, setReflowFollowsEnd] = useState(false);
   const [reflowSettleRevision, setReflowSettleRevision] = useState(0);
   const listHeaderSizeRef = useRef(0);
@@ -2373,23 +2380,19 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     });
   }
   const workGroupScrollPositions = workGroupScrollCache.positions;
-  const followResetThreadKeyRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (followResetThreadKeyRef.current === feedThreadKey) return;
-    followResetThreadKeyRef.current = feedThreadKey;
+  // Only a new thread or a send resets following. Listed as dependencies, these handlers also ran
+  // whenever a parent passed a new follow callback, as a fold does: following re-armed under a
+  // reader and a width reflow lost its place mid-fold.
+  const resetEndFollow = useEffectEvent((_trigger: unknown) => {
     clearUserScrollSettle();
     userScrollSessionRef.current = false;
     cancelReflow();
     transitionEndFollow({ type: "reset" });
-  }, [cancelReflow, clearUserScrollSettle, feedThreadKey, transitionEndFollow]);
+  });
+  useEffect(() => resetEndFollow(feedThreadKey), [feedThreadKey]);
   useEffect(() => {
-    if (props.submittedMessageId !== null) {
-      clearUserScrollSettle();
-      userScrollSessionRef.current = false;
-      cancelReflow();
-      transitionEndFollow({ type: "reset" });
-    }
-  }, [cancelReflow, clearUserScrollSettle, props.submittedMessageId, transitionEndFollow]);
+    if (props.submittedMessageId !== null) resetEndFollow(props.submittedMessageId);
+  }, [props.submittedMessageId]);
 
   const headerResetThreadKeyRef = useRef<string | null>(null);
   useEffect(() => {
@@ -2480,7 +2483,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
           ? resolveThreadFeedReflowAnchor(listState, reflowLayout(), endFollowEnabledRef.current)
           : null;
       reflowAnchorRef.current = anchor;
-      if (anchor === "end") {
+      if (anchor === "end" && !reflowAnchorsSizeChanges) {
         // The list may already have judged the first new sizes against its own threshold, so
         // pin the end once; the lifted threshold keeps it there as later rows re-measure.
         setReflowFollowsEnd(true);
@@ -2493,16 +2496,29 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     const anchor = reflowAnchorRef.current;
     cancelReflow();
     const list = listRef.current;
-    if (!anchor || anchor === "end" || !list || userScrollSessionRef.current) return;
+    if (reflowAnchorsSizeChanges || !anchor || anchor === "end" || !list) return;
+    if (userScrollSessionRef.current) return;
     if (loadedListKeyRef.current !== listMountKey) return;
     const target = resolveThreadFeedReflowScroll(anchor, list.getState(), reflowLayout());
     if (target) void list.scrollToIndex({ ...target, viewPosition: 0, animated: false });
   });
   useEffect(() => {
     if (reflowSettleRevision === 0) return;
-    const timeout = setTimeout(() => settleReflow(), FEED_REFLOW_SETTLE_MS);
+    const timeout = setTimeout(
+      () => settleReflow(),
+      reflowAnchorsSizeChanges ? FEED_REFLOW_HOLD_MS : FEED_REFLOW_SETTLE_MS,
+    );
     return () => clearTimeout(timeout);
   }, [reflowSettleRevision]);
+
+  const holdReflowAnchor = () => {
+    const anchor = reflowAnchorRef.current;
+    if (anchor === "end") return Number.POSITIVE_INFINITY;
+    const list = listRef.current;
+    return anchor && list
+      ? resolveThreadFeedReflowOffset(anchor, list.getState(), reflowLayout())
+      : undefined;
+  };
 
   const handleViewportLayout = (event: LayoutChangeEvent) => {
     const nextWidth = Math.round(event.nativeEvent.layout.width);
@@ -2937,6 +2953,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
             // A reflow grows every visible row at once, well past the near-end threshold
             // that otherwise lets a status-bar tap leave the end.
             maintainScrollAtEndThreshold={reflowFollowsEnd ? Number.POSITIVE_INFINITY : undefined}
+            sizeChangeAnchor={reflowAnchorsSizeChanges ? holdReflowAnchor : undefined}
             maintainVisibleContentPosition={
               endFollowEnabled && !disclosureToggleSettling ? false : maintainVisibleContentPosition
             }
