@@ -361,7 +361,7 @@ export const make = Effect.gen(function* () {
 
     for (const parent of WORKSPACE_PACKAGE_PARENTS) {
       const packages = yield* listPackageDirectories(projectCwd, parent);
-      const packageIcon = packages.length > 0 ? yield* findIconWithin(projectCwd, packages) : null;
+      const packageIcon = yield* findIconWithin(projectCwd, packages);
       if (packageIcon) {
         return packageIcon;
       }
