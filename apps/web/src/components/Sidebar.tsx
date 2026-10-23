@@ -136,7 +136,7 @@ import {
   useAllEnvironmentProjectSnapshotsReady,
   useProjects,
   useServerConfigs,
-  useSidebarThreadShells,
+  useQuietSidebarThreadShells,
   useThreadRefs,
 } from "../state/entities";
 import { useSidebarThreadNavigation } from "../hooks/useSidebarThreadNavigation";
@@ -351,7 +351,7 @@ function useSidebarThreads(input: {
 }) {
   const { projectScopeKey, scopedProjectKeys, serverConfigs, optimisticDrop, routeThreadRef } =
     input;
-  const threads = useSidebarThreadShells();
+  const threads = useQuietSidebarThreadShells();
   const serverThreadRefs = useThreadRefs();
   const routeRowThreadKey =
     routeThreadRef === null

@@ -114,6 +114,11 @@ export function useSidebarThreadShells(): ReadonlyArray<EnvironmentThreadShell> 
   return useAtomValue(sidebarThreadShells.threadShellsAtom);
 }
 
+/** Sidebar shells held through streaming ticks; see quietThreadShellAtom. */
+export function useQuietSidebarThreadShells(): ReadonlyArray<EnvironmentThreadShell> {
+  return useAtomValue(sidebarThreadShells.quietThreadShellsAtom);
+}
+
 export function useAllEnvironmentShellsBootstrapped(): boolean {
   return useAtomValue(allEnvironmentShellsBootstrappedAtom);
 }
@@ -136,6 +141,11 @@ export function useThreadShell(ref: ScopedThreadRef | null): EnvironmentThreadSh
   return useAtomValue(
     ref === null ? EMPTY_THREAD_SHELL_ATOM : environmentThreadShells.threadShellAtom(ref),
   );
+}
+
+/** Includes threads still being created from a pending send. */
+export function useSidebarThreadShell(ref: ScopedThreadRef): EnvironmentThreadShell | null {
+  return useAtomValue(sidebarThreadShells.threadShellAtom(ref));
 }
 
 /** The shell without its streaming timestamps; see quietThreadShellAtom. */

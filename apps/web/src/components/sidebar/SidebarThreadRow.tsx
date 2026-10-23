@@ -60,7 +60,7 @@ import { useRightPanelStore } from "../../rightPanelStore";
 import { useOpenPrLink } from "../../lib/openPullRequestLink";
 import { useThreadSelectionStore } from "../../threadSelectionStore";
 import { useNowMinute } from "../../hooks/useNowMinute";
-import { useThreadShell } from "../../state/entities";
+import { useSidebarThreadShell, useThreadShell } from "../../state/entities";
 import { useNowSecond } from "../../hooks/useNowSecond";
 import { environmentPresentations } from "../../state/presentation";
 import { vcsEnvironment } from "../../state/vcs";
@@ -452,7 +452,12 @@ export function SortableThreadRow(
     transition: contextDrag && isDragging ? "transform 150ms ease-out" : transition,
     isDragging: isDragging && !contextDrag,
   };
-  return <SidebarThreadRow {...rowProps} sortable={bag} />;
+  // The sidebar arranges rows from quiet shells, which hold still while a
+  // thread streams; reading the live shell here re-renders only this row.
+  const thread =
+    useSidebarThreadShell(scopeThreadRef(rowProps.thread.environmentId, rowProps.thread.id)) ??
+    rowProps.thread;
+  return <SidebarThreadRow {...rowProps} thread={thread} sortable={bag} />;
 }
 
 // The pen identifies unsent work on both draft sessions and existing threads.
