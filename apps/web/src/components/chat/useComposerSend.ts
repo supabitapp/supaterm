@@ -6,6 +6,7 @@ import { AuthOrchestrationOperateScope, type PreviewAnnotationPayload } from "@s
 import { type ComposerDispatchMode } from "@supaterm/client-runtime/state/composer-dispatch";
 import {
   type ComposerImageAttachment,
+  composerDraftHasUserContent,
   markPromotedDraftThreadByRef,
   useComposerDraftStore,
 } from "../../composerDraftStore";
@@ -53,15 +54,23 @@ import {
   type DraftThreadEnvMode,
   type ComposerThreadTarget,
 } from "../../composerDraftStore";
-import type { EnvironmentId, RuntimeMode, ThreadContextRecord } from "@supaterm/contracts";
+import type { EnvironmentId, RuntimeMode } from "@supaterm/contracts";
 import type { CodexFeedbackSubmission } from "@supaterm/client-runtime/state/threads";
 import { type Dispatch, type SetStateAction, useLayoutEffect, useRef } from "react";
 import type { ComposerHandleRef } from "../../composerHandleContext";
 import type { SessionPhase } from "../../types";
-import type { EnvironmentPresentation } from "../../state/environments";
 import type { ProviderInstanceEntry } from "../../providerInstances";
 import type { useLogicalProjectEnvironments } from "../../hooks/useLogicalProjectEnvironments";
 import { usePaneThreadNavigation } from "../../chatPanes/paneScope";
+import { useClientSettingsHydrated } from "../../hooks/useSettings";
+import { appAtomRegistry } from "../../rpc/atomRegistry";
+import { environmentPresentations } from "../../state/presentation";
+import {
+  approvalRedirectNotice,
+  loadBalancingSendWarning,
+  multipleModelSendBlock,
+  referencedThreadContexts,
+} from "./composerSend.logic";
 import { threadEnvironment } from "../../state/threads";
 import { useOrchestrationCommand } from "../../state/use-orchestration-command";
 import { draftSendState } from "./chatViewSend";
@@ -74,6 +83,15 @@ import type { useDraftEnvironmentRouting } from "./useDraftEnvironmentRouting";
 import type { useTimelineFollow } from "./useTimelineFollow";
 
 type PendingThreadRequests = ReturnType<typeof usePendingThreadRequests>;
+
+function readEnvironmentPresentation(environmentId: EnvironmentId) {
+  return appAtomRegistry.get(environmentPresentations.presentationsAtom).get(environmentId);
+}
+
+function draftHasNonPromptContent(target: ComposerThreadTarget) {
+  const draft = useComposerDraftStore.getState().getComposerDraft(target);
+  return draft ? composerDraftHasUserContent({ ...draft, prompt: "" }) : false;
+}
 type UsageLimitsPanel = ReturnType<typeof useUsageLimitsPanel>;
 type DraftEnvironmentRouting = ReturnType<typeof useDraftEnvironmentRouting>;
 type TimelineFollow = ReturnType<typeof useTimelineFollow>;
@@ -99,13 +117,8 @@ interface ComposerSendInput {
     readonly threadBranch: string;
     readonly currentBranch: string;
   } | null;
-  readonly clientSettingsHydrated: boolean;
-  readonly serverConfig: EnvironmentPresentation["serverConfig"] | null;
-  readonly environmentById: ReadonlyMap<EnvironmentId, EnvironmentPresentation>;
   readonly logicalProjectEnvironments: ReturnType<typeof useLogicalProjectEnvironments>;
   readonly providerInstanceEntries: ReadonlyArray<ProviderInstanceEntry>;
-  readonly referencedThreadContexts: ReadonlyArray<ThreadContextRecord>;
-  readonly composerHasNonPromptContent: boolean;
   readonly composerRef: ComposerHandleRef;
   readonly composerDraftTarget: ComposerThreadTarget;
   readonly promptRef: { current: string };
@@ -167,13 +180,8 @@ export function useComposerSend(input: ComposerSendInput) {
     startFromOrigin,
     worktreeBaseRefsSettled,
     localCheckoutBranchMismatch,
-    clientSettingsHydrated,
-    serverConfig,
-    environmentById,
     logicalProjectEnvironments,
     providerInstanceEntries,
-    referencedThreadContexts,
-    composerHasNonPromptContent,
     composerRef,
     composerDraftTarget,
     promptRef,
@@ -209,6 +217,7 @@ export function useComposerSend(input: ComposerSendInput) {
     handleNewThreadInActiveProject,
   } = input;
   const openPaneThread = usePaneThreadNavigation();
+  const clientSettingsHydrated = useClientSettingsHydrated();
   const uploadThreadFeedback = useOrchestrationCommand(threadEnvironment.uploadFeedback, {
     reportFailure: false,
   });
@@ -246,7 +255,7 @@ export function useComposerSend(input: ComposerSendInput) {
       usageLimitsOffered &&
       usageLimitsKey !== null &&
       !directAnnotation &&
-      !composerHasNonPromptContent &&
+      !draftHasNonPromptContent(composerDraftTarget) &&
       isUsageLimitsCommand(promptRef.current)
     ) {
       if (openUsageLimits()) {
@@ -283,21 +292,16 @@ export function useComposerSend(input: ComposerSendInput) {
       return;
     }
     if (needsLoadBalancing) {
+      const draft = useComposerDraftStore.getState().getComposerDraft(composerDraftTarget);
       toastManager.add({
         type: "warning",
-        title: loadBalancing.pending
-          ? "Checking machine resources"
-          : "Choose a machine to continue",
-        description: loadBalancing.pending
-          ? "Resource checks are still running. You can choose a machine in the composer."
-          : referencedThreadContexts.length > 0 &&
-              !logicalProjectEnvironments.some((candidate) =>
-                referencedThreadContexts.every(
-                  (record) => record.environmentId === candidate.environmentId,
-                ),
-              )
-            ? "No machine can read every attached thread. Choose a machine in the composer or remove the threads."
-            : "No eligible machine has available resources. Choose a machine in the composer to override.",
+        ...loadBalancingSendWarning({
+          pending: loadBalancing.pending,
+          threadContexts: draft ? referencedThreadContexts(draft) : [],
+          candidateEnvironmentIds: logicalProjectEnvironments.map(
+            (candidate) => candidate.environmentId,
+          ),
+        }),
       });
       return;
     }
@@ -315,25 +319,30 @@ export function useComposerSend(input: ComposerSendInput) {
       return;
     }
     const multipleModelSelections = sendCtx.multipleModelSelections;
-    if (multipleModelSelections !== null && serverConfig == null) {
+    const multipleModelBlock =
+      multipleModelSelections === null
+        ? null
+        : multipleModelSendBlock({
+            selectionCount: multipleModelSelections.length,
+            environmentConnected:
+              readEnvironmentPresentation(activeThread.environmentId)?.serverConfig != null,
+            isLocalDraftThread,
+            isGitRepo,
+            missingBaseBranch: shouldRequireWorktreeBaseBranch({
+              shouldCreateWorktree: true,
+              activeThreadBranch,
+              refsSettled: worktreeBaseRefsSettled,
+              environmentUnavailable: activeEnvironmentUnavailable,
+            }),
+          });
+    if (multipleModelBlock === "environment-disconnected") {
       setThreadError(
         activeThread.id,
         "Connect to this environment before starting multiple models.",
       );
       return;
     }
-    if (
-      multipleModelSelections !== null &&
-      (!isLocalDraftThread ||
-        !isGitRepo ||
-        shouldRequireWorktreeBaseBranch({
-          shouldCreateWorktree: true,
-          activeThreadBranch,
-          refsSettled: worktreeBaseRefsSettled,
-          environmentUnavailable: activeEnvironmentUnavailable,
-        }) ||
-        multipleModelSelections.length === 0)
-    ) {
+    if (multipleModelBlock === "needs-new-git-thread") {
       toastManager.add(
         stackedThreadToast({
           type: "warning",
@@ -378,7 +387,9 @@ export function useComposerSend(input: ComposerSendInput) {
       environmentId,
     })[0];
     if (strandedThread) {
-      const owner = environmentById.get(strandedThread.environmentId)?.label ?? "its machine";
+      const owner =
+        readEnvironmentPresentation(strandedThread.environmentId)?.entry.target.label ??
+        "its machine";
       toastManager.add(
         stackedThreadToast({
           type: "warning",
@@ -645,16 +656,16 @@ export function useComposerSend(input: ComposerSendInput) {
         currentRouteThreadKeyRef.current !== routeThreadKey
       ) {
         sendInFlightRef.current = false;
-        if (draftChanged || approvalResponding || (declined && approvalArrived)) {
+        const notice = approvalRedirectNotice({
+          draftChanged,
+          declined,
+          approvalResponding,
+          approvalArrived,
+        });
+        if (notice !== null) {
           toastManager.add({
             type: "info",
-            title: draftChanged
-              ? declined
-                ? "Approval declined. Your message changed, so it wasn't sent."
-                : "Your message changed, so it wasn't sent."
-              : approvalResponding
-                ? "An approval is already being answered, so your message wasn't sent."
-                : "Another approval arrived, so your message wasn't sent.",
+            title: notice,
             description: "Send again when it's ready.",
           });
         }
