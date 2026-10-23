@@ -190,6 +190,7 @@ export interface ThreadComposerProps {
   readonly onUpdateModelSelection: (modelSelection: ModelSelection) => void;
   readonly onUpdateRuntimeMode: (runtimeMode: RuntimeMode) => void;
   readonly onExpandedChange?: (expanded: boolean) => void;
+  readonly onHeightChange?: (height: number) => void;
   readonly onEditorFocusChange?: (focused: boolean) => void;
   /** Fires when the command popover opens or closes; hosts clear chrome it would overlap. */
   readonly onCommandMenuOpenChange?: (open: boolean) => void;
@@ -742,6 +743,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
 
   return (
     <Animated.View
+      onLayout={(event) => props.onHeightChange?.(event.nativeEvent.layout.height)}
       className="px-[12px]"
       style={{
         paddingTop: isExpanded ? 8 : 6,
