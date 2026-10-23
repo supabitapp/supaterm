@@ -90,12 +90,14 @@ export function FileMarkdownPreview(props: {
     const media = resolveMobileMarkdownMediaSource(image.href, {
       threadId: props.threadId ?? undefined,
       workspaceRoot: markdownDirectory,
+      projectRoot: props.cwd,
       imageEmbed: true,
     });
     const preview = resolveMarkdownMediaPreview(image.href, {
       environmentId: props.environmentId,
       threadId: props.threadId ?? undefined,
       workspaceRoot: markdownDirectory,
+      projectRoot: props.cwd,
       captured: props.captured,
       imageEmbed: true,
     });
@@ -152,6 +154,7 @@ export function FileMarkdownPreview(props: {
     environmentId: props.environmentId,
     threadId: props.threadId,
     workspaceRoot: markdownDirectory,
+    projectRoot: props.cwd,
     captured: props.captured,
   });
   const openMedia = (href: string, imageEmbed = false) => {
@@ -159,6 +162,7 @@ export function FileMarkdownPreview(props: {
       environmentId: props.environmentId,
       threadId: props.threadId ?? undefined,
       workspaceRoot: markdownDirectory,
+      projectRoot: props.cwd,
       captured: props.captured,
       imageEmbed,
     });

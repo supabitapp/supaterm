@@ -50,6 +50,23 @@ describe("resolveMarkdownMediaPreview", () => {
     });
   });
 
+  it("opens a network image anywhere in the project from a nested Markdown file", () => {
+    const preview = {
+      ...input,
+      threadId: undefined,
+      workspaceRoot: "\\\\nas.test\\share\\project\\docs",
+      projectRoot: "\\\\nas.test\\share\\project",
+    };
+    const path = "\\\\nas.test\\share\\project\\images\\logo.png";
+    expect(
+      resolveMarkdownMediaPreview("file://nas.test/share/project/images/logo.png", preview),
+    ).toMatchObject({
+      kind: "image",
+      source: { resource: { _tag: "draft-workspace-file", cwd: preview.projectRoot, path } },
+    });
+    expect(resolveMarkdownMediaPreview("file://nas.test/share/other/logo.png", preview)).toBeNull();
+  });
+
   it("separates a video playback fragment from literal filename characters", () => {
     expect(resolveMarkdownMediaPreview("/tmp/clip%23one.mp4#t=2", input)).toMatchObject({
       kind: "video",

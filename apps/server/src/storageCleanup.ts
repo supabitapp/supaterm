@@ -251,6 +251,18 @@ const make = Effect.gen(function* () {
         );
       });
 
+  // Effect's stat follows links. Probe with readLink first to get lstat
+  // semantics, including skipping dangling links and directory links.
+  const isLink = (target: string) =>
+    fs.readLink(target).pipe(
+      Effect.as(true),
+      Effect.catchIf(
+        (error) =>
+          error.cause instanceof Error && "code" in error.cause && error.cause.code === "EINVAL",
+        () => Effect.succeed(false),
+      ),
+    );
+
   // pnpm imports packages by clone or reflink when its store shares a device
   // with the worktree. Those files have one link but share blocks with the
   // store, so removing them frees almost nothing. A store on another device
@@ -258,7 +270,11 @@ const make = Effect.gen(function* () {
   const sharedPnpmVirtualStore = Effect.fnUntraced(
     function* (root: string) {
       const nodeModules = path.join(root, "node_modules");
-      const text = yield* fs.readFileString(path.join(nodeModules, ".modules.yaml"));
+      const manifestPath = path.join(nodeModules, ".modules.yaml");
+      // A link from a checkout or an agent would send these reads to its
+      // target, which can be a network path.
+      if ((yield* isLink(nodeModules)) || (yield* isLink(manifestPath))) return null;
+      const text = yield* fs.readFileString(manifestPath);
       const manifest = yield* decodePnpmModulesManifest(yield* Effect.try(() => parseYaml(text)));
       // An agent can write this manifest, and statting a network path makes
       // Windows sign in to its host with the user's NTLM credentials.
@@ -266,6 +282,7 @@ const make = Effect.gen(function* () {
         return null;
       }
       const virtualStore = path.resolve(nodeModules, manifest.virtualStoreDir ?? ".pnpm");
+      if ((yield* isLink(manifest.storeDir)) || (yield* isLink(virtualStore))) return null;
       const [store, virtual] = yield* Effect.all([
         fs.stat(manifest.storeDir),
         fs.stat(virtualStore),
@@ -285,19 +302,7 @@ const make = Effect.gen(function* () {
       while (pending.length > 0) {
         const target = pending.pop()!;
         if (target === skipped) continue;
-        // Effect's stat follows links. Probe with readLink first to get lstat
-        // semantics, including skipping dangling links and directory links.
-        const isLink = yield* fs.readLink(target).pipe(
-          Effect.as(true),
-          Effect.catchIf(
-            (error) =>
-              error.cause instanceof Error &&
-              "code" in error.cause &&
-              error.cause.code === "EINVAL",
-            () => Effect.succeed(false),
-          ),
-        );
-        if (isLink) continue;
+        if (yield* isLink(target)) continue;
         if ((yield* fs.realPath(target)) !== target) return null;
         const stat = yield* fs.stat(target);
         if (stat.type === "File") {

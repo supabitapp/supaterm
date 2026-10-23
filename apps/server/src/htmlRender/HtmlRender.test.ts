@@ -34,8 +34,9 @@ const layerHtmlRender = (
   installed: Effect.Effect<Option.Option<string>> = Effect.succeed(
     Option.fromUndefinedOr(executable),
   ),
+  fileSystem?: Layer.Layer<FileSystem.FileSystem, never, FileSystem.FileSystem>,
 ) =>
-  HtmlRender.layer.pipe(
+  (fileSystem ? HtmlRender.layer.pipe(Layer.provide(fileSystem)) : HtmlRender.layer).pipe(
     Layer.provide(
       Layer.succeed(
         PreviewBrowser.PreviewBrowser,
@@ -126,6 +127,36 @@ describe("HtmlRender", () => {
       );
     }).pipe(Effect.provide(layerTest)),
   );
+
+  // An agent's page that names a network image sent the Windows user's NTLM
+  // credentials to that host while the page was prepared.
+  it.effect("reports network images as unreadable without touching them", () => {
+    const touched: Array<string> = [];
+    const layerRecordingFileSystem = Layer.effect(
+      FileSystem.FileSystem,
+      Effect.gen(function* () {
+        const fileSystem = yield* FileSystem.FileSystem;
+        return FileSystem.FileSystem.of({
+          ...fileSystem,
+          stat: (path) => {
+            touched.push(path);
+            return fileSystem.stat(path);
+          },
+          stream: (path, options) => {
+            touched.push(path);
+            return fileSystem.stream(path, options);
+          },
+        });
+      }),
+    );
+    const source = "/\\attacker.test\\share\\cat.png";
+    return Effect.gen(function* () {
+      const htmlRender = yield* HtmlRender.HtmlRender;
+      const error = yield* htmlRender.prepare(`<img src="${source}">`).pipe(Effect.flip);
+      expect(error._tag === "HtmlRenderImagesNotFoundError" && error.paths).toEqual([source]);
+      expect(touched.filter((path) => path.includes("attacker.test"))).toEqual([]);
+    }).pipe(Effect.provide(layerHtmlRender(undefined, undefined, layerRecordingFileSystem)));
+  });
 
   it.effect("rejects viewport height units, which make the fitted frame grow without end", () =>
     Effect.gen(function* () {

@@ -32,11 +32,8 @@ function joinWorkspacePath(workspaceRoot: string, relativePath: string): string 
 }
 
 /** Rendering is not a click, so a network path loads only from the project's own share. */
-function hostFileSource(
-  path: string,
-  workspaceRoot: string | null | undefined,
-): MarkdownImageSource {
-  return isNetworkPath(path) && workspaceRelativeFilePath(path, workspaceRoot) === null
+function hostFileSource(path: string, projectRoot: string | null | undefined): MarkdownImageSource {
+  return isNetworkPath(path) && workspaceRelativeFilePath(path, projectRoot) === null
     ? { _tag: "Blocked" }
     : { _tag: "WorkspaceFile", path };
 }
@@ -48,6 +45,8 @@ function hostFileSource(
 export function classifyMarkdownImageSource(
   value: string | null | undefined,
   workspaceRoot?: string | null,
+  /** Bounds network paths when `workspaceRoot` is a nested directory relative images resolve from. */
+  projectRoot: string | null | undefined = workspaceRoot,
 ): MarkdownImageSource {
   if (value === null || value === undefined) return { _tag: "Blocked" };
 
@@ -65,7 +64,7 @@ export function classifyMarkdownImageSource(
       ? { _tag: "Blocked" }
       : hostFileSource(
           stripSlashPrefixedWindowsDrive(safeDecodeURIComponent(target.path)),
-          workspaceRoot,
+          projectRoot,
         );
   }
 
@@ -74,7 +73,7 @@ export function classifyMarkdownImageSource(
   );
   if (path.length === 0) return { _tag: "Blocked" };
   if (path.startsWith("/") || isWindowsAbsolutePath(path)) {
-    return hostFileSource(path, workspaceRoot);
+    return hostFileSource(path, projectRoot);
   }
   if (URI_SCHEME_PATTERN.test(path) || path.startsWith("~/") || path.startsWith("~\\")) {
     return { _tag: "Blocked" };

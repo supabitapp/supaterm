@@ -1581,6 +1581,41 @@ describe("storage cleanup reports and local file policies", () => {
         }),
       ),
   );
+  // A checkout or an agent can link the manifest anywhere, including a network share.
+  it.live("ignores a pnpm manifest reached through a link", () =>
+    runCleanupTest(
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const storeDir = yield* fs.makeTempDirectoryScoped({ prefix: "pnpm-store-" });
+        const outside = yield* fs.makeTempDirectoryScoped();
+        const { service, worktree, setPolicy } = yield* cleanupFixture();
+        setPolicy("tracked-changes");
+        const nodeModules = `${worktree}/node_modules`;
+        yield* fs.makeDirectory(`${nodeModules}/.pnpm/pkg@1.0.0`, { recursive: true });
+        yield* fs.writeFileString(
+          `${nodeModules}/.pnpm/pkg@1.0.0/index.js`,
+          "clone ".repeat(10_000),
+        );
+        yield* fs.writeFileString(
+          `${outside}/.modules.yaml`,
+          JSON.stringify({ storeDir, virtualStoreDir: ".pnpm" }),
+        );
+        yield* fs.symlink(`${outside}/.modules.yaml`, `${nodeModules}/.modules.yaml`);
+        const counted = [
+          ...(yield* fs.readDirectory(worktree)).flatMap((name) =>
+            name === "node_modules" ? [] : [`${worktree}/${name}`],
+          ),
+          `${nodeModules}/.pnpm/pkg@1.0.0/index.js`,
+        ];
+        const bytes = (yield* Effect.forEach(counted, (file) => allocatedBytes(fs, file))).reduce(
+          (sum, size) => sum + size,
+          0,
+        );
+        const report = yield* service.runNow;
+        expect(report.entries[0]).toMatchObject({ outcome: "removed", bytes });
+      }),
+    ),
+  );
   // An agent can write this manifest. Statting its store sent the Windows
   // user's NTLM credentials to attacker.test during a background sweep.
   it.live.each([

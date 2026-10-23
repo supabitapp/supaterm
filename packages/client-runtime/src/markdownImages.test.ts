@@ -72,6 +72,17 @@ describe("classifyMarkdownImageSource", () => {
       _tag: "Blocked",
     });
   });
+
+  it("bounds network paths by the project when relative images resolve from a nested directory", () => {
+    const docs = "\\\\nas.test\\share\\project\\docs";
+    const project = "\\\\nas.test\\share\\project";
+    expect(
+      classifyMarkdownImageSource("file://nas.test/share/project/images/logo.png", docs, project),
+    ).toEqual({ _tag: "WorkspaceFile", path: "\\\\nas.test\\share\\project\\images\\logo.png" });
+    expect(
+      classifyMarkdownImageSource("file://nas.test/share/other/logo.png", docs, project),
+    ).toEqual({ _tag: "Blocked" });
+  });
 });
 
 describe("markdownImageSourceFragment", () => {
