@@ -54,7 +54,7 @@ export function WorkspaceEmptyDetail(props: {
               ? "Choose a pull request from the sidebar to review it."
               : Platform.OS === "android"
                 ? "Choose a thread from the sidebar or start a new thread."
-                : "Choose a thread from the sidebar or start a new task."}
+                : "Choose a thread from the sidebar or start a new thread."}
           </Text>
           {props.onStartNewTask && !pullRequests ? (
             Platform.OS === "android" ? (
@@ -66,7 +66,7 @@ export function WorkspaceEmptyDetail(props: {
                 onPress={props.onStartNewTask}
               >
                 <Text className="text-base font-supaterm-bold text-primary-foreground">
-                  New Task
+                  New thread
                 </Text>
               </Pressable>
             )

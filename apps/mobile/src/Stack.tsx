@@ -1041,10 +1041,19 @@ export const RootStack = RootStackConfig.with(function AdaptiveRootStack({ Navig
   const nativeMetrics = useNativeLayoutMetrics();
   const usesSplitView = deriveLayout({ width, height, nativeMetrics }).usesSplitView;
   const usesWorkspaceFlowScreens = Platform.OS === "android" || usesSplitView;
+  const flowPresentations = useRef(new Map<string, boolean>());
 
   return (
     <Navigator
       screenLayout={renderGuardedScreenLayout}
+      screenListeners={{
+        state: ({ data }) => {
+          const keys = new Set(data.state.routes.map((route) => route.key));
+          for (const key of flowPresentations.current.keys()) {
+            if (!keys.has(key)) flowPresentations.current.delete(key);
+          }
+        },
+      }}
       screenOptions={({ route }) => {
         const statusBarStyle = themeAppearance === "dark" ? "light" : "dark";
         const statusBarOptions = Platform.OS === "ios" ? ({ statusBarStyle } as const) : {};
@@ -1054,7 +1063,14 @@ export const RootStack = RootStackConfig.with(function AdaptiveRootStack({ Navig
             : statusBarOptions;
         }
 
-        return usesWorkspaceFlowScreens
+        // Moving an open flow between a sheet and a split column remounts its nested
+        // navigator. Keep its presentation until dismissal so folding preserves the draft.
+        let usesCard = flowPresentations.current.get(route.key);
+        if (usesCard === undefined) {
+          usesCard = usesWorkspaceFlowScreens;
+          flowPresentations.current.set(route.key, usesCard);
+        }
+        return usesCard
           ? { ...statusBarOptions, presentation: "card" }
           : {
               ...statusBarOptions,

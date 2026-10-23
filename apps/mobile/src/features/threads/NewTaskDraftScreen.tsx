@@ -1878,6 +1878,7 @@ export function NewTaskDraftScreen(props: {
           headerBackVisible: false,
           headerShadowVisible: false,
           title: "New thread",
+          unstable_navigationItemStyle: "editor",
         }}
       />
       <SheetHeader
