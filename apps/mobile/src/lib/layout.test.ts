@@ -205,6 +205,7 @@ describe("deriveWorkspacePaneLayout", () => {
       }),
     ).toEqual({
       primarySidebarVisible: true,
+      primarySidebarWhenExpanded: true,
       primarySidebarSuppressedByAuxiliary: false,
       contentPaneWidth: 814,
       supportsAuxiliaryPane: false,
@@ -225,6 +226,7 @@ describe("deriveWorkspacePaneLayout", () => {
       }),
     ).toEqual({
       primarySidebarVisible: false,
+      primarySidebarWhenExpanded: false,
       primarySidebarSuppressedByAuxiliary: false,
       contentPaneWidth: 1_194,
       supportsAuxiliaryPane: true,
@@ -246,6 +248,7 @@ describe("deriveWorkspacePaneLayout", () => {
       }),
     ).toEqual({
       primarySidebarVisible: false,
+      primarySidebarWhenExpanded: true,
       primarySidebarSuppressedByAuxiliary: true,
       contentPaneWidth: 1_024,
       supportsAuxiliaryPane: true,
@@ -267,6 +270,7 @@ describe("deriveWorkspacePaneLayout", () => {
       }),
     ).toEqual({
       primarySidebarVisible: true,
+      primarySidebarWhenExpanded: true,
       primarySidebarSuppressedByAuxiliary: false,
       contentPaneWidth: 986,
       supportsAuxiliaryPane: true,
