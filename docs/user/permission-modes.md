@@ -15,8 +15,9 @@ and modes you choose in a draft keep their permissions.
 | **Auto**              | Uses the provider's automatic review to approve routine actions and ask about others. |
 | **Full access**       | Allows commands and edits without approval prompts.                                   |
 
-Approve or reject requests in the conversation to let the agent continue. Permission modes do
-not prevent the agent from asking questions about the task.
+Approve or reject requests in the conversation to let the agent continue. On web and desktop you
+can also send a message instead: it declines the waiting requests and redirects the agent with
+your message. Permission modes do not prevent the agent from asking questions about the task.
 
 Unanswered Codex and Claude questions close automatically after two minutes. The question
 shows its remaining time, with a warning in the final 20 seconds. Start typing or select an
