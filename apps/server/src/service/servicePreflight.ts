@@ -22,8 +22,14 @@ export function runServicePreflight(input: {
     return {
       status: "blocked",
       version,
-      reason:
-        "This release requires a newer Supaterm service launcher. Update it on the server machine.",
+      // A stale `supaterm` earlier on PATH (an old npm/nvm global) makes `supaterm service install`
+      // reinstall itself and report success, so name the exact install and the path check.
+      reason: [
+        `The installed service launcher speaks protocol ${input.launcherProtocol}, but supaterm@${version} requires protocol ${SERVICE_LAUNCHER_PROTOCOL}.`,
+        `On the server machine, install this exact CLI: \`curl -fsSL https://supaterm.com/install.sh | SUPATERM_VERSION=${version} sh\`.`,
+        `Check that \`supaterm --version\` prints ${version} and that \`which -a supaterm\` lists no older supaterm (such as an npm or nvm install) first, then run \`~/.local/bin/supaterm service install\` (the installer's default path).`,
+        "Updating the desktop app does not update this CLI.",
+      ].join(" "),
     };
   }
 
