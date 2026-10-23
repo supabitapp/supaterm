@@ -30,7 +30,6 @@ export const environmentThreadShells = createEnvironmentThreadShellAtoms({
 });
 
 const threadDetailReadyAtom = createThreadDetailReadiness({
-  threadShellAtom: environmentThreadShells.threadShellAtom,
   outcomesAtom: pendingThreadCreationOutcomesAtom,
   queuedMessagesAtom: threadOutboxManager.queuedMessagesByThreadKeyAtom,
 });

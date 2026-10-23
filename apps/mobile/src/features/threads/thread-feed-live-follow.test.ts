@@ -86,6 +86,19 @@ describe("tool-group append following", () => {
 });
 
 describe("resolveThreadFeedSubmissionAnchor", () => {
+  it("keeps an offline first message at the end", () => {
+    expect(
+      resolveThreadFeedSubmissionAnchor({
+        currentAnchorMessageId: null,
+        submittedMessageId: "offline-first",
+        hasStartedTurn: false,
+        hasUserMessage: false,
+        queuedMessageCount: 0,
+        deliveryDeferred: true,
+      }),
+    ).toBeNull();
+  });
+
   it("anchors the first user message in a thread", () => {
     expect(
       resolveThreadFeedSubmissionAnchor({
@@ -93,6 +106,7 @@ describe("resolveThreadFeedSubmissionAnchor", () => {
         submittedMessageId: "first-message",
         hasStartedTurn: false,
         hasUserMessage: false,
+        deliveryDeferred: false,
         queuedMessageCount: 0,
       }),
     ).toBe("first-message");
@@ -105,6 +119,7 @@ describe("resolveThreadFeedSubmissionAnchor", () => {
         submittedMessageId: "second-message",
         hasStartedTurn: false,
         hasUserMessage: false,
+        deliveryDeferred: false,
         queuedMessageCount: 1,
       }),
     ).toBe("first-message");
@@ -117,6 +132,7 @@ describe("resolveThreadFeedSubmissionAnchor", () => {
         submittedMessageId: "second-message",
         hasStartedTurn: false,
         hasUserMessage: false,
+        deliveryDeferred: false,
         queuedMessageCount: 0,
       }),
     ).toBe("first-message");
@@ -129,6 +145,7 @@ describe("resolveThreadFeedSubmissionAnchor", () => {
         submittedMessageId: "second-message",
         hasStartedTurn: false,
         hasUserMessage: true,
+        deliveryDeferred: false,
         queuedMessageCount: 0,
       }),
     ).toBeNull();
@@ -141,6 +158,7 @@ describe("resolveThreadFeedSubmissionAnchor", () => {
         submittedMessageId: "second-message",
         hasStartedTurn: true,
         hasUserMessage: false,
+        deliveryDeferred: false,
         queuedMessageCount: 0,
       }),
     ).toBeNull();

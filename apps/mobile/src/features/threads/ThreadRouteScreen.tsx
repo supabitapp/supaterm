@@ -966,7 +966,11 @@ function ThreadRouteContent(
           projectWorkspaceRoot={selectedThreadProject?.workspaceRoot ?? null}
           threadCwd={selectedThreadCwd}
           selectedThreadQueueCount={composer.selectedThreadQueueCount}
-          queuedMessages={composer.selectedThreadQueuedMessages}
+          queuedMessages={
+            selectedThreadCreation && selectedThreadCreation.outcome?.kind !== "delivered"
+              ? [selectedThreadCreation.message, ...composer.selectedThreadQueuedMessages]
+              : composer.selectedThreadQueuedMessages
+          }
           dispatchingMessageId={composer.dispatchingQueuedMessageId}
           layoutVariant={layout.variant}
           usesAutomaticContentInsets={usesNativeHeaderGlass}

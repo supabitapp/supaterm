@@ -1,10 +1,8 @@
-import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import { CommandId, EnvironmentId, MessageId, ProjectId, ThreadId } from "@supaterm/contracts";
 import { Atom, AtomRegistry } from "effect/reactivity";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { scopedThreadKey } from "../lib/scopedEntities";
-import { makeThreadShellFixture } from "../test-fixtures";
 import type { PendingThreadCreationOutcome } from "./pending-thread-creation";
 import { createThreadDetailReadiness } from "./thread-detail-readiness";
 import type { QueuedThreadMessage } from "./thread-outbox-model";
@@ -37,19 +35,17 @@ beforeEach(() => {
 afterEach(() => registry.dispose());
 
 function harness() {
-  const shells = Atom.family((_key: string) => Atom.make<EnvironmentThreadShell | null>(null));
   const outcomes = Atom.make<Readonly<Record<string, PendingThreadCreationOutcome>>>({});
   const queued = Atom.make<Readonly<Record<string, ReadonlyArray<QueuedThreadMessage>>>>({
     [key]: [message],
   });
   const ready = createThreadDetailReadiness({
-    threadShellAtom: (target) => shells(scopedThreadKey(target.environmentId, target.threadId)),
     outcomesAtom: outcomes,
     queuedMessagesAtom: queued,
   });
   const atom = ready(ref);
   registry.mount(atom);
-  return { atom, ready, shells, outcomes, queued };
+  return { atom, ready, outcomes, queued };
 }
 
 describe("thread detail readiness", () => {
@@ -63,13 +59,10 @@ describe("thread detail readiness", () => {
     expect(registry.get(h.atom)).toBe(true);
   });
 
-  it("starts reading when the server shell arrives before delivery returns", () => {
+  it("waits for delivery even when the server shell arrives first", () => {
     const h = harness();
     expect(registry.get(h.atom)).toBe(false);
-    registry.set(
-      h.shells(key),
-      makeThreadShellFixture({ environmentId: ref.environmentId, id: ref.threadId }),
-    );
+    registry.set(h.outcomes, { [key]: { kind: "delivered", message } });
     expect(registry.get(h.atom)).toBe(true);
   });
 

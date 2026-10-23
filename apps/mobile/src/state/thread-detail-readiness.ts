@@ -1,5 +1,4 @@
 import { parseThreadKey, threadKey } from "@supaterm/client-runtime/state/entities";
-import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import type { ScopedThreadRef } from "@supaterm/contracts";
 import { Atom } from "effect/reactivity";
 
@@ -7,8 +6,9 @@ import { scopedThreadKey } from "../lib/scopedEntities";
 import type { PendingThreadCreationOutcome } from "./pending-thread-creation";
 import type { QueuedThreadMessage } from "./thread-outbox-model";
 
+// The shell can arrive before creation is acknowledged. Reading earlier gets a
+// definitive not-found, which the thread state keeps as a deleted thread.
 export function createThreadDetailReadiness(options: {
-  readonly threadShellAtom: (ref: ScopedThreadRef) => Atom.Atom<EnvironmentThreadShell | null>;
   readonly outcomesAtom: Atom.Atom<Readonly<Record<string, PendingThreadCreationOutcome>>>;
   readonly queuedMessagesAtom: Atom.Atom<
     Readonly<Record<string, ReadonlyArray<QueuedThreadMessage>>>
@@ -18,7 +18,6 @@ export function createThreadDetailReadiness(options: {
     const ref = parseThreadKey(key);
     const creationKey = scopedThreadKey(ref.environmentId, ref.threadId);
     return Atom.make((get) => {
-      if (get(options.threadShellAtom(ref)) !== null) return true;
       const outcome = get(options.outcomesAtom)[creationKey];
       if (outcome?.kind === "delivered") return true;
       const queued = get(options.queuedMessagesAtom)[creationKey];

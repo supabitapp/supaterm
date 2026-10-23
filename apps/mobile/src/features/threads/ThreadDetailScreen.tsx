@@ -1245,6 +1245,7 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
         hasStartedTurn: props.selectedThread.latestRun !== null,
         hasUserMessage,
         queuedMessageCount: props.selectedThreadQueueCount,
+        deliveryDeferred: props.connectionStateLabel !== "connected",
       }),
     );
     composerEditorRef.current?.blur();
