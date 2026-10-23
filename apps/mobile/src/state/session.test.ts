@@ -1,5 +1,6 @@
 import {
   AuthOrchestrationOperateScope,
+  AuthProvidersManageScope,
   EnvironmentId,
   type AuthSessionState,
 } from "@supaterm/contracts";
@@ -96,4 +97,32 @@ it("reacts to grant revocation, failure, and regrant without a connection list c
   appAtomRegistry.set(source(secondary), AsyncResult.success(session(true)));
   expect(appAtomRegistry.get(observed)).toEqual(new Set([secondary]));
   expect(changes).not.toHaveLength(0);
+});
+
+it("limits provider accounts to environments granting provider management", () => {
+  const environments = [{ environmentId: primary }, { environmentId: secondary }];
+  const permitted = () => useEnvironmentsWithScope(environments, AuthProvidersManageScope);
+  expect(permitted()).toEqual(new Set());
+  appAtomRegistry.set(
+    source(secondary),
+    AsyncResult.success({ ...session(false), scopes: [AuthProvidersManageScope] }),
+  );
+  expect(permitted()).toEqual(new Set([secondary]));
+  appAtomRegistry.set(
+    source(primary),
+    AsyncResult.success({
+      ...session(true),
+      scopes: [AuthOrchestrationOperateScope, AuthProvidersManageScope],
+    }),
+  );
+  expect(permitted()).toEqual(new Set([primary, secondary]));
+  appAtomRegistry.set(
+    source(secondary),
+    AsyncResult.success({
+      ...session(false),
+      authenticated: false,
+      scopes: [AuthProvidersManageScope],
+    }),
+  );
+  expect(permitted()).toEqual(new Set([primary]));
 });

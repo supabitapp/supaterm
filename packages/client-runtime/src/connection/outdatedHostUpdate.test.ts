@@ -21,7 +21,7 @@ import {
   ConnectionTransientError,
   PrimaryConnectionTarget,
 } from "./model.ts";
-import { updateOutdatedHost } from "./outdatedHostUpdate.ts";
+import { describeOutdatedHost, updateOutdatedHost } from "./outdatedHostUpdate.ts";
 import * as EnvironmentRegistry from "./registry.ts";
 import * as ConnectionResolver from "./resolver.ts";
 
@@ -51,6 +51,47 @@ const isRpcRequest = Schema.is(RpcRequest);
 const decodeJson = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Unknown));
 const encodeJson = Schema.encodeUnknownSync(Schema.fromJsonString(Schema.Unknown));
 const encodeDescriptor = Schema.encodeSync(Schema.fromJsonString(ExecutionEnvironmentDescriptor));
+
+describe("describeOutdatedHost", () => {
+  it.effect("discovers a disabled outdated host without opening a normal session", () =>
+    Effect.gen(function* () {
+      const expected = descriptor(1, "0.0.45");
+      const result = yield* describeOutdatedHost(TARGET.environmentId).pipe(
+        Effect.provideService(
+          EnvironmentRegistry.EnvironmentRegistry,
+          EnvironmentRegistry.EnvironmentRegistry.of({
+            entries: yield* SubscriptionRef.make<
+              ReadonlyMap<EnvironmentId, ConnectionCatalogEntry>
+            >(
+              new Map([
+                [TARGET.environmentId, { target: TARGET, profile: Option.none(), enabled: false }],
+              ]),
+            ),
+          } as unknown as EnvironmentRegistry.EnvironmentRegistry["Service"]),
+        ),
+        Effect.provideService(
+          ConnectionResolver.ConnectionResolver,
+          ConnectionResolver.ConnectionResolver.of({
+            prepare: () => Effect.die(new Error("normal sessions reject this protocol")),
+            prepareForUpdate: (entry) =>
+              Effect.succeed({
+                descriptor: expected,
+                prepared: {
+                  environmentId: entry.target.environmentId,
+                  label: entry.target.label,
+                  httpBaseUrl: TARGET.httpBaseUrl,
+                  socketUrl: "wss://build.example.test/ws",
+                  httpAuthorization: null,
+                  target: TARGET,
+                },
+              }),
+          }),
+        ),
+      );
+      expect(result).toEqual(expected);
+    }),
+  );
+});
 
 type Listener = (event: { readonly type: string; readonly data?: unknown }) => void;
 

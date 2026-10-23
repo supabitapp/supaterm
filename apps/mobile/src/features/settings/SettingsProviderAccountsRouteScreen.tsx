@@ -4,7 +4,11 @@ import {
   squashAtomCommandFailure,
   type AtomCommandResult,
 } from "@supaterm/client-runtime/state/runtime";
-import type { ProviderAuthResponse, ServerProvider } from "@supaterm/contracts";
+import {
+  AuthProvidersManageScope,
+  type ProviderAuthResponse,
+  type ServerProvider,
+} from "@supaterm/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import { useRef, useState } from "react";
 import { Linking, Pressable, ScrollView, TextInput, View } from "react-native";
@@ -18,6 +22,7 @@ import { cn } from "../../lib/cn";
 import { environmentPresentations } from "../../state/presentation";
 import { useEnvironmentQuery } from "../../state/query";
 import { serverEnvironment } from "../../state/server";
+import { useEnvironmentsWithScope } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { SettingsActionRow } from "./components/SettingsActionRow";
 import {
@@ -33,6 +38,7 @@ const TERMINAL_CONTROL_SEQUENCE = new RegExp(
 );
 export function SettingsProviderAccountsRouteScreen() {
   const { selectedTargets } = useSettingsEnvironmentFilter();
+  const permittedEnvironments = useEnvironmentsWithScope(selectedTargets, AuthProvidersManageScope);
   const providersByEnvironment = useAtomValue(environmentPresentations.providersByEnvironmentAtom);
   const insets = useSafeAreaInsets();
   return (
@@ -65,24 +71,37 @@ export function SettingsProviderAccountsRouteScreen() {
               );
               return (
                 <SettingsSection key={environment.environmentId} title={environment.label}>
-                  {providers.map((provider, index) => (
-                    <ProviderAccount
-                      key={provider.instanceId}
-                      environment={environment}
-                      provider={provider}
-                      isLast={index === providers.length - 1}
-                    />
-                  ))}
-                  {providers.length === 0 ? (
+                  {!permittedEnvironments.has(environment.environmentId) ? (
                     <View className="gap-1 p-4">
                       <Text className="text-base font-supaterm-medium text-foreground">
-                        No accounts to connect
+                        Limited permissions
                       </Text>
                       <Text className="text-sm text-foreground-muted">
-                        Add a provider in web or desktop Settings → Providers.
+                        {`This session can view ${environment.label}'s providers but can't change their settings.`}
                       </Text>
                     </View>
-                  ) : null}
+                  ) : (
+                    <>
+                      {providers.map((provider, index) => (
+                        <ProviderAccount
+                          key={provider.instanceId}
+                          environment={environment}
+                          provider={provider}
+                          isLast={index === providers.length - 1}
+                        />
+                      ))}
+                      {providers.length === 0 ? (
+                        <View className="gap-1 p-4">
+                          <Text className="text-base font-supaterm-medium text-foreground">
+                            No accounts to connect
+                          </Text>
+                          <Text className="text-sm text-foreground-muted">
+                            Add a provider in web or desktop Settings → Providers.
+                          </Text>
+                        </View>
+                      ) : null}
+                    </>
+                  )}
                 </SettingsSection>
               );
             })
