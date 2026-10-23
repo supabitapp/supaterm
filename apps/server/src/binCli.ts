@@ -75,9 +75,9 @@ export function runCli() {
   extendConnectionAttemptTimeout();
   keepOutboundFetchOnHttp1();
   Command.run(cli, { version: packageJson.version }).pipe(
-    Effect.tapCause(reportCliFailure),
     Effect.scoped,
     Effect.provide(layerCliRuntime),
+    Effect.tapCause(reportCliFailure),
     NodeRuntime.runMain({ disableErrorReporting: true }),
   );
 }

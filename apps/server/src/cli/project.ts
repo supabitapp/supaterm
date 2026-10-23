@@ -185,14 +185,7 @@ export const ProjectCommandError = Schema.Union([
 ]);
 export type ProjectCommandError = typeof ProjectCommandError.Type;
 
-const isOfflineProjectNotEmptyError = Schema.is(ProjectService.ProjectNotEmptyError);
-const isProjectLiveServerDeclaredResponseError = Schema.is(ProjectLiveServerDeclaredResponseError);
-
-const isProjectNotEmptyFailure = (error: Error) =>
-  isOfflineProjectNotEmptyError(error) ||
-  (isProjectLiveServerDeclaredResponseError(error) &&
-    isEnvironmentRequestInvalidError(error.cause) &&
-    error.cause.reason === "project_not_empty");
+const isProjectNotEmptyError = Schema.is(ProjectService.ProjectNotEmptyError);
 
 export function projectCommandErrorFromLiveServerRequest(cause: unknown): ProjectCommandError {
   if (isEnvironmentHttpCommonError(cause)) {
@@ -363,10 +356,14 @@ const dispatchLiveOrchestrationCommand = Effect.fn("project.dispatchLiveOrchestr
       payload: command,
     } as Parameters<typeof client.projects.mutate>[0]);
   },
-  (effect, _origin, _bearerToken, _command) =>
+  (effect, _origin, _bearerToken, command) =>
     effect.pipe(
       withProjectCliLiveServerTimeout,
-      Effect.mapError(projectCommandErrorFromLiveServerRequest),
+      Effect.mapError((cause) =>
+        isEnvironmentRequestInvalidError(cause) && cause.reason === "project_not_empty"
+          ? new ProjectService.ProjectNotEmptyError({ projectId: command.projectId })
+          : projectCommandErrorFromLiveServerRequest(cause),
+      ),
     ),
 );
 
@@ -559,7 +556,7 @@ const projectRemoveCommand = Command.make("remove", {
           projectId: project.id,
           force: flags.force,
         }).pipe(
-          Effect.catchIf(isProjectNotEmptyFailure, () =>
+          Effect.catchIf(isProjectNotEmptyError, () =>
             Effect.fail(
               new ProjectHasThreadsError({
                 operation: "removeProject",

@@ -76,6 +76,38 @@ it.effect("leads with the cause when the failure has no message of its own", () 
   }),
 );
 
+it.effect("unwraps nested Effect causes so validation details reach the terminal", () =>
+  Effect.gen(function* () {
+    const { errors, logs } = yield* report(
+      Cause.fail(
+        new RemoveFailedError({
+          cause: Cause.fail(new Error('Expected "light" | "dark" at ["appearance"]')),
+        }),
+      ),
+    );
+
+    assert.deepEqual(logs, []);
+    assert.lengthOf(errors, 1);
+    assert.include(errors[0], 'Caused by: Expected "light" | "dark" at ["appearance"]');
+  }),
+);
+
+it.effect("prints every failure when several happen together", () =>
+  Effect.gen(function* () {
+    const { errors, logs } = yield* report(
+      Cause.combine(
+        Cause.fail(new RemoveFailedError({ cause: new Error("first") })),
+        Cause.fail(new ServeFailedError({ cause: new Error("second") })),
+      ),
+    );
+
+    assert.deepEqual(logs, []);
+    assert.lengthOf(errors, 2);
+    assert.include(errors[0], "Caused by: first");
+    assert.include(errors[1], "ERROR\n  second");
+  }),
+);
+
 it.effect("leaves failures the CLI already rendered alone", () =>
   Effect.gen(function* () {
     const { errors, logs } = yield* report(Cause.fail(new AlreadyRenderedError()));
@@ -88,6 +120,10 @@ it.effect("leaves failures the CLI already rendered alone", () =>
 it.effect.each([
   { label: "defects", cause: Cause.die(new Error("boom")) },
   { label: "failures without any message", cause: Cause.fail(new ServeFailedError({ cause: 1 })) },
+  {
+    label: "failures whose cause has no text to show",
+    cause: Cause.fail(new RemoveFailedError({ cause: { code: 7 } })),
+  },
 ])("keeps the logged cause for $label", ({ cause }) =>
   Effect.gen(function* () {
     const { errors, logs } = yield* report(cause);
