@@ -59,6 +59,8 @@ describe("inlineCodeFilePathCandidate", () => {
     ["usr/lib/libfoo.so.1", "usr/lib/libfoo.so.1"],
     ["vendor/jquery-3.6.0.min.js", "vendor/jquery-3.6.0.min.js"],
     ["./models/glm-5.3", "./models/glm-5.3"],
+    ["src/main.ts/", null],
+    ["./patches/", "./patches/"],
   ])("distinguishes file paths from code and hostnames in %s", (source, candidate) => {
     expect(inlineCodeFilePathCandidate(source)).toBe(candidate);
   });
@@ -143,8 +145,14 @@ describe("parseMarkdownFileLink", () => {
     "/app#L1",
     "readme",
     "TODO:12",
+    "patches",
   ])("does not treat %s as a file", (href) => {
     expect(parseMarkdownFileLink(href)).toBeNull();
+  });
+
+  it("recognizes a relative folder that ends in a slash", () => {
+    expect(parseMarkdownFileLink("patches/")).toEqual({ path: "patches/" });
+    expect(parseMarkdownFileLink("docs/My%20Folder/")?.path).toBe("docs/My Folder/");
   });
 
   it("accepts conventional extensionless names with or without a position", () => {
@@ -267,6 +275,13 @@ describe("resolveMarkdownFileLinkTarget", () => {
     expect(resolveMarkdownFileLinkTarget("src/processRunner.ts:71", "/Users/julius/project")).toBe(
       "/Users/julius/project/src/processRunner.ts:71",
     );
+  });
+
+  it("resolves a relative folder with a trailing slash against cwd", () => {
+    expect(resolveMarkdownFileLinkTarget("patches/", "/repo/project")).toBe(
+      "/repo/project/patches/",
+    );
+    expect(resolveMarkdownFileLinkTarget("patches", "/repo/project")).toBeNull();
   });
 
   it("does not treat filename line references as external schemes", () => {
