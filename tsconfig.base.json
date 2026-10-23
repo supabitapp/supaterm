@@ -31,7 +31,7 @@
           "deterministicKeys": "error",
           "strictEffectProvide": "off",
           // We use Effect's unstable modules (http, sql) on purpose. These rules
-          // also make effect-tsgo 0.47+ report false TS2790 errors on `delete`.
+          // also make tsc-rs's Effect diagnostics report false TS2790 errors on `delete`.
           "unstableApiUsage": "off",
           "experimentalApiUsage": "off",
           "missingEffectServiceDependency": "error",

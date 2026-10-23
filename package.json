@@ -3,7 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prepare": "effect-tsgo patch",
     "postinstall": "mise run hooks:install",
     "dev": "node scripts/dev-runner.ts dev",
     "dev:share": "node scripts/dev-runner.ts dev --share",
@@ -52,13 +51,11 @@
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist apps/*/dist-electron packages/*/dist .vite-plus apps/*/.vite-plus packages/*/.vite-plus"
   },
   "devDependencies": {
-    "@effect/tsgo": "catalog:",
     "@shadcn/lint": "0.1.5",
     "@types/node": "catalog:",
     "effect": "catalog:",
     "knip": "6.34.0",
     "oxlint": "1.88.0",
-    "tsc-rs": "0.7.0",
     "typescript": "catalog:",
     "ultracite": "7.11.0",
     "vite-plus": "catalog:"
