@@ -12,7 +12,9 @@ virtualStoreType: global
 # where anything outside onlyBuiltDependencies was silently not built.
 allowBuilds:
   bufferutil: false
-  electron: true
+  # No install script since Electron 44; ensure:electron runs install.js.
+  # Keep the key: pnpm fails installs that still record a removed `true`.
+  electron: false
   electron-winstaller: false
   esbuild: true
   msgpackr-extract: true
