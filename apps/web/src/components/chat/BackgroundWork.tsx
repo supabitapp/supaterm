@@ -20,7 +20,7 @@ import { Popover, type PopoverCreateHandle, PopoverPopup, PopoverTrigger } from 
 
 type PopoverHandle = ReturnType<typeof PopoverCreateHandle>;
 
-interface WatchedRunProps {
+export interface WatchedRunProps {
   /** The run the banner's work watches, when it watches exactly one. */
   run: ThreadWorkflowRunKey | null;
   environmentId: EnvironmentId;

@@ -39,6 +39,12 @@ import { useProjectCloneBanner } from "./chat/useProjectCloneBanner";
 import { useAttachmentPreviewHandoff } from "./chat/useAttachmentPreviewHandoff";
 import { usePullRequestDraftThread } from "./chat/usePullRequestDraftThread";
 import {
+  backgroundWorkBannerItem,
+  branchMismatchBannerItem,
+  childInputBannerItem,
+  goalBannerItem,
+} from "./chat/ThreadActivityBanners";
+import {
   type EnvironmentUnavailableState,
   useSystemComposerBanners,
 } from "./chat/useSystemComposerBanners";
@@ -109,7 +115,6 @@ import {
 import { deriveThreadTitleSeed } from "@supaterm/client-runtime/operations";
 import { SPEED_TOGGLE_LABELS } from "@supaterm/client-runtime/provider-speed-toggle";
 import { effectiveSnoozed, threadWokeAt } from "@supaterm/client-runtime/state/thread-snooze";
-import { childThreadInputsTitle } from "@supaterm/client-runtime/state/threads";
 import { declinePendingApprovals } from "@supaterm/client-runtime/state/thread-requests";
 import { useAcknowledgeThreadWoke, useThreadActions } from "../hooks/useThreadActions";
 import {
@@ -120,8 +125,6 @@ import {
   deriveThreadActivityRun,
   deriveLatestThreadRun,
   deriveThreadRuntime,
-  presentPendingBackgroundWork,
-  presentProviderGoal,
 } from "@supaterm/client-runtime/state/thread-execution";
 import {
   resolveWorkflowOpening,
@@ -164,7 +167,6 @@ import { resolveTerminalSessionLabel } from "@supaterm/shared/terminalLabels";
 import { Debouncer } from "@tanstack/react-pacer";
 import { useAtomValue } from "@effect/atom-react";
 import {
-  Fragment,
   type SetStateAction,
   useEffect,
   useEffectEvent,
@@ -260,7 +262,6 @@ import {
   usePreviewMiniPlayerStore,
 } from "../previewMiniPlayerStore";
 import { threadPullRequestPanelTarget } from "./pullRequest/pullRequestDetail.logic";
-import { BackgroundWorkIcon, BackgroundWorkTitle } from "./chat/BackgroundWork";
 import { useDeviceState } from "~/state/device";
 import { BranchToolbar, type BranchToolbarHandle } from "./BranchToolbar";
 import {
@@ -271,14 +272,7 @@ import { isEditableFocused } from "../lib/editableFocus";
 import { hasTextSelection } from "../lib/textSelection";
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@supaterm/shared/keybindings";
 import { shortcutLabelForCommand } from "../keybindings";
-import {
-  AlarmClockIcon,
-  CheckCircle2Icon,
-  MessageCircleIcon,
-  GitBranchIcon,
-  ShieldQuestionIcon,
-  TargetIcon,
-} from "lucide-react";
+import { AlarmClockIcon, CheckCircle2Icon } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "~/workspaceTitlebar";
 import { stackedThreadToast, toastManager } from "./ui/toast";
@@ -495,10 +489,8 @@ import { readEnvironmentScope, readPreparedConnection } from "../state/session";
 import { useAtomCommand } from "../state/use-atom-command";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { useAtomQueryRunner } from "../state/use-atom-query-runner";
-import { Button, InlineButton } from "./ui/button";
-import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
+import { TooltipProvider } from "./ui/tooltip";
 import { PreviewPanelGroup, PreviewPanelSibling } from "./preview/PreviewPanelLayout";
-import { InlineConfirmButton } from "./InlineConfirm";
 import {
   ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
   threadContextsOutsideEnvironment,
@@ -4110,36 +4102,14 @@ export default function ChatView(props: ChatViewProps) {
   };
   const onOpenRelatedThreadStable = useStableCallback(onOpenRelatedThread);
   const childThreadInputs = useChildThreadInputs(activeThreadRef);
-  const childInputBannerItem = ((): ComposerBannerStackItem | null => {
-    const first = childThreadInputs[0];
-    const parentAwaitingUser =
-      activePendingApproval || activePendingUserInput || activeThreadShell?.hasPendingUserInput;
-    if (!first || parentAwaitingUser) return null;
-    return {
-      id: `child-input:${first.id}`,
-      variant: "info",
-      priority: "activity",
-      icon: first.hasPendingApprovals ? <ShieldQuestionIcon /> : <MessageCircleIcon />,
-      title: childThreadInputsTitle(childThreadInputs),
-      description: childThreadInputs.map((child, index) => (
-        <Fragment key={child.id}>
-          {index > 0 ? " " : null}
-          <span className="whitespace-nowrap">
-            <InlineButton tone="muted" onClick={() => onOpenRelatedThreadStable(child.id)}>
-              {child.title}
-            </InlineButton>
-            {index < childThreadInputs.length - 1 ? "," : null}
-          </span>
-        </Fragment>
-      )),
-      actions: (
-        <Button size="xs" variant="ghost" onClick={() => onOpenRelatedThreadStable(first.id)}>
-          {first.hasPendingApprovals ? "Open approval" : "Open question"}
-        </Button>
-      ),
-    };
-  })();
 
+  const childInputBanner = childInputBannerItem({
+    childThreadInputs,
+    parentAwaitingUser: Boolean(
+      activePendingApproval || activePendingUserInput || activeThreadShell?.hasPendingUserInput,
+    ),
+    onOpenThread: onOpenRelatedThreadStable,
+  });
   const sendStandaloneCommand = async (text: string, failureMessage: string) => {
     if (!activeThread || !clientSettingsHydrated || sendInFlightRef.current) return;
     const context = composerRef.current?.getSendContext();
@@ -4178,111 +4148,35 @@ export default function ChatView(props: ChatViewProps) {
   };
   const sendStandaloneCommandStable = useStableCallback(sendStandaloneCommand);
   const activeGoal = activeThreadShell?.goal ?? null;
-  const goalBannerItem = ((): ComposerBannerStackItem | null => {
-    if (!activeThread || activeGoal === null) return null;
-    const presentation = presentProviderGoal(activeGoal, isWorking);
-    return {
-      id: `goal:${activeThread.id}`,
-      variant: "default",
-      priority: "activity",
-      icon: <TargetIcon />,
-      title:
-        presentation.usage === null
-          ? presentation.title
-          : `${presentation.title} · ${presentation.usage}`,
-      description: presentation.objective,
-      actions: isWorking ? undefined : (
-        <>
-          {presentation.canResume ? (
-            <Button
-              size="xs"
-              variant="ghost"
-              onClick={() =>
-                void sendStandaloneCommandStable("/goal resume", "Failed to resume goal.")
-              }
-            >
-              Resume
-            </Button>
-          ) : null}
-          <Button
-            size="xs"
-            variant="ghost"
-            onClick={() => void sendStandaloneCommandStable("/goal clear", "Failed to clear goal.")}
-          >
-            Clear
-          </Button>
-        </>
-      ),
-    };
-  })();
 
-  const backgroundWorkBannerItem = ((): ComposerBannerStackItem | null => {
-    const presentation = presentPendingBackgroundWork(activeBackgroundTasks);
-    if (presentation === null || !activeThread) {
-      return null;
-    }
-    // One watched run colors the dot; with more, no one run speaks for the banner.
-    const watches = serverProjection?.thread.workflowRunWatches ?? [];
-    const watchedRun = {
-      run: watches.length === 1 ? watches[0]! : null,
-      environmentId: activeThread.environmentId,
-      projectId: activeThread.projectId,
-      handle: backgroundWorkChecksHandle,
-    };
-    return {
-      id: `background-work:${activeThread.id}`,
-      variant: "default",
-      priority: "activity",
-      icon: (
-        <BackgroundWorkIcon
-          {...watchedRun}
-          waiting={presentation.waiting}
-          threadRef={activeThreadRef}
-        />
-      ),
-      iconInteractive: watchedRun.run !== null,
-      title: <BackgroundWorkTitle {...watchedRun} title={presentation.title} />,
-      description:
-        presentation.items.length === 1 && presentation.items[0]?.childThreadId === undefined
-          ? undefined
-          : presentation.items.map((item, index) => {
-              const childThreadId = item.childThreadId;
-              const separator = index < presentation.items.length - 1 ? "," : null;
-              return (
-                <Fragment key={item.taskId}>
-                  {index > 0 ? " " : null}
-                  {childThreadId === undefined ? (
-                    <>
-                      {item.label}
-                      {separator}
-                    </>
-                  ) : (
-                    <span className="whitespace-nowrap">
-                      <InlineButton
-                        tone="muted"
-                        aria-label={`${presentation.items.length === 1 ? "Show" : "Open"} subagent ${item.label}`}
-                        onClick={() => onOpenRelatedThreadStable(childThreadId)}
-                      >
-                        {presentation.items.length === 1 ? "Show" : item.label}
-                      </InlineButton>
-                      {separator}
-                    </span>
-                  )}
-                </Fragment>
-              );
-            }),
-      actions: (
-        <Button
-          size="xs"
-          variant="ghost"
-          disabled={!canOperateThread || isStoppingBackgroundWork}
-          onClick={() => void handleStopBackgroundWorkStable()}
-        >
-          {isStoppingBackgroundWork ? "Stopping..." : "Stop"}
-        </Button>
-      ),
-    };
-  })();
+  const goalBanner =
+    activeThread && activeGoal !== null
+      ? goalBannerItem({
+          threadId: activeThread.id,
+          goal: activeGoal,
+          isWorking,
+          onSendCommand: sendStandaloneCommandStable,
+        })
+      : null;
+  // One watched run colors the dot; with more, no one run speaks for the banner.
+  const backgroundWorkWatches = serverProjection?.thread.workflowRunWatches ?? [];
+  const backgroundWorkBanner = activeThread
+    ? backgroundWorkBannerItem({
+        threadId: activeThread.id,
+        threadRef: activeThreadRef,
+        tasks: activeBackgroundTasks,
+        watchedRun: {
+          run: backgroundWorkWatches.length === 1 ? backgroundWorkWatches[0]! : null,
+          environmentId: activeThread.environmentId,
+          projectId: activeThread.projectId,
+          handle: backgroundWorkChecksHandle,
+        },
+        stopDisabled: !canOperateThread || isStoppingBackgroundWork,
+        stopping: isStoppingBackgroundWork,
+        onStop: handleStopBackgroundWorkStable,
+        onOpenThread: onOpenRelatedThreadStable,
+      })
+    : null;
   // Done, snoozed, and woke are thread state, not composer actions: each
   // gets one quiet line after the last message instead of a banner. A woken
   // thread announces itself here, not just in the sidebar pill. Dismissing
@@ -4397,11 +4291,9 @@ export default function ChatView(props: ChatViewProps) {
       : null;
   const composerBannerItems = ((): ComposerBannerStackItem[] => {
     const limitRecoveryItems = limitRecoveryBanner === null ? [] : [limitRecoveryBanner];
-    const backgroundWorkItems = [
-      childInputBannerItem,
-      goalBannerItem,
-      backgroundWorkBannerItem,
-    ].filter((item) => item !== null);
+    const backgroundWorkItems = [childInputBanner, goalBanner, backgroundWorkBanner].filter(
+      (item) => item !== null,
+    );
     const usageLimitsItems = usageLimitsBanner === null ? [] : [usageLimitsBanner];
     const projectCloneItems = projectCloneBannerItem === null ? [] : [projectCloneBannerItem];
     if (!localCheckoutBranchMismatch || !showBranchMismatchBanner || !activeBranchMismatchKey) {
@@ -4421,51 +4313,18 @@ export default function ChatView(props: ChatViewProps) {
       ...projectCloneItems,
       ...systemComposerBannerItems,
       ...backgroundWorkItems,
-      {
-        id: `branch-mismatch:${activeBranchMismatchKey}`,
-        variant: "info",
-        icon: <GitBranchIcon />,
-        title: (
-          <span className="flex min-w-0 items-baseline gap-1.5">
-            <span className="shrink-0 font-normal text-muted-foreground">Branch changed — was</span>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <code className="min-w-0 truncate font-medium text-foreground">
-                    {localCheckoutBranchMismatch.threadBranch}
-                  </code>
-                }
-              />
-              <TooltipPopup side="top">
-                This thread last ran on {localCheckoutBranchMismatch.threadBranch}. Sending will
-                continue on {localCheckoutBranchMismatch.currentBranch}.
-              </TooltipPopup>
-            </Tooltip>
-          </span>
-        ),
-        actions: (
-          <InlineConfirmButton
-            size="xs"
-            variant="ghost"
-            disabled={!canWriteSourceControl || isRestoringThreadBranch}
-            required={gitStatusQuery.data?.hasWorkingTreeChanges === true}
-            label={isRestoringThreadBranch ? "Restoring..." : "Restore branch"}
-            confirmLabel="Confirm restore"
-            tooltip={
-              gitStatusQuery.data?.hasWorkingTreeChanges
-                ? `Switch back to ${localCheckoutBranchMismatch.threadBranch}. You have uncommitted changes.`
-                : `Switch back to ${localCheckoutBranchMismatch.threadBranch}`
-            }
-            confirmTooltip={`Click again to switch to ${localCheckoutBranchMismatch.threadBranch}. Your uncommitted changes will carry over, or block the switch if they conflict.`}
-            onConfirm={() => void handleSwitchCheckoutToThreadStable()}
-          />
-        ),
-        dismissLabel: "Dismiss branch change notice",
+      branchMismatchBannerItem({
+        mismatchKey: activeBranchMismatchKey,
+        mismatch: localCheckoutBranchMismatch,
+        restoreDisabled: !canWriteSourceControl || isRestoringThreadBranch,
+        restoring: isRestoringThreadBranch,
+        hasWorkingTreeChanges: gitStatusQuery.data?.hasWorkingTreeChanges === true,
+        onRestore: () => void handleSwitchCheckoutToThreadStable(),
         onDismiss: () => {
           dismissBranchMismatchForSession(activeBranchMismatchKey);
           setBranchMismatchDismissTick((tick) => tick + 1);
         },
-      },
+      }),
     ];
   })();
 
