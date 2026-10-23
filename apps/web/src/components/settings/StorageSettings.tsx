@@ -428,14 +428,7 @@ export function StorageSettingsPanel() {
 
   return (
     <SettingsPageContainer>
-      {!isProjectScope &&
-        connectedEnvironments.map((environment) => (
-          <DatabaseStorageNotice
-            key={environment.environmentId}
-            environmentId={environment.environmentId}
-            label={environment.label}
-          />
-        ))}
+      {!isProjectScope && <DatabaseStorageNotice environments={connectedEnvironments} />}
       <SettingsSection id="storage-worktrees" title="Worktrees">
         {!isProjectScope && <WorktreesDirectoryRow />}
         {isProjectScope && (

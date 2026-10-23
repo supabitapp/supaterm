@@ -15,25 +15,26 @@ const state = vi.hoisted(() => ({
   settings: {} as typeof DEFAULT_SERVER_SETTINGS,
   run: vi.fn(),
   report: null as StorageCleanupReport | null,
-  databaseStorage: null as DatabaseStorageStatus | null,
+  databaseRecommendations: [] as Array<{ environmentId: string; status: DatabaseStorageStatus }>,
+  databaseRecommendationKeys: [] as string[],
+  extraEnvironments: [] as Array<{ environmentId: string; label: string }>,
 }));
 
 vi.mock(import("../../state/server"), async (original) => {
   const actual = await original();
   const { Atom } = await import("effect/reactivity");
   const report = Atom.make(() => ({ _tag: "Success", value: state.report, waiting: false }));
-  const databaseStorage = Atom.make(() => ({
-    _tag: "Success",
-    value: state.databaseStorage,
-    waiting: false,
-  }));
+  const databaseRecommendations = Atom.make(() => state.databaseRecommendations);
   const allowed = Atom.make(true);
   return {
     ...actual,
     serverEnvironment: {
       ...actual.serverEnvironment,
       storageCleanupReport: (() => report) as never,
-      databaseStorage: (() => databaseStorage) as never,
+      databaseCompactionRecommendations: ((key: string) => {
+        state.databaseRecommendationKeys.push(key);
+        return databaseRecommendations;
+      }) as never,
       runStorageCleanup: {
         ...actual.serverEnvironment.runStorageCleanup,
         permissionAtom: () => allowed,
@@ -61,10 +62,14 @@ vi.mock(import("./SettingsScopeContext"), async (original) => ({
         },
       },
     };
+    const connectedEnvironments = [
+      environment,
+      ...state.extraEnvironments.map((extra) => ({ ...environment, ...extra })),
+    ];
     return {
       scope: { kind: "environment" },
-      environments: [environment],
-      connectedEnvironments: [environment],
+      environments: connectedEnvironments,
+      connectedEnvironments,
       targets: [],
       target: null,
     };
@@ -117,7 +122,10 @@ function setup() {
     projectSettingsOverrides: {},
   };
   state.report = null;
-  state.databaseStorage = null;
+  state.databaseRecommendations = [];
+  state.databaseRecommendationKeys = [];
+  state.extraEnvironments = [];
+  localStorage.removeItem("database-storage-notice-dismissed");
   state.run.mockReset();
 }
 
@@ -267,22 +275,44 @@ it("shows orphan sizes and identifies failed worktrees with one connected machin
   expect(container.textContent).toContain("0 B recovered.");
 });
 
-it.each([
-  ["an unconverted database with 2 GiB free", {}, true],
-  ["a database that already shrinks itself", { incrementalVacuumEnabled: true }, false],
-  ["less than 1 GiB free", { reclaimableBytes: 512 * 1024 ** 2 }, false],
-] as const)("suggests supaterm doctor for %s", async (_name, change, shown) => {
-  const status = {
+it("lists every machine's reclaimable database space and dismisses one machine at a time", async () => {
+  const status = (reclaimableGiB: number, baseDir: string) => ({
     databaseBytes: 4 * 1024 ** 3,
-    reclaimableBytes: 2 * 1024 ** 3,
+    reclaimableBytes: reclaimableGiB * 1024 ** 3,
     incrementalVacuumEnabled: false,
-    compactCommand: "supaterm doctor --base-dir /home/jane/.supaterm",
-    ...change,
-  };
+    compactCommand: `supaterm doctor --base-dir ${baseDir}`,
+  });
   setup();
-  state.databaseStorage = status;
+  state.extraEnvironments = [{ environmentId: "laptop", label: "Laptop" }];
+  state.databaseRecommendations = [
+    { environmentId: "laptop", status: status(3, "/Users/jane/.supaterm") },
+    { environmentId: "env", status: status(2, "/home/jane/.supaterm") },
+  ];
   await using screen = await render(panel());
   const { container } = screen;
-  expect(container.textContent?.includes("Reclaim 2.0 GiB on Build workstation")).toBe(shown);
-  expect(container.textContent?.includes(status.compactCommand)).toBe(shown);
+  const headings = () =>
+    Array.from(container.querySelectorAll("h3"), (heading) => heading.textContent);
+  expect(headings()).toEqual(
+    expect.arrayContaining([
+      "Reclaim freed database space",
+      "3.0 GiB on Laptop",
+      "2.0 GiB on Build workstation",
+    ]),
+  );
+  expect(container.textContent).toContain("supaterm doctor --base-dir /Users/jane/.supaterm");
+  expect(state.databaseRecommendationKeys.at(-1)).toBe(JSON.stringify(["env", "laptop"]));
+
+  const dismissButtons = () =>
+    Array.from(container.querySelectorAll("button")).filter(
+      (button) => button.textContent === "Dismiss",
+    );
+  await act(async () => dismissButtons()[0]!.click());
+  expect(headings()).not.toContain("3.0 GiB on Laptop");
+  expect(headings()).toContain("2.0 GiB on Build workstation");
+  expect(JSON.parse(localStorage.getItem("database-storage-notice-dismissed")!)).toEqual([
+    "laptop",
+  ]);
+
+  await act(async () => dismissButtons()[0]!.click());
+  expect(headings()).not.toContain("Reclaim freed database space");
 });

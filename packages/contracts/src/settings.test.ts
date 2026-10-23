@@ -16,6 +16,7 @@ import {
   resolveProviderInstanceEnabled,
   ServerSettings,
   ServerSettingsPatch,
+  shouldRecommendDatabaseCompaction,
 } from "./settings.ts";
 
 const decodeClientSettings = Schema.decodeUnknownSync(ClientSettingsSchema);
@@ -106,6 +107,24 @@ describe("ServerSettings response streaming", () => {
       expect(() => decodeServerSettings(input)).toThrow();
       expect(() => decodeServerSettingsPatch(input)).toThrow();
     }
+  });
+});
+
+describe("database compaction recommendation", () => {
+  it.each([
+    ["an unconverted database with 2 GiB free", {}, true],
+    ["a database that already shrinks itself", { incrementalVacuumEnabled: true }, false],
+    ["less than 1 GiB free", { reclaimableBytes: 512 * 1024 ** 2 }, false],
+  ] as const)("suggests supaterm doctor for %s", (_name, change, recommended) => {
+    expect(
+      shouldRecommendDatabaseCompaction({
+        databaseBytes: 4 * 1024 ** 3,
+        reclaimableBytes: 2 * 1024 ** 3,
+        incrementalVacuumEnabled: false,
+        compactCommand: "supaterm doctor --base-dir /home/jane/.supaterm",
+        ...change,
+      }),
+    ).toBe(recommended);
   });
 });
 
