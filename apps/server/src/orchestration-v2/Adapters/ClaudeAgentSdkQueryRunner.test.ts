@@ -16,10 +16,12 @@ import { vi } from "vite-plus/test";
 
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { ProviderEventLoggers } from "@supaterm/provider-core/server/ProviderEventLoggers";
+import { signalProcessGroup } from "@supaterm/provider-core/server/processGroup";
 import {
   CLAUDE_AGENT_SDK_QUERY_PROTOCOL,
   ClaudeAgentSdkQueryRunner,
   layerQueryRunner,
+  spawnClaudeProcessGroup,
 } from "./ClaudeAdapterV2.ts";
 
 vi.mock("@anthropic-ai/claude-agent-sdk", { spy: true });
@@ -298,5 +300,39 @@ describe.skipIf(HostProcess.Platform.defaultValue() === "win32")("Claude CLI pro
       yield* session.close;
       yield* Effect.promise(() => leftoverStopped);
     }).pipe(Effect.provide(realQueryRunner)),
+  );
+
+  // The CLI keeps running its turn after its pipes close, so a server that
+  // crashed would leave it working next to the session it resumes.
+  it.effect("stops the CLI when the server that started it goes away", () =>
+    Effect.gen(function* () {
+      const cli = fakeClaudeCli(['dir=$(dirname "$0")', 'sleep 600 > "$dir/alive"'].join("\n"));
+      const dir = NodePath.dirname(cli);
+      NodeChildProcess.execFileSync("mkfifo", [NodePath.join(dir, "alive")]);
+      const child = spawnClaudeProcessGroup({
+        command: cli,
+        args: [],
+        cwd: dir,
+        env: process.env,
+        signal: new AbortController().signal,
+      }) as NodeChildProcess.ChildProcess;
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          try {
+            signalProcessGroup(child.pid ?? 0, "SIGKILL");
+          } catch {}
+          NodeFS.rmSync(dir, { recursive: true, force: true });
+        }),
+      );
+      const alive = NodeFS.createReadStream(NodePath.join(dir, "alive"));
+      const turnStarted = new Promise<void>((resolve) => alive.once("open", () => resolve()));
+      const turnStopped = new Promise<void>((resolve) => alive.once("close", () => resolve()));
+      alive.resume();
+      yield* Effect.promise(() => turnStarted);
+
+      // A dying server's descriptors close; the kernel would do this for it.
+      for (const pipe of child.stdio) pipe?.destroy();
+      yield* Effect.promise(() => turnStopped);
+    }),
   );
 });
