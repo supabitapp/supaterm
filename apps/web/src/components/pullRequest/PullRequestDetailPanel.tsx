@@ -1547,6 +1547,8 @@ export function PullRequestDetailPanel({
             {tab === "summary" ? (
               showsApproveWorkflows ? (
                 <PullRequestApproveWorkflowsButton
+                  pullRequestNumber={reference.number}
+                  workflowApprovalsRequired={workflowApprovalsRequired}
                   pendingAction={pendingAction}
                   perform={perform}
                 />

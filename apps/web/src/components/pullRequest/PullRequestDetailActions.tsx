@@ -387,14 +387,19 @@ export function PullRequestPrimaryAction({
 }
 
 export function PullRequestApproveWorkflowsButton({
+  pullRequestNumber,
+  workflowApprovalsRequired,
   pendingAction,
   perform,
 }: {
+  pullRequestNumber: number;
+  workflowApprovalsRequired: number;
   pendingAction: PullRequestAction | null;
   perform: PerformPullRequestAction;
 }) {
   const confirm = useInlineConfirm<"approve-workflows">();
   const actionPending = pendingAction !== null;
+  const armed = confirm.armed === "approve-workflows";
   return (
     <Tooltip>
       <TooltipTrigger
@@ -406,21 +411,35 @@ export function PullRequestApproveWorkflowsButton({
               disabled={actionPending}
               {...confirm.bind("approve-workflows", () => void perform("approve-workflows"))}
               aria-label={
-                pendingAction === "approve-workflows" ? "Approving..." : "Approve workflows to run"
+                pendingAction === "approve-workflows"
+                  ? "Approving..."
+                  : armed
+                    ? "Confirm approval"
+                    : "Approve workflows to run"
               }
             >
-              <PlayIcon aria-hidden className="size-3.5" />
-              <span>
-                {pendingAction === "approve-workflows"
-                  ? "Approving..."
-                  : "Approve workflows to run"}
-              </span>
+              <InlineConfirmIcon armed={armed}>
+                <PlayIcon aria-hidden className="size-3.5" />
+              </InlineConfirmIcon>
+              <InlineConfirmLabel
+                armed={armed}
+                idle={
+                  pendingAction === "approve-workflows"
+                    ? "Approving..."
+                    : "Approve workflows to run"
+                }
+                confirm="Confirm approval"
+              />
             </Button>
           </span>
         }
       />
       <TooltipPopup side="top">
-        {pendingAction === "approve-workflows" ? "Approving..." : "Approve workflows to run"}
+        {pendingAction === "approve-workflows"
+          ? "Approving..."
+          : armed
+            ? `Click again to let ${workflowApprovalsRequired} ${workflowApprovalsRequired === 1 ? "workflow" : "workflows"} from #${pullRequestNumber} run. Review the code and workflow changes first.`
+            : "Approve workflows to run"}
       </TooltipPopup>
     </Tooltip>
   );
