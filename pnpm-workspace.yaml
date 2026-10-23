@@ -7,7 +7,7 @@ packages:
 # Reuse installed dependency graphs across worktrees on the same machine.
 virtualStoreType: global
 
-# Successor to onlyBuiltDependencies/ignoredBuiltDependencies (pnpm 11).
+# Successor to onlyBuiltDependencies/ignoredBuiltDependencies (pnpm 11+).
 # true = allowed to run build scripts; false mirrors the pnpm 10 behavior
 # where anything outside onlyBuiltDependencies was silently not built.
 allowBuilds:
@@ -301,6 +301,16 @@ peerDependencyRules:
     - vite
   allowedVersions:
     vite: "*"
+
+# pnpm 12 links agent skills that dependencies ship into .claude/skills once
+# approved. We curate our own skills, so deny these to keep installs quiet.
+permissions:
+  "@tanstack/router-plugin":
+    skills: false
+  expo-sqlite:
+    skills: false
+  ultracite:
+    skills: false
 
 # @cursor/sdk finds its platform package (sandbox helper, rg, tree-sitter) by
 # walking up from the entry script for node_modules/@cursor/sdk-<platform>-<arch>.
