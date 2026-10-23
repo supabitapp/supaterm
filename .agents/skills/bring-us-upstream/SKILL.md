@@ -15,6 +15,7 @@ Before editing:
 - Create a unique temporary CSV outside the worktree with columns `upstream_ref,change,decision,notes,status`.
 - Populate the full inventory before detailed review or implementation, with `status` set to `Pending` and decisions initially blank. Cover every commit in the range.
 - Read each merged PR's description and actual diff, and inspect commits outside PRs in the range.
+- When upstream reverts or follows up on a change an earlier port brought, compare upstream's before and after with what that port left in our tree, including fork-only consumers, not with upstream's patch. Earlier ports adapt code, so a revert can apply cleanly in one file and conflict in another.
 - Check relevant code, tests, contracts, migrations, and affected server, client, provider, persistence, and connection surfaces.
 - Default to bringing compatible upstream work, including new capabilities and architectural changes. Size, implementation effort, new dependencies, and routine branding or integration work belong in the port plan.
 - Fill each row's `decision` and `notes` from the review, splitting a commit into rows when its changes need different decisions:
@@ -46,10 +47,19 @@ If approval is still needed, ask whether to approve the proposed scope or revise
 
 Implement the approved scope and resolve routine adaptation choices autonomously. Seek another decision only for a material expansion or a newly discovered conflict that the existing authorization does not settle. Preserve deliberate fork behavior, add focused tests, update docs when needed, and run targeted checks.
 
-Update each CSV row as work completes. Mark `Bring` rows `Done` after porting and verification, and `Skip` rows `Done` once their reasons are supported by evidence. Keep `Decide` rows `Pending` until resolved to `Bring` or `Skip`.
+Update each CSV row as work completes. Mark a `Bring` row `Done` only after its complete behavior, including removals, is verified in the integrated tree; compiling is not enough. Never swap in a nearby identifier to make a partial apply compile. Split excluded parts into `Skip` rows with evidence and leave unfinished parts `Pending`. Mark `Skip` rows `Done` once their reasons are supported by evidence. Keep `Decide` rows `Pending` until resolved to `Bring` or `Skip`.
 
 Trace architectural changes through fork-only consumers and check their behavior and performance assumptions. Focus cleanup on adaptation code and avoid unrelated rewrites of upstream-equivalent code.
 
 Before opening a PR or reporting completion, reconcile every CSV row with the approved scope and final integrated tree, including required configuration and preserved fork behavior. Recheck "already present" skips affected by other ports or merges, returning invalidated rows to `Pending`. Resolve or explicitly report remaining pending rows.
 
-Report what changed, what was skipped, validation, and remaining manual checks. Commit, push, and create a PR only when authorized.
+Then check for removals that did not land:
+
+```bash
+node .agents/skills/bring-us-upstream/scripts/find-unlanded-removals.ts \
+  --upstream <t3code checkout> --base <base> --end <end>
+```
+
+It lists lines that any commit in the range removed, that upstream's end state no longer has, and that our copy of the same file still has, each under the commit that removed it. Scanning per commit catches changes added and reverted inside the range. Map every candidate to its CSV row: a `Skip` whose evidence covers it, `Pending` until the removal lands, or a note showing it is not a missed removal.
+
+Report what changed, what was skipped, validation, and remaining manual checks. Commit, push, and create a PR only when authorized. State the exact upstream base and end SHAs in the PR body so the next port starts there. Post the final CSV as a collapsed PR comment, split across comments if needed, so later audits can see each row's decision.
