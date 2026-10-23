@@ -263,6 +263,20 @@ const make = Effect.gen(function* () {
       ),
     );
 
+  // A link from a checkout or an agent would send reads to its target, which
+  // can be a network path. Checkouts only place links inside the worktree, so
+  // every component below its root is probed, not just the last one.
+  const reachesThroughLink = Effect.fnUntraced(function* (root: string, target: string) {
+    const relative = path.relative(root, target);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) return yield* isLink(target);
+    let current = root;
+    for (const part of relative.split(path.sep)) {
+      current = path.join(current, part);
+      if (yield* isLink(current)) return true;
+    }
+    return false;
+  });
+
   // pnpm imports packages by clone or reflink when its store shares a device
   // with the worktree. Those files have one link but share blocks with the
   // store, so removing them frees almost nothing. A store on another device
@@ -271,9 +285,7 @@ const make = Effect.gen(function* () {
     function* (root: string) {
       const nodeModules = path.join(root, "node_modules");
       const manifestPath = path.join(nodeModules, ".modules.yaml");
-      // A link from a checkout or an agent would send these reads to its
-      // target, which can be a network path.
-      if ((yield* isLink(nodeModules)) || (yield* isLink(manifestPath))) return null;
+      if (yield* reachesThroughLink(root, manifestPath)) return null;
       const text = yield* fs.readFileString(manifestPath);
       const manifest = yield* decodePnpmModulesManifest(yield* Effect.try(() => parseYaml(text)));
       // An agent can write this manifest, and statting a network path makes
@@ -282,7 +294,12 @@ const make = Effect.gen(function* () {
         return null;
       }
       const virtualStore = path.resolve(nodeModules, manifest.virtualStoreDir ?? ".pnpm");
-      if ((yield* isLink(manifest.storeDir)) || (yield* isLink(virtualStore))) return null;
+      if (
+        (yield* reachesThroughLink(root, manifest.storeDir)) ||
+        (yield* reachesThroughLink(root, virtualStore))
+      ) {
+        return null;
+      }
       const [store, virtual] = yield* Effect.all([
         fs.stat(manifest.storeDir),
         fs.stat(virtualStore),

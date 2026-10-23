@@ -43,6 +43,7 @@ import {
   type PreviewAppearancePreference,
 } from "@supaterm/contracts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
+import { isNetworkPath } from "@supaterm/shared/path";
 import { normalizePreviewUrl } from "@supaterm/shared/preview";
 import { resolvePreviewViewport } from "@supaterm/shared/previewViewport";
 import * as NodeCrypto from "node:crypto";
@@ -1085,6 +1086,14 @@ const make = Effect.gen(function* () {
       throw new ServerBrowserPage.ServerBrowserOperationError(
         "PreviewAutomationExecutionError",
         `Upload paths must be absolute: ${relative}`,
+      );
+    // Reading a network path makes Windows sign in to its host with the user's
+    // NTLM credentials.
+    const network = input.paths.find(isNetworkPath);
+    if (network !== undefined)
+      throw new ServerBrowserPage.ServerBrowserOperationError(
+        "PreviewAutomationExecutionError",
+        `Upload paths must not be network paths: ${network}`,
       );
     if (await ServerBrowserPage.setInputFiles(tab.page, input)) return undefined;
     const open = tab.fileChooser;

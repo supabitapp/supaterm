@@ -181,6 +181,31 @@ it.layer(layerTest)("ProjectFaviconResolverLive", (it) => {
       }),
     );
 
+    // An agent can save the favicon path, and statting a network path sent the
+    // Windows user's NTLM credentials to its host.
+    it.effect("never stats a saved favicon on a network path outside the project", () =>
+      Effect.gen(function* () {
+        const fileSystem = yield* FileSystem.FileSystem;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "favicon.svg", "<svg>automatic</svg>");
+        const statted: Array<string> = [];
+        const resolver = yield* makeResolverWithFileSystem(
+          FileSystem.FileSystem.of({
+            ...fileSystem,
+            stat: (filePath) => {
+              statted.push(filePath);
+              return fileSystem.stat(filePath);
+            },
+          }),
+        );
+
+        const resolved = yield* resolver.resolvePath(cwd, "//attacker.test/share/icon.png");
+
+        expect(resolved).toContain("favicon.svg");
+        expect(statted.filter((filePath) => filePath.includes("attacker.test"))).toEqual([]);
+      }),
+    );
+
     it.effect("falls back when a saved override is missing from a checkout", () =>
       Effect.gen(function* () {
         const resolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;

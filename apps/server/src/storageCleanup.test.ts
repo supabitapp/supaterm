@@ -1616,6 +1616,42 @@ describe("storage cleanup reports and local file policies", () => {
       }),
     ),
   );
+  // A checkout can link a directory to a network share and point the manifest
+  // through it, so nothing beneath a link inside the worktree may be touched.
+  it.live("never reads through a link inside the worktree to find the pnpm store", () =>
+    runCleanupTest(
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const storeDir = yield* fs.makeTempDirectoryScoped({ prefix: "pnpm-store-" });
+        const outside = yield* fs.makeTempDirectoryScoped();
+        const touched: Array<string> = [];
+        const record = (target: string) => {
+          touched.push(target);
+        };
+        const { service, worktree, setPolicy } = yield* cleanupFixture().pipe(
+          Effect.provideService(FileSystem.FileSystem, {
+            ...fs,
+            stat: (target) =>
+              Effect.sync(() => record(target)).pipe(Effect.andThen(fs.stat(target))),
+            readLink: (target) =>
+              Effect.sync(() => record(target)).pipe(Effect.andThen(fs.readLink(target))),
+          }),
+        );
+        setPolicy("tracked-changes");
+        const nodeModules = `${worktree}/node_modules`;
+        yield* fs.makeDirectory(`${nodeModules}/.pnpm`, { recursive: true });
+        yield* fs.makeDirectory(`${outside}/store`);
+        yield* fs.symlink(outside, `${worktree}/redirect`);
+        yield* fs.writeFileString(
+          `${nodeModules}/.modules.yaml`,
+          JSON.stringify({ storeDir, virtualStoreDir: "../redirect/store" }),
+        );
+        const report = yield* service.runNow;
+        expect(report.entries[0]).toMatchObject({ outcome: "removed" });
+        expect(touched.filter((target) => target.endsWith("/redirect/store"))).toEqual([]);
+      }),
+    ),
+  );
   // An agent can write this manifest. Statting its store sent the Windows
   // user's NTLM credentials to attacker.test during a background sweep.
   it.live.each([
