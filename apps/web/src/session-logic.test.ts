@@ -227,11 +227,53 @@ describe("V2 session presentation", () => {
             runId,
           },
         ],
-        updatedAt: now,
       },
       runId,
     );
     expect(plan?.planMarkdown).toBe("Plan");
+  });
+
+  it("dates a plan without a plan item by its run rather than the thread's last update", () => {
+    const runId = RunId.make("run-plan");
+    const completedAt = DateTime.makeUnsafe("2026-06-20T00:00:05.000Z");
+    const baseProjection = makeThreadProjectionFixture();
+    const plan = findLatestProposedPlan(
+      {
+        ...baseProjection,
+        runs: [
+          {
+            id: runId,
+            threadId: baseProjection.thread.id,
+            ordinal: 1,
+            providerInstanceId: baseProjection.thread.providerInstanceId,
+            modelSelection: baseProjection.thread.modelSelection,
+            providerThreadId: null,
+            userMessageId: MessageId.make("message-plan"),
+            rootNodeId: null,
+            activeAttemptId: null,
+            status: "completed" as const,
+            requestedAt: baseProjection.thread.createdAt,
+            startedAt: baseProjection.thread.createdAt,
+            completedAt,
+            checkpointId: null,
+            contextHandoffId: null,
+          },
+        ],
+        plans: [
+          {
+            id: PlanId.make("plan-without-item"),
+            threadId: baseProjection.thread.id,
+            nodeId: NodeId.make("node-plan"),
+            kind: "proposed_plan" as const,
+            markdown: "Plan",
+            status: "active" as const,
+            runId,
+          },
+        ],
+      },
+      runId,
+    );
+    expect(plan?.createdAt).toBe(DateTime.formatIso(completedAt));
   });
 
   it("assigns run rollback to the turn-start message instead of a later steer", () => {

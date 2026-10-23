@@ -34,6 +34,7 @@ vi.mock("~/state/orchestration", () => ({
   orchestrationEnvironment: { threadFind: (target: unknown) => target },
 }));
 vi.mock("~/state/queries", () => ({ useDebouncedValue: <T,>(value: T) => value }));
+vi.mock("~/state/entities", () => ({ useThreadProjection: () => null }));
 vi.mock("~/state/query", async () => {
   const { useSyncExternalStore } = await import("react");
   return {
@@ -77,7 +78,6 @@ it("keeps navigation and pending responses out of the surrounding chat and unrel
       <ThreadFindProvider
         thread={{ environmentId: EnvironmentId.make("dev"), threadId: ThreadId.make("thread") }}
         enabled
-        content={undefined}
         controlsRef={controls}
         onOpenChange={setOpen}
       >

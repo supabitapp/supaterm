@@ -2,12 +2,13 @@ import type {
   ChatAttachment,
   OrchestrationV2ProjectedTurnItem,
   OrchestrationV2ProviderCapabilities,
-  OrchestrationV2ThreadProjection,
 } from "@supaterm/contracts";
 import { latestForkableRun } from "@supaterm/contracts";
 import { copySorted } from "@supaterm/shared/Array";
 
-type Projection = OrchestrationV2ThreadProjection;
+import type { ThreadStructure } from "./models.ts";
+
+type Projection = ThreadStructure;
 type Run = Projection["runs"][number];
 type Message = Projection["messages"][number];
 type ProviderSession = Projection["providerSessions"][number];

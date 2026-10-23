@@ -33,6 +33,8 @@ import {
   threadRuntimeIsActive,
   type ThreadRunSummary,
   type ThreadRuntimeSummary,
+  type ThreadStructure,
+  type ThreadStructureRuntime,
 } from "./models.ts";
 import { formatSubagentDisplayTitle } from "./subagentDisplay.ts";
 
@@ -40,7 +42,7 @@ const ACTIVITY_RUN_STATUSES = new Set(["preparing", "starting", "running", "wait
 const INTERRUPTIBLE_RUN_STATUSES = new Set(["preparing", "starting", "running"]);
 
 function latestMatchingRun(
-  projection: OrchestrationV2ThreadProjection,
+  projection: ThreadStructure,
   predicate: (run: OrchestrationV2ThreadProjection["runs"][number]) => boolean,
 ): OrchestrationV2ThreadProjection["runs"][number] | null {
   return projection.runs.reduce<OrchestrationV2ThreadProjection["runs"][number] | null>(
@@ -53,7 +55,7 @@ function latestMatchingRun(
 }
 
 function summarizeThreadRun(
-  projection: OrchestrationV2ThreadProjection,
+  projection: ThreadStructure,
   run: OrchestrationV2ThreadProjection["runs"][number],
 ): ThreadRunSummary {
   const turnStatus = ACTIVITY_RUN_STATUSES.has(run.status)
@@ -77,7 +79,7 @@ function summarizeThreadRun(
 }
 
 function presentedUsageLimitRun(
-  projection: OrchestrationV2ThreadProjection,
+  projection: ThreadStructure,
 ): OrchestrationV2ThreadProjection["runs"][number] | null {
   const providerSession = projection.providerSessions.findLast(
     (session) => session.providerInstanceId === projection.thread.providerInstanceId,
@@ -90,21 +92,17 @@ function presentedUsageLimitRun(
 }
 
 function presentedLatestRun(
-  projection: OrchestrationV2ThreadProjection,
+  projection: ThreadStructure,
 ): OrchestrationV2ThreadProjection["runs"][number] | null {
   return presentedUsageLimitRun(projection) ?? latestUnheldRun(projection.runs);
 }
 
-export function deriveLatestThreadRun(
-  projection: OrchestrationV2ThreadProjection,
-): ThreadRunSummary | null {
+export function deriveLatestThreadRun(projection: ThreadStructure): ThreadRunSummary | null {
   const run = presentedLatestRun(projection);
   return run === null ? null : summarizeThreadRun(projection, run);
 }
 
-export function deriveThreadActivityRun(
-  projection: OrchestrationV2ThreadProjection,
-): ThreadRunSummary | null {
+export function deriveThreadActivityRun(projection: ThreadStructure): ThreadRunSummary | null {
   const run =
     latestMatchingRun(projection, (candidate) => ACTIVITY_RUN_STATUSES.has(candidate.status)) ??
     presentedLatestRun(projection);
@@ -115,9 +113,7 @@ export function deriveThreadActivityRun(
  * Provider-native subagent threads never get app runs: their work is a runless
  * root turn whose status follows the subagent.
  */
-export function deriveRunlessWorkStartedAt(
-  projection: OrchestrationV2ThreadProjection,
-): string | null {
+export function deriveRunlessWorkStartedAt(projection: ThreadStructure): string | null {
   const status = deriveProviderSubagentStatus(projection);
   return status !== null && isOrchestrationV2WorkActive(status.status) ? status.startedAt : null;
 }
@@ -129,7 +125,7 @@ export interface ProviderSubagentStatus {
 }
 
 export function deriveProviderSubagentStatus(
-  projection: OrchestrationV2ThreadProjection,
+  projection: ThreadStructure,
 ): ProviderSubagentStatus | null {
   if (!isProviderNativeSubagentThread(projection.thread)) return null;
   const node = projection.nodes.findLast(
@@ -143,9 +139,7 @@ export function deriveProviderSubagentStatus(
   };
 }
 
-export function deriveReportedModelSelection(
-  projection: OrchestrationV2ThreadProjection,
-): ModelSelection | null {
+export function deriveReportedModelSelection(projection: ThreadStructure): ModelSelection | null {
   const providerThread = projection.providerThreads.find(
     (candidate) =>
       candidate.id === projection.thread.activeProviderThreadId &&
@@ -219,8 +213,18 @@ export function formatProviderSubagentStatus(
 }
 
 export function deriveThreadRuntime(
-  projection: OrchestrationV2ThreadProjection,
+  projection: ThreadStructure & Pick<OrchestrationV2ThreadProjection, "updatedAt">,
 ): ThreadRuntimeSummary | null {
+  const runtime = deriveThreadStructureRuntime(projection);
+  return runtime === null
+    ? null
+    : { ...runtime, updatedAt: DateTime.formatIso(projection.updatedAt) };
+}
+
+/** The runtime summary a thread's structure determines: all of it but `updatedAt`. */
+export function deriveThreadStructureRuntime(
+  projection: ThreadStructure,
+): ThreadStructureRuntime | null {
   const latestRun = deriveLatestThreadRun(projection);
   const providerSession = projection.providerSessions.findLast(
     (session) => session.providerInstanceId === projection.thread.providerInstanceId,
@@ -269,12 +273,11 @@ export function deriveThreadRuntime(
       latestRootProviderFailure(latestRunProjection, projection.turnItems),
       providerSession?.lastError ?? null,
     ),
-    updatedAt: DateTime.formatIso(projection.updatedAt),
   };
 }
 
 export function threadRuntimeHasInterruptibleRun(
-  runtime: ThreadRuntimeSummary | null | undefined,
+  runtime: ThreadStructureRuntime | null | undefined,
 ): boolean {
   return (
     threadRuntimeIsActive(runtime) &&

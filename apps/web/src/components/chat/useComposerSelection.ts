@@ -9,7 +9,7 @@ import {
   type ServerProvider,
   RuntimeMode,
 } from "@supaterm/contracts";
-import { deriveThreadRuntime } from "@supaterm/client-runtime/state/thread-execution";
+import type { deriveThreadStructureRuntime } from "@supaterm/client-runtime/state/thread-execution";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { useNavigate } from "@tanstack/react-router";
 import { toastManager } from "../ui/toast";
@@ -27,7 +27,7 @@ interface ComposerSelectionInput {
   readonly composerDraftTarget: ComposerThreadTarget;
   readonly draftThread: DraftSessionState | null;
   readonly activeThread: EnvironmentThreadShell | undefined;
-  readonly activeRuntime: ReturnType<typeof deriveThreadRuntime>;
+  readonly activeRuntime: ReturnType<typeof deriveThreadStructureRuntime>;
   readonly activeProjectSettings: {
     readonly settings: { readonly newWorktreesStartFromOrigin: boolean };
   };

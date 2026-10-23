@@ -1,7 +1,4 @@
-import type {
-  EnvironmentThread,
-  EnvironmentThreadShell,
-} from "@supaterm/client-runtime/state/shell";
+import type { EnvironmentThreadShell, ThreadStructure } from "@supaterm/client-runtime/state/shell";
 import type { ComposerThreadTarget } from "../../composerDraftStore";
 import type { ComposerHandleRef } from "../../composerHandleContext";
 import {
@@ -80,7 +77,7 @@ interface ThreadLifecycleInput {
   readonly activeLatestRun: EnvironmentThreadShell["latestRun"];
   readonly activeProjectCwd: string | null;
   readonly serverConfig: EnvironmentPresentation["serverConfig"] | null;
-  readonly serverProjection: EnvironmentThread["projection"] | null;
+  readonly serverProjection: ThreadStructure | null;
   readonly runtimeMode: RuntimeMode;
   readonly isWorking: boolean;
   readonly pendingBackgroundTasks: Parameters<typeof backgroundWorkBannerItem>[0]["tasks"];
