@@ -32,6 +32,7 @@ import { useMobileProjectGroupingSettings } from "../../state/project-grouping";
 import { homeProjectOrderAtom } from "../home/homeProjectOrder";
 import { environmentServerConfigsAtom } from "../../state/server";
 import { PullRequestListRow } from "./PullRequestListRow";
+import { PullRequestCardRow } from "./PullRequestControls";
 import { createPullRequestListFilterMenu } from "./pullRequestListFilterMenu";
 import { usePullRequestList } from "./usePullRequestList";
 import { usePullRequestListControls } from "./usePullRequestListControls";
@@ -60,6 +61,29 @@ function PullRequestScrollView(props: ScrollViewProps) {
         contentOffset={props.contentOffset ?? { x: 0, y: -insets.top }}
       />
     </ScrollViewMarker>
+  );
+}
+
+function PullRequestListErrors(props: { readonly messages: readonly string[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const title = `${props.messages.length} ${props.messages.length === 1 ? "error" : "errors"} loading pull requests`;
+  return (
+    <View>
+      <PullRequestCardRow
+        title={title}
+        icon="exclamationmark.triangle"
+        compact
+        last
+        expanded={expanded}
+        accessibilityLabel={`${title}. ${expanded ? "Hide" : "Show"} details`}
+        onPress={() => setExpanded((value) => !value)}
+      />
+      {expanded ? (
+        <Text selectable className="px-4 pb-3 text-sm text-foreground-muted">
+          {props.messages.join("\n")}
+        </Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -320,14 +344,13 @@ export function PullRequestsScreen(
         ListHeaderComponent={
           <>
             {result.data?.errors.length ? (
-              <Text className="px-4 py-3 text-sm text-foreground-muted">
-                {result.data.errors
-                  .map(
-                    (error) =>
-                      `${error.projectTitle || environments.find((environment) => environment.environmentId === error.environmentId)?.environmentLabel || "Environment"}: ${error.message}`,
-                  )
-                  .join("\n")}
-              </Text>
+              <PullRequestListErrors
+                key={JSON.stringify(targets)}
+                messages={result.data.errors.map(
+                  (error) =>
+                    `${error.projectTitle || environments.find((environment) => environment.environmentId === error.environmentId)?.environmentLabel || "Environment"}: ${error.message}`,
+                )}
+              />
             ) : null}
           </>
         }
