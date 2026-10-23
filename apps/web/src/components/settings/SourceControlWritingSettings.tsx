@@ -411,8 +411,6 @@ export function SourceControlWritingSettingsSection() {
                   provider={writerInstanceEntry.driverKind}
                   models={writerInstanceEntry.models}
                   model={activeSelection.model}
-                  prompt=""
-                  onPromptChange={() => {}}
                   modelOptions={activeSelection.options ?? []}
                   allowPromptInjectedEffort={false}
                   triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
@@ -519,8 +517,6 @@ export function SourceControlWritingSettingsSection() {
                       provider={reviewGuideInstanceEntry.driverKind}
                       models={reviewGuideInstanceEntry.models}
                       model={reviewGuideSelection.model}
-                      prompt=""
-                      onPromptChange={() => {}}
                       modelOptions={reviewGuideSelection.options ?? []}
                       allowPromptInjectedEffort={false}
                       triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}

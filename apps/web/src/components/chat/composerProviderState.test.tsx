@@ -16,6 +16,7 @@ import {
   renderProviderTraitsPicker,
   withImplicitFastModeDefault,
 } from "./composerProviderState";
+import { readPromptUltrathink } from "./TraitsPicker";
 
 const PROVIDER: ProviderDriverKind = ProviderDriverKind.make("codex");
 const MODEL = "test-model";
@@ -460,12 +461,21 @@ describe("provider traits render guards", () => {
       model: MODEL,
       models,
       modelOptions: undefined,
-      prompt: "",
-      onPromptChange: () => {},
+      promptUltrathink: "none" as const,
+      onPromptEdit: () => {},
     };
 
     expect(renderProviderTraitsPicker(args)).toBeNull();
     expect(renderProviderTraitsMenuContent(args)).toBeNull();
+  });
+});
+
+describe("readPromptUltrathink", () => {
+  it("tells the Ultrathink prefix apart from the word in the body", () => {
+    expect(readPromptUltrathink("Fix the bug")).toBe("none");
+    expect(readPromptUltrathink("Ultrathink: Fix the bug")).toBe("prefix");
+    expect(readPromptUltrathink("ultrathink about the bug")).toBe("body");
+    expect(readPromptUltrathink("Ultrathink: ultrathink harder")).toBe("body");
   });
 });
 

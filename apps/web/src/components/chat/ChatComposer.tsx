@@ -294,6 +294,7 @@ import {
   renderProviderTraitsMenuContent,
   renderProviderTraitsPicker,
 } from "./composerProviderState";
+import { readPromptUltrathink } from "./TraitsPicker";
 import { providerSupportsManualCompaction } from "./ContextWindow.logic";
 import {
   buildAttachmentVideoPreview,
@@ -2361,8 +2362,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         activePendingProgress.activeQuestion?.allowCustomAnswer !== false));
   const composerFooterHasWideActions = activePendingProgress !== null;
 
-  const setPromptFromTraits = (nextPrompt: string) => {
-    if (nextPrompt === prompt) {
+  const editPromptFromTraits = (edit: (prompt: string) => string) => {
+    const currentPrompt = getComposerDraft(composerDraftTarget)?.prompt ?? "";
+    const nextPrompt = edit(currentPrompt);
+    if (nextPrompt === currentPrompt) return;
+    if (nextPrompt === promptRef.current) {
       scheduleComposerFocus();
       return;
     }
@@ -2372,7 +2376,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     setComposerTrigger(detectComposerTrigger(nextPrompt, nextPrompt.length));
     scheduleComposerFocus();
   };
-  const setPromptFromTraitsStable = useStableCallback(setPromptFromTraits);
+  const editPromptFromTraitsStable = useStableCallback(editPromptFromTraits);
+  const promptUltrathink = readPromptUltrathink(prompt);
 
   const providerTraitsMenuContent = renderProviderTraitsMenuContent({
     provider: selectedProvider,
@@ -2383,8 +2388,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     models: selectedProviderModels,
     modelOptions: composerModelOptions?.[selectedInstanceId],
     reportedModelSelection,
-    prompt,
-    onPromptChange: setPromptFromTraitsStable,
+    promptUltrathink,
+    onPromptEdit: editPromptFromTraitsStable,
   });
   const providerTraitsPickerInput = {
     provider: selectedProvider,
@@ -2395,8 +2400,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     models: selectedProviderModels,
     modelOptions: composerModelOptions?.[selectedInstanceId],
     reportedModelSelection,
-    prompt,
-    onPromptChange: setPromptFromTraitsStable,
+    promptUltrathink,
+    onPromptEdit: editPromptFromTraitsStable,
     isComposerOwned: true,
     shortcutLabel: shortcutLabelForCommand(keybindings, "composer.effort"),
   } satisfies Parameters<typeof renderProviderTraitsPicker>[0];
@@ -4920,6 +4925,82 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     terminalOpen,
   ]);
 
+  const insertComposerText = (
+    text: string,
+    position: "cursor" | "end",
+    options?: {
+      ensureLeadingBoundary?: boolean;
+      citationCommentAnchor?: AssistantCitationSourceAnchor;
+      clipboardData?: DataTransfer;
+    },
+  ): boolean => {
+    if (
+      text.length === 0 ||
+      isConnecting ||
+      activePendingIsResponding ||
+      (pendingUserInputs.length > 0 && !activePendingProgress?.activeQuestion) ||
+      projectSelectionRequired ||
+      (options?.citationCommentAnchor && !composerEditorRef.current)
+    ) {
+      return false;
+    }
+    if (options?.clipboardData) {
+      text = importPastedComposerText(options.clipboardData, importContextFragment);
+    }
+    const prompt = promptRef.current;
+    const cursor = position === "cursor" ? readComposerSnapshot().expandedCursor : prompt.length;
+    const needsLeadingSpace =
+      (options?.ensureLeadingBoundary ?? false) &&
+      cursor > 0 &&
+      !/\s/.test(prompt[cursor - 1] ?? "");
+    const rangeEnd = extendReplacementRangeForTrailingSpace(prompt, cursor, text);
+    return applyPromptReplacement(
+      cursor,
+      rangeEnd,
+      needsLeadingSpace ? ` ${text}` : text,
+      options?.citationCommentAnchor
+        ? {
+            citationComment: {
+              start: cursor + (needsLeadingSpace ? 1 : 0),
+              sourceAnchor: options.citationCommentAnchor,
+              insertedSpaces: { before: needsLeadingSpace, after: rangeEnd === cursor },
+            },
+            focusEditorAfterReplace: false,
+          }
+        : undefined,
+    );
+  };
+  const insertComposerTextStable = useStableCallback(insertComposerText);
+
+  const insertAttachmentReferences = (
+    references: ReadonlyArray<ComposerContextReference>,
+    selection?: { start: number; end: number },
+  ): boolean => {
+    if (references.length === 0) return false;
+    // Question answers carry attachments beside the answer, never as chips. Falling back to
+    // the thread prompt here would hide the file behind a reference the question never shows.
+    if (questionAttachmentTarget) return false;
+    return insertAttachmentReferencesForDraft({
+      target: composerDraftTarget,
+      liveAttachmentTargetKey: attachmentTargetKeyRef.current,
+      references,
+      insertReferences: () => {
+        if (selection) {
+          const edit = inlineContextReferenceReplacement(promptRef.current, selection, references);
+          return applyPromptReplacementStable(edit.start, edit.end, edit.text);
+        }
+        const text = references.map(formatInlineContextReference).join(" ");
+        const inserted = insertComposerTextStable(`${text} `, "cursor", {
+          ensureLeadingBoundary: true,
+        });
+        if (!inserted) {
+          setPrompt(ensureInlineContextReferences(promptRef.current, references));
+        }
+        return true;
+      },
+    });
+  };
+
   const addComposerAttachments = async (
     files: File[],
     options?: {
@@ -5123,80 +5204,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       } else {
         pendingImageCompressionsRef.current.delete(attachmentTargetKey);
       }
-    });
-  };
-
-  const insertComposerText = (
-    text: string,
-    position: "cursor" | "end",
-    options?: {
-      ensureLeadingBoundary?: boolean;
-      citationCommentAnchor?: AssistantCitationSourceAnchor;
-      clipboardData?: DataTransfer;
-    },
-  ): boolean => {
-    if (
-      text.length === 0 ||
-      isConnecting ||
-      activePendingIsResponding ||
-      (pendingUserInputs.length > 0 && !activePendingProgress?.activeQuestion) ||
-      projectSelectionRequired ||
-      (options?.citationCommentAnchor && !composerEditorRef.current)
-    ) {
-      return false;
-    }
-    if (options?.clipboardData) {
-      text = importPastedComposerText(options.clipboardData, importContextFragment);
-    }
-    const prompt = promptRef.current;
-    const cursor = position === "cursor" ? readComposerSnapshot().expandedCursor : prompt.length;
-    const needsLeadingSpace =
-      (options?.ensureLeadingBoundary ?? false) &&
-      cursor > 0 &&
-      !/\s/.test(prompt[cursor - 1] ?? "");
-    const rangeEnd = extendReplacementRangeForTrailingSpace(prompt, cursor, text);
-    return applyPromptReplacement(
-      cursor,
-      rangeEnd,
-      needsLeadingSpace ? ` ${text}` : text,
-      options?.citationCommentAnchor
-        ? {
-            citationComment: {
-              start: cursor + (needsLeadingSpace ? 1 : 0),
-              sourceAnchor: options.citationCommentAnchor,
-              insertedSpaces: { before: needsLeadingSpace, after: rangeEnd === cursor },
-            },
-            focusEditorAfterReplace: false,
-          }
-        : undefined,
-    );
-  };
-  const insertComposerTextStable = useStableCallback(insertComposerText);
-
-  const insertAttachmentReferences = (
-    references: ReadonlyArray<ComposerContextReference>,
-    selection?: { start: number; end: number },
-  ): boolean => {
-    if (references.length === 0) return false;
-    // Question answers carry attachments beside the answer, never as chips. Falling back to
-    // the thread prompt here would hide the file behind a reference the question never shows.
-    if (questionAttachmentTarget) return false;
-    return insertAttachmentReferencesForDraft({
-      target: composerDraftTarget,
-      liveAttachmentTargetKey: attachmentTargetKeyRef.current,
-      references,
-      insertReferences: () => {
-        if (selection) {
-          const edit = inlineContextReferenceReplacement(promptRef.current, selection, references);
-          return applyPromptReplacement(edit.start, edit.end, edit.text);
-        }
-        const text = references.map(formatInlineContextReference).join(" ");
-        const inserted = insertComposerText(`${text} `, "cursor", { ensureLeadingBoundary: true });
-        if (!inserted) {
-          setPrompt(ensureInlineContextReferences(promptRef.current, references));
-        }
-        return true;
-      },
     });
   };
 
