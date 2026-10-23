@@ -30,6 +30,7 @@ import { useQueuedRunEditWithOutbox } from "./chat/useQueuedRunEditWithOutbox";
 import { ThreadVisitWatermark } from "./chat/ThreadVisitWatermark";
 import { ChatTerminalDrawers } from "./chat/ChatTerminalDrawers";
 import { ChatRightPanel } from "./chat/ChatRightPanel";
+import { usePasteToFocusComposer } from "./chat/usePasteToFocusComposer";
 import { useDraftHeroLayoutTransition } from "./chat/useDraftHeroLayoutTransition";
 import { useLocalDispatchState } from "./chat/useLocalDispatchState";
 import { draftFanoutSelectionsAtom, draftSendState, rewindToMessage } from "./chat/chatViewSend";
@@ -65,8 +66,6 @@ import { useWorktreeSetup } from "./chat/useWorktreeSetup";
 import { useChatShortcuts, type ChatShortcutHandler } from "./chat/useChatShortcuts";
 import {
   eventPathContainsSelector,
-  pasteTextToFocusComposer,
-  shouldRedirectInputToComposer,
   TYPE_TO_FOCUS_EDITABLE_SELECTOR,
   TYPE_TO_FOCUS_FLOATING_LAYER_SELECTOR,
 } from "./chat/composerFocusRedirect";
@@ -99,8 +98,6 @@ import {
 } from "@supaterm/contracts";
 import { type EnvironmentConnectionPresentation } from "@supaterm/client-runtime/connection";
 import { deriveThreadTitleSeed } from "@supaterm/client-runtime/operations";
-import { readPastedComposerContext } from "./composerInlineTokenPaste";
-import { isPasteAsTextShortcut } from "@supaterm/client-runtime/text-paste";
 import { SPEED_TOGGLE_LABELS } from "@supaterm/client-runtime/provider-speed-toggle";
 import { effectiveSnoozed, threadWokeAt } from "@supaterm/client-runtime/state/thread-snooze";
 import { presentThreadShell } from "@supaterm/client-runtime/state/shell";
@@ -174,7 +171,6 @@ import {
 } from "react";
 import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
 import { assistantCitationFromLocation } from "../lib/assistantCitationNavigation";
-import { isMacPlatform } from "../lib/utils";
 import type { AssistantCitationSourceAnchor } from "~/lib/assistantTextSelection";
 import { useShallow } from "zustand/react/shallow";
 import {
@@ -217,7 +213,6 @@ import { useWorkspaceMutationRefresh } from "../hooks/useWorkspaceMutationRefres
 import { DEFAULT_INTERACTION_MODE, MAX_TERMINALS_PER_GROUP, type ChatMessage } from "../types";
 import { useTheme } from "../hooks/useTheme";
 import { writeTextToClipboard } from "../hooks/useCopyToClipboard";
-import { isCommandPaletteOpen } from "../commandPaletteBus";
 import { markDoneAndAdvance } from "../markDoneAndAdvance";
 import { subscribeSnapShotComposerFocus } from "../lib/desktopSnapShot";
 import {
@@ -424,7 +419,8 @@ import { useOpenFavoriteEditorShortcut } from "./chat/OpenInPickerShortcut";
 import {
   PanelLayoutControls,
   type PanelLayoutControlsProps,
-  RightPanelMaximizeControl,
+  ThreadPanelHeaderControl,
+  WorkspaceTitlebarControls,
 } from "./chat/PanelLayoutControls";
 import type { ExpandedImagePreview } from "./chat/ExpandedImagePreview";
 import { ThreadDetailsPanel } from "./chat/ThreadDetailsPanel";
@@ -925,7 +921,6 @@ export default function ChatView(props: ChatViewProps) {
   const composerFilesRef = useRef<ComposerFileAttachment[]>([]);
   const composerTerminalContextsRef = useRef<TerminalContextDraft[]>([]);
   const branchToolbarRef = useRef<BranchToolbarHandle>(null);
-  const pasteAsTextShortcutUntilRef = useRef(0);
   const [restingComposerControlsHost, setRestingComposerControlsHost] =
     useState<HTMLDivElement | null>(null);
   const [restingComposerControlsVisible, setRestingComposerControlsVisible] = useState(false);
@@ -5556,43 +5551,7 @@ export default function ChatView(props: ChatViewProps) {
     });
   }, [isPaneInputOwner, toggleRightPanelStable, toggleRightPanelMaximizedStable]);
 
-  // Paste-to-focus: the resting composer blurs on a click into the timeline,
-  // so a paste that follows has no editable target and would be dropped.
-  useEffect(() => {
-    const keyHandler = (event: KeyboardEvent) => {
-      if (!isPaneInputOwner()) return;
-      if (
-        shouldRedirectInputToComposer(event) &&
-        isPasteAsTextShortcut(event, isMacPlatform(navigator.platform))
-      ) {
-        pasteAsTextShortcutUntilRef.current = Date.now() + 1_000;
-      }
-    };
-    const handler = (event: ClipboardEvent) => {
-      if (!activeThreadId || isCommandPaletteOpen() || !isPaneInputOwner()) return;
-      if (getTerminalFocusOwner() !== null) return;
-      if (composerRef.current?.isModelPickerOpen()) return;
-      const text = pasteTextToFocusComposer(event);
-      const clipboardData = event.clipboardData;
-      if (text === null || clipboardData === null) return;
-      const bypassAutoAttachment = Date.now() <= pasteAsTextShortcutUntilRef.current;
-      pasteAsTextShortcutUntilRef.current = 0;
-      if (
-        ((readPastedComposerContext(clipboardData)?.records.length ?? 0) === 0 &&
-          composerRef.current?.pasteTextAtEnd(text, { bypassAutoAttachment })) ||
-        composerRef.current?.insertTextAtEnd(text, { clipboardData })
-      ) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    };
-    window.addEventListener("keydown", keyHandler, true);
-    window.addEventListener("paste", handler, true);
-    return () => {
-      window.removeEventListener("keydown", keyHandler, true);
-      window.removeEventListener("paste", handler, true);
-    };
-  }, [activeThreadId, composerRef, isPaneInputOwner]);
+  usePasteToFocusComposer(activeThreadId, composerRef);
 
   const onRevertToTurnCount = async (
     turnCount: number,
@@ -6720,48 +6679,17 @@ export default function ChatView(props: ChatViewProps) {
       showThreadPanelControl={routeKind === "server" && !inlineRightPanelOwnsTitleBar}
     />
   );
-  const threadPanelHeaderControl = (
-    <div
-      className="absolute top-[var(--workspace-controls-top)] right-[calc(env(safe-area-inset-right)+0.75rem)] z-50 flex h-[var(--workspace-topbar-height)] items-center [-webkit-app-region:no-drag]"
-      data-workspace-titlebar-controls
-    >
-      <PanelLayoutControls
-        {...panelToggleControlProps}
-        showTerminalControl={false}
-        showRightPanelControl={false}
-      />
-    </div>
-  );
+  const threadPanelHeaderControl = <ThreadPanelHeaderControl {...panelToggleControlProps} />;
   const panelLayoutControls = (
-    <div
-      className={cn(
-        "pointer-events-none fixed top-[var(--workspace-controls-top)] right-[var(--workspace-controls-right)] z-50 mr-px flex h-[var(--workspace-topbar-height)] items-center gap-1 [-webkit-app-region:no-drag]",
-      )}
-      data-workspace-titlebar-controls
+    <WorkspaceTitlebarControls
+      showMaximizeControl={!shouldUsePlanSidebarSheet}
+      rightPanelOpen={rightPanelOpen}
+      animationsActive={panelAnimationsActive}
+      maximized={rightPanelMaximized}
+      onToggleMaximized={toggleRightPanelMaximizedStable}
     >
-      <TooltipProvider>
-        {!shouldUsePlanSidebarSheet ? (
-          <span
-            aria-hidden={!rightPanelOpen}
-            className={cn(
-              "flex shrink-0",
-              panelAnimationsActive &&
-                "motion-safe:transition-opacity motion-safe:duration-(--panel-animation-duration) motion-safe:ease-drawer",
-              rightPanelOpen
-                ? "pointer-events-auto opacity-100"
-                : "pointer-events-none absolute right-full mr-1 opacity-0",
-            )}
-            inert={!rightPanelOpen}
-          >
-            <RightPanelMaximizeControl
-              maximized={rightPanelMaximized}
-              onToggle={toggleRightPanelMaximizedStable}
-            />
-          </span>
-        ) : null}
-        <div className="pointer-events-auto flex h-full items-center">{panelToggleControls}</div>
-      </TooltipProvider>
-    </div>
+      {panelToggleControls}
+    </WorkspaceTitlebarControls>
   );
   const workspaceFileDropHost: WorkspaceFileDropHost = {
     setDragActive: setIsWorkspaceFileDragActive,
