@@ -37,6 +37,7 @@ catalog:
   "@legendapp/list": 3.3.5
   "@noble/hashes": 1.8.0
   "@pierre/diffs": 1.6.1
+  "@pierre/highlights": 0.2.0
   "@tailwindcss/node": 4.3.3
   "@tailwindcss/oxide": 4.3.3
   "@tailwindcss/vite": 4.3.3

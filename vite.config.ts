@@ -141,6 +141,9 @@ export default defineConfig({
       "apps/mobile/android/**",
       "apps/mobile/ios/**",
       "apps/mobile/uniwind-types.d.ts",
+      // Vendored and generated C.
+      "apps/mobile/modules/supaterm-highlights/Vendor/**",
+      "apps/mobile/modules/supaterm-highlights/cpp/generated/**",
       "*.icon/**",
     ],
     sortPackageJson: {},

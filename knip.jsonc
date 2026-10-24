@@ -114,6 +114,7 @@
       "ignoreDependencies": [
         "@supaterm/mobile-relay-tunnel",
         "@expo-google-fonts/jetbrains-mono",
+        "@supaterm/mobile-highlights-native",
         "@supaterm/mobile-review-diff-native",
         "@supaterm/mobile-terminal-native",
       ],

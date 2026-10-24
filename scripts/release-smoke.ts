@@ -17,6 +17,7 @@ const workspaceFiles = [
   "apps/desktop/package.json",
   "apps/web/package.json",
   "apps/mobile/package.json",
+  "apps/mobile/modules/supaterm-highlights/package.json",
   "apps/mobile/modules/supaterm-source-text/package.json",
   "apps/mobile/modules/supaterm-review-diff/package.json",
   "apps/mobile/modules/supaterm-relay-tunnel/package.json",

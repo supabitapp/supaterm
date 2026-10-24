@@ -1,6 +1,7 @@
 included:
   - ios/Supaterm
   - modules/supaterm-composer-editor/ios
+  - modules/supaterm-highlights/ios
   - modules/supaterm-native-controls/ios
   - modules/supaterm-terminal/ios
   - modules/supaterm-review-diff/ios
