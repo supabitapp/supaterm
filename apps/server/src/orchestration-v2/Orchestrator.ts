@@ -3318,16 +3318,14 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           } else {
             if (!existing) return thread;
             const synced = { ...existing, snapshot: command.snapshot, stack: command.stack };
-            // A merge ends the watch silently, as the watch reactor's next pass would. Ending it
-            // with the snapshot releases the thread the moment the merge is seen, not up to a
-            // sweep later. A close still waits for the reactor, which tells the agent.
-            pullRequests = links.map((link) =>
-              link !== existing
-                ? link
-                : command.snapshot.state === "merged"
-                  ? withPullRequestWatch(synced, undefined)
-                  : synced,
-            );
+            // A merge ends the watch here, silently, as the watch reactor's next pass would, so the
+            // thread stops waiting as soon as the merge is seen. A close still waits for the
+            // reactor, which tells the agent.
+            const next =
+              command.snapshot.state === "merged"
+                ? withPullRequestWatch(synced, undefined)
+                : synced;
+            pullRequests = links.map((link) => (link === existing ? next : link));
           }
           return {
             ...thread,
