@@ -24,6 +24,7 @@ const store = vi.hoisted(() => {
 vi.mock("react-native", () => ({ Keyboard: { dismiss: vi.fn() } }));
 vi.mock("expo-haptics", () => ({ impactAsync: vi.fn(), ImpactFeedbackStyle: { Light: "light" } }));
 vi.mock("@react-navigation/native", () => ({
+  useNavigation: () => ({ navigate: vi.fn() }),
   useFocusEffect: (callback: () => () => void) => {
     useSyncExternalStore(store.subscribe, store.snapshot);
     useEffect(() => (store.focused ? callback() : undefined), [callback, store.focused]);
@@ -39,10 +40,18 @@ vi.mock("./VoiceInputProvider", () => ({
       isAvailable: true,
       isBusy: state.phase === "recording" || state.phase === "transcribing",
       setOwnerFocused,
+      start: (target: Parameters<VoiceInputSession["start"]>[0]) => session.start(target),
+      canSubmitTranscript: () => reachable,
+      submitsTranscript: true,
       stop: () => session.controller.stop(),
       cancel: () => session.controller.cancel(),
     };
   },
+}));
+
+vi.mock("../../state/dictation", () => ({
+  useVoiceRoute: () => ({ kind: "device" }),
+  readVoiceRoute: () => ({ kind: "device" }),
 }));
 
 import { useVoiceInputController } from "./useVoiceInputController";
@@ -53,6 +62,7 @@ let control: ReturnType<typeof useVoiceInputController>;
 let root: Root;
 let ownerKey: string;
 let allowed: boolean;
+let reachable: boolean;
 const drafts = new Map<string, string>();
 const sends = vi.fn<(text: string) => void>();
 const setOwnerFocused = vi.fn();
@@ -68,6 +78,7 @@ function Probe() {
   const voice = useVoiceInputController({
     ownerKey: key,
     label: key,
+    environmentId: null,
     readDraftMessage: () => drafts.get(key) ?? null,
     subscribeToDraftChanges: store.subscribe,
     selection: { start: text.length, end: text.length },
@@ -116,6 +127,7 @@ beforeEach(() => {
   drafts.set("second", "Other");
   ownerKey = "first";
   allowed = true;
+  reachable = true;
   store.focused = true;
   state = { phase: "idle", error: null, errorAction: null };
   recording = Promise.withResolvers<void>();
@@ -174,6 +186,15 @@ describe("dictation submission", () => {
       void control.stop();
       await transcribing.promise;
     });
+    await finish();
+    expect(drafts.get("first")).toBe("Draft spoken words");
+    expect(sends).not.toHaveBeenCalled();
+  });
+
+  it("keeps the transcript for review when the transcribing environment is unreachable", async () => {
+    reachable = false;
+    await start();
+    await send();
     await finish();
     expect(drafts.get("first")).toBe("Draft spoken words");
     expect(sends).not.toHaveBeenCalled();

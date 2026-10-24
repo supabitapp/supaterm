@@ -213,18 +213,21 @@ confirming only updates the draft; save the schedule separately.
 Your recording is transcribed by a Claude or Codex account on one of your
 environments, not by the thread's agent, so a Codex thread can use Claude
 transcription. Choose the account for each environment in
-**Settings → Integrations → Dictation**. Until you choose one, the microphone opens
+**Settings → Integrations → Dictation**, or on a phone in **Settings → Environments**
+→ the environment → **Voice input**. Until you choose one, the microphone opens
 that setting. The microphone's tooltip names the account and the environment that
 will transcribe; if that account can't transcribe, it says why instead of
 switching to another one.
 
-- **Claude** works with a Claude subscription login. On macOS, turn on Keychain
-  access for Claude in Settings so Supaterm can read the login.
+- **Claude** works with a Claude subscription login. On a Mac environment, turn on
+  **Settings → Providers → Claude voice input** so Supaterm can read the login from
+  the Keychain; macOS asks for access on that Mac.
 - **Codex** works with a ChatGPT login or an OpenAI API key. ChatGPT may reject
   transcription requests; if it does, the recording stays saved and that account
   is paused for dictation for a while.
 
-**Transcribe on** in the same section picks the environment for this device. On
+**Transcribe on** picks the environment for this device: in the same section on web
+and desktop, and in **Settings → Microphone** on a phone. On
 the desktop app, **Automatic** uses this computer when it has an account set up,
 even for threads on another machine, and otherwise the thread's environment. On
 phones and in browsers, Automatic uses the thread's environment. Pick an

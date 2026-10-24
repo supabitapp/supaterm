@@ -17,7 +17,7 @@ vi.mock("./transcribeClip", async (importOriginal) => ({
 
 import { registerDictationComposer, transcribePendingClip } from "./pendingClipRunner";
 import { getPendingClips, parkPendingClip, resetPendingClipsForTests } from "./pendingClips";
-import { DictationClipFailure } from "./transcribeClip";
+import { DictationClipFailure } from "@supaterm/client-runtime/state/dictation-failure";
 
 const ENV = EnvironmentId.make("env");
 const captured: VoiceDraftSnapshot = {

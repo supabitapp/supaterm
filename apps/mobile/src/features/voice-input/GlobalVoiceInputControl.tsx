@@ -204,14 +204,14 @@ function EdgeDictationPill(props: { readonly collapseRef: RefObject<(() => void)
                 </Pressable>
               </>
             ) : isError ? (
-              voice.isAvailable ? (
+              voice.canRetry ? (
                 <Pressable
                   accessibilityLabel={openSettings ? "Open microphone settings" : "Retry dictation"}
                   accessibilityRole="button"
                   className="size-[30px] items-center justify-center active:opacity-70"
                   onPress={() => {
                     if (!openSettings) {
-                      void voice.session.retry();
+                      void voice.retry();
                       return;
                     }
                     voice.cancel();

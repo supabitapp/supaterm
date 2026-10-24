@@ -10,6 +10,7 @@ import {
   type StartThreadTurnInput,
 } from "@supaterm/client-runtime/operations";
 import type { DictationHiddenReason } from "@supaterm/client-runtime/state/dictation";
+import { DictationClipFailure } from "@supaterm/client-runtime/state/dictation-failure";
 import {
   extractVoiceSlot,
   spliceTranscriptAt,
@@ -45,7 +46,7 @@ import {
   useComposerDraftStore,
 } from "../composerDraftStore";
 import { parkPendingClip } from "../dictation/pendingClips";
-import { DictationClipFailure, transcribeDictationClip } from "../dictation/transcribeClip";
+import { transcribeDictationClip } from "../dictation/transcribeClip";
 import { attachmentEnvironment } from "./attachments";
 import { readDictationAvailability } from "./dictation";
 import { environmentPresentations } from "./presentation";

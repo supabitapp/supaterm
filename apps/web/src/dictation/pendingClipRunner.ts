@@ -1,3 +1,4 @@
+import { classifyDictationFailure } from "@supaterm/client-runtime/state/dictation-failure";
 import { threadOutboxRetryDelayMs } from "@supaterm/client-runtime/thread-outbox";
 import {
   resolveParkedInsertion,
@@ -14,7 +15,7 @@ import {
   reloadPendingClips,
   updatePendingClip,
 } from "./pendingClips";
-import { classifyDictationFailure, transcribeDictationClip } from "./transcribeClip";
+import { transcribeDictationClip } from "./transcribeClip";
 
 export interface DictationComposerTarget {
   readonly readDraft: () => VoiceDraftSnapshot | null;

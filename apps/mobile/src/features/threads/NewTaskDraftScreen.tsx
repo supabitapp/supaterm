@@ -95,6 +95,7 @@ import {
   ComposerDictationToolbar,
   ComposerDictationTrailingActions,
 } from "../voice-input/ComposerDictationControl";
+import { PendingVoiceRecordingList } from "../voice-input/PendingVoiceRecordingList";
 import { useVoiceInputController } from "../voice-input/useVoiceInputController";
 import { resolveVoiceComposerPresentation } from "../voice-input/voiceInputPresentation";
 import {
@@ -542,6 +543,7 @@ export function NewTaskDraftScreen(props: {
   const voiceInput = useVoiceInputController({
     ownerKey: flow.draftKey,
     label: selectedProjectLabel ? `New task in ${selectedProjectLabel}` : "New task",
+    environmentId: selectedProject?.environmentId ?? null,
     readDraftMessage: () => (flow.draftKey ? getComposerDraftSnapshot(flow.draftKey).text : null),
     subscribeToDraftChanges: (onChange) => appAtomRegistry.subscribe(composerDraftsAtom, onChange),
     selection: composerMenu.selection,
@@ -1696,6 +1698,12 @@ export function NewTaskDraftScreen(props: {
         />
       ) : null}
 
+      <PendingVoiceRecordingList
+        className="px-2 pb-1"
+        ownerKey={flow.draftKey}
+        insertDisabled={voiceInput.isBusy || isComposerInteractionLocked}
+        onInsert={voiceInput.insertTranscript}
+      />
       <ComposerSurface
         transparent={voiceInput.isBusy}
         style={
@@ -1801,6 +1809,7 @@ export function NewTaskDraftScreen(props: {
                 <ComposerDictationTrailingActions
                   state={voiceInput.state}
                   isAvailable={voiceInput.isAvailable}
+                  setup={voiceInput.setup}
                   disabled={dictationDisabled}
                   reservesSendWidth
                   onStart={startDictation}
@@ -1824,7 +1833,7 @@ export function NewTaskDraftScreen(props: {
                   presentation={voicePresentation}
                   disabled={!canSubmitDraft}
                   onConfirm={voiceInput.stopAndSubmit}
-                  submitsMessage
+                  submitsMessage={voiceInput.submitsTranscript}
                 />
               )}
             </ComposerToolbarRow>

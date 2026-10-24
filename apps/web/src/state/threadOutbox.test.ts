@@ -949,7 +949,8 @@ describe("web thread outbox delivery", () => {
 
   it("fails a recording with no speech instead of sending the typed text alone", async () => {
     const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");
-    const { DictationClipFailure } = await import("../dictation/transcribeClip");
+    const { DictationClipFailure } =
+      await import("@supaterm/client-runtime/state/dictation-failure");
     harness.transcribe.mockRejectedValue(
       new DictationClipFailure("empty", "No speech was detected."),
     );
@@ -968,7 +969,8 @@ describe("web thread outbox delivery", () => {
 
   it("retries a recording whose transcription was cut off by a disconnect", async () => {
     const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");
-    const { DictationClipFailure } = await import("../dictation/transcribeClip");
+    const { DictationClipFailure } =
+      await import("@supaterm/client-runtime/state/dictation-failure");
     harness.transcribe.mockRejectedValueOnce(
       new DictationClipFailure("transient", "Recording upload disconnected."),
     );

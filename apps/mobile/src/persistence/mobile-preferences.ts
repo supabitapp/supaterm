@@ -14,6 +14,7 @@ import {
   type PullRequestMergeMethod,
   type SidebarProjectGroupingMode,
 } from "@supaterm/contracts";
+import { DictationRouting } from "@supaterm/client-runtime/state/dictation";
 import type { ComposerEnterBehavior } from "../lib/composerEnterBehavior";
 import type { FollowUpBehavior } from "../lib/followUpBehavior";
 import { isMicrophoneKind, type MicrophoneEntry } from "../lib/microphonePriority";
@@ -50,6 +51,7 @@ export type PullRequestListPreferences = typeof PullRequestListPreferences.Type;
 const isThreadGrouping = Schema.is(SidebarThreadGrouping);
 const isThreadListFilters = Schema.is(ThreadListFilters);
 const isPullRequestListPreferences = Schema.is(PullRequestListPreferences);
+const isDictationRouting = Schema.is(DictationRouting);
 
 export interface Preferences {
   readonly pullRequestHideTestFiles?: boolean;
@@ -71,6 +73,10 @@ export interface Preferences {
   readonly showToolImages?: boolean;
   readonly followUpBehavior?: FollowUpBehavior;
   readonly microphones?: ReadonlyArray<MicrophoneEntry>;
+  /** Which environment transcribes voice input from this device. */
+  readonly dictationRouting?: DictationRouting;
+  /** Transcribe with Apple's on-device speech model instead of an environment. iOS only. */
+  readonly transcribeOnDevice?: boolean;
   readonly projectGroupingMode?: SidebarProjectGroupingMode;
   readonly threadGrouping?: SidebarThreadGrouping;
   readonly threadListPinnedShelfExpanded?: boolean;
@@ -139,6 +145,8 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     showToolImages?: boolean;
     followUpBehavior?: FollowUpBehavior;
     microphones?: ReadonlyArray<MicrophoneEntry>;
+    dictationRouting?: DictationRouting;
+    transcribeOnDevice?: boolean;
     projectGroupingMode?: SidebarProjectGroupingMode;
     threadGrouping?: SidebarThreadGrouping;
     threadListPinnedShelfExpanded?: boolean;
@@ -222,6 +230,12 @@ function sanitizePreferences(parsed: Preferences): Preferences {
         ? [{ kind: entry.kind, uid: entry.uid, name: entry.name }]
         : [];
     });
+  }
+  if (isDictationRouting(parsed.dictationRouting)) {
+    preferences.dictationRouting = parsed.dictationRouting;
+  }
+  if (typeof parsed.transcribeOnDevice === "boolean") {
+    preferences.transcribeOnDevice = parsed.transcribeOnDevice;
   }
   if (
     parsed.projectGroupingMode === "repository" ||

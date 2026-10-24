@@ -408,6 +408,7 @@ function SettingsScheduledTaskEditorScreen({ title }: { readonly title: string }
   const voiceInput = useVoiceInputController({
     ownerKey,
     label: editor?.draft.title.trim() || title,
+    environmentId: editor?.environmentId ?? null,
     subscribeToDraftChanges: (onChange) =>
       appAtomRegistry.subscribe(scheduledTaskEditorSessionAtom, onChange),
     selection,
@@ -493,6 +494,7 @@ function SettingsScheduledTaskEditorScreen({ title }: { readonly title: string }
             dictationPending={voiceInput.blocksSubmission}
             promptField={
               <ScheduledTaskPromptField
+                ownerKey={ownerKey}
                 value={prompt}
                 onChange={setPrompt}
                 selection={selection}

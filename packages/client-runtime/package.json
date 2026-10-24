@@ -175,6 +175,10 @@
       "types": "./src/state/dictation.ts",
       "default": "./src/state/dictation.ts"
     },
+    "./state/dictation-failure": {
+      "types": "./src/state/dictationFailure.ts",
+      "default": "./src/state/dictationFailure.ts"
+    },
     "./state/entities": {
       "types": "./src/state/entities.ts",
       "default": "./src/state/entities.ts"

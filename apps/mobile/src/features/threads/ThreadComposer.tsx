@@ -110,6 +110,7 @@ import {
   ComposerDictationTrailingActions,
   composerDictationToolbarHeight,
 } from "../voice-input/ComposerDictationControl";
+import { PendingVoiceRecordingList } from "../voice-input/PendingVoiceRecordingList";
 import { useVoiceInputController } from "../voice-input/useVoiceInputController";
 import { resolveVoiceComposerPresentation } from "../voice-input/voiceInputPresentation";
 import {
@@ -474,6 +475,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const voiceInput = useVoiceInputController({
     ownerKey: composerDraftKey,
     label: props.selectedThread.title || "Untitled thread",
+    environmentId: props.environmentId,
     readDraftMessage: () => getComposerDraftSnapshot(composerDraftKey).text,
     subscribeToDraftChanges: (onChange) => appAtomRegistry.subscribe(composerDraftsAtom, onChange),
     selection: composerMenu.selection,
@@ -687,6 +689,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     <ComposerDictationTrailingActions
       state={voiceInput.state}
       isAvailable={voiceInput.isAvailable}
+      setup={voiceInput.setup}
       disabled={queuedEdit?.saving}
       reservesSendWidth={isExpanded}
       onStart={startDictation}
@@ -789,6 +792,12 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
             onPress={openSettings}
           />
         ) : null}
+        <PendingVoiceRecordingList
+          className="px-2 pb-1"
+          ownerKey={composerDraftKey}
+          insertDisabled={voiceInput.isBusy || queuedEdit?.saving === true}
+          onInsert={voiceInput.insertTranscript}
+        />
 
         <ComposerSurface
           transparent={voiceInput.isBusy}
@@ -1105,7 +1114,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                     presentation={voicePresentation}
                     disabled={!canSubmitDraft}
                     onConfirm={voiceInput.stopAndSubmit}
-                    submitsMessage
+                    submitsMessage={voiceInput.submitsTranscript}
                   />
                 )}
               </ComposerToolbarRow>

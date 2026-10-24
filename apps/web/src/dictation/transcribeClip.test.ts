@@ -33,12 +33,7 @@ vi.mock("@supaterm/client-runtime/state/runtime", async (importOriginal) => ({
   runAtomCommand: harness.rpc,
 }));
 
-import {
-  classifyDictationFailure,
-  dictationClipFileName,
-  dictationLanguage,
-  transcribeDictationClip,
-} from "./transcribeClip";
+import { dictationClipFileName, transcribeDictationClip } from "./transcribeClip";
 
 const ENV = EnvironmentId.make("env");
 const SOURCE = DictationSourceId.make("codex:work");
@@ -172,30 +167,11 @@ describe("transcribeDictationClip", () => {
   });
 });
 
-describe("dictation failures", () => {
-  it.each([
-    [{ _tag: "DictationRateLimitedError", retryAfterSeconds: 5 }, "transient"],
-    [{ _tag: "DictationUpstreamError", category: "server", status: 503 }, "transient"],
-    [{ _tag: "DictationUpstreamError", category: "bad-response", status: 200 }, "terminal"],
-    [{ _tag: "DictationClipError", problem: "missing" }, "transient"],
-    [{ _tag: "DictationClipError", problem: "too-short" }, "empty"],
-    [{ _tag: "DictationClipError", problem: "unsupported-format" }, "terminal"],
-    [{ _tag: "DictationAuthError", sourceId: "codex:work" }, "terminal"],
-    [{ _tag: "DictationUnavailableError", reason: "endpoint-rejected" }, "terminal"],
-    [{ _tag: "DictationUnavailableError", reason: "disabled" }, "terminal"],
-    [{ _tag: "EnvironmentAuthorizationError" }, "terminal"],
-    [{ _tag: "EnvironmentRpcUnavailableError" }, "transient"],
-    [new Error("Unexpected"), "terminal"],
-  ])("classifies %o as %s", (error, kind) => {
-    expect(classifyDictationFailure(error).kind).toBe(kind);
-  });
-
-  it("names uploads by format and sends only the language", () => {
+describe("dictationClipFileName", () => {
+  it("names uploads by format", () => {
     expect(dictationClipFileName("audio/mp4;codecs=mp4a.40.2")).toBe("dictation.m4a");
     expect(dictationClipFileName("audio/ogg;codecs=opus")).toBe("dictation.ogg");
     expect(dictationClipFileName("audio/wav")).toBe("dictation.wav");
     expect(dictationClipFileName("audio/webm")).toBe("dictation.webm");
-    expect(dictationLanguage("pt_BR")).toBe("pt");
-    expect(dictationLanguage(null)).toBeNull();
   });
 });

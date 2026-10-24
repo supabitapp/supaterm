@@ -9,10 +9,12 @@ import {
   ComposerDictationStatus,
   ComposerDictationToolbar,
 } from "../../voice-input/ComposerDictationControl";
+import { PendingVoiceRecordingList } from "../../voice-input/PendingVoiceRecordingList";
 import type { useVoiceInputController } from "../../voice-input/useVoiceInputController";
 import { resolveVoiceComposerPresentation } from "../../voice-input/voiceInputPresentation";
 
 export function ScheduledTaskPromptField(props: {
+  readonly ownerKey: string | null;
   readonly value: string;
   readonly onChange: (value: string) => void;
   readonly selection: ComposerEditorSelection;
@@ -48,6 +50,7 @@ export function ScheduledTaskPromptField(props: {
             <ComposerDictationStartAction
               state={voice.state}
               isAvailable={voice.isAvailable}
+              setup={voice.setup}
               disabled={props.disabled}
               onStart={voice.start}
               onCancel={voice.cancel}
@@ -55,6 +58,11 @@ export function ScheduledTaskPromptField(props: {
           </View>
         ) : null}
       </View>
+      <PendingVoiceRecordingList
+        ownerKey={props.ownerKey}
+        insertDisabled={props.disabled || voice.isBusy}
+        onInsert={voice.insertTranscript}
+      />
       {showsDictation ? (
         <ComposerDictationToolbar statusKind={presentation.statusKind}>
           <View className="h-full flex-row items-center gap-2">

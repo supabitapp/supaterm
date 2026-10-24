@@ -1,10 +1,17 @@
+import * as Dialog from "../../components/ui/Dialog";
 import { Button } from "../../components/ui/Button";
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import {
+  dictationSourceLabel,
+  resolveDictationAvailability,
+  type DictationAvailability,
+} from "@supaterm/client-runtime/state/dictation";
+import type { EnvironmentId } from "@supaterm/contracts";
 import { AsyncResult } from "effect/reactivity";
 import { getRecordingPermissionsAsync, requestRecordingPermissionsAsync } from "expo-audio";
 import { useCallback, useEffect, useState } from "react";
-import { AppState, Linking, Pressable, View } from "react-native";
+import { AppState, Linking, Platform, Pressable, View } from "react-native";
 import Reanimated, { ReduceMotion, useAnimatedStyle, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -18,10 +25,23 @@ import {
   microphoneEntryKey,
   microphoneOrder,
 } from "../../lib/microphonePriority";
+import {
+  dictationAvailability,
+  dictationRoutingAtom,
+  supportsOnDeviceTranscription,
+  transcribeOnDeviceAtom,
+} from "../../state/dictation";
+import { useEnvironments } from "../../state/environments";
 import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
+import {
+  discardAllPendingVoiceRecordings,
+  useAllPendingVoiceRecordings,
+} from "../voice-input/pendingVoiceRecordings";
 import { SettingsActionRow } from "./components/SettingsActionRow";
+import { SettingsChoiceRow } from "./components/SettingsChoiceRow";
 import { SettingsDragHandle } from "./components/SettingsDragHandle";
 import { SettingsSection } from "./components/SettingsSection";
+import { SettingsSwitchRow } from "./components/SettingsSwitchRow";
 
 const REMOVE_SIZE = 20;
 
@@ -163,59 +183,211 @@ export function SettingsMicrophoneRouteScreen() {
             </Text>
           </>
         ) : null}
-        <SettingsSection
-          title="Preferred order"
-          trailing={
-            hasDevices ? (
-              <Button
-                label={editing ? "Done" : "Edit"}
-                tone="text"
-                onPress={() => setEditing((value) => !value)}
-              />
-            ) : undefined
-          }
-        >
-          {entries.map((entry, index) => {
-            const key = microphoneEntryKey(entry);
-            const shift =
-              dragFrom === -1 || index === dragFrom
-                ? 0
-                : dragFrom < dragTo && index > dragFrom && index <= dragTo
-                  ? -rowHeight
-                  : dragFrom > dragTo && index < dragFrom && index >= dragTo
-                    ? rowHeight
-                    : 0;
-            return (
-              <MicrophoneRow
-                key={`${key}:${drops}`}
-                entry={entry}
-                position={index + 1}
-                count={entries.length}
-                reorderable={ready}
-                editing={editing && hasDevices}
-                offset={index === dragFrom ? (drag?.translation ?? 0) : shift}
-                lifted={index === dragFrom}
-                onHeight={setRowHeight}
-                onDragStart={() => setDrag({ key, translation: 0 })}
-                onDragMove={(translation) => setDrag({ key, translation })}
-                onDragEnd={(translation, cancelled) => {
-                  setDrag(null);
-                  setDrops((count) => count + 1);
-                  if (!cancelled) move(key, dropSteps(index, translation));
-                }}
-                onStep={(direction) => move(key, direction === "up" ? -1 : 1)}
-                onForget={isMicrophoneDevice(entry) ? () => forget(key) : undefined}
-              />
-            );
-          })}
-        </SettingsSection>
-        <Text className="px-2 text-sm text-foreground-muted">
-          Voice input records from the first connected microphone in this list. Wired and Bluetooth
-          devices are added by name after you use voice input with them connected; until then, the
-          Other row ranks them.
-        </Text>
+        <TranscriptionSettings />
+        <SavedRecordingsSettings />
+        {Platform.OS === "ios" ? (
+          <>
+            <SettingsSection
+              title="Preferred order"
+              trailing={
+                hasDevices ? (
+                  <Button
+                    label={editing ? "Done" : "Edit"}
+                    tone="text"
+                    onPress={() => setEditing((value) => !value)}
+                  />
+                ) : undefined
+              }
+            >
+              {entries.map((entry, index) => {
+                const key = microphoneEntryKey(entry);
+                const shift =
+                  dragFrom === -1 || index === dragFrom
+                    ? 0
+                    : dragFrom < dragTo && index > dragFrom && index <= dragTo
+                      ? -rowHeight
+                      : dragFrom > dragTo && index < dragFrom && index >= dragTo
+                        ? rowHeight
+                        : 0;
+                return (
+                  <MicrophoneRow
+                    key={`${key}:${drops}`}
+                    entry={entry}
+                    position={index + 1}
+                    count={entries.length}
+                    reorderable={ready}
+                    editing={editing && hasDevices}
+                    offset={index === dragFrom ? (drag?.translation ?? 0) : shift}
+                    lifted={index === dragFrom}
+                    onHeight={setRowHeight}
+                    onDragStart={() => setDrag({ key, translation: 0 })}
+                    onDragMove={(translation) => setDrag({ key, translation })}
+                    onDragEnd={(translation, cancelled) => {
+                      setDrag(null);
+                      setDrops((count) => count + 1);
+                      if (!cancelled) move(key, dropSteps(index, translation));
+                    }}
+                    onStep={(direction) => move(key, direction === "up" ? -1 : 1)}
+                    onForget={isMicrophoneDevice(entry) ? () => forget(key) : undefined}
+                  />
+                );
+              })}
+            </SettingsSection>
+            <Text className="px-2 text-sm text-foreground-muted">
+              Voice input records from the first connected microphone in this list. Wired and
+              Bluetooth devices are added by name after you use voice input with them connected;
+              until then, the Other row ranks them.
+            </Text>
+          </>
+        ) : null}
       </ScrollView>
     </View>
+  );
+}
+
+const DEVICE_NAME = Platform.OS === "ios" && Platform.isPad ? "iPad" : "iPhone";
+
+function availabilityDescription(availability: DictationAvailability): string {
+  switch (availability.kind) {
+    case "available":
+      return dictationSourceLabel(availability.source);
+    case "needs-source":
+      return "No account chosen yet";
+    case "unavailable":
+      return (
+        availability.source.unavailableReason ?? `${availability.source.label} can't transcribe`
+      );
+    case "hidden":
+      switch (availability.reason) {
+        case "unknown":
+          return "Not connected";
+        case "unsupported":
+          return "Update this environment to use voice input";
+        case "forbidden":
+          return "This connection can't use voice input";
+        case "disabled":
+          return "Voice input is off on this environment";
+        case "no-source":
+        case "no-capture":
+          return "No account here can transcribe";
+      }
+  }
+}
+
+function TranscriptionSettings() {
+  const savePreferences = useAtomSet(updateMobilePreferencesAtom);
+  const routing = useAtomValue(dictationRoutingAtom);
+  const onDevice = useAtomValue(transcribeOnDeviceAtom);
+  const { environments } = useEnvironments();
+  const pinned = routing.mode === "pinned" ? routing.environmentId : null;
+  const pinnedMissing =
+    pinned !== null && !environments.some((environment) => environment.environmentId === pinned);
+  return (
+    <>
+      {supportsOnDeviceTranscription() ? (
+        <SettingsSection title="Transcription">
+          <SettingsSwitchRow
+            label={`Transcribe on this ${DEVICE_NAME}`}
+            subtitle="Use Apple's on-device speech recognition instead of an environment's account."
+            value={onDevice}
+            onValueChange={(transcribeOnDevice) => savePreferences({ transcribeOnDevice })}
+          />
+        </SettingsSection>
+      ) : null}
+      {onDevice || (environments.length < 2 && routing.mode === "automatic") ? null : (
+        <>
+          <SettingsSection title="Transcribe on">
+            <SettingsChoiceRow
+              label="Automatic"
+              description="The environment of the thread you're dictating into."
+              selected={routing.mode === "automatic"}
+              onPress={() => savePreferences({ dictationRouting: { mode: "automatic" } })}
+            />
+            {environments.map((environment) => (
+              <RoutingEnvironmentRow
+                key={environment.environmentId}
+                environmentId={environment.environmentId}
+                label={environment.label}
+                selected={pinned === environment.environmentId}
+                onPress={() =>
+                  savePreferences({
+                    dictationRouting: { mode: "pinned", environmentId: environment.environmentId },
+                  })
+                }
+              />
+            ))}
+            {pinnedMissing ? (
+              <SettingsChoiceRow
+                separated
+                label="Removed environment"
+                description="Voice input waits for it. Choose another."
+                selected
+                disabled
+                onPress={() => undefined}
+              />
+            ) : null}
+          </SettingsSection>
+          <Text className="px-2 text-sm text-foreground-muted">
+            Which environment transcribes voice input from this device, with the account chosen in
+            its settings. A chosen environment never hands recordings to another one.
+          </Text>
+        </>
+      )}
+    </>
+  );
+}
+
+function RoutingEnvironmentRow(props: {
+  readonly environmentId: EnvironmentId;
+  readonly label: string;
+  readonly selected: boolean;
+  readonly onPress: () => void;
+}) {
+  const state = useAtomValue(dictationAvailability.environmentStateAtom(props.environmentId));
+  const availability = resolveDictationAvailability({
+    environmentId: props.environmentId,
+    state,
+    captureSupported: true,
+  });
+  return (
+    <SettingsChoiceRow
+      separated
+      label={props.label}
+      description={availabilityDescription(availability)}
+      selected={props.selected}
+      onPress={props.onPress}
+    />
+  );
+}
+
+function SavedRecordingsSettings() {
+  const recordings = useAllPendingVoiceRecordings();
+  if (recordings.length === 0) return null;
+  const count =
+    recordings.length === 1 ? "1 saved recording" : `${recordings.length} saved recordings`;
+  return (
+    <>
+      <SettingsSection title="Saved recordings">
+        <SettingsActionRow
+          icon="trash"
+          label={`Discard ${count}`}
+          tone="danger"
+          onPress={() =>
+            Dialog.confirm({
+              title: `Discard ${count}?`,
+              message: "Recordings that haven't been transcribed or inserted are deleted.",
+              confirmText: "Discard",
+              destructive: true,
+              onConfirm: discardAllPendingVoiceRecordings,
+            })
+          }
+        />
+      </SettingsSection>
+      <Text className="px-2 text-sm text-foreground-muted">
+        Saved recordings wait in the draft they were recorded for until they are transcribed and
+        inserted.
+      </Text>
+    </>
   );
 }
 

@@ -26,6 +26,7 @@ import { GlassSurface } from "../../components/ui/GlassSurface";
 import { AppText as Text } from "../../components/ui/AppText";
 import { SymbolView, type AppSymbolName } from "../../components/ui/AppSymbol";
 import { cn } from "../../lib/cn";
+import type { VoiceInputSetup } from "./useVoiceInputController";
 import type { VoiceComposerPresentation } from "./voiceInputPresentation";
 import { VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
 
@@ -493,6 +494,7 @@ export function ComposerDictationTrailingActions(props: {
   readonly children?: ReactNode;
   readonly state: VoiceInputState;
   readonly isAvailable: boolean;
+  readonly setup?: VoiceInputSetup;
   readonly disabled?: boolean;
   readonly reservesSendWidth?: boolean;
   readonly onStart: () => void;
@@ -511,18 +513,27 @@ export function ComposerDictationTrailingActions(props: {
   );
 }
 
+function startActionLabel(openSettings: boolean, setup: VoiceInputSetup | undefined): string {
+  if (openSettings) return "Open microphone settings";
+  if (setup === "needs-source") return "Set up voice input";
+  if (setup === "unavailable") return "Voice input unavailable";
+  return "Start dictation";
+}
+
 export function ComposerDictationStartAction(props: {
   readonly state: VoiceInputState;
   readonly isAvailable: boolean;
+  readonly setup?: VoiceInputSetup;
   readonly disabled?: boolean;
   readonly onStart: () => void;
   readonly onCancel: () => void;
 }) {
   if (!props.isAvailable) return null;
   const openSettings = props.state.phase === "error" && props.state.errorAction === "settings";
+  const unavailable = props.setup === "unavailable";
   return (
     <Pressable
-      accessibilityLabel={openSettings ? "Open microphone settings" : "Start dictation"}
+      accessibilityLabel={startActionLabel(openSettings, props.setup)}
       accessibilityRole="button"
       accessibilityState={{ disabled: props.disabled }}
       className="shrink-0 items-center justify-center active:opacity-70"
@@ -538,10 +549,10 @@ export function ComposerDictationStartAction(props: {
       style={{ height: TOOLBAR_HEIGHT, opacity: props.disabled ? 0.4 : 1, width: TOOLBAR_HEIGHT }}
     >
       <SymbolView
-        name="mic"
+        name={unavailable ? "mic.slash" : "mic"}
         size={20}
         weight="semibold"
-        tintColorClassName="accent-icon"
+        tintColorClassName={unavailable ? "accent-icon-muted" : "accent-icon"}
         type="monochrome"
       />
     </Pressable>
