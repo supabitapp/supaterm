@@ -74,30 +74,32 @@ export const make = Effect.gen(function* () {
 
   const animate = Effect.fnUntraced(function* (frames: LaunchIconFrames) {
     const startedAt = yield* Clock.currentTimeMillis;
+    const elapsed = Clock.currentTimeMillis.pipe(Effect.map((now) => (now - startedAt) / 1000));
+    const show = (t: number, glow: number) =>
+      electronApp
+        .setDockIcon(
+          Electron.nativeImage.createFromBitmap(frames.render(t, glow), {
+            width: TILE_PIXELS,
+            height: TILE_PIXELS,
+            scaleFactor: 2,
+          }),
+        )
+        .pipe(Effect.andThen(Effect.sleep(FRAME_MILLIS)));
+
+    // Ease out of the lit icon the Dock bounced with...
+    let t = 0;
     let glow = 1;
-    let settling: { readonly at: number; readonly from: number } | undefined;
-    while (true) {
-      const t = ((yield* Clock.currentTimeMillis) - startedAt) / 1000;
-      if (
-        settling === undefined &&
-        ((yield* Deferred.isDone(settleRequested)) || t >= MAX_THINKING_SECONDS)
-      ) {
-        settling = { at: t, from: glow };
-      }
-      if (settling !== undefined && t - settling.at >= FADE_SECONDS) return;
-      // Ease out of the lit icon the Dock bounced with, and back into it at the end.
-      glow =
-        settling === undefined
-          ? 1 - ease(t / FADE_SECONDS)
-          : settling.from + (1 - settling.from) * ease((t - settling.at) / FADE_SECONDS);
-      yield* electronApp.setDockIcon(
-        Electron.nativeImage.createFromBitmap(frames.render(t, glow), {
-          width: TILE_PIXELS,
-          height: TILE_PIXELS,
-          scaleFactor: 2,
-        }),
-      );
-      yield* Effect.sleep(FRAME_MILLIS);
+    while (!(yield* Deferred.isDone(settleRequested)) && t < MAX_THINKING_SECONDS) {
+      glow = 1 - ease(t / FADE_SECONDS);
+      yield* show(t, glow);
+      t = yield* elapsed;
+    }
+    // ...and back into it once the window shows.
+    const settledAt = t;
+    const settledFrom = glow;
+    while (t - settledAt < FADE_SECONDS) {
+      yield* show(t, settledFrom + (1 - settledFrom) * ease((t - settledAt) / FADE_SECONDS));
+      t = yield* elapsed;
     }
   });
 

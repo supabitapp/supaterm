@@ -93,14 +93,11 @@ function resolveSourceTreeIconPath(
   if (icon === "unlitPng" && environment.platform !== "darwin") return undefined;
   const brand = environment.isDevelopment ? "dev" : "prod";
   const fileNames = sourceTreeIconFileNames[brand];
-  const fileName =
-    icon === "ico"
-      ? fileNames.ico
-      : icon === "unlitPng"
-        ? fileNames.macUnlitPng
-        : environment.platform === "darwin"
-          ? fileNames.macPng
-          : fileNames.universalPng;
+  const fileName = {
+    ico: fileNames.ico,
+    png: environment.platform === "darwin" ? fileNames.macPng : fileNames.universalPng,
+    unlitPng: fileNames.macUnlitPng,
+  }[icon];
   return environment.path.join(environment.rootDir, "assets", brand, fileName);
 }
 

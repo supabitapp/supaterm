@@ -59,8 +59,9 @@ export function makeLaunchIconFrames(lit: Buffer, unlit: Buffer, size: number): 
     for (let x = 0; x < size; x++) {
       const o = (y * size + x) * 4;
       let difference = 0;
-      for (let ch = 0; ch < 4; ch++)
+      for (let ch = 0; ch < 4; ch++) {
         difference += Math.abs((lit[o + ch] ?? 0) - (unlit[o + ch] ?? 0));
+      }
       if (difference <= LIGHT_THRESHOLD) continue;
       const column = ((x + 0.5) / size - originX) / PITCH_X;
       const row = ((y + 0.5) / size - originY) / PITCH_Y;
