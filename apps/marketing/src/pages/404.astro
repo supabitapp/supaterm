@@ -1,0 +1,132 @@
+---
+import { Image } from "astro:assets";
+import appIcon from "../assets/icon.webp";
+import Layout from "../layouts/Layout.astro";
+import "../styles/boltComputer.css";
+---
+
+<Layout title="Page not found — Supaterm" description="This page doesn't exist on supaterm.com.">
+  <section class="not-found">
+    <div class="not-found-grid" aria-hidden="true"></div>
+
+    <div class="container not-found-inner">
+      <div class="not-found-crt bolt-computer">
+        <Image src={appIcon} alt="" width={280} height={280} densities={[1, 2]} format="webp" quality={90} loading="eager" />
+      </div>
+      <p class="eyebrow" data-rise>Error 404</p>
+      <h1 class="not-found-title display" data-rise style="--d:90ms">This page has been severed.</h1>
+      <p class="not-found-sub" data-rise style="--d:180ms">
+        <span class="not-found-path" hidden>Nothing lives at <code></code>. </span>The link may be out of date, or the page has moved.
+      </p>
+      <div class="not-found-actions" data-rise style="--d:270ms">
+        <a class="btn btn-primary btn-lg" href="/">Back to home</a>
+        <a class="btn btn-ghost btn-lg" href="/download">Download Supaterm</a>
+      </div>
+    </div>
+  </section>
+</Layout>
+
+<script>
+  const path = document.querySelector<HTMLElement>(".not-found-path");
+  const pathCode = path?.querySelector("code");
+  if (path && pathCode) {
+    pathCode.textContent = location.pathname;
+    path.hidden = false;
+  }
+
+  const crt = document.querySelector<HTMLElement>(".not-found-crt");
+  if (crt) {
+    void Promise.all([
+      import("../lib/boltComputer/mount"),
+      import("../lib/boltComputer/sim"),
+    ]).then(([{ DEFAULT_SETTINGS, mountBoltComputer }, { ERROR_SHAKE_PERIOD }]) => {
+      const computer = mountBoltComputer(crt, { ...DEFAULT_SETTINGS, state: "error", interactive: false });
+      if (!computer) return;
+
+      // The error state shakes forever, so rest it after a few shakes to stop repainting an idle
+      // tab. Each rest lands just before the next shake, where the still pose matches the last
+      // frame, and a click resumes from there for exactly one more shake.
+      const shakeMs = ERROR_SHAKE_PERIOD * 1000;
+      let awake = false;
+      const shake = (ms: number) => {
+        if (awake) return;
+        awake = true;
+        computer.update({ paused: false });
+        setTimeout(() => {
+          awake = false;
+          computer.update({ paused: true });
+        }, ms);
+      };
+      shake(2 * shakeMs - 100);
+      crt.addEventListener("click", () => shake(shakeMs));
+    });
+  }
+</script>
+
+<style>
+  .not-found {
+    --crt-size: clamp(200px, 22vw, 280px);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 56px 0 88px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .not-found-grid {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black 30%, transparent 100%);
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black 30%, transparent 100%);
+  }
+
+  .not-found-inner {
+    position: relative;
+    text-align: center;
+  }
+
+  .not-found-crt {
+    width: var(--crt-size);
+    margin: 0 auto 32px;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .not-found-crt:has(:global(canvas)) { cursor: pointer; }
+  }
+
+  .not-found-title {
+    font-size: clamp(34px, 4.6vw, 60px);
+    margin: 14px auto 18px;
+    max-width: 16ch;
+    text-wrap: balance;
+  }
+
+  .not-found-sub {
+    color: var(--fg-muted);
+    font-size: clamp(16px, 1.3vw, 18px);
+    max-width: 52ch;
+    margin: 0 auto 32px;
+    text-wrap: balance;
+  }
+
+  .not-found-sub code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    color: var(--fg);
+    overflow-wrap: anywhere;
+  }
+
+  .not-found-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+  }
+</style>

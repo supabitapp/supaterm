@@ -44,6 +44,7 @@ export const FADE = 0.3;
 const REACTION = 1.6;
 const GLITCH = 0.13;
 export const POINTER_REACH = 700;
+export const ERROR_SHAKE_PERIOD = 2.4;
 
 export interface Pose {
   readonly yaw: number;
@@ -220,7 +221,7 @@ export class BoltComputerSim {
         }
         break;
       case "error": {
-        const c = (t % 2.4) / 0.7;
+        const c = (t % ERROR_SHAKE_PERIOD) / 0.7;
         shake = c < 1 ? Math.sin(c * Math.PI * 7) * 0.22 * (1 - c) : 0;
         freq = 1.6;
         break;
