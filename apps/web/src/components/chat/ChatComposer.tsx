@@ -170,6 +170,13 @@ import {
   type ComposerBannerStackContent,
   type ComposerBannerStackItem,
 } from "./ComposerBannerStack";
+import { ComposerDictationButton, composerDictationBannerItem } from "./ComposerDictationControl";
+import { ComposerDictationChip } from "./ComposerDictationChip";
+import { usePendingClips } from "../../dictation/pendingClips";
+import {
+  useComposerDictation,
+  type ComposerVoiceMessage,
+} from "../../dictation/useComposerDictation";
 import {
   compressImageForStash,
   isHeicImageFile,
@@ -1481,6 +1488,10 @@ export interface ChatComposerHandle {
   };
   validateProviderInput: (providerInput: string) => boolean;
   setMultipleModelSelections: (selections: ReadonlyArray<ModelSelection>) => void;
+
+  toggleDictation: () => boolean;
+  transcribeAndSend: () => void;
+  insertTextAtCursor: (text: string) => boolean;
 }
 
 export interface ChatComposerProps {
@@ -1612,6 +1623,11 @@ export interface ChatComposerProps {
     dispatchMode?: ComposerDispatchMode,
     submissionIntent?: ComposerSubmissionIntent,
   ) => Promise<void>;
+
+  onSendVoice: (
+    voice: ComposerVoiceMessage,
+    dispatchMode: ComposerDispatchMode,
+  ) => Promise<boolean>;
   onResume: () => void;
   onInterrupt: () => void;
   onRespondToApproval: (
@@ -1963,6 +1979,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     onPageScrollRelease,
     onCompactContext,
     onSend,
+    onSendVoice,
     onResume,
     onInterrupt,
     onRespondToApproval,
@@ -2806,6 +2823,65 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       (supportsQuestionAttachments &&
         activePendingProgress.activeQuestion?.allowCustomAnswer !== false));
   const composerFooterHasWideActions = activePendingProgress !== null;
+
+  const canSendVoice =
+    multipleModelSelections === null &&
+    !isEditingQueuedMessage &&
+    activePendingProgress === null &&
+    pendingUserInputs.length === 0 &&
+    !prompt.trimStart().startsWith("/");
+  const dictation = useComposerDictation({
+    ownerKey: composerDraftTargetKey,
+    environmentId,
+    threadInstanceId: selectedInstanceId,
+    readPrompt: () => promptRef.current,
+    readSelection: () =>
+      composerEditorRef.current?.readSelectionRange() ?? {
+        start: promptRef.current.length,
+        end: promptRef.current.length,
+      },
+    commitPrompt: (text, selection) => {
+      const current = promptRef.current;
+      let start = 0;
+      while (start < current.length && start < text.length && current[start] === text[start]) {
+        start += 1;
+      }
+      let suffix = 0;
+      while (
+        suffix < current.length - start &&
+        suffix < text.length - start &&
+        current[current.length - 1 - suffix] === text[text.length - 1 - suffix]
+      ) {
+        suffix += 1;
+      }
+      return applyPromptReplacementStable(
+        start,
+        current.length - suffix,
+        text.slice(start, text.length - suffix),
+        { expandedCursorAfterReplace: selection.end },
+      );
+    },
+    canSendVoice,
+    sendVoice: (voice) => {
+      if (
+        !canQueueSelectedProvider ||
+        isSendDisabled ||
+        !readCanQueueComposerMessage(environmentId)
+      ) {
+        return Promise.resolve(false);
+      }
+      return onSendVoice(
+        voice,
+        resolveComposerDispatchMode({
+          running: phase === "running",
+          alternateModifier: false,
+          activeTurnDefault: settings.followUpBehavior,
+          canSteer: !isCompacting,
+        }),
+      );
+    },
+  });
+  const pendingClips = usePendingClips(composerDraftTargetKey);
 
   const isComposerMenuLoading =
     (composerTriggerKind === "path" && pathTriggerQuery.length > 0 && workspaceEntries.isPending) ||
@@ -3970,6 +4046,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     submissionIntent?: ComposerSubmissionIntent,
   ): Promise<void> | null => {
     if (
+      dictation.blocksSubmission ||
       !canQueueSelectedProvider ||
       isSendDisabled ||
       !(activePendingProgress
@@ -5436,9 +5513,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         content: activityStackContent,
       }
     : null;
-  const bannerStackItems = activityStackItem
-    ? [activityStackItem, ...props.bannerItems]
-    : props.bannerItems;
+  const dictationBannerItem = composerDictationBannerItem({ dictation, canSendVoice });
+  const bannerStackItems = [
+    ...(activityStackItem ? [activityStackItem] : []),
+    ...(dictationBannerItem ? [dictationBannerItem] : []),
+    ...props.bannerItems,
+  ];
   const composerMenuOpenChanged = useInputsChanged([composerMenuOpen]);
   const promptChangedWhileStashOpen = useInputsChangedWhileActive(isStashMenuOpen, [prompt]);
   if (
@@ -5713,6 +5793,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       activePendingIsResponding ||
       (pendingUserInputs.length > 0 && !activePendingProgress?.activeQuestion) ||
       projectSelectionRequired ||
+      dictation.freezesEditor ||
       (options?.citationCommentAnchor && !composerEditorRef.current)
     ) {
       return false;
@@ -5744,6 +5825,31 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     );
   };
   const insertComposerTextStable = useStableCallback(insertComposerText);
+  const insertDictationTranscript = (text: string) =>
+    insertComposerText(text, "cursor", { ensureLeadingBoundary: true });
+  const insertDictationTranscriptStable = useStableCallback(insertDictationTranscript);
+  const dictationInsertDisabledReason = dictation.freezesEditor
+    ? "Finish voice input first."
+    : isComposerApprovalState
+      ? "Resolve the approval request first."
+      : pendingUserInputs.length > 0
+        ? "Answer the question first."
+        : projectSelectionRequired
+          ? "Choose a project first."
+          : isConnecting
+            ? "The composer is connecting."
+            : null;
+  const toggleDictation = () => {
+    if (
+      dictation.state.phase === "idle" &&
+      (dictation.availability.kind === "hidden" || !showComposerAttachAction || !canOperateThread)
+    ) {
+      return false;
+    }
+    dictation.toggle();
+    return true;
+  };
+  const toggleDictationStable = useStableCallback(toggleDictation);
 
   const insertAttachmentReferences = (
     references: ReadonlyArray<ComposerContextReference>,
@@ -6436,8 +6542,14 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         setProviderInputSubmissionError(validationMessage);
         return validationMessage === null;
       },
+      toggleDictation: toggleDictationStable,
+      transcribeAndSend: () => void dictation.transcribeAndSend(),
+      insertTextAtCursor: insertDictationTranscriptStable,
     }),
     [
+      toggleDictationStable,
+      dictation.transcribeAndSend,
+      insertDictationTranscriptStable,
       activeThread,
       addComposerAttachments,
       addComposerFoldersStable,
@@ -7282,6 +7394,21 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       })}
                     </div>
                   )}
+
+                {!isComposerCollapsedMobile &&
+                !isComposerApprovalState &&
+                pendingClips.length > 0 ? (
+                  <div className="mb-3 flex flex-col gap-1">
+                    {pendingClips.map((clip) => (
+                      <ComposerDictationChip
+                        key={clip.id}
+                        clip={clip}
+                        insertDisabledReason={dictationInsertDisabledReason}
+                        onInsert={insertDictationTranscriptStable}
+                      />
+                    ))}
+                  </div>
+                ) : null}
               </div>
 
               <div
@@ -7392,7 +7519,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       isComposerApprovalState ||
                       projectSelectionRequired ||
                       isChoiceOnlyPendingQuestion ||
-                      activePendingIsResponding
+                      activePendingIsResponding ||
+                      dictation.freezesEditor
                     }
                   />
                 </ComposerContextActionsContext>
@@ -7504,6 +7632,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                         </TooltipTrigger>
                         <TooltipPopup>Attach files</TooltipPopup>
                       </Tooltip>
+                      <ComposerDictationButton
+                        dictation={dictation}
+                        disabled={!canOperateThread}
+                        shortcutLabel={shortcutLabelForCommand(keybindings, "composer.dictate")}
+                      />
                     </>
                   ) : null}
                   <ComposerFooterPrimaryActions

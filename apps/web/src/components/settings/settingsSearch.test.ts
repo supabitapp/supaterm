@@ -195,6 +195,8 @@ describe("searchSettings", () => {
       "auto-mark-done-merged-threads",
       "auto-mark-done-keep-pull-requests",
       "days-before-auto-mark-done",
+      "dictation",
+      "dictation-source",
     ]);
     expect(available.map((item) => item.id).filter((id) => gatedIds.has(id))).toEqual([]);
   });
@@ -339,6 +341,8 @@ describe("searchSettings", () => {
     ["default model", "default-model", "/settings/general"],
     ["new threads", "new-threads", "/settings/general"],
     ["agent browser access", "agent-browser-access", "/settings/integrations"],
+    ["microphone", "dictation", "/settings/integrations"],
+    ["transcription model", "dictation-source", "/settings/integrations"],
     ["automatically pull", "automatic-pull", "/settings/source-control"],
     ["actions", "project-actions", "/settings/projects"],
     ["project overview", "project-overview", "/settings/projects"],

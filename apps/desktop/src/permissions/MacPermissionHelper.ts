@@ -82,6 +82,8 @@ export class MacPermissionHelper {
     isGranted: () => boolean | Promise<boolean> = () => permissionGranted(permission),
   ) {
     this.close();
+
+    if (permission === "microphone") return;
     const generation = this.generation;
     if (await isGranted()) return;
     if (generation !== this.generation) return;

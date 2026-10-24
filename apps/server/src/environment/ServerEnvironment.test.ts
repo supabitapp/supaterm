@@ -188,6 +188,10 @@ it.layer(NodeServices.layer)("ServerEnvironmentLive", (it) => {
       expect(first.environmentId).toBe(second.environmentId);
       expect(first.orchestrationProtocolVersion).toBe(ORCHESTRATION_PROTOCOL_VERSION);
       expect(second.capabilities.fileAttachments).toEqual({ maxUploadBytes: 50 * 1024 * 1024 });
+      expect(second.capabilities.dictation).toEqual({
+        maxClipBytes: 20 * 1024 * 1024,
+        maxDurationMs: 300_000,
+      });
     }),
   );
 

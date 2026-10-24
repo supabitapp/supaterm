@@ -1,13 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import type { PreparedVoiceTranscription } from "@supaterm/client-runtime/voice-input";
 import { Atom, AtomRegistry } from "effect/reactivity";
-import { resetVoiceInputGlobalsForTests } from "../../../../../packages/client-runtime/src/voice-input/controller";
 
-import {
-  createVoiceInputTarget,
-  VoiceInputSession,
-  type VoiceInputTarget,
-} from "./voiceInputSession";
+import { resetVoiceInputGlobalsForTests } from "./controller.ts";
+import { createVoiceInputTarget, VoiceInputSession, type VoiceInputTarget } from "./session.ts";
+import type { PreparedVoiceTranscription } from "./transcription.ts";
 
 function createTarget(
   ownerKey: string,

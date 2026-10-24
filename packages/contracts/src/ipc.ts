@@ -1019,8 +1019,19 @@ export const DesktopPreviewRecordingSaveInputSchema = Schema.Struct({
   data: Schema.Uint8Array,
 });
 
-export const SystemSettingsPaneSchema = Schema.Literals(["full-disk-access", "input-monitoring"]);
+export const SystemSettingsPaneSchema = Schema.Literals([
+  "full-disk-access",
+  "input-monitoring",
+  "microphone",
+]);
 export type SystemSettingsPane = typeof SystemSettingsPaneSchema.Type;
+
+export const MicrophoneAccessSchema = Schema.Struct({
+  granted: Schema.Boolean,
+
+  canAskAgain: Schema.Boolean,
+});
+export type MicrophoneAccess = typeof MicrophoneAccessSchema.Type;
 
 export interface DesktopBridge {
   webLinks?: {
@@ -1120,6 +1131,7 @@ export interface DesktopBridge {
   openExternal: (url: string) => Promise<boolean>;
   openSystemSettings?: (pane: SystemSettingsPane) => Promise<boolean>;
   checkSystemPermission?: (pane: SystemSettingsPane) => Promise<boolean>;
+  requestMicrophoneAccess?: () => Promise<MicrophoneAccess>;
   /**
    * Optional: older desktop builds lack it; callers fall back to VS Code only.
    */

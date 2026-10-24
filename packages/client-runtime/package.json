@@ -171,6 +171,10 @@
       "types": "./src/state/connections.ts",
       "default": "./src/state/connections.ts"
     },
+    "./state/dictation": {
+      "types": "./src/state/dictation.ts",
+      "default": "./src/state/dictation.ts"
+    },
     "./state/entities": {
       "types": "./src/state/entities.ts",
       "default": "./src/state/entities.ts"

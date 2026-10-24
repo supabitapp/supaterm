@@ -3,13 +3,13 @@ import * as Haptics from "expo-haptics";
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { Keyboard } from "react-native";
 import {
+  createVoiceInputTarget,
   voiceInputBlocksSubmission,
   type VoiceInputState,
 } from "@supaterm/client-runtime/voice-input";
 
 import type { ComposerEditorSelection } from "../../components/ComposerEditor";
 import { useGlobalVoiceInput } from "./VoiceInputProvider";
-import { createVoiceInputTarget } from "./voiceInputSession";
 
 const IDLE_STATE: VoiceInputState = { phase: "idle", error: null, errorAction: null };
 

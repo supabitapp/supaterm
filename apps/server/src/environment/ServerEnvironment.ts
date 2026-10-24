@@ -1,4 +1,6 @@
 import {
+  DICTATION_MAX_CLIP_BYTES,
+  DICTATION_MAX_DURATION_MS,
   EnvironmentId,
   ORCHESTRATION_PROTOCOL_VERSION,
   PROVIDER_SEND_TURN_MAX_FILE_BYTES,
@@ -222,6 +224,10 @@ export const make = Effect.gen(function* () {
         ? { serverSelfUpdateProgress: true }
         : {}),
       ...(desktopAppUpdate ? { desktopAppUpdate: true } : {}),
+      dictation: {
+        maxClipBytes: DICTATION_MAX_CLIP_BYTES,
+        maxDurationMs: DICTATION_MAX_DURATION_MS,
+      },
     },
   };
 

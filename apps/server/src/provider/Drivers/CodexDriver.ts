@@ -27,6 +27,8 @@ import {
   withCodexAppServerClient,
 } from "../CodexProvider.ts";
 import { resolveCodexLaunchArgs } from "../codexLaunchArgs.ts";
+import { makeCodexTranscription } from "../CodexTranscription.ts";
+import { withDevelopmentTranscription } from "../../dictation/developmentTranscription.ts";
 import { makeManagedServerProvider } from "@supaterm/provider-core/server/managedProvider";
 import * as ModelCatalog from "@supaterm/provider-core/server/ModelCatalog";
 import { applyCodexModelCatalog } from "../codexModelCatalog.ts";
@@ -254,6 +256,15 @@ export const CodexDriver: ProviderDriver<
       processEnv,
       snapshot.getSnapshot.pipe(Effect.map((value) => value.models)),
     );
+    const transcription = yield* makeCodexTranscription({
+      account: snapshot.getSnapshot,
+      launch: {
+        binaryPath: effectiveConfig.binaryPath,
+        homePath: effectiveConfig.homePath,
+        launchArgs: resolveCodexLaunchArgs(effectiveConfig.launchArgs, processEnv),
+        environment: processEnv,
+      },
+    }).pipe(Effect.flatMap(withDevelopmentTranscription));
     const snapshotForCwd = (cwd: string) =>
       !effectiveConfig.enabled
         ? snapshot.getSnapshot
@@ -366,6 +377,7 @@ export const CodexDriver: ProviderDriver<
       consumeResetCredit,
       orchestrationAdapter,
       textGeneration,
+      transcription,
     } satisfies ProviderInstance;
   }),
 };

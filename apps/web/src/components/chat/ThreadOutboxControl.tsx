@@ -1,7 +1,15 @@
 import { useAtomValue } from "@effect/atom-react";
 import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/environment";
 import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
-import { CircleAlertIcon, Clock3Icon, PencilIcon, RotateCwIcon, XIcon } from "lucide-react";
+import {
+  CircleAlertIcon,
+  Clock3Icon,
+  CornerDownLeftIcon,
+  MicIcon,
+  PencilIcon,
+  RotateCwIcon,
+  XIcon,
+} from "lucide-react";
 import { type ReactNode, type Ref, useImperativeHandle, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";
@@ -15,22 +23,29 @@ import {
 } from "../../composerDraftStore";
 import {
   cancelThreadOutboxTurn,
+  moveThreadOutboxTurnToComposer,
   useThreadOutbox,
   webThreadOutbox,
   replaceThreadOutboxTurn,
+  threadOutboxComposerTarget,
   threadOutboxDeliverableAtom,
   type PendingThreadTurn,
 } from "../../state/threadOutbox";
 import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
 import { ComposerBanner, type ComposerBannerVariant } from "./ComposerBanner";
-import { resolveThreadOutboxStatus, type ThreadOutboxStatus } from "./ThreadOutboxControl.logic";
+import {
+  formatVoiceMessageDuration,
+  resolveThreadOutboxStatus,
+  type ThreadOutboxStatus,
+} from "./ThreadOutboxControl.logic";
 import { useThreadOutboxVisibility } from "./useThreadOutboxVisibility";
 
 const STATUS_HEADERS = {
   failed: { icon: <CircleAlertIcon className="text-error" />, label: "Not sent", variant: "error" },
   editing: { icon: <PencilIcon />, label: "Paused while editing", variant: "default" },
   offline: { icon: <Clock3Icon />, label: "Sends once connected", variant: "default" },
+  transcribing: { icon: <Spinner />, label: "Transcribing voice message…", variant: "default" },
   sending: { icon: <Spinner />, label: "Sending…", variant: "default" },
   retrying: { icon: <RotateCwIcon />, label: "Retrying shortly", variant: "default" },
   waiting: { icon: <Clock3Icon />, label: "Waiting to send", variant: "default" },
@@ -65,6 +80,7 @@ export function ThreadOutboxControl({
     head: pending[0],
     editingMessageId: props.editingMessageId,
     deliverable,
+    isPreparing: webThreadOutbox.isPreparing,
     isSending: webThreadOutbox.isSending,
   });
   const header = STATUS_HEADERS[status];
@@ -86,13 +102,31 @@ export function ThreadOutboxControl({
     setBusy(false);
   }
 
-  // Takes the key while the last message is mid-send rather than editing an
-  // older one.
+  function withdraw(entry: PendingThreadTurn, remove: (entry: PendingThreadTurn) => Promise<void>) {
+    void act(async () => {
+      await remove(entry);
+      if (entry.payload.draftId) {
+        const draftId = DraftId.make(entry.payload.draftId);
+        const draft = useComposerDraftStore.getState().getDraftSession(draftId);
+        if (draft)
+          restoreFailedBackgroundDraftThread(
+            draftId,
+            draft,
+            entry.status === "failed" ? newThreadId() : draft.threadId,
+          );
+        void navigate({ to: "/draft/$draftId", params: { draftId } });
+      } else if (entry.payload.input.bootstrap?.createThread) {
+        void navigate({ to: "/" });
+      }
+    });
+  }
+
   useImperativeHandle(ref, () => ({
     editLatest(repeat) {
       const latest = pending.at(-1);
       if (!latest) return false;
-      if (!repeat && !busy && canChangeEntry(latest)) void act(() => props.onEditMessage(latest));
+      if (!repeat && !busy && canChangeEntry(latest) && !latest.payload.voice)
+        void act(() => props.onEditMessage(latest));
       return true;
     },
   }));
@@ -120,7 +154,15 @@ export function ThreadOutboxControl({
             {pending.map((entry) => {
               const canChange = canChangeEntry(entry);
               const isEditing = props.editingMessageId === entry.id;
-              const deliveryError = webThreadOutbox.isSending(entry.id) ? null : entry.error;
+              const deliveryError =
+                webThreadOutbox.isSending(entry.id) || webThreadOutbox.isPreparing(entry.id)
+                  ? null
+                  : entry.error;
+              const { voice } = entry.payload;
+              const text = replaceComposerContextReferences(
+                entry.payload.input.message.text,
+                (reference) => reference.label,
+              );
               return (
                 <ComposerBanner.Row
                   render={<li />}
@@ -128,16 +170,33 @@ export function ThreadOutboxControl({
                   aria-current={isEditing ? "true" : undefined}
                   className={isEditing ? "rounded-sm bg-accent text-accent-foreground" : undefined}
                 >
-                  <ComposerBanner.Icon />
+                  <ComposerBanner.Icon>{voice ? <MicIcon /> : null}</ComposerBanner.Icon>
                   <ComposerBanner.Content className="text-foreground/80">
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate">
-                        {isEditing ? <span className="sr-only">Editing: </span> : null}
-                        {replaceComposerContextReferences(
-                          entry.payload.input.message.text,
-                          (reference) => reference.label,
-                        ) || "Attachment"}
-                      </span>
+                      {voice ? (
+                        <span className="flex min-w-0 items-center">
+                          {text ? (
+                            <>
+                              <span className="truncate">{text}</span>
+                              <ComposerBanner.Separator />
+                            </>
+                          ) : null}
+                          <span className="flex-none text-muted-foreground">
+                            Voice message · {formatVoiceMessageDuration(voice.durationMs)}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="block truncate">
+                          {isEditing ? <span className="sr-only">Editing: </span> : null}
+                          {text || "Attachment"}
+                        </span>
+                      )}
+                      {voice?.transcript ? (
+                        <span className="block truncate text-muted-foreground">
+                          <span className="sr-only">Transcript: </span>
+                          {voice.transcript}
+                        </span>
+                      ) : null}
                       {deliveryError ? (
                         <span className="block text-muted-foreground">{deliveryError}</span>
                       ) : null}
@@ -181,6 +240,21 @@ export function ThreadOutboxControl({
                       >
                         Cancel
                       </Button>
+                    ) : voice ? (
+                      <Button
+                        size="icon-xs"
+                        variant="ghost-muted"
+                        aria-label="Move voice message to composer"
+                        disabled={
+                          busy ||
+                          !canChange ||
+                          props.editingMessageId !== null ||
+                          threadOutboxComposerTarget(entry) === null
+                        }
+                        onClick={() => withdraw(entry, moveThreadOutboxTurnToComposer)}
+                      >
+                        <CornerDownLeftIcon />
+                      </Button>
                     ) : (
                       <Button
                         size="icon-xs"
@@ -200,26 +274,7 @@ export function ThreadOutboxControl({
                         variant="ghost-muted"
                         aria-label="Cancel pending message"
                         disabled={busy || !canChange}
-                        onClick={() => {
-                          void act(async () => {
-                            await cancelThreadOutboxTurn(entry);
-                            if (entry.payload.draftId) {
-                              const draftId = DraftId.make(entry.payload.draftId);
-                              const draft = useComposerDraftStore
-                                .getState()
-                                .getDraftSession(draftId);
-                              if (draft)
-                                restoreFailedBackgroundDraftThread(
-                                  draftId,
-                                  draft,
-                                  entry.status === "failed" ? newThreadId() : draft.threadId,
-                                );
-                              void navigate({ to: "/draft/$draftId", params: { draftId } });
-                            } else if (entry.payload.input.bootstrap?.createThread) {
-                              void navigate({ to: "/" });
-                            }
-                          });
-                        }}
+                        onClick={() => withdraw(entry, cancelThreadOutboxTurn)}
                       >
                         <XIcon />
                       </Button>

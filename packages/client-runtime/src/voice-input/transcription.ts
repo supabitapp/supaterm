@@ -1,11 +1,17 @@
+import type { VoiceDraftSnapshot } from "./controller.ts";
+
 /** Cancellation is cooperative: settle only after the underlying work has stopped. */
 export type VoiceTranscriptionOptions = {
   readonly signal: AbortSignal;
 };
 
+export type VoiceTranscribeOptions = VoiceTranscriptionOptions & {
+  readonly capturedDraft?: VoiceDraftSnapshot;
+};
+
 export type PreparedVoiceTranscription = {
   readonly locale: string;
-  readonly transcribe: (uri: string, options: VoiceTranscriptionOptions) => Promise<string>;
+  readonly transcribe: (uri: string, options: VoiceTranscribeOptions) => Promise<string>;
 };
 
 export type VoiceTranscriber = {
@@ -13,6 +19,7 @@ export type VoiceTranscriber = {
 };
 
 export type VoiceTranscriptionErrorCode =
+  | "deferred"
   | "unavailable"
   | "unsupported-locale"
   | "preparation-failed"

@@ -3,6 +3,7 @@ import * as OrchestrationSkills from "./provider/OrchestrationSkills.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import {
+  DictationSourceId,
   ORCHESTRATION_PROTOCOL_VERSION,
   AuthSessionId,
   EnvironmentId,
@@ -198,6 +199,53 @@ it.effect("resends late editors without rolling back updates already sent", () =
       assert.equal(second.config.shellRevealInFileManagerKind, "file-explorer");
       assert.deepEqual(second.config.settings, { enableProviderUpdateChecks: false } as never);
     }
+  }),
+);
+
+it.effect("keeps a dictation catalog update in a late editor snapshot", () =>
+  Effect.gen(function* () {
+    const dictationSent = yield* Deferred.make<void>();
+    const dictation = {
+      sources: [
+        {
+          id: DictationSourceId.make("codex:work"),
+          kind: "codex",
+          runsOn: "environment" as const,
+          label: "Codex",
+          serviceLabel: "ChatGPT",
+          accountLabel: null,
+          eligible: false,
+          unavailableReason: "Sign in to Codex to transcribe.",
+          audioFormats: [],
+        },
+      ],
+    };
+    const dictationUpdated: ServerConfigStreamEvent = {
+      version: 1,
+      type: "dictationUpdated",
+      payload: dictation,
+    };
+    const events = yield* withLateEditorConfig(
+      snapshotConfig({ dictation: { sources: [] } }),
+      Stream.make(dictationUpdated),
+      {
+        resolveAvailableEditors: () => Effect.succeed(["file-manager"]),
+        resolveFileManagerRevealKind: () =>
+          Deferred.await(dictationSent).pipe(Effect.as("file-explorer" as const)),
+      },
+    ).pipe(
+      Stream.tap((event) =>
+        event.type === "dictationUpdated"
+          ? Deferred.succeed(dictationSent, undefined)
+          : Effect.void,
+      ),
+      Stream.runCollect,
+    );
+
+    const [first, second] = Array.from(events);
+    assert.equal(first?.type, "dictationUpdated");
+    assert.equal(second?.type, "snapshot");
+    if (second?.type === "snapshot") assert.deepEqual(second.config.dictation, dictation);
   }),
 );
 

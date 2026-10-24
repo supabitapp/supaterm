@@ -223,6 +223,34 @@ microphone.
 Transcription runs on your device. Supaterm deletes the temporary audio after
 transcription or cancellation; only the message text is sent when you submit.
 
+## Dictation on web and desktop
+
+Click the microphone beside the attach button, or press `mod+shift+space`, to
+record. While recording, **Transcribe and send** queues the message and
+**Insert transcript** (the microphone button, or the shortcut again) puts the
+text where your cursor was. Escape or **Cancel** discards the recording.
+Recordings can be up to five minutes long.
+
+The environment that owns the draft transcribes the audio with one of its Codex
+accounts, signed in with the Codex CLI or an OpenAI API key. The microphone's
+tooltip names the service and account. Choose the account, or turn dictation off,
+in **Settings → Integrations → Dictation**. The microphone is hidden when that
+environment has no account that can transcribe. Recording needs HTTPS or
+`localhost` in a browser, and on macOS the desktop app asks for microphone access
+the first time.
+
+ChatGPT may reject transcription requests from Supaterm. If it does, the recording
+stays saved and that account becomes temporarily unavailable for dictation.
+Choose another available transcription account in Settings to retry.
+
+You can record while the environment is offline. A recording you stop offline
+stays in the attachment tray and transcribes once you reconnect; a voice message
+you send offline waits in the pending messages and is transcribed, then sent,
+after reconnecting. Use **Move to composer** on a pending voice message to keep
+editing it instead. If the draft changed in the meantime, or transcription failed,
+the recording stays in the tray with **Insert**, **Copy**, **Retry** and
+**Discard**. Saved recordings stay on this device until you insert or discard them.
+
 ## Queued messages
 
 On web and desktop, the composer shows **Interrupt** while the agent is working and the draft is

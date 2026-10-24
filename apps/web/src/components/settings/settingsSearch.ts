@@ -688,6 +688,25 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["xcode android studio sdk avd runtime"],
   },
   {
+    id: "dictation",
+    title: "Dictation",
+    to: "/settings/integrations",
+    scope: "environment-defaults",
+    environmentOnly: true,
+    searchTerms: [
+      "voice microphone mic speech dictate transcribe transcript record audio composer",
+    ],
+  },
+  {
+    id: "dictation-source",
+    title: "Transcription model",
+    to: "/settings/integrations",
+    targetId: "dictation",
+    scope: "environment-defaults",
+    environmentOnly: true,
+    searchTerms: ["dictation voice microphone speech dictate transcribe account chatgpt openai"],
+  },
+  {
     id: "browser-profiles",
     title: "Browser profiles",
     to: "/settings/integrations",

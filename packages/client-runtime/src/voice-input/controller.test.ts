@@ -10,7 +10,11 @@ import {
   type VoiceInputControllerDependencies,
   type VoiceRecorder,
 } from "./controller.ts";
-import type { PreparedVoiceTranscription, VoiceTranscriber } from "./transcription.ts";
+import {
+  VoiceTranscriptionError,
+  type PreparedVoiceTranscription,
+  type VoiceTranscriber,
+} from "./transcription.ts";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -636,5 +640,108 @@ describe("VoiceInputController", () => {
 
     expect(harness.recorder.record).not.toHaveBeenCalled();
     expect(harness.controller.currentState.error).toContain("background");
+  });
+
+  describe("handing off a recording", () => {
+    it("stops capture without transcribing and keeps the clip for the caller", async () => {
+      const transcribe = vi.fn(async () => "never");
+      const harness = createHarness({
+        getTranscriber: () => ({ prepare: async () => preparedTranscription(transcribe) }),
+        describeRecording: (uri) => ({ mimeType: `audio/webm;${uri}`, durationMs: 4_200 }),
+      });
+      await harness.controller.start();
+      harness.recorder.stop.mockImplementationOnce(async () => {
+        harness.recorder.uri = "blob:final";
+      });
+
+      const handoff = await harness.controller.takeRecording();
+
+      expect(handoff).toEqual({
+        uri: "blob:final",
+        mimeType: "audio/webm;blob:final",
+        durationMs: 4_200,
+        locale: "en-US",
+        capturedDraft: draft(),
+      });
+      expect(transcribe).not.toHaveBeenCalled();
+      expect(harness.controller.currentState.phase).toBe("idle");
+      expect(harness.deleted).toEqual(["file:///voice.m4a"]);
+      expect(harness.commits).toEqual([]);
+
+      await harness.controller.start();
+      harness.controller.cancel();
+      await Promise.resolve();
+      expect(harness.deleted).not.toContain("blob:final");
+    });
+
+    it("waits for a running transcription to stop and then hands off its clip", async () => {
+      const transcription = deferred<string>();
+      const entered = deferred<AbortSignal>();
+      const harness = createHarness({
+        getTranscriber: () => ({
+          prepare: async () =>
+            preparedTranscription((_uri, { signal }) => {
+              entered.resolve(signal);
+              return transcription.promise;
+            }),
+        }),
+      });
+      await harness.controller.start();
+      const stopping = harness.controller.stop();
+      const signal = await entered.promise;
+
+      const taking = harness.controller.takeRecording();
+      expect(signal.aborted).toBe(true);
+      expect(harness.controller.currentState.phase).toBe("idle");
+      transcription.resolve("late text");
+      await stopping;
+
+      await expect(taking).resolves.toMatchObject({ uri: "file:///voice.m4a" });
+      expect(harness.commits).toEqual([]);
+      expect(harness.deleted).toEqual([]);
+    });
+
+    it("returns nothing outside capture", async () => {
+      const harness = createHarness();
+      await expect(harness.controller.takeRecording()).resolves.toBeNull();
+    });
+
+    it("lets a transcriber adopt the clip instead of failing", async () => {
+      const harness = createHarness({
+        getTranscriber: () => ({
+          prepare: async () =>
+            preparedTranscription(async (_uri, { capturedDraft }) => {
+              expect(capturedDraft).toEqual(draft());
+              throw new VoiceTranscriptionError("deferred", "Saved for later.");
+            }),
+        }),
+      });
+      await harness.controller.start();
+      await harness.controller.stop();
+
+      expect(harness.controller.currentState).toEqual({
+        phase: "idle",
+        error: null,
+        errorAction: null,
+      });
+      expect(harness.deleted).toEqual([]);
+      expect(harness.commits).toEqual([]);
+    });
+
+    it("still deletes clips a transcriber did not adopt", async () => {
+      const harness = createHarness({
+        getTranscriber: () => ({
+          prepare: async () =>
+            preparedTranscription(async () => {
+              throw new VoiceTranscriptionError("transcription-failed", "Failed.");
+            }),
+        }),
+      });
+      await harness.controller.start();
+      await harness.controller.stop();
+
+      expect(harness.controller.currentState.phase).toBe("error");
+      expect(harness.deleted).toEqual(["file:///voice.m4a"]);
+    });
   });
 });

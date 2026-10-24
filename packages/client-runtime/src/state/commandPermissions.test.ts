@@ -92,6 +92,7 @@ describe("command permissions", () => {
     { method: WS_METHODS.previewReportProfiles, scope: AuthPreviewOperateScope },
     { method: ORCHESTRATION_V2_WS_METHODS.stopWorkflow, scope: AuthOrchestrationOperateScope },
     { method: WS_METHODS.pullRequestsGenerateReviewGuide, scope: AuthOrchestrationOperateScope },
+    { method: WS_METHODS.dictationTranscribe, scope: AuthOrchestrationOperateScope },
   ])("checks the destination grant for $method", ({ method, scope }) =>
     Effect.scoped(
       Effect.gen(function* () {

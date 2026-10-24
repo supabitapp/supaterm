@@ -1,7 +1,20 @@
-import { resolveThreadOutboxDispatchStep } from "@supaterm/client-runtime/thread-outbox";
+import {
+  resolveThreadOutboxDispatchStep,
+  shouldRetryThreadOutboxDelivery,
+} from "@supaterm/client-runtime/thread-outbox";
 import { createBrowserThreadOutbox, type ThreadOutboxEntry } from "./threadOutboxDelivery";
 import { scopedThreadKey, scopeThreadRef } from "@supaterm/client-runtime/environment";
-import type { StartThreadTurnInput } from "@supaterm/client-runtime/operations";
+import {
+  deriveThreadTitleSeed,
+  threadTitleTextFromPrompt,
+  type StartThreadTurnInput,
+} from "@supaterm/client-runtime/operations";
+import type { DictationHiddenReason } from "@supaterm/client-runtime/state/dictation";
+import {
+  extractVoiceSlot,
+  spliceTranscriptAt,
+  VOICE_SLOT,
+} from "@supaterm/client-runtime/voice-input";
 import { runAtomCommand, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import {
   runAttachmentUploadCycle,
@@ -11,6 +24,7 @@ import {
   CommandId,
   ChatAttachment,
   AttachmentCreateUploadUrlInput,
+  DictationSourceId,
   type EnvironmentId,
   type ScopedThreadRef,
 } from "@supaterm/contracts";
@@ -23,19 +37,23 @@ import { useSyncExternalStore } from "react";
 
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import {
+  composerTargetKey,
   DraftId,
   finalizePromotedDraftThreadByRef,
   markPromotedDraftThreadByRef,
   restoreFailedBackgroundDraftThread,
   useComposerDraftStore,
 } from "../composerDraftStore";
+import { parkPendingClip } from "../dictation/pendingClips";
+import { DictationClipFailure, transcribeDictationClip } from "../dictation/transcribeClip";
 import { attachmentEnvironment } from "./attachments";
+import { readDictationAvailability } from "./dictation";
 import { environmentPresentations } from "./presentation";
 import { environmentShell } from "./shell";
 import { environmentServerConfigsAtom } from "./server";
 import { directThreadEnvironment } from "./threadCommands";
 import { readPreparedConnection } from "./session";
-import { OutboxTurn, OutboxAttachment } from "./threadOutboxSchema";
+import { OutboxTurn, OutboxAttachment, OutboxTurnVoice } from "./threadOutboxSchema";
 import { browserThreadOutboxStorage } from "./threadOutboxStorage";
 import { randomUUID, newThreadId } from "../lib/utils";
 import { assetEnvironment } from "./assets";
@@ -44,6 +62,7 @@ import { fetchVcsRefs } from "./vcs";
 const decodeUpload = Schema.decodeUnknownSync(AttachmentCreateUploadUrlInput);
 const decodeAttachment = Schema.decodeSync(ChatAttachment);
 const decodeTurn = Schema.decodeSync(OutboxTurn);
+const isDictationSourceId = Schema.is(DictationSourceId);
 
 export type PendingThreadTurn = ThreadOutboxEntry<OutboxTurn>;
 
@@ -131,6 +150,79 @@ export const threadOutboxDeliverableAtom = Atom.family((environmentId: Environme
   Atom.make((get) => isThreadOutboxDeliverable(environmentId, get)),
 );
 
+const DICTATION_UNAVAILABLE = {
+  disabled: "Dictation is turned off for this environment.",
+  unsupported: "This environment can't transcribe recordings.",
+  "no-capture": "This environment can't transcribe recordings.",
+  forbidden: "This connection can't use dictation.",
+  "no-source": "No transcription model is available.",
+} satisfies Record<Exclude<DictationHiddenReason, "unknown">, string>;
+
+function noSpeechDetected() {
+  return new DictationClipFailure("empty", "No speech was detected. Nothing was sent.");
+}
+
+async function transcribeOutboxVoice(
+  payload: OutboxTurn,
+  voice: typeof OutboxTurnVoice.Type,
+  signal: AbortSignal,
+) {
+  if (voice.bytes === null)
+    throw new DictationClipFailure("terminal", "The recording is no longer available.");
+  const availability = readDictationAvailability(
+    payload.environmentId,
+    payload.input.modelSelection?.instanceId ?? null,
+  );
+  let sourceId: DictationSourceId;
+  if (availability.kind === "available") sourceId = availability.source.id;
+  else if (availability.reason !== "unknown")
+    throw new DictationClipFailure("terminal", DICTATION_UNAVAILABLE[availability.reason]);
+  else if (voice.sourceId !== null && isDictationSourceId(voice.sourceId))
+    sourceId = voice.sourceId;
+  else throw new DictationClipFailure("transient", "Transcribes once connected.");
+  const result = await transcribeDictationClip({
+    environmentId: payload.environmentId,
+    sourceId,
+    clip: {
+      blob: voice.bytes,
+      mimeType: voice.mimeType,
+      durationMs: voice.durationMs,
+      locale: voice.locale,
+    },
+    signal,
+  }).catch((error: unknown) => {
+    throw error instanceof DictationClipFailure && error.kind === "empty"
+      ? noSpeechDetected()
+      : error;
+  });
+  return result.text;
+}
+
+async function prepareOutboxVoice(payload: OutboxTurn, signal: AbortSignal): Promise<OutboxTurn> {
+  const { voice, ...turn } = payload;
+  if (!voice) return payload;
+  const transcript = voice.transcript ?? (await transcribeOutboxVoice(payload, voice, signal));
+  const { message, bootstrap } = turn.input;
+  const text = spliceTranscriptAt(message.text, voice.insertAt, transcript, voice.locale ?? "en");
+  if (text === null) throw noSpeechDetected();
+
+  const title =
+    threadTitleTextFromPrompt(message.text).length === 0
+      ? deriveThreadTitleSeed({ text, attachments: turn.localAttachments })
+      : null;
+  return {
+    ...turn,
+    input: {
+      ...turn.input,
+      message: { ...message, text },
+      ...(title !== null && turn.input.titleSeed !== undefined ? { titleSeed: title } : {}),
+      ...(title !== null && bootstrap?.createThread
+        ? { bootstrap: { ...bootstrap, createThread: { ...bootstrap.createThread, title } } }
+        : {}),
+    },
+  };
+}
+
 export const webThreadOutbox = createBrowserThreadOutbox<OutboxTurn>({
   storage: browserThreadOutboxStorage,
   registry: appAtomRegistry,
@@ -152,7 +244,15 @@ export const webThreadOutbox = createBrowserThreadOutbox<OutboxTurn>({
   },
   canDeliver: (entry) =>
     isThreadOutboxDeliverable(entry.payload.environmentId, (atom) => appAtomRegistry.get(atom)),
+  needsPreparation: (payload) => payload.voice !== undefined,
+  prepare: (entry, signal) => prepareOutboxVoice(entry.payload, signal),
+  shouldRetryPreparation: (error) =>
+    error instanceof DictationClipFailure
+      ? error.kind === "transient"
+      : shouldRetryThreadOutboxDelivery(error),
   deliver: async (entry, savePayload) => {
+    if (entry.payload.voice)
+      throw new Error("The voice message was not transcribed. Retry to transcribe it.");
     let payload = { ...entry.payload, localAttachments: [...entry.payload.localAttachments] };
     const { environmentId } = payload;
     const config = appAtomRegistry.get(environmentServerConfigsAtom).get(environmentId);
@@ -298,6 +398,12 @@ export const webThreadOutbox = createBrowserThreadOutbox<OutboxTurn>({
   },
 });
 
+function titleWithoutVoiceSlot(title: string) {
+  return title.includes(VOICE_SLOT)
+    ? deriveThreadTitleSeed({ text: title.replaceAll(VOICE_SLOT, ""), attachments: [] })
+    : title;
+}
+
 function prepareThreadOutboxTurn(target: {
   readonly environmentId: EnvironmentId;
   readonly input: StartThreadTurnInput;
@@ -306,16 +412,35 @@ function prepareThreadOutboxTurn(target: {
   readonly branch?: string;
   readonly draftId?: DraftId;
   readonly background?: boolean;
+
+  readonly voice?: Omit<typeof OutboxTurnVoice.Type, "insertAt">;
 }) {
   const commandId = target.input.commandId ?? CommandId.make(randomUUID());
+  const { text, insertAt } = extractVoiceSlot(target.input.message.text);
+  const { titleSeed, bootstrap } = target.input;
+  const createThread = bootstrap?.createThread;
   const payload = decodeTurn({
     environmentId: target.environmentId,
-    input: { ...target.input, commandId },
+    input: {
+      ...target.input,
+      commandId,
+      message: { ...target.input.message, text },
+      ...(titleSeed === undefined ? {} : { titleSeed: titleWithoutVoiceSlot(titleSeed) }),
+      ...(createThread
+        ? {
+            bootstrap: {
+              ...bootstrap,
+              createThread: { ...createThread, title: titleWithoutVoiceSlot(createThread.title) },
+            },
+          }
+        : {}),
+    },
     localAttachments: target.localAttachments ?? [],
     ...(target.pendingWorktree ? { pendingWorktree: target.pendingWorktree } : {}),
     ...(target.branch === undefined ? {} : { branch: target.branch }),
     ...(target.draftId === undefined ? {} : { draftId: target.draftId }),
     ...(target.background === undefined ? {} : { background: target.background }),
+    ...(target.voice ? { voice: { ...target.voice, insertAt } } : {}),
   });
   return {
     id: payload.input.message.messageId,
@@ -341,6 +466,40 @@ export async function cancelThreadOutboxTurn(entry: PendingThreadTurn) {
     ? await webThreadOutbox.cancelWithFollowing(entry.id)
     : await webThreadOutbox.cancel(entry.id);
   if (!cancelled) throw new Error("Delivery has already started.");
+}
+
+export function threadOutboxComposerTarget(entry: PendingThreadTurn) {
+  if (entry.payload.draftId) return DraftId.make(entry.payload.draftId);
+  if (entry.payload.input.bootstrap?.createThread) return null;
+  return scopeThreadRef(entry.payload.environmentId, entry.payload.input.threadId);
+}
+
+export async function moveThreadOutboxTurnToComposer(entry: PendingThreadTurn) {
+  const target = threadOutboxComposerTarget(entry);
+  if (target === null) throw new Error("This message has no draft to return to.");
+  await cancelThreadOutboxTurn(entry);
+  const { payload } = entry;
+  const typed = payload.input.message.text.trim();
+  if (typed.length > 0) {
+    const store = useComposerDraftStore.getState();
+    const existing = store.getComposerDraft(target)?.prompt.trimEnd() ?? "";
+    store.setPrompt(target, existing.length > 0 ? `${existing}\n\n${typed}` : typed);
+  }
+  const { voice } = payload;
+  if (!voice?.bytes) return;
+  await parkPendingClip({
+    ownerKey: composerTargetKey(target),
+    environmentId: payload.environmentId,
+    threadInstanceId: payload.input.modelSelection?.instanceId ?? null,
+    blob: voice.bytes,
+    mimeType: voice.mimeType,
+    durationMs: voice.durationMs,
+    locale: voice.locale,
+    capturedDraft: null,
+    ...(voice.transcript === undefined
+      ? { status: "waiting" as const }
+      : { status: "ready" as const, transcript: voice.transcript }),
+  });
 }
 
 /** Rejected thread creation needs fresh identifiers; uncertain sends cannot be edited. */

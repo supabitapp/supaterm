@@ -93,3 +93,29 @@ describe("applyServerConfigProjection settingsUpdated", () => {
     expect(nextSettings.providerInstances.claude.config.launchArgs).toBe("--verbose");
   });
 });
+
+describe("applyServerConfigProjection dictationUpdated", () => {
+  it("replaces the source catalog and keeps unchanged descriptors", () => {
+    const work = { id: "codex:work", eligible: true };
+    const current = Option.some({
+      config: { dictation: { sources: [work] } } as unknown as ServerConfig,
+      latestEvent: {} as ServerConfigStreamEvent,
+      source: "live" as const,
+    });
+    const next = applyServerConfigProjection(current, {
+      version: 1,
+      type: "dictationUpdated",
+      payload: { sources: [{ ...work }, { id: "codex:home", eligible: false }] },
+    } as unknown as ServerConfigStreamEvent);
+    const sources = Option.getOrThrow(next).config.dictation?.sources ?? [];
+    expect(sources.map((source) => source.id)).toEqual(["codex:work", "codex:home"]);
+    expect(sources[0]).toBe(work);
+
+    const emptied = applyServerConfigProjection(next, {
+      version: 1,
+      type: "dictationUpdated",
+      payload: { sources: [] },
+    } as unknown as ServerConfigStreamEvent);
+    expect(Option.getOrThrow(emptied).config.dictation?.sources).toEqual([]);
+  });
+});

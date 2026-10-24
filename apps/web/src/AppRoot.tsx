@@ -12,6 +12,7 @@ import { DesktopUpdateRestartScreen } from "./components/desktop/DesktopUpdateRe
 import { appAtomRegistry, AppAtomRegistryProvider } from "./rpc/atomRegistry";
 import type { AppRouter } from "./router";
 import { ThreadOutboxCoordinator } from "./components/ThreadOutboxCoordinator";
+import { DictationCoordinator } from "./components/DictationCoordinator";
 
 /**
  * The Electron browser host intentionally sits outside the router so its
@@ -33,6 +34,7 @@ export function AppRoot({ router }: { readonly router: AppRouter }) {
     <AppAtomRegistryProvider>
       <RouterProvider router={router} />
       <ThreadOutboxCoordinator />
+      <DictationCoordinator />
       <ElectronBrowserHost />
       <BrowserProfileReporter />
       <QuitHoldOverlay />

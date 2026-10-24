@@ -8,6 +8,7 @@ import {
   ThreadId,
   TrimmedNonEmptyString,
 } from "./baseSchemas.ts";
+import { DictationCapability } from "./transcription.ts";
 
 export const ORCHESTRATION_PROTOCOL_VERSION = 2;
 export const ORCHESTRATION_PROTOCOL_VERSION_TEXT = "2";
@@ -96,6 +97,7 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
       servers the desktop app does not supervise, where clients tell the user
       to update the app on that machine. */
   desktopAppUpdate: Schema.optionalKey(Schema.Boolean),
+  dictation: Schema.optionalKey(DictationCapability),
 });
 export type ExecutionEnvironmentCapabilities = typeof ExecutionEnvironmentCapabilities.Type;
 

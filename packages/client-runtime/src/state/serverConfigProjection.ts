@@ -129,6 +129,15 @@ export function applyServerConfigProjection(
         latestEvent: event,
         source: "live",
       }));
+    case "dictationUpdated":
+      return Option.map(current, (projection) => ({
+        config: {
+          ...projection.config,
+          dictation: reuseUnchanged(projection.config.dictation, event.payload),
+        },
+        latestEvent: event,
+        source: "live",
+      }));
     case "unknown-event":
       return Option.none();
   }

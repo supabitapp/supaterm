@@ -9,6 +9,8 @@ import { makeCodexTextGeneration } from "../../textGeneration/CodexTextGeneratio
 import * as ProviderHost from "@supaterm/provider-core/server/ProviderHost";
 import { chatGptModels } from "../CodexChatGptModels.ts";
 import { makeCodexManagedRuntime } from "../CodexManagedRuntime.ts";
+import { makeManagedCodexTranscription } from "../CodexTranscription.ts";
+import { withDevelopmentTranscription } from "../../dictation/developmentTranscription.ts";
 import { ProviderDriverError } from "../Errors.ts";
 import { createCodexAdapterV2 } from "../../orchestration-v2/Adapters/CodexAdapterV2.ts";
 import {
@@ -282,6 +284,9 @@ export const makeManagedCodexProvider = Effect.fn("makeManagedCodexProvider")(fu
     snapshot,
     orchestrationAdapter,
     textGeneration,
+    transcription: yield* withDevelopmentTranscription(
+      makeManagedCodexTranscription(snapshot.getSnapshot),
+    ),
     auth: runtime.auth.controller,
     snapshotForCwd: (cwd: string) =>
       enabled

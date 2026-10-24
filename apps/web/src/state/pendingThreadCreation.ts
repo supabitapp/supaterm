@@ -24,7 +24,8 @@ function presentPendingThreadCreation(entry: PendingThreadTurn) {
     environmentId,
     threadId: input.threadId,
     messageId: input.message.messageId,
-    text: input.message.text,
+
+    text: input.message.text || (entry.payload.voice ? "Voice message" : ""),
     context: input.message.context,
     createdAt: entry.createdAt,
     entry,

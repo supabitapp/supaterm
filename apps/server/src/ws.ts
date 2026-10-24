@@ -159,6 +159,7 @@ import * as ThreadSearch from "./orchestration-v2/ThreadSearch.ts";
 import * as OrchestrationEventStore from "./persistence/OrchestrationEventStore.ts";
 import { userFacingDispatchErrorMessage } from "./orchestration-v2/UserFacingErrors.ts";
 import * as ProviderRegistry from "./provider/ProviderRegistry.ts";
+import * as Dictation from "./dictation/Dictation.ts";
 import * as ProviderInstanceRegistry from "./provider/ProviderInstanceRegistry.ts";
 import * as AcpRegistrySupport from "@supaterm/provider-acp-registry/server/AcpRegistrySupport";
 import * as AcpRegistryRuntimeCoordinator from "@supaterm/provider-acp-registry/server/AcpRegistryRuntimeCoordinator";
@@ -347,6 +348,8 @@ export const withLateEditorConfig = <E, R>(
             return [{ ...current, providers: event.payload.providers }, [event]];
           case "settingsUpdated":
             return [{ ...current, settings: event.payload.settings }, [event]];
+          case "dictationUpdated":
+            return [{ ...current, dictation: event.payload }, [event]];
           case "relayAdvertisementUpdated":
             return [
               {
@@ -1261,6 +1264,7 @@ export const layerWsRpc = (
       const modelManifest = yield* ModelManifest.ModelManifest;
       const providerLatestVersions = yield* ProviderLatestVersions.ProviderLatestVersions;
       const providerInstances = yield* ProviderInstanceRegistry.ProviderInstanceRegistry;
+      const dictation = yield* Dictation.Dictation;
       const acpRegistryCatalog = yield* AcpRegistrySupport.AcpRegistryCatalog;
       const acpRegistryRuntimeCoordinator =
         yield* AcpRegistryRuntimeCoordinator.AcpRegistryRuntimeCoordinator;
@@ -1705,6 +1709,7 @@ export const layerWsRpc = (
           }),
           newProjectsRoot: managedFolders.namedProjectsRoot,
           ...(lastEventLoopStall === undefined ? {} : { lastEventLoopStall }),
+          dictation: { sources: yield* dictation.sources },
         };
       });
 
@@ -2646,6 +2651,7 @@ export const layerWsRpc = (
           ),
         [WS_METHODS.attachmentsCreateUploadUrl]: (input) => issueAttachmentUploadUrl(input),
         [WS_METHODS.attachmentsDelete]: (input) => deletePendingAttachment(input.attachmentId),
+        [WS_METHODS.dictationTranscribe]: (input) => dictation.transcribe(input),
         [WS_METHODS.agentSessionsScan]: () => agentSessionScanner.scan,
         [WS_METHODS.agentSessionsImport]: (input) =>
           agentSessionImporter.importRecentAgentThreads(input),
@@ -2957,6 +2963,22 @@ export const layerWsRpc = (
                 relayAccess.advertisements,
               );
 
+              const dictationUpdates = Stream.concat(
+                Stream.fromEffect(dictation.sources),
+                dictation.streamSources,
+              ).pipe(
+                (updates) => Stream.concat(rpcInitialItems([config.dictation.sources]), updates),
+                Stream.changesWith(
+                  (previous, next) => JSON.stringify(previous) === JSON.stringify(next),
+                ),
+                Stream.drop(1),
+                Stream.map((sources) => ({
+                  version: 1 as const,
+                  type: "dictationUpdated" as const,
+                  payload: { sources },
+                })),
+              );
+
               const liveUpdates = Stream.mergeAll<ServerConfigStreamEvent, never, never>(
                 [
                   keybindingsUpdates,
@@ -2964,6 +2986,7 @@ export const layerWsRpc = (
                   settingsUpdates,
                   environmentThemeUpdates,
                   relayAdvertisements,
+                  dictationUpdates,
                 ],
                 { concurrency: "unbounded" },
               );

@@ -6,6 +6,7 @@ import {
   DesktopThemeSchema,
   EDITORS,
   EditorId,
+  MicrophoneAccessSchema,
   PickedThemeFileSchema,
   PickFolderOptionsSchema,
   PRIMARY_LOCAL_ENVIRONMENT_ID,
@@ -41,6 +42,10 @@ import * as Electron from "electron";
 import * as MacPermissions from "../../permissions/MacPermissions.ts";
 import * as MacInputMonitoring from "../../permissions/MacInputMonitoring.ts";
 import { safariPermissionCheck } from "../../preview/BrowserImport/SafariPermission.ts";
+import {
+  isSystemMicrophoneGranted,
+  requestSystemMicrophoneAccess,
+} from "../../window/MainWindowPermissions.ts";
 import * as IpcChannels from "../channels.ts";
 import * as DesktopIpc from "../DesktopIpc.ts";
 import {
@@ -433,8 +438,19 @@ export const checkSystemPermission = DesktopIpc.makeIpcMethod({
   result: Schema.Boolean,
   handler: Effect.fn("desktop.ipc.window.checkSystemPermission")(function* (pane) {
     const environment = yield* DesktopEnvironment.DesktopEnvironment;
+    if (pane === "microphone") return isSystemMicrophoneGranted(environment.platform);
     if (environment.platform !== "darwin") return false;
     const check = yield* systemPermissionCheck(pane);
     return yield* Effect.promise(check);
+  }),
+});
+
+export const requestMicrophoneAccess = DesktopIpc.makeIpcMethod({
+  channel: IpcChannels.REQUEST_MICROPHONE_ACCESS_CHANNEL,
+  payload: Schema.Void,
+  result: MicrophoneAccessSchema,
+  handler: Effect.fn("desktop.ipc.window.requestMicrophoneAccess")(function* () {
+    const environment = yield* DesktopEnvironment.DesktopEnvironment;
+    return yield* Effect.promise(() => requestSystemMicrophoneAccess(environment.platform));
   }),
 });

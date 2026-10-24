@@ -794,6 +794,8 @@ const layerEnvironmentOwnedDataCleanup = Layer.succeed(
       Effect.promise(async () => {
         const { clearThreadOutboxEnvironment } = await import("../state/threadOutbox");
         await clearThreadOutboxEnvironment(environmentId);
+        const { clearPendingClipsEnvironment } = await import("../dictation/pendingClips");
+        await clearPendingClipsEnvironment(environmentId);
         clearComposerDraftsEnvironment(environmentId);
       }),
   }),

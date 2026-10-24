@@ -54,6 +54,8 @@ export const CLIENT_GUARDED_RPC_SCOPES = {
   [WS_METHODS.orchestrationSkillsUninstall]: AuthProvidersManageScope,
   [WS_METHODS.mcpAppsCallTool]: AuthOrchestrationOperateScope,
   [WS_METHODS.mcpAppsUpdateModelContext]: AuthOrchestrationOperateScope,
+
+  [WS_METHODS.dictationTranscribe]: AuthOrchestrationOperateScope,
   [WS_METHODS.previewReportProfiles]: AuthPreviewOperateScope,
   [ORCHESTRATION_V2_WS_METHODS.stopWorkflow]: AuthOrchestrationOperateScope,
 } as const;

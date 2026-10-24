@@ -270,6 +270,7 @@ export function resolveMacBundleInfoPlistStrings(executableName) {
     CFBundleIconName: MAC_ICON_NAME,
     NSScreenCaptureUsageDescription:
       "Supaterm captures the active window when you use the snapshot shortcut.",
+    NSMicrophoneUsageDescription: "Supaterm uses your microphone to dictate messages and commands.",
     NSDocumentsFolderUsageDescription: "Supaterm reads project files you open in the desktop app.",
   };
 }

@@ -5,7 +5,15 @@ import { describe, expect, it } from "vite-plus/test";
 import { OutboxTurn, StoredOutboxEntry, encodeStoredOutboxEntry } from "./threadOutboxSchema";
 
 const decodeStored = Schema.decodeSync(StoredOutboxEntry);
-const { pendingWorktree: _, ...legacyPayloadFields } = OutboxTurn.fields;
+const { pendingWorktree: _, voice: _voice, ...legacyPayloadFields } = OutboxTurn.fields;
+const { voice: _previousVoice, ...previousPayloadFields } = OutboxTurn.fields;
+const decodePreviousBuild = Schema.decodeUnknownSync(
+  Schema.Struct({
+    ...StoredOutboxEntry.fields,
+    schemaVersion: Schema.Literals([1, 2]),
+    payload: Schema.Struct(previousPayloadFields),
+  }),
+);
 const decodeLegacy = Schema.decodeUnknownSync(
   Schema.Struct({
     ...StoredOutboxEntry.fields,
@@ -85,6 +93,30 @@ describe("stored thread outbox compatibility", () => {
     });
     expect(restored.payload.input.message.text).toBe("Offline task");
     expect(restored.payload.pendingWorktree).toBeUndefined();
+  });
+
+  it("marks only voice messages with the version older tabs refuse to read", async () => {
+    const voice = {
+      clipId: "clip",
+      bytes: new Blob(["audio"], { type: "audio/webm" }),
+      mimeType: "audio/webm",
+      durationMs: 1_500,
+      locale: "en-US",
+      insertAt: 4,
+      capturedAt: "2026-10-09T00:00:00Z",
+      sourceId: "codex:codex",
+    };
+    const saved = encodeStoredOutboxEntry({
+      ...queuedWorktree(),
+      payload: { ...queuedWorktree().payload, voice },
+    });
+    expect(saved.schemaVersion).toBe(3);
+    const restored = decodeStored(saved);
+    expect(restored.payload.voice).toMatchObject({ clipId: "clip", insertAt: 4 });
+    expect(await restored.payload.voice?.bytes?.text()).toBe("audio");
+    expect(() => decodePreviousBuild(saved)).toThrow();
+    expect(decodePreviousBuild({ ...saved, schemaVersion: 2 }).payload).not.toHaveProperty("voice");
+    expect(encodeStoredOutboxEntry(queuedWorktree()).schemaVersion).toBe(2);
   });
 
   it.each([false, true])(

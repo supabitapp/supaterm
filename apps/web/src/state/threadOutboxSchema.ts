@@ -76,6 +76,18 @@ export const OutboxAttachment = Schema.Struct({
   uploaded: Schema.optionalKey(ChatAttachment),
 });
 
+export const OutboxTurnVoice = Schema.Struct({
+  clipId: Schema.String,
+  bytes: Schema.NullOr(Schema.instanceOf(Blob)),
+  mimeType: Schema.String,
+  durationMs: Schema.Number,
+  locale: Schema.NullOr(Schema.String),
+  insertAt: Schema.Number,
+  capturedAt: Schema.String,
+  sourceId: Schema.NullOr(Schema.String),
+  transcript: Schema.optionalKey(Schema.String),
+});
+
 export const OutboxTurn = Schema.Struct({
   environmentId: EnvironmentId,
   input: OutboxTurnInput,
@@ -90,11 +102,12 @@ export const OutboxTurn = Schema.Struct({
   branch: Schema.optionalKey(Schema.String),
   draftId: Schema.optionalKey(Schema.String),
   background: Schema.optionalKey(Schema.Boolean),
+  voice: Schema.optionalKey(OutboxTurnVoice),
 });
 export type OutboxTurn = typeof OutboxTurn.Type;
 
 export const StoredOutboxEntry = Schema.Struct({
-  schemaVersion: Schema.Literals([1, 2]),
+  schemaVersion: Schema.Literals([1, 2, 3]),
   id: Schema.String,
   scope: Schema.String,
   createdAt: Schema.String,
@@ -112,5 +125,8 @@ export const StoredOutboxEntry = Schema.Struct({
 export function encodeStoredOutboxEntry(
   entry: Omit<typeof StoredOutboxEntry.Type, "schemaVersion">,
 ) {
-  return { schemaVersion: 2 as const, ...entry };
+  return {
+    schemaVersion: entry.payload.voice === undefined ? (2 as const) : (3 as const),
+    ...entry,
+  };
 }

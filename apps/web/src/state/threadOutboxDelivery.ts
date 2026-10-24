@@ -55,6 +55,10 @@ export function createBrowserThreadOutbox<Payload>(options: {
     savePayload: (payload: Payload) => Promise<void>,
   ) => Promise<void>;
   readonly shouldRetry?: (error: unknown) => boolean;
+
+  readonly needsPreparation?: (payload: Payload) => boolean;
+  readonly prepare?: (entry: ThreadOutboxEntry<Payload>, signal: AbortSignal) => Promise<Payload>;
+  readonly shouldRetryPreparation?: (error: unknown) => boolean;
 }) {
   const queueOrder = (a: ThreadOutboxEntry<Payload>, b: ThreadOutboxEntry<Payload>) =>
     a.createdAt.localeCompare(b.createdAt) || a.position - b.position;
@@ -79,6 +83,8 @@ export function createBrowserThreadOutbox<Payload>(options: {
   let renderSnapshot = queueSnapshot;
   const listeners = new Set<() => void>();
   const sending = new Set<string>();
+  const preparing = new Map<string, AbortController>();
+  const interrupting = new Map<string, number>();
   let loadPromise: Promise<void> | null = null;
   let loaded = false;
   let drainPromise: Promise<number | null> | null = null;
@@ -191,6 +197,18 @@ export function createBrowserThreadOutbox<Payload>(options: {
     );
   }
 
+  async function interrupt<A>(id: string, change: () => Promise<A>): Promise<A> {
+    interrupting.set(id, (interrupting.get(id) ?? 0) + 1);
+    preparing.get(id)?.abort();
+    try {
+      return await change();
+    } finally {
+      const remaining = (interrupting.get(id) ?? 1) - 1;
+      if (remaining > 0) interrupting.set(id, remaining);
+      else interrupting.delete(id);
+    }
+  }
+
   function mutate(
     id: string,
     change: (entry: ThreadOutboxEntry<Payload>) => ThreadOutboxEntry<Payload> | null,
@@ -204,18 +222,20 @@ export function createBrowserThreadOutbox<Payload>(options: {
   }
 
   function edit(id: string, payload: Payload, scope?: string) {
-    return mutate(id, (entry) => ({
-      ...entry,
-      ...(scope === undefined ? {} : { scope }),
-      payload,
-      status: "pending",
-      attempted: false,
-      attempts: 0,
-      retryAt: 0,
-      error: null,
-      paused: false,
-      pauseUntil: 0,
-    }));
+    return interrupt(id, () =>
+      mutate(id, (entry) => ({
+        ...entry,
+        ...(scope === undefined ? {} : { scope }),
+        payload,
+        status: "pending",
+        attempted: false,
+        attempts: 0,
+        retryAt: 0,
+        error: null,
+        paused: false,
+        pauseUntil: 0,
+      })),
+    );
   }
 
   /**
@@ -223,7 +243,16 @@ export function createBrowserThreadOutbox<Payload>(options: {
    * along. Holding the source scope keeps the drain from sending any of them to
    * the old thread between the writes.
    */
-  async function editWithFollowing(
+  function editWithFollowing(
+    id: string,
+    payload: Payload,
+    scope: string,
+    retarget: (payload: Payload) => Payload,
+  ): Promise<boolean> {
+    return interrupt(id, () => moveWithFollowing(id, payload, scope, retarget));
+  }
+
+  async function moveWithFollowing(
     id: string,
     payload: Payload,
     scope: string,
@@ -243,28 +272,97 @@ export function createBrowserThreadOutbox<Payload>(options: {
         await mutate(entry.id, (live) => ({ ...live, scope, payload: retarget(live.payload) }));
       return true;
     });
-    return moved === "moved" ? editWithFollowing(id, payload, scope, retarget) : (moved ?? false);
+    return moved === "moved" ? moveWithFollowing(id, payload, scope, retarget) : (moved ?? false);
   }
 
   /** Cancels an entry and the entries queued behind it, those first so none is left at the head. */
   function cancelWithFollowing(id: string) {
-    return withChangeableEntry(id, async (live) => {
-      for (const entry of queuedBehind(live)) await remove(entry.id);
-      await remove(id);
-      return true;
-    });
+    return interrupt(id, () =>
+      withChangeableEntry(id, async (live) => {
+        for (const entry of queuedBehind(live)) await remove(entry.id);
+        await remove(id);
+        return true;
+      }),
+    );
   }
 
   function pause(id: string, paused: boolean) {
-    return mutate(id, (entry) => ({
-      ...entry,
-      paused,
-      pauseUntil: paused ? options.now() + 60_000 : 0,
-    }));
+    return interrupt(id, () =>
+      mutate(id, (entry) => ({
+        ...entry,
+        paused,
+        pauseUntil: paused ? options.now() + 60_000 : 0,
+      })),
+    );
   }
 
   function cancel(id: string) {
-    return mutate(id, () => null);
+    return interrupt(id, () => mutate(id, () => null));
+  }
+
+  async function prepareHead(id: string, scope: string): Promise<{ next: number | null } | null> {
+    const { needsPreparation, prepare } = options;
+    const head = getEntries().find((entry) => entry.id === id && entry.scope === scope);
+    if (
+      !needsPreparation ||
+      !prepare ||
+      !head ||
+      head.status !== "pending" ||
+      head.attempted ||
+      (head.paused && head.pauseUntil > options.now()) ||
+      head.retryAt > options.now() ||
+      !options.canDeliver(head) ||
+      !needsPreparation(head.payload)
+    )
+      return null;
+    if (interrupting.has(id)) return { next: options.now() + 1_000 };
+    const messageId = MessageId.make(id);
+    const revision = manager.revisionOf(messageId);
+    const controller = new AbortController();
+    preparing.set(id, controller);
+    notify();
+    let outcome: { readonly payload: Payload } | { readonly error: unknown };
+    try {
+      outcome = { payload: await prepare(head, controller.signal) };
+    } catch (error) {
+      outcome = { error };
+    } finally {
+      preparing.delete(id);
+      notify();
+    }
+
+    if (controller.signal.aborted || interrupting.has(id)) return { next: options.now() };
+    const committed = await options.storage.withLock(`message:${id}`, async () => {
+      if (interrupting.has(id)) return { next: options.now() };
+      await reload();
+      const live = getEntries().find((entry) => entry.id === id);
+      if (!live || live.status !== "pending" || manager.revisionOf(messageId) !== revision)
+        return { next: options.now() };
+      if ("payload" in outcome) {
+        const prepared = { ...live, payload: outcome.payload, error: null };
+        return (await mutation(manager.update(prepared, revision)))
+          ? ("ready" as const)
+          : { next: options.now() };
+      }
+      const retry = (
+        options.shouldRetryPreparation ??
+        options.shouldRetry ??
+        shouldRetryThreadOutboxDelivery
+      )(outcome.error);
+      const error = outcome.error instanceof Error ? outcome.error.message : String(outcome.error);
+      const failed: ThreadOutboxEntry<Payload> = retry
+        ? {
+            ...live,
+            attempts: live.attempts + 1,
+            retryAt: options.now() + threadOutboxRetryDelayMs(live.attempts + 1),
+            error,
+          }
+        : { ...live, status: "failed", error };
+      await mutation(manager.update(failed, revision));
+      return { next: retry ? failed.retryAt : null };
+    });
+    if (committed === "ready") return null;
+    return committed ?? { next: options.now() + 1_000 };
   }
 
   async function deliverScope(scope: string): Promise<number | null> {
@@ -277,6 +375,8 @@ export function createBrowserThreadOutbox<Payload>(options: {
       if (!candidate) {
         return { next: null };
       }
+      const prepared = await prepareHead(candidate.id, scope);
+      if (prepared !== null) return prepared;
       const messageLock = await options.storage.withLock(`message:${candidate.id}`, async () => {
         await reload();
         const head = getEntries().find(
@@ -390,6 +490,7 @@ export function createBrowserThreadOutbox<Payload>(options: {
       }
     },
     isSending: (id: string) => sending.has(id),
+    isPreparing: (id: string) => preparing.has(id),
     subscribe: (listener: () => void) => {
       listeners.add(listener);
       const unsubscribe = manager.subscribe(listener);

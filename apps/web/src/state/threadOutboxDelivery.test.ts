@@ -9,15 +9,34 @@ import {
   type BrowserThreadOutboxStorage,
 } from "./threadOutboxDelivery";
 
-function deferred() {
-  let resolve = () => {};
-  const promise = new Promise<void>((complete) => {
+function deferred<A = void>() {
+  let resolve: (value: A) => void = () => {};
+  const promise = new Promise<A>((complete) => {
     resolve = complete;
   });
   return { promise, resolve };
 }
 
-type Payload = { commandId: string; text: string; bytes: string; threadId: string };
+type Payload = {
+  commandId: string;
+  text: string;
+  bytes: string;
+  threadId: string;
+  voice?: string;
+};
+
+class PreparationFailure extends Error {
+  constructor(
+    message: string,
+    readonly transient: boolean,
+  ) {
+    super(message);
+  }
+}
+
+function transcribed({ voice, ...payload }: Payload): Payload {
+  return { ...payload, text: `${payload.text} ${voice}` };
+}
 
 function harness() {
   const records = new Map<string, ThreadOutboxEntry<Payload>>();
@@ -51,6 +70,9 @@ function harness() {
   const deliver = vi.fn(async (entry: ThreadOutboxEntry<Payload>) => {
     delivered.push(entry);
   });
+  const prepare = vi.fn(async (entry: ThreadOutboxEntry<Payload>, _signal: AbortSignal) =>
+    transcribed(entry.payload),
+  );
   const create = () =>
     createBrowserThreadOutbox({
       registry: AtomRegistry.make(),
@@ -62,11 +84,15 @@ function harness() {
       now: () => now,
       canDeliver: () => online,
       deliver,
+      needsPreparation: (payload) => payload.voice !== undefined,
+      prepare,
+      shouldRetryPreparation: (error) => error instanceof PreparationFailure && error.transient,
     });
   return {
     records,
     storage,
     deliver,
+    prepare,
     delivered,
     create,
     connect: () => {
@@ -85,6 +111,11 @@ function message(id: string, scope = "environment:thread", createdAt = "2026-10-
     createdAt,
     payload: { commandId: `command:${id}`, text: id, bytes: `attachment:${id}`, threadId: scope },
   };
+}
+
+function voiceMessage(id: string) {
+  const queued = message(id);
+  return { ...queued, payload: { ...queued.payload, voice: "transcript" } };
 }
 
 describe("durable thread outbox", () => {
@@ -405,4 +436,135 @@ describe("durable thread outbox", () => {
     expect(h.delivered.map((entry) => entry.id)).toEqual(["first", "edit"]);
     expect(h.delivered[1]?.payload.text).toBe("edited while sending");
   });
+
+  it("saves the transcribed message before delivery sees it", async () => {
+    const h = harness();
+    const outbox = h.create();
+    h.connect();
+    await outbox.enqueue(voiceMessage("prompt"));
+    const expected = transcribed(voiceMessage("prompt").payload);
+    h.deliver.mockImplementationOnce(async (entry) => {
+      expect(h.records.get("prompt")?.payload).toEqual(expected);
+      h.delivered.push(entry);
+    });
+    await outbox.drain();
+    expect(vi.mocked(h.storage.write).mock.calls[0]?.[0]).toMatchObject({
+      payload: expected,
+      attempted: false,
+      error: null,
+    });
+    expect(h.delivered.map((entry) => entry.payload)).toEqual([expected]);
+    expect(h.records.size).toBe(0);
+  });
+
+  it("retries a transient transcription failure without marking the message attempted", async () => {
+    const h = harness();
+    const first = h.create();
+    h.connect();
+    await first.enqueue(voiceMessage("prompt"));
+    h.prepare.mockRejectedValueOnce(new PreparationFailure("Transcribes once connected.", true));
+    expect(await first.drain()).toBe(1_000);
+    expect(h.records.get("prompt")).toMatchObject({
+      status: "pending",
+      attempted: false,
+      attempts: 1,
+      retryAt: 1_000,
+      error: "Transcribes once connected.",
+    });
+    expect(await first.drain()).toBe(1_000);
+    expect(h.prepare).toHaveBeenCalledTimes(1);
+    expect(h.deliver).not.toHaveBeenCalled();
+
+    h.advance(1_000);
+    h.deliver.mockImplementationOnce(async (entry) => {
+      h.delivered.push(entry);
+      throw { _tag: "RpcClientError" };
+    });
+    await first.drain();
+    expect(h.records.get("prompt")).toMatchObject({ attempted: true, status: "pending" });
+
+    const recovered = h.create();
+    h.advance(10_000);
+    await recovered.drain();
+    await recovered.drain();
+    expect(h.prepare).toHaveBeenCalledTimes(2);
+    const expected = transcribed(voiceMessage("prompt").payload);
+    expect(h.delivered.map((entry) => entry.payload)).toEqual([expected, expected]);
+    expect(h.records.size).toBe(0);
+  });
+
+  it("cancels an in-flight transcription and discards its late result", async () => {
+    const h = harness();
+    const outbox = h.create();
+    h.connect();
+    await outbox.enqueue(voiceMessage("prompt"));
+    const started = deferred<AbortSignal>();
+    const finish = deferred();
+    h.prepare.mockImplementationOnce(async (entry, signal) => {
+      started.resolve(signal);
+      await finish.promise;
+      return transcribed(entry.payload);
+    });
+    const drain = outbox.drain();
+    const signal = await started.promise;
+    expect(outbox.isPreparing("prompt")).toBe(true);
+    expect(await outbox.cancel("prompt")).toBe(true);
+    expect(signal.aborted).toBe(true);
+    finish.resolve();
+    await drain;
+    await outbox.drain();
+    expect(outbox.isPreparing("prompt")).toBe(false);
+    expect(h.deliver).not.toHaveBeenCalled();
+    expect(h.records.size).toBe(0);
+    expect(outbox.getSnapshot()).toEqual([]);
+  });
+
+  it("marks a message failed when its recording cannot be transcribed", async () => {
+    const h = harness();
+    const outbox = h.create();
+    h.connect();
+    await outbox.enqueue(voiceMessage("prompt"));
+    h.prepare.mockRejectedValueOnce(
+      new PreparationFailure("No speech was detected. Nothing was sent.", false),
+    );
+    expect(await outbox.drain()).toBeNull();
+    expect(await outbox.drain()).toBeNull();
+    expect(h.records.get("prompt")).toMatchObject({
+      status: "failed",
+      attempted: false,
+      error: "No speech was detected. Nothing was sent.",
+    });
+    expect(h.prepare).toHaveBeenCalledTimes(1);
+    expect(h.deliver).not.toHaveBeenCalled();
+  });
+
+  it.each(["this tab", "another tab"] as const)(
+    "drops a transcript prepared for a message edited in %s",
+    async (editor) => {
+      const h = harness();
+      const outbox = h.create();
+      const other = h.create();
+      h.connect();
+      await outbox.enqueue(voiceMessage("prompt"));
+      await other.load();
+      const started = deferred<AbortSignal>();
+      const finish = deferred();
+      h.prepare.mockImplementationOnce(async (entry, signal) => {
+        started.resolve(signal);
+        await finish.promise;
+        return transcribed(entry.payload);
+      });
+      const drain = outbox.drain();
+      const signal = await started.promise;
+      const edited = { ...voiceMessage("prompt").payload, text: "edited" };
+      expect(await (editor === "this tab" ? outbox : other).edit("prompt", edited)).toBe(true);
+      expect(signal.aborted).toBe(editor === "this tab");
+      finish.resolve();
+      await drain;
+      expect(h.deliver).not.toHaveBeenCalled();
+      expect(h.records.get("prompt")?.payload).toEqual(edited);
+      await outbox.drain();
+      expect(h.delivered.map((entry) => entry.payload.text)).toEqual(["edited transcript"]);
+    },
+  );
 });

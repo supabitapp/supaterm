@@ -9,9 +9,10 @@ import {
   ProjectId,
   ThreadId,
 } from "@supaterm/contracts";
+import { VOICE_SLOT } from "@supaterm/client-runtime/voice-input";
 import type { ThreadOutboxEntry } from "./threadOutboxDelivery";
 import { DraftId } from "../composerDraftStore";
-import type { OutboxTurn } from "./threadOutboxSchema";
+import type { OutboxTurn, OutboxTurnVoice } from "./threadOutboxSchema";
 
 const harness = vi.hoisted(() => ({
   records: new Map<string, ThreadOutboxEntry<OutboxTurn>>(),
@@ -22,6 +23,11 @@ const harness = vi.hoisted(() => ({
   online: false,
   existingThread: false,
   archivedThread: false,
+  availability: vi.fn(),
+  transcribe: vi.fn(),
+  park: vi.fn(),
+  draftPrompt: "",
+  setPrompt: vi.fn(),
 }));
 
 vi.mock("../rpc/atomRegistry", async () => {
@@ -97,6 +103,24 @@ vi.mock("../composerDraftStore", () => ({
   DraftId: { make: (id: string) => id },
   markPromotedDraftThreadByRef: harness.marked,
   finalizePromotedDraftThreadByRef: harness.finalized,
+  composerTargetKey: (target: { environmentId: string; threadId: string }) =>
+    `${target.environmentId}:${target.threadId}`,
+  useComposerDraftStore: {
+    getState: () => ({
+      getComposerDraft: () => ({ prompt: harness.draftPrompt }),
+      setPrompt: harness.setPrompt,
+    }),
+  },
+}));
+vi.mock("./dictation", () => ({
+  readDictationAvailability: (...args: unknown[]) => harness.availability(...args),
+}));
+vi.mock("../dictation/transcribeClip", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../dictation/transcribeClip")>()),
+  transcribeDictationClip: (...args: unknown[]) => harness.transcribe(...args),
+}));
+vi.mock("../dictation/pendingClips", () => ({
+  parkPendingClip: (...args: unknown[]) => harness.park(...args),
 }));
 vi.mock("../lib/imageCompression", () => ({
   readFileAsDataUrl: async (file: File) => `data:${file.type};base64,${btoa(await file.text())}`,
@@ -208,6 +232,27 @@ function pendingTaskWithFollowUp() {
   ] as const;
 }
 
+function voiceTarget(text: string, voice: Partial<ReturnType<typeof recording>> = {}) {
+  const original = target();
+  return {
+    ...original,
+    input: { ...original.input, message: { ...original.input.message, text } },
+    voice: { ...recording(), ...voice },
+  };
+}
+
+function recording(): Omit<typeof OutboxTurnVoice.Type, "insertAt"> {
+  return {
+    clipId: "clip",
+    bytes: new Blob(["audio"], { type: "audio/webm" }),
+    mimeType: "audio/webm",
+    durationMs: 2_000,
+    locale: "en-US",
+    capturedAt: "2026-10-20T00:00:00Z",
+    sourceId: null,
+  };
+}
+
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
@@ -216,6 +261,10 @@ beforeEach(() => {
   harness.online = false;
   harness.existingThread = false;
   harness.archivedThread = false;
+  harness.draftPrompt = "";
+  harness.availability.mockReturnValue({ kind: "available", source: { id: "codex:codex" } });
+  harness.transcribe.mockResolvedValue({ text: "the login bug", sourceId: "codex:codex" });
+  harness.park.mockResolvedValue({ id: "parked-clip" });
   harness.run.mockResolvedValue(AsyncResult.success({ sequence: 1 }));
   harness.verify.mockResolvedValue({ status: "verified" });
 });
@@ -824,4 +873,145 @@ describe("web thread outbox delivery", () => {
       expect(harness.run).toHaveBeenCalledTimes(1);
     },
   );
+
+  it("sends a voice message with its transcript where the recording was placed", async () => {
+    const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");
+    await enqueueThreadOutboxTurn(voiceTarget(`Fix ${VOICE_SLOT} today`));
+    expect(harness.records.get("message")?.payload).toMatchObject({
+      input: { message: { text: "Fix  today" } },
+      voice: { clipId: "clip", insertAt: 4 },
+    });
+    harness.online = true;
+
+    await webThreadOutbox.drain();
+
+    expect(harness.transcribe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        environmentId: "environment",
+        sourceId: "codex:codex",
+        clip: expect.objectContaining({ mimeType: "audio/webm", durationMs: 2_000 }),
+      }),
+    );
+    expect(harness.run).toHaveBeenCalledTimes(1);
+    expect(harness.run.mock.calls[0]![2].input.message.text).toBe("Fix the login bug today");
+    expect(harness.records.size).toBe(0);
+  });
+
+  it("titles a voice-only task from its transcript using the recorded source while offline", async () => {
+    const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");
+    const creation = worktreeTarget();
+    const { pendingWorktree: _, ...task } = creation;
+    harness.availability.mockReturnValue({ kind: "hidden", reason: "unknown" });
+    await enqueueThreadOutboxTurn({
+      ...task,
+      input: {
+        ...task.input,
+        message: { ...task.input.message, text: VOICE_SLOT },
+        titleSeed: VOICE_SLOT,
+        bootstrap: {
+          createThread: { ...task.input.bootstrap.createThread, title: VOICE_SLOT },
+        },
+      },
+      voice: { ...recording(), sourceId: "codex:recorded" },
+    });
+    expect(harness.records.get("message")?.payload.input).toMatchObject({
+      titleSeed: "New thread",
+      bootstrap: { createThread: { title: "New thread" } },
+    });
+    harness.online = true;
+
+    await webThreadOutbox.drain();
+
+    expect(harness.transcribe.mock.calls[0]![0].sourceId).toBe("codex:recorded");
+    expect(harness.run.mock.calls[0]![2].input).toMatchObject({
+      message: { text: "the login bug" },
+      titleSeed: "the login bug",
+      bootstrap: { createThread: { title: "the login bug" } },
+    });
+  });
+
+  it.each([
+    ["disabled", "Dictation is turned off for this environment."],
+    ["forbidden", "This connection can't use dictation."],
+    ["no-source", "No transcription model is available."],
+  ])("keeps a voice message unsent when dictation is %s", async (reason, error) => {
+    const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");
+    harness.availability.mockReturnValue({ kind: "hidden", reason });
+    await enqueueThreadOutboxTurn(voiceTarget(`Fix ${VOICE_SLOT}`));
+    harness.online = true;
+
+    await webThreadOutbox.drain();
+
+    expect(harness.records.get("message")).toMatchObject({ status: "failed", error });
+    expect(harness.transcribe).not.toHaveBeenCalled();
+    expect(harness.run).not.toHaveBeenCalled();
+  });
+
+  it("fails a recording with no speech instead of sending the typed text alone", async () => {
+    const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");
+    const { DictationClipFailure } = await import("../dictation/transcribeClip");
+    harness.transcribe.mockRejectedValue(
+      new DictationClipFailure("empty", "No speech was detected."),
+    );
+    await enqueueThreadOutboxTurn(voiceTarget(`Fix ${VOICE_SLOT}`));
+    harness.online = true;
+
+    await webThreadOutbox.drain();
+
+    expect(harness.records.get("message")).toMatchObject({
+      status: "failed",
+      attempted: false,
+      error: "No speech was detected. Nothing was sent.",
+    });
+    expect(harness.run).not.toHaveBeenCalled();
+  });
+
+  it("retries a recording whose transcription was cut off by a disconnect", async () => {
+    const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");
+    const { DictationClipFailure } = await import("../dictation/transcribeClip");
+    harness.transcribe.mockRejectedValueOnce(
+      new DictationClipFailure("transient", "Recording upload disconnected."),
+    );
+    await enqueueThreadOutboxTurn(voiceTarget(`Fix ${VOICE_SLOT}`));
+    harness.online = true;
+
+    await webThreadOutbox.drain();
+
+    expect(harness.records.get("message")).toMatchObject({
+      status: "pending",
+      attempted: false,
+      error: "Recording upload disconnected.",
+    });
+    expect(harness.run).not.toHaveBeenCalled();
+  });
+
+  it("moves a queued voice message back to its composer with its recording", async () => {
+    const { enqueueThreadOutboxTurn, moveThreadOutboxTurnToComposer, webThreadOutbox } =
+      await import("./threadOutbox");
+    harness.draftPrompt = "Earlier idea";
+    await enqueueThreadOutboxTurn(
+      voiceTarget(`Check this ${VOICE_SLOT}`, { transcript: "the login bug" }),
+    );
+
+    await moveThreadOutboxTurnToComposer(webThreadOutbox.getSnapshot()[0]!);
+
+    expect(harness.records.size).toBe(0);
+    expect(harness.setPrompt).toHaveBeenCalledWith(
+      { environmentId: "environment", threadId: "thread" },
+      "Earlier idea\n\nCheck this",
+    );
+    expect(harness.park).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ownerKey: "environment:thread",
+        environmentId: "environment",
+        threadInstanceId: "codex",
+        mimeType: "audio/webm",
+        durationMs: 2_000,
+        locale: "en-US",
+        capturedDraft: null,
+        status: "ready",
+        transcript: "the login bug",
+      }),
+    );
+  });
 });

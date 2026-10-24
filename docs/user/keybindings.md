@@ -29,6 +29,9 @@ To step a new thread to the next machine instead of opening the menu, bind
 The workspace menu includes the current checkout, a new worktree, and the previous
 worktree when available. Use `mod+shift+l` to reuse the previous worktree directly.
 
+`mod+shift+space` starts dictation, and pressing it again inserts the transcript.
+Change it under **Composer: Dictate** in Keybindings.
+
 To change effort one step without opening the picker, bind
 **Composer: Increase Effort** and **Composer: Decrease Effort** in Keybindings.
 Both are unbound by default. Increase wraps from the highest level to the

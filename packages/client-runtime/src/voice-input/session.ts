@@ -3,7 +3,7 @@ import {
   voiceInputBlocksSubmission,
   type VoiceDraftSnapshot,
   type VoiceInputControllerDependencies,
-} from "@supaterm/client-runtime/voice-input";
+} from "./controller.ts";
 
 export type VoiceInputTarget = {
   readonly ownerKey: string;

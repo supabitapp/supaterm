@@ -43,6 +43,17 @@ export interface VoiceRecorder {
   stop(): Promise<void>;
 }
 
+export type VoiceRecordingDescription = {
+  readonly mimeType: string;
+  readonly durationMs: number;
+};
+
+export type VoiceRecordingHandoff = VoiceRecordingDescription & {
+  readonly uri: string;
+  readonly locale: string;
+  readonly capturedDraft: VoiceDraftSnapshot;
+};
+
 export type VoiceInputControllerDependencies = {
   readonly recorder: VoiceRecorder;
   readonly getTranscriber: () => VoiceTranscriber | null;
@@ -53,6 +64,7 @@ export type VoiceInputControllerDependencies = {
   readonly configureRecording: () => Promise<void>;
   readonly releaseRecording: () => Promise<void>;
   readonly deleteRecording: (uri: string) => void;
+  readonly describeRecording?: (uri: string) => VoiceRecordingDescription;
   readonly readDraft: () => VoiceDraftSnapshot | null;
   readonly commitDraft: (
     text: string,
@@ -130,9 +142,17 @@ type VoiceInputSession = {
 let activeSession: VoiceInputSession | null = null;
 let activeTranscriptionOperation: Promise<unknown> | null = null;
 
+function deferred<T>(): { readonly promise: Promise<T>; readonly resolve: (value: T) => void } {
+  let resolve: (value: T) => void = () => undefined;
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
 function acquireSession(): VoiceInputSession | null {
   if (activeSession) return null;
-  const { promise, resolve } = Promise.withResolvers<void>();
+  const { promise, resolve } = deferred<void>();
   const token = { abandoned: false, released: promise, release: resolve };
   activeSession = token;
   return token;
@@ -193,6 +213,9 @@ export class VoiceInputController {
   private capturedDraft: VoiceDraftSnapshot | null = null;
   private recordingUri: string | null = null;
   private readonly ownedRecordingUris = new Set<string>();
+
+  private readonly transferredRecordingUris = new Set<string>();
+  private pendingTake: ReturnType<typeof deferred<VoiceRecordingHandoff | null>> | null = null;
   private recordingConfigured = false;
   private finishing = false;
 
@@ -265,6 +288,9 @@ export class VoiceInputController {
       await this.dependencies.recorder.prepareToRecordAsync();
       if (!this.isCurrent(operationToken)) return;
       this.recordingUri = this.dependencies.recorder.uri;
+      if (!this.recordingUri || !this.transferredRecordingUris.has(this.recordingUri)) {
+        this.transferredRecordingUris.clear();
+      }
       this.rememberRecordingUri(this.recordingUri);
 
       const capturedDraft = this.dependencies.readDraft();
@@ -313,6 +339,18 @@ export class VoiceInputController {
         this.setState(IDLE_STATE);
         return;
     }
+  }
+
+  takeRecording(): Promise<VoiceRecordingHandoff | null> {
+    const phase = this.state.phase;
+    if (phase !== "recording" && phase !== "transcribing") return Promise.resolve(null);
+    const take = deferred<VoiceRecordingHandoff | null>();
+    this.pendingTake = take;
+    this.invalidateOperation();
+    this.setState(IDLE_STATE);
+
+    if (phase === "recording") void this.stopForTake();
+    return take.promise;
   }
 
   interruptRecording(
@@ -398,9 +436,14 @@ export class VoiceInputController {
       let transcript: string;
       try {
         transcript = await runTranscriptionOperation(() =>
-          transcription.transcribe(recordingUri, { signal }),
+          transcription.transcribe(recordingUri, { signal, capturedDraft }),
         );
       } catch (error) {
+        if (errorCode(error) === "deferred") {
+          this.transferRecordingUri(recordingUri);
+          if (this.isCurrent(operationToken)) this.setState(IDLE_STATE);
+          return;
+        }
         if (this.isCurrent(operationToken)) {
           this.setError(transcriptionErrorMessage(error), "retry");
         }
@@ -453,7 +496,45 @@ export class VoiceInputController {
     }
   }
 
+  private async stopForTake(): Promise<void> {
+    try {
+      await this.dependencies.recorder.stop();
+      this.recordingUri = this.dependencies.recorder.uri ?? this.recordingUri;
+    } catch {
+    } finally {
+      await this.releaseResources();
+    }
+  }
+
+  private settleTake(): (() => void) | null {
+    const take = this.pendingTake;
+    if (!take) return null;
+    this.pendingTake = null;
+    const uri = this.recordingUri;
+    const capturedDraft = this.capturedDraft;
+    const locale = this.transcription?.locale;
+    if (!uri || !capturedDraft || locale === undefined || this.transferredRecordingUris.has(uri)) {
+      return () => take.resolve(null);
+    }
+    let description: VoiceRecordingDescription = {
+      mimeType: "application/octet-stream",
+      durationMs: 0,
+    };
+    try {
+      description = this.dependencies.describeRecording?.(uri) ?? description;
+    } catch {}
+    this.transferRecordingUri(uri);
+    const handoff = { ...description, uri, locale, capturedDraft };
+    return () => take.resolve(handoff);
+  }
+
+  private transferRecordingUri(uri: string): void {
+    this.ownedRecordingUris.delete(uri);
+    this.transferredRecordingUris.add(uri);
+  }
+
   private async releaseResources(): Promise<void> {
+    const resolveTake = this.settleTake();
     this.rememberRecordingUri(this.recordingUri);
     try {
       this.rememberRecordingUri(this.dependencies.recorder.uri);
@@ -471,10 +552,11 @@ export class VoiceInputController {
     this.capturedDraft = null;
     this.transcription = null;
     this.transcriptionAbortController = null;
+    resolveTake?.();
   }
 
   private rememberRecordingUri(uri: string | null): void {
-    if (uri) this.ownedRecordingUris.add(uri);
+    if (uri && !this.transferredRecordingUris.has(uri)) this.ownedRecordingUris.add(uri);
   }
 
   private async releaseAudioSession(): Promise<void> {
