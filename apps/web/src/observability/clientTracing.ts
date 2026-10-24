@@ -21,6 +21,7 @@ const CLIENT_TRACING_RESOURCE = {
   serviceName: "supaterm-web",
   attributes: {
     "service.namespace": "supaterm",
+    "deployment.environment.name": import.meta.env.DEV ? "development" : "production",
     "service.runtime": "supaterm-web",
     "service.mode": isElectron ? "electron" : "browser",
     "service.version": APP_VERSION,
