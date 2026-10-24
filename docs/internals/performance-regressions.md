@@ -116,8 +116,7 @@ After the budget is exhausted, publication waits for another relevant event inst
 continuous traffic during an outage.
 
 Focused coverage: `ProjectionDone.test.ts`, `ThreadDoneService.test.ts`,
-`runtimeLayer.test.ts`, `AgentAwarenessRelay.test.ts`, `GitVcsDriverCore.test.ts`,
-and `desktopLocal.test.ts`.
+`runtimeLayer.test.ts`, `GitVcsDriverCore.test.ts`, and `desktopLocal.test.ts`.
 
 ## Mobile looping animations
 
