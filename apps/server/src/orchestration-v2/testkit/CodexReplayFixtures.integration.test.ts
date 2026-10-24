@@ -5,6 +5,7 @@ import * as CodexReplay from "effect-codex-app-server/replay";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
+import { CodexOrchestratorReplayHarness } from "../Adapters/CodexAdapterV2.testkit.ts";
 import { ORCHESTRATOR_REPLAY_FIXTURES } from "./fixtures/index.ts";
 import {
   THREAD_FORK_NATIVE_CONTINUE_FORK_MARKER,
@@ -18,7 +19,11 @@ import {
   THREAD_MERGE_BACK_SIBLINGS_SOURCE_MARKER,
   THREAD_MERGE_BACK_SOURCE_MARKER,
 } from "./fixtures/shared.ts";
-import { readProviderReplayTranscript } from "@supaterm/provider-testing/replayTranscript";
+import {
+  materializeReplayTranscriptWorkspace,
+  readProviderReplayTranscript,
+} from "@supaterm/provider-testing/replayTranscript";
+import { itRunsReplayFixtures, runReplayFixture } from "./ProviderReplayFixtures.ts";
 
 const PROVIDER_THREAD_RESUME_FIRST_FINAL = "provider thread resume fixture first turn complete";
 const PROVIDER_THREAD_RESUME_SECOND_FINAL = "provider thread resume fixture second turn complete";
@@ -738,6 +743,15 @@ function assertSubagentActivityPrecedesChildTurns(transcript: ProviderReplayTran
 }
 
 describe("Codex replay fixtures", () => {
+  itRunsReplayFixtures("codex", (input) =>
+    runReplayFixture({
+      ...input,
+      harness: CodexOrchestratorReplayHarness,
+      materializeWorkspace: (transcript, workspace) =>
+        Effect.succeed(materializeReplayTranscriptWorkspace(transcript, workspace)),
+    }),
+  );
+
   it.effect("loads each canonical Codex fixture as an app-server replay transcript", () =>
     Effect.gen(function* () {
       for (const fixture of CODEX_REPLAY_TRANSCRIPTS) {
