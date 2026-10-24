@@ -58,4 +58,15 @@ describe("BoltComputerSim", () => {
     expect(sim.settled).toBe(true);
     expect(sim.pose.yaw).toBeCloseTo(resting, 2);
   });
+
+  it("keeps animating while a state other than idle is shown", () => {
+    const sim = new BoltComputerSim(0.3);
+    advance(sim, 5);
+    sim.setState("working");
+    advance(sim, 10);
+    expect(sim.settled).toBe(false);
+    sim.setState("idle");
+    advance(sim, 5);
+    expect(sim.settled).toBe(true);
+  });
 });

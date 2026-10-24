@@ -1,25 +1,74 @@
 /*! @license robot-heads | Copyright (c) 2026 Fayaz Ahmed | MIT License | github.com/fayazara/robot-heads */
-import { BoltComputerRenderer, frameFor } from "./render";
+import type { BoltComputerState } from "./faces";
+import { BoltComputerRenderer, frameFor, type Look, type RGB } from "./render";
 import { BoltComputerSim, POINTER_REACH } from "./sim";
 import { onPointerMove, pointer, subscribe } from "./ticker";
+
+export interface BoltComputerSettings {
+  readonly state: BoltComputerState;
+  /** `#rrggbb` */
+  readonly shell: string;
+  /** `#rrggbb` */
+  readonly phosphor: string;
+  /** Multiplier on every animation. */
+  readonly speed: number;
+  /** Hold the state's still pose. */
+  readonly paused: boolean;
+  /** Turn toward a nearby pointer, and hop with a spin on a click. */
+  readonly interactive: boolean;
+  readonly floorShadow: boolean;
+}
+
+export const DEFAULT_SETTINGS: BoltComputerSettings = {
+  state: "idle",
+  shell: "#e2dbca",
+  phosphor: "#fff06a",
+  speed: 1,
+  paused: false,
+  interactive: true,
+  floorShadow: true,
+};
+
+export interface BoltComputer {
+  readonly canvas: HTMLCanvasElement;
+  update(changes: Partial<BoltComputerSettings>): void;
+}
+
+const hexToRgb = (hex: string): RGB => {
+  const n = Number.parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+};
+
+const lookOf = (settings: BoltComputerSettings): Look => ({
+  state: settings.state,
+  shell: hexToRgb(settings.shell),
+  phosphor: hexToRgb(settings.phosphor),
+  floorShadow: settings.floorShadow,
+});
 
 /**
  * Adds a canvas with the app icon's computer to `container`, filling it. It switches on, turns
  * toward a nearby pointer and hops with a spin on a click. Frames are drawn only while it moves.
  * The canvas reaches past the container so hops and the floor's shadow take no layout space.
- * Nothing is added if the browser refuses a 2D context.
+ * Returns null, adding nothing, if the browser refuses a 2D context.
  */
-export function mountBoltComputer(container: HTMLElement) {
+export function mountBoltComputer(
+  container: HTMLElement,
+  initial: BoltComputerSettings = DEFAULT_SETTINGS,
+): BoltComputer | null {
   const canvas = document.createElement("canvas");
-  if (!canvas.getContext("2d")) return;
+  if (!canvas.getContext("2d")) return null;
   canvas.setAttribute("aria-hidden", "true");
-  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const sim = new BoltComputerSim(Math.random());
+  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let settings = initial;
+  let look = lookOf(settings);
+  const still = () => reducedMotion || settings.paused;
+  const sim = new BoltComputerSim(Math.random(), settings.state);
   const renderer = new BoltComputerRenderer();
   let frame = frameFor(container.clientWidth);
 
   const relativePointer = () => {
-    if (!Number.isFinite(pointer.x)) return null;
+    if (!settings.interactive || !Number.isFinite(pointer.x)) return null;
     const rect = container.getBoundingClientRect();
     const x = pointer.x - (rect.left + rect.width / 2);
     const y = pointer.y - (rect.top + rect.height / 2);
@@ -27,18 +76,23 @@ export function mountBoltComputer(container: HTMLElement) {
   };
 
   let unsubscribe: (() => void) | null = null;
+  const stop = () => {
+    unsubscribe?.();
+    unsubscribe = null;
+  };
   const tick = (dt: number) => {
     sim.pointer = relativePointer();
-    sim.update(dt);
-    renderer.paint(canvas, frame, sim);
-    if (sim.settled) {
-      unsubscribe?.();
-      unsubscribe = null;
-    }
+    sim.update(dt * settings.speed);
+    renderer.paint(canvas, frame, sim, look);
+    if (sim.settled) stop();
   };
   const draw = () => {
-    if (still) renderer.paint(canvas, frame, null);
-    else if (unsubscribe === null) unsubscribe = subscribe(tick);
+    if (still()) {
+      stop();
+      renderer.paint(canvas, frame, null, look);
+    } else if (unsubscribe === null) {
+      unsubscribe = subscribe(tick);
+    }
   };
   const place = () => {
     frame = frameFor(container.clientWidth);
@@ -54,12 +108,22 @@ export function mountBoltComputer(container: HTMLElement) {
   place();
   container.append(canvas);
   new ResizeObserver(place).observe(container);
-  if (still) return;
   onPointerMove(() => {
-    if (sim.pointer !== null || relativePointer() !== null) draw();
+    if (!still() && (sim.pointer !== null || relativePointer() !== null)) draw();
   });
   container.addEventListener("click", () => {
+    if (still() || !settings.interactive) return;
     sim.poke();
     draw();
   });
+
+  return {
+    canvas,
+    update(changes) {
+      settings = { ...settings, ...changes };
+      look = lookOf(settings);
+      sim.setState(settings.state);
+      draw();
+    },
+  };
 }
