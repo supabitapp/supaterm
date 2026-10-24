@@ -1812,9 +1812,15 @@ importers:
         specifier: 4.0.5
         version: 4.0.5
     devDependencies:
+      '@effect/platform-node':
+        specifier: 4.0.5
+        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
         specifier: 4.0.5
         version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+      '@supaterm/source-control-testing':
+        specifier: workspace:*
+        version: link:../source-control-testing
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
@@ -1862,6 +1868,9 @@ importers:
         specifier: 4.0.5
         version: 4.0.5
     devDependencies:
+      '@effect/platform-node':
+        specifier: 4.0.5
+        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
         specifier: 4.0.5
         version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
@@ -1973,6 +1982,9 @@ importers:
 
   packages/source-control-testing:
     dependencies:
+      '@effect/platform-node':
+        specifier: 4.0.5
+        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@supaterm/contracts':
         specifier: workspace:*
         version: link:../contracts

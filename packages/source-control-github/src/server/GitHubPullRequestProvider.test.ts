@@ -106,6 +106,42 @@ it.effect("advertises standalone branch deletion for source repository writers",
   }),
 );
 
+// v26.10.1 clients reject a whole pull request payload over one action they do not know.
+const V26_10_1_LISTED_ACTIONS: ReadonlySet<string> = new Set([
+  "merge",
+  "ready",
+  "draft",
+  "close",
+  "reopen",
+  "update-branch",
+  "enable-auto-merge",
+  "disable-auto-merge",
+  "revert",
+  "approve-workflows",
+]);
+
+it.effect("names only actions v26.10.1 clients decode, with branch deletion as its own flag", () =>
+  Effect.gen(function* () {
+    const provider = yield* make.pipe(
+      Effect.provide(Layer.mock(GitHubPullRequestApi.GitHubPullRequestApi)({})),
+    );
+    const permissions = gitHubViewerPermissions({
+      canWrite: true,
+      canDeleteBranch: true,
+      autoMergeAllowed: true,
+      canTriage: true,
+      canUpdate: true,
+      canUpdateBranch: true,
+      didAuthor: false,
+    });
+    const sent = [...provider.capabilities.actions, ...permissions.actions];
+    expect(sent.length).toBeGreaterThan(0);
+    expect(sent.filter((action) => !V26_10_1_LISTED_ACTIONS.has(action))).toEqual([]);
+    expect(provider.capabilities.deleteBranch).toBe(true);
+    expect(permissions.deleteBranch).toBe(true);
+  }),
+);
+
 describe("gitHubViewerPermissions", () => {
   it("offers everything to a viewer who can write to the repository", () => {
     expect(

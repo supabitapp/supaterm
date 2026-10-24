@@ -359,7 +359,7 @@ export const makeWithProviders = Effect.fn("makeSourceControlProviderRegistryWit
   },
 );
 
-export const make = Effect.gen(function* () {
+const make = Effect.gen(function* () {
   const drivers = yield* BuiltInDrivers.SourceControlDrivers;
   return yield* makeWithProviders(
     drivers.map(({ driver, instance }): SourceControlProviderRegistration => ({
