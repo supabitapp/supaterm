@@ -24,10 +24,7 @@ const fixture = Effect.gen(function* () {
   const dir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-fast-mode-" });
   const file = path.join(dir, ".claude.json");
   const write = (enabled: boolean) =>
-    fs.writeFileString(
-      file,
-      JSON.stringify({ penguinModeOrgEnabled: enabled, oauthAccount: { organizationUuid: "org" } }),
-    );
+    fs.writeFileString(file, JSON.stringify({ penguinModeOrgEnabled: enabled }));
   return { fs, file, write };
 });
 
