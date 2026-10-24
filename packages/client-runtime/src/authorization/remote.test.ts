@@ -200,6 +200,27 @@ describe("remote environment authorization", () => {
     }),
   );
 
+  it.effect("falls back to the bare ticket path on a server without the audience route", () =>
+    Effect.gen(function* () {
+      const fetch = recordedFetch(
+        Response.json({ message: "Not Found" }, { status: 404 }),
+        Response.json({ ticket: "old-ticket", expiresAt: "2026-05-01T12:05:00.000Z" }),
+      );
+
+      const url = yield* resolveRemoteWebSocketConnectionUrl({
+        wsBaseUrl: "wss://remote.example.com/",
+        httpBaseUrl: "https://remote.example.com/",
+        bearerToken: "bearer-token",
+      }).pipe(provideRemoteHttp(fetch.fetchFn));
+
+      expect(fetch.calls.map(([target]) => String(target))).toEqual([
+        "https://remote.example.com/api/auth/websocket-ticket/rpc",
+        "https://remote.example.com/api/auth/websocket-ticket",
+      ]);
+      expect(new URL(url).searchParams.get("wsTicket")).toBe("old-ticket");
+    }),
+  );
+
   it.effect("identifies this device by hash only", () =>
     Effect.gen(function* () {
       const fetch = recordedFetch(

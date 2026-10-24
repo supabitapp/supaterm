@@ -130,7 +130,9 @@ describe("RemoteEnvironmentAuthorization", () => {
         ),
       ).toHaveLength(1);
       expect(
-        harness.fetch.calls.filter(([url]) => String(url).endsWith("/api/auth/websocket-ticket")),
+        harness.fetch.calls.filter(([url]) =>
+          String(url).endsWith("/api/auth/websocket-ticket/rpc"),
+        ),
       ).toHaveLength(2);
     }),
   );

@@ -574,11 +574,14 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
       const pairing = yield* serverAuth.issuePairingCredential();
       const exchanged = yield* serverAuth.createBrowserSession(pairing.credential, requestMetadata);
       const upgrade = (headers: Record<string, string>) =>
-        serverAuth.authenticateWebSocketUpgrade({
-          url: "/ws",
-          cookies: { [sessions.cookieName]: exchanged.sessionToken },
-          headers: { host: "192.168.1.50:3773", ...headers },
-        } as never);
+        serverAuth.authenticateWebSocketUpgrade(
+          {
+            url: "/ws",
+            cookies: { [sessions.cookieName]: exchanged.sessionToken },
+            headers: { host: "192.168.1.50:3773", ...headers },
+          } as never,
+          "rpc",
+        );
 
       yield* upgrade({ origin: "http://192.168.1.50:3773" });
       yield* upgrade({
@@ -635,16 +638,51 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
     Effect.gen(function* () {
       const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
       const bearer = yield* serverAuth.issueSession();
-      const verified = yield* serverAuth.authenticateWebSocketUpgrade({
-        url: "/ws",
-        cookies: {},
-        headers: {
-          host: "192.168.1.50:3773",
-          origin: "http://192.168.1.50:8080",
-          authorization: `Bearer ${bearer.token}`,
-        },
-      } as never);
+      const verified = yield* serverAuth.authenticateWebSocketUpgrade(
+        {
+          url: "/ws",
+          cookies: {},
+          headers: {
+            host: "192.168.1.50:3773",
+            origin: "http://192.168.1.50:8080",
+            authorization: `Bearer ${bearer.token}`,
+          },
+        } as never,
+        "rpc",
+      );
       expect(verified.sessionId).toBe(bearer.sessionId);
+    }).pipe(Effect.provide(layerEnvironmentAuth({ mode: "web", host: "192.168.1.50" }))),
+  );
+
+  it.effect("opens only the route a websocket ticket was minted for", () =>
+    Effect.gen(function* () {
+      const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
+      const bearer = yield* serverAuth.issueSession();
+      const upgrade = (ticket: string, use: "rpc" | "media") =>
+        serverAuth.authenticateWebSocketUpgrade(
+          {
+            method: "GET",
+            url: `/ws?orchestrationProtocol=2&wsTicket=${ticket}`,
+            cookies: {},
+            headers: { host: "192.168.1.50:3773" },
+          } as never,
+          use,
+        );
+
+      const rpc = yield* serverAuth.issueWebSocketTicket(bearer, { use: "rpc" });
+      expect((yield* upgrade(rpc.ticket, "rpc")).sessionId).toBe(bearer.sessionId);
+      const rpcOnMedia = yield* Effect.flip(upgrade(rpc.ticket, "media"));
+      expect(rpcOnMedia._tag).toBe("ServerAuthInvalidCredentialError");
+
+      const media = yield* serverAuth.issueWebSocketTicket(bearer, { use: "media" });
+      expect((yield* upgrade(media.ticket, "media")).sessionId).toBe(bearer.sessionId);
+      const mediaOnRpc = yield* Effect.flip(upgrade(media.ticket, "rpc"));
+      expect(mediaOnRpc._tag).toBe("ServerAuthInvalidCredentialError");
+
+      // Clients that predate ticket audiences, and the relay tunnel, mint at the bare path.
+      const legacy = yield* serverAuth.issueWebSocketTicket(bearer);
+      expect((yield* upgrade(legacy.ticket, "rpc")).sessionId).toBe(bearer.sessionId);
+      expect((yield* upgrade(legacy.ticket, "media")).sessionId).toBe(bearer.sessionId);
     }).pipe(Effect.provide(layerEnvironmentAuth({ mode: "web", host: "192.168.1.50" }))),
   );
 });

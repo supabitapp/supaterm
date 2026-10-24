@@ -55,7 +55,11 @@ Issuer and resource URLs come from the request's Host and
 breaks sign-in.
 
 Bearer clients obtain short-lived WebSocket tickets through authenticated
-HTTP so long-lived tokens stay out of socket URLs. Browser sessions can
+HTTP so long-lived tokens stay out of socket URLs. A ticket names the route it
+opens: the RPC socket, or the media routes (device hub, preview stream), which
+share one ticket across `<img>`, `EventSource` and several sockets, so a leaked
+media ticket cannot open the RPC socket. Clients that predate this, and the
+relay tunnel, mint unbound tickets that open either route. Browser sessions can
 authenticate the upgrade with their cookie. A successful handshake grants no
 extra authority: [every RPC declares a required
 scope](../../apps/server/src/auth/RpcAuthorization.ts), and the WebSocket RPC
