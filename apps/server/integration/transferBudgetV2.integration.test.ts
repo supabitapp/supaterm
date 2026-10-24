@@ -16,7 +16,9 @@ import {
   EnvironmentAuthenticatedPrincipal,
   ORCHESTRATION_V2_WS_METHODS,
   OrchestrationV2RpcSchemas,
+  OrchestrationV2ThreadBoundedSnapshot,
   OrchestrationV2ThreadDetailSnapshot,
+  OrchestrationV2ThreadHistoryPage,
   OrchestrationV2ShellSnapshot,
   OrchestrationV2GetThreadProjectionError,
   OrchestrationV2GetShellSnapshotError,
@@ -65,6 +67,8 @@ import {
 } from "./TransferBudgetReport.integration.ts";
 import { TRANSFER_HISTORY_TURN_COUNT } from "./fixtures/transferBudget.ts";
 import {
+  LONG_TURN_THREAD_ID,
+  longTurnThreadBatches,
   THREAD_ID,
   threadCreated,
   threadVisited,
@@ -73,6 +77,12 @@ import {
 
 const decodeThreadSnapshot = Schema.decodeUnknownEffect(
   Schema.fromJsonString(Schema.toCodecJson(OrchestrationV2ThreadDetailSnapshot)),
+);
+const decodeBoundedSnapshot = Schema.decodeUnknownEffect(
+  Schema.fromJsonString(Schema.toCodecJson(OrchestrationV2ThreadBoundedSnapshot)),
+);
+const decodeHistoryPage = Schema.decodeUnknownEffect(
+  Schema.fromJsonString(Schema.toCodecJson(OrchestrationV2ThreadHistoryPage)),
 );
 const decodeShellSnapshot = Schema.decodeUnknownEffect(
   Schema.fromJsonString(Schema.toCodecJson(OrchestrationV2ShellSnapshot)),
@@ -92,6 +102,10 @@ const layerManagement = Layer.unwrap(
       getThreadSnapshot: (id) => projections.getThreadSnapshot(id).pipe(Effect.orDie),
       getThreadSnapshotWindow: (id, options) =>
         projections.getThreadSnapshotWindow(id, options).pipe(Effect.orDie),
+      getThreadHistoryPage: (id, cursor, throughEntryId, conversationOnly) =>
+        projections
+          .getThreadHistoryPage(id, cursor, throughEntryId, conversationOnly)
+          .pipe(Effect.orDie),
       getThreadShell: (id) => projections.getThreadShell(id).pipe(Effect.orDie),
       getShellSnapshot: (options) => projections.getShellSnapshot(options).pipe(Effect.orDie),
       listActiveSubagentThreadIds: () =>
@@ -349,7 +363,29 @@ it.live("reports V2 thread HTTP and WebSocket transfer budgets", () =>
           const shellMode = yield* synchronized(rsq);
           const reconnectThread = { ...resumedThread.recorder.totals(), mode: threadMode };
           const reconnectShell = { ...resumedShell.recorder.totals(), mode: shellMode };
+          const reconnectSqlStatements = counter.count() - reconnectSqlStart;
           assert.equal(threadMode, "snapshot");
+
+          for (const events of longTurnThreadBatches(provider)) yield* sink.write({ events });
+          const longTurnColdOpen = yield* measureHttpGet({
+            url: `${base}/api/orchestration/threads/${LONG_TURN_THREAD_ID}/bounded?compactTurnItems=1`,
+            headers: { [ORCHESTRATION_PROTOCOL_HEADER]: String(ORCHESTRATION_PROTOCOL_VERSION) },
+          });
+          assert.equal(longTurnColdOpen.status, 200);
+          const coldOpen = yield* decodeBoundedSnapshot(
+            Buffer.from(longTurnColdOpen.decodedBody).toString(),
+          );
+          const cursor = coldOpen.historyCursor;
+          if (cursor === null) return yield* Effect.die("Expected older long-turn history");
+          const longTurnHistoryPage = yield* measureHttpGet({
+            url: `${base}/api/orchestration/threads/${LONG_TURN_THREAD_ID}/history?cursor=${encodeURIComponent(cursor)}`,
+            headers: { [ORCHESTRATION_PROTOCOL_HEADER]: String(ORCHESTRATION_PROTOCOL_VERSION) },
+          });
+          assert.equal(longTurnHistoryPage.status, 200);
+          const historyPage = yield* decodeHistoryPage(
+            Buffer.from(longTurnHistoryPage.decodedBody).toString(),
+          );
+          assert.isTrue(historyPage.hasMoreHistory);
           return {
             provider,
             threadSnapshot,
@@ -360,7 +396,12 @@ it.live("reports V2 thread HTTP and WebSocket transfer budgets", () =>
             measuredTurnSqlStatements,
             reconnectThread,
             reconnectShell,
-            reconnectSqlStatements: counter.count() - reconnectSqlStart,
+            reconnectSqlStatements,
+            longTurnColdOpen: {
+              http: longTurnColdOpen,
+              rows: coldOpen.projection.visibleTurnItems.length,
+            },
+            longTurnHistoryPage: { http: longTurnHistoryPage, rows: historyPage.items.length },
           } satisfies TransferBudgetRun;
         }).pipe(
           Effect.provide(Layer.fresh(layerServices).pipe(Layer.provideMerge(NodeServices.layer))),
