@@ -85,6 +85,7 @@ import {
   KeyboardController,
   KeyboardStickyView,
   useKeyboardState,
+  useReanimatedKeyboardAnimation,
 } from "react-native-keyboard-controller";
 import Animated, {
   Easing,
@@ -959,22 +960,16 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
     );
   const userInputCollapsed =
     activeUserInputRequestId !== null && collapsedUserInputRequestId === activeUserInputRequestId;
-  // The card's height RESERVES keyboard space at all times instead of tracking the keyboard:
-  // transforms (the sticky translation) apply same-frame on the UI thread while layout props lag
-  // a Yoga pass behind, so any height that follows the keyboard flashes the card over the nav
-  // header on the way up.
+  // A height React sets from keyboard state lags the sticky translation by a Yoga pass and
+  // flashes over the nav header on the way up, so the usage panel reserves the keyboard instead.
   const [lastKnownKeyboardHeight, setLastKnownKeyboardHeight] = useState(0);
   if (liveKeyboardHeight > 0 && liveKeyboardHeight !== lastKnownKeyboardHeight) {
     setLastKnownKeyboardHeight(liveKeyboardHeight);
   }
   const reservedKeyboardHeight =
     lastKnownKeyboardHeight > 0 ? lastKnownKeyboardHeight : ESTIMATED_KEYBOARD_HEIGHT;
-  const pendingUserInputMaxHeight = derivePendingUserInputMaxHeight({
-    windowHeight,
-    keyboardHeight: reservedKeyboardHeight,
-    navigationHeaderHeight,
-    composerOverlapHeight: composerBottomInset,
-  });
+  // Waiting for a visibility render misses the first keyboard frames.
+  const keyboardStickyEnabled = Platform.OS === "ios" || !keyboardStateSuspect;
   const estimatedOverlayHeight = composerOverlapHeight;
   // The overlay's measured height includes the home-indicator inset (the
   // composer pads it), but contentInsetAdjustmentBehavior="automatic" makes
@@ -999,6 +994,18 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
     setScreenHeight(event.nativeEvent.layout.height);
   }, []);
   const screenAreaHeight = screenHeight ?? windowHeight;
+  // The question card reads the keyboard frame on the UI thread, in the same frame the sticky
+  // view translates, so it gets the full height while the keyboard is closed and never crosses
+  // the header while the keyboard moves.
+  const { height: keyboardTranslation } = useReanimatedKeyboardAnimation();
+  const pendingUserInputMaxHeight = useDerivedValue(() =>
+    derivePendingUserInputMaxHeight({
+      windowHeight: screenAreaHeight,
+      keyboardHeight: keyboardStickyEnabled ? -keyboardTranslation.value : 0,
+      navigationHeaderHeight,
+      composerOverlapHeight: composerBottomInset,
+    }),
+  );
   // The usage panel stacks with the composer and any approval card, so it gets
   // whatever room they leave below the header. Measured only while it is open
   // so typing in the composer does not re-render the screen.
@@ -1023,9 +1030,7 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
     usageLimitsLayout.overlay > 0
       ? usageLimitsLayout.overlay - usageLimitsLayout.panel
       : composerOverlapHeight;
-  // The keyboard is reserved even while closed, like the question card, so the
-  // panel never grows over the header while the keyboard animates. The floor
-  // keeps the close row on screen when the stack below leaves no room at all.
+  // The floor keeps the close row on screen when the stack below leaves no room at all.
   const usageLimitsMaxHeight = Math.max(
     USAGE_LIMITS_PANEL_MIN_HEIGHT,
     Math.min(
@@ -1570,8 +1575,7 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
 
       {showContent ? (
         <KeyboardStickyView
-          // Waiting for a visibility render misses the first keyboard frames.
-          enabled={Platform.OS === "ios" || !keyboardStateSuspect}
+          enabled={keyboardStickyEnabled}
           pointerEvents="box-none"
           style={{ position: "absolute", bottom: 0, left: 0, right: 0, top: 0 }}
           offset={{ closed: 0, opened: composerKeyboardOffset }}
