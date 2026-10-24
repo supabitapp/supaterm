@@ -5,6 +5,7 @@ import Layout from "../layouts/Layout.astro";
 import "../styles/boltComputer.css";
 import { BOLT_COMPUTER_STATES } from "../lib/boltComputer/faces";
 import {
+  KNOBS,
   PHOSPHORS,
   SHELLS,
   SPEEDS,
@@ -16,6 +17,7 @@ import {
 const colourControls = [
   { key: "shell", label: "Shell", swatches: SHELLS },
   { key: "phosphor", label: "Phosphor", swatches: PHOSPHORS },
+  { key: "knobs", label: "Knobs", swatches: KNOBS },
 ] as const satisfies ReadonlyArray<{
   readonly key: ColourKey;
   readonly label: string;

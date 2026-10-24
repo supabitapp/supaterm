@@ -14,6 +14,7 @@ describe("studio links", () => {
       state: "error",
       shell: "#3a3d44",
       phosphor: "#da6aff",
+      knobs: "#b8913f",
       speed: 1.5,
       paused: true,
       interactive: false,
@@ -24,7 +25,7 @@ describe("studio links", () => {
 
   it("fall back to the defaults for values the studio cannot show", () => {
     expect(
-      settingsFromSearch("?state=dancing&shell=red&phosphor=12345&speed=3&paused=yes"),
+      settingsFromSearch("?state=dancing&shell=red&phosphor=12345&knobs=olive&speed=3&paused=yes"),
     ).toEqual(DEFAULT_SETTINGS);
   });
 });

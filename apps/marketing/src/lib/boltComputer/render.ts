@@ -2,6 +2,7 @@ import {
   GLASS,
   PLATE,
   SCREEN,
+  bakeControls,
   bakeScreenBase,
   bakeTextures,
   context2d,
@@ -16,12 +17,9 @@ import {
   DEPTH,
   GASKET,
   HOUSING,
-  KNOB,
   LED_PITCH,
   RECESS,
   SCREEN_HOLE,
-  SLIDER,
-  SLOT,
   bodyMesh,
   extents,
   rotate,
@@ -40,6 +38,7 @@ export interface Look {
   readonly state: BoltComputerState;
   readonly shell: Material;
   readonly phosphor: RGB;
+  readonly knobs: RGB;
   readonly floorShadow: boolean;
 }
 
@@ -98,40 +97,6 @@ function ledColor(sim: BoltComputerSim | null, look: Look): RGB {
   if (!sim) return of(look.state);
   if (sim.previous === null || sim.since >= FADE) return of(sim.state);
   return mix(of(sim.previous), of(sim.state), sim.since / FADE);
-}
-
-function drawControls(ctx: CanvasRenderingContext2D) {
-  ctx.beginPath();
-  ctx.roundRect(SLOT.x - SLOT.hw, SLOT.y - SLOT.hh, SLOT.hw * 2, SLOT.hh * 2, SLOT.hh);
-  const groove = ctx.createLinearGradient(0, SLOT.y - SLOT.hh, 0, SLOT.y + SLOT.hh);
-  groove.addColorStop(0, "#121510");
-  groove.addColorStop(1, "#2e3324");
-  ctx.fillStyle = groove;
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.roundRect(SLIDER.x - SLIDER.hw, SLOT.y - SLIDER.hh, SLIDER.hw * 2, SLIDER.hh * 2, 0.006);
-  const handle = ctx.createLinearGradient(0, SLOT.y - SLIDER.hh, 0, SLOT.y + SLIDER.hh);
-  handle.addColorStop(0, "#6b703d");
-  handle.addColorStop(1, "#30331a");
-  ctx.fillStyle = handle;
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.arc(KNOB.x, KNOB.y, KNOB.r, 0, Math.PI * 2);
-  const dome = ctx.createRadialGradient(
-    KNOB.x - KNOB.r * 0.35,
-    KNOB.y - KNOB.r * 0.4,
-    KNOB.r * 0.1,
-    KNOB.x,
-    KNOB.y,
-    KNOB.r,
-  );
-  dome.addColorStop(0, "#929659");
-  dome.addColorStop(0.55, "#5f6233");
-  dome.addColorStop(1, "#30321a");
-  ctx.fillStyle = dome;
-  ctx.fill();
 }
 
 const FRONT_Z = DEPTH / 2;
@@ -248,6 +213,7 @@ interface Sized {
 
 export class BoltComputerRenderer {
   private sized: Sized | null = null;
+  private controls: { unit: number; knobs: RGB; canvas: HTMLCanvasElement } | null = null;
   private layer: HTMLCanvasElement | null = null;
   private grain: CanvasPattern | null = null;
   private readonly grid: Grid = newGrid();
@@ -267,6 +233,15 @@ export class BoltComputerRenderer {
       canvas.height = h;
     }
     this.draw(context2d(canvas), frame, dpr, sim?.pose ?? restPose(look.state), sim, look);
+  }
+
+  /** The controls bake only follows the size the other textures were baked at, and their colour. */
+  private controlsFor(unit: number, knobs: RGB) {
+    const cached = this.controls;
+    if (cached?.unit === unit && cached.knobs.every((c, i) => c === knobs[i])) return cached.canvas;
+    const canvas = bakeControls(unit, knobs);
+    this.controls = { unit, knobs, canvas };
+    return canvas;
   }
 
   private prepare(unit: number): Sized {
@@ -401,7 +376,7 @@ export class BoltComputerRenderer {
     ctx.save();
     if (facing > 0) {
       this.drawScreen(sized, this.compose(sim, look.state), ledColor(sim, look));
-      drawFront(ctx, view, pose, sized);
+      drawFront(ctx, view, pose, sized, this.controlsFor(sized.unit, look.knobs));
     } else if (facing < 0) {
       view.plane(ctx, -FRONT_Z, true);
       ctx.drawImage(sized.bakes.back, -PLATE.hx, -PLATE.hy, PLATE.hx * 2, PLATE.hy * 2);
@@ -477,7 +452,13 @@ export class BoltComputerRenderer {
 }
 
 /** The bezel, the recessed glass with the LED screen behind it, and the controls. */
-function drawFront(ctx: CanvasRenderingContext2D, view: View, pose: Pose, sized: Sized) {
+function drawFront(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  pose: Pose,
+  sized: Sized,
+  controls: HTMLCanvasElement,
+) {
   view.plane(ctx, FRONT_Z, false);
   ctx.beginPath();
   trace(ctx, SCREEN_HOLE);
@@ -494,5 +475,5 @@ function drawFront(ctx: CanvasRenderingContext2D, view: View, pose: Pose, sized:
   drawSheen(ctx, pose);
   ctx.restore();
   ctx.drawImage(sized.bakes.front, -PLATE.hx, -PLATE.hy, PLATE.hx * 2, PLATE.hy * 2);
-  drawControls(ctx);
+  ctx.drawImage(controls, -PLATE.hx, -PLATE.hy, PLATE.hx * 2, PLATE.hy * 2);
 }

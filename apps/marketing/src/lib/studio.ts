@@ -24,6 +24,16 @@ export const PHOSPHORS = [
   ["White", "#eef2ff"],
 ] as const;
 
+// The first is the olive of the app icon's knob and slider.
+export const KNOBS = [
+  ["Olive", "#686c3a"],
+  ["Brass", "#b8913f"],
+  ["Red", "#c8412e"],
+  ["Cream", "#e2dbca"],
+  ["Graphite", "#3a3d44"],
+  ["Teal", "#1f8189"],
+] as const;
+
 export const SPEEDS = [0.5, 1, 1.5, 2] as const;
 
 export const STATE_COPY: Record<
@@ -37,13 +47,21 @@ export const STATE_COPY: Record<
 };
 
 /** The settings the page's controls set, named by their `data-setting` attributes. */
-export type ControlKey = "state" | "shell" | "phosphor" | "speed" | "interactive" | "floorShadow";
-export type ColourKey = "shell" | "phosphor";
+export type ControlKey =
+  | "state"
+  | "shell"
+  | "phosphor"
+  | "knobs"
+  | "speed"
+  | "interactive"
+  | "floorShadow";
+export type ColourKey = "shell" | "phosphor" | "knobs";
 
 const CONTROL_KEYS: readonly ControlKey[] = [
   "state",
   "shell",
   "phosphor",
+  "knobs",
   "speed",
   "interactive",
   "floorShadow",
@@ -52,8 +70,10 @@ const CONTROL_KEYS: readonly ControlKey[] = [
 const isControlKey = (value: string | undefined): value is ControlKey =>
   CONTROL_KEYS.some((key) => key === value);
 
+const COLOUR_KEYS: readonly ColourKey[] = ["shell", "phosphor", "knobs"];
+
 const isColourKey = (value: string | undefined): value is ColourKey =>
-  value === "shell" || value === "phosphor";
+  COLOUR_KEYS.some((key) => key === value);
 
 const HEX = /^[0-9a-f]{6}$/i;
 
@@ -72,6 +92,7 @@ export function settingsFromSearch(search: string): BoltComputerSettings {
     state: isState(state) ? state : DEFAULT_SETTINGS.state,
     shell: colour(query.get("shell"), DEFAULT_SETTINGS.shell),
     phosphor: colour(query.get("phosphor"), DEFAULT_SETTINGS.phosphor),
+    knobs: colour(query.get("knobs"), DEFAULT_SETTINGS.knobs),
     speed: SPEEDS.some((s) => s === speed) ? speed : DEFAULT_SETTINGS.speed,
     paused: query.get("paused") === "1",
     interactive: query.get("follow") !== "0",
@@ -87,6 +108,7 @@ export function searchFromSettings(settings: BoltComputerSettings): string {
   if (settings.phosphor !== DEFAULT_SETTINGS.phosphor) {
     query.set("phosphor", settings.phosphor.slice(1));
   }
+  if (settings.knobs !== DEFAULT_SETTINGS.knobs) query.set("knobs", settings.knobs.slice(1));
   if (settings.speed !== DEFAULT_SETTINGS.speed) query.set("speed", String(settings.speed));
   if (settings.paused) query.set("paused", "1");
   if (!settings.interactive) query.set("follow", "0");
@@ -110,6 +132,8 @@ function withSetting(
       return { ...settings, shell: raw };
     case "phosphor":
       return { ...settings, phosphor: raw };
+    case "knobs":
+      return { ...settings, knobs: raw };
     case "speed":
       return { ...settings, speed: Number(raw) };
     case "interactive":
@@ -200,6 +224,7 @@ export function startStudio(root: HTMLElement) {
     text("[data-caption-hint]", STATE_COPY[settings.state].hint);
     text('[data-value-of="shell"]', nameOf(SHELLS, settings.shell));
     text('[data-value-of="phosphor"]', nameOf(PHOSPHORS, settings.phosphor));
+    text('[data-value-of="knobs"]', nameOf(KNOBS, settings.knobs));
     text('[data-action="pause"]', settings.paused ? "Play" : "Pause");
     root.querySelector('[data-action="reset"]')?.toggleAttribute("hidden", isDefault(settings));
     stage.classList.toggle("is-interactive", settings.interactive && !settings.paused);

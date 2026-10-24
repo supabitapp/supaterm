@@ -10,6 +10,8 @@ export interface BoltComputerSettings {
   readonly shell: string;
   /** `#rrggbb` */
   readonly phosphor: string;
+  /** `#rrggbb`, the round knob and the slider's handle. */
+  readonly knobs: string;
   /** Multiplier on every animation. */
   readonly speed: number;
   /** Hold the state's still pose. */
@@ -23,6 +25,7 @@ export const DEFAULT_SETTINGS: BoltComputerSettings = {
   state: "idle",
   shell: "#e2dbca",
   phosphor: "#fff06a",
+  knobs: "#686c3a",
   speed: 1,
   paused: false,
   interactive: true,
@@ -43,6 +46,7 @@ const lookOf = (settings: BoltComputerSettings): Look => ({
   state: settings.state,
   shell: shellMaterial(hexToRgb(settings.shell)),
   phosphor: hexToRgb(settings.phosphor),
+  knobs: hexToRgb(settings.knobs),
   floorShadow: settings.floorShadow,
 });
 
