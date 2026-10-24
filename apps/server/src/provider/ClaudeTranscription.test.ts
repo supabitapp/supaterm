@@ -320,10 +320,23 @@ describe("makeClaudeTranscription", () => {
         { type: "TranscriptEndpoint" },
         { type: "TranscriptText", data: "two" },
       );
-      yield* TestClock.adjust("1499 millis");
+      yield* TestClock.adjust("2999 millis");
       expect(fiber.pollUnsafe()).toBeUndefined();
       yield* TestClock.adjust("1 millis");
       expect(yield* Fiber.join(fiber)).toEqual({ text: "one two" });
+    }).pipe(Effect.scoped, Effect.provide(layer)),
+  );
+
+  it.effect("keeps waiting while the server has not started answering", () =>
+    Effect.gen(function* () {
+      const { transcription, clip, connect } = yield* makeHarness();
+      const fiber = yield* transcription.transcribe(clip).pipe(Effect.forkChild);
+      const socket = yield* connect;
+      yield* TestClock.adjust("10 seconds");
+      expect(fiber.pollUnsafe()).toBeUndefined();
+      socket.reply({ type: "TranscriptText", data: "late start" });
+      socket.close(1000);
+      expect(yield* Fiber.join(fiber)).toEqual({ text: "late start" });
     }).pipe(Effect.scoped, Effect.provide(layer)),
   );
 
@@ -523,23 +536,36 @@ describe("makeClaudeTranscription", () => {
     }).pipe(Effect.scoped, Effect.provide(layer)),
   );
 
-  it.effect("tries the Keychain when a leftover credentials file is rejected", () =>
+  it.effect("uses the Keychain login over a leftover credentials file on macOS", () =>
     Effect.gen(function* () {
-      const { transcription, clip, nextSocket, connect } = yield* makeHarness({
+      const { transcription, clip, connect } = yield* makeHarness({
         platform: "darwin",
         keychainUsageEnabled: true,
         readKeychain: () =>
           Effect.succeed(JSON.stringify({ claudeAiOauth: { accessToken: keychainToken } })),
       });
       const fiber = yield* transcription.transcribe(clip).pipe(Effect.forkChild);
-      const stale = yield* nextSocket;
-      expect(stale.headers.authorization).toBe(`Bearer ${fileToken}`);
-      stale.rejectUpgrade({ status: 401 });
-      const current = yield* connect;
-      expect(current.headers.authorization).toBe(`Bearer ${keychainToken}`);
-      current.reply({ type: "TranscriptText", data: "recovered" });
-      current.close(1000);
-      expect(yield* Fiber.join(fiber)).toEqual({ text: "recovered" });
+      const socket = yield* connect;
+      expect(socket.headers.authorization).toBe(`Bearer ${keychainToken}`);
+      socket.reply({ type: "TranscriptText", data: "current account" });
+      socket.close(1000);
+      expect(yield* Fiber.join(fiber)).toEqual({ text: "current account" });
+    }).pipe(Effect.scoped, Effect.provide(layer)),
+  );
+
+  it.effect("falls back to the credentials file when the Keychain has no login", () =>
+    Effect.gen(function* () {
+      const { transcription, clip, connect } = yield* makeHarness({
+        platform: "darwin",
+        keychainUsageEnabled: true,
+        readKeychain: () => Effect.succeed(null),
+      });
+      const fiber = yield* transcription.transcribe(clip).pipe(Effect.forkChild);
+      const socket = yield* connect;
+      expect(socket.headers.authorization).toBe(`Bearer ${fileToken}`);
+      socket.reply({ type: "TranscriptText", data: "file login" });
+      socket.close(1000);
+      expect(yield* Fiber.join(fiber)).toEqual({ text: "file login" });
     }).pipe(Effect.scoped, Effect.provide(layer)),
   );
 

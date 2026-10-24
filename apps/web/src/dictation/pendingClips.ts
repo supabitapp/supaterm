@@ -239,6 +239,21 @@ export function updatePendingClip(
   return next.clip;
 }
 
+// A draft that becomes a thread hands its composer to the thread, so its
+// recordings must follow or they would have no composer left to appear in.
+export function reassignPendingClips(fromOwnerKey: string, toOwnerKey: string): void {
+  if (fromOwnerKey === toOwnerKey) return;
+  const moved = [...records.values()].filter(({ clip }) => clip.ownerKey === fromOwnerKey);
+  if (moved.length === 0) return;
+  const next = new Map(records);
+  for (const record of moved) {
+    const updated = { blob: record.blob, clip: { ...record.clip, ownerKey: toOwnerKey } };
+    next.set(record.clip.id, updated);
+    if (updated.clip.persisted) void persist(updated);
+  }
+  publish(next);
+}
+
 export async function retrySavingPendingClip(id: string): Promise<boolean> {
   const record = records.get(id);
   if (!record) return false;

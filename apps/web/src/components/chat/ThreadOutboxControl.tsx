@@ -23,11 +23,11 @@ import {
 } from "../../composerDraftStore";
 import {
   cancelThreadOutboxTurn,
+  canMoveThreadOutboxTurnToComposer,
   moveThreadOutboxTurnToComposer,
   useThreadOutbox,
   webThreadOutbox,
   replaceThreadOutboxTurn,
-  threadOutboxComposerTarget,
   threadOutboxDeliverableAtom,
   type PendingThreadTurn,
 } from "../../state/threadOutbox";
@@ -249,7 +249,7 @@ export function ThreadOutboxControl({
                           busy ||
                           !canChange ||
                           props.editingMessageId !== null ||
-                          threadOutboxComposerTarget(entry) === null
+                          !canMoveThreadOutboxTurnToComposer(entry)
                         }
                         onClick={() => withdraw(entry, moveThreadOutboxTurnToComposer)}
                       >

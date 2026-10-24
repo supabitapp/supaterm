@@ -59,9 +59,9 @@ const VOICE_LANGUAGES = new Set([
 ]);
 
 const OPEN_TIMEOUT = Duration.seconds(10);
-const QUIET_AFTER_CLOSE_STREAM = Duration.millis(1_500);
+const QUIET_AFTER_TRANSCRIPT = Duration.seconds(3);
 const PROCESSING_ALLOWANCE_MS = 30_000;
-const KEYCHAIN_CACHE_MS = 5 * 60_000;
+const KEYCHAIN_CACHE_MS = 60_000;
 const KEYCHAIN_TIMEOUT = Duration.seconds(30);
 
 const KEYCHAIN_SERVICE = "Claude Code-credentials";
@@ -253,21 +253,25 @@ const isNormalClose = (error: Socket.SocketError) =>
  * endpoint after `CloseStream`, but it sends `CloseStream` after streaming in
  * real time; a recorded clip sends it straight after the audio, so every
  * pause in the clip ends in an endpoint after it. The stream therefore ends
- * when the server closes it or goes quiet for the CLI's no-data window.
+ * when the server closes it, or goes quiet once it has started answering;
+ * audio still in flight can delay the first answer, so silence before it is
+ * left to the overall deadline rather than read as an empty transcript.
  */
 const collectTranscript = Effect.fn("ClaudeTranscription.collectTranscript")(function* (
   pull: Socket.Reader["pull"],
 ) {
   const finals: Array<string> = [];
   let pending = "";
+  let answering = false;
   const commit = () => {
     const text = pending.trim();
     pending = "";
     if (text) finals.push(text);
   };
   while (true) {
-    const frames = yield* pull.pipe(
-      Effect.timeoutOption(QUIET_AFTER_CLOSE_STREAM),
+    const frames = yield* (
+      answering ? pull.pipe(Effect.timeoutOption(QUIET_AFTER_TRANSCRIPT)) : Effect.asSome(pull)
+    ).pipe(
       Effect.catchTags({
         SocketError: (error) =>
           isNormalClose(error) ? Effect.succeedNone : Effect.fail(closeFailure(error)),
@@ -283,8 +287,10 @@ const collectTranscript = Effect.fn("ClaudeTranscription.collectTranscript")(fun
       if (Option.isNone(frame)) return yield* upstream("bad-response");
       const { type, data, error_code, description, message } = frame.value;
       if (type === "TranscriptText" || type === "TranscriptInterim") {
+        answering = true;
         if (data) pending = data;
       } else if (type === "TranscriptEndpoint") {
+        answering = true;
         commit();
       } else {
         yield* Effect.logWarning("Claude voice stream reported an error.", { frame: type });
@@ -338,7 +344,6 @@ const makeKeychainLogin = (read: Effect.Effect<string | null, ClaudeKeychainRead
     );
     if (Option.isNone(result))
       return yield* failure({ _tag: "ineligible", reason: KEYCHAIN_PROMPT_REASON });
-    if (result.value === null) return yield* failure({ _tag: "auth" });
     return result.value;
   });
 
@@ -509,17 +514,6 @@ export const makeClaudeTranscription = Effect.fn("makeClaudeTranscription")(func
     ),
   );
 
-  const keychainStream = (
-    send: (token: string) => Effect.Effect<{ readonly text: string }, TranscriptionFailure>,
-    rejectedToken: string | undefined,
-  ) =>
-    keychain.token.pipe(
-      Effect.flatMap((token) =>
-        token === rejectedToken ? Effect.fail(failure({ _tag: "auth" })) : send(token),
-      ),
-      Effect.tapError((error) => (isAuthFailure(error) ? keychain.forget : Effect.void)),
-    );
-
   const transcribe = Effect.fn("ClaudeTranscription.transcribe")(function* (
     clip: TranscriptionClip,
   ) {
@@ -533,21 +527,21 @@ export const makeClaudeTranscription = Effect.fn("makeClaudeTranscription")(func
     const language = voiceLanguage(clip.language);
     const send = (token: string) => stream({ token, version, audio, language });
 
-    const fileToken = yield* readFileToken;
-    if (!(yield* keychainAllowed)) {
-      if (fileToken !== undefined) return yield* send(fileToken);
-      return yield* failure(
-        platform === "darwin"
-          ? { _tag: "ineligible", reason: KEYCHAIN_OPT_IN_REASON }
-          : { _tag: "auth" },
-      );
+    if (platform === "darwin") {
+      if (!(yield* keychainAllowed))
+        return yield* failure({ _tag: "ineligible", reason: KEYCHAIN_OPT_IN_REASON });
+      // Like the CLI, the Keychain login wins: the plaintext fallback file can
+      // outlive a newer Keychain login for a different account.
+      const keychainToken = yield* keychain.token;
+      if (keychainToken !== null) {
+        return yield* send(keychainToken).pipe(
+          Effect.tapError((error) => (isAuthFailure(error) ? keychain.forget : Effect.void)),
+        );
+      }
     }
-    if (fileToken === undefined) return yield* keychainStream(send, undefined);
-    // The CLI only deletes its plaintext fallback when the Keychain had no
-    // login yet, so the file can outlive a newer Keychain login.
-    return yield* send(fileToken).pipe(
-      Effect.catchIf(isAuthFailure, () => keychainStream(send, fileToken)),
-    );
+    const fileToken = yield* readFileToken;
+    if (fileToken === undefined) return yield* failure({ _tag: "auth" });
+    return yield* send(fileToken);
   });
 
   const describe = Effect.gen(function* () {
@@ -555,9 +549,16 @@ export const makeClaudeTranscription = Effect.fn("makeClaudeTranscription")(func
     if (!provider.enabled) return null;
     const unavailableReason = accountUnavailableReason(provider);
     if (unavailableReason !== undefined) return describeSource(provider, unavailableReason);
-    if ((yield* readFileToken) !== undefined) return describeSource(provider, undefined);
-    if (platform !== "darwin") return describeSource(provider, SIGNED_OUT_REASON);
-    return describeSource(provider, (yield* keychainAllowed) ? undefined : KEYCHAIN_OPT_IN_REASON);
+    if (platform === "darwin") {
+      return describeSource(
+        provider,
+        (yield* keychainAllowed) ? undefined : KEYCHAIN_OPT_IN_REASON,
+      );
+    }
+    return describeSource(
+      provider,
+      (yield* readFileToken) === undefined ? SIGNED_OUT_REASON : undefined,
+    );
   });
 
   return { kind: "claude", describe, transcribe } satisfies ProviderTranscription;

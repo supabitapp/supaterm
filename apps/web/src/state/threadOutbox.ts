@@ -467,9 +467,23 @@ export function threadOutboxComposerTarget(entry: PendingThreadTurn) {
   return scopeThreadRef(entry.payload.environmentId, entry.payload.input.threadId);
 }
 
+// The composer can take back text and a recording, but not the queued files or
+// message context, so those messages only offer Cancel.
+export function canMoveThreadOutboxTurnToComposer(entry: PendingThreadTurn): boolean {
+  const { input, localAttachments } = entry.payload;
+  return (
+    threadOutboxComposerTarget(entry) !== null &&
+    localAttachments.length === 0 &&
+    input.message.attachments.length === 0 &&
+    input.message.context === undefined
+  );
+}
+
 export async function moveThreadOutboxTurnToComposer(entry: PendingThreadTurn) {
   const target = threadOutboxComposerTarget(entry);
-  if (target === null) throw new Error("This message has no draft to return to.");
+  if (target === null || !canMoveThreadOutboxTurnToComposer(entry)) {
+    throw new Error("This message can't move back to the composer.");
+  }
   const { payload } = entry;
   const { voice } = payload;
   // The queued entry owns the audio until the composer's copy is on disk.
