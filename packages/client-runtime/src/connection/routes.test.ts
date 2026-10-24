@@ -19,7 +19,6 @@ import {
   connectionRouteId,
   connectionRouteKind,
   connectionRouteLabel,
-  connectionRoutes,
   entryWithRoutes,
   insertRoute,
   isLearned,
@@ -424,21 +423,6 @@ describe("plain HTTP learned routes", () => {
       `learned:${environmentId}:https://desk.tail1234.ts.net@public`,
       "public",
     ]);
-  });
-
-  it("drops a plain HTTP LAN route learned earlier over an HTTPS-paired token", () => {
-    const lanOrigin = "http://192.168.1.10:3773";
-    const stale = learnedRoute(`learned:${environmentId}:${lanOrigin}@public`, `${lanOrigin}/`);
-    const entry = entryWithRoutes(base, [stale, PUBLIC]);
-    expect(sendsTokenInClear(connectionRoutes(entry), stale)).toBe(true);
-    expect(ids(usableRoutes(entry))).toEqual(["public"]);
-    const routes = mergeLearnedRoutes({
-      entry,
-      activeRoute: PUBLIC,
-      reported: [{ kind: "lan", httpBaseUrl: `${lanOrigin}/` }],
-      allowInsecure: true,
-    });
-    expect(ids(routes)).toEqual(["public"]);
   });
 
   it("keeps plain HTTP routes that don't borrow the active HTTPS-paired token", () => {

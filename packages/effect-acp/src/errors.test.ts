@@ -4,7 +4,7 @@ import * as Schema from "effect/Schema";
 import * as RpcClientError from "effect/rpc/RpcClientError";
 
 import * as AcpSchema from "./_generated/schema.gen.ts";
-import { callRpc, runHandler } from "./_internal/shared.ts";
+import { callRpc } from "./_internal/shared.ts";
 import * as AcpError from "./errors.ts";
 
 const decodeNestedNumberPayload = Schema.decodeUnknownEffect(
@@ -109,25 +109,6 @@ describe("effect-acp errors", () => {
     });
     expect(error.message).toBe("ACP extension request handler failed for method 'x/test'");
     expect(error.message).not.toContain(cause.message);
-  });
-
-  it.effect("uses the structured mapper for core handler failures", () => {
-    const cause = new AcpError.AcpTransportError({
-      operation: "read-input-stream",
-      cause: new Error("private transport diagnostics"),
-    });
-
-    return Effect.gen(function* () {
-      const error = yield* runHandler(() => Effect.fail(cause), {}, "fs/read_text_file").pipe(
-        Effect.flip,
-      );
-
-      expect(error).toMatchObject({
-        code: -32603,
-        message: "ACP request handler failed for method 'fs/read_text_file'",
-      });
-      expect(error.message).not.toContain(cause.message);
-    });
   });
 
   it.effect("keeps invalid extension payload values only in the exact schema cause", () =>

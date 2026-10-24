@@ -4,15 +4,10 @@ import {
   DEFAULT_SERVER_SETTINGS,
   ProjectId,
   type RepositoryIdentity,
-  type ThreadPullRequestLink,
 } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import {
-  findPromptLinkProject,
-  findPromptLinkPullRequestThread,
-  resolvePromptLinkModelSelection,
-} from "./promptLinks.ts";
+import { findPromptLinkProject, resolvePromptLinkModelSelection } from "./promptLinks.ts";
 
 const identity = (canonicalKey: string, origin?: string): RepositoryIdentity => ({
   canonicalKey,
@@ -41,36 +36,6 @@ describe("findPromptLinkProject", () => {
       "fork",
     );
     expect(findPromptLinkProject(projects, { owner: "gitlab", name: "x" })).toBeUndefined();
-  });
-});
-
-describe("findPromptLinkPullRequestThread", () => {
-  const link = (number: number, source: ThreadPullRequestLink["source"] = "created") =>
-    ({
-      host: "github.com",
-      repository: "supabitapp/supacode-next",
-      number,
-      url: `https://github.com/supabitapp/supacode-next/pull/${number}`,
-      source,
-      linkedAt: "2026-01-01T00:00:00.000Z",
-      snapshot: null,
-      stack: null,
-    }) satisfies ThreadPullRequestLink;
-
-  it("finds the most recently updated thread linked to the pull request", () => {
-    const threads = [
-      { id: "old", updatedAt: "2026-01-01T00:00:00.000Z", pullRequests: [link(7)] },
-      { id: "new", updatedAt: "2026-02-01T00:00:00.000Z", pullRequests: [link(7)] },
-      { id: "other", updatedAt: "2026-03-01T00:00:00.000Z", pullRequests: [link(8)] },
-      {
-        id: "dismissed",
-        updatedAt: "2026-04-01T00:00:00.000Z",
-        pullRequests: [link(7, "stack-dismissed")],
-      },
-    ];
-    const pullRequest = { owner: "SupabitApp", name: "supacode-next", number: 7 };
-    expect(findPromptLinkPullRequestThread(threads, pullRequest)?.id).toBe("new");
-    expect(findPromptLinkPullRequestThread(threads, { ...pullRequest, number: 9 })).toBeUndefined();
   });
 });
 

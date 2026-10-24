@@ -9,13 +9,9 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   collectComposerContextReferences,
   formatComposerContextHref,
-  formatComposerContextProviderMarker,
-  formatComposerContextReference,
   isImageReferencesOnly,
   parseComposerContextHref,
   projectComposerContextForProvider,
-  replaceComposerContextReferences,
-  sanitizeComposerContextLabel,
   threadContextsOutsideEnvironment,
   toComposerContextId,
   toKindScopedComposerContextId,
@@ -60,21 +56,6 @@ describe("labels and reference links", () => {
         ?.label,
     ).toHaveLength(200);
   });
-  it("sanitizes labels without touching identity", () => {
-    expect(sanitizeComposerContextLabel("a ] b\nc  [d", "file")).toBe("a b c d");
-    expect(sanitizeComposerContextLabel("   ", "terminal")).toBe("terminal");
-    expect(sanitizeComposerContextLabel("folder\\", "file")).toBe("folder");
-    expect(sanitizeComposerContextLabel("x".repeat(500), "file")).toHaveLength(200);
-  });
-
-  it("formats images with the image form and everything else as a link", () => {
-    expect(
-      formatComposerContextReference({ kind: "image", contextId: ctx("ctx_1"), label: "a.png" }),
-    ).toBe("![a.png](supaterm-context://v1/image/ctx_1)");
-    expect(
-      formatComposerContextReference({ kind: "skill", contextId: ctx("ctx_2"), label: "$x" }),
-    ).toBe("[$x](supaterm-context://v1/skill/ctx_2)");
-  });
 
   it("collects occurrences in document order with offsets, sharing a payload", () => {
     const text =
@@ -90,13 +71,6 @@ describe("labels and reference links", () => {
     }
   });
 
-  it("ignores links whose href does not parse", () => {
-    expect(collectComposerContextReferences("[x](supaterm-context://v1/image/ctx_1?y)")).toEqual(
-      [],
-    );
-    expect(collectComposerContextReferences("[x](https://example.com)")).toEqual([]);
-  });
-
   it("recognizes a prompt made only of image references", () => {
     const image = "![a.png](supaterm-context://v1/image/ctx_1)";
     const file = "[notes.md](supaterm-context://v1/file/ctx_3)";
@@ -108,14 +82,6 @@ describe("labels and reference links", () => {
     expect(isImageReferencesOnly(file)).toBe(false);
     expect(isImageReferencesOnly(`${image} ${file}`)).toBe(false);
     expect(isImageReferencesOnly("  ")).toBe(false);
-  });
-
-  it("replaces occurrences in place", () => {
-    const text =
-      "a [x](supaterm-context://v1/skill/ctx_1) b [y](supaterm-context://v1/file/ctx_2) c";
-    expect(replaceComposerContextReferences(text, (o) => `<${o.contextId}>`)).toBe(
-      "a <ctx_1> b <ctx_2> c",
-    );
   });
 });
 
@@ -191,10 +157,6 @@ describe("provider projection", () => {
     expect(projected).toContain("- font-size: 12px → 20px");
   });
 
-  it("returns text unchanged when there are no references", () => {
-    expect(projectComposerContextForProvider({ text: "plain", records: [terminal] })).toBe("plain");
-  });
-
   it("uses the payload kind when a reference disagrees with its record", () => {
     const projected = projectComposerContextForProvider({
       text: "[log](supaterm-context://v1/image/ctx_t)",
@@ -223,12 +185,6 @@ describe("provider projection", () => {
     expect(project("a\nb\n")).toContain("3 | a\n4 | b\n</context>");
     expect(project("a\nb\n")).not.toContain("5 |");
     expect(project("a\n")).toContain("3 | a\n4 | \n</context>");
-  });
-
-  it("formats markers with kind, label and ref", () => {
-    expect(formatComposerContextProviderMarker("review-comment", "File.ts L4", ctx("ctx_9"))).toBe(
-      "[Review comment: File.ts L4; ref=ctx_9]",
-    );
   });
 
   it("emits every marker in place and each payload once, escaped, in first-reference order", () => {

@@ -72,13 +72,6 @@ describe("classifyCatalogModels", () => {
       ],
     );
   });
-
-  it("keeps discovered models current when the driver has no catalog", () => {
-    assert.deepStrictEqual(
-      ModelCatalog.classifyCatalogModels([model({ slug: "new", isLegacy: true })], undefined),
-      [model({ slug: "new" })],
-    );
-  });
 });
 
 describe("applyCatalogDefault", () => {

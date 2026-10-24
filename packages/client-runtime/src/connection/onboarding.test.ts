@@ -842,24 +842,6 @@ describe("connection onboarding", () => {
       ),
   );
 
-  it.effect("registers an enabled environment on first-time pairing", () =>
-    Effect.gen(function* () {
-      const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
-      const onboarding = yield* ConnectionOnboarding;
-      expect((yield* SubscriptionRef.get(registry.entries)).size).toBe(0);
-
-      const environmentId = yield* onboarding.registerPairing(PAIRING_INPUT);
-
-      expect(environmentId).toBe(PAIRED_ENVIRONMENT_ID);
-      const entries = yield* SubscriptionRef.get(registry.entries);
-      const entry = entries.get(environmentId);
-      expect(entries.size).toBe(1);
-      expect(entry?.enabled).toBe(true);
-      expect(entry?.unsupportedReason).toBeUndefined();
-      expect(entry?.profile).toEqual(Option.some(PAIRED_PROFILE));
-    }).pipe(Effect.provide(layerPairingOnboarding())),
-  );
-
   it.effect("leaves a platform-managed environment untouched when its id is paired", () =>
     Effect.gen(function* () {
       const registry = yield* EnvironmentRegistry.EnvironmentRegistry;

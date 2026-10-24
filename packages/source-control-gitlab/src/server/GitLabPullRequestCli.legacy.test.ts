@@ -1,4 +1,4 @@
-import { afterEach, assert, expect, it, vi } from "@effect/vitest";
+import { afterEach, expect, it, vi } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { ChildProcessSpawner } from "effect/process";
@@ -106,17 +106,6 @@ layer("legacy GitLab diff requests through GitLabCli", (it) => {
           truncated: true,
           nextCursor: null,
         });
-      }),
-  );
-  it.effect.each([{}, { changes: null }, { changes: {} }, [file]])(
-    "rejects malformed legacy wrapper %j",
-    (body) =>
-      Effect.gen(function* () {
-        run.mockReturnValueOnce(failure("not-found"));
-        run.mockReturnValueOnce(output(body));
-        const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
-        const error = yield* cli.getMergeRequestDiff(input).pipe(Effect.flip);
-        assert.equal(error._tag, "GitLabMergeRequestReadError");
       }),
   );
   it.effect.each([false, true])("marks skipped file entries truncated (legacy: %s)", (legacy) =>

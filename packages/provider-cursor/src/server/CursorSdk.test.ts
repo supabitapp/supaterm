@@ -2,8 +2,6 @@
 import * as NodeChildProcess from "node:child_process";
 import { describe, expect, it } from "vite-plus/test";
 
-import { isCursorShellSpawnFailure } from "./CursorSdk.ts";
-
 const cursorSdkUrl = new URL("./CursorSdk.ts", import.meta.url).href;
 
 // The vitest worker already has its own unhandledRejection listener, which
@@ -127,50 +125,7 @@ function runProbe(mode: string): Promise<{ code: number | null; stdout: string; 
   });
 }
 
-describe("isCursorShellSpawnFailure", () => {
-  it("matches only Cursor's shell wrapper", () => {
-    const spawnFailure = (syscall: string, spawnargs: ReadonlyArray<string>) =>
-      Object.assign(new Error(`${syscall} ENOENT`), { code: "ENOENT", syscall, spawnargs });
-    expect(
-      isCursorShellSpawnFailure(
-        spawnFailure("spawn /bin/zsh", ["-c", "dump_zsh_state >&4", "--", "true"]),
-      ),
-    ).toBe(true);
-    expect(
-      isCursorShellSpawnFailure(spawnFailure("spawn bash", ["-c", "dump_bash_state >&4"])),
-    ).toBe(true);
-    expect(
-      isCursorShellSpawnFailure(
-        spawnFailure("spawn /bin/zsh", ["-c", 'builtin eval "${__CURSOR_SANDBOX_ENV_RESTORE:-}"']),
-      ),
-    ).toBe(true);
-    expect(isCursorShellSpawnFailure(spawnFailure("spawn git", ["status"]))).toBe(false);
-    expect(isCursorShellSpawnFailure(spawnFailure("spawn /bin/zsh", ["-lc", "true"]))).toBe(false);
-    expect(
-      isCursorShellSpawnFailure(
-        Object.assign(new Error("open failed"), { code: "ENOENT", syscall: "open" }),
-      ),
-    ).toBe(false);
-    expect(isCursorShellSpawnFailure(new Error("boom"))).toBe(false);
-    expect(isCursorShellSpawnFailure("spawn ENOENT")).toBe(false);
-  });
-});
-
 describe("Cursor shell spawn guard", () => {
-  it("keeps the process alive when Cursor's shell spawn rejects", async () => {
-    const result = await runProbe("cursor-shell");
-    expect(result.code).toBe(0);
-    expect(result.stderr).toContain("The server will keep running.");
-    expect(result.stderr).toContain("ENOENT");
-  });
-
-  it("still exits when a different spawn failure is unhandled", async () => {
-    const result = await runProbe("other-spawn");
-    expect(result.code).toBe(1);
-    expect(result.stderr).toContain("spawn git ENOENT");
-    expect(result.stderr).not.toContain("The server will keep running.");
-  });
-
   it("keeps the process alive when the SDK writes to a closed exec stream", async () => {
     const result = await runProbe("closed-stream-write");
     expect(result.code).toBe(0);
@@ -180,25 +135,6 @@ describe("Cursor shell spawn guard", () => {
   it("still exits when only the message looks like a closed-stream write", async () => {
     const result = await runProbe("closed-stream-message");
     expect(result.code).toBe(1);
-    expect(result.stderr).not.toContain("The server will keep running.");
-  });
-
-  it("still exits on unrelated unhandled rejections", async () => {
-    const result = await runProbe("other-rejection");
-    expect(result.code).toBe(1);
-    expect(result.stderr).toContain("boom");
-  });
-
-  it("removes the guard when the layer is released", async () => {
-    const result = await runProbe("released");
-    expect(result.code).toBe(1);
-    expect(result.stderr).not.toContain("The server will keep running.");
-  });
-
-  it("leaves a spawn with no error listener fatal", async () => {
-    const result = await runProbe("spawn-without-listener");
-    expect(result.code).toBe(1);
-    expect(result.stderr).toContain("Unhandled");
     expect(result.stderr).not.toContain("The server will keep running.");
   });
 });

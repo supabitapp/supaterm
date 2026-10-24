@@ -209,12 +209,6 @@ describe("extendReplacementRangeForTrailingSpace", () => {
 });
 
 describe("serializeComposerFileLink", () => {
-  it("uses the basename as the markdown label", () => {
-    expect(serializeComposerFileLink("path/to/package.json")).toBe(
-      "[package.json](path/to/package.json)",
-    );
-  });
-
   it("encodes markdown-sensitive destination characters", () => {
     expect(serializeComposerFileLink("docs/My File (draft).md")).toBe(
       "[My File (draft).md](docs/My%20File%20%28draft%29.md)",

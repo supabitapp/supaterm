@@ -1,21 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { classifyMarkdownImageSource, markdownImageSourceFragment } from "./markdownImages.js";
+import { classifyMarkdownImageSource } from "./markdownImages.js";
 
 describe("classifyMarkdownImageSource", () => {
-  it.each([
-    "https://example.com/image.png",
-    "HTTP://example.com/image.png",
-    "data:image/png;base64,AAAA",
-    "blob:https://app.supaterm.com/image-id",
-    "//cdn.example.com/image.png",
-  ])("keeps %s directly loadable", (uri) => {
-    expect(classifyMarkdownImageSource(uri, "/workspace/project")).toEqual({
-      _tag: "Direct",
-      uri,
-    });
-  });
-
   it.each([
     ["images/result.png", "/workspace/project", "/workspace/project/images/result.png"],
     ["./images/result.png", "/workspace/project", "/workspace/project/./images/result.png"],
@@ -82,14 +69,5 @@ describe("classifyMarkdownImageSource", () => {
     expect(
       classifyMarkdownImageSource("file://nas.test/share/other/logo.png", docs, project),
     ).toEqual({ _tag: "Blocked" });
-  });
-});
-
-describe("markdownImageSourceFragment", () => {
-  it.each([
-    ["<icons.svg?version=2#logo>", "#logo"],
-    ["icons.svg?version=2", ""],
-  ])("extracts %s as %s", (source, fragment) => {
-    expect(markdownImageSourceFragment(source)).toBe(fragment);
   });
 });

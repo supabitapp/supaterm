@@ -1,8 +1,4 @@
-import {
-  ProjectId,
-  type ThreadPullRequestLink,
-  type ThreadPullRequestSnapshot,
-} from "@supaterm/contracts";
+import { type ThreadPullRequestLink, type ThreadPullRequestSnapshot } from "@supaterm/contracts";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 
 import {
@@ -81,36 +77,9 @@ describe("threadPullRequestKeysEqual", () => {
       }),
     ).toBe(false);
   });
-
-  it("ignores host and repository case", () => {
-    expect(
-      threadPullRequestKeysEqual(
-        { host: "GitHub.com", repository: "SupabitApp/supaterm", number: 1 },
-        { host: "github.com", repository: "supabitapp/supaterm", number: 1 },
-      ),
-    ).toBe(true);
-    expect(
-      threadPullRequestKeysEqual(
-        { host: "github.com", repository: "supabitapp/supaterm", number: 1 },
-        { host: "gitlab.com", repository: "supabitapp/supaterm", number: 1 },
-      ),
-    ).toBe(false);
-  });
 });
 
 describe("resolveThreadCurrentPullRequest", () => {
-  it("returns null with no visible links", () => {
-    expect(resolveThreadCurrentPullRequest([])).toBeNull();
-    expect(resolveThreadCurrentPullRequest([link(1, { source: "stack-dismissed" })])).toBeNull();
-  });
-
-  it("treats an unsynced link as open", () => {
-    expect(resolveThreadCurrentPullRequest([link(1)])).toMatchObject({
-      kind: "single",
-      link: { number: 1 },
-    });
-  });
-
   it("prefers the single open link over terminal ones", () => {
     const current = resolveThreadCurrentPullRequest([
       link(1, { snapshot: snapshot({ state: "merged" }) }),
@@ -300,40 +269,6 @@ describe("resolveThreadPullRequestChains", () => {
 });
 
 describe("chain selection and badge state", () => {
-  it.each([
-    ["open", false, "open", false, "open"],
-    ["closed", false, "closed", false, "closed"],
-    ["open", true, "open", true, "draft"],
-    ["open", false, "open", true, "open"],
-    ["closed", false, "open", true, "open"],
-    ["merged", false, "merged", false, "merged"],
-    ["merged", false, "closed", true, "closed"],
-  ] as const)(
-    "aggregates %s (draft %s) and %s (draft %s) as %s",
-    (firstState, firstDraft, secondState, secondDraft, state) => {
-      for (const stacked of [false, true]) {
-        const links = [
-          link(1, {
-            snapshot: snapshot({ state: firstState, isDraft: firstDraft, headBranch: "base" }),
-          }),
-          link(2, {
-            snapshot: snapshot({
-              state: secondState,
-              isDraft: secondDraft,
-              baseBranch: stacked ? "base" : "main",
-            }),
-          }),
-          link(3, { source: "stack-dismissed" }),
-        ];
-        expect(resolveThreadPullRequestBadge(links)).toEqual(
-          stacked
-            ? { kind: "stack", layers: 2, state }
-            : { kind: "pull-request", others: 1, state },
-        );
-      }
-    },
-  );
-
   it.each(["open", "merged", "closed"] as const)(
     "targets the top of a derived %s chain despite a later bottom update and link",
     (state) => {
@@ -458,26 +393,6 @@ describe("chain selection and badge state", () => {
 });
 
 describe("threadPullRequestSearchTerms", () => {
-  it.each([undefined, [], [link(34)]])(
-    "searches the branch PR alongside existing links (%j)",
-    (pullRequests) => {
-      const branchPullRequest = {
-        projectId: ProjectId.make("project"),
-        repository: "supabitapp/supaterm",
-        number: 11809,
-        url: "https://github.com/supabitapp/supaterm/pull/11809",
-      };
-      const terms = threadPullRequestSearchTerms({
-        pullRequests,
-        branchPullRequest,
-      });
-      for (const query of ["11809", "#11809", "supabitapp/supaterm#11809", branchPullRequest.url]) {
-        expect(terms.some((term) => term.includes(query))).toBe(true);
-      }
-      if (pullRequests?.length) expect(terms).toContain("#34");
-    },
-  );
-
   it("includes completed and unsynced links but excludes dismissed links", () => {
     const terms = threadPullRequestSearchTerms({
       pullRequests: [

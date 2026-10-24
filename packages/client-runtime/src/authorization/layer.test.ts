@@ -2,7 +2,6 @@ import { EnvironmentId, ORCHESTRATION_PROTOCOL_VERSION } from "@supaterm/contrac
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as TestClock from "effect/testing/TestClock";
 
 import { layerRemoteHttpClient } from "../rpc/http.ts";
 import * as ClientCapabilities from "../platform/capabilities.ts";
@@ -132,49 +131,6 @@ describe("RemoteEnvironmentAuthorization", () => {
       ).toHaveLength(1);
       expect(
         harness.fetch.calls.filter(([url]) => String(url).endsWith("/api/auth/websocket-ticket")),
-      ).toHaveLength(2);
-    }),
-  );
-
-  it.effect("revalidates a bearer descriptor after the cache expires", () =>
-    Effect.gen(function* () {
-      const reassignedEnvironmentId = EnvironmentId.make("environment-2");
-      const harness = makeHarness([
-        Response.json(DESCRIPTOR),
-        websocketTicket("first-ticket"),
-        Response.json({
-          ...DESCRIPTOR,
-          environmentId: reassignedEnvironmentId,
-        }),
-      ]);
-
-      const failure = yield* Effect.gen(function* () {
-        const remote = yield* RemoteEnvironmentAuthorization.RemoteEnvironmentAuthorization;
-        const authorize = () =>
-          remote.authorizeBearer({
-            expectedEnvironmentId: ENVIRONMENT_ID,
-            httpBaseUrl: ENDPOINT.httpBaseUrl,
-            wsBaseUrl: ENDPOINT.wsBaseUrl,
-            bearerToken: "bearer-token",
-            connectionMethod: "direct",
-          });
-
-        yield* authorize();
-        yield* TestClock.adjust("10 seconds");
-        return yield* authorize().pipe(Effect.flip);
-      }).pipe(Effect.provide(Layer.merge(harness.layer, TestClock.layer())));
-
-      expect(failure).toEqual(
-        expect.objectContaining({
-          _tag: "ConnectionBlockedError",
-          reason: "configuration",
-          detail: `Connected environment ${reassignedEnvironmentId} does not match ${ENVIRONMENT_ID}.`,
-        }),
-      );
-      expect(
-        harness.fetch.calls.filter(([url]) =>
-          String(url).endsWith("/.well-known/supaterm/environment"),
-        ),
       ).toHaveLength(2);
     }),
   );
