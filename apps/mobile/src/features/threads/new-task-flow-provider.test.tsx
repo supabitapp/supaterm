@@ -88,6 +88,7 @@ vi.mock("../../state/query", () => ({
 }));
 vi.mock("../../state/vcs", () => ({ vcsEnvironment: { status: () => null } }));
 vi.mock("../../state/queries", () => ({
+  useBranches: () => ({ data: null }),
   useDebouncedValue: (value: string) => value,
   usePaginatedBranches: () => ({
     refs: [],
