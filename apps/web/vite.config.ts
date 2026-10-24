@@ -87,6 +87,7 @@ const browserTestProject = {
     include: ["src/**/*.browser.test.{ts,tsx}"],
     hookTimeout: 15_000,
     testTimeout: 15_000,
+    setupFiles: ["./test/browserSetup.ts"],
     api: { port: browserTestApiPort, strictPort: false },
     browser: {
       enabled: true,
@@ -94,6 +95,13 @@ const browserTestProject = {
       provider: playwright(),
       instances: [{ browser: "chromium" }],
       screenshotFailures: false,
+      commands: {
+        // Playwright's mouse outlives each test, so whatever mounts under its last
+        // position starts hovered. test/browserSetup.ts parks it off the page before each test.
+        resetPointer: async ({ page }) => {
+          await page.mouse.move(-1, -1);
+        },
+      },
     },
   },
 } satisfies TestProjectInlineConfiguration;
