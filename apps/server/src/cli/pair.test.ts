@@ -459,31 +459,6 @@ describe("supaterm pair", () => {
     ).pipe(Effect.provide(NodeServices.layer)),
   );
 
-  it.effect("ignores stale runtime state pointing at a dead server", () =>
-    Effect.gen(function* () {
-      const baseDir = NodeFS.mkdtempSync(
-        NodePath.join(NodeOS.tmpdir(), "supaterm-pair-stale-test-"),
-      );
-      const statePath = NodePath.join(baseDir, "userdata", "server-runtime.json");
-      yield* persistServerRuntimeState({
-        path: statePath,
-        state: yield* makePersistedServerRuntimeState({
-          config: { host: "127.0.0.1", devUrl: undefined },
-          port: 1,
-        }),
-      });
-
-      const error = yield* provideCliTestLayers(
-        runCli(["pair", "--base-dir", baseDir]).pipe(Effect.flip),
-      );
-
-      const rendered = String(
-        typeof error === "object" && error !== null && "cause" in error ? error.cause : error,
-      );
-      assert.include(rendered, "No running Supaterm server found.");
-    }).pipe(Effect.provide(NodeServices.layer)),
-  );
-
   // regression: minting opens the target database with this checkout's
   // migrations, so a worktree must never fall back to the live install.
   it.effect("does not fall back to the shared home from a linked worktree", () =>

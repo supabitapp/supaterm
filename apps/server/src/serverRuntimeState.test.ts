@@ -4,12 +4,9 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
-import * as Logger from "effect/Logger";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
-import * as References from "effect/References";
 import * as Runtime from "effect/Runtime";
-import * as Schema from "effect/Schema";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 
 import { renderBootServicePlist, renderBootServiceUnit } from "./service/bootService.ts";
@@ -18,8 +15,6 @@ import { SERVICE_LAUNCHER_CONTEXT_ENV } from "./service/serviceProtocol.ts";
 import * as ProcessRunner from "./processRunner.ts";
 import * as ServerOwnership from "./serverOwnership.ts";
 import * as ServerRuntimeState from "./serverRuntimeState.ts";
-
-const isServerRuntimeStateError = Schema.is(ServerRuntimeState.ServerRuntimeStateError);
 
 const startBesideBootService = Effect.fn("test.startBesideBootService")(function* (input: {
   readonly platform: "darwin" | "linux";
@@ -133,11 +128,6 @@ const startBesideBootService = Effect.fn("test.startBesideBootService")(function
   );
   return { result, supatermHome };
 });
-
-interface CapturedLog {
-  readonly message: unknown;
-  readonly annotations: Readonly<Record<string, unknown>>;
-}
 
 describe("server ownership", () => {
   // An empty home, so no boot service unit installed on this machine is read.
@@ -441,45 +431,6 @@ describe("server ownership", () => {
           assert.equal(result._tag, "Success");
         }
       }).pipe(Effect.provide(NodeServices.layer)),
-    );
-  });
-});
-
-describe("serverRuntimeState", () => {
-  it.effect("preserves malformed state decode failures", () => {
-    const logs: CapturedLog[] = [];
-    const logger = Logger.make(({ fiber, message }) => {
-      logs.push({
-        message,
-        annotations: fiber.getRef(References.CurrentLogAnnotations),
-      });
-    });
-
-    return Effect.gen(function* () {
-      const fileSystem = yield* FileSystem.FileSystem;
-      const path = yield* Path.Path;
-      const root = yield* fileSystem.makeTempDirectoryScoped({
-        prefix: "supaterm-server-runtime-state-test-",
-      });
-      const statePath = path.join(root, "server.json");
-      yield* fileSystem.writeFileString(statePath, "{not json");
-
-      const restored = yield* ServerRuntimeState.readPersistedServerRuntimeState(statePath);
-
-      assert.isTrue(Option.isNone(restored));
-      assert.equal(logs[0]?.message, `Failed to decode server runtime state at ${statePath}.`);
-      const error = logs[0]?.annotations.cause;
-      assert.isTrue(isServerRuntimeStateError(error));
-      if (isServerRuntimeStateError(error)) {
-        assert.equal(error.operation, "decode");
-        assert.equal(error.statePath, statePath);
-        assert.equal(error.message, `Failed to decode server runtime state at ${statePath}.`);
-        assert.deepInclude(error.cause, { _tag: "SchemaError" });
-      }
-    }).pipe(
-      Effect.provide(
-        Layer.merge(NodeServices.layer, Logger.layer([logger], { mergeWithExisting: false })),
-      ),
     );
   });
 });

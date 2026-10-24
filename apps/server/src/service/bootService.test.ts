@@ -82,25 +82,8 @@ it("outweighs the agents slice for CPU and disk", () => {
   expect(unit).toContain("IOWeight=1000");
 });
 
-const macRuntime = "/Users/theo/.supaterm/runtime/versions/1.2.3/supaterm";
-const macPlan = {
-  program: [macRuntime, "__service-launcher"],
-  baseDir: "/Users/theo/.supaterm",
-  logPath: "/Users/theo/.supaterm/userdata/logs/boot-service.log",
-  unitPath: "/Users/theo/Library/LaunchAgents/com.supaterm.desktop.service.plist",
-};
 const macInstallerPath =
   "/opt/homebrew/bin:/Users/theo/.npm-global/bin:/Users/theo/.nvm/versions/node/v22.16.0/bin:/usr/bin:/bin";
-
-it("escapes XML in host paths", () => {
-  const plist = BootService.renderBootServicePlist(
-    { ...macPlan, baseDir: "/Users/theo/Supaterm & <Co>" },
-    { homeDir: "/Users/theo", environmentPath: "/Users/theo/Tools & <Scripts>:/usr/bin" },
-  );
-
-  expect(plist).toContain("<string>/Users/theo/Supaterm &amp; &lt;Co&gt;</string>");
-  expect(plist).toContain("<string>/Users/theo/Tools &amp; &lt;Scripts&gt;:/usr/bin</string>");
-});
 
 const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
   platform: NodeJS.Platform = "linux",

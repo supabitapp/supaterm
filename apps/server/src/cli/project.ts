@@ -187,7 +187,7 @@ export type ProjectCommandError = typeof ProjectCommandError.Type;
 
 const isProjectNotEmptyError = Schema.is(ProjectService.ProjectNotEmptyError);
 
-export function projectCommandErrorFromLiveServerRequest(cause: unknown): ProjectCommandError {
+function projectCommandErrorFromLiveServerRequest(cause: unknown): ProjectCommandError {
   if (isEnvironmentHttpCommonError(cause)) {
     return new ProjectLiveServerDeclaredResponseError({
       operation: "callLiveServer",

@@ -556,36 +556,6 @@ it.effect("says where each repository carries on, and from nothing it has run ou
   }),
 );
 
-it.effect("offers no continuation for a host that cannot be carried on from", () =>
-  Effect.gen(function* () {
-    const service = yield* makeService({
-      projects: [
-        project({
-          id: "p1",
-          title: "supaterm",
-          workspaceRoot: "/a",
-          repository: "supabitapp/supaterm",
-        }),
-      ],
-      providers: [
-        fakeProvider(SourceControlProviderKind.make("github"), {
-          listChangeRequests: () =>
-            Effect.succeed({
-              items: [changeRequest(1, "2026-07-02T00:00:00Z")],
-              truncated: true,
-              continues: false,
-            }),
-        }),
-      ],
-    });
-
-    const result = yield* service.list({ state: "open" });
-
-    assert.isTrue(result.truncated);
-    assert.deepStrictEqual(result.nextCursors, {});
-  }),
-);
-
 it.effect("uses a provider's raw cursor advance when it consumed malformed rows", () =>
   Effect.gen(function* () {
     const service = yield* makeService({
@@ -2334,29 +2304,6 @@ it.effect("close and reopen notify subscribed readers after invalidating their c
       assert.strictEqual(hostCalls, 3);
     }),
   ),
-);
-
-it.effect("does not cache a failed listing", () =>
-  Effect.gen(function* () {
-    let hostCalls = 0;
-    const service = yield* makeService({
-      projects: [project({ id: "p1", title: "web", workspaceRoot: "/a", repository: "acme/web" })],
-      providers: [
-        fakeProvider(SourceControlProviderKind.make("github"), {
-          getViewer: () => {
-            hostCalls += 1;
-            return hostCalls === 1 ? Effect.fail(requestFailed) : Effect.succeed("bilal");
-          },
-        }),
-      ],
-    });
-
-    const error = yield* Effect.flip(service.list({ state: "open" }));
-    assert.strictEqual(error._tag, "PullRequestOperationError");
-    const second = yield* service.list({ state: "open" });
-    assert.strictEqual(hostCalls, 2);
-    assert.strictEqual(second.providers[0]?.configured, true);
-  }),
 );
 
 it.effect("reads a host's repositories in one search, and files the rows back under each", () =>

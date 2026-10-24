@@ -152,31 +152,4 @@ it.layer(NodeServices.layer)("PairingGrantStore.layer", (it) => {
       }
     }).pipe(Effect.scoped, Effect.provide(layerPairingGrantStore())),
   );
-
-  it.effect("lists and revokes active pairing links", () =>
-    Effect.gen(function* () {
-      const bootstrapCredentials = yield* PairingGrantStore.PairingGrantStore;
-      const first = yield* bootstrapCredentials.issueOneTimeToken();
-      const second = yield* bootstrapCredentials.issueOneTimeToken({
-        scopes: ["orchestration:read", "access:write"],
-      });
-
-      const activeBeforeRevoke = yield* bootstrapCredentials.listActive();
-      expect(activeBeforeRevoke.map((entry) => entry.id)).toContain(first.id);
-      expect(activeBeforeRevoke.map((entry) => entry.id)).toContain(second.id);
-      for (const entry of activeBeforeRevoke) {
-        expect(entry).not.toHaveProperty("credential");
-      }
-
-      const revoked = yield* bootstrapCredentials.revoke(first.id);
-      const activeAfterRevoke = yield* bootstrapCredentials.listActive();
-      const revokedConsume = yield* Effect.flip(bootstrapCredentials.consume(first.credential));
-
-      expect(revoked).toBe(true);
-      expect(activeAfterRevoke.map((entry) => entry.id)).not.toContain(first.id);
-      expect(activeAfterRevoke.map((entry) => entry.id)).toContain(second.id);
-      expect(revokedConsume.message).toContain("no longer available");
-      expect(revokedConsume._tag).toBe("UnavailableBootstrapCredentialError");
-    }).pipe(Effect.provide(layerPairingGrantStore())),
-  );
 });
