@@ -11,15 +11,7 @@ import {
   type Bakes,
   type RGB,
 } from "./bakes";
-import {
-  FACES,
-  SCREEN_COLOR,
-  hash,
-  tear,
-  type BoltComputerState,
-  type Face,
-  type Grid,
-} from "./faces";
+import { FACES, hash, tear, type Grid } from "./faces";
 import {
   BEVEL,
   DEPTH,
@@ -40,7 +32,7 @@ import {
   type V3,
 } from "./geometry";
 import { css, linear, radiance, smooth, type Material } from "./light";
-import { FADE, POWER_ON, restPose, type BoltComputerSim, type Pose } from "./sim";
+import { FADE, POWER_ON, REST_POSE, type BoltComputerSim, type Pose } from "./sim";
 
 const SHELL: Material = {
   albedo: linear([226, 219, 202]),
@@ -53,8 +45,8 @@ const PHOSPHOR: RGB = [255, 240, 106];
 
 const OUTER = extents(HOUSING);
 
-const TRAVEL = { hop: 0.3, overshoot: 0.13, shadow: 0.22, side: 0.12 } as const;
-const BOX_INSET = 0.05;
+const TRAVEL = { hop: 0.22, overshoot: 0.13, shadow: 0.22, side: 0.12 } as const;
+const BOX_INSET = 0.1;
 
 /**
  * Where the computer sits, in CSS px. The element is a `box` square holding the
@@ -83,12 +75,9 @@ export function frameFor(box: number): Frame {
   return { box, padTop, padBottom, padSide, unit, cx: padSide + box / 2, cy: padTop + box / 2 };
 }
 
-const mix = (a: RGB, b: RGB, t: number): RGB => [
-  a[0] + (b[0] - a[0]) * t,
-  a[1] + (b[1] - a[1]) * t,
-  a[2] + (b[2] - a[2]) * t,
-];
-const rgb = (c: RGB) => `rgb(${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])})`;
+const LED_COLOR = `rgb(${PHOSPHOR.join(",")})`;
+// Each LED's hot centre, a step toward white.
+const LED_CORE = `rgb(${PHOSPHOR.map((c) => Math.round(c + (255 - c) * 0.35)).join(",")})`;
 
 function drawControls(ctx: CanvasRenderingContext2D) {
   ctx.beginPath();
@@ -158,13 +147,6 @@ function viewFor(frame: Frame, dpr: number, pose: Pose): View {
   return { R, U, cx, cy, rest, project, plane };
 }
 
-function ledColor(sim: BoltComputerSim | null, state: BoltComputerState): RGB {
-  const shown: Face = sim ? sim.shown : state;
-  const led = SCREEN_COLOR[shown] ?? PHOSPHOR;
-  if (!sim || sim.switched >= FADE) return led;
-  return mix(SCREEN_COLOR[sim.previous] ?? PHOSPHOR, led, sim.switched / FADE);
-}
-
 /** The floor's shadow, smaller and fainter the higher the computer hops. */
 function drawFloorShadow(ctx: CanvasRenderingContext2D, view: View, pose: Pose) {
   const up = Math.max(0, pose.lift);
@@ -231,6 +213,8 @@ interface Sized {
   readonly unit: number;
   readonly bakes: Bakes;
   readonly screen: HTMLCanvasElement;
+  /** The screen's phosphor and unlit LEDs, which never change. */
+  readonly screenBase: HTMLCanvasElement;
   readonly pitch: number;
   readonly x0: number;
   readonly y0: number;
@@ -238,7 +222,6 @@ interface Sized {
 
 export class BoltComputerRenderer {
   private sized: Sized | null = null;
-  private screenBase: { readonly key: string; readonly canvas: HTMLCanvasElement } | null = null;
   private layer: HTMLCanvasElement | null = null;
   private grain: CanvasPattern | null = null;
   private readonly grid: Grid = newGrid();
@@ -248,13 +231,8 @@ export class BoltComputerRenderer {
   private tinyImage: ImageData | null = null;
   private readonly projected = new Float32Array(bodyMesh().pos.length);
 
-  /** Paint a frame; with no sim, the state's still pose. */
-  paint(
-    canvas: HTMLCanvasElement,
-    frame: Frame,
-    sim: BoltComputerSim | null,
-    state: BoltComputerState,
-  ) {
+  /** Paint a frame; with no sim, the still resting pose. */
+  paint(canvas: HTMLCanvasElement, frame: Frame, sim: BoltComputerSim | null) {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const w = Math.round((frame.box + 2 * frame.padSide) * dpr);
     const h = Math.round((frame.box + frame.padTop + frame.padBottom) * dpr);
@@ -262,51 +240,42 @@ export class BoltComputerRenderer {
       canvas.width = w;
       canvas.height = h;
     }
-    this.draw(context2d(canvas), frame, dpr, sim?.pose ?? restPose(state), sim, state);
+    this.draw(context2d(canvas), frame, dpr, sim?.pose ?? REST_POSE, sim);
   }
 
-  private prepare(unit: number, led: RGB): Sized {
-    let sized = this.sized;
-    if (!sized || Math.abs(unit - sized.unit) > 0.5) {
-      const screen = makeCanvas(SCREEN.hx * 2 * unit, SCREEN.hy * 2 * unit);
-      const pitch = LED_PITCH * unit;
-      sized = {
-        unit,
-        bakes: bakesFor(unit),
-        screen,
-        pitch,
-        x0: (screen.width - pitch * this.grid.cols) / 2,
-        y0: (screen.height - pitch * this.grid.rows) / 2,
-      };
-      this.sized = sized;
-      this.screenBase = null;
-    }
-    const key = led.join(",");
-    if (this.screenBase?.key !== key) {
-      const { screen, pitch, x0, y0 } = sized;
-      this.screenBase = {
-        key,
-        canvas: bakeScreenBase(screen.width, screen.height, pitch, x0, y0, led),
-      };
-    }
-    return sized;
+  private prepare(unit: number): Sized {
+    if (this.sized && Math.abs(unit - this.sized.unit) <= 0.5) return this.sized;
+    const screen = makeCanvas(SCREEN.hx * 2 * unit, SCREEN.hy * 2 * unit);
+    const pitch = LED_PITCH * unit;
+    const x0 = (screen.width - pitch * this.grid.cols) / 2;
+    const y0 = (screen.height - pitch * this.grid.rows) / 2;
+    this.sized = {
+      unit,
+      bakes: bakesFor(unit),
+      screen,
+      screenBase: bakeScreenBase(screen.width, screen.height, pitch, x0, y0, PHOSPHOR),
+      pitch,
+      x0,
+      y0,
+    };
+    return this.sized;
   }
 
-  private compose(sim: BoltComputerSim | null, state: BoltComputerState): Grid {
+  private compose(sim: BoltComputerSim | null): Grid {
     const grid = this.grid;
     const g = grid.v;
     const { cols, rows } = grid;
     g.fill(0);
     if (!sim) {
-      FACES[state](grid, 0.4);
+      FACES.idle(grid, 0);
       return grid;
     }
-    FACES[sim.shown](grid, sim.since);
+    FACES[sim.shown](grid, sim.switched);
     // A cross-fade from the last face, with a flicker of glitch.
     if (sim.switched < FADE) {
       const p = this.previous;
       p.v.fill(0);
-      FACES[sim.previous](p, sim.since + 10);
+      FACES[sim.previous](p, sim.switched + 10);
       const k = sim.switched / FADE;
       for (let i = 0; i < g.length; i++) g[i] = (g[i] ?? 0) * k + (p.v[i] ?? 0) * (1 - k);
       if (sim.switched < 0.13) {
@@ -332,12 +301,12 @@ export class BoltComputerRenderer {
     return grid;
   }
 
-  private drawScreen(sized: Sized, grid: Grid, led: RGB) {
+  private drawScreen(sized: Sized, grid: Grid) {
     const ctx = context2d(sized.screen);
     const { cols, rows, v: g } = grid;
     ctx.globalCompositeOperation = "source-over";
     ctx.globalAlpha = 1;
-    if (this.screenBase) ctx.drawImage(this.screenBase.canvas, 0, 0);
+    ctx.drawImage(sized.screenBase, 0, 0);
     const { pitch, x0, y0 } = sized;
     // Bloom first: the matrix at one pixel per LED, scaled up smooth. The cells
     // go over it so they keep the phosphor's colour instead of washing to white.
@@ -345,9 +314,9 @@ export class BoltComputerRenderer {
     this.tinyImage ??= tiny.createImageData(cols, rows);
     const d = this.tinyImage.data;
     for (let i = 0; i < cols * rows; i++) {
-      d[i * 4] = led[0];
-      d[i * 4 + 1] = led[1];
-      d[i * 4 + 2] = led[2];
+      d[i * 4] = PHOSPHOR[0];
+      d[i * 4 + 1] = PHOSPHOR[1];
+      d[i * 4 + 2] = PHOSPHOR[2];
       d[i * 4 + 3] = Math.round(Math.min(1, g[i] ?? 0) * 255);
     }
     tiny.putImageData(this.tinyImage, 0, 0);
@@ -362,8 +331,6 @@ export class BoltComputerRenderer {
     ctx.globalAlpha = 0.55;
     ctx.drawImage(this.tinyHalf, x0 - pitch, y0 - pitch, (cols + 2) * pitch, (rows + 2) * pitch);
     ctx.globalCompositeOperation = "source-over";
-    const color = rgb(led);
-    const hot = rgb(mix(led, [255, 255, 255], 0.35));
     const cell = pitch * 0.8;
     const off = (pitch - cell) / 2;
     for (let r = 0; r < rows; r++) {
@@ -373,10 +340,10 @@ export class BoltComputerRenderer {
         const x = x0 + c * pitch + off;
         const y = y0 + r * pitch + off;
         ctx.globalAlpha = Math.min(1, v);
-        ctx.fillStyle = color;
+        ctx.fillStyle = LED_COLOR;
         ctx.fillRect(x, y, cell, cell);
         ctx.globalAlpha = Math.min(1, v) * 0.5;
-        ctx.fillStyle = hot;
+        ctx.fillStyle = LED_CORE;
         ctx.fillRect(x + cell * 0.2, y + cell * 0.2, cell * 0.6, cell * 0.6);
       }
     }
@@ -390,11 +357,9 @@ export class BoltComputerRenderer {
     dpr: number,
     pose: Pose,
     sim: BoltComputerSim | null,
-    state: BoltComputerState,
   ) {
     const view = viewFor(frame, dpr, pose);
-    const led = ledColor(sim, state);
-    const sized = this.prepare(view.U, led);
+    const sized = this.prepare(view.U);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     drawFloorShadow(ctx, view, pose);
@@ -403,7 +368,7 @@ export class BoltComputerRenderer {
     this.drawHousing(ctx, view, facing);
     ctx.save();
     if (facing > 0) {
-      this.drawScreen(sized, this.compose(sim, state), led);
+      this.drawScreen(sized, this.compose(sim));
       drawFront(ctx, view, pose, sized);
     } else if (facing < 0) {
       view.plane(ctx, -FRONT_Z, true);

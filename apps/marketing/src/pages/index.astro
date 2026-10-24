@@ -236,7 +236,7 @@ const screenshot = await getImage({
 
   const crt = document.querySelector<HTMLElement>(".hero-crt");
   if (crt) {
-    void import("../lib/crtModel").then(({ mountCrtModel }) => mountCrtModel(crt));
+    void import("../lib/boltComputer/mount").then(({ mountBoltComputer }) => mountBoltComputer(crt));
   }
 </script>
 
@@ -268,7 +268,7 @@ const screenshot = await getImage({
     text-align: center;
   }
 
-  /* The icon holds the spot until the model's canvas arrives, and stays if it never does. */
+  /* The icon holds the spot until the computer's canvas arrives, and stays if it never does. */
   .hero-crt {
     position: relative;
     width: var(--crt-size);
@@ -277,9 +277,7 @@ const screenshot = await getImage({
     user-select: none;
   }
 
-  /* The model's canvas is created at runtime, so it carries no scoped-style attribute. */
-  .hero-crt img,
-  .hero-crt :global(canvas) {
+  .hero-crt img {
     position: absolute;
     inset: 0;
     width: 100%;
@@ -287,16 +285,19 @@ const screenshot = await getImage({
     transition: opacity 0.6s ease;
   }
 
+  /* The canvas is created at runtime, so it carries no scoped-style attribute. It sizes itself to
+     reach past the box, so hops and the floor's shadow take no layout space. */
   .hero-crt :global(canvas) {
-    cursor: grab;
-    touch-action: pan-y;
+    position: absolute;
+    pointer-events: none;
+    transition: opacity 0.6s ease;
   }
 
   @starting-style {
     .hero-crt :global(canvas) { opacity: 0; }
   }
 
-  .hero-crt :global(canvas:active) { cursor: grabbing; }
+  .hero-crt:has(:global(canvas)) { cursor: pointer; }
   .hero-crt:has(:global(canvas)) img { opacity: 0; }
 
   .hero-title {

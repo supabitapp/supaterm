@@ -1,4 +1,4 @@
-import type { BoltComputerState, Face } from "./faces";
+import type { Face } from "./faces";
 
 class Spring {
   x = 0;
@@ -55,33 +55,20 @@ export interface Pose {
   readonly sy: number;
 }
 
-/** The still pose of a state, for reduced motion and as idle's resting angle. */
-export function restPose(state: BoltComputerState): Pose {
-  const base = { yaw: 0, pitch: 0, roll: 0, lift: 0, sx: 1, sy: 1 };
-  switch (state) {
-    case "thinking":
-      return { ...base, yaw: 0.24, pitch: 0.17, roll: -0.13 };
-    case "working":
-      return { ...base, pitch: -0.16 };
-    case "error":
-      return { ...base, pitch: -0.06, roll: -0.05 };
-    case "idle":
-      return { ...base, yaw: -0.18, pitch: 0.04, roll: 0.03 };
-  }
-}
+/** Where the computer rests, turned a little toward the reader; also the still pose for reduced motion. */
+export const REST_POSE: Pose = { yaw: -0.18, pitch: 0.04, roll: 0.03, lift: 0, sx: 1, sy: 1 };
 
 /**
- * Motion for the bolt computer. Each state sets targets that springs chase,
- * jumps are scripted on top, and idle comes to rest so the frame loop can stop.
+ * Motion for the bolt computer. Springs chase a resting angle or a nearby
+ * pointer, a click's hop is scripted on top, and it comes to rest so the frame
+ * loop can stop.
  */
 export class BoltComputerSim {
-  state: BoltComputerState;
-  shown: Face;
-  previous: Face;
-  /** Seconds since `shown` changed, since creation, and since `state` changed. */
+  shown: Face = "idle";
+  previous: Face = "idle";
+  /** Seconds since `shown` changed, and since creation. */
   switched = 10;
   age = 0;
-  since = 0;
   pose: Pose = { yaw: 0, pitch: 0, roll: 0, lift: 0, sx: 1, sy: 1 };
   /** The pointer relative to the housing's centre in CSS px, or null when away. */
   pointer: { readonly x: number; readonly y: number } | null = null;
@@ -93,34 +80,20 @@ export class BoltComputerSim {
   private readonly squash = new Spring();
   private jump: Jump | null = null;
   private readonly random: () => number;
-  private side = 1;
-  private nextSide = 4;
-  private nextHop = 6;
   private reactUntil = -1;
 
-  constructor(seed: number, state: BoltComputerState) {
+  constructor(seed: number) {
     this.random = rng(seed);
-    this.state = state;
-    this.shown = state;
-    this.previous = state;
-  }
-
-  setState(state: BoltComputerState) {
-    if (state === this.state) return;
-    this.state = state;
-    this.since = 0;
-    this.nextHop = this.time + 3 + this.random() * 4;
   }
 
   /** A click: a hop with a full turn and a happy face. */
   poke() {
-    this.hop(0.24, this.random() < 0.5 ? 1 : -1);
+    this.hop(0.1, this.random() < 0.5 ? 1 : -1);
     this.reactUntil = this.time + REACTION;
   }
 
   get settled(): boolean {
     return (
-      this.state === "idle" &&
       this.shown === "idle" &&
       this.jump === null &&
       this.age > POWER_ON &&
@@ -155,63 +128,26 @@ export class BoltComputerSim {
 
   private step(dt: number) {
     this.time += dt;
-    this.since += dt;
     this.age += dt;
     this.switched += dt;
     const t = this.time;
 
-    const shown: Face = t < this.reactUntil ? "happy" : this.state;
+    const shown: Face = t < this.reactUntil ? "happy" : "idle";
     if (shown !== this.shown) {
       this.previous = this.shown;
       this.shown = shown;
       this.switched = 0;
     }
 
-    let { yaw, pitch, roll } = restPose(this.state);
-    let bob = 0;
-    let freq = 1.3;
-    let damping = 0.62;
-    let shake = 0;
-
-    switch (this.state) {
-      case "idle":
-        if (this.pointer) {
-          yaw = clamp(this.pointer.x / 260, -1, 1) * 0.55;
-          pitch = -clamp(this.pointer.y / 260, -1, 1) * 0.32;
-          roll = -yaw * 0.12;
-        }
-        break;
-      case "thinking":
-        if (t > this.nextSide) {
-          this.side = -this.side;
-          this.nextSide = t + 3 + this.random() * 2;
-        }
-        yaw = 0.24 * this.side + Math.sin(t * 0.9) * 0.05;
-        pitch = 0.17 + Math.sin(t * 1.3) * 0.03;
-        roll = -0.13 * this.side;
-        bob = Math.sin(t * 1.9) * 0.008;
-        freq = 0.9;
-        break;
-      case "working":
-        yaw = Math.sin(t * 0.8) * 0.08;
-        roll = Math.sin(t * 0.5) * 0.04;
-        bob = Math.abs(Math.sin(t * 7)) * 0.012;
-        if (t > this.nextHop) {
-          this.hop(0.16, 0);
-          this.nextHop = t + 5 + this.random() * 3;
-        }
-        break;
-      case "error": {
-        const c = (t % 2.4) / 0.7;
-        shake = c < 1 ? Math.sin(c * Math.PI * 7) * 0.22 * (1 - c) : 0;
-        freq = 1.6;
-        break;
-      }
+    let { yaw, pitch, roll } = REST_POSE;
+    if (this.pointer) {
+      yaw = clamp(this.pointer.x / 260, -1, 1) * 0.55;
+      pitch = -clamp(this.pointer.y / 260, -1, 1) * 0.32;
+      roll = -yaw * 0.12;
     }
-
-    this.yaw.step(yaw, dt, freq, damping);
-    this.pitch.step(pitch, dt, freq, damping);
-    this.roll.step(roll, dt, freq, damping);
+    this.yaw.step(yaw, dt, 1.3, 0.62);
+    this.pitch.step(pitch, dt, 1.3, 0.62);
+    this.roll.step(roll, dt, 1.3, 0.62);
 
     let lift = 0;
     let spin = 0;
@@ -226,7 +162,7 @@ export class BoltComputerSim {
         const ap = (j.age - CROUCH) / j.air;
         if (ap < 1) {
           // Leaving the ground springs up into a stretch.
-          if (ap < 0.06 && this.squash.x > 0.05) this.squash.v = -2.6;
+          if (ap < 0.06 && this.squash.x > 0.05) this.squash.v = -1.8;
           lift = 4 * j.height * ap * (1 - ap);
           spin = j.spin * Math.PI * 2 * easeInOut(clamp(ap * 1.08, 0, 1));
           lean = j.lean * Math.sin(ap * Math.PI);
@@ -243,10 +179,10 @@ export class BoltComputerSim {
 
     const sq = this.squash.x;
     this.pose = {
-      yaw: this.yaw.x + spin + shake,
+      yaw: this.yaw.x + spin,
       pitch: this.pitch.x,
       roll: this.roll.x + lean,
-      lift: lift + bob,
+      lift,
       sx: 1 + sq * 0.55,
       sy: 1 - sq,
     };

@@ -1,12 +1,11 @@
 import { RefreshIcon } from "~/components/ui/refresh-icon";
 import { scopeProjectRef } from "@supaterm/client-runtime/environment";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { PlusIcon } from "lucide-react";
+import { LinkIcon, PlusIcon } from "lucide-react";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { isLocalEnvironmentDisabled } from "../localEnvironment";
 import { isElectron } from "../env";
-import { BoltComputer } from "../components/boltComputer/BoltComputer";
 import { NoProjectsHero } from "../components/NoProjectsHero";
 import { sortScopedProjectsForSidebar } from "../components/Sidebar.logic";
 import { Button } from "../components/ui/button";
@@ -142,7 +141,9 @@ function HostedStaticOnboardingState() {
         <Empty className="flex-1">
           <div className="w-full max-w-xl rounded-3xl border border-border/55 bg-card/20 px-8 py-12 shadow-sm/5">
             <EmptyHeader className="max-w-none">
-              <BoltComputer size={112} className="mx-auto mb-7" aria-hidden />
+              <div className="mx-auto mb-5 flex size-11 items-center justify-center rounded-xl border border-border/70 bg-background/70 text-muted-foreground">
+                <LinkIcon className="size-5" />
+              </div>
               <EmptyTitle>Connect to a computer running Supaterm</EmptyTitle>
               <EmptyDescription>
                 This app connects to Supaterm running on your computer or a server. Start the

@@ -1,5 +1,4 @@
-export type BoltComputerState = "idle" | "thinking" | "working" | "error";
-export type Face = BoltComputerState | "happy";
+export type Face = "idle" | "happy";
 
 export const FACE_COLS = 28;
 export const FACE_ROWS = 25;
@@ -84,8 +83,8 @@ const BOLT_CELLS = BOLT.flatMap((row, r) =>
   Array.from(row).flatMap((cell, c) => (cell === "#" ? [[c, r] as const] : [])),
 );
 
-const bolt = (g: Grid, level: (c: number, r: number) => number) => {
-  for (const [c, r] of BOLT_CELLS) put(g, BOLT_X + c, BOLT_Y + r, level(c, r));
+const bolt = (g: Grid) => {
+  for (const [c, r] of BOLT_CELLS) put(g, BOLT_X + c, BOLT_Y + r, 1);
 };
 
 const SPARKLES = [
@@ -97,27 +96,11 @@ const SPARKLES = [
 
 export const FACES: Record<Face, (g: Grid, time: number) => void> = {
   idle(g) {
-    bolt(g, () => 1);
-  },
-
-  thinking(g, t) {
-    bolt(g, (c, r) => {
-      const spark = Math.max(0, Math.sin(t * (1.5 + hash(r, c) * 2.5) + hash(c, r) * 6.28)) ** 12;
-      return 0.22 + 0.78 * spark;
-    });
-  },
-
-  working(g, t) {
-    // Current runs down the bolt, a bright band with a fading tail above it.
-    const head = ((t / 1.1) % 1) * (BOLT.length + 10) - 2;
-    bolt(g, (_c, r) => {
-      const d = head - r;
-      return 0.4 + 0.6 * (d < 0 ? Math.exp(-d * d * 1.5) : Math.exp(-d / 3));
-    });
+    bolt(g);
   },
 
   happy(g, t) {
-    bolt(g, () => 1);
+    bolt(g);
     for (const [c, r, delay] of SPARKLES) {
       const p = (t * 1.8 + delay) % 1;
       const v = Math.sin(p * Math.PI);
@@ -130,20 +113,4 @@ export const FACES: Record<Face, (g: Grid, time: number) => void> = {
       }
     }
   },
-
-  error(g, t) {
-    bolt(g, () => 1);
-    if (t % 1.8 < 0.24) tear(g, Math.floor(t * 30), 2);
-  },
-};
-
-const RED = [255, 70, 64] as const;
-
-/** The LED colour a face lights with, null for the computer's own. */
-export const SCREEN_COLOR: Record<Face, readonly [number, number, number] | null> = {
-  idle: null,
-  thinking: null,
-  working: null,
-  happy: null,
-  error: RED,
 };

@@ -5,7 +5,6 @@ import { isElectron } from "../env";
 import { useScratchProject } from "../hooks/useScratchProject";
 import { useShortcutLabel } from "../hooks/useShortcutLabel";
 import { usePrimaryEnvironmentId } from "../state/environments";
-import { BoltComputer } from "./boltComputer/BoltComputer";
 import { Button } from "./ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "./ui/empty";
 import { SidebarInset } from "./ui/sidebar";
@@ -26,7 +25,6 @@ export function NoProjectsHero() {
         <Empty size="hero" className="flex-1">
           <div className="w-full max-w-lg px-8 py-12">
             <EmptyHeader className="max-w-none">
-              <BoltComputer size={128} className="mx-auto mb-8" aria-hidden />
               <EmptyTitle>What should we work on?</EmptyTitle>
               <EmptyDescription>
                 {scratchTargetEnvironmentId === null

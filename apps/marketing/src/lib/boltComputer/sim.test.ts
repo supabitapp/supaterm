@@ -7,15 +7,15 @@ const advance = (sim: BoltComputerSim, seconds: number) => {
 };
 
 describe("BoltComputerSim", () => {
-  it("comes to rest in idle so drawing can stop", () => {
-    const sim = new BoltComputerSim(0.3, "idle");
+  it("comes to rest so drawing can stop", () => {
+    const sim = new BoltComputerSim(0.3);
     expect(sim.settled).toBe(false);
     advance(sim, 5);
     expect(sim.settled).toBe(true);
   });
 
   it("wakes for a click and rests again after the reaction", () => {
-    const sim = new BoltComputerSim(0.3, "idle");
+    const sim = new BoltComputerSim(0.3);
     advance(sim, 5);
     sim.poke();
     advance(sim, 0.5);
@@ -26,7 +26,7 @@ describe("BoltComputerSim", () => {
   });
 
   it("follows a nearby pointer and rests once it stops", () => {
-    const sim = new BoltComputerSim(0.3, "idle");
+    const sim = new BoltComputerSim(0.3);
     advance(sim, 5);
     const resting = sim.pose.yaw;
     sim.pointer = { x: 200, y: 0 };
@@ -38,7 +38,7 @@ describe("BoltComputerSim", () => {
   });
 
   it("leaves rest when a pointer arrives on a frame with no elapsed time", () => {
-    const sim = new BoltComputerSim(0.3, "idle");
+    const sim = new BoltComputerSim(0.3);
     advance(sim, 5);
     sim.pointer = { x: 200, y: 0 };
     sim.update(0);
@@ -46,7 +46,7 @@ describe("BoltComputerSim", () => {
   });
 
   it("turns back once the pointer leaves", () => {
-    const sim = new BoltComputerSim(0.3, "idle");
+    const sim = new BoltComputerSim(0.3);
     advance(sim, 5);
     const resting = sim.pose.yaw;
     sim.pointer = { x: 200, y: 0 };
@@ -57,16 +57,5 @@ describe("BoltComputerSim", () => {
     advance(sim, 5);
     expect(sim.settled).toBe(true);
     expect(sim.pose.yaw).toBeCloseTo(resting, 2);
-  });
-
-  it("keeps animating while a turn is running", () => {
-    const sim = new BoltComputerSim(0.3, "idle");
-    advance(sim, 5);
-    sim.setState("working");
-    advance(sim, 10);
-    expect(sim.settled).toBe(false);
-    sim.setState("idle");
-    advance(sim, 5);
-    expect(sim.settled).toBe(true);
   });
 });
