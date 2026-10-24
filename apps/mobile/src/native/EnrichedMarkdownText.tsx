@@ -13,19 +13,21 @@ import {
 } from "../lib/markdownDocument";
 import { markdownMermaidMedia } from "../lib/markdownMermaidMedia";
 import { NativeMermaidBlock } from "./NativeMermaidBlock";
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { isValidElement, useCallback, useMemo, useState, type ReactNode } from "react";
 import { Platform, Share, StyleSheet, View } from "react-native";
 import {
   EnrichedMarkdownText,
-  type DocumentAssetsEvent,
+  type MarkdownImageBlock,
+  type MarkdownImageOccurrence,
+  type MarkdownLinkOccurrence,
   type MarkdownStyle,
-  type MarkdownMediaAsset,
 } from "react-native-enriched-markdown";
 import type { SelectableMarkdownTextProps } from "./SelectableMarkdownText.types";
 
 import { useAppearancePreferences } from "../features/settings/appearance/AppearancePreferencesProvider";
 import { Menu } from "../components/ui/Menu";
 import { useEnrichedLinkVariants } from "./useEnrichedLinkVariants";
+import { useRetryingImageSource } from "./useRetryingImageSource";
 import { copyTextWithHaptic } from "../lib/copyTextWithHaptic";
 import {
   ENRICHED_INLINE_FILE_LINK_REGEX,
@@ -170,33 +172,34 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
       ),
     [props.markdown],
   );
-  const [documentAssets, setDocumentAssets] = useState<DocumentAssetsEvent["assets"]>([]);
-  const onDocumentAssets = useCallback(({ assets }: DocumentAssetsEvent) => {
-    setDocumentAssets((previous) =>
-      previous.length === assets.length &&
-      previous.every((asset, index) => {
-        const next = assets[index]!;
-        return (
-          asset.id === next.id &&
-          asset.kind === next.kind &&
-          asset.url === next.url &&
-          asset.altText === next.altText &&
-          asset.title === next.title &&
-          asset.placement === next.placement &&
-          asset.eligible === next.eligible
-        );
-      })
+  const [parsedLinkUrls, setParsedLinkUrls] = useState<ReadonlyArray<string>>([]);
+  const onLinksChange = useCallback((links: MarkdownLinkOccurrence[]) => {
+    const urls = [...new Set(links.map((link) => link.url))];
+    setParsedLinkUrls((previous) =>
+      previous.length === urls.length && previous.every((url, index) => url === urls[index])
         ? previous
-        : assets,
+        : urls,
     );
   }, []);
-  const { linkVariants, linkPillContent } = useEnrichedLinkVariants(documentAssets, props);
-  const linkRecognition = useMemo(
-    () => ({
-      text: enrichedSkillLinkRegex(props.skills) ?? undefined,
-    }),
-    [props.skills],
+  const skillRegex = useMemo(() => enrichedSkillLinkRegex(props.skills), [props.skills]);
+  // Skill links come from linkRecognition, which runs as the text is drawn, so
+  // onLinksChange never reports them. Joined so a streaming tick keeps the value.
+  const skillLinkKey = useMemo(
+    () =>
+      skillRegex
+        ? [...new Set(markdown.match(new RegExp(skillRegex.source, "gu")) ?? [])].join("\n")
+        : "",
+    [markdown, skillRegex],
   );
+  const linkUrls = useMemo(
+    () =>
+      skillLinkKey
+        ? [...new Set([...parsedLinkUrls, ...skillLinkKey.split("\n")])]
+        : parsedLinkUrls,
+    [parsedLinkUrls, skillLinkKey],
+  );
+  const { linkVariants, linkPillContent } = useEnrichedLinkVariants(linkUrls, props);
+  const linkRecognition = useMemo(() => ({ text: skillRegex ?? undefined }), [skillRegex]);
   const [activeMenu, setActiveMenu] = useState<{
     url: string;
     menu: NonNullable<ReturnType<NonNullable<typeof props.fileContextMenu>>>;
@@ -215,11 +218,7 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
     () =>
       Platform.OS === "ios" && (fileContextMenu || onLinkPress)
         ? Object.fromEntries(
-            [
-              ...new Set(
-                documentAssets.filter((asset) => asset.kind === "link").map((asset) => asset.url),
-              ),
-            ].map((url) => {
+            linkUrls.map((url) => {
               const menu = fileContextMenu?.(url) ?? {
                 title: url,
                 actions: [
@@ -239,7 +238,7 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
             }),
           )
         : undefined,
-    [documentAssets, fileContextMenu, onLinkPress, performMenuAction],
+    [linkUrls, fileContextMenu, onLinkPress, performMenuAction],
   );
   const selectionClipboard = useMemo(() => {
     const fragment = decodeComposerContextFragment(props.contextClipboardFragment);
@@ -271,9 +270,9 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
     [props.textStyle, themeAppearance, linkVariants],
   );
   const renderDiagram = props.isStreaming ? null : (props.renderDiagram ?? null);
-  const renderMedia = useCallback(
-    (asset: MarkdownMediaAsset) => {
-      const source = mermaidSources.get(asset.url);
+  const renderImageBlock = useCallback(
+    (block: MarkdownImageBlock) => {
+      const source = mermaidSources.get(block.url);
       if (source !== undefined)
         return (
           <NativeMermaidBlock
@@ -282,26 +281,27 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
             renderDiagram={renderDiagram}
           />
         );
-      return (
-        renderImage?.({
-          href: asset.url,
-          alt: asset.altText || null,
-          title: asset.title || null,
-        }) ?? null
-      );
+      const element = renderImage?.({
+        href: block.url,
+        alt: block.altText || null,
+        title: block.title || null,
+      });
+      return isValidElement(element) ? element : undefined;
     },
     [mermaidSources, props.textStyle, renderImage, renderDiagram],
   );
-  const resolveNativeImageSource = useCallback(
-    (asset: MarkdownMediaAsset) =>
-      mermaidSources.has(asset.url)
-        ? null
-        : (resolveImageSource?.({
-            href: asset.url,
-            alt: asset.altText || null,
-            title: asset.title || null,
-          }) ?? null),
-    [mermaidSources, resolveImageSource],
+  const renderers = useMemo(
+    () => (renderImage || mermaidSources.size > 0 ? { image: renderImageBlock } : undefined),
+    [mermaidSources, renderImage, renderImageBlock],
+  );
+  const retryingImageSource = useRetryingImageSource(resolveImageSource);
+  // A Mermaid placeholder image is replaced by its diagram, so it never asks for a source.
+  const resolveNativeImageSource = useMemo(
+    () =>
+      retryingImageSource &&
+      ((image: MarkdownImageOccurrence) =>
+        mermaidSources.has(image.url) ? undefined : retryingImageSource(image)),
+    [mermaidSources, retryingImageSource],
   );
   const renderMarkdown = (openAndroidMenu?: () => void) => {
     const onLinkLongPress =
@@ -331,9 +331,9 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
         <EnrichedMarkdownText
           markdown={markdown}
           markdownStyle={markdownStyle}
-          onDocumentAssets={onDocumentAssets}
-          renderMedia={renderImage || mermaidSources.size > 0 ? renderMedia : undefined}
-          resolveImageSource={resolveImageSource ? resolveNativeImageSource : undefined}
+          onLinksChange={onLinksChange}
+          renderers={renderers}
+          resolveImageSource={resolveNativeImageSource}
           onImagePress={
             props.onImagePress || props.onLinkPress
               ? ({ url }) => (props.onImagePress ?? props.onLinkPress)?.(url)

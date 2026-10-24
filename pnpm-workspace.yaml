@@ -22,7 +22,7 @@ allowBuilds:
   # Ships N-API prebuilds; the install script would only fall back to node-gyp.
   node-hid: false
   node-pty: true
-  "react-native-enriched-markdown@file:apps/mobile/deps/react-native-enriched-markdown-1.2.0-supacode.16.tgz": true
+  "react-native-enriched-markdown@file:apps/mobile/deps/react-native-enriched-markdown-1.2.0-supacode.17.tgz": true
   sharp: true
   "@tsc-rs/typescript": true
   utf-8-validate: false
@@ -313,7 +313,7 @@ patchedDependencies:
   # Android: a nested WebView hands a vertical drag to its scrolling parent at the page's edge.
   react-native-webview@14.0.1: patches/react-native-webview@14.0.1.patch
   # Code blocks start with their lines wrapped; the header toggle unwraps a block.
-  react-native-enriched-markdown@1.2.0-supacode.16: patches/react-native-enriched-markdown@1.2.0-supacode.16.patch
+  react-native-enriched-markdown@1.2.0-supacode.17: patches/react-native-enriched-markdown@1.2.0-supacode.17.patch
   "@expo/ui@58.0.20": patches/@expo__ui@58.0.20.patch
   # Android: a Compose host that requests layout in a mount (a new screen's app bar) is laid out
   # before that frame is drawn, instead of a frame later.
