@@ -64,10 +64,11 @@ your default follow-up behavior; add **Shift** to use the opposite action. This
 applies only to multiline messages when you choose the multiline send option.
 
 Use `Cmd+Shift+Enter` on macOS or `Ctrl+Shift+Enter` on Windows and Linux to send
-the oldest queued message as a steer. This leaves the current draft intact and
-requires an active turn that supports steering. If that shortcut sends the opposite
-action for your draft, move focus outside the composer to steer the queued message. Change
-`thread.steerQueuedMessage` in **Settings → Keybindings** to use another shortcut.
+the oldest queued message. This leaves the current draft intact. While a turn that supports
+steering runs, the message steers it; once the agent is stopped, it starts a new turn. If that
+shortcut sends the opposite action for your draft, move focus outside the composer to send the
+queued message. Change `thread.steerQueuedMessage` in **Settings → Keybindings** to use another
+shortcut.
 
 Press `ArrowUp` in an empty composer to edit the most recently queued message,
 including one still waiting to send. When the composer has text, press `Option+Up`
@@ -240,7 +241,8 @@ because the message is discarded, not returned to the composer.
 If you stop the agent or the server restarts, queued messages keep their order and are held.
 Press **Resume** in an empty composer on web and desktop, or **Resume queue** on mobile, to
 continue. Sending a new message also resumes the queue, unless it steers a turn that is already
-running. You can edit, reorder, or remove held messages without starting them.
+running. You can edit, reorder, or remove held messages without starting them. On web and desktop,
+**Send now** on a held row starts a turn with that message ahead of the others.
 
 The pencil on a queued row opens that message in the composer for editing. The original message
 stays in the queue until you save, and its row is highlighted while you edit. The message's
