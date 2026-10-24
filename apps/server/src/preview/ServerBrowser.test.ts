@@ -1011,12 +1011,11 @@ it.live("an agent answers the page's file picker or sets files on a file input",
         operation: "status",
         input: {},
       });
-      let opened = yield* status;
-      while (!opened.fileChooser) {
-        yield* Effect.sleep("5 millis");
-        opened = yield* status;
-      }
-      expect(opened.fileChooser).toEqual({ multiple: false, accept: ".csv" });
+      // The chooser reads its accept attribute through already-settled promises, so it is
+      // recorded once the microtask queue drains.
+      // oxlint-disable-next-line supaterm/no-real-time-wait-in-tests -- a zero-delay macrotask boundary, not a wait for time
+      yield* Effect.promise(() => new Promise<void>((resolve) => setImmediate(resolve)));
+      expect((yield* status).fileChooser).toEqual({ multiple: false, accept: ".csv" });
       yield* Effect.flip(upload({ paths: ["/tmp/a.csv", "/tmp/b.csv"] }));
       yield* upload({ paths: ["/tmp/a.csv"] });
       expect(setFiles).toHaveBeenCalledExactlyOnceWith(["/tmp/a.csv"], expect.anything());

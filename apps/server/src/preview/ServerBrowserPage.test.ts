@@ -274,8 +274,11 @@ describe("server browser drag", () => {
       );
       void settled.then(() => (finished = true));
 
-      await new Promise((resolve) => setImmediate(resolve));
-      await new Promise((resolve) => setImmediate(resolve));
+      // Two macrotask turns: Node reports a rejection nobody observed after the first.
+      for (let turn = 0; turn < 2; turn++) {
+        // oxlint-disable-next-line supaterm/no-real-time-wait-in-tests -- Node emits unhandledRejection only between macrotasks; no promise can mark that point.
+        await new Promise((resolve) => setImmediate(resolve));
+      }
 
       expect(finished).toBe(false);
       targetBox.resolve(box);

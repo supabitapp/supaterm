@@ -245,6 +245,7 @@ export default defineConfig({
       "supaterm/no-manual-effect-runtime-in-tests": "error",
       "supaterm/no-native-title-tooltip": "error",
       "supaterm/no-raw-mcp-registration": "error",
+      "supaterm/no-real-time-wait-in-tests": "error",
       "supaterm/no-test-in-loop": "error",
       "supaterm/no-test-timeout-or-retry": "error",
       "supaterm/no-rpc-permission-bypass": ["error", { allowRawClientAccess: true }],
@@ -298,6 +299,10 @@ export default defineConfig({
       {
         files: ["apps/web/src/**/*.browser.test.{ts,tsx}"],
         rules: { "supaterm/no-frame-waits-in-browser-tests": "error" },
+      },
+      {
+        files: ["**/*.browser.test.*"],
+        rules: { "supaterm/no-real-time-wait-in-tests": "off" },
       },
       {
         files: ["apps/**/src/**", "packages/**/src/**"],

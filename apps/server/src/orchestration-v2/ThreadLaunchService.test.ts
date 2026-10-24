@@ -309,21 +309,6 @@ function launchInput(input: {
   };
 }
 
-function waitUntil<E, R>(predicate: () => Effect.Effect<boolean, E, R>): Effect.Effect<void, E, R> {
-  return Effect.gen(function* () {
-    for (let attempt = 0; attempt < 200; attempt += 1) {
-      if (yield* predicate()) return;
-      yield* Effect.promise(
-        () =>
-          new Promise<void>((resolve) => {
-            setImmediate(resolve);
-          }),
-      );
-    }
-    assert.fail("Condition was not reached before timeout.");
-  });
-}
-
 it.effect.each(
   (["new", "existing"] as const).flatMap((target) =>
     (["user", "agent"] as const).map((createdBy) => ({ target, createdBy })),
@@ -1011,7 +996,15 @@ it.effect("runs a Scratch scheduled task saved with a worktree in its own folder
 
 it.effect("prefixes generated branches with a fork's own repository name", () =>
   Effect.gen(function* () {
+    const branchNameRequested =
+      Deferred.makeUnsafe<
+        Parameters<TextGeneration.TextGeneration["Service"]["generateBranchName"]>[0]
+      >();
     const harness = makeHarness({
+      generateBranchName: (input) =>
+        Deferred.succeed(branchNameRequested, input).pipe(
+          Effect.as({ branch: "generated-branch" }),
+        ),
       serverSettings: { branchNamingMode: "static", branchNamePrefixFromRepository: true },
       resolveRepositoryIdentity: () =>
         Effect.succeed({
@@ -1039,8 +1032,9 @@ it.effect("prefixes generated branches with a fork's own repository name", () =>
           workspace: { type: "worktree", baseRef: "main" },
         }),
       );
-      yield* waitUntil(() => Effect.sync(() => harness.generateBranchName.mock.calls.length === 1));
-      assert.equal(harness.generateBranchName.mock.calls[0]?.[0]?.naming?.prefix, "project-fork");
+      const request = yield* Deferred.await(branchNameRequested);
+      assert.equal(request.naming?.prefix, "project-fork");
+      assert.equal(harness.generateBranchName.mock.calls.length, 1);
     }).pipe(Effect.provide(harness.layer));
   }),
 );

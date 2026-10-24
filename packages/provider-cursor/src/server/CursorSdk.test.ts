@@ -101,7 +101,8 @@ function runProbe(mode: string): Promise<{ code: number | null; stdout: string; 
         probeProgram,
         mode,
       ],
-      { stdio: ["ignore", "pipe", "pipe"] },
+      // A hung probe is killed so it cannot outlive the test.
+      { stdio: ["ignore", "pipe", "pipe"], timeout: 5_000 },
     );
     let stdout = "";
     let stderr = "";
@@ -113,13 +114,8 @@ function runProbe(mode: string): Promise<{ code: number | null; stdout: string; 
     child.stderr.on("data", (chunk: string) => {
       stderr += chunk;
     });
-    const timer = setTimeout(() => {
-      child.kill();
-      reject(new Error(`probe ${mode} timed out`));
-    }, 5_000);
     child.on("error", reject);
     child.on("exit", (code) => {
-      clearTimeout(timer);
       resolve({ code, stdout, stderr });
     });
   });
