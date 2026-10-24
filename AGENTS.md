@@ -100,7 +100,7 @@ An empty database is a bad test. Seed your worktree's `.supaterm` with a copy of
   - Browser tests assert through `expect.element` or `vi.waitFor`, never `requestAnimationFrame` or `transitionend`.
   - `vi.mock` factories must not spread a real module that pulls in the syntax highlighter or the diff workers.
   - No skips. `.skip`, `.only` and `.todo` fail lint; gate platform-specific tests with `skipIf` or `runIf`.
-  - Lint enforces this: `supaterm/no-test-timeout-or-retry`, `supaterm/no-frame-waits-in-browser-tests`, `vitest/no-disabled-tests`, `vitest/no-focused-tests`.
+  - Lint enforces this: `supaterm/no-test-timeout-or-retry`, `supaterm/no-frame-waits-in-browser-tests`, `supaterm/no-wall-clock-in-tests`, `vitest/no-disabled-tests`, `vitest/no-focused-tests`.
 - Upon request, user-visible frontend changes should get one integrated pass in a real client: `test-supaterm-app` for web, `test-supaterm-mobile` for mobile. The primary agent does this once after integrating. Subagents do not launch their own dev servers.
 
 For authorized mobile verification, a missing or outdated native client is a build step, not a blocker. Run `node scripts/mobile-native-client.ts ensure <ios|android> <device-id>` on the simulator host before starting Metro. It checks the local Expo fingerprint and builds/installs when needed. See `test-supaterm-mobile` for the full workflow.

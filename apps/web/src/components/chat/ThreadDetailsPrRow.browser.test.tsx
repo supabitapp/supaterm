@@ -124,7 +124,7 @@ it("merges with the last selected merge method", async () => {
 
   state.mergeMethods = ["merge", "squash"];
   useUiStateStore.getState().setPullRequestMergeMethod("squash");
-  const start = performance.now();
+  const start = 1_000;
   await act(async () => await screen.rerender(renderRow()));
   await clickMerge(start);
   await clickMerge(start + 900);
@@ -135,7 +135,7 @@ it("requires a new merge click after passing checks become pending and pass agai
   await using screen = await setup();
   const { clickMerge, armed } = screen;
 
-  const start = performance.now();
+  const start = 1_000;
   await act(async () => await screen.rerender(renderRow()));
   await clickMerge(start);
   expect(armed()).toBe(true);
@@ -157,7 +157,7 @@ it("merges only on a deliberate second click", async () => {
   await using screen = await setup();
   const { clickMerge, armed } = screen;
 
-  const start = performance.now();
+  const start = 1_000;
   await screen.rerender(renderRow());
   await clickMerge(start);
   await clickMerge(start + 150);

@@ -249,6 +249,7 @@ export default defineConfig({
       "supaterm/no-test-timeout-or-retry": "error",
       "supaterm/no-rpc-permission-bypass": ["error", { allowRawClientAccess: true }],
       "supaterm/no-unscoped-has": "error",
+      "supaterm/no-wall-clock-in-tests": "error",
       "supaterm/namespace-node-imports": "error",
       "supaterm/prefer-catch-tags": "error",
       "supaterm/prefer-effect-fn": "error",

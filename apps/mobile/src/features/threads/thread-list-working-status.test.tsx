@@ -110,7 +110,7 @@ it("pauses in the background and catches up immediately on return", async () => 
 
 it("resets when a recycled row receives a different work start, then removes the timer on completion", async () => {
   await mount(startedAt);
-  const nextStart = new Date(Date.now() - 5_000).toISOString();
+  const nextStart = new Date(Date.parse(startedAt) + 37_000).toISOString();
   await act(() => {
     renderer?.update(
       <ThreadListWorkingStatus
