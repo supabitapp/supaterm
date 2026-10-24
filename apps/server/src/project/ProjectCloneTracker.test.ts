@@ -27,7 +27,7 @@ const startInput = {
 };
 
 function makeHarness(options?: {
-  readonly clone?: SourceControlRepositoryService.SourceControlRepositoryService["Service"]["cloneRepository"];
+  readonly clone?: SourceControlRepositoryService.SourceControlRepositoryService["Service"]["clonePrepared"];
 }) {
   const created: Array<{ projectId: ProjectId; workspaceRoot: string }> = [];
   const cloned: Array<ProjectId> = [];
@@ -49,12 +49,12 @@ function makeHarness(options?: {
             cloneUrl: input.remoteUrl ?? "",
             repository: null,
           }),
-        cloneRepository:
+        clonePrepared:
           options?.clone ??
-          ((input) =>
+          ((_request, prepared) =>
             Effect.succeed({
-              cwd: input.destinationPath,
-              remoteUrl: input.remoteUrl ?? "",
+              cwd: prepared.destinationPath,
+              remoteUrl: prepared.cloneUrl,
               repository: null,
             })),
         discardClone: (destination) => Effect.sync(() => void discarded.push(destination)),
@@ -68,14 +68,14 @@ describe("ProjectCloneTracker", () => {
   it.effect("creates the project first and reports the clone through the stream", () => {
     const release = Deferred.makeUnsafe<void>();
     const harness = makeHarness({
-      clone: (input, options) =>
+      clone: (_request, prepared, options) =>
         Effect.gen(function* () {
           yield* (
             options?.onProgress?.({ stage: "receiving", percent: 40, detail: "1 MiB" }) ??
               Effect.void
           );
           yield* Deferred.await(release);
-          return { cwd: input.destinationPath, remoteUrl: input.remoteUrl ?? "", repository: null };
+          return { cwd: prepared.destinationPath, remoteUrl: prepared.cloneUrl, repository: null };
         }),
     });
     return Effect.gen(function* () {
@@ -110,14 +110,14 @@ describe("ProjectCloneTracker", () => {
     const release = Deferred.makeUnsafe<void>();
     const resumed = Deferred.makeUnsafe<void>();
     const harness = makeHarness({
-      clone: (input, options) =>
+      clone: (_request, prepared, options) =>
         Effect.gen(function* () {
           const report = options?.onProgress ?? (() => Effect.void);
           yield* report({ stage: "receiving", percent: 24, detail: "168.80 MiB | 20.69 MiB/s" });
           yield* Deferred.await(resumed);
           yield* report({ stage: "receiving", percent: 25, detail: "170.00 MiB | 1.00 MiB/s" });
           yield* Deferred.await(release);
-          return { cwd: input.destinationPath, remoteUrl: input.remoteUrl ?? "", repository: null };
+          return { cwd: prepared.destinationPath, remoteUrl: prepared.cloneUrl, repository: null };
         }),
     });
     return Effect.gen(function* () {
@@ -148,7 +148,7 @@ describe("ProjectCloneTracker", () => {
   it.effect("keeps a failed clone with git's own explanation and retries it", () => {
     let attempts = 0;
     const harness = makeHarness({
-      clone: (input) =>
+      clone: (_request, prepared) =>
         Effect.suspend(() => {
           attempts += 1;
           return attempts === 1
@@ -160,8 +160,8 @@ describe("ProjectCloneTracker", () => {
                 }),
               )
             : Effect.succeed({
-                cwd: input.destinationPath,
-                remoteUrl: input.remoteUrl ?? "",
+                cwd: prepared.destinationPath,
+                remoteUrl: prepared.cloneUrl,
                 repository: null,
               });
         }),
@@ -217,10 +217,10 @@ describe("ProjectCloneTracker", () => {
   it.effect("hands git the credential-bearing URL while snapshots carry the redacted one", () => {
     const cloneUrls: Array<string> = [];
     const harness = makeHarness({
-      clone: (input) =>
+      clone: (_request, prepared) =>
         Effect.sync(() => {
-          cloneUrls.push(input.remoteUrl ?? "");
-          return { cwd: input.destinationPath, remoteUrl: "", repository: null };
+          cloneUrls.push(prepared.cloneUrl);
+          return { cwd: prepared.destinationPath, remoteUrl: "", repository: null };
         }),
     });
     const layer = ProjectCloneTracker.layer.pipe(
@@ -233,10 +233,10 @@ describe("ProjectCloneTracker", () => {
               cloneUrl: "https://user:s3cret@github.com/octocat/supaterm.git",
               repository: null,
             }),
-          cloneRepository: (input) =>
+          clonePrepared: (_request, prepared) =>
             Effect.sync(() => {
-              cloneUrls.push(input.remoteUrl ?? "");
-              return { cwd: input.destinationPath, remoteUrl: "", repository: null };
+              cloneUrls.push(prepared.cloneUrl);
+              return { cwd: prepared.destinationPath, remoteUrl: "", repository: null };
             }),
           discardClone: () => Effect.void,
         }),
@@ -248,6 +248,44 @@ describe("ProjectCloneTracker", () => {
       yield* Effect.yieldNow;
       expect(result.remoteUrl).toBe("https://github.com/octocat/supaterm.git");
       expect(cloneUrls).toEqual(["https://user:s3cret@github.com/octocat/supaterm.git"]);
+    }).pipe(Effect.provide(layer));
+  });
+
+  // The HTTPS retry after a refused SSH key needs the requested protocol and the
+  // provider's own HTTPS URL, which a second prepare from the SSH URL would lose.
+  it.effect("clones with the original request and the prepared repository", () => {
+    const repository = {
+      provider: SourceControlProviderKind.make("azure-devops"),
+      nameWithOwner: "octocat/supaterm",
+      url: "https://dev.azure.com/octocat/supaterm/_git/supaterm",
+      sshUrl: "git@ssh.dev.azure.com:v3/octocat/supaterm/supaterm",
+    };
+    const calls: Array<{ protocol: string | undefined; repositoryUrl: string | undefined }> = [];
+    const layer = ProjectCloneTracker.layer.pipe(
+      Layer.provide(
+        Layer.mock(SourceControlRepositoryService.SourceControlRepositoryService)({
+          prepareClone: (input) =>
+            Effect.succeed({
+              destinationPath: input.destinationPath,
+              remoteUrl: repository.sshUrl,
+              cloneUrl: repository.sshUrl,
+              repository,
+            }),
+          clonePrepared: (request, prepared) =>
+            Effect.sync(() => {
+              calls.push({ protocol: request.protocol, repositoryUrl: prepared.repository?.url });
+              return { cwd: prepared.destinationPath, remoteUrl: prepared.remoteUrl, repository };
+            }),
+          discardClone: () => Effect.void,
+        }),
+      ),
+    );
+    const harness = makeHarness();
+    return Effect.gen(function* () {
+      const tracker = yield* ProjectCloneTracker.ProjectCloneTracker;
+      yield* tracker.start({ ...startInput, protocol: "ssh" }, harness.hooks);
+      yield* Effect.yieldNow;
+      expect(calls).toEqual([{ protocol: "ssh", repositoryUrl: repository.url }]);
     }).pipe(Effect.provide(layer));
   });
 

@@ -5,7 +5,6 @@ import type {
   ProjectCloneStartInput,
   ProjectCloneStartResult,
   ProjectId,
-  SourceControlRepositoryInfo,
 } from "@supaterm/contracts";
 import {
   OrchestrationDispatchCommandError,
@@ -84,10 +83,9 @@ interface TrackedClone {
   readonly fiber: Fiber.Fiber<unknown, unknown> | null;
   readonly hooks: ProjectCloneHooks;
   readonly input: {
-    /** What git is given; may carry credentials and never leaves the server. */
-    readonly cloneUrl: string;
-    readonly destinationPath: string;
-    readonly repository: SourceControlRepositoryInfo | null;
+    readonly request: ProjectCloneStartInput;
+    /** Its cloneUrl is what git is given; it may carry credentials and never leaves the server. */
+    readonly prepared: SourceControlRepositoryService.SourceControlPreparedClone;
   };
 }
 
@@ -219,14 +217,11 @@ export const make = Effect.gen(function* () {
   ) {
     const pulses = yield* Queue.sliding<void>(1);
     yield* watchForStall(projectId, pulses).pipe(Effect.forkScoped);
-    return yield* repositories.cloneRepository(
-      { remoteUrl: tracked.input.cloneUrl, destinationPath: tracked.input.destinationPath },
-      {
-        onProgress: (update) =>
-          Queue.offer(pulses, undefined).pipe(Effect.andThen(progress(projectId, update))),
-        timeoutMs: null,
-      },
-    );
+    return yield* repositories.clonePrepared(tracked.input.request, tracked.input.prepared, {
+      onProgress: (update) =>
+        Queue.offer(pulses, undefined).pipe(Effect.andThen(progress(projectId, update))),
+      timeoutMs: null,
+    });
   }, Effect.scoped);
 
   /**
@@ -247,7 +242,7 @@ export const make = Effect.gen(function* () {
       ),
       Effect.flatMap(() =>
         tracked.hooks
-          .onCloned({ projectId, workspaceRoot: tracked.input.destinationPath })
+          .onCloned({ projectId, workspaceRoot: tracked.input.prepared.destinationPath })
           .pipe(Effect.ignoreCause({ log: true })),
       ),
       Effect.ignoreCause(),
@@ -290,7 +285,7 @@ export const make = Effect.gen(function* () {
         const conflict = Array.from(current.values()).some(
           (tracked) =>
             tracked.snapshot.projectId === input.projectId ||
-            tracked.input.destinationPath === prepared.destinationPath,
+            tracked.input.prepared.destinationPath === prepared.destinationPath,
         );
         if (conflict) return [false, current] as const;
         const next = new Map(current);
@@ -298,11 +293,7 @@ export const make = Effect.gen(function* () {
           snapshot,
           fiber: null,
           hooks,
-          input: {
-            cloneUrl: prepared.cloneUrl,
-            destinationPath: prepared.destinationPath,
-            repository: prepared.repository,
-          },
+          input: { request: input, prepared },
         });
         return [true, next] as const;
       });
@@ -356,7 +347,9 @@ export const make = Effect.gen(function* () {
           const after = yield* get(projectId);
           if (after?.phase === "done") return;
           if (after?.phase === "running") yield* finish(projectId, "cancelled", null);
-          yield* repositories.discardClone(tracked.input.destinationPath).pipe(Effect.ignore);
+          yield* repositories
+            .discardClone(tracked.input.prepared.destinationPath)
+            .pipe(Effect.ignore);
         }),
       );
       return true;
@@ -373,7 +366,7 @@ export const make = Effect.gen(function* () {
       ) {
         return false;
       }
-      yield* repositories.discardClone(tracked.input.destinationPath);
+      yield* repositories.discardClone(tracked.input.prepared.destinationPath);
       const startedAt = yield* nowIso;
       yield* modify(projectId, (entry) => ({
         ...entry,
@@ -405,7 +398,7 @@ export const make = Effect.gen(function* () {
     // is going away either way, but a complete checkout is the user's.
     const after = yield* get(projectId);
     if (after?.phase !== "done") {
-      yield* repositories.discardClone(tracked.input.destinationPath).pipe(Effect.ignore);
+      yield* repositories.discardClone(tracked.input.prepared.destinationPath).pipe(Effect.ignore);
     }
     yield* clearRetention(projectId);
     yield* remove(projectId);

@@ -51,6 +51,12 @@ export class SourceControlRepositoryService extends Context.Service<
       input: SourceControlCloneRepositoryInput,
       options?: SourceControlCloneOptions,
     ) => Effect.Effect<SourceControlCloneRepositoryResult, SourceControlRepositoryError>;
+    /** Clones what `prepareClone` resolved, keeping the request's protocol for the HTTPS retry. */
+    readonly clonePrepared: (
+      input: SourceControlCloneRepositoryInput,
+      prepared: SourceControlPreparedClone,
+      options?: SourceControlCloneOptions,
+    ) => Effect.Effect<SourceControlCloneRepositoryResult, SourceControlRepositoryError>;
     readonly discardClone: (
       destinationPath: string,
     ) => Effect.Effect<void, SourceControlRepositoryError>;
@@ -383,11 +389,11 @@ export const make = Effect.gen(function* () {
       );
   });
 
-  const cloneRepository = Effect.fn("SourceControlRepositoryService.cloneRepository")(function* (
+  const clonePrepared = Effect.fn("SourceControlRepositoryService.clonePrepared")(function* (
     input: SourceControlCloneRepositoryInput,
+    prepared: SourceControlPreparedClone,
     options?: SourceControlCloneOptions,
   ) {
-    const prepared = yield* prepareClone(input);
     const httpsUrl = httpsFallbackUrl(input, prepared);
     const remoteUrl = yield* runClone(
       input,
@@ -419,6 +425,13 @@ export const make = Effect.gen(function* () {
       remoteUrl,
       repository: prepared.repository,
     };
+  });
+
+  const cloneRepository = Effect.fn("SourceControlRepositoryService.cloneRepository")(function* (
+    input: SourceControlCloneRepositoryInput,
+    options?: SourceControlCloneOptions,
+  ) {
+    return yield* clonePrepared(input, yield* prepareClone(input), options);
   });
 
   const discardClone = Effect.fn("SourceControlRepositoryService.discardClone")(function* (
@@ -554,6 +567,13 @@ export const make = Effect.gen(function* () {
       ),
     cloneRepository: (input, options) =>
       cloneRepository(input, options).pipe(
+        mapRepositoryError(
+          "cloneRepository",
+          input.provider ?? SourceControlProviderKind.make("unknown"),
+        ),
+      ),
+    clonePrepared: (input, prepared, options) =>
+      clonePrepared(input, prepared, options).pipe(
         mapRepositoryError(
           "cloneRepository",
           input.provider ?? SourceControlProviderKind.make("unknown"),
