@@ -20,16 +20,17 @@ export function ThreadQueueMessage(props: {
   readonly attachments: ReadonlyArray<ChatAttachment>;
   readonly controls: ThreadQueueRowControls;
   readonly canPromoteToSteer: boolean;
+  readonly canSendNow: boolean;
   readonly onAction: (action: QueueMessageAction) => void;
 }) {
   const touchRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const actions = [
-    ...(props.canPromoteToSteer
+    ...(props.canPromoteToSteer || props.canSendNow
       ? [
           {
             id: "steer",
-            title: "Steer now",
-            attributes: { disabled: !props.controls.canSteer },
+            title: props.canSendNow ? "Send now" : "Steer now",
+            attributes: { disabled: !props.controls.canSend },
             image: Platform.OS === "ios" ? "arrow.turn.left.up" : "arrow_upward",
           },
         ]
