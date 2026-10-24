@@ -575,16 +575,6 @@ export interface ThreadStatusPill {
   pulse: boolean;
 }
 
-const THREAD_STATUS_PRIORITY: Record<ThreadStatusPill["label"], number> = {
-  "Pending Approval": 5,
-  "Awaiting Input": 4,
-  Failed: 3.5,
-  Working: 3,
-  Connecting: 3,
-  Waiting: 2.5,
-  Completed: 1,
-};
-
 type ThreadStatusInput = Pick<
   SidebarThreadSummary,
   "hasPendingApprovals" | "hasPendingUserInput" | "pendingSubagentRequest" | "latestRun" | "runtime"
@@ -1007,24 +997,6 @@ export function resolveThreadStatusPill(input: {
   }
 
   return null;
-}
-
-export function resolveProjectStatusIndicator(
-  statuses: ReadonlyArray<ThreadStatusPill | null>,
-): ThreadStatusPill | null {
-  let highestPriorityStatus: ThreadStatusPill | null = null;
-
-  for (const status of statuses) {
-    if (status === null) continue;
-    if (
-      highestPriorityStatus === null ||
-      THREAD_STATUS_PRIORITY[status.label] > THREAD_STATUS_PRIORITY[highestPriorityStatus.label]
-    ) {
-      highestPriorityStatus = status;
-    }
-  }
-
-  return highestPriorityStatus;
 }
 
 export function getFallbackThreadIdAfterDelete<

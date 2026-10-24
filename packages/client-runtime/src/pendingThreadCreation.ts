@@ -74,7 +74,7 @@ export function resolvePendingThreadCreation<Message extends PendingCreationMess
 }
 
 /** A shell can arrive before its prompt; only the matching message retires the local row. */
-export function isPendingThreadCreationVisible(input: {
+function isPendingThreadCreationVisible(input: {
   readonly creationMessageId: string;
   readonly loadedMessageIds: ReadonlyArray<string> | null;
 }): boolean {
