@@ -25,6 +25,8 @@
       "entry": [
         "check-commit-message.ts",
         "clean-worktree.ts",
+        // These fixture scripts are injected into a browser page by path.
+        "fixtures/*/*.js",
         "knip-schemas.ts",
         "mobile-native-client.ts",
         "mobile-e2e.ts",
