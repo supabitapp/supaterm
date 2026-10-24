@@ -7,6 +7,7 @@ import { describe, expect, it } from "@effect/vitest";
 import type * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
+import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Stream from "effect/Stream";
@@ -35,7 +36,7 @@ describe("resuming the shell on a new connection", () => {
     const inputs = yield* SubscriptionRef.make<ReadonlyArray<number | undefined>>([]);
     const loaderCalls = yield* Ref.make(0);
     const saves = yield* SubscriptionRef.make<ReadonlyArray<number>>([]);
-    const wakeups = yield* Queue.unbounded<ConnectionWakeups.ConnectionWakeup>();
+    const wakeups = yield* PubSub.unbounded<ConnectionWakeups.ConnectionWakeup>();
     const supervisor = EnvironmentSupervisor.EnvironmentSupervisor.of({
       target: TARGET,
       state: supervisorState,
@@ -75,7 +76,7 @@ describe("resuming the shell on a new connection", () => {
       Effect.provideService(ShellSnapshotLoader.ShellSnapshotLoader, snapshotLoader),
       Effect.provideService(
         ConnectionWakeups.ConnectionWakeups,
-        ConnectionWakeups.ConnectionWakeups.of({ changes: Stream.fromQueue(wakeups) }),
+        ConnectionWakeups.ConnectionWakeups.of({ changes: Stream.fromPubSub(wakeups) }),
       ),
     );
 
@@ -266,7 +267,7 @@ describe("resuming the shell on a new connection", () => {
       yield* Queue.offerAll(first.events, [
         harness.update(12),
         { kind: "synchronized" },
-        { kind: "unknown-item" } as OrchestrationV2ShellStreamItem,
+        { kind: "unknown-item", itemKind: "project.archived" },
         harness.update(13),
       ]);
       yield* harness.awaitSequence(13);
@@ -283,52 +284,37 @@ describe("resuming the shell on a new connection", () => {
     }),
   );
 
-  it.effect("quietly reloads a resumed shell whose last snapshot is an hour old", () =>
+  it.effect("reloads instead of resuming once the last snapshot is six hours old", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness();
       const first = yield* harness.connect("run-1");
       yield* Queue.offerAll(first.events, [harness.update(12), { kind: "synchronized" }]);
       yield* harness.awaitLive;
-      yield* TestClock.adjust("61 minutes");
+      yield* TestClock.adjust("361 minutes");
 
       const second = yield* harness.connect("run-1");
-      expect(second.afterSequence).toBe(12);
-      const statuses = yield* Ref.make<ReadonlyArray<string>>([]);
-      yield* SubscriptionRef.changes(harness.shellState).pipe(
-        Stream.runForEach((value) => Ref.update(statuses, (seen) => [...seen, value.status])),
-        Effect.forkScoped,
-      );
-      yield* Queue.offer(second.events, { kind: "synchronized" });
-
-      const subscriptions = yield* harness.awaitSubscriptions(3);
-      expect(subscriptions.at(-1)).toBe(20);
+      expect(second.afterSequence).toBe(20);
+      expect(yield* Ref.get(harness.loaderCalls)).toBe(2);
       yield* Queue.offerAll(second.events, [{ kind: "synchronized" }, harness.update(21)]);
       yield* harness.awaitSequence(21);
-      expect(yield* Ref.get(harness.loaderCalls)).toBe(2);
-      const seen = yield* Ref.get(statuses);
-      expect(seen.slice(seen.indexOf("live"))).not.toContain("synchronizing");
 
-      // The reload took a fresh snapshot, so the next resume does not reload again.
+      // The reload took a fresh snapshot, so the next session resumes again.
       const third = yield* harness.connect("run-1");
       expect(third.afterSequence).toBe(21);
-      yield* Queue.offerAll(third.events, [{ kind: "synchronized" }, harness.update(22)]);
-      yield* harness.awaitSequence(22);
-      expect(yield* SubscriptionRef.get(harness.inputs)).toEqual([10, 12, 20, 21]);
+      expect(yield* Ref.get(harness.loaderCalls)).toBe(2);
     }),
   );
 
-  it.effect("keeps resuming without a reload while the last snapshot is recent", () =>
+  it.effect("keeps resuming while the last snapshot is younger than six hours", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness();
       const first = yield* harness.connect("run-1");
       yield* Queue.offerAll(first.events, [harness.update(12), { kind: "synchronized" }]);
       yield* harness.awaitLive;
-      yield* TestClock.adjust("59 minutes");
+      yield* TestClock.adjust("359 minutes");
 
       const second = yield* harness.connect("run-1");
-      yield* Queue.offerAll(second.events, [{ kind: "synchronized" }, harness.update(13)]);
-      yield* harness.awaitSequence(13);
-      expect(yield* SubscriptionRef.get(harness.inputs)).toEqual([10, 12]);
+      expect(second.afterSequence).toBe(12);
       expect(yield* Ref.get(harness.loaderCalls)).toBe(1);
     }),
   );
@@ -342,7 +328,7 @@ describe("resuming the shell on a new connection", () => {
       // The throttled writer waits on the test clock, so nothing is saved yet.
       expect(yield* SubscriptionRef.get(harness.saves)).toEqual([]);
 
-      yield* Queue.offer(harness.wakeups, "application-background");
+      yield* PubSub.publish(harness.wakeups, "application-background");
       const saved = yield* SubscriptionRef.changes(harness.saves).pipe(
         Stream.filter((sequences) => sequences.length > 0),
         Stream.runHead,

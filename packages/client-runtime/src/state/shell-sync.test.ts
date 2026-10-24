@@ -11,6 +11,7 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
 import * as Option from "effect/Option";
+import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Scope from "effect/Scope";
@@ -377,7 +378,7 @@ describe("environment shell synchronization", () => {
   it.effect("resubscribes from the in-memory shell cursor when the app becomes active", () =>
     Effect.gen(function* () {
       const events = yield* Queue.unbounded<OrchestrationV2ShellStreamItem>();
-      const wakeups = yield* Queue.unbounded<ConnectionWakeups.ConnectionWakeup>();
+      const wakeups = yield* PubSub.unbounded<ConnectionWakeups.ConnectionWakeup>();
       const loaderCalls = yield* Ref.make(0);
       const capturedAfterSequences = yield* Ref.make<ReadonlyArray<number | undefined>>([]);
       const client = {
@@ -432,7 +433,7 @@ describe("environment shell synchronization", () => {
         Effect.provideService(ShellSnapshotLoader.ShellSnapshotLoader, snapshotLoader),
         Effect.provideService(
           ConnectionWakeups.ConnectionWakeups,
-          ConnectionWakeups.ConnectionWakeups.of({ changes: Stream.fromQueue(wakeups) }),
+          ConnectionWakeups.ConnectionWakeups.of({ changes: Stream.fromPubSub(wakeups) }),
         ),
       );
 
@@ -458,7 +459,7 @@ describe("environment shell synchronization", () => {
         Stream.runHead,
       );
 
-      yield* Queue.offer(wakeups, "application-active");
+      yield* PubSub.publish(wakeups, "application-active");
       for (let attempt = 0; attempt < 100; attempt += 1) {
         if ((yield* Ref.get(capturedAfterSequences)).length >= 2) break;
         yield* Effect.yieldNow;
@@ -466,14 +467,14 @@ describe("environment shell synchronization", () => {
       expect(yield* Ref.get(capturedAfterSequences)).toEqual([10, 40]);
       yield* Queue.offer(events, { kind: "synchronized" });
 
-      yield* Queue.offer(wakeups, "application-resumed");
+      yield* PubSub.publish(wakeups, "application-resumed");
       for (let attempt = 0; attempt < 100; attempt += 1) {
         if ((yield* Ref.get(capturedAfterSequences)).length >= 3) break;
         yield* Effect.yieldNow;
       }
       expect(yield* Ref.get(capturedAfterSequences)).toEqual([10, 40, 40]);
 
-      yield* Queue.offer(wakeups, "application-background");
+      yield* PubSub.publish(wakeups, "application-background");
       for (let attempt = 0; attempt < 10; attempt += 1) {
         yield* Effect.yieldNow;
       }

@@ -189,3 +189,34 @@ export function applyShellStreamEvent(
       return snapshot;
   }
 }
+
+type ShellSnapshotItem = Extract<OrchestrationV2ShellStreamItem, { readonly kind: "snapshot" }>;
+
+/** A full snapshot, as opposed to a refresh of repository identities for some projects. */
+export function isAuthoritativeShellSnapshot(
+  item: OrchestrationV2ShellStreamItem,
+): item is ShellSnapshotItem {
+  return item.kind === "snapshot" && item.resolvedRepositoryIdentityRoots === undefined;
+}
+
+/** Whether an in-memory shell may resume a new session from its cursor. */
+export type ShellResumeProgress =
+  | { readonly _tag: "pending" }
+  | { readonly _tag: "completed"; readonly generation: string }
+  // An unknown item moved the cursor past rows this build could not apply, so
+  // only another authoritative snapshot can make the cursor trustworthy again.
+  | { readonly _tag: "tainted" };
+
+export const PENDING_SHELL_RESUME: ShellResumeProgress = { _tag: "pending" };
+
+/** `generation` identifies the server run of the session the item came from. */
+export function advanceShellResume(
+  progress: ShellResumeProgress,
+  item: OrchestrationV2ShellStreamItem,
+  generation: string | null,
+): ShellResumeProgress {
+  if (item.kind === "unknown-item") return { _tag: "tainted" };
+  if (isAuthoritativeShellSnapshot(item)) return PENDING_SHELL_RESUME;
+  if (item.kind !== "synchronized" || progress._tag === "tainted") return progress;
+  return generation === null ? PENDING_SHELL_RESUME : { _tag: "completed", generation };
+}

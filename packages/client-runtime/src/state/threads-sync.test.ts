@@ -17,6 +17,7 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
 import * as Option from "effect/Option";
+import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Scope from "effect/Scope";
@@ -125,7 +126,7 @@ const makeHarness = Effect.fn("TestEnvironmentThreads.makeHarness")(function* (o
   const lastRequestCompletionMarker = yield* Ref.make(false);
   const lastAcceptBoundedSnapshot = yield* Ref.make<true | undefined>(undefined);
   const lastAcceptCompactTurnItems = yield* Ref.make<true | undefined>(undefined);
-  const wakeups = yield* Queue.unbounded<ConnectionWakeups.ConnectionWakeup>();
+  const wakeups = yield* PubSub.unbounded<ConnectionWakeups.ConnectionWakeup>();
   const savedThreads = yield* Ref.make<ReadonlyArray<OrchestrationV2ThreadDetailSnapshot>>([]);
   const removedThreads = yield* Ref.make<ReadonlyArray<ThreadId>>([]);
   const supervisorState = yield* SubscriptionRef.make<SupervisorConnectionState>(
@@ -228,7 +229,7 @@ const makeHarness = Effect.fn("TestEnvironmentThreads.makeHarness")(function* (o
     Effect.provideService(ThreadSnapshotLoader.ThreadSnapshotLoader, snapshotLoader),
     Effect.provideService(
       ConnectionWakeups.ConnectionWakeups,
-      ConnectionWakeups.ConnectionWakeups.of({ changes: Stream.fromQueue(wakeups) }),
+      ConnectionWakeups.ConnectionWakeups.of({ changes: Stream.fromPubSub(wakeups) }),
     ),
   );
   if (options?.historyPaging !== "no-http") {
@@ -1774,7 +1775,7 @@ describe("EnvironmentThreads", () => {
         yield* Effect.yieldNow;
       }
       yield* harness.replaceSession;
-      yield* Queue.offer(harness.wakeups, "application-active");
+      yield* PubSub.publish(harness.wakeups, "application-active");
       for (let attempt = 0; attempt < 20; attempt += 1) {
         yield* Effect.yieldNow;
       }
@@ -2178,7 +2179,7 @@ describe("EnvironmentThreads", () => {
           value.data.value.thread.title === "Latest title",
       );
 
-      yield* Queue.offer(harness.wakeups, "application-active");
+      yield* PubSub.publish(harness.wakeups, "application-active");
       const synchronizing = yield* awaitThreadState(
         harness.observed,
         (value) => value.status === "synchronizing" && Option.isSome(value.data),
@@ -2201,14 +2202,14 @@ describe("EnvironmentThreads", () => {
       );
       expect(Option.getOrThrow(live.data).thread.title).toBe("Latest title");
 
-      yield* Queue.offer(harness.wakeups, "application-resumed");
+      yield* PubSub.publish(harness.wakeups, "application-resumed");
       for (let attempt = 0; attempt < 100; attempt += 1) {
         if ((yield* Ref.get(harness.subscriptionCount)) >= 3) break;
         yield* Effect.yieldNow;
       }
       expect(yield* Ref.get(harness.subscriptionCount)).toBe(3);
 
-      yield* Queue.offer(harness.wakeups, "application-background");
+      yield* PubSub.publish(harness.wakeups, "application-background");
       for (let attempt = 0; attempt < 10; attempt += 1) {
         yield* Effect.yieldNow;
       }
