@@ -70,14 +70,15 @@ export function planThreadUndo(
   return [{ action: "reopen" }, ...(thread?.pinnedAt != null ? [pin] : []), ...snooze];
 }
 
+/** Resolves to undefined when every step was an expired snooze, leaving nothing to restore. */
 export async function executeThreadUndo<Result>(
   plan: ThreadUndoPlan,
   execute: (step: ThreadUndoStep) => Promise<Result>,
   succeeded: (result: Result) => boolean,
-): Promise<Result> {
-  let result = await execute(plan[0]);
-  for (const step of plan.slice(1)) {
-    if (!succeeded(result)) return result;
+): Promise<Result | undefined> {
+  let result: Result | undefined;
+  for (const step of plan) {
+    if (result !== undefined && !succeeded(result)) return result;
     // A snooze can expire before Undo runs, and the server rejects an expired restore.
     // @effect-diagnostics-next-line globalDate:off
     if (step.action === "snooze" && Date.parse(step.snoozedUntil) <= Date.now()) continue;

@@ -10,7 +10,7 @@ import * as ThreadUndo from "./threadUndo";
 
 type UndoOptions = {
   action: "Done" | "Snoozed" | "Unpinned" | "Archived" | "Discarded";
-  undo: () => Promise<AtomCommandResult<unknown, unknown>>;
+  undo: () => Promise<AtomCommandResult<unknown, unknown> | undefined>;
   failureTitle: string;
   claim: ReturnType<typeof ThreadUndo.begin>;
   commit?: () => void;
@@ -72,7 +72,7 @@ function refreshNotice() {
             };
             try {
               const result = await undo();
-              if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+              if (result?._tag === "Failure" && !isAtomCommandInterrupted(result)) {
                 reportFailure(squashAtomCommandFailure(result));
               }
             } catch (error) {

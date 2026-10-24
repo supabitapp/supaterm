@@ -57,4 +57,18 @@ describe("executeThreadUndo", () => {
     expect(await run("reopen")).toBe(false);
     expect(executed.map((step) => step.action)).toEqual(["reopen"]);
   });
+
+  it("treats an expired snooze as the only restore as nothing to undo", async () => {
+    const executed: ThreadUndoStep[] = [];
+    const result = await executeThreadUndo(
+      [{ action: "snooze", snoozedUntil: "2000-01-01T00:00:00.000Z" }],
+      async (step) => {
+        executed.push(step);
+        return false;
+      },
+      (result) => result,
+    );
+    expect(result).toBeUndefined();
+    expect(executed).toEqual([]);
+  });
 });
