@@ -3885,7 +3885,7 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       });
       const applyRun = (input: {
         readonly ordinal: number;
-        readonly status: "completed" | "cancelled" | "running";
+        readonly status: "completed" | "cancelled" | "rolled_back" | "running";
         readonly startedAt: DateTime.Utc | null;
         readonly completedAt: DateTime.Utc | null;
         readonly workStartedAt?: DateTime.Utc;
@@ -3939,12 +3939,18 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       });
       yield* applyRun({ ordinal: 3, status: "cancelled", startedAt: null, completedAt: at(40) });
       yield* applyRun({ ordinal: 4, status: "completed", startedAt: at(60), completedAt: at(65) });
+      yield* applyRun({
+        ordinal: 5,
+        status: "rolled_back",
+        startedAt: at(66),
+        completedAt: at(3_600),
+      });
       for (const shell of yield* shells) {
         assert.equal(shell.completedWorkMs, 35_000);
       }
 
       yield* applyRun({
-        ordinal: 5,
+        ordinal: 6,
         status: "running",
         startedAt: at(70),
         completedAt: null,

@@ -1142,6 +1142,14 @@ describe("resolveThreadTotalWorkMs", () => {
     expect(resolveThreadTotalWorkMs(thread, nowMs)).toBe(120_000);
   });
 
+  it("waits for execution to start before adding the session in progress", () => {
+    for (const status of ["preparing", "starting"] as const) {
+      expect(
+        resolveThreadTotalWorkMs({ ...thread, runtime: { ...thread.runtime!, status } }, nowMs),
+      ).toBe(90_000);
+    }
+  });
+
   it("uses the ended sessions alone once nothing is working", () => {
     expect(
       resolveThreadTotalWorkMs(

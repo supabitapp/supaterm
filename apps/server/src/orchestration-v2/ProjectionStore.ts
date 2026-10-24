@@ -1606,7 +1606,9 @@ export function threadShellFromProjection(
     activityRunStartedAt,
     completedWorkMs: completedWorkMsForShell(
       projection.runs.flatMap((run) => {
-        if (run.startedAt === null || run.completedAt === null) return [];
+        if (run.startedAt === null || run.completedAt === null || run.status === "rolled_back") {
+          return [];
+        }
         return [
           {
             workStartedAt: DateTime.toEpochMillis(orchestrationV2RunWorkStartedAt(run)),
@@ -5905,6 +5907,8 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
         FROM orchestration_v2_projection_runs
         WHERE thread_id IN ${sql.in(threadIds)}
           AND completed_at IS NOT NULL
+          -- Rollback rewrites completedAt to the rollback time.
+          AND status <> 'rolled_back'
           AND json_extract(payload_json, '$.startedAt') IS NOT NULL
         GROUP BY thread_id, work_started_at
       `;
