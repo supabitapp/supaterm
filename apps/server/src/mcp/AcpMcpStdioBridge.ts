@@ -15,7 +15,7 @@ import { discardResponseBody, responsePayloads } from "@supaterm/shared/mcpRespo
  * unevenly implemented.
  */
 
-export class AcpMcpBridgeError extends Error {
+class AcpMcpBridgeError extends Error {
   readonly _tag = "AcpMcpBridgeError";
 }
 

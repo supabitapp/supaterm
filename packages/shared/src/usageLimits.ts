@@ -58,9 +58,7 @@ function cursorUsageWindowRank(id: string): number {
 
 type ProviderWithLimits = ServerProvider & { readonly usageLimits: ServerProviderUsageLimits };
 
-export function providersWithLimits(
-  providers: readonly ServerProvider[],
-): readonly ProviderWithLimits[] {
+function providersWithLimits(providers: readonly ServerProvider[]): readonly ProviderWithLimits[] {
   return providers.filter(hasUsageLimits);
 }
 

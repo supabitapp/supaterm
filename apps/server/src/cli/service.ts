@@ -29,7 +29,7 @@ export type ServiceReconcileResult =
       readonly plan: BootService.BootServicePlan;
     };
 
-export const reconcileService = Effect.fn("cli.service.reconcile")(function* (options?: {
+const reconcileService = Effect.fn("cli.service.reconcile")(function* (options?: {
   readonly allowDowngrade?: boolean;
   readonly start?: boolean;
 }) {
@@ -65,10 +65,7 @@ function formatServiceChange(
   return `${result.previouslyInstalled ? "Updated" : "Installed"} Supaterm service with supaterm@${packageJson.version}.\nLogs: ${result.plan.logPath}`;
 }
 
-export function formatServiceStatus(
-  status: BootService.BootServiceStatus,
-  cliVersion: string,
-): string {
+function formatServiceStatus(status: BootService.BootServiceStatus, cliVersion: string): string {
   if (!status.supported) {
     return "Supaterm service\n  Status: unavailable on this machine\n  Supported on: Linux with systemd, macOS with launchd";
   }

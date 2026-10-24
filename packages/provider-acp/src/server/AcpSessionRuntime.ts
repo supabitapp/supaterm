@@ -735,7 +735,7 @@ export function observePosixOwnershipLedger(input: {
   }
 }
 
-export function observePosixOwnershipLedgerContinuously(input: {
+function observePosixOwnershipLedgerContinuously(input: {
   readonly childQueues: Map<number, Array<number>>;
   readonly controller: AcpPosixProcessTreeController;
   readonly frontier: Map<number, AcpOwnedPosixProcess>;
@@ -1038,11 +1038,11 @@ export function terminatePosixOwnedProcessTree(input: {
   }).pipe(withWallClock);
 }
 
-export function windowsTaskkillResultIsSuccess(exitCode: number, _output?: string): boolean {
+function windowsTaskkillResultIsSuccess(exitCode: number, _output?: string): boolean {
   return exitCode === 0;
 }
 
-export const terminateWindowsProcessTreeWithTaskkill = (
+const terminateWindowsProcessTreeWithTaskkill = (
   pid: number,
 ): Effect.Effect<void, AcpProcessGroupTerminationError, ChildProcessSpawner.ChildProcessSpawner> =>
   Effect.scoped(

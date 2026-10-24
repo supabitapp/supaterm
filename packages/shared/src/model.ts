@@ -70,7 +70,7 @@ function getProviderOptionSelectionValue(
   return getRawSelectionValueById(selections, id);
 }
 
-export function getProviderOptionStringSelectionValue(
+function getProviderOptionStringSelectionValue(
   selections: ReadonlyArray<ProviderOptionSelection> | null | undefined,
   id: string,
 ): string | undefined {
@@ -78,7 +78,7 @@ export function getProviderOptionStringSelectionValue(
   return typeof value === "string" ? value : undefined;
 }
 
-export function getProviderOptionBooleanSelectionValue(
+function getProviderOptionBooleanSelectionValue(
   selections: ReadonlyArray<ProviderOptionSelection> | null | undefined,
   id: string,
 ): boolean | undefined {

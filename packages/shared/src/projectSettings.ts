@@ -212,15 +212,6 @@ export function resolveSendEnvMode(input: {
   return input.isGitRepo ? input.requestedEnvMode : "local";
 }
 
-export function withProjectSettingsOverrides(
-  settings: Pick<ServerSettings, "projectSettingsOverrides">,
-  projectId: ProjectId,
-  next: ProjectSettingsOverrides | null,
-): ServerSettings["projectSettingsOverrides"] {
-  const { [projectId]: _removed, ...rest } = settings.projectSettingsOverrides;
-  return next === null || Object.keys(next).length === 0 ? rest : { ...rest, [projectId]: next };
-}
-
 /**
  * The project's entry for a client to resend with other overrides changed. Provider switches are
  * left out: the server keeps them when an entry omits them, and sending them takes

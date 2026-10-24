@@ -383,7 +383,7 @@ function listItemTypeAt($pos: ResolvedPos): "listItem" | "taskItem" | null {
   return name === "listItem" || name === "taskItem" ? name : null;
 }
 
-export function backspaceAcrossList(editor: Editor): boolean {
+function backspaceAcrossList(editor: Editor): boolean {
   const { state } = editor;
   const { $from, empty } = state.selection;
   if (!empty || $from.parentOffset !== 0) return false;
@@ -404,7 +404,7 @@ export function backspaceAcrossList(editor: Editor): boolean {
   return false;
 }
 
-export function deleteAcrossList(editor: Editor): boolean {
+function deleteAcrossList(editor: Editor): boolean {
   const { state } = editor;
   const { $from, empty } = state.selection;
   if (!empty || !$from.parent.isTextblock || $from.depth === 0) return false;

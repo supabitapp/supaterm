@@ -7,7 +7,7 @@ import {
   normalizeProjectPathForDispatch,
 } from "@supaterm/shared/path";
 
-export { normalizeProjectPathForComparison, normalizeProjectPathForDispatch };
+export { normalizeProjectPathForComparison };
 
 export const isWindowsPlatform = (platform: string): boolean => {
   return /^win(dows)?/i.test(platform);

@@ -26,10 +26,7 @@ import {
   contextCompactionTokenCounts,
   type ToolGroupSummaryKind,
 } from "@supaterm/client-runtime/work-log/presentation";
-export {
-  normalizeCompactToolLabel,
-  toolGroupAction,
-} from "@supaterm/client-runtime/work-log/presentation";
+export { toolGroupAction } from "@supaterm/client-runtime/work-log/presentation";
 import {
   deriveRevertTurnCountByUserMessageId,
   formatDuration,

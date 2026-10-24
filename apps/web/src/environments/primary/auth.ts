@@ -81,10 +81,6 @@ export class PrimaryEnvironmentPairingCredentialRejectedError extends Schema.Tag
   }
 }
 
-export const isPrimaryEnvironmentPairingCredentialRejectedError = Schema.is(
-  PrimaryEnvironmentPairingCredentialRejectedError,
-);
-
 export class PrimaryEnvironmentAuthSessionTimeoutError extends Schema.TaggedError<PrimaryEnvironmentAuthSessionTimeoutError>()(
   "PrimaryEnvironmentAuthSessionTimeoutError",
   {

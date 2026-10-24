@@ -159,7 +159,7 @@ export async function clearBrowserProfileData(
   ]);
 }
 
-export function browserProfileRemovalAvailable(
+function browserProfileRemovalAvailable(
   bridgeAvailable: boolean,
   environmentsReady: boolean,
   environmentCount: number,
@@ -813,7 +813,7 @@ function DeviceIntegrationSettings() {
   );
 }
 
-export function DeviceIntegrationControls({
+function DeviceIntegrationControls({
   environmentId,
   enabled,
   agentAccessEnabled,

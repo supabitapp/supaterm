@@ -274,7 +274,7 @@ export const layerBrowserApiCors = Layer.unwrap(
   }),
 );
 
-export function isLoopbackHostname(hostname: string): boolean {
+function isLoopbackHostname(hostname: string): boolean {
   const normalizedHostname = hostname
     .trim()
     .toLowerCase()

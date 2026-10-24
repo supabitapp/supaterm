@@ -33,7 +33,7 @@ export function ThreadFindCanvas({
   );
 }
 
-export function ThreadFindProvider({
+function ThreadFindProvider({
   controlsRef,
   onOpenChange,
   children,

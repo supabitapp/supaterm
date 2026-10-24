@@ -51,7 +51,7 @@ const isIpv4Family = (family: string | number): boolean => family === "IPv4" || 
 
 const isIpv6Family = (family: string | number): boolean => family === "IPv6" || family === 6;
 
-export const resolveHeadlessConnectionHost = (
+const resolveHeadlessConnectionHost = (
   host: string | undefined,
   interfaces: NetworkInterfacesMap = NodeOS.networkInterfaces(),
 ): string => {
@@ -86,7 +86,7 @@ export const resolveHeadlessConnectionString = (
   return `http://${formatHostForUrl(connectionHost)}:${port}`;
 };
 
-export const resolveListeningPort = (address: unknown, fallbackPort: number): number => {
+const resolveListeningPort = (address: unknown, fallbackPort: number): number => {
   if (
     typeof address === "object" &&
     address !== null &&

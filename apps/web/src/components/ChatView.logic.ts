@@ -23,11 +23,7 @@ import type { SetStateAction } from "react";
 import { applyClaudePromptEffortPrefix, resolvePromptInjectedEffort } from "@supaterm/shared/model";
 import { getProviderModelCapabilities } from "../providerModels";
 import { sanitizeThreadErrorMessage } from "~/rpc/transportError";
-import type {
-  EnvironmentThread,
-  ThreadStructure,
-  EnvironmentThreadShell,
-} from "@supaterm/client-runtime/state/shell";
+import type { EnvironmentThread, ThreadStructure } from "@supaterm/client-runtime/state/shell";
 import {
   ANTIGRAVITY_DEFAULT_MODEL,
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
@@ -101,7 +97,7 @@ type ThreadStructureRow = ThreadStructure["visibleTurnItems"][number];
 export const LAST_INVOKED_SCRIPT_BY_PROJECT_KEY = "supaterm:last-invoked-script-by-project";
 export const MAX_HIDDEN_MOUNTED_TERMINAL_THREADS = 10;
 
-export const ENVIRONMENT_RECONNECT_WARNING_GRACE_MS = 2_000;
+const ENVIRONMENT_RECONNECT_WARNING_GRACE_MS = 2_000;
 
 export function shouldRenderPreviewMiniPlayer(
   source: PreviewMiniPlayerSource | null,
@@ -534,25 +530,6 @@ export function buildLocalDraftThread(
   });
 }
 
-export function shouldWriteThreadErrorToCurrentServerThread(input: {
-  serverThread:
-    | {
-        environmentId: EnvironmentId;
-        id: ThreadId;
-      }
-    | null
-    | undefined;
-  routeThreadRef: ScopedThreadRef;
-  targetThreadId: ThreadId;
-}): boolean {
-  return Boolean(
-    input.serverThread &&
-    input.targetThreadId === input.routeThreadRef.threadId &&
-    input.serverThread.environmentId === input.routeThreadRef.environmentId &&
-    input.serverThread.id === input.targetThreadId,
-  );
-}
-
 export function resolveComposerProviderSelection(input: {
   entries: ReadonlyArray<ProviderInstanceEntry>;
   candidateInstanceIds: ReadonlyArray<ProviderInstanceId | null | undefined>;
@@ -796,24 +773,6 @@ export function shouldRequireWorktreeBaseBranch(input: {
   );
 }
 
-export function resolveBackgroundDraftWorkspaceOptions(input: {
-  envMode: DraftThreadEnvMode;
-  branch: string | null;
-  startFromOrigin: boolean;
-}): {
-  envMode: DraftThreadEnvMode;
-  branch: string | null;
-  worktreePath: null;
-  startFromOrigin: boolean;
-} {
-  return {
-    envMode: input.envMode,
-    branch: input.branch,
-    worktreePath: null,
-    startFromOrigin: input.envMode === "worktree" && input.startFromOrigin,
-  };
-}
-
 export function deriveComposerSendState(options: {
   prompt: string;
   imageCount: number;
@@ -922,18 +881,6 @@ export function recallCheckoutIsRepo(
 
 export function threadHasStarted(thread: Thread | null | undefined): boolean {
   return Boolean(thread && (thread.latestRun !== null || thread.itemCount > 0 || thread.runtime));
-}
-
-export function threadShellHasStarted(
-  shell:
-    | Pick<EnvironmentThreadShell, "latestRun" | "latestUserMessageAt" | "runtime">
-    | null
-    | undefined,
-): boolean {
-  return Boolean(
-    shell &&
-    (shell.latestRun !== null || shell.latestUserMessageAt !== null || shell.runtime !== null),
-  );
 }
 
 // Imported history has no session until its first prompt. Resolve its instance

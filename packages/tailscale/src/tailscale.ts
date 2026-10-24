@@ -9,7 +9,7 @@ import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 export const DEFAULT_TAILSCALE_SERVE_PORT = 443;
 
-export const TAILSCALE_STATUS_TIMEOUT = Duration.millis(3_500);
+const TAILSCALE_STATUS_TIMEOUT = Duration.millis(3_500);
 /**
  * How long a probe killed on timeout gets to exit after SIGTERM before its
  * process group is SIGKILLed. Without it the spawner never escalates, so a group

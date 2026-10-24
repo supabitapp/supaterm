@@ -55,9 +55,7 @@ function describeModelCapabilities(model: ServerProviderModel): string[] {
   return labels;
 }
 
-export function groupModelsForDisplay<
-  T extends { readonly slug: string; readonly isCustom: boolean },
->(
+function groupModelsForDisplay<T extends { readonly slug: string; readonly isCustom: boolean }>(
   models: ReadonlyArray<T>,
   options: {
     readonly favoriteModels: ReadonlySet<string>;
@@ -78,7 +76,7 @@ export function groupModelsForDisplay<
   ];
 }
 
-export function nextHiddenModelsForBulkToggle(
+function nextHiddenModelsForBulkToggle(
   models: ReadonlyArray<Pick<ServerProviderModel, "slug" | "isCustom">>,
   hiddenModels: ReadonlyArray<string>,
 ): string[] {
