@@ -65,7 +65,9 @@ export function mountBoltComputer(
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   let settings = initial;
   let look = lookOf(settings);
-  const still = () => reducedMotion || settings.paused;
+  // Off screen it holds the still pose, so the canvas stays current for anything that reads it.
+  let onScreen = true;
+  const still = () => reducedMotion || settings.paused || !onScreen;
   const sim = new BoltComputerSim(Math.random(), settings.state, restAfter);
   const renderer = new BoltComputerRenderer();
   let frame = frameFor(container.clientWidth);
@@ -78,7 +80,6 @@ export function mountBoltComputer(
     return Math.hypot(x, y) < POINTER_REACH ? { x, y } : null;
   };
 
-  let onScreen = true;
   let unsubscribe: (() => void) | null = null;
   const stop = () => {
     unsubscribe?.();
@@ -94,8 +95,6 @@ export function mountBoltComputer(
     if (still()) {
       stop();
       renderer.paint(canvas, frame, null, look);
-    } else if (!onScreen) {
-      stop();
     } else if (unsubscribe === null) {
       unsubscribe = subscribe(tick);
     }
