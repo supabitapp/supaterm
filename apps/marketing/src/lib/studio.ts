@@ -180,7 +180,8 @@ export function startStudio(root: HTMLElement) {
   };
 
   const flash = (button: HTMLElement, label: string) => {
-    const original = button.textContent;
+    button.dataset.label ??= button.textContent ?? "";
+    const original = button.dataset.label;
     button.textContent = label;
     setTimeout(() => (button.textContent = original), 1400);
   };
