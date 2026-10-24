@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useEnvironmentSettings } from "../../hooks/useSettings";
 import {
   readHostCredentialSettings,
-  type SourceControlClientDefinition,
+  type SourceControlDefinition,
   type SourceControlHostCredentials,
 } from "@supaterm/client-runtime/source-control-clients";
 import { serverEnvironment } from "../../state/server";
@@ -23,7 +23,7 @@ export function SourceControlTokenSettings({
   onSaved,
 }: {
   readonly environmentId: EnvironmentId;
-  readonly definition: SourceControlClientDefinition;
+  readonly definition: SourceControlDefinition;
   readonly credentials: SourceControlHostCredentials;
   readonly onSaved: () => void;
 }) {

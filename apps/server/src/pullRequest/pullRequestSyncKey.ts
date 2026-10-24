@@ -4,7 +4,7 @@ import type {
   RepositoryIdentity,
   ThreadPullRequestKey,
 } from "@supaterm/contracts";
-import { sourceControlClients } from "../sourceControl/sourceControlClients.ts";
+import { sourceControlDefinitions } from "../sourceControl/sourceControlDefinitions.ts";
 import { normalizeThreadPullRequestKey } from "../sourceControl/threadPullRequests.ts";
 
 export function pullRequestSyncKey(
@@ -13,11 +13,13 @@ export function pullRequestSyncKey(
   identity?: RepositoryIdentity | null,
 ): ThreadPullRequestKey | null {
   const host = identity
-    ? sourceControlClients.changeRequestHost(identity, identity.provider)
+    ? sourceControlDefinitions.changeRequestHost(identity, identity.provider)
     : undefined;
   // A host whose tools select a repository by something other than its path (Azure DevOps takes
   // the bare name) can only key such a reference through the project's own repository.
-  const definition = identity?.provider ? sourceControlClients.find(identity.provider) : undefined;
+  const definition = identity?.provider
+    ? sourceControlDefinitions.find(identity.provider)
+    : undefined;
   if (identity && definition?.repositorySelector && !reference.repository.includes("/")) {
     if (
       reference.repository.toLowerCase() !==
@@ -49,7 +51,7 @@ export function repositoryMatchesPullRequest(
 ) {
   if (identity == null) return false;
   const own = pullRequestSyncKey(
-    { repository: sourceControlClients.repositorySelector(identity) ?? "", number: 1 },
+    { repository: sourceControlDefinitions.repositorySelector(identity) ?? "", number: 1 },
     identity,
   );
   const requested = pullRequestSyncKey({ ...target, number: 1 }, identity);

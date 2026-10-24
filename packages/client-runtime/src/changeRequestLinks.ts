@@ -4,7 +4,7 @@ import type {
   PullRequestRef,
   RepositoryIdentity,
 } from "@supaterm/contracts";
-import type { ChangeRequestLink } from "@supaterm/source-control-core/client/definition";
+import type { ChangeRequestLink } from "@supaterm/source-control-core/shared/definition";
 
 import { sourceControlClients } from "./sourceControlClients.ts";
 

@@ -5,10 +5,10 @@ import {
   parseGitRemoteFetchUrls,
 } from "@supaterm/shared/git";
 import { isSshRemoteUrl } from "@supaterm/shared/sourceControl";
-import { parseGitRemoteHost } from "@supaterm/source-control-core/client/definition";
+import { parseGitRemoteHost } from "@supaterm/source-control-core/shared/definition";
 import type * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
 import * as Effect from "effect/Effect";
-import { definition } from "../client/definition.ts";
+import { definition } from "../shared/definition.ts";
 
 export interface GitHubRepositoryLocator {
   readonly host: string;

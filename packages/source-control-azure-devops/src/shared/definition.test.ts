@@ -1,9 +1,9 @@
 import { SourceControlProviderKind } from "@supaterm/contracts";
-import type { ChangeRequestProjectIdentity } from "@supaterm/source-control-core/client/definition";
+import type { ChangeRequestProjectIdentity } from "@supaterm/source-control-core/shared/definition";
 import {
-  makeSourceControlClientRegistry,
+  makeSourceControlDefinitionRegistry,
   recognizeRemoteWith,
-} from "@supaterm/source-control-core/client/definition";
+} from "@supaterm/source-control-core/shared/definition";
 import { describe, expect, it } from "vite-plus/test";
 
 import { definition } from "./definition.ts";
@@ -123,7 +123,7 @@ describe("Azure DevOps remotes", () => {
 });
 
 describe("Azure DevOps repository keys", () => {
-  const registry = makeSourceControlClientRegistry([definition]);
+  const registry = makeSourceControlDefinitionRegistry([definition]);
 
   it("gives a repository the same key over SSH as over HTTPS", () => {
     for (const remote of [
@@ -167,7 +167,7 @@ describe("Azure DevOps repository keys", () => {
 });
 
 describe("Azure DevOps repository selector", () => {
-  const registry = makeSourceControlClientRegistry([definition]);
+  const registry = makeSourceControlDefinitionRegistry([definition]);
 
   it("names a repository by its own name, not its project path", () => {
     // `az repos pr list --repository` takes a name and detects the organisation and project from

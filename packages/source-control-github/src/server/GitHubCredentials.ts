@@ -14,10 +14,10 @@ import * as Schema from "effect/Schema";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 
 import * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
-import { readSourceControlHostSettings } from "@supaterm/source-control-core/client/definition";
+import { readSourceControlHostSettings } from "@supaterm/source-control-core/shared/definition";
 import type { ServerSettings } from "@supaterm/contracts";
 
-import * as GitHubClient from "../client/definition.ts";
+import * as GitHubClient from "../shared/definition.ts";
 
 /**
  * Every gh run on the server shares this. A burst of them (a status poll across many checkouts)

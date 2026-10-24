@@ -1,7 +1,7 @@
 import {
   parseGitRemoteHost,
   unknownRemoteProvider,
-} from "@supaterm/source-control-core/client/definition";
+} from "@supaterm/source-control-core/shared/definition";
 import { refineUnknownRemoteProvider } from "@supaterm/source-control-core/server/discovery";
 import { processOutput } from "@supaterm/source-control-testing/TestSourceControlHost";
 import { assert, it } from "@effect/vitest";

@@ -36,7 +36,7 @@ import * as NativeAppIconResolver from "./NativeAppIconResolver.ts";
 import { symlinksSupported } from "@supaterm/shared/testing/symlinks";
 import { fakeSourceControlDriverInstance } from "@supaterm/source-control-testing/fakeSourceControlDriver";
 import * as BuiltInDrivers from "../sourceControl/builtInDrivers.ts";
-import { sourceControlClients } from "../sourceControl/sourceControlClients.ts";
+import { sourceControlDefinitions } from "../sourceControl/sourceControlDefinitions.ts";
 import { sourceControlMediaResponse } from "./sourceControlMediaResponse.ts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 
@@ -1065,7 +1065,7 @@ describe("AssetAccess", () => {
   it.effect("serves a host's credentialed media through that host's driver", () => {
     const fetched: Array<{ url: string; headers: Readonly<Record<string, string>> }> = [];
     const url = "https://github.com/owner/repo/blob/main/docs/shot.png";
-    const media = sourceControlClients.mediaUrl(url)!;
+    const media = sourceControlDefinitions.mediaUrl(url)!;
     const layerDrivers = Layer.succeed(BuiltInDrivers.SourceControlDrivers, [
       {
         driver: { kind: media.definition.kind, definition: media.definition },

@@ -14,7 +14,7 @@ import {
   type ProviderChangeRequestDetail,
   type PullRequestProviderApi,
 } from "@supaterm/source-control-core/server/PullRequestProvider";
-import { definition } from "../client/definition.ts";
+import { definition } from "../shared/definition.ts";
 
 const CAPABILITIES: PullRequestCapabilities = {
   diff: true,

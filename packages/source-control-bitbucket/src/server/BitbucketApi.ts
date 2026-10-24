@@ -18,8 +18,8 @@ import {
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 import { sanitizeBranchFragment } from "@supaterm/shared/git";
 import { isSshRemoteUrl } from "@supaterm/shared/sourceControl";
-import { recognizeRemoteWith } from "@supaterm/source-control-core/client/definition";
-import { definition } from "../client/definition.ts";
+import { recognizeRemoteWith } from "@supaterm/source-control-core/shared/definition";
+import { definition } from "../shared/definition.ts";
 
 import {
   BitbucketPullRequestListSchema,
@@ -30,9 +30,9 @@ import {
 import { collectUint8StreamText } from "@supaterm/provider-core/server/collectStreamText";
 import * as SourceControlProvider from "@supaterm/source-control-core/server/SourceControlProvider";
 import * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
-import { readSourceControlHostSettings } from "@supaterm/source-control-core/client/definition";
+import { readSourceControlHostSettings } from "@supaterm/source-control-core/shared/definition";
 
-import * as BitbucketClient from "../client/definition.ts";
+import * as BitbucketClient from "../shared/definition.ts";
 import * as SourceControlRateLimit from "@supaterm/source-control-core/server/SourceControlRateLimit";
 
 const DEFAULT_API_BASE_URL = "https://api.bitbucket.org/2.0";

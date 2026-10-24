@@ -1,4 +1,4 @@
-import { makeThreadPullRequests } from "@supaterm/source-control-core/client/threadPullRequests";
+import { makeThreadPullRequests } from "@supaterm/source-control-core/shared/threadPullRequests";
 
 import { sourceControlClients } from "./sourceControlClients.ts";
 
@@ -12,7 +12,7 @@ export {
   type ThreadCurrentPullRequest,
   type ThreadPullRequestBadge,
   type ThreadPullRequestChain,
-} from "@supaterm/source-control-core/client/threadPullRequests";
+} from "@supaterm/source-control-core/shared/threadPullRequests";
 
 export const {
   normalizeThreadPullRequestKey,

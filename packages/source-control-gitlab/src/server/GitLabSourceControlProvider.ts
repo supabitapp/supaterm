@@ -6,7 +6,7 @@ import { SourceControlProviderError, type ChangeRequest } from "@supaterm/contra
 import {
   parseGitRemoteHost,
   unknownRemoteProvider as unknownHostProvider,
-} from "@supaterm/source-control-core/client/definition";
+} from "@supaterm/source-control-core/shared/definition";
 
 import * as GitLabCli from "./GitLabCli.ts";
 import * as GitLabChangeRequestTemplate from "./gitLabChangeRequestTemplate.ts";

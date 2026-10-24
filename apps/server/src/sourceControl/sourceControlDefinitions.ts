@@ -1,6 +1,6 @@
 import * as AzureDevOpsDriver from "@supaterm/source-control-azure-devops/server/driver";
 import * as BitbucketDriver from "@supaterm/source-control-bitbucket/server/driver";
-import { makeSourceControlClientRegistry } from "@supaterm/source-control-core/client/definition";
+import { makeSourceControlDefinitionRegistry } from "@supaterm/source-control-core/shared/definition";
 import * as ForgejoDriver from "@supaterm/source-control-forgejo/server/driver";
 import * as GitCafeDriver from "@supaterm/source-control-gitcafe/server/driver";
 import * as GitHubDriver from "@supaterm/source-control-github/server/driver";
@@ -22,7 +22,7 @@ export const BUILT_IN_SOURCE_CONTROL_DRIVER_LIST = [
   AzureDevOpsDriver.driver,
 ] as const;
 
-export const sourceControlClients = makeSourceControlClientRegistry(
+export const sourceControlDefinitions = makeSourceControlDefinitionRegistry(
   BUILT_IN_SOURCE_CONTROL_DRIVER_LIST.map((driver) => driver.definition),
   {
     claimChangeRequestUrlsFirst: [GitCafeDriver.driver.kind],

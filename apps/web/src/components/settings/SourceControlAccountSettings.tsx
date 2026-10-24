@@ -16,7 +16,7 @@ import { Switch } from "../ui/switch";
 import { groupHostAccounts, nextHostAccountChoices } from "./SourceControlAccountSettings.logic";
 import {
   readHostCredentialSettings,
-  type SourceControlClientDefinition,
+  type SourceControlDefinition,
   type SourceControlHostCredentials,
 } from "@supaterm/client-runtime/source-control-clients";
 import { redactedPlaceholder } from "./RedactedSensitiveText";
@@ -50,7 +50,7 @@ export function SourceControlAccountSettings({
   onSaved,
 }: {
   readonly environmentId: EnvironmentId;
-  readonly definition: SourceControlClientDefinition;
+  readonly definition: SourceControlDefinition;
   readonly credentials: SourceControlHostCredentials;
   readonly auth: SourceControlProviderAuth;
   readonly onSaved: () => void;

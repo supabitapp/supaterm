@@ -56,7 +56,7 @@ import {
   parseRemoteRefWithRemoteNames,
 } from "../git/remoteRefs.ts";
 import * as ServerConfig from "../config.ts";
-import { sourceControlClients } from "../sourceControl/sourceControlClients.ts";
+import { sourceControlDefinitions } from "../sourceControl/sourceControlDefinitions.ts";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 /** Supaterm's record of the branch, named as on the host, that a branch was cut from. */
@@ -1745,7 +1745,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     "ensureRemote",
   )(function* (input) {
     const preferredName = sanitizeRemoteName(input.preferredName);
-    const normalizedTargetUrl = sourceControlClients.repositoryKeyFromRemote(input.url);
+    const normalizedTargetUrl = sourceControlDefinitions.repositoryKeyFromRemote(input.url);
     const remoteFetchUrls = yield* runGitStdout(
       "GitVcsDriver.ensureRemote.listRemoteUrls",
       input.cwd,
@@ -1753,7 +1753,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     ).pipe(Effect.map(parseGitRemoteFetchUrls));
 
     for (const [remoteName, remoteUrl] of remoteFetchUrls.entries()) {
-      if (sourceControlClients.repositoryKeyFromRemote(remoteUrl) === normalizedTargetUrl) {
+      if (sourceControlDefinitions.repositoryKeyFromRemote(remoteUrl) === normalizedTargetUrl) {
         return remoteName;
       }
     }

@@ -1,10 +1,10 @@
-import * as AzureDevOps from "@supaterm/source-control-azure-devops/client/definition";
-import * as Bitbucket from "@supaterm/source-control-bitbucket/client/definition";
+import * as AzureDevOps from "@supaterm/source-control-azure-devops/shared/definition";
+import * as Bitbucket from "@supaterm/source-control-bitbucket/shared/definition";
 import {
   HostCredentialSettings,
-  makeSourceControlClientRegistry,
+  makeSourceControlDefinitionRegistry,
   readSourceControlHostSettings,
-} from "@supaterm/source-control-core/client/definition";
+} from "@supaterm/source-control-core/shared/definition";
 import type { ServerSettings } from "@supaterm/contracts";
 
 export {
@@ -16,14 +16,14 @@ export {
   type HostCredentialSettings,
   type ParsedChangeRequestUrl,
   type ReferenceAutolink,
-  type SourceControlClientDefinition,
+  type SourceControlDefinition,
   type SourceControlHostCredentials,
   type SourceControlIcon,
-} from "@supaterm/source-control-core/client/definition";
-import * as Forgejo from "@supaterm/source-control-forgejo/client/definition";
-import * as GitCafe from "@supaterm/source-control-gitcafe/client/definition";
-import * as GitHub from "@supaterm/source-control-github/client/definition";
-import * as GitLab from "@supaterm/source-control-gitlab/client/definition";
+} from "@supaterm/source-control-core/shared/definition";
+import * as Forgejo from "@supaterm/source-control-forgejo/shared/definition";
+import * as GitCafe from "@supaterm/source-control-gitcafe/shared/definition";
+import * as GitHub from "@supaterm/source-control-github/shared/definition";
+import * as GitLab from "@supaterm/source-control-gitlab/shared/definition";
 
 /**
  * GitHub comes first because a repository that has not reported its host yet reads as GitHub,
@@ -31,7 +31,7 @@ import * as GitLab from "@supaterm/source-control-gitlab/client/definition";
  * whose shape it has, so GitCafe, which claims `/pull/` and `/pulls/` only on its own hostnames,
  * claims before GitHub and Forgejo, which claim them everywhere. A hostname can carry more than
  * one host's label (`gitea.github.example`), so remote recognition has its own order. The server's
- * `sourceControl/sourceControlClients.ts` keeps the same order.
+ * `sourceControl/sourceControlDefinitions.ts` keeps the same order.
  */
 const BUILT_IN_SOURCE_CONTROL_CLIENTS = [
   GitHub.definition,
@@ -42,7 +42,7 @@ const BUILT_IN_SOURCE_CONTROL_CLIENTS = [
   AzureDevOps.definition,
 ];
 
-export const sourceControlClients = makeSourceControlClientRegistry(
+export const sourceControlClients = makeSourceControlDefinitionRegistry(
   BUILT_IN_SOURCE_CONTROL_CLIENTS,
   {
     claimChangeRequestUrlsFirst: [GitCafe.definition.kind],

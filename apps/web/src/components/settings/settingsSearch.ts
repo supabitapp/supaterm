@@ -6,7 +6,7 @@ import type { EnvironmentId } from "@supaterm/contracts";
 import type { EnvironmentConnectionPhase } from "@supaterm/client-runtime/connection";
 import {
   sourceControlClients,
-  type SourceControlClientDefinition,
+  type SourceControlDefinition,
 } from "@supaterm/client-runtime/source-control-clients";
 import { DEFAULT_KEYBINDINGS } from "@supaterm/shared/keybindings";
 import { BUILT_IN_THEMES } from "@supaterm/shared/themePalettes";
@@ -118,7 +118,7 @@ export function sourceControlHostSettingsSearchId(kind: string) {
 
 /** Each host's own settings: its accounts and token, or the fields of its settings form. */
 export function sourceControlHostSearchItems(
-  definitions: ReadonlyArray<SourceControlClientDefinition>,
+  definitions: ReadonlyArray<SourceControlDefinition>,
 ): ReadonlyArray<
   SettingsSearchItem & { readonly id: ReturnType<typeof sourceControlHostSettingsSearchId> }
 > {
