@@ -74,7 +74,10 @@ export function isDiagram(value: unknown): value is Diagram {
 
 export function diagramInstanceSvg(diagram: Diagram, id: string) {
   const prefix = `${id.replace(/[^\w-]/g, "")}-`;
-  return diagram.svg.replace(/<(?:svg|title|desc)\b[^>]*>/g, (tag) =>
-    tag.replace(/((?:id|aria-labelledby|aria-describedby)=")supaterm-diagram-/g, `$1${prefix}`),
+  return diagram.svg.replace(/<[^>]+>/g, (tag) =>
+    tag.replace(
+      /(\s(?:id|aria-labelledby|aria-describedby)="|url\(#)supaterm-diagram-/g,
+      `$1${prefix}`,
+    ),
   );
 }
