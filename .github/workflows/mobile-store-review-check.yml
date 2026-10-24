@@ -47,7 +47,10 @@ jobs:
       - name: Test exact build selection and credential export
         run: node --test .github/scripts/mobile-store-release.test.mjs .github/scripts/export-play-credentials.test.mjs
       - name: Test screenshot validation
-        run: vp test run scripts/mobile-showcase.test.ts scripts/mobile-store-assets.test.ts
+        # From the repo root the test config also loads every app's config,
+        # whose dependencies this job does not install.
+        working-directory: scripts
+        run: vp test run --config ../vite.config.ts mobile-showcase.test.ts mobile-store-assets.test.ts
       - name: Test review behavior and load pinned Fastlane lanes
         working-directory: apps/mobile
         env:
