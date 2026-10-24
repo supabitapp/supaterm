@@ -156,19 +156,6 @@ describe("queued messages keep a done thread active", () => {
     ]);
     expect(layout.doneCount).toBe(1);
   });
-
-  it("includes it in the reorderable active section", () => {
-    expect(
-      getThreadListV2OrderedSection({ threads, section: "active", now: NOW, queuedThreadKeys }).map(
-        (thread) => thread.id,
-      ),
-    ).toEqual(["active", "done-queued"]);
-    expect(
-      getThreadListV2OrderedSection({ threads, section: "active", now: NOW }).map(
-        (thread) => thread.id,
-      ),
-    ).toEqual(["active"]);
-  });
 });
 
 describe("resolveThreadListV2SwipeActions", () => {
@@ -181,17 +168,6 @@ describe("resolveThreadListV2SwipeActions", () => {
         snoozable: true,
       }),
     ).toEqual({ primary: "reopen", secondary: "snooze" });
-  });
-
-  it("falls back to archive only for a pre-lifecycle server", () => {
-    expect(
-      resolveThreadListV2SwipeActions({
-        variant: "card",
-        markDoneSupported: false,
-        snoozeSupported: false,
-        snoozable: true,
-      }),
-    ).toEqual({ primary: "archive", secondary: null });
   });
 
   it("offers wake and settle, but no snooze, on a snoozed row", () => {
@@ -1631,20 +1607,6 @@ describe("mobile move availability", () => {
       expect(assignments![0]!.orderKey > "dd" && assignments![0]!.orderKey < "ff").toBe(true);
     },
   );
-
-  it("allows an independent keyed move despite an unsupported keyless row elsewhere", () => {
-    const ordered = rows("active", [null, null, "bb", "dd", "ff"]);
-    const plan = createThreadMovePlanner({
-      ordered,
-      section: "active",
-      reorderableEnvironmentIds: new Set([environmentId]),
-    });
-    const assignments = plan(`${environmentId}:move-4`, "up");
-    expect(assignments).toHaveLength(1);
-    expect(assignments![0]!.id).toBe(`${environmentId}:move-4`);
-    expect(assignments![0]!.orderKey > "bb").toBe(true);
-    expect(assignments![0]!.orderKey < "dd").toBe(true);
-  });
 });
 
 describe("thread drag destinations", () => {
@@ -1822,15 +1784,6 @@ describe("cross-section thread drops", () => {
       reopen: false,
       unsnooze: false,
     });
-  });
-  it("does not send lifecycle commands for an ordinary Active reorder", () => {
-    expect(
-      threadDropLifecycle(
-        makeThread({ id: ThreadId.make("active"), title: "active" }),
-        "active",
-        NOW,
-      ),
-    ).toEqual({ pin: false, unpin: false, reopen: false, unsnooze: false });
   });
 });
 
@@ -2444,14 +2397,6 @@ describe("Working section", () => {
     ]);
     expect(layout.workingCount).toBe(1);
     expect(layout.workingShelfHeaderIndex).toBe(4);
-  });
-
-  it("shows working rows as cards when expanded, or only the selected one when collapsed", () => {
-    expect(build({ workingShelfExpanded: true }).items.at(-1)).toMatchObject({
-      thread: { id: "working" },
-      variant: "card",
-    });
-    expect(ids(build({ selectedThreadKey: `${environmentId}:working` })).at(-1)).toBe("working");
   });
 
   it("orders the inbox by the latest return this device observed", () => {

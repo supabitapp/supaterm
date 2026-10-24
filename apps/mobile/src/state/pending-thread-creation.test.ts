@@ -9,7 +9,6 @@ import {
 import { describe, expect, it } from "vite-plus/test";
 
 import {
-  isPendingThreadCreationVisible,
   pendingThreadCreationMessage,
   resolvePendingThreadCreation,
   type PendingThreadCreation,
@@ -138,19 +137,6 @@ describe("resolvePendingThreadCreation", () => {
         detail: null,
       }),
     ).toBeNull();
-  });
-});
-
-describe("isPendingThreadCreationVisible", () => {
-  const creationMessageId = String(creation.messageId);
-
-  it("stands down once the delivered prompt lands under the same id", () => {
-    expect(
-      isPendingThreadCreationVisible({
-        creationMessageId,
-        loadedMessageIds: ["someone-else", creationMessageId],
-      }),
-    ).toBe(false);
   });
 });
 

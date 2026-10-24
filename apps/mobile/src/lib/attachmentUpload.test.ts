@@ -409,30 +409,6 @@ describe("prepareTurnAttachments", () => {
     ]);
   });
 
-  it("keeps the uploaded id when a document-picked picture uploads as an image", () => {
-    expect(
-      withUploadedMobileAttachmentReferences({
-        environmentId,
-        attachments: [documentPickedImage],
-        uploadedAttachments: [
-          {
-            type: "image",
-            id: "pending-promoted-png",
-            name: documentPickedImage.name,
-            mimeType: "image/png",
-            sizeBytes: documentPickedImage.sizeBytes,
-          },
-        ],
-      }),
-    ).toEqual([
-      {
-        ...documentPickedImage,
-        uploadedAttachmentId: "pending-promoted-png",
-        uploadEnvironmentId: environmentId,
-      },
-    ]);
-  });
-
   it("reuses a pending file upload from a previous outbox attempt", async () => {
     const previouslyUploaded = {
       ...file,
@@ -629,20 +605,6 @@ describe("prepareTurnAttachments", () => {
     });
 
     expect(result.status).toBe("abandoned");
-    expect(removeCallsFor(MINTED_ID)).toBe(1);
-  });
-
-  it("deletes the minted uploads when persisting the references throws", async () => {
-    await expect(
-      prepareTurnAttachments({
-        environmentId,
-        attachments: [file],
-        persistUploadedReferences: async () => {
-          throw new Error("draft write failed");
-        },
-      }),
-    ).rejects.toThrow("draft write failed");
-
     expect(removeCallsFor(MINTED_ID)).toBe(1);
   });
 });

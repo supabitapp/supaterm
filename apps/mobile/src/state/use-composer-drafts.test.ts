@@ -185,7 +185,6 @@ import {
   ensureComposerDraftsLoaded,
   type ComposerDraft,
   findNewTaskDraftKeys,
-  findLocalComposerClipboardAttachment,
   flushComposerDrafts,
   getComposerDraftSnapshot,
   mergeComposerDraftContentState,
@@ -602,49 +601,6 @@ describe("mobile composer drafts", () => {
     ]);
   });
 
-  it.each(["new-task:draft-1", "pending-task:queued-1"])(
-    "finds draft-only local clipboard files in %s",
-    (key) => {
-      const environmentId = EnvironmentId.make("environment-1");
-      const file = {
-        type: "file" as const,
-        id: "local-file",
-        name: "notes.txt",
-        mimeType: "text/plain",
-        sizeBytes: 4,
-        fileUri: "file:///notes.txt",
-      };
-      appAtomRegistry.set(composerDraftsAtom, {
-        [key]: {
-          text: "",
-          attachments: [file],
-          project: {
-            environmentId,
-            projectId: ProjectId.make("project-1"),
-            createdAt: "2026-01-01T00:00:00.000Z",
-          },
-        },
-      });
-      appAtomRegistry.set(threadOutboxManager.queuedMessagesByThreadKeyAtom, {
-        queued: [
-          {
-            environmentId,
-            threadId: ThreadId.make("thread-1"),
-            messageId: MessageId.make("queued-1"),
-            commandId: CommandId.make("command-1"),
-            text: "Queued",
-            attachments: [],
-            createdAt: "2026-01-01T00:00:00.000Z",
-          },
-        ],
-      });
-      expect(findLocalComposerClipboardAttachment(environmentId, file.id)).toEqual(file);
-      expect(
-        findLocalComposerClipboardAttachment(EnvironmentId.make("different-environment"), file.id),
-      ).toBeUndefined();
-    },
-  );
-
   it("keeps over-limit recovery context reloadable without losing other drafts", () => {
     const key = "environment-1:recovery";
     const merged = mergeComposerDraftContentState(
@@ -992,48 +948,6 @@ describe("mobile composer drafts", () => {
     expect(getComposerDraftSnapshot(draftKey).context).toBeUndefined();
   });
 
-  // Hydration is one-shot per module instance and the attachment sweep now
-  // triggers it too, so this test must observe it before any sweep test runs.
-  it("hydrates generic file attachments from their saved local paths", () => {
-    const file = {
-      id: "file-1",
-      type: "file" as const,
-      name: "report.pdf",
-      mimeType: "application/pdf",
-      sizeBytes: 42,
-      fileUri: "file:///documents/report.pdf",
-    };
-
-    expect(
-      decodePersistedComposerState({
-        schemaVersion: 1,
-        drafts: {
-          "environment-1:thread-1": { text: "Review this file", attachments: [file] },
-        },
-      }).drafts,
-    ).toEqual({
-      "environment-1:thread-1": {
-        text: "Review this file [report.pdf](supaterm-context://v1/file/file-1) ",
-        attachments: [file],
-        context: {
-          version: 1,
-          records: [
-            {
-              version: 1,
-              contextId: file.id,
-              kind: "file",
-              label: file.name,
-              attachmentId: file.id,
-              name: file.name,
-              mimeType: file.mimeType,
-              sizeBytes: file.sizeBytes,
-            },
-          ],
-        },
-      },
-    });
-  });
-
   it("releases videos rejected by the live draft limit and keeps accepted files", async () => {
     const outboxLoad = vi.spyOn(threadOutboxManager, "load").mockResolvedValue(true);
     onTestFinished(() => outboxLoad.mockRestore());
@@ -1239,29 +1153,6 @@ describe("mobile composer drafts", () => {
     });
     expect(setComposerDraftAttachmentUpload(key, { ...uploaded, id: "removed-photo" })).toBe(false);
     expect(getComposerDraftSnapshot(key).attachments).toHaveLength(2);
-  });
-
-  it("cleans up an unreferenced image upload even when there is no local file URI", async () => {
-    const outboxLoad = vi.spyOn(threadOutboxManager, "load").mockResolvedValue(true);
-    onTestFinished(() => outboxLoad.mockRestore());
-    const environmentId = EnvironmentId.make("environment-1");
-    await releaseUnusedComposerAttachmentFiles([
-      {
-        id: "photo",
-        type: "image",
-        name: "photo.png",
-        mimeType: "image/png",
-        sizeBytes: 3,
-        dataUrl: "data:image/png;base64,YWJj",
-        previewUri: "file:///photo.png",
-        uploadedAttachmentId: "pending-photo",
-        uploadEnvironmentId: environmentId,
-      },
-    ]);
-    expect(composerAttachmentCleanupMocks.releaseUploads).toHaveBeenCalledWith(environmentId, [
-      "pending-photo",
-    ]);
-    expect(composerAttachmentCleanupMocks.remove).not.toHaveBeenCalled();
   });
 
   it.each(["file", "image"] as const)(

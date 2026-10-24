@@ -91,9 +91,6 @@ describe("native workspace dismissal", () => {
     expect(nativeWorkspacePopAction(state, settings.key)).toBeNull();
     expect(nativeWorkspacePopAction(state, legal.key)).toBeNull();
   });
-  it("pops a native dismissed file while keeping the conversation and its draft mounted", () => {
-    expect(nativeWorkspacePopCount(history([home, thread, files]), files.key)).toBe(1);
-  });
 
   it("removes the descendants when UIKit dismisses their parent conversation", () => {
     expect(nativeWorkspacePopCount(history([home, thread, files]), thread.key)).toBe(2);

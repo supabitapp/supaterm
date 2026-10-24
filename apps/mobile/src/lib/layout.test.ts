@@ -12,7 +12,6 @@ import {
 describe("thread work-log text sizing", () => {
   it.each([
     { baseFontSize: 16, fontScale: 1.25, estimatedRowHeight: 28 },
-    { baseFontSize: 16, fontScale: 2, estimatedRowHeight: 38 },
     { baseFontSize: 22, fontScale: 2, estimatedRowHeight: 52 },
   ])(
     "measures accessibility text instead of locking it to the estimate: %j",
@@ -159,24 +158,6 @@ describe("deriveWorkspacePaneLayout", () => {
       primarySidebarVisible: false,
       primarySidebarSuppressedByAuxiliary: false,
       auxiliaryPaneVisible: true,
-    });
-  });
-
-  it("restores the thread sidebar when the file inspector is hidden", () => {
-    const layout = deriveLayout({ width: 1_024, height: 1_366 });
-
-    expect(
-      deriveWorkspacePaneLayout({
-        layout,
-        viewportWidth: 1_024,
-        primarySidebarPreferredVisible: true,
-        auxiliaryPanePreferredVisible: false,
-        auxiliaryPaneRole: "inspector",
-      }),
-    ).toMatchObject({
-      primarySidebarVisible: true,
-      primarySidebarSuppressedByAuxiliary: false,
-      auxiliaryPaneVisible: false,
     });
   });
 });

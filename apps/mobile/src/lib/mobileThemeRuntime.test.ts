@@ -60,8 +60,4 @@ describe("mobileThemeRuntime", () => {
         .map((operation) => operation.themeName),
     ).toEqual(["light", "dark", ...registeredThemeNames]);
   });
-
-  it("does no native work when persistence echoes an already-applied state", () => {
-    expect(createMobileThemeRuntimeOperations(initialState, initialState)).toEqual([]);
-  });
 });

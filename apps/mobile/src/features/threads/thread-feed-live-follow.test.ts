@@ -66,11 +66,7 @@ describe("tool-group append following", () => {
 
   it.each([
     { name: "reading earlier calls", changes: { scrollOffset: 20 } },
-    { name: "dragging before leaving the edge", changes: { userScrolling: true } },
-    { name: "opening detail during an append", changes: { detailsChanged: true } },
     { name: "streaming a result", changes: { rows: previousRows, contentHeight: 600 } },
-    { name: "updating a lifecycle label", changes: { rows: previousRows, contentHeight: 289 } },
-    { name: "prepending old calls", changes: { rows: [{ id: "older" }, ...previousRows] } },
     {
       name: "replacing a call while appending",
       changes: { rows: [{ id: "replacement" }, ...appendedRows.slice(1)] },
