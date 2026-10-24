@@ -183,10 +183,9 @@ export function resolveDictationRoute(input: {
   const localId = input.localEnvironmentId;
   if (localId === null || localId === input.draftEnvironmentId) return draft;
   const local = at(localId);
-  if (local.kind === "available" || draft.kind === "available") {
-    return local.kind === "available" ? local : draft;
-  }
-  return local.kind === "hidden" ? draft : local;
+  if (local.kind === "available") return local;
+  if (draft.kind === "available" || local.kind === "hidden") return draft;
+  return local;
 }
 
 export function dictationSourceLabel(

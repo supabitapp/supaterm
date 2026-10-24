@@ -1,5 +1,7 @@
-import { dictationSourceLabel } from "@supaterm/client-runtime/state/dictation";
-import type { EnvironmentId } from "@supaterm/contracts";
+import {
+  dictationSourceLabel,
+  type DictationAvailability,
+} from "@supaterm/client-runtime/state/dictation";
 import { CircleAlertIcon, MicIcon, MicOffIcon, SquareIcon } from "lucide-react";
 import { useEffect, useState, type PointerEvent } from "react";
 
@@ -14,7 +16,8 @@ import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 
 const keepComposerFocus = (event: PointerEvent) => event.preventDefault();
 
-function useRouteLabel(environmentId: EnvironmentId | null): string | null {
+function useRouteLabel(availability: DictationAvailability): string | null {
+  const environmentId = availability.kind === "hidden" ? null : availability.environmentId;
   const localEnvironmentId = useLocalDictationEnvironmentId();
   const { presentation } = useEnvironmentPresentation(environmentId);
   if (environmentId === null) return null;
@@ -30,11 +33,7 @@ function sourceCopy(dictation: ComposerDictation, routeLabel: string | null): st
 }
 
 function RouteCopy(props: { readonly dictation: ComposerDictation }) {
-  const { availability } = props.dictation;
-  return sourceCopy(
-    props.dictation,
-    useRouteLabel(availability.kind === "hidden" ? null : availability.environmentId),
-  );
+  return sourceCopy(props.dictation, useRouteLabel(props.dictation.availability));
 }
 
 export function ComposerDictationButton(props: {
@@ -44,9 +43,7 @@ export function ComposerDictationButton(props: {
 }) {
   const { dictation } = props;
   const { availability } = dictation;
-  const routeLabel = useRouteLabel(
-    availability.kind === "hidden" ? null : availability.environmentId,
-  );
+  const routeLabel = useRouteLabel(availability);
   if (availability.kind === "hidden") return null;
   if (availability.kind !== "available") {
     const title =
