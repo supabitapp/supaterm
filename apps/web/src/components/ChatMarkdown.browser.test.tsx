@@ -561,8 +561,6 @@ describe("ChatMarkdown thread find", () => {
       </div>
     );
   }
-  const frame = () =>
-    act(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
   // Highlights live in a document-wide registry the rendered tree does not own.
   const clearHighlights = () => ({ [Symbol.dispose]: () => CSS.highlights.clear() });
   const activeHighlights = () =>
@@ -592,9 +590,7 @@ describe("ChatMarkdown thread find", () => {
     // Diagrams render once the browser reports them in view.
     await vi.waitFor(() => expect(diagrams()).toBe(2));
     await screen.rerender(probe("Alpha"));
-    await frame();
-    await frame();
-    expect(diagrams()).toBe(1);
+    await vi.waitFor(() => expect(diagrams()).toBe(1));
     await vi.waitFor(() => expect(activeHighlights()).toEqual(["Alpha"]));
   });
 });

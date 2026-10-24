@@ -149,6 +149,7 @@ describe("code-view worker lifecycle", () => {
   }
   // Worker startup runs on real time, so only the idle expiry checks use this clock.
   // Faking startup too would let advancing the idle clock time out a worker startup.
+  // oxlint-disable-next-line supaterm/no-frame-waits-in-browser-tests -- the worker pool must start on real time.
   const idleClock = () => fakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   async function workerEnvironment({ startupLimit = UNLIMITED_WORKER_STARTUP_MS } = {}) {
     await using stack = new AsyncDisposableStack();

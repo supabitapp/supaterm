@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import "~/index.css";
 
-import { act, render } from "../../../test/render";
+import { act, fakeTimers, render } from "../../../test/render";
 import { MessagesTimeline } from "./MessagesTimeline";
 import { remarkThoughtPreview } from "./TimelineWorkEntryRow.logic";
 import { parseMarkdownWithMath } from "@supaterm/shared/markdownMath";
@@ -270,12 +270,14 @@ describe("MessagesTimeline history and thread links", () => {
     await using screen = await renderElement(page("first", false));
     await vi.waitFor(() => expect(onLoadEarlier).toHaveBeenCalledTimes(1));
 
+    using _timers = fakeTimers();
     await screen.rerender(page("first", true));
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    await act(() => vi.advanceTimersToNextFrame());
     expect(onLoadEarlier).toHaveBeenCalledTimes(1);
 
     await screen.rerender(page("second", false));
-    await vi.waitFor(() => expect(onLoadEarlier).toHaveBeenCalledTimes(2));
+    await act(() => vi.advanceTimersToNextFrame());
+    expect(onLoadEarlier).toHaveBeenCalledTimes(2);
   });
 });
 

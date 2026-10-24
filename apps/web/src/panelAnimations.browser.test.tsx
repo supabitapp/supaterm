@@ -1,4 +1,4 @@
-import { act, render as renderUi, type Screen } from "../test/render";
+import { act, fakeTimers, render as renderUi, type Screen } from "../test/render";
 import { useLayoutEffect } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 
@@ -125,14 +125,14 @@ async function setup(fakeClock = true) {
   );
   fixtureScreen = await renderUi(null, { router: false });
 
-  if (fakeClock) vi.useFakeTimers();
+  const clock = fakeClock ? fakeTimers() : null;
 
   const ownedScreen = fixtureScreen;
   return {
     async [Symbol.asyncDispose]() {
       await ownedScreen[Symbol.asyncDispose]();
 
-      vi.useRealTimers();
+      clock?.[Symbol.dispose]();
       vi.restoreAllMocks();
       vi.unstubAllGlobals();
     },

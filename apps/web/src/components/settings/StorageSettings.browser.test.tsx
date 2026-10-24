@@ -1,4 +1,4 @@
-import { act, render } from "../../../test/render";
+import { act, fakeTimers, render } from "../../../test/render";
 import { RegistryProvider } from "@effect/atom-react";
 import {
   DEFAULT_SERVER_SETTINGS,
@@ -102,8 +102,8 @@ vi.mock(import("../ui/toast"), async (original) => {
 import { clickOnFakeClock } from "~/test/inlineConfirm";
 import { StorageSettingsPanel } from "./StorageSettings";
 
-function setup() {
-  vi.useFakeTimers({ now: 0 });
+function setup(): Disposable {
+  const timers = fakeTimers({ now: 0 });
   state.settings = {
     ...DEFAULT_SERVER_SETTINGS,
     storageCleanup: {
@@ -124,6 +124,7 @@ function setup() {
   state.extraEnvironments = [];
   localStorage.removeItem("database-storage-notice-dismissed");
   state.run.mockReset();
+  return timers;
 }
 
 const panel = () => (
@@ -143,7 +144,7 @@ async function pressTwice(button: HTMLButtonElement) {
 }
 
 it("keeps cleanup disabled when done retention and all other rules are off", async () => {
-  setup();
+  using _timers = setup();
   await using screen = await render(panel());
   const button = deleteButton(screen.container);
 
@@ -159,7 +160,7 @@ it("lists every machine's reclaimable database space and dismisses one machine a
     incrementalVacuumEnabled: false,
     compactCommand: `supaterm doctor --base-dir ${baseDir}`,
   });
-  setup();
+  using _timers = setup();
   state.extraEnvironments = [{ environmentId: "laptop", label: "Laptop" }];
   state.databaseRecommendations = [
     { environmentId: "laptop", status: status(3, "/Users/jane/.supaterm") },
