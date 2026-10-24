@@ -43,7 +43,7 @@ const SHELL: Material = {
 
 const OUTER = extents(HOUSING);
 
-const TRAVEL = { hop: 0.22, overshoot: 0.13, shadow: 0.22, side: 0.12 } as const;
+const TRAVEL = { hop: 0.22, overshoot: 0.13, shadow: 0.22, side: 0.17 } as const;
 const BOX_INSET = 0.1;
 
 /**

@@ -1,4 +1,4 @@
-/*! @license MIT. Adapted from robot-heads by Fayaz Ahmed: https://github.com/fayazara/robot-heads */
+/*! @license robot-heads | Copyright (c) 2026 Fayaz Ahmed | MIT License | github.com/fayazara/robot-heads */
 import { BoltComputerRenderer, frameFor } from "./render";
 import { BoltComputerSim, POINTER_REACH } from "./sim";
 import { onPointerMove, pointer, subscribe } from "./ticker";
