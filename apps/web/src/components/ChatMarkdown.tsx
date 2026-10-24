@@ -167,7 +167,7 @@ import {
   pickWorkspaceBasenameMatch,
   stripRepeatedWorkspacePrefix,
   WORKSPACE_BASENAME_LOOKUP_LIMIT,
-} from "../workspaceBasenameLookup";
+} from "@supaterm/client-runtime/workspace-basename-lookup";
 import {
   parseChangeRequestUrl,
   pullRequestCandidateUrlFromReferenceAutolink,
