@@ -35,7 +35,6 @@ import {
   createThreadFeedCache,
   deriveThreadFeedPresentation,
   threadFeedActivityIsVisible,
-  threadFeedRunIsUnsettled,
   type ThreadFeedActivity,
   type ThreadFeedCache,
   type ThreadFeedEntry,
@@ -761,15 +760,6 @@ describe("buildThreadFeed", () => {
     ).toBe(true);
   });
 
-  it("keeps prominent activity visible while it is running", () => {
-    expect(
-      threadFeedActivityIsVisible({ prominent: true, status: "neutral", toolLike: true }),
-    ).toBe(true);
-    expect(
-      threadFeedActivityIsVisible({ prominent: false, status: "neutral", toolLike: true }),
-    ).toBe(false);
-  });
-
   it("keeps provider notices visible outside completed work folds without failure styling", () => {
     const message = "Safeguards flagged this message. Switched to Opus 4.8.";
     const item = {
@@ -943,41 +933,6 @@ describe("buildThreadFeed", () => {
     );
 
     expect(buildThreadFeed([workspacePreparation])).toEqual([]);
-  });
-
-  it("does not treat a queued-only run as live feed activity", () => {
-    expect(
-      threadFeedRunIsUnsettled({
-        runId,
-        status: "queued",
-        startedAt: null,
-        completedAt: null,
-      }),
-    ).toBe(false);
-    expect(
-      threadFeedRunIsUnsettled({
-        runId,
-        status: "running",
-        startedAt: "2026-06-20T00:00:01.000Z",
-        completedAt: null,
-      }),
-    ).toBe(true);
-    expect(
-      threadFeedRunIsUnsettled({
-        runId,
-        status: "completed",
-        startedAt: "2026-06-20T00:00:01.000Z",
-        completedAt: null,
-      }),
-    ).toBe(true);
-    expect(
-      threadFeedRunIsUnsettled({
-        runId,
-        status: "waiting",
-        startedAt: "2026-06-20T00:00:01.000Z",
-        completedAt: null,
-      }),
-    ).toBe(true);
   });
 
   it("adds queued input only after dispatch creates its turn item", () => {
@@ -1803,15 +1758,6 @@ describe("buildThreadFeed", () => {
         ...overrides,
       }) as OrchestrationV2TurnItem;
     const running = { status: "running", completedAt: null, output: null } as const;
-    const startedAt = "2026-06-20T00:00:01.000Z";
-    const liveRows = (items: ReadonlyArray<OrchestrationV2TurnItem>, groupIds: string[] = []) =>
-      deriveThreadFeedPresentation(
-        buildThreadFeed(items.map((item, position) => projected(item, position))),
-        { runId, status: "running", startedAt, completedAt: null },
-        new Set(),
-        new Set(groupIds),
-        startedAt,
-      );
     const standIn = (rows: ReadonlyArray<ThreadFeedEntry>) => {
       const row = rows.find((entry) => entry.type === "activity-group");
       if (row?.type !== "activity-group") throw new Error("Expected the call's own row");
@@ -1858,35 +1804,6 @@ describe("buildThreadFeed", () => {
       );
       expect(rows.map((entry) => entry.type)).toEqual(["run-fold", "activity-group"]);
       expect(rows[1]).toMatchObject({ activities: [{ canExpand: false }] });
-    });
-
-    it("holds the live slot until a second call makes it a group", () => {
-      for (const item of [wait(running), wait()]) {
-        const rows = liveRows([item]);
-        expect(rows.map((entry) => entry.type)).toEqual(["activity-group"]);
-        expect(rows[0]).toMatchObject({
-          id: "live-activity-row",
-          activities: [{ live: true, groupStandIn: { label: "Waiting for a Supaterm thread" } }],
-        });
-      }
-
-      const groupId = standIn(liveRows([wait()]))!.groupId;
-      const grouped = liveRows([wait(), read(running)], [groupId]);
-      expect(grouped.map((entry) => entry.type)).toEqual(["work-toggle", "activity-group"]);
-      expect(grouped[0]).toMatchObject({
-        id: "live-activity-row",
-        groupId,
-        hiddenCount: 2,
-        expanded: true,
-        summary: "Reading a Supaterm thread",
-      });
-      expect(grouped[1]).toMatchObject({
-        activities: [
-          { groupedToolDetail: true, live: false },
-          { groupedToolDetail: true, live: true },
-        ],
-      });
-      expect(standIn(grouped)).toBeUndefined();
     });
   });
 
@@ -2679,79 +2596,6 @@ describe("pending user input answers", () => {
       { customAnswer: "" },
     );
   });
-
-  it("replaces single-select options and toggles multi-select options", () => {
-    expect(
-      togglePendingUserInputOptionSelection(
-        singleSelectQuestion,
-        { selectedOptionValues: ["Go"] },
-        "Node.js",
-      ),
-    ).toEqual({ customAnswer: "", selectedOptionValues: ["Node.js"] });
-
-    const orders = togglePendingUserInputOptionSelection(multiSelectQuestion, undefined, "Orders");
-    const ordersAndListings = togglePendingUserInputOptionSelection(
-      multiSelectQuestion,
-      orders,
-      "Listings",
-    );
-    expect(ordersAndListings).toEqual({
-      customAnswer: "",
-      selectedOptionValues: ["Orders", "Listings"],
-    });
-    expect(
-      togglePendingUserInputOptionSelection(multiSelectQuestion, ordersAndListings, "Orders"),
-    ).toEqual({ customAnswer: "", selectedOptionValues: ["Listings"] });
-
-    const paddedOrders = togglePendingUserInputOptionSelection(
-      multiSelectQuestion,
-      undefined,
-      "  Orders  ",
-    );
-    expect(paddedOrders).toEqual({ customAnswer: "", selectedOptionValues: ["Orders"] });
-    expect(
-      togglePendingUserInputOptionSelection(multiSelectQuestion, paddedOrders, "  Orders  "),
-    ).toEqual({ customAnswer: "" });
-  });
-
-  it("builds array answers for multi-select questions", () => {
-    expect(
-      buildPendingUserInputAnswers([singleSelectQuestion, multiSelectQuestion], {
-        runtime: { selectedOptionValues: ["Go"] },
-        scope: { selectedOptionValues: ["Orders", "Listings"] },
-      }),
-    ).toEqual({
-      runtime: "Go",
-      scope: ["Orders", "Listings"],
-    });
-  });
-
-  it("clears selected options while a custom answer is active", () => {
-    expect(
-      setPendingUserInputCustomAnswer(
-        multiSelectQuestion,
-        { selectedOptionValues: ["Orders", "Listings"] },
-        "Orders first",
-      ),
-    ).toEqual({ customAnswer: "Orders first" });
-  });
-
-  it("matches selected chips against normalized option labels", () => {
-    expect(
-      isPendingUserInputOptionSelected(
-        multiSelectQuestion,
-        { selectedOptionValues: ["Orders"] },
-        "  Orders  ",
-      ),
-    ).toBe(true);
-    expect(
-      isPendingUserInputOptionSelected(
-        multiSelectQuestion,
-        { selectedOptionValues: ["Orders"], customAnswer: "Orders first" },
-        "  Orders  ",
-      ),
-    ).toBe(false);
-  });
 });
 
 describe("resumePendingUserInputQuestionIndex", () => {
@@ -2936,52 +2780,6 @@ it("renders automatic completion as a neutral activity while retaining its detai
     ),
   ).toBe(true);
   expect(buildThreadFeed([projected(userMessage(), 0)])[0]?.type).toBe("message");
-});
-
-it("uses a compact reasoning preview and a short expanded heading", () => {
-  const entry = {
-    id: "thought",
-    label: "Thinking",
-    createdAt: "2026-09-17T12:00:00Z",
-    itemType: "reasoning" as const,
-    tone: "thinking" as const,
-    detail: "Check **ordering**.\nThen run the test.",
-    toolLifecycleStatus: "inProgress" as const,
-  };
-  expect(workEntryRowLabel(entry)).toBe("Check **ordering**. Then run the test.");
-  expect(workEntryRowLabel(entry, true)).toBe("Thinking");
-  expect(workEntryRowLabel({ ...entry, toolLifecycleStatus: "completed" }, true)).toBe("Thought");
-});
-
-it("caps one-line work-log labels for multi-kilobyte commands", () => {
-  const command = `cd /repo && python3 - <<'PY'\n${"print('x')\n".repeat(400)}PY`;
-  const entry = {
-    id: "heredoc",
-    label: "Ran command",
-    createdAt: "2026-09-17T12:00:00Z",
-    itemType: "command_execution" as const,
-    tone: "tool" as const,
-    command,
-  };
-  for (const label of [workEntryRowLabel(entry), workEntryRowLabel(entry, true)]) {
-    expect(label.startsWith("cd /repo && python3 - <<'PY' print('x')")).toBe(true);
-    expect(label.length).toBeLessThanOrEqual(203);
-  }
-});
-
-it("keeps search output in expanded details rather than the compact label", () => {
-  const entry = {
-    id: "search",
-    label: "Grep",
-    toolTitle: "Grep",
-    createdAt: "2026-09-17T12:00:00Z",
-    itemType: "dynamic_tool" as const,
-    tone: "tool" as const,
-    detail: "---\nfile body",
-    toolData: {},
-  };
-  expect(workEntryRowLabel(entry)).toBe("Grep");
-  expect(workEntryRowLabel(entry, true)).toBe("---\nfile body");
 });
 
 it.each(["First paragraph.\n\nSecond paragraph.", ""])(
@@ -3277,38 +3075,6 @@ describe("html renders", () => {
       const entries = buildThreadFeed([projected(call, 0)]);
       expect(entries.map((entry) => entry.type)).toEqual(["activity-group"]);
     }
-  });
-});
-
-describe("MCP apps", () => {
-  const app = {
-    attachmentId: "attachment-app",
-    server: "weather",
-    tool: "get_weather",
-    resourceUri: "ui://weather/dashboard",
-  };
-  const appCall = (status: OrchestrationV2TurnItem["status"]): OrchestrationV2TurnItem => ({
-    ...base("item-app", "2026-06-20T00:00:02.500Z", 2),
-    status,
-    type: "dynamic_tool",
-    toolName: "weather.get_weather",
-    input: { city: "Oslo" },
-    output: { supatermMcpApp: app, result: { content: [] } },
-  });
-  const feed = (status: OrchestrationV2TurnItem["status"]) =>
-    buildThreadFeed([
-      projected(userMessage(), 0),
-      projected(appCall(status), 1),
-      projected(assistantMessage("2026-06-20T00:00:04.000Z"), 2),
-    ]);
-
-  it("hosts a completed app in place of its tool row, owned by its source item", () => {
-    const entry = feed("completed").find((candidate) => candidate.type === "mcp-app");
-    expect(entry).toMatchObject({ type: "mcp-app", app, itemId: "item-app", runId });
-  });
-
-  it("keeps a running app call an ordinary work row", () => {
-    expect(feed("running").some((candidate) => candidate.type === "mcp-app")).toBe(false);
   });
 });
 

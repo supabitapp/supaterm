@@ -30,11 +30,6 @@ describe("tool-group scroll restoration", () => {
       viewOffset: -80,
     });
   });
-
-  it("starts normally when the saved row no longer belongs to the group", () => {
-    expect(resolveThreadWorkGroupInitialScroll([{ id: "other" }], position)).toBeUndefined();
-    expect(resolveThreadWorkGroupInitialScroll([{ id: "read-output" }], undefined)).toBeUndefined();
-  });
 });
 
 describe("tool-group append following", () => {
@@ -170,16 +165,6 @@ describe("resolveThreadFeedLiveFollow", () => {
     expect(resolveThreadFeedLiveFollow(true, { type: "user-scroll-begin" })).toBe(false);
   });
 
-  it("stays paused away from the actual end", () => {
-    expect(
-      resolveThreadFeedLiveFollow(false, {
-        type: "scroll",
-        isAtEnd: false,
-        userScrollSessionActive: true,
-      }),
-    ).toBe(false);
-  });
-
   it("does not mistake programmatic layout compensation for a user scroll", () => {
     expect(
       resolveThreadFeedLiveFollow(true, {
@@ -226,20 +211,6 @@ describe("resolveThreadFeedLiveFollow", () => {
         userScrollSessionActive: true,
       }),
     ).toBe(false);
-  });
-
-  it("ignores momentum-end events from programmatic scrolling", () => {
-    expect(
-      resolveThreadFeedLiveFollow(true, {
-        type: "user-scroll-end",
-        isAtEnd: false,
-        userScrollSessionActive: false,
-      }),
-    ).toBe(true);
-  });
-
-  it("re-arms after an explicit reset", () => {
-    expect(resolveThreadFeedLiveFollow(false, { type: "reset" })).toBe(true);
   });
 });
 

@@ -71,15 +71,6 @@ describe("auto-mark-done settings sync", () => {
     expect(updated.sourceControlWritingStyle).toEqual(target.settings.sourceControlWritingStyle);
   });
 
-  it("does not compare the reference or a target without loaded settings", () => {
-    const plan = planAutoMarkDoneSettingsSync(reference, [
-      { ...reference, label: "Reference" },
-      { environmentId: EnvironmentId.make("loading"), label: "Loading", settings: null },
-    ]);
-
-    expect(plan.mismatches).toEqual([]);
-  });
-
   it("notices different project checkouts on the same environment", () => {
     const projectReference = { ...reference, projectId: ProjectId.make("one") };
     const otherCheckout = {

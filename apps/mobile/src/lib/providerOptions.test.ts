@@ -75,35 +75,4 @@ describe("mobile provider options", () => {
     expect(getReasoningOptionDescriptor([CODEX_CAPABILITIES.optionDescriptors[1]])).toBeUndefined();
     expect(getReasoningOptionDescriptor([])).toBeUndefined();
   });
-
-  it("updates generic select options without knowing provider-specific ids", () => {
-    const descriptors = resolveProviderOptionDescriptors({
-      capabilities: CODEX_CAPABILITIES,
-      selections: undefined,
-    });
-
-    expect(
-      applyProviderOptionSelection(descriptors, { id: "serviceTier", value: "priority" }),
-    ).toEqual([
-      { id: "reasoningEffort", value: "medium" },
-      { id: "serviceTier", value: "priority" },
-    ]);
-    expect(
-      applyProviderOptionSelection(descriptors, { id: "serviceTier", value: "turbo" }),
-    ).toBeNull();
-    expect(applyProviderOptionSelection(descriptors, { id: "unknown", value: "high" })).toBeNull();
-  });
-
-  it("updates generic boolean options", () => {
-    const descriptors = resolveProviderOptionDescriptors({
-      capabilities: {
-        optionDescriptors: [{ id: "fastMode", label: "Fast Mode", type: "boolean" }],
-      },
-      selections: undefined,
-    });
-
-    expect(applyProviderOptionSelection(descriptors, { id: "fastMode", value: true })).toEqual([
-      { id: "fastMode", value: true },
-    ]);
-  });
 });

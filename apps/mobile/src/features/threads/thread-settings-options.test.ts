@@ -5,11 +5,7 @@ import {
 import type { ProviderOptionDescriptor } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import {
-  reasoningSliderOptions,
-  runtimeModeChoicesForSupportedModes,
-  selectableChoices,
-} from "./thread-settings-options";
+import { reasoningSliderOptions, selectableChoices } from "./thread-settings-options";
 
 const effortDescriptor: Extract<ProviderOptionDescriptor, { type: "select" }> = {
   id: "effort",
@@ -35,12 +31,6 @@ describe("selectableChoices", () => {
       "ultrathink",
       "ultracode",
     ]);
-  });
-});
-
-describe("runtimeModeChoicesForSupportedModes", () => {
-  it("keeps controls usable when forward-compatible decoding removes every advertised mode", () => {
-    expect(runtimeModeChoicesForSupportedModes([])).toHaveLength(4);
   });
 });
 

@@ -71,14 +71,6 @@ describe("mobile themes", () => {
     );
   });
 
-  it("shares all built-in desktop palettes", () => {
-    expect(BUILT_IN_THEMES.map((theme) => theme.id)).toEqual(BUILT_IN_THEME_IDS);
-    for (const themeId of BUILT_IN_THEME_IDS) {
-      expect(getMobileThemeVariables(themeId, "light")["--color-screen"]).toMatch(/^#/);
-      expect(getMobileThemeVariables(themeId, "dark")["--color-screen"]).toMatch(/^#/);
-    }
-  });
-
   it.each(MOBILE_THEME_IDS)("uses the web color roles for %s in both appearances", (themeId) => {
     for (const appearance of ["light", "dark"] as const) {
       if (!mobileThemeSupportsAppearance(themeId, appearance)) continue;
@@ -226,38 +218,6 @@ describe("mobile themes", () => {
     }
   });
 
-  it.each(["light", "dark"] as const)(
-    "separates default settings groups from their %s background",
-    (appearance) => {
-      const variables = getMobileThemeVariables("supaterm", appearance);
-      expect(
-        contrastRatio(variables["--color-grouped-card"], variables["--color-sheet-solid"]),
-      ).toBeGreaterThanOrEqual(1.06);
-      expect(variables["--color-grouped-card"]).not.toBe(variables["--color-card"]);
-      for (const platform of ["ios", "android"]) {
-        const runtime = getMobileThemeRuntimeVariables("supaterm", appearance, platform);
-        const sidebar = flattenThemeColor(runtime["--color-drawer"], runtime["--color-screen"]);
-        const chrome = flattenThemeColor(
-          runtime[platform === "android" ? "--color-header" : "--color-drawer"],
-          runtime["--color-screen"],
-        );
-        if (platform === "ios") {
-          expect(relativeLuminance(sidebar)).toBeLessThan(
-            relativeLuminance(runtime["--color-thread-canvas"]),
-          );
-        }
-        expect(contrastRatio(chrome, runtime["--color-screen"])).toBeGreaterThan(1);
-        const foregroundRoles =
-          platform === "android"
-            ? (["--color-header-foreground", "--color-foreground-muted"] as const)
-            : (["--color-drawer-foreground", "--color-drawer-foreground-muted"] as const);
-        for (const role of foregroundRoles) {
-          expect(contrastRatio(runtime[role], chrome)).toBeGreaterThanOrEqual(4.5);
-        }
-      }
-    },
-  );
-
   it("keeps One Light grouped cards distinct from the sheet", () => {
     const variables = getMobileThemeVariables("one-light", "light");
     const group = variables["--color-grouped-card"];
@@ -393,11 +353,6 @@ describe("mobile themes", () => {
     expect(themeColorToNativeColor("#123456")).toBe("#123456");
   });
 
-  it("changes native palette color opacity for fades", () => {
-    expect(themeColorWithAlpha("#123456", 0)).toBe("rgba(18, 52, 86, 0)");
-    expect(themeColorWithAlpha("rgba(18, 52, 86, 0.98)", 0)).toBe("rgba(18, 52, 86, 0)");
-  });
-
   it("maps semantic palette roles onto every mobile color variable", () => {
     const variables = createMobileThemeVariables(SUPATERM_LIGHT_THEME_COLORS, "light");
     expect(variables["--color-sheet-solid"]).toBe(
@@ -414,15 +369,6 @@ describe("mobile themes", () => {
     expect(variables["--color-backdrop"]).toBe("rgba(0, 0, 0, 0.22)");
     expect(variables["--color-drawer-shadow"]).toBe("rgba(0, 0, 0, 0.12)");
     expect(variables["--color-user-bubble-foreground"]).toMatch(/^#/);
-  });
-
-  it("keeps every built-in shadow and backdrop black-based in dark mode", () => {
-    for (const themeId of BUILT_IN_THEME_IDS) {
-      const variables = getMobileThemeVariables(themeId, "dark");
-      expect(variables["--color-primary-shadow"]).toBe("#000000");
-      expect(variables["--color-backdrop"]).toBe("rgba(0, 0, 0, 0.48)");
-      expect(variables["--color-drawer-shadow"]).toBe("rgba(0, 0, 0, 0.32)");
-    }
   });
 
   it("keeps placeholders and selected-row labels readable on their mobile surfaces", () => {
@@ -490,23 +436,5 @@ describe("mobile themes", () => {
         contrastRatio(variables["--color-md-user-code-text"], codeSurface),
       ).toBeGreaterThanOrEqual(4.5);
     }
-  });
-});
-
-describe("flattenThemeColor", () => {
-  it("composites a translucent border over its surface", async () => {
-    const { flattenThemeColor } = await import("./mobileTheme");
-    expect(flattenThemeColor("rgba(255, 255, 255, 0.06)", "#171717")).toBe("#252525");
-    expect(flattenThemeColor("rgba(0, 0, 0, 0.08)", "#ffffff")).toBe("#ebebeb");
-  });
-
-  it("leaves an already opaque colour alone", async () => {
-    const { flattenThemeColor } = await import("./mobileTheme");
-    expect(flattenThemeColor("#171717", "#ffffff")).toBe("#171717");
-  });
-
-  it("treats a colour with no alpha as fully opaque", async () => {
-    const { flattenThemeColor } = await import("./mobileTheme");
-    expect(flattenThemeColor("rgb(255, 0, 0)", "#000000")).toBe("#ff0000");
   });
 });

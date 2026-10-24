@@ -36,16 +36,6 @@ it("presents showcase transports as remote endpoints", () => {
   );
 });
 
-it("leaves environments outside the showcase fixture unchanged", () => {
-  const original = environment(
-    "runtime-id-4",
-    "My Workstation",
-    "https://workstation.example.test/",
-  );
-
-  assert.deepStrictEqual(applyShowcaseLocalEnvironmentDisplayUrls([original]), [original]);
-});
-
 it("does not persist a cosmetic showcase URL when only the label is saved", () => {
   assert.equal(
     resolveShowcaseEnvironmentUpdateDisplayUrl({

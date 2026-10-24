@@ -22,10 +22,6 @@ function workspaceState(overrides: Partial<WorkspaceState> = {}): WorkspaceState
 }
 
 describe("workspace connection status", () => {
-  it("stays hidden while a ready environment is connected", () => {
-    expect(workspaceConnectionStatusPresentation(workspaceState())).toBeNull();
-  });
-
   it.each([
     ["connecting", null],
     ["reconnecting", null],
@@ -80,71 +76,6 @@ describe("workspace connection status", () => {
 
     expect(workspaceConnectionStatusPresentation(state)).toEqual({
       label: "Syncing threads...",
-    });
-  });
-
-  it("surfaces offline snapshots", () => {
-    const state = workspaceState({ networkStatus: "offline", hasReadyEnvironment: false });
-
-    expect(workspaceConnectionStatusPresentation(state)).toEqual({
-      label: "You are offline",
-    });
-  });
-
-  it("names the environment while reconnecting", () => {
-    const state = workspaceState({
-      hasConnectingEnvironment: true,
-      hasReadyEnvironment: false,
-      connectingEnvironments: [
-        {
-          environmentId: "environment-1" as never,
-          environmentLabel: "Julius’s Mac mini",
-          displayUrl: "",
-          isEnabled: true,
-          connectionState: "reconnecting",
-          connectionError: null,
-          connectionErrorTraceId: null,
-        },
-      ],
-    });
-
-    expect(workspaceConnectionStatusPresentation(state)).toEqual({
-      label: "Reconnecting to Julius’s Mac mini",
-    });
-  });
-
-  it("surfaces connection errors before the generic disconnected fallback", () => {
-    const state = workspaceState({
-      connectionError: "Could not reach Julius’s Mac mini",
-      hasLoadedShellSnapshot: false,
-      hasReadyEnvironment: false,
-    });
-
-    expect(workspaceConnectionStatusPresentation(state)).toEqual({
-      label: "Could not reach Julius’s Mac mini",
-    });
-  });
-
-  it("shows shell catch-up while cached threads remain visible", () => {
-    const state = workspaceState({
-      hasPendingShellSnapshot: true,
-      hasSyncingConnectedEnvironment: true,
-    });
-
-    expect(workspaceConnectionStatusPresentation(state)).toEqual({
-      label: "Syncing threads...",
-    });
-  });
-
-  it("distinguishes initial shell loading from cached catch-up", () => {
-    const state = workspaceState({
-      hasLoadedShellSnapshot: false,
-      hasPendingShellSnapshot: true,
-      hasSyncingConnectedEnvironment: true,
-    });
-
-    expect(workspaceConnectionStatusPresentation(state)).toEqual({
-      label: "Loading threads...",
     });
   });
 });

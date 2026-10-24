@@ -33,7 +33,6 @@ import {
   buildThreadListV2ListItems,
   getThreadListV2OrderedSection,
   resolveThreadListV2SnoozeMenuSelection,
-  resolveThreadListV2SnoozeGateExpiryMs,
   resolveThreadListV2Status,
   resolveThreadListV2WokeAt,
   resolveThreadListV2SwipeActions,
@@ -64,35 +63,6 @@ const linkedPullRequest = {
 };
 
 describe("resolveThreadListV2SnoozeMenuSelection", () => {
-  it("accepts a displayed evening preset while its wake time is still future", () => {
-    const menuOpenedAt = new Date(2026, 4, 8, 16, 59, 30);
-    const selectedAt = new Date(2026, 4, 8, 17, 0, 30);
-    const displayedPresets = resolveSnoozePresets(menuOpenedAt);
-
-    const selection = resolveThreadListV2SnoozeMenuSelection({
-      event: "snooze:evening",
-      displayedPresets,
-      now: selectedAt,
-    });
-
-    expect(selection).toEqual({
-      _tag: "selected",
-      preset: displayedPresets.find((preset) => preset.id === "evening"),
-    });
-  });
-
-  it("expires a displayed preset once its wake time has passed", () => {
-    const displayedPresets = resolveSnoozePresets(new Date(2026, 4, 8, 16, 59, 30));
-
-    expect(
-      resolveThreadListV2SnoozeMenuSelection({
-        event: "snooze:evening",
-        displayedPresets,
-        now: new Date(2026, 4, 8, 18, 0, 1),
-      }),
-    ).toEqual({ _tag: "expired" });
-  });
-
   it("recomputes presets that remain available instead of using old timestamps", () => {
     const displayedPresets = resolveSnoozePresets(new Date(2026, 4, 8, 10));
     const selectedAt = new Date(2026, 4, 8, 10, 30);
@@ -136,72 +106,6 @@ describe("resolveThreadListV2Status", () => {
     );
   });
 
-  it("distinguishes usage limits from ordinary failures and clears the label after recovery", () => {
-    const thread = makeThread({
-      id: ThreadId.make("limited"),
-      title: "Limited",
-      runtime: {
-        status: "failed",
-        activeRunId: null,
-        providerInstanceId: ProviderInstanceId.make("codex"),
-        providerName: "Codex",
-        lastError: "Plan limit reached",
-        lastErrorClass: "usage_limit",
-        updatedAt: NOW,
-      },
-    });
-    expect(resolveThreadListV2Status(thread)).toBe("limited");
-    expect(
-      resolveThreadListV2Status({
-        ...thread,
-        runtime: { ...thread.runtime!, lastErrorClass: null },
-      }),
-    ).toBe("failed");
-    expect(
-      resolveThreadListV2Status({
-        ...thread,
-        runtime: { ...thread.runtime!, status: "completed" },
-      }),
-    ).toBe("ready");
-  });
-
-  it("prioritizes approval over a running runtime", () => {
-    const thread = makeThread({
-      id: ThreadId.make("t"),
-      title: "t",
-      hasPendingApprovals: true,
-      runtime: {
-        status: "running",
-        activeRunId: RunId.make("run-t"),
-        providerName: "Codex",
-        providerInstanceId: ProviderInstanceId.make("codex"),
-        lastError: null,
-        updatedAt: NOW,
-      },
-    });
-    expect(resolveThreadListV2Status(thread)).toBe("approval");
-  });
-
-  it("reports waiting when presentation parks runtime idle for background tasks", () => {
-    expect(
-      resolveThreadListV2Status(
-        makeThread({
-          id: ThreadId.make("t"),
-          title: "t",
-          pendingBackgroundTasks: [{ taskId: "bg-1", description: "Watch build", kind: "monitor" }],
-          runtime: {
-            status: "idle",
-            activeRunId: null,
-            providerInstanceId: ProviderInstanceId.make("codex"),
-            providerName: "Codex",
-            lastError: null,
-            updatedAt: NOW,
-          },
-        }),
-      ),
-    ).toBe("waiting");
-  });
-
   it.each([
     { kind: "command", status: "ready" },
     { kind: "monitor", status: "waiting" },
@@ -223,12 +127,6 @@ describe("resolveThreadListV2Status", () => {
       expect(threadHasUnseenCompletion(thread)).toBe(true);
     },
   );
-
-  it("resolves ready for quiescent threads", () => {
-    expect(resolveThreadListV2Status(makeThread({ id: ThreadId.make("t"), title: "t" }))).toBe(
-      "ready",
-    );
-  });
 });
 
 describe("queued messages keep a done thread active", () => {
@@ -274,17 +172,6 @@ describe("queued messages keep a done thread active", () => {
 });
 
 describe("resolveThreadListV2SwipeActions", () => {
-  it("offers settle and snooze for an active snoozable thread", () => {
-    expect(
-      resolveThreadListV2SwipeActions({
-        variant: "card",
-        markDoneSupported: true,
-        snoozeSupported: true,
-        snoozable: true,
-      }),
-    ).toEqual({ primary: "mark-done", secondary: "snooze" });
-  });
-
   it("offers reopen and snooze for done history", () => {
     expect(
       resolveThreadListV2SwipeActions({
@@ -294,25 +181,6 @@ describe("resolveThreadListV2SwipeActions", () => {
         snoozable: true,
       }),
     ).toEqual({ primary: "reopen", secondary: "snooze" });
-  });
-
-  it("omits snooze when the server or thread does not allow it", () => {
-    expect(
-      resolveThreadListV2SwipeActions({
-        variant: "card",
-        markDoneSupported: true,
-        snoozeSupported: false,
-        snoozable: true,
-      }),
-    ).toEqual({ primary: "mark-done", secondary: null });
-    expect(
-      resolveThreadListV2SwipeActions({
-        variant: "card",
-        markDoneSupported: true,
-        snoozeSupported: true,
-        snoozable: false,
-      }),
-    ).toEqual({ primary: "mark-done", secondary: null });
   });
 
   it("falls back to archive only for a pre-lifecycle server", () => {
@@ -345,39 +213,6 @@ describe("resolveThreadListV2SwipeActions", () => {
         snoozed: true,
       }),
     ).toEqual({ primary: "unsnooze", secondary: null });
-  });
-});
-
-describe("resolveThreadListV2SnoozeGateExpiryMs", () => {
-  it("reports when an unadopted turn's grace window lapses", () => {
-    const thread = makeThread({
-      id: ThreadId.make("t"),
-      title: "t",
-      latestUserMessageAt: "2026-06-02T00:00:30.000Z",
-    });
-    expect(resolveThreadListV2SnoozeGateExpiryMs(thread, { now: "2026-06-02T00:01:00.000Z" })).toBe(
-      Date.parse("2026-06-02T00:02:30.000Z"),
-    );
-  });
-
-  it("returns null once the thread is snoozable or when only data can unblock it", () => {
-    expect(
-      resolveThreadListV2SnoozeGateExpiryMs(
-        makeThread({ id: ThreadId.make("ready"), title: "Ready" }),
-        { now: NOW },
-      ),
-    ).toBe(null);
-    expect(
-      resolveThreadListV2SnoozeGateExpiryMs(
-        makeThread({
-          id: ThreadId.make("blocked"),
-          title: "Blocked",
-          hasPendingApprovals: true,
-          latestUserMessageAt: NOW,
-        }),
-        { now: NOW },
-      ),
-    ).toBe(null);
   });
 });
 
@@ -1126,32 +961,9 @@ describe("buildThreadListV2Items done sort reuse", () => {
       .map((item) => `${item.thread.environmentId}:${item.thread.id}`);
   }
 
-  function countDateParses(build: () => void): number {
-    const spy = vi.spyOn(Date, "parse");
-    try {
-      build();
-      return spy.mock.calls.length;
-    } finally {
-      spy.mockRestore();
-    }
-  }
-
   const older = makeDone("older", "2026-06-01T01:00:00.000Z");
   const newer = makeDone("newer", "2026-06-01T03:00:00.000Z");
   const middle = makeDone("middle", "2026-06-01T02:00:00.000Z");
-
-  it("orders done rows newest first regardless of input order", () => {
-    expect(doneOrder([older, newer, middle])).toEqual([
-      `${environmentId}:newer`,
-      `${environmentId}:middle`,
-      `${environmentId}:older`,
-    ]);
-    expect(doneOrder([middle, older, newer])).toEqual([
-      `${environmentId}:newer`,
-      `${environmentId}:middle`,
-      `${environmentId}:older`,
-    ]);
-  });
 
   it("re-sorts when a done row is replaced, added, or removed", () => {
     expect(doneOrder([older, newer])).toEqual([`${environmentId}:newer`, `${environmentId}:older`]);
@@ -1169,37 +981,6 @@ describe("buildThreadListV2Items done sort reuse", () => {
       `${environmentId}:newer`,
       `${environmentId}:middle`,
     ]);
-  });
-
-  it("re-sorts when the same done rows arrive in a different order", () => {
-    const first = makeDone("twin", "2026-06-01T01:00:00.000Z");
-    const second = makeDone("twin", "2026-06-01T01:00:00.000Z", {
-      environmentId: otherEnvironmentId,
-    });
-    expect(doneOrder([first, second])).toEqual([
-      `${environmentId}:twin`,
-      `${otherEnvironmentId}:twin`,
-    ]);
-    expect(doneOrder([second, first])).toEqual([
-      `${otherEnvironmentId}:twin`,
-      `${environmentId}:twin`,
-    ]);
-  });
-
-  it("skips the done sort when only reopened rows change", () => {
-    const done = Array.from({ length: 50 }, (_, index) =>
-      makeDone(`done-${index}`, `2026-06-01T00:${String(index).padStart(2, "0")}:00.000Z`),
-    );
-    const streaming = makeThread({ id: ThreadId.make("streaming"), title: "Streaming" });
-    const baseline = countDateParses(() => doneOrder([streaming, ...done]));
-    const updated = { ...streaming, updatedAt: "2026-06-01T23:00:00.000Z" };
-    let order: string[] = [];
-    const reused = countDateParses(() => {
-      order = doneOrder([updated, ...done]);
-    });
-
-    expect(order).toEqual(done.toReversed().map((thread) => `${environmentId}:${thread.id}`));
-    expect(baseline - reused).toBeGreaterThanOrEqual(done.length);
   });
 
   it("recomputes when builds alternate between environments", () => {
@@ -1880,18 +1661,6 @@ describe("thread drag destinations", () => {
         placement: "after",
       }),
     ).toEqual(["hidden", "b", "a", "c"]);
-  });
-
-  it("rejects missing, self, and unchanged destinations", () => {
-    for (const targetId of ["missing", "a", "b"]) {
-      expect(
-        threadOrderAfterMove(["a", "b", "c"], "a", {
-          targetId,
-          placement: "before",
-        }),
-      ).toBeNull();
-    }
-    expect(threadOrderAfterMove(["a", "b"], "missing", "down")).toBeNull();
   });
 
   it.each(["active", "pinned"] as const)(

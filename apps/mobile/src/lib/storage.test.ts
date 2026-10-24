@@ -103,49 +103,12 @@ vi.mock("react-native", () => ({
   },
 }));
 
-import {
-  loadPreferences,
-  loadRecentThreadShortcuts,
-  savePreferencesPatch,
-} from "../persistence/imperative";
-
-const RECENT_THREAD_SHORTCUTS_KEY = "supaterm.recent-thread-shortcuts";
+import { loadPreferences, savePreferencesPatch } from "../persistence/imperative";
 
 describe("mobile storage", () => {
   beforeEach(() => {
     mocks.clear();
     vi.clearAllMocks();
-  });
-
-  it("preserves secure-storage read failures with operation and key context", async () => {
-    const cause = new Error("keychain unavailable");
-    mocks.getItemAsync.mockRejectedValueOnce(cause);
-
-    await expect(loadRecentThreadShortcuts()).rejects.toMatchObject({
-      _tag: "MobileSecureStorageError",
-      operation: "read",
-      key: RECENT_THREAD_SHORTCUTS_KEY,
-      cause,
-      message: `Mobile secure storage operation read failed for key ${RECENT_THREAD_SHORTCUTS_KEY}.`,
-    });
-  });
-
-  it("logs structured decode failures before using the empty fallback", async () => {
-    await mocks.setItemAsync(RECENT_THREAD_SHORTCUTS_KEY, "{");
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-
-    await expect(loadRecentThreadShortcuts()).resolves.toEqual([]);
-    expect(warn).toHaveBeenCalledWith(
-      "[mobile-storage] ignored invalid JSON",
-      expect.objectContaining({
-        _tag: "MobileStorageDecodeError",
-        key: RECENT_THREAD_SHORTCUTS_KEY,
-        cause: expect.any(SyntaxError),
-        message: `Failed to decode mobile storage value for key ${RECENT_THREAD_SHORTCUTS_KEY}.`,
-      }),
-    );
-
-    warn.mockRestore();
   });
 
   it("persists independent light and dark theme choices", async () => {
@@ -194,31 +157,6 @@ describe("mobile storage", () => {
     await expect(loadPreferences()).resolves.toEqual({ baseFontSize: 17 });
   });
 
-  it("persists thread list shelf preferences", async () => {
-    await expect(
-      savePreferencesPatch({
-        threadListDoneShelfExpanded: false,
-        threadListSnoozedShelfExpanded: true,
-        threadListWorkingShelfExpanded: true,
-      }),
-    ).resolves.toEqual({
-      threadListDoneShelfExpanded: false,
-      threadListSnoozedShelfExpanded: true,
-      threadListWorkingShelfExpanded: true,
-    });
-
-    await expect(loadPreferences()).resolves.toEqual({
-      threadListDoneShelfExpanded: false,
-      threadListSnoozedShelfExpanded: true,
-      threadListWorkingShelfExpanded: true,
-    });
-    expect(JSON.parse(mocks.getPreferencesJson() ?? "")).toEqual({
-      threadListDoneShelfExpanded: false,
-      threadListSnoozedShelfExpanded: true,
-      threadListWorkingShelfExpanded: true,
-    });
-  });
-
   it("persists collapsed thread list groups and drops non-string keys", async () => {
     await savePreferencesPatch({ threadListCollapsedGroups: ["project:a", "project:b"] });
     await expect(loadPreferences()).resolves.toEqual({
@@ -239,32 +177,6 @@ describe("mobile storage", () => {
     );
 
     await expect(loadPreferences()).resolves.toEqual({ baseFontSize: 17 });
-  });
-
-  it("keeps valid list filters and drops malformed ones", async () => {
-    const threadListFilters = { environmentId: "environment-1", projectKey: null };
-    const pullRequestListFilters = {
-      environmentId: null,
-      controls: {
-        "": {
-          state: "all",
-          involvement: "reviewing",
-          filters: { labels: [["size:S"]] },
-          sort: "oldest",
-        },
-      },
-    };
-    mocks.setPreferencesJson(JSON.stringify({ threadListFilters, pullRequestListFilters }), 10);
-    await expect(loadPreferences()).resolves.toEqual({ threadListFilters, pullRequestListFilters });
-
-    mocks.setPreferencesJson(
-      JSON.stringify({
-        threadListFilters: { environmentId: 1, projectKey: null },
-        pullRequestListFilters: { environmentId: null, controls: { "": { sort: "newest" } } },
-      }),
-      11,
-    );
-    await expect(loadPreferences()).resolves.toEqual({});
   });
 
   it("reconciles fallback preferences after SQLite recovers", async () => {

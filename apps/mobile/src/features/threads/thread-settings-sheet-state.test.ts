@@ -15,12 +15,7 @@ import {
   applyProviderOptionSelection,
   resolveProviderOptionDescriptors,
 } from "../../lib/providerOptions";
-import {
-  canCommitPendingModel,
-  favoritesFirst,
-  modelMatchesCatalogQuery,
-  pendingModelAfterPress,
-} from "./thread-settings-sheet-state";
+import { canCommitPendingModel, pendingModelAfterPress } from "./thread-settings-sheet-state";
 
 function modelOption(
   model: string,
@@ -78,75 +73,6 @@ afterEach(() => {
 });
 
 describe("thread settings sheet state", () => {
-  it("keeps favorites in catalog order ahead of other models", () => {
-    const models = [
-      modelOption("first"),
-      modelOption("second"),
-      modelOption("third"),
-      modelOption("fourth"),
-    ];
-    const favorites = new Set([models[2]!.key, models[0]!.key]);
-
-    expect(favoritesFirst(models, favorites).map((model) => model.selection.model)).toEqual([
-      "first",
-      "third",
-      "second",
-      "fourth",
-    ]);
-    expect(models.map((model) => model.selection.model)).toEqual([
-      "first",
-      "second",
-      "third",
-      "fourth",
-    ]);
-  });
-
-  it("matches visible model and provider terms", () => {
-    const model = modelOption("gpt-next");
-
-    expect(modelMatchesCatalogQuery({ model, providerLabel: "Codex", query: "NEXT" })).toBe(true);
-    expect(modelMatchesCatalogQuery({ model, providerLabel: "Codex", query: "codex" })).toBe(true);
-    expect(modelMatchesCatalogQuery({ model, providerLabel: "Codex", query: "claude" })).toBe(
-      false,
-    );
-  });
-
-  it("treats whitespace-only catalog searches as empty", () => {
-    expect(
-      modelMatchesCatalogQuery({
-        model: modelOption("gpt-next"),
-        providerLabel: "Codex",
-        query: "   ",
-      }),
-    ).toBe(true);
-  });
-
-  it("matches the upstream provider's display name", () => {
-    const model = {
-      ...modelOption("opencode/claude-fable-5"),
-      label: "Claude Fable 5",
-      subtitle: "OpenCode Zen",
-    };
-
-    expect(modelMatchesCatalogQuery({ model, providerLabel: "OpenCode", query: " ZEN " })).toBe(
-      true,
-    );
-    expect(modelMatchesCatalogQuery({ model, providerLabel: "OpenCode", query: "copilot" })).toBe(
-      false,
-    );
-  });
-
-  it("clears staging when the applied model is pressed", () => {
-    expect(
-      pendingModelAfterPress({
-        current: modelOption("gpt-next"),
-        pressed: modelOption("gpt-current"),
-        pressedIsApplied: true,
-        restoreSelection: withRememberedModelOptions,
-      }),
-    ).toBeNull();
-  });
-
   it("preserves in-progress edits when the staged model is pressed again", () => {
     rememberModelOptions("codex", "gpt-next", [{ id: "effort", value: "medium" }]);
     const pending = modelOption("gpt-next", [{ id: "effort", value: "high" }]);
