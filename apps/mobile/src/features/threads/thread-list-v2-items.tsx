@@ -388,6 +388,7 @@ const DRAFT_TASK_MENU_ACTIONS: MenuAction[] = [
  */
 export const ThreadListV2PendingRow = memo(function ThreadListV2PendingRow(props: {
   readonly pendingTask: PendingNewTask;
+  readonly selected?: boolean;
   readonly project: EnvironmentProject | null;
   readonly projectTitle?: string;
   readonly environmentLabel: string | null;
@@ -409,6 +410,7 @@ export const ThreadListV2PendingRow = memo(function ThreadListV2PendingRow(props
   const theme = useUniwindTheme();
   const dormant = useSwipeRowDormant(props.activationKey);
   const sidebarPane = props.pane === "sidebar";
+  const rowAppearance = getThreadListV2RowAppearance(theme, sidebarPane, props.selected ?? false);
   const isDraft = pendingTask.kind === "draft";
   const projectTitle = props.projectTitle ?? props.project?.title ?? pendingTask.projectTitle ?? "";
   const branch = pendingTask.branch;
@@ -534,22 +536,16 @@ export const ThreadListV2PendingRow = memo(function ThreadListV2PendingRow(props
         }
         accessibilityLabel={pendingTask.title}
         accessibilityRole="button"
+        accessibilityState={{ selected: props.selected ?? false }}
         key={pendingTask.key}
-        className={sidebarPane ? "bg-drawer" : "bg-screen"}
-        interactionClassName={sidebarPane ? "bg-thread-hover" : "bg-row-hover"}
+        className={rowAppearance.className}
+        interactionClassName={rowAppearance.interactionClassName}
+        interactionOpacity={rowAppearance.interactionOpacity}
         onPress={() => {
           close();
           onSelectPendingTask(pendingTask);
         }}
-        style={
-          sidebarPane
-            ? {
-                borderRadius: SIDEBAR_V2_ROW_RADIUS,
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-              }
-            : undefined
-        }
+        style={rowAppearance.cardStyle}
       >
         {sidebarPane ? (
           rowContent

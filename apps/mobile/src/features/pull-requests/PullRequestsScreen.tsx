@@ -5,7 +5,7 @@ import {
 } from "@supaterm/client-runtime/pull-request-query";
 import { WorkspaceDock } from "../workspace/WorkspaceDock";
 import { WorkspaceHeaderActions } from "../workspace/WorkspaceHeaderActions";
-import { useStartNewTask } from "../threads/use-start-new-task";
+import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
 import { LegendList, type LegendListRef } from "@legendapp/list/react-native";
 import { useNavigation } from "@react-navigation/native";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -95,7 +95,7 @@ export function PullRequestsScreen(
     readonly selectedPullRequestKey?: string | null;
   } = {},
 ) {
-  const startNewTask = useStartNewTask();
+  const { startNewTask } = useAdaptiveWorkspaceLayout();
   const navigation = useNavigation();
   const primaryColumn = use(NativePrimaryColumnContext);
   const workspace = useWorkspaceTabs()!;

@@ -1,5 +1,6 @@
 import type { SidebarThreadGrouping } from "@supaterm/contracts";
 import { useThreadListV2Layout } from "../threads/use-thread-list-v2-layout";
+import { useActiveNewTask } from "../../state/active-new-task";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
 import { type LegendListRef } from "@legendapp/list/react-native";
@@ -273,7 +274,8 @@ export function HomeScreen(props: HomeScreenProps) {
     Platform.OS === "android" ? "bg-header" : contentBackground,
   );
   const columnMetrics = useNativeColumnLayoutMetrics();
-  const selectedThreadKey = primaryColumn?.selectedThreadKey ?? null;
+  const activeNewTask = useActiveNewTask();
+  const selectedThreadKey = activeNewTask ? null : (primaryColumn?.selectedThreadKey ?? null);
   const fullSwipeWidth = primaryColumn && columnMetrics ? columnMetrics.width - 20 : undefined;
   const queuedThreadKeys = useQueuedThreadKeys();
   const openSwipeableRef = useRef<SwipeableMethods | null>(null);
@@ -594,7 +596,14 @@ export function HomeScreen(props: HomeScreenProps) {
       );
       return (
         <ThreadListV2PendingRow
+          pane={primaryColumn ? "sidebar" : "screen"}
           pendingTask={item.pendingTask}
+          selected={
+            activeNewTask?.pendingKey === item.pendingTask.key ||
+            (item.pendingTask.kind === "pending" &&
+              scopedThreadKey(item.pendingTask.environmentId, item.pendingTask.message.threadId) ===
+                selectedThreadKey)
+          }
           project={projectByKey.get(pendingScopeKey) ?? null}
           projectTitle={v2ProjectTitleByProjectKey.get(pendingScopeKey)}
           environmentLabel={
@@ -763,6 +772,7 @@ export function HomeScreen(props: HomeScreenProps) {
   // every HomeScreen render — and the minute clock must stay out of it for
   // the same reason: the clock text is precomputed per item instead.
   const v2ExtraData = {
+    activeNewTask,
     projectByKey,
     projectScopes,
     projectTitleByProjectKey: v2ProjectTitleByProjectKey,

@@ -1,6 +1,7 @@
 import * as Dialog from "../../components/ui/Dialog";
 import { useNavigation } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
+import { useHomeThreadRouteSelection } from "./home-thread-navigation";
 import { useCallback } from "react";
 
 import { withThreadDismissal } from "./thread-dismissal";
@@ -14,31 +15,34 @@ import {
   releaseDeletingQueuedMessage,
 } from "../../state/use-thread-outbox";
 
-export function usePendingTaskListActions(): {
+export function usePendingTaskListActions(
+  selectRoute?: (params: ReactNavigation.RootParamList["Thread"]) => void,
+): {
   readonly openPendingTask: (pendingTask: PendingNewTask) => void;
   readonly confirmDeletePendingTask: (pendingTask: PendingNewTask) => void;
 } {
   const navigation = useNavigation();
+  const selectHomeRoute = useHomeThreadRouteSelection();
+  const selectThreadRoute = selectRoute ?? selectHomeRoute;
 
   const openPendingTask = useCallback(
     (pendingTask: PendingNewTask) => {
-      if (pendingTask.kind === "pending") {
-        navigation.navigate("Thread", {
-          environmentId: String(pendingTask.environmentId),
-          threadId: String(pendingTask.message.threadId),
-        });
-        return;
-      }
-      navigation.navigate("NewTaskSheet", {
-        screen: "NewTaskDraft",
-        params: {
-          environmentId: String(pendingTask.environmentId),
-          projectId: String(pendingTask.projectId),
-          draftId: pendingTask.draftKey,
-        },
-      });
+      selectThreadRoute(
+        pendingTask.kind === "pending"
+          ? {
+              environmentId: String(pendingTask.environmentId),
+              threadId: String(pendingTask.message.threadId),
+            }
+          : {
+              draft: {
+                environmentId: String(pendingTask.environmentId),
+                projectId: String(pendingTask.projectId),
+                draftId: pendingTask.draftKey,
+              },
+            },
+      );
     },
-    [navigation],
+    [selectThreadRoute],
   );
 
   const confirmDeletePendingTask = useCallback(

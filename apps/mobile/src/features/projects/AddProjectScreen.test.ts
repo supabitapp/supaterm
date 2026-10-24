@@ -38,7 +38,10 @@ vi.mock("react-native", () => ({
   View: "View",
 }));
 vi.mock("@react-navigation/native", () => ({
-  useNavigation: () => ({ dispatch: () => {} }),
+  useNavigation: () => ({
+    dispatch: () => {},
+    getState: () => ({ index: 0, routes: [{ key: "home", name: "Home" }] }),
+  }),
   CommonActions: { reset: (input: unknown) => input },
   StackActions: {},
 }));

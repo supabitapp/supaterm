@@ -166,6 +166,10 @@ export interface ThreadComposerProps {
   readonly projectCwd: string | null;
   /** The thread is still being created; sends queue behind its creation. */
   readonly awaitingCreation: boolean;
+  /** A new thread's draft: it has no server thread yet, so thread-scoped commands are hidden. */
+  readonly isDraft?: boolean;
+  readonly sendBlockedReason?: string | null;
+  readonly interactionLocked?: boolean;
   readonly draftKey?: string;
   readonly queuedEdit?: {
     readonly existingAttachments: ReadonlyArray<ChatAttachment>;
@@ -471,7 +475,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     pullRequestRepository: project?.repositoryIdentity?.displayName ?? null,
     threadPullRequests: props.selectedThread.pullRequests,
     selectedProviderStatus,
-    hasThread: true,
+    hasThread: !props.isDraft,
     hasCompactableConversation: props.hasCompactableConversation,
     onChangeDraftMessage: props.onChangeDraftMessage,
     offersUsageLimits: usageLimitsOffered,
@@ -490,7 +494,8 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       if (canSend) void handleSend();
     },
   });
-  const isSubmissionLocked = queuedEdit?.saving === true || voiceInput.blocksSubmission;
+  const isSubmissionLocked =
+    props.interactionLocked === true || queuedEdit?.saving === true || voiceInput.blocksSubmission;
   const voicePresentation = resolveVoiceComposerPresentation(
     voiceInput.state,
     voiceInput.elapsedSeconds,
@@ -514,6 +519,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const contextImports = useAtomValue(composerContextImportsAtom);
   const sendBlockedReason =
     (queuedEdit?.saving === true ? "Saving…" : null) ??
+    props.sendBlockedReason ??
     (pendingPastedTextAttachmentCount > 0 ? "Attaching pasted text" : null) ??
     attachmentBlockReason;
   const canSubmitDraft =
@@ -588,7 +594,12 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     setComposerEditing(false);
   };
   const handleSend = async (followUp?: ActiveTurnComposerAction) => {
-    if (isSubmissionLocked || pendingPastedTextAttachmentCountRef.current > 0) return;
+    if (
+      isSubmissionLocked ||
+      sendBlockedReason !== null ||
+      pendingPastedTextAttachmentCountRef.current > 0
+    )
+      return;
     if (usageLimitsOffered && isUsageLimitsCommand(draftMessage) && draftAttachments.length === 0) {
       if (openUsageLimits()) onChangeDraftMessage("");
       return;
@@ -895,11 +906,19 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                 environmentId={props.environmentId}
                 onOpenMention={(path) => {
                   Keyboard.dismiss();
-                  navigation.navigate("ThreadFile", {
-                    environmentId: String(props.environmentId),
-                    threadId: String(props.selectedThread.id),
-                    path: fileRoutePathSegments(path),
-                  });
+                  if (props.isDraft) {
+                    navigation.navigate("NewTaskFile", {
+                      environmentId: String(props.environmentId),
+                      cwd: props.projectCwd ?? undefined,
+                      path: fileRoutePathSegments(path),
+                    });
+                  } else {
+                    navigation.navigate("ThreadFile", {
+                      environmentId: String(props.environmentId),
+                      threadId: String(props.selectedThread.id),
+                      path: fileRoutePathSegments(path),
+                    });
+                  }
                 }}
                 onOpenAttachment={openDraftDocument}
                 chipsInert={!isExpanded}

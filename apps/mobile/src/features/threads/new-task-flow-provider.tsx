@@ -1,9 +1,9 @@
+import { ActiveNewTaskContext } from "../../state/active-new-task";
 import * as Dialog from "../../components/ui/Dialog";
 import { resolveFilesystemReadAccess } from "@supaterm/client-runtime/state/filesystem";
 import { useEnvironmentPresentation } from "../../state/presentation";
 import { environmentSession } from "../../state/session";
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useIsFocused } from "@react-navigation/native";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type {
   EnvironmentId,
@@ -71,8 +71,6 @@ import {
   useComposerDraft,
   useStickyComposerModelSelection,
 } from "../../state/use-composer-drafts";
-import { holdNewTaskDraft } from "../../state/use-pending-new-tasks";
-import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
 import {
   capturePendingTaskEditorWriteBaseline,
   flushPendingTaskEditorWrite,
@@ -186,6 +184,7 @@ export function branchBadgeLabel(input: {
 }
 
 type NewTaskFlowContextValue = {
+  readonly activeNewTask: { readonly pendingKey: string | null } | null;
   readonly projectScopes: ReadonlyArray<HomeProjectScope>;
   readonly selectedEnvironmentId: EnvironmentId | null;
   readonly selectedProjectKey: string | null;
@@ -277,7 +276,13 @@ type NewTaskFlowContextValue = {
 
 const NewTaskFlowContext = React.createContext<NewTaskFlowContextValue | null>(null);
 
-export function NewTaskFlowProvider(props: React.PropsWithChildren) {
+export function NewTaskFlowProvider(
+  props: React.PropsWithChildren<{
+    active?: boolean;
+    routeDraftId?: string;
+    routePendingTaskId?: string;
+  }>,
+) {
   const projects = useProjects();
   const threads = useThreadShells();
   const { savedConnectionsById } = useSavedRemoteConnections();
@@ -333,12 +338,14 @@ export function NewTaskFlowProvider(props: React.PropsWithChildren) {
     setSubmittingState(value);
   };
 
-  const reset = () => {
-    cancelEnvironmentSwitch();
+  const reset = useCallback(() => {
+    latestSwitchRef.current = null;
+    setSwitchingToEnvironmentId(null);
     setSelectedEnvironmentId(null);
     setSelectedProjectKey(null);
     setActiveDraftKey(null);
-    setSubmitting(false);
+    submittingRef.current = false;
+    setSubmittingState(false);
     setBranchQuery("");
     setExpandedProvider(null);
     pendingLocalBranchSyncDraftKeysRef.current.clear();
@@ -351,7 +358,7 @@ export function NewTaskFlowProvider(props: React.PropsWithChildren) {
       }
       releaseEditingQueuedMessage(editing.messageId);
     }
-  };
+  }, []);
 
   const projectsForEnvironment = pipe(
     projects,
@@ -482,7 +489,12 @@ export function NewTaskFlowProvider(props: React.PropsWithChildren) {
     [selectedProjectDraftKey, draftProjectKey],
   );
   useEffect(() => {
-    if (activeDraftKey !== null || editingPendingTask !== null || selectedProject === null) {
+    if (
+      props.active === false ||
+      activeDraftKey !== null ||
+      editingPendingTask !== null ||
+      selectedProject === null
+    ) {
       return;
     }
     // oxlint-disable-next-line react/set-state-in-effect -- a draft is created once a project becomes selectable
@@ -492,13 +504,22 @@ export function NewTaskFlowProvider(props: React.PropsWithChildren) {
         projectId: selectedProject.id,
       }),
     );
-  }, [activeDraftKey, editingPendingTask, selectedProject]);
-  const focused = useIsFocused();
-  const { panes } = useAdaptiveWorkspaceLayout();
-  const heldDraftKey = focused && panes.primarySidebarVisible ? selectedProjectDraftKey : null;
-  useEffect(
-    () => (heldDraftKey === null ? undefined : holdNewTaskDraft(heldDraftKey)),
-    [heldDraftKey],
+  }, [activeDraftKey, editingPendingTask, selectedProject, props.active]);
+  const activePendingKey =
+    props.active === false
+      ? null
+      : props.routePendingTaskId
+        ? `pending-task:${props.routePendingTaskId}`
+        : props.routeDraftId
+          ? `draft-task:${props.routeDraftId}`
+          : editingPendingTask
+            ? `pending-task:${editingPendingTask.messageId}`
+            : selectedProjectDraftKey
+              ? `draft-task:${selectedProjectDraftKey}`
+              : null;
+  const activeNewTask = React.useMemo(
+    () => (props.active === false ? null : { pendingKey: activePendingKey }),
+    [props.active, activePendingKey],
   );
   const selectedProjectDraft = useComposerDraft(selectedProjectDraftKey);
   const prompt = selectedProjectDraft.text;
@@ -1206,6 +1227,7 @@ export function NewTaskFlowProvider(props: React.PropsWithChildren) {
   );
 
   const value = {
+    activeNewTask,
     projectScopes,
     selectedEnvironmentId,
     selectedProjectKey,
@@ -1271,7 +1293,11 @@ export function NewTaskFlowProvider(props: React.PropsWithChildren) {
     setExpandedProvider,
   } satisfies NewTaskFlowContextValue;
 
-  return <NewTaskFlowContext.Provider value={value}>{props.children}</NewTaskFlowContext.Provider>;
+  return (
+    <ActiveNewTaskContext value={activeNewTask}>
+      <NewTaskFlowContext.Provider value={value}>{props.children}</NewTaskFlowContext.Provider>
+    </ActiveNewTaskContext>
+  );
 }
 
 export function useNewTaskFlow() {

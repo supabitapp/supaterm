@@ -52,10 +52,9 @@ vi.mock("@react-navigation/native", () => ({
     goBack: transport.goBack,
     canGoBack: () => true,
   }),
-  useIsFocused: () => true,
 }));
-vi.mock("../layout/AdaptiveWorkspaceLayout", () => ({
-  useAdaptiveWorkspaceLayout: () => ({ panes: { primarySidebarVisible: false } }),
+vi.mock("../home/home-thread-navigation", () => ({
+  useHomeThreadRouteSelection: () => (params: object) => transport.navigate("Thread", params),
 }));
 vi.mock("../../state/shell", () => ({ environmentShell: {} }));
 vi.mock("../../state/entities", () => ({

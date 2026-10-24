@@ -94,6 +94,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
 import { useWorkspaceContentWidth } from "../layout/workspace-content-width";
 import { useNativeWorkspaceColumnsSupported } from "../../native/NativeWorkspaceColumns";
 import {
@@ -172,6 +173,18 @@ import { resolveThreadFeedSubmissionAnchor } from "./thread-feed-live-follow";
 import { useGlobalVoiceInput } from "../voice-input/VoiceInputProvider";
 
 export interface ThreadDetailScreenProps {
+  readonly header?: React.ReactNode;
+  readonly draftMode?: {
+    readonly content: (
+      headerInset: number,
+      bottomInset: number,
+      availableHeight: number,
+    ) => React.ReactNode;
+    readonly controls: React.ReactNode;
+    readonly editorRef: React.RefObject<ComposerEditorHandle | null>;
+    readonly sendBlockedReason: string | null;
+    readonly interactionLocked: boolean;
+  };
   readonly worktreeSetup?: WorktreeSetupCardProps | null;
   readonly setupWorkingStartedAt?: string | null;
   readonly canOperateThread: boolean;
@@ -472,6 +485,7 @@ function ThreadVisitWatermark(props: {
 export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetailScreenProps) {
   const usesNativeWorkspaceColumns = useNativeWorkspaceColumnsSupported();
   const navigation = useNavigation();
+  const { selectThreadRoute } = useAdaptiveWorkspaceLayout();
   const { session: voiceInputSession } = useGlobalVoiceInput();
   const { reportedModelSelection, queuedCount, turnSubagents } =
     useSelectedThreadComposerMetadata();
@@ -489,7 +503,7 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
   const browserTabs = useThreadServerBrowserTabs({
     environmentId: props.environmentId,
     threadId: props.selectedThread.id,
-    enabled: props.serverConfig != null,
+    enabled: !props.draftMode && props.serverConfig != null,
   });
   const openBrowserPreview = (tabId?: string) => {
     Keyboard.dismiss();
@@ -559,14 +573,15 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
   });
   const composerError = useAtomValue(threadComposerErrorsAtom)[selectedThreadKey]?.message ?? null;
   const agentsSegment = resolveSubagentPillSegment(turnSubagents);
-  const composerEditorRef = useRef<ComposerEditorHandle>(null);
+  const defaultComposerEditorRef = useRef<ComposerEditorHandle>(null);
+  const composerEditorRef = props.draftMode?.editorRef ?? defaultComposerEditorRef;
   const isProviderSubagent = isProviderNativeSubagentThread(props.selectedThread.source);
   const editingRunId = props.queuedRunEdit?.runId ?? null;
   useEffect(() => {
     if (editingRunId === null) return;
     const frame = requestAnimationFrame(() => composerEditorRef.current?.focus());
     return () => cancelAnimationFrame(frame);
-  }, [editingRunId]);
+  }, [composerEditorRef, editingRunId]);
   const composerOverlayRef = useRef<ViewInstance>(null);
   const listRef = useRef<LegendListRef>(null);
   const feedTouchStartRef = useRef<{ pageX: number; pageY: number } | null>(null);
@@ -716,7 +731,7 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
       environmentLabel: props.environmentLabel,
       onReconnect: props.onReconnectEnvironment,
     });
-    if (connectionStatus !== null && showConnectionStatus) {
+    if (connectionStatus !== null && showConnectionStatus && !props.draftMode) {
       return connectionStatus;
     }
     if (props.activePendingApproval !== null || props.activePendingUserInput !== null) {
@@ -1264,9 +1279,8 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
 
   const handleEditPendingMessage = async (message: QueuedThreadMessage) => {
     if (message.creation) {
-      navigation.navigate("NewTaskSheet", {
-        screen: "NewTaskDraft",
-        params: {
+      selectThreadRoute({
+        draft: {
           environmentId: String(message.environmentId),
           projectId: String(message.creation.projectId),
           pendingTaskId: String(message.messageId),
@@ -1313,7 +1327,8 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
     });
   };
 
-  const showScrollToEndButton = contentPresentationKind === "ready" && !endFollowEnabled;
+  const showScrollToEndButton =
+    !props.draftMode && contentPresentationKind === "ready" && !endFollowEnabled;
   const { themeAppearance } = useAppearancePreferences();
   const isDarkMode = themeAppearance === "dark";
 
@@ -1353,9 +1368,19 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
       <ThreadVisitWatermark
         environmentId={props.environmentId}
         selectedThread={props.selectedThread}
-        showContent={showContent}
+        showContent={showContent && !props.draftMode}
       />
-      {showContent ? (
+      {props.draftMode ? (
+        props.draftMode.content(
+          navigationHeaderHeight,
+          liveKeyboardHeight + estimatedOverlayHeight + 24,
+          screenAreaHeight -
+            navigationHeaderHeight -
+            liveKeyboardHeight -
+            estimatedOverlayHeight -
+            24,
+        )
+      ) : showContent ? (
         <View
           style={{ flex: 1 }}
           onTouchStart={handleFeedTouchStart}
@@ -1660,7 +1685,9 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
                     </View>
                   ) : (
                     <>
+                      {props.draftMode?.controls}
                       <ThreadComposer
+                        isDraft={Boolean(props.draftMode)}
                         canOperateThread={props.canOperateThread}
                         reportedModelSelection={reportedModelSelection}
                         editorRef={composerEditorRef}
@@ -1679,6 +1706,8 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
                         environmentId={props.environmentId}
                         projectCwd={props.threadCwd ?? props.projectWorkspaceRoot}
                         awaitingCreation={clientCreation !== null}
+                        sendBlockedReason={props.draftMode?.sendBlockedReason ?? null}
+                        interactionLocked={props.draftMode?.interactionLocked}
                         draftKey={props.composerDraftKey ?? undefined}
                         followUpBehavior={props.followUpBehavior}
                         canSteerActiveTurn={props.canSteerActiveTurn}

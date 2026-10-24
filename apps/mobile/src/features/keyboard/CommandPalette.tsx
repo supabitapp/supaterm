@@ -1,3 +1,4 @@
+import { uuidv4 } from "../../lib/uuid";
 import { useNavigation } from "@react-navigation/native";
 import type { EnvironmentThreadSearchMatch } from "@supaterm/client-runtime/state/thread-search";
 import {
@@ -149,7 +150,7 @@ export function CommandPalette(props: {
 }) {
   const navigation = useNavigation();
   const { themeVariables } = useAppearancePreferences();
-  const { selectThread } = useAdaptiveWorkspaceLayout();
+  const { selectThread, selectThreadRoute } = useAdaptiveWorkspaceLayout();
   const runCommand = props.onCommand;
   const projects = useProjects();
   const threads = useThreadShells();
@@ -207,14 +208,14 @@ export function CommandPalette(props: {
         kind: "action",
         title: "New thread in…",
         searchTerms: ["new task", "chat", "create", "project"],
-        run: () => navigation.navigate("NewTaskSheet", { screen: "NewTask" }),
+        run: () => runCommand("newTask"),
       },
       {
         key: "addProject",
         kind: "action",
         title: "Add project",
         searchTerms: ["folder", "clone", "repository", "git"],
-        run: () => navigation.navigate("NewTaskSheet", { screen: "AddProject" }),
+        run: () => navigation.navigate("AddProject"),
       },
       {
         key: "settings",
@@ -296,9 +297,9 @@ export function CommandPalette(props: {
         title: `New thread in ${activeProject.title}`,
         searchTerms: ["new task", "chat", "create"],
         run: () =>
-          navigation.navigate("NewTaskSheet", {
-            screen: "NewTaskDraft",
-            params: {
+          selectThreadRoute({
+            draft: {
+              requestId: uuidv4(),
               environmentId: activeProject.environmentId,
               projectId: activeProject.id,
               title: activeProject.title,
@@ -339,9 +340,9 @@ export function CommandPalette(props: {
       detail: `New thread · ${savedConnectionsById[project.environmentId]?.environmentLabel ?? project.environmentId}`,
       searchTerms: [project.workspaceRoot, "new thread", "project"],
       run: () =>
-        navigation.navigate("NewTaskSheet", {
-          screen: "NewTaskDraft",
-          params: {
+        selectThreadRoute({
+          draft: {
+            requestId: uuidv4(),
             environmentId: project.environmentId,
             projectId: project.id,
             title: project.title,
@@ -383,6 +384,7 @@ export function CommandPalette(props: {
     runCommand,
     savedConnectionsById,
     selectThread,
+    selectThreadRoute,
     threads,
   ]);
   const results = useMemo(

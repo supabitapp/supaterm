@@ -5,6 +5,7 @@ import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
 import type { HomeProjectScope } from "../home/homeThreadList";
 import {
   filterProjectScopes,
+  newTaskDestination,
   getProjectScopeSelectionTarget,
   resolveDraftProjectSelection,
   resolveEnvironmentProjectMatch,
@@ -188,5 +189,30 @@ describe("filterProjectScopes", () => {
     expect(matches[0]).toBe(code);
     expect(getProjectScopeSelectionTarget(matches[0]!, EnvironmentId.make("mac"))).toBe(mac);
     expect(code.projects).toEqual([mac, server]);
+  });
+});
+
+describe("newTaskDestination", () => {
+  it("opens the current thread's project directly in split view", () => {
+    const projects = [makeProject("first"), makeProject("current", "other-environment")];
+    expect(newTaskDestination(true, projects, projects[1], "request")).toEqual({
+      draft: { requestId: "request", environmentId: "other-environment", projectId: "current" },
+    });
+  });
+  it("uses an available project when split view has no current project", () => {
+    expect(newTaskDestination(true, [makeProject("first")], undefined, "request")).toEqual({
+      draft: { requestId: "request", environmentId: "environment", projectId: "first" },
+    });
+  });
+  it("keeps the picker when there are no projects", () => {
+    expect(newTaskDestination(true, [], undefined, "request")).toEqual({
+      draft: { requestId: "request" },
+    });
+  });
+  it("opens the same draft route in compact view", () => {
+    const project = makeProject("current");
+    expect(newTaskDestination(false, [project], project, "request")).toEqual({
+      draft: { requestId: "request", environmentId: "environment", projectId: "current" },
+    });
   });
 });
