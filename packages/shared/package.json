@@ -131,6 +131,10 @@
       "types": "./src/favicon.ts",
       "import": "./src/favicon.ts"
     },
+    "./boltFace": {
+      "types": "./src/boltFace.ts",
+      "import": "./src/boltFace.ts"
+    },
     "./Struct": {
       "types": "./src/Struct.ts",
       "import": "./src/Struct.ts"

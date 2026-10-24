@@ -1,4 +1,5 @@
-import { hash, makeGrid } from "./faces";
+import { hash } from "@supaterm/shared/boltFace";
+import { makeGrid } from "./faces";
 import {
   BEVEL,
   GASKET,

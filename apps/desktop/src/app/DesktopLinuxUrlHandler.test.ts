@@ -82,6 +82,7 @@ const layerHandler = (
             png: Option.fromUndefinedOr(input.iconSource),
             ico: Option.none(),
             icns: Option.none(),
+            unlitPng: Option.none(),
           }),
           resolveResourcePath: () => Effect.succeedNone,
         }),
@@ -455,6 +456,7 @@ const registerWithRealFileSystem = (run: ThemeIconRun) =>
                     png: Option.none(),
                     ico: Option.none(),
                     icns: Option.none(),
+                    unlitPng: Option.none(),
                   }),
                   resolveResourcePath: (fileName: string) =>
                     Effect.succeed(

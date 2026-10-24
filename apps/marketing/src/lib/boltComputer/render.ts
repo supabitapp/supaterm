@@ -1,3 +1,4 @@
+import { hash } from "@supaterm/shared/boltFace";
 import {
   GLASS,
   PLATE,
@@ -10,7 +11,7 @@ import {
   newGrid,
   type Bakes,
 } from "./bakes";
-import { FACES, drawSparkles, hash, tear, type BoltComputerState, type Grid } from "./faces";
+import { FACES, drawSparkles, tear, type BoltComputerState, type Grid } from "./faces";
 import {
   BEVEL,
   DEPTH,

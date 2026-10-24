@@ -55,6 +55,7 @@ type IconPlatform = "iOS";
 interface VariantOutputs {
   readonly ios: string;
   readonly macos: string;
+  readonly macosUnlit: string;
   readonly universal: string;
   readonly appleTouch: string;
   readonly favicon16: string;
@@ -230,6 +231,7 @@ const ICON_VARIANTS = [
     outputs: {
       ios: BRAND_ASSET_PATHS.developmentIosIconPng,
       macos: BRAND_ASSET_PATHS.developmentDesktopIconPng,
+      macosUnlit: BRAND_ASSET_PATHS.developmentDesktopUnlitIconPng,
       universal: BRAND_ASSET_PATHS.developmentUniversalIconPng,
       appleTouch: BRAND_ASSET_PATHS.developmentWebAppleTouchIconPng,
       favicon16: BRAND_ASSET_PATHS.developmentWebFavicon16Png,
@@ -244,6 +246,7 @@ const ICON_VARIANTS = [
     outputs: {
       ios: BRAND_ASSET_PATHS.nightlyIosIconPng,
       macos: BRAND_ASSET_PATHS.nightlyMacIconPng,
+      macosUnlit: BRAND_ASSET_PATHS.nightlyMacUnlitIconPng,
       universal: BRAND_ASSET_PATHS.nightlyLinuxIconPng,
       appleTouch: BRAND_ASSET_PATHS.nightlyWebAppleTouchIconPng,
       favicon16: BRAND_ASSET_PATHS.nightlyWebFavicon16Png,
@@ -258,6 +261,7 @@ const ICON_VARIANTS = [
     outputs: {
       ios: BRAND_ASSET_PATHS.productionIosIconPng,
       macos: BRAND_ASSET_PATHS.productionMacIconPng,
+      macosUnlit: BRAND_ASSET_PATHS.productionMacUnlitIconPng,
       universal: BRAND_ASSET_PATHS.productionLinuxIconPng,
       appleTouch: BRAND_ASSET_PATHS.productionWebAppleTouchIconPng,
       favicon16: BRAND_ASSET_PATHS.productionWebFavicon16Png,
@@ -563,6 +567,7 @@ const renderIcon = Effect.fn("iconExport.renderIcon")(function* (
 const renderMacIcon = Effect.fn("iconExport.renderMacIcon")(function* (
   sourcePath: string,
   outputDirectory: string,
+  iconsetImage: string,
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -589,7 +594,28 @@ const renderMacIcon = Effect.fn("iconExport.renderMacIcon")(function* (
       });
     }
   }
-  return Buffer.from(yield* fs.readFile(path.join(iconset, "icon_512x512@2x.png")));
+  return Buffer.from(yield* fs.readFile(path.join(iconset, iconsetImage)));
+});
+
+// The Dock's launch animation lights the bolt LED by LED, between this render and the icon.
+const BOLT_LAYERS = ["04-Phosphor-Glow.svg", "05-Glass-Lightning.svg"] as const;
+const EMPTY_LAYER_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 80 80"/>\n';
+
+const renderUnlitMacIcon = Effect.fn("iconExport.renderUnlitMacIcon")(function* (
+  sourcePath: string,
+  outputDirectory: string,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  // actool names the compiled icon after the project, so the copy keeps the original name.
+  const unlitPath = path.join(outputDirectory, "project", `${MAC_ICON_NAME}.icon`);
+  yield* fs.makeDirectory(path.dirname(unlitPath), { recursive: true });
+  yield* fs.copy(sourcePath, unlitPath);
+  for (const layer of BOLT_LAYERS) {
+    yield* fs.writeFileString(path.join(unlitPath, "Assets", layer), EMPTY_LAYER_SVG);
+  }
+  return yield* renderMacIcon(unlitPath, outputDirectory, "icon_256x256@2x.png");
 });
 
 const renderVariant = Effect.fn("iconExport.renderVariant")(function* (
@@ -644,7 +670,18 @@ const renderVariant = Effect.fn("iconExport.renderVariant")(function* (
     [variant.outputs.ios, ios],
     [
       variant.outputs.macos,
-      yield* renderMacIcon(sourcePath, path.join(temporaryDirectory, `${variant.label}-macos`)),
+      yield* renderMacIcon(
+        sourcePath,
+        path.join(temporaryDirectory, `${variant.label}-macos`),
+        "icon_512x512@2x.png",
+      ),
+    ],
+    [
+      variant.outputs.macosUnlit,
+      yield* renderUnlitMacIcon(
+        sourcePath,
+        path.join(temporaryDirectory, `${variant.label}-macos-unlit`),
+      ),
     ],
     [variant.outputs.universal, ios],
     [variant.outputs.appleTouch, yield* render("iOS", 180)],

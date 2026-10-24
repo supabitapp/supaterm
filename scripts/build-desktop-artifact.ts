@@ -118,6 +118,7 @@ const readWorkspaceConfig = Effect.fn("readWorkspaceConfig")(function* () {
 
 interface DesktopBuildIconAssets {
   readonly macIconPng: string;
+  readonly macUnlitIconPng: string;
   readonly macIconProject: string;
   readonly linuxIconPng: string;
   readonly windowsIconIco: string;
@@ -2143,12 +2144,13 @@ export const stageBrowserSecret = Effect.fn("stageBrowserSecret")(function* (inp
 const stageMacIcons = Effect.fn("stageMacIcons")(function* (
   stageResourcesDir: string,
   sourcePng: string,
+  sourceUnlitPng: string,
   sourceProject: string,
   verbose: boolean,
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  for (const sourcePath of [sourcePng, sourceProject]) {
+  for (const sourcePath of [sourcePng, sourceUnlitPng, sourceProject]) {
     if (!(yield* fs.exists(sourcePath))) {
       return yield* new DesktopIconSourceMissingError({
         platform: "mac",
@@ -2168,6 +2170,7 @@ const stageMacIcons = Effect.fn("stageMacIcons")(function* (
     label: "sips mac icon",
     verbose,
   });
+  yield* fs.copyFile(sourceUnlitPng, path.join(stageResourcesDir, "icon-unlit.png"));
 
   yield* runCommand(ChildProcess.make("xcrun", macIconCompilerArguments(sourceProject, tmpRoot)), {
     label: "compile adaptive macOS icon",
@@ -2394,6 +2397,7 @@ export function resolveDesktopBuildIconAssets(version: string): DesktopBuildIcon
   if (resolveDesktopUpdateChannel(version) === "nightly") {
     return {
       macIconPng: BRAND_ASSET_PATHS.nightlyMacIconPng,
+      macUnlitIconPng: BRAND_ASSET_PATHS.nightlyMacUnlitIconPng,
       macIconProject: BRAND_ASSET_PATHS.nightlyIconComposerProject,
       linuxIconPng: BRAND_ASSET_PATHS.nightlyLinuxIconPng,
       windowsIconIco: BRAND_ASSET_PATHS.nightlyWindowsIconIco,
@@ -2402,6 +2406,7 @@ export function resolveDesktopBuildIconAssets(version: string): DesktopBuildIcon
 
   return {
     macIconPng: BRAND_ASSET_PATHS.productionMacIconPng,
+    macUnlitIconPng: BRAND_ASSET_PATHS.productionMacUnlitIconPng,
     macIconProject: BRAND_ASSET_PATHS.productionIconComposerProject,
     linuxIconPng: BRAND_ASSET_PATHS.productionLinuxIconPng,
     windowsIconIco: BRAND_ASSET_PATHS.productionWindowsIconIco,
@@ -2656,6 +2661,7 @@ const assertPlatformBuildResources = Effect.fn("assertPlatformBuildResources")(f
     yield* stageMacIcons(
       stageResourcesDir,
       iconAssets.macIconPng,
+      iconAssets.macUnlitIconPng,
       iconAssets.macIconProject,
       verbose,
     );
@@ -3469,6 +3475,7 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
     stageResourcesDir,
     {
       macIconPng: path.join(repoRoot, iconAssets.macIconPng),
+      macUnlitIconPng: path.join(repoRoot, iconAssets.macUnlitIconPng),
       macIconProject: path.join(repoRoot, iconAssets.macIconProject),
       linuxIconPng: path.join(repoRoot, iconAssets.linuxIconPng),
       windowsIconIco: path.join(repoRoot, iconAssets.windowsIconIco),
