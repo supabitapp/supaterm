@@ -17,7 +17,7 @@ const GRANT_ID = /^[a-z0-9_-]{1,40}$/;
 const REQUEST_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const COMPLETE_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
-const Credentials = Schema.Struct({
+export const ClaudeCredentials = Schema.Struct({
   claudeAiOauth: Schema.optional(Schema.Struct({ accessToken: Schema.optional(Schema.String) })),
 });
 const Config = Schema.Struct({
@@ -136,20 +136,32 @@ const readJson = Effect.fn("claudeResetCredits.readJson")(function* <S extends S
   );
 });
 
+export const claudeCredentialsAccessToken = (credentials: typeof ClaudeCredentials.Type) =>
+  credentials.claudeAiOauth?.accessToken?.trim() || undefined;
+
+export const readClaudeCredentialsFileToken = Effect.fn("readClaudeCredentialsFileToken")(
+  function* (configDir: string) {
+    const path = yield* Path.Path;
+    return claudeCredentialsAccessToken(
+      yield* readJson(ClaudeCredentials, path.join(configDir, ".credentials.json")),
+    );
+  },
+);
+
 const readAccessToken = Effect.fn("claudeResetCredits.readAccessToken")(function* (
   configDir: string,
 ) {
   if ((yield* HostProcess.Platform) === "darwin") return undefined;
-  const path = yield* Path.Path;
-  const credentials = yield* readJson(Credentials, path.join(configDir, ".credentials.json"));
-  return credentials.claudeAiOauth?.accessToken?.trim() || undefined;
+  return yield* readClaudeCredentialsFileToken(configDir);
 });
+
+export const claudeCliUserAgent = (version: string) => `claude-cli/${version} (external, cli)`;
 
 const withClaudeHeaders = (token: string, version: string) =>
   HttpClientRequest.setHeaders({
     authorization: `Bearer ${token}`,
     "anthropic-beta": "oauth-2025-04-20",
-    "user-agent": `claude-cli/${version} (external, cli)`,
+    "user-agent": claudeCliUserAgent(version),
   });
 
 export const readClaudeResetCredits = Effect.fn("readClaudeResetCredits")(

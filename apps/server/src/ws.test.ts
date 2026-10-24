@@ -1,5 +1,6 @@
 import * as RelayAccess from "./relay/RelayAccess.ts";
 import * as OrchestrationSkills from "./provider/OrchestrationSkills.ts";
+import * as Dictation from "./dictation/Dictation.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import {
@@ -573,6 +574,7 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(AnalyticsService.AnalyticsService)({}),
   Layer.mock(AntigravityInstallation.AntigravityInstallation)({ managedDirectory: "/unused" }),
   Layer.mock(BackgroundPolicy.BackgroundPolicy)({}),
+  Layer.mock(Dictation.Dictation)({ sources: Effect.succeed([]), streamSources: Stream.empty }),
   Layer.mock(CheckpointDiffQuery.CheckpointDiffQuery)({}),
   Layer.mock(CommandOutputHub.CommandOutputHub)({}),
   Layer.mock(CodexInstallation.CodexInstallation)({ managedDirectory: "/unused" }),

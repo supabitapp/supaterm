@@ -8,6 +8,7 @@ import { HttpClient } from "effect/http";
 import { ChildProcessSpawner } from "effect/process";
 
 import { makeClaudeTextGeneration } from "../../textGeneration/ClaudeTextGeneration.ts";
+import { withDevelopmentTranscription } from "../../dictation/developmentTranscription.ts";
 import * as ProviderLatestVersions from "@supaterm/provider-core/server/ProviderLatestVersions";
 import * as ProviderHost from "@supaterm/provider-core/server/ProviderHost";
 import * as ServerConfig from "../../config.ts";
@@ -33,6 +34,7 @@ import { makeManagedServerProvider } from "@supaterm/provider-core/server/manage
 import type { ServerProviderDraft } from "@supaterm/provider-core/server/snapshotProbe";
 import * as ModelCatalog from "@supaterm/provider-core/server/ModelCatalog";
 import { resolveClaudeModelCatalog } from "../ClaudeModelCatalog.ts";
+import { makeClaudeTranscription } from "../ClaudeTranscription.ts";
 import { filterClaudeFastModeModels, makeClaudeFastModeAvailability } from "../ClaudeFastMode.ts";
 import {
   defaultProviderContinuationIdentity,
@@ -113,6 +115,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
     enabled,
     config,
   }) {
+    const host = yield* ProviderHost.ProviderHost;
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
@@ -162,10 +165,8 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
     });
 
     const scopedLimitNames = yield* makeClaudeScopedLimitNames;
-    const fastMode = yield* makeClaudeFastModeAvailability(
-      accountConfigPath,
-      yield* makeClaudeEnvironment(effectiveConfig, processEnv),
-    );
+    const claudeEnvironment = yield* makeClaudeEnvironment(effectiveConfig, processEnv);
+    const fastMode = yield* makeClaudeFastModeAvailability(accountConfigPath, claudeEnvironment);
     const filterFastMode = (provider: ServerProviderDraft) =>
       fastMode.refresh.pipe(
         Effect.map((blocked) => ({
@@ -300,6 +301,16 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
       ),
     );
 
+    const transcription = yield* makeClaudeTranscription({
+      account: snapshot.getSnapshot,
+      configDir,
+      environment: claudeEnvironment,
+      keychainUsageEnabled: host.settings.get.pipe(
+        Effect.map((settings) => settings.claudeKeychainUsageEnabled),
+        Effect.orElseSucceed(() => false),
+      ),
+    }).pipe(Effect.flatMap(withDevelopmentTranscription));
+
     // Same rules as Codex: serialised on the config directory that holds the
     // login, one request id kept until Claude answers (a cooldown or rate
     // limit is an answer), then a re-probe.
@@ -385,6 +396,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
         ),
       orchestrationAdapter,
       textGeneration,
+      transcription,
       consumeResetCredit,
     } satisfies ProviderInstance;
   }),

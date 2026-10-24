@@ -639,6 +639,14 @@ export const SETTINGS_SEARCH_ITEMS = [
     macProviderSettingsOnly: true,
   },
   {
+    id: "claude-keychain-voice",
+    title: "Claude voice input",
+    to: "/settings/providers",
+    searchTerms: ["claude macOS keychain dictation voice transcribe permission"],
+    providerSettingsOnly: true,
+    macProviderSettingsOnly: true,
+  },
+  {
     id: "provider-health-check-interval",
     title: "Health check interval",
     to: "/settings/providers",
