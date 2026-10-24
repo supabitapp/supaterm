@@ -11,7 +11,7 @@ import {
   useNavigation,
   type StaticScreenProps,
 } from "@react-navigation/native";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import * as Option from "effect/Option";
 import {
   AuthOrchestrationOperateScope,
@@ -44,6 +44,12 @@ import { vcsEnvironment } from "../../state/vcs";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { LoadingScreen } from "../../components/LoadingScreen";
 import { scopedThreadKey } from "../../lib/scopedEntities";
+import {
+  finishThreadMessageJump,
+  pendingThreadMessageJump,
+  subscribeThreadMessageJump,
+  type PendingThreadMessageJump,
+} from "./threadMessageJump";
 import { NATIVE_LIQUID_GLASS_SUPPORTED } from "../../native/native-glass";
 import { connectionTone } from "../connection/connectionTone";
 import {
@@ -351,8 +357,25 @@ function ThreadRouteContent(
     ? `${selectedThread.environmentId}:${selectedThread.id}`
     : null;
   const [messageJump, setMessageJump] = useState<
-    (MessageJump & { readonly threadKey: string }) | null
+    (MessageJump & { readonly threadKey: string; readonly fromSearch?: true }) | null
   >(null);
+  // A search result opens its thread at the matched message, through the same jump as a pin.
+  const searchJump = useSyncExternalStore(subscribeThreadMessageJump, () =>
+    selectedThreadKey === null ? null : pendingThreadMessageJump(selectedThreadKey),
+  );
+  const [appliedSearchJump, setAppliedSearchJump] = useState<PendingThreadMessageJump | null>(null);
+  if (searchJump !== null && searchJump !== appliedSearchJump) {
+    setAppliedSearchJump(searchJump);
+    setMessageJump((previous) => ({
+      threadKey: searchJump.threadKey,
+      key: (previous?.key ?? 0) + 1,
+      messageId: searchJump.messageId,
+      fromSearch: true,
+    }));
+  }
+  useEffect(() => {
+    if (appliedSearchJump !== null) finishThreadMessageJump(appliedSearchJump.threadKey);
+  }, [appliedSearchJump]);
   const unpinMessage = (pin: ThreadPinnedMessage) => {
     if (!selectedThread) return;
     void unpinThreadMessage({
@@ -383,6 +406,8 @@ function ThreadRouteContent(
       }
     : undefined;
   const reportMessageJumpFailure: MessageJumpHandlers["fail"] = (jump, failure) => {
+    // A search result whose message is gone still opens its thread, at the end.
+    if (messageJump?.key === jump.key && messageJump.fromSearch) return;
     if (failure === "history-error") {
       Dialog.alert(
         "Could not load the pinned message",

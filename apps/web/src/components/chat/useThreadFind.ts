@@ -12,7 +12,11 @@ import {
   type ThreadFindStart,
   stepThreadFindIndex,
 } from "./threadFind";
-import { subscribeThreadFindOpen } from "./threadFindActionBus";
+import {
+  subscribeThreadFindOpen,
+  subscribeThreadFindQuery,
+  takeThreadFindQuery,
+} from "./threadFindActionBus";
 import { toastManager } from "../ui/toast";
 import { usePaneInputOwner } from "../../chatPanes/paneScope";
 
@@ -102,6 +106,32 @@ export function useThreadFind({
       }),
     [isPaneInputOwner, open],
   );
+  const openOnQuery = useStableCallback((query: string, start?: ThreadFindStart) => {
+    if (threadKey === null) return;
+    setState((previous) => ({
+      ...(previous.threadKey === threadKey ? previous : CLOSED_FIND),
+      threadKey,
+      query,
+      offset: 0,
+      start,
+      localSelection: null,
+      focusRequestId: previous.focusRequestId + 1,
+      navigationId: previous.navigationId + 1,
+      requestId: previous.navigationId + 1,
+    }));
+  });
+  // A palette message result opens find on its query, at its message, once
+  // this thread shows.
+  useEffect(() => {
+    if (threadKey === null || !enabled) return;
+    const take = () => {
+      if (!isPaneInputOwner()) return;
+      const find = takeThreadFindQuery(threadKey);
+      if (find !== null) openOnQuery(find.query, find.start);
+    };
+    take();
+    return subscribeThreadFindQuery(take);
+  }, [enabled, isPaneInputOwner, openOnQuery, threadKey]);
 
   const remote = useServerResults(
     isOpen ? thread : null,

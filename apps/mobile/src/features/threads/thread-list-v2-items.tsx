@@ -686,6 +686,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   );
   const dormant = useSwipeRowDormant(props.activationKey);
 
+  const selectThread = () => onSelectThread(thread);
   const { providerDrivers, providerIconUrl } = useMemo(() => {
     const provider = props.providers?.find(
       (candidate) =>
@@ -1376,7 +1377,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         }}
         onPress={() => {
           close();
-          onSelectThread(thread);
+          selectThread();
         }}
         style={rowAppearance.cardStyle}
       >
@@ -1410,7 +1411,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         className={rowAppearance.className}
         onPress={() => {
           close();
-          onSelectThread(thread);
+          selectThread();
         }}
         style={rowAppearance.style}
       >

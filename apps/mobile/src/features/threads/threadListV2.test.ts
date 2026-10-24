@@ -192,6 +192,54 @@ describe("resolveThreadListV2SwipeActions", () => {
   });
 });
 
+describe("search lists ranked matches", () => {
+  const matchKey = (id: string) =>
+    threadSearchMatchKey({ environmentId, threadId: ThreadId.make(id) });
+
+  it("lists matches by rank across shelves, then threads listed for their messages", () => {
+    const layout = buildThreadListV2Items({
+      threads: [
+        makeThread({ id: ThreadId.make("notes"), title: "Deploy notes" }),
+        makeThread({ id: ThreadId.make("mentioned"), title: "Weekly notes" }),
+        makeThread({ id: ThreadId.make("exact"), title: "Deploy", doneOverride: "done" }),
+      ],
+      environmentId: null,
+      searchQuery: "deploy",
+      matchedThreadKeys: new Set([matchKey("mentioned"), matchKey("notes")]),
+      doneShelfExpanded: false,
+      now: NOW,
+    });
+    // The exact title leads even from a collapsed Done shelf, and keeps its look.
+    expect(layout.items.map((item) => [item.thread.id, item.variant])).toEqual([
+      ["exact", "slim"],
+      ["notes", "card"],
+      ["mentioned", "card"],
+    ]);
+    expect([...layout.contentOnlyThreadKeys]).toEqual([matchKey("mentioned")]);
+  });
+
+  it("shows matches from pinned and collapsed shelves as one list", () => {
+    const layout = buildThreadListV2Items({
+      threads: [
+        makeThread({ id: ThreadId.make("active"), title: "Deploy notes" }),
+        makeThread({ id: ThreadId.make("pinned"), title: "Deploy", pinnedAt: NOW }),
+      ],
+      environmentId: null,
+      searchQuery: "deploy",
+      activeShelfExpanded: false,
+      now: NOW,
+    });
+    const list = buildThreadListV2ListItems({
+      ...layout,
+      pendingTasks: [],
+      activeShelfExpanded: false,
+    });
+    expect(
+      list.map((entry) => (entry.type === "v2-thread" ? entry.item.thread.id : entry.type)),
+    ).toEqual(["pinned", "active"]);
+  });
+});
+
 describe("getThreadListV2OrderedSection", () => {
   it("uses each saved order and excludes done, snoozed, and archived rows", () => {
     const threads = [
@@ -404,15 +452,10 @@ describe("buildThreadListV2Items", () => {
       pendingTasks: [],
       pinnedShelfExpanded: false,
     });
-    expect(filteredList).toEqual([
-      {
-        type: "v2-pinned-shelf",
-        key: "v2-pinned-shelf", // gitleaks:allow -- static list item identity
-        count: 1,
-        expanded: false,
-        disabled: false,
-      },
-    ]);
+    // Search lists its matches without shelves, so a collapsed pin still shows.
+    expect(
+      filteredList.map((entry) => (entry.type === "v2-thread" ? entry.item.thread.id : entry.type)),
+    ).toEqual(["first"]);
     const header = collapsedList[0]!;
     expect(threadListV2ListItemsAreEqual(header, { ...header })).toBe(true);
     if (header.type !== "v2-pinned-shelf") throw new Error("Expected Pinned header");
@@ -818,6 +861,20 @@ describe("buildThreadListV2Items", () => {
     });
 
     expect(items.map((item) => item.thread.id)).toEqual(["included"]);
+  });
+
+  it("forgives a typo even when a hidden thread matches the query exactly", () => {
+    const { items } = buildThreadListV2Items({
+      threads: [
+        makeThread({ id: ThreadId.make("visible"), title: "Restore drag handles" }),
+        makeThread({ id: ThreadId.make("archived"), title: "Drga notes", archivedAt: NOW }),
+      ],
+      environmentId: null,
+      searchQuery: "drga",
+      now: NOW,
+    });
+
+    expect(items.map((item) => item.thread.id)).toEqual(["visible"]);
   });
 
   it("scopes the flat list to every environment member of a logical project", () => {
@@ -1436,16 +1493,12 @@ describe("pending mobile thread moves", () => {
     return { rows, assignments, pending, update };
   }
 
-  function layout(
-    rows: EnvironmentThreadShell[],
-    pendingOrder: PendingThreadOrder | null,
-    searchQuery = "",
-  ) {
+  function layout(rows: EnvironmentThreadShell[], pendingOrder: PendingThreadOrder | null) {
     return buildThreadListV2Items({
       threads: rows,
       pendingOrder,
       environmentId: null,
-      searchQuery,
+      searchQuery: "",
       now: NOW,
     }).items.map((item) => item.thread.id);
   }
@@ -1481,12 +1534,6 @@ describe("pending mobile thread moves", () => {
       expect(hold === null).toBe(index === assignments.length - 1);
       expect(layout(current, hold)).toEqual(pending.orderedIds.map((id) => id.split(":")[1]));
     }
-  });
-
-  it("keeps search results in the full pending section order", () => {
-    const { rows, assignments, pending, update } = fixture("pinned");
-    const current = update(update(rows, assignments[0]!), assignments[1]!);
-    expect(layout(current, pending, "match")).toEqual(["c", "b"]);
   });
 
   it("releases for real section membership and foreign key changes", () => {

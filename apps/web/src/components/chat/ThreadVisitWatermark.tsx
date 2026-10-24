@@ -1,5 +1,6 @@
 import { type ScopedThreadRef } from "@supaterm/contracts";
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
+import { claimThreadOpen } from "@supaterm/client-runtime/state/thread-search";
 import { useEffect, useRef } from "react";
 import { useIsPaneInputOwner } from "../../chatPanes/paneScope";
 import { threadEnvironment } from "../../state/threads";
@@ -22,6 +23,37 @@ export function ThreadVisitWatermark(props: { readonly threadRef: ScopedThreadRe
   const visitThreadMutation = useAtomCommand(threadEnvironment.visit, { reportFailure: false });
   const lastDispatchedVisitRef = useRef<string | null>(null);
   const lastVisitDispatchAtRef = useRef(0);
+  const recordedOpenRef = useRef<string | null>(null);
+
+  // Opening a thread is one visit that also counts toward search ranking. A
+  // palette pick already sent it with the query. It runs before the watermark
+  // effect, which then sees this watermark as sent. A split pane opens once the user is in it.
+  useEffect(() => {
+    if (!reading || !serverThread?.id) return;
+    if (recordedOpenRef.current === threadKey) return;
+    recordedOpenRef.current = threadKey;
+    // Recorded here even when the server cannot take opens, so recents follow it.
+    const claimed = claimThreadOpen(serverThread.environmentId, serverThread.id, Date.now());
+    if (!claimed || serverThread.lastVisitedAt === undefined) return;
+    lastDispatchedVisitRef.current = `${threadKey}:${serverThread.updatedAt}`;
+    lastVisitDispatchAtRef.current = Date.now();
+    void visitThreadMutation({
+      environmentId: serverThread.environmentId,
+      input: {
+        threadId: serverThread.id,
+        visitedAt: serverThread.updatedAt,
+        opened: true,
+      },
+    });
+  }, [
+    reading,
+    threadKey,
+    serverThread?.environmentId,
+    serverThread?.id,
+    serverThread?.lastVisitedAt,
+    serverThread?.updatedAt,
+    visitThreadMutation,
+  ]);
 
   useEffect(() => {
     if (!reading || !serverThread?.id || serverThread.lastVisitedAt === undefined) return;

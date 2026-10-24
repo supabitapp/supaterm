@@ -4,7 +4,6 @@ import {
   type ThreadGroupingProject,
 } from "@supaterm/client-runtime/state/thread-grouping";
 import type { SidebarThreadGrouping } from "@supaterm/contracts";
-import { threadPullRequestSearchTerms } from "@supaterm/shared/threadPullRequests";
 import {
   canSnooze,
   effectiveSnoozed,
@@ -17,7 +16,15 @@ import {
 import type { SnoozePreset } from "@supaterm/client-runtime/state/thread-snooze";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import { resolveThreadProviderStack } from "@supaterm/client-runtime/state/models";
-import { threadSearchMatchKey } from "@supaterm/client-runtime/state/thread-search";
+import {
+  threadSearchMatchKey,
+  threadSearchSubject,
+} from "@supaterm/client-runtime/state/thread-search";
+import {
+  foldSearchQuery,
+  rankSearchItems,
+  scoreThreadSearch,
+} from "@supaterm/shared/paletteSearch";
 import {
   createInboxReturnTracker,
   isThreadWorking,
@@ -302,6 +309,10 @@ export interface ThreadListV2Layout {
       a timeout at this boundary so the list re-partitions the moment a
       snooze expires instead of on the next minute tick. */
   readonly nextSnoozeWakeAt: string | null;
+  /** `items` are one ranked list of search matches, without shelves. */
+  readonly searchResults: boolean;
+  /** Threads listed only because their messages match the search. */
+  readonly contentOnlyThreadKeys: ReadonlySet<string>;
 }
 
 export interface ThreadListV2ThreadListItem {
@@ -489,6 +500,7 @@ function resolveThreadListV2ItemTimeLabel(
 export function buildThreadListV2ListItems(input: {
   readonly items: ReadonlyArray<ThreadListV2Item>;
   readonly pendingTasks: ReadonlyArray<PendingNewTask>;
+  readonly searchResults?: boolean;
   readonly pinnedCount?: number;
   readonly pinnedShelfExpanded?: boolean;
   readonly activeCount?: number;
@@ -549,6 +561,9 @@ export function buildThreadListV2ListItems(input: {
       showPendingDivider: sectionItems.length === 0,
       showTrailingDivider: false,
     });
+  }
+  if (input.searchResults === true) {
+    return withTrailingDividers([...draftItems, ...pendingItems, ...threadItems]);
   }
   const workingCount = input.workingCount ?? 0;
   const workingShelfHeaderIndex = input.workingShelfHeaderIndex ?? null;
@@ -647,6 +662,10 @@ export function buildThreadListV2ListItems(input: {
       });
     }
   }
+  return withTrailingDividers(result);
+}
+
+function withTrailingDividers(result: ThreadListV2ListItem[]): ThreadListV2ListItem[] {
   return result.map((entry, index) => {
     if (entry.type !== "v2-thread" && entry.type !== "v2-pending") return entry;
     const next = result[index + 1];
@@ -724,7 +743,8 @@ export function buildThreadListV2Items(input: {
             pendingOrder: null,
           }),
         );
-  const query = input.searchQuery.trim().toLocaleLowerCase();
+  const query = foldSearchQuery(input.searchQuery);
+  const nowMs = Date.parse(now);
   const projectKeys = input.projectRefs
     ? new Set(input.projectRefs.map((ref) => `${ref.environmentId}:${ref.projectId}`))
     : null;
@@ -737,27 +757,36 @@ export function buildThreadListV2Items(input: {
   let nextSnoozeWakeAt: string | null = null;
 
   const queuedThreadKeys = input.queuedThreadKeys?.size ? input.queuedThreadKeys : undefined;
-  for (const thread of input.threads) {
-    if (thread.archivedAt !== null || thread.lineage.relationshipToParent === "subagent") continue;
-    // The server stamps doneOverride for the tail.
-    if (input.environmentId !== null && thread.environmentId !== input.environmentId) continue;
-    if (projectKeys !== null && !projectKeys.has(`${thread.environmentId}:${thread.projectId}`)) {
-      continue;
-    }
-    if (
-      query.length > 0 &&
-      !thread.title.toLocaleLowerCase().includes(query) &&
-      !threadPullRequestSearchTerms(thread).some((term) =>
-        term.toLocaleLowerCase().includes(query),
-      ) &&
-      input.matchedThreadKeys?.has(
-        threadSearchMatchKey({
-          environmentId: thread.environmentId,
-          threadId: thread.id,
-        }),
-      ) !== true
-    ) {
-      continue;
+  const listedThreads = input.threads.filter(
+    (thread) =>
+      thread.archivedAt === null &&
+      thread.lineage.relationshipToParent !== "subagent" &&
+      (input.environmentId === null || thread.environmentId === input.environmentId) &&
+      (projectKeys === null || projectKeys.has(`${thread.environmentId}:${thread.projectId}`)),
+  );
+  // The same matches as the command palette, typo fallback included. Only
+  // listed threads are ranked: a hidden exact match must not turn typos off.
+  const rankedMatches =
+    query.length > 0
+      ? rankSearchItems(listedThreads, (thread, options) =>
+          scoreThreadSearch(query, threadSearchSubject(thread, null), nowMs, {
+            ...options,
+            picks: false,
+          }),
+        ).map(({ item }) => item)
+      : null;
+  const matchingThreads = rankedMatches === null ? null : new Set(rankedMatches);
+  // Threads listed only because their messages match; only their rows show
+  // the message and open at it.
+  const contentOnlyThreadKeys = new Set<string>();
+  for (const thread of listedThreads) {
+    if (matchingThreads !== null && !matchingThreads.has(thread)) {
+      const key = threadSearchMatchKey({
+        environmentId: thread.environmentId,
+        threadId: thread.id,
+      });
+      if (input.matchedThreadKeys?.has(key) !== true) continue;
+      contentOnlyThreadKeys.add(key);
     }
     // Snooze outranks completion and pinning until the thread wakes.
     if (effectiveSnoozed(thread, { now })) {
@@ -773,6 +802,7 @@ export function buildThreadListV2Items(input: {
     }
     const hasQueuedMessages =
       queuedThreadKeys?.has(`${thread.environmentId}:${thread.id}`) === true;
+    // The server stamps doneOverride for the tail.
     if (thread.doneOverride === "done" && !hasQueuedMessages) {
       done.push(thread);
     } else if (thread.pinnedAt != null) {
@@ -782,6 +812,49 @@ export function buildThreadListV2Items(input: {
     } else {
       active.push(thread);
     }
+  }
+
+  if (rankedMatches !== null) {
+    // Searching lists every match by rank across shelves, as the palette
+    // does, then threads listed for their messages in the server's order.
+    // Each row keeps its shelf's look.
+    const slim = new Set([...snoozed, ...done]);
+    const snoozedThreads = new Set(snoozed);
+    const pinnedThreads = new Set(pinned);
+    const threadByKey = new Map(
+      listedThreads.map((thread) => [
+        threadSearchMatchKey({ environmentId: thread.environmentId, threadId: thread.id }),
+        thread,
+      ]),
+    );
+    const contentOnly = [...(input.matchedThreadKeys ?? [])].flatMap((key) => {
+      const thread = contentOnlyThreadKeys.has(key) ? threadByKey.get(key) : undefined;
+      return thread ? [thread] : [];
+    });
+    const results = [...rankedMatches, ...contentOnly];
+    return {
+      items: results.map((thread, index) => ({
+        thread,
+        variant: slim.has(thread) ? "slim" : "card",
+        snoozed: snoozedThreads.has(thread),
+        pinned: pinnedThreads.has(thread),
+        wokeAt: slim.has(thread) ? null : resolveThreadListV2WokeAt(thread, { now }),
+        isLast: index === results.length - 1,
+      })),
+      searchResults: true,
+      hiddenDoneCount: 0,
+      pinnedCount: 0,
+      activeCount: 0,
+      workingCount: 0,
+      workingShelfHeaderIndex: null,
+      inboxGroups: null,
+      snoozedCount: 0,
+      snoozedShelfHeaderIndex: null,
+      doneCount: 0,
+      doneShelfHeaderIndex: null,
+      nextSnoozeWakeAt,
+      contentOnlyThreadKeys,
+    };
   }
 
   // The inbox orders by when each thread came back to the user, not the saved
@@ -935,5 +1008,7 @@ export function buildThreadListV2Items(input: {
     doneCount: orderedDone.length,
     doneShelfHeaderIndex,
     nextSnoozeWakeAt,
+    searchResults: false,
+    contentOnlyThreadKeys,
   };
 }

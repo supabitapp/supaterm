@@ -213,6 +213,7 @@ import {
   isContextHandoffActivityGroup,
   type ThreadFeedEntry,
   type ThreadFeedLatestRun,
+  messageFoldRunId,
 } from "../../lib/threadActivity";
 import type { ThreadContentPresentation } from "./threadContentPresentation";
 import {
@@ -3034,7 +3035,8 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   const [advanceMessageJump] = useState(createMessageJumpRunner);
   const { messageJump = null, onMessageJumpFailed } = props;
   useEffect(() => {
-    if (!messageJump) return;
+    // A thread opened at a message waits for the list's own initial positioning.
+    if (!messageJump || feedLoading) return;
     const isTarget = (entry: ThreadFeedEntry) =>
       entry.type === "message" && entry.message.id === messageJump.messageId;
     advanceMessageJump(
@@ -3055,9 +3057,8 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
             viewOffset: anchorTopInset + 8,
           });
         },
-        unfold: () => {
-          const source = props.feed.find(isTarget);
-          const runId = source?.type === "message" ? source.message.runId : null;
+        unfold: (messageId) => {
+          const runId = messageFoldRunId(props.feed, messageId);
           if (!runId) return;
           setInteractionState((current) => ({
             ...current,
@@ -3071,6 +3072,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   }, [
     advanceMessageJump,
     anchorTopInset,
+    feedLoading,
     listRef,
     messageJump,
     onMessageJumpFailed,

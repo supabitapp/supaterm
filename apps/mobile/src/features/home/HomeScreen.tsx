@@ -11,10 +11,7 @@ import {
   type EnvironmentProject,
   type EnvironmentThreadShell,
 } from "@supaterm/client-runtime/state/shell";
-import {
-  threadSearchMatchKey,
-  type EnvironmentThreadSearchMatch,
-} from "@supaterm/client-runtime/state/thread-search";
+import { threadSearchMatchKey } from "@supaterm/client-runtime/state/thread-search";
 import { type EnvironmentId, type SidebarProjectGroupingMode } from "@supaterm/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import { useFocusEffect } from "@react-navigation/native";
@@ -56,6 +53,8 @@ import {
 import { NATIVE_LIQUID_GLASS_SUPPORTED } from "../../native/native-glass";
 import { useNativeWorkspaceColumnsSupported } from "../../native/NativeWorkspaceColumns";
 import { useThreadSearch } from "../../state/queries";
+import { requestThreadMessageJump } from "../threads/threadMessageJump";
+import { useThreadListSearchMatches } from "../threads/useThreadListSearchMatches";
 import { useThreadJumpShortcuts } from "../keyboard/threadKeyboardShortcuts";
 import { usePendingThreadOrder } from "../../state/thread-order";
 import { threadListEnvironmentsAtom } from "../../state/server";
@@ -311,16 +310,8 @@ export function HomeScreen(props: HomeScreenProps) {
     searchEnvironmentIds,
     tabActivity?.active === false ? "" : props.searchQuery,
   );
-  const threadSearchMatchByKey = (() => {
-    const matches = new Map<string, EnvironmentThreadSearchMatch>();
-    for (const match of threadSearch.matches) {
-      if (match.source === "user" || match.source === "assistant") {
-        matches.set(threadSearchMatchKey(match), match);
-      }
-    }
-    return matches;
-  })();
-  const matchedThreadKeys = new Set(threadSearch.matches.map(threadSearchMatchKey));
+  const threadSearchMatchByKey = useThreadListSearchMatches(props.threads, threadSearch);
+  const matchedThreadKeys = new Set(threadSearchMatchByKey.keys());
   const handleSwipeableWillOpen = (methods: SwipeableMethods) => {
     if (openSwipeableRef.current !== methods) {
       openSwipeableRef.current?.close();
@@ -568,7 +559,19 @@ export function HomeScreen(props: HomeScreenProps) {
     shelfPreferencesLoading: !shelfPreferencesLoaded,
   });
 
-  useThreadJumpShortcuts(threadListV2Items, props.onSelectThread);
+  // A row listed for a message match opens the thread at that message, by
+  // tap or by shortcut.
+  const selectThread = (thread: EnvironmentThreadShell) => {
+    const key = threadSearchMatchKey({ environmentId: thread.environmentId, threadId: thread.id });
+    const messageId = threadListV2Layout.contentOnlyThreadKeys.has(key)
+      ? threadSearchMatchByKey.get(key)?.messageId
+      : undefined;
+    if (messageId) {
+      requestThreadMessageJump(scopedThreadKey(thread.environmentId, thread.id), messageId);
+    }
+    props.onSelectThread(thread);
+  };
+  useThreadJumpShortcuts(threadListV2Items, selectThread);
   useEffect(() => {
     if (swipeEnabled) activateVisibleRows(threadListV2Items);
   }, [activateVisibleRows, swipeEnabled, threadListV2Items]);
@@ -716,14 +719,18 @@ export function HomeScreen(props: HomeScreenProps) {
             : null
         }
         environmentMachine={machineByEnvironmentId.get(thread.environmentId)}
-        searchMatch={threadSearchMatchByKey.get(
-          threadSearchMatchKey({
-            environmentId: thread.environmentId,
-            threadId: thread.id,
-          }),
-        )}
-        searchQuery={props.searchQuery}
-        onSelectThread={props.onSelectThread}
+        searchMatch={
+          // Only rows listed for their messages show one and open at it.
+          threadListV2Layout.contentOnlyThreadKeys.has(
+            threadSearchMatchKey({ environmentId: thread.environmentId, threadId: thread.id }),
+          )
+            ? threadSearchMatchByKey.get(
+                threadSearchMatchKey({ environmentId: thread.environmentId, threadId: thread.id }),
+              )
+            : undefined
+        }
+        searchQuery={threadSearch.query}
+        onSelectThread={selectThread}
         onOpenThreadPullRequests={handleOpenThreadPullRequests}
         onDeleteThread={handleDeleteThread}
         onArchiveThread={props.onArchiveThread}

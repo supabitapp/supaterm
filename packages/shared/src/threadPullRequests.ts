@@ -288,22 +288,50 @@ export function resolveThreadPullRequestBadge(
   return { kind: "pull-request", others: visible.length - 1, state };
 }
 
+export interface ThreadSearchPullRequest {
+  readonly number: number;
+  readonly title: string | null;
+  /** `owner/repo#123` and the pull request URL, matched only by a whole query. */
+  readonly references: ReadonlyArray<string>;
+}
+
+const SEARCHED_PULL_REQUEST_TITLES = 3;
+
+/** Pull requests thread search matches by number, title, and reference. */
+export function threadSearchPullRequests(thread: {
+  readonly pullRequests?: ReadonlyArray<ThreadPullRequestLink> | undefined;
+  readonly branchPullRequest?: ThreadLinkedPullRequest | null | undefined;
+}): ThreadSearchPullRequest[] {
+  const entry = (
+    link: Pick<ThreadLinkedPullRequest, "number" | "repository" | "url">,
+    title: string | null,
+  ): ThreadSearchPullRequest => ({
+    number: link.number,
+    title,
+    references: [`${link.repository}#${link.number}`, link.url],
+  });
+  const branch = thread.branchPullRequest ? [entry(thread.branchPullRequest, null)] : [];
+  // Every pull request matches by number and link, but only the newest few
+  // by title: a triage thread linked to dozens would match almost any word.
+  const newestFirst = [...visibleThreadPullRequests(thread.pullRequests ?? [])].sort(
+    (left, right) => latestUpdatedAt(right) - latestUpdatedAt(left),
+  );
+  return branch.concat(
+    newestFirst.map((link, index) =>
+      entry(link, index < SEARCHED_PULL_REQUEST_TITLES ? (link.snapshot?.title ?? null) : null),
+    ),
+  );
+}
+
 export function threadPullRequestSearchTerms(thread: {
   readonly pullRequests?: ReadonlyArray<ThreadPullRequestLink> | undefined;
   readonly branchPullRequest?: ThreadLinkedPullRequest | null | undefined;
 }): string[] {
-  const branch = thread.branchPullRequest;
-  const terms = branch
-    ? [`#${branch.number}`, `${branch.repository}#${branch.number}`, branch.url]
-    : [];
-  return terms.concat(
-    visibleThreadPullRequests(thread.pullRequests ?? []).flatMap((link) => [
-      `#${link.number}`,
-      `${link.repository}#${link.number}`,
-      link.url,
-      link.snapshot?.title ?? "",
-    ]),
-  );
+  return threadSearchPullRequests(thread).flatMap((pullRequest) => [
+    `#${pullRequest.number}`,
+    ...pullRequest.references,
+    ...(pullRequest.title ? [pullRequest.title] : []),
+  ]);
 }
 
 export function threadPullRequestsOf(thread: {
