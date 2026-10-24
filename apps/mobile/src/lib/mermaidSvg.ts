@@ -67,8 +67,13 @@ export function nativeDiagramStyles(root: XmlAST, palette: Readonly<Record<strin
         continue;
       }
       if (typeof value !== "string") continue;
-      const resolved = resolve(value);
-      node.props[key] = resolved.replace(/\bcurrentColor\b/gi, ownColor);
+      const resolved = resolve(value).replace(/\bcurrentColor\b/gi, ownColor);
+      // react-native-svg drops a url() paint that carries a fallback colour, and reads font sizes
+      // as numbers: iOS draws "smaller" at 0px and Android throws.
+      node.props[key] =
+        key === "fontSize" && resolved === "smaller"
+          ? "0.83em"
+          : resolved.replace(/^(url\(#[^)]+\))\s.+$/, "$1");
     }
     node.children = node.children.map((child) => {
       if (typeof child === "string") {

@@ -1332,8 +1332,8 @@ importers:
   packages/mermaid:
     dependencies:
       pele:
-        specifier: 1.8.0
-        version: 1.8.0
+        specifier: 1.9.0
+        version: 1.9.0
     devDependencies:
       '@types/node':
         specifier: 24.12.4
@@ -9396,8 +9396,8 @@ packages:
     resolution: {integrity: sha512-eRWB5LBz7PpDu4PUlwT0PhnQfTQJlDDdPa35urV4Osrm0t0AqQFGn+UIkU3klZvwJ8KPO3VbBFsXquA6p6kqZw==}
     engines: {node: '>=12', npm: '>=6'}
 
-  pele@1.8.0:
-    resolution: {integrity: sha512-AYmHttE70cwNJVXdfPMCANGivFlmc3bGGpMG0GqH5S5vE3RgtEuLlkqbhRfe94Csv/ZEd1TUbv2dMUHpw4p1Bg==}
+  pele@1.9.0:
+    resolution: {integrity: sha512-KUmBt7P5JduVKQaP6FKfXiRgH3LBVIKsmdgPJZU7jD3ye6F+Z8fbms+OjivE7rWY09Qx+5X65VKe/9ywKFJ9Sw==}
     engines: {node: '>=20'}
 
   pend@1.2.0:
@@ -19306,7 +19306,7 @@ snapshots:
 
   pe-library@0.4.1: {}
 
-  pele@1.8.0: {}
+  pele@1.9.0: {}
 
   pend@1.2.0: {}
 
