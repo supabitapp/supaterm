@@ -11,7 +11,7 @@ const StoredPendingClip = Schema.Struct({
   id: Schema.String,
   ownerKey: Schema.String,
   environmentId: EnvironmentId,
-  sourceId: Schema.NullOr(DictationSourceId),
+  sourceId: DictationSourceId,
   mimeType: Schema.String,
   durationMs: Schema.Number,
   locale: Schema.NullOr(Schema.String),
@@ -189,7 +189,7 @@ export function loadPendingClips(): Promise<void> {
 export async function parkPendingClip(input: {
   readonly ownerKey: string;
   readonly environmentId: EnvironmentId;
-  readonly sourceId: DictationSourceId | null;
+  readonly sourceId: DictationSourceId;
   readonly blob: Blob;
   readonly mimeType: string;
   readonly durationMs: number;

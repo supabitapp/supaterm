@@ -39,12 +39,20 @@ function publish(next: Map<string, PendingVoiceRecording>): void {
   for (const listener of listeners) listener();
 }
 
-function persist(recording: PendingVoiceRecording): void {
+function sidecarFile(id: string): File {
+  return new File(recordingsDirectory(), `${id}${SIDECAR_EXTENSION}`);
+}
+
+function writeSidecar(recording: PendingVoiceRecording): void {
   const { capturedDraft: _, ...stored } = recording;
+  const sidecar = sidecarFile(recording.id);
+  if (!sidecar.exists) sidecar.create();
+  sidecar.writeSync(JSON.stringify(stored));
+}
+
+function persist(recording: PendingVoiceRecording): void {
   try {
-    const sidecar = new File(recordingsDirectory(), `${recording.id}${SIDECAR_EXTENSION}`);
-    if (!sidecar.exists) sidecar.create();
-    sidecar.writeSync(JSON.stringify(stored));
+    writeSidecar(recording);
   } catch (error) {
     console.warn("[voice-input] could not save a recording's details", error);
   }
@@ -109,7 +117,6 @@ export async function parkPendingVoiceRecording(input: {
 }): Promise<PendingVoiceRecording> {
   await loadPendingVoiceRecordings();
   const fileName = `${input.id}.${input.format.extension}`;
-  new File(input.uri).moveSync(new File(recordingsDirectory(), fileName));
   const recording: PendingVoiceRecording = {
     id: input.id,
     ownerKey: input.ownerKey,
@@ -127,7 +134,15 @@ export async function parkPendingVoiceRecording(input: {
     ...input.state,
     capturedDraft: input.capturedDraft,
   };
-  persist(recording);
+  // Restoring deletes audio without details, so the details land first and the
+  // recording only counts as saved once both are on disk.
+  writeSidecar(recording);
+  try {
+    new File(input.uri).moveSync(new File(recordingsDirectory(), fileName));
+  } catch (error) {
+    deleteQuietly(sidecarFile(recording.id));
+    throw error;
+  }
   publish(new Map(records).set(recording.id, recording));
   return recording;
 }

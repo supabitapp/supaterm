@@ -1,4 +1,10 @@
-import { CommandId, EnvironmentId, MessageId, ThreadId } from "@supaterm/contracts";
+import {
+  CommandId,
+  DictationSourceId,
+  EnvironmentId,
+  MessageId,
+  ThreadId,
+} from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
 import { describe, expect, it } from "vite-plus/test";
 
@@ -104,7 +110,8 @@ describe("stored thread outbox compatibility", () => {
       locale: "en-US",
       insertAt: 4,
       capturedAt: "2026-10-09T00:00:00Z",
-      sourceId: "codex:codex",
+      sourceId: DictationSourceId.make("codex:codex"),
+      transcriptionEnvironmentId: EnvironmentId.make("environment"),
     };
     const saved = encodeStoredOutboxEntry({
       ...queuedWorktree(),

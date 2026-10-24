@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { AsyncResult } from "effect/reactivity";
 import {
   CommandId,
+  DictationSourceId,
   EnvironmentId,
   MessageId,
   PlanId,
@@ -26,6 +27,7 @@ const harness = vi.hoisted(() => ({
   availability: vi.fn(),
   transcribe: vi.fn(),
   park: vi.fn(),
+  discardClip: vi.fn(),
   draftPrompt: "",
   setPrompt: vi.fn(),
 }));
@@ -121,6 +123,7 @@ vi.mock("../dictation/transcribeClip", async (importOriginal) => ({
 }));
 vi.mock("../dictation/pendingClips", () => ({
   parkPendingClip: (...args: unknown[]) => harness.park(...args),
+  discardPendingClip: (...args: unknown[]) => harness.discardClip(...args),
 }));
 vi.mock("../lib/imageCompression", () => ({
   readFileAsDataUrl: async (file: File) => `data:${file.type};base64,${btoa(await file.text())}`,
@@ -249,7 +252,8 @@ function recording(): Omit<typeof OutboxTurnVoice.Type, "insertAt"> {
     durationMs: 2_000,
     locale: "en-US",
     capturedAt: "2026-10-20T00:00:00Z",
-    sourceId: null,
+    sourceId: DictationSourceId.make("codex:codex"),
+    transcriptionEnvironmentId: EnvironmentId.make("environment"),
   };
 }
 
@@ -264,7 +268,7 @@ beforeEach(() => {
   harness.draftPrompt = "";
   harness.availability.mockReturnValue({ kind: "available", source: { id: "codex:codex" } });
   harness.transcribe.mockResolvedValue({ text: "the login bug", sourceId: "codex:codex" });
-  harness.park.mockResolvedValue({ id: "parked-clip" });
+  harness.park.mockResolvedValue({ id: "parked-clip", persisted: true });
   harness.run.mockResolvedValue(AsyncResult.success({ sequence: 1 }));
   harness.verify.mockResolvedValue({ status: "verified" });
 });
@@ -912,7 +916,7 @@ describe("web thread outbox delivery", () => {
           createThread: { ...task.input.bootstrap.createThread, title: VOICE_SLOT },
         },
       },
-      voice: { ...recording(), sourceId: "codex:recorded" },
+      voice: { ...recording(), sourceId: DictationSourceId.make("codex:recorded") },
     });
     expect(harness.records.get("message")?.payload.input).toMatchObject({
       titleSeed: "New thread",
@@ -985,6 +989,21 @@ describe("web thread outbox delivery", () => {
       error: "Recording upload disconnected.",
     });
     expect(harness.run).not.toHaveBeenCalled();
+  });
+
+  it("keeps a voice message queued when its recording can't be saved to the composer", async () => {
+    const { enqueueThreadOutboxTurn, moveThreadOutboxTurnToComposer, webThreadOutbox } =
+      await import("./threadOutbox");
+    harness.park.mockResolvedValueOnce({ id: "unsaved-clip", persisted: false });
+    await enqueueThreadOutboxTurn(voiceTarget(`Check this ${VOICE_SLOT}`));
+
+    await expect(moveThreadOutboxTurnToComposer(webThreadOutbox.getSnapshot()[0]!)).rejects.toThrow(
+      "stays queued",
+    );
+
+    expect(harness.records.size).toBe(1);
+    expect(harness.discardClip).toHaveBeenCalledWith("unsaved-clip");
+    expect(harness.setPrompt).not.toHaveBeenCalled();
   });
 
   it("moves a queued voice message back to its composer with its recording", async () => {

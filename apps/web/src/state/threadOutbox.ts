@@ -25,7 +25,6 @@ import {
   CommandId,
   ChatAttachment,
   AttachmentCreateUploadUrlInput,
-  DictationSourceId,
   type EnvironmentId,
   type ScopedThreadRef,
 } from "@supaterm/contracts";
@@ -45,7 +44,7 @@ import {
   restoreFailedBackgroundDraftThread,
   useComposerDraftStore,
 } from "../composerDraftStore";
-import { parkPendingClip } from "../dictation/pendingClips";
+import { discardPendingClip, parkPendingClip } from "../dictation/pendingClips";
 import { transcribeDictationClip } from "../dictation/transcribeClip";
 import { attachmentEnvironment } from "./attachments";
 import { readDictationAvailability } from "./dictation";
@@ -63,7 +62,6 @@ import { fetchVcsRefs } from "./vcs";
 const decodeUpload = Schema.decodeUnknownSync(AttachmentCreateUploadUrlInput);
 const decodeAttachment = Schema.decodeSync(ChatAttachment);
 const decodeTurn = Schema.decodeSync(OutboxTurn);
-const isDictationSourceId = Schema.is(DictationSourceId);
 
 export type PendingThreadTurn = ThreadOutboxEntry<OutboxTurn>;
 
@@ -170,24 +168,14 @@ async function transcribeOutboxVoice(
 ) {
   if (voice.bytes === null)
     throw new DictationClipFailure("terminal", "The recording is no longer available.");
-  const environmentId = voice.transcriptionEnvironmentId ?? payload.environmentId;
+  const environmentId = voice.transcriptionEnvironmentId;
   const availability = readDictationAvailability(environmentId);
   if (availability.kind === "hidden" && availability.reason !== "unknown")
     throw new DictationClipFailure("terminal", DICTATION_UNAVAILABLE[availability.reason]);
-  let sourceId: DictationSourceId;
-  if (voice.sourceId !== null && isDictationSourceId(voice.sourceId)) sourceId = voice.sourceId;
-  else if (availability.kind === "available") sourceId = availability.source.id;
-  else if (availability.kind === "hidden")
-    throw new DictationClipFailure("transient", "Transcribes once connected.");
-  else
-    throw new DictationClipFailure(
-      "terminal",
-      "Choose a transcription source in Settings, then retry.",
-    );
   const result = await transcribeDictationClip({
     requestId: voice.clipId,
     environmentId,
-    sourceId,
+    sourceId: voice.sourceId,
     clip: {
       blob: voice.bytes,
       mimeType: voice.mimeType,
@@ -482,30 +470,40 @@ export function threadOutboxComposerTarget(entry: PendingThreadTurn) {
 export async function moveThreadOutboxTurnToComposer(entry: PendingThreadTurn) {
   const target = threadOutboxComposerTarget(entry);
   if (target === null) throw new Error("This message has no draft to return to.");
-  await cancelThreadOutboxTurn(entry);
   const { payload } = entry;
+  const { voice } = payload;
+  // The queued entry owns the audio until the composer's copy is on disk.
+  const parked = voice?.bytes
+    ? await parkPendingClip({
+        ownerKey: composerTargetKey(target),
+        environmentId: voice.transcriptionEnvironmentId,
+        sourceId: voice.sourceId,
+        blob: voice.bytes,
+        mimeType: voice.mimeType,
+        durationMs: voice.durationMs,
+        locale: voice.locale,
+        capturedDraft: null,
+        ...(voice.transcript === undefined
+          ? { status: "waiting" as const }
+          : { status: "ready" as const, transcript: voice.transcript }),
+      })
+    : null;
+  if (parked && !parked.persisted) {
+    await discardPendingClip(parked.id);
+    throw new Error("The recording couldn't be saved on this device, so it stays queued.");
+  }
+  try {
+    await cancelThreadOutboxTurn(entry);
+  } catch (error) {
+    if (parked) await discardPendingClip(parked.id);
+    throw error;
+  }
   const typed = payload.input.message.text.trim();
   if (typed.length > 0) {
     const store = useComposerDraftStore.getState();
     const existing = store.getComposerDraft(target)?.prompt.trimEnd() ?? "";
     store.setPrompt(target, existing.length > 0 ? `${existing}\n\n${typed}` : typed);
   }
-  const { voice } = payload;
-  if (!voice?.bytes) return;
-  await parkPendingClip({
-    ownerKey: composerTargetKey(target),
-    environmentId: voice.transcriptionEnvironmentId ?? payload.environmentId,
-    sourceId:
-      voice.sourceId !== null && isDictationSourceId(voice.sourceId) ? voice.sourceId : null,
-    blob: voice.bytes,
-    mimeType: voice.mimeType,
-    durationMs: voice.durationMs,
-    locale: voice.locale,
-    capturedDraft: null,
-    ...(voice.transcript === undefined
-      ? { status: "waiting" as const }
-      : { status: "ready" as const, transcript: voice.transcript }),
-  });
 }
 
 /** Rejected thread creation needs fresh identifiers; uncertain sends cannot be edited. */

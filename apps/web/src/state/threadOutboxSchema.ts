@@ -1,6 +1,7 @@
 import {
   ChatAttachment,
   CommandId,
+  DictationSourceId,
   EnvironmentId,
   MessageId,
   ModelSelection,
@@ -84,8 +85,8 @@ export const OutboxTurnVoice = Schema.Struct({
   locale: Schema.NullOr(Schema.String),
   insertAt: Schema.Number,
   capturedAt: Schema.String,
-  sourceId: Schema.NullOr(Schema.String),
-  transcriptionEnvironmentId: Schema.optionalKey(EnvironmentId),
+  sourceId: DictationSourceId,
+  transcriptionEnvironmentId: EnvironmentId,
   transcript: Schema.optionalKey(Schema.String),
 });
 
