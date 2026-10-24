@@ -1,5 +1,6 @@
 import {
   type DeviceHostSummary,
+  DevicePlatform,
   DevicePlatformAvailability,
   DeviceToolVersions,
   deviceToolInstallMessage,
@@ -192,19 +193,24 @@ export const make = Effect.fn("SshDeviceHost.make")(function* (
       ),
     );
 
-  const platformAvailability: DeviceHost.DeviceHost["Service"]["platformAvailability"] = (
-    platform,
-  ) =>
-    provide(probe(config, owner)).pipe(
-      Effect.map((value) => {
-        summary = { ...summary, platforms: value.platforms };
-        return value.platforms.find((p) => p.platform === platform)!;
-      }),
-      Effect.orElseSucceed(() => ({
+  const platformAvailabilities = provide(probe(config, owner)).pipe(
+    Effect.map((value) => {
+      summary = { ...summary, platforms: value.platforms };
+      return value.platforms;
+    }),
+    Effect.orElseSucceed(() =>
+      DevicePlatform.literals.map((platform) => ({
         platform,
         available: false,
         reason: "Cannot reach device host. Test its SSH connection in Settings.",
       })),
+    ),
+  );
+  const platformAvailability: DeviceHost.DeviceHost["Service"]["platformAvailability"] = (
+    platform,
+  ) =>
+    platformAvailabilities.pipe(
+      Effect.map((platforms) => platforms.find((candidate) => candidate.platform === platform)!),
     );
 
   const connectOnce = Effect.fn("SshDeviceHost.connectOnce")(function* (): Effect.fn.Return<
@@ -314,12 +320,7 @@ export const make = Effect.fn("SshDeviceHost.make")(function* (
         origin: hubOrigin,
         http,
         run,
-        iosAvailable: platformAvailability("ios").pipe(
-          Effect.map((availability) => availability.available),
-        ),
-        androidAvailable: platformAvailability("android").pipe(
-          Effect.map((availability) => availability.available),
-        ),
+        platforms: platformAvailabilities,
       }),
       ...(remote.daemonPort !== undefined &&
       remote.token !== undefined &&

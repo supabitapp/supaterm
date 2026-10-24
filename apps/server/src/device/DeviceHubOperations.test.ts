@@ -1,5 +1,6 @@
 import { expect, it } from "@effect/vitest";
 import { LOCAL_DEVICE_HOST_ID } from "@supaterm/contracts";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import { HttpClient, HttpClientResponse } from "effect/http";
 
@@ -46,17 +47,15 @@ const fixture = (
         commands.push({ command, args });
         return { ...result, stderr: "" };
       }),
-    iosAvailable: Effect.succeed(iosAvailable),
-    androidAvailable: Effect.succeed(false),
+    platforms: Effect.succeed([{ platform: "ios", available: iosAvailable }]),
   });
   return { operations, commands };
 };
 
-const simulator = (udid: string, state = "Shutdown", isAvailable = true) => ({
+const simulator = (udid: string, state = "Shutdown") => ({
   udid,
   name: udid,
   state,
-  isAvailable,
 });
 
 it.effect("discovers never-used iOS simulators alongside hub devices without duplicates", () =>
@@ -68,7 +67,7 @@ it.effect("discovers never-used iOS simulators alongside hub devices without dup
           "com.apple.CoreSimulator.SimRuntime.iOS-27-0": [
             simulator(existingSimulator.id, "Booted"),
             simulator("unused-iphone"),
-            simulator("unavailable-iphone", "Shutdown", false),
+            simulator("unused-iphone"),
           ],
           "com.apple.CoreSimulator.SimRuntime.iOS-27-1": [simulator("unused-ipad", "Booted")],
           "com.apple.CoreSimulator.SimRuntime.tvOS-27-0": [simulator("apple-tv")],
@@ -135,6 +134,57 @@ it.effect("does not invoke simctl on hosts without iOS support", () =>
     expect(listed.detail).toBeUndefined();
     expect(commands).toEqual([]);
   }),
+);
+
+it.effect(
+  "probes platforms once and discovers both platforms while the hub request is pending",
+  () =>
+    Effect.gen(function* () {
+      const iosStarted = yield* Deferred.make<void>();
+      const androidStarted = yield* Deferred.make<void>();
+      let probes = 0;
+      const operations = makeDeviceHubOperations({
+        hostId: LOCAL_DEVICE_HOST_ID,
+        origin: "http://device.test",
+        platforms: Effect.sync(() => {
+          probes++;
+          return [
+            { platform: "ios" as const, available: true },
+            { platform: "android" as const, available: true },
+          ];
+        }),
+        http: HttpClient.make((request) =>
+          Effect.all([Deferred.await(iosStarted), Deferred.await(androidStarted)]).pipe(
+            Effect.as(
+              HttpClientResponse.fromWeb(request, Response.json({ simulators: [], emulators: [] })),
+            ),
+          ),
+        ),
+        run: (command) =>
+          Effect.gen(function* () {
+            const ios = command === "xcrun";
+            yield* Deferred.succeed(ios ? iosStarted : androidStarted, undefined);
+            yield* Deferred.await(ios ? androidStarted : iosStarted);
+            return {
+              code: 0,
+              stderr: "",
+              stdout: ios
+                ? JSON.stringify({
+                    devices: {
+                      "com.apple.CoreSimulator.SimRuntime.iOS-27-0": [simulator("iPhone")],
+                    },
+                  })
+                : "Pixel\nPixel\n",
+            };
+          }),
+      });
+
+      const listed = yield* operations.list;
+
+      expect(probes).toBe(1);
+      expect(listed.devices.map((device) => device.id)).toEqual(["iPhone", "Pixel"]);
+      expect(listed.detail).toBeUndefined();
+    }),
 );
 
 it.effect.each([
