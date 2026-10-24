@@ -2699,6 +2699,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
     readonly settings?: ClaudeSettings;
 
     readonly fastModeBlocked?: Effect.Effect<boolean>;
+    readonly cliVersion?: Effect.Effect<string | null>;
     readonly freshQueueOnReopen?: boolean;
     readonly forkSession?: ClaudeAdapterV2.ClaudeAgentSdkQueryRunnerShape["forkSession"];
     readonly allocateSessionId?: Effect.Effect<string>;
@@ -2762,6 +2763,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
         instanceId: ClaudeAdapterV2.CLAUDE_DEFAULT_INSTANCE_ID,
         settings: options?.settings ?? DEFAULT_CLAUDE_SETTINGS,
         ...(options?.fastModeBlocked ? { fastModeBlocked: options.fastModeBlocked } : {}),
+        ...(options?.cliVersion ? { cliVersion: options.cliVersion } : {}),
         environment: options?.environment ?? {},
         attachmentsDir,
         fileSystem,
@@ -7202,6 +7204,67 @@ describe("ClaudeAdapterV2 background wake turns", () => {
           }),
         );
         yield* awaitUntil(() => harness.terminalEvents().length === 1, "recovered Claude turn");
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
+        ),
+      ),
+    ),
+  );
+
+  it.effect("keeps retrying capacity errors without a retry ceiling on CLIs that support it", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const harness = yield* makeWakeHarnessWithOptions({
+          cliVersion: Effect.succeed("2.1.310"),
+        });
+        const now = yield* DateTime.now;
+        yield* harness.runtime.startTurn(
+          makeClaudeTestTurnInput({
+            threadId: harness.threadId,
+            providerThread: harness.providerThread,
+            now,
+            attemptId: RunAttemptId.make("attempt-claude-capacity-retry"),
+            text: "Open github.com.",
+            attachments: [],
+          }),
+        );
+        assert.equal(harness.getOpenedOptions()?.env?.CLAUDE_CODE_RETRY_WATCHDOG, "1");
+
+        yield* Queue.offer(
+          harness.sdkMessages,
+          claudeSdkFrame({
+            type: "system",
+            subtype: "api_retry",
+            attempt: 12,
+            max_retries: 10,
+            retry_delay_ms: 300_000,
+            error_status: 529,
+            error: "overloaded",
+            uuid: "00000000-0000-4000-8000-000000000205",
+            session_id: WAKE_NATIVE_SESSION,
+          }),
+        );
+        yield* awaitUntil(
+          () =>
+            harness.events.some(
+              (event) =>
+                event.type === "turn_item.updated" &&
+                event.turnItem.type === "error" &&
+                event.turnItem.retry !== undefined,
+            ),
+          "Claude capacity retry item",
+        );
+        const retryItem = harness.events.flatMap((event) =>
+          event.type === "turn_item.updated" && event.turnItem.type === "error"
+            ? [event.turnItem]
+            : [],
+        )[0];
+        assert.deepEqual(retryItem?.retry, {
+          attempt: 12,
+          maxAttempts: null,
+          retryDelayMs: 300_000,
+        });
       }).pipe(
         Effect.provide(
           Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),

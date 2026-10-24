@@ -137,6 +137,7 @@ import {
   hasClaudeTranscript,
   makeClaudeEnvironment,
   resolveClaudeHomePath,
+  withClaudeCapacityRetry,
 } from "../../provider/Drivers/ClaudeHome.ts";
 import {
   BUNDLED_CLAUDE_MODEL_CATALOG,
@@ -3367,6 +3368,7 @@ interface ClaudeLiveQueryContext {
   receivedInit: boolean;
   permissionMode: PermissionMode;
   stopping: boolean;
+  readonly retriesCapacityIndefinitely: boolean;
   readonly subagentsFromEarlierProcesses: ReadonlySet<ActiveClaudeSubagent>;
 }
 
@@ -3760,6 +3762,7 @@ export interface ClaudeAdapterV2Options {
   readonly scopedLimitNames?: Ref.Ref<ClaudeScopedLimitNames>;
   readonly onUsageLimits?: ManagedServerProvider["applyUsageLimits"];
   readonly fastModeBlocked?: Effect.Effect<boolean>;
+  readonly cliVersion?: Effect.Effect<string | null>;
   readonly continuationRequests?: {
     readonly offer: (
       request: ProviderContinuationRequests.ProviderContinuationRequest,
@@ -7746,9 +7749,14 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           if (message.type === "system" && message.subtype === "api_retry") {
             const updatedAt = yield* DateTime.now;
             const previous = (yield* Ref.get(providerRetries)).get(context.providerTurnId);
+            const unboundedCapacityRetry =
+              (yield* Ref.get(queryContext))?.retriesCapacityIndefinitely === true &&
+              (message.error_status === 429 || message.error_status === 529);
             const retry: OrchestrationV2ProviderRetry = {
               attempt: Math.max(1, Math.trunc(message.attempt)),
-              maxAttempts: Math.max(1, Math.trunc(message.max_retries)),
+              maxAttempts: unboundedCapacityRetry
+                ? null
+                : Math.max(1, Math.trunc(message.max_retries)),
               retryDelayMs: Math.max(0, Math.trunc(message.retry_delay_ms)),
             };
             const failure = providerFailureFromApiRetry(message);
@@ -9124,6 +9132,10 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               Effect.provideService(FileSystem.FileSystem, fileSystem),
               Effect.provideService(Path.Path, path),
             ));
+          const environment = withClaudeCapacityRetry(
+            adapterOptions.environment,
+            yield* adapterOptions.cliVersion ?? Effect.succeed(null),
+          );
           const queryOptions = makeClaudeQueryOptions({
             modelSelection: turnInput.modelSelection,
             compiledSelection,
@@ -9133,7 +9145,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             cwd: turnInput.runtimePolicy.cwd,
             attachmentsDir,
             settings: adapterOptions.settings,
-            environment: adapterOptions.environment,
+            environment,
             tools: queryPolicy.tools ?? CLAUDE_CODE_PRESET_TOOLS,
             ...(mcpOverrides.allowedTools === undefined
               ? {}
@@ -9198,6 +9210,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             receivedInit: false,
             permissionMode: queryOptions.permissionMode,
             stopping: false,
+            retriesCapacityIndefinitely: environment.CLAUDE_CODE_RETRY_WATCHDOG === "1",
             subagentsFromEarlierProcesses: new Set(
               [...(yield* Ref.get(sessionSubagentsByTaskId)).values()].filter(
                 (subagent) => subagent.task.status === "running",
@@ -10298,7 +10311,7 @@ export const createClaudeAdapterV2 = Effect.fn("ClaudeAdapterV2Driver.create")(
     input: ProviderAdapterDriverCreateInput<ClaudeSettings>,
     hooks: Pick<
       ClaudeAdapterV2Options,
-      "scopedLimitNames" | "onUsageLimits" | "fastModeBlocked"
+      "scopedLimitNames" | "onUsageLimits" | "fastModeBlocked" | "cliVersion"
     > = {},
   ) {
     const { instanceId, environment, enabled, config } = input;

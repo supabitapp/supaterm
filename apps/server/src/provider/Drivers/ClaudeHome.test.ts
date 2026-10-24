@@ -11,6 +11,7 @@ import {
   makeClaudeContinuationGroupKey,
   makeClaudeEnvironment,
   resolveClaudeHomePath,
+  withClaudeCapacityRetry,
 } from "./ClaudeHome.ts";
 
 it.layer(NodeServices.layer)("ClaudeHome", (it) => {
@@ -74,6 +75,30 @@ it.layer(NodeServices.layer)("ClaudeHome", (it) => {
       expect(message).toContain(`CLAUDE_CONFIG_DIR set to "${configDir}"`);
       expect(message).not.toContain("CLAUDE_CONFIG_DIR=");
       expect(message).toContain("then start a new thread");
+    });
+
+    it("retries capacity errors in the turn only on CLIs that cap usage-limit waits", () => {
+      const environment = { ANTHROPIC_BASE_URL: "https://gateway.example" };
+      expect(withClaudeCapacityRetry(environment, null)).toBe(environment);
+      expect(withClaudeCapacityRetry(environment, "2.1.300")).toBe(environment);
+      expect(withClaudeCapacityRetry(environment, "2.1.301")).toEqual({
+        ANTHROPIC_BASE_URL: "https://gateway.example",
+        CLAUDE_CODE_RETRY_WATCHDOG: "1",
+        CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS: "1800000",
+        CLAUDE_CODE_RETRY_WATCHDOG_MAX_USAGE_LIMIT_WAIT_MS: "1",
+        CLAUDE_CODE_MAX_RETRIES: "10",
+      });
+    });
+
+    it("leaves the user's own Claude retry configuration in charge", () => {
+      const optedOut = { CLAUDE_CODE_RETRY_WATCHDOG: "0" };
+      expect(withClaudeCapacityRetry(optedOut, "2.1.310")).toBe(optedOut);
+      const tuned = withClaudeCapacityRetry(
+        { CLAUDE_CODE_MAX_RETRIES: "4", CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS: "60000" },
+        "2.1.310",
+      );
+      expect(tuned.CLAUDE_CODE_MAX_RETRIES).toBe("4");
+      expect(tuned.CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS).toBe("60000");
     });
 
     it.effect("separates capability probes by cwd", () =>

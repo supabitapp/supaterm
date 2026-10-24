@@ -186,6 +186,9 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
         scopedLimitNames,
         onUsageLimits: (update) => snapshot.applyUsageLimits(update),
         fastModeBlocked: fastMode.isBlocked,
+        cliVersion: Effect.suspend(() => snapshot.getSnapshot).pipe(
+          Effect.map((current) => current.version),
+        ),
       },
     ).pipe(
       Effect.mapError(

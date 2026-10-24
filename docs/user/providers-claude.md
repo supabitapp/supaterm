@@ -61,6 +61,14 @@ Claude Code holds the turn until that window reopens, so it can keep showing as
 working. Wait for the reset, or stop the turn and continue later. The warning's
 timestamp shows when the displayed wait started.
 
+## Overloaded errors
+
+With Claude Code 2.1.301 or later, a turn that hits Claude's overloaded (529) or
+rate-limit errors keeps running and shows **Retrying provider** while Claude Code
+backs off, for up to 30 minutes per request. Stop the turn to give up sooner. To
+fail right away instead, set `CLAUDE_CODE_RETRY_WATCHDOG` to `0` in the instance's
+**Environment variables**.
+
 ## Skills
 
 Claude skills come from the config directory's `skills` folder and the project's

@@ -8,6 +8,7 @@ import * as Stream from "effect/Stream";
 
 import { expandHomePath } from "@supaterm/provider-core/server/pathExpansion";
 import * as HostProcess from "@supaterm/shared/HostProcess";
+import { compareSemverVersions } from "@supaterm/shared/semver";
 
 const quotePath = Schema.encodeSync(Schema.fromJsonString(Schema.String));
 
@@ -82,6 +83,37 @@ export const makeClaudeEnvironment = Effect.fn("makeClaudeEnvironment")(function
     CLAUDE_CONFIG_DIR: resolvedHomePath,
   };
 });
+
+const CAPACITY_RETRY_MIN_VERSION = "2.1.301";
+const CAPACITY_RETRY_MAX_WAIT_MS = 30 * 60 * 1_000;
+
+/**
+ * Claude Code ends a turn after three consecutive 529s. Its unattended retry
+ * mode keeps backing off on 429/529 inside the turn instead. The wait cap bounds
+ * an outage, a 1 ms usage-limit wait (the CLI rejects 0) leaves usage limits to
+ * limit recovery, and pinning the retry count stops the mode from raising other
+ * transient retries to 300. Older CLIs lack the usage-limit cap and would sit
+ * out a whole usage window.
+ */
+export function withClaudeCapacityRetry(
+  environment: NodeJS.ProcessEnv,
+  version: string | null,
+): NodeJS.ProcessEnv {
+  if (
+    version === null ||
+    compareSemverVersions(version, CAPACITY_RETRY_MIN_VERSION) < 0 ||
+    environment.CLAUDE_CODE_RETRY_WATCHDOG !== undefined
+  ) {
+    return environment;
+  }
+  return {
+    CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS: String(CAPACITY_RETRY_MAX_WAIT_MS),
+    CLAUDE_CODE_RETRY_WATCHDOG_MAX_USAGE_LIMIT_WAIT_MS: "1",
+    CLAUDE_CODE_MAX_RETRIES: "10",
+    ...environment,
+    CLAUDE_CODE_RETRY_WATCHDOG: "1",
+  };
+}
 
 /**
  * While it exists Claude refuses `--strict-mcp-config` and exits before
