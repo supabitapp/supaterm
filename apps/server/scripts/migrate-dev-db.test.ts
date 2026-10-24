@@ -7,7 +7,7 @@ import * as SqlClient from "effect/sql/SqlClient";
 
 import { migrationManifest, runMigrations } from "../src/persistence/Migrations.ts";
 import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
-import { runMigrateDevDb } from "./migrate-dev-db.ts";
+import { clearedTables, runMigrateDevDb } from "./migrate-dev-db.ts";
 
 const withDatabase = <A, E>(
   databasePath: string,
@@ -72,6 +72,12 @@ const createFixtureSource = Effect.fn("createMigrateDevDbFixtureSource")(functio
           (event_id, aggregate_kind, stream_id, stream_version, event_type, occurred_at, actor_kind, payload_json, metadata_json)
           VALUES (${`event-${threadId}`}, 'thread', ${threadId}, 0, 'thread.created', '2026-08-01', 'user', '{}', '{}')`;
       }
+      for (const [threadId] of threads) {
+        yield* sql`INSERT INTO orchestration_v2_projection_messages
+          (message_id, thread_id, run_id, node_id, role, streaming, created_at, updated_at, payload_json)
+          VALUES (${`message-${threadId}`}, ${threadId}, NULL, NULL, 'user', 0,
+            '2026-08-01', '2026-08-01', '{"text":"needle","createdBy":"user"}')`;
+      }
       yield* sql`INSERT INTO orchestration_v2_projection_provider_sessions
         (provider_session_id, thread_id, provider, status, updated_at, payload_json)
         VALUES ('session-shared', 'running-thread', 'codex', 'stopped', '2026-08-01', '{}')`;
@@ -102,6 +108,7 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
       const sourceDir = yield* fs.makeTempDirectoryScoped({ prefix: "migrate-dev-db-src-" });
       const destDir = yield* fs.makeTempDirectoryScoped({ prefix: "migrate-dev-db-dest-" });
       const source = yield* createFixtureSource(sourceDir);
+      const originalSource = yield* fs.readFile(source);
 
       const result = yield* runMigrateDevDb(
         { baseDir: destDir, source, projects: 5, threadsPerProject: 2 },
@@ -126,7 +133,12 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
               (SELECT COUNT(*) FROM orchestration_v2_projection_context_transfers) AS transfers`;
           const [autoVacuum] = yield* sql<{ auto_vacuum: number }>`PRAGMA auto_vacuum`;
           const [journal] = yield* sql<{ journal_mode: string }>`PRAGMA journal_mode`;
-          return { threads, events, sessions, leftovers, autoVacuum, journal };
+          const search = yield* sql<{ thread_id: string }>`
+            SELECT messages.thread_id FROM orchestration_v2_message_search AS search
+            JOIN orchestration_v2_projection_messages AS messages ON messages.rowid = search.rowid
+            WHERE orchestration_v2_message_search MATCH '"needle"'
+            ORDER BY messages.thread_id`;
+          return { threads, events, sessions, leftovers, autoVacuum, journal, search };
         }),
       );
       assert.deepStrictEqual(
@@ -144,6 +156,8 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
       assert.deepStrictEqual(kept.leftovers, { auth: 0, tasks: 0, transfers: 0 });
       assert.deepStrictEqual(kept.autoVacuum, { auto_vacuum: 2 });
       assert.deepStrictEqual(kept.journal, { journal_mode: "wal" });
+      assert.deepStrictEqual(kept.search, kept.threads);
+      assert.deepStrictEqual(yield* fs.readFile(source), originalSource);
     }),
   );
 
@@ -264,6 +278,24 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
         ["done-thread", "fork-thread", "stopped-thread"],
       );
     }),
+  );
+
+  it.effect("excludes transitive foreign-key dependents of cleared tables", () =>
+    withDatabase(
+      ":memory:",
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        yield* sql`CREATE TABLE auth_sessions (id TEXT PRIMARY KEY)`;
+        yield* sql`CREATE TABLE pending_hooks (id TEXT PRIMARY KEY, session TEXT REFERENCES auth_sessions(id))`;
+        yield* sql`CREATE TABLE pending_retries (id TEXT PRIMARY KEY, hook TEXT REFERENCES pending_hooks(id))`;
+        yield* sql`CREATE TABLE retained (id TEXT PRIMARY KEY)`;
+        const excluded = yield* clearedTables("main");
+        assert.isTrue(excluded.has("auth_sessions"));
+        assert.isTrue(excluded.has("pending_hooks"));
+        assert.isTrue(excluded.has("pending_retries"));
+        assert.isFalse(excluded.has("retained"));
+      }),
+    ),
   );
 
   it.effect("refuses while a dev server holds the destination", () =>

@@ -197,7 +197,9 @@ const CLEARED_TABLES: ReadonlyArray<string> = [
   "auth_pairing_links",
 ];
 
-const clearedTables = Effect.fn("migrateDevDb.clearedTables")(function* (schema: "main" | "src") {
+export const clearedTables = Effect.fn("migrateDevDb.clearedTables")(function* (
+  schema: "main" | "src",
+) {
   const sql = yield* SqlClient.SqlClient;
   const references = yield* sql.unsafe<{ name: string; parent: string }>(
     `SELECT m.name, f."table" AS parent FROM ${schema}.sqlite_master m, pragma_foreign_key_list(m.name, '${schema}') f WHERE m.type = 'table'`,
@@ -237,7 +239,9 @@ const copySourceSlice = Effect.fn("copyDevDbSourceSlice")(function* (
   const cleared = yield* clearedTables("src");
   const tables = (yield* sql<{ name: string }>`
     SELECT name FROM main.sqlite_master
-    WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name <> 'effect_sql_migrations'`)
+    WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name <> 'effect_sql_migrations'
+      AND name NOT IN (SELECT name FROM pragma_table_list WHERE schema = 'main' AND type IN ('virtual', 'shadow'))
+    ORDER BY CASE name WHEN 'projection_projects' THEN 0 WHEN 'orchestration_v2_projection_threads' THEN 1 ELSE 2 END, rowid`)
     .map((row) => row.name)
     .filter((name) => sourceTables.has(name) && !cleared.has(name));
   const filtered = sourceTables.has("orchestration_v2_projection_threads");
