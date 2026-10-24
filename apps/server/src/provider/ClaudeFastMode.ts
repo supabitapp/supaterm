@@ -6,20 +6,35 @@ import * as Path from "effect/Path";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 
-import type { ClaudeCapabilitiesProbe } from "./ClaudeProvider.ts";
-
-const AccountConfig = Schema.Struct({
-  penguinModeOrgEnabled: Schema.optional(Schema.Boolean),
-});
+const AccountConfig = Schema.fromJsonString(
+  Schema.Struct({ penguinModeOrgEnabled: Schema.optional(Schema.Boolean) }),
+);
+const UserSettings = Schema.fromJsonString(
+  Schema.Struct({
+    env: Schema.optional(
+      Schema.Struct({ CLAUDE_CODE_SKIP_FAST_MODE_ORG_CHECK: Schema.optional(Schema.String) }),
+    ),
+  }),
+);
 
 const enabled = (value: string | undefined) =>
   value !== undefined && ["1", "true", "yes", "on"].includes(value.toLowerCase().trim());
 
 export const makeClaudeFastModeAvailability = Effect.fn("makeClaudeFastModeAvailability")(
-  function* (accountConfigPath: string, environment: NodeJS.ProcessEnv) {
+  function* (input: {
+    readonly accountConfigPath: string;
+    readonly settingsPath: string;
+    readonly environment: NodeJS.ProcessEnv;
+  }) {
+    const { accountConfigPath, settingsPath, environment } = input;
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    const latestProbe = yield* Ref.make<ClaudeCapabilitiesProbe | undefined>(undefined);
+    const readJson = <A>(file: string, codec: Schema.Codec<A, string>) =>
+      fs.readFileString(file).pipe(
+        Effect.flatMap(Schema.decodeEffect(codec)),
+        Effect.orElseSucceed(() => undefined),
+      );
+    const latestReason = yield* Ref.make<string | undefined>(undefined);
     const readBlocked = Effect.gen(function* () {
       if (
         enabled(environment.CLAUDE_CODE_DISABLE_FAST_MODE) ||
@@ -30,8 +45,7 @@ export const makeClaudeFastModeAvailability = Effect.fn("makeClaudeFastModeAvail
         return true;
       const configDir = environment.CLAUDE_CONFIG_DIR?.trim();
       if (configDir && !path.isAbsolute(configDir)) return false;
-      const probe = yield* Ref.get(latestProbe);
-      switch (probe?.fastModeDisabledReason) {
+      switch (yield* Ref.get(latestReason)) {
         case "free":
         case "preference":
         case "extra_usage_disabled":
@@ -39,20 +53,22 @@ export const makeClaudeFastModeAvailability = Effect.fn("makeClaudeFastModeAvail
         case "disabled_by_env":
           return true;
       }
-      if (enabled(environment.CLAUDE_CODE_SKIP_FAST_MODE_ORG_CHECK)) return false;
+      const settings = yield* readJson(settingsPath, UserSettings);
+      if (
+        enabled(environment.CLAUDE_CODE_SKIP_FAST_MODE_ORG_CHECK) ||
+        enabled(settings?.env?.CLAUDE_CODE_SKIP_FAST_MODE_ORG_CHECK)
+      )
+        return false;
       // The probe never opts in, so its reason stops at sdk_opt_in_required. Claude Code caches
       // its org check here and enforces it even when a gateway or token serves inference.
-      const account = yield* fs.readFileString(accountConfigPath).pipe(
-        Effect.flatMap(Schema.decodeEffect(Schema.fromJsonString(AccountConfig))),
-        Effect.orElseSucceed(() => undefined),
-      );
+      const account = yield* readJson(accountConfigPath, AccountConfig);
       return account?.penguinModeOrgEnabled === false;
     });
     const blocked = yield* Ref.make(yield* readBlocked);
     return {
       isBlocked: Ref.get(blocked),
       refresh: readBlocked.pipe(Effect.tap((value) => Ref.set(blocked, value))),
-      update: (probe: ClaudeCapabilitiesProbe) => Ref.set(latestProbe, probe),
+      update: (disabledReason: string | undefined) => Ref.set(latestReason, disabledReason),
     };
   },
 );

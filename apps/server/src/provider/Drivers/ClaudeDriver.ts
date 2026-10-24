@@ -162,10 +162,11 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
     });
 
     const scopedLimitNames = yield* makeClaudeScopedLimitNames;
-    const fastMode = yield* makeClaudeFastModeAvailability(
+    const fastMode = yield* makeClaudeFastModeAvailability({
       accountConfigPath,
-      yield* makeClaudeEnvironment(effectiveConfig, processEnv),
-    );
+      settingsPath: path.join(configDir, "settings.json"),
+      environment: yield* makeClaudeEnvironment(effectiveConfig, processEnv),
+    });
     const filterFastMode = (provider: ServerProviderDraft) =>
       fastMode.refresh.pipe(
         Effect.map((blocked) => ({
@@ -237,7 +238,10 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
           Effect.flatMap((catalog) =>
             checkClaudeProviderStatus(
               effectiveConfig,
-              () => capabilitiesProbeCache.get.pipe(Effect.tap(fastMode.update)),
+              () =>
+                capabilitiesProbeCache.get.pipe(
+                  Effect.tap((probe) => fastMode.update(probe.fastModeDisabledReason)),
+                ),
               processEnv,
               stateDir,
               catalog,
