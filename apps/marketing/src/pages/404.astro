@@ -36,30 +36,10 @@ import "../styles/boltComputer.css";
 
   const crt = document.querySelector<HTMLElement>(".not-found-crt");
   if (crt) {
-    void Promise.all([
-      import("../lib/boltComputer/mount"),
-      import("../lib/boltComputer/sim"),
-    ]).then(([{ DEFAULT_SETTINGS, mountBoltComputer }, { ERROR_SHAKE_PERIOD }]) => {
-      const computer = mountBoltComputer(crt, { ...DEFAULT_SETTINGS, state: "error", interactive: false });
-      if (!computer) return;
-
-      // The error state shakes forever, so rest it after a few shakes to stop repainting an idle
-      // tab. Each rest lands just before the next shake, where the still pose matches the last
-      // frame, and a click resumes from there for exactly one more shake.
-      const shakeMs = ERROR_SHAKE_PERIOD * 1000;
-      let awake = false;
-      const shake = (ms: number) => {
-        if (awake) return;
-        awake = true;
-        computer.update({ paused: false });
-        setTimeout(() => {
-          awake = false;
-          computer.update({ paused: true });
-        }, ms);
-      };
-      shake(2 * shakeMs - 100);
-      crt.addEventListener("click", () => shake(shakeMs));
-    });
+    // Two shakes, then it rests so an open tab stops repainting; a click wakes it for a hop.
+    void import("../lib/boltComputer/mount").then(({ DEFAULT_SETTINGS, mountBoltComputer }) =>
+      mountBoltComputer(crt, { ...DEFAULT_SETTINGS, state: "error" }, 3),
+    );
   }
 </script>
 

@@ -6,6 +6,14 @@ const advance = (sim: BoltComputerSim, seconds: number) => {
   for (let t = 0; t < seconds; t += 1 / 60) sim.update(1 / 60);
 };
 
+const ageWhenSettled = (sim: BoltComputerSim, within: number) => {
+  for (let t = 0; t < within; t += 1 / 60) {
+    if (sim.settled) return sim.age;
+    sim.update(1 / 60);
+  }
+  return null;
+};
+
 describe("BoltComputerSim", () => {
   it("comes to rest so drawing can stop", () => {
     const sim = new BoltComputerSim(0.3);
@@ -68,5 +76,25 @@ describe("BoltComputerSim", () => {
     sim.setState("idle");
     advance(sim, 5);
     expect(sim.settled).toBe(true);
+  });
+
+  it("shakes on in error unless told when it may rest", () => {
+    expect(ageWhenSettled(new BoltComputerSim(0.3, "error"), 20)).toBeNull();
+  });
+
+  it("rests in error at the first still moment after restAt, before the next shake", () => {
+    const sim = new BoltComputerSim(0.3, "error", 3);
+    const age = ageWhenSettled(sim, 20);
+    expect(age).toBeGreaterThanOrEqual(3);
+    expect(age).toBeLessThan(4.8);
+  });
+
+  it("wakes from an error rest for a click and rests again", () => {
+    const sim = new BoltComputerSim(0.3, "error", 3);
+    ageWhenSettled(sim, 20);
+    sim.poke();
+    sim.update(0);
+    expect(sim.settled).toBe(false);
+    expect(ageWhenSettled(sim, 20)).not.toBeNull();
   });
 });

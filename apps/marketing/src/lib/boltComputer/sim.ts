@@ -1,4 +1,4 @@
-import type { BoltComputerState } from "./faces";
+import { faceStill, type BoltComputerState } from "./faces";
 
 class Spring {
   x = 0;
@@ -44,7 +44,6 @@ export const FADE = 0.3;
 const REACTION = 1.6;
 const GLITCH = 0.13;
 export const POINTER_REACH = 700;
-export const ERROR_SHAKE_PERIOD = 2.4;
 
 export interface Pose {
   readonly yaw: number;
@@ -100,9 +99,13 @@ export class BoltComputerSim {
   private nextSide = 4;
   private nextHop = 6;
 
-  constructor(seed: number, state: BoltComputerState = "idle") {
+  /** The age after which a looping state may stop at its next still moment, as idle does. */
+  private readonly restAt: number;
+
+  constructor(seed: number, state: BoltComputerState = "idle", restAt = Number.POSITIVE_INFINITY) {
     this.random = rng(seed);
     this.state = state;
+    this.restAt = restAt;
   }
 
   setState(state: BoltComputerState) {
@@ -150,7 +153,8 @@ export class BoltComputerSim {
 
   get settled(): boolean {
     return (
-      this.state === "idle" &&
+      (this.state === "idle" || this.age >= this.restAt) &&
+      faceStill(this.state, this.since) &&
       this.jump === null &&
       this.age > POWER_ON &&
       this.since > FADE &&
@@ -221,7 +225,7 @@ export class BoltComputerSim {
         }
         break;
       case "error": {
-        const c = (t % ERROR_SHAKE_PERIOD) / 0.7;
+        const c = (t % 2.4) / 0.7;
         shake = c < 1 ? Math.sin(c * Math.PI * 7) * 0.22 * (1 - c) : 0;
         freq = 1.6;
         break;
