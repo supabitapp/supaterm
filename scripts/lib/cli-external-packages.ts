@@ -1,25 +1,11 @@
-   
-                                                                     
-  
-                                                                          
-                                                                               
-                                
-  
-   
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 
-   
-                                                                               
-                                                                             
-                                                                  
-   
-export const CLI_RUNTIME_EXTERNAL_PREFIXES = [
-                                                                        
+const CLI_RUNTIME_EXTERNAL_PREFIXES = [
   "@cursor/sdk",
-                                                                                
+
   "playwright-core",
   "node-pty",
   "ffi-rs",
@@ -32,8 +18,6 @@ export const CLI_RUNTIME_EXTERNAL_PREFIXES = [
   "utf-8-validate",
 ] as const;
 
-                                                                              
-                                                                                    
 const CURSOR_RUNTIME_DEPENDENCIES = [
   "@bufbuild/protobuf",
   "@connectrpc/connect",
@@ -53,12 +37,6 @@ export function isRuntimeExternalCliDependency(id: string): boolean {
   );
 }
 
-   
-                                                                   
-                                                                                
-                                                                             
-                                                     
-   
 export function isExternalCliDependency(id: string): boolean {
   return isRuntimeExternalCliDependency(id);
 }
@@ -76,17 +54,11 @@ export function selectCliRuntimeExternalDependencies(
   );
 }
 
-   
-                                                                               
-                                                                          
-   
 export function findInlinedExternalPackages(source: string): {
   readonly regionCount: number;
   readonly inlined: ReadonlyArray<string>;
   readonly inlinedPackages: ReadonlyArray<string>;
 } {
-                                                                             
-                                                                   
   const regionPattern = /^\/\/(?:#region)?[ \t]+(\S+)[ \t]*$/gm;
   const packagePattern = /node_modules\/((?:@[^/\s]+\/)?[^/\s]+)\//g;
 
@@ -120,8 +92,6 @@ const PackageManifest = Schema.Struct({
 });
 const decodeManifest = Schema.decodeEffect(Schema.fromJsonString(PackageManifest));
 
-                                                                             
-                                                          
 const resolveDependencyDirectory = Effect.fn("resolveDependencyDirectory")(function* (
   fromDirectory: string,
   name: string,
@@ -140,7 +110,6 @@ const resolveDependencyDirectory = Effect.fn("resolveDependencyDirectory")(funct
   }
 });
 
-                                                                                     
 export const readInstalledPackages = Effect.fn("readInstalledPackages")(function* (
   packageDirectories: ReadonlyArray<string>,
 ) {
@@ -161,12 +130,12 @@ export const readInstalledPackages = Effect.fn("readInstalledPackages")(function
       ...manifest.dependencies,
       ...manifest.optionalDependencies,
       ...manifest.peerDependencies,
-                                                                               
+
       ...(roots.has(directory) ? manifest.devDependencies : undefined),
     };
     for (const name of Object.keys(dependencies)) {
       const dependency = yield* resolveDependencyDirectory(directory, name);
-                                                                              
+
       if (dependency !== null && !installed.has(dependency)) pending.push(dependency);
     }
   }
