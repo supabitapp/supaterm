@@ -232,6 +232,7 @@ export interface PreviewStreamClient {
 }
 
 const ACK_MESSAGE = JSON.stringify({ type: "ack" });
+const PONG_MESSAGE = JSON.stringify({ type: "pong" });
 export function createPreviewStreamClient(
   target: PreviewStreamTarget,
   events: PreviewStreamEvents,
@@ -243,6 +244,7 @@ export function createPreviewStreamClient(
     maxHeight: String(Math.max(1, Math.round(target.maxHeight))),
   });
   if (target.interactive === false) query.set("interactive", "false");
+  query.set("repeat", "1");
   const url = withDeviceHubQuery(`${target.access.wsBase}/ws?${query.toString()}`, target.access);
   let stopped = false;
   let socket: WebSocket | null = null;
@@ -257,6 +259,9 @@ export function createPreviewStreamClient(
     ws.binaryType = "arraybuffer";
     socket = ws;
     let opened = false;
+    // The server refers back to one of the last two frames instead of resending it.
+    const recentFrames: Array<{ readonly id: number; readonly jpeg: ArrayBuffer }> = [];
+    let nextFrameId = 0;
     ws.addEventListener("open", () => {
       if (socket !== ws) return;
       opened = true;
@@ -267,6 +272,8 @@ export function createPreviewStreamClient(
       if (event.data instanceof ArrayBuffer) {
         failures = 0;
         ws.send(ACK_MESSAGE);
+        recentFrames.unshift({ id: nextFrameId++, jpeg: event.data });
+        if (recentFrames.length > 2) recentFrames.pop();
         events.onFrame(event.data);
         return;
       }
@@ -299,7 +306,13 @@ export function createPreviewStreamClient(
         sequence,
         tabId,
       } = message as Record<string, unknown>;
-      if (
+      if (type === "ping") {
+        ws.send(PONG_MESSAGE);
+      } else if (type === "repeat") {
+        ws.send(ACK_MESSAGE);
+        const recent = recentFrames.find((frame) => frame.id === id);
+        if (recent) events.onFrame(recent.jpeg);
+      } else if (
         type === "fileChooser" &&
         typeof id === "string" &&
         typeof multiple === "boolean" &&

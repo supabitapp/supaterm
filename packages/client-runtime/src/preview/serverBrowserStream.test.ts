@@ -120,12 +120,32 @@ describe("preview stream control", () => {
     const { client, socket, onFrame } = connect();
     socket.control({ ...agent, canOperate: false });
     const frame = new ArrayBuffer(3);
+    socket.message(JSON.stringify({ type: "ping" }));
     socket.message(frame);
     expect(onFrame).toHaveBeenCalledWith(frame);
     expect(client.send({ type: "takeControl" })).toBe(false);
     expect(client.send({ type: "resize", width: 390, height: 844 })).toBe(false);
     expect(client.send({ type: "reload" })).toBe(false);
-    expect(socket.sent).toEqual(['{"type":"ack"}']);
+    expect(socket.sent).toEqual(['{"type":"pong"}', '{"type":"ack"}']);
+    client.stop();
+  });
+
+  it("repaints a recent frame the server refers back to", () => {
+    const { client, socket, onFrame } = connect();
+    expect(new URL(socket.url).searchParams.get("repeat")).toBe("1");
+    const caretOn = new ArrayBuffer(3);
+    const caretOff = new ArrayBuffer(4);
+    socket.message(caretOn);
+    socket.message(caretOff);
+    socket.message(JSON.stringify({ type: "repeat", id: 0 }));
+    socket.message(JSON.stringify({ type: "repeat", id: 1 }));
+    expect(onFrame.mock.calls.map(([frame]) => frame)).toEqual([
+      caretOn,
+      caretOff,
+      caretOn,
+      caretOff,
+    ]);
+    expect(socket.sent).toEqual(Array(4).fill('{"type":"ack"}'));
     client.stop();
   });
 

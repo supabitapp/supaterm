@@ -116,8 +116,8 @@ export interface DeviceStreamTarget {
   readonly platform: DevicePlatform;
   readonly deviceId: string;
   readonly access: DeviceHubAccess;
-  /** Native iOS WebViews can use MJPEG without cross-origin fetch or secure-context support. */
-  readonly preferMjpeg?: boolean;
+  /** Longest side the viewer draws the screen at, in device pixels, so the server can size the encoder. */
+  readonly displayEdge?: () => number | null;
   readonly panelId?: 1 | 3;
   readonly videoOnly?: boolean;
 }
@@ -393,7 +393,11 @@ export function createDeviceStreamClient(
   const httpUrl = (path: string) =>
     withDeviceHubQuery(`${access.httpBase}${vendor}${path}`, access);
   const wsUrl = (path: string) => withDeviceHubQuery(`${access.wsBase}${vendor}${path}`, access);
-  const useWebCodecs = isWebCodecsSupported() && !(platform === "ios" && target.preferMjpeg);
+  const useWebCodecs = isWebCodecsSupported();
+  const streamUrl = (path: string) => {
+    const edge = target.displayEdge?.();
+    return httpUrl(edge ? `${path}?displayEdge=${Math.round(edge)}` : path);
+  };
 
   let stopped = true;
   let socket: WebSocket | null = null;
@@ -457,7 +461,7 @@ export function createDeviceStreamClient(
   });
   const videoPath = `/helper/${device}${target.panelId ? `/panel/${target.panelId}` : ""}/stream.avcc`;
 
-  const mjpegUrl = () => httpUrl(`/helper/${device}/stream.mjpeg`);
+  const mjpegUrl = () => streamUrl(`/helper/${device}/stream.mjpeg`);
 
   const setStatus = (status: DeviceStreamStatus, detail?: string) => {
     if (!stopped) events.onStatus(status, detail);
@@ -698,7 +702,7 @@ export function createDeviceStreamClient(
       controller === videoController;
     let retryDetail: string | undefined;
     try {
-      const response = await fetch(httpUrl(videoPath), {
+      const response = await fetch(streamUrl(videoPath), {
         signal: videoController.signal,
         credentials: access.credentials ? "include" : "same-origin",
       });
@@ -808,7 +812,7 @@ export function createDeviceStreamClient(
     primeController = controller;
     const timeout = setTimeout(() => controller.abort(), 2_000);
     try {
-      const response = await fetch(httpUrl(`/helper/${device}/stream.mjpeg`), {
+      const response = await fetch(mjpegUrl(), {
         signal: controller.signal,
         credentials: access.credentials ? "include" : "same-origin",
       });

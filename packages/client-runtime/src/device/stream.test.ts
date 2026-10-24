@@ -49,10 +49,12 @@ describe("native device stream transport", () => {
     vi.unstubAllGlobals();
   });
 
-  function setup(platform: "ios" | "android") {
+  function setup(platform: "ios" | "android", displayEdge?: number) {
     vi.useFakeTimers();
-    vi.stubGlobal("VideoDecoder", vi.fn());
-    vi.stubGlobal("EncodedVideoChunk", vi.fn());
+    if (platform === "android") {
+      vi.stubGlobal("VideoDecoder", vi.fn());
+      vi.stubGlobal("EncodedVideoChunk", vi.fn());
+    }
     let resolveOpened!: (socket: FakeSocket) => void;
     const waitForSocket = () =>
       new Promise<FakeSocket>((resolve) => {
@@ -75,7 +77,7 @@ describe("native device stream transport", () => {
       }
     }
     vi.stubGlobal("WebSocket", FakeSocket);
-    const fetch = vi.fn(() => Promise.resolve(new Response("frame")));
+    const fetch = vi.fn((_url: string) => Promise.resolve(new Response("frame")));
     vi.stubGlobal("fetch", fetch);
     const events = {
       onStatus: vi.fn(),
@@ -88,7 +90,7 @@ describe("native device stream transport", () => {
       {
         platform,
         deviceId: "test device",
-        preferMjpeg: platform === "ios",
+        ...(displayEdge === undefined ? {} : { displayEdge: () => displayEdge }),
         access: {
           httpBase: "https://environment.test/api/device-hub",
           wsBase: "wss://environment.test/api/device-hub",
@@ -102,7 +104,7 @@ describe("native device stream transport", () => {
     return { client, opened, waitForSocket, events, fetch };
   }
 
-  it("uses authenticated iOS MJPEG and forwards controls without a cross-origin video fetch", async () => {
+  it("falls back to authenticated MJPEG on iOS without WebCodecs and forwards controls", async () => {
     const { client, opened, events, fetch } = setup("ios");
     client.start();
     const socket = await opened;
@@ -134,6 +136,18 @@ describe("native device stream transport", () => {
     client.stop();
     expect(socket.close).toHaveBeenCalledTimes(1);
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("tells the server how large the viewer draws the screen", async () => {
+    const { client, opened, events, fetch } = setup("ios", 1711.6);
+    client.start();
+    await opened;
+    const imageUrl = new URL(events.onMjpegFallback.mock.calls[0]![0] as string);
+    expect(imageUrl.searchParams.get("displayEdge")).toBe("1712");
+    expect(imageUrl.searchParams.get("wsTicket")).toBe("stream-ticket");
+    const primeUrl = new URL(fetch.mock.calls[0]![0] as string);
+    expect(primeUrl.searchParams.get("displayEdge")).toBe("1712");
+    client.stop();
   });
 
   it("forwards Android gestures and device controls through the ticketed host socket", async () => {
@@ -371,7 +385,7 @@ class MjpegImage extends EventTarget {
   }
 }
 
-function recoveryFixture(platform: "ios" | "android" = "ios", preferMjpeg = true) {
+function recoveryFixture(platform: "ios" | "android" = "ios", mjpeg = true) {
   vi.useFakeTimers();
   const sockets: Socket[] = [];
   class Socket {
@@ -410,8 +424,10 @@ function recoveryFixture(platform: "ios" | "android" = "ios", preferMjpeg = true
       decoders.push(this);
     }
   }
-  vi.stubGlobal("VideoDecoder", Decoder);
-  vi.stubGlobal("EncodedVideoChunk", vi.fn());
+  if (platform === "android" || !mjpeg) {
+    vi.stubGlobal("VideoDecoder", Decoder);
+    vi.stubGlobal("EncodedVideoChunk", vi.fn());
+  }
   const videoBodies: ReadableStreamDefaultController<Uint8Array>[] = [];
   const signals: AbortSignal[] = [];
   const fetch = vi.fn((url: string, init: RequestInit) => {
@@ -444,7 +460,6 @@ function recoveryFixture(platform: "ios" | "android" = "ios", preferMjpeg = true
   const client = createDeviceStreamClient(
     {
       platform,
-      preferMjpeg,
       deviceId: "test-device",
       access: {
         httpBase: "https://test/api/device-hub",
@@ -705,25 +720,19 @@ describe("shared device stream readiness and recovery", () => {
     ["ios", true],
     ["ios", false],
     ["android", false],
-  ] as const)(
-    "bounds missing first frames for %s with preferMjpeg=%s",
-    async (platform, preferMjpeg) => {
-      const { client, events, signals, sockets, image } = recoveryFixture(platform, preferMjpeg);
-      client.start();
-      await vi.advanceTimersByTimeAsync(14_999);
-      expect(events.onStatus.mock.calls.some(([status]) => status === "error")).toBe(false);
-      await vi.advanceTimersByTimeAsync(1);
-      expect(events.onStatus).toHaveBeenLastCalledWith(
-        "error",
-        expect.stringContaining("No video"),
-      );
-      expect(events.onInputConnected).toHaveBeenLastCalledWith(false, expect.any(String));
-      expect(signals.every((signal) => signal.aborted)).toBe(true);
-      expect(sockets[0]!.close).toHaveBeenCalledOnce();
-      expect(image.src).toBe("");
-      expect(vi.getTimerCount()).toBe(0);
-    },
-  );
+  ] as const)("bounds missing first frames for %s with mjpeg=%s", async (platform, mjpeg) => {
+    const { client, events, signals, sockets, image } = recoveryFixture(platform, mjpeg);
+    client.start();
+    await vi.advanceTimersByTimeAsync(14_999);
+    expect(events.onStatus.mock.calls.some(([status]) => status === "error")).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(events.onStatus).toHaveBeenLastCalledWith("error", expect.stringContaining("No video"));
+    expect(events.onInputConnected).toHaveBeenLastCalledWith(false, expect.any(String));
+    expect(signals.every((signal) => signal.aborted)).toBe(true);
+    expect(sockets[0]!.close).toHaveBeenCalledOnce();
+    expect(image.src).toBe("");
+    expect(vi.getTimerCount()).toBe(0);
+  });
 
   it("does not extend the first-frame deadline each time a socket reconnects", async () => {
     const { client, sockets, events } = recoveryFixture("android");
@@ -1044,7 +1053,6 @@ describe("WebRTC-only iOS devices", () => {
       {
         platform: "ios",
         deviceId: "udid-1",
-        preferMjpeg: !options.webCodecs,
         access: {
           httpBase: "https://environment.test/api/device-hub",
           wsBase: "wss://environment.test/api/device-hub",

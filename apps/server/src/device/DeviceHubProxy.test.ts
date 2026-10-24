@@ -13,6 +13,7 @@ import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import type * as DeviceHost from "./DeviceHost.ts";
 import * as DeviceService from "./DeviceService.ts";
 import * as DeviceHubProxy from "./DeviceHubProxy.ts";
+import * as DeviceStreamTuning from "./DeviceStreamTuning.ts";
 
 const disposers: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -26,6 +27,7 @@ const fixture = (
   upstream?: DeviceHost.DeviceHostReady["upstream"],
 ) => {
   let finalized = 0;
+  const viewers: DeviceStreamTuning.DeviceStreamViewer[] = [];
   const requests: string[] = [];
   const headers: Array<Readonly<Record<string, string>>> = [];
   const client = HttpClient.make((request, _url, signal) =>
@@ -68,11 +70,16 @@ const fixture = (
         } as DeviceService.DeviceService["Service"]),
       ),
       Layer.provideMerge(Layer.succeed(HttpClient.HttpClient, client)),
+      Layer.provideMerge(
+        Layer.succeed(DeviceStreamTuning.DeviceStreamTuning, {
+          watch: (viewer) => Effect.sync(() => void viewers.push(viewer)),
+        }),
+      ),
     ),
     { disableLogger: true },
   );
   disposers.push(dispose);
-  return { handler, requests, headers, finalized: () => finalized };
+  return { handler, requests, headers, viewers, finalized: () => finalized };
 };
 
 describe("device hub proxy", () => {
@@ -276,3 +283,37 @@ it.each(["/panel/2/stream.avcc", "/panel/1/webrtc/offer", "/panel/3/exec"])(
     expect(requests).toEqual([]);
   },
 );
+
+it("counts iOS stream viewers toward encoder settings without forwarding their size", async () => {
+  const { handler, requests, viewers } = fixture([AuthOrchestrationReadScope]);
+  const response = await handler(
+    new Request(
+      "http://supaterm.test/api/device-hub/vendor/serve-sim/helper/udid-1/stream.avcc?displayEdge=1712&wsTicket=secret",
+    ),
+  );
+  expect(response.status).toBe(200);
+  expect(response.headers.get("access-control-allow-origin")).toBe("*");
+  await response.text();
+  expect(requests).toEqual(["http://hub.test/vendor/serve-sim/helper/udid-1/stream.avcc"]);
+  expect(viewers).toEqual([
+    { hostId: LOCAL_DEVICE_HOST_ID, deviceId: "udid-1", displayEdge: 1712 },
+  ]);
+
+  const unsized = await handler(
+    new Request(
+      "http://supaterm.test/api/device-hub/vendor/serve-sim/helper/udid-1/stream.mjpeg?displayEdge=huge",
+    ),
+  );
+  await unsized.text();
+  expect(viewers[1]).toEqual({
+    hostId: LOCAL_DEVICE_HOST_ID,
+    deviceId: "udid-1",
+    displayEdge: null,
+  });
+
+  const config = await handler(
+    new Request("http://supaterm.test/api/device-hub/vendor/serve-sim/helper/udid-1/config"),
+  );
+  await config.text();
+  expect(viewers).toHaveLength(2);
+});

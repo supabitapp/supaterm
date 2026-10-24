@@ -10,3 +10,5 @@ export const browserApiCorsAllowedHeaders = [
 ] as const;
 
 export const DESKTOP_RENDERER_ORIGINS = ["supaterm://app", "supaterm-dev://app"] as const;
+// Android's device viewer page; it authenticates with tickets, so it never gets cookie trust.
+export const MOBILE_WEBVIEW_ORIGIN = "https://localhost";

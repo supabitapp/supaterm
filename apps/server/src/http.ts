@@ -51,6 +51,7 @@ import {
   browserApiCorsAllowedHeaders,
   browserApiCorsAllowedMethods,
   DESKTOP_RENDERER_ORIGINS,
+  MOBILE_WEBVIEW_ORIGIN,
 } from "./httpCors.ts";
 
 const OTLP_TRACES_PROXY_PATH = "/api/observability/v1/traces";
@@ -263,7 +264,12 @@ export const layerBrowserApiCors = Layer.unwrap(
     return HttpRouter.cors({
       ...(devOrigin
         ? {
-            allowedOrigins: [devOrigin, ...DESKTOP_RENDERER_ORIGINS, ...config.devAllowedOrigins],
+            allowedOrigins: [
+              devOrigin,
+              ...DESKTOP_RENDERER_ORIGINS,
+              MOBILE_WEBVIEW_ORIGIN,
+              ...config.devAllowedOrigins,
+            ],
             credentials: true,
           }
         : {}),

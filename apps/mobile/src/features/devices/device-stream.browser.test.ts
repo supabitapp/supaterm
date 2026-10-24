@@ -12,6 +12,9 @@ class Element extends EventTarget {
     this.tag = tag;
   }
   setAttribute() {}
+  getBoundingClientRect() {
+    return { width: 402, height: 874 };
+  }
   removeAttribute(name: string) {
     if (name === "src") this.src = "";
   }

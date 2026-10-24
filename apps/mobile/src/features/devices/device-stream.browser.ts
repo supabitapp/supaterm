@@ -130,28 +130,29 @@ export function start(configuration: DeviceStreamConfiguration) {
   const unauthorized = () => {
     if (activeClient === client) post({ type: "unauthorized" });
   };
-  const client = createDeviceStreamClient(
-    { ...configuration, preferMjpeg: platform === "ios" },
-    canvas,
-    {
-      onStatus: reportStatus,
-      onScreen: layout,
-      onMjpegFallback: () => {
-        canvas.style.display = "none";
-        image.style.display = "block";
-      },
-      onCanvasVideo: () => {
-        image.style.display = "none";
-        canvas.style.display = "";
-      },
-      onUnauthorized: unauthorized,
-      onInputConnected: (connected) => {
-        inputConnected = connected;
-        inputStatus.style.display = streaming && !connected ? "block" : "none";
-        post({ type: "input", connected });
-      },
+  const displayEdge = () => {
+    const rect = frame.getBoundingClientRect();
+    const edge = Math.max(rect.width, rect.height) * (window.devicePixelRatio || 1);
+    return edge > 0 ? edge : null;
+  };
+  const client = createDeviceStreamClient({ ...configuration, displayEdge }, canvas, {
+    onStatus: reportStatus,
+    onScreen: layout,
+    onMjpegFallback: () => {
+      canvas.style.display = "none";
+      image.style.display = "block";
     },
-  );
+    onCanvasVideo: () => {
+      image.style.display = "none";
+      canvas.style.display = "";
+    },
+    onUnauthorized: unauthorized,
+    onInputConnected: (connected) => {
+      inputConnected = connected;
+      inputStatus.style.display = streaming && !connected ? "block" : "none";
+      post({ type: "input", connected });
+    },
+  });
   activeClient = client;
   client.setMjpegImage(image);
   const touch = (event: PointerEvent, phase: "begin" | "move" | "end") => {

@@ -18,6 +18,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
 import * as Schema from "effect/Schema";
+import * as TestClock from "effect/testing/TestClock";
 import { HttpRouter, HttpServer } from "effect/http";
 
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
@@ -85,7 +86,9 @@ it.effect.each([
       const attachments: Parameters<ServerBrowser.ServerBrowser["Service"]["attachViewer"]>[0][] =
         [];
       const acked = Promise.withResolvers<void>();
+      const operated = Promise.withResolvers<void>();
       const frame = new Uint8Array([255, 216, 255, 217]);
+      const next = new Uint8Array([255, 216, 0, 255, 217]);
       const output = yield* Queue.make<ServerBrowser.ServerBrowserViewerOutput>();
       yield* Queue.offer(output, { _tag: "viewport", width: 1280, height: 800 });
       yield* Queue.offer(output, {
@@ -93,6 +96,7 @@ it.effect.each([
         data: frame,
         ack: Effect.sync(() => acked.resolve()),
       });
+      yield* Queue.offer(output, { _tag: "frame", data: next, ack: Effect.void });
       const browser = ServerBrowser.ServerBrowser.of({
         clearProfile: () => Effect.void,
         reportProfiles: () => Effect.void,
@@ -103,7 +107,11 @@ it.effect.each([
             attachments.push(input);
             return {
               output,
-              input: (message) => Effect.sync(() => void inputs.push(message)),
+              input: (message) =>
+                Effect.sync(() => {
+                  inputs.push(message);
+                  if (inputs.length > mutations.length) operated.resolve();
+                }),
             };
           }),
       });
@@ -125,26 +133,30 @@ it.effect.each([
         (socket) => Effect.sync(() => socket.close()),
       );
       socket.binaryType = "arraybuffer";
-      const viewports: unknown[] = [];
+      const messages: unknown[] = [];
       const frames: Uint8Array[] = [];
       socket.addEventListener("error", () => received.reject(new Error("stream failed")));
       socket.addEventListener("message", (event) => {
         if (typeof event.data === "string") {
-          viewports.push(JSON.parse(event.data));
+          messages.push(JSON.parse(event.data));
           return;
         }
         frames.push(new Uint8Array(event.data as ArrayBuffer));
+        if (frames.length === 2) {
+          received.resolve();
+          return;
+        }
         for (const message of mutations) socket.send(JSON.stringify(message));
         socket.send("malformed input");
         socket.send(JSON.stringify({ type: "ack" }));
-        received.resolve();
       });
-      yield* Effect.promise(() => received.promise);
-      // The ack follows every mutation on the socket, so this is also a barrier
-      // proving all preceding inputs were processed, without a timing sleep.
       yield* Effect.promise(() => acked.promise);
-      expect(frames).toEqual([frame]);
-      expect(viewports).toEqual([{ type: "viewport", width: 1280, height: 800 }]);
+      // The second frame waits for the ack that follows every mutation on the
+      // socket, so a reader's ignored inputs were all read by then.
+      yield* Effect.promise(() => received.promise);
+      if (canOperate) yield* Effect.promise(() => operated.promise);
+      expect(frames).toEqual([frame, next]);
+      expect(messages).toEqual([{ type: "viewport", width: 1280, height: 800 }, { type: "ping" }]);
       expect(inputs).toEqual(canOperate ? [...mutations, null] : []);
       expect(attachments).toEqual([
         {
@@ -160,15 +172,8 @@ it.effect.each([
     }).pipe(Effect.scoped),
 );
 
-it.effect("sends replies ahead of stale frames and only the newest frame after an ack", () =>
+const serveStream = (output: Queue.Queue<ServerBrowser.ServerBrowserViewerOutput>, query = "") =>
   Effect.gen(function* () {
-    const output = yield* Queue.make<ServerBrowser.ServerBrowserViewerOutput>();
-    const released: number[] = [];
-    const frame = (id: number): ServerBrowser.ServerBrowserViewerOutput => ({
-      _tag: "frame",
-      data: new Uint8Array([id]),
-      ack: Effect.sync(() => void released.push(id)),
-    });
     const browser = ServerBrowser.ServerBrowser.of({
       clearProfile: () => Effect.void,
       reportProfiles: () => Effect.void,
@@ -191,45 +196,108 @@ it.effect("sends replies ahead of stale frames and only the newest frame after a
     const server = Context.get(services, HttpServer.HttpServer);
     const origin = HttpServer.formatAddress(server.address).replace(/^http/, "ws");
     const received: Array<number | string> = [];
-    let next = Promise.withResolvers<void>();
+    let waiting: { readonly count: number; readonly resolve: () => void } | null = null;
     const socket = yield* Effect.acquireRelease(
       Effect.sync(
         () =>
           new WebSocket(
-            `${origin}/api/preview-stream/ws?threadId=thread&tabId=tab&wsTicket=one-use-ticket`,
+            `${origin}/api/preview-stream/ws?threadId=thread&tabId=tab&wsTicket=one-use-ticket${query}`,
           ),
       ),
       (socket) => Effect.sync(() => socket.close()),
     );
     socket.binaryType = "arraybuffer";
     socket.addEventListener("message", (event) => {
-      received.push(
-        typeof event.data === "string"
-          ? JSON.parse(event.data).type
-          : new Uint8Array(event.data as ArrayBuffer)[0]!,
-      );
-      next.resolve();
+      if (typeof event.data !== "string") {
+        received.push(new Uint8Array(event.data as ArrayBuffer)[0]!);
+      } else {
+        const message = JSON.parse(event.data);
+        received.push(message.type === "repeat" ? `repeat ${message.id}` : message.type);
+      }
+      if (waiting && received.length >= waiting.count) waiting.resolve();
     });
+    const receive = (count: number) =>
+      Effect.promise(() => {
+        const done = Promise.withResolvers<void>();
+        waiting = { count, resolve: done.resolve };
+        if (received.length >= count) done.resolve();
+        return done.promise;
+      });
+    const send = (type: "ack" | "pong") => Effect.sync(() => socket.send(JSON.stringify({ type })));
+    return { received, receive, send };
+  });
+
+it.effect("sends replies ahead of stale frames and only the newest frame after an ack", () =>
+  Effect.gen(function* () {
+    const output = yield* Queue.make<ServerBrowser.ServerBrowserViewerOutput>();
+    const released: number[] = [];
+    const frame = (id: number): ServerBrowser.ServerBrowserViewerOutput => ({
+      _tag: "frame",
+      data: new Uint8Array([id]),
+      ack: Effect.sync(() => void released.push(id)),
+    });
+    const stream = yield* serveStream(output);
 
     yield* Queue.offer(output, frame(1));
-    yield* Effect.promise(() => next.promise);
-    next = Promise.withResolvers();
+    yield* stream.receive(2);
     yield* Queue.offerAll(output, [
       frame(2),
       frame(3),
       frame(4),
       { _tag: "probe", x: 0, y: 0, editable: false },
     ]);
-    yield* Effect.promise(() => next.promise);
-    expect(received).toEqual([1, "probe"]);
+    yield* stream.receive(3);
+    expect(stream.received).toEqual(["ping", 1, "probe"]);
+    expect(released).toEqual([1, 2, 3]);
 
-    expect(released).toEqual([2, 3]);
+    yield* stream.send("ack");
+    yield* stream.receive(4);
+    expect(stream.received).toEqual(["ping", 1, "probe", 4]);
+    expect(released).toEqual([1, 2, 3, 4]);
+  }).pipe(Effect.scoped),
+);
 
-    next = Promise.withResolvers();
-    socket.send(JSON.stringify({ type: "ack" }));
-    yield* Effect.promise(() => next.promise);
-    expect(received).toEqual([1, "probe", 4]);
-    expect(released).toEqual([2, 3, 1]);
+it.effect("keeps sending ahead of acks to a viewer that answers pings", () =>
+  Effect.gen(function* () {
+    const output = yield* Queue.make<ServerBrowser.ServerBrowserViewerOutput>();
+    const frame = (id: number): ServerBrowser.ServerBrowserViewerOutput => ({
+      _tag: "frame",
+      data: new Uint8Array([id]),
+      ack: Effect.void,
+    });
+    const stream = yield* serveStream(output);
+
+    yield* Queue.offer(output, frame(1));
+    yield* stream.receive(2);
+    yield* stream.send("pong");
+    yield* stream.send("ack");
+    yield* Queue.offer(output, frame(2));
+    yield* stream.receive(3);
+    yield* TestClock.adjust("10 millis");
+    yield* Queue.offer(output, frame(3));
+    yield* stream.receive(4);
+    expect(stream.received).toEqual(["ping", 1, 2, 3]);
+  }).pipe(Effect.scoped),
+);
+
+it.effect.each([
+  { query: "&repeat=1", third: "repeat 0" },
+  { query: "", third: 1 },
+])("refers back to a recent frame only for viewers that keep them ($query)", ({ query, third }) =>
+  Effect.gen(function* () {
+    const output = yield* Queue.make<ServerBrowser.ServerBrowserViewerOutput>();
+    const frame = (id: number): ServerBrowser.ServerBrowserViewerOutput => ({
+      _tag: "frame",
+      data: new Uint8Array([id]),
+      ack: Effect.void,
+    });
+    const stream = yield* serveStream(output, query);
+    for (const [index, id] of [1, 2, 1].entries()) {
+      yield* Queue.offer(output, frame(id));
+      yield* stream.receive(index + 2);
+      yield* stream.send("ack");
+    }
+    expect(stream.received).toEqual(["ping", 1, 2, third]);
   }).pipe(Effect.scoped),
 );
 

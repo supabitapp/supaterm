@@ -14,6 +14,8 @@
 import { AuthOrchestrationReadScope, AuthOrchestrationOperateScope } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
+import type * as Scope from "effect/Scope";
+import * as Stream from "effect/Stream";
 import {
   HttpClient,
   HttpClientRequest,
@@ -22,10 +24,12 @@ import {
   HttpServerResponse,
 } from "effect/http";
 import * as Socket from "effect/socket/Socket";
+import * as NodeHttpServerRequest from "@effect/platform-node/NodeHttpServerRequest";
 import * as NodeSocket from "@effect/platform-node/NodeSocket";
 
 import { authenticateMediaRequest } from "../auth/http.ts";
 import * as DeviceService from "./DeviceService.ts";
+import * as DeviceStreamTuning from "./DeviceStreamTuning.ts";
 import { repeatStillFrame } from "./mjpegStillFrame.ts";
 
 const ALLOWED_PATHS: ReadonlyArray<RegExp> = [
@@ -90,11 +94,14 @@ const proxyWebSocket = Effect.fn("DeviceHubProxy.proxyWebSocket")(function* (
   upstreamUrl: string,
   protocols: ReadonlyArray<string> = [],
 ) {
+  const incoming = NodeHttpServerRequest.toIncomingMessage(request);
+  delete incoming.headers["sec-websocket-extensions"];
+  const transport = incoming.socket;
   const client = yield* request.upgrade;
   const upstream = yield* Socket.makeWebSocket(upstreamUrl, {
     openTimeout: "10 seconds",
     ...(protocols.length > 0 ? { protocols: [...protocols] } : {}),
-  }).pipe(Effect.provide(NodeSocket.layerWebSocketConstructor));
+  }).pipe(Effect.provide(NodeSocket.layerWebSocketConstructorWS));
   yield* Effect.scoped(
     Effect.gen(function* () {
       const writeToClient = yield* client.writer;
@@ -102,20 +109,44 @@ const proxyWebSocket = Effect.fn("DeviceHubProxy.proxyWebSocket")(function* (
       // Whichever side closes first ends the other via scope teardown: a close
       // fails the pull with a SocketError, which loses the race.
       return yield* Effect.raceFirst(
-        pumpFrames(upstream, writeToClient),
-        pumpFrames(client, writeToUpstream),
+        pumpFrames(upstream, writeToClient, clientDrained(transport)),
+        pumpFrames(client, writeToUpstream, Effect.void),
       );
     }),
   ).pipe(Effect.ignoreCause);
   return HttpServerResponse.empty();
 });
 
+const CLIENT_BUFFERED_BYTES_LIMIT = 256 * 1024;
+
+const clientDrained = (
+  transport: ReturnType<typeof NodeHttpServerRequest.toIncomingMessage>["socket"],
+) =>
+  Effect.callback<void>((resume) => {
+    if (transport.destroyed || transport.writableLength <= CLIENT_BUFFERED_BYTES_LIMIT) {
+      resume(Effect.void);
+      return;
+    }
+    const stopWaiting = () => transport.off("drain", done).off("close", done);
+    const done = () => {
+      stopWaiting();
+      resume(Effect.void);
+    };
+    transport.once("drain", done).once("close", done);
+    return Effect.sync(stopWaiting);
+  });
+
 const pumpFrames =
   /* Frame pumping runs continuously; a span per frame stream adds no diagnostic value. */
-  Effect.fnUntraced(function* (source: Socket.Socket, sink: Socket.Writer) {
+  Effect.fnUntraced(function* (
+    source: Socket.Socket,
+    sink: Socket.Writer,
+    sinkReady: Effect.Effect<void>,
+  ) {
     const { pull } = yield* source.reader;
     while (true) {
       yield* sink.writeAll(yield* pull);
+      yield* sinkReady;
     }
   });
 
@@ -123,6 +154,7 @@ const proxyHttp = Effect.fn("DeviceHubProxy.proxyHttp")(function* (
   request: HttpServerRequest.HttpServerRequest,
   upstreamUrl: string,
   extraHeaders: Readonly<Record<string, string>> = {},
+  viewer?: Effect.Effect<void, never, Scope.Scope>,
 ) {
   const httpClient = HttpClient.withScope(yield* HttpClient.HttpClient);
   const method = request.method;
@@ -155,9 +187,11 @@ const proxyHttp = Effect.fn("DeviceHubProxy.proxyHttp")(function* (
   }
   // Long-lived MJPEG and AVCC responses must not be buffered by compression.
   headers["cache-control"] = "no-store, no-transform";
-  const body = headers["content-type"]?.startsWith("multipart/x-mixed-replace")
+  headers["access-control-allow-origin"] = "*";
+  const stream = headers["content-type"]?.startsWith("multipart/x-mixed-replace")
     ? repeatStillFrame(response.stream)
     : response.stream;
+  const body = viewer ? Stream.unwrap(Effect.as(viewer, stream)) : stream;
   return HttpServerResponse.stream(body, {
     status: response.status,
     headers,
@@ -198,6 +232,8 @@ const handler = Effect.gen(function* () {
   const upstreamSearch = new URLSearchParams(url.value.search);
   upstreamSearch.delete("wsTicket");
   upstreamSearch.delete("hostId");
+  const displayEdge = upstreamSearch.get("displayEdge");
+  upstreamSearch.delete("displayEdge");
   const search = upstreamSearch.size > 0 ? `?${upstreamSearch.toString()}` : "";
   // Hosts with several upstreams (one per cloud session) route and authenticate requests themselves.
   const routed = ready.upstream ? yield* ready.upstream(hubPath, upstreamSearch) : undefined;
@@ -208,7 +244,33 @@ const handler = Effect.gen(function* () {
   if (upgrade) {
     return yield* proxyWebSocket(request, upstreamUrl.replace(/^http/, "ws"), routed?.protocols);
   }
-  return yield* proxyHttp(request, upstreamUrl, routed?.headers);
+  const iosStream = ready.upstream ? null : IOS_STREAM_PATH.exec(hubPath);
+  const deviceId = iosStream ? decodePathSegment(iosStream[1]!) : null;
+  const viewer =
+    deviceId === null
+      ? undefined
+      : (yield* DeviceStreamTuning.DeviceStreamTuning).watch({
+          hostId: ready.hostId,
+          deviceId,
+          displayEdge: parseDisplayEdge(displayEdge),
+        });
+  return yield* proxyHttp(request, upstreamUrl, routed?.headers, viewer);
 });
+
+const IOS_STREAM_PATH =
+  /^\/vendor\/serve-sim\/helper\/([^/]+)(?:\/panel\/[13])?\/stream\.(?:avcc|mjpeg)$/;
+
+const parseDisplayEdge = (value: string | null) => {
+  const edge = Number(value);
+  return Number.isInteger(edge) && edge > 0 && edge <= 8192 ? edge : null;
+};
+
+const decodePathSegment = (segment: string) => {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return null;
+  }
+};
 
 export const layer = HttpRouter.add("*", `${DeviceService.DEVICE_HUB_ROUTE_PREFIX}/*`, handler);

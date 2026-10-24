@@ -86,8 +86,8 @@ import { installPdfDocumentNavigation, isPdfAssetUrl } from "./PdfDocumentNaviga
 
 const SERVER_HOST_CLIENT_ID = SERVER_BROWSER_AUTOMATION_CLIENT_ID;
 const RENDER_SCALE = 2;
-// Chromium allows three unacked frames, so 100 ms pacing caps viewers near 30 fps.
-const SCREENCAST_ACK_PACE_MS = 100;
+// Chromium stops capturing at three unacked frames; acks 33 ms apart cap a viewer near 30 fps.
+const SCREENCAST_ACK_INTERVAL_MS = 33;
 const SCREENCAST_SETTLE_MS = 200;
 const SCREENCAST_MOTION_FRAMES = 4;
 const SCREENCAST_MOTION_WINDOW_MS = 300;
@@ -292,6 +292,8 @@ interface ServerTab {
   readonly isolatedContext: boolean;
 
   readonly desktop: { readonly close: () => Promise<void> } | null;
+  /** Runs in the pinned Chromium rather than the desktop app's. */
+  readonly headless: boolean;
   readonly profileId: string | undefined;
   readonly openerTabId: string | undefined;
 
@@ -765,6 +767,7 @@ const make = Effect.gen(function* () {
       onFileChooser: (chooser) => void offerFileChooser(tab, chooser),
       isolatedContext,
       desktop: desktop === null ? null : { close: desktop.close },
+      headless: browserBacking === "headless",
       profileId: snapshot.profileId,
       openerTabId: adopted?.openerTabId,
       downloads: [],
@@ -2287,9 +2290,7 @@ const make = Effect.gen(function* () {
         ),
     );
     const quality = Math.min(100, Math.max(1, Math.round(input.quality)));
-    // Chromium may drop the final frame during a burst; send a still when it settles.
     let framesInFlight = 0;
-    let mayHaveDropped = false;
     let motion = false;
     const recentFrames: Array<number> = [];
     let screencastParams = Promise.resolve();
@@ -2298,17 +2299,37 @@ const make = Effect.gen(function* () {
       screencastScale = scale;
       screencastParams = screencastParams.then(async () => {
         if (tab.capturing > 0) return;
+        const options = {
+          format: "jpeg" as const,
+          quality: screencastScale < 1 ? Math.min(quality, SCREENCAST_MOTION_QUALITY) : quality,
+          maxWidth: Math.max(1, Math.round(input.maxWidth * screencastScale)),
+          maxHeight: Math.max(1, Math.round(input.maxHeight * screencastScale)),
+          // Chromium 154 keeps the frame it would drop at the in-flight limit and
+          // sends it on the next ack; older Chromium ignores the option.
+          sendLastFrame: true,
+        };
         await session.send("Page.stopScreencast").catch(constVoid);
-        await session
-          .send("Page.startScreencast", {
-            format: "jpeg",
-            quality: screencastScale < 1 ? Math.min(quality, SCREENCAST_MOTION_QUALITY) : quality,
-            maxWidth: Math.max(1, Math.round(input.maxWidth * screencastScale)),
-            maxHeight: Math.max(1, Math.round(input.maxHeight * screencastScale)),
-          })
-          .catch(constVoid);
+        await session.send("Page.startScreencast", options).catch(constVoid);
       });
       return screencastParams;
+    };
+    // The stream acks a frame once it is written or superseded. Any ack for the
+    // session frees a slot, so each frame releases Chromium at most once.
+    let acks = Promise.resolve();
+    let lastAckAt = 0;
+    const release = (sessionId: number) => {
+      let released = false;
+      return Effect.promise(() => {
+        if (released) return Promise.resolve();
+        released = true;
+        acks = acks.then(async () => {
+          await sleepUntil(lastAckAt + SCREENCAST_ACK_INTERVAL_MS);
+          lastAckAt = Date.now();
+          framesInFlight -= 1;
+          await session.send("Page.screencastFrameAck", { sessionId }).catch(constVoid);
+        });
+        return acks;
+      });
     };
     const viewer: ViewerState = {
       id: NodeCrypto.randomUUID(),
@@ -2370,7 +2391,29 @@ const make = Effect.gen(function* () {
       ).catch(() => null);
       if (data) viewer.push({ _tag: "frame", data: Buffer.from(data, "base64"), ack: Effect.void });
     };
+    // A viewer leaving motion holds a reduced frame, and a desktop tab's older
+    // Chromium can drop a burst's final frame; a still replaces either once the
+    // page settles, since an idle page sends nothing new.
+    let owesStill = false;
+    const leaveMotion = () => {
+      motion = false;
+      recentFrames.length = 0;
+      owesStill = true;
+      void startScreencast(1);
+    };
     let settleTimer: ReturnType<typeof setTimeout> | null = null;
+    const settle = () => {
+      settleTimer = null;
+      const sinceScroll = Date.now() - viewer.scrolledAt;
+      if (motion && sinceScroll < SCREENCAST_SETTLE_MS) {
+        settleTimer = setTimeout(settle, SCREENCAST_SETTLE_MS - sinceScroll);
+        return;
+      }
+      if (motion) leaveMotion();
+      if (!owesStill) return;
+      owesStill = false;
+      void pushStill();
+    };
     yield* Effect.addFinalizer(() =>
       Effect.sync(() => {
         if (settleTimer !== null) clearTimeout(settleTimer);
@@ -2379,7 +2422,7 @@ const make = Effect.gen(function* () {
     let screencastStarted = false;
     session.on("Page.screencastFrame", (frame) => {
       screencastStarted = true;
-      if (framesInFlight > 0) mayHaveDropped = true;
+      if (!tab.headless && framesInFlight > 0) owesStill = true;
       framesInFlight += 1;
       const arrivedAt = Date.now();
       recentFrames.push(arrivedAt);
@@ -2392,33 +2435,14 @@ const make = Effect.gen(function* () {
         motion = true;
         void startScreencast(0.5);
       } else if (motion && arrivedAt - viewer.scrolledAt > SCREENCAST_SETTLE_MS) {
-        motion = false;
-        recentFrames.length = 0;
-        void startScreencast(1);
+        leaveMotion();
       }
       if (settleTimer !== null) clearTimeout(settleTimer);
-      settleTimer = setTimeout(() => {
-        settleTimer = null;
-        if (!motion && !mayHaveDropped) return;
-        mayHaveDropped = false;
-        if (motion) {
-          motion = false;
-          recentFrames.length = 0;
-          void startScreencast(1);
-        }
-        void pushStill();
-      }, SCREENCAST_SETTLE_MS);
+      settleTimer = setTimeout(settle, SCREENCAST_SETTLE_MS);
       viewer.push({
         _tag: "frame",
         data: Buffer.from(frame.data, "base64"),
-        ack: Effect.promise(() =>
-          sleepUntil(arrivedAt + SCREENCAST_ACK_PACE_MS).then(() => {
-            framesInFlight -= 1;
-            return session
-              .send("Page.screencastFrameAck", { sessionId: frame.sessionId })
-              .catch(constVoid);
-          }),
-        ),
+        ack: release(frame.sessionId),
       });
     });
     broadcastViewport(tab);

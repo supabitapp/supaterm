@@ -57,7 +57,12 @@ bearer clients mint over authenticated HTTP. The ticket is stripped
 before the request reaches the hub.
 
 Stream responses carry `Cache-Control: no-transform`; the compression
-middleware would otherwise buffer an MJPEG body that never ends. Browsers paint an
+middleware would otherwise buffer an MJPEG body that never ends. The hub
+protects slow viewers by watching its own socket's buffer and skipping to the
+next keyframe, so the proxy must pass backpressure through rather than absorb
+it: the WebSocket pump waits for the viewer's socket to drain, reads the hub
+with the pausable `ws` client, and refuses `permessage-deflate`, whose queue
+the drain check cannot see. Browsers paint an
 MJPEG part only once the next part begins and the hub writes one only when the
 screen changes, so the proxy
 [re-sends the last part](../../apps/server/src/device/mjpegStillFrame.ts) after a
@@ -102,13 +107,17 @@ is a few lines that point at the tools and prefer them over raw `simctl` and
 The hub vendors two streaming servers with different wire formats. iOS video is
 an HTTP body of AVCC envelopes decoded with WebCodecs, with input on a separate
 binary WebSocket; Android multiplexes SEMU-framed H.264 and JSON gestures over
-one WebSocket. [`deviceStream.ts`](../../apps/web/src/components/device/deviceStream.ts)
+one WebSocket. [`stream.ts`](../../packages/client-runtime/src/device/stream.ts)
 speaks both so one panel covers both platforms.
 
 Simulators encode H.264 High 5.1. Hardware decoders on some machines and all
-headless browsers reject that profile, and WebCodecs is secure-context only, so
-the viewer probes `isConfigSupported` and falls back to the MJPEG endpoint on
-iOS. Android has no MJPEG; there the panel reports that it cannot decode.
+headless browsers reject that profile, and Chromium offers WebCodecs only to
+secure contexts, so the viewer probes `isConfigSupported` and falls back to the
+MJPEG endpoint on iOS. Android has no MJPEG; there the panel reports that it
+cannot decode. The mobile WebViews load their document from a secure origin
+(`file:` on iOS, `https://localhost` on Android) and fetch the stream
+cross-origin, which is why proxied stream responses allow any origin; the
+ticket, not a cookie, authenticates them.
 
 serve-sim can also be locked to WebRTC, as on EAS Simulator, and then refuses
 AVCC with a 409 naming the transport. The viewer still asks for AVCC first, so
@@ -116,3 +125,14 @@ hubs that serve it pay nothing, and switches on that 409, or when its MJPEG
 image fails in a browser that has `RTCPeerConnection`. Offers are not trickled:
 serve-sim takes one offer with every candidate. The video element only feeds
 the same canvas sink, so the panel and the mobile WebView keep one surface.
+
+## The server sizes the simulator encoder
+
+serve-sim encodes at the simulator's native size and 6 Mbps, and one encoder
+feeds every viewer of a device, so no single viewer may change its settings.
+Each viewer reports the size it draws the screen at, and
+[`DeviceStreamTuning`](../../apps/server/src/device/DeviceStreamTuning.ts)
+sizes the encoder for the largest one, keeps the hub's settings while any
+viewer has not reported a size, and restores them when the last viewer
+leaves. Android is not tuned: changing serve-emu's settings restarts its
+capture for every viewer.

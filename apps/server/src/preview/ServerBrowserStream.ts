@@ -5,10 +5,13 @@ import {
   PREVIEW_STREAM_HOST_SETUP_CLOSE_CODE,
   PreviewStreamHostSetup,
 } from "@supaterm/contracts";
+import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
+import * as Predicate from "effect/Predicate";
 import * as Queue from "effect/Queue";
 import * as Schema from "effect/Schema";
+import type * as Scope from "effect/Scope";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import {
@@ -23,6 +26,7 @@ import * as Socket from "effect/socket/Socket";
 import { authenticateMediaRequest } from "../auth/http.ts";
 import { assetResponseHeaders } from "../http.ts";
 import * as PreviewBrowserHost from "./PreviewBrowserHost.ts";
+import * as PreviewStreamPacer from "./PreviewStreamPacer.ts";
 import * as ServerBrowser from "./ServerBrowser.ts";
 
 const PREVIEW_STREAM_ROUTE_PREFIX = "/api/preview-stream";
@@ -31,6 +35,9 @@ const TAB_GONE_CODE = 4404;
 
 const DEFAULT_QUALITY = 70;
 const MAX_SOCKET_BUFFER_BYTES = 8 * 1024 * 1024;
+const PING_INTERVAL_MS = 1_000;
+const PING_MESSAGE = JSON.stringify({ type: "ping" });
+const REPEAT_CANDIDATES = 2;
 const textDecoder = new TextDecoder();
 
 const intParam = (params: URLSearchParams, name: string, fallback: number, max: number) => {
@@ -40,8 +47,8 @@ const intParam = (params: URLSearchParams, name: string, fallback: number, max: 
 
 type Frame = Extract<ServerBrowser.ServerBrowserViewerOutput, { readonly _tag: "frame" }>;
 
-const isAck = (message: unknown) =>
-  typeof message === "object" && message !== null && "type" in message && message.type === "ack";
+const isControl = (message: unknown, type: "ack" | "pong") =>
+  Predicate.hasProperty(message, "type") && message.type === type;
 
 const parseMessage = (chunk: Uint8Array | string): unknown => {
   try {
@@ -121,12 +128,27 @@ const makeHandler = Effect.fnUntraced(function* (browser: ServerBrowser.ServerBr
         return HttpServerResponse.empty();
       }
       const viewer = attached.viewer;
-      // `write` returns once the frame is queued, so Chromium's ack for each
-      // frame waits for the viewer's `ack` message instead. Only one frame
-      // is on the wire and only the newest waits behind it, so replies never
-      // queue behind stale images on a slow link.
-      let inFlight: Effect.Effect<void> | null = null;
+      // `write` returns once the frame is queued, so a frame counts as in
+      // flight until the viewer's `ack` for it. Only the newest frame waits
+      // behind those, so replies never queue behind stale images on a slow link.
+      const pacer = PreviewStreamPacer.make();
       let pending: Frame | null = null;
+      let waking = false;
+      let pingSentAt: number | null = null;
+      let lastPingAt = Number.NEGATIVE_INFINITY;
+      // A blinking caret alternates between two identical images; viewers that
+      // keep their recent frames get a reference instead of the image again.
+      const repeats = params.get("repeat") === "1";
+      const recentFrames: Array<{ readonly id: number; readonly data: Uint8Array }> = [];
+      let nextFrameId = 0;
+      const payload = (data: Uint8Array) => {
+        if (!repeats) return data;
+        const recent = recentFrames.find((frame) => Buffer.compare(frame.data, data) === 0);
+        if (recent) return JSON.stringify({ type: "repeat", id: recent.id });
+        recentFrames.unshift({ id: nextFrameId++, data });
+        if (recentFrames.length > REPEAT_CANDIDATES) recentFrames.pop();
+        return data;
+      };
       const disconnectSlowViewer = Effect.sync(() => transport.destroy()).pipe(
         Effect.andThen(Effect.interrupt),
       );
@@ -138,19 +160,44 @@ const makeHandler = Effect.fnUntraced(function* (browser: ServerBrowser.ServerBr
           }
           return writer.write(data);
         });
-      const sendFrame = (frame: Frame) => {
-        inFlight = frame.ack;
-        return write(frame.data);
-      };
+      const flush: Effect.Effect<void, Socket.SocketError, Scope.Scope> = Effect.gen(function* () {
+        if (pending === null) return;
+        const now = yield* Clock.currentTimeMillis;
+        const bytes = pending.data.byteLength;
+        if (!pacer.canSend(now, bytes)) {
+          const wakeAt = pacer.wakeAt(now, bytes);
+          if (wakeAt === null || waking) return;
+          waking = true;
+          yield* Effect.sleep(wakeAt - now).pipe(
+            Effect.andThen(Effect.sync(() => (waking = false))),
+            Effect.andThen(flush),
+            Effect.forkScoped,
+          );
+          return;
+        }
+        const frame = pending;
+        pending = null;
+        // Only a ping with nothing in flight measures the path alone.
+        if (pacer.idle() && pingSentAt === null && now - lastPingAt >= PING_INTERVAL_MS) {
+          pingSentAt = now;
+          lastPingAt = now;
+          yield* write(PING_MESSAGE);
+        }
+        const data = payload(frame.data);
+        pacer.sent(now, typeof data === "string" ? data.length : data.byteLength);
+        yield* write(data);
+        yield* Effect.forkScoped(frame.ack);
+      });
       const sendOutput = Queue.take(viewer.output).pipe(
         Effect.flatMap((output) => {
           switch (output._tag) {
             case "frame": {
-              if (inFlight === null) return sendFrame(output);
               const superseded = pending;
               pending = output;
               // Never sent, but Chromium still waits for its ack.
-              return superseded ? Effect.forkScoped(superseded.ack) : Effect.void;
+              return superseded
+                ? Effect.forkScoped(superseded.ack).pipe(Effect.andThen(flush))
+                : flush;
             }
             case "viewport":
             case "control":
@@ -175,21 +222,25 @@ const makeHandler = Effect.fnUntraced(function* (browser: ServerBrowser.ServerBr
       );
       const receive = (chunk: Uint8Array | string) => {
         const message = parseMessage(chunk);
+        if (isControl(message, "ack")) {
+          return Clock.currentTimeMillis.pipe(
+            Effect.map((now) => pacer.acked(now)),
+            Effect.andThen(flush),
+          );
+        }
+        if (isControl(message, "pong")) {
+          return Clock.currentTimeMillis.pipe(
+            Effect.map((now) => {
+              if (pingSentAt !== null) pacer.probed(now - pingSentAt);
+              pingSentAt = null;
+            }),
+          );
+        }
         // Ownership serializes actions in the service. Keep reading so dialog
         // replies and takeover can unblock an action already waiting on the page.
-        if (!isAck(message))
-          return canOperate
-            ? viewer.input(message).pipe(Effect.forkScoped, Effect.asVoid)
-            : Effect.void;
-        const ack = inFlight;
-        const next = pending;
-        inFlight = null;
-        pending = null;
-        // Forked: Chromium acks are paced and must not hold up input.
-        return Effect.andThen(
-          ack ? Effect.forkScoped(ack) : Effect.void,
-          next ? sendFrame(next) : Effect.void,
-        );
+        return canOperate
+          ? viewer.input(message).pipe(Effect.forkScoped, Effect.asVoid)
+          : Effect.void;
       };
       const receiveInput = reader.pull.pipe(
         Effect.flatMap((chunks) => Effect.forEach(chunks, receive, { discard: true })),

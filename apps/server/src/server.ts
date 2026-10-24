@@ -66,6 +66,7 @@ import * as McpSessionRegistry from "./mcp/McpSessionRegistry.ts";
 import * as PreviewAutomationBroker from "./mcp/PreviewAutomationBroker.ts";
 import * as DeviceService from "./device/DeviceService.ts";
 import * as DeviceHubProxy from "./device/DeviceHubProxy.ts";
+import * as DeviceStreamTuning from "./device/DeviceStreamTuning.ts";
 import * as PreviewManager from "./preview/Manager.ts";
 import * as PortScanner from "./preview/PortScanner.ts";
 import * as ServerBrowser from "./preview/ServerBrowser.ts";
@@ -397,10 +398,14 @@ const layerPreview = Layer.empty.pipe(
   Layer.provideMerge(layerPortScanner),
 );
 
-const layerDevice = DeviceService.layer.pipe(
-  Layer.provide(layerServerSettings),
-  Layer.provide(ProcessRunner.layer),
-  Layer.provide(NetService.layer),
+const layerDevice = DeviceStreamTuning.layer.pipe(
+  Layer.provideMerge(
+    DeviceService.layer.pipe(
+      Layer.provide(layerServerSettings),
+      Layer.provide(ProcessRunner.layer),
+      Layer.provide(NetService.layer),
+    ),
+  ),
 );
 
 const layerWorkspaceEntries = WorkspaceEntries.layer.pipe(Layer.provide(WorkspacePaths.layer));

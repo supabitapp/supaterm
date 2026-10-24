@@ -141,8 +141,13 @@ export function DeviceStreamView(props: {
       onHandle?.(null);
       return;
     }
+    const displayEdge = () => {
+      const rect = canvas.parentElement?.getBoundingClientRect();
+      const edge = rect ? Math.max(rect.width, rect.height) * window.devicePixelRatio : 0;
+      return edge > 0 ? edge : null;
+    };
     const client = createDeviceStreamClient(
-      { platform: props.platform, deviceId: props.deviceId, access },
+      { platform: props.platform, deviceId: props.deviceId, access, displayEdge },
       createCanvasFrameSink(canvas, () => frameListenerRef.current?.()),
       {
         onDuoControl: setDuoControl,

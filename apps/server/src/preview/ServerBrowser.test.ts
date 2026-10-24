@@ -90,7 +90,7 @@ function makeSession(frame?: ReturnType<typeof makeFrame>) {
   const events = new NodeEvents.EventEmitter();
   return {
     on: vi.fn((name: string, listener: () => void) => events.on(name, listener)),
-    emit: (name: string) => events.emit(name),
+    emit: (name: string, ...args: Array<unknown>) => events.emit(name, ...args),
     detach: vi.fn(async () => {}),
     send: vi.fn(async (method: string, input?: unknown): Promise<Record<string, unknown>> => {
       if (method === "Page.getNavigationHistory") return { currentIndex: 0, entries: [{}] };
@@ -992,6 +992,75 @@ it.live("streams to a read-only viewer without allowing takeover, input, or view
       });
       expect(page.setViewportSize).toHaveBeenCalledWith({ width: 390, height: 844 });
       yield* operator.input({ type: "releaseControl" });
+    }),
+  ).pipe(Effect.provide(layer)),
+);
+
+it.live("releases each screencast frame to Chromium once, when the stream lets it go", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { browser, tabId } = yield* ready;
+      const viewer = yield* browser.attachViewer(viewerInput(tabId, false));
+      const session = contexts[0]!.sessions.at(-1)!;
+      expect(session.send).toHaveBeenCalledWith(
+        "Page.startScreencast",
+        expect.objectContaining({ sendLastFrame: true }),
+      );
+      yield* Queue.clear(viewer.output);
+      session.emit("Page.screencastFrame", { data: "ZnJhbWU=", sessionId: 7 });
+      session.emit("Page.screencastFrame", { data: "ZnJhbWU=", sessionId: 8 });
+      const frames = (yield* Queue.clear(viewer.output)).flatMap((item) =>
+        item._tag === "frame" ? [item] : [],
+      );
+      const acks = () =>
+        session.send.mock.calls.flatMap(([method, input]) =>
+          method === "Page.screencastFrameAck" ? [(input as { sessionId: number }).sessionId] : [],
+        );
+      expect(frames).toHaveLength(2);
+      expect(acks()).toEqual([]);
+      yield* frames[1]!.ack;
+      yield* frames[1]!.ack;
+      yield* frames[0]!.ack;
+      expect(acks()).toEqual([8, 7]);
+    }),
+  ).pipe(Effect.provide(layer)),
+);
+
+it.live("holds scroll mode until scrolling stops, then sends a full-size still", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { browser, tabId } = yield* ready;
+      const viewer = yield* browser.attachViewer(viewerInput(tabId, true));
+      yield* viewer.input({ type: "takeControl" });
+      const session = contexts[0]!.sessions.at(-1)!;
+      const widths = () =>
+        session.send.mock.calls.flatMap(([method, input]) =>
+          method === "Page.startScreencast" ? [(input as { maxWidth: number }).maxWidth] : [],
+        );
+      const wheel = viewer.input({ type: "wheel", x: 10, y: 10, deltaX: 0, deltaY: 40 });
+      const advance = (ms: number) => Effect.promise(() => vi.advanceTimersByTimeAsync(ms));
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+      try {
+        yield* wheel;
+        for (let frame = 0; frame < 4; frame += 1) {
+          session.emit("Page.screencastFrame", { data: "ZnJhbWU=", sessionId: frame });
+        }
+        yield* advance(0);
+        expect(widths()).toEqual([1280, 640]);
+        // No frames arrive for longer than the settle delay, but scrolling goes on.
+        for (let tick = 0; tick < 3; tick += 1) {
+          yield* advance(150);
+          yield* wheel;
+        }
+        expect(widths()).toEqual([1280, 640]);
+        yield* Queue.clear(viewer.output);
+        yield* advance(250);
+        expect(widths()).toEqual([1280, 640, 1280]);
+        const stills = (yield* Queue.clear(viewer.output)).filter((item) => item._tag === "frame");
+        expect(stills).toHaveLength(1);
+      } finally {
+        vi.useRealTimers();
+      }
     }),
   ).pipe(Effect.provide(layer)),
 );

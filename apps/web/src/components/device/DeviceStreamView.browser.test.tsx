@@ -136,7 +136,7 @@ async function setup(h264 = false, platform: "ios" | "android" = "ios") {
   }
   stack.use(
     stubGlobal("fetch", (url: string, init: RequestInit) => {
-      if (url.endsWith("stream.avcc")) {
+      if (new URL(url).pathname.endsWith("stream.avcc")) {
         return Promise.resolve(
           new Response(
             new ReadableStream<Uint8Array>({
