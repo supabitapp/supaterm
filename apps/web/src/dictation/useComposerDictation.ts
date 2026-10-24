@@ -7,11 +7,12 @@ import {
   type VoiceInputState,
   type VoiceRecordingHandoff,
 } from "@supaterm/client-runtime/voice-input";
-import type { DictationSourceId, EnvironmentId, ProviderInstanceId } from "@supaterm/contracts";
+import type { DictationSourceId, EnvironmentId } from "@supaterm/contracts";
+import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useState } from "react";
 
 import { useStableCallback } from "../hooks/useStableCallback";
-import { useDictationAvailability } from "../state/dictation";
+import { useDictationRoute } from "../state/dictation";
 import { threadOutboxDeliverableAtom } from "../state/threadOutbox";
 import { registerDictationComposer } from "./pendingClipRunner";
 import { parkPendingClip } from "./pendingClips";
@@ -30,14 +31,14 @@ export interface ComposerVoiceMessage {
   readonly clip: DictationClip;
 
   readonly selection: { readonly start: number; readonly end: number };
-  readonly sourceId: DictationSourceId | null;
+  readonly environmentId: EnvironmentId;
+  readonly sourceId: DictationSourceId;
   readonly capturedAt: string;
 }
 
 export interface ComposerDictationOptions {
   readonly ownerKey: string;
   readonly environmentId: EnvironmentId;
-  readonly threadInstanceId: ProviderInstanceId | null;
   readonly readPrompt: () => string;
   readonly readSelection: () => { readonly start: number; readonly end: number };
   readonly commitPrompt: (
@@ -57,7 +58,7 @@ interface LatestDictationInput {
 
 interface RecordingContext {
   readonly environmentId: EnvironmentId;
-  readonly threadInstanceId: ProviderInstanceId | null;
+  readonly sourceId: DictationSourceId;
 }
 
 async function parkHandoff(
@@ -71,7 +72,7 @@ async function parkHandoff(
   await parkPendingClip({
     ownerKey: handoff.capturedDraft.ownerKey,
     environmentId: context.environmentId,
-    threadInstanceId: context.threadInstanceId,
+    sourceId: context.sourceId,
     blob: recording.blob,
     mimeType: recording.mimeType,
     durationMs: recording.durationMs,
@@ -105,13 +106,7 @@ function createDictationRuntime(onStateChange: (state: VoiceInputState) => void)
   const session: VoiceInputSession = new VoiceInputSession({
     recorder,
     getTranscriber: () => {
-      const { options, availability } = read();
-      return availability.kind === "available"
-        ? createServerVoiceTranscriber({
-            environmentId: options.environmentId,
-            threadInstanceId: options.threadInstanceId,
-          })
-        : null;
+      return context === null ? null : createServerVoiceTranscriber(context);
     },
     requestPermission: () => recorder.requestPermission(),
     configureRecording: async () => undefined,
@@ -152,11 +147,9 @@ function createDictationRuntime(onStateChange: (state: VoiceInputState) => void)
       input = next;
     },
     start: () => {
-      const { options } = read();
-      context = {
-        environmentId: options.environmentId,
-        threadInstanceId: options.threadInstanceId,
-      };
+      const { availability } = read();
+      if (availability.kind !== "available") return Promise.resolve();
+      context = { environmentId: availability.environmentId, sourceId: availability.source.id };
       return session.start(target());
     },
     take,
@@ -165,10 +158,15 @@ function createDictationRuntime(onStateChange: (state: VoiceInputState) => void)
 }
 
 export function useComposerDictation(options: ComposerDictationOptions) {
-  const availability = useDictationAvailability(options.environmentId, options.threadInstanceId);
-  const connected = useAtomValue(threadOutboxDeliverableAtom(options.environmentId));
+  const availability = useDictationRoute(options.environmentId);
+  const connected = useAtomValue(
+    threadOutboxDeliverableAtom(
+      availability.kind === "hidden" ? options.environmentId : availability.environmentId,
+    ),
+  );
   const [state, setState] = useState(IDLE_STATE);
   const [runtime] = useState(() => createDictationRuntime(setState));
+  const navigate = useNavigate();
   useLayoutEffect(() => {
     runtime.setInput({ options, availability });
     runtime.readDraft();
@@ -244,7 +242,8 @@ export function useComposerDictation(options: ComposerDictationOptions) {
           locale: handoff.locale,
         },
         selection: handoff.capturedDraft.selection,
-        sourceId: input.availability.kind === "available" ? input.availability.source.id : null,
+        environmentId: taken.context.environmentId,
+        sourceId: taken.context.sourceId,
         capturedAt: new Date().toISOString(),
       }));
     if (sent) {
@@ -253,11 +252,20 @@ export function useComposerDictation(options: ComposerDictationOptions) {
     }
     await parkHandoff(handoff, taken.context, { status: "waiting", error: null });
   });
+  const openSetup = useStableCallback(() => {
+    const current = runtime.read().availability;
+    if (current.kind === "hidden") return;
+    void navigate({
+      to: "/settings/integrations",
+      search: { machine: current.environmentId },
+    });
+  });
   const toggle = useStableCallback(() => {
     switch (runtime.session.controller.currentState.phase) {
       case "idle":
       case "error":
-        start();
+        if (runtime.read().availability.kind === "available") start();
+        else openSetup();
         return;
       case "preparing":
         runtime.session.controller.cancel();
@@ -281,6 +289,7 @@ export function useComposerDictation(options: ComposerDictationOptions) {
     stop,
     cancel,
     retry: start,
+    openSetup,
     toggle,
     transcribeAndSend,
   };

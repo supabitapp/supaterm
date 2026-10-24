@@ -85,6 +85,7 @@ export const OutboxTurnVoice = Schema.Struct({
   insertAt: Schema.Number,
   capturedAt: Schema.String,
   sourceId: Schema.NullOr(Schema.String),
+  transcriptionEnvironmentId: Schema.optionalKey(EnvironmentId),
   transcript: Schema.optionalKey(Schema.String),
 });
 

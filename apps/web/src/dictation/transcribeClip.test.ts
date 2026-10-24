@@ -50,7 +50,13 @@ const clip = {
 };
 
 function transcribe(signal = new AbortController().signal) {
-  return transcribeDictationClip({ environmentId: ENV, sourceId: SOURCE, clip, signal });
+  return transcribeDictationClip({
+    requestId: "recording-1",
+    environmentId: ENV,
+    sourceId: SOURCE,
+    clip,
+    signal,
+  });
 }
 
 beforeEach(() => {
@@ -81,6 +87,7 @@ describe("transcribeDictationClip", () => {
     const config = harness.configs.get(ENV) as { dictation: unknown };
     config.dictation = { sources: [{ id: SOURCE, eligible: true, audioFormats: ["wav"] }] };
     await transcribeDictationClip({
+      requestId: "recording-2",
       environmentId: ENV,
       sourceId: SOURCE,
       clip: { ...clip, mimeType: "audio/mp4" },
@@ -105,6 +112,7 @@ describe("transcribeDictationClip", () => {
     expect(harness.rpc.mock.calls[0]?.[2]).toEqual({
       environmentId: ENV,
       input: {
+        requestId: "recording-1",
         attachmentId: "pending:a",
         sourceId: SOURCE,
         durationMs: 300_000,

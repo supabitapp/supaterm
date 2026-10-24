@@ -9,6 +9,7 @@ import { shouldRetryThreadOutboxDelivery } from "@supaterm/client-runtime/thread
 import {
   AttachmentCreateUploadUrlInput,
   DICTATION_MIN_DURATION_MS,
+  DictationRequestId,
   resolveDictationSource,
   type DictationSourceId,
   type EnvironmentId,
@@ -163,6 +164,7 @@ async function postClip(url: string, clip: DictationClip, signal: AbortSignal): 
 }
 
 export async function transcribeDictationClip(input: {
+  readonly requestId: string;
   readonly environmentId: EnvironmentId;
   readonly sourceId: DictationSourceId;
   readonly clip: DictationClip;
@@ -292,6 +294,7 @@ export async function transcribeDictationClip(input: {
         {
           environmentId,
           input: {
+            requestId: DictationRequestId.make(input.requestId),
             attachmentId: upload.attachmentId,
             sourceId: input.sourceId,
             durationMs: Math.min(Math.round(clip.durationMs), capability.maxDurationMs),

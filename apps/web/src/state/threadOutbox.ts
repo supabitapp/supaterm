@@ -169,19 +169,23 @@ async function transcribeOutboxVoice(
 ) {
   if (voice.bytes === null)
     throw new DictationClipFailure("terminal", "The recording is no longer available.");
-  const availability = readDictationAvailability(
-    payload.environmentId,
-    payload.input.modelSelection?.instanceId ?? null,
-  );
-  let sourceId: DictationSourceId;
-  if (availability.kind === "available") sourceId = availability.source.id;
-  else if (availability.reason !== "unknown")
+  const environmentId = voice.transcriptionEnvironmentId ?? payload.environmentId;
+  const availability = readDictationAvailability(environmentId);
+  if (availability.kind === "hidden" && availability.reason !== "unknown")
     throw new DictationClipFailure("terminal", DICTATION_UNAVAILABLE[availability.reason]);
-  else if (voice.sourceId !== null && isDictationSourceId(voice.sourceId))
-    sourceId = voice.sourceId;
-  else throw new DictationClipFailure("transient", "Transcribes once connected.");
+  let sourceId: DictationSourceId;
+  if (voice.sourceId !== null && isDictationSourceId(voice.sourceId)) sourceId = voice.sourceId;
+  else if (availability.kind === "available") sourceId = availability.source.id;
+  else if (availability.kind === "hidden")
+    throw new DictationClipFailure("transient", "Transcribes once connected.");
+  else
+    throw new DictationClipFailure(
+      "terminal",
+      "Choose a transcription source in Settings, then retry.",
+    );
   const result = await transcribeDictationClip({
-    environmentId: payload.environmentId,
+    requestId: voice.clipId,
+    environmentId,
     sourceId,
     clip: {
       blob: voice.bytes,
@@ -489,8 +493,9 @@ export async function moveThreadOutboxTurnToComposer(entry: PendingThreadTurn) {
   if (!voice?.bytes) return;
   await parkPendingClip({
     ownerKey: composerTargetKey(target),
-    environmentId: payload.environmentId,
-    threadInstanceId: payload.input.modelSelection?.instanceId ?? null,
+    environmentId: voice.transcriptionEnvironmentId ?? payload.environmentId,
+    sourceId:
+      voice.sourceId !== null && isDictationSourceId(voice.sourceId) ? voice.sourceId : null,
     blob: voice.bytes,
     mimeType: voice.mimeType,
     durationMs: voice.durationMs,

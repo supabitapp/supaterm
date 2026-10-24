@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 // @effect-diagnostics nodeBuiltinImport:off - Node's typed junction API avoids Windows symlink privileges while keeping the probe isolated.
 
 import * as NodeFSP from "node:fs/promises";
@@ -67,6 +68,8 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { Command, Flag } from "effect/cli";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
+
+const MAC_ENTITLEMENTS_PATH = "apps/desktop/resources/entitlements.mac.plist";
 
 const LINUX_ICON_SIZES = [16, 22, 24, 32, 48, 64, 128, 256, 512] as const;
 const DESKTOP_APP_ID = "com.supaterm.desktop";
@@ -2530,11 +2533,11 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
         { name: "Web links", schemes: ["http", "https"], role: "Viewer" },
       ],
       ...(signed ? { sign: path.join(repoRoot, "scripts/sign-macos.ts") } : {}),
+      entitlements:
+        macTouchIdSigning?.entitlementsPath ?? path.join(repoRoot, MAC_ENTITLEMENTS_PATH),
+      entitlementsInherit: path.join(repoRoot, MAC_ENTITLEMENTS_PATH),
       ...(macTouchIdSigning
-        ? {
-            entitlements: macTouchIdSigning.entitlementsPath,
-            provisioningProfile: macTouchIdSigning.provisioningProfilePath,
-          }
+        ? { provisioningProfile: macTouchIdSigning.provisioningProfilePath }
         : {}),
     };
   }

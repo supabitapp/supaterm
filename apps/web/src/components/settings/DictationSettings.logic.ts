@@ -9,7 +9,7 @@ import {
 } from "@supaterm/contracts";
 
 export const DICTATION_NO_SOURCE_MESSAGE =
-  "No transcription model is available. Add a Codex account signed in with the Codex CLI or an OpenAI API key.";
+  "No account here can transcribe. Sign in to Claude or Codex on this environment.";
 
 const BLOCKED_MESSAGES = {
   unknown: "Connect this environment to check dictation availability.",
@@ -30,7 +30,6 @@ export type DictationSettingsView =
       readonly settings: DictationSettings;
       readonly sources: ReadonlyArray<DictationSourceDescriptor>;
       readonly saved: DictationSourceDescriptor | null;
-      readonly automaticDescription: string;
       readonly hasEligibleSource: boolean;
       readonly status: string | null;
       readonly sourceNote: string | null;
@@ -43,7 +42,6 @@ export function resolveDictationSettingsView(
     return { kind: "blocked", message: BLOCKED_MESSAGES[state.status] };
   }
   const { sources, settings } = state.offer;
-  const automatic = resolveDictationSource({ sources, settings: { enabled: true, source: null } });
   const resolved = resolveDictationSource({
     sources,
     settings: { enabled: true, source: settings.source },
@@ -52,20 +50,24 @@ export function resolveDictationSettingsView(
     settings.source === null
       ? null
       : (sources.find((source) => source.id === settings.source) ?? null);
-  const savedUnavailable = settings.source !== null && saved?.eligible !== true;
+  const hasEligibleSource = sources.some((source) => source.eligible);
   return {
     kind: "offered",
     settings,
     sources,
     saved,
-    automaticDescription: automatic
-      ? `Uses ${dictationSourceName(automatic)}`
-      : "No transcription model is available.",
-    hasEligibleSource: resolved !== null,
+    hasEligibleSource,
     status: settings.enabled && resolved ? dictationSourceLabel(resolved) : null,
-    sourceNote:
-      settings.enabled && savedUnavailable && resolved
-        ? `${saved ? dictationSourceName(saved) : "The selected transcription model"} is unavailable. Dictation uses ${dictationSourceName(resolved)} instead.`
-        : null,
+    sourceNote: !settings.enabled
+      ? null
+      : settings.source === null
+        ? hasEligibleSource
+          ? "Choose the account that transcribes voice input here."
+          : null
+        : resolved === null
+          ? `${saved ? dictationSourceName(saved) : "The chosen account"} can't transcribe right now${
+              saved?.unavailableReason ? `: ${saved.unavailableReason}` : "."
+            }`
+          : null,
   };
 }

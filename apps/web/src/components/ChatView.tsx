@@ -6649,6 +6649,7 @@ export default function ChatView(props: ChatViewProps) {
                     locale: voice.message.clip.locale,
                     capturedAt: voice.message.capturedAt,
                     sourceId: voice.message.sourceId,
+                    transcriptionEnvironmentId: voice.message.environmentId,
                   },
                 }
               : {}),

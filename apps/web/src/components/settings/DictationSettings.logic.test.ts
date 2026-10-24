@@ -61,56 +61,49 @@ describe("resolveDictationSettingsView", () => {
     });
   });
 
-  it("names what Automatic resolves to and the source in use", () => {
-    expect(offered([source("work"), source("home")])).toMatchObject({
+  it("asks for an account until one is chosen", () => {
+    expect(offered([source("work")])).toMatchObject({
       kind: "offered",
-      automaticDescription: "Uses Codex home · home@example.com",
+      saved: null,
       hasEligibleSource: true,
+      status: null,
+      sourceNote: "Choose the account that transcribes voice input here.",
+    });
+  });
+
+  it("names the chosen account in use", () => {
+    expect(offered([source("work"), source("home")], { source: "codex:home" })).toMatchObject({
+      saved: { id: "codex:home" },
       status: "Transcribed with ChatGPT · home@example.com",
       sourceNote: null,
     });
   });
 
-  it("falls back from an ineligible saved source and says so", () => {
-    const view = offered(
-      [
-        source("managed", { eligible: false, accountLabel: null, unavailableReason: "No." }),
-        source("work"),
-      ],
-      { source: "codex:managed" },
-    );
-    expect(view).toMatchObject({
-      saved: { label: "Codex managed" },
-      status: "Transcribed with ChatGPT · work@example.com",
-      sourceNote:
-        "Codex managed is unavailable. Dictation uses Codex work · work@example.com instead.",
-    });
-  });
-
-  it("describes a saved source the environment no longer lists", () => {
-    expect(offered([source("work")], { source: "codex:gone" })).toMatchObject({
-      saved: null,
-      sourceNote:
-        "The selected transcription model is unavailable. Dictation uses Codex work · work@example.com instead.",
-    });
-  });
-
-  it("reports no eligible source without a fallback note", () => {
+  it("explains that a chosen account can't transcribe instead of using another one", () => {
     expect(
-      offered([source("managed", { eligible: false })], { source: "codex:managed" }),
+      offered(
+        [source("work"), source("home", { eligible: false, unavailableReason: "Signed out." })],
+        { source: "codex:home" },
+      ),
     ).toMatchObject({
-      automaticDescription: "No transcription model is available.",
-      hasEligibleSource: false,
       status: null,
+      sourceNote: "Codex home · home@example.com can't transcribe right now: Signed out.",
+    });
+    expect(offered([source("work")], { source: "codex:removed" })).toMatchObject({
+      saved: null,
+      sourceNote: "The chosen account can't transcribe right now.",
+    });
+  });
+
+  it("reports when no account can transcribe", () => {
+    expect(offered([source("work", { eligible: false })])).toMatchObject({
+      hasEligibleSource: false,
       sourceNote: null,
     });
-    expect(offered([])).toMatchObject({ hasEligibleSource: false, status: null });
   });
 
-  it("keeps the preview but drops the status while dictation is off", () => {
-    expect(offered([source("work")], { enabled: false, source: "codex:gone" })).toMatchObject({
-      automaticDescription: "Uses Codex work · work@example.com",
-      hasEligibleSource: true,
+  it("drops the status and note while dictation is off", () => {
+    expect(offered([source("work")], { enabled: false, source: "codex:work" })).toMatchObject({
       status: null,
       sourceNote: null,
     });

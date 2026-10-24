@@ -699,12 +699,21 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "dictation-source",
-    title: "Transcription model",
+    title: "Transcription account",
     to: "/settings/integrations",
     targetId: "dictation",
     scope: "environment-defaults",
     environmentOnly: true,
-    searchTerms: ["dictation voice microphone speech dictate transcribe account chatgpt openai"],
+    searchTerms: [
+      "dictation voice microphone speech dictate transcribe account claude chatgpt openai",
+    ],
+  },
+  {
+    id: "dictation-routing",
+    title: "Transcribe on",
+    to: "/settings/integrations",
+    targetId: "dictation",
+    searchTerms: ["dictation voice microphone transcribe local computer environment machine route"],
   },
   {
     id: "browser-profiles",

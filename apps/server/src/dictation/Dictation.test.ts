@@ -2,6 +2,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
 import {
   DICTATION_MAX_CLIP_BYTES,
+  DictationRequestId,
   DictationSourceId,
   ProviderDriverKind,
   ProviderInstanceId,
@@ -15,6 +16,7 @@ import {
   type TranscriptionFailureReason,
   type TranscriptionSourceDescription,
 } from "@supaterm/provider-core/server/transcription";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
@@ -126,7 +128,14 @@ const writeClip = (extension: string, options: { readonly threadId?: string } = 
     return { attachmentId, filePath, exists: fileSystem.exists(filePath) };
   });
 
-const request = (attachmentId: string, sourceId = "codex:work", durationMs = 4_000) => ({
+let nextRequest = 0;
+const request = (
+  attachmentId: string,
+  sourceId = "codex:work",
+  durationMs = 4_000,
+  requestId = `recording-${++nextRequest}`,
+) => ({
+  requestId: DictationRequestId.make(requestId),
   attachmentId,
   sourceId: DictationSourceId.make(sourceId),
   durationMs,
@@ -288,7 +297,7 @@ describe("Dictation.transcribe", () => {
     ),
   );
 
-  it.effect("re-resolves the client's pick against the sources it can verify", () =>
+  it.effect("never moves a recording to another source when the chosen one can't transcribe", () =>
     Effect.gen(function* () {
       const other = yield* Ref.make<TranscriptionSourceDescription | null>(chatGpt);
       const otherCalls: Array<TranscriptionClip> = [];
@@ -296,10 +305,14 @@ describe("Dictation.transcribe", () => {
         ({ calls, dictation }) =>
           Effect.gen(function* () {
             const clip = yield* writeClip("webm");
-            const result = yield* dictation.transcribe(request(clip.attachmentId));
-            expect(result.sourceId).toBe("codex:other");
+            const error = yield* dictation.transcribe(request(clip.attachmentId)).pipe(Effect.flip);
+            expect(error).toMatchObject({
+              _tag: "DictationUnavailableError",
+              reason: "source-ineligible",
+            });
             expect(calls).toEqual([]);
-            expect(otherCalls).toHaveLength(1);
+            expect(otherCalls).toEqual([]);
+            expect(yield* clip.exists).toBe(false);
           }),
         {
           description: { ...chatGpt, eligible: false, unavailableReason: "Signed out." },
@@ -308,6 +321,90 @@ describe("Dictation.transcribe", () => {
               transcription: fakeTranscription({ description: other, calls: otherCalls }),
             }),
           ],
+        },
+      );
+    }),
+  );
+
+  it.effect("answers a repeated request from the finished transcript without a second call", () =>
+    withWork(({ calls, dictation }) =>
+      Effect.gen(function* () {
+        const first = yield* writeClip("webm");
+        const again = yield* writeClip("webm");
+        const id = "recording-repeat";
+        const result = yield* dictation.transcribe(
+          request(first.attachmentId, "codex:work", 4_000, id),
+        );
+        const repeated = yield* dictation.transcribe(
+          request(again.attachmentId, "codex:work", 4_000, id),
+        );
+        expect(repeated).toEqual(result);
+        expect(calls).toHaveLength(1);
+        expect(yield* again.exists).toBe(false);
+      }),
+    ),
+  );
+
+  it.effect("keeps transcribing after the caller goes away and lets a retry join it", () =>
+    Effect.gen(function* () {
+      const gate = yield* Deferred.make<void>();
+      yield* withWork(
+        ({ calls, dictation }) =>
+          Effect.gen(function* () {
+            const clip = yield* writeClip("webm");
+            const id = "recording-join";
+            const caller = yield* dictation
+              .transcribe(request(clip.attachmentId, "codex:work", 4_000, id))
+              .pipe(Effect.forkChild);
+            yield* Effect.yieldNow;
+            yield* Fiber.interrupt(caller);
+            const retry = yield* dictation
+              .transcribe(request(clip.attachmentId, "codex:work", 4_000, id))
+              .pipe(Effect.forkChild);
+            yield* Deferred.succeed(gate, undefined);
+            expect(yield* Fiber.join(retry)).toEqual({
+              text: "hello there",
+              sourceId: "codex:work",
+            });
+            expect(calls).toHaveLength(1);
+          }),
+        {
+          result: Deferred.await(gate).pipe(Effect.as({ text: "  hello there \n" })),
+        },
+      );
+    }),
+  );
+
+  it.effect("lets a failed request be retried with a new upload", () =>
+    Effect.gen(function* () {
+      const attempts = yield* Ref.make(0);
+      yield* withWork(
+        ({ calls, dictation }) =>
+          Effect.gen(function* () {
+            const id = "recording-retry";
+            const first = yield* writeClip("webm");
+            yield* dictation
+              .transcribe(request(first.attachmentId, "codex:work", 4_000, id))
+              .pipe(Effect.flip);
+            const second = yield* writeClip("webm");
+            const result = yield* dictation.transcribe(
+              request(second.attachmentId, "codex:work", 4_000, id),
+            );
+            expect(result.text).toBe("hello there");
+            expect(calls).toHaveLength(2);
+          }),
+        {
+          result: Ref.getAndUpdate(attempts, (count) => count + 1).pipe(
+            Effect.flatMap((count) =>
+              count === 0
+                ? Effect.fail(
+                    new TranscriptionFailure({
+                      reason: { _tag: "upstream", category: "network", status: null },
+                    }),
+                  )
+                : Effect.succeed({ text: "hello there" }),
+            ),
+          ),
         },
       );
     }),

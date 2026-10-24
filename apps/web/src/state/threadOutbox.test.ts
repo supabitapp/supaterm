@@ -1004,7 +1004,6 @@ describe("web thread outbox delivery", () => {
       expect.objectContaining({
         ownerKey: "environment:thread",
         environmentId: "environment",
-        threadInstanceId: "codex",
         mimeType: "audio/webm",
         durationMs: 2_000,
         locale: "en-US",

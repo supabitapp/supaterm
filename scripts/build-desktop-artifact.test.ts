@@ -2185,7 +2185,11 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
 
       const mac = config.mac as Record<string, unknown>;
       assert.equal(config.appId, "com.supaterm.desktop");
-      assert.notProperty(mac, "entitlements");
+      assert.match(
+        String(mac.entitlements),
+        /[\\/]apps[\\/]desktop[\\/]resources[\\/]entitlements\.mac\.plist$/,
+      );
+      assert.equal(mac.entitlementsInherit, mac.entitlements);
       assert.notProperty(mac, "provisioningProfile");
       assert.match(String(mac.sign), /[\\/]scripts[\\/]sign-macos\.ts$/);
       assert.deepStrictEqual(mac.protocols, [

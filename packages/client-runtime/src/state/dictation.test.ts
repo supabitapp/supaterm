@@ -14,6 +14,8 @@ import {
   createDictationAvailabilityAtoms,
   dictationSourceLabel,
   resolveDictationAvailability,
+  resolveDictationRoute,
+  type DictationEnvironmentState,
 } from "./dictation.ts";
 
 const ENV = EnvironmentId.make("env");
@@ -42,13 +44,19 @@ function config(
     readonly sources?: ReadonlyArray<DictationSourceDescriptor>;
     readonly enabled?: boolean;
     readonly supported?: boolean;
+    readonly chosen?: string | null;
   } = {},
 ): ServerConfig {
   return {
     environment: {
       capabilities: options.supported === false ? {} : { dictation: capability },
     },
-    settings: { dictation: { enabled: options.enabled ?? true, source: null } },
+    settings: {
+      dictation: {
+        enabled: options.enabled ?? true,
+        source: options.chosen === undefined ? "codex:work" : options.chosen,
+      },
+    },
     dictation: { sources: options.sources ?? [source("work")] },
   } as unknown as ServerConfig;
 }
@@ -72,8 +80,8 @@ function harness() {
   const registry = AtomRegistry.make();
   const read = () =>
     resolveDictationAvailability({
+      environmentId: ENV,
       state: registry.get(atoms.environmentStateAtom(ENV)),
-      threadInstanceId: null,
       captureSupported: true,
     });
   return { configAtom, sessionAtom, registry, read };
@@ -99,6 +107,11 @@ describe("dictation availability", () => {
     const h = harness();
     expect(h.read().kind).toBe("available");
     h.registry.set(h.configAtom, config({ sources: [source("work", { eligible: false })] }));
+    expect(h.read()).toMatchObject({ kind: "unavailable", source: { id: "codex:work" } });
+    h.registry.set(
+      h.configAtom,
+      config({ chosen: null, sources: [source("work", { eligible: false })] }),
+    );
     expect(h.read()).toEqual({ kind: "hidden", reason: "no-source" });
     h.registry.set(h.configAtom, config({ enabled: false }));
     expect(h.read()).toEqual({ kind: "hidden", reason: "disabled" });
@@ -116,34 +129,23 @@ describe("dictation availability", () => {
     const h = harness();
     h.registry.set(h.configAtom, null);
     expect(h.read()).toEqual({ kind: "hidden", reason: "unknown" });
-    h.registry.set(h.configAtom, config());
     expect(
       resolveDictationAvailability({
-        state: {
-          status: "offered",
-          offer: { capability, sources: [source("a")], settings: { enabled: true, source: null } },
-        },
-        threadInstanceId: null,
+        environmentId: ENV,
+        state: offered([source("a")], "codex:a"),
         captureSupported: false,
-      } as Parameters<typeof resolveDictationAvailability>[0]),
+      }),
     ).toEqual({ kind: "hidden", reason: "no-capture" });
   });
 
-  it("prefers the thread's own eligible instance", () => {
+  it("asks for a source until one is chosen, without picking one itself", () => {
     expect(
       resolveDictationAvailability({
-        state: {
-          status: "offered",
-          offer: {
-            capability,
-            sources: [source("a"), source("b")],
-            settings: { enabled: true, source: null },
-          },
-        },
-        threadInstanceId: ProviderInstanceId.make("b"),
+        environmentId: ENV,
+        state: offered([source("a"), source("b", { eligible: false })], null),
         captureSupported: true,
-      } as Parameters<typeof resolveDictationAvailability>[0]),
-    ).toMatchObject({ kind: "available", source: { id: "codex:b" } });
+      }),
+    ).toMatchObject({ kind: "needs-source", sources: [{ id: "codex:a" }] });
   });
 
   it("names the service and account that transcribe", () => {
@@ -153,5 +155,72 @@ describe("dictation availability", () => {
     expect(dictationSourceLabel({ serviceLabel: "OpenAI API", accountLabel: null })).toBe(
       "Transcribed with OpenAI API",
     );
+  });
+});
+
+function offered(
+  sources: ReadonlyArray<DictationSourceDescriptor>,
+  chosen: string | null,
+): DictationEnvironmentState {
+  return {
+    status: "offered",
+    offer: {
+      capability,
+      sources,
+      settings: { enabled: true, source: chosen as DictationSourceDescriptor["id"] | null },
+    },
+  };
+}
+
+describe("dictation routing", () => {
+  const LOCAL = EnvironmentId.make("local");
+  const REMOTE = EnvironmentId.make("remote");
+  const ready = offered([source("work")], "codex:work");
+  const unchosen = offered([source("work")], null);
+  const route = (
+    states: Partial<Record<string, DictationEnvironmentState>>,
+    options: {
+      readonly routing?: Parameters<typeof resolveDictationRoute>[0]["routing"];
+      readonly local?: EnvironmentId | null;
+    } = {},
+  ) =>
+    resolveDictationRoute({
+      routing: options.routing ?? { mode: "automatic" },
+      draftEnvironmentId: REMOTE,
+      localEnvironmentId: options.local === undefined ? LOCAL : options.local,
+      stateFor: (environmentId) => states[environmentId] ?? { status: "unknown" },
+      captureSupported: true,
+    });
+
+  it("transcribes on this computer even when the thread lives elsewhere", () => {
+    expect(route({ local: ready, remote: ready })).toMatchObject({
+      kind: "available",
+      environmentId: LOCAL,
+    });
+  });
+
+  it("uses the thread's environment when this computer has no ready source", () => {
+    expect(route({ local: unchosen, remote: ready })).toMatchObject({
+      kind: "available",
+      environmentId: REMOTE,
+    });
+    expect(route({ remote: ready })).toMatchObject({ kind: "available", environmentId: REMOTE });
+    expect(route({ remote: ready }, { local: null })).toMatchObject({ environmentId: REMOTE });
+  });
+
+  it("asks to set up this computer before falling back to nothing", () => {
+    expect(route({ local: unchosen, remote: { status: "unsupported" } })).toMatchObject({
+      kind: "needs-source",
+      environmentId: LOCAL,
+    });
+  });
+
+  it("never leaves a pinned environment", () => {
+    expect(
+      route(
+        { local: ready, remote: { status: "unsupported" } },
+        { routing: { mode: "pinned", environmentId: REMOTE } },
+      ),
+    ).toEqual({ kind: "hidden", reason: "unsupported" });
   });
 });

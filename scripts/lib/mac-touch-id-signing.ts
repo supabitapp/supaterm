@@ -68,6 +68,7 @@ export const prepareMacTouchIdSigning = Effect.fn("prepareMacTouchIdSigning")(fu
           "com.apple.security.cs.allow-jit": true,
           "com.apple.security.cs.allow-unsigned-executable-memory": true,
           "com.apple.security.cs.disable-library-validation": true,
+          "com.apple.security.device.audio-input": true,
         }),
       );
       yield* Effect.log("[desktop-artifact] Touch ID passkeys enabled.");

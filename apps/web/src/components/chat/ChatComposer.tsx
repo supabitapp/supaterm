@@ -2833,7 +2833,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const dictation = useComposerDictation({
     ownerKey: composerDraftTargetKey,
     environmentId,
-    threadInstanceId: selectedInstanceId,
     readPrompt: () => promptRef.current,
     readSelection: () =>
       composerEditorRef.current?.readSelectionRange() ?? {

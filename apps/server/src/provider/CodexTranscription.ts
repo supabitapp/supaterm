@@ -48,6 +48,7 @@ interface CodexTranscriptionEndpoint {
   readonly serviceLabel: string;
   readonly audioFormats: ReadonlyArray<string>;
   readonly fields: Readonly<Record<string, string>>;
+  readonly headers: Readonly<Record<string, string>>;
 }
 
 const OPENAI_API_ENDPOINT: CodexTranscriptionEndpoint = {
@@ -56,6 +57,7 @@ const OPENAI_API_ENDPOINT: CodexTranscriptionEndpoint = {
   serviceLabel: "OpenAI API",
   audioFormats: ["webm", "ogg", "mp4", "m4a", "wav"],
   fields: { model: OPENAI_TRANSCRIPTION_MODEL },
+  headers: {},
 };
 
 const CHATGPT_ENDPOINT: CodexTranscriptionEndpoint = {
@@ -65,6 +67,10 @@ const CHATGPT_ENDPOINT: CodexTranscriptionEndpoint = {
 
   audioFormats: ["webm", "wav"],
   fields: {},
+  headers: {
+    originator: "Codex Desktop",
+    "user-agent": "Codex Desktop/26.1007.71326 (Mac OS; arm64)",
+  },
 };
 
 interface CodexAppServerLaunch {
@@ -291,6 +297,7 @@ export const makeCodexTranscription = Effect.fn("makeCodexTranscription")(functi
         HttpClientRequest.setHeaders({
           originator: CODEX_CLIENT_NAME,
           "user-agent": credentials.userAgent,
+          ...credentials.endpoint.headers,
           ...(credentials.accountId === null
             ? {}
             : { "chatgpt-account-id": credentials.accountId }),

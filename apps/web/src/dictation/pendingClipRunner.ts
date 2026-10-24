@@ -86,19 +86,30 @@ async function runPendingClip(id: string): Promise<void> {
   const clip = readPendingClip(id);
   const blob = readPendingClipBlob(id);
   if (!clip || !blob || clip.status === "ready" || clip.status === "failed") return;
-  const availability = readDictationAvailability(clip.environmentId, clip.threadInstanceId);
+  const availability = readDictationAvailability(clip.environmentId);
   if (availability.kind === "hidden") {
     if (availability.reason !== "unknown") {
       updatePendingClip(id, { status: "failed", error: UNAVAILABLE_COPY[availability.reason] });
     }
     return;
   }
+  const sourceId =
+    clip.sourceId ?? (availability.kind === "available" ? availability.source.id : null);
+  if (sourceId === null) {
+    updatePendingClip(id, {
+      status: "failed",
+      error: "Choose a transcription source in Settings, then retry.",
+    });
+    return;
+  }
+  if (clip.sourceId === null) updatePendingClip(id, { sourceId });
   const controller = new AbortController();
   const unregister = registerPendingClipWork(id, controller);
   updatePendingClip(id, { status: "transcribing", error: null });
   const outcome = await transcribeDictationClip({
+    requestId: clip.id,
     environmentId: clip.environmentId,
-    sourceId: availability.source.id,
+    sourceId,
     clip: {
       blob,
       mimeType: clip.mimeType,

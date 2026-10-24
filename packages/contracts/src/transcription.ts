@@ -65,7 +65,13 @@ export const DictationCatalog = Schema.Struct({
 });
 export type DictationCatalog = typeof DictationCatalog.Type;
 
+export const DictationRequestId = TrimmedNonEmptyString.check(Schema.isMaxLength(128)).pipe(
+  Schema.brand("DictationRequestId"),
+);
+export type DictationRequestId = typeof DictationRequestId.Type;
+
 export const DictationTranscribeInput = Schema.Struct({
+  requestId: DictationRequestId,
   attachmentId: ChatAttachmentId,
   sourceId: DictationSourceId,
   durationMs: NonNegativeInt,
@@ -185,34 +191,11 @@ export const DictationTranscribeError = Schema.Union([
 ]);
 export type DictationTranscribeError = typeof DictationTranscribeError.Type;
 
-const compareSourceIds = (left: DictationSourceDescriptor, right: DictationSourceDescriptor) =>
-  left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
-
-const sourceKindOf = (id: DictationSourceId) => id.slice(0, id.indexOf(":"));
-
 export function resolveDictationSource(input: {
   readonly sources: ReadonlyArray<DictationSourceDescriptor>;
   readonly settings: Pick<DictationSettings, "enabled" | "source">;
-  readonly threadInstanceId?: ProviderInstanceId | null | undefined;
 }): DictationSourceDescriptor | null {
-  if (!input.settings.enabled) return null;
-  const eligible = input.sources.filter((source) => source.eligible).sort(compareSourceIds);
-  const chosen = input.settings.source;
-  const chosenKind = chosen === null ? null : sourceKindOf(chosen);
-  const threadInstanceId = input.threadInstanceId;
-  if (threadInstanceId !== undefined && threadInstanceId !== null) {
-    const own = eligible.find(
-      (source) =>
-        source.providerInstanceId === threadInstanceId &&
-        (chosenKind === null || source.kind === chosenKind),
-    );
-    if (own !== undefined) return own;
-  }
-  if (chosen !== null) {
-    const exact = eligible.find((source) => source.id === chosen);
-    if (exact !== undefined) return exact;
-    const sameKind = eligible.find((source) => source.kind === chosenKind);
-    if (sameKind !== undefined) return sameKind;
-  }
-  return eligible[0] ?? null;
+  if (!input.settings.enabled || input.settings.source === null) return null;
+  const chosen = input.sources.find((source) => source.id === input.settings.source);
+  return chosen?.eligible ? chosen : null;
 }

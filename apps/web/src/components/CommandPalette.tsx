@@ -139,7 +139,7 @@ import { useEnvironmentQuery } from "../state/query";
 import { serverEnvironment } from "../state/server";
 import { threadEnvironment } from "../state/threads";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
-import { useDictationAvailability } from "../state/dictation";
+import { useDictationRoute } from "../state/dictation";
 import { sourceControlEnvironment } from "../state/sourceControl";
 import { useAtomCommand } from "../state/use-atom-command";
 import { useAtomQueryRunner } from "../state/use-atom-query-runner";
@@ -1072,8 +1072,7 @@ function OpenCommandPaletteDialog(props: {
     isExplicitRelativeProjectPath(query.trim()) && currentProjectCwdForBrowse === null;
   const browseAccess = useFilesystemReadAccess(browseEnvironmentId);
   const canDictate =
-    useDictationAvailability(paletteRouteTarget ? currentProjectEnvironmentId : null, null).kind ===
-    "available";
+    useDictationRoute(paletteRouteTarget ? currentProjectEnvironmentId : null).kind !== "hidden";
   const hasBrowseTarget =
     isBrowsing &&
     browsePath.directoryPath.length > 0 &&

@@ -10,6 +10,7 @@ import {
   DictationUnavailableError,
   DictationUpstreamError,
   type DictationClipExtension,
+  type DictationRequestId,
   type DictationSourceId,
   type DictationTranscribeError,
   type DictationTranscribeInput,
@@ -20,13 +21,16 @@ import type { ProviderInstance } from "@supaterm/provider-core/server/driver";
 import type { TranscriptionFailure } from "@supaterm/provider-core/server/transcription";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
+import * as Deferred from "effect/Deferred";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as PubSub from "effect/PubSub";
 import * as Schema from "effect/Schema";
+import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 
 import { deletePendingAttachment } from "../assets/AttachmentUpload.ts";
@@ -44,6 +48,10 @@ import * as ServerSettings from "../serverSettings.ts";
 const SOURCES_DEBOUNCE = Duration.millis(200);
 
 const DURATION_GRACE_MS = 2_000;
+
+// A phone that lost the response while backgrounded asks again with the same
+// request id; keeping the text avoids a second upload and vendor call.
+const RESULT_RETENTION = Duration.hours(1);
 
 const CLIP_MIME_TYPES: Readonly<Record<DictationClipExtension, string>> = {
   webm: "audio/webm",
@@ -103,6 +111,15 @@ const make = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
 
   const transcriptionsSettled = yield* PubSub.unbounded<void>();
+  const operations = new Map<
+    DictationRequestId,
+    {
+      readonly sourceId: DictationSourceId;
+      readonly done: Deferred.Deferred<DictationTranscribeResult, DictationTranscribeError>;
+    }
+  >();
+  const operationScope = yield* Scope.make("parallel");
+  yield* Effect.addFinalizer(() => Scope.close(operationScope, Exit.void));
 
   const describeInstance = (instance: ProviderInstance) =>
     Effect.gen(function* () {
@@ -190,7 +207,7 @@ const make = Effect.gen(function* () {
     return { filePath, extension, sizeBytes };
   });
 
-  const transcribe = Effect.fn("Dictation.transcribe")(
+  const runTranscription = Effect.fn("Dictation.transcribe")(
     function* (input: DictationTranscribeInput) {
       const settings = yield* serverSettings.getSettings.pipe(Effect.orDie);
       if (!settings.dictation.enabled)
@@ -262,6 +279,39 @@ const make = Effect.gen(function* () {
         ),
       ),
   );
+
+  const discardUpload = (input: DictationTranscribeInput) =>
+    deletePendingAttachment(input.attachmentId).pipe(
+      Effect.provideService(ServerConfig.ServerConfig, config),
+      Effect.provideService(FileSystem.FileSystem, fileSystem),
+    );
+
+  // The work belongs to the service, not the RPC: a client that disconnects
+  // mid-transcription can ask again and join it instead of starting over.
+  const transcribe = (input: DictationTranscribeInput) =>
+    Effect.gen(function* () {
+      const existing = operations.get(input.requestId);
+      if (existing !== undefined) {
+        if (existing.sourceId !== input.sourceId)
+          return yield* new DictationUnavailableError({ reason: "unknown-source" });
+        return yield* Deferred.await(existing.done).pipe(Effect.ensuring(discardUpload(input)));
+      }
+      const done = yield* Deferred.make<DictationTranscribeResult, DictationTranscribeError>();
+      operations.set(input.requestId, { sourceId: input.sourceId, done });
+      const forget = Effect.sync(() => {
+        if (operations.get(input.requestId)?.done === done) operations.delete(input.requestId);
+      });
+      yield* runTranscription(input).pipe(
+        Effect.exit,
+        Effect.tap((exit) => Deferred.done(done, exit)),
+        Effect.flatMap((exit) =>
+          Exit.isSuccess(exit) ? Effect.sleep(RESULT_RETENTION) : Effect.void,
+        ),
+        Effect.ensuring(forget),
+        Effect.forkIn(operationScope),
+      );
+      return yield* Deferred.await(done);
+    });
 
   return Dictation.of({ sources, streamSources, transcribe });
 });

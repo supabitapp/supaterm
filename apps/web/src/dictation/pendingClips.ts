@@ -1,5 +1,5 @@
 import type { VoiceDraftSnapshot } from "@supaterm/client-runtime/voice-input";
-import { EnvironmentId, ProviderInstanceId } from "@supaterm/contracts";
+import { DictationSourceId, EnvironmentId } from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
 import { useSyncExternalStore } from "react";
 
@@ -11,7 +11,7 @@ const StoredPendingClip = Schema.Struct({
   id: Schema.String,
   ownerKey: Schema.String,
   environmentId: EnvironmentId,
-  threadInstanceId: Schema.NullOr(ProviderInstanceId),
+  sourceId: Schema.NullOr(DictationSourceId),
   mimeType: Schema.String,
   durationMs: Schema.Number,
   locale: Schema.NullOr(Schema.String),
@@ -189,7 +189,7 @@ export function loadPendingClips(): Promise<void> {
 export async function parkPendingClip(input: {
   readonly ownerKey: string;
   readonly environmentId: EnvironmentId;
-  readonly threadInstanceId: ProviderInstanceId | null;
+  readonly sourceId: DictationSourceId | null;
   readonly blob: Blob;
   readonly mimeType: string;
   readonly durationMs: number;
@@ -206,7 +206,7 @@ export async function parkPendingClip(input: {
       id: randomUUID(),
       ownerKey: input.ownerKey,
       environmentId: input.environmentId,
-      threadInstanceId: input.threadInstanceId,
+      sourceId: input.sourceId,
       mimeType: input.mimeType,
       durationMs: input.durationMs,
       locale: input.locale,

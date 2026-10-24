@@ -199,57 +199,62 @@ Stashes containing uploaded files must be restored in their original environment
 Those files are retained for 24 hours. After an upload expires, restore the prompt
 and use **Attach again** or remove the missing file before sending.
 
-## Voice input on iPhone
+## Voice input
 
-On supported iPhones with iOS 26 or later, use the composer's microphone to record.
-Stop to transcribe and review the text, or tap the up arrow to transcribe and send.
-Text is inserted where your selection was when recording started. In scheduled-task
-prompts, confirming only updates the draft; save the schedule separately.
+Dictate into the composer instead of typing. On web and desktop, click the
+microphone beside the attach button or press `mod+shift+space`; on iPhone and
+Android, tap the composer's microphone. Stop to review the transcript where your
+cursor was, or use **Transcribe and send**. Escape or **Cancel** discards the
+recording. Recordings can be up to five minutes long. In scheduled-task prompts,
+confirming only updates the draft; save the schedule separately.
 
-The first use may download Apple's speech model and needs a network connection.
-Later transcription works offline for that language. Recordings can be up to five
-minutes long. Canceling or an audio interruption discards the recording and preserves
-your existing draft. Leaving the screen keeps dictation available in the floating
-control, but cancels a pending send. While recording, the screen stays
-awake; it can sleep normally once recording stops.
+### Which account transcribes
 
-Voice input records from the first connected microphone in **Settings → Microphone**.
-The list mixes kinds (built-in, other wired, other Bluetooth, CarPlay) with wired and
-Bluetooth devices you have dictated with, listed by name. Drag to rank them together:
-for example, put **Other Bluetooth** above your AirPods so a new headset is preferred
-while the AirPods microphone stays low. By default, CarPlay comes after the built-in
-microphone.
+Your recording is transcribed by a Claude or Codex account on one of your
+environments, not by the thread's agent, so a Codex thread can use Claude
+transcription. Choose the account for each environment in
+**Settings → Integrations → Dictation**. Until you choose one, the microphone opens
+that setting. The microphone's tooltip names the account and the environment that
+will transcribe; if that account can't transcribe, it says why instead of
+switching to another one.
 
-Transcription runs on your device. Supaterm deletes the temporary audio after
-transcription or cancellation; only the message text is sent when you submit.
+- **Claude** works with a Claude subscription login. On macOS, turn on Keychain
+  access for Claude in Settings so Supaterm can read the login.
+- **Codex** works with a ChatGPT login or an OpenAI API key. ChatGPT may reject
+  transcription requests; if it does, the recording stays saved and that account
+  is paused for dictation for a while.
 
-## Dictation on web and desktop
+**Transcribe on** in the same section picks the environment for this device. On
+the desktop app, **Automatic** uses this computer when it has an account set up,
+even for threads on another machine, and otherwise the thread's environment. On
+phones and in browsers, Automatic uses the thread's environment. Pick an
+environment to always use it; voice input then waits for that environment rather
+than using another one. Recording in a browser needs HTTPS or `localhost`, and the
+desktop app asks for microphone access the first time.
 
-Click the microphone beside the attach button, or press `mod+shift+space`, to
-record. While recording, **Transcribe and send** queues the message and
-**Insert transcript** (the microphone button, or the shortcut again) puts the
-text where your cursor was. Escape or **Cancel** discards the recording.
-Recordings can be up to five minutes long.
+On iPhone, **Settings → Microphone → Transcribe on this iPhone** uses Apple's
+on-device speech model instead, on iOS 26 or later. Its first use may download the
+model; after that it works offline for that language.
 
-The environment that owns the draft transcribes the audio with one of its Codex
-accounts, signed in with the Codex CLI or an OpenAI API key. The microphone's
-tooltip names the service and account. Choose the account, or turn dictation off,
-in **Settings → Integrations → Dictation**. The microphone is hidden when that
-environment has no account that can transcribe. Recording needs HTTPS or
-`localhost` in a browser, and on macOS the desktop app asks for microphone access
-the first time.
+### Offline and saved recordings
 
-ChatGPT may reject transcription requests from Supaterm. If it does, the recording
-stays saved and that account becomes temporarily unavailable for dictation.
-Choose another available transcription account in Settings to retry.
+You can record while the transcribing environment is offline. The recording is
+saved on this device and transcribes once it reconnects; it is never sent without
+you reviewing it, except a voice message you queued with **Transcribe and send** on
+web or desktop. Use **Move to composer** on a pending voice message to keep editing
+it. If the draft changed in the meantime, or transcription failed, the recording
+stays with **Insert**, **Retry** and **Discard**. Supaterm deletes audio from the
+environment once it is transcribed.
 
-You can record while the environment is offline. A recording you stop offline
-stays in the attachment tray and transcribes once you reconnect; a voice message
-you send offline waits in the pending messages and is transcribed, then sent,
-after reconnecting. Use **Move to composer** on a pending voice message to keep
-editing it instead. If the draft changed in the meantime, or transcription failed,
-the recording stays in the tray with **Insert**, **Copy**, **Retry** and
-**Discard**. Saved recordings stay on this device until you insert or discard them.
+### Microphone choice on iPhone
+
+Leaving the screen keeps dictation available in the floating control, but cancels a
+pending send. While recording, the screen stays awake. Voice input records from the
+first connected microphone in **Settings → Microphone**. The list mixes kinds
+(built-in, other wired, other Bluetooth, CarPlay) with wired and Bluetooth devices
+you have dictated with, listed by name. Drag to rank them together: for example, put
+**Other Bluetooth** above your AirPods so a new headset is preferred while the AirPods
+microphone stays low. By default, CarPlay comes after the built-in microphone.
 
 ## Queued messages
 

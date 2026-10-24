@@ -1,9 +1,12 @@
 import { dictationSourceLabel } from "@supaterm/client-runtime/state/dictation";
-import { CircleAlertIcon, MicIcon, SquareIcon } from "lucide-react";
+import type { EnvironmentId } from "@supaterm/contracts";
+import { CircleAlertIcon, MicIcon, MicOffIcon, SquareIcon } from "lucide-react";
 import { useEffect, useState, type PointerEvent } from "react";
 
 import type { ComposerDictation } from "~/dictation/useComposerDictation";
 import type { WebVoiceRecorder } from "~/dictation/webVoiceRecorder";
+import { useLocalDictationEnvironmentId } from "~/state/dictation";
+import { useEnvironmentPresentation } from "~/state/presentation";
 import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -11,10 +14,27 @@ import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 
 const keepComposerFocus = (event: PointerEvent) => event.preventDefault();
 
-function sourceCopy(dictation: ComposerDictation): string | null {
-  return dictation.availability.kind === "available"
-    ? dictationSourceLabel(dictation.availability.source)
-    : null;
+function useRouteLabel(environmentId: EnvironmentId | null): string | null {
+  const localEnvironmentId = useLocalDictationEnvironmentId();
+  const { presentation } = useEnvironmentPresentation(environmentId);
+  if (environmentId === null) return null;
+  return environmentId === localEnvironmentId
+    ? "this computer"
+    : (presentation?.entry.target.label ?? null);
+}
+
+function sourceCopy(dictation: ComposerDictation, routeLabel: string | null): string | null {
+  if (dictation.availability.kind !== "available") return null;
+  const label = dictationSourceLabel(dictation.availability.source);
+  return routeLabel ? `${label} on ${routeLabel}` : label;
+}
+
+function RouteCopy(props: { readonly dictation: ComposerDictation }) {
+  const { availability } = props.dictation;
+  return sourceCopy(
+    props.dictation,
+    useRouteLabel(availability.kind === "hidden" ? null : availability.environmentId),
+  );
 }
 
 export function ComposerDictationButton(props: {
@@ -23,7 +43,45 @@ export function ComposerDictationButton(props: {
   readonly shortcutLabel: string | null;
 }) {
   const { dictation } = props;
-  if (dictation.availability.kind === "hidden") return null;
+  const { availability } = dictation;
+  const routeLabel = useRouteLabel(
+    availability.kind === "hidden" ? null : availability.environmentId,
+  );
+  if (availability.kind === "hidden") return null;
+  if (availability.kind !== "available") {
+    const title =
+      availability.kind === "needs-source"
+        ? "Set up voice input"
+        : `${availability.source.label} can't transcribe`;
+    const detail =
+      availability.kind === "needs-source"
+        ? `Choose which account transcribes${routeLabel ? ` on ${routeLabel}` : ""}.`
+        : (availability.source.unavailableReason ?? "Open Settings to choose another account.");
+    return (
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              data-composer-shortcut="composer.dictate"
+              aria-label={title}
+              disabled={props.disabled}
+              onPointerDown={keepComposerFocus}
+              onClick={dictation.openSetup}
+            />
+          }
+        >
+          {availability.kind === "needs-source" ? <MicIcon /> : <MicOffIcon />}
+        </TooltipTrigger>
+        <TooltipPopup>
+          {title}
+          <span className="block text-muted-foreground">{detail}</span>
+        </TooltipPopup>
+      </Tooltip>
+    );
+  }
   const phase = dictation.state.phase;
   const recording = phase === "recording";
   const busy = phase === "preparing" || phase === "transcribing";
@@ -31,7 +89,7 @@ export function ComposerDictationButton(props: {
   const detail = recording
     ? null
     : dictation.connected
-      ? sourceCopy(dictation)
+      ? sourceCopy(dictation, routeLabel)
       : "Record now. Transcribes once connected.";
   return (
     <Tooltip>
@@ -131,9 +189,11 @@ export function composerDictationBannerItem(props: {
         priority: "urgent",
         icon: <RecordingLevel recorder={dictation.recorder} />,
         title: <RecordingTimer recorder={dictation.recorder} />,
-        description: dictation.connected
-          ? sourceCopy(dictation)
-          : "Offline. Recording continues and transcribes once connected.",
+        description: dictation.connected ? (
+          <RouteCopy dictation={dictation} />
+        ) : (
+          "Offline. Recording continues and transcribes once connected."
+        ),
         actions: (
           <>
             <Button size="xs" variant="ghost" onClick={dictation.cancel}>
@@ -158,7 +218,7 @@ export function composerDictationBannerItem(props: {
         priority: "urgent",
         icon: <Spinner />,
         title: "Transcribing…",
-        description: sourceCopy(dictation),
+        description: <RouteCopy dictation={dictation} />,
         actions: (
           <Button size="xs" variant="ghost" onClick={dictation.cancel}>
             Cancel

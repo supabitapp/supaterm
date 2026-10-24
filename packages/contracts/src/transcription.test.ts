@@ -28,12 +28,9 @@ const source = (
   };
 };
 
-const { providerInstanceId: _deviceHasNoInstance, ...deviceSource } = source("system:device");
-
 const resolveId = (input: Parameters<typeof resolveDictationSource>[0]) =>
   resolveDictationSource(input)?.id ?? null;
 
-const automatic = { enabled: true, source: null };
 const chosen = (id: string) => ({ enabled: true, source: DictationSourceId.make(id) });
 
 describe("resolveDictationSource", () => {
@@ -42,57 +39,14 @@ describe("resolveDictationSource", () => {
       resolveId({
         sources: [source("codex:work")],
         settings: { enabled: false, source: DictationSourceId.make("codex:work") },
-        threadInstanceId: ProviderInstanceId.make("work"),
       }),
     ).toBeNull();
   });
 
-  it("picks the first eligible source by id for Automatic, whatever the input order", () => {
+  it("resolves nothing until a source is chosen, even when one is ready", () => {
     expect(
-      resolveId({
-        sources: [
-          source("codex:zeta"),
-          source("codex:alpha", { eligible: false }),
-          source("codex:mid"),
-        ],
-        settings: automatic,
-      }),
-    ).toBe("codex:mid");
-  });
-
-  it("prefers the thread's own instance when it can transcribe", () => {
-    const sources = [source("codex:alpha"), source("codex:work")];
-    expect(
-      resolveId({
-        sources,
-        settings: automatic,
-        threadInstanceId: ProviderInstanceId.make("work"),
-      }),
-    ).toBe("codex:work");
-    expect(
-      resolveId({
-        sources,
-        settings: chosen("codex:alpha"),
-        threadInstanceId: ProviderInstanceId.make("work"),
-      }),
-    ).toBe("codex:work");
-  });
-
-  it("skips the thread's instance when it is ineligible or of another kind than the choice", () => {
-    expect(
-      resolveId({
-        sources: [source("codex:alpha"), source("codex:work", { eligible: false })],
-        settings: automatic,
-        threadInstanceId: ProviderInstanceId.make("work"),
-      }),
-    ).toBe("codex:alpha");
-    expect(
-      resolveId({
-        sources: [source("codex:work"), deviceSource],
-        settings: chosen("system:device"),
-        threadInstanceId: ProviderInstanceId.make("work"),
-      }),
-    ).toBe("system:device");
+      resolveId({ sources: [source("codex:work")], settings: { enabled: true, source: null } }),
+    ).toBeNull();
   });
 
   it("uses the chosen source when it is eligible", () => {
@@ -104,35 +58,15 @@ describe("resolveDictationSource", () => {
     ).toBe("codex:work");
   });
 
-  it("falls back to an eligible source of the chosen kind, then to Automatic", () => {
+  it("never falls back to another source when the chosen one can't transcribe", () => {
     expect(
       resolveId({
-        sources: [
-          source("antigravity:other"),
-          source("codex:work", { eligible: false }),
-          source("codex:zeta"),
-        ],
+        sources: [source("codex:work", { eligible: false }), source("claude:work")],
         settings: chosen("codex:work"),
       }),
-    ).toBe("codex:zeta");
+    ).toBeNull();
     expect(
-      resolveId({
-        sources: [source("antigravity:other"), source("codex:work", { eligible: false })],
-        settings: chosen("codex:work"),
-      }),
-    ).toBe("antigravity:other");
-    expect(resolveId({ sources: [source("codex:alpha")], settings: chosen("codex:removed") })).toBe(
-      "codex:alpha",
-    );
-  });
-
-  it("resolves nothing when no source is eligible", () => {
-    expect(
-      resolveId({
-        sources: [source("codex:work", { eligible: false })],
-        settings: automatic,
-        threadInstanceId: ProviderInstanceId.make("work"),
-      }),
+      resolveId({ sources: [source("codex:alpha")], settings: chosen("codex:removed") }),
     ).toBeNull();
   });
 });
@@ -140,11 +74,11 @@ describe("resolveDictationSource", () => {
 describe("DictationSettings", () => {
   const decode = Schema.decodeUnknownSync(ServerSettings);
 
-  it("defaults to enabled with Automatic", () => {
+  it("defaults to enabled with no source chosen", () => {
     expect(DEFAULT_SERVER_SETTINGS.dictation).toEqual({ enabled: true, source: null });
   });
 
-  it("reads an unreadable source as Automatic instead of failing the settings", () => {
+  it("reads an unreadable source as unchosen instead of failing the settings", () => {
     expect(decode({ dictation: { enabled: false, source: "not a source id" } }).dictation).toEqual({
       enabled: false,
       source: null,

@@ -1,4 +1,4 @@
-const SAMPLE_RATE = 24_000;
+const SAMPLE_RATE = 16_000;
 
 export function encodeMonoWav(channels: ReadonlyArray<Float32Array>, sampleRate: number): Blob {
   const length = channels[0]?.length ?? 0;

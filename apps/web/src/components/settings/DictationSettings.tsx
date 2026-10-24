@@ -5,7 +5,12 @@ import { useNavigate } from "@tanstack/react-router";
 import { isElectron } from "~/env";
 import { isMacPlatform } from "~/lib/utils";
 import { readLocalApi } from "~/localApi";
-import { dictationAvailability, isDictationCaptureSupported } from "~/state/dictation";
+import {
+  dictationAvailability,
+  isDictationCaptureSupported,
+  useDictationRouting,
+  useLocalDictationEnvironmentId,
+} from "~/state/dictation";
 
 import { Button } from "../ui/button";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
@@ -27,13 +32,14 @@ import { settingsScopeEnvironmentLabel } from "./settingsScopeAxis";
 import { searchableSetting } from "./settingsSearch";
 import { useUpdateScopedSettings } from "./useScopedSettings";
 
-const AUTOMATIC_SOURCE_VALUE = "automatic";
+const AUTOMATIC_ROUTING_VALUE = "automatic";
 
 export function DictationSettings() {
   const { scope } = useSettingsScope();
   const [environmentId, ...others] = scope.environmentIds;
   return (
     <SettingsSection {...searchableSetting("dictation")}>
+      <DictationRoutingSetting />
       {environmentId !== undefined && others.length === 0 ? (
         <DictationEnvironmentSettings key={environmentId} environmentId={environmentId} />
       ) : (
@@ -82,6 +88,76 @@ function DictationEnvironmentChooser() {
   );
 }
 
+function DictationRoutingSetting() {
+  const { environments } = useSettingsScope();
+  const [routing, setRouting] = useDictationRouting();
+  const localEnvironmentId = useLocalDictationEnvironmentId();
+  if (environments.length < 2 && routing.mode === "automatic") return null;
+  const localLabel =
+    localEnvironmentId === null
+      ? null
+      : (environments.find((environment) => environment.environmentId === localEnvironmentId)
+          ?.label ?? null);
+  const pinned =
+    routing.mode === "pinned"
+      ? environments.find((environment) => environment.environmentId === routing.environmentId)
+      : undefined;
+  const automaticDescription = localLabel
+    ? `${localLabel} when it has an account set up, otherwise the thread's environment.`
+    : "The thread's environment.";
+  return (
+    <SettingsRow
+      {...searchableSetting("dictation-routing")}
+      description="Which environment transcribes voice input from this device. This applies only to this device."
+      status={
+        routing.mode === "pinned" && pinned === undefined
+          ? "The chosen environment isn't connected. Voice input waits for it."
+          : null
+      }
+      control={
+        <Select
+          value={routing.mode === "pinned" ? routing.environmentId : AUTOMATIC_ROUTING_VALUE}
+          onValueChange={(value) => {
+            if (value === AUTOMATIC_ROUTING_VALUE) {
+              setRouting({ mode: "automatic" });
+              return;
+            }
+            const environment = environments.find((entry) => entry.environmentId === value);
+            if (environment) {
+              setRouting({ mode: "pinned", environmentId: environment.environmentId });
+            }
+          }}
+        >
+          <SelectTrigger size="sm" className="w-full sm:w-56" aria-label="Transcribe on">
+            <SelectValue>
+              {routing.mode === "automatic"
+                ? "Automatic"
+                : pinned
+                  ? settingsScopeEnvironmentLabel(pinned, environments)
+                  : "Disconnected environment"}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectPopup align="end" alignItemWithTrigger={false}>
+            <SelectItem value={AUTOMATIC_ROUTING_VALUE} className="min-w-64">
+              <div className="grid max-w-80 gap-0.5">
+                <span className="font-medium">Automatic</span>
+                <span className="text-xs leading-4 text-muted-foreground">
+                  {automaticDescription}
+                </span>
+              </div>
+            </SelectItem>
+            {environments.map((environment) => (
+              <SelectItem key={environment.environmentId} value={environment.environmentId}>
+                {settingsScopeEnvironmentLabel(environment, environments)}
+              </SelectItem>
+            ))}
+          </SelectPopup>
+        </Select>
+      }
+    />
+  );
+}
+
 function openMicrophoneSettings() {
   void readLocalApi()
     ?.shell.openSystemSettings("microphone")
@@ -118,7 +194,7 @@ function DictationEnvironmentSettings({ environmentId }: { environmentId: Enviro
       <SettingsRow
         title="Dictation"
         serverScoped
-        description="Record speech in the composer and insert the transcript. Audio is sent to the transcription model below."
+        description="Record speech in the composer and insert the transcript. Audio is sent to the account below."
         status={view.status}
         resetAction={
           settings.enabled === DEFAULT_SERVER_SETTINGS.dictation.enabled ? null : (
@@ -146,12 +222,12 @@ function DictationEnvironmentSettings({ environmentId }: { environmentId: Enviro
       <SettingsRow
         {...searchableSetting("dictation-source")}
         serverScoped
-        description="Threads use their own account when it can transcribe."
+        description="The account that transcribes voice input on this environment. Your recording is sent to it."
         status={view.hasEligibleSource ? view.sourceNote : DICTATION_NO_SOURCE_MESSAGE}
         resetAction={
           settings.source === null ? null : (
             <SettingResetButton
-              label="transcription model"
+              label="transcription account"
               onClick={() => updateSettings({ dictation: { source: null } })}
             />
           )
@@ -170,12 +246,8 @@ function DictationEnvironmentSettings({ environmentId }: { environmentId: Enviro
             {sources.length > 0 ? (
               <Select
                 disabled={!settings.enabled}
-                value={settings.source ?? AUTOMATIC_SOURCE_VALUE}
+                value={settings.source}
                 onValueChange={(value) => {
-                  if (value === AUTOMATIC_SOURCE_VALUE) {
-                    updateSettings({ dictation: { source: null } });
-                    return;
-                  }
                   const next = sources.find((source) => source.eligible && source.id === value);
                   if (next) updateSettings({ dictation: { source: next.id } });
                 }}
@@ -183,25 +255,17 @@ function DictationEnvironmentSettings({ environmentId }: { environmentId: Enviro
                 <SelectTrigger
                   size="sm"
                   className="w-full sm:w-56"
-                  aria-label="Transcription model"
+                  aria-label="Transcription account"
                 >
                   <SelectValue>
                     {settings.source === null
-                      ? "Automatic"
+                      ? "Choose an account"
                       : saved
                         ? dictationSourceName(saved)
-                        : "Unavailable model"}
+                        : "Unavailable account"}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectPopup align="end" alignItemWithTrigger={false}>
-                  <SelectItem value={AUTOMATIC_SOURCE_VALUE} className="min-w-64">
-                    <div className="grid max-w-80 gap-0.5">
-                      <span className="font-medium">Automatic</span>
-                      <span className="text-xs leading-4 text-muted-foreground">
-                        {view.automaticDescription}
-                      </span>
-                    </div>
-                  </SelectItem>
                   {sources.map((source) => (
                     <SelectItem
                       key={source.id}

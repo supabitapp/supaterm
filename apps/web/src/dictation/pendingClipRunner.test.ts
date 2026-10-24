@@ -31,7 +31,7 @@ function park(capturedDraft: VoiceDraftSnapshot | null = captured) {
   return parkPendingClip({
     ownerKey: "env:thread",
     environmentId: ENV,
-    threadInstanceId: null,
+    sourceId: null,
     blob: new Blob(["opus"], { type: "audio/webm" }),
     mimeType: "audio/webm",
     durationMs: 2_000,

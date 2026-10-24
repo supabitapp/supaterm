@@ -176,7 +176,7 @@ describe("makeCodexTranscription", () => {
     }).pipe(Effect.scoped, Effect.provide(layer)),
   );
 
-  it.effect("posts a ChatGPT sign-in to the ChatGPT endpoint with an honest identity", () =>
+  it.effect("uses the desktop dictation headers for a ChatGPT sign-in", () =>
     Effect.gen(function* () {
       const { transcription, requests, clip } = yield* makeHarness({
         replies: [{ status: 200, body: { text: "hello" } }],
@@ -188,10 +188,9 @@ describe("makeCodexTranscription", () => {
       expect(request?.headers).toMatchObject({
         authorization: `Bearer ${accessToken}`,
         "chatgpt-account-id": "acct-123",
-        originator: "supaterm",
-        "user-agent": userAgent,
+        originator: "Codex Desktop",
+        "user-agent": "Codex Desktop/26.1007.71326 (Mac OS; arm64)",
       });
-      expect(request?.headers["user-agent"]).not.toMatch(/Mozilla|Chrome|Safari|Codex Desktop/);
       const form = formOf(request!);
       const file = form.get("file") as File;
       expect(file.name).toBe("dictation.webm");
@@ -214,15 +213,17 @@ describe("makeCodexTranscription", () => {
       expect(request?.headers.authorization).toBe(`Bearer ${apiKey}`);
       expect(request?.headers["chatgpt-account-id"]).toBeUndefined();
       expect(request?.headers.originator).toBe("supaterm");
+      expect(request?.headers["user-agent"]).toBe(userAgent);
       expect(formOf(request!).get("model")).toBe("gpt-4o-mini-transcribe");
     }).pipe(Effect.scoped, Effect.provide(layer)),
   );
 
-  it.effect("names Supaterm itself when app-server reports another client's user agent", () =>
+  it.effect("keeps the API identity when app-server reports another client's user agent", () =>
     Effect.gen(function* () {
       const { transcription, requests, clip } = yield* makeHarness({
         replies: [{ status: 200, body: { text: "ok" } }],
-        auth: { userAgent: "codex_cli_rs/0.150.0" },
+        auth: { authMethod: "apikey", authToken: apiKey, userAgent: "codex_cli_rs/0.150.0" },
+        account: apiKeyAccount,
       });
       yield* transcription.transcribe(clip);
       expect(requests[0]?.headers["user-agent"]).toBe(`supaterm/${packageJson.version}`);

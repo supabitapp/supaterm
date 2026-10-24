@@ -2,14 +2,14 @@ import {
   VoiceTranscriptionError,
   type VoiceTranscriber,
 } from "@supaterm/client-runtime/voice-input";
-import type { EnvironmentId, ProviderInstanceId } from "@supaterm/contracts";
+import type { DictationSourceId, EnvironmentId } from "@supaterm/contracts";
 
 import { parkPendingClip } from "./pendingClips";
 import { readRecording, releaseRecording } from "./webVoiceRecorder";
 
 export function createServerVoiceTranscriber(target: {
   readonly environmentId: EnvironmentId;
-  readonly threadInstanceId: ProviderInstanceId | null;
+  readonly sourceId: DictationSourceId;
 }): VoiceTranscriber {
   return {
     prepare: async () => ({
@@ -24,7 +24,7 @@ export function createServerVoiceTranscriber(target: {
         await parkPendingClip({
           ownerKey: capturedDraft.ownerKey,
           environmentId: target.environmentId,
-          threadInstanceId: target.threadInstanceId,
+          sourceId: target.sourceId,
           blob: recording.blob,
           mimeType: recording.mimeType,
           durationMs: recording.durationMs,
