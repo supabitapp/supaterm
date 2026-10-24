@@ -260,6 +260,7 @@ function WorkspaceColumns(
       ref={hostRef}
       testID="adaptive-workspace-layout"
       preferredSplitBehavior="tile"
+      primaryBackgroundStyle={deviceType === "pad" ? "none" : "default"}
       topColumnForCollapsing={compactColumn}
       onCollapse={() => {
         collapsed.current = true;
