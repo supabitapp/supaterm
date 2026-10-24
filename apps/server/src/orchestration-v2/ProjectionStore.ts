@@ -1605,16 +1605,15 @@ export function threadShellFromProjection(
     activityRunStatus: activityRun?.status ?? null,
     activityRunStartedAt,
     completedWorkMs: completedWorkMsForShell(
-      projection.runs.flatMap((run) =>
-        run.startedAt === null || run.completedAt === null
-          ? []
-          : [
-              {
-                workStartedAt: DateTime.toEpochMillis(orchestrationV2RunWorkStartedAt(run)),
-                completedAt: DateTime.toEpochMillis(run.completedAt),
-              },
-            ],
-      ),
+      projection.runs.flatMap((run) => {
+        if (run.startedAt === null || run.completedAt === null) return [];
+        return [
+          {
+            workStartedAt: DateTime.toEpochMillis(orchestrationV2RunWorkStartedAt(run)),
+            completedAt: DateTime.toEpochMillis(run.completedAt),
+          },
+        ];
+      }),
       activityRunStartedAt === null ? null : DateTime.toEpochMillis(activityRunStartedAt),
     ),
     status: latestRun?.status ?? "idle",

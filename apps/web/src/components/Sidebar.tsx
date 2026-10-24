@@ -935,7 +935,8 @@ function WorkingDurationLabel(props: { startedMs: number }) {
 }
 
 function SidebarThreadWorkTime(props: { thread: SidebarThreadSummary }) {
-  const totalMs = resolveThreadTotalWorkMs(props.thread, useNowSecond());
+  const nowMs = useNowSecond();
+  const totalMs = resolveThreadTotalWorkMs(props.thread, nowMs);
   if (totalMs === null || totalMs < 1000) return null;
   return (
     <div className="flex min-w-0 items-center gap-2">
