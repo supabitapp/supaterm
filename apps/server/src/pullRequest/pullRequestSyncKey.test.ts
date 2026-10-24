@@ -1,4 +1,4 @@
-import { ProjectId } from "@supaterm/contracts";
+import { ProjectId, SourceControlProviderKind } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import { pullRequestSyncKey } from "./pullRequestSyncKey.ts";
@@ -13,7 +13,7 @@ describe("pullRequestSyncKey", () => {
   ])("resolves hostless and checkout-host Azure references for %s", (canonicalKey) => {
     const identity = {
       canonicalKey,
-      provider: "azure-devops",
+      provider: SourceControlProviderKind.make("azure-devops"),
       name: "web",
       displayName: canonicalKey.split("/").slice(1).join("/"),
       locator: {

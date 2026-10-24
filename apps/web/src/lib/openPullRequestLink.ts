@@ -11,7 +11,6 @@ import {
   sourceControlClients,
   type ChangeRequestLink,
 } from "@supaterm/client-runtime/source-control-clients";
-import { sourceControlRepositorySelector } from "@supaterm/shared/sourceControl";
 
 import { useOpenLink } from "../browser/useOpenLink";
 import { isElectron } from "../env";
@@ -111,7 +110,7 @@ export function useOpenChangeRequestLink(
     if (project === undefined || !reads(project.environmentId)) return false;
     const repository = serverConfigs.has(project.environmentId)
       ? parsed.repository
-      : (sourceControlRepositorySelector(project.repositoryIdentity) ?? parsed.repository);
+      : (sourceControlClients.repositorySelector(project.repositoryIdentity) ?? parsed.repository);
     event.preventDefault();
     event.stopPropagation();
     if (resolvedPanelRef) {

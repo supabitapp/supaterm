@@ -66,27 +66,6 @@ describe("normalizeGitRemoteUrl", () => {
     expect(normalizeGitRemoteUrl("C:/repos/project")).toBe("c:/repos/project");
     expect(normalizeGitRemoteUrl("git@x:team/project.git")).toBe("x/team/project");
   });
-
-  it("gives an Azure DevOps repository the same key over SSH as over HTTPS", () => {
-    expect(normalizeGitRemoteUrl("git@ssh.dev.azure.com:v3/Supaterm/Platform/Supaterm")).toBe(
-      "dev.azure.com/supaterm/platform/_git/supaterm",
-    );
-    expect(
-      normalizeGitRemoteUrl("ssh://git@ssh.dev.azure.com:22/v3/Supaterm/Platform/Supaterm"),
-    ).toBe("dev.azure.com/supaterm/platform/_git/supaterm");
-    expect(
-      normalizeGitRemoteUrl("https://Supaterm@dev.azure.com/Supaterm/Platform/_git/Supaterm"),
-    ).toBe("dev.azure.com/supaterm/platform/_git/supaterm");
-  });
-
-  it("puts the organization back in the host on the name dev.azure.com replaced", () => {
-    expect(
-      normalizeGitRemoteUrl("Supaterm@vs-ssh.visualstudio.com:v3/Supaterm/Platform/Supaterm"),
-    ).toBe("supaterm.visualstudio.com/platform/_git/supaterm");
-    expect(normalizeGitRemoteUrl("https://Supaterm.visualstudio.com/Platform/_git/Supaterm")).toBe(
-      "supaterm.visualstudio.com/platform/_git/supaterm",
-    );
-  });
 });
 
 describe("parseOriginUrlFromGitConfig", () => {

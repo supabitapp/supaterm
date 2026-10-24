@@ -12,6 +12,7 @@ import {
   type PullRequestWorkflowRunRef,
   type ThreadPullRequestLink,
   type ThreadWorkflowRunWatch,
+  SourceControlProviderKind,
 } from "@supaterm/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as Crypto from "effect/Crypto";
@@ -69,7 +70,7 @@ function makeProject(
       remoteName: "origin",
       remoteUrl: "git@github.com:supabitapp/supaterm.git",
     },
-    provider: "github",
+    provider: SourceControlProviderKind.make("github"),
     displayName: "supabitapp/supaterm",
     owner: "supabitapp",
     name: "supaterm",
@@ -507,7 +508,7 @@ describe("pull request toolkit handlers", () => {
             remoteName: "origin",
             remoteUrl: "git@gitlab.com:group/sub/project.git",
           },
-          provider: "gitlab",
+          provider: SourceControlProviderKind.make("gitlab"),
           displayName: "group/sub/project",
         }),
       });
@@ -542,7 +543,7 @@ describe("pull request toolkit handlers", () => {
             remoteName: "origin",
             remoteUrl: "http://dummy:secret@scm.example.test:8080/tfs/Collection/Project/_git/Repo",
           },
-          provider: "unknown",
+          provider: SourceControlProviderKind.make("unknown"),
           displayName: "tfs/collection/project/_git/repo",
         }),
       });
@@ -719,7 +720,7 @@ describe("pull request guide tools", () => {
               remoteName: "origin",
               remoteUrl: "git@github.com:acme/web.git",
             },
-            provider: "github",
+            provider: SourceControlProviderKind.make("github"),
             displayName: "acme/web",
             owner: "acme",
             name: "web",
@@ -791,7 +792,7 @@ describe("pull request guide tools", () => {
             remoteName: "origin",
             remoteUrl: "https://dev.azure.com/org/project/_git/web",
           },
-          provider: "azure-devops",
+          provider: SourceControlProviderKind.make("azure-devops"),
           displayName: "org/project/_git/web",
           owner: "org",
           name: "web",

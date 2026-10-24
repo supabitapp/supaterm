@@ -1,3 +1,4 @@
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { PullRequestChangeBreakdownRows } from "../pullRequest/PullRequestChangeBreakdownStat";
 import { ThreadDetailsControl } from "./ThreadDetailsControl";
 import { PullRequestGlyph } from "../pullRequest/pullRequestIcons";
@@ -21,7 +22,6 @@ import { PullRequestGlyph } from "../pullRequest/pullRequestIcons";
  */
 import { selectEnvironmentQueryData } from "@supaterm/client-runtime/state/runtime";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
-import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import type {
   EnvironmentId,
   ProjectId,
@@ -29,7 +29,6 @@ import type {
   PullRequestRef,
   ScopedThreadRef,
 } from "@supaterm/contracts";
-import { sourceControlRepositorySelector } from "@supaterm/shared/sourceControl";
 import {
   ArrowUpRightIcon,
   DiffIcon,
@@ -141,7 +140,7 @@ export function ThreadDetailsPrRow({
 }) {
   const serverConfigs = useServerConfigs();
   const supportsPullRequests = serverConfigs.has(environmentId);
-  const repository = sourceControlRepositorySelector(project?.repositoryIdentity);
+  const repository = sourceControlClients.repositorySelector(project?.repositoryIdentity);
   const reference: PullRequestRef | null =
     supportsPullRequests && project !== null
       ? linkedReference

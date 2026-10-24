@@ -17,10 +17,9 @@ import {
 } from "@supaterm/contracts";
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 import { sanitizeBranchFragment } from "@supaterm/shared/git";
-import {
-  detectSourceControlProviderFromRemoteUrl,
-  isSshRemoteUrl,
-} from "@supaterm/shared/sourceControl";
+import { isSshRemoteUrl } from "@supaterm/shared/sourceControl";
+import { recognizeRemoteWith } from "@supaterm/source-control-core/client/definition";
+import { definition } from "../client/definition.ts";
 
 import {
   BitbucketPullRequestListSchema,
@@ -791,7 +790,7 @@ export const make = Effect.gen(function* () {
     );
 
     for (const remote of remotes.remotes) {
-      if (detectSourceControlProviderFromRemoteUrl(remote.url)?.kind !== "bitbucket") continue;
+      if (recognizeRemoteWith(definition, remote.url) === null) continue;
       const parsed = parseBitbucketRemoteUrl(remote.url);
       if (parsed) return parsed;
     }

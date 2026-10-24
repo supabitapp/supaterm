@@ -1,13 +1,12 @@
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { parsePullRequestQuery } from "@supaterm/client-runtime/pull-request-query";
 import {
-  pullRequestHostOf,
   type EnvironmentId,
   type ProjectId,
   type PullRequestInvolvement,
   type PullRequestListFilters,
   type PullRequestListResult,
   type PullRequestListState,
-  type SourceControlProviderKind,
 } from "@supaterm/contracts";
 import { useState } from "react";
 
@@ -154,9 +153,9 @@ export function usePullRequestScope(search: PullRequestsSearch) {
   const expectedHosts = (() => {
     const byHost = new Map<string, PullRequestExpectedHost>();
     for (const project of projects) {
-      const kind = project.repositoryIdentity?.provider as SourceControlProviderKind | undefined;
+      const kind = project.repositoryIdentity?.provider;
       if (kind === undefined) continue;
-      const host = pullRequestHostOf(project.repositoryIdentity, kind);
+      const host = sourceControlClients.changeRequestHost(project.repositoryIdentity, kind);
       if (!byHost.has(host)) byHost.set(host, { host, kind });
     }
     return [...byHost.values()];

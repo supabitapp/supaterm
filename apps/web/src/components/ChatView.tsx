@@ -11,6 +11,7 @@ import { useThreadOutboxAttachments } from "../state/threadOutboxEditing";
 import { ThreadFind, ThreadFindCanvas, type ThreadFindControls } from "./chat/ThreadFindProvider";
 import { THREAD_FIND_BAR_RESERVED_HEIGHT } from "./chat/ThreadFindBar";
 import { usageLimitRecoveryBannerItem } from "./chat/UsageLimitRecoveryBanner";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { announcedRun, isDetailBehindShell } from "./chat/threadActivityAnnouncement";
 import {
   deriveAvailableRevertTurnCounts,
@@ -126,7 +127,6 @@ import {
 import { formatModelSlugName, resolveSelectableModel } from "@supaterm/shared/model";
 import { projectScriptCwd, resolveProjectScripts } from "@supaterm/shared/projectScripts";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
-import { sourceControlRepositorySelector } from "@supaterm/shared/sourceControl";
 import { resolveThreadReferenceCopyTarget } from "@supaterm/client-runtime/thread-reference";
 import { resolveTerminalSessionLabel } from "@supaterm/shared/terminalLabels";
 import { useAtomValue } from "@effect/atom-react";
@@ -2050,7 +2050,7 @@ export default function ChatView(props: ChatViewProps) {
     miniPlayerSource: activePreviewMiniPlayer?.source ?? null,
     sheetLayout: shouldUsePlanSidebarSheet,
   });
-  const activeProjectRepository = sourceControlRepositorySelector(
+  const activeProjectRepository = sourceControlClients.repositorySelector(
     activeProject?.repositoryIdentity,
   );
   const {

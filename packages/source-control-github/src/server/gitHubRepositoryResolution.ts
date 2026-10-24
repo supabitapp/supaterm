@@ -4,12 +4,11 @@ import {
   parseGhResolvedRemotes,
   parseGitRemoteFetchUrls,
 } from "@supaterm/shared/git";
-import {
-  detectSourceControlProviderFromRemoteUrl,
-  isSshRemoteUrl,
-} from "@supaterm/shared/sourceControl";
+import { isSshRemoteUrl } from "@supaterm/shared/sourceControl";
+import { parseGitRemoteHost } from "@supaterm/source-control-core/client/definition";
 import type * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
 import * as Effect from "effect/Effect";
+import { definition } from "../client/definition.ts";
 
 export interface GitHubRepositoryLocator {
   readonly host: string;
@@ -183,14 +182,14 @@ export function parsePullRequestReference(
 }
 
 export function gitHubApiHostForRemote(remoteUrl: string): string | null {
-  const provider = detectSourceControlProviderFromRemoteUrl(remoteUrl);
-  if (provider === null) return null;
-  const host = new URL(provider.baseUrl).host.toLowerCase();
+  const remote = parseGitRemoteHost(remoteUrl);
+  if (remote === null) return null;
+  const host = new URL(`https://${remote.host}`).host.toLowerCase();
 
   if (isSshRemoteUrl(remoteUrl) && !host.includes(".")) {
     return host.includes("github") ? "github.com" : null;
   }
-  return provider.kind === "github" ? host : null;
+  return definition.recognizeRemote(remote) === null ? null : host;
 }
 
 function apiHostForHint(host: string): string {

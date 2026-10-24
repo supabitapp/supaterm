@@ -19,6 +19,7 @@ import {
   type PullRequestDetail,
   type PullRequestStack,
   type PullRequestRef,
+  SourceControlProviderKind,
 } from "@supaterm/contracts";
 
 import * as ServerConfig from "../config.ts";
@@ -42,7 +43,7 @@ const ACME_APP = {
     remoteName: "origin",
     remoteUrl: "https://github.com/acme/app.git",
   },
-  provider: "github",
+  provider: SourceControlProviderKind.make("github"),
   displayName: "acme/app",
   owner: "acme",
   name: "app",

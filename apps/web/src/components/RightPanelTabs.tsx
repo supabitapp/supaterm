@@ -1,4 +1,4 @@
-import { pullRequestHostOf, type SourceControlProviderKind } from "@supaterm/contracts";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import { useProjects, useServerConfigs, useThreadShells } from "~/state/entities";
 import {
@@ -715,7 +715,7 @@ function PullRequestSurfaceIcon({
   const host =
     surface.host ??
     (identity?.provider
-      ? pullRequestHostOf(identity, identity.provider as SourceControlProviderKind)
+      ? sourceControlClients.changeRequestHost(identity, identity.provider)
       : null);
   const configs = useServerConfigs();
   const loaded = resolvedEnvironmentId !== null && configs.has(resolvedEnvironmentId);

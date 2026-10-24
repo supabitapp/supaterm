@@ -12,9 +12,9 @@ import {
   SourceControlProviderError,
   type SourceControlProviderDiscoveryItem,
 } from "@supaterm/contracts";
-import { detectSourceControlProviderFromRemoteUrl } from "@supaterm/shared/sourceControl";
 
 import * as BuiltInDrivers from "./builtInDrivers.ts";
+import { sourceControlClients } from "./sourceControlClients.ts";
 import * as SourceControlProvider from "@supaterm/source-control-core/server/SourceControlProvider";
 import {
   probeSourceControlProvider,
@@ -140,7 +140,7 @@ function selectProviderContext(
 ): SourceControlProvider.SourceControlProviderContext | null {
   const candidates: Array<SourceControlProvider.SourceControlProviderContext> = [];
   for (const remote of remotes) {
-    const provider = detectSourceControlProviderFromRemoteUrl(remote.url);
+    const provider = sourceControlClients.recognizeRemote(remote.url);
     if (provider) {
       candidates.push({
         provider,
@@ -333,7 +333,7 @@ export const makeWithProviders = Effect.fn("makeSourceControlProviderRegistryWit
         if (input.url.protocol !== "https:" || input.url.username || input.url.password) {
           return undefined;
         }
-        const kind = detectSourceControlProviderFromRemoteUrl(input.url.href)?.kind;
+        const kind = sourceControlClients.recognizeRemote(input.url.href)?.kind;
         return kind ? providers.get(kind)?.resolveLink?.(input) : undefined;
       },
       get,

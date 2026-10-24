@@ -24,20 +24,17 @@ import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
 
-import {
-  normalizeGitRemoteUrl,
-  isBareGitConfig,
-  parseGitHubRepositoryNameWithOwnerFromRemoteUrl,
-  parseOriginUrlFromGitConfig,
-} from "@supaterm/shared/git";
+import { isBareGitConfig, parseOriginUrlFromGitConfig } from "@supaterm/shared/git";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { normalizeProjectPathForComparison } from "@supaterm/shared/path";
+import { repositoryPathFromRemoteUrl } from "@supaterm/source-control-core/server/SourceControlProvider";
 
 import * as ServerConfig from "../config.ts";
 import * as ProjectStore from "../orchestration-v2/ProjectStore.ts";
 import { resolveCodexHomeLayout } from "../provider/Drivers/CodexHomeLayout.ts";
 import { expandHomePath } from "@supaterm/provider-core/server/pathExpansion";
 import * as ServerSettings from "../serverSettings.ts";
+import { sourceControlClients } from "../sourceControl/sourceControlClients.ts";
 import {
   createTranscriptJsonReader,
   createTranscriptJsonSelector,
@@ -727,8 +724,9 @@ export const make = Effect.gen(function* () {
     return {
       _tag: "Repository",
       git: {
-        remoteKey: originUrl === null ? null : normalizeGitRemoteUrl(originUrl),
-        repository: parseGitHubRepositoryNameWithOwnerFromRemoteUrl(originUrl),
+        remoteKey:
+          originUrl === null ? null : sourceControlClients.repositoryKeyFromRemote(originUrl),
+        repository: repositoryPathFromRemoteUrl(originUrl),
       },
     } as const;
   });
