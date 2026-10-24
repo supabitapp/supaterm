@@ -1616,7 +1616,11 @@ export function threadShellFromProjection(
           },
         ];
       }),
-      activityRunStartedAt === null ? null : DateTime.toEpochMillis(activityRunStartedAt),
+      {
+        status: activityRun?.status ?? null,
+        workStartedAt:
+          activityRunStartedAt === null ? null : DateTime.toEpochMillis(activityRunStartedAt),
+      },
     ),
     status: latestRun?.status ?? "idle",
     ...threadErrorSummary(
@@ -1710,12 +1714,12 @@ type ShellWorkSession = { readonly workStartedAt: number; readonly completedAt: 
 /**
  * Wakes and steers inherit the work start of the run they continue, so runs
  * sharing a work start are one session timed from that start to its last
- * completion. The session still in progress is left to the client's live
- * timer, which counts from activityRunStartedAt.
+ * completion. Once its run executes, the session in progress is left to the
+ * client's live timer, which counts from activityRunStartedAt.
  */
 function completedWorkMsForShell(
   runs: Iterable<ShellWorkSession>,
-  activityRunStartedAt: number | null,
+  activityRun: { readonly status: string | null; readonly workStartedAt: number | null },
 ): number {
   const sessionEnds = new Map<number, number>();
   for (const run of runs) {
@@ -1724,7 +1728,10 @@ function completedWorkMsForShell(
       Math.max(run.completedAt, sessionEnds.get(run.workStartedAt) ?? run.completedAt),
     );
   }
-  if (activityRunStartedAt !== null) sessionEnds.delete(activityRunStartedAt);
+  const activityRunExecuting = activityRun.status === "running" || activityRun.status === "waiting";
+  if (activityRunExecuting && activityRun.workStartedAt !== null) {
+    sessionEnds.delete(activityRun.workStartedAt);
+  }
   let total = 0;
   for (const [start, end] of sessionEnds) total += Math.max(0, end - start);
   return total;
@@ -6347,10 +6354,11 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
             row.activity_run_started_at === null
               ? null
               : DateTime.makeUnsafe(row.activity_run_started_at),
-          completedWorkMs: completedWorkMsForShell(
-            workSessionsByThreadId.get(thread.id) ?? [],
-            row.activity_run_started_at === null ? null : Date.parse(row.activity_run_started_at),
-          ),
+          completedWorkMs: completedWorkMsForShell(workSessionsByThreadId.get(thread.id) ?? [], {
+            status: row.activity_run_status,
+            workStartedAt:
+              row.activity_run_started_at === null ? null : Date.parse(row.activity_run_started_at),
+          }),
           activityRunStatus:
             row.activity_run_status === "preparing" ||
             row.activity_run_status === "starting" ||

@@ -3885,15 +3885,15 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       });
       const applyRun = (input: {
         readonly ordinal: number;
-        readonly status: "completed" | "cancelled" | "rolled_back" | "running";
+        readonly status: "completed" | "cancelled" | "rolled_back" | "starting" | "running";
         readonly startedAt: DateTime.Utc | null;
         readonly completedAt: DateTime.Utc | null;
         readonly workStartedAt?: DateTime.Utc;
       }) => {
         const runId = RunId.make(`run:projection-shell-work:${input.ordinal}`);
         return projectionStore.apply({
-          id: EventId.make(`event:projection-shell-work:run:${input.ordinal}`),
-          type: "run.created",
+          id: EventId.make(`event:projection-shell-work:run:${input.ordinal}:${input.status}`),
+          type: "run.updated",
           threadId,
           runId,
           nodeId: rootNodeId,
@@ -3944,6 +3944,17 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         status: "rolled_back",
         startedAt: at(66),
         completedAt: at(3_600),
+      });
+      for (const shell of yield* shells) {
+        assert.equal(shell.completedWorkMs, 35_000);
+      }
+
+      yield* applyRun({
+        ordinal: 6,
+        status: "starting",
+        startedAt: null,
+        completedAt: null,
+        workStartedAt: at(60),
       });
       for (const shell of yield* shells) {
         assert.equal(shell.completedWorkMs, 35_000);
