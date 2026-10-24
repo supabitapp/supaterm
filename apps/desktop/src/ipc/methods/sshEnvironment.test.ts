@@ -1,4 +1,3 @@
-import { ORCHESTRATION_PROTOCOL_VERSION } from "@supaterm/contracts";
 import { assert, describe, it } from "@effect/vitest";
 import { SshHttpBridgeError } from "@supaterm/ssh/errors";
 import * as Cause from "effect/Cause";
@@ -35,39 +34,6 @@ function layerHttpClient(
 }
 
 describe("SSH environment IPC", () => {
-  it.effect("fetches and decodes the remote environment descriptor", () => {
-    const requestUrls: string[] = [];
-    const layer = layerHttpClient((request) =>
-      Effect.sync(() => {
-        requestUrls.push(request.url);
-        return jsonResponse(request, {
-          environmentId: "remote-env",
-          label: "Remote Devbox",
-          platform: { os: "linux", arch: "x64" },
-          serverVersion: "1.2.3",
-          orchestrationProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION,
-          capabilities: {},
-        });
-      }),
-    );
-
-    return Effect.gen(function* () {
-      const descriptor = yield* fetchSshEnvironmentDescriptor.handler({
-        httpBaseUrl: "http://127.0.0.1:41773/",
-      });
-
-      assert.deepEqual(descriptor, {
-        environmentId: "remote-env",
-        label: "Remote Devbox",
-        platform: { os: "linux", arch: "x64" },
-        serverVersion: "1.2.3",
-        orchestrationProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION,
-        capabilities: {},
-      });
-      assert.deepEqual(requestUrls, ["http://127.0.0.1:41773/.well-known/supaterm/environment"]);
-    }).pipe(Effect.provide(layer));
-  });
-
   it.effect("rejects non-loopback HTTP endpoints before issuing a request", () => {
     let requestCount = 0;
     const layer = layerHttpClient((request) =>

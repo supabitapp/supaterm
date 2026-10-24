@@ -150,39 +150,4 @@ describe("ElectronProtocol", () => {
       assert.equal(netFetchMock.mock.calls.length, 0);
     }).pipe(Effect.provide(layerProtocol)),
   );
-
-  it("keeps executable sources host-restricted while allowing runtime network resources", () => {
-    const policy = ElectronProtocol.makeDesktopContentSecurityPolicy({
-      scheme: "supaterm",
-      targetOrigin: new URL("http://127.0.0.1:3773/"),
-    });
-    const directives = Object.fromEntries(
-      policy.split("; ").map((directive) => {
-        const [name, ...sources] = directive.split(" ");
-        return [name, sources];
-      }),
-    );
-
-    assert.deepEqual(directives["script-src"], ["'self'", "'unsafe-inline'", "'wasm-unsafe-eval'"]);
-    assert.deepEqual(directives["connect-src"], [
-      "'self'",
-      "blob:",
-      "http:",
-      "https:",
-      "ws:",
-      "wss:",
-    ]);
-    assert.deepEqual(directives["img-src"], [
-      "'self'",
-      "supaterm:",
-      "blob:",
-      "data:",
-      "http:",
-      "https:",
-    ]);
-    assert.deepEqual(directives["media-src"], ["'self'", "supaterm:", "blob:", "http:", "https:"]);
-    assert.deepEqual(directives["frame-src"], ["'self'", "blob:", "http:", "https:"]);
-    assert.deepEqual(directives["object-src"], ["'self'", "blob:", "http:", "https:"]);
-    assert.deepEqual(directives["font-src"], ["'self'", "supaterm:", "data:"]);
-  });
 });

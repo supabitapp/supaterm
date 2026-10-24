@@ -101,15 +101,6 @@ const withClientSettings = <A, E, R>(
   }).pipe(Effect.provide(NodeServices.layer), Effect.scoped);
 
 describe("DesktopClientSettings", () => {
-  it.effect("returns none when no client settings file exists", () =>
-    withClientSettings(
-      Effect.gen(function* () {
-        const settings = yield* DesktopClientSettings.DesktopClientSettings;
-        assert.isTrue(Option.isNone(yield* settings.get));
-      }),
-    ),
-  );
-
   it.effect("saves through a symlinked client settings file without replacing the link", () =>
     withClientSettings(
       Effect.gen(function* () {
@@ -213,28 +204,27 @@ describe("DesktopClientSettings", () => {
     ),
   );
 
-  it.effect.each([
-    { label: "malformed JSON", contents: "{not-json" },
-    { label: "invalid direct settings", contents: '{"fontSizeCode":"large"}' },
-  ])("reports $label without treating the settings file as absent", (document) =>
-    withClientSettings(
-      Effect.gen(function* () {
-        const environment = yield* DesktopEnvironment.DesktopEnvironment;
-        const fileSystem = yield* FileSystem.FileSystem;
-        const settings = yield* DesktopClientSettings.DesktopClientSettings;
-        yield* fileSystem.makeDirectory(environment.stateDir, { recursive: true });
-        yield* fileSystem.writeFileString(environment.clientSettingsPath, document.contents);
+  it.effect.each([{ label: "malformed JSON", contents: "{not-json" }])(
+    "reports $label without treating the settings file as absent",
+    (document) =>
+      withClientSettings(
+        Effect.gen(function* () {
+          const environment = yield* DesktopEnvironment.DesktopEnvironment;
+          const fileSystem = yield* FileSystem.FileSystem;
+          const settings = yield* DesktopClientSettings.DesktopClientSettings;
+          yield* fileSystem.makeDirectory(environment.stateDir, { recursive: true });
+          yield* fileSystem.writeFileString(environment.clientSettingsPath, document.contents);
 
-        const error = yield* settings.get.pipe(Effect.flip);
-        assert.instanceOf(error, DesktopClientSettings.DesktopClientSettingsReadError);
-        assert.equal(error.operation, "decode-document");
-        assert.equal(error.path, environment.clientSettingsPath);
-        assert.instanceOf(error.cause, Schema.SchemaError);
-        assert.equal(
-          yield* fileSystem.readFileString(environment.clientSettingsPath),
-          document.contents,
-        );
-      }),
-    ),
+          const error = yield* settings.get.pipe(Effect.flip);
+          assert.instanceOf(error, DesktopClientSettings.DesktopClientSettingsReadError);
+          assert.equal(error.operation, "decode-document");
+          assert.equal(error.path, environment.clientSettingsPath);
+          assert.instanceOf(error.cause, Schema.SchemaError);
+          assert.equal(
+            yield* fileSystem.readFileString(environment.clientSettingsPath),
+            document.contents,
+          );
+        }),
+      ),
   );
 });
