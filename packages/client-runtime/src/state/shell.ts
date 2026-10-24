@@ -229,7 +229,13 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
   ) {
     const initial = yield* SubscriptionRef.get(state);
     let waiting = yield* Ref.get(awaitingCompletion);
-    let resumeState = yield* Ref.get(resume);
+    let {
+      completedGeneration,
+      skippedUnknownItem,
+      lastAuthoritativeAt,
+      resumedAcrossSessions,
+      quietReloadOn,
+    } = yield* Ref.get(resume);
     let scheduleQuietReload = false;
     const now = yield* Clock.currentTimeMillis;
     const subscription = yield* Ref.get(activeSubscription);
@@ -244,32 +250,27 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
         waiting = false;
         if (Option.isSome(next.snapshot)) {
           next = { snapshot: next.snapshot, status: "live", error: Option.none() };
-          const reload =
-            resumeState.resumedAcrossSessions &&
-            now - resumeState.lastAuthoritativeAt >= SHELL_AUTHORITATIVE_RELOAD_AFTER_MS;
-          scheduleQuietReload ||= reload;
-          resumeState = {
-            ...resumeState,
-            completedGeneration: resumeState.skippedUnknownItem
-              ? null
-              : (subscription?.generation ?? null),
-            resumedAcrossSessions: resumeState.resumedAcrossSessions && !reload,
-            quietReloadOn: reload ? activeSession : resumeState.quietReloadOn,
-          };
+          completedGeneration = skippedUnknownItem ? null : (subscription?.generation ?? null);
+          if (
+            resumedAcrossSessions &&
+            now - lastAuthoritativeAt >= SHELL_AUTHORITATIVE_RELOAD_AFTER_MS
+          ) {
+            resumedAcrossSessions = false;
+            quietReloadOn = activeSession;
+            scheduleQuietReload = true;
+          }
         }
         continue;
       }
       if (item.kind === "unknown-item") {
-        resumeState = { ...resumeState, skippedUnknownItem: true, completedGeneration: null };
+        skippedUnknownItem = true;
+        completedGeneration = null;
         continue;
       }
       if (item.kind === "snapshot" && item.resolvedRepositoryIdentityRoots === undefined) {
-        resumeState = {
-          ...resumeState,
-          skippedUnknownItem: false,
-          completedGeneration: null,
-          lastAuthoritativeAt: now,
-        };
+        skippedUnknownItem = false;
+        completedGeneration = null;
+        lastAuthoritativeAt = now;
       }
       const nextSnapshot =
         item.kind === "snapshot"
@@ -299,7 +300,13 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
       };
     }
     yield* Ref.set(awaitingCompletion, waiting);
-    yield* Ref.set(resume, resumeState);
+    yield* Ref.set(resume, {
+      completedGeneration,
+      skippedUnknownItem,
+      lastAuthoritativeAt,
+      resumedAcrossSessions,
+      quietReloadOn,
+    });
     if (scheduleQuietReload) yield* Queue.offer(quietReloads, undefined);
     if (next === initial) return;
     const pendingLinkIds = options?.pendingLinkIds;
