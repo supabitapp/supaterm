@@ -13189,6 +13189,283 @@ describe("ClaudeAdapterV2 background wake turns", () => {
     ),
   );
 
+  it.effect.each([
+    { backgrounding: "succeeds" },
+    { backgrounding: "fails" },
+    { backgrounding: "never answers" },
+    { backgrounding: "answers after the steer went out" },
+    { backgrounding: "answers after the turn ended" },
+    { backgrounding: "answers after the subagent ran again" },
+  ] as const)(
+    "moves the root's foreground subagents to the background before a steer ($backgrounding)",
+    ({ backgrounding }) =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const FOREGROUND_TOOL_USE_ID = "toolu-steer-foreground";
+          const NESTED_TOOL_USE_ID = "toolu-steer-nested";
+          const FINISHED_TOOL_USE_ID = "toolu-steer-finished";
+          const calls: Array<string> = [];
+          const backgroundRequested = yield* Deferred.make<void>();
+          let beforeAnswer: Effect.Effect<void> = Effect.void;
+          const lateAnswer = yield* Deferred.make<void>();
+          const harness = yield* makeWakeHarnessWithOptions({
+            backgroundTasks: (toolUseId) =>
+              Effect.sync(() => calls.push(toolUseId)).pipe(
+                Effect.andThen(Deferred.succeed(backgroundRequested, undefined)),
+                Effect.andThen(
+                  backgrounding === "answers after the turn ended" ||
+                    backgrounding === "answers after the subagent ran again"
+                    ? Effect.suspend(() => beforeAnswer).pipe(Effect.as(true))
+                    : backgrounding === "fails"
+                      ? Effect.fail(
+                          new ClaudeAdapterV2.ClaudeAgentSdkQueryRunnerError({
+                            method: "backgroundTasks",
+                            cause: new Error("Background tasks are disabled in this session."),
+                          }),
+                        )
+                      : backgrounding === "never answers"
+                        ? Effect.never
+                        : backgrounding === "answers after the steer went out"
+                          ? Deferred.await(lateAnswer).pipe(Effect.as(true))
+                          : Effect.succeed(true),
+                ),
+              ),
+          });
+          const idAllocator = yield* IdAllocator.IdAllocatorV2;
+          const attemptId = RunAttemptId.make("attempt-steer-foreground-subagent");
+          const input = makeClaudeTestTurnInput({
+            threadId: harness.threadId,
+            providerThread: harness.providerThread,
+            now: yield* DateTime.now,
+            attemptId,
+            text: "Audit the repo with a subagent.",
+            attachments: [],
+          });
+          yield* harness.runtime.startTurn(input);
+          if (backgrounding === "answers after the turn ended") {
+            beforeAnswer = Queue.offer(
+              harness.sdkMessages,
+              makeResultFrame({ uuid: "00000000-0000-4000-8000-000000000a10", result: "Done." }),
+            ).pipe(Effect.andThen(harness.until(() => harness.terminalEvents().length === 1)));
+          }
+          const foregroundTaskStarted = (task: {
+            readonly spawnDepth?: number;
+            readonly taskId: string;
+            readonly toolUseId: string;
+            readonly uuid: string;
+          }) =>
+            claudeSdkFrame({
+              type: "system",
+              subtype: "task_started",
+              task_id: task.taskId,
+              tool_use_id: task.toolUseId,
+              description: task.taskId,
+              subagent_type: "general-purpose",
+              is_backgrounded: false,
+              task_type: "local_agent",
+              prompt: "Audit.",
+              ...(task.spawnDepth === undefined ? {} : { spawn_depth: task.spawnDepth }),
+              uuid: task.uuid,
+              session_id: WAKE_NATIVE_SESSION,
+            });
+          for (const frame of [
+            foregroundTaskStarted({
+              taskId: "task-steer-finished",
+              toolUseId: FINISHED_TOOL_USE_ID,
+              uuid: "00000000-0000-4000-8000-000000000a01",
+            }),
+            makeSubagentNotificationFrame({
+              taskId: "task-steer-finished",
+              toolUseId: FINISHED_TOOL_USE_ID,
+              summary: "Finished before the steer.",
+              uuid: "00000000-0000-4000-8000-000000000a02",
+            }),
+            foregroundTaskStarted({
+              taskId: "task-steer-foreground",
+              toolUseId: FOREGROUND_TOOL_USE_ID,
+              uuid: "00000000-0000-4000-8000-000000000a03",
+            }),
+            claudeSdkFrame({
+              type: "assistant",
+              message: {
+                model: "claude-sonnet-4-6",
+                id: "msg_steer_nested_launch",
+                type: "message",
+                role: "assistant",
+                content: [
+                  {
+                    type: "tool_use",
+                    id: NESTED_TOOL_USE_ID,
+                    name: "Agent",
+                    input: { description: "Nested check", prompt: "Check." },
+                  },
+                ],
+              },
+              parent_tool_use_id: FOREGROUND_TOOL_USE_ID,
+              uuid: "00000000-0000-4000-8000-000000000a04",
+              session_id: WAKE_NATIVE_SESSION,
+            }),
+            foregroundTaskStarted({
+              taskId: "task-steer-nested",
+              toolUseId: NESTED_TOOL_USE_ID,
+              uuid: "00000000-0000-4000-8000-000000000a05",
+            }),
+            foregroundTaskStarted({
+              taskId: "task-steer-deep",
+              toolUseId: "toolu-steer-deep",
+              spawnDepth: 2,
+              uuid: "00000000-0000-4000-8000-000000000a11",
+            }),
+          ]) {
+            yield* Queue.offer(harness.sdkMessages, frame);
+          }
+          const latestSubagent = (taskId: string) =>
+            harness.events
+              .flatMap((event) =>
+                event.type === "subagent.updated" &&
+                event.subagent.nativeTaskRef?.nativeId === taskId
+                  ? [event.subagent]
+                  : [],
+              )
+              .at(-1);
+          yield* harness.until(
+            () =>
+              latestSubagent("task-steer-nested")?.status === "running" &&
+              latestSubagent("task-steer-deep")?.status === "running" &&
+              latestSubagent("task-steer-foreground")?.status === "running" &&
+              latestSubagent("task-steer-finished")?.status === "completed",
+          );
+
+          const offered = harness.offeredMessages.length;
+          const steer = harness.runtime.steerTurn({
+            threadId: harness.threadId,
+            runId: input.runId,
+            providerThread: harness.providerThread,
+            providerTurnId: idAllocator.derive.providerTurn({
+              driver: ClaudeAdapterV2.CLAUDE_PROVIDER,
+              nativeTurnId: `turn:${attemptId}`,
+            }),
+            message: {
+              createdBy: "user",
+              creationSource: "web",
+              messageId: MessageId.make("message-steer-foreground-subagent"),
+              text: "Also check the docs.",
+              attachments: [],
+            },
+          });
+          const RERUN_TOOL_USE_ID = "toolu-steer-rerun";
+          if (backgrounding === "answers after the subagent ran again") {
+            beforeAnswer = harness
+              .offerAndWait(
+                makeSubagentNotificationFrame({
+                  taskId: "task-steer-foreground",
+                  toolUseId: FOREGROUND_TOOL_USE_ID,
+                  summary: "First run done.",
+                  uuid: "00000000-0000-4000-8000-000000000a12",
+                }),
+              )
+              .pipe(
+                Effect.andThen(
+                  harness.offerAndWait(
+                    foregroundTaskStarted({
+                      taskId: "task-steer-foreground",
+                      toolUseId: RERUN_TOOL_USE_ID,
+                      uuid: "00000000-0000-4000-8000-000000000a13",
+                    }),
+                  ),
+                ),
+              );
+          }
+          // Started at once so the steer reads its backgrounding deadline before
+          // this test moves the clock. Its message is built with real file I/O,
+          // so a scheduled start could read the clock after the moves below.
+          const steering = yield* Effect.forkScoped(steer, { startImmediately: true });
+          if (
+            backgrounding === "never answers" ||
+            backgrounding === "answers after the steer went out"
+          ) {
+            yield* Deferred.await(backgroundRequested);
+            assert.equal(harness.offeredMessages.length, offered);
+            yield* TestClock.adjust("5 seconds");
+          }
+          const steered = yield* Fiber.await(steering);
+
+          assert.deepEqual(calls, [FOREGROUND_TOOL_USE_ID]);
+          if (backgrounding === "answers after the turn ended") {
+            assert.isTrue(Exit.isFailure(steered));
+            assert.equal(harness.offeredMessages.length, offered);
+            return;
+          }
+          assert.isTrue(Exit.isSuccess(steered));
+          assert.equal(harness.offeredMessages.length, offered + 1);
+          assert.equal(harness.offeredMessages.at(-1)?.priority, "now");
+          if (backgrounding === "never answers") {
+            for (let repeat = 1; repeat <= 2; repeat++) {
+              const again = yield* Effect.forkScoped(steer, { startImmediately: true });
+              yield* TestClock.adjust("5 seconds");
+              assert.isTrue(Exit.isSuccess(yield* Fiber.await(again)));
+              assert.equal(harness.offeredMessages.length, offered + 1 + repeat);
+            }
+            assert.deepEqual(calls, [FOREGROUND_TOOL_USE_ID]);
+          }
+          if (backgrounding === "answers after the steer went out") {
+            yield* Deferred.succeed(lateAnswer, undefined);
+          } else if (
+            backgrounding !== "succeeds" &&
+            backgrounding !== "answers after the subagent ran again"
+          ) {
+            return;
+          }
+          const reran = backgrounding === "answers after the subagent ran again";
+
+          for (const frame of [
+            makeResultFrame({
+              uuid: "00000000-0000-4000-8000-000000000a06",
+              result: "",
+              terminalReason: "aborted_tools",
+            }),
+            makeResultFrame({ uuid: "00000000-0000-4000-8000-000000000a07", result: "Docs too." }),
+          ]) {
+            yield* Queue.offer(harness.sdkMessages, frame);
+          }
+          yield* harness.until(() => harness.terminalEvents().length === 1);
+          yield* harness.runtime.startTurn(
+            makeClaudeTestTurnInput({
+              threadId: harness.threadId,
+              providerThread: harness.providerThread,
+              now: yield* DateTime.now,
+              attemptId: RunAttemptId.make("attempt-steer-next-turn"),
+              text: "Anything else?",
+              attachments: [],
+              providerTurnOrdinal: 2,
+            }),
+          );
+          for (const frame of [
+            makeSubagentNotificationFrame({
+              taskId: "task-steer-foreground",
+              toolUseId: reran ? RERUN_TOOL_USE_ID : FOREGROUND_TOOL_USE_ID,
+              summary: "AUDITED",
+              uuid: "00000000-0000-4000-8000-000000000a08",
+            }),
+            makeResultFrame({ uuid: "00000000-0000-4000-8000-000000000a09", result: "No." }),
+          ]) {
+            yield* Queue.offer(harness.sdkMessages, frame);
+          }
+          yield* harness.until(() => harness.terminalEvents().length === 2);
+          yield* Queue.offer(harness.sdkMessages, wakeTurnInit);
+          yield* harness.until(() => harness.continuationRequests.length === 1);
+          assert.equal(
+            harness.continuationRequests[0]?.notification?.summary,
+            reran ? undefined : 'Subagent "task-steer-foreground" finished',
+          );
+        }).pipe(
+          Effect.provide(
+            Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
+          ),
+        ),
+      ),
+  );
+
   describe("native goals", () => {
     const syntheticFrame = (uuid: string, text: string) =>
       claudeSdkFrame({
