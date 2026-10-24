@@ -601,10 +601,7 @@ it.each([
     await click(stopButton());
     expect(state.command).toHaveBeenCalledWith({
       environmentId: "test",
-      input:
-        origin === "provider_native"
-          ? { threadId: "parent", subagentId: "agent" }
-          : { threadId: "child" },
+      input: { threadId: "parent", subagentId: "agent" },
     });
     expect(state.navigate).not.toHaveBeenCalled();
 
@@ -636,7 +633,7 @@ it.each([
       expect(state.command).toHaveBeenCalledTimes(1);
       expect(state.command).toHaveBeenLastCalledWith({
         environmentId: "test",
-        input: { threadId: "child" },
+        input: { threadId: "parent", subagentId: "agent" },
       });
     }
     state.shells = [{ environmentId: "test", source: child }];
