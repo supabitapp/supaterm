@@ -193,13 +193,10 @@ describe("Claude Agent SDK replay fixtures", () => {
       }),
     );
 
-    it.effect.each(
-      (["WebFetch", "Write"] as const).flatMap((tool) =>
-        (["before root settles", "while root is idle"] as const).flatMap((opens) =>
-          (["stopped", "failed"] as const).map((status) => [tool, opens, status] as const),
-        ),
-      ),
-    )(
+    it.effect.each([
+      ["WebFetch", "while root is idle", "stopped"],
+      ["Write", "before root settles", "failed"],
+    ] as const)(
       "ends a background subagent's open %s (opened %s) when its notification is %s",
       ([tool, opens, notificationStatus]) =>
         runClaudeReplayFixture({

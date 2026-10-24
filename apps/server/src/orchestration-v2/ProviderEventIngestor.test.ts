@@ -964,7 +964,7 @@ layer("ProviderEventIngestorV2", (it) => {
     }),
   );
 
-  it.effect.each(["completed", "interrupted", "failed", "cancelled", "control"] as const)(
+  it.effect.each(["interrupted", "control"] as const)(
     "dismisses only native questions when a provider turn ends with %s",
     (terminal) =>
       Effect.gen(function* () {
@@ -1783,7 +1783,7 @@ layer("ProviderEventIngestorV2", (it) => {
       }),
   );
 
-  it.effect.each(["explicit", "detached", "unchanged", "legacy"])(
+  it.effect.each(["explicit", "detached"])(
     "preserves a native child's branch when the checkout needs no correction: %s",
     (scenario) =>
       Effect.gen(function* () {

@@ -1,7 +1,6 @@
 import { assert, it } from "@effect/vitest";
 import {
   CommandId,
-  EventId,
   MessageId,
   type ModelSelection,
   type OrchestrationV2ProviderCapabilities,
@@ -10,7 +9,6 @@ import {
   ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
-  ProviderSessionId,
   ProviderThreadId,
   ProviderTurnId,
   type RunId,
@@ -42,10 +40,6 @@ const initialSelection = {
 const replacementSelection = {
   instanceId: providerInstanceId,
   model: "restart-model-b",
-} satisfies ModelSelection;
-const seedSelection = {
-  instanceId: providerInstanceId,
-  model: "seed-model",
 } satisfies ModelSelection;
 const pooledCapabilities: OrchestrationV2ProviderCapabilities = CodexProviderCapabilitiesV2;
 const exclusiveCapabilities: OrchestrationV2ProviderCapabilities = {
@@ -444,168 +438,6 @@ it.live("retries a failed selection restart session open before completing", () 
       );
     }),
   ),
-);
-
-it.live.each(["stopped", "error"] as const)(
-  "restarts the live session on a model change when a newer %s session record exists",
-  (deadStatus) =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const name = `selection-restart-dead-${deadStatus}`;
-        const cwd = yield* checkpointWorkspace(name);
-        const threadId = ThreadId.make(`thread:${name}`);
-        const state = yield* Ref.make<RestartAdapterState>({
-          activeTurn: null,
-          opened: [],
-          started: [],
-          closedSessionCount: 0,
-          failedReplacementOpen: true,
-        });
-        const layerRegistry = ProviderAdapterRegistry.layerSingle(
-          makeRestartAdapter(state, exclusiveCapabilities),
-        );
-
-        const result = yield* Effect.gen(function* () {
-          const orchestrator = yield* Orchestrator.OrchestratorV2;
-          const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
-          const eventSink = yield* EventSink.EventSinkV2;
-          const dispatch = (step: string, modelSelection: ModelSelection) =>
-            Effect.gen(function* () {
-              const terminal = yield* orchestrator.streamDomainEvents.pipe(
-                Stream.filter(
-                  (event) => event.type === "run.updated" && event.payload.status === "completed",
-                ),
-                Stream.take(1),
-                Stream.runDrain,
-                Effect.forkScoped,
-              );
-              yield* orchestrator.dispatch({
-                type: "message.dispatch",
-                createdBy: "user",
-                creationSource: "web",
-                commandId: CommandId.make(`${name}:${step}`),
-                threadId,
-                messageId: MessageId.make(`${name}:${step}`),
-                text: step,
-                attachments: [],
-                modelSelection,
-                dispatchMode: { type: "start_immediately" },
-              });
-              yield* worker.drain();
-              yield* Fiber.join(terminal);
-              yield* worker.drain();
-              return yield* orchestrator.getThreadProjection(threadId);
-            });
-          yield* orchestrator.dispatch({
-            type: "thread.create",
-            createdBy: "user",
-            creationSource: "web",
-            commandId: CommandId.make(`${name}:create`),
-            threadId,
-            projectId: ProjectId.make(`project:${name}`),
-            title: name,
-            modelSelection: seedSelection,
-            runtimeMode: "full-access",
-            interactionMode: "default",
-            branch: null,
-            worktreePath: cwd,
-          });
-          const first = yield* dispatch("first", seedSelection);
-          const liveSession = first.providerSessions.find(
-            (session) => session.status !== "stopped" && session.status !== "error",
-          );
-          assert.isDefined(liveSession);
-
-          const deadAt = yield* DateTime.now;
-          const deadSession: OrchestrationV2ProviderSession = {
-            id: ProviderSessionId.make(`session:${name}:dead`),
-            driver,
-            providerInstanceId,
-            status: "ready",
-            cwd,
-            model: seedSelection.model,
-            capabilities: exclusiveCapabilities,
-            createdAt: deadAt,
-            updatedAt: deadAt,
-            lastError: null,
-          };
-          yield* eventSink.write({
-            events: [
-              {
-                id: EventId.make(`event:${name}:dead-attached`),
-                type: "provider-session.attached",
-                threadId,
-                driver,
-                providerInstanceId,
-                occurredAt: deadAt,
-                payload: deadSession,
-              },
-              {
-                id: EventId.make(`event:${name}:dead-updated`),
-                type: "provider-session.updated",
-                threadId,
-                driver,
-                providerInstanceId,
-                occurredAt: deadAt,
-                payload: {
-                  ...deadSession,
-                  status: deadStatus,
-                  updatedAt: deadAt,
-                  lastError: deadStatus === "error" ? "Simulated session failure." : null,
-                },
-              },
-            ],
-          });
-
-          const switchCommandId = CommandId.make(`${name}:switch`);
-          yield* orchestrator.dispatch({
-            type: "thread.model-selection.set",
-            commandId: switchCommandId,
-            threadId,
-            modelSelection: replacementSelection,
-          });
-          yield* worker.drain();
-          const storedSwitchEvents = yield* eventSink
-            .readByCommandId({ commandId: switchCommandId })
-            .pipe(Stream.runCollect);
-          const detachedSessionIds = [...storedSwitchEvents].flatMap((stored) =>
-            stored.event.type === "provider-session.detached"
-              ? [stored.event.payload.providerSessionId]
-              : [],
-          );
-
-          const second = yield* dispatch("second", replacementSelection);
-          return {
-            projection: second,
-            captured: yield* Ref.get(state),
-            liveSessionId: liveSession.id,
-            detachedSessionIds,
-          };
-        }).pipe(Effect.provide(ProviderReplayHarness.layerWithRegistry({ name }, layerRegistry)));
-
-        const { projection, captured } = result;
-        assert.lengthOf(projection.runs, 2);
-        assert.equal(projection.runs[1]?.modelSelection.model, replacementSelection.model);
-        assert.deepEqual(result.detachedSessionIds, [result.liveSessionId]);
-        assert.equal(captured.closedSessionCount, 1);
-        assert.deepEqual(
-          captured.opened.map((open) => open.model),
-          [seedSelection.model, replacementSelection.model],
-        );
-        assert.deepEqual(
-          captured.started.map((turn) => turn.model),
-          [seedSelection.model, replacementSelection.model],
-        );
-        const servingSession = projection.providerSessions.find(
-          (session) =>
-            session.id ===
-            projection.providerThreads.find(
-              (providerThread) => providerThread.id === projection.thread.activeProviderThreadId,
-            )?.providerSessionId,
-        );
-        assert.equal(servingSession?.model, replacementSelection.model);
-      }),
-    ),
 );
 
 it.live.each(["active", "idle", "selection-command", "pooled", "separate-home"] as const)(

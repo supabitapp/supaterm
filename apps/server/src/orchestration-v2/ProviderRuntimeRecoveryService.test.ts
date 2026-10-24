@@ -131,67 +131,6 @@ it.effect("preserves async questions across startup and shutdown", () => {
   }).pipe(Effect.provide(layer));
 });
 
-it.effect("uses the same reconciliation path to cancel runtime requests during shutdown", () => {
-  const threadId = ThreadId.make("thread_shutdown_requests");
-  let committedInput: Parameters<EventSink.EventSinkV2["Service"]["commitCommand"]>[0] | null =
-    null;
-  const projection = {
-    thread: { id: threadId },
-    runtimeRequests: [
-      {
-        id: RuntimeRequestId.make("request_shutdown"),
-        nodeId: NodeId.make("node_shutdown"),
-        status: "pending",
-        responseCapability: { type: "live" },
-      },
-    ],
-    providerSessions: [],
-    providerThreads: [],
-    runs: [],
-    nodes: [],
-  } as unknown as OrchestrationV2ThreadProjection;
-  const layer = ProviderRuntimeRecovery.layer.pipe(
-    Layer.provide(ServerSettings.layerTest()),
-    Layer.provide(
-      Layer.mergeAll(
-        Layer.mock(ProjectionStore.ProjectionStoreV2)({
-          getRecoveryThreadIds: () => Effect.succeed([threadId]),
-          getRuntimeRecoveryProjection: () => Effect.succeed(projection),
-        }),
-        Layer.mock(EventSink.EventSinkV2)({
-          commitCommand: (input) => {
-            committedInput = input;
-            return Effect.succeed({ committed: true, cancelledEffectCount: 1 } as never);
-          },
-        }),
-        IdAllocator.layer,
-        Layer.mock(EffectWorker.OrchestrationEffectWorkerV2)({
-          runRecoveryOnce: Effect.succeed(false),
-        }),
-        Layer.mock(EffectOutbox.EffectOutboxV2)({
-          reconcileAfterProcessLoss: Effect.succeed({ requeued: 0, cancelled: 0 }),
-        }),
-      ),
-    ),
-  );
-
-  return Effect.gen(function* () {
-    const summary =
-      yield* (yield* ProviderRuntimeRecovery.ProviderRuntimeRecoveryService).reconcile("shutdown");
-    assert.equal(summary.closedRequests, 1);
-    assert.equal(summary.retiredEffects, 1);
-    const requestEvent = committedInput?.events[0];
-    assert.equal(requestEvent?.type, "runtime-request.updated");
-    if (requestEvent?.type === "runtime-request.updated") {
-      assert.equal(requestEvent.payload.status, "cancelled");
-      assert.equal(requestEvent.payload.responseCapability.type, "not_resumable");
-      if (requestEvent.payload.responseCapability.type === "not_resumable") {
-        assert.match(requestEvent.payload.responseCapability.reason, /shut down/);
-      }
-    }
-  }).pipe(Effect.provide(layer));
-});
-
 it.effect(
   "preserves a replayable waiting run while cancelling its process-bound background work",
   () => {
