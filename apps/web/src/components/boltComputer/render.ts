@@ -1,8 +1,20 @@
 import {
+  GLASS,
+  PLATE,
+  SCREEN,
+  bakeScreenBase,
+  bakesFor,
+  context2d,
+  grainPattern,
+  makeCanvas,
+  newGrid,
+  type Bakes,
+  type RGB,
+} from "./bakes";
+import {
   FACES,
   SCREEN_COLOR,
   hash,
-  makeGrid,
   tear,
   type BoltComputerState,
   type Face,
@@ -23,15 +35,12 @@ import {
   extents,
   rotate,
   rotation,
-  sd,
   trace,
   type Matrix,
   type V3,
 } from "./geometry";
-import { HALF, KEY, css, linear, radiance, smooth, type Material } from "./light";
+import { css, linear, radiance, smooth, type Material } from "./light";
 import { FADE, POWER_ON, restPose, type BoltComputerSim, type Pose } from "./sim";
-
-type RGB = readonly [number, number, number];
 
 const SHELL: Material = {
   albedo: linear([226, 219, 202]),
@@ -43,19 +52,6 @@ const SHELL: Material = {
 const PHOSPHOR: RGB = [255, 240, 106];
 
 const OUTER = extents(HOUSING);
-const PLATE = extents(HOUSING, BEVEL);
-const GLASS = extents(SCREEN_HOLE, GASKET);
-const GRID_COLS = Math.ceil((2 * GLASS.hx) / LED_PITCH);
-const GRID_ROWS = Math.ceil((2 * GLASS.hy) / LED_PITCH);
-const newGrid = () => makeGrid(GRID_COLS, GRID_ROWS);
-// The screen image reaches past the glass so the recess never shows a gap as it turns.
-const SCREEN = (() => {
-  const { cols, rows } = newGrid();
-  return {
-    hx: Math.max(GLASS.hx, (cols / 2) * LED_PITCH) + 0.035,
-    hy: Math.max(GLASS.hy, (rows / 2) * LED_PITCH) + 0.035,
-  };
-})();
 
 const TRAVEL = { hop: 0.3, overshoot: 0.13, shadow: 0.22, side: 0.12 } as const;
 const BOX_INSET = 0.05;
@@ -87,249 +83,12 @@ export function frameFor(box: number): Frame {
   return { box, padTop, padBottom, padSide, unit, cx: padSide + box / 2, cy: padTop + box / 2 };
 }
 
-const makeCanvas = (w: number, h: number) => {
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.ceil(w));
-  canvas.height = Math.max(1, Math.ceil(h));
-  return canvas;
-};
-
-function context2d(canvas: HTMLCanvasElement) {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas 2D is unavailable");
-  return ctx;
-}
-
 const mix = (a: RGB, b: RGB, t: number): RGB => [
   a[0] + (b[0] - a[0]) * t,
   a[1] + (b[1] - a[1]) * t,
   a[2] + (b[2] - a[2]) * t,
 ];
 const rgb = (c: RGB) => `rgb(${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])})`;
-
-/** Lighting of a tilted bit of the plate, relative to the flat plate. */
-function tilt(nx: number, ny: number, nz: number, gloss = 0.55, power = 36): number {
-  const l = Math.hypot(nx, ny, nz);
-  const [x, y, z] = [nx / l, ny / l, nz / l];
-  const diffuse = (x * KEY[0] + y * KEY[1] + z * KEY[2] - KEY[2]) * 0.95;
-  const spec = gloss * Math.max(0, x * HALF[0] + y * HALF[1] + z * HALF[2]) ** power;
-  return diffuse + spec - gloss * HALF[2] ** power;
-}
-
-type Distance = (u: number, v: number) => number;
-
-function grad(fn: Distance, u: number, v: number): readonly [number, number] {
-  const e = 0.0015;
-  const gx = fn(u + e, v) - fn(u - e, v);
-  const gy = fn(u, v + e) - fn(u, v - e);
-  const l = Math.hypot(gx, gy) || 1;
-  return [gx / l, gy / l];
-}
-
-/** The plate rolling down into a hole `fn` describes, `d` outside its edge. */
-function rollInto(fn: Distance, u: number, v: number, d: number, width: number): number {
-  const [gx, gy] = grad(fn, u, v);
-  const s = 1 - d / width;
-  const th = s * s * 1.25;
-  return tilt(-gx * Math.sin(th), -gy * Math.sin(th), Math.cos(th));
-}
-
-/**
- * Bake a relief over the plate as light: positive brightens toward white,
- * negative darkens toward black, laid over the shell with that alpha.
- */
-function bakeRelief(unit: number, fn: (u: number, v: number, grain: number) => number) {
-  const canvas = makeCanvas(PLATE.hx * 2 * unit, PLATE.hy * 2 * unit);
-  const ctx = context2d(canvas);
-  const image = ctx.createImageData(canvas.width, canvas.height);
-  const px = (PLATE.hx * 2) / canvas.width;
-  for (let iy = 0; iy < canvas.height; iy++) {
-    const v = -PLATE.hy + (iy + 0.5) * px;
-    for (let ix = 0; ix < canvas.width; ix++) {
-      const u = -PLATE.hx + (ix + 0.5) * px;
-      const cover = Math.min(1, Math.max(0, 0.5 - sd(HOUSING, u, v, BEVEL) / px));
-      if (cover <= 0) continue;
-      const value = fn(u, v, (hash(ix, iy) - 0.5) * 0.07);
-      const i = (iy * canvas.width + ix) * 4;
-      const tone = value > 0 ? 255 : 0;
-      image.data[i] = tone;
-      image.data[i + 1] = tone;
-      image.data[i + 2] = tone;
-      image.data[i + 3] = Math.round(Math.min(1, Math.abs(value)) * cover * 255);
-    }
-  }
-  ctx.putImageData(image, 0, 0);
-  return canvas;
-}
-
-function screw(u: number, v: number, cx: number, cy: number, angle: number): number | null {
-  const rs = 0.013;
-  const dx = u - cx;
-  const dy = v - cy;
-  const d = Math.hypot(dx, dy);
-  if (d > rs + 0.006) return null;
-  if (d > rs) return -0.5 * (1 - (d - rs) / 0.006);
-  const nz = Math.sqrt(Math.max(0, 1 - (d / rs) ** 2)) + 0.6;
-  const across = Math.abs(-dx * Math.sin(angle) + dy * Math.cos(angle));
-  if (across < 0.0026 && d < rs * 0.8) return -0.65;
-  return tilt(dx / rs, dy / rs, nz, 0.9, 30) * 1.3 + 0.08;
-}
-
-const hole: Distance = (u, v) => sd(SCREEN_HOLE, u, v);
-const glass: Distance = (u, v) => sd(SCREEN_HOLE, u, v, GASKET);
-const knob: Distance = (u, v) => Math.hypot(u - KNOB.x, v - KNOB.y) - KNOB.r;
-const slot: Distance = (u, v) =>
-  Math.hypot(Math.max(0, Math.abs(u - SLOT.x) - (SLOT.hw - SLOT.hh)), v - SLOT.y) - SLOT.hh;
-
-function bakeFront(unit: number) {
-  const lip = 0.03;
-  const controlLip = 0.01;
-  return bakeRelief(unit, (u, v, grain) => {
-    for (const control of [knob, slot]) {
-      const d = control(u, v);
-      if (d < 0) return 0;
-      if (d < controlLip) return rollInto(control, u, v, d, controlLip) + grain;
-    }
-    const dh = hole(u, v);
-    if (dh >= 0) return dh < lip ? rollInto(hole, u, v, dh, lip) + grain : grain;
-    const dg = glass(u, v);
-    if (dg >= 0) {
-      const [gx, gy] = grad(glass, u, v);
-      const th = (dg / GASKET - 0.45) * 2.2;
-      return tilt(gx * Math.sin(th), gy * Math.sin(th), Math.cos(th), 0.22, 14) * 0.7 + grain * 0.4;
-    }
-    // The lip's shadow cast onto the glass, darker toward the edge.
-    const k = 0.05;
-    const blocked = smooth(-0.012, 0.012, glass(u - KEY[0] * k, v - KEY[1] * k));
-    return -(0.5 * blocked + 0.32 * Math.exp(dg / 0.014));
-  });
-}
-
-const BACK_SCREWS = [-135, -45, 45, 135].map((degrees, i) => {
-  const a = (degrees * Math.PI) / 180;
-  const reach = HOUSING.r - (BEVEL + 0.07);
-  return [
-    Math.sign(Math.cos(a)) * HOUSING.bx + Math.cos(a) * reach,
-    Math.sign(Math.sin(a)) * HOUSING.by + Math.sin(a) * reach,
-    0.5 + i * 0.9,
-  ] as const;
-});
-const VENTS = [-0.12, -0.065, -0.01, 0.045, 0.1];
-
-function bakeBack(unit: number) {
-  const panel: Distance = (u, v) => sd(HOUSING, u, v, BEVEL + 0.04);
-  return bakeRelief(unit, (u, v, grain) => {
-    for (const [cx, cy, angle] of BACK_SCREWS) {
-      const s = screw(u, v, cx, cy, angle);
-      if (s !== null) return s;
-    }
-    const dp = panel(u, v);
-    if (Math.abs(dp) < 0.006) {
-      const [gx, gy] = grad(panel, u, v);
-      const th = (dp / 0.006) * 1.1;
-      return tilt(-gx * Math.sin(th), -gy * Math.sin(th), Math.cos(th)) * 0.9 - 0.18;
-    }
-    for (const vy of VENTS) {
-      const vent: Distance = (a, b) => Math.hypot(Math.max(0, Math.abs(a) - 0.196), b - vy) - 0.014;
-      const d = vent(u, v);
-      if (d < 0) return -0.72 - 0.15 * smooth(-0.014, 0, vy - v);
-      if (d < 0.01) return rollInto(vent, u, v, d, 0.01) + grain;
-    }
-    return grain;
-  });
-}
-
-/** The screen's dark phosphor and the unlit LEDs, which never change. */
-function bakeScreenBase(w: number, h: number, pitch: number, x0: number, y0: number, led: RGB) {
-  const canvas = makeCanvas(w, h);
-  const ctx = context2d(canvas);
-  const g = ctx.createRadialGradient(w * 0.5, h * 0.45, 0, w * 0.5, h * 0.5, Math.max(w, h) * 0.65);
-  g.addColorStop(0, "#18201b");
-  g.addColorStop(1, "#070a08");
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, w, h);
-  const cell = pitch * 0.8;
-  const off = (pitch - cell) / 2;
-  ctx.fillStyle = `rgba(${Math.round(40 + led[0] * 0.12)},${Math.round(48 + led[1] * 0.12)},${Math.round(40 + led[2] * 0.12)},0.16)`;
-  const c0 = -Math.ceil(x0 / pitch);
-  const c1 = Math.ceil((w - x0) / pitch);
-  const r0 = -Math.ceil(y0 / pitch);
-  const r1 = Math.ceil((h - y0) / pitch);
-  for (let r = r0; r < r1; r++) {
-    for (let c = c0; c < c1; c++)
-      ctx.fillRect(x0 + c * pitch + off, y0 + r * pitch + off, cell, cell);
-  }
-  return canvas;
-}
-
-/** The glass over the LEDs: a vignette, a curved reflection, a cool sheen. */
-function bakeGlass(w: number, h: number) {
-  const canvas = makeCanvas(w, h);
-  const ctx = context2d(canvas);
-  const vignette = ctx.createRadialGradient(
-    w / 2,
-    h / 2,
-    Math.min(w, h) * 0.3,
-    w / 2,
-    h / 2,
-    Math.hypot(w, h) * 0.55,
-  );
-  vignette.addColorStop(0, "rgba(0,0,0,0)");
-  vignette.addColorStop(1, "rgba(0,0,0,0.5)");
-  ctx.fillStyle = vignette;
-  ctx.fillRect(0, 0, w, h);
-  const top = ctx.createLinearGradient(0, 0, 0, h);
-  top.addColorStop(0, "rgba(210,230,200,0.09)");
-  top.addColorStop(0.42, "rgba(210,230,200,0.015)");
-  top.addColorStop(0.43, "rgba(210,230,200,0)");
-  ctx.fillStyle = top;
-  ctx.fillRect(0, 0, w, h);
-  ctx.translate(w * 0.3, h * 0.2);
-  ctx.scale(1, 0.45);
-  const spot = ctx.createRadialGradient(0, 0, 0, 0, 0, w * 0.35);
-  spot.addColorStop(0, "rgba(255,255,255,0.07)");
-  spot.addColorStop(1, "rgba(255,255,255,0)");
-  ctx.fillStyle = spot;
-  ctx.fillRect(-w, -h * 3, w * 2, h * 6);
-  return canvas;
-}
-
-function grainPattern(ctx: CanvasRenderingContext2D) {
-  const canvas = makeCanvas(128, 128);
-  const g = context2d(canvas);
-  const image = g.createImageData(128, 128);
-  for (let i = 0; i < 128 * 128; i++) {
-    const tone = hash(i, 7) > 0.5 ? 255 : 0;
-    image.data[i * 4] = tone;
-    image.data[i * 4 + 1] = tone;
-    image.data[i * 4 + 2] = tone;
-    image.data[i * 4 + 3] = Math.round(hash(i, 13) * 9);
-  }
-  g.putImageData(image, 0, 0);
-  return ctx.createPattern(canvas, "repeat");
-}
-
-interface Bakes {
-  readonly front: HTMLCanvasElement;
-  readonly back: HTMLCanvasElement;
-  readonly glass: HTMLCanvasElement;
-}
-
-// Bakes depend only on the size, so every computer on the page at that size shares them.
-const bakes = new Map<number, Bakes>();
-function bakesFor(unit: number): Bakes {
-  const key = Math.round(unit);
-  let b = bakes.get(key);
-  if (!b) {
-    b = {
-      front: bakeFront(unit),
-      back: bakeBack(unit),
-      glass: bakeGlass(SCREEN.hx * 2 * unit, SCREEN.hy * 2 * unit),
-    };
-    bakes.set(key, b);
-  }
-  return b;
-}
 
 function drawControls(ctx: CanvasRenderingContext2D) {
   ctx.beginPath();
@@ -363,6 +122,108 @@ function drawControls(ctx: CanvasRenderingContext2D) {
   dome.addColorStop(1, "#30321a");
   ctx.fillStyle = dome;
   ctx.fill();
+}
+
+const FRONT_Z = DEPTH / 2;
+
+/** The pose turned into a projection onto the canvas, in device px. */
+interface View {
+  readonly R: Matrix;
+  readonly U: number;
+  readonly cx: number;
+  readonly cy: number;
+  readonly rest: number;
+  readonly project: (x: number, y: number, z: number) => V3;
+  /** Set `c`'s transform to draw in the housing's plane at depth `z`. */
+  readonly plane: (c: CanvasRenderingContext2D, z: number, flip: boolean) => void;
+}
+
+function viewFor(frame: Frame, dpr: number, pose: Pose): View {
+  const R = rotation(pose.yaw, pose.pitch, pose.roll);
+  const U = frame.unit * dpr;
+  const cx = frame.cx * dpr;
+  const rest = frame.cy * dpr;
+  const cy = rest - pose.lift * U;
+  const by = cy + OUTER.hy * U;
+  const project = (x: number, y: number, z: number): V3 => {
+    const r = rotate(R, x, y, z);
+    return [cx + r[0] * U * pose.sx, by + (cy + r[1] * U - by) * pose.sy, r[2]];
+  };
+  const plane = (c: CanvasRenderingContext2D, z: number, flip: boolean) => {
+    const o = project(0, 0, z);
+    const ex = project(flip ? -1 : 1, 0, z);
+    const ey = project(0, 1, z);
+    c.setTransform(ex[0] - o[0], ex[1] - o[1], ey[0] - o[0], ey[1] - o[1], o[0], o[1]);
+  };
+  return { R, U, cx, cy, rest, project, plane };
+}
+
+function ledColor(sim: BoltComputerSim | null, state: BoltComputerState): RGB {
+  const shown: Face = sim ? sim.shown : state;
+  const led = SCREEN_COLOR[shown] ?? PHOSPHOR;
+  if (!sim || sim.switched >= FADE) return led;
+  return mix(SCREEN_COLOR[sim.previous] ?? PHOSPHOR, led, sim.switched / FADE);
+}
+
+/** The floor's shadow, smaller and fainter the higher the computer hops. */
+function drawFloorShadow(ctx: CanvasRenderingContext2D, view: View, pose: Pose) {
+  const up = Math.max(0, pose.lift);
+  const radius = view.U * OUTER.hx * (1 - up * 0.9) * pose.sx;
+  const alpha = 0.55 * Math.max(0, 1 - up * 1.6);
+  ctx.save();
+  ctx.translate(view.cx, view.rest + (OUTER.hy + 0.11) * view.U);
+  ctx.scale(1, 0.16);
+  const floor = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+  floor.addColorStop(0, `rgba(0,0,0,${alpha})`);
+  floor.addColorStop(0.55, `rgba(0,0,0,${alpha * 0.45})`);
+  floor.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = floor;
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** The flat front or back of the housing, shaded as a slight dome. */
+function drawPlate(layer: CanvasRenderingContext2D, view: View, facing: number) {
+  const dome = 0.17;
+  view.plane(layer, facing * FRONT_Z, facing < 0);
+  const at = (dx: number, dy: number) => {
+    const w = rotate(view.R, dx * facing, dy, facing);
+    const l = Math.hypot(w[0], w[1], w[2]);
+    return css(radiance(SHELL, w[0] / l, w[1] / l, w[2] / l));
+  };
+  layer.beginPath();
+  trace(layer, HOUSING, BEVEL - 0.002);
+  const vertical = layer.createLinearGradient(0, -PLATE.hy, 0, PLATE.hy);
+  vertical.addColorStop(0, at(0, -dome));
+  vertical.addColorStop(0.5, at(0, 0));
+  vertical.addColorStop(1, at(0, dome));
+  layer.fillStyle = vertical;
+  layer.fill();
+  const horizontal = layer.createLinearGradient(-PLATE.hx, 0, PLATE.hx, 0);
+  horizontal.addColorStop(0, at(-dome, 0));
+  horizontal.addColorStop(0.5, at(0, 0));
+  horizontal.addColorStop(1, at(dome, 0));
+  layer.globalAlpha = 0.5;
+  layer.fillStyle = horizontal;
+  layer.fill();
+  layer.globalAlpha = 1;
+}
+
+function drawSheen(ctx: CanvasRenderingContext2D, pose: Pose) {
+  const s = -0.05 - pose.yaw * 0.9 + pose.pitch * 0.5;
+  const y = SCREEN_HOLE.cy;
+  const sheen = ctx.createLinearGradient(-0.55 + s, y - 0.35, 0.15 + s, y + 0.35);
+  sheen.addColorStop(0, "rgba(255,255,255,0)");
+  sheen.addColorStop(0.36, "rgba(255,255,255,0)");
+  sheen.addColorStop(0.43, "rgba(230,240,220,0.075)");
+  sheen.addColorStop(0.5, "rgba(255,255,255,0)");
+  sheen.addColorStop(0.58, "rgba(255,255,255,0)");
+  sheen.addColorStop(0.61, "rgba(230,240,220,0.04)");
+  sheen.addColorStop(0.65, "rgba(255,255,255,0)");
+  ctx.fillStyle = sheen;
+  ctx.fillRect(-GLASS.hx, y - GLASS.hy, GLASS.hx * 2, GLASS.hy * 2);
 }
 
 /** Everything that depends on the drawn size. */
@@ -531,157 +392,56 @@ export class BoltComputerRenderer {
     sim: BoltComputerSim | null,
     state: BoltComputerState,
   ) {
-    const U = frame.unit * dpr;
-    const shown: Face = sim ? sim.shown : state;
-    let led: RGB = SCREEN_COLOR[shown] ?? PHOSPHOR;
-    if (sim && sim.switched < FADE) {
-      const was = SCREEN_COLOR[sim.previous] ?? PHOSPHOR;
-      led = mix(was, led, sim.switched / FADE);
-    }
-    const sized = this.prepare(U, led);
-    if (this.layer?.width !== ctx.canvas.width || this.layer.height !== ctx.canvas.height) {
-      this.layer = makeCanvas(ctx.canvas.width, ctx.canvas.height);
-      this.grain = grainPattern(ctx);
-    }
-    const layerCanvas = this.layer;
-    const layer = context2d(layerCanvas);
-
-    const R = rotation(pose.yaw, pose.pitch, pose.roll);
-    const cx = frame.cx * dpr;
-    const rest = frame.cy * dpr;
-    const cy = rest - pose.lift * U;
-    const by = cy + OUTER.hy * U;
-    const P = (x: number, y: number, z: number): V3 => {
-      const r = rotate(R, x, y, z);
-      return [cx + r[0] * U * pose.sx, by + (cy + r[1] * U - by) * pose.sy, r[2]];
-    };
-    const plane = (c: CanvasRenderingContext2D, z: number, flip: boolean) => {
-      const o = P(0, 0, z);
-      const ex = P(flip ? -1 : 1, 0, z);
-      const ey = P(0, 1, z);
-      c.setTransform(ex[0] - o[0], ex[1] - o[1], ey[0] - o[0], ey[1] - o[1], o[0], o[1]);
-    };
-
+    const view = viewFor(frame, dpr, pose);
+    const led = ledColor(sim, state);
+    const sized = this.prepare(view.U, led);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-
-    // The floor's shadow, smaller and fainter the higher the computer hops.
-    const up = Math.max(0, pose.lift);
-    const shadowRadius = U * OUTER.hx * (1 - up * 0.9) * pose.sx;
-    ctx.save();
-    ctx.translate(cx, rest + (OUTER.hy + 0.11) * U);
-    ctx.scale(1, 0.16);
-    const floor = ctx.createRadialGradient(0, 0, 0, 0, 0, shadowRadius);
-    const alpha = 0.55 * Math.max(0, 1 - up * 1.6);
-    floor.addColorStop(0, `rgba(0,0,0,${alpha})`);
-    floor.addColorStop(0.55, `rgba(0,0,0,${alpha * 0.45})`);
-    floor.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = floor;
-    ctx.beginPath();
-    ctx.arc(0, 0, shadowRadius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-
-    // The housing goes on its own layer so the grain stays on it.
-    layer.setTransform(1, 0, 0, 1, 0, 0);
-    layer.globalCompositeOperation = "source-over";
-    layer.clearRect(0, 0, layerCanvas.width, layerCanvas.height);
-    this.drawBody(layer, P, R, U);
-    const frontZ = R[8];
-    const zf = DEPTH / 2;
+    drawFloorShadow(ctx, view, pose);
+    const frontZ = view.R[8];
     const facing = Math.abs(frontZ) > 0.005 ? Math.sign(frontZ) : 0;
-    if (facing !== 0) {
-      const dome = 0.17;
-      plane(layer, facing * zf, facing < 0);
-      const at = (dx: number, dy: number) => {
-        const w = rotate(R, dx * facing, dy, facing);
-        const l = Math.hypot(w[0], w[1], w[2]);
-        return css(radiance(SHELL, w[0] / l, w[1] / l, w[2] / l));
-      };
-      layer.beginPath();
-      trace(layer, HOUSING, BEVEL - 0.002);
-      const vertical = layer.createLinearGradient(0, -PLATE.hy, 0, PLATE.hy);
-      vertical.addColorStop(0, at(0, -dome));
-      vertical.addColorStop(0.5, at(0, 0));
-      vertical.addColorStop(1, at(0, dome));
-      layer.fillStyle = vertical;
-      layer.fill();
-      const horizontal = layer.createLinearGradient(-PLATE.hx, 0, PLATE.hx, 0);
-      horizontal.addColorStop(0, at(-dome, 0));
-      horizontal.addColorStop(0.5, at(0, 0));
-      horizontal.addColorStop(1, at(dome, 0));
-      layer.globalAlpha = 0.5;
-      layer.fillStyle = horizontal;
-      layer.fill();
-      layer.globalAlpha = 1;
-    }
-    if (this.grain) {
-      layer.setTransform(1, 0, 0, 1, 0, 0);
-      layer.globalCompositeOperation = "source-atop";
-      this.grain.setTransform(new DOMMatrix().translate(cx, cy));
-      layer.fillStyle = this.grain;
-      layer.fillRect(0, 0, layerCanvas.width, layerCanvas.height);
-      layer.globalCompositeOperation = "source-over";
-    }
-    ctx.drawImage(layerCanvas, 0, 0);
-
+    this.drawHousing(ctx, view, facing);
+    ctx.save();
     if (facing > 0) {
-      ctx.save();
-      plane(ctx, zf, false);
-      ctx.beginPath();
-      trace(ctx, SCREEN_HOLE);
-      ctx.fillStyle = "#0a0d0b";
-      ctx.fill();
-      ctx.save();
-      ctx.beginPath();
-      trace(ctx, SCREEN_HOLE, GASKET);
-      ctx.clip();
       this.drawScreen(sized, this.compose(sim, state), led);
-      // The glass sits behind the bezel, so it slides against it as the computer turns.
-      plane(ctx, zf - RECESS, false);
-      ctx.drawImage(
-        sized.screen,
-        -SCREEN.hx,
-        SCREEN_HOLE.cy - SCREEN.hy,
-        SCREEN.hx * 2,
-        SCREEN.hy * 2,
-      );
-      plane(ctx, zf, false);
-      const s = -0.05 - pose.yaw * 0.9 + pose.pitch * 0.5;
-      const y = SCREEN_HOLE.cy;
-      const sheen = ctx.createLinearGradient(-0.55 + s, y - 0.35, 0.15 + s, y + 0.35);
-      sheen.addColorStop(0, "rgba(255,255,255,0)");
-      sheen.addColorStop(0.36, "rgba(255,255,255,0)");
-      sheen.addColorStop(0.43, "rgba(230,240,220,0.075)");
-      sheen.addColorStop(0.5, "rgba(255,255,255,0)");
-      sheen.addColorStop(0.58, "rgba(255,255,255,0)");
-      sheen.addColorStop(0.61, "rgba(230,240,220,0.04)");
-      sheen.addColorStop(0.65, "rgba(255,255,255,0)");
-      ctx.fillStyle = sheen;
-      ctx.fillRect(-GLASS.hx, y - GLASS.hy, GLASS.hx * 2, GLASS.hy * 2);
-      ctx.restore();
-      ctx.drawImage(sized.bakes.front, -PLATE.hx, -PLATE.hy, PLATE.hx * 2, PLATE.hy * 2);
-      drawControls(ctx);
-      ctx.restore();
+      drawFront(ctx, view, pose, sized);
     } else if (facing < 0) {
-      ctx.save();
-      plane(ctx, -zf, true);
+      view.plane(ctx, -FRONT_Z, true);
       ctx.drawImage(sized.bakes.back, -PLATE.hx, -PLATE.hy, PLATE.hx * 2, PLATE.hy * 2);
-      ctx.restore();
     }
+    ctx.restore();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
-  private drawBody(
-    ctx: CanvasRenderingContext2D,
-    P: (x: number, y: number, z: number) => V3,
-    R: Matrix,
-    U: number,
-  ) {
+  /** The housing goes on its own layer so the grain stays on it. */
+  private drawHousing(ctx: CanvasRenderingContext2D, view: View, facing: number) {
+    const { width, height } = ctx.canvas;
+    if (this.layer?.width !== width || this.layer.height !== height) {
+      this.layer = makeCanvas(width, height);
+      this.grain = grainPattern(ctx);
+    }
+    const layer = context2d(this.layer);
+    layer.setTransform(1, 0, 0, 1, 0, 0);
+    layer.globalCompositeOperation = "source-over";
+    layer.clearRect(0, 0, width, height);
+    this.drawBody(layer, view);
+    if (facing !== 0) drawPlate(layer, view, facing);
+    if (this.grain) {
+      layer.setTransform(1, 0, 0, 1, 0, 0);
+      layer.globalCompositeOperation = "source-atop";
+      this.grain.setTransform(new DOMMatrix().translate(view.cx, view.cy));
+      layer.fillStyle = this.grain;
+      layer.fillRect(0, 0, width, height);
+      layer.globalCompositeOperation = "source-over";
+    }
+    ctx.drawImage(this.layer, 0, 0);
+  }
+
+  private drawBody(ctx: CanvasRenderingContext2D, { R, U, project }: View) {
     const { pos, quads, normals } = bodyMesh();
     const projected = this.projected;
     for (let i = 0; i < pos.length; i += 3) {
-      const p = P(pos[i] ?? 0, pos[i + 1] ?? 0, pos[i + 2] ?? 0);
+      const p = project(pos[i] ?? 0, pos[i + 1] ?? 0, pos[i + 2] ?? 0);
       projected[i] = p[0];
       projected[i + 1] = p[1];
       projected[i + 2] = p[2];
@@ -717,4 +477,25 @@ export class BoltComputerRenderer {
       ctx.stroke();
     }
   }
+}
+
+/** The bezel, the recessed glass with the LED screen behind it, and the controls. */
+function drawFront(ctx: CanvasRenderingContext2D, view: View, pose: Pose, sized: Sized) {
+  view.plane(ctx, FRONT_Z, false);
+  ctx.beginPath();
+  trace(ctx, SCREEN_HOLE);
+  ctx.fillStyle = "#0a0d0b";
+  ctx.fill();
+  ctx.save();
+  ctx.beginPath();
+  trace(ctx, SCREEN_HOLE, GASKET);
+  ctx.clip();
+  // The glass sits behind the bezel, so it slides against it as the computer turns.
+  view.plane(ctx, FRONT_Z - RECESS, false);
+  ctx.drawImage(sized.screen, -SCREEN.hx, SCREEN_HOLE.cy - SCREEN.hy, SCREEN.hx * 2, SCREEN.hy * 2);
+  view.plane(ctx, FRONT_Z, false);
+  drawSheen(ctx, pose);
+  ctx.restore();
+  ctx.drawImage(sized.bakes.front, -PLATE.hx, -PLATE.hy, PLATE.hx * 2, PLATE.hy * 2);
+  drawControls(ctx);
 }

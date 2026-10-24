@@ -53,8 +53,8 @@ export function BoltComputer({
     const box = boxRef.current;
     // Browsers refuse new contexts past their canvas memory limit; skip the decoration then.
     if (!canvas || !box || !canvas.getContext("2d")) return;
-    simRef.current ??= new BoltComputerSim(seed, state);
-    rendererRef.current ??= new BoltComputerRenderer();
+    if (simRef.current === null) simRef.current = new BoltComputerSim(seed, state);
+    if (rendererRef.current === null) rendererRef.current = new BoltComputerRenderer();
     const sim = simRef.current;
     const renderer = rendererRef.current;
     const frame = frameFor(size);
@@ -82,7 +82,7 @@ export function BoltComputer({
       }
     };
     const wake = () => {
-      unsubscribe ??= subscribe(tick);
+      if (unsubscribe === null) unsubscribe = subscribe(tick);
     };
     wakeRef.current = wake;
     wake();
@@ -94,7 +94,7 @@ export function BoltComputer({
       unlisten();
       wakeRef.current = null;
     };
-  }, [state, size, interactive, reducedMotion]);
+  }, [state, size, interactive, reducedMotion, seed]);
 
   const click = (event: MouseEvent<HTMLSpanElement>) => {
     if (interactive && !reducedMotion) {
