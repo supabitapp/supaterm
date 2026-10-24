@@ -31,6 +31,7 @@ const makeEnvironment = (path: Path.Path, overrides: Record<string, unknown> = {
     linuxDesktopEntryName: "com.supaterm.desktop.desktop",
     linuxWmClass: "supaterm",
     linuxApplicationsDir: "/home/alice/.local/share/applications",
+    desktopLauncherPath: Option.none(),
     appImagePath: Option.some("/home/alice/Applications/Supaterm.AppImage"),
     path,
     ...overrides,
@@ -226,6 +227,18 @@ describe("DesktopLinuxUrlHandler", () => {
           iconPath: "/home/alice/.local/share/icons/com.supaterm.desktop.desktop.png",
         }),
       );
+    });
+  });
+
+  it.effect("launches a distribution package through its configured launcher", () => {
+    const recorded = emptyRecording();
+
+    return Effect.gen(function* () {
+      yield* runRegister(recorded, {
+        environment: { desktopLauncherPath: Option.some("/opt/Supaterm/supaterm") },
+      });
+
+      assert.include(recorded.files[0]?.content, "Exec=/opt/Supaterm/supaterm %U");
     });
   });
 
