@@ -158,6 +158,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     now: new Date().toISOString(),
   }));
   if (snoozeClockState.shell !== activeThreadShell) {
+    // oxlint-disable-next-line react/purity -- A new shell restarts the clock; the wake timer moves it after that.
     setSnoozeClockState({ shell: activeThreadShell, now: new Date().toISOString() });
   }
   const snoozeClock = snoozeClockState.now;
