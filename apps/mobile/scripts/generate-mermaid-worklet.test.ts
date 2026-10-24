@@ -59,6 +59,7 @@ describe("generated native Mermaid worklet", () => {
 
   it("preserves rendering and work bounds after native Babel serialization", () => {
     const expected = supported.map((source) => renderDiagram(source, { maxWidth: 320, now: 0 }));
+    for (const output of expected) expect(output).not.toBeNull();
     for (const source of rejected) expect(renderDiagram(source)).toBeNull();
     for (const platform of ["ios", "android"]) {
       expect(output.platforms[platform]).toEqual({
