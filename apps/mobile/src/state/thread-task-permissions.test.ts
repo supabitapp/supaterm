@@ -290,6 +290,32 @@ describe("mobile task permissions", () => {
   });
 });
 
+describe("mobile approval redirect", () => {
+  it("sends only after the approvals are declined and the draft is still what the user sent", async () => {
+    state.grantedEnvironments.add("secondary");
+    const declined = vi.fn(async () => false);
+    expect(await useThreadComposerState().onSendMessage(undefined, declined)).toBeNull();
+    expect(declined).toHaveBeenCalledTimes(1);
+    expect(state.enqueue).not.toHaveBeenCalled();
+    expect(state.clearDraft).not.toHaveBeenCalled();
+
+    const editedDuringDecline = async () => {
+      state.draft = { ...state.draft, text: "Edited while declining" };
+      return true;
+    };
+    expect(await useThreadComposerState().onSendMessage(undefined, editedDuringDecline)).toBeNull();
+    expect(state.enqueue).not.toHaveBeenCalled();
+    expect(state.clearDraft).not.toHaveBeenCalled();
+
+    expect(await useThreadComposerState().onSendMessage(undefined, async () => true)).toBe(
+      "message",
+    );
+    expect(state.enqueue).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ text: "Edited while declining" }),
+    );
+  });
+});
+
 describe("mobile handoff preview and submission", () => {
   it("follows project enablement and provider availability for the selected destination", async () => {
     state.grantedEnvironments.add("secondary");

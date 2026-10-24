@@ -1226,6 +1226,7 @@ export function NewTaskDraftScreen(props: {
         isCompacting={false}
         creationState={null}
         activePendingApproval={null}
+        activePendingApprovals={[]}
         respondingApprovalId={null}
         activePendingUserInput={null}
         activePendingUserInputDrafts={{}}
