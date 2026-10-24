@@ -171,6 +171,19 @@
       ]
     },
     {
+      "bundles": ["desktop", "web"],
+      "license": "MIT",
+      "name": "robot-heads",
+      "sourceUrl": "https://github.com/fayazara/robot-heads",
+      "version": "0.3.0",
+      "generatedNotices": [
+        {
+          "licenseId": "MIT",
+          "copyrights": ["Copyright (c) 2026 Fayaz Ahmed"]
+        }
+      ]
+    },
+    {
       "bundles": ["assets", "desktop", "web"],
       "license": "CC0-1.0",
       "name": "Notification Sound 1 by deadrobotmusic",
