@@ -63,7 +63,7 @@ export function restPose(state: BoltComputerState): Pose {
     case "idle":
       return { ...base, yaw: -0.18, pitch: 0.04, roll: 0.03 };
     case "thinking":
-      return { ...base, yaw: 0.24, pitch: 0.17, roll: -0.13 };
+      return { ...base, yaw: -0.24, pitch: -0.17, roll: 0.13 };
     case "working":
       return { ...base, pitch: -0.16 };
     case "error":
@@ -95,8 +95,6 @@ export class BoltComputerSim {
   private jump: Jump | null = null;
   private readonly random: () => number;
   private reactedAt = Number.NEGATIVE_INFINITY;
-  private side = 1;
-  private nextSide = 4;
   private nextHop = 6;
 
   /** The age after which a looping state may stop at its next still moment, as idle does. */
@@ -208,13 +206,8 @@ export class BoltComputerSim {
         }
         break;
       case "thinking":
-        if (t > this.nextSide) {
-          this.side = -this.side;
-          this.nextSide = t + 3 + this.random() * 2;
-        }
-        yaw = 0.24 * this.side + Math.sin(t * 0.9) * 0.05;
-        pitch = 0.17 + Math.sin(t * 1.3) * 0.03;
-        roll = -0.13 * this.side;
+        yaw += Math.sin(t * 0.9) * 0.05;
+        pitch += Math.sin(t * 1.3) * 0.03;
         bob = Math.sin(t * 1.9) * 0.008;
         freq = 0.9;
         break;
