@@ -75,7 +75,7 @@ import {
 import type { TimelineEntry } from "../../session-logic";
 import type { CodexArtifactTemplate } from "@supaterm/shared/codexArtifactTemplates";
 import type { ChatFileAttachment, TurnDiffSummary } from "../../types";
-import { ArrowRightIcon, BotIcon, ShrinkIcon } from "@supaterm/icons";
+import { ArrowRightIcon, BotIcon, CircleAlertIcon, ShrinkIcon } from "@supaterm/icons";
 import { ChevronDown, ChevronRight } from "@supaterm/icons/nodes";
 import { MorphIcon } from "~/components/MorphIcon";
 import type { ExpandedImagePreview } from "./ExpandedImagePreview";
@@ -1409,8 +1409,12 @@ function ContextCompactionTimelineRow({
   row: Extract<TimelineRow, { kind: "context-compaction" }>;
 }) {
   const content = (
-    <span className="flex items-center gap-1.5">
-      <ShrinkIcon aria-hidden="true" className="size-3" />
+    <span className="flex min-w-0 items-center gap-1.5">
+      {row.failed ? (
+        <CircleAlertIcon aria-hidden="true" className="size-3 shrink-0" />
+      ) : (
+        <ShrinkIcon aria-hidden="true" className="size-3" />
+      )}
       {row.tokenCounts ? (
         <>
           Context compacted {row.tokenCounts.before}
@@ -1420,23 +1424,29 @@ function ContextCompactionTimelineRow({
       ) : (
         row.label
       )}
+      {row.failure ? (
+        <span className="min-w-0 truncate opacity-80">&middot; {row.failure}</span>
+      ) : null}
     </span>
   );
   return (
     <div
       role="separator"
-      aria-label={row.label}
-      className="mx-auto flex w-full max-w-(--chat-content-max-width) items-center gap-3 py-1 text-muted-foreground text-xs"
+      aria-label={row.failure ? `${row.label}: ${row.failure}` : row.label}
+      className={cn(
+        "mx-auto flex w-full max-w-(--chat-content-max-width) items-center gap-3 py-1 text-xs",
+        row.failed ? "text-destructive" : "text-muted-foreground",
+      )}
     >
-      <span className="h-px flex-1 bg-border/70" />
+      <span className={cn("h-px flex-1", row.failed ? "bg-destructive/30" : "bg-border/70")} />
       <span
         ref={row.active ? observeVisibleAnimation : undefined}
-        className="relative shrink-0 overflow-hidden"
+        className="relative min-w-0 overflow-hidden"
       >
         {content}
         {row.active ? <ActivityShimmerOverlay>{content}</ActivityShimmerOverlay> : null}
       </span>
-      <span className="h-px flex-1 bg-border/70" />
+      <span className={cn("h-px flex-1", row.failed ? "bg-destructive/30" : "bg-border/70")} />
     </div>
   );
 }

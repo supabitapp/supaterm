@@ -1,3 +1,4 @@
+import { isCompactionCommandMessage } from "@supaterm/contracts";
 import type { DraftComposerAttachment } from "../../lib/composerImages";
 import { finalizeThreadFeedPresentation, type ThreadFeedEntry } from "../../lib/threadActivity";
 import type { QueuedThreadMessage } from "../../state/thread-outbox-model";
@@ -66,4 +67,12 @@ export function appendPendingThreadMessages(
       ];
     }),
   ]);
+}
+
+export function isCompactionCommandFeedEntry(entry: PendingThreadFeedEntry): boolean {
+  return (
+    entry.type === "message" &&
+    entry.pendingMessage === undefined &&
+    isCompactionCommandMessage(entry.message)
+  );
 }

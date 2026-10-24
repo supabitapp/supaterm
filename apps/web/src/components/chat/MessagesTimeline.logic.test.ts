@@ -638,69 +638,221 @@ describe("deriveMessagesTimelineRows", () => {
     ]);
   });
 
-  it("gives live compaction the activity slot and restores Thinking when it completes", () => {
+  it.each([false, true])(
+    "gives live compaction the activity slot and restores Thinking (runless: %s)",
+    (runless) => {
+      const fixture = makeStreamingTimelineFixture();
+      const last = fixture.visibleTurnItems.at(-1)!;
+      if (last.item.type !== "assistant_message") throw new Error("Expected assistant fixture");
+      const compact = {
+        ...last,
+        item: {
+          ...last.item,
+          type: "compaction" as const,
+          status: "running" as const,
+          driver: null,
+          beforeTokenCount: 899_000,
+        },
+      };
+      const input = {
+        isWorking: true,
+        runningRunId: fixture.runId,
+        activeTurnStartedAt: fixture.time(5),
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      };
+      const runningEntries = deriveTimelineEntriesFromVisibleTurnItems({
+        visibleTurnItems: [...fixture.visibleTurnItems.slice(0, -1), compact],
+        optimisticMessages: [],
+      });
+      const runningRows = deriveMessagesTimelineRows({
+        ...input,
+        runningRunId: runless ? null : fixture.runId,
+        runlessWorkActive: runless,
+        timelineEntries: runless
+          ? runningEntries.map((entry) =>
+              entry.kind === "work" ? { ...entry, entry: { ...entry.entry, runId: null } } : entry,
+            )
+          : runningEntries,
+      });
+      expect(runningRows.find((row) => row.kind === "context-compaction")).toMatchObject({
+        active: true,
+        label: "Compacting context",
+      });
+      expect(runningRows.some((row) => row.kind === "thinking")).toBe(false);
+
+      const completedRows = deriveMessagesTimelineRows({
+        ...input,
+        timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
+          visibleTurnItems: [
+            ...fixture.visibleTurnItems.slice(0, -1),
+            {
+              ...compact,
+              item: { ...compact.item, status: "completed", afterTokenCount: 19_000 },
+            },
+          ],
+          optimisticMessages: [],
+        }),
+      });
+      expect(completedRows.find((row) => row.kind === "context-compaction")).toMatchObject({
+        active: false,
+        label: "Context compacted 899K → 19K tokens",
+        tokenCounts: { before: "899K", after: "19K" },
+      });
+      expect(completedRows.at(-1)?.kind).toBe("thinking");
+
+      const settledRows = deriveMessagesTimelineRows({
+        ...input,
+        isWorking: false,
+        timelineEntries: runningEntries,
+      });
+      expect(settledRows.find((row) => row.kind === "context-compaction")).toMatchObject({
+        active: false,
+      });
+      const stable = computeStableMessagesTimelineRows(runningRows, {
+        result: [],
+        byId: new Map(),
+      });
+      expect(computeStableMessagesTimelineRows(settledRows, stable).result).toEqual(settledRows);
+    },
+  );
+
+  it("shows a typed /compact as one live divider, then a token divider", () => {
     const fixture = makeStreamingTimelineFixture();
-    const last = fixture.visibleTurnItems.at(-1)!;
-    if (last.item.type !== "assistant_message") throw new Error("Expected assistant fixture");
-    const compact = {
-      ...last,
+    const [history0, history1, history2, liveUser, , liveAssistant] = fixture.visibleTurnItems;
+    if (liveUser?.item.type !== "user_message" || liveAssistant?.item.type !== "assistant_message")
+      throw new Error("Expected live fixture items");
+    const prompt = { ...liveUser, item: { ...liveUser.item, text: "/compact" } };
+    const compaction = {
+      ...liveAssistant,
       item: {
-        ...last.item,
+        ...liveAssistant.item,
         type: "compaction" as const,
-        status: "running" as const,
         driver: null,
         beforeTokenCount: 899_000,
       },
     };
-    const input = {
-      isWorking: true,
-      runningRunId: fixture.runId,
-      activeTurnStartedAt: fixture.time(5),
-      turnDiffSummaries: [],
-      supportsConversationRollback: false,
+    const rowsFor = (visibleTurnItems: OrchestrationV2ProjectedTurnItem[], isWorking = true) =>
+      deriveMessagesTimelineRows({
+        timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
+          visibleTurnItems: [history0!, history1!, history2!, ...visibleTurnItems],
+          optimisticMessages: [],
+        }),
+        isWorking,
+        runningRunId: fixture.runId,
+        latestRun: {
+          runId: fixture.runId,
+          status: isWorking ? "running" : "completed",
+          startedAt: fixture.time(5),
+          completedAt: isWorking ? null : fixture.time(9),
+        },
+        activeTurnStartedAt: fixture.time(5),
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      });
+    const liveRowsOf = (rows: ReturnType<typeof rowsFor>) =>
+      rows.slice(rows.findIndex((row) => row.id.includes("history-assistant")) + 1);
+
+    for (const rows of [rowsFor([prompt]), rowsFor([prompt, compaction])]) {
+      expect(liveRowsOf(rows)).toMatchObject([{ kind: "context-compaction", active: true }]);
+    }
+    const terminalCompaction = {
+      ...compaction,
+      item: { ...compaction.item, status: "completed" as const, afterTokenCount: 19_000 },
     };
-    const runningEntries = deriveTimelineEntriesFromVisibleTurnItems({
-      visibleTurnItems: [...fixture.visibleTurnItems.slice(0, -1), compact],
-      optimisticMessages: [],
-    });
-    const runningRows = deriveMessagesTimelineRows({ ...input, timelineEntries: runningEntries });
-    expect(runningRows.find((row) => row.kind === "context-compaction")).toMatchObject({
-      active: true,
-      label: "Compacting context",
-    });
-    expect(runningRows.some((row) => row.kind === "thinking")).toBe(false);
-
-    const completedRows = deriveMessagesTimelineRows({
-      ...input,
-      timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
-        visibleTurnItems: [
-          ...fixture.visibleTurnItems.slice(0, -1),
-          {
-            ...compact,
-            item: { ...compact.item, status: "completed", afterTokenCount: 19_000 },
+    const liveRows = liveRowsOf(rowsFor([prompt, terminalCompaction], false));
+    expect(liveRows).toMatchObject([
+      {
+        kind: "context-compaction",
+        active: false,
+        tokenCounts: { before: "899K", after: "19K" },
+      },
+    ]);
+    expect(liveRowsOf(rowsFor([prompt, terminalCompaction]))).toEqual(liveRows);
+    const continuingRows = rowsFor([
+      prompt,
+      terminalCompaction,
+      { ...liveAssistant, item: { ...liveAssistant.item, id: TurnItemId.make("continued") } },
+    ]);
+    expect(continuingRows.filter((row) => row.kind === "context-compaction")).toHaveLength(1);
+    expect(continuingRows.filter((row) => row.kind === "working")).toMatchObject([
+      { kind: "working" },
+    ]);
+    const retries = rowsFor(
+      [
+        prompt,
+        {
+          ...compaction,
+          item: { ...compaction.item, status: "failed", summary: "retry needed" },
+        },
+        {
+          ...compaction,
+          item: {
+            ...compaction.item,
+            id: TurnItemId.make("retry-compaction"),
+            status: "completed",
           },
-        ],
-        optimisticMessages: [],
-      }),
-    });
-    expect(completedRows.find((row) => row.kind === "context-compaction")).toMatchObject({
-      active: false,
-      label: "Context compacted 899K → 19K tokens",
-      tokenCounts: { before: "899K", after: "19K" },
-    });
-    expect(completedRows.at(-1)?.kind).toBe("thinking");
-
-    const settledRows = deriveMessagesTimelineRows({
-      ...input,
-      isWorking: false,
-      timelineEntries: runningEntries,
-    });
-    expect(settledRows.find((row) => row.kind === "context-compaction")).toMatchObject({
-      active: false,
-    });
-    const stable = computeStableMessagesTimelineRows(runningRows, { result: [], byId: new Map() });
-    expect(computeStableMessagesTimelineRows(settledRows, stable).result).toEqual(settledRows);
+        },
+      ],
+      false,
+    ).filter((row) => row.kind === "context-compaction");
+    expect(retries).toHaveLength(2);
+    expect(retries[0]).toMatchObject({ failed: true, failure: "retry needed" });
+    expect(new Set(retries.map((row) => row.id)).size).toBe(2);
+    const stable = computeStableMessagesTimelineRows(retries, { result: [], byId: new Map() });
+    expect(computeStableMessagesTimelineRows(retries, stable).result).toEqual(retries);
   });
+
+  it.each(["/compact", "Continue"])(
+    "keeps a completed compaction divider visible while other settled work folds for %s",
+    (promptText) => {
+      const fixture = makeStreamingTimelineFixture();
+      const [, , , liveUser, liveWork, liveAssistant] = fixture.visibleTurnItems;
+      if (
+        liveUser?.item.type !== "user_message" ||
+        liveAssistant?.item.type !== "assistant_message" ||
+        !liveWork
+      )
+        throw new Error("Expected live fixture items");
+      const rows = deriveMessagesTimelineRows({
+        timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
+          visibleTurnItems: [
+            { ...liveUser, item: { ...liveUser.item, text: promptText } },
+            liveWork,
+            {
+              ...liveAssistant,
+              item: {
+                ...liveAssistant.item,
+                type: "compaction",
+                driver: null,
+                status: "completed",
+                beforeTokenCount: 100_000,
+                afterTokenCount: 20_000,
+              },
+            },
+          ],
+          optimisticMessages: [],
+        }),
+        isWorking: false,
+        latestRun: {
+          runId: fixture.runId,
+          status: "completed",
+          startedAt: fixture.time(5),
+          completedAt: fixture.time(8),
+        },
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      });
+      expect(rows.filter((row) => row.kind === "turn-fold")).toHaveLength(1);
+      expect(rows.some((row) => row.kind === "work")).toBe(false);
+      expect(rows.filter((row) => row.kind === "context-compaction")).toMatchObject([
+        { active: false, tokenCounts: { before: "100K", after: "20K" } },
+      ]);
+      if (promptText === "/compact") {
+        expect(rows.some((row) => row.kind === "message")).toBe(false);
+      }
+    },
+  );
 
   it("only enables assistant copy for the terminal assistant message in a turn", () => {
     const rows = deriveMessagesTimelineRows({
