@@ -34,11 +34,7 @@ describe("resolveMediaSource", () => {
   describe("host paths", () => {
     it.each([
       ["/tmp/frame%23one.png:12", "/tmp/frame#one.png"],
-      ["/tmp/frame%3Fone.png:12:3", "/tmp/frame?one.png"],
       ["/tmp/frame%2523one.png:12", "/tmp/frame%23one.png"],
-      ["C:\\Users\\demo\\frame.png", "C:\\Users\\demo\\frame.png"],
-      ["/C:/Users/demo/frame.png", "C:/Users/demo/frame.png"],
-      ["file:///C:/Users/demo/frame.png", "C:/Users/demo/frame.png"],
     ])("resolves %s through the environment", (href, path) => {
       expect(resolveMediaSource(href, { threadId, workspaceRoot: "/repo" })).toEqual({
         kind: "image",

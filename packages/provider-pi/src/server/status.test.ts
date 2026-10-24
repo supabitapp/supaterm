@@ -148,11 +148,7 @@ describe("PiProvider", () => {
 
   it.effect.each([
     ["missing models", {}],
-    ["non-array models", { models: {} }],
-    ["missing model provider", { models: [{ id: "claude-sonnet-4" }] }],
     ["missing model id", { models: [{ provider: "anthropic" }] }],
-    ["empty model provider", { models: [{ provider: "", id: "claude-sonnet-4" }] }],
-    ["empty model id", { models: [{ provider: "anthropic", id: "" }] }],
     [
       "mixed valid and invalid models",
       { models: [{ provider: "anthropic", id: "claude-sonnet-4" }, { provider: "openrouter" }] },

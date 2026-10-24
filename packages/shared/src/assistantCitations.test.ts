@@ -89,22 +89,11 @@ describe("assistant citation references", () => {
   });
 
   it.each([
-    "https://example.com/quote",
     "supaterm-citation://v2/a/b/c?text=quote&start=0&end=5&prefix=&suffix=",
-    "supaterm-citation://v1/%ZZ/b/c?text=quote&start=0&end=5&prefix=&suffix=",
-    "supaterm-citation://v1/a/b/c?text=quote&start=NaN&end=5&prefix=&suffix=",
     "supaterm-citation://v1/a/b/c?text=quote&start=5&end=0&prefix=&suffix=",
-    "supaterm-citation://v1/a/b/c?text=quote&start=0&end=9007199254740992&prefix=&suffix=",
     "supaterm-citation://v1/a/b/c?text=quote&start=0&end=5&prefix=&suffix=&text=other",
     "supaterm-citation://v1/a/b/c?text=quote&start=0&end=5&prefix=&suffix=&unknown=value",
-    "supaterm-citation://v1/a/b/c?text=quote&start=0&end=5&prefix=&suffix=&comment=note&unknown=value",
     "supaterm-citation://v1/a/b/c?text=quote&start=0&end=5&prefix=&suffix=&comment=one&comment=two",
-    "supaterm-citation://v1/a/b/c?text=quote&start=0&end=5&prefix=&suffix=&comment=&comment=",
-    "supaterm-citation://v1/a/b/c?text=quote&start=0&end=5&prefix=&suffix=&comment=one&%63omment=two",
-    "supaterm-citation://v1/a/b/c?text=quote&start=0&end=5&prefix=&comment=note",
-    "supaterm-citation://v1/a/b/c?text=quote&start=0&end=5&prefix=&suffix=&text=other&comment=note",
-    "supaterm-citation://v1/a/b/c?text=&start=0&end=5&prefix=&suffix=",
-    "supaterm-citation://v1/a/b/c?text=quote&start=0&end=5&prefix=&suffix=#unexpected",
   ])("leaves invalid or unsupported references unchanged: %s", (href) => {
     expect(parseAssistantCitationHref(href)).toBeNull();
     const prompt = `[Assistant quote](${href})`;

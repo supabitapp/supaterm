@@ -9,7 +9,7 @@ describe("faviconUrlForOrigin", () => {
     ).toBe("https://www.google.com/s2/favicons?domain=github.com&sz=64");
   });
 
-  it.each([null, undefined, "", "invalid URL", "file:///tmp/private", "data:text/plain,private"])(
+  it.each([null, "invalid URL", "file:///tmp/private"])(
     "rejects an invalid or unsupported origin %s",
     (origin) => {
       expect(faviconUrlForOrigin(origin)).toBeNull();

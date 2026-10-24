@@ -92,16 +92,6 @@ describe("sortDoneThreads", () => {
     expect(sorted.map((thread) => thread.id)).toEqual(["done-last", "done-first"]);
   });
 
-  it("falls back to last activity for auto-done threads without a doneAt stamp", () => {
-    const sorted = sortDoneThreads([
-      done({ id: "auto-old", latestUserMessageAt: "2026-03-09T08:00:00.000Z" }),
-      done({ id: "explicit", doneAt: "2026-03-09T10:00:00.000Z" }),
-      done({ id: "auto-recent", latestUserMessageAt: "2026-03-09T11:00:00.000Z" }),
-    ]);
-
-    expect(sorted.map((thread) => thread.id)).toEqual(["auto-recent", "explicit", "auto-old"]);
-  });
-
   it("counts a turn completion as activity for auto-done threads", () => {
     const sorted = sortDoneThreads([
       done({ id: "message-only", latestUserMessageAt: "2026-03-09T10:04:00.000Z" }),

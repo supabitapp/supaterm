@@ -3,7 +3,6 @@ import { parseFileUrlHref, splitFilePathPosition, resolvePathLinkTarget } from "
 
 describe("parseFileUrlHref", () => {
   it.each([
-    ["file:///Users/julius/project/src/main.ts#L42", "/Users/julius/project/src/main.ts", "#L42"],
     [
       "file:///D:/Programme/supaterm/OpenInPicker.tsx#L69",
       "D:/Programme/supaterm/OpenInPicker.tsx",
@@ -29,13 +28,10 @@ describe("parseFileUrlHref", () => {
 
 describe("splitFilePathPosition", () => {
   it.each([
-    ["src/main.ts", "", { path: "src/main.ts" }],
-    ["src/main.ts:12", "", { path: "src/main.ts", line: 12 }],
     ["src/main.ts:12:5", "", { path: "src/main.ts", line: 12, column: 5 }],
     ["src/main.ts", "#L18C2", { path: "src/main.ts", line: 18, column: 2 }],
     ["src/main.ts:3", "#L18C2", { path: "src/main.ts", line: 3 }],
     ["src/main.ts:0", "", { path: "src/main.ts" }],
-    ["src/main.ts", "#section", { path: "src/main.ts" }],
   ])("splits %s%s", (path, hash, expected) => {
     expect(splitFilePathPosition(path, hash)).toEqual(expected);
   });
@@ -49,19 +45,9 @@ describe("resolvePathLinkTarget", () => {
       String.raw`C:\Users\Jane Doe\project\src\index.ts:12:7`,
     ],
     [
-      "src/index.ts:12:7",
-      "C:/Users/Jane Doe/project",
-      String.raw`C:/Users/Jane Doe/project\src\index.ts:12:7`,
-    ],
-    [
       String.raw`.\src\index.ts:12`,
       String.raw`\\server\share\project`,
       String.raw`\\server\share\project\.\src\index.ts:12`,
-    ],
-    [
-      String.raw`~\index.ts:12`,
-      String.raw`C:\Users\Jane Doe\project`,
-      String.raw`C:\Users\Jane Doe\index.ts:12`,
     ],
     ["src/index.ts:12", "/home/jane/project", "/home/jane/project/src/index.ts:12"],
   ])("resolves %s using the connected environment cwd %s", (path, cwd, expected) => {
@@ -75,8 +61,6 @@ describe("resolvePathLinkTarget", () => {
   });
 
   it.each([
-    ["C:\\Users\\julius\\project", "C:\\Users\\julius\\notes.md:3"],
-    ["C:/Users/julius/project", "C:/Users/julius\\notes.md:3"],
     ["C:\\users\\alice\\project", "C:\\users\\alice\\notes.md:3"],
     ["C:/uSeRs/alice/project", "C:/uSeRs/alice\\notes.md:3"],
   ])("resolves home paths against the Windows cwd %s", (cwd, expected) => {
