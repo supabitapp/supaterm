@@ -91,17 +91,17 @@ if (!globalThis.__supatermMermaid) {
   let deadline = Infinity;
   let steps = 0;
   function __checkDiagramBudget() {
-    if (++steps % 128 === 0 && Date.now() > deadline) {
+    if (++steps % 128 === 0 && performance.now() > deadline) {
       throw new Error("Diagram rendering budget exceeded");
     }
   }
   ${instrumented}
   globalThis.__supatermMermaid = function(source, options) {
     steps = 0;
-    deadline = Date.now() + ${DIAGRAM_LIMITS.durationMs};
+    deadline = performance.now() + ${DIAGRAM_LIMITS.durationMs};
     try {
       const result = SupatermMermaid.renderDiagram(source, options);
-      return Date.now() > deadline ? null : result;
+      return performance.now() > deadline ? null : result;
     } catch {
       return null;
     }
