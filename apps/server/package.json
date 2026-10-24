@@ -49,6 +49,7 @@
     "@supaterm/source-control-azure-devops": "workspace:*",
     "@supaterm/source-control-bitbucket": "workspace:*",
     "@supaterm/source-control-core": "workspace:*",
+    "@supaterm/source-control-definitions": "workspace:*",
     "@supaterm/source-control-forgejo": "workspace:*",
     "@supaterm/source-control-gitcafe": "workspace:*",
     "@supaterm/source-control-github": "workspace:*",

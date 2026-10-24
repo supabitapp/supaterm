@@ -1,8 +1,6 @@
-import * as AzureDevOps from "@supaterm/source-control-azure-devops/shared/definition";
-import * as Bitbucket from "@supaterm/source-control-bitbucket/shared/definition";
+import { builtInSourceControlDefinitions } from "@supaterm/source-control-definitions/registry";
 import {
   HostCredentialSettings,
-  makeSourceControlDefinitionRegistry,
   readSourceControlHostSettings,
 } from "@supaterm/source-control-core/shared/definition";
 import type { ServerSettings } from "@supaterm/contracts";
@@ -20,42 +18,8 @@ export {
   type SourceControlHostCredentials,
   type SourceControlIcon,
 } from "@supaterm/source-control-core/shared/definition";
-import * as Forgejo from "@supaterm/source-control-forgejo/shared/definition";
-import * as GitCafe from "@supaterm/source-control-gitcafe/shared/definition";
-import * as GitHub from "@supaterm/source-control-github/shared/definition";
-import * as GitLab from "@supaterm/source-control-gitlab/shared/definition";
 
-/**
- * GitHub comes first because a repository that has not reported its host yet reads as GitHub,
- * which is what clients have always shown there. A change request URL goes to the first host
- * whose shape it has, so GitCafe, which claims `/pull/` and `/pulls/` only on its own hostnames,
- * claims before GitHub and Forgejo, which claim them everywhere. A hostname can carry more than
- * one host's label (`gitea.github.example`), so remote recognition has its own order. The server's
- * `sourceControl/sourceControlDefinitions.ts` keeps the same order.
- */
-const BUILT_IN_SOURCE_CONTROL_CLIENTS = [
-  GitHub.definition,
-  GitLab.definition,
-  GitCafe.definition,
-  Forgejo.definition,
-  Bitbucket.definition,
-  AzureDevOps.definition,
-];
-
-export const sourceControlClients = makeSourceControlDefinitionRegistry(
-  BUILT_IN_SOURCE_CONTROL_CLIENTS,
-  {
-    claimChangeRequestUrlsFirst: [GitCafe.definition.kind],
-    recognizeRemotesIn: [
-      GitCafe.definition.kind,
-      Forgejo.definition.kind,
-      GitHub.definition.kind,
-      GitLab.definition.kind,
-      AzureDevOps.definition.kind,
-      Bitbucket.definition.kind,
-    ],
-  },
-);
+export const sourceControlClients = builtInSourceControlDefinitions;
 
 /** The saved per-hostname accounts and tokens of a host whose definition has `credentials`. */
 export function readHostCredentialSettings(
