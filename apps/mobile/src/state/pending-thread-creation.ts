@@ -12,6 +12,7 @@ import { appAtomRegistry } from "./atom-registry";
 import type { QueuedThreadMessage } from "./thread-outbox-model";
 
 export {
+  isPendingThreadCreationVisible,
   pendingThreadCreationMessage,
   resolvePendingThreadCreation,
 } from "@supaterm/client-runtime/pending-thread-creation";

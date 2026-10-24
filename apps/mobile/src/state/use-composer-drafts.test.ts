@@ -185,6 +185,7 @@ import {
   ensureComposerDraftsLoaded,
   type ComposerDraft,
   findNewTaskDraftKeys,
+  findLocalComposerClipboardAttachment,
   flushComposerDrafts,
   getComposerDraftSnapshot,
   mergeComposerDraftContentState,
@@ -205,6 +206,7 @@ import {
   setStickyNewTaskProject,
   stickyComposerModelSelectionAtom,
   stickyNewTaskProjectAtom,
+  undoComposerDraftMerge,
   undoComposerDraftMergeState,
   updateComposerDraftSettings,
 } from "./use-composer-drafts";
@@ -348,6 +350,22 @@ function modelReconciliationHarness(
 }
 
 describe("mobile composer drafts", () => {
+  it("restores a PR checkout source after restarting the composer", () => {
+    const draft: ComposerDraft = {
+      text: "Address feedback",
+      attachments: [],
+      workspaceSelection: {
+        mode: "worktree",
+        branch: "fork/feature",
+        worktreePath: null,
+        startFromOrigin: false,
+        pullRequestReference: "https://github.com/acme/repo/pull/123",
+      },
+    };
+    expect(
+      decodePersistedComposerState({ schemaVersion: 1, drafts: { task: draft } }).drafts.task,
+    ).toEqual(draft);
+  });
   it("restores visible file chips from legacy drafts", async () => {
     const file = {
       type: "file" as const,
@@ -458,6 +476,54 @@ describe("mobile composer drafts", () => {
       expect(composerAttachmentCleanupMocks.remove).toHaveBeenCalledWith(file.fileUri);
     },
   );
+
+  it("keeps a long attachment filename and a bounded chip label through reload", () => {
+    const key = "environment:long-file";
+    const file = {
+      type: "file" as const,
+      id: "long-file",
+      name: `${"a".repeat(210)}.txt`,
+      mimeType: "text/plain",
+      sizeBytes: 1,
+      fileUri: "file:///long-file.txt",
+    };
+    appendComposerDraftAttachments(key, [file], { appendReference: true });
+    const draft = getComposerDraftSnapshot(key);
+    const reloaded = decodePersistedComposerState(
+      JSON.parse(
+        JSON.stringify({
+          schemaVersion: 1,
+          drafts: { [key]: draft },
+        }),
+      ),
+    ).drafts[key];
+    expect(reloaded?.context?.records[0]).toMatchObject({ name: file.name, attachmentId: file.id });
+    expect(reloaded?.context?.records[0]?.label.length).toBeLessThanOrEqual(200);
+  });
+
+  it("gives a folded paste a chip that survives the send", () => {
+    const key = "environment-1:thread-1";
+
+    const pasted = {
+      type: "file" as const,
+      id: "pasted-1",
+      name: "pasted-text.txt",
+      mimeType: "text/plain",
+      sizeBytes: 40_000,
+      fileUri: "file:///pasted-text.txt",
+    };
+    appendComposerDraftAttachments(key, [pasted], { appendReference: true });
+
+    const draft = getComposerDraftSnapshot(key);
+
+    expect(draft.text).toContain("pasted-text.txt");
+    expect(draft.context?.records).toMatchObject([
+      { kind: "file", attachmentId: pasted.id, name: pasted.name },
+    ]);
+
+    const [record] = draft.context?.records ?? [];
+    expect(draft.text).toContain(String(record?.contextId));
+  });
 
   it("retains a pick matching cached state until the live shell confirms it", () => {
     const environmentId = EnvironmentId.make("environment-1");
@@ -600,6 +666,49 @@ describe("mobile composer drafts", () => {
       before.context?.records[0]?.contextId,
     ]);
   });
+
+  it.each(["new-task:draft-1", "pending-task:queued-1"])(
+    "finds draft-only local clipboard files in %s",
+    (key) => {
+      const environmentId = EnvironmentId.make("environment-1");
+      const file = {
+        type: "file" as const,
+        id: "local-file",
+        name: "notes.txt",
+        mimeType: "text/plain",
+        sizeBytes: 4,
+        fileUri: "file:///notes.txt",
+      };
+      appAtomRegistry.set(composerDraftsAtom, {
+        [key]: {
+          text: "",
+          attachments: [file],
+          project: {
+            environmentId,
+            projectId: ProjectId.make("project-1"),
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+        },
+      });
+      appAtomRegistry.set(threadOutboxManager.queuedMessagesByThreadKeyAtom, {
+        queued: [
+          {
+            environmentId,
+            threadId: ThreadId.make("thread-1"),
+            messageId: MessageId.make("queued-1"),
+            commandId: CommandId.make("command-1"),
+            text: "Queued",
+            attachments: [],
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+        ],
+      });
+      expect(findLocalComposerClipboardAttachment(environmentId, file.id)).toEqual(file);
+      expect(
+        findLocalComposerClipboardAttachment(EnvironmentId.make("different-environment"), file.id),
+      ).toBeUndefined();
+    },
+  );
 
   it("keeps over-limit recovery context reloadable without losing other drafts", () => {
     const key = "environment-1:recovery";
@@ -948,6 +1057,48 @@ describe("mobile composer drafts", () => {
     expect(getComposerDraftSnapshot(draftKey).context).toBeUndefined();
   });
 
+  // Hydration is one-shot per module instance and the attachment sweep now
+  // triggers it too, so this test must observe it before any sweep test runs.
+  it("hydrates generic file attachments from their saved local paths", () => {
+    const file = {
+      id: "file-1",
+      type: "file" as const,
+      name: "report.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: 42,
+      fileUri: "file:///documents/report.pdf",
+    };
+
+    expect(
+      decodePersistedComposerState({
+        schemaVersion: 1,
+        drafts: {
+          "environment-1:thread-1": { text: "Review this file", attachments: [file] },
+        },
+      }).drafts,
+    ).toEqual({
+      "environment-1:thread-1": {
+        text: "Review this file [report.pdf](supaterm-context://v1/file/file-1) ",
+        attachments: [file],
+        context: {
+          version: 1,
+          records: [
+            {
+              version: 1,
+              contextId: file.id,
+              kind: "file",
+              label: file.name,
+              attachmentId: file.id,
+              name: file.name,
+              mimeType: file.mimeType,
+              sizeBytes: file.sizeBytes,
+            },
+          ],
+        },
+      },
+    });
+  });
+
   it("releases videos rejected by the live draft limit and keeps accepted files", async () => {
     const outboxLoad = vi.spyOn(threadOutboxManager, "load").mockResolvedValue(true);
     onTestFinished(() => outboxLoad.mockRestore());
@@ -1153,6 +1304,29 @@ describe("mobile composer drafts", () => {
     });
     expect(setComposerDraftAttachmentUpload(key, { ...uploaded, id: "removed-photo" })).toBe(false);
     expect(getComposerDraftSnapshot(key).attachments).toHaveLength(2);
+  });
+
+  it("cleans up an unreferenced image upload even when there is no local file URI", async () => {
+    const outboxLoad = vi.spyOn(threadOutboxManager, "load").mockResolvedValue(true);
+    onTestFinished(() => outboxLoad.mockRestore());
+    const environmentId = EnvironmentId.make("environment-1");
+    await releaseUnusedComposerAttachmentFiles([
+      {
+        id: "photo",
+        type: "image",
+        name: "photo.png",
+        mimeType: "image/png",
+        sizeBytes: 3,
+        dataUrl: "data:image/png;base64,YWJj",
+        previewUri: "file:///photo.png",
+        uploadedAttachmentId: "pending-photo",
+        uploadEnvironmentId: environmentId,
+      },
+    ]);
+    expect(composerAttachmentCleanupMocks.releaseUploads).toHaveBeenCalledWith(environmentId, [
+      "pending-photo",
+    ]);
+    expect(composerAttachmentCleanupMocks.remove).not.toHaveBeenCalled();
   });
 
   it.each(["file", "image"] as const)(
@@ -1528,6 +1702,29 @@ describe("mobile composer drafts", () => {
     }
   });
 
+  it("rejects persisted images without image bytes or a file URI", () => {
+    expect(() =>
+      decodePersistedComposerState({
+        schemaVersion: 1,
+        drafts: {
+          "environment-1:thread-1": {
+            text: "Saved image",
+            attachments: [
+              {
+                id: "image-1",
+                type: "image",
+                name: "photo.png",
+                mimeType: "image/png",
+                sizeBytes: 3,
+                previewUri: "file:///photo.png",
+              },
+            ],
+          },
+        },
+      }),
+    ).toThrow();
+  });
+
   it("hydrates selector state even when the message content is empty", () => {
     const hydrated = Object.entries(
       decodePersistedComposerState({
@@ -1707,6 +1904,22 @@ describe("mobile composer drafts", () => {
     expect(findNewTaskDraftKeys(appAtomRegistry.get(composerDraftsAtom), to)).toEqual([key]);
   });
 
+  it("hydrates the global sticky model selection", () => {
+    expect(
+      decodePersistedComposerState({
+        schemaVersion: 1,
+        drafts: {},
+        stickyModelSelection: {
+          instanceId: "codex",
+          model: "gpt-5.6-sol",
+        },
+      }).stickyModelSelection,
+    ).toEqual({
+      instanceId: "codex",
+      model: "gpt-5.6-sol",
+    });
+  });
+
   it("restores the sticky new-task project after a restart", async () => {
     vi.useFakeTimers();
     await waitForComposerDraftsLoaded();
@@ -1724,6 +1937,18 @@ describe("mobile composer drafts", () => {
     appAtomRegistry.set(stickyNewTaskProjectAtom, null);
     await waitForComposerDraftsLoaded();
     expect(appAtomRegistry.get(stickyNewTaskProjectAtom)).toEqual(project);
+  });
+
+  it("decodes model option memory from the composer document", () => {
+    expect(
+      decodePersistedComposerState({
+        schemaVersion: 1,
+        drafts: {},
+        modelOptionMemory: {
+          pi: { "xai/grok-4.6": [{ id: "thinking", value: "xhigh" }] },
+        },
+      }).modelOptionMemory,
+    ).toEqual({ pi: { "xai/grok-4.6": [{ id: "thinking", value: "xhigh" }] } });
   });
 
   it("restores each model's last chosen options after a restart", async () => {
@@ -1765,6 +1990,49 @@ describe("mobile composer drafts", () => {
       pi: {
         "xai/grok-4.6": [{ id: "thinking", value: "xhigh" }],
         "openai/gpt-5.4": [{ id: "thinking", value: "medium" }],
+      },
+    });
+  });
+
+  it("waits for hydration before persisting the latest composer state", async () => {
+    vi.useFakeTimers();
+    composerDraftFileMocks.setDocument({
+      schemaVersion: 1,
+      drafts: {
+        "environment-1:thread-1": DRAFT,
+      },
+      stickyModelSelection: {
+        instanceId: "codex",
+        model: "gpt-5.6-sol",
+      },
+    });
+    composerDraftFileMocks.blockRead();
+    composerDraftFileMocks.resetWrites();
+
+    ensureComposerDraftsLoaded();
+    await Promise.resolve();
+
+    setComposerDraftText("new-task:environment-1:project-1", "New prompt");
+    await vi.advanceTimersByTimeAsync(200);
+
+    expect(composerDraftFileMocks.getWrites()).toHaveLength(0);
+
+    composerDraftFileMocks.releaseRead();
+
+    await vi.runAllTimersAsync();
+
+    expect(JSON.parse(composerDraftFileMocks.getWrites()[0]!)).toEqual({
+      schemaVersion: 1,
+      drafts: {
+        "environment-1:thread-1": DRAFT,
+        "new-task:environment-1:project-1": {
+          text: "New prompt",
+          attachments: [],
+        },
+      },
+      stickyModelSelection: {
+        instanceId: "codex",
+        model: "gpt-5.6-sol",
       },
     });
   });
@@ -1840,6 +2108,27 @@ describe("mobile composer drafts", () => {
       expect(composerAttachmentCleanupMocks.remove).not.toHaveBeenCalled();
     },
   );
+
+  it("retries a failed debounced read on final flush without dropping saved drafts or new edits", async () => {
+    vi.useFakeTimers();
+    composerDraftFileMocks.setDocument({
+      schemaVersion: 1,
+      drafts: { "environment-1:saved": DRAFT },
+    });
+    const original = composerDraftFileMocks.getDocument();
+    composerDraftFileMocks.setReadError(new Error("storage unavailable"));
+    setComposerDraftText("environment-1:new", "New edits");
+    await vi.advanceTimersByTimeAsync(200);
+    expect(composerDraftFileMocks.getDocument()).toBe(original);
+
+    composerDraftFileMocks.setReadError(null);
+    await flushComposerDrafts();
+
+    expect(JSON.parse(composerDraftFileMocks.getDocument()).drafts).toEqual({
+      "environment-1:saved": DRAFT,
+      "environment-1:new": { text: "New edits", attachments: [] },
+    });
+  });
 
   it("serializes environment cleanup after an older queued write", async () => {
     vi.useFakeTimers();
@@ -1917,6 +2206,47 @@ describe("mobile composer drafts", () => {
         attachments: [],
       },
     });
+  });
+
+  it("drops draft-local model and workspace selections after sending a new task", () => {
+    const draftKey = "new-task:environment-1:project-1";
+    const draft: ComposerDraft = {
+      text: "send this",
+      attachments: [],
+      modelSelection: {
+        instanceId: ProviderInstanceId.make("codex"),
+        model: "gpt-5.4",
+      },
+      workspaceSelection: {
+        mode: "worktree",
+        branch: "main",
+        worktreePath: null,
+        startFromOrigin: false,
+      },
+    };
+
+    expect(
+      clearComposerDraftContentState({ [draftKey]: draft }, draftKey, {
+        clearModelSelection: true,
+        clearWorkspaceSelection: true,
+      }),
+    ).toEqual({});
+  });
+
+  it("reads the latest selector state synchronously for send", () => {
+    const draftKey = "environment-1:thread-1";
+    const selectedDraft: ComposerDraft = {
+      text: "send this",
+      attachments: [],
+      modelSelection: {
+        instanceId: ProviderInstanceId.make("codex"),
+        model: "gpt-5.4",
+        options: [{ id: "reasoningEffort", value: "xhigh" }],
+      },
+    };
+    appAtomRegistry.set(composerDraftsAtom, { [draftKey]: selectedDraft });
+
+    expect(getComposerDraftSnapshot(draftKey)).toEqual(selectedDraft);
   });
 
   it("drops another environment's upload stamp when a draft moves across machines", () => {
@@ -2169,6 +2499,34 @@ describe("mobile composer drafts", () => {
         merged,
       ),
     ).toEqual({});
+  });
+
+  it("persists an async merge rollback with the sticky model selection", async () => {
+    const draftKey = "environment-1:thread-1";
+    const snapshot: ComposerDraft = { text: "typed before", attachments: [] };
+    const merged: ComposerDraft = {
+      text: "typed before\n\nqueued text",
+      attachments: [],
+    };
+    composerDraftFileMocks.setDocument({
+      schemaVersion: 1,
+      drafts: { [draftKey]: merged },
+      stickyModelSelection: {
+        instanceId: "codex",
+        model: "gpt-5.6-sol",
+      },
+    });
+
+    await undoComposerDraftMerge(draftKey, snapshot, merged);
+
+    expect(JSON.parse(composerDraftFileMocks.getDocument())).toEqual({
+      schemaVersion: 1,
+      drafts: { [draftKey]: snapshot },
+      stickyModelSelection: {
+        instanceId: "codex",
+        model: "gpt-5.6-sol",
+      },
+    });
   });
 
   it("returns merge-written settings to the snapshot but keeps user-edited ones", () => {
