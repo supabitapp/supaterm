@@ -673,7 +673,6 @@ const makeEventStore = Effect.gen(function* () {
         ),
       );
 
-  // Advance over raw rows so even a full page of unknown types cannot end replay early.
   const catchUpApplicationEvents = (input: {
     readonly afterSequence: number;
     readonly throughSequence: number;
