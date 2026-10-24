@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { BoltComputerSim } from "./sim";
+import { BoltComputerSim, restPose } from "./sim";
 
 const advance = (sim: BoltComputerSim, seconds: number) => {
   for (let t = 0; t < seconds; t += 1 / 60) sim.update(1 / 60);
@@ -89,12 +89,26 @@ describe("BoltComputerSim", () => {
     expect(age).toBeLessThan(4.8);
   });
 
-  it("wakes from an error rest for a click and rests again", () => {
+  it("rests in error only at its still pose, wherever restAt falls in the shake", () => {
+    const still = restPose("error");
+    for (let restAt = 1; restAt < 6; restAt += 0.05) {
+      const sim = new BoltComputerSim(0.3, "error", restAt);
+      expect(ageWhenSettled(sim, 20)).not.toBeNull();
+      expect(sim.pose.yaw).toBeCloseTo(still.yaw, 2);
+      expect(sim.pose.roll).toBeCloseTo(still.roll, 2);
+    }
+  });
+
+  it("wakes from an error rest for a click and rests again at its still pose", () => {
+    const still = restPose("error");
     const sim = new BoltComputerSim(0.3, "error", 3);
     ageWhenSettled(sim, 20);
-    sim.poke();
-    sim.update(0);
-    expect(sim.settled).toBe(false);
-    expect(ageWhenSettled(sim, 20)).not.toBeNull();
+    for (let click = 0; click < 10; click++) {
+      sim.poke();
+      sim.update(0);
+      expect(sim.settled).toBe(false);
+      expect(ageWhenSettled(sim, 20)).not.toBeNull();
+      expect(sim.pose.yaw).toBeCloseTo(still.yaw, 2);
+    }
   });
 });

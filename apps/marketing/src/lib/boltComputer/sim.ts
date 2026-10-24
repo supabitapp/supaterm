@@ -101,6 +101,8 @@ export class BoltComputerSim {
 
   /** The age after which a looping state may stop at its next still moment, as idle does. */
   private readonly restAt: number;
+  /** Error's head shake goes straight onto the pose, so resting springs don't mean it is still. */
+  private shaking = false;
 
   constructor(seed: number, state: BoltComputerState = "idle", restAt = Number.POSITIVE_INFINITY) {
     this.random = rng(seed);
@@ -155,6 +157,7 @@ export class BoltComputerSim {
     return (
       (this.state === "idle" || this.age >= this.restAt) &&
       faceStill(this.state, this.since) &&
+      !this.shaking &&
       this.jump === null &&
       this.age > POWER_ON &&
       this.since > FADE &&
@@ -231,6 +234,7 @@ export class BoltComputerSim {
         break;
       }
     }
+    this.shaking = shake !== 0;
     this.yaw.step(yaw, dt, freq, 0.62);
     this.pitch.step(pitch, dt, freq, 0.62);
     this.roll.step(roll, dt, freq, 0.62);
