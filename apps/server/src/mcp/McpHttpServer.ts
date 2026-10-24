@@ -857,12 +857,16 @@ const withToolAnalytics =
         result: McpSchema.CallToolResult | undefined,
         durationMs: number,
       ) {
+        const handoff = HANDOFF_TOOLS.has(tool);
+        const outcome = toolOutcome(result);
+        // Agents call status, read, and preview tools in tight loops, so an
+        // event per successful call floods analytics. Only failures count there.
+        if (!handoff && outcome.outcome === "ok") return;
         const invocation = Option.getOrUndefined(
           yield* Effect.serviceOption(McpInvocationContext.McpInvocationContext),
         )?.thread;
         const providers = Option.isSome(registry) ? yield* registry.value.getProviders : [];
 
-        const handoff = HANDOFF_TOOLS.has(tool);
         const caller =
           handoff && invocation !== undefined
             ? ((yield* shellOf(invocation.threadId)) ?? undefined)
@@ -887,7 +891,7 @@ const withToolAnalytics =
                 callerScheduledRun: yield* scheduledRunOf(invocation.threadId, caller.activeRunId),
               }),
           targets: targets.filter((thread) => thread !== null),
-          outcome: toolOutcome(result),
+          outcome,
           ...(handoff ? { settings: handoffSettings(tool, args, result?.structuredContent) } : {}),
           durationMs,
         })) {
