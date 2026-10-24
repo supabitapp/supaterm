@@ -34,6 +34,7 @@ import * as ProjectService from "../project/ProjectService.ts";
 import * as RepositoryIdentityResolver from "../project/RepositoryIdentityResolver.ts";
 import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
 import * as ServerSettings from "../serverSettings.ts";
+import { sourceControlClients } from "../sourceControl/sourceControlClients.ts";
 import * as TextGeneration from "../textGeneration/TextGeneration.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import { PATCH_RENDER_PREFIX_ARGS } from "../vcs/GitVcsDriverCore.ts";
@@ -241,6 +242,7 @@ const make = Effect.gen(function* () {
         ),
       );
       const fetchAndResolve = (ref: string) => fetch([ref]).pipe(Effect.andThen(resolveHead));
+      const headRef = sourceControlClients.get(detail.provider).changeRequestHeadRef?.(number);
       const branchRef = `refs/heads/${branch}`;
       const checkBranch = git.execute({
         operation: "PullRequestReviewGuideService.checkHeadBranch",
@@ -256,11 +258,7 @@ const make = Effect.gen(function* () {
           source: `branch ${branch}`,
           head: checkBranch.pipe(Effect.andThen(fetchAndResolve(branchRef))),
         },
-        { source: `refs/pull/${number}/head`, head: fetchAndResolve(`refs/pull/${number}/head`) },
-        {
-          source: `refs/merge-requests/${number}/head`,
-          head: fetchAndResolve(`refs/merge-requests/${number}/head`),
-        },
+        ...(headRef === undefined ? [] : [{ source: headRef, head: fetchAndResolve(headRef) }]),
       ];
       const failures: Array<string> = [];
       for (const { source, head } of sources) {

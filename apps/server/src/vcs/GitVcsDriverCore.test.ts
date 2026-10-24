@@ -3070,7 +3070,7 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
           yield* git(cwd, ["rev-parse", "HEAD"]),
         );
         assert.equal(
-          yield* git(cwd, ["config", "branch.feature/parallel.gh-merge-base"]),
+          yield* git(cwd, ["config", "branch.feature/parallel.supaterm-merge-base"]),
           initialBranch,
         );
         for (const [configured, expected] of [
@@ -3121,7 +3121,7 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
 
           assert.equal(yield* git(worktreePath, ["rev-parse", "HEAD"]), commit);
           assert.equal(
-            yield* driver.readConfigValue(cwd, "branch.feature/revision.gh-merge-base"),
+            yield* driver.readConfigValue(cwd, "branch.feature/revision.supaterm-merge-base"),
             null,
           );
         }),
@@ -3146,7 +3146,7 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
           });
 
           assert.equal(
-            yield* driver.readConfigValue(cwd, "branch.feature/branch.gh-merge-base"),
+            yield* driver.readConfigValue(cwd, "branch.feature/branch.supaterm-merge-base"),
             baseBranch,
           );
         }),
@@ -3469,7 +3469,10 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
           "# test\n",
         );
         assert.equal(
-          yield* driver.readConfigValue(worktreePath, "branch.feature/locked-config.gh-merge-base"),
+          yield* driver.readConfigValue(
+            worktreePath,
+            "branch.feature/locked-config.supaterm-merge-base",
+          ),
           null,
         );
         assert.equal(yield* fileSystem.exists(pathService.join(cwd, ".git/config.lock")), true);
@@ -3740,7 +3743,7 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
         assert.equal(yield* driver.resolvePrimaryRemoteName(cwd), remoteName);
         yield* driver.fetchRemoteTrackingBranch({ cwd, remoteName, remoteBranch: initialBranch });
         yield* driver.fetchRemote({ cwd, remoteName });
-        const head = yield* driver.fetchPullRequestHeadCommit({ cwd, prNumber: 7 });
+        const head = yield* driver.fetchRefCommit({ cwd, ref: "refs/pull/7/head" });
 
         assert.isFalse(yield* fileSystem.exists((yield* Path.Path).join(cwd, "supaterm-marker")));
         assert.equal(head.commitSha, yield* git(cwd, ["rev-parse", "HEAD"]));
@@ -4191,7 +4194,7 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
         assert.equal(yield* driver.resolvePrimaryRemoteName(cwd), remoteName);
         yield* driver.fetchRemoteTrackingBranch({ cwd, remoteName, remoteBranch: initialBranch });
         yield* driver.fetchRemote({ cwd, remoteName });
-        const head = yield* driver.fetchPullRequestHeadCommit({ cwd, prNumber: 7 });
+        const head = yield* driver.fetchRefCommit({ cwd, ref: "refs/pull/7/head" });
 
         assert.isFalse(yield* fileSystem.exists((yield* Path.Path).join(cwd, "supaterm-marker")));
         assert.equal(head.commitSha, yield* git(cwd, ["rev-parse", "HEAD"]));
@@ -4444,7 +4447,10 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
         assert.strictEqual(status.branchChanges?.deletions, 0);
         // gh pr create consumes this setting verbatim as the hosted target branch.
         assert.equal(
-          yield* driver.readConfigValue(worktreePath, "branch.feature/from-upstream.gh-merge-base"),
+          yield* driver.readConfigValue(
+            worktreePath,
+            "branch.feature/from-upstream.supaterm-merge-base",
+          ),
           "release",
         );
         assert.equal(changes.baseRef, "upstream/release");
@@ -4673,7 +4679,10 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
           yield* git(cwd, ["rev-parse", "--abbrev-ref", "@{upstream}"]),
           "origin/feature/x",
         );
-        assert.equal(yield* driver.readConfigValue(cwd, "branch.feature/x.gh-merge-base"), "dev");
+        assert.equal(
+          yield* driver.readConfigValue(cwd, "branch.feature/x.supaterm-merge-base"),
+          "dev",
+        );
 
         const preview = yield* driver.getReviewDiffPreview({ cwd });
         const changes = preview.sources.find((source) => source.kind === "branch-range")!;

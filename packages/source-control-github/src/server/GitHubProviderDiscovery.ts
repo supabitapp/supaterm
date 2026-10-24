@@ -224,7 +224,10 @@ export const make = Effect.gen(function* () {
       );
       const cli = yield* probeSourceControlProvider({
         cwd,
-        process,
+        process: {
+          run: (input) =>
+            process.run({ ...input, concurrency: GitHubCredentials.GH_PROCESS_CONCURRENCY }),
+        },
         spec: { ...discovery, parseAuth: (input) => parseGitHubAuth(input, settings) },
       });
       const tokenHosts = discoveryTokenHosts(settings, environment);
