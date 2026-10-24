@@ -10,12 +10,38 @@ import { readWorkspace } from "./lib/changed-packages.ts";
 
 const repoRoot = NodePath.resolve(NodePath.dirname(NodeURL.fileURLToPath(import.meta.url)), "..");
 
-const workspaceFiles = [
+const workspaceFiles = new Set([
   "package.json",
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
   ...readWorkspace(repoRoot).map(({ dir }) => `${dir}/package.json`),
-];
+]);
+
+for (const relativePath of workspaceFiles) {
+  if (!relativePath.endsWith("package.json")) continue;
+  const manifest = JSON.parse(NodeFS.readFileSync(NodePath.join(repoRoot, relativePath), "utf8"));
+  for (const dependency of Object.values({
+    ...manifest.dependencies,
+    ...manifest.devDependencies,
+    ...manifest.optionalDependencies,
+    ...manifest.peerDependencies,
+  })) {
+    if (typeof dependency !== "string" || !/^(?:file|link):/.test(dependency)) continue;
+    const localPath = NodePath.resolve(
+      repoRoot,
+      NodePath.dirname(relativePath),
+      dependency.slice(dependency.indexOf(":") + 1),
+    );
+    const localFile = NodeFS.statSync(localPath).isDirectory()
+      ? NodePath.join(localPath, "package.json")
+      : localPath;
+    const relativeFile = NodePath.relative(repoRoot, localFile);
+    if (relativeFile.startsWith("..") || NodePath.isAbsolute(relativeFile)) {
+      throw new Error(`Release fixture dependency is outside the repository: ${dependency}`);
+    }
+    workspaceFiles.add(relativeFile);
+  }
+}
 
 function copyWorkspaceManifestFixture(targetRoot: string): void {
   for (const relativePath of workspaceFiles) {
@@ -23,13 +49,6 @@ function copyWorkspaceManifestFixture(targetRoot: string): void {
     const destinationPath = NodePath.resolve(targetRoot, relativePath);
     NodeFS.mkdirSync(NodePath.dirname(destinationPath), { recursive: true });
     NodeFS.cpSync(sourcePath, destinationPath);
-  }
-
-  const mobileDependencies = NodePath.resolve(repoRoot, "apps/mobile/deps");
-  if (NodeFS.existsSync(mobileDependencies)) {
-    NodeFS.cpSync(mobileDependencies, NodePath.resolve(targetRoot, "apps/mobile/deps"), {
-      recursive: true,
-    });
   }
 
   const patchesDirectory = NodePath.resolve(repoRoot, "patches");
