@@ -128,6 +128,11 @@ export function useQuietSidebarThreadShells(): ReadonlyArray<EnvironmentThreadSh
   return useAtomValue(sidebarThreadShells.quietThreadShellsAtom);
 }
 
+/** Every thread shell, held through streaming ticks; see quietThreadShellAtom. */
+export function useQuietThreadShells(): ReadonlyArray<EnvironmentThreadShell> {
+  return useAtomValue(environmentThreadShells.quietThreadShellsAtom);
+}
+
 export function useAllEnvironmentShellsBootstrapped(): boolean {
   return useAtomValue(allEnvironmentShellsBootstrappedAtom);
 }

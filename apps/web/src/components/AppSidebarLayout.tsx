@@ -36,6 +36,7 @@ import {
   usePanelAnimationSettings,
   usePanelNavigationSuppression,
 } from "../panelAnimations";
+import { BackgroundThreadAnnouncer } from "./BackgroundThreadAnnouncer";
 import ThreadSidebar from "./Sidebar";
 import { SettingsSidebarNav } from "./settings/SettingsSidebarNav";
 import { SidebarBrandWidthProbe, SidebarChromeHeader } from "./sidebar/SidebarChrome";
@@ -390,6 +391,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
           <SidebarBrandWidthProbe onWidthChange={setBrandWidth} />
           <ProjectProjectionRetention />
           {children}
+          <BackgroundThreadAnnouncer />
           <SidebarControl />
           <NavigationHistoryShortcuts />
           {isOnSettings ? null : <ThreadUndoShortcut />}

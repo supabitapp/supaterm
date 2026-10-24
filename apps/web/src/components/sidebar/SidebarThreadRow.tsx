@@ -1407,16 +1407,17 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                   )}
                 >
                   {topStatus && !showDuration && topStatusKind !== "connecting" ? (
-                    <span role="status" className={cn("inline-flex shrink-0", topStatus.className)}>
+                    <span className={cn("inline-flex shrink-0", topStatus.className)}>
                       <StatusIcon aria-hidden className="size-3.5" />
                       <span className="sr-only">{topStatus.label}</span>
                     </span>
                   ) : null}
                   {topStatus && (showDuration || topStatusKind === "connecting") ? (
                     <span className={cn("whitespace-nowrap", topStatus.className)}>
-                      <span role={props.isRouteThread || props.inOtherPane ? undefined : "status"}>
-                        {topStatus.label}
-                      </span>
+                      {/* Not a live region: a collapsed sidebar is inert, so
+                        BackgroundThreadAnnouncer and each pane's timeline speak
+                        status changes instead. */}
+                      {topStatus.label}
                       {showDuration ? (
                         <span aria-hidden>
                           {" "}
