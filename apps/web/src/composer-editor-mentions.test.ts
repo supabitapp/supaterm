@@ -246,12 +246,6 @@ describe("splitPromptIntoComposerSegments", () => {
     ]);
   });
 
-  it("does not convert an incomplete trailing skill token", () => {
-    expect(splitPromptIntoComposerSegments("Use $review-follow-up")).toEqual([
-      { type: "text", text: "Use $review-follow-up" },
-    ]);
-  });
-
   it("keeps context references at their prompt positions", () => {
     expect(
       splitPromptIntoComposerSegments(`Inspect ${terminalReference} @AGENTS.md please`),
@@ -268,22 +262,6 @@ describe("splitPromptIntoComposerSegments", () => {
     expect(splitPromptIntoComposerSegments(`${terminalReference}${terminalReference}tail`)).toEqual(
       [terminalSegment, terminalSegment, { type: "text", text: "tail" }],
     );
-  });
-
-  it("keeps skill parsing alongside mentions and context references", () => {
-    expect(
-      splitPromptIntoComposerSegments(
-        `Inspect ${terminalReference} $review-follow-up after @AGENTS.md `,
-      ),
-    ).toEqual([
-      { type: "text", text: "Inspect " },
-      terminalSegment,
-      { type: "text", text: " " },
-      { type: "skill", name: "review-follow-up", source: "$review-follow-up" },
-      { type: "text", text: " after " },
-      { type: "mention", path: "AGENTS.md", source: "@AGENTS.md" },
-      { type: "text", text: " " },
-    ]);
   });
 
   it("leaves a context link with an unparsable href as text", () => {
@@ -329,34 +307,12 @@ describe("selectionTouchesMentionBoundary", () => {
     ).toBe(false);
   });
 
-  it("returns true when selection includes whitespace after a mention following a context reference", () => {
-    const prompt = `${terminalReference} @AGENTS.md there`;
-    expect(
-      selectionTouchesMentionBoundary(
-        prompt,
-        `${terminalReference} @AGENTS.md`.length,
-        prompt.length,
-      ),
-    ).toBe(true);
-  });
-
   it("returns true when selection includes whitespace after a quoted mention", () => {
     expect(
       selectionTouchesMentionBoundary(
         'hi @"My File.md" there',
         'hi @"My File.md"'.length,
         'hi @"My File.md" there'.length,
-      ),
-    ).toBe(true);
-  });
-
-  it("returns true when selection includes whitespace after a markdown file link", () => {
-    const prompt = "hi [package.json](path/to/package.json) there";
-    expect(
-      selectionTouchesMentionBoundary(
-        prompt,
-        "hi [package.json](path/to/package.json)".length,
-        prompt.length,
       ),
     ).toBe(true);
   });

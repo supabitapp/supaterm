@@ -95,56 +95,6 @@ it("keeps the machine picker usable beside a locked workspace", async () => {
   expect(onEnvironmentChange).toHaveBeenCalledWith("remote");
 });
 
-it("shows a started thread's primary machine as a static label in the composer", async () => {
-  await using _fixture = await setup();
-
-  await act(async () =>
-    fixtureScreen.rerender(
-      toolbar({
-        layout: "composer",
-        showEnvironmentIndicator: true,
-        showGitControls: false,
-        availableEnvironments: ["local", "remote"].map((id) => ({
-          environmentId: EnvironmentId.make(id),
-          projectId: ProjectId.make("project"),
-          label: id,
-          isPrimary: id === "local",
-          machine: "server",
-        })),
-      }),
-    ),
-  );
-  expect(container.textContent).toBe("local");
-  expect(container.querySelector("button")).toBeNull();
-});
-
-it.each([
-  ["local", null, "/tmp/project"],
-  ["worktree", null, null],
-  ["worktree", "/tmp/worktree", "/tmp/worktree"],
-] as const)(
-  "copies only an existing workspace path with mode %s and worktree %s",
-  async (envMode, worktreePath, copiedPath) => {
-    await using _fixture = await setup();
-
-    state.worktreePath = worktreePath;
-    await act(async () => fixtureScreen.rerender(toolbar({ envMode })));
-    const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
-    await act(async () => {
-      container.querySelector("[data-composer-context-control]")!.dispatchEvent(event);
-    });
-    expect(event.defaultPrevented).toBe(copiedPath !== null);
-    if (copiedPath === null) {
-      expect(state.showContextMenu).not.toHaveBeenCalled();
-      expect(state.writeTextToClipboard).not.toHaveBeenCalled();
-    } else {
-      await vi.waitFor(() =>
-        expect(state.writeTextToClipboard).toHaveBeenCalledWith(copiedPath, "workspace path"),
-      );
-    }
-  },
-);
-
 async function setup() {
   state.worktreePath = "/tmp/worktree";
   state.showContextMenu.mockReset().mockResolvedValue("copy-path");

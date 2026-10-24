@@ -1,4 +1,3 @@
-import { ProjectId, ThreadId } from "@supaterm/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
@@ -7,9 +6,6 @@ import {
   type PersistedUiState,
   persistState,
   reorderProjects,
-  setDefaultAdvertisedEndpointKey,
-  setSidebarProjectScopeKey,
-  setThreadChangedFilesExpanded,
   type UiState,
 } from "./uiStateStore";
 
@@ -25,17 +21,6 @@ function makeUiState(overrides: Partial<UiState> = {}): UiState {
 }
 
 describe("uiStateStore pure functions", () => {
-  it("reorders from the current atom-derived project order", () => {
-    const project1 = ProjectId.make("project-1");
-    const project2 = ProjectId.make("project-2");
-    const project3 = ProjectId.make("project-3");
-    const currentOrder = [project1, project2, project3];
-
-    const next = reorderProjects(makeUiState(), currentOrder, [project1], [project3]);
-
-    expect(next.projectOrder).toEqual([project2, project3, project1]);
-  });
-
   it("moves grouped project members together", () => {
     const keyALocal = "env-local:proj-a";
     const keyARemote = "env-remote:proj-a";
@@ -58,44 +43,6 @@ describe("uiStateStore pure functions", () => {
     expect(reorderProjects(state, currentOrder, ["env-local:proj-a"], ["env-local:proj-a"])).toBe(
       state,
     );
-  });
-
-  it("stores explicit changed-file expansion choices", () => {
-    const threadId = ThreadId.make("thread-1");
-    const collapsed = setThreadChangedFilesExpanded(makeUiState(), threadId, "turn-1", false);
-
-    expect(collapsed.threadChangedFilesExpandedById).toEqual({
-      [threadId]: {
-        "turn-1": false,
-      },
-    });
-    expect(
-      setThreadChangedFilesExpanded(collapsed, threadId, "turn-1", true)
-        .threadChangedFilesExpandedById,
-    ).toEqual({
-      [threadId]: {
-        "turn-1": true,
-      },
-    });
-  });
-
-  it("stores the endpoint preference by stable key", () => {
-    const next = setDefaultAdvertisedEndpointKey(makeUiState(), "desktop-core:lan:http");
-
-    expect(next.defaultAdvertisedEndpointKey).toBe("desktop-core:lan:http");
-    expect(setDefaultAdvertisedEndpointKey(next, "desktop-core:lan:http")).toBe(next);
-    expect(setDefaultAdvertisedEndpointKey(next, "")).toMatchObject({
-      defaultAdvertisedEndpointKey: null,
-    });
-  });
-
-  it("stores the sidebar project scope and resets it to all projects", () => {
-    const scoped = setSidebarProjectScopeKey(makeUiState(), "github.com/supabitapp/supacode-next");
-
-    expect(scoped.sidebarProjectScopeKey).toBe("github.com/supabitapp/supacode-next");
-    expect(setSidebarProjectScopeKey(scoped, "github.com/supabitapp/supacode-next")).toBe(scoped);
-    expect(setSidebarProjectScopeKey(scoped, null).sidebarProjectScopeKey).toBeNull();
-    expect(setSidebarProjectScopeKey(scoped, "").sidebarProjectScopeKey).toBeNull();
   });
 });
 

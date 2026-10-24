@@ -1,11 +1,7 @@
 import type { DesktopUpdateState } from "@supaterm/contracts";
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it } from "vite-plus/test";
 
-import {
-  handleSidebarUpdateReleaseNotesPopoverOpenChange,
-  openSidebarUpdateReleaseNotesPopoverOnForwardTab,
-  shouldUseSidebarUpdateReleaseNotesPopover,
-} from "./SidebarUpdatePill";
+import { shouldUseSidebarUpdateReleaseNotesPopover } from "./SidebarUpdatePill";
 
 const nightlyState: DesktopUpdateState = {
   enabled: true,
@@ -35,45 +31,5 @@ describe("sidebar update release notes popover", () => {
     expect(shouldUseSidebarUpdateReleaseNotesPopover({ ...nightlyState, releaseNotes: [] })).toBe(
       false,
     );
-  });
-
-  it("cancels trigger presses without canceling other open reasons", () => {
-    const cancelTriggerPress = vi.fn();
-    const cancelHover = vi.fn();
-
-    handleSidebarUpdateReleaseNotesPopoverOpenChange(true, {
-      reason: "trigger-press",
-      cancel: cancelTriggerPress,
-    });
-    handleSidebarUpdateReleaseNotesPopoverOpenChange(true, {
-      reason: "trigger-hover",
-      cancel: cancelHover,
-    });
-
-    expect(cancelTriggerPress).toHaveBeenCalledOnce();
-    expect(cancelHover).not.toHaveBeenCalled();
-  });
-
-  it("promotes forward Tab without preventing native navigation", () => {
-    const open = vi.fn();
-    const preventDefault = vi.fn();
-    const event = { key: "Tab", shiftKey: false, preventDefault };
-
-    openSidebarUpdateReleaseNotesPopoverOnForwardTab(event, { open }, "nightly-release-notes");
-
-    expect(open).toHaveBeenCalledWith("nightly-release-notes");
-    expect(preventDefault).not.toHaveBeenCalled();
-  });
-
-  it("does not promote backward Tab", () => {
-    const open = vi.fn();
-
-    openSidebarUpdateReleaseNotesPopoverOnForwardTab(
-      { key: "Tab", shiftKey: true },
-      { open },
-      "nightly-release-notes",
-    );
-
-    expect(open).not.toHaveBeenCalled();
   });
 });

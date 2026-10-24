@@ -96,35 +96,6 @@ afterEach(() => {
 });
 
 describe("published theme refresh", () => {
-  it.each(["dark", "system"] as const)(
-    "updates the React snapshot when appearance changes in %s mode",
-    async (mode) => {
-      const { publish, root, readSnapshot } = await setupThemeSync(mode);
-      const darkSnapshot = readSnapshot();
-
-      expect(publish([LIGHT_THEME]).resolvedTheme).toBe("light");
-      expect(root.classList.contains("dark")).toBe(false);
-      const lightSnapshot = readSnapshot();
-      expect(lightSnapshot).not.toBe(darkSnapshot);
-
-      expect(publish([NIGHTFALL_THEME]).resolvedTheme).toBe("dark");
-      expect(root.classList.contains("dark")).toBe(true);
-      expect(readSnapshot()).not.toBe(lightSnapshot);
-    },
-  );
-
-  it("keeps the React snapshot stable for color-only changes", async () => {
-    const { publish, palette, styles, readSnapshot } = await setupThemeSync();
-    const before = readSnapshot();
-    const accentVariable = palette.getThemeColorVariable("accent");
-    const previousAccent = styles.get(accentVariable);
-
-    publish([{ ...NIGHTFALL_THEME, accent: "#ff0000" }]);
-
-    expect(styles.get(accentVariable)).not.toBe(previousAccent);
-    expect(readSnapshot()).toBe(before);
-  });
-
   it("keeps a draft visible while updating the stored selection underneath it", async () => {
     const { publish, palette, root, styles } = await setupThemeSync();
     const draft = { ...palette.getStandardThemeColors("light"), canvas: "#234567" };

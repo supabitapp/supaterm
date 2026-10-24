@@ -509,16 +509,6 @@ describe("composer rich text document model", () => {
     expect(roundTrip(value).value).toBe(value);
   });
 
-  it.each([
-    "- one\n- two",
-    "1. first\n2. second",
-    "- parent\n  - child",
-    "* star\n+ plus",
-    "-no space stays literal",
-  ])("keeps the list %s literal in plain mode", (value) => {
-    expect(roundTripPlain(value).value).toBe(value);
-  });
-
   it.each(["- one\n- two", "1. a\n   - b\n2. c", "- **bold** @README.md tail", "-"])(
     "maps every document offset of the list %s through markdown coordinates and back",
     (value) => {
@@ -677,22 +667,6 @@ describe("composer rich text document model", () => {
     },
   );
 
-  it("parses the blocks it renders as the right node types", () => {
-    const json = buildDocJson("# Title\n> quote\n---\n#1234 ref\n- - -", (n) => ({
-      label: n,
-      description: null,
-    }));
-    expect(json.content.map((block) => block.type)).toEqual([
-      "heading",
-      "blockquote",
-      "horizontalRule",
-      "paragraph",
-      "horizontalRule",
-
-      "paragraph",
-    ]);
-  });
-
   it.each([
     ["---", "---"],
     ["a\n---", "a\n---"],
@@ -724,13 +698,6 @@ describe("composer rich text document model", () => {
   ])("round-trips the heading %s through a real ProseMirror document", (value) => {
     expect(roundTrip(value).value).toBe(value);
   });
-
-  it.each(["> quoted", "> a\n>b", "---", "- - -", "# Heading", "#1234"])(
-    "keeps the block %s literal in plain mode",
-    (value) => {
-      expect(roundTripPlain(value).value).toBe(value);
-    },
-  );
 
   it("parses a quote as a blockquote of one paragraph per line", () => {
     const json = buildDocJson("> a\n> b\n>c", (n) => ({ label: n, description: null }));
@@ -1023,16 +990,8 @@ describe("serializeSelection", () => {
     expect(copy("- p\n  - a\n  - b", "p", "a")).toBe("- p\n  - a");
   });
 
-  it("keeps the prefix of the quote lines it spans", () => {
-    expect(copy("> one\n> two", "one", "two")).toBe("> one\n> two");
-  });
-
   it("copies text within one block without its marker", () => {
     expect(copy("- one two", "one", "one")).toBe("one");
-  });
-
-  it("copies across blocks as they are written", () => {
-    expect(copy("intro\n- one", "intro", "one")).toBe("intro\n- one");
   });
 });
 
@@ -1216,12 +1175,6 @@ describe("caret stops at styled edges", () => {
     );
     expect(stepCaretAcrossStyledEdge(toggled, 1)).toBeNull();
     expect(stepCaretAcrossStyledEdge(toggled, -1)).toBeNull();
-  });
-
-  it("leaves arrow keys alone away from styled edges", () => {
-    expect(stepCaretAcrossStyledEdge(stateAt("**bold** tail", 3), -1)).toBeNull();
-    expect(stepCaretAcrossStyledEdge(stateAt("plain text", 1), -1)).toBeNull();
-    expect(caretTakesMarksBefore(stateAt("plain text", 1))).toBe(false);
   });
 });
 

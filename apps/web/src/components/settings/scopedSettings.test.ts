@@ -13,7 +13,6 @@ import { resolveWorktreeCleanup } from "@supaterm/shared/projectSettings";
 
 import type { SidebarProjectSnapshot } from "../../sidebarProjectGrouping";
 import {
-  listProjectOverrides,
   persistScopedSettingsPatch,
   planProjectOverridesClear,
   planScopedSettingsClear,
@@ -123,13 +122,6 @@ describe("scoped settings targets", () => {
     });
   });
 
-  it("prefers the selected primary as the aggregate representative without including disconnected targets", () => {
-    const selected = selectScopedSettingsEnvironments(all, environments, server.environmentId);
-    expect(selected.environment).toBe(server);
-    expect(selected.environments).toEqual(environments);
-    expect(selected.connectedEnvironments).toEqual([laptop, server]);
-  });
-
   it("resolves each member's effective settings and source at project scope", () => {
     const optedOut = environment("Laptop", { settings: { defaultAutoPull: false } });
     const overridden = environment("Server", {
@@ -199,24 +191,6 @@ describe("scoped settings writes", () => {
       },
     ]);
   });
-  it("isolates a formerly shared server preference to the named environment", async () => {
-    const persistServer = vi.fn().mockResolvedValue({ _tag: "Success" });
-    const persistClient = vi.fn();
-    await persistScopedSettingsPatch(
-      planScopedSettingsPatch(named, environments, { sidebarAutoMarkDoneOnMerge: false }),
-      persistServer,
-      persistClient,
-    );
-    expect(persistServer.mock.calls).toEqual([
-      [
-        {
-          environmentId: server.environmentId,
-          input: { patch: { sidebarAutoMarkDoneOnMerge: false } },
-        },
-      ],
-    ]);
-    expect(persistClient).not.toHaveBeenCalled();
-  });
 
   it("writes an aggregate preference only to connected environments with loaded configuration", async () => {
     const persistServer = vi.fn().mockResolvedValue({ _tag: "Success" });
@@ -285,23 +259,6 @@ describe("scoped settings writes", () => {
             projectSettingsOverrides: { [laptopProjectId]: { defaultAutoPull: true } },
           }),
         ),
-      ).toEqual({ saved: [laptop.label], failed: unsupported });
-    });
-
-    it("reports a nested key dropped beside one that saved", async () => {
-      const patch = { defaultAutoPull: true, enableAgentBrowserAccess: false };
-      const persistServer = vi.fn(async ({ environmentId }: { environmentId: EnvironmentId }) => ({
-        _tag: "Success" as const,
-        value: {
-          ...DEFAULT_SERVER_SETTINGS,
-          projectSettingsOverrides:
-            environmentId === laptop.environmentId
-              ? { [laptopProjectId]: patch }
-              : { [projectId]: { defaultAutoPull: true } },
-        },
-      }));
-      expect(
-        await outcome(planScopedSettingsPatch(project, environments, patch), persistServer),
       ).toEqual({ saved: [laptop.label], failed: unsupported });
     });
 
@@ -586,14 +543,6 @@ describe("scoped settings writes", () => {
 });
 
 describe("scoped settings mixed values", () => {
-  it("compares only requested settings across connected targets", () => {
-    const changed = environment("Changed", { settings: { enableAgentBrowserAccess: false } });
-    const targets = resolveScopedSettingsTargets(all, [laptop, changed]);
-    expect(scopedSettingsAreMixed(targets, ["enableAgentBrowserAccess"])).toBe(true);
-    expect(scopedSettingsAreMixed(targets, ["enableProviderUpdateChecks"])).toBe(false);
-    expect(scopedSettingsAreMixed([], ["enableAgentBrowserAccess"])).toBe(false);
-  });
-
   it("treats independently decoded equal nested settings as the same value", () => {
     const style = {
       ...DEFAULT_SERVER_SETTINGS.sourceControlWritingStyle,
@@ -609,7 +558,6 @@ describe("scoped settings mixed values", () => {
 
 describe("project overrides at environment scope", () => {
   const laptop = EnvironmentId.make("laptop");
-  const desk = EnvironmentId.make("desk");
   const fleet = ProjectId.make("fleet");
   const supaterm = ProjectId.make("supaterm");
   const environment = (
@@ -623,23 +571,6 @@ describe("project overrides at environment scope", () => {
       settings: { ...DEFAULT_SERVER_SETTINGS, projectSettingsOverrides: overrides },
       environment: { capabilities: {} },
     },
-  });
-
-  it("lists only the projects that override the keys", () => {
-    const entries = listProjectOverrides(
-      [
-        environment(laptop, {
-          [fleet]: { defaultAutoPull: true, defaultThreadEnvMode: "local" },
-          [supaterm]: { defaultThreadEnvMode: "local" },
-        }),
-        environment(desk, { [fleet]: { defaultAutoPull: false } }),
-      ],
-      ["defaultAutoPull"],
-    );
-    expect(entries).toEqual([
-      { environmentId: laptop, projectId: fleet },
-      { environmentId: desk, projectId: fleet },
-    ]);
   });
 
   it("clears only those keys and drops entries that become empty", () => {

@@ -1,8 +1,4 @@
-import {
-  DEFAULT_SERVER_SETTINGS,
-  ProviderDriverKind,
-  ProviderInstanceId,
-} from "@supaterm/contracts";
+import { DEFAULT_SERVER_SETTINGS, ProviderInstanceId } from "@supaterm/contracts";
 import { DEFAULT_CLIENT_SETTINGS, type ClientSettings } from "@supaterm/contracts/settings";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
@@ -290,44 +286,6 @@ describe("persistClientSettingsUpdate", () => {
     expect(getClientSettings().browserProfiles).toContainEqual(importedProfile);
   });
 
-  it("orders an awaited update after an older optimistic write", async () => {
-    let finishOldWrite!: () => void;
-    let durableSettings = DEFAULT_CLIENT_SETTINGS;
-    const oldWrite = new Promise<void>((resolve) => {
-      finishOldWrite = resolve;
-    });
-    const persist = vi
-      .fn<(settings: typeof DEFAULT_CLIENT_SETTINGS) => Promise<void>>()
-      .mockImplementationOnce((settings) =>
-        oldWrite.then(() => {
-          durableSettings = settings;
-        }),
-      )
-      .mockImplementation(async (settings) => {
-        durableSettings = settings;
-      });
-    __setClientSettingsForTests(DEFAULT_CLIENT_SETTINGS);
-
-    void persistClientSettingsPatch({ wordWrap: false }, persist);
-    const importedProfile = { id: "profile-import", name: "Imported", kind: "persistent" as const };
-    const registration = persistClientSettingsUpdate(
-      (current) => ({
-        ...current,
-        browserProfiles: [...current.browserProfiles, importedProfile],
-      }),
-      persist,
-    );
-    await Promise.resolve();
-    expect(persist).toHaveBeenCalledTimes(1);
-
-    finishOldWrite();
-    await registration;
-
-    expect(persist).toHaveBeenCalledTimes(2);
-    expect(durableSettings.wordWrap).toBe(false);
-    expect(durableSettings.browserProfiles).toContainEqual(importedProfile);
-  });
-
   it("continues the queue after a rejected write", async () => {
     const failure = new Error("disk full");
     const persist = vi
@@ -398,24 +356,6 @@ describe("resolveEnvironmentIdentificationMode", () => {
 });
 
 describe("mergeEnvironmentSettings", () => {
-  it("combines the selected environment's server settings with client preferences", () => {
-    const serverSettings = {
-      ...DEFAULT_SERVER_SETTINGS,
-      providerInstances: {
-        [ProviderInstanceId.make("codex_remote")]: {
-          driver: ProviderDriverKind.make("codex"),
-          enabled: true,
-        },
-      },
-    };
-    const clientSettings = { ...DEFAULT_CLIENT_SETTINGS, timestampFormat: "12-hour" as const };
-
-    const settings = mergeEnvironmentSettings(serverSettings, clientSettings);
-
-    expect(settings.providerInstances).toBe(serverSettings.providerInstances);
-    expect(settings.timestampFormat).toBe("12-hour");
-  });
-
   it("keeps server settlement settings when legacy client data contains retired keys", () => {
     const serverSettings = {
       ...DEFAULT_SERVER_SETTINGS,

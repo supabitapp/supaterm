@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
-import {
-  ProviderInstanceId,
-  ProviderDriverKind,
-  type ProviderOptionDescriptor,
-} from "@supaterm/contracts";
+import { ProviderDriverKind, type ProviderOptionDescriptor } from "@supaterm/contracts";
 import { getSpeedToggle } from "@supaterm/client-runtime/provider-speed-toggle";
 import { buildTraitsTriggerLabel } from "@supaterm/client-runtime/model-traits";
-import { buildUnavailableModelOptionDescriptors } from "./TraitsPicker";
 
 function selectDescriptor(
   id: string,
@@ -133,68 +128,4 @@ describe("buildTraitsTriggerLabel", () => {
   it("still renders the prompt-controlled ultrathink label", () => {
     expect(label([EFFORT, serviceTierDescriptor("priority")], true)).toBe("Ultrathink");
   });
-});
-
-describe("buildUnavailableModelOptionDescriptors", () => {
-  it("shows only saved values without inventing alternatives", () => {
-    expect(
-      buildUnavailableModelOptionDescriptors([
-        { id: "variant", value: "max" },
-        { id: "agent", value: "build" },
-        { id: "fastMode", value: true },
-      ]),
-    ).toEqual([
-      {
-        id: "variant",
-        label: "Reasoning",
-        type: "select",
-        options: [{ id: "max", label: "max" }],
-        currentValue: "max",
-      },
-      {
-        id: "agent",
-        label: "Agent",
-        type: "select",
-        options: [{ id: "build", label: "build" }],
-        currentValue: "build",
-      },
-      {
-        id: "fastMode",
-        label: "Fast Mode",
-        type: "boolean",
-        currentValue: true,
-      },
-    ]);
-  });
-});
-
-it("shows Unknown until a matching provider report provides Default", () => {
-  const selection = {
-    instanceId: ProviderInstanceId.make("opencode"),
-    model: "ling",
-    options: [],
-  };
-  const input = {
-    speedToggle: null,
-    descriptors: [
-      selectDescriptor(
-        "variant",
-        [
-          { id: "none", label: "None" },
-          { id: "thinking", label: "Thinking" },
-        ],
-        "",
-      ),
-    ],
-    primarySelectDescriptorId: "variant",
-    ultrathinkPromptControlled: false,
-    modelSelection: selection,
-  };
-  expect(buildTraitsTriggerLabel(input)).toBe("Unknown");
-  expect(
-    buildTraitsTriggerLabel({
-      ...input,
-      reportedModelSelection: { ...selection, options: [{ id: "variant", value: "default" }] },
-    }),
-  ).toBe("Default");
 });

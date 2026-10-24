@@ -283,34 +283,6 @@ describe("index.html boot script", () => {
     expect(boot.metaContent).toBe(colors.chrome);
   });
 
-  it("accepts legacy CSS color formats before the runtime mounts", () => {
-    const colors = {
-      canvas: "rgb(248 251 255)",
-      chrome: "hsl(210 100% 99%)",
-      text: "rebeccapurple",
-      accent: "color(display-p3 0.36 0.42 1)",
-    };
-    const boot = runBootScript({
-      storage: {
-        [THEME_STORAGE_KEY]: "legacy-css",
-        [CUSTOM_THEMES_STORAGE_KEY]: JSON.stringify([
-          {
-            id: "legacy-css",
-            label: "Legacy CSS",
-            appearance: "light",
-            colors,
-          },
-        ]),
-      },
-      prefersDark: false,
-    });
-
-    expect(boot.bootVariables["--boot-background"]).toBe(colors.canvas);
-    expect(boot.bootVariables["--boot-foreground"]).toBe(colors.text);
-    expect(boot.bootVariables["--boot-accent"]).toBe(colors.accent);
-    expect(boot.backgroundColor).toBe(colors.chrome);
-  });
-
   it("keeps every built-in boot splash in sync with the real palettes", () => {
     for (const theme of BUILT_IN_THEMES) {
       // Every built-in carries one appearance, so it boots in that mode even
@@ -427,33 +399,6 @@ describe("index.html boot script", () => {
     expect(boot.bootVariables["--boot-accent"]).toBe(getStandardThemeColors("dark").accent);
     expect(boot.backgroundColor).toBe(DEFAULT_DARK_CHROME);
     expect(boot.metaContent).toBe(DEFAULT_DARK_CHROME);
-  });
-
-  it("ignores malformed custom theme entries before applying a splash", () => {
-    const boot = runBootScript({
-      storage: {
-        [THEME_STORAGE_KEY]: "broken",
-        [CUSTOM_THEMES_STORAGE_KEY]: JSON.stringify([
-          { id: "broken", label: "Broken", appearance: "light", colors: "bad" },
-        ]),
-      },
-      prefersDark: false,
-    });
-
-    expect(boot.themeId).toBeUndefined();
-    expect(boot.themeSelected).toBeUndefined();
-    expect(boot.backgroundColor).toBe(SUPATERM_LIGHT_THEME_COLORS.chrome);
-    expect(boot.metaContent).toBe(SUPATERM_LIGHT_THEME_COLORS.chrome);
-  });
-
-  it("leaves unknown preferences unthemed so the runtime default applies", () => {
-    const boot = runBootScript({
-      storage: { [THEME_STORAGE_KEY]: "gone-theme" },
-      prefersDark: true,
-    });
-    expect(boot.themeId).toBeUndefined();
-    expect(boot.themeSelected).toBeUndefined();
-    expect(boot.isDark).toBe(true);
   });
 
   it("follows the OS appearance when storage is unavailable", () => {

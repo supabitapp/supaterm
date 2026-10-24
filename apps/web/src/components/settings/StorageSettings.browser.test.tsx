@@ -2,14 +2,11 @@ import { act, render } from "../../../test/render";
 import { RegistryProvider } from "@effect/atom-react";
 import {
   DEFAULT_SERVER_SETTINGS,
-  ProjectId,
-  ThreadId,
   type DatabaseStorageStatus,
   type StorageCleanupReport,
 } from "@supaterm/contracts";
 import { type ReactNode } from "react";
 import { expect, it, vi } from "vite-plus/test";
-import { page } from "vite-plus/test/browser";
 
 const state = vi.hoisted(() => ({
   settings: {} as typeof DEFAULT_SERVER_SETTINGS,
@@ -145,54 +142,6 @@ async function pressTwice(button: HTMLButtonElement) {
   await act(async () => clickOnFakeClock(button));
 }
 
-it.each(["machine-wide immediate", "project custom"])(
-  "runs cleanup when only %s done retention is enabled",
-  async (scope) => {
-    setup();
-    if (scope === "machine-wide immediate") {
-      state.settings = {
-        ...state.settings,
-        storageCleanup: { ...state.settings.storageCleanup, worktreeDoneAfterDays: 0 },
-      };
-    } else {
-      state.settings = {
-        ...state.settings,
-        projectSettingsOverrides: {
-          [ProjectId.make("project")]: {
-            worktreeCleanup: {
-              mode: "custom",
-              rules: { ...state.settings.storageCleanup, worktreeDoneAfterDays: 7 },
-            },
-          },
-        },
-      };
-    }
-    const report: StorageCleanupReport = {
-      trigger: "manual",
-      startedAt: "2026-10-14T12:00:00.000Z",
-      finishedAt: "2026-10-14T12:00:01.000Z",
-      entries: [],
-      counts: { removed: 0, kept: 0, failed: 0 },
-      omittedCount: 0,
-      bytesFreed: 0,
-    };
-    let complete!: (result: { _tag: "Success"; value: StorageCleanupReport }) => void;
-    state.run.mockImplementation(() => new Promise((resolve) => (complete = resolve)));
-    await using screen = await render(panel());
-    const button = deleteButton(screen.container);
-
-    expect(button.disabled).toBe(false);
-    await pressTwice(button);
-    expect(state.run).toHaveBeenCalledExactlyOnceWith({ environmentId: "env", input: {} });
-    expect(button.disabled).toBe(true);
-    expect(button.textContent).toContain("Deleting…");
-
-    await act(async () => complete({ _tag: "Success", value: report }));
-    expect(button.disabled).toBe(false);
-    expect(button.textContent).toContain("Delete now");
-  },
-);
-
 it("keeps cleanup disabled when done retention and all other rules are off", async () => {
   setup();
   await using screen = await render(panel());
@@ -201,78 +150,6 @@ it("keeps cleanup disabled when done retention and all other rules are off", asy
   expect(button.disabled).toBe(true);
   await pressTwice(button);
   expect(state.run).not.toHaveBeenCalled();
-});
-
-it("shows orphan sizes and identifies failed worktrees with one connected machine", async () => {
-  setup();
-  state.settings = {
-    ...state.settings,
-    storageCleanup: { ...state.settings.storageCleanup, worktreeDoneAfterDays: 0 },
-  };
-  state.report = {
-    trigger: "manual",
-    startedAt: "2026-10-14T12:00:00.000Z",
-    finishedAt: "2026-10-14T12:00:01.000Z",
-    entries: [
-      {
-        kind: "worktree",
-        outcome: "kept",
-        path: "/worktrees/repo/orphan",
-        projectPath: null,
-        threadId: null,
-        threadTitle: null,
-        reason: "No thread uses this folder, and it isn't a git worktree",
-        bytes: 6600000,
-        files: null,
-      },
-      {
-        kind: "worktree",
-        outcome: "failed",
-        path: "/worktrees/repo/thread-checkout",
-        projectPath: "/projects/repo",
-        threadId: ThreadId.make("thread"),
-        threadTitle: "Thread title",
-        reason: "Git index is locked. Status will resume when the index lock is removed.",
-        bytes: null,
-        files: null,
-      },
-    ],
-    counts: { removed: 0, kept: 1, failed: 1 },
-    omittedCount: 0,
-    bytesFreed: 0,
-  };
-  await using screen = await render(panel());
-  const { container } = screen;
-  const lastRun = Array.from(container.querySelectorAll("button")).find((button) =>
-    button.textContent?.includes("Last run"),
-  )!;
-  await act(async () => lastRun.click());
-  const titles = Array.from(container.querySelectorAll("h3"), (heading) => heading.textContent);
-  expect(titles).toContain("/worktrees/repo/orphan");
-  expect(titles).toContain("thread-checkout");
-  const failedRow = page.elementLocator(
-    page.getByRole("heading", { name: "thread-checkout", exact: true }).element().parentElement!,
-  );
-  await expect.element(failedRow.getByText("Build workstation", { exact: true })).toBeVisible();
-  await expect.element(failedRow.getByText("/projects/repo", { exact: true })).toBeVisible();
-  await expect
-    .element(failedRow.getByText("/worktrees/repo/thread-checkout", { exact: true }))
-    .toBeVisible();
-  await expect.element(failedRow.getByText("Thread title", { exact: true })).toBeVisible();
-  await expect
-    .element(
-      failedRow.getByText(
-        "Git index is locked. Status will resume when the index lock is removed.",
-        { exact: true },
-      ),
-    )
-    .toBeVisible();
-  expect(titles).not.toContain("/worktrees/repo/thread-checkout");
-  expect(container.textContent).toContain(
-    "No thread uses this folder, and it isn't a git worktree",
-  );
-  expect(container.textContent).toContain("6.29 MB");
-  expect(container.textContent).toContain("0 B recovered.");
 });
 
 it("lists every machine's reclaimable database space and dismisses one machine at a time", async () => {

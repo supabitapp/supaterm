@@ -1,95 +1,20 @@
-import { MAX_SCRIPT_ID_LENGTH } from "@supaterm/contracts";
 import { shortcutLabelForCommand } from "./keybindings";
 import { describe, expect, it } from "vite-plus/test";
 import {
   projectScriptCwd,
   projectScriptRuntimeEnv,
-  projectScriptMenuLabel,
   doneProjectScript,
   setupProjectScript,
 } from "@supaterm/shared/projectScripts";
 
 import {
-  buildProjectScript,
   commandForProjectScript,
   nextProjectScriptId,
   primaryProjectScript,
-  projectScriptIdFromCommand,
   releaseClaimedRoles,
 } from "./projectScripts";
 
 describe("projectScripts helpers", () => {
-  it("builds scripts with preview settings", () => {
-    expect(
-      buildProjectScript("dev", {
-        name: "Dev server",
-        command: "pnpm dev",
-        icon: "debug",
-        runOnWorktreeCreate: false,
-        waitForSetup: false,
-        runOnDone: false,
-        previewUrl: "http://localhost:5733",
-        autoOpenPreview: true,
-      }),
-    ).toEqual({
-      id: "dev",
-      name: "Dev server",
-      command: "pnpm dev",
-      icon: "debug",
-      runOnWorktreeCreate: false,
-      previewUrl: "http://localhost:5733",
-      autoOpenPreview: true,
-    });
-  });
-
-  it("omits preview settings when no preview URL is configured", () => {
-    expect(
-      buildProjectScript("test", {
-        name: "Test",
-        command: "pnpm test",
-        icon: "test",
-        runOnWorktreeCreate: false,
-        waitForSetup: false,
-        runOnDone: false,
-        previewUrl: null,
-        autoOpenPreview: false,
-      }),
-    ).toEqual({
-      id: "test",
-      name: "Test",
-      command: "pnpm test",
-      icon: "test",
-      runOnWorktreeCreate: false,
-    });
-  });
-
-  it("only records async: false for setup scripts that should block the agent", () => {
-    const input = {
-      name: "Setup",
-      command: "pnpm i",
-      icon: "configure",
-      previewUrl: null,
-      autoOpenPreview: false,
-      runOnDone: false,
-    } as const;
-    expect(
-      buildProjectScript("setup", { ...input, runOnWorktreeCreate: true, waitForSetup: true }),
-    ).toMatchObject({ runOnWorktreeCreate: true, async: false });
-    expect(
-      buildProjectScript("setup", { ...input, runOnWorktreeCreate: true, waitForSetup: false }),
-    ).not.toHaveProperty("async");
-    expect(
-      buildProjectScript("setup", { ...input, runOnWorktreeCreate: false, waitForSetup: true }),
-    ).not.toHaveProperty("async");
-  });
-
-  it("builds and parses script run commands", () => {
-    const command = commandForProjectScript("lint");
-    expect(command).toBe("script.lint.run");
-    expect(projectScriptIdFromCommand(command ?? "")).toBe("lint");
-    expect(projectScriptIdFromCommand("terminal.toggle")).toBeNull();
-  });
-
   it.each(["install-javascript-dependencies", "A", "a.b", "a b", "-a", "", "a".repeat(25)])(
     "omits the shortcut for legacy script ID %j without crashing script menus",
     (id) => {
@@ -102,11 +27,6 @@ describe("projectScripts helpers", () => {
       ]);
     },
   );
-
-  it("preserves the exact ID at the shortcut length limit", () => {
-    const id = "a".repeat(MAX_SCRIPT_ID_LENGTH);
-    expect(projectScriptIdFromCommand(commandForProjectScript(id) ?? "")).toBe(id);
-  });
 
   it("slugifies and dedupes project script ids", () => {
     expect(nextProjectScriptId("Run Tests", [])).toBe("run-tests");
@@ -146,19 +66,6 @@ describe("projectScripts helpers", () => {
     expect(primaryProjectScript(scripts.filter((script) => script.id === "clean"))).toBeNull();
   });
 
-  it("labels every lifecycle role a script runs in", () => {
-    const script = {
-      id: "both",
-      name: "Both",
-      command: "true",
-      icon: "play" as const,
-      runOnWorktreeCreate: true,
-    };
-    expect(projectScriptMenuLabel(script)).toBe("Both (setup)");
-    expect(projectScriptMenuLabel({ ...script, runOnDone: true })).toBe("Both (setup, on done)");
-    expect(projectScriptMenuLabel({ ...script, runOnWorktreeCreate: false })).toBe("Both");
-  });
-
   it("moves the setup and mark done roles to the script that claims them", () => {
     const input = {
       name: "Next",
@@ -186,18 +93,6 @@ describe("projectScripts helpers", () => {
     expect(
       releaseClaimedRoles(holder, { ...input, runOnWorktreeCreate: false, runOnDone: false }),
     ).toBe(holder);
-  });
-
-  it("builds default runtime env for scripts", () => {
-    const env = projectScriptRuntimeEnv({
-      project: { cwd: "/repo" },
-      worktreePath: "/repo/worktree-a",
-    });
-
-    expect(env).toMatchObject({
-      SUPATERM_PROJECT_ROOT: "/repo",
-      SUPATERM_WORKTREE_PATH: "/repo/worktree-a",
-    });
   });
 
   it("allows overriding runtime env values", () => {

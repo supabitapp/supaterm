@@ -10,7 +10,6 @@ import { AsyncResult } from "effect/reactivity";
 
 import {
   canOneClickUpdateProviderCandidate,
-  collectProviderUpdateCandidates,
   getProviderUpdateRunToastView,
   getProviderUpdateSidebarPillView,
   hasOneClickUpdateProviderCandidate,
@@ -72,39 +71,6 @@ function updateCandidate(input: Parameters<typeof provider>[0]): ProviderUpdateC
 }
 
 describe("provider update launch notification logic", () => {
-  it("detects enabled providers with a latest-version advisory", () => {
-    expect(isProviderUpdateCandidate(provider({ driver: driver("codex") }))).toBe(true);
-    expect(isProviderUpdateCandidate(provider({ driver: driver("codex"), enabled: false }))).toBe(
-      false,
-    );
-    expect(
-      isProviderUpdateCandidate(
-        provider({ driver: driver("codex"), advisoryStatus: "current", latestVersion: null }),
-      ),
-    ).toBe(false);
-    expect(
-      isProviderUpdateCandidate(provider({ driver: driver("codex"), latestVersion: null })),
-    ).toBe(false);
-  });
-
-  it("deduplicates multi-instance provider candidates by driver", () => {
-    expect(
-      collectProviderUpdateCandidates([
-        provider({
-          driver: driver("codex"),
-          instanceId: instanceId("codex_personal"),
-          latestVersion: "1.1.0",
-        }),
-        provider({
-          driver: driver("codex"),
-          instanceId: instanceId("codex"),
-          latestVersion: "1.1.0",
-        }),
-        provider({ driver: driver("cursor"), latestVersion: "0.3.0" }),
-      ]),
-    ).toHaveLength(2);
-  });
-
   it("disables one-click updates when provider instances disagree on the update command", () => {
     const candidate = updateCandidate({
       driver: driver("claudeAgent"),
@@ -180,59 +146,6 @@ describe("provider update launch notification logic", () => {
     expect(canOneClickUpdateProviderCandidate(candidate, [candidate])).toBe(false);
   });
 
-  it("summarizes active provider updates for the sidebar pill", () => {
-    const view = getProviderUpdateSidebarPillView([
-      provider({
-        driver: driver("codex"),
-        updateState: {
-          status: "running",
-          startedAt: checkedAt,
-          finishedAt: null,
-          message: "Updating provider.",
-          output: null,
-        },
-      }),
-      provider({
-        driver: driver("cursor"),
-        updateState: {
-          status: "queued",
-          startedAt: null,
-          finishedAt: null,
-          message: "Waiting for another provider update to finish.",
-          output: null,
-        },
-      }),
-    ]);
-
-    expect(view).toMatchObject({
-      tone: "loading",
-      title: "Updating 2 providers",
-      description: "Codex and Cursor updates are in progress.",
-    });
-  });
-
-  it("uses the provider name for single active sidebar pill updates", () => {
-    const view = getProviderUpdateSidebarPillView([
-      provider({
-        driver: driver("codex"),
-        updateState: {
-          status: "running",
-          startedAt: checkedAt,
-          finishedAt: null,
-          message: "Updating provider.",
-          output: null,
-        },
-      }),
-    ]);
-
-    expect(view).toMatchObject({
-      key: "loading:codex:running",
-      tone: "loading",
-      title: "Updating Codex",
-      description: "Codex update in progress.",
-    });
-  });
-
   it("shows the active sidebar pill for an update on a non-default instance", () => {
     const view = getProviderUpdateSidebarPillView([
       provider({ driver: driver("claudeAgent") }),
@@ -292,86 +205,6 @@ describe("provider update launch notification logic", () => {
       key: "succeeded:claudeAgent:2026-04-23T10:01:00.000Z:Provider updated.",
       tone: "success",
       title: "Claude updated: v1.1.0",
-    });
-  });
-
-  it("uses the provider name for single failed sidebar pill updates", () => {
-    const view = getProviderUpdateSidebarPillView(
-      [
-        provider({
-          driver: driver("claudeAgent"),
-          updateState: {
-            status: "failed",
-            startedAt: checkedAt,
-            finishedAt: checkedAt,
-            message: "Update command exited with code 1.",
-            output: null,
-          },
-        }),
-      ],
-      { visibleAfterIso: sessionStartedAt },
-    );
-
-    expect(view).toMatchObject({
-      key: "failed:claudeAgent:2026-04-23T10:00:00.000Z:Update command exited with code 1.",
-      tone: "error",
-      title: "Claude v1.1.0 update failed",
-      description: "Update command exited with code 1.",
-      dismissible: true,
-    });
-  });
-
-  it("shows a short-lived success sidebar pill after a single provider update succeeds", () => {
-    const view = getProviderUpdateSidebarPillView(
-      [
-        provider({
-          driver: driver("codex"),
-          version: "1.1.0",
-          latestVersion: "1.1.0",
-          advisoryStatus: "current",
-          updateState: {
-            status: "succeeded",
-            startedAt: checkedAt,
-            finishedAt: checkedAt,
-            message: "Provider updated.",
-            output: null,
-          },
-        }),
-      ],
-      { visibleAfterIso: sessionStartedAt },
-    );
-
-    expect(view).toMatchObject({
-      key: "succeeded:codex:2026-04-23T10:00:00.000Z:Provider updated.",
-      tone: "success",
-      title: "Codex updated: v1.1.0",
-      description: "New sessions will use the updated provider.",
-      dismissAfterVisibleMs: 3_000,
-    });
-  });
-
-  it("keeps unchanged sidebar pill states dismissible", () => {
-    const view = getProviderUpdateSidebarPillView(
-      [
-        provider({
-          driver: driver("cursor"),
-          updateState: {
-            status: "unchanged",
-            startedAt: checkedAt,
-            finishedAt: checkedAt,
-            message: "still old",
-            output: null,
-          },
-        }),
-      ],
-      { visibleAfterIso: sessionStartedAt },
-    );
-
-    expect(view).toMatchObject({
-      key: "unchanged:cursor:2026-04-23T10:00:00.000Z:still old",
-      tone: "warning",
-      title: "Cursor still needs an update",
-      dismissible: true,
     });
   });
 

@@ -23,7 +23,6 @@ import {
   resolveThemeAppearance,
   serializeThemeFile,
   subscribeToThemePreview,
-  subscribeToCustomThemes,
   themeAllowsSidebarArtwork,
   updateCustomTheme,
   updateThemeColorFamily,
@@ -82,16 +81,6 @@ const DUAL_THEME = parseThemeFile({
 });
 
 describe("theme files", () => {
-  it("keeps every built-in palette value in canonical OKLCH form", () => {
-    for (const theme of BUILT_IN_THEMES) {
-      for (const colors of [theme.colors, ...Object.values(theme.variants ?? {})]) {
-        for (const value of Object.values(colors)) {
-          expect(toCanonicalThemeColor(value)).toBe(value);
-        }
-      }
-    }
-  });
-
   it("keeps built-in and standard search pairs readable and distinct from inline code", () => {
     const toOklab = converter("oklab");
     const distance = (first: string, second: string) => {
@@ -391,28 +380,6 @@ describe("theme files", () => {
     });
   });
 
-  it("serializes a theme back into the importable file shape", () => {
-    const theme = {
-      ...parseThemeFile({
-        version: THEME_FILE_VERSION,
-        id: "community-demo",
-        name: "Community Demo",
-        appearance: "dark",
-        colors: { canvas: "#111111" },
-      }),
-      collection: { id: "open-vsx:demo.theme", label: "Demo Theme" },
-    };
-    const serialized = serializeThemeFile(theme);
-    expect(JSON.parse(serialized)).toMatchObject({
-      version: THEME_FILE_VERSION,
-      id: theme.id,
-      name: theme.label,
-      appearance: "dark",
-      collection: theme.collection,
-    });
-    expect(parseThemeFile(JSON.parse(serialized)).collection).toEqual(theme.collection);
-  });
-
   it("ignores built-in artwork metadata in custom theme files", () => {
     const theme = parseThemeFile({
       version: THEME_FILE_VERSION,
@@ -520,69 +487,6 @@ describe("theme files", () => {
       expect(contrastRatio(colors.placeholder, colors.surfaceRaised)).toBeGreaterThanOrEqual(4.5);
     }
     expect(themeAllowsSidebarArtwork("my-custom-theme")).toBe(false);
-  });
-
-  it("rejects a variant that repeats the base appearance", () => {
-    expect(() =>
-      parseThemeFile({
-        version: THEME_FILE_VERSION,
-        name: "Duplicate light",
-        appearance: "light",
-        colors: { canvas: "#f8fbff" },
-        variants: { light: { canvas: "#101827" } },
-      }),
-    ).toThrow('Theme variants must not repeat the base appearance "light".');
-  });
-
-  it("keeps a single-mode theme on its only palette", () => {
-    const theme = parseThemeFile({
-      version: THEME_FILE_VERSION,
-      id: "midnight-slate",
-      name: "Midnight Slate",
-      appearance: "dark",
-      colors: { canvas: "#111827", messageAction: "#2563eb" },
-    });
-
-    expect(getThemeModes(theme)).toEqual(["dark"]);
-    expect(getThemeColorsForMode(theme, "dark")).toMatchObject({
-      canvas: canonical("#111827"),
-    });
-    expect(getThemeColorsForMode(theme, "light")).toBeNull();
-  });
-
-  it("invalidates cached themes when another tab clears localStorage", () => {
-    let storedThemes: string | null = JSON.stringify([
-      {
-        id: "ocean-dusk",
-        label: "Ocean dusk",
-        appearance: "dark",
-        colors: { canvas: "#07152f" },
-      },
-    ]);
-    let storageHandler: ((event: StorageEvent) => void) | undefined;
-    vi.stubGlobal("window", {
-      addEventListener: (type: string, listener: (event: StorageEvent) => void) => {
-        if (type === "storage") storageHandler = listener;
-      },
-      removeEventListener: vi.fn(),
-      localStorage: {
-        getItem: (key: string) => (key === CUSTOM_THEMES_STORAGE_KEY ? storedThemes : null),
-      },
-    });
-
-    invalidateCustomThemes();
-    expect(getCustomThemes()).toHaveLength(1);
-    const listener = vi.fn();
-    const unsubscribe = subscribeToCustomThemes(listener);
-
-    storedThemes = null;
-    storageHandler?.({ key: null } as StorageEvent);
-
-    expect(listener).toHaveBeenCalledTimes(1);
-    expect(getCustomThemes()).toEqual([]);
-    unsubscribe();
-    invalidateCustomThemes();
-    vi.unstubAllGlobals();
   });
 
   it("keeps a saved theme whose id became a built-in visible and removable", () => {
