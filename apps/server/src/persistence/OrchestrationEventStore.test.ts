@@ -33,6 +33,7 @@ import {
 } from "../orchestration-v2/ShellStream.ts";
 import * as OrchestrationEventStore from "./OrchestrationEventStore.ts";
 import * as SqlitePersistence from "./Sqlite.ts";
+import { insertOrchestrationEventRow } from "./orchestrationEventRows.testkit.ts";
 const isPersistenceDecodeError = Schema.is(PersistenceDecodeError);
 const isLiveStreamBufferError = Schema.is(LiveStreamBufferError);
 
@@ -81,7 +82,9 @@ layer("OrchestrationEventStore", (it) => {
             project: toShellApplicationEvent,
           }),
         );
-        assert.deepEqual(yield* pull, [{ sequence: replayed!.sequence, event: { threadId } }]);
+        assert.deepEqual(yield* pull, [
+          { aggregateKind: "thread", aggregateId: threadId, sequence: replayed!.sequence },
+        ]);
         const [live] = yield* store.appendAgentEvents({
           events: [
             {
@@ -92,7 +95,9 @@ layer("OrchestrationEventStore", (it) => {
           ],
         });
         yield* store.publishCommitted([live!]);
-        assert.deepEqual(yield* pull, [{ sequence: live!.sequence, event: { threadId } }]);
+        assert.deepEqual(yield* pull, [
+          { aggregateKind: "thread", aggregateId: threadId, sequence: live!.sequence },
+        ]);
         const durable = yield* store
           .readAgentEvents({ threadId, afterSequence })
           .pipe(Stream.runCollect);
@@ -768,81 +773,38 @@ it.effect("releases consumed application replay pages", () =>
   }).pipe(Effect.provide(layerTest)),
 );
 
-const insertApplicationRow = Effect.fnUntraced(function* (row: {
-  readonly id: string;
-  readonly aggregateKind: "project" | "thread";
-  readonly streamId: string;
-  readonly version: number;
-  readonly eventType?: string;
-  readonly applicationEventVersion?: number;
-}) {
-  const sql = yield* SqlClient.SqlClient;
-  const now = "2026-01-05T00:00:00.000Z";
-  const eventType =
-    row.eventType ??
-    (row.aggregateKind === "thread" ? "provider-session.detached" : "project.meta-updated");
-  const payload =
-    row.aggregateKind === "thread"
-      ? { providerSessionId: `session:${row.id}`, detachedAt: now }
-      : { projectId: row.streamId, updatedAt: now };
-  const [inserted] = yield* sql<{ readonly sequence: number }>`
-    INSERT INTO orchestration_events (
-      event_id, aggregate_kind, stream_id, stream_version, event_type,
-      occurred_at, actor_kind, payload_json, metadata_json, application_event_version
-    ) VALUES (
-      ${row.id}, ${row.aggregateKind}, ${row.streamId}, ${row.version}, ${eventType},
-      ${now}, 'server', ${JSON.stringify(payload)}, '{}', ${row.applicationEventVersion ?? 2}
-    ) RETURNING sequence
-  `;
-  return inserted!.sequence;
-});
-
 it.effect("lists each changed project and thread once at its newest sequence, oldest first", () =>
   Effect.gen(function* () {
     const store = yield* OrchestrationEventStore.OrchestrationEventStore;
-    const cursor = yield* insertApplicationRow({
-      id: "changed:before",
+    const cursor = yield* insertOrchestrationEventRow({
       aggregateKind: "thread",
       streamId: "thread:a",
-      version: 0,
     });
-    const threadA1 = yield* insertApplicationRow({
-      id: "changed:a1",
+    const threadA1 = yield* insertOrchestrationEventRow({
       aggregateKind: "thread",
       streamId: "thread:a",
-      version: 1,
     });
-    const project = yield* insertApplicationRow({
-      id: "changed:project",
+    const project = yield* insertOrchestrationEventRow({
       aggregateKind: "project",
       streamId: "thread:a",
-      version: 0,
     });
-    const legacy = yield* insertApplicationRow({
-      id: "changed:legacy",
+    const legacy = yield* insertOrchestrationEventRow({
       aggregateKind: "thread",
       streamId: "thread:legacy",
-      version: 0,
       applicationEventVersion: 1,
     });
-    const threadB = yield* insertApplicationRow({
-      id: "changed:b",
+    const threadB = yield* insertOrchestrationEventRow({
       aggregateKind: "thread",
       streamId: "thread:b",
-      version: 0,
       eventType: "event-from-a-newer-build",
     });
-    const threadA2 = yield* insertApplicationRow({
-      id: "changed:a2",
+    const threadA2 = yield* insertOrchestrationEventRow({
       aggregateKind: "thread",
       streamId: "thread:a",
-      version: 2,
     });
-    const later = yield* insertApplicationRow({
-      id: "changed:later",
+    const later = yield* insertOrchestrationEventRow({
       aggregateKind: "thread",
       streamId: "thread:c",
-      version: 0,
     });
 
     const changed = yield* store.readChangedApplicationAggregates({
@@ -890,22 +852,16 @@ it.effect("finds the same changed aggregates as decoding and coalescing the repl
       ["project", "project:0"],
       ["project", "project:1"],
     ] as const;
-    const versions = new Map<string, number>();
     // A fixed linear congruential sequence keeps the interleaving varied and reproducible.
     let seed = 7;
     const sequences: Array<number> = [];
     for (let index = 0; index < 600; index++) {
       seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648;
       const [aggregateKind, streamId] = streams[seed % streams.length]!;
-      const key = `${aggregateKind}:${streamId}`;
-      const version = versions.get(key) ?? 0;
-      versions.set(key, version + 1);
       sequences.push(
-        yield* insertApplicationRow({
-          id: `equivalence:${index}`,
+        yield* insertOrchestrationEventRow({
           aggregateKind,
           streamId,
-          version,
         }),
       );
     }
@@ -914,16 +870,7 @@ it.effect("finds the same changed aggregates as decoding and coalescing the repl
       const replayed = yield* store
         .readApplicationEvents({ afterSequence, throughSequence: head })
         .pipe(Stream.map(toShellApplicationEvent), Stream.runCollect);
-      const expected = coalesceShellApplicationEvents(Array.from(replayed)).map(
-        (event): OrchestrationEventStore.ChangedApplicationAggregate =>
-          "aggregateKind" in event
-            ? { aggregateKind: "project", aggregateId: event.aggregateId, sequence: event.sequence }
-            : {
-                aggregateKind: "thread",
-                aggregateId: event.event.threadId,
-                sequence: event.sequence,
-              },
-      );
+      const expected = coalesceShellApplicationEvents(Array.from(replayed));
       assert.deepEqual(
         yield* store.readChangedApplicationAggregates({
           afterSequence,

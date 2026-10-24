@@ -11,7 +11,6 @@ import type {
 import {
   OrchestrationProjectShell as ProjectShellSchema,
   OrchestrationV2ThreadShell as ThreadShellSchema,
-  ProjectId,
   ThreadId,
 } from "@supaterm/contracts";
 import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
@@ -21,6 +20,7 @@ import * as Clock from "effect/Clock";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
+import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
 import * as Schema from "effect/Schema";
 import type * as SqlClient from "effect/sql/SqlClient";
@@ -94,55 +94,53 @@ export const loadShellSnapshotParts = Effect.fn("ShellStream.loadShellSnapshotPa
   };
 });
 
-type ProjectStoredEvent = Extract<ApplicationStoredEvent, { readonly aggregateKind: "project" }>;
+// Resume refetches one row per changed project or thread; past this many a
+// single snapshot read is cheaper.
+const SHELL_RESUME_MAX_CHANGED_AGGREGATES = 500;
+// Finding the changed aggregates scans the gap; past this many sequences the
+// result would almost surely exceed the cap, so skip straight to a snapshot.
+const SHELL_RESUME_MAX_SCANNED_SEQUENCES = 1_000_000;
 
-export type ShellApplicationEvent =
-  | (Pick<ProjectStoredEvent, "aggregateKind" | "aggregateId" | "sequence"> & {
-      /** Absent for resume rows, which carry no payload; the current row decides removal. */
-      readonly type?: ProjectStoredEvent["type"];
-    })
-  | {
-      readonly sequence: number;
-      readonly event: Pick<OrchestrationV2StoredEvent["event"], "threadId">;
-    };
+/** What a client at `afterSequence` missed, or none when a snapshot should replace its shell. */
+export const readShellResumeChanges = Effect.fn("ShellStream.readShellResumeChanges")(function* <
+  E,
+>(input: {
+  readonly afterSequence: number;
+  readonly highWater: number;
+  readonly readChanged: (range: {
+    readonly afterSequence: number;
+    readonly throughSequence: number;
+    readonly limit: number;
+  }) => Effect.Effect<ReadonlyArray<ChangedApplicationAggregate>, E>;
+}) {
+  const gap = input.highWater - input.afterSequence;
+  // A cursor ahead of this database's head came from another database.
+  if (gap < 0 || gap > SHELL_RESUME_MAX_SCANNED_SEQUENCES) return Option.none();
+  const changed = yield* input.readChanged({
+    afterSequence: input.afterSequence,
+    throughSequence: input.highWater,
+    limit: SHELL_RESUME_MAX_CHANGED_AGGREGATES + 1,
+  });
+  return changed.length > SHELL_RESUME_MAX_CHANGED_AGGREGATES
+    ? Option.none()
+    : Option.some(changed);
+});
 
-export function shellApplicationEventFromChangedAggregate(
-  changed: ChangedApplicationAggregate,
-): ShellApplicationEvent {
-  return changed.aggregateKind === "project"
-    ? {
-        aggregateKind: "project",
-        aggregateId: ProjectId.make(changed.aggregateId),
-        sequence: changed.sequence,
-      }
-    : {
-        sequence: changed.sequence,
-        event: { threadId: ThreadId.make(changed.aggregateId) },
-      };
-}
-
-/** Shell updates refetch an aggregate; drop transcript bodies before retaining an event. */
-export function toShellApplicationEvent(stored: ApplicationStoredEvent): ShellApplicationEvent {
+/** Shell updates refetch the aggregate, so keep only which one changed and when. */
+export function toShellApplicationEvent(
+  stored: ApplicationStoredEvent,
+): ChangedApplicationAggregate {
   return "aggregateKind" in stored
-    ? {
-        aggregateKind: stored.aggregateKind,
-        aggregateId: stored.aggregateId,
-        type: stored.type,
-        sequence: stored.sequence,
-      }
-    : { sequence: stored.sequence, event: { threadId: stored.event.threadId } };
+    ? { aggregateKind: "project", aggregateId: stored.aggregateId, sequence: stored.sequence }
+    : { aggregateKind: "thread", aggregateId: stored.event.threadId, sequence: stored.sequence };
 }
 
-export function coalesceShellApplicationEvents<A extends ShellApplicationEvent>(
-  events: ReadonlyArray<A>,
-): ReadonlyArray<A> {
-  const latestByAggregate = new Map<string, A>();
+export function coalesceShellApplicationEvents(
+  events: ReadonlyArray<ChangedApplicationAggregate>,
+): ReadonlyArray<ChangedApplicationAggregate> {
+  const latestByAggregate = new Map<string, ChangedApplicationAggregate>();
   for (const stored of events) {
-    const key =
-      "aggregateKind" in stored
-        ? `project:${stored.aggregateId}`
-        : `thread:${stored.event.threadId}`;
-    latestByAggregate.set(key, stored);
+    latestByAggregate.set(`${stored.aggregateKind}:${stored.aggregateId}`, stored);
   }
   return Array.from(latestByAggregate.values()).sort(
     (left, right) => left.sequence - right.sequence,
@@ -370,7 +368,7 @@ export function coalesceStoredThreadEvents(
 }
 
 export function shellStreamItemFromThreadShell(input: {
-  readonly stored: Extract<ShellApplicationEvent, { readonly event: unknown }>;
+  readonly stored: ChangedApplicationAggregate;
   readonly shell: OrchestrationV2ThreadShell | null;
 }): Extract<
   OrchestrationV2ShellStreamItem,
@@ -397,7 +395,7 @@ export function shellStreamItemFromThreadShell(input: {
     kind: "thread.removed",
     sequence: input.stored.sequence,
     location: "active",
-    threadId: input.stored.event.threadId,
+    threadId: ThreadId.make(input.stored.aggregateId),
   };
 }
 

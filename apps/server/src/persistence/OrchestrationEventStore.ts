@@ -250,16 +250,11 @@ function rowToApplicationStoredEvent(
   return row.aggregate_kind === "project" ? rowToProjectEvent(row) : rowToV2StoredEvent(row);
 }
 
-const isKnownProjectEventType = Schema.is(ProjectEventType);
-
+// Only agent replay reads rows this way, and it reads thread rows alone.
 const keepReplayRow = (row: ApplicationEventRow, skipUnknownEventTypes?: boolean) =>
-  skipUnknownEventTypes !== true ||
-  (row.aggregate_kind === "project"
-    ? isKnownProjectEventType(row.event_type)
-    : isKnownOrchestrationV2EventType(row.event_type))
+  skipUnknownEventTypes !== true || isKnownOrchestrationV2EventType(row.event_type)
     ? Effect.succeed(true)
-    : Effect.logWarning("Skipping an application event row with an unknown event type", {
-        aggregateKind: row.aggregate_kind,
+    : Effect.logWarning("Skipping an agent event row with an unknown event type", {
         sequence: row.sequence,
         eventTypeLength: row.event_type.length,
       }).pipe(Effect.as(false));

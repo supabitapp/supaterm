@@ -28,21 +28,14 @@ even while the network reports offline. Returning to mobile also restarts an
 in-flight connection attempt, whose routes may belong to the previous network.
 Desktop foregrounding leaves ordinary in-flight attempts alone.
 
-A replacement session to the same server process also resumes the shell from the
-in-memory cursor instead of reloading the HTTP snapshot. The server sends a
-`shellSyncGeneration` that changes with every process, and the client resumes only
-when it matches the generation under which its in-memory shell last reached
-`synchronized` after an authoritative snapshot. A shell loaded from the disk cache
-never qualifies, and neither does one that skipped an unknown stream item, because
-the cursor already moved past rows this build could not apply. Resuming refetches
-only aggregates with events after the cursor, but some thread rows read state owned
-by another thread: a fork counts its source's items, threads bound to one provider
-session share its last error, and a provider-thread move changes the previous
-owner. Those rows have no event of their own, so neither resume nor the live tail
-resends them. A full reload on every reconnect used to repair them; instead, once a
-shell that resumed across connections reaches `synchronized` and its last
-authoritative snapshot is an hour old, the client reloads that snapshot quietly
-while keeping the rows live.
+A replacement session to the same server process may resume the shell from the
+in-memory cursor instead of reloading the HTTP snapshot. Resume covers only rows
+with events after the cursor, but some thread rows read another thread's state: a
+fork counts its source's items, threads bound to one provider session share its
+last error, and a provider-thread move changes the previous owner. Neither resume
+nor the live tail resends those rows. A reload on every reconnect used to repair
+them, so a new session resumes only while the last authoritative snapshot is
+younger than six hours.
 
 The native mobile relay, not the supervisor, decides when a backgrounded tunnel
 suspends. iOS suspends when its background task expires, so the tunnel lasts as

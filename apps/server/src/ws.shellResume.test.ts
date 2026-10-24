@@ -12,7 +12,6 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as PubSub from "effect/PubSub";
 import * as Stream from "effect/Stream";
-import * as SqlClient from "effect/sql/SqlClient";
 
 import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as ThreadManagement from "./orchestration-v2/ThreadManagementService.ts";
@@ -21,6 +20,7 @@ import * as SqlitePersistence from "./persistence/Sqlite.ts";
 import * as ProjectEnrichment from "./project/ProjectEnrichmentService.ts";
 import * as ProjectService from "./project/ProjectService.ts";
 import { liveThreadShell } from "./mcp/McpToolAccess.testkit.ts";
+import { insertOrchestrationEventRow } from "./persistence/orchestrationEventRows.testkit.ts";
 import { subscribeOrchestrationV2Shell } from "./ws.ts";
 
 const ReplayTestLayer = OrchestrationEventStore.layer.pipe(
@@ -42,33 +42,8 @@ const resumeProjectFixture = (id: string): OrchestrationProjectShell => ({
   updatedAt: "2026-01-05T00:00:00.000Z",
 });
 
-let resumeEventIds = 0;
-const insertResumeEvent = Effect.fnUntraced(function* (
-  aggregateKind: "project" | "thread",
-  streamId: string,
-) {
-  const sql = yield* SqlClient.SqlClient;
-  const now = "2026-01-05T00:00:00.000Z";
-  const [inserted] = yield* sql<{ readonly sequence: number }>`
-    INSERT INTO orchestration_events (
-      event_id, aggregate_kind, stream_id, stream_version, event_type,
-      occurred_at, actor_kind, payload_json, metadata_json, application_event_version
-    ) VALUES (
-      ${`resume:${resumeEventIds++}`}, ${aggregateKind}, ${streamId},
-      (
-        SELECT COALESCE(MAX(stream_version) + 1, 0) FROM orchestration_events
-        WHERE aggregate_kind = ${aggregateKind} AND stream_id = ${streamId}
-      ),
-      ${aggregateKind === "thread" ? "provider-session.detached" : "project.meta-updated"},
-      ${now}, 'server', ${JSON.stringify(
-        aggregateKind === "thread"
-          ? { providerSessionId: "session:resume", detachedAt: now }
-          : { projectId: streamId, updatedAt: now },
-      )}, '{}', 2
-    ) RETURNING sequence
-  `;
-  return inserted!.sequence;
-});
+const insertResumeEvent = (aggregateKind: "project" | "thread", streamId: string) =>
+  insertOrchestrationEventRow({ aggregateKind, streamId });
 
 // Collect a resume through the real handler and event store; shells and projects are fixtures.
 const collectShellResume = Effect.fnUntraced(function* (input: {
@@ -206,23 +181,19 @@ it.live("shell resume removes deleted and archived threads and deleted projects"
 
 it.live("shell resume refetches projects whose events this build does not know", () =>
   Effect.gen(function* () {
-    const sql = yield* SqlClient.SqlClient;
     const cursor = yield* insertResumeEvent("thread", "thread:only");
-    const [future] = yield* sql<{ readonly sequence: number }>`
-      INSERT INTO orchestration_events (
-        event_id, aggregate_kind, stream_id, stream_version, event_type,
-        occurred_at, actor_kind, payload_json, metadata_json, application_event_version
-      ) VALUES (
-        'resume:future-project', 'project', 'project:future', 0, 'project.from-a-newer-build',
-        '2026-01-05T00:00:00.000Z', 'server', '{"unreadable":true}', '{}', 2
-      ) RETURNING sequence
-    `;
+    const future = yield* insertOrchestrationEventRow({
+      aggregateKind: "project",
+      streamId: "project:future",
+      eventType: "project.from-a-newer-build",
+      payload: '{"unreadable":true}',
+    });
     const projects = new Map([["project:future", resumeProjectFixture("project:future")]]);
 
     const items = yield* collectShellResume({ afterSequence: cursor, projects });
 
     assert.deepEqual(items.map(describeResumeItem), [
-      `project.updated project:future @${future!.sequence}`,
+      `project.updated project:future @${future}`,
       "synchronized",
     ]);
   }).pipe(Effect.provide(Layer.fresh(ReplayTestLayer))),
@@ -230,18 +201,12 @@ it.live("shell resume refetches projects whose events this build does not know",
 
 it.live("shell resume past a million sequences sends a snapshot without scanning them", () =>
   Effect.gen(function* () {
-    const sql = yield* SqlClient.SqlClient;
     const cursor = yield* insertResumeEvent("thread", "thread:only");
-    const [head] = yield* sql<{ readonly sequence: number }>`
-      INSERT INTO orchestration_events (
-        sequence, event_id, aggregate_kind, stream_id, stream_version, event_type,
-        occurred_at, actor_kind, payload_json, metadata_json, application_event_version
-      ) VALUES (
-        ${cursor + 1_000_001}, 'resume:far', 'thread', 'thread:only', 1,
-        'provider-session.detached', '2026-01-05T00:00:00.000Z', 'server',
-        '{"providerSessionId":"session:resume","detachedAt":"2026-01-05T00:00:00.000Z"}', '{}', 2
-      ) RETURNING sequence
-    `;
+    const head = yield* insertOrchestrationEventRow({
+      aggregateKind: "thread",
+      streamId: "thread:only",
+      sequence: cursor + 1_000_001,
+    });
 
     const items = yield* collectShellResume({
       afterSequence: cursor,
@@ -249,7 +214,7 @@ it.live("shell resume past a million sequences sends a snapshot without scanning
     });
 
     assert.deepEqual(items.map(describeResumeItem), [
-      `snapshot 1 threads @${head!.sequence}`,
+      `snapshot 1 threads @${head}`,
       "synchronized",
     ]);
   }).pipe(Effect.provide(Layer.fresh(ReplayTestLayer))),

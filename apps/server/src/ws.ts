@@ -89,7 +89,7 @@ import {
   PersistChatAttachmentsError,
   RpcClientId,
   EnvironmentAuthorizationError,
-  type ProjectId,
+  ProjectId,
   type ProviderDriverKind,
   type ProviderInstanceId,
   ThreadId,
@@ -128,14 +128,13 @@ import {
   composeShellStreamWithEnrichment,
   dedupeShellEnrichment,
   loadShellSnapshotParts,
-  shellApplicationEventFromChangedAggregate,
+  readShellResumeChanges,
   shellStreamItemFromEnrichmentRefresh,
   shellStreamItemFromThreadShell,
   shellStreamItemsFromInitialSnapshot,
   shellStreamItemsFromResumeSnapshot,
   skipUnchangedThreadShells,
   toShellApplicationEvent,
-  type ShellApplicationEvent,
 } from "./orchestration-v2/ShellStream.ts";
 import { ORCHESTRATION_V2_PROJECTION_SCHEMA_VERSION } from "./orchestration-v2/ProjectionStore.ts";
 import { bufferLiveStream } from "./orchestration-v2/LiveStreamBudget.ts";
@@ -159,6 +158,7 @@ import {
 import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as ThreadSearch from "./orchestration-v2/ThreadSearch.ts";
 import * as OrchestrationEventStore from "./persistence/OrchestrationEventStore.ts";
+import type { ChangedApplicationAggregate } from "./persistence/OrchestrationEventStore.ts";
 import { userFacingDispatchErrorMessage } from "./orchestration-v2/UserFacingErrors.ts";
 import * as ProviderRegistry from "./provider/ProviderRegistry.ts";
 import * as ProviderInstanceRegistry from "./provider/ProviderInstanceRegistry.ts";
@@ -557,12 +557,6 @@ const PROVIDER_STATUS_DEBOUNCE_MS = 200;
 
 // Middleware added later wraps middleware added earlier, so instrumentation wraps authorization.
 const ServerWsRpcGroup = WsRpcGroup.middleware(RpcInstrumentation);
-// Resume refetches one row per changed project or thread; past this many a
-// single snapshot read is cheaper.
-const SHELL_RESUME_MAX_CHANGED_AGGREGATES = 500;
-// Finding the changed aggregates scans the gap; past this many sequences the
-// result would almost surely exceed the cap, so skip straight to a snapshot.
-const SHELL_RESUME_MAX_SCANNED_SEQUENCES = 1_000_000;
 
 function toAuthAccessStreamEvent(
   change: PairingGrantStore.BootstrapCredentialChange | SessionStore.SessionCredentialChange,
@@ -959,21 +953,16 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
       };
     });
     const projectItem = Effect.fn("ws.orchestrationV2.projectShellItem")(function* (
-      stored: Extract<ShellApplicationEvent, { readonly aggregateKind: "project" }>,
+      stored: ChangedApplicationAggregate,
     ) {
-      if (stored.type === "project.deleted") {
-        return {
-          kind: "project.removed" as const,
-          sequence: stored.sequence,
-          projectId: stored.aggregateId,
-        };
-      }
-      const project = yield* projectService.getShell(stored.aggregateId);
+      const projectId = ProjectId.make(stored.aggregateId);
+      // A deleted project has no shell, so the same read covers removal.
+      const project = yield* projectService.getShell(projectId);
       return Option.match(project, {
         onNone: () => ({
           kind: "project.removed" as const,
           sequence: stored.sequence,
-          projectId: stored.aggregateId,
+          projectId,
         }),
         onSome: (value) => ({
           kind: "project.updated" as const,
@@ -984,23 +973,23 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
     });
 
     const projectShellItems = Effect.fn("ws.orchestrationV2.projectShellItems")(function* (
-      events: ReadonlyArray<ShellApplicationEvent>,
+      events: ReadonlyArray<ChangedApplicationAggregate>,
     ) {
       return yield* Effect.forEach(
         coalesceShellApplicationEvents(events),
         (stored) =>
           Effect.gen(function* () {
-            if ("aggregateKind" in stored) {
+            if (stored.aggregateKind === "project") {
               return yield* projectItem(stored);
             }
-            const shell = yield* threadManagement.getThreadShell(stored.event.threadId);
+            const shell = yield* threadManagement.getThreadShell(ThreadId.make(stored.aggregateId));
             return shellStreamItemFromThreadShell({ stored, shell });
           }),
         { concurrency: 8 },
       );
     });
 
-    const toShellStream = <E, R>(stream: Stream.Stream<ShellApplicationEvent, E, R>) =>
+    const toShellStream = <E, R>(stream: Stream.Stream<ChangedApplicationAggregate, E, R>) =>
       stream.pipe(
         Stream.groupedWithin(512, Duration.millis(50)),
         Stream.mapEffect((events) => projectShellItems(Array.from(events))),
@@ -1095,17 +1084,12 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
       }
 
       const highWater = yield* applicationEvents.latestApplicationSequence;
-      const gap = highWater - input.afterSequence;
-      // A cursor ahead of this database's head came from another database.
-      const changed =
-        gap < 0 || gap > SHELL_RESUME_MAX_SCANNED_SEQUENCES
-          ? undefined
-          : yield* applicationEvents.readChangedApplicationAggregates({
-              afterSequence: input.afterSequence,
-              throughSequence: highWater,
-              limit: SHELL_RESUME_MAX_CHANGED_AGGREGATES + 1,
-            });
-      if (changed === undefined || changed.length > SHELL_RESUME_MAX_CHANGED_AGGREGATES) {
+      const changed = yield* readShellResumeChanges({
+        afterSequence: input.afterSequence,
+        highWater,
+        readChanged: applicationEvents.readChangedApplicationAggregates,
+      });
+      if (Option.isNone(changed)) {
         const loaded = yield* loadSnapshot();
         return composeShellStreamWithEnrichment({
           initial: initialSnapshotItems(loaded),
@@ -1115,9 +1099,7 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
       }
 
       const loaded = yield* loadProjectMetadataSnapshot(highWater);
-      const replay = toShellStream(
-        Stream.fromIterable(changed.map(shellApplicationEventFromChangedAggregate)),
-      );
+      const replay = toShellStream(Stream.fromIterable(changed.value));
       return composeShellStreamWithEnrichment({
         initial: initialEnrichmentItems(loaded),
         tail: Stream.concat(Stream.concat(replay, completionMarker), liveFrom(highWater)),
