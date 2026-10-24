@@ -71,6 +71,27 @@ describe("buildCodexDeveloperInstructions", () => {
   });
 });
 
+describe("Codex orchestration context", () => {
+  it("routes same-child follow-ups to supaterm_thread_send and independent reviews to delegate_task", () => {
+    const orchestration = Object.entries(buildCodexAdditionalContext({ model: "gpt-6.1-sol" }))
+      .filter(([key]) => key.startsWith("supaterm_orchestration_"))
+      .map(([, entry]) => entry.value)
+      .join("\n");
+
+    NodeAssert.ok(
+      orchestration.includes(
+        "For independent Supaterm delegated review rounds, call `delegate_task` again.",
+      ),
+    );
+    NodeAssert.ok(
+      orchestration.includes(
+        "For a follow-up that needs the same child's conversation, use `supaterm_thread_send` on its `childThreadId`.",
+      ),
+    );
+    NodeAssert.ok(!orchestration.includes("Do not use `supaterm_thread_send`"));
+  });
+});
+
 function runtimeInstructions(runtime: Parameters<typeof buildCodexAdditionalContext>[0]) {
   return buildCodexAdditionalContext(runtime).supaterm_runtime!.value;
 }
