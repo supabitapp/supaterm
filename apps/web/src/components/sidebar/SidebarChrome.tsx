@@ -10,6 +10,7 @@ import type { MouseEvent, ReactNode } from "react";
 import { memo } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { parseKeybindingShortcut } from "@supaterm/shared/keybindings";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 
 import { APP_BASE_NAME, SOURCE_CODE_URL, WEBSITE_URL } from "../../branding";
 import { isElectron } from "../../env";
@@ -19,7 +20,6 @@ import { formatShortcutLabel } from "../../keybindings";
 import { cn } from "../../lib/utils";
 import { readLocalApi } from "../../localApi";
 import { usePullRequestsSupported } from "../../state/environments";
-import { GitHubIcon } from "../Icons";
 import { Kbd } from "../ui/kbd";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import {
@@ -39,7 +39,10 @@ import { SidebarThreadUndoNotice } from "./SidebarThreadUndoNotice";
 import { SidebarProviderUpdatePill } from "./SidebarProviderUpdatePill";
 import { SidebarUpdateArchitectureWarning, SidebarUpdatePill } from "./SidebarUpdatePill";
 import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
+import { sourceControlIcon } from "~/sourceControlPresentation";
 import { observeResize } from "~/lib/observeResize";
+
+const GitHubIcon = sourceControlIcon(sourceControlClients.get("github"));
 
 export const SidebarChromeHeader = memo(function SidebarChromeHeader({
   isElectron,

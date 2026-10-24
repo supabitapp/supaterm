@@ -4,9 +4,9 @@ import { useAtomValue } from "@effect/atom-react";
 import {
   connectionAddressLabel,
   connectionCatalogDisplayUrl,
-  gitHubRoutingConnectionKey,
-  gitHubRoutingPermissionFor,
-  type GitHubRoutingPermission,
+  pullRequestRoutingConnectionKey,
+  pullRequestRoutingPermissionFor,
+  type PullRequestRoutingPermission,
 } from "@supaterm/client-runtime/connection";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
@@ -20,11 +20,11 @@ import { DisclosureChevron } from "../../components/ui/DisclosureChevron";
 import { MotionPresence } from "../../components/ui/MotionPresence";
 
 const options: ReadonlyArray<{
-  value: GitHubRoutingPermission;
+  value: PullRequestRoutingPermission;
   label: string;
   description: string;
 }> = [
-  { value: "off", label: "Off", description: "Keep GitHub requests on this environment." },
+  { value: "off", label: "Off", description: "Keep source control requests on this environment." },
   {
     value: "read",
     label: "Read PRs",
@@ -33,31 +33,33 @@ const options: ReadonlyArray<{
   {
     value: "read-write",
     label: "Read and act",
-    description: "Actions may use broader GitHub permissions than the original environment.",
+    description:
+      "Actions may use broader source control permissions than the original environment.",
   },
 ];
 
-export function GitHubRoutingSettings() {
+export function PullRequestRoutingSettings() {
   const catalog = useAtomValue(environmentCatalog.catalogValueAtom);
-  const permissions = useAtomValue(environmentCatalog.githubRoutingPermissionsValueAtom);
-  const update = useAtomCommand(environmentCatalog.setGitHubRoutingPermission);
+  const permissions = useAtomValue(environmentCatalog.pullRequestRoutingPermissionsValueAtom);
+  const update = useAtomCommand(environmentCatalog.setPullRequestRoutingPermission);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   if (catalog.entries.size === 0) return null;
 
   return (
     <View className="mt-5 gap-3">
-      <SettingsSection title="GitHub routing">
+      <SettingsSection title="Pull request routing">
         {[...catalog.entries.values()].map((entry) => {
           const environmentId = entry.target.environmentId;
-          const selected = gitHubRoutingPermissionFor(entry, permissions);
-          const disabled = !catalog.isReady || saving || gitHubRoutingConnectionKey(entry) === null;
+          const selected = pullRequestRoutingPermissionFor(entry, permissions);
+          const disabled =
+            !catalog.isReady || saving || pullRequestRoutingConnectionKey(entry) === null;
           const displayUrl = connectionCatalogDisplayUrl(entry);
           return (
             <View key={environmentId}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`${entry.target.label} GitHub routing`}
+                accessibilityLabel={`${entry.target.label} pull request routing`}
                 accessibilityState={{ expanded: expanded === environmentId }}
                 className="flex-row items-center gap-3 p-4"
                 onPress={() => setExpanded(expanded === environmentId ? null : environmentId)}
@@ -95,7 +97,7 @@ export function GitHubRoutingSettings() {
                         setSaving(false);
                         if (result._tag === "Failure")
                           Dialog.alert(
-                            "Could not save GitHub routing permission",
+                            "Could not save pull request routing permission",
                             "Try again before leaving this screen.",
                           );
                       });
@@ -108,8 +110,8 @@ export function GitHubRoutingSettings() {
         })}
       </SettingsSection>
       <Text className="px-2 text-sm text-foreground-muted">
-        Choose environments you trust to share PR data and use each other's GitHub access. Enable
-        both environments. This applies only to this client.
+        Choose environments you trust to share PR data and use each other's source control access.
+        Enable both environments. This applies only to this client.
       </Text>
     </View>
   );

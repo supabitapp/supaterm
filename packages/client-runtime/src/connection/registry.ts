@@ -44,9 +44,9 @@ import * as ConnectionWakeups from "./wakeups.ts";
 import { withEnvironmentLabel } from "./labels.ts";
 import type * as RpcSession from "../rpc/session.ts";
 import {
-  GitHubRoutingPermissions,
-  gitHubRoutingConnectionKey,
-} from "./githubRoutingPermissions.ts";
+  PullRequestRoutingPermissions,
+  pullRequestRoutingConnectionKey,
+} from "./pullRequestRoutingPermissions.ts";
 import {
   connectionRouteId,
   credentialConnectionId,
@@ -211,7 +211,7 @@ export const make = Effect.gen(function* () {
   const ownedDataCleanup = yield* Persistence.EnvironmentOwnedDataCleanup;
   const profiles = yield* ConnectionProfileStore.ConnectionProfileStore;
   const credentials = yield* ConnectionCredentialStore.ConnectionCredentialStore;
-  const githubRoutingPermissions = yield* GitHubRoutingPermissions;
+  const pullRequestRoutingPermissions = yield* PullRequestRoutingPermissions;
   const connectivity = yield* Connectivity.Connectivity;
   const driver = yield* ConnectionDriver.ConnectionDriver;
   const wakeups = yield* ConnectionWakeups.ConnectionWakeups;
@@ -559,7 +559,7 @@ export const make = Effect.gen(function* () {
 
   const withRoutes = (previous: ConnectionCatalogEntry, routes: ReadonlyArray<ConnectionRoute>) => {
     const next = entryWithRoutes(previous, routes);
-    if (gitHubRoutingConnectionKey(previous) === gitHubRoutingConnectionKey(next)) {
+    if (pullRequestRoutingConnectionKey(previous) === pullRequestRoutingConnectionKey(next)) {
       return { entry: next, addressesChanged: false };
     }
     const { unsupportedReason: _reason, serverUpdateRequired: _update, ...rest } = next;
@@ -588,7 +588,7 @@ export const make = Effect.gen(function* () {
               : existing;
           const next = withRoutes(previous, upsertRoute(routes, route));
           if (next.addressesChanged) {
-            yield* githubRoutingPermissions.forget(environmentId).pipe(
+            yield* pullRequestRoutingPermissions.forget(environmentId).pipe(
               Effect.mapError(
                 (error) =>
                   new Persistence.ConnectionPersistenceError({
@@ -616,7 +616,7 @@ export const make = Effect.gen(function* () {
   ) {
     const next = withRoutes(previous, routes);
     if (next.addressesChanged) {
-      yield* githubRoutingPermissions.forget(previous.target.environmentId).pipe(
+      yield* pullRequestRoutingPermissions.forget(previous.target.environmentId).pipe(
         Effect.mapError(
           (error) =>
             new Persistence.ConnectionPersistenceError({
@@ -667,19 +667,20 @@ export const make = Effect.gen(function* () {
           const previous = (yield* SubscriptionRef.get(entries)).get(target.environmentId);
           const entry: ConnectionCatalogEntry =
             previous?.unsupportedReason !== undefined &&
-            gitHubRoutingConnectionKey(previous) === gitHubRoutingConnectionKey(registered)
+            pullRequestRoutingConnectionKey(previous) ===
+              pullRequestRoutingConnectionKey(registered)
               ? { ...registered, ...unsupportedState(previous) }
               : registered;
           const persisted = (yield* Ref.get(persistedEnvironmentIds)).has(target.environmentId);
           if (
             persisted ||
             (previous !== undefined &&
-              gitHubRoutingConnectionKey(previous) !== gitHubRoutingConnectionKey(entry))
+              pullRequestRoutingConnectionKey(previous) !== pullRequestRoutingConnectionKey(entry))
           ) {
-            const revoked = yield* githubRoutingPermissions.forget(target.environmentId).pipe(
+            const revoked = yield* pullRequestRoutingPermissions.forget(target.environmentId).pipe(
               Effect.tapError((error) =>
                 Effect.logWarning(
-                  "Could not clear GitHub routing permission for a platform environment.",
+                  "Could not clear pull request routing permission for a platform environment.",
                   {
                     environmentId: target.environmentId,
                     error,
@@ -788,10 +789,10 @@ export const make = Effect.gen(function* () {
         environmentId,
         Effect.gen(function* () {
           const entry = (yield* SubscriptionRef.get(entries)).get(environmentId);
-          const revoked = yield* githubRoutingPermissions.forget(environmentId).pipe(
+          const revoked = yield* pullRequestRoutingPermissions.forget(environmentId).pipe(
             Effect.tapError((error) =>
               Effect.logWarning(
-                "Could not clear GitHub routing permission after platform removal.",
+                "Could not clear pull request routing permission after platform removal.",
                 {
                   environmentId,
                   error,
@@ -873,7 +874,7 @@ export const make = Effect.gen(function* () {
         });
       }
       const entry = yield* getEntry(environmentId);
-      yield* githubRoutingPermissions.forget(environmentId);
+      yield* pullRequestRoutingPermissions.forget(environmentId);
       yield* registrations.remove(entry.target);
       yield* Ref.update(persistedEnvironmentIds, (current) => {
         const next = new Set(current);
