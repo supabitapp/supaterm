@@ -501,6 +501,7 @@ export function HomeScreen(props: HomeScreenProps) {
     now: new Date().toISOString(),
   }));
   if (listClock.nowMinute !== nowMinute || listClock.snoozeWakeTick !== snoozeWakeTick) {
+    // oxlint-disable-next-line react/purity -- Resamples the clock only when the minute or a snooze wake changes; the sample lives in state.
     setListClock({ nowMinute, snoozeWakeTick, now: new Date().toISOString() });
   }
   useFocusEffect(() => {

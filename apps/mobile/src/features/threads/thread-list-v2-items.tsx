@@ -817,6 +817,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   // in render would stay frozen until `thread` changes: the gate could never
   // expire and its timer would re-fire every 50ms. The gate's clock is state.
   const [snoozeGateClock, setSnoozeGateClock] = useState(() => ({ thread, now: new Date() }));
+  // oxlint-disable-next-line react/purity -- Resamples the gate clock only when the thread changes.
   if (snoozeGateClock.thread !== thread) setSnoozeGateClock({ thread, now: new Date() });
   const snoozeGateNow = snoozeGateClock.now.toISOString();
   const snoozeGateExpiryMs = props.snoozeSupported
@@ -844,6 +845,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
     now: new Date(),
   }));
   if (snoozePresetClock.minute !== props.snoozePresetMinute) {
+    // oxlint-disable-next-line react/purity -- Resamples the preset clock only when the preset minute changes.
     setSnoozePresetClock({ minute: props.snoozePresetMinute, now: new Date() });
   }
   const snoozePresets = useMemo(
