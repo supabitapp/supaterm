@@ -1,4 +1,13 @@
 import {
+  buildTraitsTriggerLabel,
+  getDescriptorStringValue,
+  getTraitSelectChange,
+  replaceDescriptorCurrentValue,
+  selectableProviderOptionChoices,
+  REASONING_SELECT_DESCRIPTOR_IDS,
+  ULTRATHINK_PROMPT_PREFIX,
+} from "@supaterm/client-runtime/model-traits";
+import {
   type ModelSelection,
   type ProviderDriverKind,
   type ProviderInstanceId,
@@ -8,10 +17,8 @@ import {
   type ServerProviderModel,
 } from "@supaterm/contracts";
 import {
-  applyClaudePromptEffortPrefix,
   buildProviderOptionSelectionsFromDescriptors,
   getProviderOptionCurrentLabel,
-  getProviderOptionCurrentValue,
   getProviderOptionDescriptors,
   isClaudeUltrathinkPrompt,
   normalizeModelSlug,
@@ -23,7 +30,6 @@ import {
   type SpeedToggle,
   type SpeedToggleLevel,
 } from "@supaterm/client-runtime/provider-speed-toggle";
-import { REASONING_EFFORT_OPTION_IDS } from "@supaterm/client-runtime/state/thread-execution";
 import { memo } from "react";
 import { BrainIcon, ZapIcon } from "lucide-react";
 import { UltrafastIcon } from "../Icons";
@@ -109,51 +115,12 @@ type TraitsPersistence =
       onModelOptionsChange: (nextOptions: ProviderOptions | undefined) => void;
     };
 
-const ULTRATHINK_PROMPT_PREFIX = "Ultrathink:\n";
-
-const REASONING_SELECT_DESCRIPTOR_IDS: ReadonlySet<string> = new Set([
-  ...REASONING_EFFORT_OPTION_IDS,
-  "thinking",
-]);
-
 function DefaultBadge() {
   return (
     <Badge variant="outline" size="sm" className="min-w-0">
       Default
     </Badge>
   );
-}
-
-function replaceDescriptorCurrentValue(
-  descriptors: ReadonlyArray<ProviderOptionDescriptor>,
-  descriptorId: string,
-  currentValue: string | boolean | undefined,
-): ReadonlyArray<ProviderOptionDescriptor> {
-  return descriptors.map((descriptor) =>
-    descriptor.id !== descriptorId
-      ? descriptor
-      : descriptor.type === "boolean"
-        ? {
-            ...descriptor,
-            ...(typeof currentValue === "boolean" ? { currentValue } : {}),
-          }
-        : {
-            ...descriptor,
-            ...(typeof currentValue === "string" ? { currentValue } : {}),
-          },
-  );
-}
-
-function getDescriptorStringValue(
-  descriptor: Extract<ProviderOptionDescriptor, { type: "select" }> | null,
-  selection?: ModelSelection | null,
-  reportedSelection?: ModelSelection | null,
-): string | null {
-  if (!descriptor) {
-    return null;
-  }
-  const value = getProviderOptionCurrentValue(descriptor, selection, reportedSelection);
-  return typeof value === "string" ? value : null;
 }
 
 function getSelectedTraits(
@@ -264,34 +231,6 @@ function getTraitsSectionVisibility(input: {
     toggleOnlyDescriptorId,
     hasMenuControls,
     hasAnyControls: hasMenuControls || speedToggle !== null,
-  };
-}
-
-function getTraitSelectChange(
-  selected: ReturnType<typeof getSelectedTraits>,
-  descriptor: Extract<ProviderOptionDescriptor, { type: "select" }>,
-  prompt: string,
-  value: string,
-) {
-  if (!value) return null;
-  if (descriptor.promptInjectedValues?.includes(value)) {
-    return {
-      prompt:
-        prompt.trim().length === 0
-          ? ULTRATHINK_PROMPT_PREFIX
-          : applyClaudePromptEffortPrefix(prompt, "ultrathink"),
-    };
-  }
-  const isPrimary = descriptor.id === selected.primarySelectDescriptor?.id;
-  if (isPrimary && selected.ultrathinkInBodyText) return null;
-  return {
-    prompt:
-      isPrimary && selected.ultrathinkPromptControlled
-        ? prompt.replace(/^Ultrathink:\s*/i, "")
-        : prompt,
-    modelOptions: buildProviderOptionSelectionsFromDescriptors(
-      replaceDescriptorCurrentValue(selected.descriptors, descriptor.id, value),
-    ),
   };
 }
 
@@ -551,7 +490,7 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
                 value={selectedValue}
                 onValueChange={(value) => handleSelectChange(descriptor, value)}
               >
-                {descriptor.options.map((option) => (
+                {selectableProviderOptionChoices(descriptor).map((option) => (
                   <MenuRadioItem
                     key={option.id}
                     value={option.id}
@@ -612,55 +551,6 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
     </>
   );
 });
-
-/**
- * Speed lives on the bolt toggle beside the trigger, so it stays out of the
- * label unless it is the only trait or a non-speed tier such as Flex.
- */
-export function buildTraitsTriggerLabel(input: {
-  descriptors: ReadonlyArray<ProviderOptionDescriptor>;
-  speedToggle: SpeedToggle | null;
-  primarySelectDescriptorId: string | null;
-  ultrathinkPromptControlled: boolean;
-  modelSelection?: ModelSelection | null;
-  reportedModelSelection?: ModelSelection | null | undefined;
-}): string {
-  let speedFallbackLabel: string | null = null;
-  const labels: Array<string> = [];
-  for (const descriptor of input.descriptors) {
-    if (input.speedToggle && descriptor.id === input.speedToggle.descriptorId) {
-      const currentValue = getProviderOptionCurrentValue(descriptor) ?? input.speedToggle.offValue;
-      if (input.speedToggle.level !== "off" || currentValue === input.speedToggle.offValue) {
-        if (descriptor.type === "select") {
-          speedFallbackLabel =
-            descriptor.options.find(({ id }) => id === currentValue)?.label ?? null;
-        }
-        continue;
-      }
-    }
-    const label =
-      input.ultrathinkPromptControlled && descriptor.id === input.primarySelectDescriptorId
-        ? "Ultrathink"
-        : descriptor.type === "boolean"
-          ? `${descriptor.label} ${descriptor.currentValue === true ? "On" : "Off"}`
-          : getProviderOptionCurrentLabel(
-              descriptor,
-              input.modelSelection,
-              input.reportedModelSelection,
-            );
-    if (typeof label === "string" && label.length > 0) {
-      labels.push(label);
-    }
-  }
-
-  // Only fall back to text when speed is genuinely the sole trait. Keying off an
-  // empty label list alone would also catch descriptors that resolved to no
-  // label at all.
-  if (labels.length === 0 && speedFallbackLabel !== null) {
-    return speedFallbackLabel;
-  }
-  return labels.join(" · ");
-}
 
 export const TraitsPicker = memo(function TraitsPicker({
   provider,

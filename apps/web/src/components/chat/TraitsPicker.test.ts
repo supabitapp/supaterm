@@ -5,7 +5,8 @@ import {
   type ProviderOptionDescriptor,
 } from "@supaterm/contracts";
 import { getSpeedToggle } from "@supaterm/client-runtime/provider-speed-toggle";
-import { buildTraitsTriggerLabel, buildUnavailableModelOptionDescriptors } from "./TraitsPicker";
+import { buildTraitsTriggerLabel } from "@supaterm/client-runtime/model-traits";
+import { buildUnavailableModelOptionDescriptors } from "./TraitsPicker";
 
 function selectDescriptor(
   id: string,

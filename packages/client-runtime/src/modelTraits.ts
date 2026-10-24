@@ -100,7 +100,10 @@ export function getTraitSelectChange(
   };
 }
 
-/** Speed stays on the composer's bolt, so the label names it only when it is the sole trait. */
+/**
+ * Speed lives on the bolt toggle beside the trigger, so it stays out of the
+ * label unless it is the only trait or a non-speed tier such as Flex.
+ */
 export function buildTraitsTriggerLabel(input: {
   descriptors: ReadonlyArray<ProviderOptionDescriptor>;
   speedToggle: SpeedToggle | null;
