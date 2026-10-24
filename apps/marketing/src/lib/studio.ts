@@ -36,6 +36,25 @@ export const STATE_COPY: Record<
   error: { name: "Error", hint: "Red phosphor, a torn screen and a shake of the head." },
 };
 
+/** The settings the page's controls set, named by their `data-setting` attributes. */
+export type ControlKey = "state" | "shell" | "phosphor" | "speed" | "interactive" | "floorShadow";
+export type ColourKey = "shell" | "phosphor";
+
+const CONTROL_KEYS: readonly ControlKey[] = [
+  "state",
+  "shell",
+  "phosphor",
+  "speed",
+  "interactive",
+  "floorShadow",
+];
+
+const isControlKey = (value: string | undefined): value is ControlKey =>
+  CONTROL_KEYS.some((key) => key === value);
+
+const isColourKey = (value: string | undefined): value is ColourKey =>
+  value === "shell" || value === "phosphor";
+
 const HEX = /^[0-9a-f]{6}$/i;
 
 const isState = (value: string | null): value is BoltComputerState =>
@@ -81,7 +100,7 @@ const isDefault = (settings: BoltComputerSettings) => searchFromSettings(setting
 /** `settings` with one control's value applied, as written in the page's markup. */
 function withSetting(
   settings: BoltComputerSettings,
-  key: string,
+  key: ControlKey,
   raw: string,
 ): BoltComputerSettings {
   switch (key) {
@@ -97,8 +116,6 @@ function withSetting(
       return { ...settings, interactive: raw === "true" };
     case "floorShadow":
       return { ...settings, floorShadow: raw === "true" };
-    default:
-      return settings;
   }
 }
 
@@ -158,11 +175,13 @@ export function startStudio(root: HTMLElement) {
     computer?.update(settings);
     for (const { state, thumb } of thumbs) thumb.update(thumbSettings(state));
     for (const button of root.querySelectorAll<HTMLButtonElement>("button[data-setting]")) {
-      const key = button.dataset.setting as keyof BoltComputerSettings;
+      const key = button.dataset.setting;
+      if (!isControlKey(key)) continue;
       button.setAttribute("aria-pressed", String(String(settings[key]) === button.dataset.value));
     }
     for (const input of root.querySelectorAll<HTMLInputElement>("input[data-setting]")) {
-      const key = input.dataset.setting === "shell" ? "shell" : "phosphor";
+      const key = input.dataset.setting;
+      if (!isColourKey(key)) continue;
       const custom =
         root.querySelector(`button[data-setting="${key}"][aria-pressed="true"]`) === null;
       input.value = settings[key];
@@ -189,8 +208,9 @@ export function startStudio(root: HTMLElement) {
   root.addEventListener("click", (event) => {
     const target = event.target instanceof Element ? event.target : null;
     const option = target?.closest<HTMLButtonElement>("button[data-setting]");
-    if (option?.dataset.setting && option.dataset.value !== undefined) {
-      settings = withSetting(settings, option.dataset.setting, option.dataset.value);
+    const key = option?.dataset.setting;
+    if (isControlKey(key) && option?.dataset.value !== undefined) {
+      settings = withSetting(settings, key, option.dataset.value);
       render();
       return;
     }
@@ -226,8 +246,9 @@ export function startStudio(root: HTMLElement) {
 
   root.addEventListener("input", (event) => {
     const input = event.target instanceof HTMLInputElement ? event.target : null;
-    if (!input?.dataset.setting) return;
-    settings = withSetting(settings, input.dataset.setting, input.value);
+    const key = input?.dataset.setting;
+    if (!input || !isColourKey(key)) return;
+    settings = withSetting(settings, key, input.value);
     render();
   });
 

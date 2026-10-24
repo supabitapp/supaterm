@@ -82,6 +82,8 @@ export class BoltComputerSim {
   /** Seconds since it switched on, and since the state last changed. */
   age = 0;
   since = 0;
+  /** How long the previous state had been showing when it changed. */
+  private previousSince = 0;
   pose: Pose = { yaw: 0, pitch: 0, roll: 0, lift: 0, sx: 1, sy: 1 };
   /** The pointer relative to the housing's centre in CSS px, or null when away. */
   pointer: { readonly x: number; readonly y: number } | null = null;
@@ -105,6 +107,7 @@ export class BoltComputerSim {
   setState(state: BoltComputerState) {
     if (state === this.state) return;
     this.previous = this.state;
+    this.previousSince = this.since;
     this.state = state;
     this.since = 0;
     this.nextHop = this.age + 3 + this.random() * 4;
@@ -114,6 +117,11 @@ export class BoltComputerSim {
   poke() {
     this.hop(0.1, this.random() < 0.5 ? 1 : -1);
     this.reactedAt = this.age;
+  }
+
+  /** The previous state's clock, still running while its face fades out. */
+  get previousTime() {
+    return this.previousSince + this.since;
   }
 
   /** Seconds since the last click. */

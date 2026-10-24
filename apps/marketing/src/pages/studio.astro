@@ -2,18 +2,30 @@
 import { Image } from "astro:assets";
 import appIcon from "../assets/icon.webp";
 import Layout from "../layouts/Layout.astro";
+import "../styles/boltComputer.css";
 import { BOLT_COMPUTER_STATES } from "../lib/boltComputer/faces";
-import { PHOSPHORS, SHELLS, SPEEDS, STATE_COPY } from "../lib/studio";
+import {
+  PHOSPHORS,
+  SHELLS,
+  SPEEDS,
+  STATE_COPY,
+  type ColourKey,
+  type ControlKey,
+} from "../lib/studio";
 
 const colourControls = [
   { key: "shell", label: "Shell", swatches: SHELLS },
   { key: "phosphor", label: "Phosphor", swatches: PHOSPHORS },
-] as const;
+] as const satisfies ReadonlyArray<{
+  readonly key: ColourKey;
+  readonly label: string;
+  readonly swatches: ReadonlyArray<readonly [string, string]>;
+}>;
 
 const toggles = [
   { key: "interactive", label: "Follow pointer" },
   { key: "floorShadow", label: "Floor shadow" },
-] as const;
+] as const satisfies ReadonlyArray<{ readonly key: ControlKey; readonly label: string }>;
 ---
 
 <Layout
@@ -32,7 +44,7 @@ const toggles = [
 
       <div class="studio-grid">
         <div class="stage">
-          <div class="stage-computer" data-stage>
+          <div class="stage-computer bolt-computer" data-stage>
             <Image
               src={appIcon}
               alt=""
@@ -58,7 +70,7 @@ const toggles = [
                   data-value={state}
                   aria-pressed={state === "idle" ? "true" : "false"}
                 >
-                  <span class="screen-thumb" data-thumb={state} />
+                  <span class="screen-thumb bolt-computer" data-thumb={state} />
                   <span>{STATE_COPY[state].name}</span>
                 </button>
               ))
@@ -214,39 +226,10 @@ const toggles = [
     background: radial-gradient(ellipse 60% 50% at 50% 32%, rgba(255, 255, 255, 0.05), transparent 70%);
   }
 
-  /* The icon holds the spot until the computer's canvas arrives, and stays if it never does. */
   .stage-computer {
-    position: relative;
     width: clamp(220px, 26vw, 340px);
-    aspect-ratio: 1;
-    user-select: none;
   }
 
-  .stage-computer img {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    transition: opacity 0.6s ease;
-  }
-
-  /* Canvases are created at runtime, so they carry no scoped-style attribute. They size themselves
-     to reach past their box, so hops and the floor's shadow take no layout space. */
-  .stage-computer :global(canvas),
-  .screen-thumb :global(canvas) {
-    position: absolute;
-    pointer-events: none;
-  }
-
-  .stage-computer :global(canvas) {
-    transition: opacity 0.6s ease;
-  }
-
-  @starting-style {
-    .stage-computer :global(canvas) { opacity: 0; }
-  }
-
-  .stage-computer:has(:global(canvas)) img { opacity: 0; }
   .stage-computer:global(.is-interactive) { cursor: pointer; }
 
   .caption {
@@ -299,9 +282,7 @@ const toggles = [
   }
 
   .screen-thumb {
-    position: relative;
     width: 48px;
-    height: 48px;
   }
 
   .controls {
@@ -349,7 +330,7 @@ const toggles = [
     height: 28px;
     border-radius: 999px;
     background: var(--swatch);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
     transition: box-shadow 0.15s ease;
   }
 

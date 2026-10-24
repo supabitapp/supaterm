@@ -38,12 +38,12 @@ export type RGB = readonly [number, number, number];
 /** How the computer is dressed, and the state it holds when drawn still. */
 export interface Look {
   readonly state: BoltComputerState;
-  readonly shell: RGB;
+  readonly shell: Material;
   readonly phosphor: RGB;
   readonly floorShadow: boolean;
 }
 
-const shellMaterial = (shell: RGB): Material => ({
+export const shellMaterial = (shell: RGB): Material => ({
   albedo: linear(shell),
   f0: 0.04,
   spec: 0.3,
@@ -252,8 +252,6 @@ export class BoltComputerRenderer {
   private grain: CanvasPattern | null = null;
   private readonly grid: Grid = newGrid();
   private readonly previous: Grid = newGrid();
-  private material = shellMaterial([0, 0, 0]);
-  private materialKey = "";
   private readonly tiny = makeCanvas(this.grid.cols, this.grid.rows);
   private readonly tinyHalf = makeCanvas(this.grid.cols / 2, this.grid.rows / 2);
   private tinyImage: ImageData | null = null;
@@ -267,11 +265,6 @@ export class BoltComputerRenderer {
     if (canvas.width !== w || canvas.height !== h) {
       canvas.width = w;
       canvas.height = h;
-    }
-    const key = look.shell.join(",");
-    if (key !== this.materialKey) {
-      this.materialKey = key;
-      this.material = shellMaterial(look.shell);
     }
     this.draw(context2d(canvas), frame, dpr, sim?.pose ?? restPose(look.state), sim, look);
   }
@@ -309,7 +302,7 @@ export class BoltComputerRenderer {
     if (sim.previous !== null && sim.since < FADE) {
       const p = this.previous;
       p.v.fill(0);
-      FACES[sim.previous](p, sim.since + 10);
+      FACES[sim.previous](p, sim.previousTime);
       const k = sim.since / FADE;
       for (let i = 0; i < g.length; i++) g[i] = (g[i] ?? 0) * k + (p.v[i] ?? 0) * (1 - k);
     }
@@ -404,7 +397,7 @@ export class BoltComputerRenderer {
     if (look.floorShadow) drawFloorShadow(ctx, view, pose);
     const frontZ = view.R[8];
     const facing = Math.abs(frontZ) > 0.005 ? Math.sign(frontZ) : 0;
-    this.drawHousing(ctx, view, facing);
+    this.drawHousing(ctx, view, facing, look.shell);
     ctx.save();
     if (facing > 0) {
       this.drawScreen(sized, this.compose(sim, look.state), ledColor(sim, look));
@@ -418,7 +411,7 @@ export class BoltComputerRenderer {
   }
 
   /** The housing goes on its own layer so the grain stays on it. */
-  private drawHousing(ctx: CanvasRenderingContext2D, view: View, facing: number) {
+  private drawHousing(ctx: CanvasRenderingContext2D, view: View, facing: number, shell: Material) {
     const { width, height } = ctx.canvas;
     if (this.layer?.width !== width || this.layer.height !== height) {
       this.layer = makeCanvas(width, height);
@@ -428,8 +421,8 @@ export class BoltComputerRenderer {
     layer.setTransform(1, 0, 0, 1, 0, 0);
     layer.globalCompositeOperation = "source-over";
     layer.clearRect(0, 0, width, height);
-    this.drawBody(layer, view);
-    if (facing !== 0) drawPlate(layer, view, facing, this.material);
+    this.drawBody(layer, view, shell);
+    if (facing !== 0) drawPlate(layer, view, facing, shell);
     if (this.grain) {
       layer.setTransform(1, 0, 0, 1, 0, 0);
       layer.globalCompositeOperation = "source-atop";
@@ -441,7 +434,7 @@ export class BoltComputerRenderer {
     ctx.drawImage(this.layer, 0, 0);
   }
 
-  private drawBody(ctx: CanvasRenderingContext2D, { R, U, project }: View) {
+  private drawBody(ctx: CanvasRenderingContext2D, { R, U, project }: View, shell: Material) {
     const { pos, quads, normals } = bodyMesh();
     const projected = this.projected;
     for (let i = 0; i < pos.length; i += 3) {
@@ -467,7 +460,7 @@ export class BoltComputerRenderer {
     ctx.lineJoin = "round";
     for (const [, k] of order) {
       const w = rotate(R, normals[k * 3] ?? 0, normals[k * 3 + 1] ?? 0, normals[k * 3 + 2] ?? 0);
-      const color = css(radiance(this.material, w[0], w[1], w[2]));
+      const color = css(radiance(shell, w[0], w[1], w[2]));
       ctx.beginPath();
       for (let j = 0; j < 4; j++) {
         const i = at(k, j);

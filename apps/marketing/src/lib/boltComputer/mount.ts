@@ -1,6 +1,6 @@
 /*! @license robot-heads | Copyright (c) 2026 Fayaz Ahmed | MIT License | github.com/fayazara/robot-heads */
 import type { BoltComputerState } from "./faces";
-import { BoltComputerRenderer, frameFor, type Look, type RGB } from "./render";
+import { BoltComputerRenderer, frameFor, shellMaterial, type Look, type RGB } from "./render";
 import { BoltComputerSim, POINTER_REACH } from "./sim";
 import { onPointerMove, pointer, subscribe } from "./ticker";
 
@@ -41,7 +41,7 @@ const hexToRgb = (hex: string): RGB => {
 
 const lookOf = (settings: BoltComputerSettings): Look => ({
   state: settings.state,
-  shell: hexToRgb(settings.shell),
+  shell: shellMaterial(hexToRgb(settings.shell)),
   phosphor: hexToRgb(settings.phosphor),
   floorShadow: settings.floorShadow,
 });
