@@ -5,7 +5,7 @@ import { sourceControlClients } from "@supaterm/client-runtime/source-control-cl
 import {
   resolveThreadCurrentPullRequestLink,
   resolveThreadPullRequestBadge,
-} from "@supaterm/shared/threadPullRequests";
+} from "@supaterm/client-runtime/thread-pull-requests";
 
 export type ThreadPr = NonNullable<VcsStatusResult["pr"]>;
 

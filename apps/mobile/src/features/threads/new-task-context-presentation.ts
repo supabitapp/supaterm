@@ -1,5 +1,5 @@
 import { sanitizeNewRefName } from "@supaterm/shared/git";
-import { parseChangeRequestUrl } from "@supaterm/shared/changeRequestUrl";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { resolveSendEnvMode } from "@supaterm/shared/projectSettings";
 import type { ComposerDraftWorkspaceSelection } from "../../state/use-composer-drafts";
 
@@ -79,7 +79,7 @@ export function resolveNewTaskBranchLabel(input: {
   readonly pullRequestReference?: string;
 }): string {
   if (input.workspaceMode === "worktree" && input.pullRequestReference) {
-    const pr = parseChangeRequestUrl(input.pullRequestReference);
+    const pr = sourceControlClients.parseChangeRequestUrl(input.pullRequestReference)?.link;
     if (pr) return `From PR #${pr.number}`;
   }
   if (!input.branchName) {

@@ -1,7 +1,7 @@
 import { SIDEBAR_SORTABLE_DRAG_DISABLED } from "./SidebarListMarkers";
 import { ThreadHoverCard, ThreadHoverCardPopup } from "../ThreadHoverCard";
 import { discardComposerDraft } from "../../lib/discardComposerDraft";
-import { resolveThreadCurrentPullRequestLink } from "@supaterm/shared/threadPullRequests";
+import { resolveThreadCurrentPullRequestLink } from "@supaterm/client-runtime/thread-pull-requests";
 import { getProviderOptionDescriptors } from "@supaterm/shared/model";
 import { formatModelSelectionEffort } from "@supaterm/client-runtime/state/thread-execution";
 import {

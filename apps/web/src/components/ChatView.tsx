@@ -127,7 +127,7 @@ import { formatModelSlugName, resolveSelectableModel } from "@supaterm/shared/mo
 import { projectScriptCwd, resolveProjectScripts } from "@supaterm/shared/projectScripts";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 import { sourceControlRepositorySelector } from "@supaterm/shared/sourceControl";
-import { resolveThreadReferenceCopyTarget } from "@supaterm/shared/threadReference";
+import { resolveThreadReferenceCopyTarget } from "@supaterm/client-runtime/thread-reference";
 import { resolveTerminalSessionLabel } from "@supaterm/shared/terminalLabels";
 import { useAtomValue } from "@effect/atom-react";
 import {

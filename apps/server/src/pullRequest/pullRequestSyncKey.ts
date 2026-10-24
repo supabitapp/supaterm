@@ -7,7 +7,7 @@ import {
   type ThreadPullRequestKey,
 } from "@supaterm/contracts";
 import { sourceControlRepositorySelector } from "@supaterm/shared/sourceControl";
-import { normalizeThreadPullRequestKey } from "@supaterm/shared/threadPullRequests";
+import { normalizeThreadPullRequestKey } from "../sourceControl/threadPullRequests.ts";
 
 export function pullRequestSyncKey(
   reference: Pick<PullRequestRef, "host" | "repository" | "number"> &

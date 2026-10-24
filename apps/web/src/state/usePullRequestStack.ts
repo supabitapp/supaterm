@@ -5,7 +5,7 @@ import {
   type PullRequestDetail,
   type PullRequestRef,
 } from "@supaterm/contracts";
-import { parseChangeRequestUrl } from "@supaterm/shared/changeRequestUrl";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { Atom } from "effect/reactivity";
 import * as Schema from "effect/Schema";
 import { allowsSinglePullRequestMerge } from "../components/pullRequest/pullRequestDetail.logic";
@@ -51,7 +51,10 @@ function pullRequestStackReference(
 ) {
   return detail === null || reference === null || detail.capabilities.stacks !== true
     ? null
-    : { ...reference, host: reference.host ?? parseChangeRequestUrl(detail.url)?.host };
+    : {
+        ...reference,
+        host: reference.host ?? sourceControlClients.parseChangeRequestUrl(detail.url)?.link.host,
+      };
 }
 
 /** A pull request in a native stack merges with its stack, never on its own. */

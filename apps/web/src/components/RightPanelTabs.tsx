@@ -4,7 +4,7 @@ import { useProjects, useServerConfigs, useThreadShells } from "~/state/entities
 import {
   threadPullRequestKeysEqual,
   visibleThreadPullRequests,
-} from "@supaterm/shared/threadPullRequests";
+} from "@supaterm/client-runtime/thread-pull-requests";
 import type {
   ContextMenuItem,
   EnvironmentId,

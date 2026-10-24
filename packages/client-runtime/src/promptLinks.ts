@@ -15,7 +15,7 @@ import {
   threadPullRequestKeyOf,
   threadPullRequestsOf,
   visibleThreadPullRequests,
-} from "@supaterm/shared/threadPullRequests";
+} from "./threadPullRequests.ts";
 
 const repositoryKey = (repository: PromptLinkRepository) =>
   `github.com/${repository.owner}/${repository.name}`.toLowerCase();

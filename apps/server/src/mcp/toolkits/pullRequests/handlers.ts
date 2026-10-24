@@ -1,8 +1,4 @@
 import {
-  threadPullRequestsOf,
-  threadPullRequestKeysEqual,
-} from "@supaterm/shared/threadPullRequests";
-import {
   CommandId,
   pullRequestHostOf,
   type OrchestrationProjectShell,
@@ -12,13 +8,6 @@ import {
   type ThreadPullRequestLink,
   type ThreadWorkflowRunWatch,
 } from "@supaterm/contracts";
-import { changeRequestUrlFor, parseChangeRequestUrl } from "@supaterm/shared/changeRequestUrl";
-import {
-  normalizeThreadPullRequestKey,
-  resolveThreadPullRequestChains,
-  threadPullRequestKeyOf,
-  visibleThreadPullRequests,
-} from "@supaterm/shared/threadPullRequests";
 import * as Cause from "effect/Cause";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
@@ -31,6 +20,15 @@ import * as RepositoryIdentityResolver from "../../../project/RepositoryIdentity
 import * as PullRequestReviewGuideService from "../../../pullRequest/PullRequestReviewGuideService.ts";
 import * as PullRequestService from "../../../pullRequest/PullRequestService.ts";
 import { projectForPullRequest } from "../../../pullRequest/pullRequestSyncKey.ts";
+import { sourceControlClients } from "../../../sourceControl/sourceControlClients.ts";
+import {
+  normalizeThreadPullRequestKey,
+  resolveThreadPullRequestChains,
+  threadPullRequestKeyOf,
+  threadPullRequestKeysEqual,
+  threadPullRequestsOf,
+  visibleThreadPullRequests,
+} from "../../../sourceControl/threadPullRequests.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
 import {
@@ -39,6 +37,7 @@ import {
   PullRequestUrlInvalidError,
   PullRequestTargetIncompleteError,
   PullRequestHostRequiredError,
+  PullRequestUrlUnavailableError,
   PullRequestUnlinkFailedError,
   PullRequestListFailedError,
   PullRequestNotOpenError,
@@ -83,8 +82,8 @@ const resolveTarget = Effect.fn("PullRequestsToolkit.resolveTarget")(function* (
   project: OrchestrationProjectShell | undefined,
 ) {
   if (input.url !== undefined) {
-    const parsed = parseChangeRequestUrl(input.url);
-    if (parsed === null) {
+    const parsed = sourceControlClients.parseChangeRequestUrl(input.url)?.link;
+    if (parsed === undefined) {
       return yield* new PullRequestUrlInvalidError({});
     }
     return { ...normalizeThreadPullRequestKey(parsed), url: input.url } satisfies ResolvedTarget;
@@ -98,24 +97,21 @@ const resolveTarget = Effect.fn("PullRequestsToolkit.resolveTarget")(function* (
     return yield* new PullRequestHostRequiredError({});
   }
   const repository = input.repository.toLowerCase();
+  // Without a URL, a public forge host says what shape its change request URLs take;
+  // any other host is taken to run the project's own forge.
+  const kind = sourceControlClients.findByPublicHost(host)?.kind ?? projectHost.kind;
   const url =
-    changeRequestUrlFor(
-      host === projectHost.host ? projectHost.kind : null,
-      host,
-      repository,
-      input.number,
-      project?.repositoryIdentity?.locator.remoteUrl,
-    ) ??
-    (/(?:^|\/)_git\/[^/]+$/u.test(repository)
-      ? changeRequestUrlFor(
-          "azure-devops",
+    kind === null
+      ? null
+      : sourceControlClients.get(kind).changeRequestUrl({
           host,
           repository,
-          input.number,
-          project?.repositoryIdentity?.locator.remoteUrl,
-        )
-      : null) ??
-    `https://${host}/${repository}/pull/${input.number}`;
+          number: input.number,
+          remoteUrl: project?.repositoryIdentity?.locator.remoteUrl,
+        });
+  if (url === null) {
+    return yield* new PullRequestUrlUnavailableError({});
+  }
   return {
     ...normalizeThreadPullRequestKey({ host, repository, number: input.number, url }),
     url,
@@ -413,8 +409,18 @@ const make = Effect.gen(function* () {
       ),
     );
     const callerProject = known.find((project) => project.id === callerThread?.projectId);
+    // A pull request named by host and repository builds its URL through the project that holds
+    // it, which need not be the caller's.
+    const urlProject = (input: PullRequestTargetInput) =>
+      input.url === undefined && input.host !== undefined && input.repository !== undefined
+        ? (projectForPullRequest(
+            known,
+            { host: input.host, repository: input.repository },
+            callerProject,
+          ) ?? callerProject)
+        : callerProject;
     return yield* Effect.forEach(targets, (input) =>
-      resolveTarget(input, callerProject).pipe(
+      resolveTarget(input, urlProject(input)).pipe(
         Effect.map((target) => ({
           input,
           target,

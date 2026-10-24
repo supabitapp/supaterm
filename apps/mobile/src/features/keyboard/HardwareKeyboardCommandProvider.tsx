@@ -1,6 +1,6 @@
 import * as Dialog from "../../components/ui/Dialog";
 import { StackActions, useNavigation } from "@react-navigation/native";
-import { resolveThreadReferenceCopyTarget } from "@supaterm/shared/threadReference";
+import { resolveThreadReferenceCopyTarget } from "@supaterm/client-runtime/thread-reference";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { resolveThreadForkSource } from "@supaterm/client-runtime/state/thread-workflows";
 import { AuthOrchestrationOperateScope, ThreadId } from "@supaterm/contracts";

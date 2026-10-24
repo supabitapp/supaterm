@@ -10,8 +10,8 @@ import {
   type PullRequestLinkedThreadsResult,
 } from "@supaterm/contracts";
 import { formatComposerContextReference } from "@supaterm/shared/composerContextReferences";
-import { parseChangeRequestUrl } from "@supaterm/shared/changeRequestUrl";
-import { normalizeThreadPullRequestKey } from "@supaterm/shared/threadPullRequests";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
+import { normalizeThreadPullRequestKey } from "@supaterm/client-runtime/thread-pull-requests";
 import { useRef, useState } from "react";
 import { Platform } from "react-native";
 import { useAndroidWorkspaceSelection } from "../workspace/useAndroidWorkspaceSelection";
@@ -46,7 +46,7 @@ export function usePullRequestThreads(
   const target = pullRequestTarget(params);
   const config = useEnvironmentServerConfig(target.environmentId);
   const supported = config != null;
-  const parsed = pr ? parseChangeRequestUrl(pr.url) : null;
+  const parsed = pr ? sourceControlClients.parseChangeRequestUrl(pr.url)?.link : undefined;
   const reference = {
     ...target,
     input: {

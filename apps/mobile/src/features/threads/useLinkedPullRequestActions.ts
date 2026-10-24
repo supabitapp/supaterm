@@ -16,7 +16,7 @@ import {
   type ThreadPullRequestKey,
   type ThreadPullRequestLink,
 } from "@supaterm/contracts";
-import { normalizeThreadPullRequestKey } from "@supaterm/shared/threadPullRequests";
+import { normalizeThreadPullRequestKey } from "@supaterm/client-runtime/thread-pull-requests";
 import * as Clipboard from "expo-clipboard";
 import { useCallback, useMemo } from "react";
 

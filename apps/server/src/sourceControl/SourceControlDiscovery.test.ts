@@ -219,15 +219,9 @@ Logged in to gitlab.com as gitlab-user
           detail: Option.none(),
         },
         {
-          kind: SourceControlProviderKind.make("azure-devops"),
+          kind: SourceControlProviderKind.make("gitcafe"),
           auth: "authenticated",
-          account: Option.some("azure-user@example.com"),
-          detail: Option.none(),
-        },
-        {
-          kind: SourceControlProviderKind.make("bitbucket"),
-          auth: "authenticated",
-          account: Option.some("bitbucket-user"),
+          account: Option.some("cafe-user"),
           detail: Option.none(),
         },
         {
@@ -237,9 +231,15 @@ Logged in to gitlab.com as gitlab-user
           detail: Option.none(),
         },
         {
-          kind: SourceControlProviderKind.make("gitcafe"),
+          kind: SourceControlProviderKind.make("bitbucket"),
           auth: "authenticated",
-          account: Option.some("cafe-user"),
+          account: Option.some("bitbucket-user"),
+          detail: Option.none(),
+        },
+        {
+          kind: SourceControlProviderKind.make("azure-devops"),
+          auth: "authenticated",
+          account: Option.some("azure-user@example.com"),
           detail: Option.none(),
         },
       ],

@@ -9,13 +9,13 @@ import {
   runRanAfter,
   usageLimitBlockedRun,
 } from "@supaterm/shared/orchestrationV2ThreadError";
-import { threadPullRequestsOf } from "@supaterm/shared/threadPullRequests";
+import { threadPullRequestsOf } from "../sourceControl/threadPullRequests.ts";
 import {
   normalizeThreadPullRequestKey,
   visibleThreadPullRequests,
   threadPullRequestKeysEqual,
   legacyThreadPullRequestKey,
-} from "@supaterm/shared/threadPullRequests";
+} from "../sourceControl/threadPullRequests.ts";
 import {
   ORCHESTRATION_V2_WORKSPACE_PREPARATION_FAILURE_CODE,
   canAutoDismissUserInput,

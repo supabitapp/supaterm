@@ -1,12 +1,14 @@
-import { SourceControlProviderKind } from "@supaterm/contracts";
 import { defineSourceControlDriver } from "@supaterm/source-control-core/server/driver";
 import * as Effect from "effect/Effect";
+
+import { definition } from "../client/definition.ts";
 
 import * as BitbucketPullRequestProvider from "./BitbucketPullRequestProvider.ts";
 import * as BitbucketSourceControlProvider from "./BitbucketSourceControlProvider.ts";
 
 export const driver = defineSourceControlDriver({
-  kind: SourceControlProviderKind.make("bitbucket"),
+  kind: definition.kind,
+  definition,
   make: Effect.all({
     sourceControl: BitbucketSourceControlProvider.make,
     discovery: BitbucketSourceControlProvider.makeDiscovery,

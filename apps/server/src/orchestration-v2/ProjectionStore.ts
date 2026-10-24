@@ -1,4 +1,4 @@
-import { applyThreadPullRequestLinkUpdate } from "@supaterm/shared/threadPullRequests";
+import { applyThreadPullRequestLinkUpdate } from "../sourceControl/threadPullRequests.ts";
 import { projectTurnItemForWire } from "./WireProjection.ts";
 import * as Stream from "effect/Stream";
 import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
@@ -14,7 +14,7 @@ import {
   threadErrorSummary,
   usageLimitRunPresentedAsLatest,
 } from "@supaterm/shared/orchestrationV2ThreadError";
-import { threadPullRequestsOf } from "@supaterm/shared/threadPullRequests";
+import { threadPullRequestsOf } from "../sourceControl/threadPullRequests.ts";
 import type {
   OrchestrationV2AppThread,
   OrchestrationV2Checkpoint,

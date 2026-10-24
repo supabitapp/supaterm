@@ -19,7 +19,7 @@ import type {
 import {
   threadPullRequestKeyOf,
   visibleThreadPullRequests,
-} from "@supaterm/shared/threadPullRequests";
+} from "@supaterm/client-runtime/thread-pull-requests";
 import * as Option from "effect/Option";
 import { AsyncResult, Atom } from "effect/reactivity";
 import { useLayoutEffect } from "react";

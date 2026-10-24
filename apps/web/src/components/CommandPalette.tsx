@@ -27,7 +27,7 @@ import {
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { connectionStatusText } from "@supaterm/client-runtime/connection";
 import { resolveThreadForkSource } from "@supaterm/client-runtime/state/thread-workflows";
-import { resolveThreadReferenceCopyTarget } from "@supaterm/shared/threadReference";
+import { resolveThreadReferenceCopyTarget } from "@supaterm/client-runtime/thread-reference";
 import {
   canPreloadBrowsePath,
   createBrowseNavigationCoordinator,
