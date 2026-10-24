@@ -12,8 +12,6 @@ import {
 } from "./geometry";
 import { HALF, KEY, smooth } from "./light";
 
-export type RGB = readonly [number, number, number];
-
 export const PLATE = extents(HOUSING, BEVEL);
 export const GLASS = extents(SCREEN_HOLE, GASKET);
 const GRID_COLS = Math.ceil((2 * GLASS.hx) / LED_PITCH);
@@ -173,15 +171,11 @@ function bakeBack(unit: number) {
   });
 }
 
+// The dark lens of an unlit LED, faintly tinted by the phosphor.
+const UNLIT_LED = "rgba(71,77,53,0.16)";
+
 /** The screen's dark phosphor and the unlit LEDs, which never change. */
-export function bakeScreenBase(
-  w: number,
-  h: number,
-  pitch: number,
-  x0: number,
-  y0: number,
-  led: RGB,
-) {
+export function bakeScreenBase(w: number, h: number, pitch: number, x0: number, y0: number) {
   const canvas = makeCanvas(w, h);
   const ctx = context2d(canvas);
   const g = ctx.createRadialGradient(w * 0.5, h * 0.45, 0, w * 0.5, h * 0.5, Math.max(w, h) * 0.65);
@@ -191,7 +185,7 @@ export function bakeScreenBase(
   ctx.fillRect(0, 0, w, h);
   const cell = pitch * 0.8;
   const off = (pitch - cell) / 2;
-  ctx.fillStyle = `rgba(${Math.round(40 + led[0] * 0.12)},${Math.round(48 + led[1] * 0.12)},${Math.round(40 + led[2] * 0.12)},0.16)`;
+  ctx.fillStyle = UNLIT_LED;
   const c0 = -Math.ceil(x0 / pitch);
   const c1 = Math.ceil((w - x0) / pitch);
   const r0 = -Math.ceil(y0 / pitch);
@@ -256,18 +250,10 @@ export interface Bakes {
   readonly glass: HTMLCanvasElement;
 }
 
-// Bakes depend only on the size, so every computer on the page at that size shares them.
-const bakes = new Map<number, Bakes>();
-export function bakesFor(unit: number): Bakes {
-  const key = Math.round(unit);
-  let b = bakes.get(key);
-  if (!b) {
-    b = {
-      front: bakeFront(unit),
-      back: bakeBack(unit),
-      glass: bakeGlass(SCREEN.hx * 2 * unit, SCREEN.hy * 2 * unit),
-    };
-    bakes.set(key, b);
-  }
-  return b;
+export function bakeTextures(unit: number): Bakes {
+  return {
+    front: bakeFront(unit),
+    back: bakeBack(unit),
+    glass: bakeGlass(SCREEN.hx * 2 * unit, SCREEN.hy * 2 * unit),
+  };
 }

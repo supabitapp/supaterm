@@ -19,7 +19,7 @@ describe("BoltComputerSim", () => {
     advance(sim, 5);
     sim.poke();
     advance(sim, 0.5);
-    expect(sim.shown).toBe("happy");
+    expect(sim.sparkle).toBe(1);
     expect(sim.settled).toBe(false);
     advance(sim, 5);
     expect(sim.settled).toBe(true);

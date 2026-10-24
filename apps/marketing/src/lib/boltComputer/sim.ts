@@ -1,5 +1,3 @@
-import type { Face } from "./faces";
-
 class Spring {
   x = 0;
   v = 0;
@@ -40,8 +38,9 @@ interface Jump {
 
 const CROUCH = 0.11;
 export const POWER_ON = 0.55;
-export const FADE = 0.3;
 const REACTION = 1.6;
+const FADE = 0.3;
+const GLITCH = 0.13;
 export const POINTER_REACH = 700;
 
 export interface Pose {
@@ -64,40 +63,52 @@ export const REST_POSE: Pose = { yaw: -0.18, pitch: 0.04, roll: 0.03, lift: 0, s
  * loop can stop.
  */
 export class BoltComputerSim {
-  shown: Face = "idle";
-  previous: Face = "idle";
-  /** Seconds since `shown` changed, and since creation. */
-  switched = 10;
+  /** Seconds since it switched on. */
   age = 0;
   pose: Pose = { yaw: 0, pitch: 0, roll: 0, lift: 0, sx: 1, sy: 1 };
   /** The pointer relative to the housing's centre in CSS px, or null when away. */
   pointer: { readonly x: number; readonly y: number } | null = null;
 
-  private time = 0;
   private readonly yaw = new Spring();
   private readonly pitch = new Spring();
   private readonly roll = new Spring();
   private readonly squash = new Spring();
   private jump: Jump | null = null;
   private readonly random: () => number;
-  private reactUntil = -1;
+  private reactedAt = Number.NEGATIVE_INFINITY;
 
   constructor(seed: number) {
     this.random = rng(seed);
   }
 
-  /** A click: a hop with a full turn and a happy face. */
+  /** A click: a hop with a full turn, and sparkles round the bolt. */
   poke() {
     this.hop(0.1, this.random() < 0.5 ? 1 : -1);
-    this.reactUntil = this.time + REACTION;
+    this.reactedAt = this.age;
+  }
+
+  /** Seconds since the last click. */
+  get reaction() {
+    return this.age - this.reactedAt;
+  }
+
+  /** How strongly the click's sparkles show, fading in and out. */
+  get sparkle() {
+    const t = this.reaction;
+    return Math.max(0, Math.min(1, t / FADE, (REACTION + FADE - t) / FADE));
+  }
+
+  /** The screen tears briefly as the sparkles start and end. */
+  get glitching() {
+    const t = this.reaction;
+    return t < GLITCH || (t >= REACTION && t < REACTION + GLITCH);
   }
 
   get settled(): boolean {
     return (
-      this.shown === "idle" &&
       this.jump === null &&
       this.age > POWER_ON &&
-      this.switched > FADE &&
+      this.reaction > REACTION + FADE &&
       this.yaw.resting &&
       this.pitch.resting &&
       this.roll.resting &&
@@ -127,17 +138,7 @@ export class BoltComputerSim {
   }
 
   private step(dt: number) {
-    this.time += dt;
     this.age += dt;
-    this.switched += dt;
-    const t = this.time;
-
-    const shown: Face = t < this.reactUntil ? "happy" : "idle";
-    if (shown !== this.shown) {
-      this.previous = this.shown;
-      this.shown = shown;
-      this.switched = 0;
-    }
 
     let { yaw, pitch, roll } = REST_POSE;
     if (this.pointer) {

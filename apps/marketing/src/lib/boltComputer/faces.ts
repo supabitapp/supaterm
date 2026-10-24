@@ -1,5 +1,3 @@
-export type Face = "idle" | "happy";
-
 export const FACE_COLS = 28;
 export const FACE_ROWS = 25;
 
@@ -83,9 +81,9 @@ const BOLT_CELLS = BOLT.flatMap((row, r) =>
   Array.from(row).flatMap((cell, c) => (cell === "#" ? [[c, r] as const] : [])),
 );
 
-const bolt = (g: Grid) => {
+export function drawBolt(g: Grid) {
   for (const [c, r] of BOLT_CELLS) put(g, BOLT_X + c, BOLT_Y + r, 1);
-};
+}
 
 const SPARKLES = [
   [2, 3, 0],
@@ -94,23 +92,16 @@ const SPARKLES = [
   [23, 19, 0.15],
 ] as const;
 
-export const FACES: Record<Face, (g: Grid, time: number) => void> = {
-  idle(g) {
-    bolt(g);
-  },
-
-  happy(g, t) {
-    bolt(g);
-    for (const [c, r, delay] of SPARKLES) {
-      const p = (t * 1.8 + delay) % 1;
-      const v = Math.sin(p * Math.PI);
-      put(g, c, r, v);
-      if (v > 0.5) {
-        put(g, c - 1, r, v * 0.5);
-        put(g, c + 1, r, v * 0.5);
-        put(g, c, r - 1, v * 0.5);
-        put(g, c, r + 1, v * 0.5);
-      }
+/** Sparkles popping round the bolt, `t` seconds in, at `level` brightness. */
+export function drawSparkles(g: Grid, t: number, level: number) {
+  for (const [c, r, delay] of SPARKLES) {
+    const v = Math.sin(((t * 1.8 + delay) % 1) * Math.PI) * level;
+    put(g, c, r, v);
+    if (v > 0.5) {
+      put(g, c - 1, r, v * 0.5);
+      put(g, c + 1, r, v * 0.5);
+      put(g, c, r - 1, v * 0.5);
+      put(g, c, r + 1, v * 0.5);
     }
-  },
-};
+  }
+}

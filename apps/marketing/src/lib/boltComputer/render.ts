@@ -3,15 +3,14 @@ import {
   PLATE,
   SCREEN,
   bakeScreenBase,
-  bakesFor,
+  bakeTextures,
   context2d,
   grainPattern,
   makeCanvas,
   newGrid,
   type Bakes,
-  type RGB,
 } from "./bakes";
-import { FACES, hash, tear, type Grid } from "./faces";
+import { drawBolt, drawSparkles, hash, tear, type Grid } from "./faces";
 import {
   BEVEL,
   DEPTH,
@@ -32,7 +31,7 @@ import {
   type V3,
 } from "./geometry";
 import { css, linear, radiance, smooth, type Material } from "./light";
-import { FADE, POWER_ON, REST_POSE, type BoltComputerSim, type Pose } from "./sim";
+import { POWER_ON, REST_POSE, type BoltComputerSim, type Pose } from "./sim";
 
 const SHELL: Material = {
   albedo: linear([226, 219, 202]),
@@ -41,7 +40,6 @@ const SHELL: Material = {
   shininess: 40,
   rim: 0.5,
 };
-const PHOSPHOR: RGB = [255, 240, 106];
 
 const OUTER = extents(HOUSING);
 
@@ -75,6 +73,7 @@ export function frameFor(box: number): Frame {
   return { box, padTop, padBottom, padSide, unit, cx: padSide + box / 2, cy: padTop + box / 2 };
 }
 
+const PHOSPHOR = [255, 240, 106] as const;
 const LED_COLOR = `rgb(${PHOSPHOR.join(",")})`;
 // Each LED's hot centre, a step toward white.
 const LED_CORE = `rgb(${PHOSPHOR.map((c) => Math.round(c + (255 - c) * 0.35)).join(",")})`;
@@ -225,7 +224,6 @@ export class BoltComputerRenderer {
   private layer: HTMLCanvasElement | null = null;
   private grain: CanvasPattern | null = null;
   private readonly grid: Grid = newGrid();
-  private readonly previous: Grid = newGrid();
   private readonly tiny = makeCanvas(this.grid.cols, this.grid.rows);
   private readonly tinyHalf = makeCanvas(this.grid.cols / 2, this.grid.rows / 2);
   private tinyImage: ImageData | null = null;
@@ -244,16 +242,18 @@ export class BoltComputerRenderer {
   }
 
   private prepare(unit: number): Sized {
-    if (this.sized && Math.abs(unit - this.sized.unit) <= 0.5) return this.sized;
+    // Textures are drawn scaled to the housing, so they only need rebaking once the size has
+    // moved well away from the one they were baked at, not on every frame of a resize.
+    if (this.sized && Math.abs(unit / this.sized.unit - 1) < 0.1) return this.sized;
     const screen = makeCanvas(SCREEN.hx * 2 * unit, SCREEN.hy * 2 * unit);
     const pitch = LED_PITCH * unit;
     const x0 = (screen.width - pitch * this.grid.cols) / 2;
     const y0 = (screen.height - pitch * this.grid.rows) / 2;
     this.sized = {
       unit,
-      bakes: bakesFor(unit),
+      bakes: bakeTextures(unit),
       screen,
-      screenBase: bakeScreenBase(screen.width, screen.height, pitch, x0, y0, PHOSPHOR),
+      screenBase: bakeScreenBase(screen.width, screen.height, pitch, x0, y0),
       pitch,
       x0,
       y0,
@@ -266,24 +266,14 @@ export class BoltComputerRenderer {
     const g = grid.v;
     const { cols, rows } = grid;
     g.fill(0);
-    if (!sim) {
-      FACES.idle(grid, 0);
-      return grid;
-    }
-    FACES[sim.shown](grid, sim.switched);
-    // A cross-fade from the last face, with a flicker of glitch.
-    if (sim.switched < FADE) {
-      const p = this.previous;
-      p.v.fill(0);
-      FACES[sim.previous](p, sim.switched + 10);
-      const k = sim.switched / FADE;
-      for (let i = 0; i < g.length; i++) g[i] = (g[i] ?? 0) * k + (p.v[i] ?? 0) * (1 - k);
-      if (sim.switched < 0.13) {
-        const seed = Math.floor(sim.age * 30);
-        tear(grid, seed, 1);
-        for (let i = 0; i < g.length; i++) {
-          if (hash(i, seed) > 0.96) g[i] = Math.max(g[i] ?? 0, 0.3);
-        }
+    drawBolt(grid);
+    if (!sim) return grid;
+    if (sim.sparkle > 0) drawSparkles(grid, sim.reaction, sim.sparkle);
+    if (sim.glitching) {
+      const seed = Math.floor(sim.age * 30);
+      tear(grid, seed, 1);
+      for (let i = 0; i < g.length; i++) {
+        if (hash(i, seed) > 0.96) g[i] = Math.max(g[i] ?? 0, 0.3);
       }
     }
     // Switching on: a bright line that opens to the full screen.
