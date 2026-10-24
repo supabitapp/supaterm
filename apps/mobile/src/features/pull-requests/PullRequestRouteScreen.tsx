@@ -50,7 +50,6 @@ import {
   View,
 } from "react-native";
 import { NativeScrollViewMarker as ScrollViewMarker } from "../../native/NativeScrollViewMarker";
-import { useRestingTopOffset } from "../../native/useRestingTopOffset";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppText as Text } from "../../components/ui/AppText";
@@ -92,16 +91,9 @@ import { usePullRequestStack, type PullRequestStackState } from "./usePullReques
 import { usePullRequestEnvironmentFallback } from "./usePullRequestEnvironmentFallback";
 
 function PullRequestTabScrollView(props: ScrollViewProps) {
-  const insets = useSafeAreaInsets();
-  const restingOffset = useRestingTopOffset(insets.top, props);
   return (
     <ScrollViewMarker style={{ flex: 1 }}>
-      <ScrollView
-        {...props}
-        {...restingOffset}
-        automaticallyAdjustContentInsets={false}
-        contentInsetAdjustmentBehavior="never"
-      />
+      <ScrollView {...props} />
     </ScrollViewMarker>
   );
 }
@@ -545,10 +537,9 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
                   renderScrollComponent={
                     Platform.OS === "ios" ? PullRequestTabScrollView : undefined
                   }
-                  contentInsetAdjustmentBehavior="never"
-                  contentInset={
-                    Platform.OS === "ios" ? { top: insets.top, bottom: insets.bottom } : undefined
-                  }
+                  // UIKit owns the bar's inset, so a minimizing bar and a resized column
+                  // move the list in the same frame as the bar.
+                  contentInsetAdjustmentBehavior="automatic"
                   contentInsetStartAdjustment={Platform.OS === "ios" ? insets.top : 0}
                   refreshControl={
                     <RefreshControl

@@ -7,7 +7,6 @@ const reactTests = [
   "src/features/settings/components/BranchNamingSettings.test.tsx",
   "src/features/voice-input/useVoiceInputController.test.tsx",
   "src/native/NativeHeaderToolbar.test.tsx",
-  "src/native/useRestingTopOffset.test.tsx",
   "src/state/use-composer-attachment-actions.test.tsx",
   "src/state/use-selected-thread-git-actions.test.tsx",
 ];
