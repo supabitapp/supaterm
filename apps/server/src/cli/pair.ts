@@ -57,7 +57,12 @@ import {
   resolveHeadlessConnectionString,
 } from "../startupAccess.ts";
 import { authScopesFlag } from "./authScopes.ts";
-import { baseDirFlag, DurationFromString, resolveCliWorktreeHome } from "./config.ts";
+import {
+  baseDirFlag,
+  DurationFromString,
+  requireMatchingServerVersion,
+  resolveCliWorktreeHome,
+} from "./config.ts";
 
 const WELL_KNOWN_ENVIRONMENT_PATH = "/.well-known/supaterm/environment";
 const PAIR_PROBE_TIMEOUT = Duration.millis(2_500);
@@ -551,6 +556,7 @@ export const pairCommand = Command.make("pair", {
       const useRelay = Option.getOrElse(flags.relay, () => !flags.tailscale);
       if (useRelay && flags.tailscale) return yield* new PairRouteConflictError();
       const target = yield* discoverPairTarget(Option.getOrUndefined(flags.baseDir));
+      yield* requireMatchingServerVersion(target.state);
       const config = yield* makePairServerConfig({ target, logLevel });
 
       const notes: Array<string> = [];

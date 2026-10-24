@@ -29,9 +29,14 @@ import { Argument, Command, Flag, GlobalFlag } from "effect/cli";
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import * as ServerConfig from "../config.ts";
 import { mcpToolSession, type McpToolSession } from "../mcp/AcpMcpStdioBridge.ts";
-import packageJson from "../../package.json" with { type: "json" };
 import { readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
-import { projectLocationFlags, resolveCliAuthConfig, resolveCliWorktreeHome } from "./config.ts";
+import {
+  CliServerVersionMismatchError,
+  projectLocationFlags,
+  requireMatchingServerVersion,
+  resolveCliAuthConfig,
+  resolveCliWorktreeHome,
+} from "./config.ts";
 
 /**
  * Short enough that a run which stops to ask the user something is noticed
@@ -51,17 +56,6 @@ export class ThreadServerNotRunningError extends Schema.TaggedError<ThreadServer
       ? " In a linked worktree, pass --base-dir to reach a server outside it."
       : "";
     return `No running Supaterm server uses ${this.baseDir}. Start Supaterm, then retry.${hint}`;
-  }
-}
-
-export class ThreadServerVersionMismatchError extends Schema.TaggedError<ThreadServerVersionMismatchError>()(
-  "ThreadServerVersionMismatchError",
-  { cliVersion: Schema.String, serverVersion: Schema.NullOr(Schema.String) },
-) {
-  override readonly [Runtime.errorReported] = false;
-  override get message(): string {
-    const server = this.serverVersion ?? "an unknown version";
-    return `This supaterm CLI is ${this.cliVersion}, but the running server is ${server}. Use the CLI from the same Supaterm release as the server.`;
   }
 }
 
@@ -131,7 +125,7 @@ export class ThreadRunEndedError extends Schema.TaggedError<ThreadRunEndedError>
 
 const ThreadCliError = Schema.Union([
   ThreadServerNotRunningError,
-  ThreadServerVersionMismatchError,
+  CliServerVersionMismatchError,
   ThreadServerUnreachableError,
   ThreadToolFailedError,
   ThreadUsageError,
@@ -237,13 +231,7 @@ const withThreadTools = Effect.fn("cli.thread.withThreadTools")(function* <A, E,
       inLinkedWorktree: worktreeHome !== undefined,
     });
   }
-  const serverVersion = runtimeState.value.serverVersion;
-  if (serverVersion !== packageJson.version) {
-    return yield* new ThreadServerVersionMismatchError({
-      cliVersion: packageJson.version,
-      serverVersion: serverVersion ?? null,
-    });
-  }
+  yield* requireMatchingServerVersion(runtimeState.value);
   const origin = runtimeState.value.origin;
   return yield* Effect.gen(function* () {
     const environmentAuth = yield* EnvironmentAuth.EnvironmentAuth;

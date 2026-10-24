@@ -17,6 +17,7 @@ import * as LogLevel from "effect/LogLevel";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
+import * as Runtime from "effect/Runtime";
 import * as Schema from "effect/Schema";
 import * as SchemaIssue from "effect/SchemaIssue";
 import * as SchemaTransformation from "effect/SchemaTransformation";
@@ -26,7 +27,13 @@ import * as CliError from "effect/cli/CliError";
 import { readBootstrapEnvelope } from "../bootstrap.ts";
 import * as ServerConfig from "../config.ts";
 import { expandHomePath, resolveBaseDir } from "../os-jank.ts";
-import { isProcessAlive, readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
+import packageJson from "../../package.json" with { type: "json" };
+import {
+  isProcessAlive,
+  type PersistedServerRuntimeState,
+  readPersistedServerRuntimeState,
+} from "../serverRuntimeState.ts";
+import { isWithinRoot } from "../workspace/KnownWorkspaces.ts";
 
 const modeFlag = Flag.Literals("mode", ServerConfig.RuntimeMode.literals).pipe(
   Flag.withDescription("Runtime mode. `desktop` keeps loopback defaults unless overridden."),
@@ -513,14 +520,38 @@ export const resolveCliWorktreeHome = Effect.fn("config.resolveCliWorktreeHome")
   // A launcher symlink keeps its own path in argv, so both sides compare as real paths.
   const realPath = (value: string) =>
     fileSystem.realPath(value).pipe(Effect.orElseSucceed(() => value));
-  const relative = path.relative(
-    yield* realPath(path.dirname(worktreeHome)),
+  const runsFromWorktree = isWithinRoot(
+    path,
     yield* realPath(path.resolve(entry)),
+    yield* realPath(path.dirname(worktreeHome)),
   );
-  const runsFromWorktree =
-    relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
   return runsFromWorktree ? worktreeHome : undefined;
 });
+
+export class CliServerVersionMismatchError extends Schema.TaggedError<CliServerVersionMismatchError>()(
+  "CliServerVersionMismatchError",
+  { cliVersion: Schema.String, serverVersion: Schema.NullOr(Schema.String) },
+) {
+  override readonly [Runtime.errorReported] = false;
+  override get message(): string {
+    const server = this.serverVersion ?? "an unknown version";
+    return `This supaterm CLI is ${this.cliVersion}, but the running server is ${server}. Use the CLI from the same Supaterm release as the server.`;
+  }
+}
+
+/**
+ * Commands that open a running server's database run this build's migrations
+ * against it, and an older server may not enforce what this CLI relies on.
+ */
+export const requireMatchingServerVersion = (state: PersistedServerRuntimeState) =>
+  state.serverVersion === packageJson.version
+    ? Effect.void
+    : Effect.fail(
+        new CliServerVersionMismatchError({
+          cliVersion: packageJson.version,
+          serverVersion: state.serverVersion ?? null,
+        }),
+      );
 
 export const resolveCliAuthConfig = (
   flags: CliAuthLocationFlags,

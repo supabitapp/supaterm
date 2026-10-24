@@ -22,7 +22,8 @@ supaterm pair
 ```
 
 The command activates the relay before printing the link. Pass `--no-relay` to
-pair directly, or `--tailscale` to pair through Tailscale Serve.
+pair directly, or `--tailscale` to pair through Tailscale Serve. Run the
+`supaterm` CLI from the same Supaterm release as the server.
 
 If Encrypted Relay is off, enable it from the terminal before creating the link:
 

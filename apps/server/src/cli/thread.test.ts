@@ -19,12 +19,8 @@ import {
   makePersistedServerRuntimeState,
   persistServerRuntimeState,
 } from "../serverRuntimeState.ts";
-import {
-  ThreadServerNotRunningError,
-  ThreadServerVersionMismatchError,
-  type ThreadTools,
-  waitForRun,
-} from "./thread.ts";
+import { CliServerVersionMismatchError } from "./config.ts";
+import { ThreadServerNotRunningError, type ThreadTools, waitForRun } from "./thread.ts";
 
 const threadId = ThreadId.make("thread-1");
 const runId = RunId.make("run-1");
@@ -198,7 +194,7 @@ it.effect("refuses a server from another build before opening its database", () 
       home,
     ]).pipe(Effect.flip);
 
-    assert.instanceOf(error, ThreadServerVersionMismatchError);
+    assert.instanceOf(error, CliServerVersionMismatchError);
     assert.strictEqual(error.serverVersion, "0.0.1-older");
     assert.isFalse(NodeFS.existsSync(NodePath.join(home, "userdata", "statev2.sqlite")));
   }).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NetService.layer, TestConsole.layer))),

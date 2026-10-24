@@ -40,6 +40,7 @@ import {
   PairRouteConflictError,
   resolveTailscaleLocalTarget,
 } from "./pair.ts";
+import { CliServerVersionMismatchError } from "./config.ts";
 
 import packageJson from "../../package.json" with { type: "json" };
 
@@ -429,6 +430,32 @@ describe("supaterm pair", () => {
 
       assert.instanceOf(error, PairRouteConflictError);
     }),
+  );
+
+  // Minting opens the server's database with this build's migrations.
+  it.effect("refuses a server from another build before opening its database", () =>
+    withDescriptorServer((origin) =>
+      Effect.gen(function* () {
+        const baseDir = NodeFS.mkdtempSync(
+          NodePath.join(NodeOS.tmpdir(), "supaterm-pair-version-test-"),
+        );
+        const state = yield* makePersistedServerRuntimeState({
+          config: { host: "127.0.0.1", devUrl: undefined },
+          port: Number(new URL(origin).port),
+        });
+        yield* persistServerRuntimeState({
+          path: NodePath.join(baseDir, "userdata", "server-runtime.json"),
+          state: { ...state, serverVersion: "0.0.1-older" },
+        });
+
+        const error = yield* provideCliTestLayers(
+          runCli(["pair", "--no-relay", "--base-dir", baseDir]).pipe(Effect.flip),
+        );
+
+        assert.instanceOf(error, CliServerVersionMismatchError);
+        assert.isFalse(NodeFS.existsSync(NodePath.join(baseDir, "userdata", "statev2.sqlite")));
+      }),
+    ).pipe(Effect.provide(NodeServices.layer)),
   );
 
   it.effect("ignores runtime state whose recorded pid is no longer alive", () =>
