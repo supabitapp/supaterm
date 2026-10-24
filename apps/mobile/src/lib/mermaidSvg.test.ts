@@ -101,8 +101,13 @@ describe("native diagram styles", () => {
     expect(gradientFills).toHaveLength(2);
     for (const fill of gradientFills) expect(fill).toMatch(/^url\(#[\w-]+\)$/);
     expect(
-      props.flatMap(({ baselineShift, fontSize }) => (baselineShift ? [fontSize] : [])),
-    ).toEqual(["0.83em", "0.83em"]);
+      props.flatMap(({ baselineShift, fontSize }) =>
+        baselineShift ? [[baselineShift, fontSize]] : [],
+      ),
+    ).toEqual([
+      ["-0.24em", "0.83em"],
+      ["0.4em", "0.83em"],
+    ]);
   });
 
   it("applies inherited theme aliases, group tints and author overrides to native props", () => {
