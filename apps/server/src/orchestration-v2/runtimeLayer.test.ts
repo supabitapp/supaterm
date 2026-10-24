@@ -3262,17 +3262,17 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         worktreePath: null,
       });
       const key = { host: "github.com", repository: "supabitapp/supaterm" };
-      for (const number of [12, 13]) {
-        yield* orchestrator.dispatch({
+      const watching = (number: number, on: boolean, id: string) =>
+        orchestrator.dispatch({
           type: "thread.pull-request.watch",
-          commandId: CommandId.make(`pr-watch-merged-start-${number}`),
+          commandId: CommandId.make(`pr-watch-merged-${id}-${number}`),
           threadId,
           ...key,
           number,
-          watching: true,
+          watching: on,
           link: { url: `https://github.com/supabitapp/supaterm/pull/${number}`, source: "agent" },
         });
-      }
+      for (const number of [12, 13, 14]) yield* watching(number, true, "start");
 
       const endReasons: Array<unknown> = [];
       const capture = Logger.make(({ message }) => {
@@ -3311,10 +3311,15 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       yield* sweep;
       const started = (yield* orchestrator.getThreadShell(threadId))?.pullRequests?.[0]?.watch;
       assert.isDefined(started);
+      // #14's first watch is stopped, and the one that replaces it merges before a pass sees it.
+      yield* watching(14, false, "stop");
+      yield* TestClock.adjust("1 minute");
+      yield* watching(14, true, "restart");
 
       for (const [number, state] of [
         [12, "merged"],
         [13, "closed"],
+        [14, "merged"],
       ] as const) {
         yield* orchestrator.dispatch({
           type: "thread.pull-request-link.sync",
@@ -3342,15 +3347,11 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       assert.isUndefined((yield* orchestrator.getThreadShell(threadId))?.pullRequests?.[0]?.watch);
 
       yield* sweep;
-      assert.deepEqual(endReasons, [["github.com/supabitapp/supaterm#12", "merged"]]);
-      yield* orchestrator.dispatch({
-        type: "thread.pull-request.watch",
-        commandId: CommandId.make("pr-watch-merged-stop-13"),
-        threadId,
-        ...key,
-        number: 13,
-        watching: false,
-      });
+      assert.deepEqual(endReasons, [
+        ["github.com/supabitapp/supaterm#12", "merged"],
+        ["github.com/supabitapp/supaterm#14", "stopped"],
+      ]);
+      yield* watching(13, false, "stop");
     }),
   );
 
