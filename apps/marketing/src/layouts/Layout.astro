@@ -110,7 +110,16 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
               loading="lazy"
               decoding="async"
             />
-            <span>&copy; {new Date().getFullYear()} Supaterm Limited · MIT licensed · Icon&nbsp;by&nbsp;<a href={ICON_DESIGNER_URL} target="_blank" rel="noopener">Moby</a></span>
+            <span>
+              &copy; {new Date().getFullYear()} Supaterm Limited · Made in the United&nbsp;Kingdom&nbsp;<svg class="footer-flag" viewBox="0 0 60 30" role="img" aria-label="United Kingdom flag">
+                <clipPath id="footer-flag-clip"><path d="M30,15h30v15zv15h-30zh-30v-15zv-15h30z" /></clipPath>
+                <rect width="60" height="30" fill="#012169" />
+                <path d="M0,0L60,30M60,0L0,30" stroke="#fff" stroke-width="6" />
+                <path d="M0,0L60,30M60,0L0,30" clip-path="url(#footer-flag-clip)" stroke="#C8102E" stroke-width="4" />
+                <path d="M30,0v30M0,15h60" stroke="#fff" stroke-width="10" />
+                <path d="M30,0v30M0,15h60" stroke="#C8102E" stroke-width="6" />
+              </svg> · Icon&nbsp;by&nbsp;<a href={ICON_DESIGNER_URL} target="_blank" rel="noopener">Moby</a>
+            </span>
           </div>
           <div class="footer-links">
             <a href={GITHUB_REPOSITORY_URL} target="_blank" rel="noopener noreferrer">GitHub</a>
@@ -447,6 +456,15 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
     width: 20px;
     height: 20px;
     border-radius: 4px;
+  }
+
+  .footer-flag {
+    display: inline-block;
+    width: 18px;
+    height: 9px;
+    vertical-align: -1px;
+    border-radius: 1px;
+    overflow: hidden;
   }
 
   .footer-links {
