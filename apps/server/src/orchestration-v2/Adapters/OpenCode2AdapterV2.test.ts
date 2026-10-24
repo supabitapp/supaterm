@@ -3590,12 +3590,14 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
         }),
       ]);
       const turns: Array<OrchestrationV2ProviderTurn> = [];
+      const firstEnded = yield* Deferred.make<void>();
       const bothEnded = yield* Deferred.make<void>();
       yield* runtime.events.pipe(
         Stream.tap((event) =>
           Effect.gen(function* () {
             if (event.type === "provider_turn.updated" && event.providerTurn.status !== "running") {
               turns.push(event.providerTurn);
+              if (turns.length === 1) yield* Deferred.succeed(firstEnded, undefined);
               if (turns.length === 2) yield* Deferred.succeed(bothEnded, undefined);
             }
           }),
@@ -3604,9 +3606,7 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
         Effect.forkScoped,
       );
       yield* runtime.startTurn(turnInput(thread));
-      yield* Effect.gen(function* () {
-        while (turns.length === 0) yield* Effect.yieldNow;
-      });
+      yield* Deferred.await(firstEnded);
       yield* runtime.startTurn(secondTurn(thread));
       yield* Deferred.await(bothEnded);
       const [first, second] = turns;
@@ -3816,6 +3816,7 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
   const continued = (after: ReadonlyArray<ProviderReplayEntry>) =>
     Effect.gen(function* () {
       const offers: Array<ProviderContinuationRequests.ProviderContinuationRequest> = [];
+      const offered = yield* Deferred.make<void>();
       const { runtime, thread } = yield* resumed([
         ...backgroundLaunch(CHILD),
         event("session.execution.succeeded", { sessionID: SESSION }),
@@ -3850,7 +3851,11 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
         ...after,
       ]).pipe(
         Effect.provideService(ProviderContinuationRequests.ProviderContinuationRequests, {
-          offer: (request) => Effect.sync(() => void offers.push(request)),
+          offer: (request) =>
+            Effect.sync(() => void offers.push(request)).pipe(
+              Effect.andThen(Deferred.succeed(offered, undefined)),
+              Effect.asVoid,
+            ),
           take: Effect.never,
         }),
       );
@@ -3869,9 +3874,7 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
         Effect.forkScoped,
       );
       yield* runtime.startTurn(withLineage(thread));
-      yield* Effect.gen(function* () {
-        while (offers.length === 0) yield* Effect.yieldNow;
-      }).pipe(Effect.timeout("2 seconds"), Effect.orDie);
+      yield* Deferred.await(offered);
       yield* runtime.startTurn(continuationTurn(thread, offers[0]!));
       yield* Deferred.await(bothEnded);
       const [first, second] = turns;
@@ -4289,6 +4292,7 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
       const reportText = `<subagent sessionID="${CHILD}" state="completed" description="Sleep">\nCHILD_OK\n</subagent>`;
       const steerId = `msg_supaterm_steer_${SESSION}:message:opencode2-adapter:steer`;
       const offers: Array<ProviderContinuationRequests.ProviderContinuationRequest> = [];
+      const offered = yield* Deferred.make<void>();
       const { runtime, thread } = yield* resumed([
         ...backgroundLaunch(CHILD),
         event("session.execution.succeeded", { sessionID: SESSION }),
@@ -4337,7 +4341,11 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
         event("session.execution.succeeded", { sessionID: SESSION }),
       ]).pipe(
         Effect.provideService(ProviderContinuationRequests.ProviderContinuationRequests, {
-          offer: (request) => Effect.sync(() => void offers.push(request)),
+          offer: (request) =>
+            Effect.sync(() => void offers.push(request)).pipe(
+              Effect.andThen(Deferred.succeed(offered, undefined)),
+              Effect.asVoid,
+            ),
           take: Effect.never,
         }),
       );
@@ -4355,9 +4363,7 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
         Effect.forkScoped,
       );
       yield* runtime.startTurn(withLineage(thread));
-      yield* Effect.gen(function* () {
-        while (offers.length === 0) yield* Effect.yieldNow;
-      }).pipe(Effect.timeout("2 seconds"), Effect.orDie);
+      yield* Deferred.await(offered);
       const followUp = continuationTurn(thread, offers[0]!);
       yield* runtime.startTurn(followUp);
       const followUpTurnId = (yield* IdAllocator.IdAllocatorV2).derive.providerTurn({

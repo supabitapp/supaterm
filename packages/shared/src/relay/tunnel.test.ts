@@ -37,7 +37,9 @@ function pair(onStream: (stream: TunnelStream) => void = () => {}, failSend = fa
     send: (data) => toClient.push(data),
     onStream,
   });
+  // Pumps frames between the two in-memory sessions until neither has output left.
   async function drain() {
+    // oxlint-disable-next-line supaterm/no-polling-loop-in-tests -- each round delivers the queued frames; it is the transport, not a wait.
     for (let round = 0; round < 1000; round++) {
       await Promise.resolve();
       if (toHost.length === 0 && toClient.length === 0) return;

@@ -2386,6 +2386,7 @@ describe("UsageService", () => {
       );
 
       let orphanedAt: number | undefined;
+      // oxlint-disable-next-line supaterm/no-polling-loop-in-tests -- a fixed sweep of interruption points; each yield hands control to the test's own dispatcher.
       for (let interruptAt = 1; interruptAt <= 31; interruptAt += 1) {
         const tasks: Array<() => void> = [];
         const dispatcher: Scheduler.SchedulerDispatcher = {

@@ -20,18 +20,22 @@ const identity = (workspaceRoot: string, version = 1): RepositoryIdentity => ({
   rootPath: workspaceRoot,
 });
 
+// Repository identity resolution publishes a change after it caches the result, so each
+// change is the only time the predicate can flip. Subscribing before the first peek means
+// a change that lands in between is not lost.
 const waitForAvailable = Effect.fn("ProjectEnrichmentServiceTest.waitForAvailable")(function* (
   service: ProjectEnrichment.ProjectEnrichmentService["Service"],
   workspaceRoot: string,
   predicate: (value: ProjectEnrichment.ProjectEnrichment) => boolean,
 ) {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    const available = yield* service.peek(workspaceRoot);
-    if (predicate(available)) return available;
-    yield* Effect.yieldNow;
+  const changes = yield* service.subscribeChanges;
+  let available = yield* service.peek(workspaceRoot);
+  while (!predicate(available)) {
+    yield* PubSub.take(changes);
+    available = yield* service.peek(workspaceRoot);
   }
-  return yield* Effect.die(`Project metadata for ${workspaceRoot} was not resolved in time.`);
-});
+  return available;
+}, Effect.scoped);
 
 const layer = (
   metadataLayer: Layer.Layer<

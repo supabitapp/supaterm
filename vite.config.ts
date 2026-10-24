@@ -244,6 +244,8 @@ export default defineConfig({
       "supaterm/no-low-value-comments": "error",
       "supaterm/no-manual-effect-runtime-in-tests": "error",
       "supaterm/no-native-title-tooltip": "error",
+      // Test files only (the rule checks the filename). denyWarnings makes it fail lint like an error.
+      "supaterm/no-polling-loop-in-tests": "warn",
       "supaterm/no-raw-mcp-registration": "error",
       "supaterm/no-real-time-wait-in-tests": "error",
       "supaterm/no-test-in-loop": "error",

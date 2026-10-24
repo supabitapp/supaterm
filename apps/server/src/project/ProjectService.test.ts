@@ -89,6 +89,9 @@ const waitForProject = Effect.fn("ProjectServiceTest.waitForProject")(function* 
   projectId: ProjectId,
   predicate: (project: Project) => boolean,
 ) {
+  // Favicon resolution caches its result without publishing a change, so there is no
+  // milestone to await; each scheduler turn lets the background lanes finish.
+  // oxlint-disable-next-line supaterm/no-polling-loop-in-tests -- favicon enrichment exposes no change event to await.
   for (let attempt = 0; attempt < 100; attempt += 1) {
     const project = Option.getOrThrow(yield* service.getById(projectId));
     if (predicate(project)) return project;

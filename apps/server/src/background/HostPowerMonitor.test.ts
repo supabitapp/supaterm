@@ -130,12 +130,11 @@ describe("HostPowerMonitor", () => {
 
         yield* Effect.gen(function* () {
           const monitor = yield* HostPowerMonitor.HostPowerMonitor;
-          for (
-            let attempt = 0;
-            attempt < 100 && (yield* monitor.snapshot).onBattery !== "true";
-            attempt += 1
-          ) {
-            yield* Effect.yieldNow;
+          if ((yield* monitor.snapshot).onBattery !== "true") {
+            yield* monitor.streamChanges.pipe(
+              Stream.filter((snapshot) => snapshot.onBattery === "true"),
+              Stream.runHead,
+            );
           }
           expect((yield* monitor.snapshot).onBattery).toBe("true");
         }).pipe(Effect.provide(layer));

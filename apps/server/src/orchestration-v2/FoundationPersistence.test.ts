@@ -35,6 +35,7 @@ import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Queue from "effect/Queue";
 import * as Path from "effect/Path";
 import * as Ref from "effect/Ref";
 import * as Scheduler from "effect/Scheduler";
@@ -563,6 +564,8 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
       });
 
       let afterSequence = created[0]!.sequence;
+      // The yield lands each write inside the catch-up-to-live window this test exercises.
+      // oxlint-disable-next-line supaterm/no-polling-loop-in-tests -- a fixed 32 rounds, each awaiting its reader; nothing is polled.
       for (let index = 1; index <= 32; index += 1) {
         const nextEvent = {
           id: EventId.make(`event:foundation-stream-race:${index}`),
@@ -2215,11 +2218,17 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
           },
         }),
       );
+      const succeeded = yield* Queue.unbounded<string>();
+      const observedOutbox = EffectOutbox.EffectOutboxV2.of({
+        ...outbox,
+        succeed: (input) =>
+          outbox.succeed(input).pipe(Effect.tap(() => Queue.offer(succeeded, input.effectId))),
+      });
       const layerWorker = EffectWorker.layerWithOptions({
         workerId: "concurrency-worker",
       }).pipe(
         Layer.provide(
-          Layer.merge(Layer.succeed(EffectOutbox.EffectOutboxV2, outbox), layerExecutor),
+          Layer.merge(Layer.succeed(EffectOutbox.EffectOutboxV2, observedOutbox), layerExecutor),
         ),
       );
 
@@ -2265,13 +2274,12 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
         yield* Deferred.succeed(releaseB1, undefined);
         yield* Deferred.await(startedA2);
         yield* Deferred.succeed(releaseA2, undefined);
-        let settled = false;
-        while (!settled) {
-          settled = (yield* outbox.listByCommandId(commandId)).every(
+        yield* Queue.takeN(succeeded, 3);
+        assert.isTrue(
+          (yield* outbox.listByCommandId(commandId)).every(
             (effect) => effect.status === "succeeded",
-          );
-          if (!settled) yield* Effect.yieldNow;
-        }
+          ),
+        );
       }).pipe(Effect.provide(layerWorker), Effect.scoped);
     }),
   );
