@@ -10,7 +10,6 @@ import type { ClaudeCapabilitiesProbe } from "./ClaudeProvider.ts";
 
 const probe = (overrides: Partial<ClaudeCapabilitiesProbe> = {}): ClaudeCapabilitiesProbe => ({
   email: "test@example.com",
-  workspaceId: "org-one",
   subscriptionType: "max",
   tokenSource: undefined,
   apiKeySource: "none",
@@ -24,10 +23,10 @@ const fixture = Effect.gen(function* () {
   const path = yield* Path.Path;
   const dir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-fast-mode-" });
   const file = path.join(dir, ".claude.json");
-  const write = (enabled: boolean, organizationUuid = "org-one") =>
+  const write = (enabled: boolean) =>
     fs.writeFileString(
       file,
-      JSON.stringify({ penguinModeOrgEnabled: enabled, oauthAccount: { organizationUuid } }),
+      JSON.stringify({ penguinModeOrgEnabled: enabled, oauthAccount: { organizationUuid: "org" } }),
     );
   return { fs, file, write };
 });
@@ -60,7 +59,7 @@ it.layer(NodeServices.layer)("Claude Fast availability", (it) => {
       }).pipe(Effect.scoped),
   );
 
-  it.effect("keeps cached denials local to the instance and authenticated organization", () =>
+  it.effect("keeps cached denials local to the instance's config directory", () =>
     Effect.gen(function* () {
       const first = yield* fixture;
       const second = yield* fixture;
@@ -70,21 +69,6 @@ it.layer(NodeServices.layer)("Claude Fast availability", (it) => {
       const two = yield* makeClaudeFastModeAvailability(second.file, {});
       assert.isTrue(yield* one.isBlocked);
       assert.isFalse(yield* two.isBlocked);
-      yield* one.update(probe({ workspaceId: "org-two" }));
-      yield* one.refresh;
-      assert.isFalse(yield* one.isBlocked);
-      for (const account of [
-        { apiProvider: "bedrock" },
-        { apiKeySource: "apiKeyHelper" },
-        { tokenSource: "none" },
-        { tokenSource: "claude.ai" },
-        { tokenSource: "CLAUDE_CODE_OAUTH_TOKEN" },
-        { tokenSource: "apiKeyHelper" },
-      ]) {
-        yield* one.update(probe(account));
-        yield* one.refresh;
-        assert.isFalse(yield* one.isBlocked);
-      }
     }).pipe(Effect.scoped),
   );
 
@@ -103,40 +87,53 @@ it.layer(NodeServices.layer)("Claude Fast availability", (it) => {
       }).pipe(Effect.scoped),
   );
 
-  it.effect(
-    "does not borrow OAuth cache for explicit credentials, gateways, or skipped checks",
-    () =>
-      Effect.gen(function* () {
-        const { file, write } = yield* fixture;
-        yield* write(false);
-        for (const environment of [
-          { ANTHROPIC_API_KEY: "test-key" },
-          { ANTHROPIC_AUTH_TOKEN: "test-token" },
-          { CLAUDE_CODE_OAUTH_TOKEN: "test-token" },
-          { ANTHROPIC_BASE_URL: "https://gateway.example.com" },
-          { CLAUDE_CODE_SKIP_FAST_MODE_ORG_CHECK: "1" },
-        ]) {
-          const fast = yield* makeClaudeFastModeAvailability(file, environment);
-          yield* fast.update(probe());
-          yield* fast.refresh;
-          assert.isFalse(yield* fast.isBlocked);
-        }
+  it.effect("applies cached org denials behind gateways and explicit credentials", () =>
+    Effect.gen(function* () {
+      const { file, write } = yield* fixture;
+      yield* write(false);
+      for (const environment of [
+        { ANTHROPIC_API_KEY: "test-key" },
+        { ANTHROPIC_AUTH_TOKEN: "test-token" },
+        { CLAUDE_CODE_OAUTH_TOKEN: "test-token" },
+        { ANTHROPIC_BASE_URL: "https://gateway.example.com", ANTHROPIC_AUTH_TOKEN: "test-token" },
+      ]) {
+        const fast = yield* makeClaudeFastModeAvailability(file, environment);
+        assert.isTrue(yield* fast.isBlocked);
+      }
+      const fast = yield* makeClaudeFastModeAvailability(file, {});
+      for (const account of [
+        { tokenSource: "ANTHROPIC_AUTH_TOKEN" },
+        { tokenSource: "claude.ai" },
+        { tokenSource: "CLAUDE_CODE_OAUTH_TOKEN" },
+        { apiKeySource: "ANTHROPIC_API_KEY" },
+        { apiKeySource: "apiKeyHelper" },
+      ]) {
+        yield* fast.update(probe({ ...account, fastModeDisabledReason: "sdk_opt_in_required" }));
+        assert.isTrue(yield* fast.refresh);
+      }
+    }).pipe(Effect.scoped),
+  );
+
+  it.effect("skips the cached org check only when Claude Code skips it", () =>
+    Effect.gen(function* () {
+      const { file, write } = yield* fixture;
+      yield* write(false);
+      const disabled = yield* makeClaudeFastModeAvailability(file, {
+        CLAUDE_CODE_DISABLE_FAST_MODE: "1",
+        CLAUDE_CODE_SKIP_FAST_MODE_ORG_CHECK: "1",
+      });
+      assert.isTrue(yield* disabled.isBlocked);
+      for (const value of ["1", "true", "yes", "on", " TRUE ", " Yes "]) {
+        const skipped = yield* makeClaudeFastModeAvailability(file, {
+          CLAUDE_CODE_SKIP_FAST_MODE_ORG_CHECK: value,
+        });
+        assert.isFalse(yield* skipped.isBlocked);
         const disabled = yield* makeClaudeFastModeAvailability(file, {
-          CLAUDE_CODE_DISABLE_FAST_MODE: "1",
-          CLAUDE_CODE_SKIP_FAST_MODE_ORG_CHECK: "1",
+          CLAUDE_CODE_DISABLE_FAST_MODE: value,
         });
         assert.isTrue(yield* disabled.isBlocked);
-        for (const value of ["1", "true", "yes", "on", " TRUE ", " Yes "]) {
-          const skipped = yield* makeClaudeFastModeAvailability(file, {
-            CLAUDE_CODE_SKIP_FAST_MODE_ORG_CHECK: value,
-          });
-          assert.isFalse(yield* skipped.isBlocked);
-          const disabled = yield* makeClaudeFastModeAvailability(file, {
-            CLAUDE_CODE_DISABLE_FAST_MODE: value,
-          });
-          assert.isTrue(yield* disabled.isBlocked);
-        }
-      }).pipe(Effect.scoped),
+      }
+    }).pipe(Effect.scoped),
   );
 
   it.effect(
