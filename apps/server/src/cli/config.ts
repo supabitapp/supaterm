@@ -509,8 +509,10 @@ export const resolveCliWorktreeHome = Effect.fn("config.resolveCliWorktreeHome")
   const entry = (yield* HostProcess.Arguments)[1];
   if (worktreeHome === undefined || entry === undefined) return undefined;
   const path = yield* Path.Path;
-  const fromWorktree = path.relative(path.dirname(worktreeHome), path.resolve(entry));
-  return fromWorktree.startsWith("..") || path.isAbsolute(fromWorktree) ? undefined : worktreeHome;
+  const relative = path.relative(path.dirname(worktreeHome), path.resolve(entry));
+  const runsFromWorktree =
+    relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+  return runsFromWorktree ? worktreeHome : undefined;
 });
 
 export const resolveCliAuthConfig = (
