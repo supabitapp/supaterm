@@ -318,6 +318,7 @@ export function NewTaskFlowProvider(
   // Mirrors `editingPendingTask` synchronously so the unmount flush cannot act
   // on a task whose editing session already ended this render.
   const editingPendingTaskRef = useRef<QueuedThreadMessage | null>(null);
+  const editingFlushRef = useRef<(() => void) | null>(null);
   const editingRevisionRef = useRef(Promise.resolve(0));
 
   const [switchingToEnvironmentId, setSwitchingToEnvironmentId] = useState<EnvironmentId | null>(
@@ -349,15 +350,10 @@ export function NewTaskFlowProvider(
     setBranchQuery("");
     setExpandedProvider(null);
     pendingLocalBranchSyncDraftKeysRef.current.clear();
-    const editing = editingPendingTaskRef.current;
-    editingPendingTaskRef.current = null;
-    setEditingPendingTask(null);
-    if (editing) {
-      if (activeEditingMessageId === editing.messageId) {
-        activeEditingMessageId = null;
-      }
-      releaseEditingQueuedMessage(editing.messageId);
-    }
+    // The next draft can mount before the previous one's cleanup saves its
+    // pending-task edit. Releasing the hold here would let the outbox deliver
+    // the text the edit replaced, so the edit is saved as leaving would.
+    editingFlushRef.current?.();
   }, []);
 
   const projectsForEnvironment = pipe(
@@ -1160,7 +1156,6 @@ export function NewTaskFlowProvider(
     }
   }, [finishEditingPendingTask, queuedMessagesByThreadKey]);
 
-  const editingFlushRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     editingFlushRef.current = () => {
       const editing = editingPendingTaskRef.current;

@@ -393,6 +393,26 @@ describe("pending task editor dismissal", () => {
     expect(flow.prompt).toBe(pendingTask.text);
   });
 
+  // The next draft resets the shared flow before this editor's cleanup runs.
+  it("saves an edited pending task when the next draft resets the flow", async () => {
+    await act(() => flow.setPrompt("Changed prompt"));
+    await act(() => flow.reset());
+
+    expect(flow.editingPendingTask).toBeNull();
+    expect(transport.editorWrite).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.objectContaining({ text: "Changed prompt" }) }),
+    );
+  });
+
+  it("keeps a cleared pending task held when the next draft resets the flow", async () => {
+    await act(() => flow.setPrompt(""));
+    await act(() => flow.reset());
+
+    expect(flow.editingPendingTask).toBeNull();
+    expect(transport.editorWrite).not.toHaveBeenCalled();
+    expect(appAtomRegistry.get(editingQueuedMessageIdsAtom)[pendingTask.messageId]).toBe("paused");
+  });
+
   it("reopens retained edits after a failed save", async () => {
     transport.editorWrite.mockResolvedValueOnce(false);
     await act(() => flow.setPrompt("Changed prompt"));
