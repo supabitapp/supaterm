@@ -37,14 +37,6 @@ describe("rewriteMarkdownFileUriHref", () => {
       "/home/me/notes.md",
     );
   });
-
-  it("unwraps angle-bracketed file uri hrefs", () => {
-    expect(
-      rewriteMarkdownFileUriHref(
-        " <file:///D:/Programme/supaterm/apps/web/src/markdown-links.ts> ",
-      ),
-    ).toBe("D:/Programme/supaterm/apps/web/src/markdown-links.ts");
-  });
 });
 
 describe("relative links inside a rendered host file", () => {

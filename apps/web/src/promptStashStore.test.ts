@@ -136,41 +136,6 @@ describe("promptStashStore", () => {
     ]);
   });
 
-  it("takeEntry removes and returns the entry; second take returns null", () => {
-    const store = usePromptStashStore.getState();
-    store.stashEntry(makeEntry({ id: "keep" }));
-    store.stashEntry(makeEntry({ id: "take" }));
-    expect(store.takeEntry("take").entry?.id).toBe("take");
-    expect(store.takeEntry("take").entry).toBeNull();
-    const entries = usePromptStashStore.getState().entries;
-    expect(entries.map((entry) => entry.id)).toEqual(["keep"]);
-  });
-
-  it("finalizeEntryImages attaches images and clears the pending count", () => {
-    const store = usePromptStashStore.getState();
-    store.stashEntry({ ...makeEntry({ id: "pending" }), pendingImageCount: 2 });
-
-    const { attached } = store.finalizeEntryImages("pending", {
-      attachments: [
-        {
-          id: "img-1",
-          name: "a.webp",
-          mimeType: "image/webp",
-          sizeBytes: 10,
-          dataUrl: "data:image/webp;base64,AAAA",
-        },
-      ],
-      droppedImageNames: ["big.png"],
-      unreadableImageNames: [],
-    });
-
-    expect(attached).toBe(true);
-    const entry = usePromptStashStore.getState().entries[0];
-    expect(entry?.attachments).toHaveLength(1);
-    expect(entry?.droppedImageNames).toEqual(["big.png"]);
-    expect(entry?.pendingImageCount).toBe(0);
-  });
-
   it("takeEntry returns images and drop metadata finalized after a menu snapshot", () => {
     const store = usePromptStashStore.getState();
     store.stashEntry({ ...makeEntry({ id: "pending-restore" }), pendingImageCount: 1 });

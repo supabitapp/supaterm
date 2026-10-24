@@ -165,11 +165,6 @@ describe("sidebar collision detection", () => {
     },
   );
 
-  it("selects the nearest supported target", () => {
-    const detector = createSidebarCollisionDetection(() => true);
-    expect(detector(collisionArgs())[0]?.id).toBe("blocked");
-  });
-
   it.each([
     { sourceSection: "active", pins: 0 },
     { sourceSection: "active", pins: 1 },

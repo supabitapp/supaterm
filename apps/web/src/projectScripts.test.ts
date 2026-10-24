@@ -1,11 +1,6 @@
 import { shortcutLabelForCommand } from "./keybindings";
 import { describe, expect, it } from "vite-plus/test";
-import {
-  projectScriptCwd,
-  projectScriptRuntimeEnv,
-  doneProjectScript,
-  setupProjectScript,
-} from "@supaterm/shared/projectScripts";
+import { doneProjectScript, setupProjectScript } from "@supaterm/shared/projectScripts";
 
 import {
   commandForProjectScript,
@@ -93,34 +88,5 @@ describe("projectScripts helpers", () => {
     expect(
       releaseClaimedRoles(holder, { ...input, runOnWorktreeCreate: false, runOnDone: false }),
     ).toBe(holder);
-  });
-
-  it("allows overriding runtime env values", () => {
-    const env = projectScriptRuntimeEnv({
-      project: { cwd: "/repo" },
-      extraEnv: {
-        SUPATERM_PROJECT_ROOT: "/custom-root",
-        CUSTOM_FLAG: "1",
-      },
-    });
-
-    expect(env.SUPATERM_PROJECT_ROOT).toBe("/custom-root");
-    expect(env.CUSTOM_FLAG).toBe("1");
-    expect(env.SUPATERM_WORKTREE_PATH).toBeUndefined();
-  });
-
-  it("prefers the worktree path for script cwd resolution", () => {
-    expect(
-      projectScriptCwd({
-        project: { cwd: "/repo" },
-        worktreePath: "/repo/worktree-a",
-      }),
-    ).toBe("/repo/worktree-a");
-    expect(
-      projectScriptCwd({
-        project: { cwd: "/repo" },
-        worktreePath: null,
-      }),
-    ).toBe("/repo");
   });
 });

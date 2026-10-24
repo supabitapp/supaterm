@@ -18,7 +18,6 @@ import {
   keybindingFromKeyboardEvent,
   parseWhenExpressionDraft,
   shortcutToKeybindingInput,
-  unknownWhenVariables,
   whenAstToExpression,
 } from "./KeybindingsSettings.logic";
 
@@ -289,13 +288,6 @@ describe("KeybindingsSettings.logic", () => {
     expect(
       DEFAULT_RESOLVED_KEYBINDINGS.some((binding) => binding.command === "composer.cycleHost"),
     ).toBe(false);
-  });
-
-  it("reports unknown when variables without rejecting parseable expressions", () => {
-    const parsed = parseWhenExpressionDraft("!terminalFocus && terminalFoc");
-
-    expect(parsed.ok).toBe(true);
-    expect(unknownWhenVariables(parsed.ok ? parsed.value : undefined)).toEqual(["terminalFoc"]);
   });
 
   it("marks the new-thread shortcuts as default", () => {

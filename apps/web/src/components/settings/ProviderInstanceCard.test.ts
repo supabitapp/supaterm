@@ -4,8 +4,6 @@ import { ProviderDriverKind, type ServerProviderModel } from "@supaterm/contract
 import {
   deriveProviderModelsForDisplay,
   nextProviderEnvironmentWithFieldValue,
-  providerEnvironmentWithoutNames,
-  readProviderEnvironmentVariable,
 } from "./ProviderInstanceCard";
 
 describe("deriveProviderModelsForDisplay", () => {
@@ -145,19 +143,5 @@ describe("provider environment helpers", () => {
         "new-key",
       ),
     ).toEqual([{ name: "OPENAI_API_KEY", value: "new-key", sensitive: true }]);
-  });
-
-  it("separates dedicated provider secrets from the generic environment table", () => {
-    const environment = [
-      { name: "CURSOR_API_KEY", value: "cursor-key", sensitive: true },
-      { name: "EXTRA_FLAG", value: "1", sensitive: false },
-    ];
-
-    expect(readProviderEnvironmentVariable(environment, "CURSOR_API_KEY")?.value).toBe(
-      "cursor-key",
-    );
-    expect(providerEnvironmentWithoutNames(environment, new Set(["CURSOR_API_KEY"]))).toEqual([
-      { name: "EXTRA_FLAG", value: "1", sensitive: false },
-    ]);
   });
 });

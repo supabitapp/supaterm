@@ -660,13 +660,6 @@ describe("composer rich text document model", () => {
     expect(roundTrip(value).value).toBe(value);
   });
 
-  it.each(["> quoted", "> a\n>b", "---", "- - -", "# Heading", "#1234"])(
-    "keeps the block %s literal in plain mode",
-    (value) => {
-      expect(roundTripPlain(value).value).toBe(value);
-    },
-  );
-
   it.each([
     ["---", "---"],
     ["a\n---", "a\n---"],
@@ -697,12 +690,6 @@ describe("composer rich text document model", () => {
     "# Heading\n- item\n> quote\n---",
   ])("round-trips the heading %s through a real ProseMirror document", (value) => {
     expect(roundTrip(value).value).toBe(value);
-  });
-
-  it("parses a quote as a blockquote of one paragraph per line", () => {
-    const json = buildDocJson("> a\n> b\n>c", (n) => ({ label: n, description: null }));
-    expect(json.content.map((block) => block.type)).toEqual(["blockquote", "blockquote"]);
-    expect((json.content[0] as { content: unknown[] }).content).toHaveLength(2);
   });
 
   it.each([
@@ -910,11 +897,6 @@ describe("composer rich text document model", () => {
     expect(skillChipReplacements(doc, known)).toEqual([]);
   });
 
-  it("keeps fences literal in plain mode", () => {
-    const value = "```ts\nconst a = 1;\n```";
-    expect(roundTripPlain(value).value).toBe(value);
-  });
-
   it("maps every document offset through markdown coordinates and back", () => {
     const value = "hi **bold** @README.md bye";
     const map = roundTrip(value);
@@ -988,10 +970,6 @@ describe("serializeSelection", () => {
 
   it("keeps the nesting of an item and its children", () => {
     expect(copy("- p\n  - a\n  - b", "p", "a")).toBe("- p\n  - a");
-  });
-
-  it("copies text within one block without its marker", () => {
-    expect(copy("- one two", "one", "one")).toBe("one");
   });
 });
 

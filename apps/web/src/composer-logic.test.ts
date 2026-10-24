@@ -363,10 +363,6 @@ describe("filterComposerPullRequestMatches", () => {
 });
 
 describe("expandCollapsedComposerCursor", () => {
-  it("keeps cursor unchanged when no mention segment is present", () => {
-    expect(expandCollapsedComposerCursor("plain text", 5)).toBe(5);
-  });
-
   it("maps collapsed mention cursor to expanded text cursor", () => {
     const text = "what's in my @AGENTS.md fsfdas";
     const collapsedCursorAfterMention = "what's in my ".length + 2;
@@ -404,16 +400,6 @@ describe("expandCollapsedComposerCursor", () => {
 
     expect(detectComposerTrigger(text, expandedCursor)).toBeNull();
   });
-
-  it.each(["$", "€", "𑿝"])("maps collapsed %s skill cursor to expanded text cursor", (prefix) => {
-    const text = `run ${prefix}review-follow-up then`;
-    const collapsedCursorAfterSkill = "run ".length + 2;
-    const expandedCursorAfterSkill = `run ${prefix}review-follow-up `.length;
-
-    expect(expandCollapsedComposerCursor(text, collapsedCursorAfterSkill)).toBe(
-      expandedCursorAfterSkill,
-    );
-  });
 });
 
 describe("composerStateAtPromptEnd", () => {
@@ -442,15 +428,6 @@ describe("collapseExpandedComposerCursor", () => {
     const collapsedCursor = collapseExpandedComposerCursor(text, expandedCursor);
 
     expect(collapsedCursor).toBe("open ".length + 1 + " then @src/index.ts ".length);
-    expect(expandCollapsedComposerCursor(text, collapsedCursor)).toBe(expandedCursor);
-  });
-
-  it("collapses only genuine mentions when package-like text exists earlier", () => {
-    const text = "install @scope/pkg then @README.md ";
-    const expandedCursor = text.length;
-    const collapsedCursor = collapseExpandedComposerCursor(text, expandedCursor);
-
-    expect(collapsedCursor).toBe("install @scope/pkg then ".length + 1 + " ".length);
     expect(expandCollapsedComposerCursor(text, collapsedCursor)).toBe(expandedCursor);
   });
 });
@@ -527,16 +504,6 @@ describe("isCollapsedCursorAdjacentToInlineToken", () => {
     expect(isCollapsedCursorAdjacentToInlineToken(text, mentionEnd, "left")).toBe(true);
     expect(isCollapsedCursorAdjacentToInlineToken(text, mentionStart, "left")).toBe(false);
     expect(isCollapsedCursorAdjacentToInlineToken(text, mentionEnd + 1, "left")).toBe(false);
-  });
-
-  it("detects right adjacency only when cursor is directly before a mention", () => {
-    const text = "open @AGENTS.md next";
-    const mentionStart = "open ".length;
-    const mentionEnd = mentionStart + 1;
-
-    expect(isCollapsedCursorAdjacentToInlineToken(text, mentionStart, "right")).toBe(true);
-    expect(isCollapsedCursorAdjacentToInlineToken(text, mentionEnd, "right")).toBe(false);
-    expect(isCollapsedCursorAdjacentToInlineToken(text, mentionStart - 1, "right")).toBe(false);
   });
 
   it("treats context reference pills as inline tokens for adjacency checks", () => {

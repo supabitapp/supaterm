@@ -103,7 +103,7 @@ function undoSnapshot<Shell extends ThreadSnoozeShell>(
   };
 }
 
-export async function requestThreadUnpinConfirmation(input: {
+async function requestThreadUnpinConfirmation(input: {
   enabled: boolean;
   title: string;
   confirm: ((message: string) => Promise<boolean>) | null;

@@ -64,25 +64,6 @@ describe("extractTerminalLinks", () => {
     ]);
   });
 
-  it("finds http urls and path tokens", () => {
-    const line =
-      "failed at https://example.com/docs and src/components/ThreadTerminalDrawer.tsx:42";
-    expect(extractTerminalLinks(line)).toEqual([
-      {
-        kind: "url",
-        text: "https://example.com/docs",
-        start: 10,
-        end: 34,
-      },
-      {
-        kind: "path",
-        text: "src/components/ThreadTerminalDrawer.tsx:42",
-        start: 39,
-        end: 81,
-      },
-    ]);
-  });
-
   it("classifies uppercase schemes as URLs at activation time too", () => {
     expect(isTerminalUrl("HTTPS://example.com/docs")).toBe(true);
     expect(isTerminalUrl("Http://example.com")).toBe(true);

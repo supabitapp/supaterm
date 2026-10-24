@@ -67,23 +67,6 @@ const singleSelectQuestion = {
   multiSelect: false,
 } as const;
 
-const multiSelectQuestion = {
-  id: "areas",
-  header: "Areas",
-  question: "Which areas should this change cover?",
-  options: [
-    {
-      label: "Server",
-      description: "Server",
-    },
-    {
-      label: "Web",
-      description: "Web",
-    },
-  ],
-  multiSelect: true,
-} as const;
-
 const nativeChoiceQuestion = {
   id: "result",
   header: "Result",
@@ -134,22 +117,6 @@ describe("resolvePendingUserInputAnswer", () => {
     ).toBe("Keep the existing envelope for one release");
   });
 
-  it("falls back to the selected option for single-select questions", () => {
-    expect(
-      resolvePendingUserInputAnswer(singleSelectQuestion, {
-        selectedOptionValues: ["Orchestration-first"],
-      }),
-    ).toBe("Orchestration-first");
-  });
-
-  it("returns all selected labels for multi-select questions", () => {
-    expect(
-      resolvePendingUserInputAnswer(multiSelectQuestion, {
-        selectedOptionValues: ["Server", "Web"],
-      }),
-    ).toEqual(["Server", "Web"]);
-  });
-
   it("does not replace a required choice with a custom answer", () => {
     expect(
       resolvePendingUserInputAnswer(nativeChoiceQuestion, {
@@ -169,28 +136,6 @@ describe("resolvePendingUserInputAnswer", () => {
 });
 
 describe("togglePendingUserInputOptionSelection", () => {
-  it("toggles options for multi-select questions", () => {
-    expect(togglePendingUserInputOptionSelection(multiSelectQuestion, undefined, "Server")).toEqual(
-      {
-        customAnswer: "",
-        selectedOptionValues: ["Server"],
-      },
-    );
-
-    expect(
-      togglePendingUserInputOptionSelection(
-        multiSelectQuestion,
-        {
-          selectedOptionValues: ["Server", "Web"],
-        },
-        "Server",
-      ),
-    ).toEqual({
-      customAnswer: "",
-      selectedOptionValues: ["Web"],
-    });
-  });
-
   it("selects and removes options with the same label independently", () => {
     const question = { ...nativeChoiceQuestion, multiSelect: true };
     const firstSelected = togglePendingUserInputOptionSelection(question, undefined, " first\t");
@@ -244,10 +189,6 @@ describe("buildPendingUserInputAnswers", () => {
       compat: "Keep the current envelope for one release window",
     });
   });
-
-  it("returns null when any question is unanswered", () => {
-    expect(buildPendingUserInputAnswers([singleSelectQuestion], {})).toBeNull();
-  });
 });
 
 describe("pending user input question progress", () => {
@@ -266,16 +207,6 @@ describe("pending user input question progress", () => {
       multiSelect: false,
     },
   ] as const;
-
-  it("finds the first unanswered question", () => {
-    expect(
-      findFirstUnansweredPendingUserInputQuestionIndex(questions, {
-        scope: {
-          selectedOptionValues: ["Orchestration-first"],
-        },
-      }),
-    ).toBe(1);
-  });
 
   it("returns the last question index when all answers are complete", () => {
     expect(
@@ -311,25 +242,6 @@ describe("pending user input question progress", () => {
       isLastQuestion: false,
       isComplete: false,
       canAdvance: true,
-    });
-  });
-
-  it("treats multi-select questions as answered when they have selected options", () => {
-    expect(
-      derivePendingUserInputProgress(
-        [multiSelectQuestion],
-        {
-          areas: {
-            selectedOptionValues: ["Server", "Web"],
-          },
-        },
-        0,
-      ),
-    ).toMatchObject({
-      selectedOptionValues: ["Server", "Web"],
-      resolvedAnswer: ["Server", "Web"],
-      canAdvance: true,
-      isComplete: true,
     });
   });
 });

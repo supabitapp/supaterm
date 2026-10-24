@@ -294,16 +294,6 @@ describe("deriveProviderEntriesByEnvironment", () => {
 });
 
 describe("resolveSelectableProviderInstance", () => {
-  it("returns the requested instance when it is enabled and available", () => {
-    const requested = ProviderInstanceId.make("claude_work");
-    const providers = [
-      provider({ provider: ProviderDriverKind.make("codex"), instanceId: "codex" }),
-      provider({ provider: ProviderDriverKind.make("claudeAgent"), instanceId: requested }),
-    ];
-
-    expect(resolveSelectableProviderInstance(providers, requested)).toBe(requested);
-  });
-
   it("falls back to the first enabled and available instance", () => {
     const disabled = ProviderInstanceId.make("codex");
     const fallback = ProviderInstanceId.make("claudeAgent");

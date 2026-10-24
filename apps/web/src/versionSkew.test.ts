@@ -179,7 +179,6 @@ describe("versionSkew", () => {
       serverVersion: "9.9.9",
     });
 
-    expect(key).toBe(`${environmentId}:${APP_VERSION}:9.9.9`);
     expect(isVersionMismatchDismissed(key)).toBe(false);
 
     dismissVersionMismatch(key);

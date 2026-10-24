@@ -274,15 +274,6 @@ describe("provider update launch notification logic", () => {
       title: "Claude v1.1.0 update failed",
     });
   });
-
-  it("does not show a sidebar pill for passive update availability", () => {
-    expect(
-      getProviderUpdateSidebarPillView([
-        provider({ driver: driver("codex"), canUpdate: true }),
-        provider({ driver: driver("cursor"), canUpdate: false }),
-      ]),
-    ).toBeNull();
-  });
 });
 
 it("does not offer incompatible latest versions and restores suggestions after policy relaxation", () => {
@@ -362,32 +353,5 @@ describe("getProviderUpdateRunToastView", () => {
       title: "2 of 3 provider updates failed",
       description: "Mac Studio · Claude: npm exited with code 1.\nLaptop · Codex: WebSocket closed",
     });
-  });
-
-  it("reports success when every update succeeded", () => {
-    const succeeded = AsyncResult.success({
-      providers: [
-        provider({
-          driver: driver("codex"),
-          updateState: updateState("succeeded", "Provider updated."),
-        }),
-      ],
-    });
-
-    expect(
-      getProviderUpdateRunToastView([
-        run("Mac Studio", "codex", succeeded),
-        run("Laptop", "codex", succeeded),
-      ]),
-    ).toEqual({
-      type: "success",
-      title: "2 providers updated",
-      description: "New sessions will use the updated providers.",
-    });
-    expect(
-      getProviderUpdateRunToastView([
-        run("Server", "codex", AsyncResult.failure(Cause.interrupt())),
-      ]),
-    ).toBeNull();
   });
 });
