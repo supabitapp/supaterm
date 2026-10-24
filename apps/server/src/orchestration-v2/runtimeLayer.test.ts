@@ -184,6 +184,7 @@ const watchedPullRequestDetail = (input: {
     actions: [],
     mergeMethods: [],
     search: false,
+    checksAlwaysReport: true,
     review: { inlineComment: false, reply: false, resolve: false, verdicts: [] },
     reviewers: { request: false, listCandidates: false },
   },
