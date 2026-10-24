@@ -10,6 +10,7 @@ import {
   SLOT,
   extents,
   sd,
+  type Outline,
   type V3,
 } from "./geometry";
 import { HALF, KEY, smooth } from "./light";
@@ -115,13 +116,14 @@ const knob: Distance = (u, v) => Math.hypot(u - KNOB.x, v - KNOB.y) - KNOB.r;
 const slot: Distance = (u, v) =>
   Math.hypot(Math.max(0, Math.abs(u - SLOT.x) - (SLOT.hw - SLOT.hh)), v - SLOT.y) - SLOT.hh;
 const HANDLE_ROUND = 0.006;
-const handle: Distance = (u, v) => {
-  const qx = Math.abs(u - SLIDER.x) - (SLIDER.hw - HANDLE_ROUND);
-  const qy = Math.abs(v - SLOT.y) - (SLIDER.hh - HANDLE_ROUND);
-  return (
-    Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - HANDLE_ROUND
-  );
+const HANDLE: Outline = {
+  cx: SLIDER.x,
+  cy: SLOT.y,
+  bx: SLIDER.hw - HANDLE_ROUND,
+  by: SLIDER.hh - HANDLE_ROUND,
+  r: HANDLE_ROUND,
 };
+const handle: Distance = (u, v) => sd(HANDLE, u, v);
 
 /** How fully a control standing `height` off the plate hides the key light from a point. */
 const shadowOf = (fn: Distance, u: number, v: number, height: number) =>
@@ -278,6 +280,27 @@ const lit = (albedo: V3, light: number): V3 => {
   ];
 };
 
+interface Paint {
+  readonly color: V3;
+  readonly cover: number;
+}
+
+/** `color` covering as much of a pixel `px` wide as lies inside an edge `d` away. */
+const paint = (color: V3, d: number, px: number): Paint => ({
+  color,
+  cover: Math.min(1, Math.max(0, 0.5 - d / px)),
+});
+
+/** `top` laid over `under`, so an antialiased edge blends into what is beneath it. */
+function over(top: Paint | null, under: Paint | null): Paint | null {
+  if (!top || top.cover === 0) return under;
+  if (!under || under.cover === 0) return top;
+  const cover = top.cover + under.cover * (1 - top.cover);
+  const mixed = (c: number) =>
+    (top.color[c] * top.cover + under.color[c] * under.cover * (1 - top.cover)) / cover;
+  return { color: [mixed(0), mixed(1), mixed(2)], cover };
+}
+
 /** The handle's top is flat, its edges roll off over `bevel`, and ridges are cut across its middle. */
 function handleLight(u: number, v: number, inside: number): number {
   const bevel = 0.007;
@@ -318,33 +341,33 @@ export function bakeControls(unit: number, knobs: V3) {
     for (let ix = left; ix < right; ix++) {
       const u = -PLATE.hx + (ix + 0.5) * px;
       const grain = (hash(ix, iy) - 0.5) * 0.04;
-      let color: V3 | null = null;
-      let cover = 0;
       const dk = knob(u, v);
       const dh = handle(u, v);
       const ds = slot(u, v);
+      let part: Paint | null = null;
       if (dk < px) {
         const dx = (u - KNOB.x) / KNOB.r;
         const dy = (v - KNOB.y) / KNOB.r;
         const nz = Math.sqrt(Math.max(0, 1 - dx * dx - dy * dy)) + 0.18;
-        color = lit(knobs, tilt(dx, dy, nz, 0.6, 80) + grain);
-        cover = 0.5 - dk / px;
+        part = paint(lit(knobs, tilt(dx, dy, nz, 0.6, 80) + grain), dk, px);
       } else if (dh < px) {
-        color = lit(handleAlbedo, handleLight(u, v, -dh) + grain);
-        cover = 0.5 - dh / px;
-      } else if (ds < px) {
+        part = paint(lit(handleAlbedo, handleLight(u, v, -dh) + grain), dh, px);
+      }
+      let floor: Paint | null = null;
+      if (ds < px) {
         // The floor sits below the plate, so its top wall shades it from the key light.
         const walled = smooth(-0.004, 0.004, slot(u + KEY[0] * 0.02, v + KEY[1] * 0.02));
         const light = -0.55 * walled - 0.5 * shadowOf(handle, u, v, 0.016) + grain;
-        color = lit(GROOVE_ALBEDO, light);
-        cover = 0.5 - ds / px;
+        floor = paint(lit(GROOVE_ALBEDO, light), ds, px);
       }
-      if (!color) continue;
+      const pixel = over(part, floor);
+      if (!pixel) continue;
+      const { color, cover } = pixel;
       const i = ((iy - top) * (right - left) + (ix - left)) * 4;
       image.data[i] = color[0];
       image.data[i + 1] = color[1];
       image.data[i + 2] = color[2];
-      image.data[i + 3] = Math.round(Math.min(1, Math.max(0, cover)) * 255);
+      image.data[i + 3] = Math.round(cover * 255);
     }
   }
   ctx.putImageData(image, left, top);
