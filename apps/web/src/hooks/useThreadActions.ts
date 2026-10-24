@@ -9,6 +9,7 @@ import {
   canSnooze,
   effectiveSnoozed,
   threadWokeAt,
+  type ThreadSnoozeShell,
 } from "@supaterm/client-runtime/state/thread-snooze";
 import { threadRuntimeCanArchive } from "@supaterm/client-runtime/state/models";
 import {
@@ -89,6 +90,17 @@ function topOfPinnedRunOrderKey(): string | undefined {
     if (firstKey === null || shell.pinOrderKey < firstKey) firstKey = shell.pinOrderKey;
   }
   return pinOrderKeyBetween(null, firstKey) ?? undefined;
+}
+
+// A lapsed or hand-raised snooze already woke the thread, so Undo must not restore it.
+function undoSnapshot<Shell extends ThreadSnoozeShell>(
+  thread: Shell,
+  now = new Date().toISOString(),
+): Shell {
+  return {
+    ...thread,
+    snoozedUntil: effectiveSnoozed(thread, { now }) ? thread.snoozedUntil : null,
+  };
 }
 
 export async function requestThreadUnpinConfirmation(input: {
@@ -548,15 +560,50 @@ export function useThreadActions() {
     // gets the default so the same action never places differently.
     const orderKey = opts.orderKey ?? topOfPinnedRunOrderKey();
     ThreadUndo.invalidate("pin", scopedThreadKey(target));
+    // Pinning reopens and wakes the thread, so older Done or Snoozed undos would fight this pin.
+    ThreadUndo.invalidate("mark-done", scopedThreadKey(target));
+    ThreadUndo.invalidate("snooze", scopedThreadKey(target));
     return pinThreadMutation({
       environmentId: target.environmentId,
       input: { threadId: target.threadId, ...(orderKey !== undefined ? { orderKey } : {}) },
     });
   };
 
+  const unsnoozeThread = async (target: ScopedThreadRef) => {
+    ThreadUndo.invalidate("snooze", scopedThreadKey(target));
+    return unsnoozeThreadMutation({
+      environmentId: target.environmentId,
+      input: { threadId: target.threadId, reason: "user" },
+    });
+  };
+
+  const runUndoPlan = (target: ScopedThreadRef, plan: ThreadUndo.ThreadUndoPlan) =>
+    ThreadUndo.executeThreadUndo(
+      plan,
+      async (step) => {
+        switch (step.action) {
+          case "reopen":
+            return reopenThread(target);
+          case "unsnooze":
+            return unsnoozeThread(target);
+          case "pin":
+            return pinThread(
+              target,
+              step.orderKey === undefined ? {} : { orderKey: step.orderKey },
+            );
+          case "snooze":
+            return snoozeThreadMutation({
+              environmentId: target.environmentId,
+              input: { threadId: target.threadId, snoozedUntil: step.snoozedUntil },
+            });
+        }
+      },
+      (result) => result._tag === "Success",
+    );
+
   const unpinThread = async (target: ScopedThreadRef) => {
     const thread = readThreadShell(target);
-    const orderKey = thread?.pinOrderKey ?? undefined;
+    const undoPlan = ThreadUndo.planThreadUndo("unpin", thread && undoSnapshot(thread));
     const action = ThreadUndo.begin("pin", scopedThreadKey(target));
     const result = await unpinThreadMutation({
       environmentId: target.environmentId,
@@ -566,7 +613,7 @@ export function useThreadActions() {
       showThreadUndoNotice({
         action: "Unpinned",
         claim: action,
-        undo: () => pinThread(target, orderKey === undefined ? {} : { orderKey }),
+        undo: () => runUndoPlan(target, undoPlan),
         failureTitle: "Failed to undo unpin",
       });
     } else {
@@ -579,15 +626,10 @@ export function useThreadActions() {
     const resolved = resolveThreadTarget(target);
     const now = new Date().toISOString();
     const wokeAt = resolved ? threadWokeAt(resolved.thread, { now }) : null;
-    // Marking done also drops the pin and the snooze server-side, so Undo
-    // has to put those back as well.
-    const pinOrderKey = resolved?.thread.pinnedAt != null ? resolved.thread.pinOrderKey : null;
-    const wasPinned = resolved?.thread.pinnedAt != null;
-    const wasDone = resolved?.thread.doneOverride === "done";
-    const snoozedUntil =
-      resolved && effectiveSnoozed(resolved.thread, { now })
-        ? (resolved.thread.snoozedUntil ?? null)
-        : null;
+    const undoPlan = ThreadUndo.planThreadUndo(
+      "mark-done",
+      resolved && undoSnapshot(resolved.thread, now),
+    );
     // An older unpin/snooze Undo would re-pin or re-snooze, and the server
     // treats either as a promotion that reopens; marking done supersedes them.
     ThreadUndo.invalidate("pin", scopedThreadKey(target));
@@ -607,30 +649,7 @@ export function useThreadActions() {
     showThreadUndoNotice({
       action: "Done",
       claim: action,
-      undo: async () => {
-        if (wasDone && snoozedUntil !== null) {
-          return snoozeThreadMutation({
-            environmentId: target.environmentId,
-            input: { threadId: target.threadId, snoozedUntil },
-          });
-        }
-        const reopened = await reopenThread(target);
-        if (reopened._tag !== "Success") return reopened;
-        if (wasPinned) {
-          const pinned = await pinThread(
-            target,
-            pinOrderKey == null ? {} : { orderKey: pinOrderKey },
-          );
-          if (pinned._tag !== "Success") return pinned;
-        }
-        if (snoozedUntil !== null) {
-          return snoozeThreadMutation({
-            environmentId: target.environmentId,
-            input: { threadId: target.threadId, snoozedUntil },
-          });
-        }
-        return reopened;
-      },
+      undo: () => runUndoPlan(target, undoPlan),
       failureTitle: "Failed to undo marking as Done",
     });
     return result;
@@ -663,14 +682,6 @@ export function useThreadActions() {
     });
   };
 
-  const unsnoozeThread = async (target: ScopedThreadRef) => {
-    ThreadUndo.invalidate("snooze", scopedThreadKey(target));
-    return unsnoozeThreadMutation({
-      environmentId: target.environmentId,
-      input: { threadId: target.threadId, reason: "user" },
-    });
-  };
-
   const snoozeThread = async (target: ScopedThreadRef, snoozedUntil: string) => {
     const resolved = resolveThreadTarget(target);
     if (resolved && !canSnooze(resolved.thread, { now: new Date().toISOString() })) {
@@ -695,7 +706,7 @@ export function useThreadActions() {
     showThreadUndoNotice({
       action: "Snoozed",
       claim: action,
-      undo: () => unsnoozeThread(target),
+      undo: () => runUndoPlan(target, ThreadUndo.planThreadUndo("snooze")),
       failureTitle: "Failed to wake thread",
     });
     return result;
