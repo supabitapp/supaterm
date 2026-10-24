@@ -23,7 +23,7 @@ const CLIENT_TRACING_RESOURCE = {
     "service.namespace": "supaterm",
     "deployment.environment.name": import.meta.env.DEV ? "development" : "production",
     "service.runtime": "supaterm-web",
-    "service.mode": isElectron ? "electron" : "browser",
+    "supaterm.client.surface": isElectron ? "desktop" : "web",
     "service.version": APP_VERSION,
   },
 } as const;
