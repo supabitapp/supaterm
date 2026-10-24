@@ -166,6 +166,14 @@ export function startStudio(root: HTMLElement) {
     return thumb ? [{ state, thumb }] : [];
   });
 
+  const query = () => `${location.pathname}${searchFromSettings(settings)}`;
+  // Browsers cap how often history can be rewritten, and dragging a colour fires on every step.
+  let urlWrite = 0;
+  const writeUrl = () => {
+    clearTimeout(urlWrite);
+    urlWrite = window.setTimeout(() => history.replaceState(null, "", query()), 250);
+  };
+
   const text = (selector: string, value: string) => {
     const el = root.querySelector(selector);
     if (el) el.textContent = value;
@@ -195,7 +203,7 @@ export function startStudio(root: HTMLElement) {
     text('[data-action="pause"]', settings.paused ? "Play" : "Pause");
     root.querySelector('[data-action="reset"]')?.toggleAttribute("hidden", isDefault(settings));
     stage.classList.toggle("is-interactive", settings.interactive && !settings.paused);
-    history.replaceState(null, "", `${location.pathname}${searchFromSettings(settings)}`);
+    writeUrl();
   };
 
   const flash = (button: HTMLElement, label: string) => {
@@ -225,7 +233,7 @@ export function startStudio(root: HTMLElement) {
         render();
         break;
       case "copy":
-        void navigator.clipboard.writeText(location.href).then(
+        void navigator.clipboard.writeText(new URL(query(), location.origin).href).then(
           () => flash(action, "Copied"),
           () => flash(action, "Copy failed"),
         );

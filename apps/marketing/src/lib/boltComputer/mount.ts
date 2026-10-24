@@ -123,6 +123,7 @@ export function mountBoltComputer(
       settings = { ...settings, ...changes };
       look = lookOf(settings);
       sim.setState(settings.state);
+      if (still()) sim.skipFade();
       draw();
     },
   };

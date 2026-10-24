@@ -113,6 +113,11 @@ export class BoltComputerSim {
     this.nextHop = this.age + 3 + this.random() * 4;
   }
 
+  /** Drop the fade from the last state change, for one made while nothing was drawing. */
+  skipFade() {
+    this.previous = null;
+  }
+
   /** A click: a hop with a full turn, and sparkles round the bolt. */
   poke() {
     this.hop(0.1, this.random() < 0.5 ? 1 : -1);
