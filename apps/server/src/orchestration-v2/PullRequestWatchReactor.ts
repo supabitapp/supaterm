@@ -559,9 +559,22 @@ export const make = Effect.gen(function* () {
       ),
     );
     const present = new Set(targets.map(lifeKey));
+    // The orchestrator ends a watch as it records the merge, before this pass can see it.
+    const merged = new Set(
+      threads.flatMap((thread) =>
+        visibleThreadPullRequests(thread.pullRequests ?? []).flatMap((link) =>
+          link.snapshot?.state === "merged" ? [`${thread.id} ${threadPullRequestKeyOf(link)}`] : [],
+        ),
+      ),
+    );
     yield* Effect.forEach(
       [...lives].filter(([key]) => !present.has(key)),
-      ([key, life]) => reportEnd(key, life, "stopped"),
+      ([key, life]) =>
+        reportEnd(
+          key,
+          life,
+          merged.has(`${life.threadId} ${life.pullRequest}`) ? "merged" : "stopped",
+        ),
       { discard: true },
     );
     for (const target of targets) lifeOf(target);
