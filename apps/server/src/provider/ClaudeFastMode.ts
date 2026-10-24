@@ -1,5 +1,6 @@
 import { ProviderDriverKind, type ServerProviderModel } from "@supaterm/contracts";
 import { filterCustomModelCapabilities } from "@supaterm/shared/model";
+import { fromLenientJson } from "@supaterm/shared/schemaJson";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
@@ -9,7 +10,7 @@ import * as Schema from "effect/Schema";
 const AccountConfig = Schema.fromJsonString(
   Schema.Struct({ penguinModeOrgEnabled: Schema.optional(Schema.Boolean) }),
 );
-const UserSettings = Schema.fromJsonString(
+const UserSettings = fromLenientJson(
   Schema.Struct({
     env: Schema.optional(
       Schema.Struct({ CLAUDE_CODE_SKIP_FAST_MODE_ORG_CHECK: Schema.optional(Schema.String) }),

@@ -105,12 +105,13 @@ it.layer(NodeServices.layer)("Claude Fast availability", (it) => {
       assert.isTrue(yield* fast.isBlocked);
       yield* fs.writeFileString(
         settingsPath,
-        JSON.stringify({
-          env: {
-            ANTHROPIC_BASE_URL: "https://gateway.example.com",
-            CLAUDE_CODE_SKIP_FAST_MODE_ORG_CHECK: "1",
+        `{
+          // Claude Code tolerates comments and trailing commas here.
+          "env": {
+            "ANTHROPIC_BASE_URL": "https://gateway.example.com",
+            "CLAUDE_CODE_SKIP_FAST_MODE_ORG_CHECK": "1",
           },
-        }),
+        }`,
       );
       assert.isFalse(yield* fast.refresh);
       yield* fs.writeFileString(
