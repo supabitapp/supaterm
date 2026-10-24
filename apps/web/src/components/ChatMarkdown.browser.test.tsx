@@ -53,8 +53,10 @@ vi.mock(import("../remoteOpen"), async (original) => ({
 vi.mock(import("../diagrams/mermaidRenderer"), async (original) => ({
   ...(await original()),
   renderMermaidDiagram: vi.fn(),
+  peekMermaidDiagram: vi.fn(),
 }));
-import { renderMermaidDiagram } from "../diagrams/mermaidRenderer";
+import { peekMermaidDiagram, renderMermaidDiagram } from "../diagrams/mermaidRenderer";
+import { stubDiagramGeometry } from "../../test/diagramGeometry";
 
 const settingsOverrides = vi.hoisted(() => ({ mathRenderingEnabled: false }));
 vi.mock(import("../hooks/useSettings"), async (original) => {
@@ -80,6 +82,7 @@ const diagramResult = (label: string) => ({
 function setup() {
   settingsOverrides.mathRenderingEnabled = false;
   renderDiagram.mockReset().mockResolvedValue(diagramResult("Diagram"));
+  vi.mocked(peekMermaidDiagram).mockReset();
   workspaceSearch.mockReset().mockResolvedValue(AsyncResult.success({ entries: [] }));
   filesystemMetadata.mockReset().mockResolvedValue(AsyncResult.success({ entries: [null] }));
 }
@@ -432,6 +435,7 @@ describe("ChatMarkdown diagrams", () => {
   ])(
     "renders completed fences while retaining unfinished source: $text",
     async ({ text, streaming, expected }) => {
+      using _geometry = stubDiagramGeometry();
       vi.mocked(renderMermaidDiagram).mockReset().mockResolvedValue({
         svg: '<svg xmlns="http://www.w3.org/2000/svg"><text>diagram</text></svg>',
         width: 100,

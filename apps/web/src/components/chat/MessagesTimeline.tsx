@@ -1227,9 +1227,9 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
   return (
     <div
       className={cn(
-        isWorkLogRow || isSubagentGroup
+        isWorkLogRow || isSubagentGroup || row.kind === "working"
           ? undefined
-          : row.kind === "turn-fold" || row.kind === "working"
+          : row.kind === "turn-fold"
             ? "pb-1.5"
             : (row.kind === "message" &&
                   row.message.role === "assistant" &&
@@ -1294,7 +1294,7 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
       {row.kind === "proposed-plan" ? <ProposedPlanTimelineRow row={row} /> : null}
       {row.kind === "html-render" ? <HtmlRenderTimelineRow row={row} /> : null}
       {row.kind === "mcp-app" ? <McpAppTimelineRow row={row} /> : null}
-      {row.kind === "working" ? <WorkingTimelineRow row={row} /> : null}
+      {row.kind === "working" ? <WorkingTimelineRow /> : null}
       {row.kind === "worktree-setup" ? <WorktreeSetupTimelineRow row={row} /> : null}
       {row.kind === "event" ? <V2EventTimelineRow row={row} /> : null}
     </div>

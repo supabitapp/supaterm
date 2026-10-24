@@ -2952,6 +2952,136 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
     }),
   );
 
+  it.effect("counts each work session once in the shell's completed work time", () =>
+    Effect.gen(function* () {
+      const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
+      const now = yield* DateTime.now;
+      const at = (seconds: number) => DateTime.add(now, { seconds });
+      const threadId = ThreadId.make("thread:projection-shell-work");
+      const rootNodeId = NodeId.make("node:projection-shell-work");
+      yield* projectionStore.apply({
+        id: EventId.make("event:projection-shell-work:thread"),
+        type: "thread.created",
+        threadId,
+        occurredAt: now,
+        payload: {
+          createdBy: "user",
+          creationSource: "web",
+          id: threadId,
+          projectId: ProjectId.make("project:projection-shell-work"),
+          title: "Work time",
+          providerInstanceId,
+          modelSelection,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          branch: null,
+          worktreePath: null,
+          activeProviderThreadId: null,
+          lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
+          forkedFrom: null,
+          createdAt: now,
+          updatedAt: now,
+          archivedAt: null,
+          doneOverride: null,
+          doneAt: null,
+          lastVisitedAt: null,
+          deletedAt: null,
+        },
+      });
+      const applyRun = (input: {
+        readonly ordinal: number;
+        readonly status: "completed" | "cancelled" | "rolled_back" | "starting" | "running";
+        readonly startedAt: DateTime.Utc | null;
+        readonly completedAt: DateTime.Utc | null;
+        readonly workStartedAt?: DateTime.Utc;
+      }) => {
+        const runId = RunId.make(`run:projection-shell-work:${input.ordinal}`);
+        return projectionStore.apply({
+          id: EventId.make(`event:projection-shell-work:run:${input.ordinal}:${input.status}`),
+          type: "run.updated",
+          threadId,
+          runId,
+          nodeId: rootNodeId,
+          driver,
+          occurredAt: input.completedAt ?? input.startedAt ?? now,
+          payload: {
+            id: runId,
+            threadId,
+            ordinal: input.ordinal,
+            providerInstanceId,
+            modelSelection,
+            providerThreadId: null,
+            userMessageId: MessageId.make(`message:projection-shell-work:${input.ordinal}`),
+            rootNodeId,
+            activeAttemptId: null,
+            status: input.status,
+            requestedAt: input.startedAt ?? now,
+            startedAt: input.startedAt,
+            completedAt: input.completedAt,
+            checkpointId: null,
+            contextHandoffId: null,
+            ...(input.workStartedAt === undefined ? {} : { workStartedAt: input.workStartedAt }),
+          },
+        });
+      };
+      const shells = Effect.gen(function* () {
+        const projection = yield* projectionStore.getThreadProjection(threadId);
+        const snapshot = yield* projectionStore.getShellSnapshot();
+        return [
+          snapshot.threads.find((thread) => thread.id === threadId)!,
+          (yield* projectionStore.getThreadShell(threadId))!,
+          ProjectionStore.threadShellFromProjection(projection),
+        ];
+      });
+
+      yield* applyRun({ ordinal: 1, status: "completed", startedAt: now, completedAt: at(10) });
+      yield* applyRun({
+        ordinal: 2,
+        status: "completed",
+        startedAt: at(20),
+        completedAt: at(30),
+        workStartedAt: now,
+      });
+      yield* applyRun({ ordinal: 3, status: "cancelled", startedAt: null, completedAt: at(40) });
+      yield* applyRun({ ordinal: 4, status: "completed", startedAt: at(60), completedAt: at(65) });
+      yield* applyRun({
+        ordinal: 5,
+        status: "rolled_back",
+        startedAt: at(66),
+        completedAt: at(3_600),
+      });
+      for (const shell of yield* shells) {
+        assert.equal(shell.completedWorkMs, 35_000);
+      }
+
+      yield* applyRun({
+        ordinal: 6,
+        status: "starting",
+        startedAt: null,
+        completedAt: null,
+        workStartedAt: at(60),
+      });
+      for (const shell of yield* shells) {
+        assert.equal(shell.completedWorkMs, 35_000);
+      }
+
+      yield* applyRun({
+        ordinal: 6,
+        status: "running",
+        startedAt: at(70),
+        completedAt: null,
+        workStartedAt: at(60),
+      });
+      for (const shell of yield* shells) {
+        assert.equal(shell.completedWorkMs, 30_000);
+        assert.equal(
+          shell.activityRunStartedAt && DateTime.toEpochMillis(shell.activityRunStartedAt),
+          DateTime.toEpochMillis(at(60)),
+        );
+      }
+    }),
+  );
+
   it.effect("selects only threads with runtime state that needs recovery", () =>
     Effect.gen(function* () {
       const projectionStore = yield* ProjectionStore.ProjectionStoreV2;

@@ -37,6 +37,7 @@ import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
+import * as Logger from "effect/Logger";
 import * as Path from "effect/Path";
 import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
@@ -2851,6 +2852,126 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
     }),
   );
 
+  it.effect("recording a merge ends its watch at once, and a close leaves it to the reactor", () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
+      const threadId = ThreadId.make("runtime-pull-request-watch-merged");
+      const projectId = ProjectId.make("pr-watch-merged-project");
+      yield* seedProject({
+        projectId,
+        title: "Watch merged",
+        workspaceRoot: "/workspace/watch-merged",
+        defaultModelSelection: null,
+        createdAt: "2026-10-01T00:00:00.000Z",
+      });
+      yield* orchestrator.dispatch({
+        type: "thread.create",
+        createdBy: "user",
+        creationSource: "web",
+        commandId: CommandId.make("pr-watch-merged-create"),
+        threadId,
+        projectId,
+        title: "Watch merged",
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: null,
+        worktreePath: null,
+      });
+      const key = { host: "github.com", repository: "supabitapp/supaterm" };
+      const watching = (number: number, on: boolean, id: string) =>
+        orchestrator.dispatch({
+          type: "thread.pull-request.watch",
+          commandId: CommandId.make(`pr-watch-merged-${id}-${number}`),
+          threadId,
+          ...key,
+          number,
+          watching: on,
+          link: { url: `https://github.com/supabitapp/supaterm/pull/${number}`, source: "agent" },
+        });
+      for (const number of [12, 13, 14]) yield* watching(number, true, "start");
+
+      const endReasons: Array<unknown> = [];
+      const capture = Logger.make(({ message }) => {
+        const [text, fields] = Array.isArray(message) ? message : [message];
+        if (text === "pull request watch ended") {
+          endReasons.push([Reflect.get(fields, "pullRequest"), Reflect.get(fields, "reason")]);
+        }
+      });
+      const reactor = yield* PullRequestWatchReactor.make.pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            NodeServices.layer,
+            Layer.mock(PullRequestService.PullRequestService)({
+              detail: (reference) =>
+                Effect.succeed({
+                  ...watchedPullRequestDetail({
+                    projectId,
+                    number: reference.number,
+                    at: "2026-10-02",
+                  }),
+                  checks: [],
+                }),
+              activity: () =>
+                Effect.succeed({
+                  comments: [],
+                  commentCount: 0,
+                  commentsTruncated: false,
+                  reviewThreads: [],
+                  commits: [],
+                }),
+            }),
+          ),
+        ),
+      );
+      const sweep = reactor.sweep.pipe(Effect.provide(Logger.layer([capture])));
+      yield* sweep;
+      const started = (yield* orchestrator.getThreadShell(threadId))?.pullRequests?.[0]?.watch;
+      assert.isDefined(started);
+      // #14's first watch is stopped, and the one that replaces it merges before a pass sees it.
+      yield* watching(14, false, "stop");
+      yield* TestClock.adjust("1 minute");
+      yield* watching(14, true, "restart");
+
+      for (const [number, state] of [
+        [12, "merged"],
+        [13, "closed"],
+        [14, "merged"],
+      ] as const) {
+        yield* orchestrator.dispatch({
+          type: "thread.pull-request-link.sync",
+          commandId: CommandId.make(`pr-watch-merged-sync-${number}`),
+          threadId,
+          ...key,
+          number,
+          snapshot: {
+            state,
+            title: "Watched pull request",
+            headBranch: "feature",
+            baseBranch: "main",
+            isDraft: false,
+            updatedAt: null,
+            syncedAt: "2026-10-02T00:00:00.000Z",
+          },
+          stack: null,
+        });
+      }
+      const [merged, closed] = (yield* orchestrator.getThreadShell(threadId))?.pullRequests ?? [];
+      assert.isUndefined(merged?.watch);
+      assert.deepEqual(merged?.endedWatch, started);
+      assert.isDefined(closed?.watch);
+      assert.isTrue((yield* maintenance.rebuild).valid);
+      assert.isUndefined((yield* orchestrator.getThreadShell(threadId))?.pullRequests?.[0]?.watch);
+
+      yield* sweep;
+      assert.deepEqual(endReasons, [
+        ["github.com/supabitapp/supaterm#12", "merged"],
+        ["github.com/supabitapp/supaterm#14", "stopped"],
+      ]);
+      yield* watching(13, false, "stop");
+    }),
+  );
   it.effect.each([
     "single page",
     "paginated",

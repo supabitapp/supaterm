@@ -1,4 +1,4 @@
-import { render } from "pele";
+import { render, type MathResolver } from "pele";
 import {
   acceptsDiagramSource,
   diagramOptions,
@@ -7,7 +7,15 @@ import {
   type DiagramOptions,
 } from "./diagram.ts";
 
-export function renderDiagram(source: string, options: DiagramOptions = {}) {
+// Without a resolver pele reads `$$` labels as plain text, where `\n` in `\nabla` breaks the
+// line. Declining every label keeps the TeX source readable instead.
+const literalMath: MathResolver = () => null;
+
+export function renderDiagram(
+  source: string,
+  options: DiagramOptions = {},
+  math: MathResolver = literalMath,
+) {
   if (!acceptsDiagramSource(source)) return null;
   try {
     const result = render(source, {
@@ -19,6 +27,7 @@ export function renderDiagram(source: string, options: DiagramOptions = {}) {
       outputLimit: DIAGRAM_LIMITS.svgChars,
       maxEdges: DIAGRAM_LIMITS.edges,
       idPrefix: "supaterm-diagram",
+      math,
     });
     if (!isDiagram(result)) return null;
     return { svg: result.svg, width: result.width, height: result.height, type: result.type };

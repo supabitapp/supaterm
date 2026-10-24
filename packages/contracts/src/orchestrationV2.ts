@@ -1874,6 +1874,8 @@ export const OrchestrationV2ThreadShell = Schema.Struct({
   activityRunStatus: Schema.optional(
     Schema.NullOr(Schema.Literals(["preparing", "starting", "running", "waiting"])),
   ),
+  /** Work time of ended sessions; the session in progress counts from activityRunStartedAt. */
+  completedWorkMs: Schema.optional(NonNegativeInt),
   blockedOnThreadWait: Schema.optional(Schema.Boolean),
   status: OrchestrationV2ShellThreadStatus,
   lastError: Schema.optional(Schema.NullOr(Schema.String)),

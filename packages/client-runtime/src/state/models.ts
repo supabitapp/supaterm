@@ -146,6 +146,8 @@ export interface EnvironmentThreadShell {
   readonly activeProviderThreadId: OrchestrationV2ThreadShell["activeProviderThreadId"];
   readonly latestRun: ThreadRunSummary | null;
   readonly runtime: ThreadRuntimeSummary | null;
+  /** `null` when the environment's server predates work time tracking. */
+  readonly completedWorkMs: number | null;
   readonly blockedOnThreadWait?: boolean;
   readonly latestUserMessageAt: string | null;
   readonly latestUserAuthoredMessageAt?: string | null;
@@ -293,6 +295,7 @@ export function presentThreadShell(
     activeProviderThreadId: thread.activeProviderThreadId,
     latestRun,
     runtime,
+    completedWorkMs: thread.completedWorkMs ?? null,
     blockedOnThreadWait: thread.blockedOnThreadWait ?? false,
     latestUserMessageAt: nullableIso(thread.latestUserMessageAt),
     ...(thread.latestUserAuthoredMessageAt === undefined

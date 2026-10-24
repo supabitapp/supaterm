@@ -4,7 +4,8 @@ name: Release desktop build
 # each target is its own job with its own `needs`. The JS bundle (server, web
 # client, Electron main) comes from the `js-bundle` artifact that build_bundle
 # produced; this job only packages it, builds the native helpers, and, where
-# `cli_archive` is set, the self-contained CLI archive for its platform.
+# `cli_archive` is set, the self-contained CLI archive for its platform. Where
+# `mac_installer` is set, it also builds the "Install Supaterm" disk image.
 
 on:
   workflow_call:
@@ -53,6 +54,12 @@ on:
       # platform/arch, on this runner, and smoke-tests it here. Every archive
       # is built on hardware of its own architecture.
       cli_archive:
+        required: false
+        default: false
+        type: boolean
+      # Whether the job also builds the "Install Supaterm" disk image. It always
+      # installs the latest stable build, so only stable releases publish it.
+      mac_installer:
         required: false
         default: false
         type: boolean
@@ -229,6 +236,19 @@ jobs:
           profile: apple
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
+      # notarytool and electron-builder read the App Store Connect key from a
+      # file, so every later step gets its path in place of the key itself.
+      - name: Write App Store Connect key file
+        if: inputs.platform == 'mac'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${APPLE_API_KEY:-}" ]]; then
+            key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+            printf '%s' "$APPLE_API_KEY" > "$key_path"
+            echo "APPLE_API_KEY=$key_path" >> "$GITHUB_ENV"
+          fi
+
       # build-exe runs the pack on SEA_NODE_VERSION
       # (apps/server/scripts/seaNodeVersion.ts) while the repo stays on the mise
       # Node. Native builds embed that executable; cross-target builds download
@@ -247,13 +267,13 @@ jobs:
           fi
           node apps/server/scripts/cli.ts "${args[@]}"
 
-      - name: Import macOS signing certificate for the CLI archive
-        if: inputs.cli_archive && inputs.platform == 'mac'
+      - name: Import macOS signing certificate for the CLI archive and installer
+        if: inputs.platform == 'mac' && (inputs.cli_archive || inputs.mac_installer)
         shell: bash
         run: |
           set -euo pipefail
           if [[ -z "$CSC_LINK" || -z "$CSC_KEY_PASSWORD" ]]; then
-            echo "macOS CLI signing disabled (missing CSC_LINK); the archive is signed ad hoc."
+            echo "macOS CLI and installer signing disabled (missing CSC_LINK); they are signed ad hoc."
             exit 0
           fi
           keychain="$RUNNER_TEMP/supaterm-cli-signing.keychain-db"
@@ -276,8 +296,8 @@ jobs:
             exit 1
           fi
           echo "::add-mask::$keychain_password"
-          echo "SUPATERM_CLI_MAC_SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
-          echo "macOS CLI signing enabled."
+          echo "SUPATERM_MAC_SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+          echo "macOS CLI and installer signing enabled."
 
       - name: Stage resource monitor for the CLI archive
         if: inputs.cli_archive
@@ -304,11 +324,6 @@ jobs:
           AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME }}
         run: |
           set -euo pipefail
-          if [[ "${INPUTS_PLATFORM}" == "mac" && -n "${APPLE_API_KEY:-}" ]]; then
-            key_path="$RUNNER_TEMP/AuthKey_cli_${APPLE_API_KEY_ID}.p8"
-            printf '%s' "$APPLE_API_KEY" > "$key_path"
-            export APPLE_API_KEY="$key_path"
-          fi
           node scripts/build-cli-archive.ts \
             --platform "${INPUTS_PLATFORM}" \
             --arch "${INPUTS_ARCH}" \
@@ -461,10 +476,6 @@ jobs:
 
           if [[ "${INPUTS_PLATFORM}" == "mac" ]]; then
             if has_all "$CSC_LINK" "$CSC_KEY_PASSWORD" "$APPLE_API_KEY" "$APPLE_API_KEY_ID" "$APPLE_API_ISSUER"; then
-              key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
-              printf '%s' "$APPLE_API_KEY" > "$key_path"
-              export APPLE_API_KEY="$key_path"
-
               echo "macOS signing enabled."
               args+=(--signed)
             else
@@ -492,6 +503,19 @@ jobs:
           fi
 
           vp run dist:desktop:artifact "${args[@]}"
+
+      # Nightly builds it too, so a broken installer build fails a nightly
+      # before it can fail a stable release, but only stable publishes it.
+      - name: Build macOS installer
+        if: inputs.mac_installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          output_dir="$RUNNER_TEMP/mac-installer"
+          if [[ "${INPUTS_RELEASE_CHANNEL}" == "stable" ]]; then
+            output_dir=release
+          fi
+          node scripts/build-mac-installer.ts --version "${INPUTS_VERSION}" --output-dir "$output_dir"
 
       # The verify job runs what this host could not: the packaged natives and
       # the CLI. Its scripts are bundled so that job needs no install.

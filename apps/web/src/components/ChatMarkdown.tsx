@@ -124,7 +124,7 @@ import {
 } from "../editorPreferences";
 import { openInEditorMenuLabel } from "../editorLabels";
 import { resolveDiffThemeName } from "../lib/diffRendering";
-import { MermaidBlock } from "../diagrams/MermaidBlock";
+import { MarkdownMermaidCodeBlock } from "./chat/MarkdownMermaidCodeBlock";
 import { RenderErrorBoundary } from "./RenderErrorBoundary";
 import { useRenderedAppearance } from "../hooks/useTheme";
 import { useClientSettings } from "../hooks/useSettings";
@@ -1488,8 +1488,15 @@ const CHAT_MARKDOWN_COMPONENTS = {
     return <MarkdownDetails open={detailsOpen}>{children}</MarkdownDetails>;
   },
   pre: function MarkdownPre({ node, children, ...props }) {
-    const { resolvedTheme, diffThemeName, isStreaming, onRunShellCommand, inline, mathEnabled } =
-      use(ChatMarkdownRendererContext);
+    const {
+      resolvedTheme,
+      diffThemeName,
+      expandMedia,
+      isStreaming,
+      onRunShellCommand,
+      inline,
+      mathEnabled,
+    } = use(ChatMarkdownRendererContext);
     const text = use(ChatMarkdownTextContext);
     const codeBlock = extractCodeBlock(children);
     if (!codeBlock) {
@@ -1507,15 +1514,6 @@ const CHAT_MARKDOWN_COMPONENTS = {
       return <MarkdownMath tex={codeBlock.code} display focusable={!inline} />;
     }
     const fenceTitle = extractFenceTitle(extractPreCodeMeta(node));
-    if (language.toLowerCase() === "mermaid") {
-      return (
-        <MermaidBlock
-          source={codeBlock.code}
-          complete={isClosedCodeFence(node, text, codeBlock.code)}
-          title={fenceTitle}
-        />
-      );
-    }
     const highlightedCode = (
       <RenderErrorBoundary
         resetKeys={[codeBlock.code, language, diffThemeName, isStreaming]}
@@ -1537,6 +1535,19 @@ const CHAT_MARKDOWN_COMPONENTS = {
         </Suspense>
       </RenderErrorBoundary>
     );
+    if (language.toLowerCase() === "mermaid") {
+      return (
+        <MarkdownMermaidCodeBlock
+          code={codeBlock.code}
+          fenceTitle={fenceTitle}
+          theme={resolvedTheme}
+          isStreaming={isStreaming && !isClosedCodeFence(node, text, codeBlock.code)}
+          onExpand={(src) => expandMedia({ images: [{ src, name: "Mermaid diagram" }], index: 0 })}
+        >
+          {highlightedCode}
+        </MarkdownMermaidCodeBlock>
+      );
+    }
     return (
       <MarkdownCodeBlock
         code={codeBlock.code}

@@ -71,14 +71,19 @@ it.effect("preserves installed status after probes and cleans failed agent activ
           owners.push(/const owner = "([^"]+)"/.exec(script)?.[1] ?? "");
           output = JSON.stringify({
             nodePath: "/node",
-            platforms: [{ platform: "ios", available: true }],
+            platforms: [
+              { platform: "ios", available: true },
+              { platform: "android", available: false },
+            ],
             hubPort: 1234,
             helpers: { serveSimAxSettings: null, serveSimCli: null },
             ...(mode === "agent-start"
               ? { daemonPort: 1235, token: "fixture", entryPath: "/agent.mjs" }
               : {}),
           });
-          if (mode === "") {
+          if (mode === "" && script.includes("'xcrun' 'simctl' 'list'")) {
+            output = JSON.stringify({ devices: {} });
+          } else if (mode === "") {
             output = `${"verbose-prefix ".repeat(400)}PANIC: emulator SDK is broken\n`;
             exitCode = 1;
           }
@@ -118,7 +123,14 @@ it.effect("preserves installed status after probes and cleans failed agent activ
       Effect.provideService(
         HttpClient.HttpClient,
         HttpClient.make((request) =>
-          Effect.succeed(HttpClientResponse.fromWeb(request, new Response("ok"))),
+          Effect.succeed(
+            HttpClientResponse.fromWeb(
+              request,
+              request.url.endsWith("/api/devices")
+                ? Response.json({ simulators: [], emulators: [] })
+                : new Response("ok"),
+            ),
+          ),
         ),
       ),
     );
@@ -144,6 +156,9 @@ it.effect("preserves installed status after probes and cleans failed agent activ
       expect(failed.stdout).toMatch(/^\[truncated\]/);
       expect(failed.stderr).toBe(failed.stdout.trim());
       expect(failed.stderr).toMatch(/PANIC: emulator SDK is broken$/);
+      const probesBeforeList = modes.filter((mode) => mode === "probe").length;
+      expect((yield* ready.devices.list).devices).toEqual([]);
+      expect(modes.filter((mode) => mode === "probe")).toHaveLength(probesBeforeList + 1);
     }
     yield* host.platformAvailability("ios");
     expect((yield* host.summary).hubInstalled).toBe(true);

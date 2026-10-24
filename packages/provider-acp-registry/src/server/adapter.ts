@@ -245,6 +245,7 @@ export const makeAcpRegistryAdapterV2 = Effect.fn("makeAcpRegistryAdapterV2")(fu
           registerExtensions: copilotRouting.registerExtensions,
           normalizeSessionUpdate: copilotRouting.normalizeSessionUpdate,
           extractSubagentUpdate: extractCopilotSubagentUpdate,
+          supportsCompaction: true,
         }),
     makeRuntime: options.makeRuntime ?? makeAcpRegistryRuntime(runtimeOptions, catalog),
     ...(runtimeCoordinator === undefined

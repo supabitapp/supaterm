@@ -290,10 +290,14 @@ export const make = Effect.fn("LocalDeviceHost.make")(function* () {
     );
     return reason === null ? { platform, available: true } : { platform, available: false, reason };
   });
+  const platformAvailabilities = Effect.all([
+    platformAvailability("ios"),
+    platformAvailability("android"),
+  ]);
 
   const summary: Effect.Effect<DeviceHostSummary> = Effect.gen(function* () {
     const [platforms, hubInstalled, agentDeviceInstalled] = yield* Effect.all([
-      Effect.all([platformAvailability("ios"), platformAvailability("android")]),
+      platformAvailabilities,
       isDeviceHubInstalled(config.baseDir).pipe(
         Effect.provideService(FileSystem.FileSystem, fs),
         Effect.provideService(Path.Path, path),
@@ -828,9 +832,7 @@ export const make = Effect.fn("LocalDeviceHost.make")(function* () {
       origin: running.hub.origin,
       http: httpClient,
       run,
-      androidAvailable: platformAvailability("android").pipe(
-        Effect.map((availability) => availability.available),
-      ),
+      platforms: platformAvailabilities,
     }),
     nodePath: running.hub.nodePath,
     run,

@@ -182,7 +182,9 @@ export function ThreadDetailsPrRow({
   const rowAction = resolveThreadPanelPullRequestAction(detail);
   const conflicting = isPullRequestConflicting(detail);
   const checksState = detail === null ? "none" : classifyPullRequestChecks(detail.checks);
-  const checksRollup = detail === null ? null : pullRequestChecksState(detail.checks);
+  // Checks stop refreshing once the pull request is no longer open, so jobs that start on merge or
+  // close would otherwise show as pending forever.
+  const checksRollup = detail?.state === "open" ? pullRequestChecksState(detail.checks) : null;
   const selectedMergeMethod = resolvePullRequestMergeMethod(
     allowedPullRequestMergeMethods(detail),
     null,

@@ -1,9 +1,10 @@
 import { Check, Copy } from "lucide";
 import { PlayIcon, WrapTextIcon } from "lucide-react";
 import { toHtml } from "hast-util-to-html";
-import React, { use, useEffect, useRef, useState, type ReactNode } from "react";
+import React, { use, useEffect, useState, type ReactNode } from "react";
 
 import { useIncrementalHighlightedDocument } from "../../hooks/useIncrementalHighlightedDocument";
+import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { getClientSettings } from "../../hooks/useSettings";
 import type { DiffThemeName } from "../../lib/diffRendering";
 import { highlightCodeDocument } from "../../lib/incrementalHighlighting";
@@ -132,6 +133,9 @@ export function MarkdownCodeBlock({
   theme,
   onRunShellCommand,
   isStreaming,
+  viewToggle,
+  canWrap = true,
+  diagram = false,
   children,
 }: {
   code: string;
@@ -140,11 +144,27 @@ export function MarkdownCodeBlock({
   theme: "light" | "dark";
   onRunShellCommand?: ((command: string) => void) | undefined;
   isStreaming: boolean;
+  viewToggle?: ReactNode;
+  canWrap?: boolean;
+  diagram?: boolean;
   children: ReactNode;
 }) {
-  const [copied, setCopied] = useState(false);
   const [wrapped, setWrapped] = useState(() => getClientSettings().wordWrap);
-  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The shared clipboard helper falls back to execCommand where navigator.clipboard is missing,
+  // such as remote clients served over plain HTTP.
+  const { copyToClipboard, isCopied: copied } = useCopyToClipboard({
+    timeout: 1200,
+    target: "code block",
+    onError: (cause) =>
+      reportMarkdownActionFailure(
+        {
+          operation: "copy-code-block",
+          language,
+          ...(fenceTitle ? { fenceTitle } : {}),
+        },
+        cause,
+      ),
+  });
   const wrapLabel = wrapped ? "Disable line wrap" : "Wrap lines";
   const copyLabel = copied ? "Copied" : "Copy code";
   const command = code.trim();
@@ -159,43 +179,36 @@ export function MarkdownCodeBlock({
     // make the rendered command differ from what the terminal would receive.
     !/[\p{Cc}\p{Cf}]/u.test(code.slice(0, -1));
 
-  const handleCopy = () => {
-    if (typeof navigator === "undefined" || navigator.clipboard == null) {
-      return;
-    }
-    void navigator.clipboard
-      .writeText(code)
-      .then(() => {
-        if (copiedTimerRef.current != null) {
-          clearTimeout(copiedTimerRef.current);
+  const copyButton = (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost-muted"
+            size="icon-xs"
+            onClick={() => copyToClipboard(code)}
+            aria-label={copyLabel}
+          />
         }
-        setCopied(true);
-        copiedTimerRef.current = setTimeout(() => {
-          setCopied(false);
-          copiedTimerRef.current = null;
-        }, 1200);
-      })
-      .catch((cause) => {
-        reportMarkdownActionFailure(
-          {
-            operation: "copy-code-block",
-            language,
-            ...(fenceTitle ? { fenceTitle } : {}),
-          },
-          cause,
-        );
-      });
-  };
-
-  useEffect(
-    () => () => {
-      if (copiedTimerRef.current != null) {
-        clearTimeout(copiedTimerRef.current);
-        copiedTimerRef.current = null;
-      }
-    },
-    [],
+      >
+        <MorphIcon className="size-3" icon={copied ? Check : Copy} />
+      </TooltipTrigger>
+      <TooltipPopup side="top">{copyLabel}</TooltipPopup>
+    </Tooltip>
   );
+
+  if (diagram) {
+    return (
+      <div className="my-[0.65rem] border border-transparent" data-language={language}>
+        <div className="flex items-center justify-end gap-0.5 pt-1.5 pr-1.5 select-none">
+          {viewToggle}
+          {copyButton}
+        </div>
+        {children}
+      </div>
+    );
+  }
 
   return (
     <MarkdownCodeBlockFrame
@@ -206,23 +219,25 @@ export function MarkdownCodeBlock({
       headerProps={THREAD_FIND_IGNORE_PROPS}
       actions={
         <span className="flex items-center gap-0.5" role="toolbar" aria-label="Code block actions">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant={wrapped ? "secondary" : "ghost-muted"}
-                  size="icon-xs"
-                  aria-pressed={wrapped}
-                  onClick={() => setWrapped((value) => !value)}
-                  aria-label={wrapLabel}
-                />
-              }
-            >
-              <WrapTextIcon className="size-3" />
-            </TooltipTrigger>
-            <TooltipPopup side="top">{wrapLabel}</TooltipPopup>
-          </Tooltip>
+          {canWrap ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant={wrapped ? "secondary" : "ghost-muted"}
+                    size="icon-xs"
+                    aria-pressed={wrapped}
+                    onClick={() => setWrapped((value) => !value)}
+                    aria-label={wrapLabel}
+                  />
+                }
+              >
+                <WrapTextIcon className="size-3" />
+              </TooltipTrigger>
+              <TooltipPopup side="top">{wrapLabel}</TooltipPopup>
+            </Tooltip>
+          ) : null}
           {canRun ? (
             <Tooltip>
               <TooltipTrigger
@@ -241,22 +256,8 @@ export function MarkdownCodeBlock({
               <TooltipPopup side="top">Run in terminal</TooltipPopup>
             </Tooltip>
           ) : null}
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost-muted"
-                  size="icon-xs"
-                  onClick={handleCopy}
-                  aria-label={copyLabel}
-                />
-              }
-            >
-              <MorphIcon className="size-3" icon={copied ? Check : Copy} />
-            </TooltipTrigger>
-            <TooltipPopup side="top">{copyLabel}</TooltipPopup>
-          </Tooltip>
+          {viewToggle}
+          {copyButton}
         </span>
       }
     >

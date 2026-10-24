@@ -17,6 +17,7 @@ import {
   resolveSidebarV2DurationStartedAt,
   resolveSidebarV2TopStatus,
   resolveThreadStatusPill,
+  resolveThreadTotalWorkMs,
   shouldShowSidebarV2Duration,
   shouldRecedeSidebarThread,
   sortInboxThreadsByReturn,
@@ -396,6 +397,48 @@ describe("resolveSidebarV2DurationStartedAt", () => {
       }),
     ).toBeNull();
     expect(resolveSidebarV2DurationStartedAt({ ...thread, latestRun: null })).toBeNull();
+  });
+});
+
+describe("resolveThreadTotalWorkMs", () => {
+  const thread = makeThreadFixture({
+    latestRun: makeLatestRun(),
+    completedWorkMs: 90_000,
+    runtime: {
+      status: "running",
+      activeRunId: null,
+      activityStartedAt: "2026-03-09T10:00:00.000Z",
+      providerInstanceId: ProviderInstanceId.make("codex"),
+      providerName: null,
+      lastError: null,
+      updatedAt: "2026-03-09T10:00:00.000Z",
+    },
+  });
+  const nowMs = Date.parse("2026-03-09T10:00:30.000Z");
+
+  it("adds the session in progress to the ended sessions", () => {
+    expect(resolveThreadTotalWorkMs(thread, nowMs)).toBe(120_000);
+  });
+
+  it("waits for execution to start before adding the session in progress", () => {
+    for (const status of ["preparing", "starting"] as const) {
+      expect(
+        resolveThreadTotalWorkMs({ ...thread, runtime: { ...thread.runtime!, status } }, nowMs),
+      ).toBe(90_000);
+    }
+  });
+
+  it("uses the ended sessions alone once nothing is working", () => {
+    expect(
+      resolveThreadTotalWorkMs(
+        { ...thread, runtime: { ...thread.runtime!, status: "idle", activityStartedAt: null } },
+        nowMs,
+      ),
+    ).toBe(90_000);
+  });
+
+  it("is unknown when the server does not report work time", () => {
+    expect(resolveThreadTotalWorkMs({ ...thread, completedWorkMs: null }, nowMs)).toBeNull();
   });
 });
 

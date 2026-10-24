@@ -24,7 +24,6 @@ import {
   threadReadLabel,
   ThreadReadLabel,
 } from "./TimelineWorkEntryRow";
-import { formatWorkingTimerNow } from "./TimelineWorkGroupRows.logic";
 import {
   type MessagesTimelineRow,
   workEntryIsVisibleInGroup,
@@ -106,28 +105,6 @@ export const WorkGroupSection = memo(function WorkGroupSection({
     </section>
   );
 });
-
-function WorkingTimer({ createdAt }: { createdAt: string }) {
-  const textRef = useRef<HTMLSpanElement>(null);
-  const initialText = formatWorkingTimerNow(createdAt);
-
-  useEffect(() => {
-    const updateText = () => {
-      if (textRef.current) {
-        textRef.current.textContent = formatWorkingTimerNow(createdAt);
-      }
-    };
-    updateText();
-    const id = setInterval(updateText, 1000);
-    return () => clearInterval(id);
-  }, [createdAt]);
-
-  return (
-    <span ref={textRef} className="tabular-nums">
-      {initialText}
-    </span>
-  );
-}
 
 const compactWorkEntryHeight = 24;
 
@@ -308,34 +285,32 @@ function ExpandedWorkGroupEntries({
 
 const workEntryKey = (entry: TimelineWorkEntry) => entry.id;
 
-export function WorkingTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "working" }> }) {
+export function WorkingTimelineRow() {
   const { isCompacting, isPreparingWorktree, backgroundWorktreeSetup } =
     use(TimelineRowActivityCtx);
-  const shimmer = isPreparingWorktree || isCompacting;
   const label = isPreparingWorktree ? (
     "Setting up worktree…"
   ) : isCompacting ? (
     <CompactingLabel />
-  ) : row.createdAt ? (
-    <>
-      Working for <WorkingTimer createdAt={row.createdAt} />
-    </>
-  ) : (
-    "Working..."
-  );
+  ) : null;
+  if (!label && !backgroundWorktreeSetup) return null;
   return (
-    <div className="border-b border-border/60 pb-2 pt-1">
-      <div className="flex h-6 min-w-0 items-baseline gap-2 px-1 text-sm leading-relaxed text-muted-foreground tabular-nums">
-        <span
-          ref={shimmer ? observeVisibleAnimation : undefined}
-          className="relative shrink-0 overflow-hidden whitespace-nowrap"
-        >
-          {label}
-          {shimmer ? <ActivityShimmerOverlay>{label}</ActivityShimmerOverlay> : null}
-        </span>
-        {backgroundWorktreeSetup ? (
-          <BackgroundWorktreeSetupChip snapshot={backgroundWorktreeSetup} />
-        ) : null}
+    <div className="pb-1.5">
+      <div className="border-b border-border/60 pb-2 pt-1">
+        <div className="flex h-6 min-w-0 items-baseline gap-2 px-1 text-sm leading-relaxed text-muted-foreground">
+          {label ? (
+            <span
+              ref={observeVisibleAnimation}
+              className="relative shrink-0 overflow-hidden whitespace-nowrap"
+            >
+              {label}
+              <ActivityShimmerOverlay>{label}</ActivityShimmerOverlay>
+            </span>
+          ) : null}
+          {backgroundWorktreeSetup ? (
+            <BackgroundWorktreeSetupChip snapshot={backgroundWorktreeSetup} />
+          ) : null}
+        </div>
       </div>
     </div>
   );

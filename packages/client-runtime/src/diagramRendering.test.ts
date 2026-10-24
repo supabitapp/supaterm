@@ -22,6 +22,27 @@ describe("createDiagramRenderer", () => {
     await renderer.render("source", { maxWidth: 800, fontFamily: "Courier", now: 1 });
     expect(render).toHaveBeenCalledTimes(4);
   });
+  it("peeks only at finished renders for the same geometry", async () => {
+    const pending = Promise.withResolvers<Diagram>();
+    const renderer = createDiagramRenderer(() => pending.promise);
+    const result = renderer.render("source", { maxWidth: 320, now: 0 });
+    expect(renderer.peek("source", { maxWidth: 320, now: 0 })).toBeUndefined();
+    pending.resolve(diagram("ready"));
+    await result;
+    expect(renderer.peek("source", { maxWidth: 330, now: 0 })).toEqual(diagram("ready"));
+    expect(renderer.peek("source", { maxWidth: 800, now: 0 })).toBeUndefined();
+    expect(renderer.peek("source", { maxWidth: 320, now: 0 }, () => null)).toBeUndefined();
+  });
+
+  it("hands each request its math resolver and keeps typeset renders apart from literal ones", async () => {
+    const render = vi.fn<Parameters<typeof createDiagramRenderer>[0]>(async () => diagram("ready"));
+    const renderer = createDiagramRenderer(render);
+    const resolver = () => null;
+    await renderer.render("source", { now: 0 });
+    await renderer.render("source", { now: 0 }, resolver);
+    await renderer.render("source", { now: 0 }, resolver);
+    expect(render.mock.calls.map((call) => call[2])).toEqual([undefined, resolver]);
+  });
   it("coalesces identical requests and renders different sources in order", async () => {
     const first = Promise.withResolvers<Diagram>();
     const second = Promise.withResolvers<Diagram>();
@@ -31,12 +52,12 @@ describe("createDiagramRenderer", () => {
     const duplicateResult = renderer.render("first");
     const secondResult = renderer.render("second");
     expect(firstResult).toBe(duplicateResult);
-    expect(render.mock.calls).toEqual([["first", diagramOptions()]]);
+    expect(render.mock.calls).toEqual([["first", diagramOptions(), undefined]]);
     first.resolve(diagram("first diagram"));
     expect(await firstResult).toEqual(diagram("first diagram"));
     expect(render.mock.calls).toEqual([
-      ["first", diagramOptions()],
-      ["second", diagramOptions()],
+      ["first", diagramOptions(), undefined],
+      ["second", diagramOptions(), undefined],
     ]);
     second.resolve(diagram("second diagram"));
     expect(await secondResult).toEqual(diagram("second diagram"));
@@ -69,8 +90,8 @@ describe("createDiagramRenderer", () => {
     expect(await renderer.render("source")).toEqual(diagram("diagram"));
     expect(await renderer.render("source")).toEqual(diagram("diagram"));
     expect(render.mock.calls).toEqual([
-      ["source", diagramOptions()],
-      ["source", diagramOptions()],
+      ["source", diagramOptions(), undefined],
+      ["source", diagramOptions(), undefined],
     ]);
   });
 
@@ -85,8 +106,8 @@ describe("createDiagramRenderer", () => {
     await firstResult;
     expect(await renderer.render("second")).toEqual(diagram("diagram"));
     expect(render.mock.calls).toEqual([
-      ["first", diagramOptions()],
-      ["second", diagramOptions()],
+      ["first", diagramOptions(), undefined],
+      ["second", diagramOptions(), undefined],
     ]);
   });
 

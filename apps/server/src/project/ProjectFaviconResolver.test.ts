@@ -296,6 +296,116 @@ it.layer(layerTest)("ProjectFaviconResolverLive", (it) => {
       }),
     );
 
+    it.effect("prefers a root icon over monorepo package icons", () =>
+      Effect.gen(function* () {
+        const resolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "apps/web/public/favicon.svg", "<svg>web</svg>");
+        yield* writeTextFile(cwd, "assets/logo.png", "root");
+
+        expect(yield* resolver.resolvePath(cwd)).toBe(path.join(cwd, "assets", "logo.png"));
+      }),
+    );
+    it.effect("ranks monorepo package icons by candidate before package name", () =>
+      Effect.gen(function* () {
+        const resolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "apps/mobile/assets/icon.png", "mobile");
+        yield* writeTextFile(cwd, "apps/web/public/favicon.svg", "<svg>web</svg>");
+
+        expect(yield* resolver.resolvePath(cwd)).toBe(
+          path.join(cwd, "apps", "web", "public", "favicon.svg"),
+        );
+      }),
+    );
+    it.effect("prefers apps over packages in a monorepo", () =>
+      Effect.gen(function* () {
+        const resolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "packages/ui/favicon.svg", "<svg>ui</svg>");
+        yield* writeTextFile(cwd, "apps/web/assets/logo.png", "web");
+
+        expect(yield* resolver.resolvePath(cwd)).toBe(
+          path.join(cwd, "apps", "web", "assets", "logo.png"),
+        );
+      }),
+    );
+    it.effect("resolves icon hrefs relative to the monorepo package that declares them", () =>
+      Effect.gen(function* () {
+        const resolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "apps/web/index.html", '<link rel="icon" href="/brand.svg">');
+        yield* writeTextFile(cwd, "apps/web/public/brand.svg", "<svg>brand</svg>");
+
+        expect(yield* resolver.resolvePath(cwd)).toBe(
+          path.join(cwd, "apps", "web", "public", "brand.svg"),
+        );
+      }),
+    );
+    it.effect("breaks ties between equally ranked package icons by package name", () =>
+      Effect.gen(function* () {
+        const resolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "apps/beta/public/favicon.svg", "<svg>beta</svg>");
+        yield* writeTextFile(cwd, "apps/alpha/public/favicon.svg", "<svg>alpha</svg>");
+
+        expect(yield* resolver.resolvePath(cwd)).toBe(
+          path.join(cwd, "apps", "alpha", "public", "favicon.svg"),
+        );
+      }),
+    );
+    it.effect("does not probe package entries beyond the cap", () =>
+      Effect.gen(function* () {
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        for (let index = 0; index < 64; index += 1) {
+          yield* writeTextFile(cwd, `apps/app-${String(index).padStart(2, "0")}/README.md`, "");
+        }
+        yield* writeTextFile(cwd, "apps/app-63/public/favicon.svg", "<svg>last</svg>");
+        yield* writeTextFile(cwd, "apps/zz-unreadable/README.md", "");
+        const unreadablePrefix = path.join(cwd, "apps", "zz-unreadable") + path.sep;
+        const resolver = yield* makeResolverWithFileSystem(
+          FileSystem.FileSystem.of({
+            ...fileSystem,
+            stat: (filePath) =>
+              filePath.startsWith(unreadablePrefix)
+                ? Effect.fail(
+                    PlatformError.systemError({
+                      _tag: "PermissionDenied",
+                      module: "FileSystem",
+                      method: "stat",
+                      pathOrDescriptor: filePath,
+                    }),
+                  )
+                : fileSystem.stat(filePath),
+          }),
+        );
+
+        expect(yield* resolver.resolvePath(cwd)).toBe(
+          path.join(cwd, "apps", "app-63", "public", "favicon.svg"),
+        );
+      }),
+    );
+    it.effect("skips candidate paths that pass through a regular file", () =>
+      Effect.gen(function* () {
+        const resolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "apps/README.md", "# apps");
+        yield* writeTextFile(cwd, "apps/api/app", "binary");
+        yield* writeTextFile(cwd, "apps/web/assets/logo.svg", "<svg>web</svg>");
+
+        expect(yield* resolver.resolvePath(cwd)).toBe(
+          path.join(cwd, "apps", "web", "assets", "logo.svg"),
+        );
+      }),
+    );
     it.effect("returns a found favicon without waiting for lower-ranked probes", () =>
       Effect.gen(function* () {
         const fileSystem = yield* FileSystem.FileSystem;

@@ -42,6 +42,7 @@ import {
   ShieldQuestionIcon,
   SquarePenIcon,
   TerminalIcon,
+  TimerIcon,
   Undo2Icon,
   XIcon,
   ZapIcon,
@@ -82,6 +83,7 @@ import {
   resolveSidebarThreadStatus,
   resolveSidebarV2DurationStartedAt,
   resolveSidebarV2TopStatus,
+  resolveThreadTotalWorkMs,
   shouldRecedeSidebarThread,
   shouldShowSidebarV2Duration,
   useRetainedValue,
@@ -195,6 +197,21 @@ function WorkingDurationLabel(props: { startedMs: number }) {
   const nowMs = useNowSecond();
   return (
     <span className="tabular-nums">{formatWorkingDurationLabel(nowMs - props.startedMs)}</span>
+  );
+}
+
+function SidebarThreadWorkTime(props: { thread: SidebarThreadSummary }) {
+  const nowMs = useNowSecond();
+  const totalMs = resolveThreadTotalWorkMs(props.thread, nowMs);
+  if (totalMs === null || totalMs < 1000) return null;
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <TimerIcon aria-hidden className="size-3 shrink-0 stroke-muted-foreground" />
+      <div className="min-w-0 truncate text-foreground/75">
+        Total working time:{" "}
+        <span className="tabular-nums">{formatWorkingDurationLabel(totalMs)}</span>
+      </div>
+    </div>
   );
 }
 
@@ -373,6 +390,7 @@ function SidebarThreadTooltip({
             </div>
           </div>
         ) : null}
+        <SidebarThreadWorkTime thread={thread} />
         {previousProviderNames.length > 0 ? (
           <div className="flex min-w-0 items-center gap-2">
             <ArrowRightLeftIcon className="size-3 shrink-0 stroke-muted-foreground" />

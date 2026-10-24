@@ -69,6 +69,14 @@ Run `supaterm --help` for the full reference.
 Build the desktop client from this repository. Distribution artifacts belong to
 Supaterm's [GitHub Releases](https://github.com/supabitapp/supaterm/releases).
 
+On macOS, download the installer from [supaterm.com/download](https://supaterm.com/download),
+open it, and double-click **Install Supaterm**. It downloads the latest stable release for your
+Mac's chip, installs it in Applications, and opens it. If your account cannot write to
+Applications, it installs in the Applications folder in your home folder instead. If Supaterm is
+already open, the installer asks you to quit it first. To install with Homebrew instead, run
+`brew install supaterm`. Nightly builds and the full disk images for Apple Silicon and Intel are on
+the releases page.
+
 ### The `supaterm` command
 
 The desktop app installs its bundled `supaterm` command on startup when possible.
