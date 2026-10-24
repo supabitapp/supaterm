@@ -91,7 +91,7 @@ if (!globalThis.__supatermMermaid) {
   let deadline = Infinity;
   let steps = 0;
   function __checkDiagramBudget() {
-    if (++steps > 2000000 || (steps % 128 === 0 && Date.now() > deadline)) {
+    if (++steps % 128 === 0 && Date.now() > deadline) {
       throw new Error("Diagram rendering budget exceeded");
     }
   }
