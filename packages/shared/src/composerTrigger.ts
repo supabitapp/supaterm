@@ -66,7 +66,7 @@ function tokenEndForCursor(text: string, cursor: number): number {
  * token regexes already refuse to render as skills, plus the punctuation prose puts after
  * one (`$10k.`, `($5)`).
  */
-export function isCurrencyAmountQuery(query: string): boolean {
+function isCurrencyAmountQuery(query: string): boolean {
   return /^\.?[0-9][0-9,._]*(?:[kKmMbBtT]|[eE][0-9]+)?[.,;:!?)]*$/.test(query);
 }
 
