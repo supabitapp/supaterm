@@ -51,7 +51,8 @@ export function BoltComputer({
   useEffect(() => {
     const canvas = canvasRef.current;
     const box = boxRef.current;
-    if (!canvas || !box) return;
+    // Browsers refuse new contexts past their canvas memory limit; skip the decoration then.
+    if (!canvas || !box || !canvas.getContext("2d")) return;
     simRef.current ??= new BoltComputerSim(seed, state);
     rendererRef.current ??= new BoltComputerRenderer();
     const sim = simRef.current;

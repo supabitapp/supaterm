@@ -37,6 +37,28 @@ describe("BoltComputerSim", () => {
     expect(sim.pose.yaw).toBeGreaterThan(resting);
   });
 
+  it("leaves rest when a pointer arrives on a frame with no elapsed time", () => {
+    const sim = new BoltComputerSim(0.3, "idle");
+    advance(sim, 5);
+    sim.pointer = { x: 200, y: 0 };
+    sim.update(0);
+    expect(sim.settled).toBe(false);
+  });
+
+  it("turns back once the pointer leaves", () => {
+    const sim = new BoltComputerSim(0.3, "idle");
+    advance(sim, 5);
+    const resting = sim.pose.yaw;
+    sim.pointer = { x: 200, y: 0 };
+    advance(sim, 5);
+    sim.pointer = null;
+    sim.update(0);
+    expect(sim.settled).toBe(false);
+    advance(sim, 5);
+    expect(sim.settled).toBe(true);
+    expect(sim.pose.yaw).toBeCloseTo(resting, 2);
+  });
+
   it("keeps animating while a turn is running", () => {
     const sim = new BoltComputerSim(0.3, "idle");
     advance(sim, 5);

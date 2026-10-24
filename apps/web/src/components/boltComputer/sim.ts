@@ -133,7 +133,9 @@ export class BoltComputerSim {
   }
 
   update(dt: number) {
-    if (!(dt > 0)) return;
+    // A zero-length step still aims the springs, so a wake whose first frame
+    // has no elapsed time is not mistaken for rest.
+    if (!(dt >= 0)) return;
     // Small steps keep the springs stable on a slow frame.
     const steps = Math.max(1, Math.ceil(dt * 120));
     for (let i = 0; i < steps; i++) this.step(dt / steps);
