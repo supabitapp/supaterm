@@ -1,10 +1,12 @@
 import { assert, it } from "@effect/vitest";
 import {
   ProjectId,
+  ThreadId,
   type OrchestrationProjectShell,
   type OrchestrationV2ShellStreamItem,
   type OrchestrationV2ThreadShell,
 } from "@supaterm/contracts";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -18,14 +20,17 @@ import * as OrchestrationEventStore from "./persistence/OrchestrationEventStore.
 import * as SqlitePersistence from "./persistence/Sqlite.ts";
 import * as ProjectEnrichment from "./project/ProjectEnrichmentService.ts";
 import * as ProjectService from "./project/ProjectService.ts";
+import { liveThreadShell } from "./mcp/McpToolAccess.testkit.ts";
 import { subscribeOrchestrationV2Shell } from "./ws.ts";
 
 const ReplayTestLayer = OrchestrationEventStore.layer.pipe(
   Layer.provideMerge(SqlitePersistence.layerMemory),
 );
 
-const resumeShellFixture = (id: string, overrides: Partial<OrchestrationV2ThreadShell> = {}) =>
-  ({ id, title: id, archivedAt: null, ...overrides }) as unknown as OrchestrationV2ThreadShell;
+const resumeShellFixture = (
+  id: string,
+  overrides: Partial<OrchestrationV2ThreadShell> = {},
+): OrchestrationV2ThreadShell => ({ ...liveThreadShell(ThreadId.make(id)), ...overrides });
 
 const resumeProjectFixture = (id: string): OrchestrationProjectShell => ({
   id: ProjectId.make(id),
@@ -87,23 +92,38 @@ const collectShellResume = Effect.fnUntraced(function* (input: {
         Stream.runCollect,
       ),
     ),
-    Effect.provideService(ThreadManagement.ThreadManagementService, {
-      getThreadShell: (threadId: string) => Effect.succeed(input.shells?.get(threadId) ?? null),
-      readShellSnapshot: () =>
-        Effect.succeed(Effect.succeed({ schemaVersion: 1, threads: input.snapshotThreads ?? [] })),
-    } as unknown as ThreadManagement.ThreadManagementService["Service"]),
-    Effect.provideService(ProjectStore.ProjectStoreV2, {
-      listShells: () => Effect.succeed(Array.from(input.projects?.values() ?? [])),
-    } as unknown as ProjectStore.ProjectStoreV2["Service"]),
-    Effect.provideService(ProjectService.ProjectService, {
-      getShell: (projectId: string) =>
-        Effect.succeed(Option.fromUndefinedOr(input.projects?.get(projectId))),
-    } as unknown as ProjectService.ProjectService["Service"]),
-    Effect.provideService(ProjectEnrichment.ProjectEnrichmentService, {
-      subscribeChanges: PubSub.subscribe(updates),
-      getAvailable: () =>
-        Effect.succeed({ repositoryIdentity: null, repositoryIdentityResolved: false }),
-    } as unknown as ProjectEnrichment.ProjectEnrichmentService["Service"]),
+    Effect.provide(
+      Layer.mergeAll(
+        Layer.mock(ThreadManagement.ThreadManagementService)({
+          getThreadShell: (threadId) => Effect.succeed(input.shells?.get(threadId) ?? null),
+          readShellSnapshot: () =>
+            Effect.succeed(
+              Effect.succeed({
+                schemaVersion: 1,
+                snapshotSequence: 0,
+                threads: input.snapshotThreads ?? [],
+                archivedThreads: [],
+              }),
+            ),
+        }),
+        Layer.mock(ProjectStore.ProjectStoreV2)({
+          listShells: () => Effect.succeed(Array.from(input.projects?.values() ?? [])),
+        }),
+        Layer.mock(ProjectService.ProjectService)({
+          getShell: (projectId) =>
+            Effect.succeed(Option.fromUndefinedOr(input.projects?.get(projectId))),
+        }),
+        Layer.mock(ProjectEnrichment.ProjectEnrichmentService)({
+          subscribeChanges: PubSub.subscribe(updates),
+          getAvailable: () =>
+            Effect.succeed({
+              repositoryIdentity: null,
+              faviconPath: null,
+              repositoryIdentityResolved: false,
+            }),
+        }),
+      ),
+    ),
     Effect.scoped,
   );
   return Array.from(items);
@@ -167,7 +187,7 @@ it.live("shell resume removes deleted and archived threads and deleted projects"
       [
         "thread:archived",
         resumeShellFixture("thread:archived", {
-          archivedAt: "2026-01-05T00:00:00.000Z" as never,
+          archivedAt: DateTime.makeUnsafe("2026-01-05T00:00:00.000Z"),
         }),
       ],
     ]);
