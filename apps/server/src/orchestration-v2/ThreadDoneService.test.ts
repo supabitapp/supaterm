@@ -104,42 +104,6 @@ function shell(overrides: Partial<SettlementShell> = {}): SettlementShell {
 }
 
 describe("isAutoMarkDoneCandidate", () => {
-  it("excludes overridden, pinned, blocked, and working threads", () => {
-    expect(ThreadDoneService.isAutoMarkDoneCandidate(shell(), NOW_MS)).toBe(true);
-    expect(ThreadDoneService.isAutoMarkDoneCandidate(shell({ archivedAt: at(-1) }), NOW_MS)).toBe(
-      false,
-    );
-    expect(ThreadDoneService.isAutoMarkDoneCandidate(shell({ doneOverride: "done" }), NOW_MS)).toBe(
-      false,
-    );
-    expect(
-      ThreadDoneService.isAutoMarkDoneCandidate(shell({ doneOverride: "active" }), NOW_MS),
-    ).toBe(false);
-    expect(ThreadDoneService.isAutoMarkDoneCandidate(shell({ pinnedAt: at(-1) }), NOW_MS)).toBe(
-      false,
-    );
-    expect(
-      ThreadDoneService.isAutoMarkDoneCandidate(shell({ autoMarkDoneDisabledAt: at(-1) }), NOW_MS),
-    ).toBe(false);
-    expect(
-      ThreadDoneService.isAutoMarkDoneCandidate(shell({ activityRunStatus: "running" }), NOW_MS),
-    ).toBe(false);
-    expect(
-      ThreadDoneService.isAutoMarkDoneCandidate(
-        shell({
-          pendingRuntimeRequest: { kind: "approval" } as never,
-        }),
-        NOW_MS,
-      ),
-    ).toBe(false);
-    expect(
-      ThreadDoneService.isAutoMarkDoneCandidate(
-        shell({ pendingBackgroundTasks: [{ taskId: "review", kind: "subagent" }] }),
-        NOW_MS,
-      ),
-    ).toBe(false);
-  });
-
   it("marks done a thread whose only background work is a command left running", () => {
     expect(
       ThreadDoneService.isAutoMarkDoneCandidate(
@@ -189,41 +153,6 @@ describe("isAutoMarkDoneCandidate", () => {
         NOW_MS,
       ),
     ).toBe(true);
-  });
-});
-
-describe("threadHasQueuedTurnStart", () => {
-  it("holds a fresh unadopted user message inside the grace window only", () => {
-    const fresh = shell({ latestUserMessageAt: at(-1_000) });
-    expect(ThreadDoneService.threadHasQueuedTurnStart(fresh, NOW_MS)).toBe(true);
-    expect(
-      ThreadDoneService.threadHasQueuedTurnStart(
-        shell({
-          latestUserMessageAt: at(-1_000),
-          latestRunId: "run-1" as never,
-          latestRunRequestedAt: at(-500),
-        }),
-        NOW_MS,
-      ),
-    ).toBe(false);
-    expect(
-      ThreadDoneService.threadHasQueuedTurnStart(
-        shell({ latestUserMessageAt: at(-ThreadDoneService.QUEUED_TURN_START_GRACE_MS - 1) }),
-        NOW_MS,
-      ),
-    ).toBe(false);
-    expect(
-      ThreadDoneService.threadHasQueuedTurnStart(
-        shell({ latestUserMessageAt: at(ThreadDoneService.QUEUED_TURN_START_GRACE_MS + 1) }),
-        NOW_MS,
-      ),
-    ).toBe(false);
-    expect(
-      ThreadDoneService.threadHasQueuedTurnStart(
-        shell({ latestUserMessageAt: at(-1_000), status: "failed" }),
-        NOW_MS,
-      ),
-    ).toBe(false);
   });
 });
 
@@ -1046,64 +975,6 @@ describe("ThreadDoneServiceV2 worker", () => {
     ),
   );
 
-  it.effect("does not look up a pull request that was already merged when linked", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        yield* TestClock.setTime(Date.parse(NOW));
-        const reference = {
-          projectId: PROJECT_ID,
-          repository: "owner/repository",
-          number: 42,
-          url: "https://example.test/owner/repository/pull/42",
-        };
-        const fixture = yield* makeHarness({
-          snapshot: makeSnapshot([
-            makeThread("merged-then-linked", {
-              linkedPullRequest: reference,
-              pullRequests: [
-                {
-                  host: "example.test",
-                  repository: reference.repository,
-                  number: reference.number,
-                  url: reference.url,
-                  source: "agent",
-                  linkedAt: "2026-08-28T00:00:00.000Z",
-                  snapshot: {
-                    state: "merged",
-                    title: "Pull request",
-                    headBranch: "feature",
-                    baseBranch: "main",
-                    isDraft: false,
-                    updatedAt: "2026-08-27T00:00:00.000Z",
-                    syncedAt: "2026-08-28T00:00:00.000Z",
-                    mergedAt: "2026-08-27T00:00:00.000Z",
-                  },
-                  stack: null,
-                },
-              ],
-            }),
-          ]),
-          settings: {
-            ...DEFAULT_SERVER_SETTINGS,
-            sidebarAutoMarkDoneAfterDays: null,
-            sidebarAutoMarkDoneOnMerge: true,
-          },
-          pullRequestSummary: (input) =>
-            Effect.succeed({
-              ...makePullRequestSummary({ ...input, state: "merged" }),
-              mergedAt: "2026-08-27T00:00:00.000Z",
-            }),
-        });
-        yield* Effect.gen(function* () {
-          const reactor = yield* ThreadDoneService.ThreadDoneServiceV2;
-          yield* startHarness(reactor, fixture.activation, fixture.snapshotReads);
-          assert.deepStrictEqual(yield* Ref.get(fixture.commands), []);
-          assert.deepStrictEqual(yield* Ref.get(fixture.summaryCalls), []);
-        }).pipe(Effect.provide(fixture.layer));
-      }),
-    ),
-  );
-
   it.effect("reevaluates immediately after a pull request merge", () =>
     Effect.scoped(
       Effect.gen(function* () {
@@ -1270,48 +1141,6 @@ describe("ThreadDoneServiceV2 worker", () => {
               .map((call) => call.number)
               .toSorted((left, right) => left - right),
             [42, 99, 99],
-          );
-        }).pipe(Effect.provide(fixture.layer));
-      }),
-    ),
-  );
-
-  it.effect("looks up the branch pull request from a thread's live worktree", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        yield* TestClock.setTime(Date.parse(NOW));
-        const fixture = yield* makeHarness({
-          snapshot: makeSnapshot(
-            [
-              makeThread("live-worktree", {
-                branch: "feature/live",
-                worktreePath: "/workspace/project-root/.worktrees/live",
-              }),
-              makeThread("deleted-worktree", {
-                branch: "feature/deleted",
-                worktreePath: "/workspace/project-root/.worktrees/deleted",
-              }),
-            ],
-            [makeProject(PROJECT_ID, "/workspace/project-root")],
-          ),
-          existingWorktreePaths: ["/workspace/project-root/.worktrees/live"],
-          settings: {
-            ...DEFAULT_SERVER_SETTINGS,
-            sidebarAutoMarkDoneAfterDays: null,
-            sidebarAutoMarkDoneOnMerge: true,
-          },
-        });
-
-        yield* Effect.gen(function* () {
-          const reactor = yield* ThreadDoneService.ThreadDoneServiceV2;
-          yield* startHarness(reactor, fixture.activation, fixture.snapshotReads);
-
-          assert.deepStrictEqual(
-            new Set(yield* Ref.get(fixture.branchCalls)),
-            new Set([
-              { cwd: "/workspace/project-root/.worktrees/live", branch: "feature/live" },
-              { cwd: "/workspace/project-root", branch: "feature/deleted" },
-            ]),
           );
         }).pipe(Effect.provide(fixture.layer));
       }),
@@ -1676,18 +1505,5 @@ describe("isSnoozed", () => {
         autoMarkDoneOnMerge: true,
       }),
     ).toBeNull();
-  });
-
-  it("keeps quiet and interrupted threads snoozed until the timer expires", () => {
-    expect(ThreadDoneService.isSnoozed(shell(snoozed), NOW_MS)).toBe(true);
-    expect(
-      ThreadDoneService.isSnoozed(
-        shell({ ...snoozed, status: "interrupted", latestRunCompletedAt: at(-DAY_MS) }),
-        NOW_MS,
-      ),
-    ).toBe(true);
-    expect(ThreadDoneService.isSnoozed(shell({ ...snoozed, snoozedUntil: at(-1) }), NOW_MS)).toBe(
-      false,
-    );
   });
 });

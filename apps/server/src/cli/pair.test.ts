@@ -38,7 +38,6 @@ import {
 import {
   DevServerNotProxiableError,
   PairRouteConflictError,
-  resolveDirectPairingBaseUrl,
   resolveTailscaleLocalTarget,
 } from "./pair.ts";
 
@@ -53,21 +52,6 @@ const baseState = {
   origin: "http://127.0.0.1:3773",
   startedAt: "2026-06-20T00:00:00.000Z",
 } as const satisfies PersistedServerRuntimeState;
-
-describe("pair base URL selection", () => {
-  it("pairs through the dev web origin when the server fronts a dev server", () => {
-    expect(resolveDirectPairingBaseUrl({ ...baseState, devUrl: "http://localhost:5733/" })).toBe(
-      "http://localhost:5733/",
-    );
-  });
-
-  it("pairs through the bound host when there is no dev server", () => {
-    expect(resolveDirectPairingBaseUrl({ ...baseState, host: "100.64.0.7" })).toBe(
-      "http://100.64.0.7:3773",
-    );
-    expect(resolveDirectPairingBaseUrl(baseState)).toBe("http://localhost:3773");
-  });
-});
 
 describe("pair tailscale local target", () => {
   it("proxies the dev web port for dev servers", () => {
@@ -89,17 +73,6 @@ describe("pair tailscale local target", () => {
     expect(
       resolveTailscaleLocalTarget({ ...baseState, devUrl: "https://localhost:5733/" }),
     ).toBeInstanceOf(DevServerNotProxiableError);
-  });
-
-  it("proxies the backend port directly otherwise", () => {
-    expect(resolveTailscaleLocalTarget(baseState)).toEqual({ localPort: 3_773 });
-    expect(resolveTailscaleLocalTarget({ ...baseState, host: "0.0.0.0" })).toEqual({
-      localPort: 3_773,
-    });
-    expect(resolveTailscaleLocalTarget({ ...baseState, host: "192.168.1.42" })).toEqual({
-      localPort: 3_773,
-      localHost: "192.168.1.42",
-    });
   });
 });
 

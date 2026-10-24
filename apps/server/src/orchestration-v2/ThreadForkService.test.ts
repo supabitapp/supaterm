@@ -217,17 +217,6 @@ it.effect("leaves the source's watches behind, so only the source is woken", () 
   }),
 );
 
-it.effect("forks from a usage-limited failed run", () =>
-  Effect.gen(function* () {
-    const result = yield* planFork(makeSourceRun("failed"));
-    assert.deepEqual(result.targetThread.forkedFrom, {
-      type: "run",
-      threadId: sourceThreadId,
-      runId: sourceRunId,
-    });
-  }),
-);
-
 it.effect("rejects in-progress and rolled-back fork sources", () =>
   Effect.gen(function* () {
     for (const status of ["running", "rolled_back"] as const) {

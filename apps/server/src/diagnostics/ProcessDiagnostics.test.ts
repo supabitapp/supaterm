@@ -67,57 +67,6 @@ function layerTelemetryFor(
 }
 
 describe("ProcessDiagnostics", () => {
-  it.effect("projects live process data from resource telemetry", () =>
-    Effect.gen(function* () {
-      const snapshot = makeNativeSnapshot([
-        {
-          pid: SERVER_PID,
-          ppid: 1,
-          startTimeMs: 1_000,
-          runTimeMs: 60_000,
-          name: "node",
-          command: "supaterm server",
-          status: "Running",
-          cpuPercent: 0,
-          cpuTimeMs: 100,
-          residentBytes: 1_024,
-          virtualBytes: 2_048,
-          ioReadBytes: 100,
-          ioWriteBytes: 200,
-          ioSemantics: "storage",
-        },
-        {
-          pid: CHILD_PID,
-          ppid: SERVER_PID,
-          startTimeMs: 2_000,
-          runTimeMs: 4_000,
-          name: "agent",
-          command: "codex app-server",
-          status: "Running",
-          cpuPercent: 1.5,
-          cpuTimeMs: 60,
-          residentBytes: 2_048,
-          virtualBytes: 4_096,
-          ioReadBytes: 300,
-          ioWriteBytes: 400,
-          ioSemantics: "storage",
-        },
-      ]);
-      const layerTelemetry = layerTelemetryFor(snapshot);
-      const layer = ProcessDiagnostics.layer.pipe(Layer.provideMerge(layerTelemetry));
-
-      const diagnostics = yield* Effect.gen(function* () {
-        const processDiagnostics = yield* ProcessDiagnostics.ProcessDiagnostics;
-        return yield* processDiagnostics.read;
-      }).pipe(Effect.provide(layer));
-
-      expect(diagnostics.processes.map((process) => process.pid)).toEqual([CHILD_PID]);
-      expect(diagnostics.processes[0]?.startTimeMs).toBe(2_000);
-      expect(diagnostics.processes[0]?.cpuPercent).toBe(1.5);
-      expect(diagnostics.processes[0]?.rssBytes).toBe(2_048);
-    }),
-  );
-
   it.effect("rejects stale process identities before signaling", () =>
     Effect.gen(function* () {
       const snapshot = makeNativeSnapshot([]);

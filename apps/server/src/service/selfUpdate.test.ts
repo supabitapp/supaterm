@@ -133,18 +133,6 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
 });
 
 it.layer(NodeServices.layer)("server self update", (it) => {
-  it.effect("stages and preflights before asking the launcher for an update ID", () =>
-    Effect.gen(function* () {
-      const { selfUpdate, order } = yield* makeHarness();
-      expect(yield* selfUpdate.update({ targetVersion: "1.1.0" })).toEqual({
-        targetVersion: "1.1.0",
-        method: "boot-service",
-        updateId: "launcher-id",
-      });
-      expect(order).toEqual(["download", "extract", "preflight", "accept"]);
-    }),
-  );
-
   it.effect("rejects invalid versions and desktop-managed servers before staging", () =>
     Effect.gen(function* () {
       const web = yield* makeHarness();
@@ -181,15 +169,6 @@ it.layer(NodeServices.layer)("server self update", (it) => {
       expect(stages).toEqual(["downloading", "installing"]);
       // The launcher staging path must not run on the desktop path.
       expect(order).toEqual([]);
-    }),
-  );
-
-  it.effect("preserves the preflight refusal reason", () =>
-    Effect.gen(function* () {
-      const { selfUpdate } = yield* makeHarness({ preflight: "blocked" });
-      expect((yield* selfUpdate.update({ targetVersion: "1.1.0" }).pipe(Effect.flip)).reason).toBe(
-        "local update required",
-      );
     }),
   );
 

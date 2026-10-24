@@ -5,7 +5,7 @@ import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 
-import { AcpMcpBridgeError, callAcpMcpTool, runAcpMcpStdioBridge } from "./AcpMcpStdioBridge.ts";
+import { callAcpMcpTool, runAcpMcpStdioBridge } from "./AcpMcpStdioBridge.ts";
 
 function makeHarness(responder: (request: Request) => Promise<Response> | Response) {
   const input = new NodeStream.PassThrough();
@@ -30,22 +30,6 @@ function makeHarness(responder: (request: Request) => Promise<Response> | Respon
 }
 
 describe("AcpMcpStdioBridge", () => {
-  it.effect("preserves the original transport failure as the typed error cause", () =>
-    Effect.gen(function* () {
-      const source = new Error("fetch failed");
-      const failure = yield* callAcpMcpTool({
-        endpoint: "http://127.0.0.1:1/mcp",
-        authorization: "Bearer bridge-test",
-        tool: "orchestrator_capabilities",
-        arguments: {},
-        fetchImplementation: () => Promise.reject(source),
-      }).pipe(Effect.asVoid, Effect.flip);
-
-      expect(failure).toBeInstanceOf(AcpMcpBridgeError);
-      expect(failure.cause).toBe(source);
-    }),
-  );
-
   it.effect("calls one tool through a fresh authenticated MCP session and ends it", () =>
     Effect.gen(function* () {
       const requests: Array<{

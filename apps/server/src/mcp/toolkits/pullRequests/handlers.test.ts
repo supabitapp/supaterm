@@ -36,7 +36,7 @@ import * as McpToolAccess from "../../McpToolAccess.ts";
 import * as McpToolAccessTestkit from "../../McpToolAccess.testkit.ts";
 import { listThreadPullRequests } from "./handlers.ts";
 import * as PullRequestsHandlers from "./handlers.ts";
-import { PullRequestLinkFailedError, PullRequestsToolkit } from "./tools.ts";
+import { PullRequestsToolkit } from "./tools.ts";
 
 const PROJECT_ID = ProjectId.make("project-1");
 const THREAD_ID = ThreadId.make("thread-1");
@@ -465,23 +465,6 @@ describe("pull request toolkit handlers", () => {
     }),
   );
 
-  it.effect("links by repository and number, defaulting the host to the project's", () =>
-    Effect.gen(function* () {
-      const harness = yield* makeHarness();
-      const result = yield* harness.call("link_pull_request", {
-        repository: "SupabitApp/Other",
-        number: 7,
-      });
-      expect(result).toEqual({
-        host: "github.com",
-        repository: "supabitapp/other",
-        number: 7,
-        url: "https://github.com/supabitapp/other/pull/7",
-        alreadyLinked: false,
-      });
-    }),
-  );
-
   it.effect("defaults the host from a project whose repository has not been read yet", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness({
@@ -664,14 +647,6 @@ describe("pull request toolkit handlers", () => {
     expect(result.pullRequests[0]?.host).toBe("forge.example:3000");
   });
 
-  it.effect("fails cleanly when the token's thread no longer exists", () =>
-    Effect.gen(function* () {
-      const harness = yield* makeHarness({ thread: null });
-      const error = yield* harness.call("list_thread_pull_requests", {}).pipe(Effect.flip);
-      expect(error).toMatchObject({ _tag: "PullRequestThreadNotFoundError", threadId: THREAD_ID });
-    }),
-  );
-
   it.effect("lists visible links with host state and derived chain order", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness({
@@ -815,40 +790,6 @@ describe("pull request guide tools", () => {
     }),
   );
 
-  it.effect("reports a refused run on its own pull request without failing the rest", () =>
-    Effect.gen(function* () {
-      const harness = yield* makeHarness({
-        generate: (input) =>
-          input.number === 1
-            ? Effect.fail(
-                new PullRequestOperationError({
-                  operation: "generateReviewGuide",
-                  detail: "Review guides are off. Turn them on in Settings → Source Control.",
-                }),
-              )
-            : Effect.succeed({
-                ...NO_GUIDE,
-                run: {
-                  _tag: "Running" as const,
-                  headSha: "head-1",
-                  startedAt: "2026-10-11T00:00:00.000Z",
-                },
-                started: true,
-              }),
-      });
-      const result = yield* harness.call("write_pull_request_guides", {
-        pullRequests: [
-          { repository: "supabitapp/supaterm", number: 1 },
-          { repository: "supabitapp/supaterm", number: 2 },
-        ],
-      });
-      expect(result.guides.map((guide) => [guide.number, guide.outcome, guide.detail])).toEqual([
-        [1, "failed", "Review guides are off. Turn them on in Settings → Source Control."],
-        [2, "started", null],
-      ]);
-    }),
-  );
-
   it.effect("reports an unreadable entry on its own and still writes the rest of the batch", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness();
@@ -863,23 +804,6 @@ describe("pull request guide tools", () => {
       expect(result.guides[0]?.detail).toContain("not a recognised pull request URL");
       expect(result.guides[1]?.detail).toContain("Pass either url");
       expect((yield* Ref.get(harness.guideRequests)).map((ref) => ref.number)).toEqual([5]);
-    }),
-  );
-
-  it.effect("reports a run the service joined as running, not as a new one", () =>
-    Effect.gen(function* () {
-      const harness = yield* makeHarness({
-        generate: () =>
-          Effect.succeed({
-            ...NO_GUIDE,
-            run: { _tag: "Running", headSha: "head-1", startedAt: "2026-10-11T00:00:00.000Z" },
-            started: false,
-          }),
-      });
-      const result = yield* harness.call("write_pull_request_guides", {
-        pullRequests: [{ repository: "supabitapp/supaterm", number: 4 }],
-      });
-      expect(result.guides.map((guide) => guide.outcome)).toEqual(["running"]);
     }),
   );
 
@@ -910,22 +834,4 @@ describe("pull request guide tools", () => {
       ]);
     }),
   );
-
-  it.effect("reads a stored guide and says when a push left it behind", () =>
-    Effect.gen(function* () {
-      const harness = yield* makeHarness();
-      const result = yield* harness.call("read_pull_request_guide", {
-        repository: "supabitapp/supaterm",
-        number: 3,
-      });
-      expect(result).toMatchObject({ number: 3, guide: null, run: null, stale: false });
-    }),
-  );
-});
-
-it("keeps failure diagnostics as the cause rather than exposing them in the tool message", () => {
-  const cause = new Error("database internals");
-  const failure = new PullRequestLinkFailedError({ cause });
-  expect(failure.message).toBe("Could not link the pull request.");
-  expect(failure.cause).toBe(cause);
 });

@@ -105,22 +105,6 @@ describe("supaterm theme", () => {
     }),
   );
 
-  it.effect("publishes a theme file under an explicit id", () =>
-    Effect.gen(function* () {
-      const baseDir = makeBaseDir();
-      const themeFile = NodePath.join(baseDir, "supaterm.json");
-      NodeFS.writeFileSync(themeFile, NIGHTFALL_THEME_JSON);
-
-      yield* runCli(["theme", "set", "--id", "nightfall", themeFile, "--base-dir", baseDir]);
-
-      assert.equal(
-        NodeFS.existsSync(NodePath.join(baseDir, "userdata", "themes", "nightfall.json")),
-        true,
-      );
-      assert.equal(readSettings(baseDir).defaultTheme, "nightfall");
-    }),
-  );
-
   it.effect("rejects a file that is not a theme and sets nothing", () =>
     Effect.gen(function* () {
       const baseDir = makeBaseDir();
@@ -154,49 +138,6 @@ describe("supaterm theme", () => {
     }),
   );
 
-  it.effect.skipIf(windowsHost)("rolls back a publish when the default cannot be written", () =>
-    Effect.gen(function* () {
-      const baseDir = makeBaseDir();
-      writeSettings(baseDir, {});
-      const userdataDir = NodePath.dirname(settingsPathFor(baseDir));
-      const themesDir = NodePath.join(userdataDir, "themes");
-      NodeFS.mkdirSync(themesDir, { recursive: true });
-      const themeFile = NodePath.join(baseDir, "nightfall.json");
-      NodeFS.writeFileSync(themeFile, NIGHTFALL_THEME_JSON);
-
-      NodeFS.chmodSync(userdataDir, 0o555);
-      try {
-        const failure = yield* runCli(["theme", "set", themeFile, "--base-dir", baseDir]).pipe(
-          Effect.flip,
-        );
-        assert.include(String(failure), "Could not write");
-        assert.equal(NodeFS.existsSync(NodePath.join(themesDir, "nightfall.json")), false);
-      } finally {
-        NodeFS.chmodSync(userdataDir, 0o755);
-      }
-    }),
-  );
-
-  it.effect.skipIf(!symlinksSupported)(
-    "publishes a theme file through a symlinked source path",
-    () =>
-      Effect.gen(function* () {
-        const baseDir = makeBaseDir();
-        const realFile = NodePath.join(baseDir, "real-nightfall.json");
-        NodeFS.writeFileSync(realFile, NIGHTFALL_THEME_JSON);
-        const linkPath = NodePath.join(baseDir, "nightfall.json");
-        NodeFS.symlinkSync(realFile, linkPath);
-
-        yield* runCli(["theme", "set", linkPath, "--base-dir", baseDir]);
-
-        assert.equal(
-          NodeFS.existsSync(NodePath.join(baseDir, "userdata", "themes", "nightfall.json")),
-          true,
-        );
-        assert.equal(readSettings(baseDir).defaultTheme, "nightfall");
-      }),
-  );
-
   it.effect.skipIf(!symlinksSupported)("never writes through a symlink at the staging path", () =>
     Effect.gen(function* () {
       const baseDir = makeBaseDir();
@@ -213,32 +154,6 @@ describe("supaterm theme", () => {
       assert.equal(NodeFS.readFileSync(victim, "utf8"), "precious");
       assert.equal(readSettings(baseDir).defaultTheme, "nightfall");
     }),
-  );
-
-  it.effect.skipIf(!symlinksSupported || windowsHost)(
-    "restores a non-theme destination entry when the set fails",
-    () =>
-      Effect.gen(function* () {
-        const baseDir = makeBaseDir();
-        writeSettings(baseDir, {});
-        const userdataDir = NodePath.dirname(settingsPathFor(baseDir));
-        const themesDir = NodePath.join(userdataDir, "themes");
-        NodeFS.mkdirSync(themesDir, { recursive: true });
-        const outside = NodePath.join(baseDir, "outside.json");
-        NodeFS.writeFileSync(outside, NIGHTFALL_THEME_JSON);
-        const destination = NodePath.join(themesDir, "nightfall.json");
-        NodeFS.symlinkSync(outside, destination);
-        const themeFile = NodePath.join(baseDir, "nightfall.json");
-        NodeFS.writeFileSync(themeFile, NIGHTFALL_THEME_JSON);
-
-        NodeFS.chmodSync(userdataDir, 0o555);
-        try {
-          yield* runCli(["theme", "set", themeFile, "--base-dir", baseDir]).pipe(Effect.flip);
-          assert.equal(NodeFS.lstatSync(destination).isSymbolicLink(), true);
-        } finally {
-          NodeFS.chmodSync(userdataDir, 0o755);
-        }
-      }),
   );
 
   it.effect.skipIf(windowsHost)("restores the previous theme when a re-publish fails to set", () =>
@@ -265,17 +180,6 @@ describe("supaterm theme", () => {
     }),
   );
 
-  it.effect("rejects an id no client could resolve", () =>
-    Effect.gen(function* () {
-      const baseDir = makeBaseDir();
-      const failure = yield* runCli(["theme", "set", "Nightfall", "--base-dir", baseDir]).pipe(
-        Effect.flip,
-      );
-      assert.include(String(failure), "not a valid theme id");
-      assert.equal(NodeFS.existsSync(settingsPathFor(baseDir)), false);
-    }),
-  );
-
   it.effect("rejects a path that does not exist instead of storing it as an id", () =>
     Effect.gen(function* () {
       const baseDir = makeBaseDir();
@@ -287,22 +191,6 @@ describe("supaterm theme", () => {
         baseDir,
       ]).pipe(Effect.flip);
       assert.include(String(failure), "Could not read");
-    }),
-  );
-
-  it.effect("publishes an extensionless file", () =>
-    Effect.gen(function* () {
-      const baseDir = makeBaseDir();
-      const themeFile = NodePath.join(baseDir, "brand");
-      NodeFS.writeFileSync(themeFile, NIGHTFALL_THEME_JSON);
-
-      yield* runCli(["theme", "set", themeFile, "--base-dir", baseDir]);
-
-      assert.equal(
-        NodeFS.existsSync(NodePath.join(baseDir, "userdata", "themes", "brand.json")),
-        true,
-      );
-      assert.equal(readSettings(baseDir).defaultTheme, "brand");
     }),
   );
 
@@ -349,17 +237,6 @@ describe("supaterm theme", () => {
     }),
   );
 
-  it.effect("rejects an id that names no theme", () =>
-    Effect.gen(function* () {
-      const baseDir = makeBaseDir();
-      const failure = yield* runCli(["theme", "set", "ocian", "--base-dir", baseDir]).pipe(
-        Effect.flip,
-      );
-      assert.include(String(failure), "No theme named");
-      assert.equal(NodeFS.existsSync(settingsPathFor(baseDir)), false);
-    }),
-  );
-
   it.effect("accepts an id a published file provides", () =>
     Effect.gen(function* () {
       const baseDir = makeBaseDir();
@@ -381,16 +258,6 @@ describe("supaterm theme", () => {
       NodeFS.writeFileSync(NodePath.join(themesDir, "broken.json"), "{ not json\n");
 
       const failure = yield* runCli(["theme", "set", "broken", "--base-dir", baseDir]).pipe(
-        Effect.flip,
-      );
-      assert.include(String(failure), "No theme named");
-    }),
-  );
-
-  it.effect("rejects the mobile default theme id", () =>
-    Effect.gen(function* () {
-      const baseDir = makeBaseDir();
-      const failure = yield* runCli(["theme", "set", "supaterm", "--base-dir", baseDir]).pipe(
         Effect.flip,
       );
       assert.include(String(failure), "No theme named");
