@@ -152,6 +152,23 @@ describe("MarkdownMermaidCodeBlock", () => {
     expect(displayedText()).toBe("second diagram");
   });
 
+  it("shows a changed source instead of the previous diagram while it lays out", async () => {
+    await using _test = await setupTest();
+    const changed = deferredResult();
+    vi.mocked(renderMermaidDiagram)
+      .mockResolvedValueOnce(diagram("first diagram"))
+      .mockReturnValueOnce(changed.promise);
+    await screen.rerender(block("graph TD\n A-->B"));
+    await showVisible();
+    expect(displayedText()).toBe("first diagram");
+    await screen.rerender(block("graph TD\n A-->C"));
+    expect(screen.container.querySelector("svg text")).toBeNull();
+    expect(screen.container.querySelector("pre")!.textContent).toBe("graph TD\n A-->C");
+    await showVisible();
+    await act(async () => changed.resolve(diagram("second diagram")));
+    expect(displayedText()).toBe("second diagram");
+  });
+
   it("shows the source with an error when the diagram cannot be rendered", async () => {
     await using _test = await setupTest();
     vi.mocked(renderMermaidDiagram).mockResolvedValue(null);

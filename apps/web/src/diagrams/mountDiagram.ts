@@ -72,7 +72,8 @@ export function mountDiagram(element: HTMLElement, source: string, options: Moun
   if (ready) {
     requestedWidth = initialWidth;
     show(ready);
-  } else if (!element.querySelector("svg")) {
+  } else {
+    // Also replaces a previous source's diagram, which must not stay up while this one lays out.
     const placeholder = element.ownerDocument.createElement("pre");
     placeholder.className = "m-0 w-full overflow-x-auto text-left font-mono whitespace-pre";
     placeholder.textContent = source;
