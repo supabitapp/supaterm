@@ -1,4 +1,5 @@
 import { projectChangeRequestUrl } from "@supaterm/client-runtime/change-request-links";
+import { changeRequestReferenceAutolinker } from "@supaterm/client-runtime/pull-request-markdown";
 import { useAtomValue } from "@effect/atom-react";
 import { usePullRequestStackGate } from "~/state/usePullRequestStack";
 import { scopeProjectRef, scopeThreadRef } from "@supaterm/client-runtime/environment";
@@ -11,6 +12,7 @@ import {
   AuthSourceControlWriteScope,
   type EnvironmentId,
   type PullRequestAction,
+  type PullRequestDetail,
   type PullRequestMergeMethod,
   type PullRequestListEntry,
   type PullRequestUpdateMethod,
@@ -222,15 +224,10 @@ function reportCheckoutCommandError(error: Error) {
 }
 
 function pullRequestMarkdownContext(
-  hostClient: ReturnType<typeof sourceControlClients.get>,
-  repositoryUrl: string | null,
+  detail: Pick<PullRequestDetail, "provider" | "url"> | null,
   threadRef: ScopedThreadRef | null,
 ) {
-  return {
-    repositoryUrl:
-      repositoryUrl === null ? null : hostClient.referenceAutolinkRepositoryUrl(repositoryUrl),
-    threadRef,
-  };
+  return { autolinks: changeRequestReferenceAutolinker(detail), threadRef };
 }
 
 export function PullRequestDetailPanel({
@@ -451,7 +448,7 @@ export function PullRequestDetailPanel({
       : (sourceControlClients.parseChangeRequestUrl(detail.url)?.link.repositoryUrl ?? null);
   const hostClient = sourceControlClients.get(detail?.provider);
   const openOnHostText = openOnHostLabel(hostClient);
-  const markdownContext = pullRequestMarkdownContext(hostClient, repositoryUrl, threadRef);
+  const markdownContext = pullRequestMarkdownContext(detail, threadRef);
   const authorProfileUrl =
     detail?.author && repositoryUrl !== null
       ? hostClient.authorProfileUrl(detail.author.login, repositoryUrl)

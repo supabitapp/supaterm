@@ -702,10 +702,11 @@ describe("pull request quick actions", () => {
     ...(actions === undefined ? {} : { actions }),
   });
 
-  it("offers what each host reports, and GitHub's legacy set when a server reports none", () => {
+  it("offers what each host reports, and the host's own set when a server reports none", () => {
     const actionsOf = pullRequestHostActions([
       summary("bitbucket.org", "bitbucket", ["merge", "close"]),
       summary("github.com", "github"),
+      summary("gitlab.com", "gitlab"),
     ]);
     const bitbucket = actionsOf({
       host: "bitbucket.org",
@@ -720,6 +721,11 @@ describe("pull request quick actions", () => {
       "close",
       "ready",
     ]);
+    const gitlab = actionsOf({
+      host: "gitlab.com",
+      provider: SourceControlProviderKind.make("gitlab"),
+    });
+    expect(pullRequestQuickActions({ state: "open", isDraft: false }, gitlab)).toEqual([]);
   });
 });
 
