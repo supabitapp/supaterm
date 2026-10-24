@@ -1,6 +1,6 @@
 import { MISSING_FILE_ACCESS_MESSAGE } from "@supaterm/client-runtime/state/assets";
 import { mediaFileReference, mediaUrlReference } from "@supaterm/client-runtime/media-reference";
-import type { AssetResource, EnvironmentId } from "@supaterm/contracts";
+import type { AssetResource, EnvironmentId, SOURCE_CONTROL_MEDIA_ASSET } from "@supaterm/contracts";
 import { TriangleAlertIcon } from "@supaterm/icons";
 import {
   createContext,
@@ -312,7 +312,7 @@ export const ChatMarkdownAssetImage = memo(function ChatMarkdownAssetImage(props
         | "attachment"
         | "workspace-file"
         | "media-file"
-        | "github-media"
+        | typeof SOURCE_CONTROL_MEDIA_ASSET
         | "tool-output-image";
     }
   >;

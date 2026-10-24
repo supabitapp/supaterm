@@ -41,6 +41,7 @@ import * as GitLabPullRequestCli from "@supaterm/source-control-gitlab/server/Gi
 import * as ForgejoCli from "@supaterm/source-control-forgejo/server/ForgejoCli";
 import * as GitCafeApi from "@supaterm/source-control-gitcafe/server/GitCafeApi";
 import * as GitCafeCredentials from "@supaterm/source-control-gitcafe/server/GitCafeCredentials";
+import * as BuiltInDriversTestkit from "./builtInDrivers.testkit.ts";
 import * as SourceControlProviderRegistry from "./SourceControlProviderRegistry.ts";
 import * as ServerSourceControlHost from "./ServerSourceControlHost.ts";
 
@@ -138,59 +139,63 @@ function makeRegistry(input: {
 
   return SourceControlProviderRegistry.make.pipe(
     Effect.provide(
-      Layer.mergeAll(
-        layerRegistry,
-        layerProcess,
-        layerHost,
-        Layer.mock(AzureDevOpsCli.AzureDevOpsCli)({}),
-        Layer.mock(AzureDevOpsPullRequestCli.AzureDevOpsPullRequestCli)({}),
-        Layer.mock(BitbucketApi.BitbucketApi)({
-          probeAuth: Effect.succeed({
-            status: "unknown",
-            account: Option.none(),
-            host: Option.none(),
-            detail: Option.none(),
-          }),
-        }),
-        Layer.mock(BitbucketPullRequestApi.BitbucketPullRequestApi)({}),
-        input.settings
-          ? Layer.mock(ServerSettings.ServerSettingsService)(input.settings)
-          : ServerSettings.ServerSettingsService.layerTest(),
-        Layer.mock(GitHubPullRequestApi.GitHubPullRequestApi)({}),
-        // The GitHub provider's GraphQL reads go through these; no test here makes one.
-        Layer.mock(GitHubRequestPolicy.GitHubRequestPolicy)({}),
-        Layer.succeed(
-          HttpClient.HttpClient,
-          HttpClient.make(() => Effect.die(new Error("Unexpected GitHub GraphQL read"))),
-        ),
-        Layer.mock(GitHubRest.GitHubRest)(input.githubApi ?? {}),
-        (
-          input.githubCredentials ??
-          credentialsLayer((host) =>
-            Effect.fail(new GitHubCredentials.GitHubNotSignedInError({ host })),
-          )
-        ).pipe(Layer.provide(layerHost)),
-        Layer.mock(GitVcsDriver.GitVcsDriver)({}),
-        Layer.mock(GitLabCli.GitLabCli)(input.gitlab ?? {}),
-        Layer.mock(GitLabPullRequestCli.GitLabPullRequestCli)({}),
-        Layer.mock(ForgejoCli.ForgejoCli)({
-          listLogins: () => Effect.succeed([]),
-          ...input.forgejo,
-        }),
-        Layer.mock(GitCafeApi.GitCafeApi)({}),
-        Layer.mock(GitCafeCredentials.GitCafeCredentials)({
-          cliEnv: () => Effect.succeed({}),
-        }),
-        ServerConfig.layerTest(process.cwd(), {
-          prefix: "supaterm-source-control-registry-test-",
-        }).pipe(Layer.provide(NodeServices.layer)),
-      ).pipe(
+      BuiltInDriversTestkit.layerOverHostServices.pipe(
         Layer.provideMerge(
           Layer.mergeAll(
-            NodeServices.layer,
+            layerRegistry,
             layerProcess,
-            ServerSettings.ServerSettingsService.layerTest(),
-            Layer.succeed(HostProcess.Environment, {}),
+            layerHost,
+            Layer.mock(AzureDevOpsCli.AzureDevOpsCli)({}),
+            Layer.mock(AzureDevOpsPullRequestCli.AzureDevOpsPullRequestCli)({}),
+            Layer.mock(BitbucketApi.BitbucketApi)({
+              probeAuth: Effect.succeed({
+                status: "unknown",
+                account: Option.none(),
+                host: Option.none(),
+                detail: Option.none(),
+              }),
+            }),
+            Layer.mock(BitbucketPullRequestApi.BitbucketPullRequestApi)({}),
+            input.settings
+              ? Layer.mock(ServerSettings.ServerSettingsService)(input.settings)
+              : ServerSettings.ServerSettingsService.layerTest(),
+            Layer.mock(GitHubPullRequestApi.GitHubPullRequestApi)({}),
+            // The GitHub provider's GraphQL reads go through these; no test here makes one.
+            Layer.mock(GitHubRequestPolicy.GitHubRequestPolicy)({}),
+            Layer.succeed(
+              HttpClient.HttpClient,
+              HttpClient.make(() => Effect.die(new Error("Unexpected GitHub GraphQL read"))),
+            ),
+            Layer.mock(GitHubRest.GitHubRest)(input.githubApi ?? {}),
+            (
+              input.githubCredentials ??
+              credentialsLayer((host) =>
+                Effect.fail(new GitHubCredentials.GitHubNotSignedInError({ host })),
+              )
+            ).pipe(Layer.provide(layerHost)),
+            Layer.mock(GitVcsDriver.GitVcsDriver)({}),
+            Layer.mock(GitLabCli.GitLabCli)(input.gitlab ?? {}),
+            Layer.mock(GitLabPullRequestCli.GitLabPullRequestCli)({}),
+            Layer.mock(ForgejoCli.ForgejoCli)({
+              listLogins: () => Effect.succeed([]),
+              ...input.forgejo,
+            }),
+            Layer.mock(GitCafeApi.GitCafeApi)({}),
+            Layer.mock(GitCafeCredentials.GitCafeCredentials)({
+              cliEnv: () => Effect.succeed({}),
+            }),
+            ServerConfig.layerTest(process.cwd(), {
+              prefix: "supaterm-source-control-registry-test-",
+            }).pipe(Layer.provide(NodeServices.layer)),
+          ).pipe(
+            Layer.provideMerge(
+              Layer.mergeAll(
+                NodeServices.layer,
+                layerProcess,
+                ServerSettings.ServerSettingsService.layerTest(),
+                Layer.succeed(HostProcess.Environment, {}),
+              ),
+            ),
           ),
         ),
       ),

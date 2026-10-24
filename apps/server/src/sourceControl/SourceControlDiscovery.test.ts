@@ -31,6 +31,7 @@ import * as GitCafeApi from "@supaterm/source-control-gitcafe/server/GitCafeApi"
 import * as GitCafeCredentials from "@supaterm/source-control-gitcafe/server/GitCafeCredentials";
 import * as ForgejoSourceControlProvider from "@supaterm/source-control-forgejo/server/ForgejoSourceControlProvider";
 import * as SourceControlDiscovery from "./SourceControlDiscovery.ts";
+import * as BuiltInDriversTestkit from "./builtInDrivers.testkit.ts";
 import * as SourceControlProviderRegistry from "./SourceControlProviderRegistry.ts";
 import * as ServerSourceControlHost from "./ServerSourceControlHost.ts";
 import * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
@@ -40,6 +41,7 @@ const layerSourceControlProviderRegistryTest = (input: {
   readonly process: Partial<VcsProcess.VcsProcess["Service"]>;
 }) =>
   SourceControlProviderRegistry.layer.pipe(
+    Layer.provide(BuiltInDriversTestkit.layerOverHostServices),
     Layer.provide(
       Layer.mergeAll(
         ServerConfig.layerTest(process.cwd(), {
