@@ -5,6 +5,7 @@ import { usePullRequestConnected } from "./usePullRequestConnected";
 import { useAtomValue } from "@effect/atom-react";
 import { useNavigation, type StaticScreenProps } from "@react-navigation/native";
 import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import type { PullRequestReviewerCandidate } from "@supaterm/contracts";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -50,6 +51,9 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
   const target = pullRequestTarget(route.params);
   const detail = useEnvironmentQuery(composerPullRequests.detail(target));
   const pr = detail.data;
+  const { singular } = sourceControlClients.get(
+    (pr ?? route.params.initialSummary)?.provider,
+  ).changeRequest;
   const canWrite = useAtomValue(
     composerPullRequests.requestReviewers.permissionAtom(target.environmentId),
   );
@@ -196,7 +200,7 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
               ) : null}
               {!allowed ? (
                 <Text className="text-xs text-foreground-muted">
-                  Requesting reviews requires write access and an open pull request.
+                  Requesting reviews requires write access and an open {singular}.
                 </Text>
               ) : null}
               {error ? (
@@ -286,7 +290,7 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
               <AppActivityIndicator />
             ) : (
               <Text className="text-danger-foreground">
-                {detail.error ?? "Couldn't load this pull request."}
+                {detail.error ?? `Couldn't load this ${singular}.`}
               </Text>
             )
           ) : (

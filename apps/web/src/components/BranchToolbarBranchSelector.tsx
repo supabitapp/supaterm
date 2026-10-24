@@ -744,7 +744,7 @@ export function BranchToolbarBranchSelector({
             status={displayedPrStatus}
             project={activeProject}
             label={panelPrLabel}
-            openAriaLabel={prUrl ?? "Open pull request"}
+            openAriaLabel={prUrl ?? `Open ${sourceControlPresentation.terminology.singular}`}
             composerTarget={composerDraftTarget ?? draftId ?? threadRef}
             onOpen={(event) => openPrLink(event, prUrl)}
             onActed={() => branchStatusQuery.refresh()}

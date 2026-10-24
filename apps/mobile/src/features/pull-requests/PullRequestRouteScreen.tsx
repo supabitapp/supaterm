@@ -24,7 +24,7 @@ import {
   canPerformPullRequestAction,
   openOnProviderLabel,
   PR_ACTION_ICONS,
-  PR_ACTION_LABELS,
+  pullRequestActionLabel,
 } from "./pullRequestActions";
 import * as Clipboard from "expo-clipboard";
 
@@ -89,6 +89,10 @@ import { PullRequestMergeControls } from "./PullRequestMergeControls";
 import { PullRequestStackCard } from "./PullRequestStackCard";
 import { usePullRequestStack, type PullRequestStackState } from "./usePullRequestStack";
 import { usePullRequestEnvironmentFallback } from "./usePullRequestEnvironmentFallback";
+import {
+  capitalizeTerm,
+  sourceControlClients,
+} from "@supaterm/client-runtime/source-control-clients";
 
 function PullRequestTabScrollView(props: ScrollViewProps) {
   return (
@@ -312,6 +316,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
   const pr = result.data;
   const summary = params.initialSummary;
   const identity = pr ?? summary;
+  const terminology = sourceControlClients.get(identity?.provider).changeRequest;
   const permissions = usePullRequestPermissions(params, pr);
   const action = usePullRequestAction(params, pr);
   const showsDeleteBranch = pr !== null && canPerformPullRequestAction(pr, "delete-branch");
@@ -319,7 +324,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
     pr &&
     action.confirm(
       "delete-branch",
-      PR_ACTION_LABELS["delete-branch"],
+      pullRequestActionLabel("delete-branch", terminology),
       `Delete ${pr.headBranch} from ${pr.headRepositoryNameWithOwner ?? pr.repository}? Local branches and worktrees are not changed.`,
     );
   const stack = usePullRequestStack(params, pr);
@@ -419,7 +424,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
               ...(showsDeleteBranch
                 ? [
                     {
-                      accessibilityLabel: PR_ACTION_LABELS["delete-branch"],
+                      accessibilityLabel: pullRequestActionLabel("delete-branch", terminology),
                       icon: PR_ACTION_ICONS["delete-branch"],
                       disabled: !action.available("delete-branch"),
                       destructive: true,
@@ -433,8 +438,8 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
         ) : null}
         <Toolbar placement="right">
           <Toolbar.Menu
-            title="Pull request"
-            accessibilityLabel="Pull request actions"
+            title={capitalizeTerm(terminology.singular)}
+            accessibilityLabel={`${capitalizeTerm(terminology.singular)} actions`}
             icon="ellipsis"
           >
             {permissions.verdicts.length ? (
@@ -492,7 +497,9 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
                 }
                 onPress={confirmDeleteBranch}
               >
-                <Toolbar.Label>{PR_ACTION_LABELS["delete-branch"]}</Toolbar.Label>
+                <Toolbar.Label>
+                  {pullRequestActionLabel("delete-branch", terminology)}
+                </Toolbar.Label>
               </Toolbar.MenuAction>
             ) : null}
           </Toolbar.Menu>
@@ -625,6 +632,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
                             <PullRequestReadStatus
                               pending={tabContent.pending}
                               error={tabContent.error}
+                              terminology={terminology}
                             />
                           ) : null}
                         </View>
@@ -674,6 +682,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
                       <PullRequestReadStatus
                         pending={result.isPending && !identity}
                         error={result.error}
+                        terminology={terminology}
                       />
                       {identity ? (
                         <View

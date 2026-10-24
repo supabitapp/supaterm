@@ -1,13 +1,17 @@
 import { PullRequestListedAction } from "@supaterm/contracts";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { describe, expect, it } from "vite-plus/test";
 import {
   allowedMergeMethods,
   canPerformPullRequestAction,
   mergeSummary,
   mergeUnavailableReason,
+  pullRequestActionLabel,
 } from "./pullRequestActions";
 
 const LISTED_ACTIONS = PullRequestListedAction.literals;
+const GITHUB = sourceControlClients.get("github").changeRequest;
+const GITLAB = sourceControlClients.get("gitlab").changeRequest;
 
 type Detail = Parameters<typeof allowedMergeMethods>[0];
 
@@ -39,13 +43,22 @@ describe("mobile pull request actions", () => {
         "merge",
       ),
     ).toBe(false);
-    expect(mergeUnavailableReason(detail(), false)).toContain("read-only");
+    expect(mergeUnavailableReason(detail(), false, GITHUB)).toContain("read-only");
   });
 
   it("blocks a conflicting PR's immediate merge and explains why", () => {
     const pr = detail({ mergeability: "conflicting" });
     expect(canPerformPullRequestAction(pr, "merge")).toBe(false);
-    expect(mergeUnavailableReason(pr, true)).toContain("conflicts");
-    expect(mergeSummary(pr, true)).toBe("Has conflicts");
+    expect(mergeUnavailableReason(pr, true, GITHUB)).toContain("conflicts");
+    expect(mergeSummary(pr, true, GITHUB)).toBe("Has conflicts");
+  });
+
+  it("names the change request with its host's term", () => {
+    expect(pullRequestActionLabel("close", GITHUB)).toBe("Close pull request");
+    expect(pullRequestActionLabel("close", GITLAB)).toBe("Close merge request");
+    expect(pullRequestActionLabel("revert", GITLAB)).toBe("Create revert merge request");
+    expect(mergeUnavailableReason(detail({ state: "merged" }), true, GITLAB)).toBe(
+      "This merge request has been merged.",
+    );
   });
 });

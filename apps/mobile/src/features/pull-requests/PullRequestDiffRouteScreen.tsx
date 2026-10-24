@@ -30,6 +30,7 @@ import { EmptyState } from "../../components/ui/EmptyState";
 
 import { NativeStackScreenOptions } from "../../native/StackHeader";
 
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { composerPullRequests } from "../../state/pull-requests";
 import { useEnvironmentQuery } from "../../state/query";
 
@@ -75,12 +76,15 @@ export function PullRequestFileRouteScreen({
   const insets = useSafeAreaInsets();
   const [toolbarHeight, setToolbarHeight] = usePullRequestToolbarHeight(insets.bottom);
   const commit = route.params.commit;
-  const result = usePullRequestDiff(route.params);
+  const detail = useEnvironmentQuery(composerPullRequests.detail(requestTarget(route.params)));
+  const terminology = sourceControlClients.get(
+    (detail.data ?? route.params.initialSummary)?.provider,
+  ).changeRequest;
+  const result = usePullRequestDiff(route.params, terminology);
   const filter = usePullRequestFileFilter(
     result.parsed,
     route.params.focus ? route.params.path : undefined,
   );
-  const detail = useEnvironmentQuery(composerPullRequests.detail(requestTarget(route.params)));
   const { refresh: refreshDetail } = detail;
   useFocusEffect(() => refreshDetail());
   const { loadMore } = result;
@@ -415,7 +419,11 @@ export function PullRequestFileRouteScreen({
       >
         {loadingDiff || result.error ? (
           <View style={{ paddingTop: Platform.OS === "ios" && !staleDiff ? insets.top : 0 }}>
-            <PullRequestReadStatus pending={loadingDiff} error={result.error} />
+            <PullRequestReadStatus
+              pending={loadingDiff}
+              error={result.error}
+              terminology={terminology}
+            />
           </View>
         ) : null}
         {NativeDiffView && data.rows.length && !seekingFile ? (
@@ -507,7 +515,7 @@ export function PullRequestFileRouteScreen({
         ) : !result.isPending && !result.error && !seekingFile ? (
           <EmptyState
             title="Diff unavailable"
-            detail="Open this pull request on its provider to view the changes."
+            detail={`Open this ${terminology.singular} on its provider to view the changes.`}
             variant="plain"
           />
         ) : null}

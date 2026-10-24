@@ -15,12 +15,14 @@ import { Button } from "../ui/button";
 import { Menu, MenuPopup, MenuTrigger, MenuItem, MenuGroup, MenuSeparator } from "../ui/menu";
 import { toastManager } from "../ui/toast";
 import { InlineConfirmIcon, InlineConfirmLabel, InlineConfirmTooltip } from "../InlineConfirm";
+import type { ChangeRequestTerminology } from "~/sourceControlPresentation";
 import { PullRequestStackLayers } from "./PullRequestStackLayers";
 import { PullRequestStackHeader } from "./PullRequestStackHeader";
 import { PullRequestGlyph } from "./pullRequestIcons";
 
 export function PullRequestStackMenu({
   hostLabel,
+  terminology,
   stack,
   reference,
   environmentId,
@@ -33,6 +35,7 @@ export function PullRequestStackMenu({
   onRetry,
 }: {
   hostLabel: string;
+  terminology: ChangeRequestTerminology;
   notice?: string | null;
   onRetry?: (() => void) | undefined;
   stack: PullRequestStack;
@@ -110,7 +113,7 @@ export function PullRequestStackMenu({
       });
     }
   };
-  const mergeCountLabel = `${mergeLayers.length} ${mergeLayers.length === 1 ? "pull request" : "pull requests"}`;
+  const mergeCountLabel = `${mergeLayers.length} ${mergeLayers.length === 1 ? terminology.singular : terminology.plural}`;
   return (
     <>
       <Menu open={open} onOpenChange={setOpen}>

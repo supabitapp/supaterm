@@ -1,4 +1,7 @@
-import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
+import {
+  capitalizeTerm,
+  sourceControlClients,
+} from "@supaterm/client-runtime/source-control-clients";
 import { PullRequestChangeBreakdownRows } from "../pullRequest/PullRequestChangeBreakdownStat";
 import { ThreadDetailsControl } from "./ThreadDetailsControl";
 import { PullRequestGlyph } from "../pullRequest/pullRequestIcons";
@@ -170,6 +173,9 @@ export function ThreadDetailsPrRow({
   const checksQuery = useEnvironmentQueryRefresh(checksAtom);
   const checksAreNewer = useEnvironmentQueryIsNewer(checksAtom, detailAtom);
   const detail = resolvePullRequestDetailChecks(detailData, checksData, checksAreNewer);
+  const terminology = sourceControlClients.get(
+    detail?.provider ?? project?.repositoryIdentity?.provider,
+  ).changeRequest;
   const open = reference !== null && (detail?.state ?? pr?.state) === "open";
   const refreshKey = `${environmentId}:${project?.id}:${reference?.host}:${reference?.repository}:${number}`;
   useLiveRefresh(
@@ -190,6 +196,7 @@ export function ThreadDetailsPrRow({
   const { actionPending, pendingAction, perform } = usePullRequestActionRunner({
     environmentId,
     reference,
+    terminology,
     onSuccess: () => {
       detailQuery.refresh();
       checksQuery.refresh();
@@ -313,7 +320,9 @@ export function ThreadDetailsPrRow({
   // detail rows, so the two read as one family.
   const rowTooltip =
     detail === null || statePresentation === null ? (
-      <TooltipPopup side="top">{status?.tooltip ?? `Pull request #${number}`}</TooltipPopup>
+      <TooltipPopup side="top">
+        {status?.tooltip ?? `${capitalizeTerm(terminology.singular)} #${number}`}
+      </TooltipPopup>
     ) : (
       <TooltipPopup
         side="top"
@@ -411,7 +420,7 @@ export function ThreadDetailsPrRow({
             pending: pendingAction === "ready",
             destructive: false,
             suffix: null,
-            tooltip: "Mark this pull request as ready for review",
+            tooltip: `Mark this ${terminology.singular} as ready for review`,
             controlProps: { onClick: () => void perform("ready") },
           }
         : rowAction === "fix"
@@ -437,7 +446,7 @@ export function ThreadDetailsPrRow({
                 pending: pendingAction === "merge",
                 destructive: false,
                 suffix: null,
-                tooltip: `Merge this pull request (${selectedMergeMethod})`,
+                tooltip: `Merge this ${terminology.singular} (${selectedMergeMethod})`,
                 armedTooltip: `Click again to merge #${number} into ${detail?.baseBranch} (${selectedMergeMethod})`,
                 controlProps: confirm.bind(
                   "merge",
@@ -528,7 +537,7 @@ export function ThreadDetailsPrRow({
                       variant="ghost"
                       size="sm"
                       part="secondary"
-                      aria-label="More pull request actions"
+                      aria-label={`More ${terminology.singular} actions`}
                     />
                   }
                 >
@@ -536,7 +545,7 @@ export function ThreadDetailsPrRow({
                 </MenuTrigger>
               }
             />
-            <TooltipPopup side="top">More pull request actions</TooltipPopup>
+            <TooltipPopup side="top">More {terminology.singular} actions</TooltipPopup>
           </Tooltip>
           <MenuPopup align="end" anchor={rowRef} className="w-(--anchor-width)">
             {rowAction === "fix" || rowAction === "resolve" ? (
@@ -573,7 +582,7 @@ export function ThreadDetailsPrRow({
                   disabled={actionPending}
                 >
                   <PullRequestGlyph.closed className="size-3.5" />
-                  {confirm.armed === "close" ? "Confirm close" : "Close pull request"}
+                  {confirm.armed === "close" ? "Confirm close" : `Close ${terminology.singular}`}
                 </MenuItem>
               </>
             ) : canReopen ? (
@@ -581,7 +590,7 @@ export function ThreadDetailsPrRow({
                 <MenuSeparator />
                 <MenuItem disabled={actionPending} onClick={() => void perform("reopen")}>
                   <PullRequestGlyph.reopen className="size-3.5" />
-                  Reopen pull request
+                  Reopen {terminology.singular}
                 </MenuItem>
               </>
             ) : null}

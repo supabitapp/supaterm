@@ -1,5 +1,9 @@
 import type { PullRequestContextMetadata } from "@supaterm/contracts";
 import { ArrowRightIcon } from "@supaterm/icons";
+import {
+  capitalizeTerm,
+  sourceControlClients,
+} from "@supaterm/client-runtime/source-control-clients";
 
 import { cn } from "~/lib/utils";
 
@@ -7,11 +11,17 @@ import { resolvePullRequestState } from "./pullRequest/pullRequestPresentation";
 
 export function PullRequestContextDetails({ metadata }: { metadata: PullRequestContextMetadata }) {
   const state = resolvePullRequestState(metadata);
+  // A context chip carries the change request's URL alone, so the URL names its host.
+  const { singular } = (
+    sourceControlClients.findByChangeRequestUrl(metadata.url) ?? sourceControlClients.get(undefined)
+  ).changeRequest;
   return (
     <div className="max-w-80 space-y-1 overflow-hidden py-0.5 text-left">
       <div className="flex items-center gap-1.5 text-xs font-medium">
         <state.Icon className={cn("size-3.5 shrink-0", state.toneClassName)} />
-        <span className="text-foreground">Pull request #{metadata.number}</span>
+        <span className="text-foreground">
+          {capitalizeTerm(singular)} #{metadata.number}
+        </span>
         <span className={state.toneClassName}>{state.label}</span>
       </div>
       <div className="wrap-break-word text-foreground">{metadata.title}</div>
