@@ -9,6 +9,7 @@ import {
 import { Button } from "./ui/button";
 import { CalendarIcon } from "lucide-react";
 import { Calendar } from "./ui/calendar";
+import { useNowMinuteMs } from "../hooks/useNowMinute";
 import { weekStartsOn } from "../timestampFormat";
 import { Popover, PopoverTrigger, PopoverPopup } from "./ui/popover";
 import { Input } from "./ui/input";
@@ -65,6 +66,10 @@ function CustomSnoozeDialog() {
   const [error, setError] = useState<string | null>(null);
   const input: CustomSnoozeInput =
     mode === "date" ? { mode, date: localSnoozeDate(date), time } : { mode, amount, unit };
+  // The minute clock moves the calendar's first selectable day past midnight while it stays open.
+  const nowMinuteMs = useNowMinuteMs();
+  const startOfToday = new Date(nowMinuteMs);
+  startOfToday.setHours(0, 0, 0, 0);
   return (
     <Dialog
       open
@@ -137,7 +142,7 @@ function CustomSnoozeDialog() {
                             selected={date}
                             defaultMonth={date}
                             {...(weekStartsOn === undefined ? {} : { weekStartsOn })}
-                            disabled={{ before: new Date(new Date().setHours(0, 0, 0, 0)) }}
+                            disabled={{ before: startOfToday }}
                             onSelect={(selected) => {
                               setDate(selected);
                               setCalendarOpen(false);

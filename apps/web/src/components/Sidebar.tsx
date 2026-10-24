@@ -2757,9 +2757,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           sweepAction={actionSweep?.keys.has(threadKey) ? actionSweep.action : null}
                           snoozeWakeLabelText={
                             section === "snoozed" && thread.snoozedUntil != null
-                              ? snoozeWakeLabel(thread.snoozedUntil, {
-                                  now: new Date().toISOString(),
-                                })
+                              ? snoozeWakeLabel(thread.snoozedUntil, { now: snoozeNow })
                               : null
                           }
                           // All sections: a woken thread can classify straight
