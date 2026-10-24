@@ -112,6 +112,9 @@ the message to read it from stdin.
 2 when the agent waits for an answer you give in the app. Add `--json` for a
 result that always includes the thread id.
 
+The CLI must come from the same Supaterm release as the running server. After
+an update, restart Supaterm or update the CLI before you run it again.
+
 ## Remove an agent
 
 Approved agents appear under **Settings → Connections** like other clients.

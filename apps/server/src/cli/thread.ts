@@ -29,6 +29,7 @@ import { Argument, Command, Flag, GlobalFlag } from "effect/cli";
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import * as ServerConfig from "../config.ts";
 import { mcpToolSession, type McpToolSession } from "../mcp/AcpMcpStdioBridge.ts";
+import packageJson from "../../package.json" with { type: "json" };
 import { readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
 import { projectLocationFlags, resolveCliAuthConfig, resolveCliWorktreeHome } from "./config.ts";
 
@@ -50,6 +51,17 @@ export class ThreadServerNotRunningError extends Schema.TaggedError<ThreadServer
       ? " In a linked worktree, pass --base-dir to reach a server outside it."
       : "";
     return `No running Supaterm server uses ${this.baseDir}. Start Supaterm, then retry.${hint}`;
+  }
+}
+
+export class ThreadServerVersionMismatchError extends Schema.TaggedError<ThreadServerVersionMismatchError>()(
+  "ThreadServerVersionMismatchError",
+  { cliVersion: Schema.String, serverVersion: Schema.NullOr(Schema.String) },
+) {
+  override readonly [Runtime.errorReported] = false;
+  override get message(): string {
+    const server = this.serverVersion ?? "an unknown version";
+    return `This supaterm CLI is ${this.cliVersion}, but the running server is ${server}. Use the CLI from the same Supaterm release as the server.`;
   }
 }
 
@@ -119,6 +131,7 @@ export class ThreadRunEndedError extends Schema.TaggedError<ThreadRunEndedError>
 
 const ThreadCliError = Schema.Union([
   ThreadServerNotRunningError,
+  ThreadServerVersionMismatchError,
   ThreadServerUnreachableError,
   ThreadToolFailedError,
   ThreadUsageError,
@@ -224,14 +237,21 @@ const withThreadTools = Effect.fn("cli.thread.withThreadTools")(function* <A, E,
       inLinkedWorktree: worktreeHome !== undefined,
     });
   }
+  const serverVersion = runtimeState.value.serverVersion;
+  if (serverVersion !== packageJson.version) {
+    return yield* new ThreadServerVersionMismatchError({
+      cliVersion: packageJson.version,
+      serverVersion: serverVersion ?? null,
+    });
+  }
   const origin = runtimeState.value.origin;
   return yield* Effect.gen(function* () {
     const environmentAuth = yield* EnvironmentAuth.EnvironmentAuth;
     const issued = yield* Effect.acquireRelease(
       environmentAuth.issueMcpClientSession({
         label: "supaterm thread cli",
-        // The CLI runs as the machine's owner. New threads still start at
-        // the project's default mode, never at this ceiling by default.
+        // The CLI runs as the machine's owner. A server from this build starts
+        // new threads at the project's default mode, never at this ceiling.
         access: "full-access",
         client: { deviceType: "bot" },
       }),

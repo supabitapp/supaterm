@@ -493,16 +493,24 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
 });
 
 /**
- * Same precedence as dev-runner: without --base-dir, a linked worktree's own
- * `.supaterm` is the only home that counts. Commands that open the target
- * database run this checkout's migrations, so falling back to the shared home
- * could migrate the live install with unreleased schema.
+ * Same precedence as dev-runner: without --base-dir, a CLI running from a linked
+ * worktree's own source uses only that worktree's `.supaterm`. Commands that open
+ * the target database run this checkout's migrations, so falling back to the
+ * shared home could migrate the live install with unreleased schema. An installed
+ * CLI invoked inside some project's worktree carries released migrations and
+ * keeps the normal home.
  */
 export const resolveCliWorktreeHome = Effect.fn("config.resolveCliWorktreeHome")(function* (
   explicitBaseDir: Option.Option<string>,
 ) {
   if (Option.exists(explicitBaseDir, (value) => value.trim().length > 0)) return undefined;
-  return yield* resolveWorktreeSupatermHome(yield* HostProcess.WorkingDirectory);
+  if (yield* HostProcess.IsExecutable) return undefined;
+  const worktreeHome = yield* resolveWorktreeSupatermHome(yield* HostProcess.WorkingDirectory);
+  const entry = (yield* HostProcess.Arguments)[1];
+  if (worktreeHome === undefined || entry === undefined) return undefined;
+  const path = yield* Path.Path;
+  const fromWorktree = path.relative(path.dirname(worktreeHome), path.resolve(entry));
+  return fromWorktree.startsWith("..") || path.isAbsolute(fromWorktree) ? undefined : worktreeHome;
 });
 
 export const resolveCliAuthConfig = (

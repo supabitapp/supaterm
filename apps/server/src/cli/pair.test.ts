@@ -485,6 +485,10 @@ describe("supaterm pair", () => {
         const error = yield* provideCliTestLayers(
           runCli(["pair"]).pipe(
             Effect.provideService(HostProcess.WorkingDirectory, worktree),
+            Effect.provideService(HostProcess.Arguments, [
+              process.execPath,
+              NodePath.join(worktree, "apps", "server", "src", "bin.ts"),
+            ]),
             Effect.provide(
               ConfigProvider.layer(ConfigProvider.fromEnv({ env: { SUPATERM_HOME: sharedHome } })),
             ),
