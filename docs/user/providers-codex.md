@@ -100,8 +100,8 @@ message also says whether your workspace owner needs to add credits or raise the
 spend limit to continue sooner.
 
 A ChatGPT workspace can also cap how much of your plan other apps use. When Codex stops on that
-cap, the banner on web and desktop offers **Copy request for admin**, a message to send your
-workspace admin asking for higher limits.
+cap, the thread offers **Copy request for admin**, a message to send your workspace admin asking
+for higher limits.
 
 ## Send feedback to OpenAI
 
