@@ -509,7 +509,14 @@ export const resolveCliWorktreeHome = Effect.fn("config.resolveCliWorktreeHome")
   const entry = (yield* HostProcess.Arguments)[1];
   if (worktreeHome === undefined || entry === undefined) return undefined;
   const path = yield* Path.Path;
-  const relative = path.relative(path.dirname(worktreeHome), path.resolve(entry));
+  const fileSystem = yield* FileSystem.FileSystem;
+  // A launcher symlink keeps its own path in argv, so both sides compare as real paths.
+  const realPath = (value: string) =>
+    fileSystem.realPath(value).pipe(Effect.orElseSucceed(() => value));
+  const relative = path.relative(
+    yield* realPath(path.dirname(worktreeHome)),
+    yield* realPath(path.resolve(entry)),
+  );
   const runsFromWorktree =
     relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
   return runsFromWorktree ? worktreeHome : undefined;

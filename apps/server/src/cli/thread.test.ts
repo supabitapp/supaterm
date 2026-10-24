@@ -116,12 +116,16 @@ it.effect("a linked worktree only looks for a server in its own home", () =>
       }),
     });
 
+    const entry = NodePath.join(worktree, "apps", "server", "src", "bin.ts");
+    NodeFS.mkdirSync(NodePath.dirname(entry), { recursive: true });
+    NodeFS.writeFileSync(entry, "");
+    const launcher = NodePath.join(root, "bin", "supaterm.ts");
+    NodeFS.mkdirSync(NodePath.dirname(launcher));
+    NodeFS.symlinkSync(entry, launcher);
+
     const error = yield* Command.runWith(cli, { version: "0.0.0" })(["thread", "list"]).pipe(
       Effect.provideService(HostProcess.WorkingDirectory, worktree),
-      Effect.provideService(HostProcess.Arguments, [
-        process.execPath,
-        NodePath.join(worktree, "apps", "server", "src", "bin.ts"),
-      ]),
+      Effect.provideService(HostProcess.Arguments, [process.execPath, launcher]),
       Effect.provide(
         ConfigProvider.layer(ConfigProvider.fromEnv({ env: { SUPATERM_HOME: sharedHome } })),
       ),

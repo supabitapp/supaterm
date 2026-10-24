@@ -482,13 +482,14 @@ describe("supaterm pair", () => {
           }),
         });
 
+        const entry = NodePath.join(worktree, "apps", "server", "src", "bin.ts");
+        NodeFS.mkdirSync(NodePath.dirname(entry), { recursive: true });
+        NodeFS.writeFileSync(entry, "");
+
         const error = yield* provideCliTestLayers(
           runCli(["pair"]).pipe(
             Effect.provideService(HostProcess.WorkingDirectory, worktree),
-            Effect.provideService(HostProcess.Arguments, [
-              process.execPath,
-              NodePath.join(worktree, "apps", "server", "src", "bin.ts"),
-            ]),
+            Effect.provideService(HostProcess.Arguments, [process.execPath, entry]),
             Effect.provide(
               ConfigProvider.layer(ConfigProvider.fromEnv({ env: { SUPATERM_HOME: sharedHome } })),
             ),
