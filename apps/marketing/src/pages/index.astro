@@ -237,7 +237,11 @@ const screenshot = await getImage({
 
   const crt = document.querySelector<HTMLElement>(".hero-crt");
   if (crt) {
-    void import("../lib/boltComputer/mount").then(({ mountBoltComputer }) => mountBoltComputer(crt));
+    // Thinking never settles, so the hero repaints while on screen: a deliberate exception to the
+    // no-continuous-animation rule.
+    void import("../lib/boltComputer/mount").then(({ DEFAULT_SETTINGS, mountBoltComputer }) =>
+      mountBoltComputer(crt, { ...DEFAULT_SETTINGS, state: "thinking" }),
+    );
   }
 </script>
 
