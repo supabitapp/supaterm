@@ -134,4 +134,4 @@ it("loads the packaged Playwright runtime through the server browser loader path
   } finally {
     await NodeFSP.rm(scratch, { recursive: true, force: true });
   }
-}, 60_000);
+});

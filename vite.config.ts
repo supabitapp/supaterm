@@ -84,6 +84,25 @@ export default defineConfig({
     exclude: TEST_EXCLUDE,
     hookTimeout: 60_000,
     testTimeout: 60_000,
+    allowOnly: !process.env.CI,
+    // Flaky tests are fixed, not retried.
+    retry: 0,
+    fakeTimers: {
+      toFake: [
+        "setTimeout",
+        "clearTimeout",
+        "setInterval",
+        "clearInterval",
+        "setImmediate",
+        "clearImmediate",
+        "Date",
+        "performance",
+        "requestAnimationFrame",
+        "cancelAnimationFrame",
+        "requestIdleCallback",
+        "cancelIdleCallback",
+      ],
+    },
     setupFiles: [
       NodeURL.fileURLToPath(
         new URL("./packages/shared/src/testing/longTempDir.ts", import.meta.url),
@@ -227,6 +246,7 @@ export default defineConfig({
       "supaterm/no-native-title-tooltip": "error",
       "supaterm/no-raw-mcp-registration": "error",
       "supaterm/no-test-in-loop": "error",
+      "supaterm/no-test-timeout-or-retry": "error",
       "supaterm/no-rpc-permission-bypass": ["error", { allowRawClientAccess: true }],
       "supaterm/no-unscoped-has": "error",
       "supaterm/namespace-node-imports": "error",

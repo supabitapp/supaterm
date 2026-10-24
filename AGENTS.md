@@ -92,7 +92,15 @@ An empty database is a bad test. Seed your worktree's `.supaterm` with a copy of
 - **Do not run repo-wide checks.** No `vp check`, no `vp run -r test`, no `vp run -r typecheck` unless I ask. CI owns the full suite.
 - Backend behavior changes ship with focused tests for that behavior.
 - Proof for a bug fix depends on the bug. Logic, data, state, and protocol bugs get a failing test first (the fewest that fail on `main` for that reason, in the module's existing test file), then the fix. Purely visual bugs (spacing, colour, alignment, a layout shift) get before/after captures as their proof and no test: do not add UI tests for nitpicks, and do not ask for one in review when a capture already shows it. A server-only fix with no visible surface ships the test plus a short runtime transcript.
-- The server is event-sourced, and side effects run after the command commits. In tests, drain the effect worker (`OrchestrationEffectWorkerV2.drain`) or await the specific persisted event or `Deferred` that marks the milestone. Never wait on sleeps or polling. A test that needs a timeout to pass is wrong.
+- The server is event-sourced, and side effects run after the command commits. In tests, drain the effect worker (`OrchestrationEffectWorkerV2.drain`) or await the specific persisted event or `Deferred` that marks the milestone. Never wait on sleeps or polling. A test that needs a timeout to pass is wrong. Concretely:
+  - `it.effect` runs on a `TestClock`; `Effect.sleep` only advances through `TestClock.adjust`. `it.live` is wall-clock and only for subprocess or network fixtures.
+  - No `yieldNow` or `sleep` polling loops. Await the `Deferred`, take from the `Queue`, or drain the worker.
+  - No per-test timeout argument or `retry`. The project timeout is the ceiling, and flaky tests are fixed, not retried.
+  - No `performance.now()` or `Date.now()` deltas. Assert on events and counts, not elapsed time.
+  - Browser tests assert through `expect.element` or `vi.waitFor`, never `requestAnimationFrame` or `transitionend`.
+  - `vi.mock` factories must not spread a real module that pulls in the syntax highlighter or the diff workers.
+  - No skips. `.skip`, `.only` and `.todo` fail lint; gate platform-specific tests with `skipIf` or `runIf`.
+  - Lint enforces this: `supaterm/no-test-timeout-or-retry`, `vitest/no-disabled-tests`, `vitest/no-focused-tests`.
 - Upon request, user-visible frontend changes should get one integrated pass in a real client: `test-supaterm-app` for web, `test-supaterm-mobile` for mobile. The primary agent does this once after integrating. Subagents do not launch their own dev servers.
 
 For authorized mobile verification, a missing or outdated native client is a build step, not a blocker. Run `node scripts/mobile-native-client.ts ensure <ios|android> <device-id>` on the simulator host before starting Metro. It checks the local Expo fingerprint and builds/installs when needed. See `test-supaterm-mobile` for the full workflow.

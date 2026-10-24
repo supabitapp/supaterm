@@ -36,5 +36,6 @@ const compile = async (file: string) => {
 // inside try). A skipped file still builds, just unmemoized, so check the output.
 describe("React Compiler coverage", () => {
   it.each(webSourceFiles.filter((file) => !slowFiles.has(file)))("compiles %s", compile);
+  // oxlint-disable-next-line supaterm/no-test-timeout-or-retry -- CPU-bound compile of a huge file, not a hidden wait.
   it.each([...slowFiles])("compiles %s", compile, 60_000);
 });
