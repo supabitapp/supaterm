@@ -11,9 +11,19 @@ import {
   TRANSFER_MEASURED_MCP_RESULT_BYTES,
   TRANSFER_MEASURED_TOOLS,
 } from "./fixtures/transferBudget.ts";
+import {
+  LONG_TURN_WORK_ROWS,
+  SHELL_IDLE_SUBAGENTS,
+  SHELL_SETTLED_THREADS,
+} from "./TransferBudgetV2Fixture.integration.ts";
 
 export interface WebSocketCatchUpMeasurement extends WebSocketTransferTotals {
   readonly mode: "replay" | "snapshot";
+}
+
+export interface TimelineHttpMeasurement {
+  readonly http: HttpTransferMeasurement;
+  readonly rows: number;
 }
 
 export interface TransferBudgetRun {
@@ -27,6 +37,15 @@ export interface TransferBudgetRun {
   readonly reconnectShell: WebSocketCatchUpMeasurement;
   readonly measuredTurnSqlStatements: number;
   readonly reconnectSqlStatements: number;
+
+  readonly longTurnColdOpen: TimelineHttpMeasurement;
+  readonly longTurnHistoryPage: TimelineHttpMeasurement;
+
+  readonly longTurnColdOpenLegacy: TimelineHttpMeasurement;
+  readonly longTurnHistoryPageLegacy: TimelineHttpMeasurement;
+
+  readonly fleetShell: TimelineHttpMeasurement;
+  readonly fleetShellLegacy: TimelineHttpMeasurement;
 }
 
 interface ProviderTransferBudget {
@@ -41,13 +60,23 @@ const TRANSFER_BUDGET = {
   totalWireBytes: 7_000,
   threadSnapshotWireBytes: 5_000,
   measuredTurnWebSocketWireBytes: 2_000,
-  measuredTurnWebSocketDecodedBytes: 30_000,
+  measuredTurnWebSocketDecodedBytes: 25_000,
   measuredTurnWebSocketMessages: 8,
 } satisfies ProviderTransferBudget;
 
 const TRANSFER_BUDGETS: Readonly<Record<string, ProviderTransferBudget>> = {
   codex: TRANSFER_BUDGET,
   claudeAgent: TRANSFER_BUDGET,
+};
+
+const LONG_TURN_BUDGET = {
+  decodedBytes: 110_000,
+  rows: 75,
+};
+
+const FLEET_SHELL_BUDGET = {
+  decodedBytes: 55_000,
+  rows: 27,
 };
 
 function totalWireBytes(run: TransferBudgetRun): number {
@@ -119,9 +148,6 @@ function row(
   return `| ${provider} | ${phase} | ${metric} | ${format(observed)} | ${format(maximum)} | ${status} |`;
 }
 
-// Shell delivery coalesces on a 50 ms window, so message counts and bytes move
-// with scheduler timing between runs, and the reconnect and SQL figures follow
-// the same batches.
 function infoRow(
   provider: ProviderDriverKind,
   phase: string,
@@ -141,6 +167,31 @@ function webSocketRows(
     infoRow(provider, phase, "WebSocket wire", totals.wireBytes),
     infoRow(provider, phase, "WebSocket decoded", totals.decodedBytes),
     infoRow(provider, phase, "WebSocket messages", totals.messages, String),
+  ];
+}
+
+function timelineRows(
+  provider: ProviderDriverKind,
+  phase: string,
+  measured: TimelineHttpMeasurement,
+  budget: { readonly decodedBytes: number; readonly rows: number },
+): string[] {
+  return [
+    infoRow(provider, phase, "HTTP wire", measured.http.wireBytes),
+    row(provider, phase, "HTTP decoded", measured.http.decodedBodyBytes, budget.decodedBytes),
+    row(provider, phase, "rows", measured.rows, budget.rows, String),
+  ];
+}
+
+function legacyRows(
+  provider: ProviderDriverKind,
+  phase: string,
+  measured: TimelineHttpMeasurement,
+): string[] {
+  return [
+    infoRow(provider, `${phase}, older client`, "HTTP wire", measured.http.wireBytes),
+    infoRow(provider, `${phase}, older client`, "HTTP decoded", measured.http.decodedBodyBytes),
+    infoRow(provider, `${phase}, older client`, "rows", measured.rows, String),
   ];
 }
 
@@ -170,6 +221,24 @@ export function transferBudgetViolations(runs: ReadonlyArray<TransferBudgetRun>)
         run.measuredTurnWebSocket.messages,
         budget.measuredTurnWebSocketMessages,
       ],
+      [
+        "long-turn cold open decoded bytes",
+        run.longTurnColdOpen.http.decodedBodyBytes,
+        LONG_TURN_BUDGET.decodedBytes,
+      ],
+      ["long-turn cold open rows", run.longTurnColdOpen.rows, LONG_TURN_BUDGET.rows],
+      [
+        "long-turn history page decoded bytes",
+        run.longTurnHistoryPage.http.decodedBodyBytes,
+        LONG_TURN_BUDGET.decodedBytes,
+      ],
+      ["long-turn history page rows", run.longTurnHistoryPage.rows, LONG_TURN_BUDGET.rows],
+      [
+        "fleet shell snapshot decoded bytes",
+        run.fleetShell.http.decodedBodyBytes,
+        FLEET_SHELL_BUDGET.decodedBytes,
+      ],
+      ["fleet shell snapshot rows", run.fleetShell.rows, FLEET_SHELL_BUDGET.rows],
     ] as const;
     for (const [metric, observed, maximum] of checks) {
       if (observed > maximum) {
@@ -264,6 +333,17 @@ export function formatTransferBudgetReport(runs: ReadonlyArray<TransferBudgetRun
         run.reconnectShell,
       ),
       infoRow(run.provider, "reconnect", "SQL statements", run.reconnectSqlStatements, String),
+      ...timelineRows(run.provider, "long-turn cold open", run.longTurnColdOpen, LONG_TURN_BUDGET),
+      ...legacyRows(run.provider, "long-turn cold open", run.longTurnColdOpenLegacy),
+      ...timelineRows(
+        run.provider,
+        "long-turn history page",
+        run.longTurnHistoryPage,
+        LONG_TURN_BUDGET,
+      ),
+      ...legacyRows(run.provider, "long-turn history page", run.longTurnHistoryPageLegacy),
+      ...timelineRows(run.provider, "fleet shell snapshot", run.fleetShell, FLEET_SHELL_BUDGET),
+      ...legacyRows(run.provider, "fleet shell snapshot", run.fleetShellLegacy),
     );
   }
 
