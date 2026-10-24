@@ -49,6 +49,8 @@ export interface SavedRecordingStorage<Audio> {
   readonly remove: (recording: SavedRecording) => Promise<void>;
   /** Other tabs or processes changed storage. */
   readonly subscribe?: (onChange: () => void) => () => void;
+  /** Frees audio that storage never took, such as a recorder's cache file. */
+  readonly release?: (audio: Audio) => void;
 }
 
 type Stored<Audio> = { readonly entry: SavedRecordingEntry; readonly audio: Audio };
@@ -208,6 +210,8 @@ export function createSavedRecordings<Audio>(storage: SavedRecordingStorage<Audi
       } catch {
         return false;
       }
+    } else {
+      storage.release?.(current.audio);
     }
     const next = new Map(records);
     next.delete(id);

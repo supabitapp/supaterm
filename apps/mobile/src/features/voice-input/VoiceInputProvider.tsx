@@ -36,11 +36,13 @@ import { getLocalVoiceTranscriber } from "../../native/voiceTranscription";
 import { dictationReachableAtom, readDictationReachable } from "../../state/dictation";
 import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
 import {
+  throwIfVoiceTranscriptionAborted,
   VOICE_RECORDING_LIMIT_SECONDS,
   voiceInputBlocksSubmission,
   VoiceInputSession,
   type VoiceInputState,
   type VoiceInputTarget,
+  type VoiceTranscriber,
 } from "@supaterm/client-runtime/voice-input";
 import {
   createLazyVoiceRecorder,
@@ -48,8 +50,9 @@ import {
   type VoiceRecordingStatusEvent,
 } from "./lazyVoiceRecorder";
 import { PendingVoiceRecordingsCoordinator } from "./PendingVoiceRecordingsCoordinator";
-import { parkPendingVoiceRecording } from "./pendingVoiceRecordings";
-import { createServerVoiceTranscriber } from "./serverVoiceTranscriber";
+import { savedVoiceRecordings } from "./pendingVoiceRecordings";
+import { forgetVoiceSendIntents } from "./voiceComposerTargets";
+import { voiceInputLocale } from "./voiceInputLocale";
 import { normalizeVoiceInputDecibels, VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
 import { createVoiceRecorderSet } from "./voiceRecorderSet";
 import { DEVICE_RECORDING_FORMAT, type VoiceEnvironmentRoute, type VoiceRoute } from "./voiceRoute";
@@ -117,6 +120,36 @@ async function configureVoiceRecordingAudio(): Promise<void> {
 
 function deleteRecording(uri: string): void {
   new File(uri).delete();
+}
+
+/** Saves every environment recording before transcribing it, so no failure can lose the audio. */
+function createSavingVoiceTranscriber(
+  route: VoiceEnvironmentRoute,
+  readDurationMs: () => number,
+): VoiceTranscriber {
+  return {
+    prepare: async ({ signal }) => {
+      throwIfVoiceTranscriptionAborted(signal);
+      const locale = voiceInputLocale();
+      return {
+        locale,
+        transcribe: async (uri, { capturedDraft }) => {
+          const recording = await savedVoiceRecordings.save({
+            id: uuidv4(),
+            ownerKey: capturedDraft.ownerKey,
+            environmentId: route.environmentId,
+            sourceId: route.source.id,
+            mimeType: route.format.mimeType,
+            durationMs: readDurationMs(),
+            locale,
+            capturedDraft,
+            audio: uri,
+          });
+          return { kind: "saved", recordingId: recording.id };
+        },
+      };
+    },
+  };
 }
 
 const VoiceInputContext = createContext<ReturnType<typeof useVoiceInputRuntime> | null>(null);
@@ -214,7 +247,7 @@ function useVoiceInputRuntime() {
         if (activeRoute === null) return null;
         return activeRoute.kind === "device"
           ? getLocalVoiceTranscriber()
-          : createServerVoiceTranscriber({ route: activeRoute, readDurationMs: () => durationMs });
+          : createSavingVoiceTranscriber(activeRoute, () => durationMs);
       },
       requestPermission: async () => {
         requestingPermission = true;
@@ -228,13 +261,6 @@ function useVoiceInputRuntime() {
       configureRecording: configureVoiceRecordingAudio,
       releaseRecording: releaseVoiceRecordingAudio,
       deleteRecording,
-      describeRecording: () => ({
-        mimeType:
-          activeRoute?.kind === "available"
-            ? activeRoute.format.mimeType
-            : DEVICE_RECORDING_FORMAT.mimeType,
-        durationMs,
-      }),
       onStateChange: (nextState) => {
         // The audio session is released before transcription, so iOS plays this.
         if (phase === "transcribing" && nextState.phase === "idle") {
@@ -261,30 +287,6 @@ function useVoiceInputRuntime() {
       return true;
     };
 
-    const keepRecording = async (environmentRoute: VoiceEnvironmentRoute) => {
-      const handoff = await session.controller.takeRecording();
-      if (!handoff) return;
-      try {
-        await parkPendingVoiceRecording({
-          id: uuidv4(),
-          uri: handoff.uri,
-          ownerKey: handoff.capturedDraft.ownerKey,
-          environmentId: environmentRoute.environmentId,
-          sourceId: environmentRoute.source.id,
-          format: environmentRoute.format,
-          durationMs: handoff.durationMs,
-          locale: handoff.locale,
-          capturedDraft: handoff.capturedDraft,
-          state: { status: "waiting" },
-        });
-      } catch (error) {
-        console.warn("[voice-input] could not keep a recording", error);
-        try {
-          deleteRecording(handoff.uri);
-        } catch {}
-      }
-    };
-
     return {
       session,
       recorder,
@@ -306,15 +308,14 @@ function useVoiceInputRuntime() {
         (activeRoute?.kind === "available" && readDictationReachable(activeRoute.environmentId)),
       appMovedToBackground: () => {
         if (requestingPermission) return;
-        const environmentRoute = activeRoute?.kind === "available" ? activeRoute : null;
+        forgetVoiceSendIntents();
         if (session.controller.currentState.phase !== "recording" || activeRoute === null) {
           void session.controller.appMovedToBackground();
           return;
         }
-        // Keep what was said: a server recording waits to transcribe on return, and an
-        // on-device one finishes now.
-        if (environmentRoute) void keepRecording(environmentRoute);
-        else void session.controller.stop();
+        // Keep what was said: an environment recording is saved and transcribes from storage,
+        // and an on-device one finishes now.
+        void session.controller.stop();
       },
     };
   });

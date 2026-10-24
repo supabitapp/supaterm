@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 import { voiceInputFreezesEditor } from "@supaterm/client-runtime/voice-input";
 
-import { resolveVoiceComposerPresentation } from "./voiceInputPresentation";
+import {
+  resolveVoiceComposerPresentation,
+  voiceRecordingRetry,
+  voiceRecordingStatus,
+} from "./voiceInputPresentation";
 
 describe("resolveVoiceComposerPresentation", () => {
   it("maps voice states to stable composer actions and editor read-only state", () => {
@@ -65,5 +69,29 @@ describe("resolveVoiceComposerPresentation", () => {
       true,
     );
     expect(voiceInputFreezesEditor({ phase: "idle", error: null, errorAction: null })).toBe(false);
+  });
+});
+
+describe("saved recording presentation", () => {
+  const waiting = { status: "waiting", error: null, persisted: true } as const;
+
+  it("explains a saved recording while its environment is unreachable", () => {
+    const saved = { ...waiting, error: "Recording upload disconnected." };
+    expect(voiceRecordingStatus(saved, false)).toBe("Saved — transcribes when connected");
+    expect(voiceRecordingStatus(saved, true)).toBe("Recording upload disconnected.");
+    expect(voiceRecordingRetry(saved, false)).toBe("disabled");
+    expect(voiceRecordingRetry(saved, true)).toBe("enabled");
+  });
+
+  it("never calls a recording saved when this device refused it", () => {
+    const unsaved = { ...waiting, persisted: false };
+    expect(voiceRecordingStatus(unsaved, false)).toBe("Not saved on this device");
+    expect(voiceRecordingStatus(unsaved, true)).toBe("Not saved on this device");
+  });
+
+  it("offers retry for failures and nothing for a ready transcript", () => {
+    expect(voiceRecordingRetry({ status: "failed" }, false)).toBe("enabled");
+    expect(voiceRecordingRetry({ status: "ready" }, true)).toBeNull();
+    expect(voiceRecordingRetry({ status: "transcribing" }, true)).toBeNull();
   });
 });

@@ -56,7 +56,10 @@ async function prepareVoiceTranscription(
     throwIfVoiceTranscriptionAborted(signal);
     return {
       locale: supportedLocale,
-      transcribe: (uri, options) => transcribeVoiceRecording(uri, supportedLocale, options),
+      transcribe: async (uri, options) => ({
+        kind: "transcript",
+        text: await transcribeVoiceRecording(uri, supportedLocale, options),
+      }),
     };
   } catch (error) {
     throwIfVoiceTranscriptionAborted(signal);

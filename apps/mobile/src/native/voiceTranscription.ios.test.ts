@@ -1,7 +1,10 @@
 import type { TranscriptionResult } from "@react-native-ai/apple/src/NativeAppleTranscription";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { VoiceTranscriptionError } from "@supaterm/client-runtime/voice-input";
+import {
+  VoiceTranscriptionError,
+  type VoiceDraftSnapshot,
+} from "@supaterm/client-runtime/voice-input";
 
 const mocks = vi.hoisted(() => ({
   isAvailable: vi.fn<(locale: string) => boolean>(),
@@ -27,6 +30,12 @@ vi.mock("expo-file-system", () => ({
 import { getLocalVoiceTranscriber } from "./voiceTranscription.ios";
 
 const audio = new ArrayBuffer(4);
+const capturedDraft: VoiceDraftSnapshot = {
+  ownerKey: "draft",
+  text: "",
+  selection: { start: 0, end: 0 },
+  revision: 0,
+};
 const nativeTranscript: TranscriptionResult = {
   duration: 2,
   segments: [
@@ -68,7 +77,9 @@ describe("getLocalVoiceTranscriber", () => {
     const prepared = await transcriber.prepare(options);
     deviceLocale.mockReturnValue({ ...resolvedOptions, locale: "en-US" });
 
-    await expect(prepared.transcribe("file:///voice.m4a", options)).resolves.toBe("Hej världen.");
+    await expect(
+      prepared.transcribe("file:///voice.m4a", { ...options, capturedDraft }),
+    ).resolves.toEqual({ kind: "transcript", text: "Hej världen." });
     expect(mocks.prepare).toHaveBeenCalledWith("sv-FI");
     expect(prepared.locale).toBe("sv-SE");
     expect(mocks.transcribe).toHaveBeenCalledWith(audio, "sv-SE");
@@ -85,7 +96,7 @@ describe("getLocalVoiceTranscriber", () => {
     const options = { signal: controller.signal };
     const prepared = await getLocalVoiceTranscriber()!.prepare(options);
     const result = prepared
-      .transcribe("file:///voice.m4a", options)
+      .transcribe("file:///voice.m4a", { ...options, capturedDraft })
       .catch((error: unknown) => error);
 
     await enteredRead.promise;
@@ -122,7 +133,10 @@ describe("getLocalVoiceTranscriber", () => {
       const operation =
         phase === "prepare"
           ? transcriber.prepare(options)
-          : (await transcriber.prepare(options)).transcribe("file:///voice.m4a", options);
+          : (await transcriber.prepare(options)).transcribe("file:///voice.m4a", {
+              ...options,
+              capturedDraft,
+            });
       const settled = vi.fn((value: unknown) => value);
       const result = operation.then(settled, settled);
 

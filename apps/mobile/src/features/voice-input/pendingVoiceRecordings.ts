@@ -1,29 +1,21 @@
-import type { VoiceDraftSnapshot } from "@supaterm/client-runtime/voice-input";
-import type { DictationSourceId, EnvironmentId } from "@supaterm/contracts";
+import {
+  createSavedRecordings,
+  SavedRecording,
+  type SavedRecordingEntry,
+  type SavedRecordingStorage,
+} from "@supaterm/client-runtime/voice-input";
 import * as Schema from "effect/Schema";
 import { Directory, File, Paths } from "expo-file-system";
 import { useSyncExternalStore } from "react";
 
-import {
-  restoredPendingVoiceRecording,
-  StoredPendingVoiceRecording,
-  type PendingVoiceRecording,
-  type PendingVoiceRecordingPatch,
-} from "./pendingVoiceRecordingModel";
-import type { VoiceRecordingFormat } from "./voiceRoute";
-
 // Documents survives cache eviction. Paths are resolved against the current container on every
-// read because iOS may move the app container between launches.
+// read because iOS may move the app container between launches. Every file operation here is
+// synchronous, so a load never observes another operation half done.
 const DIRECTORY_NAME = "supaterm-voice-recordings";
-const SIDECAR_EXTENSION = ".json";
+const SIDECAR_SUFFIX = ".json";
+const STAGED_SUFFIX = ".json.tmp";
 
-const decodeStored = Schema.decodeUnknownSync(Schema.fromJsonString(StoredPendingVoiceRecording));
-
-let records = new Map<string, PendingVoiceRecording>();
-let snapshot: ReadonlyArray<PendingVoiceRecording> = [];
-const listeners = new Set<() => void>();
-const aborters = new Map<string, AbortController>();
-let loading: Promise<void> | null = null;
+const decodeRecording = Schema.decodeUnknownSync(Schema.fromJsonString(SavedRecording));
 
 function recordingsDirectory(): Directory {
   const directory = new Directory(Paths.document, DIRECTORY_NAME);
@@ -31,208 +23,131 @@ function recordingsDirectory(): Directory {
   return directory;
 }
 
-function publish(next: Map<string, PendingVoiceRecording>): void {
-  records = next;
-  snapshot = [...next.values()].sort((left, right) =>
-    left.createdAt.localeCompare(right.createdAt),
-  );
-  for (const listener of listeners) listener();
+function sidecarFile(directory: Directory, id: string): File {
+  return new File(directory, `${id}${SIDECAR_SUFFIX}`);
 }
 
-function sidecarFile(id: string): File {
-  return new File(recordingsDirectory(), `${id}${SIDECAR_EXTENSION}`);
-}
-
-function writeSidecar(recording: PendingVoiceRecording): void {
-  const { capturedDraft: _, ...stored } = recording;
-  const sidecar = sidecarFile(recording.id);
-  if (!sidecar.exists) sidecar.create();
-  sidecar.writeSync(JSON.stringify(stored));
-}
-
-function persist(recording: PendingVoiceRecording): void {
+function deleteQuietly(file: File | undefined): void {
   try {
-    writeSidecar(recording);
+    if (file?.exists) file.delete();
   } catch (error) {
-    console.warn("[voice-input] could not save a recording's details", error);
+    console.warn("[voice-input] could not delete a saved recording file", error);
   }
 }
 
-function deleteQuietly(file: File): void {
+function writeSidecar(directory: Directory, recording: SavedRecording): void {
+  const staged = new File(directory, `${recording.id}${STAGED_SUFFIX}`);
   try {
-    if (file.exists) file.delete();
+    staged.create({ overwrite: true });
+    staged.writeSync(JSON.stringify(recording));
+    staged.moveSync(sidecarFile(directory, recording.id), { overwrite: true });
   } catch (error) {
-    console.warn("[voice-input] could not delete a saved recording", error);
-  }
-}
-
-function restore(): void {
-  const entries = recordingsDirectory()
-    .list()
-    .filter((entry): entry is File => entry instanceof File);
-  const next = new Map(records);
-  const names = new Set(entries.map((entry) => entry.name));
-  for (const entry of entries) {
-    if (!entry.name.endsWith(SIDECAR_EXTENSION)) continue;
-    let stored: StoredPendingVoiceRecording | null = null;
-    try {
-      stored = decodeStored(entry.textSync());
-    } catch {}
-    if (stored === null || !names.has(stored.fileName)) {
-      deleteQuietly(entry);
-      continue;
-    }
-    if (!next.has(stored.id)) next.set(stored.id, restoredPendingVoiceRecording(stored));
-  }
-  const referenced = new Set([...next.values()].map((recording) => recording.fileName));
-  for (const entry of entries) {
-    if (!entry.name.endsWith(SIDECAR_EXTENSION) && !referenced.has(entry.name)) {
-      deleteQuietly(entry);
-    }
-  }
-  publish(next);
-}
-
-export function loadPendingVoiceRecordings(): Promise<void> {
-  loading ??= Promise.resolve()
-    .then(restore)
-    .catch((error: unknown) => {
-      console.warn("[voice-input] could not restore saved recordings", error);
-    });
-  return loading;
-}
-
-/** Moves the recording out of the recorder's cache so the controller no longer owns it. */
-export async function parkPendingVoiceRecording(input: {
-  readonly id: string;
-  readonly uri: string;
-  readonly ownerKey: string;
-  readonly environmentId: EnvironmentId;
-  readonly sourceId: DictationSourceId;
-  readonly format: VoiceRecordingFormat;
-  readonly durationMs: number;
-  readonly locale: string;
-  readonly capturedDraft: VoiceDraftSnapshot | null;
-  readonly state: PendingVoiceRecordingPatch & { readonly status: "waiting" | "ready" | "failed" };
-}): Promise<PendingVoiceRecording> {
-  await loadPendingVoiceRecordings();
-  const fileName = `${input.id}.${input.format.extension}`;
-  const recording: PendingVoiceRecording = {
-    id: input.id,
-    ownerKey: input.ownerKey,
-    environmentId: input.environmentId,
-    sourceId: input.sourceId,
-    fileName,
-    mimeType: input.format.mimeType,
-    durationMs: input.durationMs,
-    locale: input.locale,
-    createdAt: new Date().toISOString(),
-    transcript: null,
-    error: null,
-    attempts: 0,
-    retryAt: 0,
-    ...input.state,
-    capturedDraft: input.capturedDraft,
-  };
-  // Restoring deletes audio without details, so the details land first and the
-  // recording only counts as saved once both are on disk.
-  writeSidecar(recording);
-  try {
-    new File(input.uri).moveSync(new File(recordingsDirectory(), fileName));
-  } catch (error) {
-    deleteQuietly(sidecarFile(recording.id));
+    deleteQuietly(staged);
     throw error;
   }
-  publish(new Map(records).set(recording.id, recording));
-  return recording;
 }
 
-export function updatePendingVoiceRecording(
-  id: string,
-  patch: PendingVoiceRecordingPatch,
-): PendingVoiceRecording | null {
-  const current = records.get(id);
-  if (!current) return null;
-  const next = { ...current, ...patch };
-  persist(next);
-  publish(new Map(records).set(id, next));
-  return next;
-}
-
-export function discardPendingVoiceRecording(id: string): void {
-  aborters.get(id)?.abort();
-  aborters.delete(id);
-  const recording = records.get(id);
-  if (!recording) return;
-  const next = new Map(records);
-  next.delete(id);
-  publish(next);
-  const directory = recordingsDirectory();
-  deleteQuietly(new File(directory, recording.fileName));
-  deleteQuietly(new File(directory, `${id}${SIDECAR_EXTENSION}`));
-}
-
-export function discardAllPendingVoiceRecordings(): void {
-  for (const recording of snapshot) discardPendingVoiceRecording(recording.id);
-}
-
-export function pendingVoiceRecordingUri(recording: Pick<PendingVoiceRecording, "fileName">) {
-  return new File(recordingsDirectory(), recording.fileName).uri;
-}
-
-export function registerPendingVoiceRecordingWork(
-  id: string,
-  controller: AbortController,
-): () => void {
-  aborters.set(id, controller);
-  return () => {
-    if (aborters.get(id) === controller) aborters.delete(id);
-  };
-}
-
-export function readPendingVoiceRecording(id: string): PendingVoiceRecording | null {
-  return records.get(id) ?? null;
-}
-
-export function getPendingVoiceRecordings(): ReadonlyArray<PendingVoiceRecording> {
-  return snapshot;
-}
-
-function subscribePendingVoiceRecordings(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-export function useAllPendingVoiceRecordings(): ReadonlyArray<PendingVoiceRecording> {
-  return useSyncExternalStore(subscribePendingVoiceRecordings, getPendingVoiceRecordings);
-}
-
-const EMPTY: ReadonlyArray<PendingVoiceRecording> = [];
-const ownerSnapshots = new Map<
-  string,
-  {
-    readonly source: ReadonlyArray<PendingVoiceRecording>;
-    readonly owned: ReadonlyArray<PendingVoiceRecording>;
+function readSidecar(file: File | undefined): SavedRecording | null {
+  if (!file) return null;
+  try {
+    return decodeRecording(file.textSync());
+  } catch {
+    return null;
   }
->();
+}
 
-function ownerRecordings(ownerKey: string): ReadonlyArray<PendingVoiceRecording> {
-  const cached = ownerSnapshots.get(ownerKey);
-  if (cached?.source === snapshot) return cached.owned;
-  const owned = snapshot.filter((recording) => recording.ownerKey === ownerKey);
-  const unchanged =
-    cached !== undefined &&
-    cached.owned.length === owned.length &&
-    cached.owned.every((recording, index) => recording === owned[index]);
-  const next = owned.length === 0 ? EMPTY : unchanged ? cached.owned : owned;
-  ownerSnapshots.set(ownerKey, { source: snapshot, owned: next });
-  return next;
+type RecordingFiles = { sidecar?: File; staged?: File; audio?: File };
+
+function listRecordingFiles(directory: Directory): Map<string, RecordingFiles> {
+  const groups = new Map<string, RecordingFiles>();
+  for (const entry of directory.list()) {
+    if (!(entry instanceof File)) continue;
+    const id = entry.name.split(".", 1)[0] ?? entry.name;
+    const group = groups.get(id) ?? {};
+    groups.set(id, group);
+    if (entry.name.endsWith(STAGED_SUFFIX)) group.staged = entry;
+    else if (entry.name.endsWith(SIDECAR_SUFFIX)) group.sidecar = entry;
+    else group.audio = entry;
+  }
+  return groups;
+}
+
+function storedAudioName(id: string, source: File): string {
+  const dot = source.name.lastIndexOf(".");
+  return dot < 0 ? id : `${id}${source.name.slice(dot)}`;
+}
+
+/** One audio file and one JSON sidecar per recording; the audio is addressed by file URI. */
+export const voiceRecordingStorage: SavedRecordingStorage<string> = {
+  load: async () => {
+    const directory = recordingsDirectory();
+    const loaded: Array<{ readonly recording: SavedRecording; readonly audio: string }> = [];
+    for (const [id, files] of listRecordingFiles(directory)) {
+      const sidecar = readSidecar(files.sidecar);
+      // Moving staged details over the old ones removes the old file first, so a staged copy
+      // without a readable sidecar is the latest complete write.
+      const recording = sidecar ?? readSidecar(files.staged);
+      if (recording?.id !== id || !files.audio) {
+        deleteQuietly(files.sidecar);
+        deleteQuietly(files.staged);
+        deleteQuietly(files.audio);
+        continue;
+      }
+      if (files.staged && sidecar) deleteQuietly(files.staged);
+      else if (files.staged) {
+        try {
+          files.staged.moveSync(sidecarFile(directory, id), { overwrite: true });
+        } catch {}
+      }
+      loaded.push({ recording, audio: files.audio.uri });
+    }
+    return loaded;
+  },
+  add: async (recording, uri) => {
+    const directory = recordingsDirectory();
+    const source = new File(uri);
+    const destination = new File(directory, storedAudioName(recording.id, source));
+    // Details land first so the audio only moves out of the recorder's cache once it can be
+    // restored; until the move succeeds the original stays where it was.
+    writeSidecar(directory, recording);
+    try {
+      source.moveSync(destination);
+    } catch (error) {
+      deleteQuietly(sidecarFile(directory, recording.id));
+      throw error;
+    }
+    return destination.uri;
+  },
+  update: async (recording) => {
+    writeSidecar(recordingsDirectory(), recording);
+  },
+  remove: async (recording) => {
+    const files = listRecordingFiles(recordingsDirectory()).get(recording.id);
+    for (const file of [files?.audio, files?.staged, files?.sidecar]) {
+      if (file?.exists) file.delete();
+    }
+  },
+  release: (uri) => deleteQuietly(new File(uri)),
+};
+
+export const savedVoiceRecordings = createSavedRecordings(voiceRecordingStorage);
+
+const EMPTY: ReadonlyArray<SavedRecordingEntry> = [];
+
+export function useAllPendingVoiceRecordings(): ReadonlyArray<SavedRecordingEntry> {
+  return useSyncExternalStore(savedVoiceRecordings.subscribe, savedVoiceRecordings.all);
 }
 
 export function usePendingVoiceRecordings(
   ownerKey: string | null,
-): ReadonlyArray<PendingVoiceRecording> {
-  return useSyncExternalStore(subscribePendingVoiceRecordings, () =>
-    ownerKey === null ? EMPTY : ownerRecordings(ownerKey),
+): ReadonlyArray<SavedRecordingEntry> {
+  return useSyncExternalStore(savedVoiceRecordings.subscribe, () =>
+    ownerKey === null ? EMPTY : savedVoiceRecordings.owned(ownerKey),
   );
+}
+
+export function discardAllPendingVoiceRecordings(): void {
+  for (const recording of savedVoiceRecordings.all()) {
+    void savedVoiceRecordings.discard(recording.id);
+  }
 }

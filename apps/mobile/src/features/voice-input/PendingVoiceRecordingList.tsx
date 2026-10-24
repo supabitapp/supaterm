@@ -1,4 +1,8 @@
 import { useAtomValue } from "@effect/atom-react";
+import {
+  RETRY_SAVED_RECORDING,
+  type SavedRecordingEntry,
+} from "@supaterm/client-runtime/voice-input";
 import { Pressable, View } from "react-native";
 
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
@@ -7,21 +11,15 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { Chip } from "../../components/ui/Chip";
 import { cn } from "../../lib/cn";
 import { dictationReachableAtom } from "../../state/dictation";
+import { savedVoiceRecordings, usePendingVoiceRecordings } from "./pendingVoiceRecordings";
+import { voiceRecordingRunner } from "./transcribeVoiceRecording";
 import {
   formatVoiceRecordingDuration,
-  pendingVoiceRecordingRetry,
-  pendingVoiceRecordingStatus,
-  RETRY_PENDING_VOICE_RECORDING,
-  type PendingVoiceRecording,
-} from "./pendingVoiceRecordingModel";
-import { transcribePendingVoiceRecording } from "./pendingVoiceRecordingRunner";
-import {
-  discardPendingVoiceRecording,
-  updatePendingVoiceRecording,
-  usePendingVoiceRecordings,
-} from "./pendingVoiceRecordings";
+  voiceRecordingRetry,
+  voiceRecordingStatus,
+} from "./voiceInputPresentation";
 
-/** Recordings saved for this draft. They never send on their own. */
+/** Recordings saved for this draft whose transcript has not landed in it. */
 export function PendingVoiceRecordingList(props: {
   readonly ownerKey: string | null;
   readonly insertDisabled?: boolean;
@@ -45,15 +43,15 @@ export function PendingVoiceRecordingList(props: {
 }
 
 function PendingVoiceRecordingRow(props: {
-  readonly recording: PendingVoiceRecording;
+  readonly recording: SavedRecordingEntry;
   readonly insertDisabled: boolean;
   readonly onInsert: (transcript: string) => boolean;
 }) {
   const { recording } = props;
   const reachable = useAtomValue(dictationReachableAtom(recording.environmentId));
-  const retry = pendingVoiceRecordingRetry(recording, reachable);
+  const retry = voiceRecordingRetry(recording, reachable);
   const transcript = recording.status === "ready" ? recording.transcript : null;
-  const status = pendingVoiceRecordingStatus(recording, reachable);
+  const status = voiceRecordingStatus(recording, reachable);
   const duration = formatVoiceRecordingDuration(recording.durationMs);
   return (
     <View className="min-h-11 flex-row items-center gap-2">
@@ -82,6 +80,14 @@ function PendingVoiceRecordingRow(props: {
           {status}
         </Text>
       </View>
+      {recording.persisted ? null : (
+        <Chip
+          size="small"
+          label="Save"
+          accessibilityLabel="Save recording on this device"
+          onPress={() => void savedVoiceRecordings.retrySave(recording.id)}
+        />
+      )}
       {retry ? (
         <Chip
           size="small"
@@ -89,8 +95,8 @@ function PendingVoiceRecordingRow(props: {
           accessibilityLabel="Retry transcription"
           disabled={retry === "disabled"}
           onPress={() => {
-            updatePendingVoiceRecording(recording.id, RETRY_PENDING_VOICE_RECORDING);
-            if (reachable) void transcribePendingVoiceRecording(recording.id);
+            if (reachable) void voiceRecordingRunner.retry(recording.id);
+            else void savedVoiceRecordings.update(recording.id, RETRY_SAVED_RECORDING);
           }}
         />
       ) : null}
@@ -101,7 +107,7 @@ function PendingVoiceRecordingRow(props: {
           accessibilityLabel="Insert transcript at the cursor"
           disabled={props.insertDisabled}
           onPress={() => {
-            if (props.onInsert(transcript)) discardPendingVoiceRecording(recording.id);
+            if (props.onInsert(transcript)) void savedVoiceRecordings.discard(recording.id);
           }}
         />
       ) : null}
@@ -110,7 +116,7 @@ function PendingVoiceRecordingRow(props: {
         accessibilityRole="button"
         className="size-8 items-center justify-center active:opacity-70"
         hitSlop={6}
-        onPress={() => discardPendingVoiceRecording(recording.id)}
+        onPress={() => void savedVoiceRecordings.discard(recording.id)}
       >
         <SymbolView
           name="xmark"

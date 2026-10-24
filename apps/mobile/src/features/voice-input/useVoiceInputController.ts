@@ -8,7 +8,7 @@ import {
 } from "@supaterm/client-runtime/voice-input";
 import type { EnvironmentId } from "@supaterm/contracts";
 import * as Haptics from "expo-haptics";
-import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Keyboard } from "react-native";
 
 import * as Dialog from "../../components/ui/Dialog";
@@ -16,7 +16,12 @@ import type { ComposerEditorSelection } from "../../components/ComposerEditor";
 import { readVoiceRoute, useVoiceRoute } from "../../state/dictation";
 import { useGlobalVoiceInput } from "./VoiceInputProvider";
 import { voiceInputLocale } from "./voiceInputLocale";
-import { observeVoiceDraft, registerVoiceComposerTarget } from "./voiceComposerTargets";
+import {
+  forgetVoiceSendIntents,
+  intendToSendVoiceRecording,
+  observeVoiceDraft,
+  registerVoiceComposerTarget,
+} from "./voiceComposerTargets";
 import type { VoiceRoute } from "./voiceRoute";
 
 const IDLE_STATE: VoiceInputState = { phase: "idle", error: null, errorAction: null };
@@ -49,12 +54,14 @@ export function useVoiceInputController(input: {
     latestInput.current = input;
   });
   const mounted = useRef(true);
-  const submission = useRef<{ ownerKey: string; text: string } | null>(null);
+  const [submitRequest, setSubmitRequest] = useState<{
+    readonly ownerKey: string;
+    readonly text: string;
+  } | null>(null);
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
-      submission.current = null;
     };
   }, []);
 
@@ -90,10 +97,12 @@ export function useVoiceInputController(input: {
         current.onChangeSelection(selection);
         return true;
       },
+      submit: (text) => setSubmitRequest({ ownerKey, text }),
     });
     return () => {
       unregister();
       unsubscribe();
+      forgetVoiceSendIntents(ownerKey);
     };
   }, [ownerKey, session]);
 
@@ -102,7 +111,7 @@ export function useVoiceInputController(input: {
       if (!ownerKey) return;
       setOwnerFocused(ownerKey, true);
       return () => {
-        submission.current = null;
+        forgetVoiceSendIntents(ownerKey);
         setOwnerFocused(ownerKey, false);
       };
     }, [ownerKey, setOwnerFocused]),
@@ -145,7 +154,6 @@ export function useVoiceInputController(input: {
       return;
     }
     if (startRoute.kind === "hidden") return;
-    submission.current = null;
     Keyboard.dismiss();
     // Played before the microphone opens; iOS mutes haptics while recording.
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -173,29 +181,32 @@ export function useVoiceInputController(input: {
   const state = global.ownerKey === input.ownerKey ? global.state : IDLE_STATE;
   const isBusy = voiceInputBlocksSubmission(state);
   useEffect(() => {
-    if (isBusy) return;
-    const pending = submission.current;
-    submission.current = null;
     const current = latestInput.current;
     if (
-      state.phase === "idle" &&
-      pending?.text &&
-      pending.ownerKey === current.ownerKey &&
+      submitRequest &&
+      submitRequest.ownerKey === current.ownerKey &&
       !current.disabled &&
-      current.readDraftMessage() === pending.text
+      current.readDraftMessage() === submitRequest.text
     ) {
       current.onSubmit?.();
     }
-  }, [isBusy, state.phase]);
+  }, [submitRequest]);
 
   const stop = global.stop;
+  const globalCancel = global.cancel;
+  const cancel = useCallback(() => {
+    const currentOwnerKey = latestInput.current.ownerKey;
+    if (currentOwnerKey) forgetVoiceSendIntents(currentOwnerKey);
+    globalCancel();
+  }, [globalCancel]);
   const stopAndSubmit = useCallback(() => {
     const current = latestInput.current;
+    const currentOwnerKey = current.ownerKey;
     if (
-      !current.ownerKey ||
+      !currentOwnerKey ||
       !current.onSubmit ||
       current.disabled ||
-      session.ownerKey !== current.ownerKey ||
+      session.ownerKey !== currentOwnerKey ||
       session.controller.currentState.phase !== "recording"
     )
       return;
@@ -204,11 +215,17 @@ export function useVoiceInputController(input: {
       void stop();
       return;
     }
-    const pending = { ownerKey: current.ownerKey, text: "" };
-    submission.current = pending;
-    void session.stop((text) => {
-      if (submission.current === pending) pending.text = text;
-    });
+    // On-device transcripts land before stop resolves; saved recordings land when the runner
+    // finishes them, through this composer's registered target.
+    const intent = intendToSendVoiceRecording(currentOwnerKey);
+    void session
+      .stop((text) => {
+        if (intent.take()) setSubmitRequest({ ownerKey: currentOwnerKey, text });
+      })
+      .then((outcome) => {
+        if (outcome.kind === "saved") intent.bind(outcome.recordingId);
+        else intent.take();
+      });
   }, [canSubmitTranscript, session, stop]);
 
   const insertTranscript = useCallback((transcript: string): boolean => {
@@ -240,7 +257,7 @@ export function useVoiceInputController(input: {
     start,
     stop,
     stopAndSubmit,
-    cancel: global.cancel,
+    cancel,
     insertTranscript,
   };
 }

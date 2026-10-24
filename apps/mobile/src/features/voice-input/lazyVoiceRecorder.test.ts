@@ -165,7 +165,10 @@ describe("createLazyVoiceRecorder", () => {
       const controller = new VoiceInputController({
         recorder: harness.recorder,
         getTranscriber: () => ({
-          prepare: async () => ({ locale: "en-US", transcribe: async () => "text" }),
+          prepare: async () => ({
+            locale: "en-US",
+            transcribe: async () => ({ kind: "transcript", text: "text" }),
+          }),
         }),
         requestPermission: async () => ({ granted, canAskAgain: true }),
         configureRecording: async () => undefined,

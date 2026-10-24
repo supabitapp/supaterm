@@ -244,12 +244,13 @@ model; after that it works offline for that language.
 Every recording is saved on this device first and transcribes when its
 environment is reachable, so closing the tab or losing the connection keeps it.
 A saved recording is never sent without you reviewing it, except a voice message
-you queued with **Transcribe and send** on web or desktop: it waits in the pending
+you queued with **Transcribe and send**. On web and desktop it waits in the pending
 messages, adds its transcript after any text you typed, and then sends. Use
-**Move to composer** on a pending voice message to keep editing it. If the draft
-changed in the meantime, or transcription failed, the recording stays with
-**Insert**, **Retry** and **Discard**. Supaterm deletes audio from the environment
-once it is transcribed.
+**Move to composer** on a pending voice message to keep editing it. On a phone it
+sends once the transcript lands, as long as you stay in that draft with the app
+open and leave the text unchanged. If the draft changed in the meantime, or
+transcription failed, the recording stays with **Insert**, **Retry** and
+**Discard**. Supaterm deletes audio from the environment once it is transcribed.
 
 ### Microphone choice on iPhone
 

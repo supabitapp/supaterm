@@ -1,7 +1,15 @@
 import { act, useEffect, useLayoutEffect, useSyncExternalStore } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import { VoiceInputSession, type VoiceInputState } from "@supaterm/client-runtime/voice-input";
+import {
+  VoiceInputSession,
+  type SavedRecordingEntry,
+  type VoiceDraftSnapshot,
+  type VoiceInputState,
+  type VoiceStopOutcome,
+  type VoiceTranscriptionResult,
+} from "@supaterm/client-runtime/voice-input";
+import { DictationSourceId, EnvironmentId } from "@supaterm/contracts";
 import { resetVoiceInputGlobalsForTests } from "../../../../../packages/client-runtime/src/voice-input/controller";
 
 const store = vi.hoisted(() => {
@@ -55,6 +63,7 @@ vi.mock("../../state/dictation", () => ({
 }));
 
 import { useVoiceInputController } from "./useVoiceInputController";
+import { forgetVoiceSendIntents, voiceRecordingConsumers } from "./voiceComposerTargets";
 
 let state: VoiceInputState;
 let session: VoiceInputSession;
@@ -70,6 +79,9 @@ let recording: ReturnType<typeof Promise.withResolvers<void>>;
 let transcribing: ReturnType<typeof Promise.withResolvers<void>>;
 let settled: ReturnType<typeof Promise.withResolvers<void>>;
 let transcript: ReturnType<typeof Promise.withResolvers<string>>;
+let route: "device" | "saved";
+let capturedDraft: VoiceDraftSnapshot | null;
+let stopping: Promise<VoiceStopOutcome> | undefined;
 
 function Probe() {
   useSyncExternalStore(store.subscribe, store.snapshot);
@@ -115,12 +127,55 @@ async function finish(text = "spoken words") {
   await act(async () => {
     transcript.resolve(text);
     await settled.promise;
+    await stopping;
   });
+}
+
+function savedRecording(id: string, captured: VoiceDraftSnapshot): SavedRecordingEntry {
+  return {
+    id,
+    ownerKey: captured.ownerKey,
+    environmentId: EnvironmentId.make("env"),
+    sourceId: DictationSourceId.make("claude:me"),
+    mimeType: "audio/wav",
+    durationMs: 2_000,
+    locale: "en-US",
+    createdAt: "2026-10-24T00:00:00.000Z",
+    status: "transcribing",
+    transcript: null,
+    error: null,
+    attempts: 0,
+    retryAt: 0,
+    capturedDraft: captured,
+    persisted: true,
+  };
+}
+
+/** What the runner does once a saved recording's transcript arrives. */
+async function land(text = "spoken words", id = "recording-1"): Promise<boolean> {
+  let consumed = false;
+  await act(async () => {
+    const consumer = voiceRecordingConsumers.resolve("first");
+    if (consumer && capturedDraft)
+      consumed = await consumer(savedRecording(id, capturedDraft), text);
+  });
+  return consumed;
+}
+
+function transcribeRecording(captured: VoiceDraftSnapshot): Promise<VoiceTranscriptionResult> {
+  transcribing.resolve();
+  capturedDraft = captured;
+  return transcript.promise.then((text) =>
+    route === "saved"
+      ? { kind: "saved", recordingId: "recording-1" }
+      : { kind: "transcript", text },
+  );
 }
 
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   resetVoiceInputGlobalsForTests();
+  forgetVoiceSendIntents();
   sends.mockClear();
   drafts.clear();
   drafts.set("first", "Draft");
@@ -134,6 +189,9 @@ beforeEach(() => {
   transcribing = Promise.withResolvers<void>();
   settled = Promise.withResolvers<void>();
   transcript = Promise.withResolvers<string>();
+  route = "device";
+  capturedDraft = null;
+  stopping = undefined;
   session = new VoiceInputSession({
     recorder: {
       uri: "file:///recording.m4a",
@@ -144,10 +202,7 @@ beforeEach(() => {
     getTranscriber: () => ({
       prepare: async () => ({
         locale: "en-US",
-        transcribe: () => {
-          transcribing.resolve();
-          return transcript.promise;
-        },
+        transcribe: (_uri, options) => transcribeRecording(options.capturedDraft),
       }),
     }),
     requestPermission: async () => ({ granted: true, canAskAgain: true }),
@@ -161,6 +216,11 @@ beforeEach(() => {
       if (next.phase === "idle" || next.phase === "error") settled.resolve();
     },
   });
+  const stop = session.stop.bind(session);
+  session.stop = (onCommit) => {
+    stopping = stop(onCommit);
+    return stopping;
+  };
   root = createRoot(document.createElement("div"));
   act(() => root.render(<Probe />));
 });
@@ -249,6 +309,88 @@ describe("dictation submission", () => {
       }
       expect(sends).not.toHaveBeenCalled();
       expect(drafts.get("first")).toBe(outcome === "edited" ? "Changed draft" : "Draft");
+    },
+  );
+});
+
+describe("transcribe and send with a saved recording", () => {
+  beforeEach(() => {
+    route = "saved";
+  });
+
+  it("sends once the saved recording's transcript lands in the unchanged draft", async () => {
+    await start();
+    await send();
+    await finish();
+    expect(sends).not.toHaveBeenCalled();
+    await expect(land()).resolves.toBe(true);
+    expect(sends.mock.calls).toEqual([["Draft spoken words"]]);
+  });
+
+  it("lets a plain stop land without sending", async () => {
+    await start();
+    await act(async () => {
+      void control.stop();
+      await transcribing.promise;
+    });
+    await finish();
+    await expect(land()).resolves.toBe(true);
+    expect(drafts.get("first")).toBe("Draft spoken words");
+    expect(sends).not.toHaveBeenCalled();
+  });
+
+  it("only sends the recording the user chose to send", async () => {
+    await start();
+    await send();
+    await finish();
+    await expect(land("other words", "recording-2")).resolves.toBe(true);
+    expect(sends).not.toHaveBeenCalled();
+  });
+
+  it("waits for Insert when the draft was edited before the transcript landed", async () => {
+    await start();
+    await send();
+    await finish();
+    act(() => {
+      drafts.set("first", "Changed draft");
+      store.notify();
+    });
+    await expect(land()).resolves.toBe(false);
+    expect(drafts.get("first")).toBe("Changed draft");
+    expect(sends).not.toHaveBeenCalled();
+  });
+
+  it.each(["blur", "owner", "background", "cancel"] as const)(
+    "does not send after a %s before the transcript lands",
+    async (change) => {
+      await start();
+      await send();
+      await finish();
+      act(() => {
+        if (change === "blur") store.focused = false;
+        if (change === "owner") ownerKey = "second";
+        if (change === "background") forgetVoiceSendIntents();
+        if (change === "cancel") control.cancel();
+        store.notify();
+      });
+      await land();
+      expect(drafts.get("second")).toBe("Other");
+      expect(sends).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["background", "cancel"] as const)(
+    "does not send after a %s while the recording is still being saved",
+    async (change) => {
+      await start();
+      await send();
+      act(() => {
+        if (change === "background") forgetVoiceSendIntents();
+        if (change === "cancel") control.cancel();
+      });
+      await finish();
+      await land();
+      expect(sends).not.toHaveBeenCalled();
     },
   );
 });

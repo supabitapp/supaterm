@@ -88,6 +88,19 @@ describe("saved recordings", () => {
     expect(recordings.audio(entry.id)).toBe("stored:blob");
   });
 
+  it("frees audio storage never took once it is discarded", async () => {
+    const { storage, failing } = memoryStorage();
+    const released: string[] = [];
+    const recordings = createSavedRecordings({
+      ...storage,
+      release: (audio) => released.push(audio),
+    });
+    failing.add = true;
+    const entry = await recordings.save(saveInput());
+    await expect(recordings.discard(entry.id)).resolves.toBe(true);
+    expect(released).toEqual(["blob"]);
+  });
+
   it("only shows changes that storage accepted", async () => {
     const { storage, failing } = memoryStorage();
     const recordings = createSavedRecordings(storage);

@@ -72,3 +72,8 @@ message deliverable. Cancelling the message discards the recording, and Move to
 composer hands the recording back to the composer. Entries that reference a
 recording are stored as schema version 3, which older builds refuse to load, so
 they never send the typed text without its transcript.
+
+On mobile, Transcribe and send queues nothing. A memory-only send intent keyed by
+the recording id makes the composer send once its consumer commits the transcript
+into an unchanged draft; leaving the screen, changing owner, cancelling, or
+backgrounding drops it, so a recording restored after a relaunch never sends.

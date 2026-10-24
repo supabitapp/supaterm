@@ -1,4 +1,4 @@
-import type { VoiceInputState } from "@supaterm/client-runtime/voice-input";
+import type { SavedRecordingEntry, VoiceInputState } from "@supaterm/client-runtime/voice-input";
 
 export type VoiceComposerPresentation = {
   readonly leadingAction: "cancel" | "stop" | null;
@@ -62,4 +62,35 @@ export function resolveVoiceComposerPresentation(
         confirmationEnabled: false,
       };
   }
+}
+
+type SavedRecordingState = Pick<SavedRecordingEntry, "status" | "error" | "persisted">;
+
+export function voiceRecordingStatus(recording: SavedRecordingState, reachable: boolean): string {
+  switch (recording.status) {
+    case "transcribing":
+      return "Transcribing…";
+    case "ready":
+      return "Transcript ready";
+    case "failed":
+      return recording.error ?? "Could not transcribe this recording.";
+    case "waiting":
+      if (!recording.persisted) return "Not saved on this device";
+      if (!reachable) return "Saved — transcribes when connected";
+      return recording.error ?? "Waiting to transcribe";
+  }
+}
+
+export function voiceRecordingRetry(
+  recording: Pick<SavedRecordingEntry, "status">,
+  reachable: boolean,
+): "enabled" | "disabled" | null {
+  if (recording.status === "failed") return "enabled";
+  if (recording.status !== "waiting") return null;
+  return reachable ? "enabled" : "disabled";
+}
+
+export function formatVoiceRecordingDuration(durationMs: number): string {
+  const seconds = Math.max(1, Math.round(durationMs / 1_000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }

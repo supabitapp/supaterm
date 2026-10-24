@@ -96,6 +96,7 @@ import {
   ComposerDictationTrailingActions,
 } from "../voice-input/ComposerDictationControl";
 import { PendingVoiceRecordingList } from "../voice-input/PendingVoiceRecordingList";
+import { savedVoiceRecordings } from "../voice-input/pendingVoiceRecordings";
 import { useVoiceInputController } from "../voice-input/useVoiceInputController";
 import { resolveVoiceComposerPresentation } from "../voice-input/voiceInputPresentation";
 import {
@@ -103,6 +104,7 @@ import {
   type NavigationWithFinishTransitioning,
 } from "./use-thread-settings-sheet-presentation";
 import { makeTurnCommandMetadata } from "../../lib/commandMetadata";
+import { scopedThreadKey } from "../../lib/scopedEntities";
 import {
   convertPastedImagesToAttachments,
   createPastedTextComposerAttachment,
@@ -1389,6 +1391,10 @@ export function NewTaskDraftScreen(props: {
         clearWorkspaceSelection: true,
         deferAttachmentCleanup: true,
       });
+      void savedVoiceRecordings.reassign(
+        draftKey,
+        scopedThreadKey(message.environmentId, message.threadId),
+      );
     }
     const previousRoute = (navigation.getParent() ?? navigation).getState()?.routes.at(-2);
     const returnsToPendingThread =

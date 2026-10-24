@@ -2,45 +2,29 @@ import { useAtomValue } from "@effect/atom-react";
 import { useEffect } from "react";
 
 import { dictationReachableEnvironmentsAtom } from "../../state/dictation";
-import {
-  planPendingVoiceRecordingRuns,
-  type PendingVoiceRecording,
-} from "./pendingVoiceRecordingModel";
-import {
-  isPendingVoiceRecordingRunning,
-  transcribePendingVoiceRecording,
-} from "./pendingVoiceRecordingRunner";
-import {
-  getPendingVoiceRecordings,
-  loadPendingVoiceRecordings,
-  useAllPendingVoiceRecordings,
-} from "./pendingVoiceRecordings";
+import { savedVoiceRecordings } from "./pendingVoiceRecordings";
+import { voiceRecordingRunner } from "./transcribeVoiceRecording";
 
-/** Retries saved recordings when their environment is reachable again. */
+/** Transcribes saved recordings while their environment is reachable. */
 export function PendingVoiceRecordingsCoordinator() {
-  const recordings = useAllPendingVoiceRecordings();
   const reachable = useAtomValue(dictationReachableEnvironmentsAtom);
   useEffect(() => {
-    void loadPendingVoiceRecordings();
+    void savedVoiceRecordings.load();
   }, []);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const run = (current: ReadonlyArray<PendingVoiceRecording>) => {
-      const { due, nextRetryAt } = planPendingVoiceRecordingRuns({
-        recordings: current,
-        reachable,
-        isRunning: isPendingVoiceRecordingRunning,
-        now: Date.now(),
-      });
-      for (const id of due) void transcribePendingVoiceRecording(id);
-      if (nextRetryAt === null) return;
-      timer = setTimeout(
-        () => run(getPendingVoiceRecordings()),
-        Math.max(0, nextRetryAt - Date.now()),
-      );
+    const run = () => {
+      clearTimeout(timer);
+      const { due, nextRetryAt } = voiceRecordingRunner.plan(reachable);
+      for (const id of due) void voiceRecordingRunner.run(id);
+      if (nextRetryAt !== null) timer = setTimeout(run, Math.max(0, nextRetryAt - Date.now()));
     };
-    run(recordings);
-    return () => clearTimeout(timer);
-  }, [recordings, reachable]);
+    run();
+    const unsubscribe = savedVoiceRecordings.subscribe(run);
+    return () => {
+      unsubscribe();
+      clearTimeout(timer);
+    };
+  }, [reachable]);
   return null;
 }
