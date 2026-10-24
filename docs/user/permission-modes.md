@@ -41,8 +41,10 @@ session-wide choice, because Grok would remember that command for the whole proj
 ACP Registry agents run their own tools in their own mode; Supaterm answers their approval requests
 by the permission mode. See [ACP Registry permissions](./providers-acp.md#permissions-and-terminals).
 
-Claude can still ask in **Full access** when its settings disable bypass permissions or require
-approval for an action.
+Claude can still ask in **Full access** when its settings disable bypass permissions or an ask rule
+matches the action, and for a few safety checks of its own that no setting skips. On web and
+desktop, the approval shows Claude's reason when it gives one, and **Why am I being asked this?**
+explains which case applies.
 
 Antigravity can still send native approval requests in **Full access**. It only offers remembered
 approvals for actions that support them.
