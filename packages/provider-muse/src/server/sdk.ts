@@ -24,7 +24,8 @@ export interface MuseSdkHost {
     | "onProtocolError"
     | "closed"
   >;
-  readonly initializeResult: Pick<SpawnedMspConnection["initializeResult"], "grantedCapabilities">;
+  readonly initializeResult: Pick<SpawnedMspConnection["initializeResult"], "grantedCapabilities"> &
+    Partial<Pick<SpawnedMspConnection["initializeResult"], "museHome">>;
   readonly exited: Promise<ProcessExit>;
 
   readonly stderrTail?: () => ReadonlyArray<string>;
