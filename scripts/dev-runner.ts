@@ -349,6 +349,10 @@ export const createDevRunnerEnv = Effect.fn("dev-runner.createDevRunnerEnv")(fun
   delete output.SUPATERM_SERVICE_LAUNCHER_CONTEXT;
   delete output.SUPATERM_BOOT_SERVICE_UNIT;
 
+  // Each worktree has its own state, so a dev server would count as a new
+  // install of the developer's real accounts. Set it explicitly to opt in.
+  output.SUPATERM_TELEMETRY_ENABLED = baseEnv.SUPATERM_TELEMETRY_ENABLED ?? "false";
+
   if (!isDesktopMode) {
     output.SUPATERM_PORT = String(serverPort);
     // HOST is Vite's own bind address, and the desktop branch below is the

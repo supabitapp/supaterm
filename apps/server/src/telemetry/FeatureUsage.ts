@@ -1,8 +1,4 @@
-import {
-  ORCHESTRATION_V2_WS_METHODS,
-  type OrchestrationV2Command,
-  WS_METHODS,
-} from "@supaterm/contracts";
+import { type OrchestrationV2Command, WS_METHODS } from "@supaterm/contracts";
 
 export interface FeatureUsage {
   readonly feature: string;
@@ -17,9 +13,11 @@ const literal = (payload: Payload, key: string) =>
 const use = (feature: string, variant?: string): FeatureUsage =>
   variant === undefined ? { feature } : { feature, variant };
 
-const COMMAND_FEATURES: Partial<
-  Record<OrchestrationV2Command["type"], (command: Payload) => FeatureUsage>
-> = {
+const COMMAND_FEATURES: {
+  readonly [Type in OrchestrationV2Command["type"]]?: (
+    command: Extract<OrchestrationV2Command, { readonly type: Type }>,
+  ) => FeatureUsage;
+} = {
   "checkpoint.rollback": (command) => ({
     feature: "checkpoint.rollback",
     variant: command.restoreFiles === false ? "conversation_only" : "with_files",
@@ -33,26 +31,17 @@ const COMMAND_FEATURES: Partial<
   "thread.message.pin": () => ({ feature: "thread.message.pin" }),
   "thread.mark-done": () => ({ feature: "thread.mark-done" }),
   "thread.pull-request.link": () => ({ feature: "thread.pull_request.link" }),
-  "thread.pull-request.watch": () => ({ feature: "thread.pull_request.watch" }),
-  "thread.runtime-mode.set": (command) =>
-    use("thread.runtime_mode.set", literal(command, "runtimeMode")),
+  "thread.pull-request.watch": (command) =>
+    use("thread.pull_request.watch", command.watching ? "on" : "off"),
+  "thread.runtime-mode.set": (command) => use("thread.runtime_mode.set", command.runtimeMode),
   "thread.interaction-mode.set": (command) =>
-    use("thread.interaction_mode.set", literal(command, "interactionMode")),
+    use("thread.interaction_mode.set", command.interactionMode),
   "run.interrupt": () => ({ feature: "run.interrupt" }),
   "queued-message.promote-to-steer": () => ({ feature: "queue.steer" }),
   "queued-run.edit": () => ({ feature: "queue.edit" }),
 };
 
 const METHOD_FEATURES: Readonly<Record<string, (payload: Payload) => FeatureUsage>> = {
-  [ORCHESTRATION_V2_WS_METHODS.launchThread]: (payload) => {
-    const strategy = payload.workspaceStrategy;
-    return use(
-      "thread.launch",
-      typeof strategy === "object" && strategy !== null
-        ? literal(strategy as Payload, "type")
-        : undefined,
-    );
-  },
   [WS_METHODS.terminalOpen]: () => ({ feature: "terminal.open" }),
   [WS_METHODS.previewOpen]: () => ({ feature: "preview.open" }),
   [WS_METHODS.deviceOpen]: () => ({ feature: "device.open" }),
@@ -72,12 +61,15 @@ const METHOD_FEATURES: Readonly<Record<string, (payload: Payload) => FeatureUsag
   [WS_METHODS.serverUpsertKeybinding]: () => ({ feature: "keybinding.customize" }),
 };
 
+export function commandFeatureUsage(command: OrchestrationV2Command): FeatureUsage | undefined {
+  // TypeScript cannot pair a union's tag with its own entry, so widen once here.
+  const mapping = COMMAND_FEATURES[command.type] as
+    | ((command: OrchestrationV2Command) => FeatureUsage)
+    | undefined;
+  return mapping?.(command);
+}
+
 export function featureUsage(method: string, payload: unknown): FeatureUsage | undefined {
   if (typeof payload !== "object" || payload === null) return undefined;
-  const input = payload as Payload;
-  if (method === ORCHESTRATION_V2_WS_METHODS.dispatchCommand) {
-    const type = literal(input, "type") as OrchestrationV2Command["type"] | undefined;
-    return type === undefined ? undefined : COMMAND_FEATURES[type]?.(input);
-  }
-  return METHOD_FEATURES[method]?.(input);
+  return METHOD_FEATURES[method]?.(payload as Payload);
 }
