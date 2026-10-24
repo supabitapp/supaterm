@@ -19,6 +19,29 @@ describe("Pele diagrams", () => {
     expect(narrow.svg).toContain("font:16px");
   });
 
+  it("keeps a wide flow in the author's direction when asked to", () => {
+    const source =
+      "flowchart LR\nA[Open project] --> B[Start agent] --> C[Review changes] --> D[Run checks] --> E[Commit] --> F[Publish]";
+    const kept = renderDiagram(source, { maxWidth: 320, autoDirection: false })!;
+    expect(kept.width).toBeGreaterThan(kept.height);
+  });
+
+  it("shows math labels as their TeX source unless a resolver typesets them", () => {
+    const source = 'flowchart LR\nA["$$\\nabla \\cdot E$$"] --> B["$$\\neq 0$$"]';
+    const literal = renderDiagram(source)!;
+    expect(literal.svg).toContain("$$\\nabla \\cdot E$$");
+    expect(literal.svg).toContain("$$\\neq 0$$");
+
+    const asked: string[] = [];
+    const typeset = renderDiagram(source, {}, (tex) => {
+      asked.push(tex);
+      return { svg: `<g data-tex="${tex.length}"></g>`, width: 40, height: 12 };
+    })!;
+    expect(asked).toEqual(["\\nabla \\cdot E", "\\neq 0"]);
+    expect(typeset.svg).toContain('data-tex="14"');
+    expect(typeset.svg).not.toContain("$$");
+  });
+
   it("preserves author styling and isolates accessibility ids per presentation", () => {
     const result = renderDiagram(
       "flowchart LR\naccTitle: Build\naccDescr: supaterm-diagram-description\nA[supaterm-diagram-label] --> B\nstyle A fill:#123456,color:#abcdef",

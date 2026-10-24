@@ -16,12 +16,15 @@ export interface Diagram {
   readonly type: string;
 }
 
+export type { MathMarkup, MathResolver } from "pele";
+
 export interface DiagramOptions {
   readonly maxWidth?: number;
   readonly fontFamily?: string;
   readonly fontFamilyMono?: string;
   readonly fontSize?: number;
   readonly now?: number;
+  readonly autoDirection?: boolean;
 }
 
 export function diagramOptions(options: DiagramOptions = {}) {
@@ -32,6 +35,7 @@ export function diagramOptions(options: DiagramOptions = {}) {
     fontSize: Math.max(12, Math.min(24, options.fontSize || 16)),
     // @effect-diagnostics-next-line globalDate:off
     now: options.now ?? Math.floor(Date.now() / 86_400_000) * 86_400_000,
+    autoDirection: options.autoDirection ?? true,
   };
 }
 

@@ -1,45 +1,9 @@
 import DOMPurify from "dompurify";
-import type { DiagramType, MathResolver } from "pele/lazy";
+import type { MathResolver } from "@supaterm/mermaid/diagram";
 import { use, useLayoutEffect, useRef, useState } from "react";
 
+import { mountDiagram } from "../../diagrams/mountDiagram";
 import { serializeCodeBlockToMarkdown } from "../../markdown-clipboard";
-import { Button } from "../ui/button";
-
-type Pele = typeof import("pele/lazy");
-type PeleLoad = { readonly status: "loaded"; readonly pele: Pele } | { readonly status: "failed" };
-
-let coreLoad: Promise<PeleLoad> | null = null;
-// Each diagram type is its own chunk, so a chat with one flowchart loads only
-// the flowchart parser and layout.
-const diagramLoads = new Map<DiagramType, Promise<PeleLoad>>();
-
-function loadCore(): Promise<PeleLoad> {
-  coreLoad ??= import("pele/lazy").then(
-    (pele): PeleLoad => ({ status: "loaded", pele }),
-    (): PeleLoad => ({ status: "failed" }),
-  );
-  return coreLoad;
-}
-
-function loadDiagramType(pele: Pele, type: DiagramType): Promise<PeleLoad> {
-  let load = diagramLoads.get(type);
-  if (!load) {
-    load = pele.load(type).then(
-      (): PeleLoad => ({ status: "loaded", pele }),
-      (): PeleLoad => ({ status: "failed" }),
-    );
-    diagramLoads.set(type, load);
-  }
-  return load;
-}
-
-function detectDiagramType(pele: Pele, source: string): DiagramType | null {
-  try {
-    return pele.detectType(source);
-  } catch {
-    return null;
-  }
-}
 
 let mathLoad: Promise<MathResolver | null> | null = null;
 
@@ -226,19 +190,15 @@ export function MermaidDiagram({
   source: string;
   onExpand: (imageUrl: string) => void;
 }) {
-  const [, setAttempt] = useState(0);
   const [renderError, setRenderError] = useState<string | null>(null);
   const containerRef = useRef<HTMLSpanElement>(null);
   const trimmedSource = source.trim();
-  const core = use(loadCore());
-  const type = core.status === "loaded" ? detectDiagramType(core.pele, trimmedSource) : null;
-  const load = core.status === "loaded" && type ? use(loadDiagramType(core.pele, type)) : core;
   const math = trimmedSource.includes("$$") ? use(loadMath()) : null;
 
   useLayoutEffect(() => {
     const container = containerRef.current;
-    if (load.status !== "loaded" || !container) return;
-    const mounted = load.pele.mount(container, trimmedSource, {
+    if (!container) return;
+    const mounted = mountDiagram(container, trimmedSource, {
       links: false,
       images: false,
       zoom: false,
@@ -252,21 +212,7 @@ export function MermaidDiagram({
         ),
     });
     return () => mounted.destroy();
-  }, [load, math, trimmedSource]);
-
-  if (load.status === "failed") {
-    return (
-      <DiagramError
-        message="The diagram renderer failed to load."
-        source={source}
-        onRetry={() => {
-          if (core.status === "failed") coreLoad = null;
-          if (type) diagramLoads.delete(type);
-          setAttempt((attempt) => attempt + 1);
-        }}
-      />
-    );
-  }
+  }, [math, trimmedSource]);
 
   return (
     <div
@@ -291,24 +237,11 @@ export function MermaidDiagram({
   );
 }
 
-function DiagramError({
-  message,
-  source,
-  onRetry,
-}: {
-  message: string;
-  source: string;
-  onRetry?: () => void;
-}) {
+function DiagramError({ message, source }: { message: string; source: string }) {
   return (
     <div>
       <div className="flex items-center justify-between gap-2">
         <p className="m-0 text-xs text-destructive">Unable to render diagram: {message}</p>
-        {onRetry ? (
-          <Button type="button" variant="ghost" size="xs" onClick={onRetry}>
-            Retry
-          </Button>
-        ) : null}
       </div>
       <pre
         data-thread-find-ignore

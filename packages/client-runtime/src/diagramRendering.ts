@@ -80,5 +80,9 @@ export function createDiagramRenderer(
       void drain();
       return promise;
     },
+    /** A finished render for these inputs, so a remounted view can draw it in the same frame. */
+    peek(source: string, options: DiagramOptions = {}): Diagram | null | undefined {
+      return cache.get(JSON.stringify([source, diagramOptions(options)]))?.output;
+    },
   };
 }

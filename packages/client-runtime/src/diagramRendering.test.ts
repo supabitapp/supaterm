@@ -22,6 +22,16 @@ describe("createDiagramRenderer", () => {
     await renderer.render("source", { maxWidth: 800, fontFamily: "Courier", now: 1 });
     expect(render).toHaveBeenCalledTimes(4);
   });
+  it("peeks only at finished renders for the same geometry", async () => {
+    const pending = Promise.withResolvers<Diagram>();
+    const renderer = createDiagramRenderer(() => pending.promise);
+    const result = renderer.render("source", { maxWidth: 320, now: 0 });
+    expect(renderer.peek("source", { maxWidth: 320, now: 0 })).toBeUndefined();
+    pending.resolve(diagram("ready"));
+    await result;
+    expect(renderer.peek("source", { maxWidth: 330, now: 0 })).toEqual(diagram("ready"));
+    expect(renderer.peek("source", { maxWidth: 800, now: 0 })).toBeUndefined();
+  });
   it("coalesces identical requests and renders different sources in order", async () => {
     const first = Promise.withResolvers<Diagram>();
     const second = Promise.withResolvers<Diagram>();

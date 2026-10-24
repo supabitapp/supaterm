@@ -117,6 +117,43 @@ describe("browser diagram rendering", () => {
     expect(await result).toEqual(diagram("diagram"));
   });
 
+  it("typesets math labels on the main thread and lays them out in a second worker pass", async () => {
+    const renderer = createBrowserDiagramRenderer();
+    const measure = vi.fn((tex: string, size: number) => ({
+      html: `<math>${tex}</math>`,
+      width: size,
+      height: 10,
+    }));
+    const source = 'flowchart LR\nA["$$x^2$$"] --> B';
+    const result = renderer.render(source, {}, measure);
+    const worker = TestWorker.instances[0]!;
+    worker.reply({ ready: true });
+    expect(worker.postMessage.mock.calls[0]![0]).toEqual({
+      source,
+      options: diagramOptions(),
+      math: [],
+    });
+    worker.reply({ output: diagram("literal"), misses: [{ tex: "x^2", size: 16 }] });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(measure).toHaveBeenCalledExactlyOnceWith("x^2", 16);
+    expect(worker.postMessage.mock.calls[1]![0]).toEqual({
+      source,
+      options: diagramOptions(),
+      math: [["16:x^2", { html: "<math>x^2</math>", width: 16, height: 10 }]],
+    });
+    worker.reply({ output: diagram("typeset") });
+    expect(await result).toEqual(diagram("typeset"));
+
+    const narrower = renderer.render(source, { maxWidth: 320 }, measure);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(worker.postMessage.mock.calls[2]![0]).toMatchObject({
+      math: [["16:x^2", { html: "<math>x^2</math>", width: 16, height: 10 }]],
+    });
+    worker.reply({ output: diagram("narrow typeset") });
+    expect(await narrower).toEqual(diagram("narrow typeset"));
+    expect(measure).toHaveBeenCalledTimes(1);
+  });
+
   it("replaces a worker that never becomes ready", async () => {
     const renderer = createBrowserDiagramRenderer();
     const failed = renderer.render("first");
