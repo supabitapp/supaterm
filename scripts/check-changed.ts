@@ -68,6 +68,12 @@ for (const file of code) {
   }
 }
 
+// Suites written for `node --test` register nothing with Vitest, which then fails them.
+const nodeTests = [...tests].filter((file) =>
+  /from ["']node:test["']/.test(NodeFS.readFileSync(NodePath.join(root, file), "utf8")),
+);
+const vitestTests = [...tests].filter((file) => !nodeTests.includes(file));
+
 // knip:check cannot be scoped to a package. Any code change can leave a file,
 // export, or dependency unused (removing the last import of a helper does), so
 // it runs whenever code or a manifest changes.
@@ -97,17 +103,26 @@ const steps = [
     args: ["run", "--cache", "--concurrency-limit", "4", ...filters(affected), "typecheck"],
   },
   // From the repo root, the root vite.config.ts hands each file to its package's config.
-  tests.size > 0 && {
-    name: `test (${tests.size} files)`,
-    args: ["test", "run", "--passWithNoTests", ...tests],
+  vitestTests.length > 0 && {
+    name: `test (${vitestTests.length} files)`,
+    args: ["test", "run", "--passWithNoTests", ...vitestTests],
+  },
+  nodeTests.length > 0 && {
+    name: `test (${nodeTests.length} node:test files)`,
+    command: "node",
+    args: ["--test", ...nodeTests],
   },
 ].filter((step) => step !== false);
 
 console.log(`check:changed: ${files.length} files since ${base.slice(0, 12)}`);
 const results = steps.map((step) => {
-  console.log(`\n> vp ${step.name}`);
+  const command = step.command ?? "vp";
+  console.log(`\n> ${command} ${step.name}`);
   const started = performance.now();
-  const { status } = NodeChildProcess.spawnSync("vp", step.args, { cwd: root, stdio: "inherit" });
+  const { status } = NodeChildProcess.spawnSync(command, step.args, {
+    cwd: root,
+    stdio: "inherit",
+  });
   const seconds = ((performance.now() - started) / 1000).toFixed(1);
   return { name: step.name, ok: status === 0, seconds };
 });
