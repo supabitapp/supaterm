@@ -6,6 +6,7 @@ import {
 } from "@supaterm/contracts";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 
@@ -29,6 +30,23 @@ const HubDeviceList = Schema.Struct({
     Schema.Array(Schema.Struct({ message: Schema.String, error: Schema.optional(Schema.String) })),
   ),
 });
+const decodeSimctlDevices = Schema.decodeUnknownEffect(
+  Schema.fromJsonString(
+    Schema.Struct({
+      devices: Schema.Record(
+        Schema.String,
+        Schema.Array(
+          Schema.Struct({
+            udid: Schema.String,
+            name: Schema.String,
+            state: Schema.String,
+            isAvailable: Schema.Boolean,
+          }),
+        ),
+      ),
+    }),
+  ),
+);
 const HubActionResult = Schema.Struct({
   ok: Schema.Boolean,
   id: Schema.optional(Schema.String),
@@ -48,6 +66,7 @@ export const makeDeviceHubOperations = (options: {
   readonly origin: string;
   readonly http: HttpClient.HttpClient;
   readonly run: DeviceHostReady["run"];
+  readonly iosAvailable: Effect.Effect<boolean>;
   /** Whether to list AVDs, which the hub does not report until they boot. */
   readonly androidAvailable: Effect.Effect<boolean>;
 }): DeviceOperations => {
@@ -107,6 +126,40 @@ export const makeDeviceHubOperations = (options: {
         ),
     );
     const details = warnings?.map((error) => error.message) ?? [];
+    if (yield* options.iosAvailable) {
+      const simulators = yield* run("xcrun", ["simctl", "list", "devices", "available", "--json"]);
+      const parsed =
+        simulators.code === 0
+          ? yield* decodeSimctlDevices(simulators.stdout).pipe(Effect.option)
+          : Option.none();
+      if (Option.isSome(parsed)) {
+        const runtimePrefix = "com.apple.CoreSimulator.SimRuntime.iOS-";
+        for (const [runtime, candidates] of Object.entries(parsed.value.devices)) {
+          if (!runtime.startsWith(runtimePrefix)) continue;
+          for (const simulator of candidates) {
+            if (
+              !simulator.isAvailable ||
+              devices.some((device) => device.platform === "ios" && device.id === simulator.udid)
+            )
+              continue;
+            devices.push({
+              id: simulator.udid,
+              name: simulator.name,
+              version: `iOS ${runtime.slice(runtimePrefix.length).replaceAll("-", ".")}`,
+              platform: "ios",
+              booted: simulator.state === "Booted",
+              physical: false,
+            });
+          }
+        }
+      } else {
+        details.push(
+          simulators.code === 0
+            ? "Could not read the iOS Simulator list from xcrun simctl. Discovered devices remain available."
+            : `Could not list iOS Simulators (xcrun simctl, exit code ${simulators.code}). Discovered devices remain available.`,
+        );
+      }
+    }
     let androidDiscoveryIncomplete = false;
     if (yield* options.androidAvailable) {
       const avds = yield* run("emulator", ["-list-avds"]);
