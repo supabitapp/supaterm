@@ -261,6 +261,9 @@ export const make = Effect.fn("background.policy.make")(function* () {
           ...(input.lowPowerMode !== undefined ? { lowPowerMode: input.lowPowerMode } : {}),
           ...(input.batteryState !== undefined ? { batteryState: input.batteryState } : {}),
           ...(input.networkType !== undefined ? { networkType: input.networkType } : {}),
+          ...(input.lastInteractionAt !== undefined
+            ? { lastInteractionAt: input.lastInteractionAt }
+            : {}),
           scopes: input.scopes,
           updatedAt: now,
           expiresAt,

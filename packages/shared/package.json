@@ -495,6 +495,22 @@
       "types": "./src/relay/name.ts",
       "import": "./src/relay/name.ts"
     },
+    "./push/envelope": {
+      "types": "./src/push/envelope.ts",
+      "import": "./src/push/envelope.ts"
+    },
+    "./push/plaintext": {
+      "types": "./src/push/plaintext.ts",
+      "import": "./src/push/plaintext.ts"
+    },
+    "./push/request": {
+      "types": "./src/push/request.ts",
+      "import": "./src/push/request.ts"
+    },
+    "./threadNotificationAttention": {
+      "types": "./src/threadNotificationAttention.ts",
+      "import": "./src/threadNotificationAttention.ts"
+    },
     "./markdownMath": {
       "types": "./src/markdownMath.ts",
       "import": "./src/markdownMath.ts"
@@ -505,6 +521,8 @@
     "test": "vp test run --config ../../vite.config.ts --dir ."
   },
   "dependencies": {
+    "@hpke/chacha20poly1305": "1.8.0",
+    "@hpke/core": "1.9.0",
     "@noble/ciphers": "2.2.0",
     "@noble/curves": "2.2.0",
     "@noble/hashes": "catalog:",

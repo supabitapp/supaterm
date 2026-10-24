@@ -6,7 +6,11 @@ import type {
   ScopedThreadRef,
   ThreadId,
 } from "@supaterm/contracts";
-import { isProviderNativeSubagentThread, OrchestrationV2ThreadShell } from "@supaterm/contracts";
+import { OrchestrationV2ThreadShell } from "@supaterm/contracts";
+import {
+  liftSubagentRequests,
+  liveSubagentRequest,
+} from "@supaterm/shared/threadNotificationAttention";
 import * as Schema from "effect/Schema";
 import { Atom } from "effect/reactivity";
 
@@ -31,48 +35,12 @@ const EMPTY_THREAD_REFS_BY_PROJECT: ReadonlyMap<
   ReadonlyArray<ScopedThreadRef>
 > = new Map();
 
-// An async question outlives the subagent's run, but once that run ends the
-// parent is no longer waiting on the answer, so it stops counting as input.
-// The activity run stays set when a follow-up is queued behind a blocked run.
-const isChildRunLive = (thread: Pick<OrchestrationV2ThreadShell, "activityRunStatus">) =>
-  thread.activityRunStatus != null;
-
-/** Provider-native
-    subagents ask on their parent, so they are skipped. */
-function subagentRequest(thread: OrchestrationV2ThreadShell): PendingSubagentRequest | null {
-  const kind = thread.pendingRuntimeRequest?.kind;
-  if (
-    kind === undefined ||
-    kind === "auth_refresh" ||
-    thread.lineage.relationshipToParent !== "subagent" ||
-    isProviderNativeSubagentThread(thread) ||
-    !isChildRunLive(thread)
-  ) {
-    return null;
-  }
-  return kind === "user_input" ? "user_input" : "approval";
-}
-
 export function pendingSubagentRequestsByThread(
   threads: ReadonlyArray<OrchestrationV2ThreadShell>,
 ): ReadonlyMap<ThreadId, PendingSubagentRequest> {
-  const requests = new Map<ThreadId, PendingSubagentRequest>();
-  let byId: ReadonlyMap<ThreadId, OrchestrationV2ThreadShell> | undefined;
-  for (const child of threads) {
-    const request = subagentRequest(child);
-    if (request === null) continue;
-    byId ??= new Map(threads.map((thread) => [thread.id, thread] as const));
-    const seen = new Set<ThreadId>([child.id]);
-    let current: OrchestrationV2ThreadShell | undefined = child;
-    while (current?.lineage.relationshipToParent === "subagent") {
-      const parentId: ThreadId | null = current.lineage.parentThreadId;
-      if (parentId === null || seen.has(parentId)) break;
-      seen.add(parentId);
-      if (requests.get(parentId) !== "approval") requests.set(parentId, request);
-      current = byId.get(parentId);
-    }
-  }
-  return requests.size === 0 ? EMPTY_SUBAGENT_REQUESTS : requests;
+  const lifted = liftSubagentRequests(threads);
+  if (lifted.size === 0) return EMPTY_SUBAGENT_REQUESTS;
+  return new Map(Array.from(lifted, ([threadId, request]) => [threadId, request.kind] as const));
 }
 
 export function childThreadInputsTitle(
@@ -294,7 +262,7 @@ export function createEnvironmentThreadShellAtoms(input: {
           if (seen.has(child.id)) continue;
           seen.add(child.id);
           pending.push(child.id);
-          if (subagentRequest(child) !== null) {
+          if (liveSubagentRequest(child) !== null) {
             next.push(scopedThread(ref.environmentId, child, subagentRequests));
           }
         }

@@ -8,6 +8,7 @@ import {
 } from "../../connection/onboarding";
 import { useWorkspaceEnvironments } from "../../state/workspace";
 import { useAtomCommand } from "../../state/use-atom-command";
+import { forgetPushEnvironment } from "../notifications/pushRuntime";
 
 export function useConnectionController() {
   const connectedEnvironments = useWorkspaceEnvironments();
@@ -31,7 +32,10 @@ export function useConnectionController() {
     [connectPairingUrlMutation],
   );
   const removeEnvironment = useCallback(
-    (environmentId: EnvironmentId) => removeEnvironmentMutation(environmentId),
+    async (environmentId: EnvironmentId) => {
+      await forgetPushEnvironment(environmentId);
+      return removeEnvironmentMutation(environmentId);
+    },
     [removeEnvironmentMutation],
   );
   const retryEnvironment = useCallback(

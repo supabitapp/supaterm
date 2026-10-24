@@ -1,11 +1,8 @@
-import {
-  type PendingSubagentRequest,
-  presentThreadShell,
-} from "@supaterm/client-runtime/state/models";
-import { pendingSubagentRequestsByThread } from "@supaterm/client-runtime/state/threads";
 import { useAtomValue } from "@effect/atom-react";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import type { EnvironmentId, OrchestrationV2ThreadShell, ThreadId } from "@supaterm/contracts";
+import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
+import type { PushNotificationKind } from "@supaterm/contracts/push";
+import { threadNotificationAttentionByThread } from "@supaterm/shared/threadNotificationAttention";
 import * as Option from "effect/Option";
 import {
   CircleAlertIcon,
@@ -26,7 +23,6 @@ import {
   threadNotificationTag,
   unlockNotificationAudio,
 } from "../threadNotifications";
-import { resolveSidebarThreadStatus } from "./Sidebar.logic";
 import { toastManager } from "./ui/toast";
 
 export function ThreadNotificationCoordinator() {
@@ -94,11 +90,18 @@ export function ThreadNotificationCoordinator() {
 }
 
 interface NotificationState {
-  readonly raw: OrchestrationV2ThreadShell;
-  readonly subagentRequest: PendingSubagentRequest | null;
-  readonly attention: string | null;
-  readonly completion: number | null;
+  readonly key: string | null;
+  /** A completion stays seen while the thread passes through other states. */
+  readonly completion: string | null;
 }
+
+const NOTIFICATION_TITLES = {
+  approval: "Approval needed",
+  input: "Input needed",
+  completion: "Thread completed",
+  failure: "Thread failed",
+  "usage-limit": "Usage limit reached",
+} satisfies Record<PushNotificationKind, string>;
 
 function EnvironmentNotifications({
   environmentId,
@@ -126,50 +129,27 @@ function EnvironmentNotifications({
       return;
     }
     const next = new Map<ThreadId, NotificationState>();
-    const subagentRequests = pendingSubagentRequestsByThread(threads);
-    for (const rawThread of threads) {
-      if (rawThread.lineage.relationshipToParent === "subagent") continue;
-      const prior = previous.current.get(rawThread.id);
-      const subagentRequest = subagentRequests.get(rawThread.id) ?? null;
-      if (prior?.raw === rawThread && prior.subagentRequest === subagentRequest) {
-        next.set(rawThread.id, prior);
+    const attentionByThread = threadNotificationAttentionByThread(threads);
+    for (const thread of threads) {
+      if (thread.lineage.relationshipToParent === "subagent") continue;
+      const prior = previous.current.get(thread.id);
+      const attention = attentionByThread.get(thread.id) ?? null;
+      const key = attention?.key ?? null;
+      next.set(thread.id, {
+        key,
+        completion: attention?.kind === "completion" ? key : (prior?.completion ?? null),
+      });
+      if (
+        !prior ||
+        attention === null ||
+        key === prior.key ||
+        (attention.kind === "completion" && key === prior.completion)
+      )
         continue;
-      }
-      const thread = presentThreadShell(environmentId, rawThread, subagentRequest);
-      let status = resolveSidebarThreadStatus(thread);
-      if (status === "ready" && thread.latestRun?.status === "failed") status = "failed";
-      const attention =
-        status === "input" || status === "approval" || status === "failed" || status === "limited"
-          ? `${thread.latestRun?.runId ?? ""}:${status}`
-          : null;
-      const completedAt = Date.parse(thread.latestRun?.completedAt ?? "");
-      const completion =
-        status === "ready" &&
-        thread.latestRun?.status === "completed" &&
-        Number.isFinite(completedAt)
-          ? completedAt
-          : (prior?.completion ?? null);
-      next.set(thread.id, { raw: rawThread, subagentRequest, attention, completion });
-      if (!prior || thread.archivedAt !== null) continue;
-      const kind =
-        attention && attention !== prior.attention
-          ? "input"
-          : completion !== null && (prior.completion === null || completion > prior.completion)
-            ? "completion"
-            : null;
-      if (!kind) continue;
-      const title =
-        kind === "completion"
-          ? "Thread completed"
-          : status === "approval"
-            ? "Approval needed"
-            : status === "limited"
-              ? "Usage limit reached"
-              : status === "failed"
-                ? "Thread failed"
-                : "Input needed";
+      const kind = attention.kind;
+      const title = NOTIFICATION_TITLES[kind];
       if (hasNotificationSound(mode)) {
-        void playNotificationSound(kind, () =>
+        void playNotificationSound(kind === "completion" ? "completion" : "input", () =>
           hasNotificationSound(getClientSettings().notificationMode),
         );
       }
@@ -180,7 +160,7 @@ function EnvironmentNotifications({
         (activeEnvironmentId !== environmentId || activeThreadId !== thread.id)
       ) {
         const toastId = toastManager.add({
-          type: kind === "completion" ? "success" : status === "failed" ? "error" : "warning",
+          type: kind === "completion" ? "success" : kind === "failure" ? "error" : "warning",
           title,
           description: thread.title,
           data: {
@@ -188,9 +168,9 @@ function EnvironmentNotifications({
             leadingIcon:
               kind === "completion" ? (
                 <CircleCheckIcon aria-hidden className="size-4 text-success-foreground" />
-              ) : status === "approval" ? (
+              ) : kind === "approval" ? (
                 <ShieldQuestionIcon aria-hidden className="size-4 text-warning-foreground" />
-              ) : status === "failed" ? (
+              ) : kind === "failure" ? (
                 <CircleAlertIcon aria-hidden className="size-4 text-destructive-foreground" />
               ) : (
                 <MessageCircleQuestionIcon aria-hidden className="size-4 text-info-foreground" />

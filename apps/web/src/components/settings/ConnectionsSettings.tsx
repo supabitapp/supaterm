@@ -184,6 +184,9 @@ import {
 } from "~/connection/onboarding";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
 import { useEnvironmentQuery } from "~/state/query";
+import { pushEnvironment } from "~/state/push";
+import { Badge } from "../ui/badge";
+import { activePushSessionIds } from "./PushNotificationSettings.logic";
 import {
   desktopNetworkAccessStateAtom,
   refreshDesktopNetworkAccessState,
@@ -950,6 +953,7 @@ const PairingLinkListRow = memo(function PairingLinkListRow({
 
 type ConnectedClientListRowProps = {
   clientSession: ServerClientSessionRecord;
+  hasPush: boolean;
   presentation?: AccessSectionPresentation;
   revokingClientSessionId: string | null;
   onRevokeSession: (sessionId: ServerClientSessionRecord["sessionId"]) => void;
@@ -958,6 +962,7 @@ type ConnectedClientListRowProps = {
 
 const ConnectedClientListRow = memo(function ConnectedClientListRow({
   clientSession,
+  hasPush,
   presentation = "current",
   revokingClientSessionId,
   onRevokeSession,
@@ -1001,6 +1006,11 @@ const ConnectedClientListRow = memo(function ConnectedClientListRow({
               <span className="text-3xs text-muted-foreground/80 rounded-md border border-border/50 bg-muted/50 px-1 py-0.5">
                 This device
               </span>
+            ) : null}
+            {hasPush ? (
+              <Badge variant="outline" size="sm">
+                Push
+              </Badge>
             ) : null}
           </div>
           <p className="text-xs text-muted-foreground">
@@ -1085,6 +1095,7 @@ type PairingClientsListProps = {
   pairingLinks: ReadonlyArray<ServerPairingLinkRecord>;
   createdPairingCredentials: ReadonlyMap<string, CreatedPairingCredential>;
   clientSessions: ReadonlyArray<ServerClientSessionRecord>;
+  pushSessionIds: ReadonlySet<string>;
   revokingPairingLinkId: string | null;
   revokingClientSessionId: string | null;
   onRevokePairingLink: (id: string) => void;
@@ -1103,6 +1114,7 @@ const PairingClientsList = memo(function PairingClientsList({
   pairingLinks,
   createdPairingCredentials,
   clientSessions,
+  pushSessionIds,
   revokingPairingLinkId,
   revokingClientSessionId,
   onRevokePairingLink,
@@ -1133,6 +1145,7 @@ const PairingClientsList = memo(function PairingClientsList({
         <ConnectedClientListRow
           key={clientSession.sessionId}
           clientSession={clientSession}
+          hasPush={pushSessionIds.has(clientSession.sessionId)}
           presentation={presentation}
           revokingClientSessionId={revokingClientSessionId}
           onRevokeSession={onRevokeClientSession}
@@ -1841,6 +1854,15 @@ export function ConnectionsSettings() {
         })
       : null,
   );
+  const canReadPush = useAtomValue(
+    pushEnvironment.registrations.permissionAtom(primaryEnvironmentId),
+  );
+  const pushRegistrations = useEnvironmentQuery(
+    canReadAccess && canReadPush && primaryEnvironmentId !== null
+      ? pushEnvironment.registrations({ environmentId: primaryEnvironmentId, input: {} })
+      : null,
+  );
+  const pushSessionIds = activePushSessionIds(pushRegistrations.data?.registrations);
   const desktopNetworkAccess = useEnvironmentQuery(
     canManageLocalBackend && desktopBridge ? desktopNetworkAccessStateAtom : null,
   );
@@ -2965,6 +2987,7 @@ export function ConnectionsSettings() {
         pairingLinks={visibleDesktopPairingLinks}
         createdPairingCredentials={createdPairingCredentials}
         clientSessions={desktopClientSessions}
+        pushSessionIds={pushSessionIds}
         revokingPairingLinkId={revokingDesktopPairingLinkId}
         revokingClientSessionId={revokingDesktopClientSessionId}
         onRevokePairingLink={handleRevokeDesktopPairingLink}

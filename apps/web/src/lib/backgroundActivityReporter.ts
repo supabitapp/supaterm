@@ -8,6 +8,7 @@ import {
   type BackgroundScope,
   type ClientActivityReportInput,
   type EnvironmentId,
+  type ThreadId,
   WS_METHODS,
 } from "@supaterm/contracts";
 import * as Clock from "effect/Clock";
@@ -31,10 +32,13 @@ interface RetainedScope {
   readonly environmentId: EnvironmentId;
   readonly scope: BackgroundScope;
   refCount: number;
+  /** For a shown thread, the attention last observed; undefined until the first observation. */
+  attentionKey?: string | null;
 }
 
 const retainedScopes = new Map<string, RetainedScope>();
 const retainedScopeListeners = new Set<() => void>();
+const shownAttentionListeners = new Set<(environmentId: EnvironmentId) => void>();
 
 function notifyRetainedScopesChanged(): void {
   for (const listener of retainedScopeListeners) {
@@ -82,9 +86,10 @@ export function wasRecentlyInteracted(lastInteractionAtMs: number, observedAtMs:
   );
 }
 
-function createActivityReport(
+export function createActivityReport(
   environmentId: EnvironmentId,
   lastInteractionAtMs: number,
+  lastInputAtMs: number | null,
   observedAtMs: number,
 ): ClientActivityReportInput {
   const scopes = [...BASELINE_SCOPES];
@@ -104,6 +109,7 @@ function createActivityReport(
     scopes,
     ttlMs: LEASE_TTL_MS,
     observedAt: DateTime.makeUnsafe(observedAtMs),
+    ...(lastInputAtMs === null ? {} : { lastInteractionAt: DateTime.makeUnsafe(lastInputAtMs) }),
   };
 }
 
@@ -121,7 +127,10 @@ function scopeForSubscription(
   return typeof input.cwd === "string" ? { type: "vcs-status", cwd: input.cwd } : null;
 }
 
-function retainBackgroundScope(environmentId: EnvironmentId, scope: BackgroundScope): () => void {
+export function retainBackgroundScope(
+  environmentId: EnvironmentId,
+  scope: BackgroundScope,
+): () => void {
   const key = stableScopeKey(environmentId, scope);
   const existing = retainedScopes.get(key);
   if (existing) {
@@ -163,6 +172,25 @@ export function retainedBackgroundScopes(
   ).filter((scope): scope is BackgroundScope => scope !== null);
 }
 
+/**
+ * The host briefly holds a completion push and drops it when a client reports, after the
+ * event, that it shows the thread and had input just before. A shown thread whose attention
+ * changes reports at once instead of on the next interval. The first observation only records
+ * the key, since retaining the scope already reported.
+ */
+export function observeShownThreadAttention(
+  environmentId: EnvironmentId,
+  threadId: ThreadId,
+  attentionKey: string | null,
+): void {
+  const entry = retainedScopes.get(stableScopeKey(environmentId, { type: "thread", threadId }));
+  if (entry === undefined) return;
+  const prior = entry.attentionKey;
+  entry.attentionKey = attentionKey;
+  if (prior === undefined || attentionKey === null || attentionKey === prior) return;
+  for (const listener of shownAttentionListeners) listener(environmentId);
+}
+
 export const layerObserver = Layer.succeed(
   EnvironmentRpcSubscriptionObserver,
   EnvironmentRpcSubscriptionObserver.of({
@@ -179,12 +207,24 @@ export const layer = Layer.effectDiscard(
     const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
     const clock = yield* Clock.Clock;
     const reportRequests = yield* Queue.sliding<void>(1);
-    const requestReport = () => Queue.offerUnsafe(reportRequests, undefined);
+    let reportAll = true;
+    const pendingEnvironments = new Set<EnvironmentId>();
+    const requestReport = () => {
+      reportAll = true;
+      Queue.offerUnsafe(reportRequests, undefined);
+    };
+    const requestEnvironmentReport = (environmentId: EnvironmentId) => {
+      pendingEnvironments.add(environmentId);
+      Queue.offerUnsafe(reportRequests, undefined);
+    };
     let lastInteractionAtMs = clock.currentTimeMillisUnsafe();
+    // Real input only; the value above starts at load so a fresh window counts as recent.
+    let lastInputAtMs: number | null = null;
     const recordInteraction = () => {
       const observedAtMs = clock.currentTimeMillisUnsafe();
       const wasRecent = wasRecentlyInteracted(lastInteractionAtMs, observedAtMs);
       lastInteractionAtMs = observedAtMs;
+      lastInputAtMs = observedAtMs;
       if (!wasRecent) {
         requestReport();
       }
@@ -194,15 +234,24 @@ export const layer = Layer.effectDiscard(
     const report = Effect.gen(function* () {
       const observedAtMs = yield* Clock.currentTimeMillis;
       const entries = yield* SubscriptionRef.get(registry.entries);
+      const all = reportAll;
+      const pending = new Set(pendingEnvironments);
+      reportAll = false;
+      pendingEnvironments.clear();
       yield* Effect.forEach(
-        entries.keys(),
+        Array.from(entries.keys()).filter((environmentId) => all || pending.has(environmentId)),
         (environmentId) =>
           registry
             .run(
               environmentId,
               request(
                 WS_METHODS.serverReportClientActivity,
-                createActivityReport(environmentId, lastInteractionAtMs, observedAtMs),
+                createActivityReport(
+                  environmentId,
+                  lastInteractionAtMs,
+                  lastInputAtMs,
+                  observedAtMs,
+                ),
               ),
             )
 
@@ -214,6 +263,7 @@ export const layer = Layer.effectDiscard(
     yield* Effect.acquireRelease(
       Effect.sync(() => {
         retainedScopeListeners.add(requestReport);
+        shownAttentionListeners.add(requestEnvironmentReport);
         document.addEventListener("visibilitychange", requestReport);
         window.addEventListener("focus", requestReport);
         window.addEventListener("blur", requestReport);
@@ -226,6 +276,7 @@ export const layer = Layer.effectDiscard(
       () =>
         Effect.sync(() => {
           retainedScopeListeners.delete(requestReport);
+          shownAttentionListeners.delete(requestEnvironmentReport);
           document.removeEventListener("visibilitychange", requestReport);
           window.removeEventListener("focus", requestReport);
           window.removeEventListener("blur", requestReport);

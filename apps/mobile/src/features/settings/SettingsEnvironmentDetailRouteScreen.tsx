@@ -22,7 +22,10 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { useRemoteConnections } from "../../state/use-remote-environment-registry";
 import { ConnectionEnvironmentRow } from "../connection/ConnectionEnvironmentRow";
 import { EnvironmentRoutesSection } from "./EnvironmentRoutesSection";
+import { pushRegistrar, pushStatusAtom } from "../notifications/pushRuntime";
+import { describePushEnvironmentState } from "../notifications/pushStatusText";
 import { SettingsActionRow } from "./components/SettingsActionRow";
+import { SettingsRow } from "./components/SettingsRow";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { SettingsSection } from "./components/SettingsSection";
 import {
@@ -190,6 +193,7 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
                 onUpdate={connections.onUpdateEnvironment}
               />
             </SettingsSection>
+            <EnvironmentPushSection environmentId={environmentId} />
             <EnvironmentRoutesSection
               environmentId={environmentId}
               connected={connected}
@@ -380,5 +384,23 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
         )}
       </ScreenScrollView>
     </SettingsScreen>
+  );
+}
+
+function EnvironmentPushSection(props: { readonly environmentId: EnvironmentId }) {
+  const state = useAtomValue(pushStatusAtom, (status) =>
+    status.environments.get(props.environmentId),
+  );
+  if (pushRegistrar() === null) return null;
+  return (
+    <SettingsSection title="Notifications">
+      <SettingsRow
+        icon="bell"
+        label="Push notifications"
+        value={describePushEnvironmentState(state)}
+        valuePosition="below"
+        target="SettingsNotifications"
+      />
+    </SettingsSection>
   );
 }

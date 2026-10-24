@@ -1,4 +1,5 @@
 import * as RelayAccess from "./relay/RelayAccess.ts";
+import * as PushNotifications from "./notifications/PushNotifications.ts";
 import * as OrchestrationSkills from "./provider/OrchestrationSkills.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
@@ -565,6 +566,7 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
     advertisement: Effect.succeed({}),
     advertisements: Stream.empty,
   }),
+  Layer.mock(PushNotifications.PushNotifications)({}),
   Layer.mock(ServerLifecycleEvents.ServerLifecycleEvents)({}),
   Layer.mock(ServerRuntimeStartup.ServerRuntimeStartup)({}),
   Layer.mock(ServerSelfUpdate.ServerSelfUpdate)({}),

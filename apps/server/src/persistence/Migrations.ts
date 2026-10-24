@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import * as SqlClient from "effect/sql/SqlClient";
 
 import Migration0001 from "./Migrations/001_Baseline.ts";
+import { ensurePushNotificationsSchema } from "./pushNotificationsSchema.ts";
 
 /**
  * Add a schema change as a new entry with the next id. Never edit, renumber, or
@@ -82,6 +83,7 @@ const ensureUnrecordedSchema = Effect.fn("ensureUnrecordedSchema")(function* () 
     )
     WHERE type = 'error' AND status = 'failed'
   `;
+  yield* ensurePushNotificationsSchema();
 });
 
 const run = Migrator.make({});

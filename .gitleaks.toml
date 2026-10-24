@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Fixed, published keys in cross-language crypto test vectors"
+paths = ['''(^|/)packages/shared/src/push/vectors\.json$''']

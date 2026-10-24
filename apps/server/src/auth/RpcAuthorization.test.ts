@@ -59,6 +59,19 @@ describe("RPC authorization scopes", () => {
     );
   });
 
+  it("lets any reader manage its own push registrations and keeps revoking for owners", () => {
+    for (const method of [
+      WS_METHODS.pushDescribe,
+      WS_METHODS.pushRegister,
+      WS_METHODS.pushUnregister,
+      WS_METHODS.pushList,
+      WS_METHODS.pushTest,
+    ]) {
+      expect(requiredScopeForRpcMethod(method)).toBe(AuthOrchestrationReadScope);
+    }
+    expect(requiredScopeForRpcMethod(WS_METHODS.pushRevoke)).toBe(AuthSettingsWriteScope);
+  });
+
   it("requires permission to operate on a thread before uploading feedback", () => {
     expect(requiredScopeForRpcMethod(WS_METHODS.providerUploadFeedback)).toBe(
       AuthOrchestrationOperateScope,

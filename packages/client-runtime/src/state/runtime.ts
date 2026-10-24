@@ -780,6 +780,44 @@ export function createEnvironmentRpcQueryAtomFamily<
   });
 }
 
+const provideRpcPermissionGuard = <R, ER>(
+  runtime: Atom.AtomRuntime<EnvironmentRegistry.EnvironmentRegistry | R, ER>,
+  registry: AtomRegistry.AtomRegistry,
+) =>
+  Effect.provideService(RpcPermissionGuard, {
+    authorize: (id, method, payload) =>
+      createCommandPermissions(runtime, method).authorize(registry, id, payload),
+  });
+
+/** A query over a guarded RPC: each fetch checks the destination grant, like a command does. */
+export function createEnvironmentGuardedRpcQueryAtomFamily<
+  R,
+  ER,
+  TTag extends Extract<EnvironmentUnaryRpcTag, ClientGuardedRpcTag>,
+>(
+  runtime: Atom.AtomRuntime<EnvironmentRegistry.EnvironmentRegistry | R, ER>,
+  options: {
+    readonly label: string;
+    readonly tag: TTag;
+    readonly staleTimeMs?: number;
+    readonly idleTtlMs?: number;
+  },
+) {
+  const permissions = createCommandPermissions(runtime, options.tag);
+  const query = createEnvironmentQueryAtomFamily(runtime, {
+    label: options.label,
+    ...(options.staleTimeMs === undefined ? {} : { staleTimeMs: options.staleTimeMs }),
+    ...(options.idleTtlMs === undefined ? {} : { idleTtlMs: options.idleTtlMs }),
+    execute: (input: EnvironmentRpcInput<TTag>) =>
+      AtomRegistry.AtomRegistry.pipe(
+        Effect.flatMap((registry) =>
+          requestGuarded(options.tag, input).pipe(provideRpcPermissionGuard(runtime, registry)),
+        ),
+      ),
+  });
+  return Object.assign(query, { permissionAtom: permissions.permissionAtom });
+}
+
 export function createEnvironmentRpcSubscriptionAtomFamily<
   R,
   ER,
@@ -875,10 +913,7 @@ export function createEnvironmentRpcCommand<
       // The transport check below deliberately checks the destination again.
       return permissions.authorize(registry, environmentId, input).pipe(
         Effect.andThen(() => options.execute?.(input) ?? requestGuarded(options.tag, input)),
-        Effect.provideService(RpcPermissionGuard, {
-          authorize: (id, method, payload) =>
-            createCommandPermissions(runtime, method).authorize(registry, id, payload),
-        }),
+        provideRpcPermissionGuard(runtime, registry),
         Effect.tap((result) => options.onSuccess?.(target, registry, result) ?? Effect.void),
         Effect.ensuring(options.onSettled?.(target, registry) ?? Effect.void),
       );

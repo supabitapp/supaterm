@@ -155,6 +155,17 @@ describe("serverSettings helpers", () => {
     expect(applyServerSettingsPatch(edited, { deviceHosts: [] }).deviceHosts).toEqual([]);
   });
 
+  it("replaces the push gateway allowlist instead of merging entries", () => {
+    expect(DEFAULT_SERVER_SETTINGS.pushGatewayOrigins).toEqual(["https://push.supaterm.com"]);
+    const added = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
+      pushGatewayOrigins: ["http://localhost:8000", "https://push.example.com"],
+    });
+    expect(
+      applyServerSettingsPatch(added, { pushGatewayOrigins: ["https://push.example.com"] })
+        .pushGatewayOrigins,
+    ).toEqual(["https://push.example.com"]);
+  });
+
   it("replaces EAS host lists the same way", () => {
     const host = {
       kind: "eas" as const,

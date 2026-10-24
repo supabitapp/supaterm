@@ -47,6 +47,11 @@ import {
 } from "./providerInstance.ts";
 import { PullRequestMergeMethod } from "./pullRequest.ts";
 import { DEFAULT_PUBLIC_RELAY_URL, RelayServerUrl } from "./relay.ts";
+import {
+  DEFAULT_PUSH_GATEWAY_ORIGIN,
+  MAX_PUSH_GATEWAY_ORIGINS,
+  PushGatewayOrigin,
+} from "./push.ts";
 
 export const TimestampFormat = Schema.Literals(["locale", "12-hour", "24-hour"]);
 export type TimestampFormat = typeof TimestampFormat.Type;
@@ -1089,6 +1094,11 @@ export const ServerSettings = Schema.Struct({
   publicRelayUrl: Schema.String.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_PUBLIC_RELAY_URL)),
   ),
+  pushNotificationsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  /** Gateways the host will send to. A phone registers with the one its app build uses. */
+  pushGatewayOrigins: Schema.Array(Schema.String).pipe(
+    Schema.withDecodingDefault(Effect.succeed([DEFAULT_PUSH_GATEWAY_ORIGIN])),
+  ),
   favorites: ModelFavorites.pipe(Schema.withDecodingDefault(Effect.succeed([]))),
   providerModelPreferences: ProviderModelPreferences.pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
@@ -1357,6 +1367,10 @@ const ModelSelectionPatch = Schema.Struct({
 export const ServerSettingsPatch = Schema.Struct({
   publicRelayEnabled: Schema.optionalKey(Schema.Boolean),
   publicRelayUrl: Schema.optionalKey(RelayServerUrl),
+  pushNotificationsEnabled: Schema.optionalKey(Schema.Boolean),
+  pushGatewayOrigins: Schema.optionalKey(
+    Schema.Array(PushGatewayOrigin).check(Schema.isMaxLength(MAX_PUSH_GATEWAY_ORIGINS)),
+  ),
   setModelFavorites: Schema.optionalKey(
     Schema.Array(Schema.Struct({ ...ModelFavorite.fields, favorite: Schema.Boolean })),
   ),

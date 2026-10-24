@@ -6,6 +6,13 @@ import * as PullRequestSyncReactor from "./orchestration-v2/PullRequestSyncReact
 import * as PullRequestWatchReactor from "./orchestration-v2/PullRequestWatchReactor.ts";
 import * as WorkflowRunWatchReactor from "./orchestration-v2/WorkflowRunWatchReactor.ts";
 import * as DelegatedTaskQuestionReactor from "./orchestration-v2/DelegatedTaskQuestionReactor.ts";
+import * as PushAttention from "./notifications/PushAttention.ts";
+import * as PushCandidateReactor from "./notifications/PushCandidateReactor.ts";
+import * as PushDeliveryWorker from "./notifications/PushDeliveryWorker.ts";
+import * as PushGatewayClient from "./notifications/PushGatewayClient.ts";
+import * as PushIdentity from "./notifications/PushIdentity.ts";
+import * as PushNotifications from "./notifications/PushNotifications.ts";
+import * as PushRegistrations from "./notifications/PushRegistrations.ts";
 // Effect wraps this raw Node HTTP server after its startup and write-error guards attach.
 // @effect-diagnostics nodeBuiltinImport:off
 import * as NodeHttp from "node:http";
@@ -477,6 +484,23 @@ const layerThreadPullRequestWorker = Layer.effectDiscard(
   ThreadPullRequestService.make.pipe(Effect.flatMap((service) => service.start())),
 ).pipe(Layer.provide(layerPullRequestService));
 
+const layerPushNotifications = Layer.effectDiscard(
+  Effect.gen(function* () {
+    yield* (yield* PushNotifications.PushNotifications).start();
+    yield* (yield* PushDeliveryWorker.PushDeliveryWorker).start();
+    yield* (yield* PushCandidateReactor.PushCandidateReactor).start();
+  }),
+).pipe(
+  Layer.provide(
+    PushCandidateReactor.layer.pipe(Layer.provide(EventStoreV2.layerFromOrchestrationEventStore)),
+  ),
+  Layer.provideMerge(PushNotifications.layer),
+  Layer.provideMerge(PushDeliveryWorker.layer),
+  Layer.provideMerge(Layer.merge(PushGatewayClient.layer, PushAttention.layer)),
+  Layer.provideMerge(Layer.merge(PushIdentity.layer, PushRegistrations.layer)),
+  Layer.provide(ProjectionStoreV2.layer),
+);
+
 const layerProviderInstallationRefresh = Layer.effectDiscard(
   Effect.gen(function* () {
     const antigravity = yield* AntigravityInstallation.AntigravityInstallation;
@@ -556,6 +580,7 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
       yield* service.start();
     }),
   ).pipe(Layer.provide(DelegatedTaskQuestionReactor.layer), Layer.provide(ProjectionStoreV2.layer)),
+  layerPushNotifications,
   ProviderUsageLimitsIngestion.layer,
   layerProviderInstallationRefresh,
   Layer.effectDiscard(ProjectSettingsOverrideSweep.sweep),

@@ -78,6 +78,8 @@ export const ClientActivityReportInput = Schema.Struct({
   scopes: Schema.Array(BackgroundScope),
   ttlMs: Schema.optionalKey(Schema.Number),
   observedAt: Schema.DateTimeUtc,
+  /** The client's latest pointer, key, or touch input, not merely being foregrounded. */
+  lastInteractionAt: Schema.optionalKey(Schema.DateTimeUtc),
 });
 export type ClientActivityReportInput = typeof ClientActivityReportInput.Type;
 
@@ -94,6 +96,7 @@ export const ClientActivityLease = Schema.Struct({
   batteryState: Schema.optionalKey(Schema.Literals(["unknown", "unplugged", "charging", "full"])),
   networkType: Schema.optionalKey(Schema.String),
   scopes: Schema.Array(BackgroundScope),
+  lastInteractionAt: Schema.optionalKey(Schema.DateTimeUtc),
   updatedAt: Schema.DateTimeUtc,
   expiresAt: Schema.DateTimeUtc,
 });

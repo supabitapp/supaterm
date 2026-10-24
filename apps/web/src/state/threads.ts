@@ -5,6 +5,8 @@ import {
   createEnvironmentThreadStateAtoms,
   createRunningThreadKeepAliveAtom,
 } from "@supaterm/client-runtime/state/threads";
+import type { EnvironmentId } from "@supaterm/contracts";
+import { threadNotificationAttentionByThread } from "@supaterm/shared/threadNotificationAttention";
 import { Atom } from "effect/reactivity";
 
 import { environmentCatalog } from "../connection/catalog";
@@ -17,6 +19,11 @@ export const environmentThreadShells = createEnvironmentThreadShellAtoms({
   catalogValueAtom: environmentCatalog.catalogValueAtom,
   snapshotAtom: threadEnvironment.snapshotAtom,
 });
+export const environmentThreadAttentionAtom = Atom.family((environmentId: EnvironmentId) =>
+  Atom.map(environmentThreadShells.environmentThreadsAtom(environmentId), (threads) =>
+    threadNotificationAttentionByThread(threads),
+  ).pipe(Atom.withLabel(`web-environment-thread-attention:${environmentId}`)),
+);
 const threadDetailReadyAtom = createThreadDetailReadiness(environmentThreadShells.threadShellAtom);
 const environmentThreads = createEnvironmentThreadStateAtoms(
   connectionAtomRuntime,

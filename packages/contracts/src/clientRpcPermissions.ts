@@ -16,6 +16,13 @@ import { WS_METHODS } from "./rpc.ts";
 /** Incremental client enforcement; the server still authorizes every request. */
 export const CLIENT_GUARDED_RPC_SCOPES = {
   [WS_METHODS.prepareRelay]: AuthAccessWriteScope,
+  [WS_METHODS.pushDescribe]: AuthOrchestrationReadScope,
+  [WS_METHODS.pushRegister]: AuthOrchestrationReadScope,
+  [WS_METHODS.pushUnregister]: AuthOrchestrationReadScope,
+  [WS_METHODS.pushList]: AuthOrchestrationReadScope,
+  // Removing another device's registration is an owner action, unlike managing your own.
+  [WS_METHODS.pushRevoke]: AuthSettingsWriteScope,
+  [WS_METHODS.pushTest]: AuthOrchestrationReadScope,
   [WS_METHODS.previewClose]: AuthPreviewOperateScope,
   [WS_METHODS.serverRunStorageCleanup]: AuthSettingsWriteScope,
   [WS_METHODS.serverCheckOtlpEndpoint]: AuthSettingsWriteScope,

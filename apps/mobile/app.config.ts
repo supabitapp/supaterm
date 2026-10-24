@@ -403,6 +403,15 @@ const config: ExpoConfig = {
     // pedometer so iOS needs no motion purpose string.
     ["expo-sensors", { motionPermission: false }],
     ...(!isIosPersonalTeamBuild ? [widgetsPlugin] : []),
+    // Personal Teams cannot sign the push capability, so their builds skip the
+    // notification service extension and the aps-environment entitlement.
+    [
+      "expo-notifications",
+      isIosPersonalTeamBuild
+        ? { enableRemoteNotifications: false }
+        : { mode: APP_VARIANT === "development" ? "development" : "production" },
+    ],
+    ...(!isIosPersonalTeamBuild ? ["./plugins/withPushNotificationService.cjs"] : []),
     "./plugins/withAndroidCleartextTraffic.cjs",
     "./plugins/withAndroidGradleHeap.cjs",
     "./plugins/withAndroidFbjniVersion.cjs",
@@ -416,6 +425,7 @@ const config: ExpoConfig = {
   extra: {
     appVariant: APP_VARIANT,
     iosPersonalTeamBuild: isIosPersonalTeamBuild,
+    pushGatewayUrl: repoEnv.SUPATERM_PUSH_GATEWAY_URL?.trim(),
     eas: {
       projectId: "c96e633c-2940-4aab-a40a-44777a9600c6",
     },

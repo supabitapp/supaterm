@@ -18,7 +18,9 @@ import { AppState } from "react-native";
 
 import * as MobileStorage from "../persistence/mobile-storage";
 import {
+  latestMobileInteractionAt,
   observeMobileBackgroundActivitySubscription,
+  onMobileInteraction,
   onRetainedMobileBackgroundScopesChange,
   retainedMobileBackgroundScopes,
 } from "./background-activity-scopes";
@@ -58,6 +60,7 @@ export const layerReporter = Layer.effectDiscard(
     const report = Effect.gen(function* () {
       const observedAtMs = yield* Clock.currentTimeMillis;
       const active = appState === "active";
+      const interactionAtMs = latestMobileInteractionAt();
       const entries = yield* SubscriptionRef.get(registry.entries);
       yield* Effect.forEach(
         entries.keys(),
@@ -79,6 +82,9 @@ export const layerReporter = Layer.effectDiscard(
                 ],
                 ttlMs: LEASE_TTL_MS,
                 observedAt: DateTime.makeUnsafe(observedAtMs),
+                ...(interactionAtMs === null
+                  ? {}
+                  : { lastInteractionAt: DateTime.makeUnsafe(interactionAtMs) }),
               }),
             )
 
@@ -90,15 +96,17 @@ export const layerReporter = Layer.effectDiscard(
     yield* Effect.acquireRelease(
       Effect.sync(() => {
         const removeScopeListener = onRetainedMobileBackgroundScopesChange(requestReport);
+        const removeInteractionListener = onMobileInteraction(requestReport);
         const subscription = AppState.addEventListener("change", (nextState) => {
           appState = nextState;
           requestReport();
         });
-        return { removeScopeListener, subscription };
+        return { removeScopeListener, removeInteractionListener, subscription };
       }),
-      ({ removeScopeListener, subscription }) =>
+      ({ removeScopeListener, removeInteractionListener, subscription }) =>
         Effect.sync(() => {
           removeScopeListener();
+          removeInteractionListener();
           subscription.remove();
         }),
     );

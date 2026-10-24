@@ -11,6 +11,7 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   Text as NativeText,
   TextInput,
@@ -244,6 +245,21 @@ export function CommandPalette(props: {
             params: { screen: "SettingsEnvironments" },
           }),
       },
+      ...(Platform.OS === "ios"
+        ? [
+            {
+              key: "notifications",
+              kind: "action",
+              title: "Notifications",
+              searchTerms: ["push", "alerts", "approval", "lock screen"],
+              run: () =>
+                navigation.navigate("SettingsSheet", {
+                  screen: "SettingsContent",
+                  params: { screen: "SettingsNotifications" },
+                }),
+            } as const,
+          ]
+        : []),
       {
         key: "scheduledTasks",
         kind: "action",

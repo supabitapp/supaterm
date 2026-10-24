@@ -26,6 +26,7 @@ const STRING_SETTING = { kind: "string", expected: "a string" } as const;
 const SETTABLE_SETTINGS = {
   publicRelayEnabled: BOOLEAN_SETTING,
   publicRelayUrl: { kind: "string", expected: "a ws:// or wss:// URL" },
+  pushNotificationsEnabled: BOOLEAN_SETTING,
   responseStreamingMode: { kind: "string", expected: ResponseStreamingMode.literals.join(" | ") },
   enableProviderUpdateChecks: BOOLEAN_SETTING,
   continueThreadsAfterServerUpdate: BOOLEAN_SETTING,

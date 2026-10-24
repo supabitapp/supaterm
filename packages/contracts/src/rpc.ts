@@ -336,6 +336,15 @@ import {
 } from "./settings.ts";
 import { RelayConnectionInfo, RelayHostStatus, RelayPreparationError } from "./relay.ts";
 import {
+  PushDescribeResult,
+  PushListResult,
+  PushNotificationError,
+  PushRegisterInput,
+  PushRegisterResult,
+  PushRegistrationInput,
+  PushTestResult,
+} from "./push.ts";
+import {
   ScheduledTaskDeleteInput,
   ScheduledTaskDeleteResult,
   ScheduledTaskError,
@@ -568,6 +577,12 @@ export const WS_METHODS = {
   subscribeBackgroundPolicy: "subscribeBackgroundPolicy",
   subscribeRelayStatus: "subscribeRelayStatus",
   prepareRelay: "relay.prepare",
+  pushDescribe: "push.describe",
+  pushRegister: "push.register",
+  pushUnregister: "push.unregister",
+  pushList: "push.list",
+  pushRevoke: "push.revoke",
+  pushTest: "push.test",
   subscribeResourceTelemetry: "subscribeResourceTelemetry",
 } as const;
 
@@ -1839,6 +1854,44 @@ const WsPrepareRelayRpc = Rpc.make(WS_METHODS.prepareRelay, {
   error: RelayPreparationError,
 });
 
+const PushRpcError = Schema.Union([PushNotificationError, EnvironmentAuthorizationError]);
+
+const WsPushDescribeRpc = Rpc.make(WS_METHODS.pushDescribe, {
+  payload: Schema.Struct({}),
+  success: PushDescribeResult,
+  error: PushRpcError,
+});
+
+const WsPushRegisterRpc = Rpc.make(WS_METHODS.pushRegister, {
+  payload: PushRegisterInput,
+  success: PushRegisterResult,
+  error: PushRpcError,
+});
+
+const WsPushUnregisterRpc = Rpc.make(WS_METHODS.pushUnregister, {
+  payload: PushRegistrationInput,
+  success: Schema.Struct({}),
+  error: PushRpcError,
+});
+
+const WsPushListRpc = Rpc.make(WS_METHODS.pushList, {
+  payload: Schema.Struct({}),
+  success: PushListResult,
+  error: PushRpcError,
+});
+
+const WsPushRevokeRpc = Rpc.make(WS_METHODS.pushRevoke, {
+  payload: PushRegistrationInput,
+  success: Schema.Struct({}),
+  error: PushRpcError,
+});
+
+const WsPushTestRpc = Rpc.make(WS_METHODS.pushTest, {
+  payload: PushRegistrationInput,
+  success: PushTestResult,
+  error: PushRpcError,
+});
+
 const WsSubscribeResourceTelemetryRpc = Rpc.make(WS_METHODS.subscribeResourceTelemetry, {
   payload: Schema.Struct({}),
   success: ResourceTelemetrySnapshot,
@@ -2033,6 +2086,12 @@ export const WsRpcGroup = RpcGroup.make(
   WsSubscribeBackgroundPolicyRpc,
   WsSubscribeRelayStatusRpc,
   WsPrepareRelayRpc,
+  WsPushDescribeRpc,
+  WsPushRegisterRpc,
+  WsPushUnregisterRpc,
+  WsPushListRpc,
+  WsPushRevokeRpc,
+  WsPushTestRpc,
   WsSubscribeResourceTelemetryRpc,
   WsOrchestrationV2DispatchCommandRpc,
   WsOrchestrationV2GetWorkflowScriptRpc,

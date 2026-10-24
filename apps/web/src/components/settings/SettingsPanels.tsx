@@ -3,6 +3,7 @@ import { settingsScopeEnvironmentLabels } from "./settingsScopeAxis";
 import { useScopedSettingsWriteAllowed } from "./useScopedSettings";
 import { Spinner } from "~/components/ui/spinner";
 import { NotificationSettings } from "./NotificationSettings";
+import { PushNotificationSettings } from "./PushNotificationSettings";
 import { PRIVACY_POLICY_URL } from "../../legalLinks";
 import { ArchiveIcon, ArchiveX, CheckIcon, SettingsIcon } from "lucide-react";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -2149,6 +2150,7 @@ export function GeneralSettingsPanel() {
           }
         />
       </SettingsSection>
+      <PushNotificationSettings />
 
       <SettingsSection id="composer" title="Composer">
         <SettingsRow

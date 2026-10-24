@@ -1,7 +1,7 @@
 import * as Linking from "expo-linking";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
-import { Platform, StatusBar } from "react-native";
+import { type GestureResponderEvent, Platform, StatusBar } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -22,6 +22,7 @@ import { subscribeComposerDraftModelReconciliation } from "./state/use-composer-
 import { environmentThreadShells } from "./state/threads";
 import { environmentShell } from "./state/shell";
 import { OverlayPortalHost } from "./components/ui/OverlayPortal";
+import { recordMobileInteraction } from "./connection/background-activity-scopes";
 import { shouldHandleAppLink } from "./lib/appLinking";
 import { disarmInlineConfirmsOnTouch } from "./lib/useInlineConfirm";
 import { useMobileNavigationTheme } from "./lib/useMobileNavigationTheme";
@@ -46,6 +47,11 @@ const appLinking = {
 };
 
 const Navigation = createStaticNavigation(RootStack);
+
+function handleRootTouchStart(event: GestureResponderEvent) {
+  recordMobileInteraction();
+  disarmInlineConfirmsOnTouch(event);
+}
 
 function SplashScreenCoordinator() {
   const { isReady } = useAppearancePreferences();
@@ -87,7 +93,7 @@ function AppContent() {
     <>
       <SplashScreenCoordinator />
       <SubscriptionUsageCoordinator />
-      <GestureHandlerRootView className="flex-1" onTouchStart={disarmInlineConfirmsOnTouch}>
+      <GestureHandlerRootView className="flex-1" onTouchStart={handleRootTouchStart}>
         <KeyboardProvider statusBarTranslucent>
           <SafeAreaProvider>
             <VoiceInputProvider>

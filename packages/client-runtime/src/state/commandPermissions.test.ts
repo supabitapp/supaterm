@@ -181,6 +181,32 @@ describe("command permissions", () => {
     ),
   );
 
+  it.effect("lets any reader manage its own push registration but not revoke another's", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const registry = yield* setup;
+        const register = createCommandPermissions(runtime, WS_METHODS.pushRegister);
+        const revoke = createCommandPermissions(runtime, WS_METHODS.pushRevoke);
+        registry.set(
+          sessions(env),
+          AsyncResult.success({ ...grant(false), scopes: [AuthOrchestrationReadScope] }),
+        );
+        expect(registry.get(register.permissionAtom(env))).toBe(true);
+        yield* register.authorize(registry, env);
+        expect(registry.get(revoke.permissionAtom(env))).toBe(false);
+        expect((yield* revoke.authorize(registry, env).pipe(Effect.flip))._tag).toBe(
+          "EnvironmentAuthorizationError",
+        );
+        registry.set(
+          sessions(env),
+          AsyncResult.success({ ...grant(false), scopes: [AuthSettingsWriteScope] }),
+        );
+        expect(registry.get(revoke.permissionAtom(env))).toBe(true);
+        yield* revoke.authorize(registry, env);
+      }),
+    ),
+  );
+
   it.effect("requires the destination settings grant to check OTLP endpoints", () =>
     Effect.scoped(
       Effect.gen(function* () {

@@ -1,0 +1,261 @@
+{
+  "version": 1,
+  "hpkeInfo": "supaterm-push-hpke-v1",
+  "host": {
+    "secretKey": "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA",
+    "publicKey": "ebVWLo_mVPlAeLES6KmLp5AfhTrmlb7X4OORC60ElmQ"
+  },
+  "recipient": {
+    "registrationId": "6f1c2b9e-3a4d-4e5f-8a6b-7c8d9e0f1a2b",
+    "keyId": "0b9f8e7d-6c5b-4a39-8281-7f6e5d4c3b2a",
+    "privateKey": "ZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5_gIGCg4Q",
+    "publicKey": "VxR2nRFr92Q2rnS8eT0sMK0ZA8WaxSc4BcfiaYtBDDY"
+  },
+  "envelopes": [
+    {
+      "name": "hidden-approval",
+      "preview": "hidden",
+      "source": {
+        "environmentId": "environment-7f3a",
+        "threadId": "thread-41c2",
+        "kind": "approval",
+        "threadTitle": "Deploy the reviewed change",
+        "projectTitle": "supaterm",
+        "detail": "rm -rf build && vp run deploy"
+      },
+      "ephemeralKeyMaterial": "ycrLzM3Oz9DR0tPU1dbX2Nna29zd3t_g4eLj5OXm5-g",
+      "content": {
+        "environmentId": "environment-7f3a",
+        "threadId": "thread-41c2",
+        "kind": "approval",
+        "title": "Supaterm",
+        "body": "Approval needed"
+      },
+      "aad": "supaterm-push-v1\n1\n6f1c2b9e-3a4d-4e5f-8a6b-7c8d9e0f1a2b\n0b9f8e7d-6c5b-4a39-8281-7f6e5d4c3b2a\n11111111-1111-4111-8111-111111111111\n1791840000000\n1791926400000",
+      "signatureData": "supaterm-push-signature-v1\nsupaterm-push-v1\n1\n6f1c2b9e-3a4d-4e5f-8a6b-7c8d9e0f1a2b\n0b9f8e7d-6c5b-4a39-8281-7f6e5d4c3b2a\n11111111-1111-4111-8111-111111111111\n1791840000000\n1791926400000\n-ki6w9xI69-8Bjar9pQ11NejEUcUqXFSwcGaf8aREUk\nooRxXDJphxT-0I6YKGsOrkjN45BayJ-H5KEyT6xmwYx79-fROTrWcOau1PRYF8CDj4OuK-Wvin3ENgrKHcRpLWphAAj6ie3HFviSxQvJ2m7-QCJp-SH6FkxYt0f9pI0PJ5QyfnWe03A-DTCCaRkkX7GXjTLhqxp_q4JLszDCWtMBHgnsqGyAeEXnEpIVon5qb67bvICHGL6NYoOHzE6m1kaW65i8QLB7VvO_NnJtMQa0g-XRXchhcBxcjrkNtz52GRFvuQMoy8ETp4xZt7wZL6rq5OOL5voIKEOERPUWmfZlwGK6DfwVDAmeDXCxSaSxDLpH0YNshWzmj4X2jTWkRhG0n5DrVf5tPXYHZbR3T7A",
+      "plaintext": "{\"environmentId\":\"environment-7f3a\",\"threadId\":\"thread-41c2\",\"kind\":\"approval\",\"title\":\"Supaterm\",\"body\":\"Approval needed\",\"p\":\"                                                                                                                              \"}",
+      "envelope": {
+        "v": 1,
+        "registrationId": "6f1c2b9e-3a4d-4e5f-8a6b-7c8d9e0f1a2b",
+        "keyId": "0b9f8e7d-6c5b-4a39-8281-7f6e5d4c3b2a",
+        "notificationId": "11111111-1111-4111-8111-111111111111",
+        "createdAt": 1791840000000,
+        "expiresAt": 1791926400000,
+        "enc": "-ki6w9xI69-8Bjar9pQ11NejEUcUqXFSwcGaf8aREUk",
+        "ciphertext": "ooRxXDJphxT-0I6YKGsOrkjN45BayJ-H5KEyT6xmwYx79-fROTrWcOau1PRYF8CDj4OuK-Wvin3ENgrKHcRpLWphAAj6ie3HFviSxQvJ2m7-QCJp-SH6FkxYt0f9pI0PJ5QyfnWe03A-DTCCaRkkX7GXjTLhqxp_q4JLszDCWtMBHgnsqGyAeEXnEpIVon5qb67bvICHGL6NYoOHzE6m1kaW65i8QLB7VvO_NnJtMQa0g-XRXchhcBxcjrkNtz52GRFvuQMoy8ETp4xZt7wZL6rq5OOL5voIKEOERPUWmfZlwGK6DfwVDAmeDXCxSaSxDLpH0YNshWzmj4X2jTWkRhG0n5DrVf5tPXYHZbR3T7A",
+        "signature": "zT9L0f0m0EIaR_aj_YI1Np7RQkHymjco4hVPI9vF77xTvqzjaR76wfedZsYJf_y01e9DKFBc9DyIlONpv7gABA"
+      }
+    },
+    {
+      "name": "titles-input",
+      "preview": "titles",
+      "source": {
+        "environmentId": "environment-7f3a",
+        "threadId": "thread-41c2",
+        "kind": "input",
+        "threadTitle": "Private thread 🔐 — résumé",
+        "projectTitle": "supaterm",
+        "detail": "Which database should the migration target?"
+      },
+      "ephemeralKeyMaterial": "ysvMzc7P0NHS09TV1tfY2drb3N3e3-Dh4uPk5ebn6Ok",
+      "content": {
+        "environmentId": "environment-7f3a",
+        "threadId": "thread-41c2",
+        "kind": "input",
+        "title": "Private thread 🔐 — résumé",
+        "subtitle": "supaterm",
+        "body": "Input needed"
+      },
+      "aad": "supaterm-push-v1\n1\n6f1c2b9e-3a4d-4e5f-8a6b-7c8d9e0f1a2b\n0b9f8e7d-6c5b-4a39-8281-7f6e5d4c3b2a\n22222222-2222-4222-9222-222222222222\n1791840000000\n1791926400000",
+      "signatureData": "supaterm-push-signature-v1\nsupaterm-push-v1\n1\n6f1c2b9e-3a4d-4e5f-8a6b-7c8d9e0f1a2b\n0b9f8e7d-6c5b-4a39-8281-7f6e5d4c3b2a\n22222222-2222-4222-9222-222222222222\n1791840000000\n1791926400000\n9AAaJ35SNjHPwtkt4dLoF2gBhxK9KLUG81py5IdmHX8\ndR8s7ZxILhBqmpaK2O3ZQ1nYi8Hkseb_jpDrK2q3s9aVMVzoYtPZ6KscA0-WqIxGPqLyuQer8wWjhAYJO8c3fDtqOR6xoC_BEp9Q3P0YO6A2jpnBxK5FNewRVvUaVAahc33ADn4scrKUJ5ltFuuctMw4KS2USHUMC19dxEpuFC7I8pzlPK9YfLdCbDQph6LV_zO8PSX9nM4tw4ZEHTAUYj98Vhn-f3bL1cAxRDNgIh4WjZBkqF2_lRQFiK-iy3dAbaNO1My1ECZmNrBHPAoMrc06APkNkzR_L-k8gU5rQ7u7zBfD9nDRJ52vQaIckZKBikUPujXNF2HohggMbX5I_f3Id61Slc5Ij1VtDid-ueA",
+      "plaintext": "{\"environmentId\":\"environment-7f3a\",\"threadId\":\"thread-41c2\",\"kind\":\"input\",\"title\":\"Private thread 🔐 — résumé\",\"subtitle\":\"supaterm\",\"body\":\"Input needed\",\"p\":\"                                                                                      \"}",
+      "envelope": {
+        "v": 1,
+        "registrationId": "6f1c2b9e-3a4d-4e5f-8a6b-7c8d9e0f1a2b",
+        "keyId": "0b9f8e7d-6c5b-4a39-8281-7f6e5d4c3b2a",
+        "notificationId": "22222222-2222-4222-9222-222222222222",
+        "createdAt": 1791840000000,
+        "expiresAt": 1791926400000,
+        "enc": "9AAaJ35SNjHPwtkt4dLoF2gBhxK9KLUG81py5IdmHX8",
+        "ciphertext": "dR8s7ZxILhBqmpaK2O3ZQ1nYi8Hkseb_jpDrK2q3s9aVMVzoYtPZ6KscA0-WqIxGPqLyuQer8wWjhAYJO8c3fDtqOR6xoC_BEp9Q3P0YO6A2jpnBxK5FNewRVvUaVAahc33ADn4scrKUJ5ltFuuctMw4KS2USHUMC19dxEpuFC7I8pzlPK9YfLdCbDQph6LV_zO8PSX9nM4tw4ZEHTAUYj98Vhn-f3bL1cAxRDNgIh4WjZBkqF2_lRQFiK-iy3dAbaNO1My1ECZmNrBHPAoMrc06APkNkzR_L-k8gU5rQ7u7zBfD9nDRJ52vQaIckZKBikUPujXNF2HohggMbX5I_f3Id61Slc5Ij1VtDid-ueA",
+        "signature": "H4KoOvf7PRV3ZPUXAfqXUkBDP3KMaQkTxRdZvzuK14sVmcGfqcpCj4VCWJmO4OlzchgEb356OR4MdE2MaCA9AA"
+      }
+    },
+    {
+      "name": "full-completion",
+      "preview": "full",
+      "source": {
+        "environmentId": "environment-7f3a",
+        "threadId": "thread-41c2",
+        "kind": "completion",
+        "threadTitle": "Refactor the \"push\" pipeline",
+        "projectTitle": "supaterm",
+        "detail": "Done.\nThe reactor now reads \"events\" from the cursor‮ and \\ escapes. ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ "
+      },
+      "ephemeralKeyMaterial": "y8zNzs_Q0dLT1NXW19jZ2tvc3d7f4OHi4-Tl5ufo6eo",
+      "content": {
+        "environmentId": "environment-7f3a",
+        "threadId": "thread-41c2",
+        "kind": "completion",
+        "title": "Refactor the \"push\" pipeline",
+        "subtitle": "supaterm",
+        "body": "Finished: Done. The reactor now reads \"events\" from the cursor and \\ escapes. ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓…"
+      },
+      "aad": "supaterm-push-v1\n1\n6f1c2b9e-3a4d-4e5f-8a6b-7c8d9e0f1a2b\n0b9f8e7d-6c5b-4a39-8281-7f6e5d4c3b2a\n33333333-3333-4333-a333-333333333333\n1791840000000\n1791840600000",
+      "signatureData": "supaterm-push-signature-v1\nsupaterm-push-v1\n1\n6f1c2b9e-3a4d-4e5f-8a6b-7c8d9e0f1a2b\n0b9f8e7d-6c5b-4a39-8281-7f6e5d4c3b2a\n33333333-3333-4333-a333-333333333333\n1791840000000\n1791840600000\nE-X-gry36HJty_6FKXF6WP9MOYslys1ds9fkP4Z0JWg\nEOJtITss-yFHO0ZoKD_SPssBotKW9hiRkJ5ev-RrS4LhU4LWIUhOEg0jA1VH9tYZdoDebgnZwlCd3X3IPbNrRhkROd9T6VWwMxfVQQEwI_WA48xHUMaF0iwijtBwg8qasst0UkrOJGexcdftDJE9cX7PqTkOzuxw2NAKhVje7Kezkh2I_6MsRziwBW_LCj00E6wDVkVNQY14tPtWt62jo_lwriHHlrinrP5hSWNKUfeahTonsQ9JaK9fMVneGUra0ZYQufXy94UIFQJRuNvFzui8phEnbMuFH-dV5zZv7__II5lMKd_pj6FTseqQca7xMDPzkOhp2i-_piifBTGW-_Qyxpn6Vj3wFNAhlYRxGvTlw7DkSeRz8OpyYKUZ85X2z1ArctbBQC8d4yRNdlMVd7SAz9vxBATiO7fS2AZ0Scl6l392jWYXTtbl90ljWCAlXI1T8-tvV-iQk0yFX54S7oc82AdWIr80Buv_hijMGrsfYS9F3UjQuNOyfUX21k2Jy2bK6z5sVHtaDrAkosVL0RAyEeXjzibgx8kWky16SHDkU6tT8NNiV4UBu8eIlX-QpEFYo4G2Wqmx9lG_N6_d5Pow04ZgOsEbXVBtHgyHrj-mSE8x-_jrOrv41TfljX7DAnoC8At8Q8hQcvcvEWEro39Nz9jzywG5oA7aL4Z_K-kq7A0mwMk4WdmZ4LfGvSIZh3L9A_xgypwyTjM9WLlg5yPhtaMU1s4LKx_wf4oNvsGA6ic52sVAG1-KcI7iYBPJUf0Y7Rp8U5dE3EYqSOpDoKHhbeEKoxkuLFtFf3ZL16kk0ucSqMADOzLBemh3uDItfV67o44Sc0A_iQsQBXTgWC3vpHysQTG50YKflW-VmTZktHulihOxWz7p2hEKezpp386DRmLbB70x8A65okv18s92d0GkoItayzrYJE5_j_vTPSvTQhkhCF5k_XLBfv1Syf7EwBQYuGLtB3naBpvSrdQ_mII2Mj2izQ9QyDbPP-Zt_FsLHyTPjqYDvT18F6D_jnKWCaCAi97PZXCCei8ggaba17SUsdAPuKXc4PCNlKKtQafvPmh1ThtBaky0MxUHkQjxLtpwnDaW6Nm9zt6z0Dgkg82urod7hngGEbITLozE_L-_Grml_yuQzX4zA7TOmHzbYAlpiK1enSj8Z8PMVuq-bpns0JIlcLPV56eamdzVY9tu3BC4fLuMGKOvpj4M6r-I4MT_CpNb9Z4iZkCAAS4otIAvo6dExqywjKXo_qd0iGXY04mdujjZl0k3cxVhPBi6OqP5f0kQuiVEYcAt85O7NJHXEZSp1_jmQN71ZFMPZRLtnmj4QNaJJiE6wl6EnNtiUxOzt5blAvspW8_QqiCIK_4F7HL_yAIDIz0uUf4",
+      "plaintext": "{\"environmentId\":\"environment-7f3a\",\"threadId\":\"thread-41c2\",\"kind\":\"completion\",\"title\":\"Refactor the \\\"push\\\" pipeline\",\"subtitle\":\"supaterm\",\"body\":\"Finished: Done. The reactor now reads \\\"events\\\" from the cursor and \\\\ escapes. ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓…\",\"p\":\"                                                                                                                                                                                                                                                                                                                                                                                                                                                                            \"}",
+      "envelope": {
+        "v": 1,
+        "registrationId": "6f1c2b9e-3a4d-4e5f-8a6b-7c8d9e0f1a2b",
+        "keyId": "0b9f8e7d-6c5b-4a39-8281-7f6e5d4c3b2a",
+        "notificationId": "33333333-3333-4333-a333-333333333333",
+        "createdAt": 1791840000000,
+        "expiresAt": 1791840600000,
+        "enc": "E-X-gry36HJty_6FKXF6WP9MOYslys1ds9fkP4Z0JWg",
+        "ciphertext": "EOJtITss-yFHO0ZoKD_SPssBotKW9hiRkJ5ev-RrS4LhU4LWIUhOEg0jA1VH9tYZdoDebgnZwlCd3X3IPbNrRhkROd9T6VWwMxfVQQEwI_WA48xHUMaF0iwijtBwg8qasst0UkrOJGexcdftDJE9cX7PqTkOzuxw2NAKhVje7Kezkh2I_6MsRziwBW_LCj00E6wDVkVNQY14tPtWt62jo_lwriHHlrinrP5hSWNKUfeahTonsQ9JaK9fMVneGUra0ZYQufXy94UIFQJRuNvFzui8phEnbMuFH-dV5zZv7__II5lMKd_pj6FTseqQca7xMDPzkOhp2i-_piifBTGW-_Qyxpn6Vj3wFNAhlYRxGvTlw7DkSeRz8OpyYKUZ85X2z1ArctbBQC8d4yRNdlMVd7SAz9vxBATiO7fS2AZ0Scl6l392jWYXTtbl90ljWCAlXI1T8-tvV-iQk0yFX54S7oc82AdWIr80Buv_hijMGrsfYS9F3UjQuNOyfUX21k2Jy2bK6z5sVHtaDrAkosVL0RAyEeXjzibgx8kWky16SHDkU6tT8NNiV4UBu8eIlX-QpEFYo4G2Wqmx9lG_N6_d5Pow04ZgOsEbXVBtHgyHrj-mSE8x-_jrOrv41TfljX7DAnoC8At8Q8hQcvcvEWEro39Nz9jzywG5oA7aL4Z_K-kq7A0mwMk4WdmZ4LfGvSIZh3L9A_xgypwyTjM9WLlg5yPhtaMU1s4LKx_wf4oNvsGA6ic52sVAG1-KcI7iYBPJUf0Y7Rp8U5dE3EYqSOpDoKHhbeEKoxkuLFtFf3ZL16kk0ucSqMADOzLBemh3uDItfV67o44Sc0A_iQsQBXTgWC3vpHysQTG50YKflW-VmTZktHulihOxWz7p2hEKezpp386DRmLbB70x8A65okv18s92d0GkoItayzrYJE5_j_vTPSvTQhkhCF5k_XLBfv1Syf7EwBQYuGLtB3naBpvSrdQ_mII2Mj2izQ9QyDbPP-Zt_FsLHyTPjqYDvT18F6D_jnKWCaCAi97PZXCCei8ggaba17SUsdAPuKXc4PCNlKKtQafvPmh1ThtBaky0MxUHkQjxLtpwnDaW6Nm9zt6z0Dgkg82urod7hngGEbITLozE_L-_Grml_yuQzX4zA7TOmHzbYAlpiK1enSj8Z8PMVuq-bpns0JIlcLPV56eamdzVY9tu3BC4fLuMGKOvpj4M6r-I4MT_CpNb9Z4iZkCAAS4otIAvo6dExqywjKXo_qd0iGXY04mdujjZl0k3cxVhPBi6OqP5f0kQuiVEYcAt85O7NJHXEZSp1_jmQN71ZFMPZRLtnmj4QNaJJiE6wl6EnNtiUxOzt5blAvspW8_QqiCIK_4F7HL_yAIDIz0uUf4",
+        "signature": "P3LdY9WarQ6HLDH1jt1N-t5ChHmWCEw7O2o8oApMRHyvAvgfy52De01oB0HKl8LIY9JYk7BDEzfEthzs88JIBw"
+      }
+    },
+    {
+      "name": "titles-failure",
+      "preview": "titles",
+      "source": {
+        "environmentId": "environment-7f3a",
+        "threadId": "thread-41c2",
+        "kind": "failure",
+        "threadTitle": "Investigate the flaky checkout tests and retries and retries and retries and retries and retries and retries and retries and retries and retries and retries and retries and retries ",
+        "projectTitle": "A project with a fairly long display name xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "detail": "Provider exited with status 1"
+      },
+      "ephemeralKeyMaterial": "zM3Oz9DR0tPU1dbX2Nna29zd3t_g4eLj5OXm5-jp6us",
+      "content": {
+        "environmentId": "environment-7f3a",
+        "threadId": "thread-41c2",
+        "kind": "failure",
+        "title": "Investigate the flaky checkout tests and retries and retries and retries and retries and retries and retries and retr…",
+        "subtitle": "A project with a fairly long display name xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…",
+        "body": "Failed"
+      },
+      "aad": "supaterm-push-v1\n1\n6f1c2b9e-3a4d-4e5f-8a6b-7c8d9e0f1a2b\n0b9f8e7d-6c5b-4a39-8281-7f6e5d4c3b2a\n66666666-6666-4666-8666-666666666666\n1791840000000\n1791840600000",
+      "signatureData": "supaterm-push-signature-v1\nsupaterm-push-v1\n1\n6f1c2b9e-3a4d-4e5f-8a6b-7c8d9e0f1a2b\n0b9f8e7d-6c5b-4a39-8281-7f6e5d4c3b2a\n66666666-6666-4666-8666-666666666666\n1791840000000\n1791840600000\nDKbMpeDCHDZEAPOG3e1iClj1vxos8jvtrduBI6X7HUE\nByVJzeCEvwA8MzTWqYhIQWL_fhi4HFbHiC0aSsaQhuNlHxop5ljROUAVc63kQQXIXj5frYsfuYjO8Bnn32G4LKzLSanX8Hh9FAXPWXGGGxcXE5WD4G1K1Rf-SdzYyBZehiVkjVhfU-c3kU8VApu3rVygNm0r43GUKWnthMYXV-s-1NKBX7HLmyBsQDC6vVtLfgeL311KEEhKfBDdN-a-Oa2dQM2uaLkzoTqdINHxOsA8-v88DoVZi_P48RREzdSKXi5K7T_IMZSRwRABVTyVzpGK5q2HZG3dWiWQy5vooef5L6M_ul8qoJje0zCtO_t53delPiW_3v0i-I5K8zIWpcpT5GVC9urY-50AQwvuFnHDLgVoUzcbr2a6ND7ow1ZtOatKMWC11HSVwkStA5rt0nkQhbZHsovh7s4d2OufxcaSIXeQnOFIKJVTjXwqvZWBoMwXMFjodnnD2eueeFM4VTV_90fbFpzkV7ZFivIwRFQCEcy6cyeI3j4TOlNo18w9IgIWEgyyPRfYWOtvO978RmcDFFilLjRCXoOXM16I8-wyGB_kCeglkBotzxTfFg6pGCDwtwd80xvt7OMCKz6i2B9Pp1Sm2qwfyxCCJn_jTaDEsPUkNT42vRmQ9YKxGw9j5En_816gAJhzgeQs8yivO6MBqw1yPSPzwgGHRZJO4KOvRjrqo_UgIESyReJMr5H6",
+      "plaintext": "{\"environmentId\":\"environment-7f3a\",\"threadId\":\"thread-41c2\",\"kind\":\"failure\",\"title\":\"Investigate the flaky checkout tests and retries and retries and retries and retries and retries and retries and retr…\",\"subtitle\":\"A project with a fairly long display name xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…\",\"body\":\"Failed\",\"p\":\"                                                                                                                                                                                          \"}",
+      "envelope": {
+        "v": 1,
+        "registrationId": "6f1c2b9e-3a4d-4e5f-8a6b-7c8d9e0f1a2b",
+        "keyId": "0b9f8e7d-6c5b-4a39-8281-7f6e5d4c3b2a",
+        "notificationId": "66666666-6666-4666-8666-666666666666",
+        "createdAt": 1791840000000,
+        "expiresAt": 1791840600000,
+        "enc": "DKbMpeDCHDZEAPOG3e1iClj1vxos8jvtrduBI6X7HUE",
+        "ciphertext": "ByVJzeCEvwA8MzTWqYhIQWL_fhi4HFbHiC0aSsaQhuNlHxop5ljROUAVc63kQQXIXj5frYsfuYjO8Bnn32G4LKzLSanX8Hh9FAXPWXGGGxcXE5WD4G1K1Rf-SdzYyBZehiVkjVhfU-c3kU8VApu3rVygNm0r43GUKWnthMYXV-s-1NKBX7HLmyBsQDC6vVtLfgeL311KEEhKfBDdN-a-Oa2dQM2uaLkzoTqdINHxOsA8-v88DoVZi_P48RREzdSKXi5K7T_IMZSRwRABVTyVzpGK5q2HZG3dWiWQy5vooef5L6M_ul8qoJje0zCtO_t53delPiW_3v0i-I5K8zIWpcpT5GVC9urY-50AQwvuFnHDLgVoUzcbr2a6ND7ow1ZtOatKMWC11HSVwkStA5rt0nkQhbZHsovh7s4d2OufxcaSIXeQnOFIKJVTjXwqvZWBoMwXMFjodnnD2eueeFM4VTV_90fbFpzkV7ZFivIwRFQCEcy6cyeI3j4TOlNo18w9IgIWEgyyPRfYWOtvO978RmcDFFilLjRCXoOXM16I8-wyGB_kCeglkBotzxTfFg6pGCDwtwd80xvt7OMCKz6i2B9Pp1Sm2qwfyxCCJn_jTaDEsPUkNT42vRmQ9YKxGw9j5En_816gAJhzgeQs8yivO6MBqw1yPSPzwgGHRZJO4KOvRjrqo_UgIESyReJMr5H6",
+        "signature": "tj8ct275K3DPpLskleca8OvbUO4JCmKxU7GFhPmPsQnMjUtFL4BKsqnPQbkeUdOCGUJouD4H_tdUcuHnVAIoAA"
+      }
+    },
+    {
+      "name": "full-usage-limit",
+      "preview": "full",
+      "source": {
+        "environmentId": "environment-7f3a",
+        "threadId": "thread-41c2",
+        "kind": "usage-limit",
+        "threadTitle": "Nightly triage",
+        "detail": "You've hit your usage limit. Try again at 4:00 PM."
+      },
+      "ephemeralKeyMaterial": "zc7P0NHS09TV1tfY2drb3N3e3-Dh4uPk5ebn6Onq6-w",
+      "content": {
+        "environmentId": "environment-7f3a",
+        "threadId": "thread-41c2",
+        "kind": "usage-limit",
+        "title": "Nightly triage",
+        "body": "Usage limit reached: You've hit your usage limit. Try again at 4:00 PM."
+      },
+      "aad": "supaterm-push-v1\n1\n6f1c2b9e-3a4d-4e5f-8a6b-7c8d9e0f1a2b\n0b9f8e7d-6c5b-4a39-8281-7f6e5d4c3b2a\n44444444-4444-4444-b444-444444444444\n1791840000000\n1791840600000",
+      "signatureData": "supaterm-push-signature-v1\nsupaterm-push-v1\n1\n6f1c2b9e-3a4d-4e5f-8a6b-7c8d9e0f1a2b\n0b9f8e7d-6c5b-4a39-8281-7f6e5d4c3b2a\n44444444-4444-4444-b444-444444444444\n1791840000000\n1791840600000\nLK0RDJ7NumKYiFW4nucyPGXB0x_kLRs5CpARogfaqhc\n7oqBdpe8-0Ww9QMGzk5AMmz0QfEhTll2BplI6uHloKdrUAvlznQDKfarmWDctfEfX9soykmAlbEat4C0pZolbQmEkH2-4H_5washcdOKdLMm_2McHvMePD-E8LShcdxHtGjxQ8MiPYl-sX0SCwpC-aAqLLETBjLuSa6dwb_An_1snR2u_RQHgCzfwLJPdwbBsyfTO0KBgB068YXLEaA3wbSlz0nmbTrMyB32B1DayKglXq-R7T6y8hC3923XALVLdSjOonlu3Vg8R4rXb0am5tFg_sZiR2B7k-mtVsmGOoLb19wjXZ7Zwk0_bPsHxPFiP_pYRz-1m2QntQDqkz8UVSUiIhU8s1XTB-_K7khnE_Q",
+      "plaintext": "{\"environmentId\":\"environment-7f3a\",\"threadId\":\"thread-41c2\",\"kind\":\"usage-limit\",\"title\":\"Nightly triage\",\"body\":\"Usage limit reached: You've hit your usage limit. Try again at 4:00 PM.\",\"p\":\"                                                             \"}",
+      "envelope": {
+        "v": 1,
+        "registrationId": "6f1c2b9e-3a4d-4e5f-8a6b-7c8d9e0f1a2b",
+        "keyId": "0b9f8e7d-6c5b-4a39-8281-7f6e5d4c3b2a",
+        "notificationId": "44444444-4444-4444-b444-444444444444",
+        "createdAt": 1791840000000,
+        "expiresAt": 1791840600000,
+        "enc": "LK0RDJ7NumKYiFW4nucyPGXB0x_kLRs5CpARogfaqhc",
+        "ciphertext": "7oqBdpe8-0Ww9QMGzk5AMmz0QfEhTll2BplI6uHloKdrUAvlznQDKfarmWDctfEfX9soykmAlbEat4C0pZolbQmEkH2-4H_5washcdOKdLMm_2McHvMePD-E8LShcdxHtGjxQ8MiPYl-sX0SCwpC-aAqLLETBjLuSa6dwb_An_1snR2u_RQHgCzfwLJPdwbBsyfTO0KBgB068YXLEaA3wbSlz0nmbTrMyB32B1DayKglXq-R7T6y8hC3923XALVLdSjOonlu3Vg8R4rXb0am5tFg_sZiR2B7k-mtVsmGOoLb19wjXZ7Zwk0_bPsHxPFiP_pYRz-1m2QntQDqkz8UVSUiIhU8s1XTB-_K7khnE_Q",
+        "signature": "KtaNOv6hMjDuYI0p7xUm_C2vsU_BcRvpTpC5LjQgiQ041sCc5E-Sg-cVlZiTXiPeRZ6PrK1lkLtKMrnYw4AOCg"
+      }
+    },
+    {
+      "name": "test-notification",
+      "preview": "full",
+      "source": null,
+      "ephemeralKeyMaterial": "zs_Q0dLT1NXW19jZ2tvc3d7f4OHi4-Tl5ufo6err7O0",
+      "content": {
+        "environmentId": "environment-7f3a",
+        "threadId": "",
+        "kind": "completion",
+        "title": "Supaterm",
+        "body": "Test notification"
+      },
+      "aad": "supaterm-push-v1\n1\n6f1c2b9e-3a4d-4e5f-8a6b-7c8d9e0f1a2b\n0b9f8e7d-6c5b-4a39-8281-7f6e5d4c3b2a\n55555555-5555-4555-8555-555555555555\n1791840000000\n1791840600000",
+      "signatureData": "supaterm-push-signature-v1\nsupaterm-push-v1\n1\n6f1c2b9e-3a4d-4e5f-8a6b-7c8d9e0f1a2b\n0b9f8e7d-6c5b-4a39-8281-7f6e5d4c3b2a\n55555555-5555-4555-8555-555555555555\n1791840000000\n1791840600000\nODuFXFgKUFtrD_Qj2dwq34TW7ad_RRADhrmcBVLpayU\nJv_KaVGcaED7BwaWEKHhABRYgsZCbhHdM_1MHP796R8AS9GnvZlVyBp2-GTf47RG0e9x8TphCJUjlIkCwF0ZzA99U3VbSCQLsH6fIsgQcmdPZh5ZifDK8kmPz_9AKzp5q7ymkQCcTwpS1X_eJNdccMn0MX9PaaNv_MBUNuW5xeTSVvsVmWwO4XBmPDWVbKAk_xZwWqGsfSJCq2shCUxNaCGSHg7-fARuFx-EuTtw2DGsrgNXy-GBvDK-Qr73BTI311hXSjStpntvPxGTTLRyPCn-VubAUuEIUEi5fE3dTWvXVUQ7u1oPWte8vYusP3hqqDn_jdRwWWOCOUC-Nz9A1foIvz253VLjTGuPpExgez0",
+      "plaintext": "{\"environmentId\":\"environment-7f3a\",\"threadId\":\"\",\"kind\":\"completion\",\"title\":\"Supaterm\",\"body\":\"Test notification\",\"p\":\"                                                                                                                                     \"}",
+      "envelope": {
+        "v": 1,
+        "registrationId": "6f1c2b9e-3a4d-4e5f-8a6b-7c8d9e0f1a2b",
+        "keyId": "0b9f8e7d-6c5b-4a39-8281-7f6e5d4c3b2a",
+        "notificationId": "55555555-5555-4555-8555-555555555555",
+        "createdAt": 1791840000000,
+        "expiresAt": 1791840600000,
+        "enc": "ODuFXFgKUFtrD_Qj2dwq34TW7ad_RRADhrmcBVLpayU",
+        "ciphertext": "Jv_KaVGcaED7BwaWEKHhABRYgsZCbhHdM_1MHP796R8AS9GnvZlVyBp2-GTf47RG0e9x8TphCJUjlIkCwF0ZzA99U3VbSCQLsH6fIsgQcmdPZh5ZifDK8kmPz_9AKzp5q7ymkQCcTwpS1X_eJNdccMn0MX9PaaNv_MBUNuW5xeTSVvsVmWwO4XBmPDWVbKAk_xZwWqGsfSJCq2shCUxNaCGSHg7-fARuFx-EuTtw2DGsrgNXy-GBvDK-Qr73BTI311hXSjStpntvPxGTTLRyPCn-VubAUuEIUEi5fE3dTWvXVUQ7u1oPWte8vYusP3hqqDn_jdRwWWOCOUC-Nz9A1foIvz253VLjTGuPpExgez0",
+        "signature": "Q5wJicUhW_L3_lPYu0Sr7XKyVwCMaMndOWMYQJVtMBpMD_kwaH5O1caVYRcfHk0CnTLeR3ghyaxy1bpa0Yc-Ag"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/v1/send",
+      "timestamp": 1791840001000,
+      "body": "{\"handle\":\"AQIDBAUGBwgJCgsMDQ4PEA\",\"payload\":{\"v\":1,\"registrationId\":\"6f1c2b9e-3a4d-4e5f-8a6b-7c8d9e0f1a2b\",\"keyId\":\"0b9f8e7d-6c5b-4a39-8281-7f6e5d4c3b2a\",\"notificationId\":\"11111111-1111-4111-8111-111111111111\",\"createdAt\":1791840000000,\"expiresAt\":1791926400000,\"enc\":\"-ki6w9xI69-8Bjar9pQ11NejEUcUqXFSwcGaf8aREUk\",\"ciphertext\":\"ooRxXDJphxT-0I6YKGsOrkjN45BayJ-H5KEyT6xmwYx79-fROTrWcOau1PRYF8CDj4OuK-Wvin3ENgrKHcRpLWphAAj6ie3HFviSxQvJ2m7-QCJp-SH6FkxYt0f9pI0PJ5QyfnWe03A-DTCCaRkkX7GXjTLhqxp_q4JLszDCWtMBHgnsqGyAeEXnEpIVon5qb67bvICHGL6NYoOHzE6m1kaW65i8QLB7VvO_NnJtMQa0g-XRXchhcBxcjrkNtz52GRFvuQMoy8ETp4xZt7wZL6rq5OOL5voIKEOERPUWmfZlwGK6DfwVDAmeDXCxSaSxDLpH0YNshWzmj4X2jTWkRhG0n5DrVf5tPXYHZbR3T7A\",\"signature\":\"zT9L0f0m0EIaR_aj_YI1Np7RQkHymjco4hVPI9vF77xTvqzjaR76wfedZsYJf_y01e9DKFBc9DyIlONpv7gABA\"},\"expiration\":1791926400,\"priority\":10,\"collapseId\":\"Zm9vYmFyYmF6cXV4cXV1eGNvcmdl\"}",
+      "signingString": "supaterm-push-request-v1\nPOST\n/v1/send\n1791840001000\n9c3f66696754057640d6cbb308847c83e97928bc41316c2c1a7b4db133cb5ecd",
+      "headers": {
+        "supaterm-push-key": "ebVWLo_mVPlAeLES6KmLp5AfhTrmlb7X4OORC60ElmQ",
+        "supaterm-push-timestamp": "1791840001000",
+        "supaterm-push-signature": "I59AdhC8Q-FKdbs8vVgdSrk3sRt743l8IIVRwlTsoKiD6pmgWDaydy8BgaALrInOSyUHrp4EM5bMjwiu0X51Ag"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/handles/AQIDBAUGBwgJCgsMDQ4PEA",
+      "timestamp": 1791840002000,
+      "body": "",
+      "signingString": "supaterm-push-request-v1\nDELETE\n/v1/handles/AQIDBAUGBwgJCgsMDQ4PEA\n1791840002000\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "headers": {
+        "supaterm-push-key": "ebVWLo_mVPlAeLES6KmLp5AfhTrmlb7X4OORC60ElmQ",
+        "supaterm-push-timestamp": "1791840002000",
+        "supaterm-push-signature": "i9Eu3dVhjE8yF2DEIbZPeAibmtvn9nAxCU1bXqKmWbAjsvgjqpmmoLTjDqt2En-nB9rHQ0-XLRGghdxC9sG_Bw"
+      }
+    }
+  ],
+  "rfc9180": {
+    "source": "https://www.rfc-editor.org/rfc/rfc9180#appendix-A.2.1 (DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, ChaCha20Poly1305, base mode)",
+    "info": "4f6465206f6e2061204772656369616e2055726e",
+    "ikmE": "909a9b35d3dc4713a5e72a4da274b55d3d3821a37e5d099e74a647db583a904b",
+    "skRm": "8057991eef8f1f1af18f4a9491d16a1ce333f695d4db8e38da75975c4478e0fb",
+    "pkRm": "4310ee97d88cc1f088a5576c77ab0cf5c3ac797f3d95139c6c84b5429c59662a",
+    "enc": "1afa08d3dec047a643885163f1180476fa7ddb54c6a8029ea33f95796bf2ac4a",
+    "encryptions": [
+      {
+        "aad": "436f756e742d30",
+        "pt": "4265617574792069732074727574682c20747275746820626561757479",
+        "ct": "1c5250d8034ec2b784ba2cfd69dbdb8af406cfe3ff938e131f0def8c8b60b4db21993c62ce81883d2dd1b51a28"
+      },
+      {
+        "aad": "436f756e742d31",
+        "pt": "4265617574792069732074727574682c20747275746820626561757479",
+        "ct": "6b53c051e4199c518de79594e1c4ab18b96f081549d45ce015be002090bb119e85285337cc95ba5f59992dc98c"
+      }
+    ]
+  }
+}

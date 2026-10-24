@@ -1,5 +1,6 @@
 import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import { threadPullRequestsOf } from "@supaterm/shared/threadPullRequests";
+import { runtimeRequestNeedsApproval } from "@supaterm/shared/threadNotificationAttention";
 import type {
   ThreadLinkedPullRequest,
   EnvironmentId,
@@ -255,8 +256,7 @@ export function presentThreadShell(
       : { latestUserAuthoredMessageAt: nullableIso(thread.latestUserAuthoredMessageAt) }),
     hasPendingApprovals:
       thread.pendingRuntimeRequest !== null &&
-      thread.pendingRuntimeRequest.kind !== "user_input" &&
-      thread.pendingRuntimeRequest.kind !== "auth_refresh",
+      runtimeRequestNeedsApproval(thread.pendingRuntimeRequest.kind),
     hasPendingUserInput:
       thread.pendingRuntimeRequest?.kind === "user_input" &&
       (thread.pendingRuntimeRequest.blocking !== false || !runtimeIsWorking),

@@ -12,6 +12,7 @@ export type SettingsSheetTarget =
   | "SettingsEnvironmentMaintenance"
   | "SettingsProviderAccounts"
   | "SettingsKeyboard"
+  | "SettingsNotifications"
   | "SettingsMicrophone"
   | "SettingsFollowUp"
   | "SettingsScheduledTasks"

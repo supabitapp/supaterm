@@ -365,6 +365,15 @@
   ],
   "packageOverrides": [
     {
+      "name": "badgin",
+      "version": "1.2.3",
+      "sourceUrl": "https://github.com/jaulz/badgin",
+      "generatedNotice": {
+        "licenseId": "MIT",
+        "copyrights": ["Copyright (c) Julian Hundeloh"]
+      }
+    },
+    {
       "name": "remark-math",
       "version": "6.0.0",
       "sourceUrl": "https://github.com/remarkjs/remark-math/blob/main/license",

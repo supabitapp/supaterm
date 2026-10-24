@@ -207,9 +207,9 @@ it("uses bounded tags across threads and environments, replaces repeat alerts, a
   const otherEnvironmentId = "25b62992-b996-4ee3-8d82-d988840e45c1";
   const threadId = "a8395a98-a186-4fe7-9d4c-fb8ba63b7588";
   const otherThreadId = "257598ad-ae4f-4422-a073-e03f4b4f5f0d";
-  const completed = (id: string, completedAt = "2026-09-13T08:00:00Z") => ({
+  const completed = (id: string, turnId = "turn") => ({
     id,
-    latestTurn: { turnId: "turn", state: "completed", completedAt },
+    latestTurn: { turnId, state: "completed", completedAt: "2026-09-13T08:00:00Z" },
   });
   state.environmentIds = [environmentId, otherEnvironmentId];
   state.shells.set(environmentId, shell({ id: threadId }, { id: otherThreadId }));
@@ -222,10 +222,7 @@ it("uses bounded tags across threads and environments, replaces repeat alerts, a
   state.shells.set(otherEnvironmentId, shell(completed(threadId)));
   await app.render();
   expect(state.badge).toHaveBeenLastCalledWith(3);
-  state.shells.set(
-    environmentId,
-    shell(completed(threadId, "2026-09-13T08:01:00Z"), completed(otherThreadId)),
-  );
+  state.shells.set(environmentId, shell(completed(threadId, "turn-2"), completed(otherThreadId)));
   await app.render();
   expect(state.badge).toHaveBeenLastCalledWith(3);
   expect(TestNotification.sent).toHaveLength(4);
@@ -246,7 +243,7 @@ it("uses bounded tags across threads and environments, replaces repeat alerts, a
     TestNotification.sent.every((notification) => notification.close.mock.calls.length > 0),
   ).toBe(true);
   focused = false;
-  state.shells.set(otherEnvironmentId, shell(completed(threadId, "2026-09-13T08:02:00Z")));
+  state.shells.set(otherEnvironmentId, shell(completed(threadId, "turn-2")));
   await app.render();
   expect(state.badge).toHaveBeenLastCalledWith(1);
 });

@@ -1,7 +1,8 @@
 import { EnvironmentRegistry } from "@supaterm/client-runtime/connection";
-import { EnvironmentId, WS_METHODS } from "@supaterm/contracts";
+import { EnvironmentId, ThreadId, WS_METHODS } from "@supaterm/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "@effect/vitest";
 import * as Cause from "effect/Cause";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as SubscriptionRef from "effect/SubscriptionRef";
@@ -9,8 +10,11 @@ import * as TestClock from "effect/testing/TestClock";
 import { vi } from "vite-plus/test";
 
 import {
+  createActivityReport,
   layer,
   observeBackgroundActivitySubscription,
+  observeShownThreadAttention,
+  retainBackgroundScope,
   retainedBackgroundScopes,
   wasRecentlyInteracted,
 } from "./backgroundActivityReporter.ts";
@@ -78,12 +82,13 @@ describe("wasRecentlyInteracted", () => {
   );
 });
 
-describe("layer", () => {
+describe("reporting", () => {
   beforeEach(() => {
     const target = new EventTarget();
     const listeners = {
       addEventListener: target.addEventListener.bind(target),
       removeEventListener: target.removeEventListener.bind(target),
+      dispatchEvent: target.dispatchEvent.bind(target),
     };
     vi.stubGlobal("window", {
       ...listeners,
@@ -120,4 +125,69 @@ describe("layer", () => {
       expect(calls).toBe(2);
     }).pipe(Effect.scoped),
   );
+
+  it.effect("reports once to the environment whose shown thread got new attention", () =>
+    Effect.gen(function* () {
+      const shown = EnvironmentId.make("environment-showing-thread");
+      const other = EnvironmentId.make("environment-without-thread");
+      const threadId = ThreadId.make("thread-shown");
+      const entries = yield* SubscriptionRef.make(
+        new Map([
+          [shown, {}],
+          [other, {}],
+        ]),
+      );
+      const calls: EnvironmentId[] = [];
+      const registry = EnvironmentRegistry.EnvironmentRegistry.of({
+        entries,
+        run: (environmentId: EnvironmentId) => {
+          calls.push(environmentId);
+          return Effect.void;
+        },
+      } as unknown as EnvironmentRegistry.EnvironmentRegistry["Service"]);
+      yield* Layer.build(
+        layer.pipe(Layer.provide(Layer.succeed(EnvironmentRegistry.EnvironmentRegistry, registry))),
+      );
+      const release = retainBackgroundScope(shown, { type: "thread", threadId });
+      observeShownThreadAttention(shown, threadId, "completion:run-1");
+      yield* TestClock.adjust("1 second");
+      calls.length = 0;
+
+      window.dispatchEvent(new Event("keydown"));
+      window.dispatchEvent(new Event("pointermove"));
+      observeShownThreadAttention(other, threadId, "approval:request-1");
+      observeShownThreadAttention(shown, threadId, "completion:run-1");
+      observeShownThreadAttention(shown, threadId, null);
+      yield* TestClock.adjust("1 second");
+      expect(calls).toEqual([]);
+
+      observeShownThreadAttention(shown, threadId, "approval:request-2");
+      observeShownThreadAttention(shown, threadId, "approval:request-2");
+      yield* TestClock.adjust("1 second");
+      expect(calls).toEqual([shown]);
+
+      release();
+      yield* TestClock.adjust("1 second");
+      calls.length = 0;
+      observeShownThreadAttention(shown, threadId, "completion:run-2");
+      yield* TestClock.adjust("1 second");
+      expect(calls).toEqual([]);
+    }).pipe(Effect.scoped),
+  );
+
+  it("carries the shown thread and the last real input, but no input before any", () => {
+    const environmentId = EnvironmentId.make("environment-report-test");
+    const scope = { type: "thread" as const, threadId: ThreadId.make("thread-report") };
+    const release = retainBackgroundScope(environmentId, scope);
+    const withoutInput = createActivityReport(environmentId, 1_000, null, 2_000);
+    const withInput = createActivityReport(environmentId, 1_500, 1_500, 2_000);
+    release();
+
+    expect(withoutInput.scopes).toContainEqual(scope);
+    expect(withoutInput).not.toHaveProperty("lastInteractionAt");
+    expect(withInput.lastInteractionAt).toEqual(DateTime.makeUnsafe(1_500));
+    expect(createActivityReport(environmentId, 1_500, 1_500, 2_000).scopes).not.toContainEqual(
+      scope,
+    );
+  });
 });

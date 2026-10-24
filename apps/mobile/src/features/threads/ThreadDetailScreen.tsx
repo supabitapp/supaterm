@@ -6,7 +6,9 @@ import { useSelectedThreadComposerMetadata } from "../../state/use-thread-detail
 import { useAtomValue } from "@effect/atom-react";
 import { useChildThreadInputs, useThreadShell } from "../../state/entities";
 import { UsageLimitRecoveryCard } from "./UsageLimitRecoveryCard";
-import { StackActions, useNavigation } from "@react-navigation/native";
+import { StackActions, useIsFocused, useNavigation } from "@react-navigation/native";
+import { retainMobileThreadScope } from "../../connection/background-activity-scopes";
+import { markPushThreadVisible } from "../notifications/notificationPresence";
 import type { WorktreeSetupCardProps } from "./worktree-setup-card";
 import type { ComposerTextPaste } from "../../native/SupatermComposerEditor.types";
 import { type EnvironmentConnectionPhase } from "@supaterm/client-runtime/connection";
@@ -424,6 +426,24 @@ function ThreadVisitWatermark(props: {
     showContent,
     visitThread,
   ]);
+  return null;
+}
+
+/** While this thread is on screen the host holds back its alerts, and so does the foreground handler. */
+function ThreadPresenceReporter(props: {
+  readonly environmentId: EnvironmentId;
+  readonly threadId: ThreadId;
+}) {
+  const focused = useIsFocused();
+  useEffect(() => {
+    if (!focused) return;
+    const releaseScope = retainMobileThreadScope(props.environmentId, props.threadId);
+    const releaseVisible = markPushThreadVisible(props.environmentId, props.threadId);
+    return () => {
+      releaseScope();
+      releaseVisible();
+    };
+  }, [focused, props.environmentId, props.threadId]);
   return null;
 }
 
@@ -1192,6 +1212,10 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
         environmentId={props.environmentId}
         selectedThread={props.selectedThread}
         showContent={showContent}
+      />
+      <ThreadPresenceReporter
+        environmentId={props.environmentId}
+        threadId={props.selectedThread.id}
       />
       {showContent ? (
         <View
