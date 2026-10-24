@@ -67,7 +67,8 @@ export function mountDiagram(element: HTMLElement, source: string, options: Moun
   };
 
   const initialWidth = layoutWidth();
-  const ready = initialWidth > 0 ? peekMermaidDiagram(source, layout(initialWidth)) : undefined;
+  const ready =
+    initialWidth > 0 ? peekMermaidDiagram(source, layout(initialWidth), options.math) : undefined;
   if (ready) {
     requestedWidth = initialWidth;
     show(ready);

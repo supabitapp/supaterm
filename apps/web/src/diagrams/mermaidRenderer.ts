@@ -3,7 +3,6 @@ import {
   DIAGRAM_LIMITS,
   isDiagram,
   type Diagram,
-  type DiagramOptions,
   type MathMarkup,
   type MathResolver,
 } from "@supaterm/mermaid/diagram";
@@ -19,6 +18,8 @@ interface WorkerReply {
   readonly misses: ReadonlyArray<MathLabel>;
 }
 
+type MeasuredLabels = Map<string, { readonly tex: string; readonly markup: MathMarkup | null }>;
+
 function isMathLabel(value: unknown): value is MathLabel {
   return (
     typeof value === "object" &&
@@ -33,9 +34,8 @@ function isMathLabel(value: unknown): value is MathLabel {
 export function createBrowserDiagramRenderer() {
   let worker: Worker | undefined;
   let ready = false;
-  let measureMath: MathResolver | undefined;
   // Measuring MathML needs the DOM, so math labels are typeset here and laid out in the worker.
-  const measured = new Map<string, { readonly tex: string; readonly markup: MathMarkup | null }>();
+  const measuredBy = new WeakMap<MathResolver, MeasuredLabels>();
 
   const post = (request: DiagramWorkerRequest) =>
     new Promise<WorkerReply | null>((resolve, reject) => {
@@ -105,20 +105,25 @@ export function createBrowserDiagramRenderer() {
       if (ready) send();
     });
 
-  const measure = (label: MathLabel) => {
+  const measure = (resolver: MathResolver, measured: MeasuredLabels, label: MathLabel) => {
     const key = mathLabelKey(label);
     let entry = measured.get(key);
     if (!entry) {
       if (measured.size >= MAX_MEASURED_LABELS) measured.delete(measured.keys().next().value!);
-      entry = { tex: label.tex, markup: measureMath?.(label.tex, label.size) ?? null };
+      entry = { tex: label.tex, markup: resolver(label.tex, label.size) ?? null };
       measured.set(key, entry);
     }
     return [key, entry.markup] as const;
   };
 
-  const renderer = createDiagramRenderer(async (source, options) => {
-    if (!measureMath || !source.includes("$$"))
+  return createDiagramRenderer(async (source, options, resolver) => {
+    if (!resolver || !source.includes("$$"))
       return (await post({ source, options }))?.output ?? null;
+    let measured = measuredBy.get(resolver);
+    if (!measured) {
+      measured = new Map();
+      measuredBy.set(resolver, measured);
+    }
     const math = new Map<string, MathMarkup | null>();
     for (const [key, entry] of measured) {
       if (source.includes(entry.tex)) math.set(key, entry.markup);
@@ -128,27 +133,12 @@ export function createBrowserDiagramRenderer() {
       if (!reply || reply.misses.length === 0 || pass === MAX_MATH_PASSES) {
         return reply?.output ?? null;
       }
-      for (const label of reply.misses) math.set(...measure(label));
+      for (const label of reply.misses) math.set(...measure(resolver, measured, label));
     }
   });
-
-  return {
-    render(source: string, options?: DiagramOptions, math?: MathResolver) {
-      if (math) measureMath = math;
-      return renderer.render(source, options);
-    },
-    peek: renderer.peek,
-  };
 }
 
 const renderer = createBrowserDiagramRenderer();
 
-export function renderMermaidDiagram(
-  source: string,
-  options?: DiagramOptions,
-  math?: MathResolver,
-) {
-  return renderer.render(source, options, math);
-}
-
+export const renderMermaidDiagram = renderer.render;
 export const peekMermaidDiagram = renderer.peek;

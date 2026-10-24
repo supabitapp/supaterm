@@ -190,9 +190,12 @@ export function MermaidDiagram({
   source: string;
   onExpand: (imageUrl: string) => void;
 }) {
-  const [renderError, setRenderError] = useState<string | null>(null);
+  // An error belongs to the source that produced it. The worker only lays out a visible target,
+  // so a new source must not inherit the error that hides it.
+  const [failure, setFailure] = useState<{ source: string; message: string } | null>(null);
   const containerRef = useRef<HTMLSpanElement>(null);
   const trimmedSource = source.trim();
+  const renderError = failure?.source === trimmedSource ? failure.message : null;
   const math = trimmedSource.includes("$$") ? use(loadMath()) : null;
 
   useLayoutEffect(() => {
@@ -205,11 +208,12 @@ export function MermaidDiagram({
       // Keep the author's direction; a wide diagram scales down to fit instead of turning vertical.
       autoDirection: false,
       ...(math ? { math, sanitize: sanitizeMathDiagramSvg } : { sanitize: sanitizeDiagramSvg }),
-      onRender: () => setRenderError(null),
+      onRender: () => setFailure(null),
       onError: (error) =>
-        setRenderError(
-          error instanceof Error ? error.message : "The diagram could not be rendered.",
-        ),
+        setFailure({
+          source: trimmedSource,
+          message: error instanceof Error ? error.message : "The diagram could not be rendered.",
+        }),
     });
     return () => mounted.destroy();
   }, [math, trimmedSource]);

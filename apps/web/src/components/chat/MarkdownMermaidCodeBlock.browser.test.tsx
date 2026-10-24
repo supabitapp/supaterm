@@ -1,4 +1,5 @@
 import type { Diagram } from "@supaterm/mermaid/diagram";
+import { stubDiagramGeometry } from "../../../test/diagramGeometry";
 import { act, render as renderUi, stubGlobal, type Screen } from "../../../test/render";
 import { describe, expect, it, vi } from "vite-plus/test";
 
@@ -13,18 +14,23 @@ import { MarkdownMermaidCodeBlock } from "./MarkdownMermaidCodeBlock";
 import { peekMermaidDiagram, renderMermaidDiagram } from "../../diagrams/mermaidRenderer";
 import { observeResize } from "../../lib/observeResize";
 
-// Visibility is reported by hand so each case decides when the fence scrolls into view.
+// Visibility is reported by hand so each case decides when the fence scrolls into view. A target
+// inside a hidden subtree never intersects, as in a real layout.
 class TestIntersectionObserver {
   static instances: TestIntersectionObserver[] = [];
-  observe = vi.fn();
+  private target: Element | undefined;
   disconnect = vi.fn();
 
   constructor(private readonly report: (entries: Array<{ isIntersecting: boolean }>) => void) {
     TestIntersectionObserver.instances.push(this);
   }
 
+  observe(target: Element) {
+    this.target = target;
+  }
+
   visible() {
-    this.report([{ isIntersecting: true }]);
+    this.report([{ isIntersecting: this.target?.closest("[hidden]") == null }]);
   }
 }
 
@@ -45,8 +51,7 @@ async function setupTest() {
 
   TestIntersectionObserver.instances = [];
   resources.use(stubGlobal("IntersectionObserver", TestIntersectionObserver));
-  // Tests run without the app stylesheet, so the diagram's flex container would measure 0 px.
-  vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(640);
+  resources.use(stubDiagramGeometry());
   vi.mocked(renderMermaidDiagram).mockReset();
   vi.mocked(peekMermaidDiagram).mockReset();
   vi.mocked(observeResize).mockClear();
@@ -154,6 +159,41 @@ describe("MarkdownMermaidCodeBlock", () => {
     await showVisible();
     expect(screen.container.textContent).toContain("Unable to render diagram");
     expect(screen.container.querySelector("pre")!.textContent).toBe("unsupported");
+  });
+
+  it("renders a corrected source after a failed one", async () => {
+    await using _test = await setupTest();
+    vi.mocked(renderMermaidDiagram)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(diagram("fixed diagram"));
+    await screen.rerender(block("graph TD\n A--"));
+    await showVisible();
+    expect(screen.container.textContent).toContain("Unable to render diagram");
+    await screen.rerender(block("graph TD\n A-->B"));
+    await showVisible();
+    expect(displayedText()).toBe("fixed diagram");
+    expect(screen.container.textContent).not.toContain("Unable to render diagram");
+  });
+
+  it("copies the Mermaid source on remote HTTP pages without the Clipboard API", async () => {
+    await using _test = await setupTest();
+    vi.spyOn(navigator, "clipboard", "get").mockReturnValue(undefined as never);
+    let copiedText: string | undefined;
+    const execCommand = vi.spyOn(document, "execCommand").mockImplementation(() => {
+      copiedText = (document.activeElement as HTMLTextAreaElement | null)?.value;
+      return true;
+    });
+    vi.mocked(renderMermaidDiagram).mockResolvedValue(diagram("diagram"));
+    await screen.rerender(block("graph TD\n A"));
+    await showVisible();
+    await press("Copy code");
+    expect(execCommand).toHaveBeenCalledWith("copy");
+    expect(copiedText).toBe("graph TD\n A");
+    expect(
+      [...screen.container.querySelectorAll("button")].some(
+        (button) => button.getAttribute("aria-label") === "Copied",
+      ),
+    ).toBe(true);
   });
 
   it("switches between the diagram and its code, redrawing a finished diagram at once", async () => {
