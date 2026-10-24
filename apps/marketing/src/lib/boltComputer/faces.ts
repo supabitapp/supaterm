@@ -93,6 +93,8 @@ const bolt = (g: Grid, level: (c: number, r: number) => number) => {
   for (const [c, r] of BOLT_CELLS) put(g, BOLT_X + c, BOLT_Y + r, level(c, r));
 };
 
+const tearing = (t: number) => t % 1.8 < 0.24;
+
 /** What the screen shows in each state, `t` seconds in. */
 export const FACES: Record<BoltComputerState, (g: Grid, t: number) => void> = {
   idle(g) {
@@ -117,9 +119,13 @@ export const FACES: Record<BoltComputerState, (g: Grid, t: number) => void> = {
 
   error(g, t) {
     bolt(g, () => 1);
-    if (t % 1.8 < 0.24) tear(g, Math.floor(t * 30), 2);
+    if (tearing(t)) tear(g, Math.floor(t * 30), 2);
   },
 };
+
+/** Whether the screen holds still `t` seconds into the state, so drawing can stop there. */
+export const faceStill = (state: BoltComputerState, t: number) =>
+  state === "idle" || (state === "error" && !tearing(t));
 
 const SPARKLES = [
   [2, 3, 0],

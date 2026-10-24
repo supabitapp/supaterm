@@ -1,5 +1,4 @@
 import {
-  EnvironmentId,
   ORCHESTRATION_V2_WS_METHODS,
   type OrchestrationV2ShellSnapshot,
   type OrchestrationV2ShellStreamItem,
@@ -12,17 +11,14 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
 import * as Option from "effect/Option";
+import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 
-import {
-  AVAILABLE_CONNECTION_STATE,
-  PrimaryConnectionTarget,
-  type PreparedConnection,
-} from "../connection/model.ts";
+import { AVAILABLE_CONNECTION_STATE } from "../connection/model.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import * as ConnectionWakeups from "../connection/wakeups.ts";
 import * as Persistence from "../platform/persistence.ts";
@@ -31,39 +27,7 @@ import type { WsRpcProtocolClient } from "../rpc/protocol.ts";
 import { makeEnvironmentShellState } from "./shell.ts";
 import * as ShellSnapshotLoader from "./shellSnapshotHttp.ts";
 import { v2Project, v2ShellSnapshot, v2ThreadShell } from "./orchestrationV2TestFixtures.ts";
-
-const TARGET = new PrimaryConnectionTarget({
-  environmentId: EnvironmentId.make("environment-1"),
-  label: "Test environment",
-  httpBaseUrl: "https://environment.example.test",
-  wsBaseUrl: "wss://environment.example.test",
-});
-
-const PREPARED: PreparedConnection = {
-  environmentId: TARGET.environmentId,
-  label: TARGET.label,
-  httpBaseUrl: TARGET.httpBaseUrl,
-  socketUrl: TARGET.wsBaseUrl,
-  httpAuthorization: null,
-  target: TARGET,
-};
-
-const LIVE_SHELL_SNAPSHOT: OrchestrationV2ShellSnapshot = {
-  ...v2ShellSnapshot,
-  snapshotSequence: 1,
-};
-
-function session(client: WsRpcProtocolClient): RpcSession.RpcSession {
-  return {
-    client,
-    initialConfig: Effect.succeed({ shellResumeCompletionMarker: true } as never),
-    configChanges: Stream.empty,
-    subscribeServerConfig: (input) => client.subscribeServerConfig(input),
-    ready: Effect.void,
-    probe: Effect.void,
-    closed: Effect.never,
-  };
-}
+import { LIVE_SHELL_SNAPSHOT, PREPARED, TARGET, session } from "./shellSyncTestFixtures.ts";
 
 describe("environment shell synchronization", () => {
   it.effect("skips shell items it does not know and keeps applying the rest", () =>
@@ -149,7 +113,7 @@ describe("environment shell synchronization", () => {
   it.effect("resubscribes from the in-memory shell cursor when the app becomes active", () =>
     Effect.gen(function* () {
       const events = yield* Queue.unbounded<OrchestrationV2ShellStreamItem>();
-      const wakeups = yield* Queue.unbounded<ConnectionWakeups.ConnectionWakeup>();
+      const wakeups = yield* PubSub.unbounded<ConnectionWakeups.ConnectionWakeup>();
       const loaderCalls = yield* Ref.make(0);
       const capturedAfterSequences = yield* SubscriptionRef.make<ReadonlyArray<number | undefined>>(
         [],
@@ -206,7 +170,7 @@ describe("environment shell synchronization", () => {
         Effect.provideService(ShellSnapshotLoader.ShellSnapshotLoader, snapshotLoader),
         Effect.provideService(
           ConnectionWakeups.ConnectionWakeups,
-          ConnectionWakeups.ConnectionWakeups.of({ changes: Stream.fromQueue(wakeups) }),
+          ConnectionWakeups.ConnectionWakeups.of({ changes: Stream.fromPubSub(wakeups) }),
         ),
       );
 
@@ -232,7 +196,7 @@ describe("environment shell synchronization", () => {
         Stream.runHead,
       );
 
-      yield* Queue.offer(wakeups, "application-active");
+      yield* PubSub.publish(wakeups, "application-active");
       yield* SubscriptionRef.changes(capturedAfterSequences).pipe(
         Stream.filter((captured) => captured.length >= 2),
         Stream.runHead,
@@ -240,14 +204,14 @@ describe("environment shell synchronization", () => {
       expect(yield* SubscriptionRef.get(capturedAfterSequences)).toEqual([10, 40]);
       yield* Queue.offer(events, { kind: "synchronized" });
 
-      yield* Queue.offer(wakeups, "application-resumed");
+      yield* PubSub.publish(wakeups, "application-resumed");
       yield* SubscriptionRef.changes(capturedAfterSequences).pipe(
         Stream.filter((captured) => captured.length >= 3),
         Stream.runHead,
       );
       expect(yield* SubscriptionRef.get(capturedAfterSequences)).toEqual([10, 40, 40]);
 
-      yield* Queue.offer(wakeups, "application-background");
+      yield* PubSub.publish(wakeups, "application-background");
       for (let attempt = 0; attempt < 10; attempt += 1) {
         yield* Effect.yieldNow;
       }

@@ -6,6 +6,8 @@ import {
   applyShellStreamEvent,
   mergeShellSnapshotProjects,
   reuseUnchangedThreadShells,
+  PENDING_SHELL_RESUME,
+  advanceShellResume,
 } from "./shellReducer.ts";
 
 const repositoryIdentity = {
@@ -325,5 +327,37 @@ describe("reuseUnchangedThreadShells", () => {
     const next = reuseUnchangedThreadShells({ ...v2ShellSnapshot, threads: [linked] }, incoming);
     expect(next).toBe(incoming);
     expect(next.threads[0]?.pullRequests).toEqual([]);
+  });
+});
+
+describe("advanceShellResume", () => {
+  const snapshot = { kind: "snapshot", snapshot: v2ShellSnapshot } as const;
+  const enrichment = { ...snapshot, resolvedRepositoryIdentityRoots: ["/repo"] } as const;
+  const synchronized = { kind: "synchronized" } as const;
+  const unknown = { kind: "unknown-item", itemKind: "project.archived" } as const;
+
+  it("completes on synchronized under the session's server run", () => {
+    expect(advanceShellResume(PENDING_SHELL_RESUME, synchronized, "run-1")).toEqual({
+      _tag: "completed",
+      generation: "run-1",
+    });
+    expect(advanceShellResume(PENDING_SHELL_RESUME, synchronized, null)).toBe(PENDING_SHELL_RESUME);
+  });
+
+  it("stays tainted after an unknown item until an authoritative snapshot", () => {
+    const tainted = advanceShellResume(
+      advanceShellResume(PENDING_SHELL_RESUME, synchronized, "run-1"),
+      unknown,
+      null,
+    );
+    expect(advanceShellResume(tainted, synchronized, "run-1")).toBe(tainted);
+    expect(advanceShellResume(tainted, enrichment, null)).toBe(tainted);
+    expect(advanceShellResume(tainted, snapshot, null)).toBe(PENDING_SHELL_RESUME);
+  });
+
+  it("forgets a completed run when any authoritative snapshot replaces the shell", () => {
+    const completed = advanceShellResume(PENDING_SHELL_RESUME, synchronized, "run-1");
+    expect(advanceShellResume(completed, enrichment, null)).toBe(completed);
+    expect(advanceShellResume(completed, snapshot, null)).toBe(PENDING_SHELL_RESUME);
   });
 });

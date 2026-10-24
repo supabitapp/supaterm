@@ -74,7 +74,7 @@ import * as PullRequestService from "../pullRequest/PullRequestService.ts";
 import * as ProjectStore from "./ProjectStore.ts";
 import * as ProviderSessionManager from "./ProviderSessionManager.ts";
 import * as RuntimeLayer from "./runtimeLayer.ts";
-import { shellStreamItemFromThreadShell } from "./ShellStream.ts";
+import { shellStreamItemFromThreadShell, toShellApplicationEvent } from "./ShellStream.ts";
 import { CodexProviderCapabilitiesV2 } from "./Adapters/CodexAdapterV2.ts";
 import * as ThreadManagementService from "./ThreadManagementService.ts";
 import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
@@ -1745,7 +1745,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       );
       assert.deepEqual(
         shellStreamItemFromThreadShell({
-          stored: archive.storedEvents[0]!,
+          stored: toShellApplicationEvent(archive.storedEvents[0]!),
           shell: yield* orchestrator.getThreadShell(threadId),
         }),
         {
@@ -1772,7 +1772,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       );
       assert.deepEqual(
         shellStreamItemFromThreadShell({
-          stored: remove.storedEvents[0]!,
+          stored: toShellApplicationEvent(remove.storedEvents[0]!),
           shell: yield* orchestrator.getThreadShell(threadId),
         }),
         {

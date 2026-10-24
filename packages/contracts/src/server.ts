@@ -625,6 +625,11 @@ export const ServerConfig = Schema.Struct({
   observability: ServerObservability,
   settings: ServerConfigSettings,
   shellResumeCompletionMarker: Schema.optionalKey(Schema.Boolean),
+  /**
+   * Changes whenever the server restarts. A client resumes its in-memory shell
+   * on a new connection only while this stays the same.
+   */
+  shellSyncGeneration: Schema.optionalKey(TrimmedNonEmptyString),
   shellRevealInFileManager: Schema.optionalKey(Schema.Boolean),
   shellRevealInFileManagerKind: Schema.optionalKey(FileManagerRevealKind),
   threadResumeCompletionMarker: Schema.optionalKey(Schema.Boolean),

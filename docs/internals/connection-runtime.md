@@ -28,6 +28,15 @@ even while the network reports offline. Returning to mobile also restarts an
 in-flight connection attempt, whose routes may belong to the previous network.
 Desktop foregrounding leaves ordinary in-flight attempts alone.
 
+A replacement session to the same server process may resume the shell from the
+in-memory cursor instead of reloading the HTTP snapshot. Resume covers only rows
+with events after the cursor, but some thread rows read another thread's state: a
+fork counts its source's items, threads bound to one provider session share its
+last error, and a provider-thread move changes the previous owner. Neither resume
+nor the live tail resends those rows. A reload on every reconnect used to repair
+them, so a new session resumes only while the last authoritative snapshot is
+younger than six hours.
+
 The native mobile relay, not the supervisor, decides when a backgrounded tunnel
 suspends. iOS suspends when its background task expires, so the tunnel lasts as
 long as the OS grants. Android has no such deadline, so it suspends after a fixed

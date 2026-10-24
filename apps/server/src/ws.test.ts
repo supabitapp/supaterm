@@ -100,6 +100,7 @@ import * as ProjectionMaintenance from "./orchestration-v2/ProjectionMaintenance
 import * as ProjectionStore from "./orchestration-v2/ProjectionStore.ts";
 import * as ThreadManagement from "./orchestration-v2/ThreadManagementService.ts";
 import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
+import * as ShellSyncGeneration from "./orchestration-v2/ShellSyncGeneration.ts";
 import * as OrchestrationEventStore from "./persistence/OrchestrationEventStore.ts";
 import * as SqlitePersistence from "./persistence/Sqlite.ts";
 import * as ExternalLauncher from "./process/externalLauncher.ts";
@@ -350,13 +351,16 @@ it.live.each(["thread", "shell"] as const)(
       );
       assert.deepEqual(
         items.flatMap((item) => (item.sequence === undefined ? [] : [item.sequence])),
-        [after!.sequence, liveSequence],
+        // Shell resume reads no payloads, so its row carries the newest sequence
+        // even when that event's type is unknown to this build.
+        [scope === "thread" ? after!.sequence : highWater!.sequence, liveSequence],
       );
     }).pipe(Effect.scoped, Effect.provide(ReplayTestLayer)),
 );
 
 // Build the production RPC layer; unrelated capabilities fail if this test calls them.
 const layerUnusedConfigRpcServices = Layer.mergeAll(
+  Layer.succeed(ShellSyncGeneration.ShellSyncGeneration, { id: "generation:config-test" }),
   Layer.mock(ServerSecretStore.ServerSecretStore)({}),
   Layer.mock(WorkspacePaths.WorkspacePaths)({}),
   Layer.mock(TraceDiagnostics.TraceDiagnostics)({}),
@@ -559,6 +563,7 @@ it.effect(
       assert.equal(snapshot.type, "snapshot");
       if (snapshot.type !== "snapshot") return yield* Effect.die("Missing initial snapshot");
       assert.isTrue(snapshot.config.settings.defaultAutoPull);
+      assert.equal(snapshot.config.shellSyncGeneration, "generation:config-test");
       assert.deepEqual(snapshot.config.keybindings, initialKeybindings);
       const duringAck = yield* keybindings.upsertKeybindingRule({
         key: "mod+alt+y",

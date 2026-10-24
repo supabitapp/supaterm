@@ -50,11 +50,13 @@ const lookOf = (settings: BoltComputerSettings): Look => ({
  * Adds a canvas with the app icon's computer to `container`, filling it. It switches on, turns
  * toward a nearby pointer and hops with a spin on a click. Frames are drawn only while it moves.
  * The canvas reaches past the container so hops and the floor's shadow take no layout space.
+ * The error state shakes on forever unless `restAfter` seconds lets it rest between shakes.
  * Returns null, adding nothing, if the browser refuses a 2D context.
  */
 export function mountBoltComputer(
   container: HTMLElement,
   initial: BoltComputerSettings = DEFAULT_SETTINGS,
+  restAfter = Number.POSITIVE_INFINITY,
 ): BoltComputer | null {
   const canvas = document.createElement("canvas");
   if (!canvas.getContext("2d")) return null;
@@ -63,7 +65,7 @@ export function mountBoltComputer(
   let settings = initial;
   let look = lookOf(settings);
   const still = () => reducedMotion || settings.paused;
-  const sim = new BoltComputerSim(Math.random(), settings.state);
+  const sim = new BoltComputerSim(Math.random(), settings.state, restAfter);
   const renderer = new BoltComputerRenderer();
   let frame = frameFor(container.clientWidth);
 
