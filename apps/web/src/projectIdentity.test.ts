@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
 import { PROJECT_ICON_COLORS } from "./projectIconColors";
-import { assignProjectColors, projectColorKey, projectMonogram } from "./projectIdentity";
+import {
+  assignProjectColors,
+  projectColorKey,
+  projectMonogram,
+} from "@supaterm/shared/projectIdentity";
 
 function projects(...titles: ReadonlyArray<string>) {
   return titles.map((title, index) => ({

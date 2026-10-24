@@ -549,6 +549,7 @@ export default defineConfig({
           "apps/mobile/src/native/SupatermComposerEditor.native.tsx",
           "apps/mobile/src/native/SelectableMarkdownText.tsx",
           "apps/mobile/src/native/NativeMermaidSvg.tsx",
+          "apps/mobile/src/native/useEnrichedLinkVariants.ts",
         ],
         rules: {
           "supaterm/no-mobile-uniwind-theme-escape-hatches": ["error", { allowUniwindTheme: true }],

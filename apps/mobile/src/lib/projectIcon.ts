@@ -1,6 +1,9 @@
+import { isScratchProject } from "@supaterm/client-runtime/state/projects";
 import type { ProjectIconColor, ProjectIconOverride } from "@supaterm/contracts";
 import type { IconNode } from "@supaterm/icons/nodes";
 import { resolveProjectIcon } from "@supaterm/icons/project";
+import { isProjectFaviconFallbackUrl } from "@supaterm/shared/projectFavicon";
+import { projectMonogram } from "@supaterm/shared/projectIdentity";
 
 export type ProjectIconGlyph =
   | { readonly kind: "emoji"; readonly emoji: string }
@@ -13,6 +16,14 @@ export type ProjectIconGlyph =
  */
 export function countGlyphs(text: string): number {
   return Array.from(text.replace(/\p{M}/gu, "")).length;
+}
+
+export function projectAutoMonogram(
+  projectTitle: string,
+  color: ProjectIconColor,
+): ProjectIconGlyph | null {
+  if (!projectTitle.trim()) return null;
+  return { kind: "monogram", text: projectMonogram(projectTitle), color };
 }
 
 export function resolveProjectIconGlyph(
@@ -29,6 +40,26 @@ export function resolveProjectIconGlyph(
     case undefined:
       return null;
   }
+}
+
+export type ProjectChipIcon = { readonly kind: "favicon"; readonly uri: string } | ProjectIconGlyph;
+
+export function resolveProjectChipIcon(
+  project: {
+    readonly title: string;
+    readonly workspaceRoot: string;
+    readonly projectIcon?: ProjectIconOverride | null;
+  } | null,
+  scratchWorkspaceRoot: string | null | undefined,
+  faviconUrl: () => string | null,
+  monogramColor: (projectTitle: string) => ProjectIconColor,
+): ProjectChipIcon | null {
+  if (!project || isScratchProject(project, scratchWorkspaceRoot)) return null;
+  const glyph = resolveProjectIconGlyph(project.projectIcon);
+  if (glyph) return glyph;
+  const url = faviconUrl();
+  if (url && !isProjectFaviconFallbackUrl(url)) return { kind: "favicon", uri: url };
+  return projectAutoMonogram(project.title, monogramColor(project.title));
 }
 
 const PROJECT_ICON_COLOR_CLASSES: Record<

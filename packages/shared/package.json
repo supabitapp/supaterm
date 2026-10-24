@@ -43,6 +43,10 @@
       "types": "./src/projectFavicon.ts",
       "import": "./src/projectFavicon.ts"
     },
+    "./projectIdentity": {
+      "types": "./src/projectIdentity.ts",
+      "import": "./src/projectIdentity.ts"
+    },
     "./model": {
       "types": "./src/model.ts",
       "import": "./src/model.ts"

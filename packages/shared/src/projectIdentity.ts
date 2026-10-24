@@ -84,7 +84,7 @@ export function assignProjectColors(
 ): ReadonlyMap<string, ProjectIconColor> {
   const colors = new Map<string, ProjectIconColor>();
   let used = new Set<number>();
-  const oldestFirst = projects.toSorted((left, right) =>
+  const oldestFirst = [...projects].sort((left, right) =>
     left.createdAt.localeCompare(right.createdAt),
   );
   for (const project of oldestFirst) {

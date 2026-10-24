@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema";
-import type { ProjectIdentity } from "../../projectIdentity";
+import type { ProjectIdentity } from "@supaterm/shared/projectIdentity";
 import { ProjectMonogram } from "../ProjectMonogram";
 import {
   isProjectSymbolIcon,
