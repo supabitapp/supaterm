@@ -1122,6 +1122,12 @@ type DoneThreadRow = Pick<
   | "latest_user_authored_message_at"
 >;
 
+type ShellRunWorkSessionRow = {
+  readonly thread_id: string;
+  readonly work_started_at: string;
+  readonly completed_at: string;
+};
+
 type ShellRunItemCountRow = {
   readonly thread_id: string;
   readonly run_id: string;
@@ -1536,6 +1542,8 @@ export function threadShellFromProjection(
     projection.runs
       .filter(isActivityRunForShell)
       .toSorted((left, right) => right.ordinal - left.ordinal)[0] ?? null;
+  const activityRunStartedAt =
+    activityRun === null ? null : orchestrationV2RunWorkStartedAt(activityRun);
   let pendingRuntimeRequest = pendingRuntimeRequestSummary(
     projection.runtimeRequests
       .filter((request) => request.status === "pending")
@@ -1595,8 +1603,20 @@ export function threadShellFromProjection(
     activeRunId: activeRun?.id ?? null,
     blockedOnThreadWait: deriveBlockedOnThreadWait({ activeRun, turnItems: projection.turnItems }),
     activityRunStatus: activityRun?.status ?? null,
-    activityRunStartedAt:
-      activityRun === null ? null : orchestrationV2RunWorkStartedAt(activityRun),
+    activityRunStartedAt,
+    completedWorkMs: completedWorkMsForShell(
+      projection.runs.flatMap((run) =>
+        run.startedAt === null || run.completedAt === null
+          ? []
+          : [
+              {
+                workStartedAt: DateTime.toEpochMillis(orchestrationV2RunWorkStartedAt(run)),
+                completedAt: DateTime.toEpochMillis(run.completedAt),
+              },
+            ],
+      ),
+      activityRunStartedAt === null ? null : DateTime.toEpochMillis(activityRunStartedAt),
+    ),
     status: latestRun?.status ?? "idle",
     ...threadErrorSummary(
       latestRootProviderFailure(latestRun, projection.turnItems),
@@ -1684,6 +1704,31 @@ function isActivityRunForShell(
   return isInterruptibleRunForShell(run) || run.status === "waiting";
 }
 
+type ShellWorkSession = { readonly workStartedAt: number; readonly completedAt: number };
+
+/**
+ * Wakes and steers inherit the work start of the run they continue, so runs
+ * sharing a work start are one session timed from that start to its last
+ * completion. The session still in progress is left to the client's live
+ * timer, which counts from activityRunStartedAt.
+ */
+function completedWorkMsForShell(
+  runs: Iterable<ShellWorkSession>,
+  activityRunStartedAt: number | null,
+): number {
+  const sessionEnds = new Map<number, number>();
+  for (const run of runs) {
+    sessionEnds.set(
+      run.workStartedAt,
+      Math.max(run.completedAt, sessionEnds.get(run.workStartedAt) ?? run.completedAt),
+    );
+  }
+  if (activityRunStartedAt !== null) sessionEnds.delete(activityRunStartedAt);
+  let total = 0;
+  for (const [start, end] of sessionEnds) total += Math.max(0, end - start);
+  return total;
+}
+
 type ShellThreadState = {
   readonly thread: OrchestrationV2ThreadProjection["thread"];
   readonly latestRunId: RunId | null;
@@ -1695,6 +1740,7 @@ type ShellThreadState = {
   readonly blockedOnThreadWait: boolean;
   readonly activityRunStatus: ShellActivityRunStatus | null;
   readonly activityRunStartedAt: DateTime.Utc | null;
+  readonly completedWorkMs: number;
   readonly lastError: string | null;
   readonly lastErrorClass: OrchestrationV2ThreadShell["lastErrorClass"];
   readonly usageLimitResetAt: OrchestrationV2ThreadShell["usageLimitResetAt"];
@@ -1848,6 +1894,7 @@ function shellFromState(input: {
     blockedOnThreadWait: input.state.blockedOnThreadWait,
     activityRunStatus: input.state.activityRunStatus,
     activityRunStartedAt: input.state.activityRunStartedAt,
+    completedWorkMs: input.state.completedWorkMs,
     status: input.state.latestRunStatus,
     lastError: input.state.lastError,
     lastErrorClass: input.state.lastErrorClass,
@@ -5846,6 +5893,37 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
             WHERE thread_id IN ${sql.in(threadIds)}
           `;
 
+    const selectShellRunWorkSessionRows = (threadIds: ReadonlyArray<ThreadId>) =>
+      sql<ShellRunWorkSessionRow>`
+        SELECT
+          thread_id,
+          -- Mirrors orchestrationV2RunWorkStartedAt for a run that started.
+          COALESCE(
+            json_extract(payload_json, '$.workStartedAt'),
+            json_extract(payload_json, '$.startedAt')
+          ) AS work_started_at,
+          MAX(completed_at) AS completed_at
+        FROM orchestration_v2_projection_runs
+        WHERE thread_id IN ${sql.in(threadIds)}
+          AND completed_at IS NOT NULL
+          AND json_extract(payload_json, '$.startedAt') IS NOT NULL
+        GROUP BY thread_id, work_started_at
+      `;
+
+    const workSessionsByThreadIdFromRows = (rows: ReadonlyArray<ShellRunWorkSessionRow>) => {
+      const sessionsByThreadId = new Map<ThreadId, Array<ShellWorkSession>>();
+      for (const row of rows) {
+        const threadId = ThreadId.make(row.thread_id);
+        const sessions = sessionsByThreadId.get(threadId) ?? [];
+        sessions.push({
+          workStartedAt: Date.parse(row.work_started_at),
+          completedAt: Date.parse(row.completed_at),
+        });
+        sessionsByThreadId.set(threadId, sessions);
+      }
+      return sessionsByThreadId;
+    };
+
     const selectShellRunItemCounts = (threadIds?: ReadonlyArray<ThreadId>) =>
       threadIds === undefined
         ? sql<ShellRunItemCountRow>`
@@ -6159,6 +6237,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
         readonly row: ShellThreadRow;
         readonly runOrdinalsByThreadId: ReadonlyMap<ThreadId, Map<RunId, number>>;
         readonly itemCountsByThreadId: ReadonlyMap<ThreadId, Map<RunId, number>>;
+        readonly workSessionsByThreadId: ReadonlyMap<ThreadId, ReadonlyArray<ShellWorkSession>>;
         readonly providerThreadsByThreadId: ReadonlyMap<
           ThreadId,
           ReadonlyArray<OrchestrationV2ThreadProjection["providerThreads"][number]>
@@ -6172,6 +6251,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
           row,
           runOrdinalsByThreadId,
           itemCountsByThreadId,
+          workSessionsByThreadId,
           providerThreadsByThreadId,
           pendingTurnItemsByThreadId,
         } = input;
@@ -6264,6 +6344,10 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
             row.activity_run_started_at === null
               ? null
               : DateTime.makeUnsafe(row.activity_run_started_at),
+          completedWorkMs: completedWorkMsForShell(
+            workSessionsByThreadId.get(thread.id) ?? [],
+            row.activity_run_started_at === null ? null : Date.parse(row.activity_run_started_at),
+          ),
           activityRunStatus:
             row.activity_run_status === "preparing" ||
             row.activity_run_status === "starting" ||
@@ -6335,33 +6419,41 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
         read: (ids: ReadonlyArray<ThreadId>) => Effect.Effect<ReadonlyArray<A>, unknown>,
         ids: ReadonlyArray<ThreadId> = threadIds,
       ) => (ids.length === 0 ? Effect.succeed([] as ReadonlyArray<A>) : read(ids));
-      const [runRows, itemCountRows, sequenceRows, providerThreadRows, pendingTurnItemRows] =
-        yield* Effect.all([
-          readForThreadIds(selectShellRunRows, forkSourceIds),
-          readForThreadIds(selectShellRunItemCounts, forkSourceIds),
-          sql<{ readonly snapshot_sequence: number | null }>`
+      const [
+        runRows,
+        itemCountRows,
+        workSessionRows,
+        sequenceRows,
+        providerThreadRows,
+        pendingTurnItemRows,
+      ] = yield* Effect.all([
+        readForThreadIds(selectShellRunRows, forkSourceIds),
+        readForThreadIds(selectShellRunItemCounts, forkSourceIds),
+        readForThreadIds(selectShellRunWorkSessionRows, [...targetThreadIds]),
+        sql<{ readonly snapshot_sequence: number | null }>`
         SELECT MAX(sequence) AS snapshot_sequence
         FROM orchestration_events
         WHERE application_event_version = 2
           AND aggregate_kind = 'thread'
       `,
-          readForThreadIds(selectShellProviderThreadRows),
-          readForThreadIds((ids) =>
-            selectShellPendingTurnItemRows(
-              ids,
-              threadRows.flatMap((row) =>
-                row.active_run_id !== null && row.active_run_status === "running"
-                  ? [row.active_run_id]
-                  : [],
-              ),
+        readForThreadIds(selectShellProviderThreadRows),
+        readForThreadIds((ids) =>
+          selectShellPendingTurnItemRows(
+            ids,
+            threadRows.flatMap((row) =>
+              row.active_run_id !== null && row.active_run_status === "running"
+                ? [row.active_run_id]
+                : [],
             ),
           ),
-        ]);
+        ),
+      ]);
       return {
         targetThreadIds,
         threadRows,
         runRows,
         itemCountRows,
+        workSessionRows,
         sequenceRows,
         providerThreadRows,
         pendingTurnItemRows,
@@ -6373,6 +6465,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       threadRows,
       runRows,
       itemCountRows,
+      workSessionRows,
       sequenceRows,
       providerThreadRows,
       pendingTurnItemRows,
@@ -6381,6 +6474,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
         runRows,
         itemCountRows,
       });
+      const workSessionsByThreadId = workSessionsByThreadIdFromRows(workSessionRows);
       const { providerThreadsByThreadId, pendingTurnItemsByThreadId } =
         yield* pendingBackgroundDataByThreadId({ providerThreadRows, pendingTurnItemRows });
       const states = yield* Effect.forEach(threadRows, (row) =>
@@ -6388,6 +6482,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
           row,
           runOrdinalsByThreadId,
           itemCountsByThreadId,
+          workSessionsByThreadId,
           providerThreadsByThreadId,
           pendingTurnItemsByThreadId,
         }),
@@ -6452,28 +6547,35 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
 
             const threadIds = [...rowsByThreadId.keys()];
             const forkSourceIds = shellForkSourceIds([...rowsByThreadId.values()]);
-            const [runRows, itemCountRows, providerThreadRows, pendingTurnItemRows] =
-              yield* Effect.all([
-                forkSourceIds.length === 0
-                  ? Effect.succeed([] as ReadonlyArray<ShellRunRow>)
-                  : selectShellRunRows(forkSourceIds),
-                forkSourceIds.length === 0
-                  ? Effect.succeed([] as ReadonlyArray<ShellRunItemCountRow>)
-                  : selectShellRunItemCounts(forkSourceIds),
-                selectShellProviderThreadRows(threadIds),
-                selectShellPendingTurnItemRows(
-                  threadIds,
-                  [...rowsByThreadId.values()].flatMap((row) =>
-                    row.active_run_id !== null && row.active_run_status === "running"
-                      ? [row.active_run_id]
-                      : [],
-                  ),
+            const [
+              runRows,
+              itemCountRows,
+              workSessionRows,
+              providerThreadRows,
+              pendingTurnItemRows,
+            ] = yield* Effect.all([
+              forkSourceIds.length === 0
+                ? Effect.succeed([] as ReadonlyArray<ShellRunRow>)
+                : selectShellRunRows(forkSourceIds),
+              forkSourceIds.length === 0
+                ? Effect.succeed([] as ReadonlyArray<ShellRunItemCountRow>)
+                : selectShellRunItemCounts(forkSourceIds),
+              selectShellRunWorkSessionRows([threadId]),
+              selectShellProviderThreadRows(threadIds),
+              selectShellPendingTurnItemRows(
+                threadIds,
+                [...rowsByThreadId.values()].flatMap((row) =>
+                  row.active_run_id !== null && row.active_run_status === "running"
+                    ? [row.active_run_id]
+                    : [],
                 ),
-              ]);
+              ),
+            ]);
             const { runOrdinalsByThreadId, itemCountsByThreadId } = runMapsByThreadId({
               runRows,
               itemCountRows,
             });
+            const workSessionsByThreadId = workSessionsByThreadIdFromRows(workSessionRows);
             const { providerThreadsByThreadId, pendingTurnItemsByThreadId } =
               yield* pendingBackgroundDataByThreadId({ providerThreadRows, pendingTurnItemRows });
 
@@ -6482,6 +6584,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
                 row,
                 runOrdinalsByThreadId,
                 itemCountsByThreadId,
+                workSessionsByThreadId,
                 providerThreadsByThreadId,
                 pendingTurnItemsByThreadId,
               }),

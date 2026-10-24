@@ -19,3 +19,14 @@ export function resolveThreadListDurationStartedAt(
   if (run?.startedAt == null || run.completedAt == null) return null;
   return Number.isFinite(Date.parse(run.completedAt)) ? run.completedAt : null;
 }
+
+export function resolveThreadTotalWorkMs(
+  thread: Pick<EnvironmentThreadShell, "completedWorkMs" | "latestRun" | "runtime">,
+  nowMs: number,
+): number | null {
+  if (thread.completedWorkMs === null) return null;
+  const workingStartedAt = resolveThreadWorkingStartedAt(thread);
+  return workingStartedAt === null
+    ? thread.completedWorkMs
+    : thread.completedWorkMs + Math.max(0, nowMs - Date.parse(workingStartedAt));
+}

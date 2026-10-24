@@ -28,6 +28,7 @@ import { resolveServerBackedAppStageLabel } from "../branding.logic";
 export {
   formatWorkingDurationLabel,
   resolveThreadListDurationStartedAt as resolveSidebarV2DurationStartedAt,
+  resolveThreadTotalWorkMs,
 } from "@supaterm/client-runtime/state/thread-timing";
 
 export function shouldNavigateAfterThreadPark(input: {
