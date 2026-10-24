@@ -13,6 +13,7 @@ import { expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
 
 const state = vi.hoisted(() => ({
+  prState: "open" as "open" | "closed" | "merged",
   status: "success" as PullRequestCheck["status"],
   extraStatus: null as PullRequestCheck["status"] | null,
   perform: vi.fn(),
@@ -40,7 +41,7 @@ const queryData = () => ({
   url: "https://github.com/owner/repo/pull/1",
   number: 1,
   title: "Test PR",
-  state: "open",
+  state: state.prState,
   isDraft: false,
   mergeability: "mergeable",
   headBranch: "feature",
@@ -141,6 +142,20 @@ it("requires a new merge click after passing checks become pending and pass agai
   await clickMerge(start + 1_000);
   expect(armed()).toBe(true);
   expect(state.perform).not.toHaveBeenCalled();
+});
+
+it("drops the checks control once the pull request merges with checks still pending", async () => {
+  await using screen = await setup();
+  const checksControl = () => screen.container.querySelector('[aria-label^="Open checks"]');
+
+  state.status = "pending";
+  await act(async () => await screen.rerender(renderRow()));
+  expect(checksControl()).not.toBeNull();
+  await act(async () => {
+    state.prState = "merged";
+    await screen.rerender(renderRow());
+  });
+  expect(checksControl()).toBeNull();
 });
 
 it("merges only on a deliberate second click", async () => {
@@ -257,6 +272,7 @@ async function setup() {
   state.addToast.mockReset().mockReturnValue("checkout-toast");
   state.updateToast.mockReset();
 
+  state.prState = "open";
   state.status = "success";
   state.extraStatus = null;
   const screen = await renderUi(null);
