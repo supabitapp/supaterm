@@ -780,12 +780,7 @@ export function collectUserMessageBlobPreviewUrls(message: ChatMessage): string[
 
 export { readFileAsDataUrl } from "../lib/imageCompression";
 
-export function resolveSendEnvMode(input: {
-  requestedEnvMode: DraftThreadEnvMode;
-  isGitRepo: boolean;
-}): DraftThreadEnvMode {
-  return input.isGitRepo ? input.requestedEnvMode : "local";
-}
+export { resolveSendEnvMode } from "@supaterm/shared/projectSettings";
 
 export function shouldRequireWorktreeBaseBranch(input: {
   shouldCreateWorktree: boolean;
