@@ -1,10 +1,15 @@
-import { resolveTranscriptCommit, type VoiceDraftSnapshot } from "./controller.ts";
+import {
+  resolveTranscriptCommit,
+  type VoiceDraftSnapshot,
+  type VoiceTranscriptEdit,
+} from "./controller.ts";
 
 export type ParkedInsertion =
   | {
       readonly kind: "commit";
       readonly text: string;
       readonly selection: { readonly start: number; readonly end: number };
+      readonly edit: VoiceTranscriptEdit;
     }
   | { readonly kind: "ready" }
   | { readonly kind: "empty" };

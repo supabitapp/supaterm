@@ -1,7 +1,4 @@
-import {
-  resolveThreadOutboxDispatchStep,
-  shouldRetryThreadOutboxDelivery,
-} from "@supaterm/client-runtime/thread-outbox";
+import { resolveThreadOutboxDispatchStep } from "@supaterm/client-runtime/thread-outbox";
 import { createBrowserThreadOutbox, type ThreadOutboxEntry } from "./threadOutboxDelivery";
 import { scopedThreadKey, scopeThreadRef } from "@supaterm/client-runtime/environment";
 import {
@@ -9,13 +6,7 @@ import {
   threadTitleTextFromPrompt,
   type StartThreadTurnInput,
 } from "@supaterm/client-runtime/operations";
-import type { DictationHiddenReason } from "@supaterm/client-runtime/state/dictation";
-import { DictationClipFailure } from "@supaterm/client-runtime/state/dictation-failure";
-import {
-  extractVoiceSlot,
-  spliceTranscriptAt,
-  VOICE_SLOT,
-} from "@supaterm/client-runtime/voice-input";
+import { resolveTranscriptCommit } from "@supaterm/client-runtime/voice-input";
 import { runAtomCommand, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import {
   runAttachmentUploadCycle,
@@ -44,16 +35,15 @@ import {
   restoreFailedBackgroundDraftThread,
   useComposerDraftStore,
 } from "../composerDraftStore";
-import { discardPendingClip, parkPendingClip } from "../dictation/pendingClips";
-import { transcribeDictationClip } from "../dictation/transcribeClip";
+import { recordingConsumers, webRecordingRunner } from "../dictation/pendingClipRunner";
+import { webRecordings } from "../dictation/pendingClips";
 import { attachmentEnvironment } from "./attachments";
-import { readDictationAvailability } from "./dictation";
 import { environmentPresentations } from "./presentation";
 import { environmentShell } from "./shell";
 import { environmentServerConfigsAtom } from "./server";
 import { directThreadEnvironment } from "./threadCommands";
 import { readPreparedConnection } from "./session";
-import { OutboxTurn, OutboxAttachment, OutboxTurnVoice } from "./threadOutboxSchema";
+import { OutboxTurn, OutboxAttachment, type OutboxTurnVoice } from "./threadOutboxSchema";
 import { browserThreadOutboxStorage } from "./threadOutboxStorage";
 import { randomUUID, newThreadId } from "../lib/utils";
 import { assetEnvironment } from "./assets";
@@ -149,73 +139,6 @@ export const threadOutboxDeliverableAtom = Atom.family((environmentId: Environme
   Atom.make((get) => isThreadOutboxDeliverable(environmentId, get)),
 );
 
-const DICTATION_UNAVAILABLE = {
-  disabled: "Dictation is turned off for this environment.",
-  unsupported: "This environment can't transcribe recordings.",
-  "no-capture": "This environment can't transcribe recordings.",
-  forbidden: "This connection can't use dictation.",
-  "no-source": "No transcription model is available.",
-} satisfies Record<Exclude<DictationHiddenReason, "unknown">, string>;
-
-function noSpeechDetected() {
-  return new DictationClipFailure("empty", "No speech was detected. Nothing was sent.");
-}
-
-async function transcribeOutboxVoice(
-  payload: OutboxTurn,
-  voice: typeof OutboxTurnVoice.Type,
-  signal: AbortSignal,
-) {
-  if (voice.bytes === null)
-    throw new DictationClipFailure("terminal", "The recording is no longer available.");
-  const environmentId = voice.transcriptionEnvironmentId;
-  const availability = readDictationAvailability(environmentId);
-  if (availability.kind === "hidden" && availability.reason !== "unknown")
-    throw new DictationClipFailure("terminal", DICTATION_UNAVAILABLE[availability.reason]);
-  const result = await transcribeDictationClip({
-    requestId: voice.clipId,
-    environmentId,
-    sourceId: voice.sourceId,
-    clip: {
-      blob: voice.bytes,
-      mimeType: voice.mimeType,
-      durationMs: voice.durationMs,
-      locale: voice.locale,
-    },
-    signal,
-  }).catch((error: unknown) => {
-    throw error instanceof DictationClipFailure && error.kind === "empty"
-      ? noSpeechDetected()
-      : error;
-  });
-  return result.text;
-}
-
-async function prepareOutboxVoice(payload: OutboxTurn, signal: AbortSignal): Promise<OutboxTurn> {
-  const { voice, ...turn } = payload;
-  if (!voice) return payload;
-  const transcript = voice.transcript ?? (await transcribeOutboxVoice(payload, voice, signal));
-  const { message, bootstrap } = turn.input;
-  const text = spliceTranscriptAt(message.text, voice.insertAt, transcript, voice.locale ?? "en");
-  if (text === null) throw noSpeechDetected();
-
-  const title =
-    threadTitleTextFromPrompt(message.text).length === 0
-      ? deriveThreadTitleSeed({ text, attachments: turn.localAttachments })
-      : null;
-  return {
-    ...turn,
-    input: {
-      ...turn.input,
-      message: { ...message, text },
-      ...(title !== null && turn.input.titleSeed !== undefined ? { titleSeed: title } : {}),
-      ...(title !== null && bootstrap?.createThread
-        ? { bootstrap: { ...bootstrap, createThread: { ...bootstrap.createThread, title } } }
-        : {}),
-    },
-  };
-}
-
 export const webThreadOutbox = createBrowserThreadOutbox<OutboxTurn>({
   storage: browserThreadOutboxStorage,
   registry: appAtomRegistry,
@@ -235,14 +158,10 @@ export const webThreadOutbox = createBrowserThreadOutbox<OutboxTurn>({
       snapshot.archivedThreads.some((thread) => thread.id === entry.payload.input.threadId)
     );
   },
+  // A voice message waits for its recording's transcript before it can be sent.
   canDeliver: (entry) =>
+    entry.payload.voice === undefined &&
     isThreadOutboxDeliverable(entry.payload.environmentId, (atom) => appAtomRegistry.get(atom)),
-  needsPreparation: (payload) => payload.voice !== undefined,
-  prepare: (entry, signal) => prepareOutboxVoice(entry.payload, signal),
-  shouldRetryPreparation: (error) =>
-    error instanceof DictationClipFailure
-      ? error.kind === "transient"
-      : shouldRetryThreadOutboxDelivery(error),
   deliver: async (entry, savePayload) => {
     if (entry.payload.voice)
       throw new Error("The voice message was not transcribed. Retry to transcribe it.");
@@ -391,12 +310,6 @@ export const webThreadOutbox = createBrowserThreadOutbox<OutboxTurn>({
   },
 });
 
-function titleWithoutVoiceSlot(title: string) {
-  return title.includes(VOICE_SLOT)
-    ? deriveThreadTitleSeed({ text: title.replaceAll(VOICE_SLOT, ""), attachments: [] })
-    : title;
-}
-
 function prepareThreadOutboxTurn(target: {
   readonly environmentId: EnvironmentId;
   readonly input: StartThreadTurnInput;
@@ -406,34 +319,18 @@ function prepareThreadOutboxTurn(target: {
   readonly draftId?: DraftId;
   readonly background?: boolean;
 
-  readonly voice?: Omit<typeof OutboxTurnVoice.Type, "insertAt">;
+  readonly voice?: typeof OutboxTurnVoice.Type;
 }) {
   const commandId = target.input.commandId ?? CommandId.make(randomUUID());
-  const { text, insertAt } = extractVoiceSlot(target.input.message.text);
-  const { titleSeed, bootstrap } = target.input;
-  const createThread = bootstrap?.createThread;
   const payload = decodeTurn({
     environmentId: target.environmentId,
-    input: {
-      ...target.input,
-      commandId,
-      message: { ...target.input.message, text },
-      ...(titleSeed === undefined ? {} : { titleSeed: titleWithoutVoiceSlot(titleSeed) }),
-      ...(createThread
-        ? {
-            bootstrap: {
-              ...bootstrap,
-              createThread: { ...createThread, title: titleWithoutVoiceSlot(createThread.title) },
-            },
-          }
-        : {}),
-    },
+    input: { ...target.input, commandId },
     localAttachments: target.localAttachments ?? [],
     ...(target.pendingWorktree ? { pendingWorktree: target.pendingWorktree } : {}),
     ...(target.branch === undefined ? {} : { branch: target.branch }),
     ...(target.draftId === undefined ? {} : { draftId: target.draftId }),
     ...(target.background === undefined ? {} : { background: target.background }),
-    ...(target.voice ? { voice: { ...target.voice, insertAt } } : {}),
+    ...(target.voice ? { voice: target.voice } : {}),
   });
   return {
     id: payload.input.message.messageId,
@@ -453,12 +350,96 @@ export function enqueueThreadOutboxTurns(
   return webThreadOutbox.enqueueMany(targets.map(prepareThreadOutboxTurn));
 }
 
+function queuedBehind(entry: PendingThreadTurn): ReadonlyArray<PendingThreadTurn> {
+  return webThreadOutbox
+    .getSnapshot()
+    .filter(
+      (candidate) =>
+        candidate.scope === entry.scope &&
+        candidate.id !== entry.id &&
+        candidate.createdAt.localeCompare(entry.createdAt) >= 0,
+    );
+}
+
 /** Cancelling a pending task also cancels the follow-ups queued behind it. */
 export async function cancelThreadOutboxTurn(entry: PendingThreadTurn) {
-  const cancelled = entry.payload.input.bootstrap?.createThread
+  const createsThread = entry.payload.input.bootstrap?.createThread !== undefined;
+  const cancelledEntries = createsThread ? [entry, ...queuedBehind(entry)] : [entry];
+  const cancelled = createsThread
     ? await webThreadOutbox.cancelWithFollowing(entry.id)
     : await webThreadOutbox.cancel(entry.id);
   if (!cancelled) throw new Error("Delivery has already started.");
+  for (const cancelledEntry of cancelledEntries) {
+    const { voice } = cancelledEntry.payload;
+    if (voice) await webRecordings.discard(voice.recordingId);
+  }
+}
+
+export function outboxRecordingOwnerKey(messageId: string): string {
+  return `${OUTBOX_RECORDING_OWNER_PREFIX}${messageId}`;
+}
+
+const OUTBOX_RECORDING_OWNER_PREFIX = "outbox:";
+
+function appendTranscript(text: string, transcript: string, locale: string): string | null {
+  const end = { start: text.length, end: text.length };
+  const draft = { ownerKey: "", text, selection: end, revision: 0 };
+  const result = resolveTranscriptCommit(draft, draft, transcript, locale);
+  return result.kind === "commit" ? result.text : null;
+}
+
+/** Completes a queued voice message with its transcript so it can be delivered. */
+async function applyOutboxTranscript(
+  messageId: string,
+  recordingId: string,
+  transcript: string,
+  locale: string,
+): Promise<boolean> {
+  await webThreadOutbox.load();
+  const entry = webThreadOutbox.getSnapshot().find((candidate) => candidate.id === messageId);
+  if (entry?.payload.voice?.recordingId !== recordingId) return false;
+  const { voice: _, ...turn } = entry.payload;
+  const { message, bootstrap } = turn.input;
+  const text = appendTranscript(message.text, transcript, locale);
+  if (text === null) return false;
+  const title =
+    threadTitleTextFromPrompt(message.text).length === 0
+      ? deriveThreadTitleSeed({ text, attachments: turn.localAttachments })
+      : null;
+  const completed = decodeTurn({
+    ...turn,
+    input: {
+      ...turn.input,
+      message: { ...message, text },
+      ...(title !== null && turn.input.titleSeed !== undefined ? { titleSeed: title } : {}),
+      ...(title !== null && bootstrap?.createThread
+        ? { bootstrap: { ...bootstrap, createThread: { ...bootstrap.createThread, title } } }
+        : {}),
+    },
+  });
+  if (!(await webThreadOutbox.edit(entry.id, completed))) return false;
+  void webThreadOutbox.drain();
+  return true;
+}
+
+recordingConsumers.registerPrefix(OUTBOX_RECORDING_OWNER_PREFIX, (recording, transcript) =>
+  applyOutboxTranscript(
+    recording.ownerKey.slice(OUTBOX_RECORDING_OWNER_PREFIX.length),
+    recording.id,
+    transcript,
+    recording.locale,
+  ),
+);
+
+/** The recording a queued voice message is waiting on, for its status in the queue. */
+export function threadOutboxRecording(entry: PendingThreadTurn) {
+  const recordingId = entry.payload.voice?.recordingId;
+  return recordingId === undefined ? null : webRecordings.get(recordingId);
+}
+
+export function retryThreadOutboxRecording(entry: PendingThreadTurn) {
+  const recordingId = entry.payload.voice?.recordingId;
+  if (recordingId !== undefined) void webRecordingRunner.retry(recordingId);
 }
 
 export function threadOutboxComposerTarget(entry: PendingThreadTurn) {
@@ -467,15 +448,16 @@ export function threadOutboxComposerTarget(entry: PendingThreadTurn) {
   return scopeThreadRef(entry.payload.environmentId, entry.payload.input.threadId);
 }
 
-// The composer can take back text and a recording, but not the queued files or
-// message context, so those messages only offer Cancel.
+// The composer takes back text and the recording, but not queued files, message
+// context, or the follow-ups a new task's cancellation would remove with it.
 export function canMoveThreadOutboxTurnToComposer(entry: PendingThreadTurn): boolean {
   const { input, localAttachments } = entry.payload;
   return (
     threadOutboxComposerTarget(entry) !== null &&
     localAttachments.length === 0 &&
     input.message.attachments.length === 0 &&
-    input.message.context === undefined
+    input.message.context === undefined &&
+    (input.bootstrap?.createThread === undefined || queuedBehind(entry).length === 0)
   );
 }
 
@@ -485,32 +467,12 @@ export async function moveThreadOutboxTurnToComposer(entry: PendingThreadTurn) {
     throw new Error("This message can't move back to the composer.");
   }
   const { payload } = entry;
-  const { voice } = payload;
-  // The queued entry owns the audio until the composer's copy is on disk.
-  const parked = voice?.bytes
-    ? await parkPendingClip({
-        ownerKey: composerTargetKey(target),
-        environmentId: voice.transcriptionEnvironmentId,
-        sourceId: voice.sourceId,
-        blob: voice.bytes,
-        mimeType: voice.mimeType,
-        durationMs: voice.durationMs,
-        locale: voice.locale,
-        capturedDraft: null,
-        ...(voice.transcript === undefined
-          ? { status: "waiting" as const }
-          : { status: "ready" as const, transcript: voice.transcript }),
-      })
-    : null;
-  if (parked && !parked.persisted) {
-    await discardPendingClip(parked.id);
-    throw new Error("The recording couldn't be saved on this device, so it stays queued.");
-  }
-  try {
-    await cancelThreadOutboxTurn(entry);
-  } catch (error) {
-    if (parked) await discardPendingClip(parked.id);
-    throw error;
+  const cancelled = payload.input.bootstrap?.createThread
+    ? await webThreadOutbox.cancelWithFollowing(entry.id)
+    : await webThreadOutbox.cancel(entry.id);
+  if (!cancelled) throw new Error("Delivery has already started.");
+  if (payload.voice) {
+    await webRecordings.update(payload.voice.recordingId, { ownerKey: composerTargetKey(target) });
   }
   const typed = payload.input.message.text.trim();
   if (typed.length > 0) {

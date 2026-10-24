@@ -1,8 +1,4 @@
-import type {
-  VoiceRecorder,
-  VoiceRecorderStatus,
-  VoiceRecordingDescription,
-} from "@supaterm/client-runtime/voice-input";
+import type { VoiceRecorder, VoiceRecorderStatus } from "@supaterm/client-runtime/voice-input";
 
 const MIME_TYPE_CANDIDATES = [
   "audio/webm;codecs=opus",
@@ -30,22 +26,16 @@ function preferredMimeType(): string | undefined {
   return MIME_TYPE_CANDIDATES.find((type) => MediaRecorder.isTypeSupported(type));
 }
 
-interface RecordedClip extends VoiceRecordingDescription {
+interface RecordedClip {
   readonly blob: Blob;
+  readonly mimeType: string;
+  readonly durationMs: number;
 }
 
 const recordings = new Map<string, RecordedClip>();
 
 export function readRecording(uri: string): RecordedClip | null {
   return recordings.get(uri) ?? null;
-}
-
-export function describeRecording(uri: string): VoiceRecordingDescription {
-  const recording = recordings.get(uri);
-  return {
-    mimeType: recording?.mimeType ?? "audio/webm",
-    durationMs: recording?.durationMs ?? 0,
-  };
 }
 
 export function releaseRecording(uri: string): void {

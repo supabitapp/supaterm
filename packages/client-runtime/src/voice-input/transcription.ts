@@ -6,12 +6,23 @@ export type VoiceTranscriptionOptions = {
 };
 
 export type VoiceTranscribeOptions = VoiceTranscriptionOptions & {
-  readonly capturedDraft?: VoiceDraftSnapshot;
+  readonly capturedDraft: VoiceDraftSnapshot;
 };
+
+/**
+ * A transcriber either returns text for the controller to insert, or reports that it saved the
+ * recording, which moves ownership of the audio out of the controller.
+ */
+export type VoiceTranscriptionResult =
+  | { readonly kind: "transcript"; readonly text: string }
+  | { readonly kind: "saved"; readonly recordingId: string };
 
 export type PreparedVoiceTranscription = {
   readonly locale: string;
-  readonly transcribe: (uri: string, options: VoiceTranscribeOptions) => Promise<string>;
+  readonly transcribe: (
+    uri: string,
+    options: VoiceTranscribeOptions,
+  ) => Promise<VoiceTranscriptionResult>;
 };
 
 export type VoiceTranscriber = {
@@ -19,7 +30,6 @@ export type VoiceTranscriber = {
 };
 
 export type VoiceTranscriptionErrorCode =
-  | "deferred"
   | "unavailable"
   | "unsupported-locale"
   | "preparation-failed"

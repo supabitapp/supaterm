@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import { Atom, AtomRegistry } from "effect/reactivity";
 
 import { resetVoiceInputGlobalsForTests } from "./controller.ts";
-import { createVoiceInputTarget, VoiceInputSession, type VoiceInputTarget } from "./session.ts";
+import { VoiceInputSession, type VoiceInputTarget } from "./session.ts";
 import type { PreparedVoiceTranscription } from "./transcription.ts";
 
 function createTarget(
@@ -11,7 +10,15 @@ function createTarget(
   commit: VoiceInputTarget["commitDraft"],
   selection: { start: number; end: number },
 ) {
-  return createVoiceInputTarget(ownerKey, readText, commit, selection, () => () => {});
+  return {
+    ownerKey,
+    readDraft: () => {
+      const text = readText();
+      return text === null ? null : { ownerKey, text, selection, revision: 0 };
+    },
+    commitDraft: commit,
+    subscribe: () => () => {},
+  } satisfies VoiceInputTarget;
 }
 
 function createSession() {
@@ -23,7 +30,7 @@ function createSession() {
   };
   const prepare = vi.fn(async (): Promise<PreparedVoiceTranscription> => ({
     locale: "en-US",
-    transcribe: async () => "spoken text",
+    transcribe: async () => ({ kind: "transcript", text: "spoken text" }),
   }));
   const session = new VoiceInputSession({
     recorder,
@@ -53,10 +60,14 @@ describe("global voice input", () => {
         createTarget("second", () => "other prompt", vi.fn(), { start: 12, end: 12 }),
       );
       await session.controller.stop();
-      expect(commit).toHaveBeenCalledWith(expected, {
-        start: cursor,
-        end: cursor,
-      });
+      expect(commit).toHaveBeenCalledWith(
+        expected,
+        {
+          start: cursor,
+          end: cursor,
+        },
+        expect.any(Object),
+      );
     },
   );
 
@@ -104,13 +115,13 @@ describe("global voice input", () => {
         createTarget("first", () => "first", firstCommit, { start: 5, end: 5 }),
       );
       await preparationEntered.promise;
-      let stopping: Promise<void> | null = null;
+      let stopping: Promise<unknown> | null = null;
       if (phase !== "preparing") {
         preparation.resolve({
           locale: "en-US",
           transcribe: () => {
             transcriptionEntered.resolve();
-            return transcription.promise;
+            return transcription.promise.then((text) => ({ kind: "transcript", text }));
           },
         });
         await starting;
@@ -125,12 +136,19 @@ describe("global voice input", () => {
       expect(session.ownerKey).toBe("first");
       expect(session.controller.currentState.phase).toBe(phase);
       expect(prepare).toHaveBeenCalledTimes(1);
-      preparation.resolve({ locale: "en-US", transcribe: async () => "spoken text" });
+      preparation.resolve({
+        locale: "en-US",
+        transcribe: async () => ({ kind: "transcript", text: "spoken text" }),
+      });
       await starting;
       transcription.resolve("spoken text");
       await (stopping ?? session.controller.stop());
       expect(recorder.record).toHaveBeenCalledTimes(1);
-      expect(firstCommit).toHaveBeenCalledWith("first spoken text", { start: 17, end: 17 });
+      expect(firstCommit).toHaveBeenCalledWith(
+        "first spoken text",
+        { start: 17, end: 17 },
+        expect.any(Object),
+      );
       expect(secondCommit).not.toHaveBeenCalled();
     },
   );
@@ -159,37 +177,12 @@ describe("global voice input", () => {
       error: null,
       url: recorder.uri,
     });
-    expect(commit).toHaveBeenCalledWith("first spoken text", { start: 17, end: 17 });
-    expect(session.controller.currentState.phase).toBe("idle");
-  });
-
-  it("rejects a transcript when its off-screen draft changes and returns to the original text", async () => {
-    const registry = AtomRegistry.make();
-    const draft = Atom.make("hello world");
-    const unsubscribe = vi.fn();
-    const { session } = createSession();
-    const commit = vi.fn();
-    const target = createVoiceInputTarget(
-      "first",
-      () => registry.get(draft),
-      commit,
-      { start: 6, end: 6 },
-      (onChange) => {
-        const stop = registry.subscribe(draft, onChange);
-        return () => {
-          stop();
-          unsubscribe();
-        };
-      },
+    expect(commit).toHaveBeenCalledWith(
+      "first spoken text",
+      { start: 17, end: 17 },
+      expect.any(Object),
     );
-    await session.start(target);
-    registry.set(draft, "changed");
-    registry.set(draft, "hello world");
-    await session.controller.stop();
-    expect(commit).not.toHaveBeenCalled();
-    expect(session.controller.currentState.error).toContain("draft changed");
-    expect(unsubscribe).toHaveBeenCalledTimes(1);
-    registry.dispose();
+    expect(session.controller.currentState.phase).toBe("idle");
   });
 
   it("stops recording when its queued edit is discarded", async () => {
@@ -216,9 +209,10 @@ describe("global voice input", () => {
       const { session } = createSession();
       const unsubscribe = vi.fn();
       const subscribe = vi.fn(() => unsubscribe);
-      await session.start(
-        createVoiceInputTarget("first", () => "first", vi.fn(), { start: 5, end: 5 }, subscribe),
-      );
+      await session.start({
+        ...createTarget("first", () => "first", vi.fn(), { start: 5, end: 5 }),
+        subscribe,
+      });
       expect(subscribe).toHaveBeenCalledTimes(1);
       if (finish === "complete") await session.controller.stop();
       else session.cancel("first");
@@ -234,7 +228,11 @@ describe("global voice input", () => {
     expect(recorder.stop).not.toHaveBeenCalled();
     expect(session.controller.currentState.phase).toBe("recording");
     await session.controller.stop();
-    expect(commit).toHaveBeenCalledWith("hello spoken text", { start: 17, end: 17 });
+    expect(commit).toHaveBeenCalledWith(
+      "hello spoken text",
+      { start: 17, end: 17 },
+      expect.any(Object),
+    );
   });
 
   it("waits for canceled native work before starting a recording for another draft", async () => {
@@ -257,12 +255,19 @@ describe("global voice input", () => {
     );
     expect(prepare).toHaveBeenCalledTimes(1);
     expect(recorder.record).not.toHaveBeenCalled();
-    preparation.resolve({ locale: "en-US", transcribe: async () => "old transcript" });
+    preparation.resolve({
+      locale: "en-US",
+      transcribe: async () => ({ kind: "transcript", text: "old transcript" }),
+    });
     await firstStart;
     await nextStart;
     await session.controller.stop();
     expect(recorder.record).toHaveBeenCalledTimes(1);
     expect(oldCommit).not.toHaveBeenCalled();
-    expect(nextCommit).toHaveBeenCalledWith("second spoken text", { start: 18, end: 18 });
+    expect(nextCommit).toHaveBeenCalledWith(
+      "second spoken text",
+      { start: 18, end: 18 },
+      expect.any(Object),
+    );
   });
 });

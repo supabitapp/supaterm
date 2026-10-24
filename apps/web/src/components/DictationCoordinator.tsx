@@ -1,27 +1,24 @@
 import { useAtomValue } from "@effect/atom-react";
+import type { EnvironmentId } from "@supaterm/contracts";
 import * as Option from "effect/Option";
 import { Atom } from "effect/reactivity";
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect } from "react";
 
-import { isPendingClipRunning, transcribePendingClip } from "../dictation/pendingClipRunner";
-import {
-  getPendingClips,
-  loadPendingClips,
-  subscribePendingClips,
-} from "../dictation/pendingClips";
+import { webRecordingRunner } from "../dictation/pendingClipRunner";
+import { useAllPendingClips, webRecordings } from "../dictation/pendingClips";
 import { dictationAvailability } from "../state/dictation";
 import { environmentPresentations } from "../state/presentation";
 import { threadOutboxDeliverableAtom } from "../state/threadOutbox";
 
-const dictationReadyAtom = Atom.make((get): ReadonlySet<string> => {
-  const ready = new Set<string>();
+const dictationReadyAtom = Atom.make((get): ReadonlySet<EnvironmentId> => {
+  const ready = new Set<EnvironmentId>();
   for (const environmentId of get(environmentPresentations.presentationsAtom).keys()) {
     const offered = get(dictationAvailability.environmentStateAtom(environmentId)).status;
     if (offered === "offered" && get(threadOutboxDeliverableAtom(environmentId))) {
       ready.add(environmentId);
     }
   }
-  const previous = Option.getOrNull(get.self<ReadonlySet<string>>());
+  const previous = Option.getOrNull(get.self<ReadonlySet<EnvironmentId>>());
   return previous !== null &&
     previous.size === ready.size &&
     [...ready].every((environmentId) => previous.has(environmentId))
@@ -29,45 +26,27 @@ const dictationReadyAtom = Atom.make((get): ReadonlySet<string> => {
     : ready;
 });
 
+/** Transcribes saved recordings whenever their environment can take them. */
 export function DictationCoordinator() {
   const ready = useAtomValue(dictationReadyAtom);
-  const clips = useSyncExternalStore(subscribePendingClips, getPendingClips);
+  const recordings = useAllPendingClips();
   useEffect(() => {
-    void loadPendingClips();
+    void webRecordings.load();
   }, []);
   useEffect(() => {
-    let nextRetryAt = Number.POSITIVE_INFINITY;
-    const now = Date.now();
-    for (const clip of clips) {
-      if (
-        (clip.status !== "waiting" && clip.status !== "transcribing") ||
-        !ready.has(clip.environmentId)
-      )
-        continue;
-      if (isPendingClipRunning(clip.id)) continue;
-      if (clip.retryAt > now) {
-        nextRetryAt = Math.min(nextRetryAt, clip.retryAt);
-        continue;
+    let timer: number | undefined;
+    const run = () => {
+      const { due, nextRetryAt } = webRecordingRunner.plan(ready);
+      for (const id of due) void webRecordingRunner.run(id);
+      for (const recording of recordings) {
+        if (recording.status === "ready") void webRecordingRunner.offer(recording.id);
       }
-      void transcribePendingClip(clip.id);
-    }
-    if (!Number.isFinite(nextRetryAt)) return;
-    const timer = window.setTimeout(
-      () => {
-        for (const clip of getPendingClips()) {
-          if (
-            (clip.status === "waiting" || clip.status === "transcribing") &&
-            clip.retryAt <= Date.now() &&
-            ready.has(clip.environmentId) &&
-            !isPendingClipRunning(clip.id)
-          ) {
-            void transcribePendingClip(clip.id);
-          }
-        }
-      },
-      Math.max(0, nextRetryAt - now),
-    );
+      if (nextRetryAt !== null) {
+        timer = window.setTimeout(run, Math.max(0, nextRetryAt - Date.now()));
+      }
+    };
+    run();
     return () => window.clearTimeout(timer);
-  }, [clips, ready]);
+  }, [recordings, ready]);
   return null;
 }

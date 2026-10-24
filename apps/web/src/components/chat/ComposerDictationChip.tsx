@@ -2,13 +2,8 @@ import { useAtomValue } from "@effect/atom-react";
 import { CopyIcon, MicIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 
-import { isPendingClipRunning, transcribePendingClip } from "~/dictation/pendingClipRunner";
-import {
-  discardPendingClip,
-  retrySavingPendingClip,
-  updatePendingClip,
-  type PendingClip,
-} from "~/dictation/pendingClips";
+import { webRecordingRunner } from "~/dictation/pendingClipRunner";
+import { webRecordings, type PendingClip } from "~/dictation/pendingClips";
 import { threadOutboxDeliverableAtom } from "~/state/threadOutbox";
 import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
@@ -46,12 +41,20 @@ export function ComposerDictationChip(props: {
   const transcript = clip.status === "ready" ? clip.transcript : null;
 
   const retry = () => {
-    updatePendingClip(clip.id, { status: "waiting", error: null, retryAt: 0 });
-    if (connected && !isPendingClipRunning(clip.id)) void transcribePendingClip(clip.id);
+    void webRecordingRunner.retry(clip.id);
+  };
+  const discard = async () => {
+    if (!(await webRecordings.discard(clip.id))) {
+      toastManager.add({
+        type: "error",
+        title: "Couldn't discard the recording",
+        description: "This browser refused to delete it. Try again.",
+      });
+    }
   };
   const retrySaving = async () => {
     setSaving(true);
-    const saved = await retrySavingPendingClip(clip.id);
+    const saved = await webRecordings.retrySave(clip.id);
     setSaving(false);
     if (!saved) {
       toastManager.add({
@@ -62,7 +65,7 @@ export function ComposerDictationChip(props: {
     }
   };
   const insert = () => {
-    if (transcript !== null && props.onInsert(transcript)) void discardPendingClip(clip.id);
+    if (transcript !== null && props.onInsert(transcript)) void webRecordings.discard(clip.id);
   };
   const copy = async () => {
     if (transcript === null) return;
@@ -135,7 +138,7 @@ export function ComposerDictationChip(props: {
         size="icon-xs"
         variant="ghost"
         aria-label="Discard voice recording"
-        onClick={() => void discardPendingClip(clip.id)}
+        onClick={() => void discard()}
       >
         <XIcon />
       </Button>

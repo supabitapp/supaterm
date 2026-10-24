@@ -5,35 +5,28 @@ import {
   voiceInputBlocksSubmission,
   type VoiceDraftSnapshot,
   type VoiceInputState,
-  type VoiceRecordingHandoff,
+  type VoiceTranscriptEdit,
 } from "@supaterm/client-runtime/voice-input";
-import type { DictationSourceId, EnvironmentId } from "@supaterm/contracts";
+import type { DictationSourceId, EnvironmentId, MessageId } from "@supaterm/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useState } from "react";
 
 import { useStableCallback } from "../hooks/useStableCallback";
+import { newMessageId } from "../lib/utils";
 import { useDictationRoute } from "../state/dictation";
-import { threadOutboxDeliverableAtom } from "../state/threadOutbox";
+import { outboxRecordingOwnerKey, threadOutboxDeliverableAtom } from "../state/threadOutbox";
 import { registerDictationComposer } from "./pendingClipRunner";
-import { parkPendingClip } from "./pendingClips";
+import { webRecordings } from "./pendingClips";
 import { createServerVoiceTranscriber } from "./serverVoiceTranscriber";
-import type { DictationClip } from "./transcribeClip";
-import {
-  WebVoiceRecorder,
-  describeRecording,
-  readRecording,
-  releaseRecording,
-} from "./webVoiceRecorder";
+import { WebVoiceRecorder, releaseRecording } from "./webVoiceRecorder";
 
 const IDLE_STATE: VoiceInputState = { phase: "idle", error: null, errorAction: null };
 
+/** A saved recording that a queued message will be transcribed from before it is delivered. */
 export interface ComposerVoiceMessage {
-  readonly clip: DictationClip;
-
-  readonly selection: { readonly start: number; readonly end: number };
-  readonly environmentId: EnvironmentId;
-  readonly sourceId: DictationSourceId;
-  readonly capturedAt: string;
+  readonly messageId: MessageId;
+  readonly recordingId: string;
+  readonly durationMs: number;
 }
 
 export interface ComposerDictationOptions {
@@ -41,10 +34,7 @@ export interface ComposerDictationOptions {
   readonly environmentId: EnvironmentId;
   readonly readPrompt: () => string;
   readonly readSelection: () => { readonly start: number; readonly end: number };
-  readonly commitPrompt: (
-    text: string,
-    selection: { readonly start: number; readonly end: number },
-  ) => boolean;
+  readonly commitPrompt: (edit: VoiceTranscriptEdit) => boolean;
 
   readonly canSendVoice: boolean;
 
@@ -59,27 +49,7 @@ interface LatestDictationInput {
 interface RecordingContext {
   readonly environmentId: EnvironmentId;
   readonly sourceId: DictationSourceId;
-}
-
-async function parkHandoff(
-  handoff: VoiceRecordingHandoff,
-  context: RecordingContext,
-  failure: { readonly status: "waiting" | "failed"; readonly error: string | null },
-): Promise<void> {
-  const recording = readRecording(handoff.uri);
-  releaseRecording(handoff.uri);
-  if (!recording) return;
-  await parkPendingClip({
-    ownerKey: handoff.capturedDraft.ownerKey,
-    environmentId: context.environmentId,
-    sourceId: context.sourceId,
-    blob: recording.blob,
-    mimeType: recording.mimeType,
-    durationMs: recording.durationMs,
-    locale: handoff.locale,
-    capturedDraft: handoff.capturedDraft,
-    ...failure,
-  });
+  ownerKey: string | null;
 }
 
 function createDictationRuntime(onStateChange: (state: VoiceInputState) => void) {
@@ -106,13 +76,15 @@ function createDictationRuntime(onStateChange: (state: VoiceInputState) => void)
   const session: VoiceInputSession = new VoiceInputSession({
     recorder,
     getTranscriber: () => {
-      return context === null ? null : createServerVoiceTranscriber(context);
+      const current = context;
+      return current === null
+        ? null
+        : createServerVoiceTranscriber({ ...current, ownerKey: () => current.ownerKey });
     },
     requestPermission: () => recorder.requestPermission(),
     configureRecording: async () => undefined,
     releaseRecording: async () => recorder.release(),
     deleteRecording: releaseRecording,
-    describeRecording,
     onStateChange: (state) => {
       if (state.phase === "idle" || state.phase === "error") recorder.releaseIfUnused();
       onStateChange(state);
@@ -121,39 +93,34 @@ function createDictationRuntime(onStateChange: (state: VoiceInputState) => void)
   const target = () => ({
     ownerKey: read().options.ownerKey,
     readDraft,
-    commitDraft: (text: string, selection: { readonly start: number; readonly end: number }) => {
-      read().options.commitPrompt(text, selection);
+    commitDraft: (
+      _text: string,
+      _selection: { readonly start: number; readonly end: number },
+      edit: VoiceTranscriptEdit,
+    ) => {
+      read().options.commitPrompt(edit);
     },
     subscribe: () => () => undefined,
   });
-  const take = async () => {
-    const recordingContext = context;
-    const handoff = await session.controller.takeRecording();
-    return handoff && recordingContext ? { handoff, context: recordingContext } : null;
-  };
-  const park = async (failure: {
-    readonly status: "waiting" | "failed";
-    readonly error: string | null;
-  }) => {
-    const taken = await take();
-    if (taken) await parkHandoff(taken.handoff, taken.context, failure);
-  };
   return {
     session,
     recorder,
     readDraft,
     read,
+    context: () => context,
     setInput: (next: LatestDictationInput) => {
       input = next;
     },
     start: () => {
       const { availability } = read();
       if (availability.kind !== "available") return Promise.resolve();
-      context = { environmentId: availability.environmentId, sourceId: availability.source.id };
+      context = {
+        environmentId: availability.environmentId,
+        sourceId: availability.source.id,
+        ownerKey: null,
+      };
       return session.start(target());
     },
-    take,
-    park,
   };
 }
 
@@ -176,18 +143,20 @@ export function useComposerDictation(options: ComposerDictationOptions) {
   useEffect(() => {
     const unregister = registerDictationComposer(ownerKey, {
       readDraft: () => (runtime.read().options.ownerKey === ownerKey ? runtime.readDraft() : null),
-      commitDraft: (text, selection) =>
+      commitDraft: (_text, _selection, edit) =>
         runtime.read().options.ownerKey === ownerKey &&
         !voiceInputBlocksSubmission(runtime.session.controller.currentState) &&
-        runtime.read().options.commitPrompt(text, selection),
+        runtime.read().options.commitPrompt(edit),
     });
-    return () => {
-      unregister();
-
-      void runtime.park({ status: "waiting", error: null });
-    };
+    return unregister;
   }, [ownerKey, runtime]);
-  useEffect(() => () => runtime.session.controller.dispose(), [runtime]);
+  // Stopping saves a recording that is still running, so leaving the composer keeps it.
+  useEffect(
+    () => () => {
+      void runtime.session.stop().finally(() => runtime.session.controller.dispose());
+    },
+    [runtime],
+  );
 
   const capturing = state.phase === "preparing" || state.phase === "recording";
   useEffect(() => {
@@ -209,48 +178,31 @@ export function useComposerDictation(options: ComposerDictationOptions) {
     void runtime.session.stop();
   });
   const cancel = useStableCallback(() => {
-    if (runtime.session.controller.currentState.phase === "transcribing") {
-      void runtime.park({ status: "failed", error: "Transcription was cancelled." });
-      return;
-    }
     runtime.session.controller.cancel();
   });
   const transcribeAndSend = useStableCallback(async () => {
-    if (runtime.session.controller.currentState.phase !== "recording") return;
+    const context = runtime.context();
+    if (runtime.session.controller.currentState.phase !== "recording" || context === null) return;
     if (!runtime.read().options.canSendVoice) {
       void runtime.session.stop();
       return;
     }
-    const taken = await runtime.take();
-    if (!taken) return;
-    const { handoff } = taken;
-    const recording = readRecording(handoff.uri);
-    const current = runtime.readDraft();
-    const unchanged =
-      current.ownerKey === handoff.capturedDraft.ownerKey &&
-      current.text === handoff.capturedDraft.text;
-    const input = runtime.read();
+    const messageId = newMessageId();
+    context.ownerKey = outboxRecordingOwnerKey(messageId);
+    const outcome = await runtime.session.stop();
+    if (outcome.kind !== "saved") return;
+    const recording = webRecordings.get(outcome.recordingId);
+    const { options } = runtime.read();
     const sent =
       recording !== null &&
-      unchanged &&
-      input.options.canSendVoice &&
-      (await input.options.sendVoice({
-        clip: {
-          blob: recording.blob,
-          mimeType: recording.mimeType,
-          durationMs: recording.durationMs,
-          locale: handoff.locale,
-        },
-        selection: handoff.capturedDraft.selection,
-        environmentId: taken.context.environmentId,
-        sourceId: taken.context.sourceId,
-        capturedAt: new Date().toISOString(),
+      options.canSendVoice &&
+      recording.capturedDraft?.text === runtime.readDraft().text &&
+      (await options.sendVoice({
+        messageId,
+        recordingId: outcome.recordingId,
+        durationMs: recording.durationMs,
       }));
-    if (sent) {
-      releaseRecording(handoff.uri);
-      return;
-    }
-    await parkHandoff(handoff, taken.context, { status: "waiting", error: null });
+    if (!sent) await webRecordings.update(outcome.recordingId, { ownerKey: options.ownerKey });
   });
   const openSetup = useStableCallback(() => {
     const current = runtime.read().availability;

@@ -1,10 +1,4 @@
-import {
-  CommandId,
-  DictationSourceId,
-  EnvironmentId,
-  MessageId,
-  ThreadId,
-} from "@supaterm/contracts";
+import { CommandId, EnvironmentId, MessageId, ThreadId } from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
 import { describe, expect, it } from "vite-plus/test";
 
@@ -102,25 +96,14 @@ describe("stored thread outbox compatibility", () => {
   });
 
   it("marks only voice messages with the version older tabs refuse to read", async () => {
-    const voice = {
-      clipId: "clip",
-      bytes: new Blob(["audio"], { type: "audio/webm" }),
-      mimeType: "audio/webm",
-      durationMs: 1_500,
-      locale: "en-US",
-      insertAt: 4,
-      capturedAt: "2026-10-09T00:00:00Z",
-      sourceId: DictationSourceId.make("codex:codex"),
-      transcriptionEnvironmentId: EnvironmentId.make("environment"),
-    };
+    const voice = { recordingId: "recording", durationMs: 1_500 };
     const saved = encodeStoredOutboxEntry({
       ...queuedWorktree(),
       payload: { ...queuedWorktree().payload, voice },
     });
     expect(saved.schemaVersion).toBe(3);
     const restored = decodeStored(saved);
-    expect(restored.payload.voice).toMatchObject({ clipId: "clip", insertAt: 4 });
-    expect(await restored.payload.voice?.bytes?.text()).toBe("audio");
+    expect(restored.payload.voice).toEqual(voice);
     expect(() => decodePreviousBuild(saved)).toThrow();
     expect(decodePreviousBuild({ ...saved, schemaVersion: 2 }).payload).not.toHaveProperty("voice");
     expect(encodeStoredOutboxEntry(queuedWorktree()).schemaVersion).toBe(2);

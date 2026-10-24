@@ -43,28 +43,32 @@ therefore requires implementations to settle only after their work has stopped;
 the [Apple binding](../../apps/mobile/src/native/voiceTranscription.ios.ts) checks
 cancellation between native calls and discards late results.
 
-## Recordings that outlive the controller
+## Saved recordings
 
-A recording must survive going offline, a failed upload, and leaving the
-draft. The controller can hand a clip off instead of deleting it:
-`takeRecording()` stops capture without transcribing, and a transcriber that
-throws `deferred` has adopted the clip. Either way the URI leaves the controller's
-deletion set, and a handed-off URI is never collected again even while the
-recorder still reports it. The web composer keeps adopted clips as
-[pending clips](../../apps/web/src/dictation/pendingClips.ts) in IndexedDB. A clip
-transcribed later is inserted only when the draft's owner, text and revision are
-unchanged since capture; otherwise it waits for an explicit insert. Clips
-recovered after a reload always wait.
+Server transcription always saves the recording before anything is uploaded:
+the transcriber stores it and returns `saved`, which moves the audio out of the
+controller, and the
+[saved-recordings runner](../../packages/client-runtime/src/voice-input/savedRecordings.ts)
+transcribes it from storage. A closed tab, a suspended phone, or a dropped
+connection therefore never loses audio, and offline is just a recording waiting
+for its environment. Storage writes happen before state changes are shown; when
+storage refuses a recording it stays in memory, marked unsaved, rather than being
+deleted. Web keeps recordings in IndexedDB and mobile in the app's documents
+directory, behind the same storage interface.
+
+Each recording has an owner. A finished transcript goes to the owner's consumer:
+a composer inserts it only when the draft's owner, text and revision are
+unchanged since capture, otherwise it waits for an explicit Insert, and
+recordings restored after a reload always wait. The on-device Apple route still
+transcribes inside the controller.
 
 ## Queued voice messages
 
-"Transcribe and send" queues an outbox turn that still carries the audio. The
-transcript's position travels through the normal send path as a private-use
-[slot character](../../packages/client-runtime/src/voice-input/voiceSlot.ts), so
-prompt formatting cannot shift it. Before delivery, the outbox prepares such an
-entry: it transcribes without holding the message lock, then commits the spliced
-text under the lock only if the entry's revision is unchanged, so Cancel and Move
-to composer stay available and a late result from another tab is dropped. Only
-then does delivery start. Entries with audio are stored as schema version 3,
-which older builds refuse to load, so they can never send the typed text
-without its transcript.
+"Transcribe and send" saves the recording under the queued message's owner and
+queues the message with a reference to it. The outbox does not deliver a message
+that still references a recording. When the transcript arrives, the outbox
+appends it to the message through its revision-checked edit, which also makes the
+message deliverable. Cancelling the message discards the recording, and Move to
+composer hands the recording back to the composer. Entries that reference a
+recording are stored as schema version 3, which older builds refuse to load, so
+they never send the typed text without its transcript.

@@ -49,7 +49,7 @@ function transcribe(signal = new AbortController().signal) {
     requestId: "recording-1",
     environmentId: ENV,
     sourceId: SOURCE,
-    clip,
+    ...clip,
     signal,
   });
 }
@@ -85,7 +85,8 @@ describe("transcribeDictationClip", () => {
       requestId: "recording-2",
       environmentId: ENV,
       sourceId: SOURCE,
-      clip: { ...clip, mimeType: "audio/mp4" },
+      ...clip,
+      mimeType: "audio/mp4",
       signal: new AbortController().signal,
     });
     expect(harness.convert).toHaveBeenCalledWith(clip.blob);
@@ -97,7 +98,7 @@ describe("transcribeDictationClip", () => {
   });
 
   it("uploads the clip under a name that matches its format and transcribes it", async () => {
-    await expect(transcribe()).resolves.toEqual({ text: "Fix the cache.", sourceId: SOURCE });
+    await expect(transcribe()).resolves.toBe("Fix the cache.");
     expect(harness.upload.mock.calls[0]?.[0].upload).toEqual({
       type: "file",
       name: "dictation.webm",

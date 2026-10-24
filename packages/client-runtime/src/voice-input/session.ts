@@ -3,6 +3,7 @@ import {
   voiceInputBlocksSubmission,
   type VoiceDraftSnapshot,
   type VoiceInputControllerDependencies,
+  type VoiceStopOutcome,
 } from "./controller.ts";
 
 export type VoiceInputTarget = {
@@ -12,35 +13,6 @@ export type VoiceInputTarget = {
   readonly commitDraft: VoiceInputControllerDependencies["commitDraft"];
   readonly subscribe: () => () => void;
 };
-
-export function createVoiceInputTarget(
-  ownerKey: string,
-  readText: () => string | null,
-  commitDraft: VoiceInputTarget["commitDraft"],
-  selection: VoiceDraftSnapshot["selection"],
-  subscribeToChanges: (onChange: () => void) => () => void,
-): VoiceInputTarget {
-  let revision = 0;
-  return {
-    ownerKey,
-    readDraft: () => {
-      const text = readText();
-      if (text === null) return null;
-      return { ownerKey, text, selection, revision };
-    },
-    commitDraft,
-    subscribe: () => {
-      let previousText = readText();
-      return subscribeToChanges(() => {
-        const text = readText();
-        if (text !== previousText) {
-          previousText = text;
-          revision += 1;
-        }
-      });
-    },
-  };
-}
 
 export class VoiceInputSession {
   readonly controller: VoiceInputController;
@@ -60,8 +32,8 @@ export class VoiceInputSession {
         dependencies.onStateChange(state);
       },
       readDraft: () => this.target?.readDraft() ?? null,
-      commitDraft: (text, selection) => {
-        this.target?.commitDraft(text, selection);
+      commitDraft: (text, selection, edit) => {
+        this.target?.commitDraft(text, selection, edit);
         this.onCommit?.(text);
       },
     });
@@ -83,8 +55,10 @@ export class VoiceInputSession {
     return this.target ? this.start(this.target) : Promise.resolve();
   }
 
-  stop(onCommit?: (text: string) => void): Promise<void> {
-    if (this.controller.currentState.phase !== "recording") return Promise.resolve();
+  stop(onCommit?: (text: string) => void): Promise<VoiceStopOutcome> {
+    if (this.controller.currentState.phase !== "recording") {
+      return Promise.resolve({ kind: "none" });
+    }
     this.onCommit = onCommit;
     return this.controller.stop();
   }

@@ -521,7 +521,6 @@ import { previewEnvironment } from "../state/preview";
 import { clampFileAttachmentUploadBytes } from "@supaterm/client-runtime/state/attachments";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { enqueueThreadOutboxTurns, usePendingThreadCreation } from "../state/threadOutbox";
-import { extractVoiceSlot, placeVoiceSlot } from "@supaterm/client-runtime/voice-input";
 import { onComposerDictationRequest } from "../dictation/dictationCommands";
 import type { ComposerVoiceMessage } from "../dictation/useComposerDictation";
 import { captureOutboxAttachments } from "../state/threadOutboxEditing";
@@ -6307,13 +6306,11 @@ export default function ChatView(props: ChatViewProps) {
       });
     // A direct "send annotation" writes the draft and sends in the same tick; the reference
     // must be in the text now, not after the next render.
-    const promptForSend = voice
-      ? placeVoiceSlot(promptRef.current, voice.message.selection)
-      : directAnnotation
-        ? ensureInlineContextReferences(promptRef.current, [
-            previewAnnotationContextReference(directAnnotation.annotation),
-          ])
-        : promptRef.current;
+    const promptForSend = directAnnotation
+      ? ensureInlineContextReferences(promptRef.current, [
+          previewAnnotationContextReference(directAnnotation.annotation),
+        ])
+      : promptRef.current;
     const strandedThread = threadContextsOutsideEnvironment({
       text: promptForSend,
       records: composerThreadContexts,
@@ -6417,7 +6414,7 @@ export default function ChatView(props: ChatViewProps) {
 
       return;
     }
-    if (!hasSendableContent) {
+    if (!hasSendableContent && !voice) {
       if (expiredTerminalContextCount > 0) {
         const toastCopy = buildExpiredTerminalContextToastCopy(
           expiredTerminalContextCount,
@@ -6491,7 +6488,7 @@ export default function ChatView(props: ChatViewProps) {
     const outgoingMessageContext = buildOutgoingMessageContext(
       composerAttachmentsSnapshot.map((attachment) => attachment.id),
     );
-    const messageIdForSend = newMessageId();
+    const messageIdForSend = voice?.message.messageId ?? newMessageId();
     const messageCreatedAt = new Date().toISOString();
     const turnDispatchMode = sendQueuesBehindSetup ? "queue" : dispatchMode;
     const outgoingMessageText = formatOutgoingPrompt({
@@ -6554,7 +6551,7 @@ export default function ChatView(props: ChatViewProps) {
     // Anything thrown while saving to the outbox shows on the thread; the send flag still clears.
     const sendResult = await settlePromise(async () => {
       const title = deriveThreadTitleSeed({
-        text: extractVoiceSlot(trimmed).text,
+        text: trimmed,
         attachments: composerAttachmentsSnapshot.map((attachment) => ({
           type: attachment.type,
           name: attachment.name,
@@ -6642,14 +6639,8 @@ export default function ChatView(props: ChatViewProps) {
             ...(voice && multipleModelSelections === null
               ? {
                   voice: {
-                    clipId: randomUUID(),
-                    bytes: voice.message.clip.blob,
-                    mimeType: voice.message.clip.mimeType,
-                    durationMs: voice.message.clip.durationMs,
-                    locale: voice.message.clip.locale,
-                    capturedAt: voice.message.capturedAt,
-                    sourceId: voice.message.sourceId,
-                    transcriptionEnvironmentId: voice.message.environmentId,
+                    recordingId: voice.message.recordingId,
+                    durationMs: voice.message.durationMs,
                   },
                 }
               : {}),

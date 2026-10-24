@@ -25,6 +25,7 @@ import {
   cancelThreadOutboxTurn,
   canMoveThreadOutboxTurnToComposer,
   moveThreadOutboxTurnToComposer,
+  threadOutboxRecording,
   useThreadOutbox,
   webThreadOutbox,
   replaceThreadOutboxTurn,
@@ -34,6 +35,7 @@ import {
 import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
 import { ComposerBanner, type ComposerBannerVariant } from "./ComposerBanner";
+import { useAllPendingClips } from "~/dictation/pendingClips";
 import {
   formatVoiceMessageDuration,
   resolveThreadOutboxStatus,
@@ -70,6 +72,7 @@ export function ThreadOutboxControl({
   readonly onCancelEdit: () => void;
 }) {
   const entries = useThreadOutbox();
+  useAllPendingClips();
   const scope = scopedThreadKey(scopeThreadRef(props.environmentId, props.threadId));
   const pending = entries.filter((entry) => entry.scope === scope && entry.status !== "delivered");
   const [busy, setBusy] = useState(false);
@@ -80,7 +83,8 @@ export function ThreadOutboxControl({
     head: pending[0],
     editingMessageId: props.editingMessageId,
     deliverable,
-    isPreparing: webThreadOutbox.isPreparing,
+    isTranscribing: (id) =>
+      entries.some((entry) => entry.id === id && entry.payload.voice !== undefined),
     isSending: webThreadOutbox.isSending,
   });
   const header = STATUS_HEADERS[status];
@@ -154,10 +158,9 @@ export function ThreadOutboxControl({
             {pending.map((entry) => {
               const canChange = canChangeEntry(entry);
               const isEditing = props.editingMessageId === entry.id;
-              const deliveryError =
-                webThreadOutbox.isSending(entry.id) || webThreadOutbox.isPreparing(entry.id)
-                  ? null
-                  : entry.error;
+              const deliveryError = webThreadOutbox.isSending(entry.id)
+                ? null
+                : (threadOutboxRecording(entry)?.error ?? entry.error);
               const { voice } = entry.payload;
               const text = replaceComposerContextReferences(
                 entry.payload.input.message.text,
@@ -191,12 +194,6 @@ export function ThreadOutboxControl({
                           {text || "Attachment"}
                         </span>
                       )}
-                      {voice?.transcript ? (
-                        <span className="block truncate text-muted-foreground">
-                          <span className="sr-only">Transcript: </span>
-                          {voice.transcript}
-                        </span>
-                      ) : null}
                       {deliveryError ? (
                         <span className="block text-muted-foreground">{deliveryError}</span>
                       ) : null}

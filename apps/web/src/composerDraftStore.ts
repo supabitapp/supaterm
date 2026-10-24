@@ -84,7 +84,7 @@ import {
 import { UnifiedSettings } from "@supaterm/contracts/settings";
 import { ReviewCommentContextSchema, type ReviewCommentContext } from "./reviewCommentContext";
 import { DraftId } from "./draftId";
-import { reassignPendingClips } from "./dictation/pendingClips";
+import { webRecordings } from "./dictation/pendingClips";
 const isRuntimeMode = Schema.is(RuntimeMode);
 const isProviderDriverKind = Schema.is(ProviderDriverKind);
 const isReviewCommentContext = Schema.is(ReviewCommentContextSchema);
@@ -3819,7 +3819,7 @@ export function finalizePromotedDraftThreadByRef(threadRef: ScopedThreadRef): vo
       const target = DraftId.make(draftId);
       draftStore.markDraftThreadPromoting(target, threadRef);
       draftStore.finalizePromotedDraftThread(target);
-      reassignPendingClips(composerTargetKey(target), composerTargetKey(threadRef));
+      void webRecordings.reassign(composerTargetKey(target), composerTargetKey(threadRef));
     }
   }
   clearBackgroundDraftSubmissionByRef(threadRef);

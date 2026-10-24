@@ -10,12 +10,11 @@ export {
   type VoiceInputState,
   type VoiceRecorder,
   type VoiceRecorderStatus,
-  type VoiceRecordingDescription,
-  type VoiceRecordingHandoff,
+  type VoiceStopOutcome,
+  type VoiceTranscriptEdit,
 } from "./controller.ts";
-export { createVoiceInputTarget, VoiceInputSession, type VoiceInputTarget } from "./session.ts";
+export { VoiceInputSession, type VoiceInputTarget } from "./session.ts";
 export { resolveParkedInsertion, type ParkedInsertion } from "./clips.ts";
-export { extractVoiceSlot, placeVoiceSlot, spliceTranscriptAt, VOICE_SLOT } from "./voiceSlot.ts";
 export {
   VoiceTranscriptionError,
   throwIfVoiceTranscriptionAborted,
@@ -24,4 +23,23 @@ export {
   type VoiceTranscriber,
   type VoiceTranscriptionErrorCode,
   type VoiceTranscriptionOptions,
+  type VoiceTranscriptionResult,
 } from "./transcription.ts";
+export {
+  composerRecordingConsumer,
+  createRecordingConsumers,
+  createSavedRecordingRunner,
+  createSavedRecordings,
+  DICTATION_UNAVAILABLE_MESSAGE,
+  planSavedRecordingRuns,
+  RETRY_SAVED_RECORDING,
+  SavedRecording,
+  savedRecordingAfterFailure,
+  type RecordingConsumers,
+  type SavedRecordingConsumer,
+  type SavedRecordingEntry,
+  type SavedRecordingPatch,
+  type SavedRecordingRunner,
+  type SavedRecordings,
+  type SavedRecordingStorage,
+} from "./savedRecordings.ts";

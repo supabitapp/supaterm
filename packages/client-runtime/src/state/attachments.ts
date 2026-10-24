@@ -82,13 +82,13 @@ export async function verifyPersistedAttachmentUpload<A, E>(input: {
     : { status: "failed", error };
 }
 
-type AttachmentCreateUploadUrlCommand<E> = AtomCommand<
+export type AttachmentCreateUploadUrlCommand<E> = AtomCommand<
   { readonly environmentId: EnvironmentId; readonly input: AttachmentCreateUploadUrlInput },
   AttachmentCreateUploadUrlResult,
   E
 >;
 
-type AttachmentRemoveCommand<E> = AtomCommand<
+export type AttachmentRemoveCommand<E> = AtomCommand<
   { readonly environmentId: EnvironmentId; readonly input: AttachmentDeleteInput },
   unknown,
   E

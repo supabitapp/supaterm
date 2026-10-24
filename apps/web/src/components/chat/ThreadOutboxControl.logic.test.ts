@@ -14,7 +14,7 @@ describe("resolveThreadOutboxStatus", () => {
         head: failed,
         editingMessageId: failed.id,
         deliverable: false,
-        isPreparing: () => true,
+        isTranscribing: () => true,
         isSending: () => true,
       }),
     ).toBe("failed");
@@ -26,7 +26,7 @@ describe("resolveThreadOutboxStatus", () => {
         head: pending,
         editingMessageId: pending.id,
         deliverable: false,
-        isPreparing: notPreparing,
+        isTranscribing: notPreparing,
         isSending: notSending,
       }),
     ).toBe("editing");
@@ -38,7 +38,7 @@ describe("resolveThreadOutboxStatus", () => {
         head: pending,
         editingMessageId: "later",
         deliverable: true,
-        isPreparing: notPreparing,
+        isTranscribing: notPreparing,
         isSending: (id) => id === pending.id,
       }),
     ).toBe("sending");
@@ -50,7 +50,7 @@ describe("resolveThreadOutboxStatus", () => {
         head: backingOff,
         editingMessageId: null,
         deliverable: false,
-        isPreparing: notPreparing,
+        isTranscribing: notPreparing,
         isSending: notSending,
       }),
     ).toBe("offline");
@@ -62,7 +62,7 @@ describe("resolveThreadOutboxStatus", () => {
         head: backingOff,
         editingMessageId: null,
         deliverable: true,
-        isPreparing: notPreparing,
+        isTranscribing: notPreparing,
         isSending: (id) => id === backingOff.id,
       }),
     ).toBe("sending");
@@ -74,7 +74,7 @@ describe("resolveThreadOutboxStatus", () => {
         head: backingOff,
         editingMessageId: null,
         deliverable: true,
-        isPreparing: notPreparing,
+        isTranscribing: notPreparing,
         isSending: notSending,
       }),
     ).toBe("retrying");
@@ -86,7 +86,7 @@ describe("resolveThreadOutboxStatus", () => {
         head: backingOff,
         editingMessageId: null,
         deliverable: true,
-        isPreparing: (id) => id === backingOff.id,
+        isTranscribing: (id) => id === backingOff.id,
         isSending: notSending,
       }),
     ).toBe("transcribing");
@@ -98,7 +98,7 @@ describe("resolveThreadOutboxStatus", () => {
         head: pending,
         editingMessageId: null,
         deliverable: false,
-        isPreparing: (id) => id === pending.id,
+        isTranscribing: (id) => id === pending.id,
         isSending: notSending,
       }),
     ).toBe("offline");
@@ -110,7 +110,7 @@ describe("resolveThreadOutboxStatus", () => {
         head: pending,
         editingMessageId: null,
         deliverable: true,
-        isPreparing: notPreparing,
+        isTranscribing: notPreparing,
         isSending: notSending,
       }),
     ).toBe("waiting");

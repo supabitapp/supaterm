@@ -2839,27 +2839,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         start: promptRef.current.length,
         end: promptRef.current.length,
       },
-    commitPrompt: (text, selection) => {
-      const current = promptRef.current;
-      let start = 0;
-      while (start < current.length && start < text.length && current[start] === text[start]) {
-        start += 1;
-      }
-      let suffix = 0;
-      while (
-        suffix < current.length - start &&
-        suffix < text.length - start &&
-        current[current.length - 1 - suffix] === text[text.length - 1 - suffix]
-      ) {
-        suffix += 1;
-      }
-      return applyPromptReplacementStable(
-        start,
-        current.length - suffix,
-        text.slice(start, text.length - suffix),
-        { expandedCursorAfterReplace: selection.end },
-      );
-    },
+    commitPrompt: (edit) =>
+      applyPromptReplacementStable(edit.start, edit.end, edit.text, {
+        expandedCursorAfterReplace: edit.start + edit.text.length,
+      }),
     canSendVoice,
     sendVoice: (voice) => {
       if (

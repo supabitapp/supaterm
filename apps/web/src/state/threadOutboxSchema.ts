@@ -1,7 +1,6 @@
 import {
   ChatAttachment,
   CommandId,
-  DictationSourceId,
   EnvironmentId,
   MessageId,
   ModelSelection,
@@ -77,17 +76,10 @@ export const OutboxAttachment = Schema.Struct({
   uploaded: Schema.optionalKey(ChatAttachment),
 });
 
+/** A queued message is transcribed from its saved recording before it can be delivered. */
 export const OutboxTurnVoice = Schema.Struct({
-  clipId: Schema.String,
-  bytes: Schema.NullOr(Schema.instanceOf(Blob)),
-  mimeType: Schema.String,
+  recordingId: Schema.String,
   durationMs: Schema.Number,
-  locale: Schema.NullOr(Schema.String),
-  insertAt: Schema.Number,
-  capturedAt: Schema.String,
-  sourceId: DictationSourceId,
-  transcriptionEnvironmentId: EnvironmentId,
-  transcript: Schema.optionalKey(Schema.String),
 });
 
 export const OutboxTurn = Schema.Struct({
