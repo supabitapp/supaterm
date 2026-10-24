@@ -67,11 +67,16 @@ export async function readMediaPng(src: string): Promise<Blob> {
     if (!context) throw new Error("Image copying is unavailable in this browser.");
     context.drawImage(image, 0, 0);
     return await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (png) =>
-          png ? resolve(png) : reject(new Error("The image could not be converted to PNG.")),
-        "image/png",
-      );
+      try {
+        canvas.toBlob(
+          (png) =>
+            png ? resolve(png) : reject(new Error("The image could not be converted to PNG.")),
+          "image/png",
+        );
+      } catch (cause) {
+        // SVG with HTML inside foreignObject, such as typeset diagram labels, taints the canvas.
+        reject(new Error("This image cannot be copied. Try saving it instead.", { cause }));
+      }
     });
   } finally {
     URL.revokeObjectURL(url);
