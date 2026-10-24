@@ -11,6 +11,7 @@ import { useSelectedThreadComposerMetadata } from "../../state/use-thread-detail
 import { useAtomValue } from "@effect/atom-react";
 import { useChildThreadInputs, useThreadShell } from "../../state/entities";
 import { UsageLimitRecoveryCard } from "./UsageLimitRecoveryCard";
+import { ChatGptUsageLimitNotice } from "./ChatGptUsageLimitNotice";
 import { StackActions, useFocusEffect, useNavigation } from "@react-navigation/native";
 import {
   effectiveSnoozed,
@@ -1583,6 +1584,10 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
                     key={props.selectedThread.latestRun?.runId}
                     thread={props.selectedThread}
                     environmentId={props.environmentId}
+                  />
+                  <ChatGptUsageLimitNotice
+                    key={`chatgpt-limit:${props.selectedThread.latestRun?.runId}`}
+                    thread={props.selectedThread}
                   />
                   {props.feedbackSubmissions.map((submission) => (
                     <ComposerFeedback
