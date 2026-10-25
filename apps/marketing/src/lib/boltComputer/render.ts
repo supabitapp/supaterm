@@ -221,7 +221,8 @@ export class LedPainter {
   ) {
     const { cols, rows, v: g } = grid;
     // Bloom first: the matrix at one pixel per LED, scaled up smooth. The cells
-    // go over it so they keep the phosphor's colour instead of washing to white.
+    // go over it so they keep the phosphor's colour instead of washing to white,
+    // and it stays faint so the gaps between LEDs read as dark.
     const tiny = context2d(this.tiny);
     const d = this.image.data;
     for (let i = 0; i < cols * rows; i++) {
@@ -237,15 +238,15 @@ export class LedPainter {
     half.drawImage(this.tiny, 0, 0, this.tinyHalf.width, this.tinyHalf.height);
     ctx.imageSmoothingEnabled = true;
     ctx.globalCompositeOperation = "lighter";
-    ctx.globalAlpha = 0.45;
+    ctx.globalAlpha = 0.1;
     ctx.drawImage(this.tiny, x0, y0, cols * pitch, rows * pitch);
-    ctx.globalAlpha = 0.55;
+    ctx.globalAlpha = 0.3;
     ctx.drawImage(this.tinyHalf, x0 - pitch, y0 - pitch, (cols + 2) * pitch, (rows + 2) * pitch);
     ctx.globalCompositeOperation = "source-over";
     const color = rgb(led);
     // Each LED's hot centre, a step toward white.
-    const core = rgb(mix(led, [255, 255, 255], 0.35));
-    const cell = pitch * 0.8;
+    const core = rgb(mix(led, [255, 255, 255], 0.45));
+    const cell = pitch * 0.84;
     const off = (pitch - cell) / 2;
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
@@ -256,7 +257,7 @@ export class LedPainter {
         ctx.globalAlpha = Math.min(1, v);
         ctx.fillStyle = color;
         ctx.fillRect(x, y, cell, cell);
-        ctx.globalAlpha = Math.min(1, v) * 0.5;
+        ctx.globalAlpha = Math.min(1, v) * 0.55;
         ctx.fillStyle = core;
         ctx.fillRect(x + cell * 0.2, y + cell * 0.2, cell * 0.6, cell * 0.6);
       }
