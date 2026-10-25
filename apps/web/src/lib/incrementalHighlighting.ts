@@ -4,14 +4,13 @@ import {
   renderTokenLines,
   type DiffsHighlighter,
   type DiffsStreamTokenizer,
+  type DiffsThemeNames,
   type ThemedToken,
 } from "@pierre/diffs";
 
-import type { DiffThemeName } from "./diffRendering";
-
 function highlightedDocument(
   highlighter: DiffsHighlighter,
-  themeName: DiffThemeName,
+  themeName: DiffsThemeNames,
   children: ReturnType<typeof renderTokenLines>,
 ) {
   const theme = highlighter.getTheme(themeName);
@@ -37,7 +36,7 @@ export function highlightCodeDocument(
   highlighter: DiffsHighlighter,
   code: string,
   language: string,
-  theme: DiffThemeName,
+  theme: DiffsThemeNames,
 ) {
   const { tokens } = highlighter.codeToTokens(code, { lang: language, theme });
   const children = renderTokenLines(tokens, { cacheHtmlStyles: true }).flatMap((line, index) =>
@@ -49,7 +48,7 @@ export function highlightCodeDocument(
 export function createIncrementalHighlightedDocument(
   highlighter: DiffsHighlighter,
   language: string,
-  theme: DiffThemeName,
+  theme: DiffsThemeNames,
 ) {
   let stream: DiffsStreamTokenizer | undefined;
   let source = "";

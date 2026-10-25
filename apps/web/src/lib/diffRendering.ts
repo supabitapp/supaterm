@@ -1,16 +1,18 @@
 import { parsePatchFiles } from "@pierre/diffs/utils/parsePatchFiles";
 import { parseDiffFromFile } from "@pierre/diffs";
 import type { FileDiffMetadata } from "@pierre/diffs/types";
+import { READABLE_LIGHT_THEME_NAME } from "./readableSyntaxTheme";
 
+// Light mode uses a darker pierre-light so syntax stays readable on every code surface.
 const DIFF_THEME_NAMES = {
-  light: "pierre-light",
+  light: READABLE_LIGHT_THEME_NAME,
   dark: "pierre-dark",
 } as const;
 
 export type DiffThemeName = (typeof DIFF_THEME_NAMES)[keyof typeof DIFF_THEME_NAMES];
 
 export function resolveDiffThemeName(theme: "light" | "dark"): DiffThemeName {
-  return theme === "dark" ? DIFF_THEME_NAMES.dark : DIFF_THEME_NAMES.light;
+  return DIFF_THEME_NAMES[theme];
 }
 
 const FNV_OFFSET_BASIS_32 = 0x811c9dc5;
@@ -349,5 +351,18 @@ export const DIFF_SURFACE_THEME_UNSAFE_CSS = `
 
   background-color: var(--diffs-bg) !important;
   color: var(--code-foreground) !important;
+}
+
+/* The library's change-icon colors are tuned for dark canvases; light mode takes the app's darker tokens. */
+[data-change-icon="new"] {
+  color: light-dark(var(--diff-addition-foreground), var(--diffs-addition-base)) !important;
+}
+[data-change-icon="deleted"] {
+  color: light-dark(var(--diff-deletion-foreground), var(--diffs-deletion-base)) !important;
+}
+[data-change-icon="change"],
+[data-change-icon="rename-pure"],
+[data-change-icon="rename-changed"] {
+  color: light-dark(var(--info-foreground), var(--diffs-modified-base)) !important;
 }
 `;

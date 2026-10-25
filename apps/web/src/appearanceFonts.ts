@@ -11,7 +11,7 @@ import {
 } from "@supaterm/contracts";
 
 export const DEFAULT_SANS_FONT_STACK =
-  '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+  '-apple-system, BlinkMacSystemFont, "Inter Variable", "Segoe UI", system-ui, sans-serif';
 
 export const DEFAULT_CODE_FONT_FAMILY = "JetBrains Mono";
 

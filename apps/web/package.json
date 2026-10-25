@@ -19,6 +19,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@effect/atom-react": "catalog:",
+    "@fontsource-variable/inter": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
     "@legendapp/list": "catalog:",
     "@noble/hashes": "catalog:",

@@ -716,12 +716,12 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     topStatusKind === "connecting"
       ? { label: "Connecting", icon: null, className: "text-secondary-label" }
       : isPendingCreation
-        ? { label: "Preparing", icon: null, className: "text-info" }
+        ? { label: "Preparing", icon: null, className: "text-info-foreground" }
         : topStatusKind === "working"
           ? {
               label: thread.goal?.status === "active" ? "Goal" : "Working",
               icon: "working" as const,
-              className: "text-info",
+              className: "text-info-foreground",
             }
           : topStatusKind === "waiting"
             ? {
@@ -745,25 +745,25 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                   ? {
                       label: "Limited",
                       icon: "failed" as const,
-                      className: "text-warning",
+                      className: "text-warning-foreground",
                     }
                   : topStatusKind === "failed"
                     ? {
                         label: "Failed",
                         icon: "failed" as const,
-                        className: "text-error",
+                        className: "text-error-foreground",
                       }
                     : topStatusKind === "woke"
                       ? {
                           label: "Woke",
                           icon: "woke" as const,
-                          className: "text-warning",
+                          className: "text-warning-foreground",
                         }
                       : topStatusKind === "ready"
                         ? {
                             label: "Ready",
                             icon: "done" as const,
-                            className: "text-success",
+                            className: "text-success-foreground",
                           }
                         : null;
   const isWokeStatus = topStatus?.icon === "woke";
@@ -981,7 +981,10 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   // content; surface is reserved for interaction (hover, multi-select, route).
   const rowSurfaceClassName = cn(
     "group/sidebar-row relative w-full cursor-pointer overflow-hidden rounded-md text-left outline-none select-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-    variantAction === "reopen" && "[&:not(:hover):not(:focus-within)_*]:text-secondary-label/70",
+    variantAction === "reopen" &&
+      !props.isActive &&
+      !props.inOtherPane &&
+      "[&:not(:hover):not(:focus-within)_*]:text-secondary-label/70",
     props.isActive
       ? "bg-sidebar-row-active text-sidebar-foreground"
       : props.inOtherPane

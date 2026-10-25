@@ -1093,6 +1093,43 @@ export function ProviderInstanceCard({
     </div>
   );
 
+  // Provider status gets its own row instead of hanging under the name field.
+  const statusContent = (
+    <>
+      <ProviderStatusDiagnostic detail={statusDiagnostic}>
+        <div
+          tabIndex={statusDiagnostic ? 0 : undefined}
+          className="flex min-w-0 flex-wrap items-baseline gap-x-1.5"
+        >
+          {editorStatusNode}
+        </div>
+      </ProviderStatusDiagnostic>
+      {urlAuthAction && onAcceptUrlAuth ? (
+        <div className="grid max-w-xl gap-1.5 pt-1 text-xs">
+          <p>{urlAuthAction.message}</p>
+          <code className="break-all text-2xs">{urlAuthAction.url}</code>
+          <Button
+            render={
+              <a
+                href={urlAuthAction.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => onAcceptUrlAuth(urlAuthAction)}
+              />
+            }
+            size="xs"
+            variant="outline"
+            className="w-fit"
+            disabled={readOnly}
+          >
+            <ExternalLinkIcon />
+            Continue authentication
+          </Button>
+        </div>
+      ) : null}
+    </>
+  );
+
   const runtimeFields = driverOption ? (
     <ProviderSettingsForm
       definition={driverOption}
@@ -1116,43 +1153,9 @@ export function ProviderInstanceCard({
   return (
     <>
       <SettingsSection title={displayName} icon={titleIconNode} headerAction={editorHeaderAction}>
+        <SettingsRow title="Status" status={statusContent} />
         <SettingsRow
           title="Display name"
-          status={
-            <>
-              <ProviderStatusDiagnostic detail={statusDiagnostic}>
-                <div
-                  tabIndex={statusDiagnostic ? 0 : undefined}
-                  className="flex min-w-0 flex-wrap items-baseline gap-x-1.5"
-                >
-                  {editorStatusNode}
-                </div>
-              </ProviderStatusDiagnostic>
-              {urlAuthAction && onAcceptUrlAuth ? (
-                <div className="grid max-w-xl gap-1.5 pt-1 text-xs">
-                  <p>{urlAuthAction.message}</p>
-                  <code className="break-all text-2xs">{urlAuthAction.url}</code>
-                  <Button
-                    render={
-                      <a
-                        href={urlAuthAction.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={() => onAcceptUrlAuth(urlAuthAction)}
-                      />
-                    }
-                    size="xs"
-                    variant="outline"
-                    className="w-fit"
-                    disabled={readOnly}
-                  >
-                    <ExternalLinkIcon />
-                    Continue authentication
-                  </Button>
-                </div>
-              ) : null}
-            </>
-          }
           control={
             <div
               inert={readOnly}

@@ -1812,11 +1812,21 @@ export default function GitActionsControl({
         >
           <DiffIcon className={THREAD_DETAILS_PANEL_ICON_CLASS} aria-hidden />
           <span className="flex-1 text-left">Changes</span>
-          <span className="flex items-center gap-1 font-mono text-2xs tabular-nums">
-            <span className="text-diff-addition">
+          <span className="flex items-center gap-1.5 font-mono text-xs tabular-nums">
+            <span
+              className={
+                changesTotals?.insertions
+                  ? "text-diff-addition-foreground"
+                  : "text-muted-foreground"
+              }
+            >
               +{formatDiffCount(changesTotals?.insertions ?? 0)}
             </span>
-            <span className="text-diff-deletion">
+            <span
+              className={
+                changesTotals?.deletions ? "text-diff-deletion-foreground" : "text-muted-foreground"
+              }
+            >
               -{formatDiffCount(changesTotals?.deletions ?? 0)}
             </span>
           </span>

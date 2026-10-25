@@ -156,7 +156,8 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
    the variables and Settings -> Appearance can override them at runtime. The
    default stacks are mirrored in `appearanceFonts.ts`. */
 @theme {
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Inter Variable", "Segoe UI", system-ui, sans-serif;
   --font-mono:
     "JetBrains Mono", "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
 }
@@ -1006,6 +1007,14 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
   }
 }
 
+/* Sections in the provider detail pane sit flat in its card instead of nesting cards inside
+   it. Headings and row dividers still separate them. */
+[data-provider-detail] [data-slot="settings-group"] {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
 /* Theme files are expressed in app color roles and mapped to the existing
    semantic surface tokens here. Keep this block after the sidebar-version
    compatibility overrides so both navigation implementations receive the
@@ -1773,14 +1782,14 @@ code,
 }
 
 .chat-markdown :not(pre) > code {
-  border: 1px solid var(--contrast-border);
-  border-radius: 0.375rem;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
-  background: var(--muted);
-  padding: 0.1rem 0.35rem;
+  background: color-mix(in srgb, var(--contrast-foreground) 10%, transparent);
+  padding: 0.1em 0.35em;
   color: var(--contrast-foreground);
-  font-size: 0.75rem;
+  font-size: 0.85em;
 }
 
 .chat-markdown pre {
@@ -1857,7 +1866,8 @@ code,
   border-collapse: collapse;
   overflow-wrap: normal;
   word-break: normal;
-  font-size: 0.75rem;
+  /* One step under 15px prose. */
+  font-size: 0.875rem;
 }
 
 /* Top-aligned so wrapped rows share a first line, and the outer columns sit
@@ -1865,6 +1875,7 @@ code,
 .chat-markdown th,
 .chat-markdown td {
   padding: 0.45rem 0.75rem;
+  text-wrap: pretty;
   text-align: start;
   vertical-align: top;
 }
@@ -1928,8 +1939,8 @@ code,
 :root {
   --diff-addition: var(--success);
   --diff-deletion: var(--destructive);
-  --diff-addition-foreground: light-dark(var(--color-emerald-600), var(--color-emerald-400));
-  --diff-deletion-foreground: light-dark(var(--color-red-600), var(--color-red-400));
+  --diff-addition-foreground: light-dark(var(--color-emerald-700), var(--color-emerald-400));
+  --diff-deletion-foreground: light-dark(var(--color-red-700), var(--color-red-400));
 }
 
 /* Chat width setting. Comfortable keeps the default --chat-content-max-width,
