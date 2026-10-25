@@ -230,16 +230,15 @@ export const layer: Layer.Layer<
 
     const supersedableThreadEventTypes = new Set(SUPERSEDABLE_THREAD_EVENT_TYPES);
     const readStateThreadEventTypes = new Set(READ_STATE_THREAD_EVENT_TYPES);
-    // Keep subagent.updated and turn-item.updated rows: slimmed payloads reference their prompts.
-    // Bound each reader request and writer delete, including when the reader
-    // worker is unavailable and discovery falls back to the writer.
+    // Subagent snapshots stay intact because later rows can reference an earlier prompt.
+    // Commanded turn items stay for command-result replay.
+    // Small pages bound work on the reader worker and synchronous fallback.
     const COMPACTION_PAGE_SIZE = 50;
 
     /**
      * Keyed entities keep their newest and oldest events: client reducers append an entity where
      * they first see it, so a replay from any cursor needs that first event. Page every event, as
      * filtering before LIMIT scans all history when superseded events are sparse.
-     * turn-item.updated stays intact because replay assigns positions on first write.
      */
     const compactEventStore = Effect.fn("ProjectionMaintenance.compactEventStore")(function* (
       betweenPages: Effect.Effect<void> = Effect.void,
@@ -273,6 +272,11 @@ export const layer: Layer.Layer<
             CASE
               WHEN event.application_event_version = 2
                 AND event.event_type IN ('message.updated', 'node.updated')
+              THEN json_extract(event.payload_json, '$.id')
+              WHEN event.application_event_version = 2
+                AND event.event_type = 'turn-item.updated'
+                AND event.command_id IS NULL
+                AND json_extract(event.payload_json, '$.type') <> 'subagent'
               THEN json_extract(event.payload_json, '$.id')
               WHEN event.application_event_version = 2
                 AND event.event_type = 'thread.pull-request-link-updated'
@@ -315,7 +319,8 @@ export const layer: Layer.Layer<
             } else if (
               row.event_type === "thread.pull-request-link-updated" ||
               row.event_type === "message.updated" ||
-              row.event_type === "node.updated"
+              row.event_type === "node.updated" ||
+              (row.event_type === "turn-item.updated" && row.entity_id !== null)
             ) {
               const key = encodeEntityKey([row.event_type, row.stream_id, row.entity_id]);
               const candidate = oldestCandidateByEntityKey.get(key);
