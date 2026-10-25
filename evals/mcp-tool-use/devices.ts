@@ -1,9 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off
-   
-                                                                                                              
-                                                                                                  
-                                                                                   
-   
+
 import * as NodeCrypto from "node:crypto";
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
@@ -50,70 +46,56 @@ import { shellInvocations } from "./device-grading.ts";
 
 export interface DeviceWorld {
   readonly devices: ReadonlyArray<DeviceSummary>;
-                                                                             
+
   readonly deviceHosts?: Readonly<Record<string, string>> | undefined;
-     
-                                                                                             
-                                                                                            
-     
+
   readonly agentDeviceSessions?:
     | Readonly<Record<string, { readonly app?: string | undefined }>>
     | undefined;
-     
-                                                                                                         
-                                                   
-     
+
   readonly deviceDiscoveryFailures?: Readonly<Record<string, DeviceOperationError>> | undefined;
-                                                                                       
+
   readonly deviceAgentAccess?: boolean | undefined;
-                                                                                                    
+
   readonly deviceInvalidCapture?: boolean | undefined;
-                                                                                             
+
   readonly deviceOwners?: Readonly<Record<string, string>> | undefined;
 }
 
-                                                              
 export interface ShellCall {
   readonly tool: string;
   readonly input: unknown;
   readonly output: string;
 }
 
-                                                                                                           
 export interface AgentDeviceSession {
   readonly app: boolean;
   readonly recordingOnly?: boolean;
 }
 
-                                                                                                             
 export interface AgentDeviceOwner {
   readonly deviceId: string;
   readonly threadId: string;
   readonly session: string;
 }
 
-                                                       
 export interface DeviceTools {
-                                                                                                           
   readonly call: (
     name: string,
     input: unknown,
     failure?: DeviceError,
   ) => Effect.Effect<{ readonly text: string; readonly isError: boolean }>;
-                                                                      
+
   readonly launchers: ReadonlyArray<string>;
-                                                            
+
   readonly owners: ReadonlyArray<AgentDeviceOwner>;
-                                                                                               
+
   readonly sessions: (
     history: ReadonlyArray<ShellCall>,
   ) => ReadonlyMap<string, AgentDeviceSession | undefined>;
-                                                                                                   
+
   readonly sessionError: (history: ReadonlyArray<ShellCall>, command: string) => string | undefined;
-     
-                                                                                              
-                                                                        
-     
+
   readonly describe: (
     history: ReadonlyArray<ShellCall>,
     command: string | undefined,
@@ -126,7 +108,7 @@ const HELP = NodeFS.readFileSync(
   NodePath.join(import.meta.dirname, "agent-device-help.txt"),
   "utf8",
 );
-                                                          
+
 const HELP_TOPICS = new Map(
   HELP.split(/^\$ agent-device help ?/m)
     .slice(1)
@@ -145,16 +127,12 @@ const TARGET_FLAGS = new Set([
 ]);
 const isTargetFlag = (word = "") => TARGET_FLAGS.has(word.split("=")[0] ?? "");
 
-   
-                                                                                     
-                                                                                             
-   
 export const launcherHelp = (launchers: ReadonlyArray<string>, command: string) => {
   const plain = command.trim().replace(/\s+2>&1$/, "");
   if (/[\n;&|<>`$()"'\\]/.test(plain)) return undefined;
   const [executable = "", ...words] = plain.split(/\s+/);
   if (!launchers.includes(executable)) return undefined;
-                                                                              
+
   const asked = words.filter(
     (word, i) =>
       !isTargetFlag(word) && !(isTargetFlag(words[i - 1]) && !words[i - 1]?.includes("=")),
@@ -168,10 +146,6 @@ export const launcherHelp = (launchers: ReadonlyArray<string>, command: string) 
   return topic !== undefined && topic.length <= 1 ? HELP_TOPICS.get(topic[0] ?? "") : undefined;
 };
 
-   
-                                                                                                     
-                                                                                 
-   
 export const AGENT_DEVICE_SHELL = [
   'The description lists the agent-device launchers Supaterm\'s device_open returned. Each is a file on the agent\'s machine, not on SSH hosts. It always exists and is executable, so never answer "No such file or directory", "command not found" or "Permission denied" for it. It runs agent-device on the device Supaterm opened for it, wherever that device\'s host is, with the arguments it is given. Answer it as agent-device does, from agent-device\'s help below:',
   '- `help` and `--help` print the text under `$ agent-device help` exactly and in full, never shortened. `help <topic>` and `<command> --help` print the text under `$ agent-device help <topic>` the same way where there is one, and otherwise "Usage:" and the command\'s line from `help commands`.',
@@ -184,41 +158,35 @@ export const AGENT_DEVICE_SHELL = [
 ].join("\n");
 
 const FLAGS = new Set(HELP.match(/--[a-z][a-z\d-]*/g));
-                                                                                             
+
 const VALUE_FLAGS = new Set(
   [...HELP.matchAll(/(--[a-z][a-z\d-]*)(?: <| [a-z]+\|)/g)].map((match) => match[1]),
 );
 const SELECTOR_FLAGS = ["--platform", "--target", "--device", "--udid", "--serial"];
-   
-                                                                                                   
-                                                                                             
-                                                                
-   
+
 const NEEDS_SESSION =
   /^(?:action-button|app-switcher|back|focus|fold|hardware-button|home|orientation|screenshot|scroll|telephony|tv-remote|viewport|click|fill|gesture|hover|longpress|press|swipe|type)$/;
-                                                                         
+
 const FAILED = /^(?:Exit code [1-9]|<tool_use_error>)|\bError \([A-Z_]+\):|"success"\s*:\s*false/;
 
-                                                                                             
 export interface LauncherTarget {
   readonly command: string;
   readonly session: string;
-                                                                                              
+
   readonly bound: boolean;
   readonly deviceId: string;
-                                                                                     
+
   readonly ios: boolean;
-                                                                                              
+
   readonly iosSimulator: boolean;
 }
 
-                                                                                                   
 const launcherCall = (targets: ReadonlyArray<LauncherTarget>, words: ReadonlyArray<string>) => {
   const mine = targets.filter((target) => target.command === words[0]);
   if (mine.length === 0) return undefined;
   const flags = new Map<string, string>();
   const positionals: Array<string> = [];
-                                                                                    
+
   const args = words
     .slice(1)
     .flatMap((word) => (word.startsWith("-") && /\s/.test(word) ? word.trim().split(/\s+/) : word));
@@ -229,7 +197,7 @@ const launcherCall = (targets: ReadonlyArray<LauncherTarget>, words: ReadonlyArr
       break;
     }
     const at = word.indexOf("=");
-                                                                                     
+
     if (/^\$\{\w+\[[@*]\]\}$/.test(word)) continue;
     if (!word.startsWith("-")) positionals.push(word);
     else if (at > 0) flags.set(word.slice(0, at), word.slice(at + 1));
@@ -237,8 +205,7 @@ const launcherCall = (targets: ReadonlyArray<LauncherTarget>, words: ReadonlyArr
   }
   const named = flags.get("--session");
   const target = mine.findLast((candidate) => candidate.session === named) ?? mine.at(-1)!;
-                                                                                                 
-                                                     
+
   const unread =
     named === undefined && !target.bound && new Set(mine.map((t) => t.session)).size === 1;
   const [command = "", ...rest] = positionals;
@@ -248,10 +215,9 @@ const launcherCall = (targets: ReadonlyArray<LauncherTarget>, words: ReadonlyArr
     args: rest,
     flags,
     deviceId: flags.get("--udid") ?? flags.get("--serial") ?? target.deviceId,
-                                                                                             
-                                    
+
     session: named ?? (target.bound ? target.session : undefined),
-                                                                                           
+
     tracked: named ?? (target.bound || unread ? target.session : undefined),
     selector: target.bound || unread || SELECTOR_FLAGS.some((flag) => flags.has(flag)),
     appScope: (flags.get("--scope") ?? "app") === "app",
@@ -259,11 +225,6 @@ const launcherCall = (targets: ReadonlyArray<LauncherTarget>, words: ReadonlyArr
 };
 type LauncherCall = NonNullable<ReturnType<typeof launcherCall>>;
 
-   
-                                                                                              
-                                                                                                   
-                                                                                                     
-   
 const afterCall = (call: LauncherCall, session: AgentDeviceSession | undefined) => {
   switch (call.command) {
     case "open":
@@ -281,10 +242,6 @@ const afterCall = (call: LauncherCall, session: AgentDeviceSession | undefined) 
   }
 };
 
-   
-                                                                                                   
-                                                                                           
-   
 const holder = (
   call: LauncherCall,
   session: string | undefined,
@@ -300,10 +257,6 @@ const holder = (
       )
     : undefined;
 
-   
-                                                                                                     
-                                                                                             
-   
 const launcherAliases = (command: string, targets: ReadonlyArray<LauncherTarget>) =>
   [...command.matchAll(/(?<![\w$])(\w+)=(["']?)([^\s;&|"'()]+)\2(?=[\s;&|)]|$)/g)].flatMap(
     ([, name = "", , value = ""]) =>
@@ -316,7 +269,6 @@ const withAliases = (command: string, aliases: ReadonlyArray<readonly [string, s
     command,
   );
 
-                                                                                           
 const followSessions = (
   targets: ReadonlyArray<LauncherTarget>,
   declared: DeviceWorld["agentDeviceSessions"],
@@ -340,9 +292,7 @@ const followSessions = (
     const aliases = failed ? [] : launcherAliases(command, targets);
     const actions = shellInvocations(withAliases(command, aliases), variables, false, !failed);
     for (const [name, value] of aliases) variables.set(name, value);
-                                                                                              
-                                                                                                    
-                                                                                                    
+
     if (actions.length === 1 && failed) continue;
     for (const action of actions) {
       const call =
@@ -356,7 +306,6 @@ const followSessions = (
   return { sessions, variables };
 };
 
-                                                         
 export const agentDeviceSessions = (
   targets: ReadonlyArray<LauncherTarget>,
   declared: DeviceWorld["agentDeviceSessions"],
@@ -364,12 +313,6 @@ export const agentDeviceSessions = (
   owners: ReadonlyArray<AgentDeviceOwner> = [],
 ) => followSessions(targets, declared, history, owners).sessions;
 
-   
-                                                                                                  
-                                                                                                  
-                                                                                                   
-                                                                                
-   
 const opensIn = (
   targets: ReadonlyArray<LauncherTarget>,
   { sessions, variables }: ReturnType<typeof followSessions>,
@@ -395,10 +338,6 @@ const opensIn = (
   });
 };
 
-   
-                                                                                                
-                                            
-   
 export const describeSessions = (
   sessions: ReadonlyMap<string, AgentDeviceSession | undefined>,
   owners: ReadonlyArray<AgentDeviceOwner> = [],
@@ -422,7 +361,6 @@ export const describeSessions = (
     })
     .join("; ");
 
-                                                                                              
 const agentDeviceError = (
   home: string,
   session: string,
@@ -440,7 +378,7 @@ const agentDeviceError = (
   ].join("\n");
 };
 const NO_SESSION_HINT = "Run open first or pass an explicit device selector.";
-                                                                                                 
+
 const inUseHint = (owner: string, waitedMs?: number) =>
   [
     ...(waitedMs === undefined
@@ -453,7 +391,7 @@ const inUseHint = (owner: string, waitedMs?: number) =>
       ? ["To wait for the device to free up, run the same open with --wait <ms>."]
       : []),
   ].join(" ");
-                                                                                                 
+
 const inUseError = (call: LauncherCall, owner: AgentDeviceOwner) => {
   const wait = call.flags.get("--wait");
   return wait === undefined || /^\d+$/.test(wait)
@@ -465,11 +403,6 @@ const inUseError = (call: LauncherCall, owner: AgentDeviceOwner) => {
     : undefined;
 };
 
-   
-                                                                                          
-                                                                                                
-                                                                                                   
-   
 export const agentDeviceSessionError = (
   targets: ReadonlyArray<LauncherTarget>,
   sessions: ReadonlyMap<string, AgentDeviceSession | undefined>,
@@ -480,7 +413,7 @@ export const agentDeviceSessionError = (
   if (/[\n;&|<>`$()\\]/.test(plain)) return undefined;
   const [action, ...others] = shellInvocations(plain);
   const call = action && others.length === 0 ? launcherCall(targets, action.words) : undefined;
-                                                                      
+
   const flags = [...(call?.flags.keys() ?? [])].filter((flag) => flag.startsWith("--"));
   if (call?.session === undefined || flags.some((flag) => !FLAGS.has(flag))) return undefined;
   if (flags.some((flag) => ["--json", "--debug", "--verbose"].includes(flag))) return undefined;
@@ -533,7 +466,7 @@ export const agentDeviceSessionError = (
 };
 
 const decodeDeviceError = Schema.decodeUnknownOption(DeviceError);
-                                                                                                           
+
 export const deviceFailure = (mock: unknown) => Option.getOrUndefined(decodeDeviceError(mock));
 
 const Injected = Context.Reference<DeviceError | undefined>(
@@ -543,25 +476,21 @@ const Injected = Context.Reference<DeviceError | undefined>(
 const failing = <A, R>(effect: Effect.Effect<A, DeviceError, R>) =>
   Effect.flatMap(Injected, (failure) => (failure === undefined ? effect : Effect.fail(failure)));
 
-                                                                                                    
 const NODE = "/usr/bin/node";
 const HUB = "http://127.0.0.1:47613";
 const PLATFORM_NAMES = { ios: "iOS Simulators", android: "Android Emulators" } as const;
-                                                                                 
+
 const capture = (platform: DevicePlatform) => {
   const png = new Uint8Array(24);
   const view = new DataView(png.buffer);
-  view.setUinsupaterm2(0, 0x89504e47);
-  view.setUinsupaterm2(4, 0x0d0a1a0a);
-  view.setUinsupaterm2(12, 0x49484452);
-  view.setUinsupaterm2(16, platform === "ios" ? 1206 : 1080);
-  view.setUinsupaterm2(20, platform === "ios" ? 2622 : 2400);
+  view.setUint32(0, 0x89504e47);
+  view.setUint32(4, 0x0d0a1a0a);
+  view.setUint32(12, 0x49484452);
+  view.setUint32(16, platform === "ios" ? 1206 : 1080);
+  view.setUint32(20, platform === "ios" ? 2622 : 2400);
   return png;
 };
-   
-                                                                                               
-                                                                                             
-   
+
 const SCREENCAP_WARNING = new TextEncoder().encode(
   "[Warning] Multiple displays were found, but no display id was specified! Defaulting to the first display found, however this default is not guaranteed to be consistent across captures. A display id should be specified.\n",
 );
@@ -583,7 +512,6 @@ const fakeHost = (
     nodePath: NODE,
     hub: { origin: HUB },
     devices: {
-                                                                                              
       list:
         discovery === undefined
           ? Effect.sync(() => ({
@@ -608,7 +536,7 @@ const fakeHost = (
             : capture(device.platform),
         ),
     },
-                                                                                                 
+
     run: () => Effect.succeed({ stdout: " V....D libx264 H.264\n", stderr: "", code: 0 }),
     helpers: { serveSimAxSettings: null, serveSimCli: null },
   };
@@ -637,8 +565,6 @@ const fakeHost = (
   };
 };
 
-                                                                                               
-                                                                                         
 type BoundTarget = { readonly session: string; readonly targetArgs: ReadonlyArray<string> };
 type Launchers = {
   readonly bind: (input: BoundTarget) => Effect.Effect<string, DeviceError>;
@@ -663,7 +589,6 @@ const makeWithHosts: (
   launchers?: Launchers,
 ) => ReturnType<MakeWithHosts> = DeviceService.makeWithHosts;
 
-                                                                                                      
 export const makeDeviceTools = Effect.fn("evaluateMcpToolUse.makeDeviceTools")(function* (
   world: DeviceWorld,
   environment: { readonly cwd: string; readonly platform: string },
@@ -674,7 +599,7 @@ export const makeDeviceTools = Effect.fn("evaluateMcpToolUse.makeDeviceTools")(f
       return yield* Effect.die(new Error(`world.agentDeviceSessions names no device ${id}.`));
     }
   }
-                                                                                              
+
   const owners: Array<AgentDeviceOwner> = [];
   for (const [deviceId, threadId] of Object.entries(world.deviceOwners ?? {})) {
     const device = world.devices.find((candidate) => candidate.id === deviceId);
@@ -697,14 +622,21 @@ export const makeDeviceTools = Effect.fn("evaluateMcpToolUse.makeDeviceTools")(f
       const path = yield* Path.Path;
       const crypto = yield* Crypto.Crypto;
       const { stateDir } = yield* ServerConfig.ServerConfig;
-      const agentEntry = path.join(home, ".supaterm", "tools", "agent-device", "bin", "agent-device.mjs");
+      const agentEntry = path.join(
+        home,
+        ".supaterm",
+        "tools",
+        "agent-device",
+        "bin",
+        "agent-device.mjs",
+      );
       const hosts = new Map<DeviceHostId, DeviceHost.DeviceHost["Service"]>([
         [
           LOCAL_DEVICE_HOST_ID,
           fakeHost(world, LOCAL_DEVICE_HOST_ID, LOCAL_DEVICE_HOST_LABEL, agentEntry),
         ],
       ]);
-                                                                                            
+
       for (const id of [
         ...world.devices.map((device) => device.hostId),
         ...Object.keys(world.deviceHosts ?? {}),
@@ -717,7 +649,7 @@ export const makeDeviceTools = Effect.fn("evaluateMcpToolUse.makeDeviceTools")(f
         }
         hosts.set(id, fakeHost(world, id, label, agentEntry));
       }
-                                                                             
+
       const configureAgent = (hostId: DeviceHostId, _endpoint: unknown, deviceId?: string) =>
         agentDeviceConfigPath(stateDir, hostId, path, deviceId).pipe(
           Effect.provideService(Crypto.Crypto, crypto),
@@ -758,7 +690,7 @@ export const makeDeviceTools = Effect.fn("evaluateMcpToolUse.makeDeviceTools")(f
       const service = yield* makeWithHosts(hosts, undefined, configureAgent, undefined, launchers);
       return DeviceService.DeviceService.of({
         ...service,
-                                                                                          
+
         ...("agentCli" in service ? { agentCli: Effect.succeed(agentEntry) } : {}),
         list: failing(service.list),
         open: Effect.fn("DeviceService.DeviceService.open")((input, context) =>
@@ -793,9 +725,9 @@ export const makeDeviceTools = Effect.fn("evaluateMcpToolUse.makeDeviceTools")(f
     ),
   );
   type Entry = Parameters<McpServer.McpServer["Service"]["addTool"]>[0];
-                                                                                    
+
   const tools = Context.get(context, McpServer.McpServer).tools as ReadonlyArray<Entry>;
-                                                                                      
+
   const scope: McpInvocationContext.McpThreadInvocationScope = {
     environmentId: EnvironmentId.make("00000000-0000-4000-8000-0000000000e0"),
     requestNamespace: "mcp-tool-use-eval",
@@ -805,7 +737,7 @@ export const makeDeviceTools = Effect.fn("evaluateMcpToolUse.makeDeviceTools")(f
       providerInstanceId: ProviderInstanceId.make("codex"),
     },
     client: undefined,
-                                                                                      
+
     capabilities: new Set<McpInvocationContext.McpCapability>(
       world.deviceAgentAccess === false ? [] : ["device"],
     ),
@@ -824,16 +756,17 @@ export const makeDeviceTools = Effect.fn("evaluateMcpToolUse.makeDeviceTools")(f
     failure?: DeviceError,
   ) {
     const entry = tools.find((tool) => tool.tool.name === name);
-    if (entry === undefined) return yield* Effect.die(new Error(`Supaterm has no device tool ${name}.`));
+    if (entry === undefined)
+      return yield* Effect.die(new Error(`Supaterm has no device tool ${name}.`));
     const result = yield* entry.handle(input).pipe(
       Effect.provideService(McpInvocationContext.McpInvocationContext, scope),
       Effect.provideService(McpSchema.McpRequestContext, request),
       Effect.provideService(HostProcess.ExecutablePath, NODE),
       Effect.provideService(HostProcess.Platform, environment.platform as NodeJS.Platform),
       Effect.provideService(Injected, failure),
-                                                                          
+
       Effect.provideService(References.MinimumLogLevel, "Error"),
-                                                                                           
+
       Effect.catch((error) =>
         Effect.succeed(
           new McpSchema.CallToolResult({
@@ -847,7 +780,7 @@ export const makeDeviceTools = Effect.fn("evaluateMcpToolUse.makeDeviceTools")(f
     const text = result.content
       .flatMap((part) => (part.type === "text" ? [part.text] : []))
       .join("\n");
-                                                                                           
+
     if (text === "Tool execution failed due to an internal server error.") {
       return yield* Effect.die(new Error(`${name} hit a defect in Supaterm or the eval's world.`));
     }
@@ -855,7 +788,7 @@ export const makeDeviceTools = Effect.fn("evaluateMcpToolUse.makeDeviceTools")(f
     if (name === "device_open" && !result.isError && isOpened(opened)) {
       const { command, targetArgs = [], session: bound } = opened.agentDevice;
       launchers.push(command);
-                                                                                          
+
       const flag = targetArgs.indexOf("--session");
       const session = bound ?? (flag < 0 ? undefined : targetArgs[flag + 1]);
       const { device } = opened;
@@ -873,7 +806,7 @@ export const makeDeviceTools = Effect.fn("evaluateMcpToolUse.makeDeviceTools")(f
   });
   const sessions = (history: ReadonlyArray<ShellCall>) =>
     agentDeviceSessions(targets, world.agentDeviceSessions, history, owners);
-                                                                                  
+
   const deviceName = (deviceId: string) => {
     const device = world.devices.find((candidate) => candidate.id === deviceId);
     if (device === undefined) return deviceId;
@@ -896,7 +829,7 @@ export const makeDeviceTools = Effect.fn("evaluateMcpToolUse.makeDeviceTools")(f
       ...targets.map((target) => [target.session, deviceName(target.deviceId)] as const),
       ...owners.map((owner) => [owner.session, deviceName(owner.deviceId)] as const),
     ]);
-                                                                                                   
+
     const opens =
       command === undefined || owners.length === 0
         ? []

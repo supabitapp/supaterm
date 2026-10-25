@@ -13,7 +13,7 @@ export const proxyConfig = () => {
     throw new Error("SUPATERM_EVAL_BASE_URL must be an HTTP(S) URL without credentials.");
   }
   const headers = process.env.SUPATERM_EVAL_HEADERS
-    ? decodeHeaders(process.env.SUPATERM_EVAL_HEADERS)
+    ? { ...decodeHeaders(process.env.SUPATERM_EVAL_HEADERS) }
     : {};
   if (process.env.SUPATERM_EVAL_API_KEY) {
     headers.Authorization = `Bearer ${process.env.SUPATERM_EVAL_API_KEY}`;

@@ -834,6 +834,9 @@ export const resolveArtifact = Effect.fn("nativeClient.resolveArtifact")(functio
     () =>
       Effect.gen(function* () {
         yield* fs.makeDirectory(path.dirname(directory), { recursive: true });
+        if ((yield* fs.exists(artifact.file)) && (yield* validArtifact(directory))) {
+          return { ...artifact, source: "local" as const, buildMs: yield* readBuildMs(directory) };
+        }
         if (yield* fs.exists(directory)) yield* fs.remove(directory, { recursive: true });
         const remote = yield* remoteCache(home);
         if (remote) {
@@ -957,6 +960,8 @@ const installIntoSession = Effect.fn("nativeClient.installIntoSession")(function
   session: string,
   abi: string,
   metro: string | undefined,
+  launcher: string | undefined,
+  config: string | undefined,
 ) {
   const started = yield* Clock.currentTimeMillis;
   const path = yield* Path.Path;
@@ -967,6 +972,21 @@ const installIntoSession = Effect.fn("nativeClient.installIntoSession")(function
   );
 
   const workspace = yield* HostProcess.WorkingDirectory;
+  const script = launcher ?? agentDevice;
+  const launchWithNode = /\.[cm]?js$/.test(script);
+  const sessionRun = (args: ReadonlyArray<string>) =>
+    command(
+      launchWithNode ? node : script,
+      [
+        ...(launchWithNode ? [script] : []),
+        ...args,
+        ...(config ? ["--config", config] : []),
+        "--session",
+        session,
+      ],
+      true,
+      workspace,
+    );
   const deviceAbi = platform === "android" ? abi : null;
   const task = deviceAbi ? `native-client:android-${deviceAbi}` : `native-client:${platform}`;
   const current = yield* fingerprint(platform);
@@ -974,20 +994,7 @@ const installIntoSession = Effect.fn("nativeClient.installIntoSession")(function
   const source = yield* sharedSource(home, key);
 
   const downloadOnDevice = source
-    ? command(
-        node,
-        [
-          agentDevice,
-          "install-from-source",
-          source.url,
-          "--header",
-          source.header,
-          "--session",
-          session,
-        ],
-        true,
-        workspace,
-      ).pipe(
+    ? sessionRun(["install-from-source", source.url, "--header", source.header]).pipe(
         Effect.as(true),
         Effect.catch((error) =>
           Console.error(`The device could not download ${key} (${describe(error)}).`).pipe(
@@ -1006,29 +1013,16 @@ const installIntoSession = Effect.fn("nativeClient.installIntoSession")(function
 
         if (local.source === "build" && (yield* downloadOnDevice)) return local;
         yield* Console.error(`Installing into agent-device session ${session}...`);
-        yield* command(
-          node,
-          [agentDevice, "install", bundleId, local.file, "--session", session],
-          true,
-          workspace,
-        );
+        yield* sessionRun(["install", bundleId, local.file]);
         return local;
       });
   if (metro) {
     const url = encodeURIComponent(metro);
-    yield* command(
-      node,
-      [
-        agentDevice,
-        "open",
-        bundleId,
-        `supaterm-dev://expo-development-client/?url=${url}&disableOnboarding=1&disableFab=1&disableAutoLaunch=1`,
-        "--session",
-        session,
-      ],
-      true,
-      workspace,
-    );
+    yield* sessionRun([
+      "open",
+      bundleId,
+      `supaterm-dev://expo-development-client/?url=${url}&__expo_disable_onboarding=1&__expo_disable_fab=1&__expo_disable_auto_launch=1`,
+    ]);
   }
   yield* reportTelemetry(
     home,
@@ -1057,6 +1051,8 @@ const main = Command.make(
     mode: Argument.Literals("mode", ["check", "ensure"]),
     platform: Argument.Literals("platform", ["ios", "android"]),
     device: Argument.String("device").pipe(Argument.optional),
+    agentDevice: Flag.String("agent-device").pipe(Flag.optional),
+    config: Flag.String("config").pipe(Flag.optional),
     session: Flag.String("session").pipe(
       Flag.withDescription(
         "Install into this already-open agent-device session (a device pool, cloud, or remote host) instead of a local device.",
@@ -1086,6 +1082,8 @@ const main = Command.make(
     abi: sessionAbi,
     metro,
     prepare,
+    agentDevice,
+    config,
   }) {
     const started = yield* Clock.currentTimeMillis;
     if (prepare) {
@@ -1132,6 +1130,8 @@ const main = Command.make(
         session.value,
         sessionAbi,
         Option.getOrUndefined(metro),
+        Option.getOrUndefined(agentDevice),
+        Option.getOrUndefined(config),
       );
     }
     const target = yield* resolveDevice(platform, Option.getOrUndefined(requested));

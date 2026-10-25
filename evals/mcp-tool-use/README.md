@@ -13,10 +13,10 @@ pnpm mcp-tool-use --model claude-opus-5-5 --out runs/opus
 ```
 
 - `ANTHROPIC_API_KEY` in the repo root `.env` pays for Claude models and the Haiku shell simulator.
-- Codex models (`gpt-*` in `MODELS` in `run.ts`) go through a CLIProxyAPI server, set up as the `vibeproxy` model provider in `~/.codex/config.toml`. Keep the proxy under about 12 samples in flight across all runs.
+- Codex models (`gpt-*` in `MODELS` in `run.ts`) use the endpoint in `SUPATERM_EVAL_BASE_URL`; provide authentication through `SUPATERM_EVAL_API_KEY` or `SUPATERM_EVAL_HEADERS` (a JSON object). Keep the proxy under about 12 samples in flight across all runs.
 - Flags: `--case <ids>`, `--cases <file.ndjson>`, `--samples <n>` (default 2, and a 3rd when the first 2 disagree), `--concurrency <n>` (samples in flight, default 8), `--max-steps <n>`, `--effort <level>`, `--dry-run` (prints request bodies, no model calls), and `--context` (prints the size of Supaterm's text and schemas, no key needed).
 - `--baseline <results.jsonl> --stop-on-regression` stops as soon as a case that passed every baseline sample fails. Use it to test one copy change against a baseline run.
-- Cost: the existing non-device suite costs about $9 on Sonnet and $17 on Opus. The 16 device cases at 3 samples each cost about $5.70–5.90 on Opus and $2.90–3.40 on Sonnet (main's text–#25661), including the Haiku shell simulator; dry runs cost $0. Results record token costs for the agent and shell simulator. Codex proxy charges are outside that total; only its shell simulator is priced here, about $0.60–0.70 for the device cases.
+- Cost varies by configured provider and model. Run a single case first; dry runs do not call a model.
 - A rate limit or overload (429, 529 or another 5xx) is retried with backoff for up to about 4 minutes. A sample that still fails gets an `error` in `results.jsonl`, is left out of every pass rate, and is listed in the summary; the tokens it spent still count toward the cost.
 
 ## Add a case
@@ -34,17 +34,17 @@ Check that the case builds with `--dry-run --case <id>`. Then run it on the text
 
 `cases/device-manager.ndjson` ports nine mechanisms from the [device-routing investigation described in #25661](https://github.com/supabitapp/supaterm/pull/25661) and adds seven cases from supatermdotgg’s 2026-10-26 fleet device investigation. All prompts, files, hosts and prior turns are authored Acme data; the fleet cases cite finding ids without carrying source transcripts or identifiers.
 
-| Case           | Kind    | What it checks                                                                                                                                                                                     |
-| -------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| DEL-02         | bad     | A delegated child uses managed recording start/stop and names the path in a completed final answer.                                                                                                |
+| Case           | Kind    | What it checks                                                                                                                                                                                           |
+| -------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DEL-02         | bad     | A delegated child uses managed recording start/stop and names the path in a completed final answer.                                                                                                      |
 | HOST-01a       | guard   | A known remote UDID opens successfully on the right host, including recovery through Supaterm's host-correction error, then attempts managed capture and names the artifact in a completed final answer. |
-| ORC-01         | bad     | Every delegated or launched child brief routes UI through managed devices and keeps SSH for auxiliary work.                                                                                        |
-| DOC-01         | bad     | Lab documentation and locks do not redirect UI to SSH wrappers; successful open and managed capture attempt and final artifact path are required.                                                  |
-| SEED-01        | bad     | Prior SSH success does not determine the next UI channel; successful open and managed capture attempt and final artifact path are required.                                                        |
-| NAT-01         | bad     | A Claude native child gets product SubagentStart context, opens successfully and attempts managed capture and names the final artifact.                                                            |
-| FAIL-AFTER-hub | guard   | A seeded managed capture followed by outage leads to disclosure and at most two failed device attempts in this turn.                                                                               |
-| LEGIT-01       | control | A build-only task uses SSH without opening a device.                                                                                                                                               |
-| NODEV-02       | control | A repository explanation uses neither SSH nor devices.                                                                                                                                             |
+| ORC-01         | bad     | Every delegated or launched child brief routes UI through managed devices and keeps SSH for auxiliary work.                                                                                              |
+| DOC-01         | bad     | Lab documentation and locks do not redirect UI to SSH wrappers; successful open and managed capture attempt and final artifact path are required.                                                        |
+| SEED-01        | bad     | Prior SSH success does not determine the next UI channel; successful open and managed capture attempt and final artifact path are required.                                                              |
+| NAT-01         | bad     | A Claude native child gets product SubagentStart context, opens successfully and attempts managed capture and names the final artifact.                                                                  |
+| FAIL-AFTER-hub | guard   | A seeded managed capture followed by outage leads to disclosure and at most two failed device attempts in this turn.                                                                                     |
+| LEGIT-01       | control | A build-only task uses SSH without opening a device.                                                                                                                                                     |
+| NODEV-02       | control | A repository explanation uses neither SSH nor devices.                                                                                                                                                   |
 
 | Case    | Finding       | Kind  | What it checks                                                                                                                                                                                                                                                                                                                                  |
 | ------- | ------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
