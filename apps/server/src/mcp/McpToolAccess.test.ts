@@ -27,6 +27,7 @@ const backgroundThreadId = ThreadId.make("thread:background");
 const oldProviderThreadId = ThreadId.make("thread:old-provider-background");
 const archivedThreadId = ThreadId.make("thread:archived-background");
 const unknownOwnerThreadId = ThreadId.make("thread:unknown-background-owner");
+const sideChatThreadId = ThreadId.make("thread:side-chat");
 
 const backgroundShell = (threadId: ThreadId, providerInstanceId: ProviderInstanceId) => ({
   ...liveThreadShell(threadId, { activeRunId: null }),
@@ -42,6 +43,10 @@ const shells = new Map([
     liveThreadShell(planThreadId, { runtimeMode: "approval-required", interactionMode: "plan" }),
   ],
   [fullAccessThreadId, liveThreadShell(fullAccessThreadId)],
+  [
+    sideChatThreadId,
+    { ...liveThreadShell(sideChatThreadId, { runtimeMode: "approval-required" }), sideChat: true },
+  ],
   [endedThreadId, liveThreadShell(endedThreadId, { activeRunId: null })],
   [backgroundThreadId, backgroundShell(backgroundThreadId, ProviderInstanceId.make("codex"))],
   [oldProviderThreadId, backgroundShell(oldProviderThreadId, ProviderInstanceId.make("claude"))],
@@ -111,6 +116,7 @@ const ProbeToolkit = Toolkit.make(
   Tool.make("reads", probe),
   Tool.make("reads_as_caller", probe),
   Tool.make("acts_as_caller", probe),
+  Tool.make("orchestrates_as_caller", probe),
   Tool.make("writes", probe),
   Tool.make("writes_with_capability", probe),
   Tool.make("writes_threads", {
@@ -131,6 +137,7 @@ const probeHandlers: McpToolAccess.Handlers<typeof ProbeToolkit.tools> = {
   reads: McpToolAccess.reads(() => ran),
   reads_as_caller: McpToolAccess.readsAsCaller(() => ran),
   acts_as_caller: McpToolAccess.actsAsCaller(() => ran),
+  orchestrates_as_caller: McpToolAccess.orchestratesAsCaller(() => ran),
   writes: McpToolAccess.writes(() => ran),
   writes_with_capability: McpToolAccess.writesWithCapability(() => ran),
   writes_threads: McpToolAccess.writesThreads(
@@ -177,6 +184,7 @@ export const refusedAtCompileTime = () => {
       reads: unchecked,
       reads_as_caller: unchecked,
       acts_as_caller: unchecked,
+      orchestrates_as_caller: unchecked,
       writes: unchecked,
       writes_with_capability: unchecked,
       writes_threads: unchecked,
@@ -230,6 +238,7 @@ const supervisedClient = clientCaller("approval-required");
 const fullAccessClient = clientCaller("full-access");
 const readOnlyClient = clientCaller("read-only");
 const previewOnly = { ...fullAccess, capabilities: new Set(["preview"] as const) };
+const sideChat = threadCaller(sideChatThreadId);
 
 it.effect.each([
   ["reads", ended, {}, "ran"],
@@ -251,6 +260,14 @@ it.effect.each([
   ["acts_as_caller", archivedBackground, {}, "parent_not_active"],
   ["acts_as_caller", unknownOwnerBackground, {}, "parent_not_active"],
   ["acts_as_caller", fullAccessClient, {}, "thread_credential_required"],
+  ["orchestrates_as_caller", supervised, {}, "ran"],
+
+  ["acts_as_caller", sideChat, {}, "ran"],
+  ["orchestrates_as_caller", sideChat, {}, "capability_denied"],
+  ["writes", sideChat, {}, "capability_denied"],
+  ["writes_threads", sideChat, {}, "ran"],
+  ["writes_threads", sideChat, { threadId: supervisedThreadId }, "capability_denied"],
+  ["starts_threads", sideChat, {}, "capability_denied"],
 
   ["writes", supervised, {}, "ran"],
   ["writes", ended, {}, "parent_not_active"],

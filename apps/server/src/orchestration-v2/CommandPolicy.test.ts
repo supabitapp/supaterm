@@ -280,4 +280,38 @@ layer("CommandPolicyV2", (it) => {
       assert.equal(result, "portable_context");
     }),
   );
+
+  it.effect("forks a running source natively only where the provider allows it", () =>
+    Effect.gen(function* () {
+      const policy = yield* CommandPolicy.CommandPolicyV2;
+      const decide = (
+        forkWhileSourceActive: "none" | "stable" | "live" | undefined,
+        input: { liveSnapshot?: boolean; hasNativeCutoff?: boolean; sourceActive?: boolean },
+      ) =>
+        policy.decideForkExecution({
+          commandId,
+          threadId,
+          providerInstanceId: ProviderInstanceId.make("codex"),
+          capabilities: {
+            ...baseCapabilities,
+            threads: { ...baseCapabilities.threads, forkWhileSourceActive },
+          },
+          sameProvider: true,
+          hasStrongNativeSource: true,
+          sourceRunStatus: input.liveSnapshot === true ? "running" : "completed",
+          fromSpecificTurn: input.liveSnapshot !== true,
+          sourceActive: input.sourceActive ?? true,
+          hasNativeCutoff: input.hasNativeCutoff ?? true,
+          liveSnapshot: input.liveSnapshot ?? false,
+        });
+
+      assert.equal(yield* decide(undefined, { sourceActive: false }), "native_fork");
+      assert.equal(yield* decide(undefined, {}), "portable_context");
+      assert.equal(yield* decide("none", {}), "portable_context");
+      assert.equal(yield* decide("stable", {}), "native_fork");
+      assert.equal(yield* decide("stable", { hasNativeCutoff: false }), "portable_context");
+      assert.equal(yield* decide("stable", { liveSnapshot: true }), "portable_context");
+      assert.equal(yield* decide("live", { liveSnapshot: true }), "native_fork");
+    }),
+  );
 });

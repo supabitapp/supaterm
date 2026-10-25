@@ -3,6 +3,7 @@ import {
   ScheduledTask,
   OrchestrationSearchThreadsInput,
   OrchestrationSearchThreadsResult,
+  OrchestrationV2ThreadForkRequestSourcePoint,
   OrchestrationV2ThreadForkSourcePoint,
   OrchestrationV2ContextTransfer,
   TrimmedNonEmptyString,
@@ -203,11 +204,13 @@ const transferResult = Schema.Struct({ sequence: NonNegativeInt, targetThreadId:
 const ThreadForkTool = Tool.make("supaterm_thread_fork", {
   ...commandTool,
   description:
-    "Fork a thread from a finished run or checkpoint. Use latest_stable for the newest provider-finished run, even while a newer run is active or checkpoint capture is pending. Omit threadId to fork this thread. The fork inherits the source configuration. Acceptance does not mean a provider turn has completed.",
+    "Fork a thread from a finished run or checkpoint. Use latest_stable for the newest provider-finished run, even while a newer run is active or checkpoint capture is pending. Use live to also capture a run still in progress where the provider supports it; otherwise it falls back to latest_stable. Set sideChat to ask about the thread without touching it: a side chat stays out of thread lists and starts in approval-required mode unless runtimeMode says otherwise. Omit threadId to fork this thread. The fork inherits the source configuration. Acceptance does not mean a provider turn has completed.",
   parameters: Schema.Struct({
     threadId: Schema.optional(ThreadId),
-    sourcePoint: OrchestrationV2ThreadForkSourcePoint,
+    sourcePoint: OrchestrationV2ThreadForkRequestSourcePoint,
     title: Schema.optional(TrimmedNonEmptyString),
+    sideChat: Schema.optional(Schema.Boolean),
+    runtimeMode: Schema.optional(RuntimeMode),
   }),
   success: transferResult,
 }).annotate(Tool.Destructive, true);

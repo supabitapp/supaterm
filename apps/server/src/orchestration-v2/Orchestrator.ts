@@ -51,6 +51,7 @@ import {
   type OrchestrationV2ThreadShellSnapshot,
   type OrchestrationV2StoredEvent,
   type OrchestrationV2Subagent,
+  type OrchestrationV2ThreadForkSourcePoint,
   type OrchestrationV2ThreadProjection,
   type OrchestrationV2TurnItem,
   latestForkableRun,
@@ -85,8 +86,8 @@ import * as Stream from "effect/Stream";
 
 import * as ProjectStore from "./ProjectStore.ts";
 import {
-  isCheckpointRestoreIsolated,
-  SHARED_WORKSPACE_RESTORE_MESSAGE,
+  findCheckpointRestoreConflict,
+  sharedWorkspaceRestoreMessage,
 } from "./CheckpointRestoreSafety.ts";
 import { CheckpointServiceV2 } from "./CheckpointService.ts";
 import {
@@ -739,6 +740,10 @@ function usageLimitHoldsQueue(
   );
 }
 
+function isProviderWorkingRun(run: Pick<OrchestrationV2Run, "status">): boolean {
+  return run.status === "preparing" || run.status === "starting" || run.status === "running";
+}
+
 function latestStableRun(
   projection: Pick<OrchestrationV2ThreadProjection, "runs">,
 ): OrchestrationV2Run | null {
@@ -751,10 +756,7 @@ function latestStableRun(
 
 function runForSourcePoint(
   projection: Pick<OrchestrationV2ThreadProjection, "runs" | "checkpoints">,
-  sourcePoint: Extract<
-    OrchestrationV2Command,
-    { readonly type: "thread.fork" | "thread.merge_back" }
-  >["sourcePoint"],
+  sourcePoint: OrchestrationV2ThreadForkSourcePoint,
 ): OrchestrationV2Run | null {
   switch (sourcePoint.type) {
     case "latest_stable":
@@ -3230,6 +3232,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
                 : {}),
             ...(command.branch === undefined ? {} : { branch: command.branch }),
             ...(command.worktreePath === undefined ? {} : { worktreePath: command.worktreePath }),
+            ...(command.sideChat === false && thread.sideChat === true
+              ? { sideChat: false, sideChatPromotedAt: now }
+              : {}),
             ...(command.linkedPullRequest === undefined
               ? {}
               : {
@@ -3931,21 +3936,39 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       );
     // The source is not under this command's lock, so check the modes this
     // command copies, not an earlier read the source's user could outrun.
-    yield* refuseAboveDispatchModeLimit(command, command.sourceThreadId, sourceProjection.thread);
+    yield* refuseAboveDispatchModeLimit(command, command.sourceThreadId, {
+      runtimeMode: command.runtimeMode ?? sourceProjection.thread.runtimeMode,
+      interactionMode: sourceProjection.thread.interactionMode,
+    });
+    if (command.sideChat === true && sourceProjection.thread.sideChat === true) {
+      return yield* new OrchestratorDispatchError({
+        commandId: command.commandId,
+        commandType: command.type,
+        cause: "A side chat cannot be opened from another side chat.",
+      });
+    }
 
+    const liveSourceRun =
+      command.sourcePoint.type === "live"
+        ? (sourceProjection.runs.find(isProviderWorkingRun) ?? null)
+        : null;
     const sourceRun =
-      command.sourcePoint.type === "latest_stable"
+      liveSourceRun ??
+      (command.sourcePoint.type === "latest_stable" || command.sourcePoint.type === "live"
         ? latestForkableRun(sourceProjection.runs)
-        : runForSourcePoint(sourceProjection, command.sourcePoint);
+        : runForSourcePoint(sourceProjection, command.sourcePoint));
 
     if (sourceRun === null) {
       return yield* new OrchestratorDispatchError({
         commandId: command.commandId,
         commandType: command.type,
-        cause: `No stable source run was found for fork source ${command.sourcePoint.type}.`,
+        cause:
+          command.sourcePoint.type === "live"
+            ? "The source thread has no finished run to fork yet."
+            : `No stable source run was found for fork source ${command.sourcePoint.type}.`,
       });
     }
-    if (!isForkableSourceRunStatus(sourceRun.status)) {
+    if (liveSourceRun === null && !isForkableSourceRunStatus(sourceRun.status)) {
       return yield* new OrchestratorDispatchError({
         commandId: command.commandId,
         commandType: command.type,
@@ -3972,6 +3995,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         transferId,
         targetThreadId: command.targetThreadId,
         ...(command.title === undefined ? {} : { title: command.title }),
+        ...(command.sideChat === undefined ? {} : { sideChat: command.sideChat }),
+        ...(command.runtimeMode === undefined ? {} : { runtimeMode: command.runtimeMode }),
+        ...(liveSourceRun === null ? {} : { liveSnapshot: true }),
         createdBy: command.createdBy,
         creationSource: command.creationSource,
         createdAt: now,
@@ -4028,7 +4054,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     // command copies, not an earlier read the source's user could outrun.
     yield* refuseAboveDispatchModeLimit(command, command.sourceThreadId, sourceProjection.thread);
     const targetProjection = yield* projectionStore
-      .getThreadRecords(command.targetThreadId, ["contextTransfers"])
+      .getThreadRecords(command.targetThreadId, ["contextTransfers", "runs"])
       .pipe(
         Effect.mapError(
           (cause) =>
@@ -4090,13 +4116,38 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         type: "merge_back",
       }),
     );
-    const pendingMergeBackTransfersForPair = targetProjection.contextTransfers.filter(
+    // Queued turns cannot consume a merge-back yet, so a pending one would
+    // refuse every queued send to the busy parent.
+    if (
+      targetProjection.runs.some(
+        (run) => run.status === "queued" || run.status === "waiting" || isProviderWorkingRun(run),
+      )
+    ) {
+      return yield* new OrchestratorDispatchError({
+        commandId: command.commandId,
+        commandType: command.type,
+        cause: `Thread ${command.targetThreadId} is working; merge back once it is idle.`,
+      });
+    }
+    const pendingMergeBackTransfers = targetProjection.contextTransfers.filter(
       (transfer) =>
         transfer.type === "merge_back" &&
         transfer.status === "pending" &&
-        transfer.sourceThreadId === command.sourceThreadId &&
         transfer.targetThreadId === command.targetThreadId,
     );
+    // The next turn refuses merge-backs from several forks at once.
+    if (
+      pendingMergeBackTransfers.some(
+        (transfer) => transfer.sourceThreadId !== command.sourceThreadId,
+      )
+    ) {
+      return yield* new OrchestratorDispatchError({
+        commandId: command.commandId,
+        commandType: command.type,
+        cause: `Thread ${command.targetThreadId} already has a merge-back waiting for its next turn.`,
+      });
+    }
+    const pendingMergeBackTransfersForPair = pendingMergeBackTransfers;
     const transfer: OrchestrationV2ContextTransfer = {
       id: transferId,
       type: "merge_back",
@@ -5682,6 +5733,15 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           targetModelSelection: modelSelection,
         })
         .pipe(mapDispatchError(command))).transition.type === "restart_and_resume";
+    // Provider handoffs carry only this thread's own runs, so a switched side
+    // chat would lose the parent history it exists to ask about.
+    if (projection.thread.sideChat === true && isProviderSwitch && !canResumeAcrossInstances) {
+      return yield* new OrchestratorDispatchError({
+        commandId: command.commandId,
+        commandType: command.type,
+        cause: "A side chat stays on its parent's provider. Promote it to switch providers.",
+      });
+    }
 
     if (
       pendingForkTransfer === undefined &&
@@ -6115,8 +6175,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           }),
       ),
     );
+    const liveForkSnapshot = pendingForkTransfer?.snapshot === "live";
     const forkExecution =
-      pendingForkTransfer === undefined || sourceRun === null
+      pendingForkTransfer === undefined || sourceRun === null || sourceProjection === null
         ? null
         : yield* enforceCommandPolicy(command)(
             commandPolicy.decideForkExecution({
@@ -6128,7 +6189,13 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
                 pendingForkTransfer.sourceProviderInstanceId === modelSelection.instanceId,
               hasStrongNativeSource: sourceProviderThread?.nativeThreadRef?.strength === "strong",
               sourceRunStatus: sourceRun.status,
-              fromSpecificTurn: sourceRun !== null,
+              fromSpecificTurn: !liveForkSnapshot,
+              sourceActive: sourceProjection.runs.some(isProviderWorkingRun),
+              hasNativeCutoff:
+                sourceProjection.providerTurns.find(
+                  (providerTurn) => providerTurn.id === sourceProviderTurnId,
+                )?.nativeTurnRef?.nativeId != null,
+              liveSnapshot: liveForkSnapshot,
             }),
           );
     const canResolveForkNatively = forkExecution === "native_fork";
@@ -6141,7 +6208,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           threadId: command.threadId,
           providerInstanceId: modelSelection.instanceId,
           capabilities,
-          fromSpecificTurn: sourceRun !== null,
+          fromSpecificTurn: !liveForkSnapshot,
         }),
       );
     }
@@ -6168,7 +6235,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
               canResolveForkNatively && sourceProviderThread !== undefined
                 ? {
                     providerThreadId: sourceProviderThread.id,
-                    ...(sourceProviderTurnId === undefined
+                    ...(sourceProviderTurnId === undefined || liveForkSnapshot
                       ? {}
                       : { providerTurnId: sourceProviderTurnId }),
                   }
@@ -10269,7 +10336,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         });
       }
       if (command.restoreFiles !== false) {
-        const isolated = yield* isCheckpointRestoreIsolated(projection.thread, targetScope, {
+        const conflict = yield* findCheckpointRestoreConflict(projection.thread, targetScope, {
           projects,
           path,
           fileSystem,
@@ -10284,11 +10351,11 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
               }),
           ),
         );
-        if (!isolated)
+        if (conflict !== null)
           return yield* new OrchestratorDispatchError({
             commandId: command.commandId,
             commandType: command.type,
-            cause: SHARED_WORKSPACE_RESTORE_MESSAGE,
+            cause: sharedWorkspaceRestoreMessage(conflict),
           });
       }
 

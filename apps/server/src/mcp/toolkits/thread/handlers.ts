@@ -129,6 +129,11 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
           targetThreadId,
           sourcePoint: input.sourcePoint,
           ...(input.title === undefined ? {} : { title: input.title }),
+          ...(input.sideChat === true
+            ? { sideChat: true, runtimeMode: input.runtimeMode ?? "approval-required" }
+            : input.runtimeMode === undefined
+              ? {}
+              : { runtimeMode: input.runtimeMode }),
           createdBy: "agent",
           creationSource: "mcp",
         })

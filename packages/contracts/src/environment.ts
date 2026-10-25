@@ -93,6 +93,9 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   serverInstallation: ForwardCompatibleOptional(ServerInstallation),
   serverSelfUpdateProgress: Schema.optionalKey(Schema.Boolean),
   ignoredFileListing: Schema.optionalKey(Schema.Boolean),
+  /** thread.fork accepts sideChat and the live source point. Older servers
+      would drop sideChat and create an ordinary fork. */
+  sideChats: Schema.optionalKey(Schema.Boolean),
   /** The desktop app supervising this server can be driven over RPC:
       server.updateServer runs its check -> download -> relaunch. Absent on
       servers the desktop app does not supervise, where clients tell the user

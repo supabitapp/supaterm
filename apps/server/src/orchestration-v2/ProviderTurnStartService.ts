@@ -57,6 +57,7 @@ import {
   pendingRestartCancelledBackgroundWork,
   restartCancelledBackgroundWorkNote,
 } from "./RestartBackgroundNote.ts";
+import { sideChatTurnNote } from "./SideChatNote.ts";
 
 export class ProviderTurnStartError extends Schema.TaggedError<ProviderTurnStartError>()(
   "ProviderTurnStartError",
@@ -708,7 +709,8 @@ export const layer: Layer.Layer<
               targetThreadId: projection.thread.id,
               modelSelection: run.modelSelection,
               runtimePolicy: resolvedRuntimePolicy,
-              ...(sourceProviderTurn === undefined
+              // A live snapshot forks the provider's head, run in progress included.
+              ...(sourceProviderTurn === undefined || nativeForkTransfer.snapshot === "live"
                 ? {}
                 : { providerTurnId: sourceProviderTurn.id }),
             }),
@@ -1039,10 +1041,14 @@ export const layer: Layer.Layer<
         run,
         attempts: projection.attempts,
       });
-      const restartNote =
+      const turnNote = [
+        sideChatTurnNote({ thread: projection.thread, runs: projection.runs, run }),
         restartCancelledWork.length === 0
           ? ""
-          : restartCancelledBackgroundWorkNote(restartCancelledWork);
+          : restartCancelledBackgroundWorkNote(restartCancelledWork),
+      ]
+        .filter((part) => part !== "")
+        .join("\n\n");
       const tokenCap = yield* handoffTokenCapConfig.pipe(
         Effect.orElseSucceed(() => DEFAULT_HANDOFF_TOKEN_CAP),
       );
@@ -1184,7 +1190,7 @@ export const layer: Layer.Layer<
               return handoffBudget({
                 tokenCap,
                 modelContextWindow,
-                userText: restartNote === "" ? userText : `${restartNote}\n\n${userText}`,
+                userText: turnNote === "" ? userText : `${turnNote}\n\n${userText}`,
                 attachments: message.attachments,
                 providerThread: budgetProviderThread,
                 nativeContextEstimate:
@@ -1224,9 +1230,7 @@ export const layer: Layer.Layer<
           });
           if (!(yield* isCurrentAttemptInStatus("running"))) return;
           const start = compact ? session.compactThread! : session.startTurn;
-          const context = [delivery.context, restartNote]
-            .filter((part) => part !== "")
-            .join("\n\n");
+          const context = [delivery.context, turnNote].filter((part) => part !== "").join("\n\n");
           const { restartContinuationOfRunId: _resumedRunId, ...promptedInput } = turnInput;
           yield* start({
             ...(noteContinuation ? promptedInput : turnInput),
@@ -1273,7 +1277,7 @@ export const layer: Layer.Layer<
       const deliverySession =
         effectiveHandoffs.length === 0 &&
         missedItems.length === 0 &&
-        restartNote === "" &&
+        turnNote === "" &&
         !noteContinuation
           ? session
           : makeDeliverySession(session, startWithHandoffs);

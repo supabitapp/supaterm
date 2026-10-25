@@ -241,6 +241,11 @@ export interface CommandPolicyV2Shape {
       readonly hasStrongNativeSource: boolean;
       readonly sourceRunStatus: OrchestrationV2Run["status"];
       readonly fromSpecificTurn: boolean;
+      /** Another run of the source thread is in progress at the provider. */
+      readonly sourceActive?: boolean;
+      /** The source turn has a native id the provider can cut at. */
+      readonly hasNativeCutoff?: boolean;
+      readonly liveSnapshot?: boolean;
     },
   ) => Effect.Effect<ForkExecutionPolicyV2, CommandPolicyV2Error>;
   readonly ensureRollback: (
@@ -399,10 +404,18 @@ const ensureContextHandoff: CommandPolicyV2Shape["ensureContextHandoff"] = (inpu
 };
 
 const decideForkExecution: CommandPolicyV2Shape["decideForkExecution"] = (input) => {
+  const activeSourceFork = input.capabilities.threads.forkWhileSourceActive ?? "none";
   // Unsuccessful runs may have no native turn or assistant cursor. Forking
   // those at native head can include later turns, so use the bounded transcript.
+  // A running source needs either a live-capable provider or an exact cutoff,
+  // otherwise the native fork can pick up the unfinished turn.
+  const sourceAllowsNativeFork = input.liveSnapshot
+    ? activeSourceFork === "live"
+    : (input.sourceRunStatus === "completed" || input.sourceRunStatus === "waiting") &&
+      (input.sourceActive !== true ||
+        (activeSourceFork !== "none" && input.hasNativeCutoff === true));
   const canForkNatively =
-    (input.sourceRunStatus === "completed" || input.sourceRunStatus === "waiting") &&
+    sourceAllowsNativeFork &&
     input.sameProvider &&
     input.hasStrongNativeSource &&
     input.capabilities.threads.canForkThread &&

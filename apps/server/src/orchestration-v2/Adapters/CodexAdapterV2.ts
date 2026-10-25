@@ -254,6 +254,9 @@ export const CodexProviderCapabilitiesV2 = {
     canForkFromTurn: true,
     canForkFromSubagentThread: true,
     exposesNativeThreadId: true,
+    // thread/fork reads the stored rollout; without lastTurnId it snapshots the
+    // running turn as interrupted while the source keeps going.
+    forkWhileSourceActive: "live",
   },
   turns: {
     exposesNativeTurnId: true,

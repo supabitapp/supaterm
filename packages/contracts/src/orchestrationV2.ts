@@ -139,6 +139,17 @@ export const OrchestrationV2ThreadForkSourcePoint = Schema.Union([
 ]);
 export type OrchestrationV2ThreadForkSourcePoint = typeof OrchestrationV2ThreadForkSourcePoint.Type;
 
+/**
+ * `live` forks the source as it stands when the fork's first turn starts,
+ * including a run still in progress. Merge-back has no such boundary.
+ */
+export const OrchestrationV2ThreadForkRequestSourcePoint = Schema.Union([
+  ...OrchestrationV2ThreadForkSourcePoint.members,
+  Schema.Struct({ type: Schema.Literal("live") }),
+]);
+export type OrchestrationV2ThreadForkRequestSourcePoint =
+  typeof OrchestrationV2ThreadForkRequestSourcePoint.Type;
+
 export const OrchestrationV2ContextTransferResolution = Schema.Union([
   Schema.Struct({
     strategy: Schema.Literal("native_fork"),
@@ -199,6 +210,8 @@ export const OrchestrationV2ContextTransfer = Schema.Struct({
   resolution: Schema.NullOr(OrchestrationV2ContextTransferResolution),
   createdBy: OrchestrationV2Actor,
   error: Schema.NullOr(Schema.String),
+  /** The source run was still in progress; native forks take the provider's head. */
+  snapshot: Schema.optional(Schema.Literal("live")),
   createdAt: Schema.DateTimeUtc,
   updatedAt: Schema.DateTimeUtc,
   consumedAt: Schema.NullOr(Schema.DateTimeUtc),
@@ -222,6 +235,11 @@ export const OrchestrationV2ThreadCapabilities = Schema.Struct({
   canForkFromTurn: Schema.Boolean,
   canForkFromSubagentThread: Schema.Boolean,
   exposesNativeThreadId: Schema.Boolean,
+  /**
+   * Native forks while the source thread is running: `stable` cuts at a
+   * finished turn, `live` also captures the run in progress. Absent is `none`.
+   */
+  forkWhileSourceActive: Schema.optional(Schema.Literals(["none", "stable", "live"])),
 });
 export type OrchestrationV2ThreadCapabilities = typeof OrchestrationV2ThreadCapabilities.Type;
 
@@ -406,6 +424,8 @@ export const OrchestrationV2AppThread = Schema.Struct({
   activeProviderThreadId: Schema.NullOr(ProviderThreadId),
   historyOrigin: Schema.optional(OrchestrationV2ThreadHistoryOrigin),
   lineage: OrchestrationV2AppThreadLineage,
+  sideChat: Schema.optional(Schema.Boolean),
+  sideChatPromotedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
   forkedFrom: Schema.NullOr(
     Schema.Union([
       Schema.Struct({ type: Schema.Literal("run"), threadId: ThreadId, runId: RunId }),
@@ -1861,6 +1881,7 @@ export const OrchestrationV2ThreadShell = Schema.Struct({
   pullRequests: Schema.optional(Schema.Array(ThreadPullRequestLink)),
   branchPullRequest: Schema.optional(Schema.NullOr(ThreadLinkedPullRequest)),
   lineage: OrchestrationV2AppThreadLineage,
+  sideChat: Schema.optional(Schema.Boolean),
   forkedFrom: Schema.NullOr(OrchestrationV2AppThread.fields.forkedFrom),
   activeProviderThreadId: Schema.NullOr(ProviderThreadId),
   historyOrigin: Schema.optional(OrchestrationV2ThreadHistoryOrigin),
@@ -2032,6 +2053,7 @@ export const OrchestrationV2AppThreadJson = OrchestrationV2AppThread.mapFields((
   lastSnoozeWakeAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtcFromString)),
   pinnedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtcFromString)),
   autoMarkDoneDisabledAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtcFromString)),
+  sideChatPromotedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtcFromString)),
   lastVisitedAt: Schema.NullOr(Schema.DateTimeUtcFromString).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
@@ -2782,6 +2804,8 @@ export const OrchestrationV2Command = Schema.Union([
     limitRecovery: Schema.optional(Schema.NullOr(OrchestrationV2LimitRecoveryUpdate)),
     /** Link (object) or unlink (null) a pull request (#8160); absent leaves it unchanged. */
     linkedPullRequest: Schema.optional(Schema.NullOr(ThreadLinkedPullRequest)),
+    /** Promotes a side chat to a normal thread; a thread cannot become a side chat later. */
+    sideChat: Schema.optional(Schema.Literal(false)),
   }),
   Schema.Struct({
     type: Schema.Literal("thread.pull-request.link"),
@@ -3037,8 +3061,10 @@ export const OrchestrationV2Command = Schema.Union([
     commandId: CommandId,
     sourceThreadId: ThreadId,
     targetThreadId: ThreadId,
-    sourcePoint: OrchestrationV2ThreadForkSourcePoint,
+    sourcePoint: OrchestrationV2ThreadForkRequestSourcePoint,
     title: Schema.optional(TrimmedNonEmptyString),
+    sideChat: Schema.optional(Schema.Boolean),
+    runtimeMode: Schema.optional(RuntimeMode),
     createdAt: Schema.optional(Schema.DateTimeUtc),
   }),
   Schema.Struct({

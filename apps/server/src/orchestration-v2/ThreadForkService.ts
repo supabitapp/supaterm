@@ -10,6 +10,7 @@ import {
   OrchestrationV2ProviderTurnTokenUsage,
   OrchestrationV2Run,
   OrchestrationV2ThreadProjection,
+  RuntimeMode,
   ThreadId,
 } from "@supaterm/contracts";
 import * as Context from "effect/Context";
@@ -49,6 +50,10 @@ export interface ThreadForkServiceV2Shape {
     readonly transferId: ContextTransferId;
     readonly targetThreadId: ThreadId;
     readonly title?: string;
+    readonly sideChat?: boolean;
+    readonly runtimeMode?: RuntimeMode;
+    /** The source run is still in progress and the fork captures it as it stands. */
+    readonly liveSnapshot?: boolean;
     readonly createdBy: OrchestrationV2Actor;
     readonly creationSource: OrchestrationV2CreationSource;
     readonly createdAt: DateTime.Utc;
@@ -64,19 +69,28 @@ export const layer: Layer.Layer<ThreadForkServiceV2> = Layer.succeed(
   ThreadForkServiceV2,
   ThreadForkServiceV2.of({
     plan: Effect.fn("ThreadForkService.plan")(function* (input) {
-      if (!isForkableSourceRunStatus(input.sourceRun.status)) {
+      if (input.liveSnapshot !== true && !isForkableSourceRunStatus(input.sourceRun.status)) {
         return yield* new ThreadForkPlanError({
           sourceThreadId: input.sourceProjection.thread.id,
           targetThreadId: input.targetThreadId,
           cause: forkableSourceRunStatusError(input.sourceRun),
         });
       }
+      const {
+        sideChat: _sideChat,
+        sideChatPromotedAt: _promotedAt,
+        ...source
+      } = withoutInheritedWatches(input.sourceProjection.thread);
       const targetThread: OrchestrationV2AppThread = {
-        ...withoutInheritedWatches(input.sourceProjection.thread),
+        ...source,
+        ...(input.sideChat === true ? { sideChat: true } : {}),
+        ...(input.runtimeMode === undefined ? {} : { runtimeMode: input.runtimeMode }),
         createdBy: input.createdBy,
         creationSource: input.creationSource,
         id: input.targetThreadId,
-        title: input.title ?? `${input.sourceProjection.thread.title} fork`,
+        title:
+          input.title ??
+          `${input.sourceProjection.thread.title} ${input.sideChat === true ? "side chat" : "fork"}`,
         activeProviderThreadId: null,
         lineage: {
           parentThreadId: input.sourceProjection.thread.id,
@@ -121,6 +135,7 @@ export const layer: Layer.Layer<ThreadForkServiceV2> = Layer.succeed(
           input.sourceProviderThread?.nativeThreadRef?.strength === "strong"
             ? null
             : "Source provider thread does not expose a strong native thread ref.",
+        ...(input.liveSnapshot === true ? { snapshot: "live" as const } : {}),
         createdAt: input.createdAt,
         updatedAt: input.createdAt,
         consumedAt: null,

@@ -96,6 +96,17 @@ const orchestratingCaller = refuseReadOnlyClient.pipe(
   Effect.tap(assertLiveCaller),
 );
 
+/** Side chats answer questions; they never start, steer, or change other work. */
+const refuseSideChatCaller = (caller: Caller, action: string) =>
+  caller.caller?.sideChat === true
+    ? Effect.fail(
+        new OrchestratorMcpFailure({
+          code: "capability_denied",
+          message: `A side chat cannot ${action}. Promote it to a normal thread first.`,
+        }),
+      )
+    : Effect.void;
+
 const requireThreadCaller = McpInvocationContext.McpInvocationContext.pipe(
   Effect.flatMap((scope) => McpInvocationContext.requireThreadScope(scope, "This tool")),
 );
@@ -114,8 +125,22 @@ export const actsAsCaller = <P, A, E, R>(handle: (params: P) => Effect.Effect<A,
     ),
   );
 
+export const orchestratesAsCaller = <P, A, E, R>(handle: (params: P) => Effect.Effect<A, E, R>) =>
+  declare((params: P) =>
+    requireThreadCaller.pipe(
+      Effect.flatMap(() => writingCaller),
+      Effect.tap((caller) => refuseSideChatCaller(caller, "start or hand off work")),
+      Effect.flatMap(() => handle(params)),
+    ),
+  );
+
 export const writes = <P, A, E, R>(handle: (params: P) => Effect.Effect<A, E, R>) =>
-  declare((params: P) => orchestratingCaller.pipe(Effect.flatMap(() => handle(params))));
+  declare((params: P) =>
+    orchestratingCaller.pipe(
+      Effect.tap((caller) => refuseSideChatCaller(caller, "change orchestration state")),
+      Effect.flatMap(() => handle(params)),
+    ),
+  );
 
 /**
  * Unlike `writes` it does not need thread control; the handler checks its
@@ -133,6 +158,7 @@ export const writesThreads = <P, A, E, R>(
       const caller = yield* writingCaller;
       for (const threadId of threads(params)) {
         if (threadId === undefined || threadId === caller.scope.thread?.threadId) continue;
+        yield* refuseSideChatCaller(caller, "change another thread");
         const target = yield* caller.threads
           .getThreadShell(threadId)
           .pipe(Effect.mapError(unavailable));
@@ -180,7 +206,9 @@ export const startsThreads = <P, A, E, R>(
 ) =>
   declare((params: P) =>
     Effect.gen(function* () {
-      const { limits } = yield* writingCaller;
+      const caller = yield* writingCaller;
+      yield* refuseSideChatCaller(caller, "start threads");
+      const { limits } = caller;
       const requested = modes(params);
       const started: StartedModes = {
         runtimeMode: yield* resolveRuntimeMode(limits.runtimeMode, requested.runtimeMode),

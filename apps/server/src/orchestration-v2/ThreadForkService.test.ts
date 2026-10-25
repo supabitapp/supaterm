@@ -110,7 +110,14 @@ function makeSourceProjection(
   };
 }
 
-const planFork = (sourceRun: OrchestrationV2Run, sourceThread = makeSourceThread()) =>
+const planFork = (
+  sourceRun: OrchestrationV2Run,
+  sourceThread = makeSourceThread(),
+  options: Pick<
+    Parameters<ThreadForkService.ThreadForkServiceV2Shape["plan"]>[0],
+    "sideChat" | "runtimeMode" | "liveSnapshot"
+  > = {},
+) =>
   Effect.gen(function* () {
     const service = yield* ThreadForkService.ThreadForkServiceV2;
     return yield* service.plan({
@@ -124,6 +131,7 @@ const planFork = (sourceRun: OrchestrationV2Run, sourceThread = makeSourceThread
       transferId: ContextTransferId.make("context-transfer:fork-snoozed-source"),
       targetThreadId,
       title: "Awake fork",
+      ...options,
       createdBy: "user",
       creationSource: "mobile",
       createdAt: forkCreatedAt,
@@ -227,5 +235,39 @@ it.effect("rejects in-progress and rolled-back fork sources", () =>
       assert.equal(error.targetThreadId, targetThreadId);
       assert.equal(error.cause, ThreadForkService.forkableSourceRunStatusError(sourceRun));
     }
+  }),
+);
+
+it.effect("marks a side chat from the command, never from its source", () =>
+  Effect.gen(function* () {
+    const sideChat = yield* planFork(makeSourceRun("completed"), makeSourceThread(), {
+      sideChat: true,
+      runtimeMode: "approval-required",
+    });
+    assert.isTrue(sideChat.targetThread.sideChat);
+    assert.equal(sideChat.targetThread.runtimeMode, "approval-required");
+
+    const promotedAt = DateTime.makeUnsafe("2026-07-24T09:06:00.000Z");
+    const ordinaryFork = yield* planFork(makeSourceRun("completed"), {
+      ...makeSourceThread(),
+      sideChat: true,
+      sideChatPromotedAt: promotedAt,
+    });
+    assert.isUndefined(ordinaryFork.targetThread.sideChat);
+    assert.isUndefined(ordinaryFork.targetThread.sideChatPromotedAt);
+    assert.equal(ordinaryFork.targetThread.runtimeMode, "full-access");
+  }),
+);
+
+it.effect("records a live snapshot of a run still in progress", () =>
+  Effect.gen(function* () {
+    const result = yield* planFork(makeSourceRun("running"), makeSourceThread(), {
+      liveSnapshot: true,
+    });
+    assert.equal(result.transfer.snapshot, "live");
+    assert.isUndefined(result.transfer.sourceTokenUsage);
+
+    const stable = yield* planFork(makeSourceRun("completed"));
+    assert.isUndefined(stable.transfer.snapshot);
   }),
 );

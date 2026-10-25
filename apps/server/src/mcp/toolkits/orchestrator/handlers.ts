@@ -16,7 +16,7 @@ const handlers = {
       return yield* service.capabilities(scope, input);
     }),
   ),
-  delegate_task: McpToolAccess.actsAsCaller((input) =>
+  delegate_task: McpToolAccess.orchestratesAsCaller((input) =>
     Effect.gen(function* () {
       const scope = yield* McpInvocationContext.McpInvocationContext;
       const service = yield* OrchestratorMcpService.OrchestratorMcpService;
@@ -87,7 +87,7 @@ const handlers = {
       return yield* service.deleteScheduledTask(scope, input);
     }),
   ),
-  create_threads: McpToolAccess.actsAsCaller((input) =>
+  create_threads: McpToolAccess.orchestratesAsCaller((input) =>
     Effect.gen(function* () {
       const scope = yield* McpInvocationContext.McpInvocationContext;
       const service = yield* OrchestratorMcpService.OrchestratorMcpService;
