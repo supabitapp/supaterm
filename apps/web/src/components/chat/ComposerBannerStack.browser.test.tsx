@@ -41,6 +41,7 @@ it.each([true, false])(
         stoppedAt: "2026-10-20T12:00:00.000Z",
         snoozedUntil: null,
         recovery: null,
+        timestampFormat: "locale",
         onChange: async () => {},
       }),
       { id: "update", variant: "info", icon: null, title: "Server update available" },
