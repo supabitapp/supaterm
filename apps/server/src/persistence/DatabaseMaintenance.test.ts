@@ -1,6 +1,8 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
+import * as Clock from "effect/Clock";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -75,6 +77,18 @@ it.layer(DatabaseMaintenance.layer.pipe(Layer.provideMerge(NodeServices.layer)))
             VALUES ('delete-all')
           `;
           yield* sql`PRAGMA wal_checkpoint(TRUNCATE)`;
+          yield* sql`WITH RECURSIVE history(n) AS (
+            SELECT 1 UNION ALL SELECT n + 1 FROM history WHERE n < 52
+          ) INSERT INTO orchestration_events (
+            event_id, aggregate_kind, stream_id, stream_version, event_type,
+            occurred_at, actor_kind, payload_json, metadata_json, application_event_version
+          ) SELECT 'visit-' || n, 'thread', 'thread', n, 'thread.visited',
+            '2026-10-17', 'server', '{}', '{}', 2 FROM history`;
+          yield* sql`
+            UPDATE orchestration_v2_projection_metadata
+            SET last_sequence = (SELECT MAX(sequence) FROM orchestration_events)
+            WHERE projection_name = 'thread-projections'
+          `;
         }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: dbPath })));
 
         // A server that merely has the database open, like an idle one, is enough to refuse.
@@ -93,9 +107,23 @@ it.layer(DatabaseMaintenance.layer.pipe(Layer.provideMerge(NodeServices.layer)))
             statements.push(statement.compile()[0]);
             return statement;
           });
-        const result = yield* maintenance
-          .compact(dbPath)
-          .pipe(Effect.provideService(Statement.CurrentTransformer, record));
+        const clock = yield* Clock.Clock;
+        const pauses: number[] = [];
+        let activeNanos = 0n;
+        const result = yield* maintenance.compact(dbPath).pipe(
+          Effect.provideService(Statement.CurrentTransformer, record),
+          Effect.provideService(Clock.Clock, {
+            ...clock,
+            // Exceed the background budget whenever the compactor checks elapsed time.
+            monotonicTimeNanos: Effect.sync(() => (activeNanos += 30_000_000n)),
+            sleep: (duration) =>
+              Effect.sync(() => {
+                pauses.push(Duration.toMillis(duration));
+              }),
+          }),
+        );
+        assert.deepEqual(pauses, [], "offline doctor must not throttle compaction");
+        assert.equal(result.deletedEventCount, 51);
         const fullFsync = statements.indexOf("PRAGMA checkpoint_fullfsync = ON");
         assert.isAtLeast(fullFsync, 0);
         assert.isBelow(fullFsync, statements.indexOf("VACUUM"));

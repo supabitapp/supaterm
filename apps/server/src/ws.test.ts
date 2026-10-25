@@ -955,7 +955,7 @@ it.effect("thread resume across compacted history keeps message order and final 
         )
       `;
     }
-    assert.equal((yield* maintenance.compactEventStore).deletedEventCount, 1);
+    assert.equal((yield* maintenance.compactEventStore()).deletedEventCount, 1);
 
     const items = yield* subscribeOrchestrationV2Thread({
       threadId,

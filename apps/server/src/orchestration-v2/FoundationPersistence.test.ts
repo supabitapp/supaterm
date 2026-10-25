@@ -1,6 +1,5 @@
+import * as NodeSqlite from "node:sqlite";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
-import * as ServerSettings from "../serverSettings.ts";
 import { assert, it } from "@effect/vitest";
 import {
   CheckpointId,
@@ -27,6 +26,8 @@ import {
   ThreadId,
   TurnItemId,
 } from "@supaterm/contracts";
+import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
+import * as Clock from "effect/Clock";
 import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
 import * as Duration from "effect/Duration";
@@ -41,10 +42,16 @@ import * as Ref from "effect/Ref";
 import * as Scheduler from "effect/Scheduler";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
+import * as TestClock from "effect/testing/TestClock";
 import * as Tracer from "effect/Tracer";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as Statement from "effect/sql/Statement";
 
+import { vi } from "vite-plus/test";
+
+import * as ServerConfig from "../config.ts";
+import * as DatabaseStorage from "../persistence/DatabaseStorage.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import { LIVE_STREAM_MAX_ITEMS, LiveStreamBufferError } from "./LiveStreamBudget.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import { CodexProviderCapabilitiesV2 } from "./Adapters/CodexAdapterV2.ts";
@@ -218,6 +225,156 @@ it.effect("rebuilds event history one bounded page at a time", () =>
     const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
     assert.isTrue((yield* maintenance.verify).valid);
   }).pipe(Effect.provide(layerTest)),
+);
+
+const seedCompaction = Effect.fnUntraced(function* () {
+  const sql = yield* SqlClient.SqlClient;
+  yield* sql`WITH RECURSIVE history(n) AS (
+    SELECT 1 UNION ALL SELECT n + 1 FROM history WHERE n < 151
+  ) INSERT INTO orchestration_events (
+    event_id, aggregate_kind, stream_id, stream_version, event_type,
+    occurred_at, actor_kind, payload_json, metadata_json, application_event_version
+  ) SELECT 'event-' || n, 'thread', 'thread', n,
+    CASE WHEN n IN (1, 51, 101) THEN 'message.updated' ELSE 'thread.visited' END,
+    '2026-10-17', 'server', '{"id":"message"}', '{}', 2 FROM history`;
+});
+
+it.effect("discovers on the reader worker and deletes on the writer", () =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const filename = path.join(yield* fs.makeTempDirectoryScoped(), "fixture.sqlite");
+    yield* Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* seedCompaction();
+      // Establish the reader before recording main-thread statements.
+      yield* sql`SELECT 1`.pipe(NodeSqliteClient.readOnly);
+      const reads: string[] = [];
+      const writes: string[] = [];
+      const all = NodeSqlite.StatementSync.prototype.all;
+      const run = NodeSqlite.StatementSync.prototype.run;
+      yield* Effect.acquireRelease(
+        Effect.sync(() => {
+          const readSpy = vi
+            .spyOn(NodeSqlite.StatementSync.prototype, "all")
+            .mockImplementation(function (this: NodeSqlite.StatementSync, ...params) {
+              reads.push(this.sourceSQL);
+              return all.apply(this, params);
+            });
+          const writeSpy = vi
+            .spyOn(NodeSqlite.StatementSync.prototype, "run")
+            .mockImplementation(function (this: NodeSqlite.StatementSync, ...params) {
+              writes.push(this.sourceSQL);
+              return run.apply(this, params);
+            });
+          return { readSpy, writeSpy };
+        }),
+        ({ readSpy, writeSpy }) =>
+          Effect.sync(() => {
+            readSpy.mockRestore();
+            writeSpy.mockRestore();
+          }),
+      );
+      const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
+      const result = yield* maintenance.compactEventStore();
+      assert.equal(result.deletedEventCount, 148);
+      assert.deepEqual(
+        reads.filter((query) => /\bSELECT\b/.test(query)),
+        [],
+      );
+      assert(writes.some((query) => query.includes("DELETE FROM orchestration_events")));
+    }).pipe(
+      Effect.provide(
+        ProjectionMaintenance.layer.pipe(
+          Layer.provide(Layer.merge(EventStore.layer, ProjectionStore.layer)),
+          Layer.provideMerge(SqlitePersistence.layerFromPath(filename)),
+        ),
+      ),
+    );
+  }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+);
+
+it.effect("paces scheduled compaction while preserving retention state and fixed scan bounds", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const clock = yield* Clock.Clock;
+    yield* seedCompaction();
+    const completed = yield* Deferred.make<void>();
+    const pauseStarted = yield* Deferred.make<void>();
+    let activeNanos = 0n;
+    let eventPages = 0;
+    const pauses: number[] = [];
+    const compactionSpans: Tracer.Span[] = [];
+    const tracer = Tracer.make({
+      span(options) {
+        const span = new Tracer.NativeSpan(options);
+        if (span.name === "ProjectionMaintenance.compactEventStore") compactionSpans.push(span);
+        const end = span.end.bind(span);
+        span.end = (time, exit) => {
+          end(time, exit);
+          const query = span.attributes.get("db.query.text");
+          if (typeof query !== "string" || !query.includes("LIMIT")) return;
+          if (!query.includes("FROM orchestration_events AS event")) return;
+          eventPages++;
+          // Model a page exceeding the active budget, without wall-clock sleeps.
+          activeNanos += 30_000_000n;
+        };
+        return span;
+      },
+    });
+    yield* Effect.gen(function* () {
+      yield* DatabaseStorage.DatabaseStorage;
+      yield* TestClock.adjust("1 minute");
+      yield* Effect.raceFirst(Deferred.await(pauseStarted), Deferred.await(completed));
+      yield* TestClock.adjust("269 millis");
+      assert.equal(eventPages, 1);
+      assert.deepEqual(pauses, [270]);
+      assert.deepEqual(
+        compactionSpans.map((span) => span.status._tag),
+        ["Started"],
+      );
+      // Foreground commits must not extend the compactor's initial scan bounds.
+      yield* sql`INSERT INTO orchestration_events (
+          event_id, aggregate_kind, stream_id, stream_version, event_type,
+          occurred_at, actor_kind, payload_json, metadata_json, application_event_version
+        ) VALUES ('after-start', 'thread', 'thread', 152, 'thread.visited', '2026-10-17', 'server', '{}', '{}', 2)`;
+      yield* TestClock.adjust("10 seconds");
+      yield* Deferred.await(completed);
+    }).pipe(
+      Effect.provide(
+        DatabaseStorage.layer.pipe(
+          Layer.provide(ServerConfig.layerTest(process.cwd(), { prefix: "compaction-" })),
+          Layer.provide(NodeServices.layer),
+        ),
+      ),
+      Effect.withTracer(tracer),
+      Effect.provideService(Clock.Clock, {
+        ...clock,
+        monotonicTimeNanos: Effect.sync(() => activeNanos),
+        sleep: (duration) => {
+          const millis = Duration.toMillis(duration);
+          if (millis < 60_000) {
+            pauses.push(millis);
+            Deferred.doneUnsafe(pauseStarted, Effect.void);
+          } else if (millis === 6 * 60 * 60_000) {
+            Deferred.doneUnsafe(completed, Effect.void);
+          }
+          return clock.sleep(duration);
+        },
+      }),
+    );
+    assert.deepEqual(pauses, Array(3).fill(270));
+    assert.deepEqual(
+      compactionSpans.map((span) => span.status._tag),
+      ["Ended"],
+    );
+    assert.deepEqual(yield* sql`SELECT sequence FROM orchestration_events ORDER BY sequence`, [
+      { sequence: 1 },
+      { sequence: 101 },
+      { sequence: 151 },
+      { sequence: 152 },
+    ]);
+  }).pipe(Effect.scoped, Effect.provide(layerTest)),
 );
 
 it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
@@ -770,7 +927,7 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
       });
       const beforeCompaction = yield* projections.getThreadProjection(threadId);
 
-      const summary = yield* maintenance.compactEventStore;
+      const summary = yield* maintenance.compactEventStore();
       assert.isAtLeast(summary.deletedEventCount, 504);
 
       const remaining = yield* sql<{ readonly event_id: string }>`
@@ -3109,6 +3266,26 @@ it.effect("allows writes while compaction waits for the reader to discover obsol
       yield* sql`CREATE TABLE concurrent_writes (value TEXT)`;
       const readerHeld = yield* Deferred.make<void>();
       const releaseReader = yield* Deferred.make<void>();
+      const discoveryStarted = yield* Deferred.make<Tracer.Span>();
+      const observeDiscovery: Statement.Transformer = (statement, _sql, _fiber, span) => {
+        const [query] = statement.compile();
+        const pageQuery = /^\s*SELECT\s+event\.sequence/;
+        return pageQuery.test(query)
+          ? Deferred.succeed(discoveryStarted, span).pipe(
+              Effect.andThen(Deferred.await(readerHeld)),
+              Effect.as(statement),
+            )
+          : Effect.succeed(statement);
+      };
+      const compacted = yield* Deferred.make<void>();
+      const compaction = yield* maintenance.compactEventStore().pipe(
+        Effect.provideService(Statement.CurrentTransformer, observeDiscovery),
+        Effect.provideService(Statement.SpanPropagationEnabled, true),
+        Effect.tap(() => Deferred.succeed(compacted, undefined)),
+        Effect.forkChild,
+      );
+      const discoverySpan = yield* Deferred.await(discoveryStarted);
+      // Let the initial bounds read finish before holding the reader for this page.
       const reader = yield* sql
         .withTransaction(
           Deferred.succeed(readerHeld, undefined).pipe(
@@ -3117,32 +3294,26 @@ it.effect("allows writes while compaction waits for the reader to discover obsol
         )
         .pipe(NodeSqliteClient.readOnly, Effect.forkChild);
       yield* Deferred.await(readerHeld);
-      const discoveryStarted = yield* Deferred.make<Tracer.Span>();
-      const observeDiscovery: Statement.Transformer = (statement, _sql, _fiber, span) => {
-        const [query] = statement.compile();
-        const pageQuery = /^\s*SELECT\s+event\.sequence/;
-        return pageQuery.test(query)
-          ? Deferred.succeed(discoveryStarted, span).pipe(Effect.as(statement))
-          : Effect.succeed(statement);
-      };
-      const compacted = yield* Deferred.make<void>();
-      const compaction = yield* maintenance.compactEventStore.pipe(
-        Effect.provideService(Statement.CurrentTransformer, observeDiscovery),
-        Effect.provideService(Statement.SpanPropagationEnabled, true),
-        Effect.tap(() => Deferred.succeed(compacted, undefined)),
-        Effect.forkChild,
-      );
-      const discoverySpan = yield* Deferred.await(discoveryStarted);
       yield* sql`INSERT INTO concurrent_writes VALUES ('committed')`;
       assert.isFalse(yield* Deferred.isDone(compacted));
       assert.deepEqual(yield* sql`SELECT value FROM concurrent_writes`, [{ value: "committed" }]);
+      yield* sql`
+        INSERT INTO orchestration_events (
+          event_id, aggregate_kind, stream_id, stream_version, event_type,
+          occurred_at, actor_kind, payload_json, metadata_json, application_event_version
+        ) VALUES (
+          'after-bound', 'thread', 'thread:compaction', 3, 'thread.metadata-updated',
+          ${now}, 'user', '{}', '{}', 2
+        )
+      `;
       yield* Deferred.succeed(releaseReader, undefined);
       yield* Fiber.join(reader);
       const result = yield* Fiber.join(compaction);
       assert.equal(discoverySpan.attributes.get("db.connection"), "reader");
       assert.equal(result.deletedEventCount, 1);
-      const retained = yield* sql`SELECT event_id AS id FROM orchestration_events`;
-      assert.deepEqual(retained, [{ id: "latest" }]);
+      const retained =
+        yield* sql`SELECT event_id AS id FROM orchestration_events ORDER BY sequence`;
+      assert.deepEqual(retained, [{ id: "latest" }, { id: "after-bound" }]);
     }).pipe(Effect.provide(maintenanceLayer));
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
