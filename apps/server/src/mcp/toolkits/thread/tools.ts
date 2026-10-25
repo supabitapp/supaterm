@@ -258,6 +258,7 @@ const ThreadSearchTool = Tool.make("supaterm_thread_search", {
         threadId: OrchestrationThreadSearchMatch.fields.threadId,
         projectId: OrchestrationThreadSearchMatch.fields.projectId,
         title: Schema.String,
+        link: Schema.optional(Schema.String),
         source: Schema.Literals(["title", "user", "assistant"]),
         snippet: Schema.optional(OrchestrationThreadSearchMatch.fields.snippet),
         messageCreatedAt: Schema.optional(OrchestrationThreadSearchMatch.fields.messageCreatedAt),
