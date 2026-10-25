@@ -1,3 +1,9 @@
+import { FetchHttpClient, HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
+import * as Random from "effect/Random";
+import * as Option from "effect/Option";
+import * as DateTime from "effect/DateTime";
+import * as Context from "effect/Context";
+import * as Clock from "effect/Clock";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as HostProcess from "@supaterm/shared/HostProcess";
@@ -9,7 +15,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import { Argument, Command } from "effect/cli";
+import { Argument, Command, Flag } from "effect/cli";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 export type NativePlatform = "ios" | "android";
@@ -23,7 +29,9 @@ const decodeSimulators = Schema.decodeUnknownEffect(
     Schema.Struct({
       devices: Schema.Record(
         Schema.String,
-        Schema.Array(Schema.Struct({ udid: Schema.String, state: Schema.String })),
+        Schema.Array(
+          Schema.Struct({ udid: Schema.String, state: Schema.String, name: Schema.String }),
+        ),
       ),
     }),
   ),
@@ -45,7 +53,6 @@ export function clientStatus(
   return record.fingerprint === fingerprint ? "compatible" : "stale";
 }
 
-/** Keep native sources stable during ensure, as with a normal build; endpoint checks reject detected edits. */
 export const ensureClient = Effect.fn("ensureClient")(function* <E, R, E2, R2>(operations: {
   fingerprint: Effect.Effect<string, E, R>;
   installedBinary: Effect.Effect<string | null, E, R>;
@@ -91,7 +98,6 @@ const digest = Effect.fn("nativeClient.digest")(function* (value: string | Uint8
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 });
 
-/** Hash fixed-size chunks to bound memory, including resources and symlink targets. */
 export const hashBundle = Effect.fn("hashBundle")(function* (root: string) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -105,7 +111,7 @@ export const hashBundle = Effect.fn("hashBundle")(function* (root: string) {
     for (const name of names) {
       const key = path.join(relative, name);
       const absolute = path.join(root, key);
-      // FileSystem.stat follows links; readLink distinguishes them without following a cycle.
+
       const link = yield* fs.readLink(absolute).pipe(
         Effect.catchIf(
           (error) => isNotLink(error.reason.cause),
@@ -164,6 +170,10 @@ export const resolveAdb = Effect.gen(function* () {
   });
 });
 
+const BuildLog = Context.Reference<string | null>("nativeClient/BuildLog", {
+  defaultValue: () => null,
+});
+
 const command = Effect.fn("nativeClient.command")(function* (
   program: string,
   args: string[],
@@ -172,6 +182,7 @@ const command = Effect.fn("nativeClient.command")(function* (
 ) {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const environment = yield* HostProcess.Environment;
+  const log = inherit ? yield* BuildLog : null;
   const spawn = yield* resolveSpawnCommand(program === "adb" ? yield* resolveAdb : program, args);
   const child = yield* spawner.spawn(
     ChildProcess.make(spawn.command, spawn.args, {
@@ -184,12 +195,28 @@ const command = Effect.fn("nativeClient.command")(function* (
         SUPATERM_IOS_PERSONAL_TEAM: "0",
         CI: "1",
         EXPO_NO_GIT_STATUS: "1",
+
+        COPYFILE_DISABLE: "1",
       },
       stdin: "ignore",
-      stdout: inherit ? "inherit" : "pipe",
-      stderr: inherit ? "inherit" : "pipe",
+      stdout: inherit && !log ? "inherit" : "pipe",
+      stderr: inherit && !log ? "inherit" : "pipe",
     }),
   );
+  if (log) {
+    const fs = yield* FileSystem.FileSystem;
+    const append = <E>(stream: Stream.Stream<Uint8Array, E>) =>
+      stream.pipe(Stream.run(fs.sink(log, { flag: "a" })));
+    const [, , code] = yield* Effect.all(
+      [append(child.stdout), append(child.stderr), child.exitCode],
+      { concurrency: "unbounded" },
+    );
+    if (code === 0) return "";
+    const tail = (yield* fs.readFileString(log)).trimEnd().split("\n").slice(-40).join("\n");
+    return yield* new NativeClientError({
+      message: `${program} ${args[0]} failed (${code}). Last lines:\n${tail}\nFull log: ${log}`,
+    });
+  }
   const [stdout, stderr, code] = yield* Effect.all(
     [collect(child.stdout), collect(child.stderr), child.exitCode],
     { concurrency: "unbounded" },
@@ -204,7 +231,8 @@ const command = Effect.fn("nativeClient.command")(function* (
 const fingerprint = Effect.fn("nativeClient.fingerprint")(function* (platform: NativePlatform) {
   const output = yield* command(yield* HostProcess.ExecutablePath, [
     "--eval",
-    `require('expo/fingerprint').createFingerprintAsync(process.cwd(), { platforms: [process.argv[1]], silent: true }).then(fp => console.log('SUPATERM_NATIVE_FINGERPRINT=' + fp.hash)).catch(e => { console.error(e); process.exitCode = 1; });`,
+
+    `const f = require('expo/fingerprint'); f.createFingerprintAsync(process.cwd(), { platforms: [process.argv[1]], silent: true, ignorePaths: ['android/**', 'ios/**'], sourceSkips: f.DEFAULT_SOURCE_SKIPS | f.SourceSkips.ExpoConfigExtraSection }).then(fp => console.log('SUPATERM_NATIVE_FINGERPRINT=' + fp.hash)).catch(e => { console.error(e); process.exitCode = 1; });`,
     platform,
   ]);
   const hash = output
@@ -216,37 +244,100 @@ const fingerprint = Effect.fn("nativeClient.fingerprint")(function* (platform: N
   return hash;
 });
 
-const validateDevice = Effect.fn("nativeClient.validateDevice")(function* (
+const runtimeName = (runtime: string) =>
+  runtime
+    .replace(/^com\.apple\.CoreSimulator\.SimRuntime\./, "")
+    .replace(/-(\d+)-(\d+)$/, " $1.$2");
+
+const resolveDevice = Effect.fn("nativeClient.resolveDevice")(function* (
   platform: NativePlatform,
-  device: string,
+  requested: string | undefined,
 ) {
+  const choose = (candidates: ReadonlyArray<{ id: string; label: string }>, problem: string) =>
+    new NativeClientError({
+      message: [
+        problem,
+        ...candidates.map(
+          ({ id, label }) => `  vp run mobile:install ${platform} ${id}   # ${label}`,
+        ),
+      ].join("\n"),
+    });
   if (platform === "ios") {
     if ((yield* HostProcess.Platform) !== "darwin")
       return yield* new NativeClientError({
-        message: "Run iOS check/ensure on the Mac that hosts the simulator.",
+        message: "Run iOS installs on the Mac that hosts the simulator.",
+      });
+
+    if ((yield* HostProcess.Architecture) !== "arm64")
+      return yield* new NativeClientError({
+        message: "mobile:install needs an Apple silicon Mac. Use vp run ios:dev on Intel Macs.",
       });
     const listing = yield* decodeSimulators(
       yield* command("xcrun", ["simctl", "list", "devices", "available", "--json"]),
     );
-    const simulator = Object.values(listing.devices)
-      .flat()
-      .find((entry) => entry.udid === device);
+    const simulators = Object.entries(listing.devices).flatMap(([runtime, devices]) =>
+      devices.map((device) => ({ ...device, label: `${device.name} (${runtimeName(runtime)})` })),
+    );
+    const booted = simulators
+      .filter((simulator) => simulator.state === "Booted")
+      .map(({ udid, label }) => ({ id: udid, label }));
+    if (requested === undefined) {
+      if (booted.length === 1) return booted[0]!;
+      return yield* booted.length === 0
+        ? new NativeClientError({
+            message:
+              "No iOS simulator is booted. Open one with device_open, or boot one: xcrun simctl boot <udid>",
+          })
+        : choose(booted, "Several iOS simulators are booted. Pick one:");
+    }
+    const simulator = simulators.find((entry) => entry.udid === requested);
     if (!simulator)
-      return yield* new NativeClientError({
-        message: `No available iOS simulator with UDID ${device}.`,
-      });
+      return yield* choose(booted, `No available iOS simulator with UDID ${requested}. Booted:`);
     if (simulator.state !== "Booted")
       return yield* new NativeClientError({
-        message: `Boot the selected simulator first: xcrun simctl boot ${device}`,
+        message: `Boot the selected simulator first: xcrun simctl boot ${requested}`,
       });
-  } else {
-    if ((yield* command("adb", ["-s", device, "get-state"])) !== "device")
-      return yield* new NativeClientError({ message: "Android device is not connected." });
-    if ((yield* command("adb", ["-s", device, "shell", "getprop", "ro.kernel.qemu"])) !== "1")
-      return yield* new NativeClientError({
-        message: "Select an Android emulator, not a physical device.",
-      });
+    return { id: simulator.udid, label: simulator.label };
   }
+  const attached = (yield* command("adb", ["devices", "-l"]))
+    .split("\n")
+    .slice(1)
+    .map((line) => line.trim().split(/\s+/))
+    .filter((parts) => parts.length >= 2)
+    .map(([id, state, ...details]) => ({
+      id: id!,
+      state: state!,
+      label: details.find((detail) => detail.startsWith("model:"))?.slice(6) ?? id!,
+    }));
+  const ready = attached.filter((device) => device.state === "device");
+  const device =
+    requested === undefined ? ready : attached.filter((entry) => entry.id === requested);
+  if (requested === undefined && ready.length !== 1)
+    return yield* ready.length === 0
+      ? new NativeClientError({
+          message:
+            "No Android emulator or phone is connected. Open one with device_open, or start an emulator.",
+        })
+      : choose(ready, "Several Android devices are connected. Pick one:");
+  const selected = device[0];
+  if (!selected)
+    return yield* choose(ready, `Android device ${requested} is not connected. Ready:`);
+  if (selected.state === "unauthorized")
+    return yield* new NativeClientError({
+      message: `Unlock ${selected.label} and accept the USB debugging prompt, then run this again.`,
+    });
+  if (selected.state !== "device")
+    return yield* new NativeClientError({
+      message: `Android device ${selected.id} is ${selected.state}, not ready.`,
+    });
+
+  const avd = selected.id.startsWith("emulator-")
+    ? yield* command("adb", ["-s", selected.id, "emu", "avd", "name"]).pipe(
+        Effect.map((output) => output.split("\n")[0]?.trim()),
+        Effect.orElseSucceed(() => undefined),
+      )
+    : undefined;
+  return { id: selected.id, label: avd || selected.label };
 });
 
 export const installedBinary = Effect.fn("installedBinary")(function* (
@@ -314,15 +405,738 @@ export const prebuildAndroid = Effect.fn("nativeClient.prebuildAndroid")(functio
   );
 });
 
+const artifactNames = { ios: "SupatermDev.app", android: "app-debug.apk" } as const;
+
+const partSize = 64 * 1024 * 1024;
+const RemoteCredentials = Schema.fromJsonString(
+  Schema.Record(Schema.String, Schema.Struct({ name: Schema.String, token: Schema.String })),
+);
+const decodeCredentials = Schema.decodeUnknownEffect(RemoteCredentials);
+const decodeEndpoint = Schema.decodeUnknownEffect(
+  Schema.fromJsonString(Schema.Struct({ endpoint: Schema.String })),
+);
+const decodeUpload = Schema.decodeUnknownEffect(
+  Schema.Union([
+    Schema.Struct({ exists: Schema.Literal(true) }),
+    Schema.Struct({ uploadId: Schema.String }),
+  ]),
+);
+const decodePart = Schema.decodeUnknownEffect(Schema.Struct({ etag: Schema.String }));
+const decodeEasBuilds = Schema.decodeUnknownEffect(
+  Schema.fromJsonString(
+    Schema.Array(Schema.Struct({ artifacts: Schema.Struct({ buildUrl: Schema.String }) })),
+  ),
+);
+
+interface RemoteCache {
+  readonly url: string;
+  readonly telemetry: string;
+  readonly name: string;
+  readonly token: string;
+}
+
+const remoteCache = Effect.fn("nativeClient.remoteCache")(
+  function* (home: string) {
+    const environment = yield* HostProcess.Environment;
+    if (environment.SUPATERM_NATIVE_CLIENT_CACHE === "off") return null;
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const { endpoint } = yield* decodeEndpoint(
+      yield* fs.readFileString(path.join((yield* roots).repo, ".task-cache.json")),
+    );
+    const credentials = yield* decodeCredentials(
+      yield* fs.readFileString(path.join(home, ".config/supaterm-task-cache/credentials.json")),
+    );
+    const login = credentials[endpoint];
+    if (!login) return null;
+    const base = endpoint.replace(/\/$/, "");
+    return {
+      url: `${base}/native-clients`,
+      telemetry: `${base}/telemetry`,
+      ...login,
+    } satisfies RemoteCache;
+  },
+  Effect.orElseSucceed(() => null),
+);
+
+const ReaderLogin = Schema.fromJsonString(
+  Schema.Struct({ name: Schema.String, token: Schema.String }),
+);
+
+const sharedSource = Effect.fn("nativeClient.sharedSource")(
+  function* (home: string, key: string) {
+    const remote = yield* remoteCache(home);
+    if (!remote) return null;
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const reader =
+      remote.name === "ci-reader"
+        ? remote
+        : yield* fs
+            .readFileString(path.join(home, ".config/supaterm-task-cache/ci-reader.json"))
+            .pipe(Effect.flatMap(Schema.decodeUnknownEffect(ReaderLogin)));
+    const basic = Buffer.from(`${reader.name}:${reader.token}`).toString("base64");
+    return { url: `${remote.url}/${key}`, header: `authorization:Basic ${basic}` };
+  },
+  Effect.orElseSucceed(() => null),
+);
+
+const authorized = (remote: RemoteCache, request: HttpClientRequest.HttpClientRequest) =>
+  request.pipe(HttpClientRequest.basicAuth(remote.name, remote.token));
+
+const sidecar = (directory: string) => `${directory}.json`;
+const ArtifactMetadata = Schema.Struct({
+  buildMs: Schema.Number,
+  digest: Schema.optional(Schema.String),
+});
+const decodeSidecar = Schema.decodeUnknownEffect(Schema.fromJsonString(ArtifactMetadata));
+const encodeSidecar = Schema.encodeEffect(Schema.fromJsonString(ArtifactMetadata));
+const readBuildMs = (directory: string) =>
+  FileSystem.FileSystem.pipe(
+    Effect.flatMap((fs) => fs.readFileString(sidecar(directory))),
+    Effect.flatMap(decodeSidecar),
+    Effect.map(({ buildMs }) => buildMs),
+    Effect.orElseSucceed(() => 0),
+  );
+const writeBuildMs = Effect.fn("nativeClient.writeBuildMetadata")(function* (
+  directory: string,
+  buildMs: number,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const contentDigest = yield* hashBundle(directory);
+  yield* fs.writeFileString(
+    sidecar(directory),
+    yield* encodeSidecar({ buildMs, digest: contentDigest }),
+  );
+});
+
+const validArtifact = Effect.fn("nativeClient.validArtifact")(
+  function* (directory: string) {
+    const fs = yield* FileSystem.FileSystem;
+    const metadata = yield* fs
+      .readFileString(sidecar(directory))
+      .pipe(Effect.flatMap(decodeSidecar));
+    return metadata.digest !== undefined && metadata.digest === (yield* hashBundle(directory));
+  },
+  Effect.orElseSucceed(() => false),
+);
+
+const download = Effect.fn("nativeClient.download")(function* (
+  remote: RemoteCache,
+  platform: NativePlatform,
+  key: string,
+  target: string,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const client = yield* HttpClient.HttpClient;
+  const response = yield* client.execute(
+    authorized(remote, HttpClientRequest.get(`${remote.url}/${key}`)),
+  );
+  if (response.status === 404) return false;
+  yield* HttpClientResponse.filterStatusOk(response);
+  const expected = response.headers["x-supaterm-digest"] ?? "";
+  if (!/^[a-f0-9]{64}$/.test(expected))
+    return yield* new NativeClientError({ message: "Cached native client has no digest." });
+  yield* Console.error(`Downloading native client ${key} from the shared cache...`);
+  const staging = yield* fs.makeTempDirectory({
+    directory: path.dirname(target),
+    prefix: ".download-",
+  });
+  return yield* Effect.gen(function* () {
+    if (platform === "ios") {
+      const archive = `${staging}.tgz`;
+      yield* response.stream.pipe(
+        Stream.run(fs.sink(archive)),
+        Effect.andThen(command("tar", ["-xzf", archive, "-C", staging])),
+        Effect.ensuring(fs.remove(archive, { force: true }).pipe(Effect.ignore)),
+      );
+    } else {
+      yield* response.stream.pipe(Stream.run(fs.sink(path.join(staging, artifactNames.android))));
+    }
+    if ((yield* hashBundle(staging)) !== expected)
+      return yield* new NativeClientError({ message: "Cached native client failed verification." });
+    yield* publish(staging, target);
+    const buildMs = Number(response.headers["x-supaterm-build-ms"] ?? 0);
+    yield* writeBuildMs(target, Number.isSafeInteger(buildMs) ? buildMs : 0);
+    return true;
+  }).pipe(
+    Effect.ensuring(fs.remove(staging, { recursive: true, force: true }).pipe(Effect.ignore)),
+  );
+});
+
+const upload = Effect.fn("nativeClient.upload")(function* (
+  remote: RemoteCache,
+  platform: NativePlatform,
+  key: string,
+  artifact: string,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const client = (yield* HttpClient.HttpClient).pipe(HttpClient.filterStatusOk);
+  const created = yield* client
+    .execute(
+      authorized(remote, HttpClientRequest.post(`${remote.url}/${key}/uploads`)).pipe(
+        HttpClientRequest.setHeader("x-supaterm-digest", yield* hashBundle(artifact)),
+        HttpClientRequest.setHeader("x-supaterm-build-ms", String(yield* readBuildMs(artifact))),
+      ),
+    )
+    .pipe(
+      Effect.flatMap((response) => response.json),
+      Effect.flatMap(decodeUpload),
+    );
+  if ("exists" in created) return;
+  const uploadUrl = `${remote.url}/${key}/uploads/${encodeURIComponent(created.uploadId)}`;
+  yield* Console.error(`Uploading native client ${key} to the shared cache...`);
+  yield* Effect.gen(function* () {
+    const directory = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-native-upload-" });
+    const file =
+      platform === "ios"
+        ? path.join(directory, "client.tgz")
+        : path.join(artifact, artifactNames.android);
+    if (platform === "ios")
+      yield* command("tar", ["-czf", file, "-C", artifact, artifactNames.ios]);
+    const handle = yield* fs.open(file);
+    const parts: Array<{ partNumber: number; etag: string }> = [];
+    for (let partNumber = 1; ; partNumber++) {
+      const buffer = new Uint8Array(partSize);
+      let filled = 0;
+      while (filled < partSize) {
+        const read = Number(yield* handle.read(buffer.subarray(filled)));
+        if (read === 0) break;
+        filled += read;
+      }
+      if (filled === 0) break;
+      const { etag } = yield* client
+        .execute(
+          authorized(remote, HttpClientRequest.put(`${uploadUrl}/${partNumber}`)).pipe(
+            HttpClientRequest.bodyUint8Array(buffer.subarray(0, filled)),
+          ),
+        )
+        .pipe(
+          Effect.flatMap((response) => response.json),
+          Effect.flatMap(decodePart),
+        );
+      parts.push({ partNumber, etag });
+      if (filled < partSize) break;
+    }
+    yield* client.execute(
+      authorized(remote, HttpClientRequest.post(`${uploadUrl}/complete`)).pipe(
+        HttpClientRequest.bodyJsonUnsafe({ parts }),
+      ),
+    );
+  }).pipe(
+    Effect.scoped,
+    Effect.onError(() =>
+      client.execute(authorized(remote, HttpClientRequest.delete(uploadUrl))).pipe(Effect.ignore),
+    ),
+  );
+});
+
+const publish = Effect.fn("nativeClient.publish")(function* (staging: string, target: string) {
+  const fs = yield* FileSystem.FileSystem;
+
+  if (yield* fs.exists(target)) return;
+  yield* fs.rename(staging, target);
+});
+
+const easCli = "eas-cli@25.3.0";
+
+const hasXcode = Effect.gen(function* () {
+  if ((yield* HostProcess.Platform) !== "darwin") return false;
+  return yield* command("xcrun", ["--find", "xcodebuild"]).pipe(
+    Effect.as(true),
+    Effect.orElseSucceed(() => false),
+  );
+});
+
+const buildIosOnEas = Effect.fn("nativeClient.buildIosOnEas")(function* (staging: string) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+
+  yield* command("npx", ["-y", easCli, "whoami"]).pipe(
+    Effect.mapError(
+      () =>
+        new NativeClientError({
+          message:
+            "iOS builds need Xcode on macOS, or an EAS login (`npx eas-cli login`, or EXPO_TOKEN) to build in the cloud.",
+        }),
+    ),
+  );
+  yield* Console.error("No Xcode here; building the iOS simulator client on EAS (10-30 min).");
+  const [build] = yield* decodeEasBuilds(
+    yield* command("npx", [
+      "-y",
+      easCli,
+      "build",
+      "--platform",
+      "ios",
+      "--profile",
+      "development-simulator",
+      "--non-interactive",
+      "--wait",
+      "--json",
+    ]),
+  );
+  if (!build) return yield* new NativeClientError({ message: "EAS returned no build." });
+  const archive = path.join(staging, "eas-build.tar.gz");
+  yield* command("curl", ["-fsSL", "--retry", "3", "-o", archive, build.artifacts.buildUrl]);
+  yield* command("tar", ["-xzf", archive, "-C", staging]);
+  yield* fs.remove(archive);
+  const app = (yield* fs.readDirectory(staging)).find((name) => name.endsWith(".app"));
+  if (!app) return yield* new NativeClientError({ message: "The EAS build archive has no .app." });
+  if (app !== artifactNames.ios)
+    yield* fs.rename(path.join(staging, app), path.join(staging, artifactNames.ios));
+});
+
+const build = Effect.fn("nativeClient.build")(function* (
+  platform: NativePlatform,
+  abi: string | null,
+  target: string,
+  expected: string,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const { repo, mobile } = yield* roots;
+  const tracked = yield* command("git", ["ls-files", `apps/mobile/${platform}`], false, repo);
+  if (tracked)
+    return yield* new NativeClientError({
+      message: "Native directory contains tracked files; clean prebuild would overwrite them.",
+    });
+  const prebuild = command(
+    "vp",
+    ["exec", "expo", "prebuild", "--clean", "--platform", platform, "--no-install"],
+    true,
+  ).pipe(Effect.asVoid);
+  const onEas = platform === "ios" && !(yield* hasXcode);
+  if (platform === "android") yield* prebuildAndroid(mobile, prebuild);
+  else if (!onEas) yield* prebuild;
+  const staging = yield* fs.makeTempDirectory({
+    directory: path.dirname(target),
+    prefix: ".build-",
+  });
+  yield* Effect.gen(function* () {
+    if (onEas) {
+      yield* buildIosOnEas(staging);
+    } else if (platform === "ios") {
+      const output = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-native-client-" });
+      yield* command("pod", ["install"], true, path.join(mobile, "ios"));
+
+      yield* command(
+        "xcrun",
+        [
+          "xcodebuild",
+          "-workspace",
+          path.join(mobile, "ios/SupatermDev.xcworkspace"),
+          "-scheme",
+          "SupatermDev",
+          "-configuration",
+          "Debug",
+          "-destination",
+          "generic/platform=iOS Simulator",
+          "-derivedDataPath",
+          output,
+          "ARCHS=arm64",
+          "ONLY_ACTIVE_ARCH=NO",
+          "build",
+        ],
+        true,
+      );
+      yield* command("ditto", [
+        path.join(output, "Build/Products/Debug-iphonesimulator", artifactNames.ios),
+        path.join(staging, artifactNames.ios),
+      ]);
+    } else {
+      const android = path.join(mobile, "android");
+      yield* command(
+        path.join(android, (yield* HostProcess.Platform) === "win32" ? "gradlew.bat" : "gradlew"),
+        ["app:assembleDebug", `-PreactNativeArchitectures=${abi}`],
+        true,
+        android,
+      );
+      yield* fs.copyFile(
+        path.join(android, "app/build/outputs/apk/debug", artifactNames.android),
+        path.join(staging, artifactNames.android),
+      );
+    }
+
+    if ((yield* fingerprint(platform)) !== expected)
+      return yield* new NativeClientError({
+        message: "Native inputs changed during the build, so it was discarded. Run this again.",
+      });
+    yield* publish(staging, target);
+  }).pipe(
+    Effect.scoped,
+    Effect.ensuring(fs.remove(staging, { recursive: true, force: true }).pipe(Effect.ignore)),
+  );
+});
+
+const prune = Effect.fn("nativeClient.prune")(
+  function* (parent: string, keep: string) {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const entries = yield* Effect.forEach(
+      (yield* fs.readDirectory(parent)).filter(
+        (name) => !name.startsWith(".") && !name.endsWith(".json"),
+      ),
+      (name) =>
+        fs.stat(path.join(parent, name)).pipe(
+          Effect.map((info) => ({
+            name,
+            modified: Option.getOrUndefined(info.mtime)?.getTime() ?? 0,
+          })),
+        ),
+    );
+    const stale = entries
+      .filter(({ name }) => name !== keep)
+      .sort((a, b) => b.modified - a.modified)
+      .slice(2);
+    yield* Effect.forEach(
+      stale,
+      ({ name }) =>
+        fs
+          .remove(path.join(parent, name), { recursive: true, force: true })
+          .pipe(Effect.andThen(fs.remove(sidecar(path.join(parent, name)), { force: true }))),
+      { discard: true },
+    );
+  },
+  (effect) => Effect.ignore(effect),
+);
+
+export const resolveArtifact = Effect.fn("nativeClient.resolveArtifact")(function* (
+  home: string,
+  platform: NativePlatform,
+  abi: string | null,
+  fingerprint: string,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const key = `${platform}/${abi ? `development-${abi}` : "development"}/${fingerprint}`;
+  const directory = path.join(home, ".cache/supaterm/native-clients/artifacts", key);
+  const artifact = { directory, file: path.join(directory, artifactNames[platform]) };
+  if ((yield* fs.exists(artifact.file)) && (yield* validArtifact(directory))) {
+    yield* Console.error(`Using cached client ${key}.`);
+
+    const now = yield* Clock.currentTimeMillis;
+    yield* fs.utimes(directory, now / 1000, now / 1000).pipe(Effect.ignore);
+    return { ...artifact, source: "local" as const, buildMs: yield* readBuildMs(directory) };
+  }
+  yield* fs.makeDirectory(path.dirname(directory), { recursive: true });
+  return yield* Effect.acquireUseRelease(
+    fs.makeDirectory(`${directory}.lock`).pipe(
+      Effect.mapError(
+        () =>
+          new NativeClientError({
+            message: `Another process is preparing ${key}. If none is running, remove ${directory}.lock and retry.`,
+          }),
+      ),
+    ),
+    () =>
+      Effect.gen(function* () {
+        yield* fs.makeDirectory(path.dirname(directory), { recursive: true });
+        if (yield* fs.exists(directory)) yield* fs.remove(directory, { recursive: true });
+        const remote = yield* remoteCache(home);
+        if (remote) {
+          const downloaded = yield* download(remote, platform, key, directory).pipe(
+            Effect.catch((error) =>
+              Console.error(`Shared native client cache unavailable (${describe(error)}).`).pipe(
+                Effect.as(false),
+              ),
+            ),
+          );
+          if (downloaded) {
+            yield* prune(path.dirname(directory), fingerprint);
+            return {
+              ...artifact,
+              source: "remote" as const,
+              buildMs: yield* readBuildMs(directory),
+            };
+          }
+        }
+        const log = yield* BuildLog;
+        yield* Console.error(
+          `No cached client for ${key}. Building it once for every machine (5-15 min)${log ? `. Log: ${log}` : ""}`,
+        );
+        const started = yield* Clock.currentTimeMillis;
+        yield* build(platform, abi, directory, fingerprint);
+        yield* writeBuildMs(directory, (yield* Clock.currentTimeMillis) - started);
+        yield* prune(path.dirname(directory), fingerprint);
+        if (remote && (yield* HostProcess.Environment).SUPATERM_NATIVE_CLIENT_CACHE !== "read") {
+          yield* upload(remote, platform, key, directory).pipe(
+            Effect.catch((error) =>
+              Console.error(`Native client was not shared (${describe(error)}).`),
+            ),
+          );
+        }
+        return { ...artifact, source: "build" as const, buildMs: 0 };
+      }),
+    () => fs.remove(`${directory}.lock`, { recursive: true, force: true }),
+  );
+});
+
+const describe = (error: unknown) =>
+  typeof error === "object" &&
+  error !== null &&
+  "message" in error &&
+  typeof error.message === "string"
+    ? error.message
+    : String(error);
+
+const install = Effect.fn("nativeClient.install")(function* (
+  platform: NativePlatform,
+  device: string,
+  file: string,
+) {
+  if (platform === "ios") {
+    yield* command("xcrun", ["simctl", "install", device, file], true);
+    return;
+  }
+  yield* command("adb", ["-s", device, "install", "-r", "-d", file]).pipe(
+    Effect.catchTags({
+      NativeClientError: (error) =>
+        Effect.fail(
+          error.message.includes("INSTALL_FAILED_UPDATE_INCOMPATIBLE")
+            ? new NativeClientError({
+                message: `The installed client has a different signature. Remove it with adb -s ${device} uninstall ${bundleId} (this clears its pairings), then run ensure again.`,
+              })
+            : error,
+        ),
+    }),
+  );
+
+  if ((yield* command("adb", ["-s", device, "shell", "getprop", "ro.kernel.qemu"])) !== "1")
+    yield* command("adb", ["-s", device, "reverse", "tcp:8081", "tcp:8081"]).pipe(Effect.ignore);
+});
+
+const reportTelemetry = Effect.fn("nativeClient.reportTelemetry")(
+  function* (
+    home: string,
+    task: string,
+    source: "local" | "remote" | "executed" | "failed",
+    savedMs: number,
+  ) {
+    const environment = yield* HostProcess.Environment;
+    if (environment.SUPATERM_TASK_CACHE_TELEMETRY !== "on") return;
+    const remote = yield* remoteCache(home);
+    if (!remote) return;
+    const recordedAt = yield* Clock.currentTimeMillis;
+
+    const fs = yield* FileSystem.FileSystem;
+    const machine = yield* fs.readFileString(`${home}/.agents/MACHINE`).pipe(
+      Effect.map((value) => value.trim()),
+      Effect.orElseSucceed(() => ""),
+    );
+    const host =
+      environment.SUPATERM_TASK_CACHE_HOST ||
+      machine ||
+      (environment.GITHUB_ACTIONS === "true"
+        ? `${environment.RUNNER_ENVIRONMENT || "github"}/${environment.RUNNER_OS}/${environment.RUNNER_ARCH}`
+        : yield* HostProcess.Hostname);
+    const client = (yield* HttpClient.HttpClient).pipe(HttpClient.filterStatusOk);
+    yield* client.execute(
+      authorized(remote, HttpClientRequest.post(remote.telemetry)).pipe(
+        HttpClientRequest.bodyJsonUnsafe({
+          id: yield* digest(`${host}:${task}:${recordedAt}:${yield* Random.nextInt}`),
+          recordedAt,
+          host,
+          platform: yield* HostProcess.Platform,
+          arch: yield* HostProcess.Architecture,
+          ci: environment.CI === "true" || environment.CI === "1",
+          runId: environment.GITHUB_RUN_ID ?? "",
+          tasks: [{ package: "@supaterm/mobile", task, source, savedMs: Math.round(savedMs) }],
+        }),
+      ),
+    );
+  },
+  (effect) => effect.pipe(Effect.timeout("5 seconds"), Effect.ignore),
+);
+
+const installIntoSession = Effect.fn("nativeClient.installIntoSession")(function* (
+  home: string,
+  platform: NativePlatform,
+  session: string,
+  abi: string,
+  metro: string | undefined,
+) {
+  const started = yield* Clock.currentTimeMillis;
+  const path = yield* Path.Path;
+  const node = yield* HostProcess.ExecutablePath;
+  const agentDevice = path.join(
+    (yield* roots).repo,
+    "scripts/node_modules/agent-device/bin/agent-device.mjs",
+  );
+
+  const workspace = yield* HostProcess.WorkingDirectory;
+  const deviceAbi = platform === "android" ? abi : null;
+  const task = deviceAbi ? `native-client:android-${deviceAbi}` : `native-client:${platform}`;
+  const current = yield* fingerprint(platform);
+  const key = `${platform}/${deviceAbi ? `development-${deviceAbi}` : "development"}/${current}`;
+  const source = yield* sharedSource(home, key);
+
+  const downloadOnDevice = source
+    ? command(
+        node,
+        [
+          agentDevice,
+          "install-from-source",
+          source.url,
+          "--header",
+          source.header,
+          "--session",
+          session,
+        ],
+        true,
+        workspace,
+      ).pipe(
+        Effect.as(true),
+        Effect.catch((error) =>
+          Console.error(`The device could not download ${key} (${describe(error)}).`).pipe(
+            Effect.as(false),
+          ),
+        ),
+      )
+    : Effect.succeed(false);
+  const fetched = yield* downloadOnDevice;
+  const artifact = fetched
+    ? { source: "remote" as const, buildMs: 0 }
+    : yield* Effect.gen(function* () {
+        const local = yield* resolveArtifact(home, platform, deviceAbi, current).pipe(
+          Effect.tapError(() => reportTelemetry(home, task, "failed", 0)),
+        );
+
+        if (local.source === "build" && (yield* downloadOnDevice)) return local;
+        yield* Console.error(`Installing into agent-device session ${session}...`);
+        yield* command(
+          node,
+          [agentDevice, "install", bundleId, local.file, "--session", session],
+          true,
+          workspace,
+        );
+        return local;
+      });
+  if (metro) {
+    const url = encodeURIComponent(metro);
+    yield* command(
+      node,
+      [
+        agentDevice,
+        "open",
+        bundleId,
+        `supaterm-dev://expo-development-client/?url=${url}&disableOnboarding=1&disableFab=1&disableAutoLaunch=1`,
+        "--session",
+        session,
+      ],
+      true,
+      workspace,
+    );
+  }
+  yield* reportTelemetry(
+    home,
+    task,
+    artifact.source === "build" ? "executed" : artifact.source,
+    artifact.buildMs,
+  );
+  const seconds = Math.round(((yield* Clock.currentTimeMillis) - started) / 1000);
+  yield* Console.error(
+    `Installed into session ${session} in ${seconds}s (${artifact.source}).${metro ? "" : " Open it with Metro: --metro http://<this-machine>:8081."}`,
+  );
+  yield* Console.log(
+    yield* encodeOutput({
+      status: "installed",
+      source: artifact.source,
+      fingerprint: current,
+      session,
+      seconds,
+    }),
+  );
+});
+
 const main = Command.make(
   "mobile-native-client",
   {
     mode: Argument.Literals("mode", ["check", "ensure"]),
     platform: Argument.Literals("platform", ["ios", "android"]),
-    device: Argument.String("device"),
+    device: Argument.String("device").pipe(Argument.optional),
+    session: Flag.String("session").pipe(
+      Flag.withDescription(
+        "Install into this already-open agent-device session (a device pool, cloud, or remote host) instead of a local device.",
+      ),
+      Flag.optional,
+    ),
+    abi: Flag.Literals("abi", ["x86_64", "arm64-v8a"]).pipe(
+      Flag.withDescription("Android ABI of the session's device (default x86_64)."),
+      Flag.withDefault("x86_64" as const),
+    ),
+    metro: Flag.String("metro").pipe(
+      Flag.withDescription("With --session, open the dev client against this Metro URL."),
+      Flag.optional,
+    ),
+    prepare: Flag.Boolean("prepare").pipe(
+      Flag.withDescription(
+        "Fetch or build the client for this checkout without a device (Android: for --abi). Run it before leasing a device: a build can outlast the lease.",
+      ),
+      Flag.withDefault(false),
+    ),
   },
-  Effect.fn("nativeClient.main")(function* ({ mode, platform, device }) {
-    yield* validateDevice(platform, device);
+  Effect.fn("nativeClient.main")(function* ({
+    mode,
+    platform,
+    device: requested,
+    session,
+    abi: sessionAbi,
+    metro,
+    prepare,
+  }) {
+    const started = yield* Clock.currentTimeMillis;
+    if (prepare) {
+      if (mode !== "ensure" || Option.isSome(requested) || Option.isSome(session))
+        return yield* new NativeClientError({
+          message: "--prepare needs no device; use it with ensure and no device id or --session.",
+        });
+      const environment = yield* HostProcess.Environment;
+      const home = environment.HOME ?? environment.USERPROFILE;
+      if (!home)
+        return yield* new NativeClientError({ message: "HOME or USERPROFILE must be set." });
+      const current = yield* fingerprint(platform);
+      const artifact = yield* resolveArtifact(
+        home,
+        platform,
+        platform === "android" ? sessionAbi : null,
+        current,
+      );
+      yield* Console.error(
+        `Client ready for ${platform} (${artifact.source}); lease a device and install.`,
+      );
+      return yield* Console.log(
+        yield* encodeOutput({
+          status: "ready",
+          source: artifact.source,
+          fingerprint: current,
+          file: artifact.file,
+        }),
+      );
+    }
+    if (Option.isSome(session)) {
+      if (mode !== "ensure" || Option.isSome(requested))
+        return yield* new NativeClientError({
+          message:
+            "--session installs into an agent-device session; use it with ensure and no device id.",
+        });
+      const environment = yield* HostProcess.Environment;
+      const home = environment.HOME ?? environment.USERPROFILE;
+      if (!home)
+        return yield* new NativeClientError({ message: "HOME or USERPROFILE must be set." });
+      return yield* installIntoSession(
+        home,
+        platform,
+        session.value,
+        sessionAbi,
+        Option.getOrUndefined(metro),
+      );
+    }
+    const target = yield* resolveDevice(platform, Option.getOrUndefined(requested));
+    const device = target.id;
+    yield* Console.error(`Device: ${target.label} (${device})`);
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
     const environment = yield* HostProcess.Environment;
@@ -331,12 +1145,19 @@ const main = Command.make(
       return yield* new NativeClientError({
         message: "HOME or USERPROFILE must be set to store native client records.",
       });
-    const recordPath = path.join(
-      home,
-      ".cache/supaterm/native-clients",
-      platform,
-      `${yield* digest(device)}.json`,
-    );
+    const cache = path.join(home, ".cache/supaterm/native-clients");
+    const recordPath = path.join(cache, platform, `${yield* digest(device)}.json`);
+
+    const abi = Effect.gen(function* () {
+      if (platform === "ios") return null;
+      const value = yield* command("adb", ["-s", device, "shell", "getprop", "ro.product.cpu.abi"]);
+      if (value !== "x86_64" && value !== "arm64-v8a")
+        return yield* new NativeClientError({ message: `Unsupported Android ABI ${value}.` });
+      return value;
+    });
+    let task = `native-client:${platform}`;
+    let savedMs = 0;
+    let artifactSource: "local" | "remote" | "build" | undefined;
     const operations = {
       fingerprint: fingerprint(platform),
       installedBinary: installedBinary(platform, device),
@@ -349,83 +1170,21 @@ const main = Command.make(
         ),
       ),
       build: Effect.gen(function* () {
-        yield* Console.error(
-          "Native client is missing, stale, or unverified. Building and installing a development client...",
-        );
-        const tracked = yield* command(
-          "git",
-          ["ls-files", `apps/mobile/${platform}`],
-          false,
-          (yield* roots).repo,
-        );
-        if (tracked)
-          return yield* new NativeClientError({
-            message:
-              "Native directory contains tracked files; clean prebuild would overwrite them.",
-          });
-        const prebuild = command(
-          "vp",
-          ["exec", "expo", "prebuild", "--clean", "--platform", platform, "--no-install"],
-          true,
-        ).pipe(Effect.asVoid);
-        yield* platform === "android" ? prebuildAndroid((yield* roots).mobile, prebuild) : prebuild;
-        if (platform === "ios") {
-          const output = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-native-client-" });
-          const { mobile } = yield* roots;
-          yield* command("pod", ["install"], true, path.join(mobile, "ios"));
-          yield* command(
-            "xcrun",
-            [
-              "xcodebuild",
-              "-workspace",
-              path.join(mobile, "ios/SupatermDev.xcworkspace"),
-              "-scheme",
-              "SupatermDev",
-              "-configuration",
-              "Debug",
-              "-destination",
-              `id=${device}`,
-              "-derivedDataPath",
-              output,
-              "build",
-            ],
-            true,
-          );
-          yield* command(
-            "xcrun",
-            [
-              "simctl",
-              "install",
-              device,
-              path.join(output, "Build/Products/Debug-iphonesimulator/SupatermDev.app"),
-            ],
-            true,
-          );
-        } else {
-          yield* command(
-            "vp",
-            [
-              "exec",
-              "expo",
-              "run:android",
-              "--device",
-              device,
-              "--no-bundler",
-              "--variant",
-              "debug",
-            ],
-            true,
-          );
-        }
-      }).pipe(Effect.scoped),
+        const current = yield* fingerprint(platform);
+        const deviceAbi = yield* abi;
+        if (deviceAbi) task = `native-client:android-${deviceAbi}`;
+        const artifact = yield* resolveArtifact(home, platform, deviceAbi, current);
+        savedMs = artifact.buildMs;
+        yield* Console.error(`Installing on ${target.label}...`);
+        yield* install(platform, device, artifact.file);
+        artifactSource = artifact.source;
+      }),
       saveRecord: Effect.fn(function* (record: NativeClientRecord) {
         yield* fs.makeDirectory(path.dirname(recordPath), { recursive: true });
         yield* fs.writeFileString(recordPath, yield* encodeRecord(record));
       }),
     };
-    if (mode === "ensure") {
-      yield* Console.log(yield* encodeOutput(yield* ensureClient(operations)));
-    } else {
+    if (mode === "check") {
       const current = yield* operations.fingerprint;
       const status = clientStatus(
         current,
@@ -436,21 +1195,55 @@ const main = Command.make(
         yield* encodeOutput({
           status,
           fingerprint: current,
+          device,
           next:
             status === "compatible"
               ? "Start Metro with vp run dev:client"
-              : `node scripts/mobile-native-client.ts ensure ${platform} ${device}`,
+              : `vp run mobile:install ${platform} ${device}`,
         }),
       );
       process.exitCode = status === "compatible" ? 0 : 2;
+      return;
     }
+    const logs = path.join(cache, "logs");
+    yield* fs.makeDirectory(logs, { recursive: true });
+    yield* prune(logs, "");
+    const stamp = DateTime.formatIso(DateTime.makeUnsafe(started)).replaceAll(":", "-");
+    const log = path.join(logs, `${stamp}-${platform}.log`);
+    const result = yield* ensureClient(operations).pipe(
+      Effect.provideService(
+        BuildLog,
+        environment.SUPATERM_NATIVE_CLIENT_VERBOSE === "1" ? null : log,
+      ),
+      Effect.tapError(() => reportTelemetry(home, task, "failed", 0)),
+    );
+    if (result.rebuilt && artifactSource)
+      yield* reportTelemetry(
+        home,
+        task,
+        artifactSource === "build" ? "executed" : artifactSource,
+        artifactSource === "build" ? 0 : savedMs,
+      );
+    const seconds = Math.round(((yield* Clock.currentTimeMillis) - started) / 1000);
+    yield* Console.error(
+      result.rebuilt
+        ? `Installed on ${target.label} in ${seconds}s (${artifactSource}). Next: start Metro with vp run dev:client.`
+        : `${target.label} already has the client for this checkout. Next: start Metro with vp run dev:client.`,
+    );
+    yield* Console.log(yield* encodeOutput({ ...result, source: artifactSource, device, seconds }));
   }),
 );
 
 if (import.meta.main) {
   Command.run(main, { version: "0.0.0" }).pipe(
+    Effect.catchTags({
+      NativeClientError: (error) =>
+        Console.error(error.message).pipe(
+          Effect.andThen(Effect.sync(() => (process.exitCode = 1))),
+        ),
+    }),
     Effect.scoped,
-    Effect.provide(NodeServices.layer),
+    Effect.provide([NodeServices.layer, FetchHttpClient.layer]),
     NodeRuntime.runMain,
   );
 }

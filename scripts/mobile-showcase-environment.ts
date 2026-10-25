@@ -335,7 +335,7 @@ async function seedCompanionWorkspace(input: {
 }
 
 function encodePayload(schema: Schema.Codec<unknown, unknown>, payload: object): string {
-  Schema.decodeUnknownSync(schema)(payload);
+  Schema.decodeSync(schema)(payload);
   return JSON.stringify(payload);
 }
 
