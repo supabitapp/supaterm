@@ -10,7 +10,7 @@ import { Minus, Plus } from "@supaterm/icons/nodes";
 import { useState, type ComponentProps, type MouseEvent as ReactMouseEvent } from "react";
 
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
-import { findProjectOnChangeRequestHost } from "~/lib/openPullRequestLink";
+import { findProjectOnChangeRequestHost } from "@supaterm/client-runtime/change-request-links";
 
 import { useProjects } from "~/state/entities";
 import { threadEnvironment } from "~/state/threads";

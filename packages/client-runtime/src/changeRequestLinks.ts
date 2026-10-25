@@ -28,6 +28,78 @@ export function findProjectForChangeRequest<Project extends ChangeRequestProject
   });
 }
 
+/** Prefers the project checked out from the link's repository, else lends any project on its host. */
+export function findProjectOnChangeRequestHost<Project extends ChangeRequestProject>(
+  projects: ReadonlyArray<Project>,
+  link: ChangeRequestLink,
+): Project | undefined {
+  return (
+    findProjectForChangeRequest(projects, link) ??
+    projects.find((project) => {
+      const identity = project.repositoryIdentity;
+      return (
+        identity?.provider !== undefined &&
+        sourceControlClients.get(identity.provider).canReadChangeRequestOnHost(identity, link)
+      );
+    })
+  );
+}
+
+/**
+ * Where every client opens a change request link in the app, or null for the browser. A link
+ * opened into a pull request view may borrow any project on its host, so a mirror's or a sibling
+ * repository's link still opens in the app. `reads` says whether an environment is connected
+ * enough to show change requests.
+ */
+export function resolveChangeRequestLinkTarget<Project extends ChangeRequestProject>({
+  url,
+  projects,
+  reads,
+  environmentId,
+  projectId,
+  primaryEnvironmentId,
+  lendHostProject,
+}: {
+  url: string;
+  projects: ReadonlyArray<Project>;
+  reads: (environmentId: EnvironmentId) => boolean;
+  /** The link's own environment; without one, any environment that reads change requests. */
+  environmentId?: EnvironmentId | undefined;
+  /** The project the link came from, tried first. */
+  projectId?: ProjectId | undefined;
+  primaryEnvironmentId?: EnvironmentId | null | undefined;
+  lendHostProject: boolean;
+}): {
+  readonly project: Project;
+  readonly repository: string;
+  readonly number: number;
+  readonly host: string;
+} | null {
+  const link = sourceControlClients.parseChangeRequestUrl(url)?.link;
+  if (link === undefined) return null;
+  // Matching remotes do not make project ids usable outside the link's environment.
+  const candidates = (
+    environmentId === undefined
+      ? projects.filter((project) => reads(project.environmentId))
+      : projects.filter((project) => project.environmentId === environmentId)
+  ).sort(
+    (left, right) =>
+      Number(right.id === projectId) - Number(left.id === projectId) ||
+      Number(right.environmentId === primaryEnvironmentId) -
+        Number(left.environmentId === primaryEnvironmentId),
+  );
+  const project =
+    findProjectForChangeRequest(candidates, link) ??
+    (lendHostProject ? findProjectOnChangeRequestHost(candidates, link) : undefined);
+  if (project === undefined || !reads(project.environmentId)) return null;
+  return {
+    project,
+    repository: link.repository,
+    number: link.number,
+    host: link.authority ?? link.host,
+  };
+}
+
 export function resolvePullRequestPreviewTarget({
   environmentId,
   projects,
