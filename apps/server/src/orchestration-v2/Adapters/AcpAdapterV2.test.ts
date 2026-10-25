@@ -392,7 +392,7 @@ function assertReinjectedInstructions(
 ) {
   const text = blocks[0]?.text ?? "";
   assert.include(text, "Supaterm interaction mode: Default");
-  assert.include(text, "Supaterm collaborative browser");
+  assert.include(text, "## Supaterm browser");
   assert.include(text, "Supaterm orchestration");
   assert.include(text, `<user_request>\n${request}\n</user_request>`);
 }
@@ -980,7 +980,7 @@ describe("AcpAdapterV2", () => {
       const firstDefault = yield* runTurn(2, defaultPolicy, "First default request.");
       assert.equal(firstDefault.textBlockCount, 2);
       assert.include(firstDefault.prompt, "Supaterm interaction mode: Default");
-      assert.include(firstDefault.prompt, "Supaterm collaborative browser");
+      assert.include(firstDefault.prompt, "## Supaterm browser");
       assert.include(firstDefault.prompt, "Supaterm orchestration");
       assert.notInclude(
         firstDefault.methods,

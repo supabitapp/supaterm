@@ -72,23 +72,23 @@ describe("Codex runtime context", () => {
 });
 
 describe("Codex orchestration context", () => {
-  it("routes same-child follow-ups to supaterm_thread_send and independent reviews to delegate_task", () => {
+  it("routes subagents native first, delegate_task for the rest", () => {
     const orchestration = Object.entries(buildCodexAdditionalContext({ model: "gpt-6.1-sol" }))
       .filter(([key]) => key.startsWith("supaterm_orchestration_"))
       .map(([, entry]) => entry.value)
       .join("\n");
 
+    NodeAssert.ok(orchestration.includes("use your native tool when the child uses your provider"));
+    NodeAssert.ok(orchestration.includes("`run_in_background:false`"));
+    NodeAssert.ok(orchestration.includes("A native type running another provider's model"));
     NodeAssert.ok(
-      orchestration.includes(
-        "For independent Supaterm delegated review rounds, call `delegate_task` again.",
-      ),
+      orchestration.includes("Every new delegate review or re-check is a new `delegate_task`"),
     );
-    NodeAssert.ok(
-      orchestration.includes(
-        "For a follow-up that needs the same child's conversation, use `supaterm_thread_send` on its `childThreadId`.",
-      ),
-    );
-    NodeAssert.ok(!orchestration.includes("Do not use `supaterm_thread_send`"));
+    NodeAssert.ok(orchestration.includes("never a `supaterm_thread_send`"));
+    NodeAssert.ok(!orchestration.includes("inheritedOptions"));
+    NodeAssert.ok(!orchestration.includes("Prefer native"));
+    // The ACP terminal fallback is ACP-only; Codex agents never need it.
+    NodeAssert.ok(!orchestration.includes("acp-mcp-call"));
   });
 });
 

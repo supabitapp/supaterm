@@ -20,7 +20,7 @@ const shared = {
 const TranscribeTool = Tool.make("supaterm_transcription_transcribe", {
   ...shared,
   description:
-    "Transcribe a recording with the named provider instance's own login, which spends that account. Only Claude subscription and ChatGPT logins can transcribe. Prepare a file upload named *.wav with mimeType audio/wav through supaterm_attachment_prepare_upload, POST a 16 kHz mono 16-bit WAV of at most 5 minutes, then pass its attachmentId. Only the caller that prepared an upload can transcribe or cancel it. Repeating a call for the same upload joins the running work or returns its outcome; after a failure only retry: true transcribes again. Context defaults to the calling thread and biases recognition toward its project and branch names. A successful run deletes the upload.",
+    "Transcribe a recording with a provider instance's own login (Claude subscription or ChatGPT; spends that account). Upload a 16 kHz mono 16-bit WAV, at most 5 minutes, via `supaterm_attachment_prepare_upload` (`*.wav`, `audio/wav`), then pass its `attachmentId`. Only the uploader can transcribe or cancel. A repeat joins the running work or returns its outcome; after a failure pass `retry: true`. Success deletes the upload.",
   parameters: TranscriptionTranscribeInput,
   success: TranscriptionTranscribeResult,
 })
@@ -28,8 +28,7 @@ const TranscribeTool = Tool.make("supaterm_transcription_transcribe", {
   .annotate(Tool.OpenWorld, true);
 const CancelTool = Tool.make("supaterm_transcription_cancel", {
   ...shared,
-  description:
-    "Stop transcribing an upload and delete it, including its recorded outcome. Later transcribe calls for it fail because the recording is gone.",
+  description: "Stop a transcription and delete its upload and outcome.",
   parameters: TranscriptionCancelInput,
   success: Schema.Struct({}),
 }).annotate(Tool.Destructive, true);
