@@ -1,5 +1,5 @@
 import type { SidebarThreadGrouping } from "@supaterm/contracts";
-import { useThreadListV2Layout } from "../threads/use-thread-list-v2-layout";
+import { useThreadListV2 } from "../threads/useThreadListV2";
 import { useActiveNewTask } from "../../state/active-new-task";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
@@ -75,7 +75,6 @@ import { useThreadRowProviderInstanceResolver } from "../threads/thread-provider
 import { useOpenThreadPullRequests } from "../threads/use-open-thread-pull-requests";
 import type { ThreadPrPresentation } from "../../state/thread-pr-presentation";
 import {
-  buildThreadListV2ListItems,
   threadListV2ListItemsAreEqual,
   THREAD_LIST_V2_DONE_INITIAL_COUNT,
   THREAD_LIST_V2_DONE_PAGE_COUNT,
@@ -311,7 +310,6 @@ export function HomeScreen(props: HomeScreenProps) {
     tabActivity?.active === false ? "" : props.searchQuery,
   );
   const threadSearchMatchByKey = useThreadListSearchMatches(props.threads, threadSearch);
-  const matchedThreadKeys = new Set(threadSearchMatchByKey.keys());
   const handleSwipeableWillOpen = (methods: SwipeableMethods) => {
     if (openSwipeableRef.current !== methods) {
       openSwipeableRef.current?.close();
@@ -408,14 +406,6 @@ export function HomeScreen(props: HomeScreenProps) {
       ),
     ),
   );
-  const v2ScopedProjectKeys =
-    v2ScopedProjectGroup === null
-      ? null
-      : new Set(
-          v2ScopedProjectGroup.projectRefs.map((projectRef) =>
-            scopedProjectKey(projectRef.environmentId, projectRef.projectId),
-          ),
-        );
   // Thread List v2 (beta): one flat list in creation order, no grouping.
   // Done threads collapse into a recency tail below the card block.
   // Done threads stay in the live shell stream (done ≠ archived), so
@@ -498,7 +488,11 @@ export function HomeScreen(props: HomeScreenProps) {
     listEnvironments;
   const resolveProviderInstance = useThreadRowProviderInstanceResolver(providersByEnvironmentId);
   const pendingOrder = usePendingThreadOrder(nowMinute, snoozeWakeTick);
-  const { threadListV2Layout } = useThreadListV2Layout({
+  const {
+    layout: threadListV2Layout,
+    items: threadListV2Items,
+    contentOnlyThreadKeys,
+  } = useThreadListV2({
     grouping: props.threadGrouping,
     groupingProjects: projectScopes.map((scope) => ({
       key: scope.key,
@@ -506,14 +500,17 @@ export function HomeScreen(props: HomeScreenProps) {
       memberProjectRefs: scope.projectRefs,
     })),
     threads: props.threads,
+    pendingTasks: props.pendingTasks,
     environmentId: props.selectedEnvironmentId,
     projectRefs: v2ScopedProjectGroup === null ? null : v2ScopedProjectGroup.projectRefs,
     searchQuery: props.searchQuery,
-    matchedThreadKeys,
+    searchMatches: threadSearchMatchByKey,
     pendingOrder,
     queuedThreadKeys,
+    loadedEnvironmentIds,
     doneLimit: doneVisibleCount,
     now: listClock.now,
+    shelfPreferencesLoaded,
     pinnedShelfExpanded,
     activeShelfExpanded,
     workingShelfExpanded,
@@ -534,42 +531,21 @@ export function HomeScreen(props: HomeScreenProps) {
     // unchanged: after a clamped fire (wake beyond the 32-bit setTimeout
     // range) the boundary string is identical and the chain would die.
   }, [nextSnoozeWakeAt, snoozeWakeTick]);
-  const v2SearchQuery = props.searchQuery.trim().toLocaleLowerCase();
-  const v2PendingTasks = props.pendingTasks.filter(
-    (pendingTask) =>
-      (props.selectedEnvironmentId === null ||
-        pendingTask.environmentId === props.selectedEnvironmentId) &&
-      (v2ScopedProjectKeys === null ||
-        v2ScopedProjectKeys.has(
-          scopedProjectKey(pendingTask.environmentId, pendingTask.projectId),
-        )) &&
-      (v2SearchQuery.length === 0 || pendingTask.title.toLocaleLowerCase().includes(v2SearchQuery)),
-  );
-  const threadListV2Items = buildThreadListV2ListItems({
-    ...threadListV2Layout,
-    pendingTasks: v2PendingTasks,
-    pinnedShelfExpanded,
-    activeShelfExpanded,
-    workingShelfExpanded,
-    snoozedShelfExpanded,
-    doneShelfExpanded,
-    snoozeLabelNow: `${nowMinute}:00.000Z`,
-    loadedEnvironmentIds,
-    queuedThreadKeys,
-    shelfPreferencesLoading: !shelfPreferencesLoaded,
-  });
 
+  // Called as `props.onSelectThread(...)`, the compiler would cache this handler on the whole
+  // props object, which is new on every render of Home's parent.
+  const { onSelectThread } = props;
   // A row listed for a message match opens the thread at that message, by
   // tap or by shortcut.
   const selectThread = (thread: EnvironmentThreadShell) => {
     const key = threadSearchMatchKey({ environmentId: thread.environmentId, threadId: thread.id });
-    const messageId = threadListV2Layout.contentOnlyThreadKeys.has(key)
+    const messageId = contentOnlyThreadKeys.has(key)
       ? threadSearchMatchByKey.get(key)?.messageId
       : undefined;
     if (messageId) {
       requestThreadMessageJump(scopedThreadKey(thread.environmentId, thread.id), messageId);
     }
-    props.onSelectThread(thread);
+    onSelectThread(thread);
   };
   useThreadJumpShortcuts(threadListV2Items, selectThread);
   useEffect(() => {
@@ -721,7 +697,7 @@ export function HomeScreen(props: HomeScreenProps) {
         environmentMachine={machineByEnvironmentId.get(thread.environmentId)}
         searchMatch={
           // Only rows listed for their messages show one and open at it.
-          threadListV2Layout.contentOnlyThreadKeys.has(
+          contentOnlyThreadKeys.has(
             threadSearchMatchKey({ environmentId: thread.environmentId, threadId: thread.id }),
           )
             ? threadSearchMatchByKey.get(
