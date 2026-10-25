@@ -3,7 +3,7 @@ import { StyleSheet, View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import Animated, {
   Easing,
-  FadeInUp,
+  FadeInDown,
   FadeOut,
   runOnJS,
   useAnimatedStyle,
@@ -14,8 +14,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { AppSymbolName } from "../../components/ui/AppSymbol";
 import { Toast } from "../../components/ui/Toast";
 import { MOBILE_MOTION } from "../../lib/designTokens";
-import { APP_BAR_HEIGHT } from "../../lib/layoutMetrics";
 import { useReduceMotion } from "../../lib/useReducedMotionPreference";
+import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
 import {
   dismissThreadUndoNotice,
   readThreadUndoNotice,
@@ -43,6 +43,7 @@ function SwipeableUndoNotice(props: { readonly notice: Notice }) {
   const { notice } = props;
   const content = NOTICE_CONTENT[notice.action];
   const insets = useSafeAreaInsets();
+  const workspace = useWorkspaceTabs();
   const reduceMotion = useReduceMotion();
   const exitTiming = {
     duration: MOBILE_MOTION.exit,
@@ -54,7 +55,8 @@ function SwipeableUndoNotice(props: { readonly notice: Notice }) {
     easing: Easing.out(Easing.cubic),
     reduceMotion,
   };
-  const top = insets.top + APP_BAR_HEIGHT + 8;
+  // Float above the tab bar, dock, or keyboard, within reach of the thumb that triggered it.
+  const bottom = workspace?.bottomClearance ?? Math.max(insets.bottom, 12) + 12;
   const translation = useSharedValue(0);
   const height = useSharedValue(0);
 
@@ -62,21 +64,21 @@ function SwipeableUndoNotice(props: { readonly notice: Notice }) {
     // A newer action can replace the notice while the swipe is animating out.
     if (readThreadUndoNotice() === notice) dismissThreadUndoNotice();
   };
-  // Like a system banner, it leaves through the edge it arrived from.
+  // It leaves through the edge it arrived from.
   const gesture = usePanGesture({
     activeOffsetY: [-10, 10],
     failOffsetX: [-20, 20],
     onUpdate: (event) => {
-      translation.set(event.translationY < 0 ? event.translationY : event.translationY * 0.2);
+      translation.set(event.translationY > 0 ? event.translationY : event.translationY * 0.2);
     },
     onDeactivate: (event) => {
       if (
         !event.canceled &&
-        (event.translationY < -height.value * 0.4 ||
-          (event.velocityY < -600 && event.translationY < 0))
+        (event.translationY > height.value * 0.4 ||
+          (event.velocityY > 600 && event.translationY > 0))
       ) {
         translation.set(
-          withTiming(-(top + height.value), exitTiming, (finished) => {
+          withTiming(bottom + height.value, exitTiming, (finished) => {
             if (finished) runOnJS(dismiss)();
           }),
         );
@@ -92,9 +94,9 @@ function SwipeableUndoNotice(props: { readonly notice: Notice }) {
   return (
     <Animated.View
       className="absolute inset-x-3 z-[100]"
-      style={{ top }}
+      style={{ bottom }}
       pointerEvents="box-none"
-      entering={FadeInUp.duration(MOBILE_MOTION.enter)
+      entering={FadeInDown.duration(MOBILE_MOTION.enter)
         .easing(Easing.out(Easing.cubic))
         .reduceMotion(reduceMotion)}
       exiting={FadeOut.duration(MOBILE_MOTION.exit).reduceMotion(reduceMotion)}
