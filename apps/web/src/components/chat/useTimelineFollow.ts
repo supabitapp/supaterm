@@ -21,6 +21,7 @@ import { type ChatComposerHandle } from "./ChatComposer";
 import { createPageScrollController, type PageScrollKey } from "./pageScrollController";
 import { createUpwardScrollDetector, isTimelineScrollTarget } from "./timelineScrollTarget";
 import { resolveTimelineIsAtEnd } from "./MessagesTimeline.logic";
+import { measuredEndOffset, settleListScroll } from "./useTimelinePositionRestore";
 import {
   releaseChatTimelineAnchor,
   shouldReleaseTimelineAnchorForToolActivity,
@@ -277,9 +278,17 @@ export function useTimelineFollow(input: TimelineFollowInput) {
     // The anchored end space must be gone before the scroll measures, or the
     // list lands short of the real end (#6519).
     requestAnimationFrame(() => {
-      void legendListRef.current?.scrollToEnd?.({
-        animated: animated && !prefersReducedMotion(),
-      });
+      const list = legendListRef.current;
+      if (!list) return;
+      void Promise.resolve(
+        list.scrollToEnd?.({ animated: animated && !prefersReducedMotion() }),
+      ).then(() =>
+        settleListScroll(
+          list,
+          measuredEndOffset,
+          () => timelineScrollModeRef.current !== "following-end" || legendListRef.current !== list,
+        ),
+      );
     });
   };
   const scrollToEndStable = useStableCallback(scrollToEnd);
