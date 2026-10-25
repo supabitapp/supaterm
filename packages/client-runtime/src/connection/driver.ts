@@ -68,6 +68,10 @@ const ROUTE_SETUP_TIMEOUT_MS = 15_000;
  */
 export const ROUTE_SNAPSHOT_TIMEOUT_MS = 75_000;
 const ROUTE_PREFERENCE_WAIT_MS = 250;
+// Preferred routes share one head start, so a fallback does not wait the full
+// check timeout for a LAN the device has already left. A route that misses it
+// connects over a fallback, then upgrades with a later reconnect.
+const ROUTE_CHECK_HEAD_START_MS = 500;
 const PREFLIGHT_VALIDITY_NANOS = 10_000_000_000n;
 
 export class ConnectionDriver extends Context.Service<
@@ -156,19 +160,19 @@ const selectAndConnect = Effect.fnUntraced(function* <R>(
     Effect.forkScoped(Fiber.join(check).pipe(Effect.timeoutOption(ROUTE_CHECK_TIMEOUT_MS))),
   );
   const preferenceWindow = yield* Effect.forkScoped(
-    (checks.length === 0
-      ? Effect.never
-      : Effect.raceAll(
-          checks.map((check) =>
-            Fiber.join(check).pipe(
-              Effect.flatMap((result) => (result === "answered" ? Effect.void : Effect.never)),
+    Effect.raceFirst(
+      Effect.sleep(ROUTE_CHECK_HEAD_START_MS),
+      (checks.length === 0
+        ? Effect.never
+        : Effect.raceAll(
+            checks.map((check) =>
+              Fiber.join(check).pipe(
+                Effect.flatMap((result) => (result === "answered" ? Effect.void : Effect.never)),
+              ),
             ),
-          ),
-        )
-    ).pipe(
-      Effect.andThen(Effect.sleep(ROUTE_PREFERENCE_WAIT_MS)),
-      Effect.as(Option.none<RouteCheck>()),
-    ),
+          )
+      ).pipe(Effect.andThen(Effect.sleep(ROUTE_PREFERENCE_WAIT_MS))),
+    ).pipe(Effect.as(Option.none<RouteCheck>())),
   );
   let failure: ConnectionAttemptError | undefined;
   // Each route gets its own scope so a half-open session closes before the next try.
