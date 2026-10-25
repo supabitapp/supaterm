@@ -1,3 +1,4 @@
+import { resolvePullRequestDetailChecks } from "@supaterm/client-runtime/pull-request-checks";
 import {
   capitalizeTerm,
   sourceControlClients,
@@ -67,7 +68,6 @@ import {
   buildSubagentFixChecksPrompt,
   buildSubagentResolveConflictsPrompt,
   classifyPullRequestChecks,
-  resolvePullRequestDetailChecks,
   describePullRequestChecks,
   isPullRequestConflicting,
   resolvePullRequestMergeMethod,

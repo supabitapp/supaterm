@@ -73,7 +73,7 @@ import {
 import {
   canEditPullRequestChangeRequest,
   canEditPullRequestComment,
-} from "./pullRequestEditing.logic";
+} from "@supaterm/client-runtime/pull-request-editing";
 import { PullRequestMarkdown } from "./PullRequestMarkdown";
 import { PullRequestCommentBody } from "./PullRequestCommentBody";
 import { PullRequestMoreReplies } from "./PullRequestMoreReplies";

@@ -1,0 +1,36 @@
+import { useFocusEffect } from "@react-navigation/native";
+import {
+  pullRequestChecksRefreshIntervalMs,
+  resolvePullRequestDetailChecks,
+} from "@supaterm/client-runtime/pull-request-checks";
+import type { PullRequestDetail } from "@supaterm/contracts";
+import { composerPullRequests } from "../../state/pull-requests";
+import { useEnvironmentQuery } from "../../state/query";
+import { usePullRequestConnected } from "./usePullRequestConnected";
+import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
+
+/**
+ * Re-reads only the checks while an open change request is on screen, so a running CI shows up
+ * without paying for a full detail read every poll.
+ */
+export function usePullRequestLiveChecks(
+  params: PullRequestParams,
+  detail: PullRequestDetail | null,
+): PullRequestDetail | null {
+  const target = pullRequestTarget(params);
+  const connected = usePullRequestConnected(target.environmentId);
+  const checks = useEnvironmentQuery(detail !== null ? composerPullRequests.checks(target) : null);
+  // Both reads carry the server's observedAt; without it the poll is the fresher stream.
+  const live = resolvePullRequestDetailChecks(detail, checks.data, true);
+  // A failed read keeps polling; only a host that answers "no checks" (null) stops it.
+  const enabled =
+    connected && live?.state === "open" && !(checks.isSuccess && checks.data === null);
+  const intervalMs = pullRequestChecksRefreshIntervalMs(live?.checks ?? []);
+  const { refresh } = checks;
+  useFocusEffect(() => {
+    if (!enabled) return;
+    const timer = setInterval(refresh, intervalMs);
+    return () => clearInterval(timer);
+  });
+  return live;
+}

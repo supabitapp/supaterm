@@ -14,7 +14,6 @@ import {
   type PullRequestActor,
   type PullRequestBaseComparison,
   type PullRequestCheck,
-  type PullRequestChecks,
   type PullRequestChecksState as ContractPullRequestChecksState,
   type PullRequestComment,
   type PullRequestCommit,
@@ -1507,23 +1506,4 @@ export function resolveDisplayedPullRequestDetail(input: {
   return link !== undefined && (link.authority ?? link.host) === input.reference.host.toLowerCase()
     ? input.cached
     : null;
-}
-
-export function resolvePullRequestDetailChecks(
-  detail: PullRequestDetail | null,
-  checks: PullRequestChecks | null,
-  checksAreNewer: boolean,
-): PullRequestDetail | null {
-  if (detail === null || checks === null) return detail;
-  const newer =
-    detail.observedAt !== undefined && checks.observedAt !== undefined
-      ? checks.observedAt >= detail.observedAt
-      : checksAreNewer;
-  return newer
-    ? {
-        ...detail,
-        state: detail.state === "merged" ? "merged" : checks.state,
-        checks: checks.checks,
-      }
-    : detail;
 }

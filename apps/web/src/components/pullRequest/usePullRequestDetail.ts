@@ -1,3 +1,4 @@
+import { resolvePullRequestDetailChecks } from "@supaterm/client-runtime/pull-request-checks";
 import {
   AuthSourceControlWriteScope,
   type EnvironmentId,
@@ -19,7 +20,6 @@ import {
 import {
   readPullRequestDetailSnapshot,
   resolveDisplayedPullRequestDetail,
-  resolvePullRequestDetailChecks,
   writePullRequestDetailSnapshot,
 } from "./pullRequestDetail.logic";
 import { pullRequestChecksState } from "./pullRequestPresentation";

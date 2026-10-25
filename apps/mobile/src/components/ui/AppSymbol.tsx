@@ -50,6 +50,8 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   "calendar.badge.clock": IconNodes.CalendarClock,
   clock: IconNodes.Clock,
   timer: IconNodes.Clock,
+  "face.smiling": IconNodes.SmilePlus,
+  tag: IconNodes.Tag,
   ticket: IconNodes.Ticket,
   cloud: IconNodes.Cloud,
   cube: IconNodes.Box,
