@@ -62,6 +62,9 @@ jobs:
       - name: Check generated GitHub GraphQL operations
         run: vp run --filter @supaterm/source-control-github generate --check
 
+      - name: Check rendered icons match their sources
+        run: vp run icons:check-inputs
+
       - name: Check
         run: vp check
 

@@ -1,7 +1,8 @@
 // @effect-diagnostics nodeBuiltinImport:off globalConsole:off
 // Runs CI's fast checks for this branch's changes: format and lint of the
-// changed files, knip, generated GraphQL operations, typecheck of the affected
-// packages and their dependents, and the test files beside the changed files.
+// changed files, knip, generated GraphQL operations, rendered icon inputs,
+// typecheck of the affected packages and their dependents, and the test files
+// beside the changed files.
 // CI still runs the full test suites and the jobs listed in the summary.
 //
 //   vp run check:changed          compare against the merge base with origin/main
@@ -86,6 +87,11 @@ const graphql = ["apps/server", "packages/source-control-github"].filter((dir) =
   files.some((file) => file.startsWith(`${dir}/`)),
 );
 
+// The committed icons are rendered from the bolt computer and its appearance settings.
+const iconInputs = files.some(
+  (file) => file.startsWith("apps/marketing/src/lib/boltComputer/") || file.startsWith("assets/"),
+);
+
 const filters = (names: ReadonlyArray<string>) => names.flatMap((name) => ["--filter", name]);
 const steps = [
   present.length > 0 && {
@@ -98,6 +104,7 @@ const steps = [
     name: `graphql (${dir})`,
     args: ["run", "--filter", `./${dir}`, "generate", "--check"],
   })),
+  iconInputs && { name: "icon inputs", args: ["run", "icons:check-inputs"] },
   affected.length > 0 && {
     name: `typecheck (${affected.length} packages${everything ? ", all" : ""})`,
     args: ["run", "--cache", "--concurrency-limit", "4", ...filters(affected), "typecheck"],

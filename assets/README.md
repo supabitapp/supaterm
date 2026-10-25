@@ -6,6 +6,8 @@ The export draws the computer in headless Chromium as three Icon Composer layers
 
 The same command regenerates every tracked icon: macOS, iOS, Android, Linux, Windows, web, marketing, and the icons embedded in installer and store artwork. Run `vp run icons:check` to detect stale outputs without modifying files.
 
+The export also records a digest of its sources in `icon-inputs.sha256`: every file the icon module bundles, and `icon.json`. CI and `vp run check:changed` run `vp run icons:check-inputs`, which needs neither Xcode nor Chromium and fails when those sources have changed since the last export, so a studio change cannot leave the committed icons behind. Any edit to those files trips it, including comment-only edits; rerun the export and commit the result.
+
 Exporting requires macOS with full Xcode 27 or newer and Icon Composer 2 or newer. The script selects the newest compatible Icon Composer exporter and pins design generation 26. Set `ICON_COMPOSER_TOOL` to the full path of `Icon Composer.app/Contents/Executables/ictool` to override discovery. Native macOS rendering uses the selected Xcode's `actool` through `xcrun`. The script installs Playwright's Chromium on first use.
 
 ## Platform appearances

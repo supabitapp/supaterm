@@ -19,6 +19,7 @@
     "screenshots:marketing": "node scripts/marketing-hero.ts",
     "icons:export": "node scripts/export-brand-icons.ts",
     "icons:check": "node scripts/export-brand-icons.ts --check",
+    "icons:check-inputs": "node scripts/check-icon-inputs.ts",
     "licenses:sync": "node scripts/sync-third-party-license-notices.ts",
     "build": "vp run --filter './apps/*' build",
     "build:marketing": "vp run --filter @supaterm/marketing build",

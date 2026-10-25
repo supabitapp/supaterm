@@ -1,13 +1,17 @@
 import * as NodeModule from "node:module";
 
 import * as HostProcess from "@supaterm/shared/HostProcess";
+import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import { build } from "esbuild";
 import { chromium } from "playwright-core";
 import sharp from "sharp";
+
+import { BRAND_ASSET_PATHS, ICON_DOCUMENT } from "./brand-assets.ts";
 
 export const ICON_CHANNELS = ["prod", "nightly", "dev"] as const;
 export type IconChannel = (typeof ICON_CHANNELS)[number];
@@ -43,6 +47,9 @@ export class StudioIconRenderError extends Schema.TaggedError<StudioIconRenderEr
 }
 
 const ICON_MODULE = "apps/marketing/src/lib/boltComputer/icon.ts";
+
+/** Holds `iconInputsDigest` as of the last export, so a check can tell the icons are stale. */
+export const ICON_INPUTS_STAMP = "assets/icon-inputs.sha256";
 
 const attempt = <A>(run: () => Promise<A>) =>
   Effect.tryPromise({ try: run, catch: (cause) => new StudioIconRenderError({ cause }) });
@@ -107,3 +114,34 @@ export const renderStudioIcons = Effect.fn("renderStudioIcons")(function* (repos
     dev: toBuffers(rendered.dev),
   });
 }, Effect.scoped);
+
+/**
+ * A digest of everything the icons are rendered from: each source file the icon module bundles,
+ * and the production appearance settings.
+ */
+export const iconInputsDigest = Effect.fn("iconInputsDigest")(function* (repositoryRoot: string) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const crypto = yield* Crypto.Crypto;
+  const { metafile } = yield* attempt(() =>
+    build({
+      absWorkingDir: repositoryRoot,
+      entryPoints: [ICON_MODULE],
+      bundle: true,
+      write: false,
+      metafile: true,
+      logLevel: "silent",
+    }),
+  );
+  const files = [
+    ...Object.keys(metafile.inputs),
+    path.join(BRAND_ASSET_PATHS.productionIconComposerProject, ICON_DOCUMENT),
+  ].toSorted();
+  const parts: Array<Uint8Array> = [];
+  for (const file of files) {
+    parts.push(new TextEncoder().encode(`${file}\n`));
+    parts.push(yield* fs.readFile(path.join(repositoryRoot, file)));
+  }
+  const digest = yield* crypto.digest("SHA-256", Buffer.concat(parts));
+  return `${Buffer.from(digest).toString("hex")}\n`;
+});

@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 
-import { BRAND_ASSET_PATHS } from "./brand-assets.ts";
+import { BRAND_ASSET_PATHS, ICON_DOCUMENT } from "./brand-assets.ts";
 import { ICON_CHANNELS, type IconChannel, type StudioIconRender } from "./studio-icon-render.ts";
 
 const PROJECTS = {
@@ -10,8 +10,6 @@ const PROJECTS = {
   nightly: BRAND_ASSET_PATHS.nightlyIconComposerProject,
   dev: BRAND_ASSET_PATHS.developmentIconComposerProject,
 } as const satisfies Record<IconChannel, string>;
-
-export const ICON_DOCUMENT = "icon.json";
 
 const projectFiles = Effect.fn("iconProjects.projectFiles")(function* (directory: string) {
   const fs = yield* FileSystem.FileSystem;

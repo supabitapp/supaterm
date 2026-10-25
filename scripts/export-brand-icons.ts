@@ -14,17 +14,21 @@ import { Command, Flag } from "effect/cli";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 import { generateAndroidIcons } from "./lib/android-icons.ts";
-import { BRAND_ASSET_PATHS } from "./lib/brand-assets.ts";
+import { BRAND_ASSET_PATHS, ICON_DOCUMENT } from "./lib/brand-assets.ts";
 import { generateBrandIconDerivatives } from "./lib/brand-icon-derivatives.ts";
 import { encodePngIco, readPngDimensions, WINDOWS_ICON_SIZES } from "./lib/icon-export.ts";
-import { ICON_DOCUMENT, generateIconProjects } from "./lib/icon-projects.ts";
+import { generateIconProjects } from "./lib/icon-projects.ts";
 import {
   MAC_ICON_NAME,
   XCODE_REQUIREMENT,
   isSupportedXcodeVersion,
   macIconCompilerArguments,
 } from "./lib/mac-icon-assets.ts";
-import { renderStudioIcons } from "./lib/studio-icon-render.ts";
+import {
+  ICON_INPUTS_STAMP,
+  iconInputsDigest,
+  renderStudioIcons,
+} from "./lib/studio-icon-render.ts";
 
 const DESIGN_GENERATION = 26;
 const ICON_COMPOSER_EXECUTABLE_PARTS = [
@@ -799,6 +803,7 @@ export const exportBrandIcons = Effect.fn("exportBrandIcons")(function* (checkOn
   for (const [relativePath, contents] of yield* generateAndroidIcons(renders)) {
     generated.set(relativePath, contents);
   }
+  generated.set(ICON_INPUTS_STAMP, Buffer.from(yield* iconInputsDigest(repositoryRoot)));
   for (const [relativePath, contents] of yield* generateBrandIconDerivatives(
     repositoryRoot,
     generated,
