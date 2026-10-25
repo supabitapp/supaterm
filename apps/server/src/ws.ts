@@ -782,6 +782,7 @@ export const subscribeOrchestrationV2Thread = Effect.fn("ws.orchestrationV2.subs
     readonly acceptBoundedSnapshot?: boolean;
     readonly acceptCompactTurnItems?: boolean;
     readonly acceptDedupedBodies?: boolean;
+    readonly acceptCompactIds?: boolean;
   }) {
     const threadManagement = yield* ThreadManagementService.ThreadManagementService;
     const dedupeBodies = input.acceptDedupedBodies === true;
@@ -876,6 +877,7 @@ export const subscribeOrchestrationV2Thread = Effect.fn("ws.orchestrationV2.subs
             ...snapshot,
             compactTurnItems: input.acceptCompactTurnItems === true,
             dedupeBodies,
+            compactIds: input.acceptCompactIds === true,
           })
         : (() => {
             const projection = projectThreadProjectionForWire(snapshot.projection);

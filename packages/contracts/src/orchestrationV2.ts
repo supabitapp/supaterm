@@ -1,4 +1,5 @@
 import { OrchestrationMessageContext } from "./composerContext.ts";
+import { withRecordIdTable } from "./orchestrationV2IdTable.ts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as SchemaAST from "effect/SchemaAST";
@@ -3531,8 +3532,15 @@ export const OrchestrationV2SubscribeThreadInput = Schema.Struct({
   acceptCompactTurnItems: Schema.optionalKey(Schema.Boolean),
   /** The client restores `*Omitted` bodies from records it already holds. */
   acceptDedupedBodies: Schema.optionalKey(Schema.Boolean),
+  acceptCompactIds: Schema.optionalKey(Schema.Boolean),
 });
 export type OrchestrationV2SubscribeThreadInput = typeof OrchestrationV2SubscribeThreadInput.Type;
+
+/**
+ * Server-side only: set it on a response for a client that opted in, and the
+ * `withRecordIdTable` codec sends that response with an ID table.
+ */
+const IdTableMarker = Schema.optionalKey(Schema.Literal(true));
 
 export const OrchestrationV2ThreadDetailSnapshot = Schema.Struct({
   snapshotSequence: NonNegativeInt,
@@ -3551,28 +3559,36 @@ export type OrchestrationV2ThreadDetailSnapshot = typeof OrchestrationV2ThreadDe
  * `historyCursor` is opaque; clients must not parse it. Resume live events with `afterSequence =
  * snapshotSequence`.
  */
-export const OrchestrationV2ThreadBoundedSnapshot = Schema.Struct({
-  snapshotSequence: NonNegativeInt,
-  projection: OrchestrationV2ThreadProjection,
-  historyCursor: Schema.NullOr(TrimmedNonEmptyString),
-  hasMoreHistory: Schema.Boolean,
-  latestLocalTurnOrdinal: Schema.NullOr(NonNegativeInt),
-  turnItemsOmitLocalVisible: Schema.optionalKey(Schema.Literal(true)),
-});
+export const OrchestrationV2ThreadBoundedSnapshot = withRecordIdTable(
+  Schema.Struct({
+    snapshotSequence: NonNegativeInt,
+    projection: OrchestrationV2ThreadProjection,
+    historyCursor: Schema.NullOr(TrimmedNonEmptyString),
+    hasMoreHistory: Schema.Boolean,
+    latestLocalTurnOrdinal: Schema.NullOr(NonNegativeInt),
+    turnItemsOmitLocalVisible: Schema.optionalKey(Schema.Literal(true)),
+    idTable: IdTableMarker,
+  }),
+  () => "projection",
+);
 export type OrchestrationV2ThreadBoundedSnapshot = typeof OrchestrationV2ThreadBoundedSnapshot.Type;
 
-export const OrchestrationV2ThreadHistoryPage = Schema.Struct({
-  snapshotSequence: NonNegativeInt,
-  items: projectedTurnItemArray(
-    OrchestrationV2ProjectedTurnItem,
-    OrchestrationV2ProjectedTurnItem.mapFields((fields) => ({
-      ...fields,
-      item: ForwardCompatibleUnion(OrchestrationV2TurnItem.members, "type"),
-    })),
-  ),
-  nextCursor: Schema.NullOr(TrimmedNonEmptyString),
-  hasMoreHistory: Schema.Boolean,
-});
+export const OrchestrationV2ThreadHistoryPage = withRecordIdTable(
+  Schema.Struct({
+    snapshotSequence: NonNegativeInt,
+    items: projectedTurnItemArray(
+      OrchestrationV2ProjectedTurnItem,
+      OrchestrationV2ProjectedTurnItem.mapFields((fields) => ({
+        ...fields,
+        item: ForwardCompatibleUnion(OrchestrationV2TurnItem.members, "type"),
+      })),
+    ),
+    nextCursor: Schema.NullOr(TrimmedNonEmptyString),
+    hasMoreHistory: Schema.Boolean,
+    idTable: IdTableMarker,
+  }),
+  () => null,
+);
 export type OrchestrationV2ThreadHistoryPage = typeof OrchestrationV2ThreadHistoryPage.Type;
 
 const knownDomainEventTypes: ReadonlySet<string> = new Set(
@@ -3624,27 +3640,31 @@ const OrchestrationV2UnknownThreadStreamEvent = Schema.Struct({
   ),
 );
 
-export const OrchestrationV2ThreadStreamItem = Schema.Union([
-  Schema.Struct({
-    kind: Schema.Literal("synchronized"),
-  }),
-  Schema.Struct({
-    kind: Schema.Literal("snapshot"),
-    snapshotSequence: NonNegativeInt,
-    projection: OrchestrationV2ThreadProjection,
-    historyCursor: Schema.optionalKey(Schema.NullOr(TrimmedNonEmptyString)),
-    hasMoreHistory: Schema.optionalKey(Schema.Boolean),
-    latestLocalTurnOrdinal: Schema.optionalKey(Schema.NullOr(NonNegativeInt)),
-    turnItemsOmitLocalVisible: Schema.optionalKey(Schema.Literal(true)),
-  }),
-  Schema.Struct({
-    kind: Schema.Literal("event"),
-    sequence: NonNegativeInt,
-    event: OrchestrationV2DomainEvent,
-  }),
-  // After the known arm: union members are tried in order.
-  OrchestrationV2UnknownThreadStreamEvent,
-]);
+export const OrchestrationV2ThreadStreamItem = withRecordIdTable(
+  Schema.Union([
+    Schema.Struct({
+      kind: Schema.Literal("synchronized"),
+    }),
+    Schema.Struct({
+      kind: Schema.Literal("snapshot"),
+      snapshotSequence: NonNegativeInt,
+      projection: OrchestrationV2ThreadProjection,
+      historyCursor: Schema.optionalKey(Schema.NullOr(TrimmedNonEmptyString)),
+      hasMoreHistory: Schema.optionalKey(Schema.Boolean),
+      latestLocalTurnOrdinal: Schema.optionalKey(Schema.NullOr(NonNegativeInt)),
+      turnItemsOmitLocalVisible: Schema.optionalKey(Schema.Literal(true)),
+      idTable: IdTableMarker,
+    }),
+    Schema.Struct({
+      kind: Schema.Literal("event"),
+      sequence: NonNegativeInt,
+      event: OrchestrationV2DomainEvent,
+    }),
+    // After the known arm: union members are tried in order.
+    OrchestrationV2UnknownThreadStreamEvent,
+  ]),
+  (item) => (item.kind === "snapshot" ? "projection" : undefined),
+);
 export type OrchestrationV2ThreadStreamItem = typeof OrchestrationV2ThreadStreamItem.Type;
 
 export class OrchestrationV2DispatchCommandError extends Schema.TaggedError<OrchestrationV2DispatchCommandError>()(

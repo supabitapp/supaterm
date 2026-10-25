@@ -1,7 +1,8 @@
-import { ThreadId } from "@supaterm/contracts";
+import { OrchestrationV2ThreadBoundedSnapshot, ThreadId } from "@supaterm/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Schema from "effect/Schema";
 
 import { PrimaryConnectionTarget, type PreparedConnection } from "../connection/model.ts";
 import * as RpcHttp from "../rpc/http.ts";
@@ -117,22 +118,31 @@ const boundedBody = (compact: boolean) => ({
   latestLocalTurnOrdinal: 2,
   ...(compact ? { turnItemsOmitLocalVisible: true } : {}),
 });
+const BoundedJson = Schema.toCodecJson(OrchestrationV2ThreadBoundedSnapshot);
+const decodeBoundedJson = Schema.decodeUnknownSync(BoundedJson);
+const encodeBoundedJson = Schema.encodeSync(BoundedJson);
+const idTableBody = () => {
+  const snapshot = decodeBoundedJson(boundedBody(true));
+  return encodeBoundedJson({ ...snapshot, idTable: true });
+};
 
 describe("boundedThreadSnapshotLoader", () => {
   it.effect.each([
-    ["a server that sends full turnItems", false],
-    ["a server that sends compact turnItems", true],
-  ] as const)("requests compact turnItems and loads %s", ([, compact]) => {
+    ["a server that sends full turnItems", () => boundedBody(false)],
+    ["a server that sends compact turnItems", () => boundedBody(true)],
+    ["a server that also sends an ID table", idTableBody],
+  ] as const)("requests compact turnItems and loads %s", ([, body]) => {
     const urls: string[] = [];
     const fetchFn = ((input: RequestInfo | URL) => {
       urls.push(String(input));
-      return Promise.resolve(Response.json(boundedBody(compact)));
+      return Promise.resolve(Response.json(body()));
     }) satisfies typeof fetch;
 
     return Effect.gen(function* () {
       const loader = yield* ThreadSnapshotLoader.ThreadSnapshotLoader;
       const result = yield* loader.load(PREPARED, THREAD_ID);
       expect(new URL(urls[0]!).searchParams.get("compactTurnItems")).toBe("1");
+      expect(new URL(urls[0]!).searchParams.get("compactIds")).toBe("1");
       expect(result._tag).toBe("present");
       if (result._tag !== "present") return;
       expect(result.snapshot.projection.turnItems.map((item) => String(item.id))).toEqual([
