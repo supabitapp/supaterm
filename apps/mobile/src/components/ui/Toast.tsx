@@ -37,7 +37,7 @@ export function Toast(props: ToastProps) {
   }, [props.message]);
   return (
     <GlassSurface
-      className={capsule ? "max-w-full self-center py-1.5 pl-4 pr-1.5" : "p-3"}
+      className={capsule ? "self-center py-1.5 pl-4 pr-1.5" : "p-3"}
       style={{ borderRadius: capsule ? MOBILE_SHAPE.toastCapsule : MOBILE_SHAPE.toast }}
     >
       <View className="flex-row items-center gap-3">

@@ -1,8 +1,7 @@
-import { useLayoutEffect, useState } from "react";
+import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import Animated, {
-  cancelAnimation,
   Easing,
   FadeInUp,
   FadeOut,
@@ -58,13 +57,6 @@ function SwipeableUndoNotice(props: { readonly notice: Notice }) {
   const top = insets.top + APP_BAR_HEIGHT + 8;
   const translation = useSharedValue(0);
   const height = useSharedValue(0);
-
-  useLayoutEffect(
-    () => () => {
-      cancelAnimation(translation);
-    },
-    [translation],
-  );
 
   const dismiss = () => {
     // A newer action can replace the notice while the swipe is animating out.
@@ -122,10 +114,7 @@ function SwipeableUndoNotice(props: { readonly notice: Notice }) {
             accessibilityRole="alert"
             accessibilityLabel={content.message}
             accessibilityActions={[{ name: "escape" }, { name: "dismiss", label: "Dismiss" }]}
-            onAccessibilityAction={({ nativeEvent }) => {
-              if (nativeEvent.actionName === "escape" || nativeEvent.actionName === "dismiss")
-                dismiss();
-            }}
+            onAccessibilityAction={dismiss}
             pointerEvents="none"
             style={StyleSheet.absoluteFill}
           />
