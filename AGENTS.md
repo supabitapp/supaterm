@@ -103,7 +103,7 @@ An empty database is a bad test. Seed your worktree's `.supaterm` with a copy of
   - Lint enforces this: `supaterm/no-test-timeout-or-retry`, `supaterm/no-frame-waits-in-browser-tests`, `supaterm/no-wall-clock-in-tests`, `supaterm/no-real-time-wait-in-tests`, `supaterm/no-polling-loop-in-tests`, `vitest/no-disabled-tests`, `vitest/no-focused-tests`.
 - Upon request, user-visible frontend changes should get one integrated pass in a real client: `test-supaterm-app` for web, `test-supaterm-mobile` for mobile. The primary agent does this once after integrating. Subagents do not launch their own dev servers.
 
-For authorized mobile verification, a missing or outdated native client is a build step, not a blocker. Run `node scripts/mobile-native-client.ts ensure <ios|android> <device-id>` on the simulator host before starting Metro. It checks the local Expo fingerprint and builds/installs when needed. See `test-supaterm-mobile` for the full workflow.
+For authorized mobile verification, a missing or outdated native client is an install step, not a blocker. Run `vp run mobile:install <ios|android> [device-id]` on the device host before starting Metro; it targets the only booted simulator or connected Android device when the id is omitted. It installs the dev client for this checkout's native fingerprint from the local cache in seconds and builds only when this machine has not built it yet, so prefer it over `expo run:*`, `xcodebuild`, or `gradlew`, which rebuild from scratch. Its stdout is one JSON line; build output goes to the log it names. See `test-supaterm-mobile` for the full workflow.
 
 ## Pull requests
 
