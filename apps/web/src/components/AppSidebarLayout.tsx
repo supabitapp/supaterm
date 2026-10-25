@@ -1,13 +1,12 @@
 import { useAtomValue } from "@effect/atom-react";
 import {
   useEffect,
-  useRef,
   useState,
   useSyncExternalStore,
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { useLocation, useNavigate } from "@tanstack/react-router";
+import { useLocation, useRouter, type AnyRouter } from "@tanstack/react-router";
 import type { KeybindingCommand } from "@supaterm/contracts";
 
 import { registerAppCommandHandler } from "../appCommandBus";
@@ -53,10 +52,11 @@ import {
   SidebarProvider,
   SidebarTrigger,
   useSidebar,
-  useSidebarVisibility,
 } from "./ui/sidebar";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
-import { useThreadRouteRef } from "../hooks/useThreadRouteTarget";
+import { appAtomRegistry } from "../rpc/atomRegistry";
+import { registerCommands, registerMenuAction } from "../shortcuts/dispatcher";
+import { resolveThreadRouteRef } from "../threadRoutes";
 
 const MACOS_TRAFFIC_LIGHTS_LEFT_INSET = "var(--desktop-window-controls-inset, 90px)";
 
@@ -96,7 +96,162 @@ function readWindowFullscreen(): boolean {
   return windowFullscreenSnapshot;
 }
 
+function readUsagePageOpen(router: AnyRouter) {
+  return router.state.location.pathname === "/usage";
+}
+
+function isKeybindingCaptureTarget(event: KeyboardEvent) {
+  return event.target instanceof HTMLElement && event.target.closest("[data-keybinding-capture]");
+}
+
+function readRoutePanelsOpen(router: AnyRouter) {
+  const routeThreadRef = resolveThreadRouteRef(router.state.matches.at(-1)?.params ?? {});
+  if (!routeThreadRef) return { terminalOpen: false, previewOpen: false };
+  return {
+    terminalOpen: selectThreadTerminalUiState(
+      useTerminalUiStateStore.getState().terminalUiStateByThreadKey,
+      routeThreadRef,
+    ).terminalOpen,
+    previewOpen:
+      selectActiveRightPanel(useRightPanelStore.getState().byThreadKey, routeThreadRef) ===
+      "preview",
+  };
+}
+
+function navigateHistory(command: KeybindingCommand | null): boolean {
+  switch (command) {
+    case "navigation.back":
+      window.history.back();
+      return true;
+    case "navigation.forward":
+      window.history.forward();
+      return true;
+    default:
+      return false;
+  }
+}
+
+export function registerNavigationHistoryCommands(router: AnyRouter): () => void {
+  const unregisterCommands = registerCommands(
+    {
+      "navigation.back": (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        window.history.back();
+      },
+      "navigation.forward": (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        window.history.forward();
+      },
+    },
+    {
+      when: (event) => !isKeybindingCaptureTarget(event),
+      context: () => ({
+        ...readRoutePanelsOpen(router),
+        usagePageOpen: readUsagePageOpen(router),
+      }),
+    },
+  );
+  const unregisterAppCommand = registerAppCommandHandler(navigateHistory);
+  return () => {
+    unregisterCommands();
+    unregisterAppCommand();
+  };
+}
+
+const MODIFIER_KEYS = new Set(["Alt", "Control", "Meta", "Shift"]);
+
+// A held key undoes once. Module state: undoing an archive navigates, and the
+// hold must survive whatever that re-renders.
+let heldUndoKey: string | null = null;
+
+// Undoes the thread actions in the sidebar's notice. Settings and Usage own
+// mod+z while open. Captured so mod+z reaches it before the composer's own
+// undo handler consumes the key.
+function registerThreadUndoCommands(
+  router: AnyRouter,
+  readSidebarVisible: () => boolean,
+): () => void {
+  const threadSidebarShown = () => !isAppModalPage(router.state.location.pathname);
+  const unregister = registerCommands(
+    {},
+    {
+      capture: true,
+      when: threadSidebarShown,
+      onKeyDown: (event) => {
+        // Cancel a held key's repeats so they cannot fall through to the
+        // editor's own undo, even after the last notice is gone.
+        if (event.repeat) {
+          if (event.code !== heldUndoKey) return false;
+          event.preventDefault();
+          event.stopPropagation();
+          return true;
+        }
+        // A modifier tapped mid-hold leaves the held key repeating.
+        if (!MODIFIER_KEYS.has(event.key)) heldUndoKey = null;
+        const command = resolveShortcutCommand(
+          event,
+          appAtomRegistry.get(primaryServerKeybindingsAtom),
+          {
+            context: {
+              terminalFocus: isTerminalFocused(),
+              previewFocus: isPreviewFocused(),
+              ...readRoutePanelsOpen(router),
+              // A collapsed sidebar hides the notice, so text fields keep their own undo.
+              editableFocus:
+                isEditableFocused(event.target) &&
+                !(readSidebarVisible() && threadUndoClaimsShortcut()),
+              modelPickerOpen: isModelPickerOpen(),
+            },
+          },
+        );
+        if (command !== "thread.undo") {
+          if (!MODIFIER_KEYS.has(event.key)) releaseThreadUndoShortcut();
+          return false;
+        }
+        if (isCommandPaletteOpen() || isModelPickerOpen()) return false;
+        if (!undoLatestThreadAction()) return false;
+        heldUndoKey = event.code;
+        event.preventDefault();
+        event.stopPropagation();
+        return true;
+      },
+    },
+  );
+  // Pastes from a menu, dictation and drops edit text without a keypress.
+  const onInput = () => {
+    if (threadSidebarShown()) releaseThreadUndoShortcut();
+  };
+  window.addEventListener("input", onInput, true);
+  return () => {
+    unregister();
+    window.removeEventListener("input", onInput, true);
+  };
+}
+
+/** Keyboard and menu commands that live as long as the app shell. */
+function registerAppShellCommands(router: AnyRouter, shellElement: Element): () => void {
+  // The provider mirrors the visibility it renders onto its wrapper, so the
+  // committed state is readable when a key arrives.
+  const readSidebarVisible = () =>
+    shellElement.closest('[data-slot="sidebar-wrapper"]')?.getAttribute("data-sidebar-state") ===
+    "expanded";
+  const disposers = [
+    registerThreadUndoCommands(router, readSidebarVisible),
+    registerNavigationHistoryCommands(router),
+    registerMenuAction("open-settings", () => {
+      if (!/^\/settings(\/|$)/.test(router.state.location.pathname))
+        void router.navigate({ to: "/settings" });
+    }),
+  ];
+  return () => {
+    for (const dispose of disposers) dispose();
+  };
+}
+
 function SidebarControl() {
+  const router = useRouter();
   const usagePageOpen = useLocation({ select: (location) => location.pathname === "/usage" });
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const { toggleSidebar, isMobile, mobileSheetMounted } = useSidebar();
@@ -150,8 +305,16 @@ function SidebarControl() {
     };
   }, [keybindings, toggleSidebar, usagePageOpen]);
 
+  // The control lives as long as the shell, so it carries the shell's commands. Created
+  // once so re-renders never re-register them.
+  const [appShellCommandsRef] = useState(
+    () => (node: HTMLDivElement | null) =>
+      node === null ? undefined : registerAppShellCommands(router, node),
+  );
+
   return (
     <div
+      ref={appShellCommandsRef}
       className={cn(
         "pointer-events-none fixed left-[var(--workspace-controls-left)] top-[var(--workspace-controls-top)] z-50 ml-px flex h-[var(--workspace-topbar-height)] items-center",
         isMobile && mobileSheetMounted && "hidden",
@@ -172,135 +335,7 @@ function SidebarControl() {
   );
 }
 
-function routePanelsOpen(routeThreadRef: ReturnType<typeof useThreadRouteRef>) {
-  if (!routeThreadRef) return { terminalOpen: false, previewOpen: false };
-  return {
-    terminalOpen: selectThreadTerminalUiState(
-      useTerminalUiStateStore.getState().terminalUiStateByThreadKey,
-      routeThreadRef,
-    ).terminalOpen,
-    previewOpen:
-      selectActiveRightPanel(useRightPanelStore.getState().byThreadKey, routeThreadRef) ===
-      "preview",
-  };
-}
-
-function navigateHistory(command: KeybindingCommand | null): boolean {
-  switch (command) {
-    case "navigation.back":
-      window.history.back();
-      return true;
-    case "navigation.forward":
-      window.history.forward();
-      return true;
-    default:
-      return false;
-  }
-}
-
-export function NavigationHistoryShortcuts() {
-  const usagePageOpen = useLocation({ select: (location) => location.pathname === "/usage" });
-  const keybindings = useAtomValue(primaryServerKeybindingsAtom);
-  const routeThreadRef = useThreadRouteRef();
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return;
-      if (
-        event.target instanceof HTMLElement &&
-        event.target.closest("[data-keybinding-capture]")
-      ) {
-        return;
-      }
-      const command = resolveShortcutCommand(event, keybindings, {
-        context: {
-          terminalFocus: isTerminalFocused(),
-          previewFocus: isPreviewFocused(),
-          ...routePanelsOpen(routeThreadRef),
-          editableFocus: isEditableFocused(event.target),
-          modelPickerOpen: isModelPickerOpen(),
-          usagePageOpen,
-        },
-      });
-      if (!navigateHistory(command)) return;
-      event.preventDefault();
-      event.stopPropagation();
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    const unregister = registerAppCommandHandler(navigateHistory);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      unregister();
-    };
-  }, [keybindings, routeThreadRef, usagePageOpen]);
-
-  return null;
-}
-
-const MODIFIER_KEYS = new Set(["Alt", "Control", "Meta", "Shift"]);
-
-// Undoes the thread actions in the sidebar's notice. Settings and Usage own
-// mod+z while open. Listens in the capture phase
-// so mod+z reaches it before the composer's own undo handler consumes the key.
-function ThreadUndoShortcut() {
-  const keybindings = useAtomValue(primaryServerKeybindingsAtom);
-  const routeThreadRef = useThreadRouteRef();
-  // A collapsed sidebar hides the notice, so text fields keep their own undo.
-  const noticeVisible = useSidebarVisibility();
-  // Outlives the effect: undoing an archive navigates, which re-runs it mid-hold.
-  const heldUndoKey = useRef<string | null>(null);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      // A held key undoes once. Cancel its repeats so they cannot fall through
-      // to the editor's own undo, even after the last notice is gone.
-      if (event.repeat) {
-        if (event.code === heldUndoKey.current) {
-          event.preventDefault();
-          event.stopPropagation();
-        }
-        return;
-      }
-      // A modifier tapped mid-hold leaves the held key repeating.
-      if (!MODIFIER_KEYS.has(event.key)) heldUndoKey.current = null;
-      const command = resolveShortcutCommand(event, keybindings, {
-        context: {
-          terminalFocus: isTerminalFocused(),
-          previewFocus: isPreviewFocused(),
-          ...routePanelsOpen(routeThreadRef),
-          editableFocus:
-            isEditableFocused(event.target) && !(noticeVisible && threadUndoClaimsShortcut()),
-          modelPickerOpen: isModelPickerOpen(),
-        },
-      });
-      if (command !== "thread.undo") {
-        if (!MODIFIER_KEYS.has(event.key)) releaseThreadUndoShortcut();
-        return;
-      }
-      if (isCommandPaletteOpen() || isModelPickerOpen()) return;
-      if (undoLatestThreadAction()) {
-        heldUndoKey.current = event.code;
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    };
-    // Pastes from a menu, dictation and drops edit text without a keypress.
-    const onInput = () => releaseThreadUndoShortcut();
-
-    window.addEventListener("keydown", onKeyDown, true);
-    window.addEventListener("input", onInput, true);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown, true);
-      window.removeEventListener("input", onInput, true);
-    };
-  }, [keybindings, noticeVisible, routeThreadRef]);
-
-  return null;
-}
-
 export function AppSidebarLayout({ children }: { children: ReactNode }) {
-  const navigate = useNavigate();
   const [sidebarRouteReveal] = useState<SidebarRouteReveal>(() => ({
     observedKey: null,
     pendingKey: null,
@@ -310,7 +345,6 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
   const pathname = useLocation({ select: (location) => location.pathname });
   const panelAnimationsSuppressed = usePanelNavigationSuppression(pathname);
   const routePanelAnimationsActive = panelAnimationsActive && !panelAnimationsSuppressed;
-  const appModalOpen = isAppModalPage(pathname);
   const isMacosDesktop = isMacosDesktopWindow();
   const [brandWidth, setBrandWidth] = useState(0);
   const sidebarMinimumWidth = resolveThreadSidebarMinimumWidth(brandWidth);
@@ -327,26 +361,6 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
     "--panel-animation-duration": `${panelAnimationDurationMs}ms`,
     ...windowControlsInsetStyle,
   } as CSSProperties;
-
-  useEffect(() => {
-    const onMenuAction = window.desktopBridge?.onMenuAction;
-    if (typeof onMenuAction !== "function") {
-      return;
-    }
-
-    const unsubscribe = onMenuAction((action) => {
-      if (action === "open-settings") {
-        const isSettingsRoute = /^\/settings(\/|$)/.test(pathname);
-        if (!isSettingsRoute) {
-          void navigate({ to: "/settings" });
-        }
-      }
-    });
-
-    return () => {
-      unsubscribe?.();
-    };
-  }, [navigate, pathname]);
 
   return (
     <PanelAnimationSuppressionProvider value={panelAnimationsSuppressed}>
@@ -375,8 +389,6 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
           {children}
           <BackgroundThreadAnnouncer />
           <SidebarControl />
-          <NavigationHistoryShortcuts />
-          {appModalOpen ? null : <ThreadUndoShortcut />}
           <MainAppLocationTracker />
         </SidebarInsetPanel>
       </SidebarProvider>
