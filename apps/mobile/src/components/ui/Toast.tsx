@@ -14,6 +14,7 @@ export interface ToastProps {
   readonly message: string;
   readonly description?: string;
   readonly tone?: "default" | "success" | "danger";
+  readonly variant?: "card" | "capsule";
   readonly icon?: AppSymbolName;
   readonly busy?: boolean;
   readonly action?: { readonly label: string; readonly onPress: () => void };
@@ -29,9 +30,9 @@ export function Toast(props: ToastProps) {
   const action = props.action ? (
     <Button label={props.action.label} onPress={props.action.onPress} />
   ) : null;
-  // Without a close button a one-row toast hugs its content, and the action's
-  // inset keeps its pill concentric with the capsule.
-  const capsule = inlineAction && action !== null && !props.onDismiss;
+  // A capsule hugs its content and keeps the action's pill concentric with its
+  // edge. When the action moves below, it falls back to the card.
+  const capsule = props.variant === "capsule" && inlineAction;
   useEffect(() => {
     if (Platform.OS === "ios") AccessibilityInfo.announceForAccessibility(props.message);
   }, [props.message]);

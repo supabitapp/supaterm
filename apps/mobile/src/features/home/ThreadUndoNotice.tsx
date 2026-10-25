@@ -107,18 +107,20 @@ function SwipeableUndoNotice(props: { readonly notice: Notice }) {
           onLayout={(event) => {
             height.set(event.nativeEvent.layout.height);
           }}
+          onAccessibilityEscape={dismiss}
         >
           {/* Keep the dismiss target separate so screen readers can also focus Undo. */}
           <View
             accessible
             accessibilityRole="alert"
             accessibilityLabel={content.message}
-            accessibilityActions={[{ name: "escape" }, { name: "dismiss", label: "Dismiss" }]}
+            accessibilityActions={[{ name: "dismiss", label: "Dismiss" }]}
             onAccessibilityAction={dismiss}
             pointerEvents="none"
             style={StyleSheet.absoluteFill}
           />
           <Toast
+            variant="capsule"
             message={content.message}
             icon={content.icon}
             action={{ label: "Undo", onPress: () => void notice.undo() }}
