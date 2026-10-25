@@ -65,7 +65,7 @@ import {
   RuntimeMode,
   ThreadLinkedPullRequest,
   ThreadId,
-  type TurnItemId,
+  TurnItemId,
   MAX_THREAD_PINNED_MESSAGES,
 } from "@supaterm/contracts";
 import { modelSelectionsEqual } from "@supaterm/shared/model";
@@ -526,6 +526,7 @@ function commandThreadId(command: OrchestrationV2ServerCommand): ThreadId {
     case "queued-run.cancel":
     case "queued-run.edit":
     case "runtime-request.respond":
+    case "runtime-request.delivery.fail":
     case "thread.user-input.dismiss":
     case "thread.user-input.auto-dismiss.pause":
     case "thread.user-input.auto-dismiss":
@@ -591,6 +592,8 @@ function delegatedTasksStopEffect(command: {
 }
 
 const WORKSPACE_PREPARATION_INPUT = "Preparing workspace";
+const RUNTIME_REQUEST_DELIVERY_FAILED_MESSAGE =
+  "Supaterm could not confirm that your answer reached the agent. If the run stays stuck, stop it and try again.";
 
 function withoutPreparationResult(
   item: Extract<OrchestrationV2TurnItem, { readonly type: "command_execution" }>,
@@ -8094,6 +8097,65 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     );
   });
 
+  /**
+   * Respond resolves the request before delivery, and a failed delivery cannot
+   * tell whether the provider is still waiting, so the answer stays recorded and
+   * the timeline shows the failure instead of a run spinning with no question.
+   */
+  const dispatchRuntimeRequestDeliveryFail = Effect.fn(
+    "Orchestrator.dispatchRuntimeRequestDeliveryFail",
+  )(function* (
+    command: Extract<
+      OrchestrationV2InternalCommand,
+      { readonly type: "runtime-request.delivery.fail" }
+    >,
+    events: Ref.Ref<Array<OrchestrationV2DomainEvent>>,
+  ) {
+    const thread = yield* projectionStore
+      .getThread(command.threadId)
+      .pipe(mapDispatchError(command));
+    if (thread.deletedAt !== null) return;
+    const node = (yield* projectionStore
+      .getRuntimeResponseContext(command.threadId, command.requestId)
+      .pipe(mapDispatchError(command))).node;
+    if (node === undefined) return;
+    const now = yield* DateTime.now;
+    yield* emit(
+      events,
+      command,
+    )({
+      type: "turn-item.updated",
+      threadId: command.threadId,
+      ...(node.runId === null ? {} : { runId: node.runId }),
+      nodeId: node.id,
+      providerInstanceId: thread.providerInstanceId,
+      occurredAt: now,
+      payload: {
+        id: TurnItemId.make(`turn-item:runtime-request-delivery-failure:${command.requestId}`),
+        threadId: command.threadId,
+        runId: node.runId,
+        nodeId: node.id,
+        providerThreadId: node.providerThreadId,
+        providerTurnId: node.providerTurnId,
+        nativeItemRef: null,
+        parentItemId: null,
+        ordinal: yield* nextTurnItemOrdinal({ thread }),
+        status: "failed",
+        title: "Answer delivery not confirmed",
+        startedAt: now,
+        completedAt: now,
+        updatedAt: now,
+        type: "error",
+        failure: {
+          class: "transport_error",
+          message: RUNTIME_REQUEST_DELIVERY_FAILED_MESSAGE,
+          code: null,
+          retryable: null,
+        },
+      },
+    });
+  });
+
   const dispatchThreadUserInputDismiss = Effect.fn("Orchestrator.dispatchThreadUserInputDismiss")(
     function* (
       command: Extract<OrchestrationV2Command, { readonly type: "thread.user-input.dismiss" }>,
@@ -11806,6 +11868,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         break;
       case "checkpoint.rollback.fail":
         yield* dispatchCheckpointRollbackFail(command, events);
+        break;
+      case "runtime-request.delivery.fail":
+        yield* dispatchRuntimeRequestDeliveryFail(command, events);
         break;
       case "thread.background-work.settle":
         yield* dispatchBackgroundWorkSettle(command, events, effects);
