@@ -621,11 +621,8 @@ function cancelledAppOwnedTask(
   };
 }
 
-/**
- * Whether a message into a delegated child may become a follow-up the parent hears back from.
- * Provider wakes count (a background command finishing); monitor updates only report progress.
- * Dispatch takes the parent's lock for exactly these, because intake writes the parent.
- */
+// Provider wakes can start follow-up work; monitor updates only report progress.
+// Dispatch takes the parent's lock for follow-ups because intake writes the parent.
 function mayStartSubagentFollowup(
   command: Extract<OrchestrationV2Command, { readonly type: "message.dispatch" }>,
 ): boolean {
