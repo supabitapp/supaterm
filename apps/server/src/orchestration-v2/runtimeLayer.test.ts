@@ -2279,6 +2279,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           taskId: "workflow-run-watch:github.com/supabitapp/supaterm#42",
           description: "Watching Release run",
           kind: "monitor",
+          awaited: true,
         },
       ]);
 
@@ -3636,10 +3637,11 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
     ["completed", "shell", false],
     ["waiting", "shell", false],
     ["cancelled", "shell", false],
-    ["failed", "monitor", false],
-    ["completed", "monitor", true],
-    ["waiting", "monitor", true],
-    ["cancelled", "monitor", true],
+    ["completed", "watchdog-monitor", false],
+    ["failed", "awaited-monitor", false],
+    ["completed", "awaited-monitor", true],
+    ["waiting", "awaited-monitor", true],
+    ["cancelled", "awaited-monitor", true],
   ] as const)(
     "admits a restart continuation of a %s run that lost a %s: %s",
     ([status, kind, admitted]) =>
@@ -3697,7 +3699,15 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
               occurredAt: now,
               payload: {
                 runId: original.id,
-                restartCancelledBackgroundWork: [{ kind, label: "sleep 25" }],
+                restartCancelledBackgroundWork: [
+                  kind === "shell"
+                    ? { kind, label: "sleep 25" }
+                    : {
+                        kind: "monitor",
+                        label: "sleep 25",
+                        ...(kind === "awaited-monitor" ? { awaited: true as const } : {}),
+                      },
+                ],
               },
             },
           ],

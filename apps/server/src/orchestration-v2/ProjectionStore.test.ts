@@ -5823,6 +5823,7 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           taskId: "pull-request-watch:github.com/supabitapp/supaterm#7",
           description: "Watching pull request #7",
           kind: "monitor",
+          awaited: true,
         },
       ]);
       yield* listedMatchesShell;
