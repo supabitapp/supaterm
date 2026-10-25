@@ -100,7 +100,6 @@ export function cachedTestTasks(
         cache: uncached.includes(group[0]!)
           ? false
           : {
-                                                                                                
               input: [
                 { auto: true },
                 "!**/node_modules/.vite/**",

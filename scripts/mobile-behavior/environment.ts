@@ -1,8 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off globalTimers:off - the eval owns a server subprocess and a scratch workspace.
-   
-                                                                                                 
-                                                                                           
-   
+
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";
 import * as NodeNet from "node:net";
@@ -64,7 +61,6 @@ const waitForPort = Effect.fn("environment.waitForPort")(function* (port: number
   return yield* new EnvironmentError({ message: `The server never listened on ${port}.` });
 });
 
-                                                                 
 const runCli = (args: ReadonlyArray<string>) =>
   Effect.try({
     try: () => {
@@ -86,7 +82,7 @@ function writeScratch(baseDir: string) {
   NodeFS.mkdirSync(control, { recursive: true });
   NodeFS.mkdirSync(workspace, { recursive: true });
   NodeFS.writeFileSync(NodePath.join(workspace, "README.md"), "# acme app\n");
-                                                                                          
+
   const skill = NodePath.join(workspace, ".fx/skills/eval-notes");
   NodeFS.mkdirSync(skill, { recursive: true });
   NodeFS.writeFileSync(
@@ -120,10 +116,9 @@ function writeScratch(baseDir: string) {
   return { workspace, control };
 }
 
-                                                                         
 export const startEnvironment = Effect.fn("environment.start")(function* (input: {
   readonly baseDir: string;
-                                                                      
+
   readonly deviceHost: string;
 }) {
   NodeFS.rmSync(input.baseDir, { recursive: true, force: true });
@@ -150,7 +145,7 @@ export const startEnvironment = Effect.fn("environment.start")(function* (input:
           "warn",
           workspace,
         ],
-                                                                                           
+
         { cwd: REPO_ROOT, stdio: ["ignore", log, log], env: { ...process.env, HOME: home } },
       ),
     ),
@@ -166,7 +161,7 @@ export const startEnvironment = Effect.fn("environment.start")(function* (input:
     input.baseDir,
     "--token-only",
   ]);
-                                                                     
+
   const lastLine = (text: string) =>
     text
       .split("\n")
@@ -217,7 +212,7 @@ export const startEnvironment = Effect.fn("environment.start")(function* (input:
     .pipe(
       Effect.flatMap(HttpClientResponse.schemaBodyJson(Schema.Struct({ ticket: Schema.String }))),
     );
-                                                                                                
+
   const protocol = yield* Layer.build(
     RpcClient.layerProtocolSocket().pipe(
       Layer.provide(
@@ -256,7 +251,6 @@ export const startEnvironment = Effect.fn("environment.start")(function* (input:
     return threadId;
   });
 
-                                                                                  
   const launch = (title: string, prompt: string) => create(title, prompt);
 
   const until = Effect.fn("environment.until")(function* <A>(
@@ -292,7 +286,6 @@ export const startEnvironment = Effect.fn("environment.start")(function* (input:
       ["completed", "failed", "interrupted", "cancelled"].includes(run.status),
     );
 
-                                                       
   const settled = Effect.fn("environment.settled")(function* (threadId: ThreadId) {
     for (let attempt = 0; attempt < 600; attempt++) {
       const value = yield* projection(threadId);
@@ -302,14 +295,13 @@ export const startEnvironment = Effect.fn("environment.start")(function* (input:
     return yield* new EnvironmentError({ message: `Thread ${threadId} never settled.` });
   });
 
-                                                                                        
   const longThread = Effect.fn("environment.longThread")(function* (title: string, turns: number) {
     const threadId = yield* launch(title, "Summarize the module. [[eval:stream:400:0]]");
     yield* settled(threadId);
     for (let turn = 1; turn < turns; turn++) {
       const text = `Next part ${turn}. [[eval:stream:${turn % 3 === 0 ? 900 : 300}:0]]`;
       yield* send(threadId, text);
-                                                                                               
+
       yield* until("its next message", threadId, (value) =>
         value.messages.some((message) => message.text === text) ? true : undefined,
       );
@@ -319,7 +311,6 @@ export const startEnvironment = Effect.fn("environment.start")(function* (input:
   });
 
   return {
-                                                                                                           
     launchLockable: Effect.fn("environment.launchLockable")(function* (title: string) {
       const root = NodePath.join(input.baseDir, `workspace/locked-${(yield* uuid).slice(0, 6)}`);
       NodeFS.mkdirSync(root, { recursive: true });
@@ -334,7 +325,7 @@ export const startEnvironment = Effect.fn("environment.start")(function* (input:
       });
       return { threadId, lock };
     }),
-                                                                                       
+
     archiveAllExcept: Effect.fn("environment.archiveAllExcept")(function* (keep: ThreadId) {
       for (const thread of (yield* shell()).threads) {
         if (thread.id === keep) continue;
@@ -345,7 +336,7 @@ export const startEnvironment = Effect.fn("environment.start")(function* (input:
         });
       }
     }),
-                                                                                           
+
     interruptAll: Effect.fn("environment.interruptAll")(function* () {
       const threads = (yield* shell()).threads;
       for (const thread of threads)

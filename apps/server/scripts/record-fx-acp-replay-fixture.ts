@@ -1,9 +1,3 @@
-   
-                                                                        
-                                                                          
-                                                                            
-                                                                   
-   
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { ProviderInstanceId, type ProviderReplayEntry } from "@supaterm/contracts";
 import { FxSettings } from "@supaterm/provider-fx/settings";
@@ -37,7 +31,8 @@ const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
 const decodeJson = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Unknown));
 const HOME_PLACEHOLDER = "/home/fx-replay";
 const FX_INSTANCE_ID = ProviderInstanceId.make("fx");
-const Supaterm_INSTRUCTIONS_BODY = /<supaterm_code_instructions>\n[\s\S]*?\n<\/supaterm_code_instructions>/u;
+const Supaterm_INSTRUCTIONS_BODY =
+  /<supaterm_code_instructions>\n[\s\S]*?\n<\/supaterm_code_instructions>/u;
 const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/giu;
 const TOKEN = /\b(?:sk-|gho_|ghp_|xai-|vercel_)[A-Za-z0-9_-]{8,}\b/gu;
 
@@ -83,7 +78,6 @@ const readUserSkillNames = Effect.fn("readFxUserSkillNames")(function* (home: st
     .toSorted((left, right) => right.length - left.length);
 });
 
-                                                                                             
 function makeWireTee() {
   const wire: Array<WireMessage> = [];
   let runtimeCount = 0;
@@ -174,7 +168,6 @@ function wireToEntries(wire: ReadonlyArray<WireMessage>): {
   return { entries, droppedFrames };
 }
 
-                                                                                                     
 function normalizeOutboundFrame(frame: Record<string, unknown>, runtimeInstructions: string) {
   const params = isRecord(frame.params) ? frame.params : undefined;
   if (params === undefined) return frame;

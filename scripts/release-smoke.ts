@@ -6,6 +6,7 @@ import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
+import { readWorkspace } from "./lib/changed-packages.ts";
 
 const repoRoot = NodePath.resolve(NodePath.dirname(NodeURL.fileURLToPath(import.meta.url)), "..");
 
@@ -13,46 +14,8 @@ const workspaceFiles = [
   "package.json",
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
-  "apps/server/package.json",
-  "apps/desktop/package.json",
-  "apps/web/package.json",
-  "apps/mobile/package.json",
-  "apps/mobile/modules/supaterm-source-text/package.json",
-  "apps/mobile/modules/supaterm-review-diff/package.json",
-  "apps/mobile/modules/supaterm-relay-tunnel/package.json",
-  "apps/mobile/modules/supaterm-terminal/package.json",
-  "apps/marketing/package.json",
-  "oxlint-plugin-supaterm/package.json",
-  "packages/client-runtime/package.json",
-  "packages/codex-micro/package.json",
-  "packages/contracts/package.json",
-  "packages/icons/package.json",
-  "packages/mermaid/package.json",
-  "packages/shared/package.json",
-  "packages/ssh/package.json",
-  "packages/tailscale/package.json",
-  "packages/provider-core/package.json",
-  "packages/provider-testing/package.json",
-  "packages/provider-pi/package.json",
-  "packages/provider-acp/package.json",
-  "packages/provider-acp-registry/package.json",
-  "packages/provider-cursor/package.json",
-  "packages/provider-fx/package.json",
-  "packages/provider-grok/package.json",
-  "packages/provider-muse/package.json",
-  "packages/provider-opencode/package.json",
-  "packages/source-control-azure-devops/package.json",
-  "packages/source-control-bitbucket/package.json",
-  "packages/source-control-core/package.json",
-  "packages/source-control-forgejo/package.json",
-  "packages/source-control-gitcafe/package.json",
-  "packages/source-control-github/package.json",
-  "packages/source-control-gitlab/package.json",
-  "packages/source-control-testing/package.json",
-  "packages/effect-acp/package.json",
-  "packages/effect-codex-app-server/package.json",
-  "scripts/package.json",
-] as const;
+  ...readWorkspace(repoRoot).map(({ dir }) => `${dir}/package.json`),
+];
 
 function copyWorkspaceManifestFixture(targetRoot: string): void {
   for (const relativePath of workspaceFiles) {

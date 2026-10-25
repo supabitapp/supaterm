@@ -1,9 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off preferSchemaOverJson:off - drives agent-device and the Hermes inspector; the probe types its own JSON.
-   
-                                                                                                     
-                                                                                             
-                                                        
-   
+
 import * as NodeChildProcess from "node:child_process";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
@@ -49,7 +45,7 @@ export interface ProbeState {
   };
   readonly floatingStatus: string | null;
   readonly environments: ReadonlyArray<string>;
-                                                                  
+
   readonly threads: Record<string, string>;
   readonly homeList: ReadonlyArray<{
     readonly type: string;
@@ -97,11 +93,10 @@ export interface AxNode {
 }
 
 export interface DeviceOptions {
-                                                                              
   readonly agentDevice: string;
   readonly targetArgs: ReadonlyArray<string>;
   readonly metro: string;
-                                                                                                  
+
   readonly deviceName: string;
 }
 
@@ -115,7 +110,6 @@ export function makeDevice(options: DeviceOptions) {
           stdio: ["ignore", "pipe", "pipe"],
         }),
       catch: (cause) => {
-                                                                                             
         const output = cause as { readonly stdout?: string; readonly stderr?: string };
         const reason = `${output.stderr ?? ""}${output.stdout ?? ""}`.trim() || String(cause);
         return new DeviceError({
@@ -123,7 +117,6 @@ export function makeDevice(options: DeviceOptions) {
         });
       },
     }).pipe(
-                                                                            
       Effect.retry({
         times: 4,
         while: (error) => poolError(error.message),
@@ -141,7 +134,7 @@ export function makeDevice(options: DeviceOptions) {
           () => new DeviceError({ message: `Metro at ${options.metro} did not answer.` }),
         ),
       );
-                                                                                              
+
       const target = targets.findLast(
         (entry) =>
           entry.appId === APP_ID &&
@@ -151,7 +144,7 @@ export function makeDevice(options: DeviceOptions) {
         return yield* new DeviceError({
           message: `No app on ${options.deviceName} is attached to Metro.`,
         });
-                                                                                   
+
       const socket = yield* Socket.makeWebSocket(target.webSocketDebuggerUrl, {
         headers: { origin: new URL(options.metro).origin },
         openTimeout: "10 seconds",
@@ -199,7 +192,6 @@ export function makeDevice(options: DeviceOptions) {
     Effect.map((value) => JSON.parse(String(value)) as ProbeState),
   );
 
-                                                                                              
   const waitFor = Effect.fn("device.waitFor")(function* (
     description: string,
     predicate: (state: ProbeState) => boolean,
@@ -246,15 +238,17 @@ export function makeDevice(options: DeviceOptions) {
     nodes,
     center,
     open: (path: string) =>
-      evaluate(`__supatermBehavior.open(${JSON.stringify(`${SCHEME}://${path.replace(/^\//, "")}`)})`),
+      evaluate(
+        `__supatermBehavior.open(${JSON.stringify(`${SCHEME}://${path.replace(/^\//, "")}`)})`,
+      ),
     openUrl: (url: string) => evaluate(`__supatermBehavior.open(${JSON.stringify(url)})`),
-                                                                                                          
+
     reload: Effect.fn("device.reload")(function* (ready: (state: ProbeState) => boolean) {
       yield* evaluate("__supatermBehavior.reload()").pipe(Effect.ignore);
       yield* Effect.sleep("2 seconds");
       yield* waitFor("the thread list after reload", ready, 60_000);
       yield* evaluate(`__supatermBehavior.open(${JSON.stringify(`${SCHEME}://`)})`);
-                                                                                                  
+
       const home = (value: ProbeState) => ready(value) && value.route?.name === "Home";
       const state = yield* waitFor("Home", home, 5_000).pipe(Effect.option);
       if (state._tag === "Some") return state.value;
@@ -271,13 +265,10 @@ export function makeDevice(options: DeviceOptions) {
     pressAt: (x: number, y: number) => run(["press", String(x), String(y)]),
     longPress: (selector: string) => run(["longpress", selector, "800"]),
     type: (text: string) => run(["type", text]),
-                                                                            
+
     swipe: (x: number, y1: number, y2: number) =>
       run(["swipe", String(x), String(y1), String(x), String(y2)]),
-       
-                                                                                                   
-                                                                                         
-       
+
     acceptOpenPrompt: run(["alert", "accept"], 60_000).pipe(
       Effect.catch(() =>
         screenSize.pipe(
@@ -288,7 +279,7 @@ export function makeDevice(options: DeviceOptions) {
       ),
     ),
     home: run(["home"]),
-                                                                                                             
+
     fold: (pose: "closed" | "open") =>
       run(["fold", pose]).pipe(
         Effect.catch((error) =>

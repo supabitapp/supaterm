@@ -1,10 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off globalTimers:off preferSchemaOverJson:off globalConsole:off - a tiny stdio ACP agent spawned by the server; plain Node keeps it dependency-free.
-   
-                                                                                     
-                                                                                      
-                                                                                     
-                                                                  
-   
+
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 import * as NodeReadline from "node:readline";
@@ -34,7 +29,7 @@ const select = (id: string, category: string, currentValue: string, values: stri
   currentValue,
   options: values.map((value) => ({ value, name: value })),
 });
-                                                                                              
+
 const configOptions = [
   select("model", "model", MODEL, [MODEL]),
   select("mode", "mode", "full-access", ["auto", "ask", "full-access"]),
@@ -56,7 +51,6 @@ function request(method: string, params: object): Promise<Message> {
   return new Promise((resolve) => pendingReplies.set(id, resolve));
 }
 
-                                                                                                               
 export function fillerText(words: number, seed = 0): string {
   const vocabulary =
     "the agent reads the file then edits the module and runs the focused test before it writes a short summary of what changed and why the change is safe".split(
@@ -82,7 +76,6 @@ interface Script {
   readonly key: string;
 }
 
-                                                                                                                    
 export function scriptOf(prompt: string): Script {
   const marker = /\[\[eval:([a-z]+)(?::([^\]:]+))?(?::([^\]:]+))?\]\]/.exec(prompt);
   const kind = marker?.[1];
@@ -165,7 +158,7 @@ async function runPrompt(sessionId: string, prompt: string, turn: number): Promi
         content: [
           {
             type: "content",
-                                                                       
+
             content: {
               type: "text",
               text: JSON.stringify({ ok: true, result: fillerText(1500, turn) }),

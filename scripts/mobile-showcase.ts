@@ -37,8 +37,7 @@ const REPO_ROOT = NodePath.resolve(NodePath.dirname(NodeURL.fileURLToPath(import
 const MOBILE_ROOT = NodePath.join(REPO_ROOT, "apps/mobile");
 const ANDROID_PACKAGE = "com.supaterm.mobile";
 const APP_SCHEME = "supaterm";
-                                                                              
-                                                                         
+
 const DEV_CLIENT_LAUNCH_FLAGS = "disableOnboarding=1&disableFab=1&disableAutoLaunch=1";
 const IOS_READY_FILENAME = "SupatermShowcaseReadyScene";
 const SERVER_HOST = "0.0.0.0";
@@ -69,8 +68,7 @@ const MOBILE_BUILD_ENV = {
   APP_VARIANT: "production",
   MOBILE_VERSION_POLICY: "appVersion",
   EXPO_NO_GIT_STATUS: "1",
-                                                                             
-                                             
+
   SUPATERM_SHOWCASE_CAPTURE_BUILD: "1",
   JAVA_HOME:
     NodeProcess.env.JAVA_HOME ??
@@ -342,8 +340,6 @@ export function parseShowcaseCliArgs(args: ReadonlyArray<string>): CliOptions {
       } else if (SHOWCASE_THEMES.some((theme) => theme === value)) {
         themes.add(value as ShowcaseTheme);
       } else {
-                                                                                
-                                                                          
         throw new Error(`Unsupported theme '${value}'. Use ${SHOWCASE_THEMES.join(", ")}, or all.`);
       }
       index += 1;
@@ -728,8 +724,7 @@ export async function startShowcaseEnvironments(
     track(captureServer);
     await waitForPort(port, `${environment.label} capture server`);
     await waitForShowcaseThreads(dbPath, environment.projectIds);
-                                                                     
-                                                                  
+
     const environmentId = await waitForFileContent(
       NodePath.join(baseDir, "userdata", "environment-id"),
       `${environment.label} environment id`,
@@ -926,11 +921,6 @@ async function iosSimulatorDataPath(udid: string): Promise<string> {
   return dataPath;
 }
 
-                                                                          
-                                                                                
-                                                                               
-                                                                           
-                                                       
 export async function suppressIosSystemFollowUps(udid: string): Promise<void> {
   const dataPath = await iosSimulatorDataPath(udid);
   const preferences = NodePath.join(dataPath, "Library/Preferences");
@@ -976,9 +966,6 @@ export async function normalizeIosSimulator(
   ]);
 }
 
-                                                                            
-                                                                             
-                               
 export async function ensureIosFullScreenAppsMode(udid: string): Promise<void> {
   const current = await commandOutput("xcrun", [
     "simctl",
@@ -990,8 +977,7 @@ export async function ensureIosFullScreenAppsMode(udid: string): Promise<void> {
     "SBChamoisWindowingEnabled",
   ]).catch(() => "");
   if (current.trim() === "0") return;
-                                                                         
-                                                      
+
   for (const key of [
     "SBChamoisWindowingEnabled",
     "SBMedusaMultitaskingEnabled",
@@ -1009,9 +995,7 @@ export async function ensureIosFullScreenAppsMode(udid: string): Promise<void> {
       "false",
     ]);
   }
-                                                                            
-                                                                             
-                                        
+
   await runCommand("xcrun", ["simctl", "shutdown", udid]);
   await runCommand("xcrun", ["simctl", "boot", udid]);
   await runCommand("xcrun", ["simctl", "bootstatus", udid, "-b"]);
@@ -1128,8 +1112,7 @@ async function captureIos(
       firstScene,
       "--showcaseTheme",
       capture.theme,
-                                                                        
-                                                                            
+
       "--showcaseOrientation",
       capture.device.orientation ?? "portrait",
     ]);
@@ -1145,9 +1128,6 @@ async function captureIos(
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const isLastAttempt = attempt === 1;
         try {
-                                                                               
-                                                                                 
-                                                                           
           await waitForScene(120_000);
           break;
         } catch (error) {
@@ -1163,11 +1143,15 @@ async function captureIos(
       showcaseCaptureDirectory(outputDirectory, capture),
       `${scene}.png`,
     );
-    await runCommand("xcrun", ["simctl", "io", simulator.udid, "screenshot", ...(capture.device.fold ? ["--display", capture.device.fold === "closed" ? "1" : "3"] : []), destination]);
+    await runCommand("xcrun", [
+      "simctl",
+      "io",
+      simulator.udid,
+      "screenshot",
+      ...(capture.device.fold ? ["--display", capture.device.fold === "closed" ? "1" : "3"] : []),
+      destination,
+    ]);
     if (capture.device.orientation === "landscape") {
-                                                                              
-                                                                            
-                                                     
       const { width, height } = readPngDimensions(await NodeFSP.readFile(destination));
       if (height > width) {
         await runCommand("sips", ["--rotate", capture.device.fold ? "90" : "270", destination]);
@@ -1311,9 +1295,6 @@ async function writeAndroidShowcaseScene(serial: string, scene: ShowcaseScene): 
   ]);
 }
 
-                                                                            
-                                                                                
-                                                       
 async function prepareAndroidShowcaseApp(serial: string): Promise<void> {
   const preferences = `<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
 <map>

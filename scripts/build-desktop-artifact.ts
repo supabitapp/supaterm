@@ -88,9 +88,7 @@ const StageWorkspaceConfig = Schema.Struct({
     cpu: Schema.Array(Schema.String),
     libc: Schema.optional(Schema.Array(Schema.String)),
   }),
-                                                                               
-                                                                  
-                                                                      
+
   allowBuilds: Schema.optional(Schema.Record(Schema.String, Schema.Boolean)),
   patchedDependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
   overrides: Schema.optional(Schema.Record(Schema.String, Schema.String)),
@@ -547,11 +545,6 @@ const desktopBuildInputArtifactNames = {
   "bundled-server-client": "bundled server client",
 } satisfies Record<DesktopBuildInputArtifact, string>;
 
-   
-                                                                             
-                                                                     
-                                                                             
-   
 const BUNDLE_SELF_CONTAINED_SENTINEL = "effect";
 
 const BUNDLE_SELF_CHECK_TIMEOUT = Duration.seconds(120);
@@ -930,14 +923,11 @@ export const STAGE_INSTALL_ARGS = ["install", "--prod"] as const;
 export const DESKTOP_ELECTRON_LANGUAGES = ["en-US"] as const;
 export const DESKTOP_FILE_EXCLUSIONS = [
   ...DESKTOP_RUNTIME_FILE_EXCLUSIONS,
-                                                                               
-                                                                            
+
   "!**/node_modules/@cursor/sdk-*/**/*",
   "!apps/desktop/prod-resources/cursor-sdk",
   "!apps/desktop/prod-resources/cursor-sdk/**/*",
-                                                                              
-                                                                               
-                                                                       
+
   "!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**/*",
   "!**/*.map",
   "!**/*.d.cts",
@@ -945,9 +935,7 @@ export const DESKTOP_FILE_EXCLUSIONS = [
   "!apps/desktop/resources/browser-secret/**/*",
   "!apps/desktop/prod-resources/browser-secret",
   "!apps/desktop/prod-resources/browser-secret/**/*",
-                                                                               
-                                                                           
-                                                                         
+
   "!apps/desktop/prod-resources/windows-server",
   "!apps/desktop/prod-resources/windows-server/**/*",
   "!apps/desktop/prod-resources/wsl-runtime.tar.gz",
@@ -955,16 +943,12 @@ export const DESKTOP_FILE_EXCLUSIONS = [
   "!apps/desktop/gnome-extension",
   "!apps/desktop/gnome-extension/**/*",
 ] as const;
-                                                                                  
+
 const NODE_PTY_WINDOWS_EXCLUSIONS = [
   "!**/node_modules/node-pty/prebuilds/win32-*/**/*",
   "!**/node_modules/node-pty/third_party/conpty/**/*",
 ] as const;
-                                                                                 
-                                                                            
-                                                                                 
-                                                                           
-                             
+
 const NODE_HID_SOURCE_EXCLUSIONS = [
   "!**/node_modules/node-hid/hidapi/**/*",
   "!**/node_modules/node-hid/src/**/*",
@@ -978,9 +962,7 @@ export const MAC_FILE_EXCLUSIONS = [
   "!**/node_modules/node-hid/prebuilds/HID-linux-*/**/*",
   "!**/node_modules/node-hid/prebuilds/HID_hidraw-*/**/*",
 ] as const;
-                                                                             
-                                                                           
-                                                                       
+
 export const LINUX_FILE_EXCLUSIONS = [
   ...NODE_PTY_WINDOWS_EXCLUSIONS,
   "!**/node_modules/node-pty/prebuilds/darwin-*/**/*",
@@ -989,8 +971,6 @@ export const LINUX_FILE_EXCLUSIONS = [
   "!**/node_modules/node-hid/prebuilds/HID_hidraw-linux-*-musl/**/*",
 ] as const;
 
-                                                                      
-                                                                                  
 export function resolveMacFileExclusions(arch?: typeof BuildArch.Type) {
   if (arch === undefined || arch === "universal") {
     return [...MAC_FILE_EXCLUSIONS];
@@ -1016,14 +996,9 @@ export function resolveWindowsFileExclusions(arch?: typeof BuildArch.Type) {
     ),
   ];
 }
-                                                                      
-                                                                                
-                                                                            
-                                             
+
 export const WINDOWS_SERVER_ASAR_RESOURCE = "server.asar";
-                                                                         
-                                                                            
-                                                           
+
 export const WINDOWS_NATIVE_ASAR_UNPACK_GLOB =
   "{**/*.node,**/*.dll,**/*.exe,**/*.so,**/*.so.*,**/*.dylib}";
 export const WINDOWS_SERVER_ASAR_UNPACK_GLOBS = [
@@ -1033,10 +1008,7 @@ export const WINDOWS_SERVER_ASAR_UNPACK_GLOBS = [
   "**/*.so.*",
   "**/*.dylib",
 ] as const;
-                                                                              
-                                                                             
-                                                                             
-                                                           
+
 export const WINDOWS_SERVER_ASAR_IGNORE_GLOBS = [
   "**/node_modules/@cursor/sdk/dist/{esm,bundled}/**/*",
   "**/node_modules/@cursor/sdk-*",
@@ -1146,8 +1118,6 @@ export function resolveFffNativeDependencies(
   );
 }
 
-                                                                              
-                                                                  
 export function resolveMergedStageDependencies(input: {
   readonly platform: "mac" | "linux";
   readonly serverDependencies: Record<string, string>;
@@ -1162,7 +1132,6 @@ export function resolveMergedStageDependencies(input: {
   };
 }
 
-                                                                                    
 export const stageCursorSdkPlatformPackages = Effect.fn("stageCursorSdkPlatformPackages")(
   function* (nodeModulesDir: string, destination: string) {
     const fs = yield* FileSystem.FileSystem;
@@ -1210,12 +1179,6 @@ export function resolveKeyringNativeArtifacts(
   }));
 }
 
-   
-                                                                             
-                                                                          
-                                                                            
-                                                                            
-   
 const stageKeyringNativeBinaries = Effect.fn("stageKeyringNativeBinaries")(function* (
   stageAppDir: string,
   platform: typeof BuildPlatform.Type,
@@ -1256,9 +1219,7 @@ export function createStageWorkspaceConfig(input: {
   const { platform, arch, allowBuilds, patchedDependencies, overrides } = input;
   const hostOs = platform === "mac" ? "darwin" : platform === "win" ? "win32" : "linux";
   const hostCpu = arch === "universal" ? ["arm64", "x64"] : [arch];
-                                                                  
-                                                                      
-                                                                       
+
   const supportedArchitectures =
     platform === "linux"
       ? {
@@ -1344,8 +1305,7 @@ function invalidMockUpdateServerPortReason(
   if (!Number.isFinite(parsed)) return "not-numeric";
   if (!Number.isInteger(parsed)) return "not-integer";
   if (parsed < 1 || parsed > 65535) return "out-of-range";
-                                                                          
-                                                                              
+
   return "not-numeric";
 }
 
@@ -1495,7 +1455,7 @@ const withDesktopBuildLock = Effect.fn("withDesktopBuildLock")(function* <A, E, 
             : error,
         ),
       ),
-                                                                                       
+
     () => build.pipe(Effect.scoped),
     (_, exit) =>
       fs
@@ -1508,8 +1468,6 @@ const withDesktopBuildLock = Effect.fn("withDesktopBuildLock")(function* <A, E, 
   );
 });
 
-                                                                              
-                                                                    
 const buildDesktopBundlesUnlocked = Effect.fn("buildDesktopBundlesUnlocked")(function* (
   repoRoot: string,
   appVersion: string,
@@ -1525,7 +1483,7 @@ const buildDesktopBundlesUnlocked = Effect.fn("buildDesktopBundlesUnlocked")(fun
         const contents = yield* fs.readFileString(filePath);
         const needsRestore = yield* decodeReleasePackageManifest(contents).pipe(
           Effect.map((manifest) => manifest.version !== appVersion),
-                                                                               
+
           Effect.orElseSucceed(() => false),
         );
         return { filePath, contents, needsRestore };
@@ -1534,7 +1492,7 @@ const buildDesktopBundlesUnlocked = Effect.fn("buildDesktopBundlesUnlocked")(fun
     () =>
       Effect.gen(function* () {
         yield* updateReleasePackageVersions(appVersion, { rootDir: repoRoot });
-                                                                                   
+
         yield* runCommand(
           ChildProcess.make(spawnCommand.command, spawnCommand.args, {
             cwd: repoRoot,
@@ -1562,7 +1520,6 @@ const buildDesktopBundlesUnlocked = Effect.fn("buildDesktopBundlesUnlocked")(fun
         if (failures.length === 0) return;
         const error = new DesktopBuildManifestRestoreError({ failures });
         if (Exit.isFailure(exit)) {
-                                                                           
           yield* Effect.logError(error);
         } else {
           return yield* error;
@@ -1753,10 +1710,6 @@ function trimTrailingSeparators(value: string): string {
   return value.slice(0, end);
 }
 
-   
-                                                                               
-                                                    
-   
 function uncShareRootLength(value: string): number {
   const isUnc = value.startsWith("\\\\") || value.startsWith("//");
   if (!isUnc) return 0;
@@ -1772,9 +1725,6 @@ export function ancestorNodeModulesPaths(
   startDir: string,
   separator: string,
 ): ReadonlyArray<string> {
-                                                                            
-                                                                        
-                                                                               
   const paths: string[] = [];
   let current = trimTrailingSeparators(startDir);
   const uncRootLength = uncShareRootLength(current);
@@ -1827,10 +1777,6 @@ export const copyDirectoryPreservingSymlinks = Effect.fn("copyDirectoryPreservin
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
 
-                                                                              
-                                                                                  
-                                                                              
-                                                                                   
     yield* fs.copy(source, destination);
 
     const restoreRelativeSymlinks = Effect.fn("build-desktop-artifact.restoreRelativeSymlinks")(
@@ -1901,9 +1847,6 @@ export const verifyPackagedBundleIsSelfContained = Effect.fn("verifyPackagedBund
     });
     yield* copyDirectoryPreservingSymlinks(extractedApp, probeApp);
 
-                                                                              
-                                                                                
-                               
     for (const candidate of ancestorNodeModulesPaths(probeApp, path.sep)) {
       if (yield* fs.exists(candidate).pipe(Effect.orElseSucceed(() => false))) {
         return yield* new BundleNotSelfContainedError({
@@ -1924,10 +1867,7 @@ export const verifyPackagedBundleIsSelfContained = Effect.fn("verifyPackagedBund
     yield* runCommand(
       ChildProcess.make(
         process.execPath,
-                                                                             
-                                                                       
-                                                                                
-                                                                         
+
         ["--no-global-search-paths", entryPoint, "--version"],
         {
           cwd: probeApp,
@@ -1972,8 +1912,7 @@ export const stageLinuxCaptureHelper = Effect.fn("stageLinuxCaptureHelper")(func
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const [rustTarget] = resolveResourceMonitorRustTargets("linux", input.arch);
-                                                                                   
-                                                                           
+
   const reuseHelpers = yield* Config.Boolean("SUPATERM_DESKTOP_REUSE_LINUX_CAPTURE_HELPERS").pipe(
     Config.withDefault(false),
   );
@@ -2017,7 +1956,6 @@ export const stageLinuxCaptureHelper = Effect.fn("stageLinuxCaptureHelper")(func
   yield* fs.copyFile(binaryPath, executable);
   yield* fs.chmod(executable, 0o755);
   if (input.backend === "hyprland") {
-                                                                                            
     yield* fs.copy(
       path.join(input.repoRoot, "native/hyprland-snap-shot/protocols"),
       path.join(destination, "protocols"),
@@ -2116,10 +2054,7 @@ export const stageBrowserSecret = Effect.fn("stageBrowserSecret")(function* (inp
   readonly verbose: boolean;
 }) {
   if (input.platform !== "linux") return;
-                                                                              
-                                                                                
-                                                                            
-                                                                         
+
   const hostPlatform = yield* HostProcess.Platform;
   if (hostPlatform !== "linux") {
     return yield* new LinuxBrowserSecretHostError({ hostPlatform });
@@ -2151,7 +2086,7 @@ const stageMacIcons = Effect.fn("stageMacIcons")(function* (
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const repoRoot = yield* RepoRoot;
-                                                                                                   
+
   const launchIcons = [
     [sourceDarkPng, "icon-dark.png"],
     [path.join(repoRoot, BRAND_ASSET_PATHS.macUnlitIconPng), "icon-unlit.png"],
@@ -2177,7 +2112,7 @@ const stageMacIcons = Effect.fn("stageMacIcons")(function* (
     label: "sips mac icon",
     verbose,
   });
-                                                                                                
+
   for (const [source, fileName] of launchIcons) {
     const target = path.join(stageResourcesDir, fileName);
     yield* runCommand(ChildProcess.make({})`sips -z 512 512 ${source} --out ${target}`, {
@@ -2343,7 +2278,6 @@ const validateBundledClientAssets = Effect.fn("build-desktop-artifact.validateBu
   },
 );
 
-                                                             
 const CODEX_MICRO_RUNTIME_DEPENDENCIES: ReadonlySet<string> = new Set(["node-hid"]);
 
 function withoutCodexMicroDependencies(
@@ -2431,9 +2365,6 @@ export function resolveMockUpdateServerUrl(mockUpdateServerPort: number | undefi
   return `http://localhost:${mockUpdateServerPort ?? 3000}`;
 }
 
-                                                                             
-                                                                     
-                  
 export function resolvePackageManagerUserAgent(packageManager: string): string {
   const trimmed = packageManager.trim();
   const versionSeparator = trimmed.lastIndexOf("@");
@@ -2480,9 +2411,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     directories: {
       buildResources: "apps/desktop/resources",
     },
-                                                                             
-                                                                             
-                                                                   
+
     ...(platform === "win"
       ? { asar: { smartUnpack: false }, asarUnpack: [WINDOWS_NATIVE_ASAR_UNPACK_GLOB] }
       : {}),
@@ -2521,7 +2450,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       category: "public.app-category.developer-tools",
       extendInfo: {
         CFBundleIconName: MAC_ICON_NAME,
-                                                                                    
+
         NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac: true,
         NSLocalNetworkUsageDescription:
           "Supaterm connects to devices on your local network for remote environments and commands run by terminals and coding agents.",
@@ -2560,15 +2489,11 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
 
   if (platform === "mac" && target === "dmg") {
     buildConfig.dmg = {
-                                                                            
-                                                                             
-                                                                     
       title: `${resolveDesktopProductName(version)} ${version} Installer`,
       background: `dmg/dmg-background-${updateChannel}.png`,
       window: {
         width: 640,
-                                                                            
-                                                                             
+
         height: 432,
       },
       contents: [
@@ -2581,9 +2506,6 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
   }
 
   if (platform === "linux") {
-                                                                         
-                                                                               
-                                                                            
     buildConfig.toolsets = { appimage: "1.0.3" };
     const path = yield* Path.Path;
     const repoRoot = yield* RepoRoot;
@@ -2607,13 +2529,11 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       },
     };
     buildConfig.deb = {
-                                                                                     
       fpm: [
         `${path.join(repoRoot, "apps/desktop/resources/linux/com.supaterm.desktop.metainfo.xml")}=/usr/share/metainfo/com.supaterm.desktop.metainfo.xml`,
         `${path.join(repoRoot, "LICENSE")}=/usr/share/doc/supaterm/copyright`,
       ],
-                                                                              
-                                            
+
       depends: [
         "libasound2t64 | libasound2",
         "libatspi2.0-0t64 | libatspi2.0-0",
@@ -2639,13 +2559,9 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     const winConfig: Record<string, unknown> = {
       target: [target],
       icon: "icon.ico",
-                                                                              
-                                                                              
-                                                                              
+
       signExts: [".node", ".dll"],
-                                                                             
-                                                                           
-                                                        
+
       signAndEditExecutable: true,
     };
     if (signed && (yield* HostProcess.Platform) === "win32") {
@@ -2692,9 +2608,6 @@ const assertPlatformBuildResources = Effect.fn("assertPlatformBuildResources")(f
   }
 });
 
-                                                                               
-                                                                               
-                                           
 export const stageWslRuntimeArchive = Effect.fn("stageWslRuntimeArchive")(function* (input: {
   readonly sourceArchivePath: string;
   readonly archivePath: string;
@@ -2721,9 +2634,6 @@ export const stageWslRuntimeArchive = Effect.fn("stageWslRuntimeArchive")(functi
   );
 });
 
-                                                                             
-                                                                             
-                    
 export const wslRuntimeArchiveStem = (version: string, arch: typeof BuildArch.Type): string =>
   `supaterm-${version}-linux-${arch}`;
 
@@ -2740,10 +2650,7 @@ export const packWindowsServerAsar = Effect.fn("packWindowsServerAsar")(function
 }) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-                                                                              
-                                                                              
-                                                                           
-                                                                                  
+
   const unpackGlobs: string[] = [...WINDOWS_SERVER_ASAR_UNPACK_GLOBS];
   for (const entry of yield* fs.readDirectory(input.sourceDir, { recursive: true })) {
     if (!entry.endsWith(".node")) continue;
@@ -2752,7 +2659,7 @@ export const packWindowsServerAsar = Effect.fn("packWindowsServerAsar")(function
     const bytes = yield* fs.readFile(addonPath);
     if (bytes[0] !== 0x4d || bytes[1] !== 0x5a) continue;
     const posixPath = entry.split(path.sep).join("/");
-                                                                     
+
     if (/[\\*?[\]{}(),]/.test(posixPath)) {
       return yield* new WindowsServerSidecarPackError({
         asarPath: input.asarPath,
@@ -2766,8 +2673,7 @@ export const packWindowsServerAsar = Effect.fn("packWindowsServerAsar")(function
       createPackageWithOptions(input.sourceDir, input.asarPath, {
         dot: true,
         unpack: `{${unpackGlobs.join(",")}}`,
-                                                                             
-                                                                                
+
         globOptions: {
           cwd: input.sourceDir,
           ignore: resolveWindowsServerAsarIgnoreGlobs(input.arch),
@@ -2833,8 +2739,7 @@ export const stageWindowsServerSidecar = Effect.fn("stageWindowsServerSidecar")(
       patchedDependencies: sidecarPatchedDependencies,
       overrides: input.overrides,
     }),
-                                                                       
-                                                                            
+
     nodeLinker: "hoisted" as const,
   };
   const sidecarWorkspaceConfigString = yield* encodeStageWorkspaceConfig(sidecarWorkspaceConfig);
@@ -2990,11 +2895,6 @@ export const verifyWindowsPrimaryFffNativeLoad = Effect.fn(
   );
 });
 
-   
-                                                                            
-                                                                       
-                                              
-   
 export const verifyWindowsPackagedRuntime = Effect.fn(
   "desktopArtifact.verifyWindowsPackagedRuntime",
 )(function* (input: {
@@ -3067,9 +2967,6 @@ export const validateWindowsPackagedPayload = Effect.fn(
 
   const unpackedFiles = yield* Effect.try({
     try: () => {
-                                                                           
-                                                                               
-                                         
       statFile(asarPath, path.join("apps", "server", "dist", "bin.mjs"));
       return [...collectUnpackedAsarFiles(getRawHeader(asarPath).header)].sort();
     },
@@ -3183,8 +3080,7 @@ export const validateWindowsPackagedPayload = Effect.fn(
       );
     }
     const members = parseWslRuntimeArchiveMembers(listing.stdout);
-                                                                           
-                                                                                 
+
     const stem = wslRuntimeArchiveStem(input.appVersion, input.targetArch);
     const topLevel = new Set(members.map((member) => member.split("/")[0]));
     if (topLevel.size !== 1 || !topLevel.has(stem)) {
@@ -3393,9 +3289,6 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
     }
   }
 
-                                                                               
-                                                                                
-                                       
   {
     const chunkNames = (yield* fs.readDirectory(distDirs.serverDist)).filter((entry) =>
       entry.endsWith(".mjs"),
@@ -3415,24 +3308,13 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
         packages: [...inlined].sort(),
       });
     }
-                                                                               
-                                
+
     if (totalRegions === 0) {
       return yield* new InlinedExternalPackageError({
         packages: ["<no module regions found; the bundle scan needs updating>"],
       });
     }
-                                                                              
-                                                                            
-                                                                            
-                                                                            
-                                                                                    
-                                                                           
-                               
-                                                                               
-                                                                                
-                                                                             
-                                                                          
+
     const installed = yield* readInstalledPackages([
       path.join(repoRoot, "apps/server"),
       path.join(repoRoot, "apps/desktop"),
@@ -3533,7 +3415,6 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
     options.verbose,
   );
 
-                                                                                                 
   const stageProdResourcesDir = path.join(stageAppDir, "apps/desktop/prod-resources");
   yield* fs.copy(stageResourcesDir, stageProdResourcesDir);
 
@@ -3660,9 +3541,6 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
     });
   }
 
-                                                                               
-                                                                               
-                            
   const buildEnv: NodeJS.ProcessEnv = {
     ...process.env,
   };
@@ -3673,14 +3551,9 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
     }
   }
   if (options.platform === "linux") {
-                                                                            
-                                                                        
     buildEnv.XZ_DEFAULTS = "-T0";
   }
   if (options.platform === "win") {
-                                                                     
-                                                                         
-                                             
     delete buildEnv.CSC_LINK;
     delete buildEnv.CSC_KEY_PASSWORD;
   }
@@ -3762,7 +3635,7 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
       verbose: options.verbose,
     });
   }
-                                                                              
+
   if (options.platform === "mac" && options.arch === "arm64" && hostPlatform === "darwin") {
     yield* validateMacPackagedPayload({ stageDistDir, verbose: options.verbose });
   }

@@ -1,8 +1,3 @@
-   
-                                                                                          
-                                                                                              
-                                                                                                                              
-   
 import type { Check } from "./grade.ts";
 import type { Pose, ScenarioName } from "./scenarios.ts";
 
@@ -10,22 +5,18 @@ export interface MobileBehaviorCase {
   readonly id: string;
   readonly area: "scroll" | "jank" | "composer" | "status" | "wrong-thread";
   readonly kind: "bad" | "guard" | "control";
-                                      
+
   readonly source: string;
-                                                                   
+
   readonly experience: string;
   readonly scenario: ScenarioName;
-                                         
+
   readonly key: string;
   readonly checks: ReadonlyArray<Check>;
-                                   
+
   readonly poses?: ReadonlyArray<Pose>;
 }
 
-   
-                                                                                            
-                                                                                               
-   
 const smooth: ReadonlyArray<Check> = [
   { metric: "uiDroppedPct", max: 5 },
   { metric: "jsDroppedPct", max: 10 },
@@ -214,7 +205,7 @@ export const CASES: ReadonlyArray<MobileBehaviorCase> = [
     source: "#15801",
     experience: "A send the server will reject looks sent, with no error.",
     scenario: "failedSend",
-                                                                                     
+
     key: "sendBlocked",
     checks: [{ metric: "silentFailure", equals: false }],
   },

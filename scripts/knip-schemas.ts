@@ -3,25 +3,19 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import * as NodeWorkerThreads from "node:worker_threads";
 import type { Preprocessor } from "knip";
-                                                                            
+
 import ts from "typescript-legacy";
 
 const schemaTypeId = "~effect/Schema/Schema";
 
-                                                                            
-                                                                            
 interface Project {
   readonly cwd: string;
   readonly configPath: string | undefined;
   readonly files: ReadonlyArray<readonly [string, ReadonlyArray<string>]>;
 }
 
-                                                                           
-                                                                        
-                                                                           
 const registry = ts.createDocumentRegistry();
 
-                                                                     
 function findSchemas({ cwd, configPath, files }: Project) {
   const config = configPath
     ? ts.getParsedCommandLineOfConfigFile(
@@ -59,7 +53,7 @@ function findSchemas({ cwd, configPath, files }: Project) {
       options,
       key,
       ts.ScriptSnapshot.fromString(text),
-                                            
+
       "1",
       undefined,
       languageVersionOrOptions,
@@ -98,17 +92,13 @@ function findSchemas({ cwd, configPath, files }: Project) {
   });
 }
 
-                                                         
 if (!NodeWorkerThreads.isMainThread) {
   const projects: ReadonlyArray<Project> = NodeWorkerThreads.workerData;
   NodeWorkerThreads.parentPort?.postMessage(projects.flatMap(findSchemas));
 }
 
-                                                                        
-                                    
 const WORKERS = Math.min(3, NodeOS.availableParallelism());
 
-                                                                     
 const preprocess = async (options: Parameters<Preprocessor>[0]) => {
   const categories = ["exports", "nsExports", "duplicates"] as const;
   const projects = new Map<string | undefined, Map<string, Set<string>>>();
@@ -129,7 +119,6 @@ const preprocess = async (options: Parameters<Preprocessor>[0]) => {
     }
   }
 
-                                                                           
   const shares = Array.from({ length: WORKERS }, (): Array<Project> => []);
   [...projects]
     .sort(([, a], [, b]) => b.size - a.size)
@@ -155,8 +144,6 @@ const preprocess = async (options: Parameters<Preprocessor>[0]) => {
         }),
     ),
   ).catch(async (error: unknown) => {
-                                                                        
-                                                       
     await Promise.allSettled(workers.map((worker) => worker.terminate()));
     throw error;
   });

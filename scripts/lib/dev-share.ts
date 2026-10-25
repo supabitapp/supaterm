@@ -1,9 +1,3 @@
-/**
- * Because browser dev is single-origin (Vite proxies the backend — see
- * `resolveDevProxyTarget` in apps/web/vite.config.ts), one proxy rule covering
- * the web port is enough; the backend needs no mapping of its own.
- */
-
 import {
   buildTailscaleHttpsBaseUrl,
   disableTailscaleServe,
@@ -16,15 +10,10 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import type { ChildProcessSpawner } from "effect/process";
 
-/**
- * Human-readable gloss for each diagnostic. Deliberately our own words rather
- * than the CLI's: tailscale prints auth keys and node names into stderr, and
- * this string is logged.
- */
 const DIAGNOSTIC_EXPLANATIONS: Record<TailscaleStderrDiagnostic, string | undefined> = {
   "no-existing-handler": "no mapping existed for that port",
-  "not-logged-in": "this machine is not logged into a tailnet — run `tailscale up`",
-  "permission-denied": "permission denied — `tailscale serve` may need elevated privileges",
+  "not-logged-in": "this machine is not logged into a tailnet. run `tailscale up`",
+  "permission-denied": "permission denied. `tailscale serve` may need elevated privileges",
   unknown: undefined,
 };
 
@@ -42,7 +31,7 @@ export class TailscaleUnavailableError extends Schema.TaggedError<TailscaleUnava
   }
 
   get hint(): string {
-    return "Is Tailscale installed and tailscaled running? Try `tailscale status` — or drop --share and open the printed localhost URL.";
+    return "Is Tailscale installed and tailscaled running? Try `tailscale status`. or drop --share and open the printed localhost URL.";
   }
 }
 
@@ -87,11 +76,6 @@ export type DevShareError =
   | TailnetNameMissingError
   | DevServeFailedError;
 
-/**
- * Runs uninterruptibly: this is called from a finalizer on the way out of an
- * interrupted program, and cancelling the cleanup subprocess would leave
- * exactly the stale mapping it exists to remove.
- */
 export const unshareDevServer = (
   webPort: number,
 ): Effect.Effect<
@@ -127,11 +111,6 @@ export interface DevShareResult {
   readonly host: string;
 }
 
-/**
- * Publishes `webPort` on the tailnet. The tailnet port always matches the web
- * port so the URL is stable; `localTarget` points it at the backend instead
- * when the backend serves a built client (`--built`).
- */
 export const shareDevServer = Effect.fn("devShare.shareDevServer")(function* (input: {
   readonly webPort: number;
   readonly localTarget?: { readonly port: number; readonly host: string };
@@ -145,9 +124,6 @@ export const shareDevServer = Effect.fn("devShare.shareDevServer")(function* (in
 
   const cleared = yield* unshareDevServer(input.webPort);
   if (!cleared.cleared) {
-    // Serving over routes we failed to remove would hand out a URL that is
-    // broken in a way the user cannot see: the page loads while /ws and /api
-    // silently resolve to a dead backend. Better to refuse and say why.
     return yield* new DevServeFailedError({
       stage: "clear-existing",
       webPort: input.webPort,
@@ -156,10 +132,6 @@ export const shareDevServer = Effect.fn("devShare.shareDevServer")(function* (in
     });
   }
 
-  // Proxy to the hostname Vite binds rather than the package default of
-  // 127.0.0.1. Vite listens on `localhost`, which Node 17+ resolves to `::1`
-  // first, so it only binds the IPv6 loopback and a 127.0.0.1 target has
-  // nothing behind it (tailscale answers 502).
   yield* ensureTailscaleServe({
     localPort: input.localTarget?.port ?? input.webPort,
     servePort: input.webPort,

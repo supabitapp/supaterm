@@ -1,11 +1,6 @@
 #!/usr/bin/env node
 // @effect-diagnostics nodeBuiltinImport:off globalTimers:off
-   
-                                                                                     
-                                                                                  
-                                                                        
-                                                                      
-   
+
 import * as NodeCrypto from "node:crypto";
 import * as NodeFS from "node:fs";
 import * as NodeReadline from "node:readline";
@@ -33,15 +28,12 @@ interface JsonRpcMessage {
 }
 
 export interface ReplayTurn {
-                                                                              
   readonly frames: ReadonlyArray<{ readonly frame: LogicalFrame; readonly afterMs?: number }>;
   readonly stopReason: string;
 }
 
 const FIXTURES = "../src/orchestration-v2/testkit/fixtures";
 
-                                                                                   
-                                                                                          
 export const SCENARIOS = [
   { id: "showcase", name: "Showcase", file: "./dev-replay/showcase_transcript.ndjson" },
   {
@@ -66,7 +58,6 @@ export const SCENARIOS = [
   },
 ] as const;
 
-                                                                                             
 const REPLAYED_UPDATES = new Set([
   "agent_message_chunk",
   "agent_thought_chunk",
@@ -79,7 +70,6 @@ const REPLAYED_UPDATES = new Set([
   "usage_update",
 ]);
 
-                                                                                        
 const REPLAYED_REQUESTS = new Set(["session/request_permission", "elicitation/create"]);
 
 const CHUNK_DELAY_MS = 30;
@@ -94,10 +84,9 @@ function isReplayedFrame(frame: LogicalFrame): boolean {
   return typeof update?.sessionUpdate === "string" && REPLAYED_UPDATES.has(update.sessionUpdate);
 }
 
-                                                                                     
 export function parseReplayTurns(ndjson: string): ReadonlyArray<ReplayTurn> {
   const turns: Array<{ frames: Array<ReplayTurn["frames"][number]>; stopReason: string }> = [];
-                                                                                  
+
   let turn: (typeof turns)[number] | undefined;
   for (const line of ndjson.split("\n")) {
     if (line.trim().length === 0) continue;
@@ -127,7 +116,6 @@ export function parseReplayTurns(ndjson: string): ReadonlyArray<ReplayTurn> {
   return turns;
 }
 
-                                                                             
 export function streamChunks(text: string): ReadonlyArray<string> {
   const words = text.match(/\S+\s*|\s+/g) ?? [];
   const chunks: Array<string> = [];
@@ -137,7 +125,6 @@ export function streamChunks(text: string): ReadonlyArray<string> {
   return chunks.length === 0 ? [text] : chunks;
 }
 
-                                                                                              
 function materialize(
   value: unknown,
   live: { readonly sessionId: string; readonly workspace: string; readonly turnKey: string },
@@ -157,7 +144,6 @@ function materialize(
   );
 }
 
-                                                                                     
 function permissionRejectedToolCallId(request: LogicalFrame, answer: unknown): string | undefined {
   if (request.method !== "session/request_permission") return undefined;
   const params = request.params as {
@@ -193,7 +179,7 @@ function runAgent(): void {
 
   const send = (message: JsonRpcMessage) =>
     process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", ...message })}\n`);
-                                                                                     
+
   const untilAbort = (promise: Promise<unknown>, signal: AbortSignal) =>
     new Promise<void>((resolve) => {
       if (signal.aborted) return resolve();
@@ -216,7 +202,7 @@ function runAgent(): void {
     signal: AbortSignal,
   ): Promise<"cancelled" | undefined> => {
     const session = sessions.get(sessionId)!;
-                                                                                  
+
     const live = { sessionId, workspace: session.cwd, turnKey: NodeCrypto.randomUUID() };
     for (const recorded of turn.frames) {
       const frame = materialize(recorded.frame, live) as LogicalFrame;
@@ -231,12 +217,12 @@ function runAgent(): void {
         send({ id, method: frame.method, params: frame.params as Record<string, unknown> });
         await untilAbort(response, signal);
         pendingAgentRequests.delete(String(id));
-                                                                                   
+
         const outcome = (answer as { outcome?: { outcome?: string } } | undefined)?.outcome;
         if (signal.aborted || outcome?.outcome === "cancelled") return "cancelled";
         const toolCallId = permissionRejectedToolCallId(frame, answer);
         if (toolCallId === undefined) continue;
-                                                                                       
+
         send({
           method: "session/update",
           params: {
@@ -254,7 +240,7 @@ function runAgent(): void {
         content?.type === "text"
           ? content.text
           : undefined;
-                                                                                      
+
       const firstDelay = recorded.afterMs ?? (text === undefined ? FRAME_DELAY_MS : CHUNK_DELAY_MS);
       const chunks = text === undefined ? [undefined] : streamChunks(text);
       for (const [index, chunk] of chunks.entries()) {
@@ -286,8 +272,6 @@ function runAgent(): void {
         };
       case "session/new":
       case "session/load": {
-                                                                                                
-                                                                                               
         const sessionId =
           message.method === "session/load" ? String(params.sessionId) : NodeCrypto.randomUUID();
         const cwd = typeof params.cwd === "string" ? params.cwd : process.cwd();

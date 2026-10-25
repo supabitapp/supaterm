@@ -1,8 +1,5 @@
 #!/usr/bin/env node
-                                                                                   
-                                                                                  
-                                                                                    
-                
+
 import { spawn, spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -34,7 +31,6 @@ async function get(url) {
   return response;
 }
 
-                                                                                        
 async function download(url, file) {
   const response = await get(url);
   const total = Number(response.headers.get("content-length")) || 0;
@@ -48,7 +44,7 @@ async function download(url, file) {
       hash.update(chunk);
       fs.writeSync(out, chunk);
       received += chunk.byteLength;
-                                                                             
+
       const step = total ? Math.floor((received * 100) / total) : Math.floor(received / 1048576);
       if (tty && step !== shown) {
         shown = step;
@@ -79,8 +75,6 @@ async function install(dir, key) {
     .find((m) => m && m[2] === archive);
   if (!line) throw new Error(`${archive} is not listed in the release's SHA256SUMS`);
 
-                                                                    
-                                                                       
   fs.mkdirSync(path.dirname(dir), { recursive: true });
   const staging = fs.mkdtempSync(`${dir}.staging-`);
   try {
@@ -88,7 +82,7 @@ async function install(dir, key) {
     if ((await download(`${base}/v${version}/${archive}`, file)) !== line[1].toLowerCase()) {
       throw new Error(`checksum mismatch for ${archive}`);
     }
-                                                                            
+
     const tar =
       process.platform === "win32" ? `${process.env.SystemRoot}\\System32\\tar.exe` : "tar";
     const extract = spawnSync(tar, ["-xf", file, "-C", staging, "--strip-components=1"], {
@@ -111,13 +105,6 @@ const isComplete = (dir) => {
   }
 };
 
-   
-                                                                              
-                                                                                  
-                                                                           
-                                                                            
-                               
-   
 function publish(staging, dir) {
   try {
     fs.renameSync(staging, dir);
@@ -138,10 +125,8 @@ function publish(staging, dir) {
   }
   const stale = `${staging}.stale`;
   try {
-                                                                              
     if (isComplete(dir)) return;
-                                                                               
-                                          
+
     fs.renameSync(dir, stale);
     try {
       fs.renameSync(staging, dir);
@@ -165,16 +150,13 @@ async function main() {
   const dir = path.join(supatermHome(), "runtime", "versions", version);
   if (!isComplete(dir)) await install(dir, key);
 
-                                                                           
-                                                                               
-                                                     
   const ipc = process.send !== undefined;
   const child = spawn(
     path.join(dir, process.platform === "win32" ? "supaterm.exe" : "supaterm"),
     process.argv.slice(2),
     {
       stdio: ipc ? ["inherit", "inherit", "inherit", "ipc"] : "inherit",
-                                                                                            
+
       env: { ...process.env, SUPATERM_NPM_LAUNCHER_PATH: import.meta.filename },
     },
   );

@@ -46,8 +46,7 @@ const runExecutable = Effect.fn("runExecutable")(function* (
   const child = yield* spawner.spawn(
     ChildProcess.make(executable, args, {
       cwd,
-                                                                      
-                                                                  
+
       env: { PATH: "", HOME: cwd, USERPROFILE: cwd, TMPDIR: cwd, TEMP: cwd },
       extendEnv: false,
     }),
@@ -68,9 +67,7 @@ const smokeCliArchive = Effect.fn("smokeCliArchive")(function* (input: {
   const platform = yield* HostProcess.Platform;
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const scratch = yield* fs.makeTempDirectory({ prefix: "supaterm-cli-smoke-" });
-                                                                               
-                                                                       
-                                                                      
+
   yield* Effect.addFinalizer(() =>
     fs.remove(scratch, { recursive: true }).pipe(
       Effect.retry({ times: 10, schedule: Schedule.spaced("500 millis") }),
@@ -80,8 +77,6 @@ const smokeCliArchive = Effect.fn("smokeCliArchive")(function* (input: {
     ),
   );
 
-                                                                          
-                                                                 
   const tar = platform === "win32" ? windowsSystemTar() : "tar";
   const extract = yield* spawner
     .spawn(ChildProcess.make(tar, ["-xf", input.archive, "-C", scratch]))
@@ -102,7 +97,11 @@ const smokeCliArchive = Effect.fn("smokeCliArchive")(function* (input: {
   const contentDir = path.join(scratch, root);
   const executable = path.join(contentDir, platform === "win32" ? "supaterm.exe" : "supaterm");
   const bundledLibatomic = path.join(contentDir, "lib/libatomic.so.1");
-  for (const required of [executable, path.join(contentDir, "client/index.html"), ...(platform === "linux" ? [bundledLibatomic, `${bundledLibatomic}.LICENSE`] : [])]) {
+  for (const required of [
+    executable,
+    path.join(contentDir, "client/index.html"),
+    ...(platform === "linux" ? [bundledLibatomic, `${bundledLibatomic}.LICENSE`] : []),
+  ]) {
     if (!(yield* fs.exists(required))) {
       return yield* new CliArchiveSmokeError({
         step: "checking the archive layout",
@@ -111,10 +110,9 @@ const smokeCliArchive = Effect.fn("smokeCliArchive")(function* (input: {
     }
   }
 
-                                                                     
   if (platform === "linux") {
     const ldd = yield* spawner.string(ChildProcess.make("ldd", [executable]));
-                                                                                             
+
     const loaded = /libatomic\.so\.1 => (\/.*) \(0x[0-9a-f]+\)/.exec(ldd)?.[1];
     if (
       loaded === undefined ||
@@ -151,8 +149,7 @@ const smokeCliArchive = Effect.fn("smokeCliArchive")(function* (input: {
           TMPDIR: scratch,
           TEMP: scratch,
           SUPATERM_HOME: home,
-                                                                            
-                                          
+
           SUPATERM_TELEMETRY_ENABLED: "false",
         },
         extendEnv: false,
@@ -163,8 +160,7 @@ const smokeCliArchive = Effect.fn("smokeCliArchive")(function* (input: {
     Effect.all([collect(server.stdout), collect(server.stderr)]),
   );
   const httpClient = yield* HttpClient.HttpClient;
-                                                                             
-                                                                       
+
   const probe = httpClient.execute(HttpClientRequest.get(`http://127.0.0.1:${String(port)}/`)).pipe(
     Effect.map((response) => response.status === 200),
     Effect.timeout(Duration.seconds(2)),

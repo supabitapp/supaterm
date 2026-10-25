@@ -1,7 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off globalConsole:off
-                                                                                                 
-                                                                                             
-                          
+
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
@@ -9,8 +7,6 @@ import * as NodeTimersPromises from "node:timers/promises";
 import * as NodeUtil from "node:util";
 import { _electron, type ElectronApplication } from "playwright-core";
 
-                                                                                                
-                                                                                     
 const FIXTURE_DB = NodePath.join(import.meta.dirname, "fixtures/desktop-launch/statev2.sqlite");
 const THREAD_TITLE = "Release launch check";
 const THREAD_MESSAGE = "The release opens and shows this thread.";
@@ -37,10 +33,9 @@ let app: ElectronApplication | undefined;
 try {
   app = await _electron.launch({
     executablePath: executable,
-                                                                            
+
     args: ["--no-sandbox"],
-                                                                                              
-                                                                                                
+
     env: {
       ...process.env,
       XDG_CONFIG_HOME: NodePath.join(home, ".config"),
@@ -51,8 +46,7 @@ try {
     },
     timeout: STEP_TIMEOUT_MS,
   });
-                                                                                               
-                                                                                   
+
   step = "waiting for the first window";
   const page = await app.firstWindow({ timeout: STEP_TIMEOUT_MS });
   try {
@@ -86,8 +80,6 @@ try {
   process.exitCode = 1;
 } finally {
   if (app) {
-                                                                                           
-                                                                                 
     const child = app.process();
     const closed = app.close().catch(() => {});
     await Promise.race([closed, NodeTimersPromises.setTimeout(10_000, undefined, { ref: false })]);

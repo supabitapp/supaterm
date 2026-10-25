@@ -1,8 +1,5 @@
 #!/usr/bin/env node
-   
-                                                                              
-                                                                       
-   
+
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Config from "effect/Config";
@@ -94,8 +91,6 @@ export function cliArchiveStem(version: string, platform: BuildPlatform, arch: B
 }
 
 export function cliArchiveFileName(version: string, platform: BuildPlatform, arch: BuildArch) {
-                                                                           
-                                                                              
   return `${cliArchiveStem(version, platform, arch)}.${platform === "win" ? "zip" : "tar.gz"}`;
 }
 
@@ -126,10 +121,6 @@ const requireInput = Effect.fn("requireInput")(function* (inputPath: string, hin
   }
 });
 
-   
-                                                                           
-                                                  
-   
 const stageRuntimeExternals = Effect.fn("stageRuntimeExternals")(function* (input: {
   readonly repoRoot: string;
   readonly stageDir: string;
@@ -222,10 +213,7 @@ const stageRuntimeExternals = Effect.fn("stageRuntimeExternals")(function* (inpu
   ]) {
     yield* fs.remove(path.join(input.stageDir, entry), { recursive: true, force: true });
   }
-                                                                               
-                                                                              
-                                                                           
-                                                                 
+
   yield* removeNestedBinDirectories(fs, path, path.join(input.stageDir, "node_modules"));
 });
 
@@ -262,13 +250,6 @@ const stageWebClient = Effect.fn("stageWebClient")(function* (source: string, ta
   }
 });
 
-   
-                                                                       
-                                                                              
-                                                                           
-                                                                              
-                                                
-   
 const bundleLinuxLibatomic = Effect.fn("bundleLinuxLibatomic")(function* (input: {
   readonly repoRoot: string;
   readonly contentDir: string;
@@ -288,11 +269,10 @@ const bundleLinuxLibatomic = Effect.fn("bundleLinuxLibatomic")(function* (input:
   yield* fs.makeDirectory(path.join(input.contentDir, "lib"));
   yield* fs.copyFile(source, path.join(input.contentDir, "lib/libatomic.so.1"));
 
-                                                                                                  
   const owner = yield* spawner.string(
     ChildProcess.make("dpkg-query", ["-S", yield* fs.realPath(source)]),
   );
-                                                                                
+
   const [, qualifiedPkg, pkg] = /^(([^:\s]+)(?::[^:\s]+)?): /.exec(owner) ?? [];
   const versions = qualifiedPkg
     ? yield* spawner.string(
@@ -314,7 +294,7 @@ const bundleLinuxLibatomic = Effect.fn("bundleLinuxLibatomic")(function* (input:
     `libatomic.so.1 is copied from the Ubuntu package ${pkg} ${version}.`,
     `Source: https://launchpad.net/ubuntu/+source/${sourcePackage}/${sourceVersion}`,
   ].join("\n");
-                                                            
+
   const license = yield* fs.readFileString(
     path.join(input.repoRoot, "scripts/licenses/libatomic.LICENSE"),
   );
@@ -323,7 +303,6 @@ const bundleLinuxLibatomic = Effect.fn("bundleLinuxLibatomic")(function* (input:
     `${header}\n\n${license}`,
   );
 
-                                                                                                       
   yield* runCommand(
     ChildProcess.make("patchelf", ["--set-rpath", "$ORIGIN/lib", input.executablePath]),
     "patchelf --set-rpath",
@@ -375,8 +354,7 @@ const signMacArchiveContents = Effect.fn("signMacArchiveContents")(function* (in
     );
     return;
   }
-                                                                               
-                                                                          
+
   const notarizeZip = path.join(path.dirname(input.executablePath), ".notarize-supaterm.zip");
   yield* runCommand(
     ChildProcess.make("ditto", ["-c", "-k", "--keepParent", input.executablePath, notarizeZip]),
@@ -397,13 +375,6 @@ const WindowsSigningConfig = Config.all({
   ),
 });
 
-   
-                                                                                
-                                                                       
-                                                                             
-                                                                              
-                     
-   
 const stripStaleAuthenticodeEntry = Effect.fn("stripStaleAuthenticodeEntry")(function* (
   executablePath: string,
 ) {
@@ -419,15 +390,12 @@ const stripStaleAuthenticodeEntry = Effect.fn("stripStaleAuthenticodeEntry")(fun
   }
   const optionalHeader = peOffset + 24;
   const magic = view.getUint16(optionalHeader, true);
-                                                                          
-                                                                 
+
   const securityEntry = optionalHeader + (magic === 0x20b ? 112 : 96) + 4 * 8;
   const offset = view.getUint32(securityEntry, true);
   const size = view.getUint32(securityEntry + 4, true);
   if (offset === 0 && size === 0) return;
   if (offset + size === bytes.byteLength) {
-                                                                         
-                                                               
     return;
   }
   view.setUint32(securityEntry, 0, true);
@@ -486,16 +454,14 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
   const repoRoot = yield* RepoRoot;
   const serverDir = path.join(repoRoot, "apps/server");
   const executableName = input.platform === "win" ? "supaterm.exe" : "supaterm";
-                                                                                     
-                                                                             
+
   const targetKey = `${input.platform === "mac" ? "darwin" : input.platform}-${input.arch}`;
   const targetExecutable = path.join(
     serverDir,
     "dist-exe",
     `supaterm-${targetKey}${input.platform === "win" ? ".exe" : ""}`,
   );
-                                                                             
-                                                                          
+
   const hostPlatform = yield* HostProcess.Platform;
   const hostKey = `${hostPlatform === "win32" ? "win" : hostPlatform}-${yield* HostProcess.Architecture}`;
   const builtExecutable = (yield* fs.exists(targetExecutable))
@@ -542,7 +508,7 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
   if (input.platform === "linux") {
     yield* bundleLinuxLibatomic({ repoRoot, contentDir, executablePath });
   }
-                                                                                                
+
   if (input.platform === "linux" && input.arch === "arm64") {
     const bytes = yield* fs.readFile(executablePath);
     yield* Effect.try(() => assertLinuxArm64PageCompatibility(bytes));
@@ -570,19 +536,11 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
       "zip",
     );
   } else if (input.platform === "win") {
-                                                                              
-                                                                         
-                                                  
     yield* runCommand(
       ChildProcess.make(windowsSystemTar(), ["-a", "-c", "-f", archivePath, "-C", stageRoot, stem]),
       "tar (zip)",
     );
   } else {
-                                                                              
-                                                                           
-                                                                              
-                                                                          
-                                                                          
     yield* runCommand(
       ChildProcess.make("tar", [
         ...(input.platform === "linux" ? ["--hard-dereference"] : []),

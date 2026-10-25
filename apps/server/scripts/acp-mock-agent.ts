@@ -25,7 +25,8 @@ const emitInterleavedAssistantToolCalls =
   process.env.SUPATERM_ACP_EMIT_INTERLEAVED_ASSISTANT_TOOL_CALLS === "1";
 const emitNotice = process.env.SUPATERM_ACP_EMIT_NOTICE === "1";
 const omitInitializeModelState = process.env.SUPATERM_ACP_OMIT_INITIALIZE_MODEL_STATE === "1";
-const emitTrackedToolCallKindThenHang = process.env.SUPATERM_ACP_EMIT_TRACKED_TOOL_CALL_KIND_THEN_HANG;
+const emitTrackedToolCallKindThenHang =
+  process.env.SUPATERM_ACP_EMIT_TRACKED_TOOL_CALL_KIND_THEN_HANG;
 const emitV2Fidelity = process.env.SUPATERM_ACP_EMIT_V2_FIDELITY === "1";
 const vibeRetryOutcome = process.env.SUPATERM_ACP_VIBE_RETRY_OUTCOME;
 const emitGenericToolPlaceholders = process.env.SUPATERM_ACP_EMIT_GENERIC_TOOL_PLACEHOLDERS === "1";
@@ -333,7 +334,6 @@ function configOptions(): ReadonlyArray<AcpSchema.SessionConfigOption> {
   }
 
   return [
-                                                                              
     ...(emitEmptyDefaultAgentOption
       ? [
           {
@@ -442,8 +442,6 @@ function modeState(): AcpCompat.SessionModeState {
   };
 }
 
-                                                                                    
-                             
 const grokAcpModels: ReadonlyArray<AcpCompat.ModelInfo> = [
   {
     modelId: process.env.SUPATERM_ACP_GROK_MODEL ?? "grok-4.6",
@@ -613,8 +611,6 @@ const program = Effect.gen(function* () {
     }),
   );
 
-                                                                 
-                                                                                
   yield* agent.handleAuthenticate((request) =>
     Effect.gen(function* () {
       if (antigravityProfile) {
@@ -1187,7 +1183,6 @@ const program = Effect.gen(function* () {
       }
 
       if (emitNotice) {
-                                                                                                
         const chunk = (text: string) =>
           writeJsonRpcNotification("session/update", {
             sessionId: requestedSessionId,
@@ -1321,7 +1316,7 @@ const program = Effect.gen(function* () {
             status: "completed",
             rawInput: { query: "TODO", path: "apps/web" },
           },
-                                                                                      
+
           {
             sessionUpdate: "tool_call_update",
             toolCallId: "grok-x-search",
@@ -1635,11 +1630,7 @@ const program = Effect.gen(function* () {
             const detachedCommand = runningCommandIgnoresTerm
               ? 'trap "" TERM; bash -c \'trap "" TERM; while :; do sleep 1; done\' & child=$!; printf "%s %s %s\n" "$PPID" "$$" "$child" > "$1"; echo published; wait "$child"'
               : 'sleep 120 & child=$!; printf "%s %s %s\n" "$PPID" "$$" "$child" > "$1"; echo published; wait "$child"';
-                                                                             
-                                                                              
-                                                                                 
-                                                                            
-                                                                     
+
             const detachedLauncher = NodeChildProcess.spawn(
               process.execPath,
               ["-e", launcher, "bash", "-c", detachedCommand, "bash", runningCommandPidPath],
@@ -1679,7 +1670,7 @@ const program = Effect.gen(function* () {
             rawInput: {
               command: ["sleep", "120"],
             },
-                                                                                    
+
             rawOutput: { type: "Bash", exit_code: 0 },
           },
         });
@@ -1704,7 +1695,6 @@ const program = Effect.gen(function* () {
           },
         });
         if (exitAfterRunningCommandLaunch) {
-                                                                                            
           yield* Effect.promise(() => runningCommandPublished);
           return yield* Effect.never;
         }
@@ -1742,7 +1732,7 @@ const program = Effect.gen(function* () {
           promptIdFromRequestMeta(request),
           grokKillTaskShape,
         );
-                                                                    
+
         return yield* Effect.never;
       }
 
@@ -2001,7 +1991,7 @@ const program = Effect.gen(function* () {
               stop_reason: "end_turn",
             },
           });
-                                                                                     
+
           return yield* Effect.never;
         }
         writeJsonRpcNotification("_x.ai/session/prompt_complete", {
@@ -2493,7 +2483,6 @@ const program = Effect.gen(function* () {
       }
 
       if (emitXAiPlanMdWrite) {
-                                                                                 
         const planRoot = process.env.SUPATERM_ACP_PLAN_ROOT ?? "/tmp/mock-home/.grok";
         const planPath = `${planRoot}/sessions/${requestedSessionId}/plan.md`;
         const planBody = "# Mock plan\n\n- Write the feature\n- Add a test\n- Ship it\n";

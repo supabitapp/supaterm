@@ -1,4 +1,3 @@
-                                                                                                 
 import type { FeedSample } from "./device.ts";
 
 export type Metrics = Readonly<Record<string, number | boolean | string | null>>;
@@ -21,12 +20,6 @@ export function median(values: ReadonlyArray<number>): number {
 
 const round = (value: number, digits = 1) => Number(value.toFixed(digits));
 
-   
-                                                                                                
-                                                                                               
-                                                                                               
-                 
-   
 export function frameStats(
   timestamps: ReadonlyArray<number>,
   prefix: string,
@@ -51,14 +44,8 @@ export function frameStats(
   };
 }
 
-                                                                                            
 export const TELEPORT_PX = 400;
 
-   
-                                                                                            
-                                                                                            
-                                                                                          
-   
 export function feedMotion(samples: ReadonlyArray<FeedSample>, direction: 1 | -1 | 0): Metrics {
   let backward = 0;
   let largest = 0;
@@ -73,7 +60,7 @@ export function feedMotion(samples: ReadonlyArray<FeedSample>, direction: 1 | -1
       const rowStep = after.rows![key]! - before.rows![key]!;
       if (Math.abs(rowStep) > Math.abs(step)) step = rowStep;
     }
-                                                                                                  
+
     if (shared.length === 0 && before.content === after.content)
       step = (before.scroll ?? 0) - (after.scroll ?? 0);
     moved += Math.abs(step);
@@ -115,7 +102,7 @@ export interface SampleRow {
   readonly pass: boolean | null;
   readonly failures: ReadonlyArray<string>;
   readonly metrics: Metrics;
-                                                                                  
+
   readonly error?: string;
 }
 
@@ -125,10 +112,7 @@ export interface CaseResult {
   readonly samples: number;
   readonly passed: number;
   readonly errors: number;
-     
-                                                                                           
-                                                                         
-     
+
   readonly pass: boolean | null;
   readonly key: number | boolean | string | null;
 }
@@ -161,7 +145,6 @@ export function caseResult(
 const mark = (result: CaseResult) =>
   `${result.pass === null ? "incomplete" : result.pass ? "pass" : "FAIL"} ${result.passed}/${result.samples + result.errors}`;
 
-                                                                               
 export function summarize(input: {
   readonly cases: ReadonlyArray<{
     readonly id: string;
@@ -218,10 +201,6 @@ export function resultsFor(
   });
 }
 
-   
-                                                                                             
-                                                                   
-   
 export function blockingResults(
   results: ReadonlyArray<CaseResult>,
   cases: ReadonlyArray<{ readonly id: string; readonly kind: string }>,

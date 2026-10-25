@@ -12,7 +12,11 @@ class LinuxArm64SeaError extends Schema.TaggedError<LinuxArm64SeaError>()("Linux
 
 const encodeJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
 
-const run = Effect.fn("LinuxArm64Sea.run")(function* (nodeExecutable: string, args: Array<string>, verbose: boolean) {
+const run = Effect.fn("LinuxArm64Sea.run")(function* (
+  nodeExecutable: string,
+  args: Array<string>,
+  verbose: boolean,
+) {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const child = yield* spawner.spawn(
     ChildProcess.make(nodeExecutable, args, {
@@ -33,11 +37,26 @@ export const injectLinuxArm64Sea = Effect.fn("LinuxArm64Sea.inject")(function* (
   verbose: boolean;
 }) {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-  const selected = yield* resolveSpawnCommand("vp", ["env", "exec", "--node", input.nodeVersion, "--", "node", "--print", "process.execPath"]);
-  const nodeExecutable = (yield* spawner.string(ChildProcess.make(selected.command, selected.args, { shell: selected.shell }))).trim();
-  const actualVersion = (yield* spawner.string(ChildProcess.make(nodeExecutable, ["--print", "process.versions.node"]))).trim();
+  const selected = yield* resolveSpawnCommand("vp", [
+    "env",
+    "exec",
+    "--node",
+    input.nodeVersion,
+    "--",
+    "node",
+    "--print",
+    "process.execPath",
+  ]);
+  const nodeExecutable = (yield* spawner.string(
+    ChildProcess.make(selected.command, selected.args, { shell: selected.shell }),
+  )).trim();
+  const actualVersion = (yield* spawner.string(
+    ChildProcess.make(nodeExecutable, ["--print", "process.versions.node"]),
+  )).trim();
   if (actualVersion !== input.nodeVersion) {
-    return yield* new LinuxArm64SeaError({ message: `Expected Node ${input.nodeVersion}, got ${actualVersion}.` });
+    return yield* new LinuxArm64SeaError({
+      message: `Expected Node ${input.nodeVersion}, got ${actualVersion}.`,
+    });
   }
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -51,7 +70,7 @@ export const injectLinuxArm64Sea = Effect.fn("LinuxArm64Sea.inject")(function* (
       output: blobPath,
       mainFormat: "module",
       disableExperimentalSEAWarning: true,
-                                                                       
+
       useCodeCache: false,
     }),
   );

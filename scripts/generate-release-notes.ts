@@ -13,7 +13,6 @@ import { Command, Flag } from "effect/cli";
 import { FetchHttpClient, HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
-                                                                                  
 const PULL_REQUEST_NUMBER = /\(#(\d+)\)$/;
 const PULL_REQUEST_BODY_LIMIT = 300;
 const SUMMARY_MODEL = "gpt-6.1-terra";
@@ -104,7 +103,6 @@ const pullRequestNumber = (subject: string) => {
   return match ? Number(match[1]) : undefined;
 };
 
-                                                                                                 
 function trimPullRequestBody(body: string, limit = PULL_REQUEST_BODY_LIMIT): string {
   const [prose = ""] = body.split(/\n#+\s*(?:Verification|Council|Test|Testing|Screenshots)\b/i);
   const text = prose
@@ -132,13 +130,12 @@ function buildSummaryInput(
     .join("\n");
 }
 
-                                                                                          
 export function countContributors(
   commits: ReadonlyArray<ReleaseCommit>,
   pullRequests: ReadonlyMap<number, PullRequest>,
 ): number {
   const people = new Set<string>();
-                                                                                                
+
   const prAuthorNames = new Set<string>();
   const directAuthors: string[] = [];
   for (const commit of commits) {
@@ -159,13 +156,11 @@ export function countContributors(
   return people.size;
 }
 
-                                                                                             
 function buildReleaseHeader(version: string, changes: number, contributors: number): string {
   const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
   return `**v${version.replace(/^v/, "")}** · ${plural(changes, "change")} from ${plural(contributors, "contributor")}`;
 }
 
-                                                                                                 
 function assembleReleaseNotes(header: string, summary: string, fullChangelog: string): string {
   return `${header}\n\n${summary.trim()}\n\n<details>\n<summary>Full changelog</summary>\n\n${fullChangelog.trim()}\n\n</details>\n`;
 }
@@ -254,7 +249,6 @@ const readFullChangelog = Effect.fn("generateReleaseNotes.readFullChangelog")(fu
 });
 
 export function summaryText(response: typeof SummaryResponse.Type): Option.Option<string> {
-                                                                                            
   if (response.status !== "completed") return Option.none();
   const text = response.output
     .flatMap((item) => item.content ?? [])
@@ -303,9 +297,8 @@ const command = Command.make(
   },
   ({ repository, tag, ref, previousTag, version, output }) =>
     Effect.gen(function* () {
-                                                                                         
       const allCommits = yield* readCommits(previousTag, ref);
-                                                                                        
+
       if (allCommits.length === 0) {
         return yield* new EmptyReleaseRangeError({ range: `${previousTag}..${ref}` });
       }
@@ -325,7 +318,7 @@ const command = Command.make(
         allCommits.length,
         countContributors(allCommits, pullRequests),
       );
-                                                                                            
+
       const summary =
         commits.length === 0
           ? Option.none<string>()
@@ -334,7 +327,7 @@ const command = Command.make(
         return yield* Effect.logWarning("no release summary, leaving GitHub's notes in place");
       }
       const fs = yield* FileSystem.FileSystem;
-                                                                                              
+
       yield* fs.writeFileString(
         `${output}.tmp`,
         assembleReleaseNotes(header, summary.value, fullChangelog),

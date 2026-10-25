@@ -85,8 +85,7 @@ export function resolveShowcaseAndroidAbi(
 
 const config: ShowcaseConfig = {
   outputDirectory: "artifacts/app-store/screenshots",
-                                                                              
-                                                         
+
   metroPort: 8199,
   settleDelayMs: 2_500,
   devices: [
@@ -150,7 +149,7 @@ const config: ShowcaseConfig = {
       theme: DEFAULT_SHOWCASE_THEME,
       orientation: fold === "closed" ? "portrait" : "landscape",
       fold,
-                                                       
+
       scenes: ["thread", "terminal", "review", "threads", "environments"],
       storeAsset: {
         store: "apple",
@@ -183,8 +182,7 @@ const config: ShowcaseConfig = {
       id: "pixel",
       platform: "android",
       avd: "Pixel_10_Pro",
-                                                                               
-                                               
+
       abi: resolveShowcaseAndroidAbi(process.env.SUPATERM_SHOWCASE_ANDROID_ABI),
       appearance: "dark",
       theme: DEFAULT_SHOWCASE_THEME,

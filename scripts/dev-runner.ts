@@ -31,10 +31,7 @@ const BASE_WEB_PORT = 5733;
 const MAX_HASH_OFFSET = 3000;
 const MAX_PORT = 65535;
 const DESKTOP_DEV_LOOPBACK_HOST = "127.0.0.1";
-                                                                             
-                                                                          
-                                                                           
-                                                       
+
 const FETCH_BAD_PORTS = new Set([
   0, 1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79, 87, 95, 101, 102,
   103, 104, 109, 110, 111, 113, 115, 117, 119, 123, 135, 137, 139, 143, 161, 179, 389, 427, 465,
@@ -42,17 +39,11 @@ const FETCH_BAD_PORTS = new Set([
   995, 1719, 1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668,
   6669, 6679, 6697, 10080,
 ]);
-                                                                     
-                                                  
+
 const DEV_PORT_PROBE_HOSTS = ["127.0.0.1", "::1"] as const;
-                                                                              
-                                
+
 const LARGE_DEV_DATABASE_BYTES = 500 * 1024 * 1024;
 
-   
-                                                                                
-                                                                       
-   
 export function isProxiableBindHost(host: string): boolean {
   const normalized = host.trim();
   return (
@@ -85,8 +76,6 @@ const MODE_ARGS = {
   "dev:desktop": ["run", "--filter=@supaterm/desktop", "--filter=@supaterm/web", "dev"],
 } as const satisfies Record<string, ReadonlyArray<string>>;
 
-                                                                                
-                                  
 const BUILT_DEV_ARGS = [
   "run",
   "--filter=@supaterm/web",
@@ -96,10 +85,7 @@ const BUILT_DEV_ARGS = [
 ] as const;
 
 type DevMode = keyof typeof MODE_ARGS;
-   
-                                                                                
-                               
-   
+
 type PortAvailabilityCheck<R = never> = (
   port: number,
   role?: "server" | "web",
@@ -355,15 +341,9 @@ export const createDevRunnerEnv = Effect.fn("dev-runner.createDevRunnerEnv")(fun
     output.SUPATERM_PORT = String(serverPort);
     delete output.HOST;
     if (mode === "dev" || mode === "dev:web") {
-                                                                            
-                                                                  
-                                                                     
       delete output.VITE_HTTP_URL;
       delete output.VITE_WS_URL;
-                                                                             
-                                                                          
-                                                                            
-                            
+
       output.SUPATERM_SINGLE_ORIGIN_DEV = "1";
     } else {
       output.VITE_HTTP_URL = `http://localhost:${serverPort}`;
@@ -374,8 +354,7 @@ export const createDevRunnerEnv = Effect.fn("dev-runner.createDevRunnerEnv")(fun
     output.SUPATERM_PORT = String(serverPort);
     output.VITE_HTTP_URL = `http://${DESKTOP_DEV_LOOPBACK_HOST}:${serverPort}`;
     output.VITE_WS_URL = `ws://${DESKTOP_DEV_LOOPBACK_HOST}:${serverPort}`;
-                                                                          
-                                          
+
     delete output.SUPATERM_SINGLE_ORIGIN_DEV;
     delete output.SUPATERM_MODE;
     delete output.SUPATERM_NO_BROWSER;
@@ -593,7 +572,6 @@ export const resolveModePortOffsets = Effect.fn("dev-runner.resolveModePortOffse
   return { serverOffset: sharedOffset, webOffset: sharedOffset };
 });
 
-                                                                          
 const runRepoScript = Effect.fn("dev-runner.runRepoScript")(function* (
   script: string,
   args: ReadonlyArray<string>,
@@ -615,12 +593,6 @@ const runRepoScript = Effect.fn("dev-runner.runRepoScript")(function* (
   }
 });
 
-   
-                                                                               
-                                                                              
-                                                                     
-                                                                                  
-   
 const prepareFirstStart = Effect.fn("dev-runner.prepareFirstStart")(function* (input: {
   readonly mode: DevMode;
   readonly seed: boolean;
@@ -647,8 +619,7 @@ const prepareFirstStart = Effect.fn("dev-runner.prepareFirstStart")(function* (i
       "userdata",
       "statev2.sqlite",
     );
-                                                                             
-                                                           
+
     if (
       input.seed &&
       !(yield* exists(path.join(stateDir, "statev2.sqlite"))) &&
@@ -741,13 +712,9 @@ export const runDevRunnerWithInput = Effect.fn("dev-runner.runDevRunnerWithInput
   });
 
   const hostEnvironment = yield* HostProcess.Environment;
-                                                                           
-                                                                              
-                                                               
+
   const worktreeHome = yield* resolveWorktreeSupatermHome(yield* HostProcess.WorkingDirectory);
-                                                                              
-                                                                         
-                                                           
+
   const resolvedSupatermHome =
     (input.supatermHome?.trim() || undefined) ??
     worktreeHome ??
@@ -776,9 +743,6 @@ export const runDevRunnerWithInput = Effect.fn("dev-runner.runDevRunnerWithInput
     `[dev-runner] mode=${input.mode} source=${source}${selectionSuffix} serverPort=${String(env.SUPATERM_PORT)} webPort=${String(env.PORT)} baseDir=${baseDir}`,
   );
 
-                                                                              
-                                                                       
-                                                               
   if (input.dryRun) {
     return;
   }
@@ -793,15 +757,10 @@ export const runDevRunnerWithInput = Effect.fn("dev-runner.runDevRunnerWithInput
         "[dev-runner] --share is not supported for dev:desktop (the renderer is pinned to loopback). Use `dev`, which runs the whole browser stack.",
       );
     } else {
-                                                                               
-                                                                              
-                                                                          
-                                                                    
       const shared = yield* Effect.acquireRelease(
         shareDevServer({
           webPort: sharedWebPort,
-                                                                             
-                                                                            
+
           ...(input.built
             ? {
                 localTarget: {
@@ -836,9 +795,6 @@ export const runDevRunnerWithInput = Effect.fn("dev-runner.runDevRunnerWithInput
       );
 
       if (shared) {
-                                                                          
-                                                                        
-                                                                           
         env.SUPATERM_DEV_ALLOWED_ORIGINS = [
           env.SUPATERM_DEV_ALLOWED_ORIGINS,
           new URL(shared.url).origin,
@@ -852,10 +808,6 @@ export const runDevRunnerWithInput = Effect.fn("dev-runner.runDevRunnerWithInput
           built = true;
           env.SUPATERM_BUILT_DEV = "1";
         } else if (env.SUPATERM_BUNDLED_DEV === undefined) {
-                                                                           
-                                                                              
-                                                                                
-                                
           env.SUPATERM_BUNDLED_DEV = "1";
         }
         yield* Effect.logInfo(`[dev-runner] shared on tailnet: ${shared.url}`);
@@ -867,7 +819,6 @@ export const runDevRunnerWithInput = Effect.fn("dev-runner.runDevRunnerWithInput
     }
   }
 
-                                                                           
   yield* prepareFirstStart({
     mode: input.mode,
     seed: input.seed !== false,
@@ -890,9 +841,7 @@ export const runDevRunnerWithInput = Effect.fn("dev-runner.runDevRunnerWithInput
     env,
     extendEnv: false,
     shell: spawnCommand.shell,
-                                                                        
-                                                                           
-                                                                               
+
     detached: false,
     forceKillAfter: "1500 millis",
   }).pipe(

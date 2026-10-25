@@ -28,7 +28,6 @@ A second checkout comes from \`git worktree add ../<name> main\`; copy the harne
 in if that tree predates them.`;
 
 export interface ScenarioReport {
-                                                                      
   readonly commits: number | null;
   readonly renders: number;
   readonly components: Readonly<Record<string, number>>;
@@ -38,7 +37,9 @@ export type RenderMetrics = Readonly<Record<string, ScenarioReport>>;
 const root = NodePath.resolve(import.meta.dirname, "..");
 
 function runOnce(): RenderMetrics {
-  const directory = NodeFS.mkdtempSync(NodePath.join(NodeOS.homedir(), ".cache", "supaterm-renders-"));
+  const directory = NodeFS.mkdtempSync(
+    NodePath.join(NodeOS.homedir(), ".cache", "supaterm-renders-"),
+  );
   try {
     const result = NodeChildProcess.spawnSync("vp", ["test", "run", "--project", "renders"], {
       cwd: NodePath.join(root, "apps/web"),
@@ -60,7 +61,6 @@ function runOnce(): RenderMetrics {
   }
 }
 
-                                                           
 export function nondeterministic(runs: ReadonlyArray<RenderMetrics>): string[] {
   const [first, ...rest] = runs;
   if (!first) return [];
@@ -97,8 +97,11 @@ export function renderComparison(before: RenderMetrics, after: RenderMetrics, to
     const a = before[scenario]?.components ?? {};
     const b = after[scenario]?.components ?? {};
     const moved = [...new Set([...Object.keys(a), ...Object.keys(b)])]
-      .map((name) => [name, a[name] ?? 0, b[name] ?? 0] as const)
-      .filter(([, x, y]) => x !== y)
+      .flatMap((name) => {
+        const before = a[name] ?? 0;
+        const after = b[name] ?? 0;
+        return before === after ? [] : [[name, before, after] as const];
+      })
       .sort(([n, x, y], [m, p, q]) => Math.abs(q - p) - Math.abs(y - x) || n.localeCompare(m))
       .slice(0, top);
     if (moved.length === 0) continue;

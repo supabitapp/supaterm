@@ -121,10 +121,11 @@ const buildExeCmd = Command.make(
 
       yield* Effect.log("[cli] Building single-executable...");
       const target = Option.getOrUndefined(config.target);
-      const linuxArm64 = (!target || target === "linux-arm64") &&
-        (yield* HostProcess.Platform) === "linux" && (yield* HostProcess.Architecture) === "arm64";
-                                                                             
-                                                                        
+      const linuxArm64 =
+        (!target || target === "linux-arm64") &&
+        (yield* HostProcess.Platform) === "linux" &&
+        (yield* HostProcess.Architecture) === "arm64";
+
       const spawnCommand = yield* resolveSpawnCommand("vp", [
         "env",
         "exec",
@@ -140,7 +141,7 @@ const buildExeCmd = Command.make(
           env: {
             ...process.env,
             SUPATERM_PACK_EXE: linuxArm64 ? "bundle" : "1",
-            SUPATERM_PACK_EXE_TARGET: linuxArm64 ? "" : target ?? "",
+            SUPATERM_PACK_EXE_TARGET: linuxArm64 ? "" : (target ?? ""),
           },
           stdout: config.verbose ? "inherit" : "ignore",
           stderr: "inherit",
@@ -148,16 +149,18 @@ const buildExeCmd = Command.make(
         }),
       );
 
-                                                                         
-                                                                           
-                                                                              
       const bundlePath = path.join(serverDir, "dist-exe/bin.mjs");
       const specifiers = findEsmImportsOfExternalPackages(yield* fs.readFileString(bundlePath));
       if (specifiers.length > 0) {
         return yield* new ServerCliExecutableImportError({ bundlePath, specifiers });
       }
       if (linuxArm64) {
-        yield* injectLinuxArm64Sea({ bundlePath, outputPath: path.join(serverDir, "dist-exe/supaterm"), nodeVersion: SEA_NODE_VERSION, verbose: config.verbose });
+        yield* injectLinuxArm64Sea({
+          bundlePath,
+          outputPath: path.join(serverDir, "dist-exe/supaterm"),
+          nodeVersion: SEA_NODE_VERSION,
+          verbose: config.verbose,
+        });
       }
       yield* Effect.log(
         "[cli] Built dist-exe/supaterm (expects client/, resource-monitor/, and the runtime-external node_modules beside it; scripts/build-cli-archive.ts assembles that tree)",
@@ -169,11 +172,6 @@ const buildExeCmd = Command.make(
   ),
 );
 
-   
-                                                                                    
-                                                                            
-                                                           
-   
 const publishCmd = Command.make(
   "publish",
   {

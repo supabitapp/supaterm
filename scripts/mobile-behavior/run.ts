@@ -1,9 +1,6 @@
 #!/usr/bin/env node
 // @effect-diagnostics nodeBuiltinImport:off preferSchemaOverJson:off - owns Metro and writes result files.
-   
-                                                                                               
-                                                                                            
-   
+
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
@@ -26,7 +23,6 @@ import { SCENARIOS, type Pose, type ScenarioContext } from "./scenarios.ts";
 const REPO_ROOT = NodePath.resolve(import.meta.dirname, "../..");
 const POSES = ["phone", "duo-closed", "duo-open", "ipad"] as const satisfies ReadonlyArray<Pose>;
 
-                                                                                                     
 function reachableHost(): string {
   const tailnet = NodeChildProcess.spawnSync("tailscale", ["ip", "-4"], { encoding: "utf8" });
   const ip = tailnet.status === 0 ? tailnet.stdout.trim().split("\n")[0] : undefined;
@@ -37,7 +33,6 @@ function reachableHost(): string {
   return lan?.address ?? "127.0.0.1";
 }
 
-                                                                                                     
 const startMetro = Effect.fn("run.startMetro")(function* (host: string, out: string) {
   const port = yield* freePort();
   const log = NodeFS.openSync(NodePath.join(out, "metro.log"), "w");
@@ -54,7 +49,7 @@ const startMetro = Effect.fn("run.startMetro")(function* (host: string, out: str
             ...process.env,
             APP_VARIANT: "development",
             CI: "1",
-                                                                                                      
+
             EXPO_NO_METRO_LAZY: "1",
             EXPO_PUBLIC_SUPATERM_BEHAVIOR_PROBE: "1",
             REACT_NATIVE_PACKAGER_HOSTNAME: host,
@@ -139,7 +134,7 @@ const command = Command.make(
   },
   Effect.fn("mobileBehavior.main")(function* (flags) {
     const out = NodePath.resolve(flags.out);
-                                                                                              
+
     const baseline = Option.map(flags.baseline, (file) => resultsFor(decodeRows(file), CASES));
     NodeFS.mkdirSync(out, { recursive: true });
     const label = Option.getOrElse(flags.label, () => flags.pose);
@@ -180,7 +175,7 @@ const command = Command.make(
       deviceName: flags.deviceName,
     });
     yield* Console.error(`Opening the dev client against ${metro}...`);
-                                                                                               
+
     const metroUrl = new URL(metro);
     const launchUrl = `${SCHEME}://expo-development-client/?url=${encodeURIComponent(metro)}&disableOnboarding=1&__expo_disable_fab=1&__expo_disable_auto_launch=1`;
     yield* device
@@ -204,7 +199,7 @@ const command = Command.make(
         .evaluate("typeof __supatermBehavior")
         .pipe(Effect.orElseSucceed(() => ""));
       if (loaded === "object") break;
-                                                                                       
+
       if (attempt % 5 === 0) yield* device.acceptOpenPrompt.pipe(Effect.ignore);
       if (attempt > 120)
         return yield* new DeviceError({
@@ -223,12 +218,12 @@ const command = Command.make(
     yield* device.openUrl(
       `${SCHEME}://connections/new?pairingUrl=${encodeURIComponent(pairing)}&autoConnect=1`,
     );
-                                                                                                
+
     yield* Effect.addFinalizer(() => forget([env.environmentId]).pipe(Effect.ignore));
     const seeded = (state: { homeList: unknown; threads: Record<string, string> }) =>
       state.homeList !== null && longThread in state.threads;
     yield* device.waitFor("the paired environment's threads on Home", seeded, 60_000);
-                                                                                                
+
     const others = (yield* device.state).environments.filter((id) => id !== env.environmentId);
     if (others.length > 0 && !flags.forgetOtherEnvironments)
       return yield* new DeviceError({
@@ -253,7 +248,7 @@ const command = Command.make(
           Effect.andThen(SCENARIOS[scenario](ctx)),
           Effect.map((metrics) => ({ metrics, error: undefined })),
           Effect.catch((error) => Effect.succeed({ metrics: {}, error: error.message })),
-                                                                             
+
           Effect.catchDefect((defect) => Effect.succeed({ metrics: {}, error: String(defect) })),
         );
         for (const testCase of cases) {

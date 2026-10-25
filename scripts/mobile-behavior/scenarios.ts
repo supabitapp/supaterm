@@ -1,8 +1,5 @@
 // @effect-diagnostics globalDate:off - scenario windows are wall-clock by nature.
-   
-                                                                                        
-                                                                        
-   
+
 import type { ThreadId } from "@supaterm/contracts";
 import type * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
@@ -28,7 +25,6 @@ export interface ScenarioContext {
   readonly fixtures: { readonly longThread: ThreadId };
 }
 
-                                                          
 const threadPath = (ctx: ScenarioContext, threadId: string) =>
   `threads/${encodeURIComponent(ctx.env.environmentId)}/${encodeURIComponent(threadId)}`;
 
@@ -47,7 +43,6 @@ const openThread = Effect.fn("scenario.openThread")(function* (
   );
 });
 
-                                                                                              
 const geometry = Effect.fn("scenario.geometry")(function* (ctx: ScenarioContext) {
   const nodes = yield* ctx.device.nodes;
   const rect = nodes[0]?.rect ?? { x: 0, y: 0, width: 400, height: 870 };
@@ -76,13 +71,11 @@ const composerNode = (ctx: ScenarioContext) =>
     (node) => node.kind === "text-view" && node.editable === true,
   );
 
-                                                                                                  
 const composerText = Effect.fn("scenario.composerText")(function* (ctx: ScenarioContext) {
   const node = yield* composerNode(ctx);
   return node.value ?? node.label ?? "";
 });
 
-                                                                              
 const freshThread = Effect.fn("scenario.freshThread")(function* (
   ctx: ScenarioContext,
   prompt = "Hi. [[eval:reply]]",
@@ -92,14 +85,13 @@ const freshThread = Effect.fn("scenario.freshThread")(function* (
   return threadId;
 });
 
-                                                                              
 const typeInComposer = Effect.fn("scenario.typeInComposer")(function* (
   ctx: ScenarioContext,
   text: string,
 ) {
   const { x, y } = ctx.device.center(yield* composerNode(ctx));
   yield* ctx.device.run(["fill", String(x), String(y), text]);
-                                                                                             
+
   yield* ctx.device.waitFor("the keyboard", (state) => state.composer.keyboard, 10_000);
   yield* Effect.sleep("1 second");
 });
@@ -109,7 +101,6 @@ const countUserText = (
   text: string,
 ) => projection.messages.filter((message) => message.text === text).length;
 
-                                                                                        
 const startStream = Effect.fn("scenario.startStream")(function* (
   ctx: ScenarioContext,
   threadId: ThreadId,
@@ -124,8 +115,6 @@ const startStream = Effect.fn("scenario.startStream")(function* (
   );
 });
 
-                                                                                                         
-                                                                                                   
 const recordFor = <E, R>(
   ctx: ScenarioContext,
   withFeed: boolean,
@@ -138,14 +127,12 @@ const recordFor = <E, R>(
     ),
   );
 
-                                                                                                   
 const frameMetrics = (recording: { js: ReadonlyArray<number>; ui: ReadonlyArray<number> }) => {
   const ui = frameStats(recording.ui, "ui");
   const refreshMs = typeof ui.uiRefreshHz === "number" ? 1000 / ui.uiRefreshHz : undefined;
   return { ...frameStats(recording.js, "js", refreshMs), ...ui };
 };
 
-                                                                                         
 export class ScenarioFailure extends Schema.TaggedError<ScenarioFailure>()("ScenarioFailure", {
   message: Schema.String,
 }) {}
@@ -160,7 +147,6 @@ const failure = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
 type Scenario = (ctx: ScenarioContext) => Effect.Effect<Metrics, ScenarioFailure, Crypto.Crypto>;
 
 export const SCENARIOS = {
-                                                      
   scrollUpLongThread: Effect.fn("scenario.scrollUpLongThread")(function* (ctx: ScenarioContext) {
     yield* openThread(ctx, ctx.fixtures.longThread);
     const { height, threadX } = yield* geometry(ctx);
@@ -176,7 +162,6 @@ export const SCENARIOS = {
     return { ...feedMotion(recording.feed, 1), ...frameMetrics(recording) } satisfies Metrics;
   }, failure),
 
-                                                                     
   streamInView: Effect.fn("scenario.streamInView")(function* (ctx: ScenarioContext) {
     yield* openThread(ctx, ctx.fixtures.longThread);
     yield* startStream(ctx, ctx.fixtures.longThread, "[[eval:stream:4000:25]]");
@@ -193,7 +178,6 @@ export const SCENARIOS = {
     } satisfies Metrics;
   }, failure),
 
-                                                                                   
   sendInLongThread: Effect.fn("scenario.sendInLongThread")(function* (ctx: ScenarioContext) {
     yield* openThread(ctx, ctx.fixtures.longThread);
     const text = `Follow-up ${(yield* uuid).slice(0, 8)} [[eval:reply]]`;
@@ -219,7 +203,6 @@ export const SCENARIOS = {
     } satisfies Metrics;
   }, failure),
 
-                                                                                   
   backgroundFinish: Effect.fn("scenario.backgroundFinish")(function* (ctx: ScenarioContext) {
     const key = `bg-${(yield* uuid).slice(0, 8)}`;
     const other = yield* ctx.env.launch("Background work", `Run the job. [[eval:hold:${key}]]`);
@@ -240,7 +223,6 @@ export const SCENARIOS = {
     return { ...feedMotion(recording.feed, 0) } satisfies Metrics;
   }, failure),
 
-                                                                                 
   draftThreadSwitch: Effect.fn("scenario.draftThreadSwitch")(function* (ctx: ScenarioContext) {
     const text = `Draft ${(yield* uuid).slice(0, 8)}`;
     const other = yield* freshThread(ctx);
@@ -265,7 +247,6 @@ export const SCENARIOS = {
     } satisfies Metrics;
   }, failure),
 
-                                                                            
   draftBackground: Effect.fn("scenario.draftBackground")(function* (ctx: ScenarioContext) {
     const text = `Draft ${(yield* uuid).slice(0, 8)}`;
     const threadId = yield* freshThread(ctx);
@@ -273,7 +254,7 @@ export const SCENARIOS = {
     yield* typeInComposer(ctx, text);
     yield* ctx.device.home;
     yield* Effect.sleep("3 seconds");
-                                                                                               
+
     yield* ctx.device.run([
       "open",
       APP_ID,
@@ -289,7 +270,6 @@ export const SCENARIOS = {
     } satisfies Metrics;
   }, failure),
 
-                                                     
   tapComposer: Effect.fn("scenario.tapComposer")(function* (ctx: ScenarioContext) {
     const threadId = yield* freshThread(ctx);
     yield* openThread(ctx, threadId);
@@ -305,14 +285,12 @@ export const SCENARIOS = {
     } satisfies Metrics;
   }, failure),
 
-                                                                                                    
   skillPick: Effect.fn("scenario.skillPick")(function* (ctx: ScenarioContext) {
     yield* openThread(ctx, yield* freshThread(ctx));
-                                                                                        
+
     yield* typeInComposer(ctx, "/eval");
     const composer = yield* composerNode(ctx);
-                                                                                           
-                                          
+
     let item: AxNode | undefined;
     for (let attempt = 0; attempt < 10 && !item?.rect; attempt++) {
       yield* Effect.sleep("1 second");
@@ -335,16 +313,15 @@ export const SCENARIOS = {
     } satisfies Metrics;
   }, failure),
 
-                                                                              
   failedSend: Effect.fn("scenario.failedSend")(function* (ctx: ScenarioContext) {
     const { threadId, lock } = yield* ctx.env.launchLockable("Locked thread");
     yield* openThread(ctx, threadId);
     const text = `Will fail ${(yield* uuid).slice(0, 8)}`;
     yield* typeInComposer(ctx, text);
     yield* lock;
-                                                                          
+
     yield* Effect.sleep("2 seconds");
-                                                                                     
+
     const sendBlocked =
       (yield* ctx.device.nodes).find((node) => node.label === "Send")?.enabled === false;
     if (!sendBlocked) yield* ctx.device.press('label="Send"');
@@ -360,7 +337,6 @@ export const SCENARIOS = {
     } satisfies Metrics;
   }, failure),
 
-                                                      
   workingShelfFinish: Effect.fn("scenario.workingShelfFinish")(function* (ctx: ScenarioContext) {
     const key = `shelf-${(yield* uuid).slice(0, 8)}`;
     const threadId = yield* ctx.env.launch("Shelf work", `Run the job. [[eval:hold:${key}]]`);
@@ -370,20 +346,19 @@ export const SCENARIOS = {
     );
     yield* ctx.env.release(key);
     yield* ctx.env.settled(threadId);
-                                                                                 
+
     yield* Effect.sleep("5 seconds");
     const after = yield* ctx.device.state;
     return {
       shelfShownWhileWorking: shelfCount(working) > 0,
       shelfCountAfter: shelfCount(after),
-                                                                                       
+
       appWorkingThreads: Object.values(after.threads).filter((status) => status === "working")
         .length,
       statusAfter: after.threads[threadId] ?? "missing",
     } satisfies Metrics;
   }, failure),
 
-                                                     
   pendingQuestion: Effect.fn("scenario.pendingQuestion")(function* (ctx: ScenarioContext) {
     const threadId = yield* ctx.env.launch("Question", `Ask me first. [[eval:question]]`);
     yield* ctx.env.waitForPendingInput(threadId);
@@ -396,7 +371,6 @@ export const SCENARIOS = {
     } satisfies Metrics;
   }, failure),
 
-                                                                             
   subagentsRunning: Effect.fn("scenario.subagentsRunning")(function* (ctx: ScenarioContext) {
     const key = `sub-${(yield* uuid).slice(0, 8)}`;
     const threadId = yield* ctx.env.launch("Subagents", `Fan out. [[eval:subagents:${key}]]`);
@@ -414,7 +388,6 @@ export const SCENARIOS = {
     } satisfies Metrics;
   }, failure),
 
-                                                    
   openSubagentThread: Effect.fn("scenario.openSubagentThread")(function* (ctx: ScenarioContext) {
     const key = `child-${(yield* uuid).slice(0, 8)}`;
     const threadId = yield* ctx.env.launch("Parent", `Fan out. [[eval:subagents:${key}]]`);
@@ -442,13 +415,12 @@ export const SCENARIOS = {
     } satisfies Metrics;
   }, failure),
 
-                                                  
   pinFromLongPress: Effect.fn("scenario.pinFromLongPress")(function* (ctx: ScenarioContext) {
     const title = `Pin target ${(yield* uuid).slice(0, 6)}`;
     const target = yield* ctx.env.launch(title, "Hi. [[eval:reply]]");
     yield* ctx.env.settled(target);
     yield* waitForRow(ctx, title);
-                                                                                 
+
     for (let attempt = 0; attempt < 2; attempt++) {
       yield* ctx.device.longPress(rowSelector(title));
       yield* Effect.sleep("1 second");
@@ -467,7 +439,6 @@ export const SCENARIOS = {
     } satisfies Metrics;
   }, failure),
 
-                                                                        
   linkToNewThread: Effect.fn("scenario.linkToNewThread")(function* (ctx: ScenarioContext) {
     const threadId = yield* ctx.env.launch("Linked thread", "Hi. [[eval:reply]]");
     yield* ctx.device.open(threadPath(ctx, threadId));
@@ -476,7 +447,6 @@ export const SCENARIOS = {
     return { opensTarget: isThread(after, threadId) } satisfies Metrics;
   }, failure),
 
-                                            
   linkToArchivedThread: Effect.fn("scenario.linkToArchivedThread")(function* (
     ctx: ScenarioContext,
   ) {
@@ -490,13 +460,12 @@ export const SCENARIOS = {
     return { opensTarget: isThread(after, threadId) } satisfies Metrics;
   }, failure),
 
-                            
   openFromList: Effect.fn("scenario.openFromList")(function* (ctx: ScenarioContext) {
     const title = `Open me ${(yield* uuid).slice(0, 6)}`;
     const target = yield* ctx.env.launch(title, "Hi. [[eval:reply]]");
     yield* ctx.env.settled(target);
     yield* waitForRow(ctx, title);
-                                                                        
+
     yield* Effect.sleep("1 second");
     yield* ctx.device.press(rowSelector(title));
     const after = yield* ctx.device
@@ -505,7 +474,6 @@ export const SCENARIOS = {
     return { opensTarget: after._tag === "Some" } satisfies Metrics;
   }, failure),
 
-                                                                                 
   duoBackThenOpen: Effect.fn("scenario.duoBackThenOpen")(function* (ctx: ScenarioContext) {
     const tag = (yield* uuid).slice(0, 6);
     const first = yield* ctx.env.launch(`Duo first ${tag}`, "Hi. [[eval:reply]]");
@@ -520,10 +488,10 @@ export const SCENARIOS = {
     yield* ctx.device.press(rowSelector(`Duo next ${tag}`));
     yield* Effect.sleep("2 seconds");
     const after = yield* ctx.device.state;
-                                                                                              
+
     const nodes = yield* ctx.device.nodes;
     const screen = nodes[0]?.rect;
-                                                                                                 
+
     const bars = nodes.flatMap((node) =>
       node.kind === "navigation-bar" && node.rect ? [node.rect] : [],
     );
@@ -545,12 +513,10 @@ export const SCENARIOS = {
 
 export type ScenarioName = keyof typeof SCENARIOS;
 
-                                                                                       
 function rowSelector(title: string) {
   return `label="${title}"`;
 }
 
-                                                                                           
 const waitForStill = Effect.fn("scenario.waitForStill")(function* (ctx: ScenarioContext) {
   let previous = -1;
   for (let attempt = 0; attempt < 20; attempt++) {
@@ -561,7 +527,6 @@ const waitForStill = Effect.fn("scenario.waitForStill")(function* (ctx: Scenario
   }
 });
 
-                                                                                   
 function settledFromEnd(samples: ReadonlyArray<FeedSample>) {
   let worst = 0;
   for (let index = 1; index < samples.length; index++)
@@ -570,7 +535,6 @@ function settledFromEnd(samples: ReadonlyArray<FeedSample>) {
   return worst;
 }
 
-                                                      
 const waitForRow = Effect.fn("scenario.waitForRow")(function* (
   ctx: ScenarioContext,
   title: string,
@@ -578,9 +542,9 @@ const waitForRow = Effect.fn("scenario.waitForRow")(function* (
   for (let attempt = 0; attempt < 20; attempt++) {
     const nodes = yield* ctx.device.nodes;
     if (nodes.some((node) => node.label?.includes(title))) return;
-                                                                                  
+
     if (attempt === 4) yield* ctx.device.run(["scroll", "top"]).pipe(Effect.ignore);
-                                                                                            
+
     const shelf = nodes.find((node) => /^\d+ working threads?$/.test(node.label ?? ""));
     const collapsed = (yield* ctx.device.state).homeList?.some(
       (entry) => entry.type === "v2-working-shelf" && entry.expanded === false,

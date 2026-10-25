@@ -10,24 +10,21 @@ it("counts the frames a long gap swallowed, against the device's own refresh rat
   const at120 = steady(120, 1000 / 120);
   expect(frameStats(at120, "ui")).toMatchObject({ uiRefreshHz: 120, uiDroppedPct: 0 });
 
-                                               
   const stalled = [...steady(60, 1000 / 60), 59 * (1000 / 60) + 50];
   expect(frameStats(stalled, "js")).toMatchObject({ jsRefreshHz: 60, jsDroppedPct: 3.2 });
 
-                                                                                                    
   const jittered = steady(300, 1000 / 60).map((time, index) =>
     index % 15 === 7 ? time + 6 : time,
   );
   expect(frameStats(jittered, "js")).toMatchObject({ jsRefreshHz: 120 });
   expect(frameStats(jittered, "js", 1000 / 60)).toMatchObject({ jsRefreshHz: 60, jsDroppedPct: 0 });
 
-                                                                              
   expect(frameStats(steady(60, 50), "ui")).toMatchObject({ uiRefreshHz: 60, uiDroppedPct: 66.7 });
 });
 
 it("reads row motion on screen, so an offset change that keeps content still is not a jump", () => {
   const rows = (entries: Record<string, number>) => ({ threadId: "t", ready: true, rows: entries });
-                                                                                              
+
   const smooth = [rows({ a: 100, b: 400 }), rows({ a: 180, b: 480 }), rows({ a: 180, b: 480 })];
   expect(feedMotion(smooth, 1)).toMatchObject({ backwardPx: 0, teleports: 0, largestStepPx: 80 });
 
@@ -37,7 +34,6 @@ it("reads row motion on screen, so an offset change that keeps content still is 
   const teleport = [rows({ a: 100 }), rows({ a: 1300 })];
   expect(feedMotion(teleport, 1)).toMatchObject({ teleports: 1, largestStepPx: 1200 });
 
-                                                                                       
   const offset = (scroll: number, entries: Record<string, number>) => ({
     ...rows(entries),
     scroll,
@@ -67,7 +63,6 @@ it("fails a case when half or more of its graded samples fail", () => {
   expect(caseResult("c", "phone", "backwardPx", [row(true, 1), row(false, 90)]).pass).toBe(false);
   expect(caseResult("c", "phone", "backwardPx", [row(null, 0)]).pass).toBe(null);
 
-                                                                                 
   const errored: SampleRow = { ...row(null, 0), error: "Inspector timed out" };
   expect(caseResult("c", "phone", "backwardPx", [row(true, 1), errored, errored])).toMatchObject({
     pass: null,
