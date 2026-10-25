@@ -41,7 +41,10 @@ export class ServerBrowserOperationError extends Error {
   }
 }
 
-export const toOperationError = (cause: unknown): ServerBrowserOperationError => {
+export const toOperationError = (
+  cause: unknown,
+  timeoutMs?: number,
+): ServerBrowserOperationError => {
   if (cause instanceof BrowserControlInterrupted)
     return new ServerBrowserOperationError(
       "PreviewAutomationControlInterruptedError",
@@ -52,7 +55,11 @@ export const toOperationError = (cause: unknown): ServerBrowserOperationError =>
   const message = cause instanceof Error ? cause.message : String(cause);
   const firstLine = message.split("\n")[0] ?? message;
   if (cause instanceof Error && cause.name === "TimeoutError") {
-    return new ServerBrowserOperationError("PreviewAutomationTimeoutError", firstLine);
+    return new ServerBrowserOperationError(
+      "PreviewAutomationTimeoutError",
+      firstLine,
+      timeoutMs === undefined ? undefined : { timeoutMs },
+    );
   }
   if (
     /while parsing selector|Unknown engine|Unexpected token|strict mode violation/i.test(message)
