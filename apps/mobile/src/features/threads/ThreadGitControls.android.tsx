@@ -14,6 +14,11 @@ export function useThreadGitRightHeaderItems(_props: ThreadGitControlsProps) {
   return EMPTY_HEADER_ITEMS;
 }
 
+// oxlint-disable-next-line supaterm/no-hookless-use-function -- Android stub of a hook; the iOS file calls hooks.
+export function useThreadGitCenterHeaderItems(_props: ThreadGitControlsProps) {
+  return EMPTY_HEADER_ITEMS;
+}
+
 export function ThreadGitControls(_props: ThreadGitControlsProps) {
   return null;
 }

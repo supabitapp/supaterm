@@ -8,7 +8,11 @@ import { useDeviceType } from "../../native/native-layout-metrics";
 import { useNativeWorkspaceColumnsSupported } from "../../native/NativeWorkspaceColumns";
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
 import { withNativeGlassHeaderItem } from "../layout/native-glass-header-items";
-import { ThreadGitControls, useThreadGitRightHeaderItems } from "./ThreadGitControls";
+import {
+  ThreadGitControls,
+  useThreadGitCenterHeaderItems,
+  useThreadGitRightHeaderItems,
+} from "./ThreadGitControls";
 
 type NativeHeaderItems = ReadonlyArray<Record<string, unknown>>;
 
@@ -27,7 +31,8 @@ export function useThreadHeaderOptions(props: {
   const navigation = useNavigation();
   const { layout, startNewTask } = useAdaptiveWorkspaceLayout();
   const sidebarHeaderItem = useWorkspaceSidebarHeaderItem();
-  const rightHeaderItems = useThreadGitRightHeaderItems(props.gitControls);
+  const threadCenterHeaderItems = useThreadGitCenterHeaderItems(props.gitControls);
+  const compactRightHeaderItems = useThreadGitRightHeaderItems(props.gitControls);
   const splitLeftHeaderItems = useMemo<NativeHeaderItems>(
     () => [
       ...(!usesDuoHeader
@@ -90,7 +95,8 @@ export function useThreadHeaderOptions(props: {
         ? undefined
         : () => compactHomeHeaderItems,
     // The workspace navigator adds compose to the Duo detail column's bar.
-    unstable_headerRightItems: () => rightHeaderItems,
+    unstable_headerRightItems: () =>
+      usesDuoHeader || layout.usesSplitView ? threadCenterHeaderItems : compactRightHeaderItems,
     unstable_headerToolbarItems: () => [],
     unstable_headerSubtitle: props.usesNativeHeaderGlass ? props.subtitle : undefined,
     contentStyle: undefined,
@@ -101,7 +107,8 @@ export function useThreadHeaderOptions(props: {
 
     optionsVersion: [
       splitLeftHeaderItems,
-      rightHeaderItems,
+      threadCenterHeaderItems,
+      compactRightHeaderItems,
       usesDuoHeader,
       environmentId,
       threadId,
