@@ -25,7 +25,6 @@ import { type AppSymbolName, SymbolView } from "../../components/ui/AppSymbol";
 import { MaskedView } from "@expo/ui/community/masked-view";
 import type { LegendListRef } from "@legendapp/list/react-native";
 import { AnimatedLegendList } from "@legendapp/list/reanimated";
-import { StackActions, useNavigation } from "@react-navigation/native";
 import {
   useEffect,
   useEffectEvent,
@@ -86,6 +85,7 @@ import type { FilePreviewSource } from "../../components/FilePreviewModal";
 import Animated, { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { useAssetUrl } from "../../state/assets";
 import { PullRequestGlyph } from "../pull-requests/pullRequestGlyphs";
+import { useOpenLinkedThread } from "./useOpenLinkedThread";
 
 const SHIMMER_WIDTH = 72;
 const SHIMMER_SWEEP_MS = 1_350;
@@ -777,7 +777,7 @@ const ThreadWorkLogRow = function ThreadWorkLogRow(
   },
 ) {
   const { row, expanded } = props;
-  const navigation = useNavigation();
+  const openLinkedThread = useOpenLinkedThread();
   const motion = useNoticeMotion();
   const failureItem = row.projectedItem.item;
   if (failureItem.type === "error" && failureItem.status === "failed") {
@@ -897,14 +897,10 @@ const ThreadWorkLogRow = function ThreadWorkLogRow(
         accessibilityState={canExpand ? { expanded } : undefined}
         onPress={() => {
           if (notifiedSubagentThreadId !== undefined) {
-            // Push, not navigate: navigate reuses this Thread route, so back
-            // would skip the parent thread and land on Home.
-            navigation.dispatch(
-              StackActions.push("Thread", {
-                environmentId: String(props.environmentId),
-                threadId: String(notifiedSubagentThreadId),
-              }),
-            );
+            openLinkedThread({
+              environmentId: String(props.environmentId),
+              threadId: String(notifiedSubagentThreadId),
+            });
             return;
           }
           if (canExpand) {

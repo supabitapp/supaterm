@@ -1,3 +1,4 @@
+import { useOpenThreadInspector } from "./thread-inspector-navigation";
 import { useSidebarWorkspaceTabs } from "../workspace/useSidebarWorkspaceTabs";
 import {
   isAtomCommandInterrupted,
@@ -12,7 +13,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { useChildThreadInputs, useThreadShell } from "../../state/entities";
 import { UsageLimitRecoveryCard } from "./UsageLimitRecoveryCard";
 import { ChatGptUsageLimitNotice } from "./ChatGptUsageLimitNotice";
-import { StackActions, useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import {
   effectiveSnoozed,
   isThreadWokeUnseen,
@@ -532,6 +533,7 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
   const navigation = useNavigation();
   const { selectThreadRoute } = useAdaptiveWorkspaceLayout();
   const openLinkedThread = useOpenLinkedThread();
+  const openInspector = useOpenThreadInspector();
   const { session: voiceInputSession } = useGlobalVoiceInput();
   const { reportedModelSelection, queuedCount, turnSubagents } =
     useSelectedThreadComposerMetadata();
@@ -541,6 +543,13 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
   const devicePreviews = threadDevicePreviews(deviceState.data, props.selectedThread.id);
   const openDevicePreview = () => {
     Keyboard.dismiss();
+    if (
+      openInspector(
+        { environmentId: props.environmentId, threadId: props.selectedThread.id },
+        { type: "device", environmentId: props.environmentId, threadId: props.selectedThread.id },
+      )
+    )
+      return;
     navigation.navigate("ThreadDevicePreview", {
       environmentId: props.environmentId,
       threadId: props.selectedThread.id,
@@ -810,12 +819,7 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
         accessibilityLabel: `Open ${childInput.hasPendingApprovals ? "approval" : "question"} from ${childInput.title}`,
         onPress: () => {
           Keyboard.dismiss();
-          navigation.dispatch(
-            StackActions.push("Thread", {
-              environmentId: props.environmentId,
-              threadId: childInput.id,
-            }),
-          );
+          openLinkedThread({ environmentId: props.environmentId, threadId: childInput.id });
         },
       };
     }
