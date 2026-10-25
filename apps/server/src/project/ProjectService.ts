@@ -17,6 +17,7 @@ import * as Option from "effect/Option";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 
+import { withCommandMetrics } from "../observability/Metrics.ts";
 import * as EventSink from "../orchestration-v2/EventSink.ts";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
 import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
@@ -281,7 +282,7 @@ export const make = Effect.gen(function* () {
           rejection ?? receipt.error ?? "The command was previously rejected.",
         );
     }
-  });
+  }, withCommandMetrics);
 
   const readCommitted = Effect.fn("ProjectService.readCommitted")(function* (projectId: ProjectId) {
     const row = yield* readRow(projectId, { includeDeleted: true });

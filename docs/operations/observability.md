@@ -387,11 +387,13 @@ Traces are best for one request. Metrics are best for trends.
 Good metric families to watch:
 
 - `supaterm_rpc_request_duration`
+- `supaterm_orchestration_command_duration`
 - `supaterm_git_command_duration`
 
 Counters tell you volume and failure rate:
 
 - `supaterm_rpc_requests_total`
+- `supaterm_orchestration_commands_total`
 - `supaterm_git_commands_total`
 
 Use metrics when the question is:
