@@ -1,3 +1,4 @@
+import { NativeScrollView } from "../../native/NativeScrollViewMarker";
 import { Button } from "../../components/ui/Button";
 import { LegendList } from "@legendapp/list/react-native";
 import type { ProjectEntry } from "@supaterm/contracts";
@@ -221,6 +222,7 @@ export function FileTreeBrowser(props: {
 
   return (
     <LegendList
+      renderScrollComponent={Platform.OS === "ios" ? NativeScrollView : undefined}
       contentInsetStartAdjustment={headerInset}
       alwaysBounceVertical
       className="flex-1"

@@ -442,7 +442,10 @@ export default defineConfig({
       },
       {
         files: ["apps/mobile/src/**"],
-        rules: { "supaterm/no-mobile-uniwind-theme-escape-hatches": "error" },
+        rules: {
+          "supaterm/no-mobile-uniwind-theme-escape-hatches": "error",
+          "supaterm/require-registered-list-scroll": "error",
+        },
       },
       {
         files: ["apps/mobile/src/**"],

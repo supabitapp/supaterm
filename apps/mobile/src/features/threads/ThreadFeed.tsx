@@ -3260,6 +3260,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
           accessibilityElementsHidden={feedLoading}
           importantForAccessibility={feedLoading ? "no-hide-descendants" : "auto"}
         >
+          {/* oxlint-disable-next-line supaterm/require-registered-list-scroll -- ThreadFeedScrollView is passed through the iOS-only spread below; the prop rejects undefined. */}
           <KeyboardAwareLegendList
             ref={listRef}
             onLoad={() => {
