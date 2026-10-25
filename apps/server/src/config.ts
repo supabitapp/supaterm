@@ -10,7 +10,11 @@ import * as Schema from "effect/Schema";
 
 import type { OtlpEndpointSource } from "@supaterm/contracts";
 import { sweepStalePendingAttachments } from "./attachmentStore.ts";
-import { DEFAULT_SIGNAL_EXPORT, type SignalExport } from "@supaterm/shared/observability";
+import {
+  DEFAULT_SIGNAL_EXPORT,
+  processServiceInstanceId,
+  type SignalExport,
+} from "@supaterm/shared/observability";
 import * as OtelEnvironment from "@supaterm/shared/otelEnvironment";
 import { type ReleaseChannel, releaseResourceAttributes } from "@supaterm/shared/releaseResource";
 import packageJson from "../package.json" with { type: "json" };
@@ -119,6 +123,7 @@ export const otlpResource = (
     "service.namespace": "supaterm",
     "service.runtime": "supaterm-server",
     "supaterm.server.managed_by": config.mode === "desktop" ? "desktop" : "standalone",
+    "service.instance.id": processServiceInstanceId(config.otelEnvironment.resourceAttributes),
     ...releaseResourceAttributes(telemetryChannel, config.otelEnvironment.resourceAttributes),
     "host.name": config.otelEnvironment.resourceAttributes["host.name"] || hostName,
   },

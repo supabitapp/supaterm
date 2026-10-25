@@ -2,6 +2,7 @@ import { PRIMARY_LOCAL_ENVIRONMENT_ID } from "@supaterm/contracts";
 import {
   makeLocalFileTracer,
   makeTraceSink,
+  processServiceInstanceId,
   type SignalExport,
 } from "@supaterm/shared/observability";
 import * as HostProcess from "@supaterm/shared/HostProcess";
@@ -607,6 +608,7 @@ const layerTelemetry = Layer.unwrap(
         "service.namespace": "supaterm",
         "service.runtime": "desktop",
         "service.mode": environment.isDevelopment ? "development" : "packaged",
+        "service.instance.id": processServiceInstanceId(endpoints.resourceAttributes),
         ...releaseResourceAttributes(
           environment.isDevelopment ? "dev" : releaseChannelOf(serviceVersion),
           endpoints.resourceAttributes,

@@ -29,6 +29,7 @@ const CLIENT_TRACING_RESOURCE = {
   serviceName: "supaterm-web",
   attributes: {
     "service.namespace": "supaterm",
+    "service.instance.id": ClientTracer.serviceInstanceId,
     ...releaseResourceAttributes(RELEASE_CHANNEL),
     "service.runtime": "supaterm-web",
     "supaterm.client.surface": isElectron ? "desktop" : "web",
