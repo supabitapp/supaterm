@@ -100,7 +100,6 @@ type ThreadGitControlsProps = ThreadGitMenuProps & {
   readonly projectScripts: ReadonlyArray<ProjectScript>;
   readonly terminalSessions: ReadonlyArray<TerminalMenuSession>;
   readonly showActionControls?: boolean;
-  readonly showDirectFileControl?: boolean;
   readonly onOpenTerminal: (terminalId?: string | null) => void;
   readonly onOpenNewTerminal: () => void;
   readonly onRunProjectScript: (script: ProjectScript) => Promise<void>;
@@ -495,15 +494,13 @@ export function ThreadGitControls(props: ThreadGitControlsProps) {
           <Toolbar.Label>Open new terminal</Toolbar.Label>
         </Toolbar.MenuAction>
       </Toolbar.Menu>
-      {props.showDirectFileControl ? (
-        <Toolbar.Button
-          accessibilityLabel="Open files"
-          disabled={!props.canOpenFiles}
-          icon="folder"
-          onPress={model.openFiles}
-          separateBackground
-        />
-      ) : null}
+      <Toolbar.Button
+        accessibilityLabel="Open files"
+        disabled={!props.canOpenFiles}
+        icon="folder"
+        onPress={model.openFiles}
+        separateBackground
+      />
       {createNativeHeaderMenu(threadGitMenuDefinition(props, model))}
     </Toolbar>
   );
