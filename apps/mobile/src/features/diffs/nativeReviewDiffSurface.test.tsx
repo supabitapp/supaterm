@@ -35,48 +35,58 @@ function RawView({
   const [content, setContent] = useState({ resetKey: contentResetKey, rows: "" });
   const rows = content.resetKey === contentResetKey ? content.rows : "";
   const [tokenRowIds, setTokenRowIds] = useState<string[]>([]);
+  const latest = useRef({ onDebug, initialFileId, contentResetKey });
   useLayoutEffect(() => {
     mocks.onDebug = onDebug;
+    latest.current = { onDebug, initialFileId, contentResetKey };
   });
-  useImperativeHandle(nativeRef, () => ({
-    async setRowsJson(value: string) {
-      mocks.rows(value);
-      if (mocks.registrationFailures > 0) {
-        mocks.registrationFailures -= 1;
-        throw new Error("Unable to find the 'SupatermReviewDiffSurface' view for this native tag");
-      }
-      setContent({ resetKey: contentResetKey, rows: value });
-      if (mocks.autoViewport) {
-        const decoded = JSON.parse(value) as NativeReviewDiffData["rows"];
-        onDebug?.({
-          nativeEvent: { message: "rows-decoded", rows: decoded.length },
-        } as unknown as Parameters<NonNullable<typeof onDebug>>[0]);
-        const index = decoded.findIndex(
-          (row) => row.kind === "file" && row.fileId === initialFileId,
-        );
-        onDebug?.({
-          nativeEvent: {
-            message: "visible-range",
-            firstRowIndex: Math.max(0, index),
-            lastRowIndex: Math.max(0, index) + 40,
-            totalRows: decoded.length,
-          },
-        } as unknown as Parameters<NonNullable<typeof onDebug>>[0]);
-      }
-    },
-    async scrollToFile() {},
-    async setTokensPatchJson(value: string) {
-      mocks.tokens(value);
-      const accepted = mocks.tokenCompletion ? await mocks.tokenCompletion : mocks.tokenAccepted;
-      if (accepted === true) {
-        const patch = JSON.parse(value);
-        setTokenRowIds((current) => [
-          ...new Set([...current, ...Object.keys(patch.tokensByRowId)]),
-        ]);
-      }
-      return accepted;
-    },
-  }));
+  // A real native view keeps one instance, so the surface sees one stable handle.
+  useImperativeHandle(
+    nativeRef,
+    () => ({
+      async setRowsJson(value: string) {
+        const { onDebug, initialFileId, contentResetKey } = latest.current;
+        mocks.rows(value);
+        if (mocks.registrationFailures > 0) {
+          mocks.registrationFailures -= 1;
+          throw new Error(
+            "Unable to find the 'SupatermReviewDiffSurface' view for this native tag",
+          );
+        }
+        setContent({ resetKey: contentResetKey, rows: value });
+        if (mocks.autoViewport) {
+          const decoded = JSON.parse(value) as NativeReviewDiffData["rows"];
+          onDebug?.({
+            nativeEvent: { message: "rows-decoded", rows: decoded.length },
+          } as unknown as Parameters<NonNullable<typeof onDebug>>[0]);
+          const index = decoded.findIndex(
+            (row) => row.kind === "file" && row.fileId === initialFileId,
+          );
+          onDebug?.({
+            nativeEvent: {
+              message: "visible-range",
+              firstRowIndex: Math.max(0, index),
+              lastRowIndex: Math.max(0, index) + 40,
+              totalRows: decoded.length,
+            },
+          } as unknown as Parameters<NonNullable<typeof onDebug>>[0]);
+        }
+      },
+      async scrollToFile() {},
+      async setTokensPatchJson(value: string) {
+        mocks.tokens(value);
+        const accepted = mocks.tokenCompletion ? await mocks.tokenCompletion : mocks.tokenAccepted;
+        if (accepted === true) {
+          const patch = JSON.parse(value);
+          setTokenRowIds((current) => [
+            ...new Set([...current, ...Object.keys(patch.tokensByRowId)]),
+          ]);
+        }
+        return accepted;
+      },
+    }),
+    [],
+  );
   return (
     <div data-token-rows={tokenRowIds.join(",")}>
       {rows ? "Rendered diff" : "Blank native surface"}
@@ -192,13 +202,14 @@ function setup(integrated = false) {
     rowIdByCommentLineId: new Map(),
   };
   const ids: string[] = [];
+  let collapsedFileIds: ReadonlyArray<string> = ids;
   function PullRequestDiff({ targetFileId }: { targetFileId?: string }) {
     const bridge = useNativeReviewDiffBridge({
       threadKey: null,
       sectionId: "pull-request:test:1:all",
       diff: "test diff",
       data,
-      collapsedFileIds: ids,
+      collapsedFileIds,
       viewedFileIds: ids,
       selectedRowIds: ids,
       canHighlight: true,
@@ -246,6 +257,10 @@ function setup(integrated = false) {
     container,
     async mountPullRequest(targetFileId?: string) {
       await act(async () => root.render(<PullRequestDiff targetFileId={targetFileId} />));
+    },
+    async collapseFiles(fileIds: ReadonlyArray<string>) {
+      collapsedFileIds = fileIds;
+      await act(async () => root.render(<PullRequestDiff />));
     },
     async updateComment() {
       data = {
@@ -402,4 +417,36 @@ it("recognizes registration races for the installed native view name", async () 
       ),
     ),
   ).toBe(true);
+});
+
+it("cancels stale collapse work and highlights expansion without resetting accepted tokens", async () => {
+  using screen = setup(true);
+  await screen.mountPullRequest();
+  await screen.jump(0);
+  await screen.deliverPayloads();
+  expect(screen.tokenRows).toBe("r0");
+
+  const response = Promise.withResolvers<void>();
+  const highlight = mocks.highlight.getMockImplementation()!;
+  mocks.highlight.mockImplementation(async (input: HighlightNativeReviewDiffVisibleRowsInput) => {
+    if (input.firstRowIndex === 400) {
+      await response.promise;
+      if (input.collapsedFileIds?.has("last-file")) {
+        return { tokensByRowId: {}, rowCount: 0, retryableRowIds: [], durationMs: 0 };
+      }
+    }
+    return highlight(input);
+  });
+  await screen.jump(400);
+  await screen.collapseFiles(["last-file"]);
+  await act(async () => response.resolve());
+  await screen.deliverPayloads();
+  expect(screen.tokenRows).toBe("r0");
+
+  await screen.collapseFiles([]);
+  await screen.deliverPayloads();
+  expect(screen.tokenRows).toBe("r0,r400");
+  await screen.jump(0);
+  await screen.deliverPayloads();
+  expect(screen.tokenRows).toBe("r0,r400");
 });

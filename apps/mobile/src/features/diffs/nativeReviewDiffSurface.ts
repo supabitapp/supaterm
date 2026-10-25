@@ -193,7 +193,7 @@ export function isPendingNativeViewRegistration(error: unknown): boolean {
 }
 
 function useNativeReviewDiffPayload(
-  nativeRef: React.RefObject<NativeReviewDiffViewRef | null>,
+  nativeView: NativeReviewDiffViewRef | null,
   method: NativeReviewDiffPayloadMethod,
   payload: string | undefined,
   resetKey?: string,
@@ -214,7 +214,7 @@ function useNativeReviewDiffPayload(
         return;
       }
 
-      const view = nativeRef.current;
+      const view = nativeView;
       const command: ((payload: string) => Promise<void | boolean>) | undefined = view?.[method];
       if (!view || !command) {
         if (attempts < NATIVE_REVIEW_DIFF_PAYLOAD_RETRY_FRAMES) {
@@ -264,7 +264,7 @@ function useNativeReviewDiffPayload(
       }
     };
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A new content reset replaces native rows, so the same payload must be sent again.
-  }, [method, nativeRef, payload, resetKey, onFailure, onDelivered]);
+  }, [method, nativeView, payload, resetKey, onFailure, onDelivered]);
 }
 
 function getExpoViewConfig(moduleName: string) {
@@ -320,15 +320,16 @@ function NativeReviewDiffContent(
     onDebug,
     ...nativeProps
   } = props;
-  const nativeRef = useRef<NativeReviewDiffViewRef>(null);
+  // State, not a ref, so the payload effects run again once the native view attaches.
+  const [nativeView, setNativeView] = useState<NativeReviewDiffViewRef | null>(null);
   useNativeReviewDiffPayload(
-    nativeRef,
+    nativeView,
     "setRowsJson",
     rowsJson,
     props.contentResetKey,
     onRowsFailure,
   );
-  useNativeReviewDiffPayload(nativeRef, "setTokensJson", tokensJson);
+  useNativeReviewDiffPayload(nativeView, "setTokensJson", tokensJson);
   const onDebugRef = useRef(onDebug);
   useEffect(() => {
     onDebugRef.current = onDebug;
@@ -363,7 +364,7 @@ function NativeReviewDiffContent(
     if (tokensPatchJson !== undefined) reportTokenDelivery(tokensPatchJson, "tokens-patch-failed");
   }, [reportTokenDelivery, tokensPatchJson]);
   useNativeReviewDiffPayload(
-    nativeRef,
+    nativeView,
     "setTokensPatchJson",
     tokensPatchJson,
     undefined,
@@ -374,13 +375,13 @@ function NativeReviewDiffContent(
     nativeViewRef,
     () => ({
       scrollToFile: async (fileId, animated = true) => {
-        await nativeRef.current?.scrollToFile(fileId, animated);
+        await nativeView?.scrollToFile(fileId, animated);
       },
       scrollToTop: async (animated = true) => {
-        await nativeRef.current?.scrollToTop(animated);
+        await nativeView?.scrollToTop(animated);
       },
     }),
-    [],
+    [nativeView],
   );
 
   const RawNativeView = cachedNativeReviewDiffRawView;
@@ -388,7 +389,6 @@ function NativeReviewDiffContent(
     return null;
   }
 
-  // oxlint-disable-next-line react/refs -- createElement hands the ref object to the native view as its ref prop; nothing reads it during render.
   return createElement(RawNativeView, {
     ...nativeProps,
     refreshEnabled: props.onPullToRefresh !== undefined,
@@ -399,7 +399,7 @@ function NativeReviewDiffContent(
       }
       onDebug?.(event);
     },
-    ref: nativeRef,
+    ref: setNativeView,
   });
 }
 

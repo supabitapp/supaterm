@@ -3335,7 +3335,14 @@ export const make = Effect.gen(function* () {
         ...refOfCacheKey(reference),
         ...(cursor === null ? {} : { cursor }),
         ...(commit === null ? {} : { commit }),
-      } as PullRequestDiffInput);
+      } as PullRequestDiffInput).pipe(
+        observeRead,
+        Effect.map(({ value, observedAt }) => {
+          // Keep the loader's epoch and read time if a refresh occurs during the provider read.
+          diffFiles.record(JSON.stringify([reference, cursor, commit]), value, observedAt);
+          return value;
+        }),
+      );
     },
     {
       capacity: DIFF_CACHE_CAPACITY,
@@ -3609,14 +3616,9 @@ export const make = Effect.gen(function* () {
     const fileKey = (oldPath: string, newPath: string) => JSON.stringify([oldPath, newPath]);
     const sliceKey = (input: PullRequestDiffInput) =>
       JSON.stringify([refCacheKey(input), input.cursor ?? null, input.commit ?? null]);
-    const read = Effect.fn("PullRequestService.read")(function* (input: PullRequestDiffInput) {
-      const key = sliceKey(input);
-      const now = yield* Clock.currentTimeMillis;
-      const cached = held.get(key);
-      if (cached !== undefined && now - cached.at <= ttlMs) return cached;
-      const slice = yield* diff(input);
+    const record = (key: string, slice: PullRequestDiffResult, at: number) => {
       const entry = {
-        at: now,
+        at,
         files: new Set(
           parseDiffFilePaths(slice.patch).map((file) =>
             fileKey(file.oldPath ?? file.newPath ?? "", file.newPath ?? file.oldPath ?? ""),
@@ -3631,8 +3633,16 @@ export const make = Effect.gen(function* () {
       }
       held.set(key, entry);
       return entry;
+    };
+    const read = Effect.fn("PullRequestService.read")(function* (input: PullRequestDiffInput) {
+      const key = sliceKey(input);
+      const now = yield* Clock.currentTimeMillis;
+      const cached = held.get(key);
+      if (cached !== undefined && now - cached.at <= ttlMs) return cached;
+      const slice = yield* diff(input);
+      return record(key, slice, now);
     });
-    return { read: credentialCached(read), fileKey };
+    return { read: credentialCached(read), record, fileKey };
   })();
   /**
    * Whether the change request, or the one commit asked for, changes this file under these names.
