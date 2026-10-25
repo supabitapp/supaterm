@@ -111,7 +111,10 @@ export default mergeConfig(
       fileParallelism: false,
       sequence: { sequencer: WeightedShardSequencer },
       // Appended to the root setup, which mergeConfig concatenates.
-      setupFiles: ["./src/testUtils/gitConfig.setup.ts"],
+      setupFiles: [
+        "./src/testUtils/gitConfig.setup.ts",
+        "./src/testUtils/managedServiceEnv.setup.ts",
+      ],
       hookTimeout: 120_000,
       testTimeout: 120_000,
     },
