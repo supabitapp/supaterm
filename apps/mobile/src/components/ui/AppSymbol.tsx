@@ -108,6 +108,8 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   "pin.fill": IconNodes.Pin,
   "pin.slash": IconNodes.PinOff,
   play: IconNodes.Play,
+  // The icon set has no pause glyph; stop reads as the same control until one is added.
+  pause: IconNodes.StopFilled,
   plus: IconNodes.Plus,
   minus: IconNodes.Minus,
   "slash.circle": IconNodes.CircleSlash,

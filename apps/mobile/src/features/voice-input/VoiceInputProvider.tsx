@@ -3,8 +3,6 @@ import {
   AudioModule,
   RecordingPresets,
   requestRecordingPermissionsAsync,
-  setAudioModeAsync,
-  setIsAudioActiveAsync,
   type RecordingStatus,
 } from "expo-audio";
 import { File } from "expo-file-system";
@@ -40,6 +38,11 @@ import {
 import { createLazyVoiceRecorder } from "./lazyVoiceRecorder";
 import { normalizeVoiceInputDecibels, VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
 import { VoiceInputSession } from "./voiceInputSession";
+import {
+  acquireAudioSession,
+  activateAudioSession,
+  releaseAudioSession,
+} from "../../lib/audioSession";
 
 const INITIAL_STATE: VoiceInputState = { phase: "idle", error: null, errorAction: null };
 const VOICE_METERING_INTERVAL_MS = 80;
@@ -54,32 +57,6 @@ const VOICE_RECORDING_OPTIONS = {
   isMeteringEnabled: true,
   ...(Platform.OS === "ios" ? IOS_RECORDING_OPTIONS : ANDROID_RECORDING_OPTIONS),
 };
-
-async function releaseVoiceRecordingAudio(): Promise<void> {
-  try {
-    await setAudioModeAsync({ allowsRecording: false });
-  } finally {
-    // Expo never deactivates AVAudioSession after recording; do so to resume interrupted audio.
-    await setIsAudioActiveAsync(false);
-  }
-}
-
-async function configureVoiceRecordingAudio(): Promise<void> {
-  try {
-    await setAudioModeAsync({
-      allowsRecording: true,
-      interruptionMode: "doNotMix",
-      playsInSilentMode: true,
-      shouldPlayInBackground: false,
-    });
-    await setIsAudioActiveAsync(true);
-  } catch (error) {
-    try {
-      await releaseVoiceRecordingAudio();
-    } catch {}
-    throw error;
-  }
-}
 
 const VoiceInputContext = createContext<ReturnType<typeof useVoiceInputRuntime> | null>(null);
 
@@ -147,6 +124,7 @@ function useVoiceInputRuntime() {
       },
     });
     let phase = INITIAL_STATE.phase;
+    let audioToken: ReturnType<typeof acquireAudioSession> | null = null;
     const session = new VoiceInputSession({
       recorder,
       getTranscriber: getLocalVoiceTranscriber,
@@ -154,8 +132,20 @@ function useVoiceInputRuntime() {
         const permission = await requestRecordingPermissionsAsync();
         return { granted: permission.granted, canAskAgain: permission.canAskAgain };
       },
-      configureRecording: configureVoiceRecordingAudio,
-      releaseRecording: releaseVoiceRecordingAudio,
+      configureRecording: async () => {
+        const token = acquireAudioSession("recording");
+        audioToken = token;
+        try {
+          await activateAudioSession(token);
+        } catch (error) {
+          await releaseAudioSession(token).catch(() => {});
+          throw error;
+        }
+      },
+      releaseRecording: async () => {
+        if (audioToken) await releaseAudioSession(audioToken);
+        audioToken = null;
+      },
       deleteRecording: (uri) => new File(uri).delete(),
       onStateChange: (nextState) => {
         // The audio session is released before transcription, so iOS plays this.

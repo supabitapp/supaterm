@@ -184,6 +184,7 @@ overrides:
   expo-audio: 58.0.9
   expo-network: 58.0.3
   expo-sharing: 58.0.19
+  expo-video: 58.0.11
   "@ff-labs/fff-node": 0.11.0
   "@legendapp/list": 3.3.5
   "@pierre/diffs": 1.6.1
@@ -293,6 +294,7 @@ patchedDependencies:
   micromark-extension-llm-math@3.1.1-20250610: patches/micromark-extension-llm-math@3.1.1-20250610.patch
   micromark-extension-gfm-table@2.1.2: patches/micromark-extension-gfm-table@2.1.2.patch
   expo-audio@58.0.9: patches/expo-audio@58.0.9.patch
+  expo-video@58.0.11: patches/expo-video@58.0.11.patch
   expo-network@58.0.3: patches/expo-network@58.0.3.patch
   "@expo/metro-config@58.0.14": patches/@expo__metro-config@58.0.14.patch
   expo-sharing@58.0.19: patches/expo-sharing@58.0.19.patch
