@@ -4,6 +4,7 @@ import {
   fileAttachmentTooLargeMessage,
 } from "./state/attachments.ts";
 import type { EnvironmentShellStatus } from "./state/shell.ts";
+import type { ThreadFamilyRead } from "./state/threadFamilies.ts";
 
 export function threadOutboxRetryDelayMs(attempt: number): number {
   return Math.min(1_000 * 2 ** Math.max(0, attempt - 1), 16_000);
@@ -44,6 +45,11 @@ export function resolveThreadOutboxDeliveryAction(input: {
   readonly threadBusy: boolean;
   /** The thread's creation was delivered but its shell has not arrived yet. */
   readonly awaitingCreatedThread: boolean;
+  /**
+   * Set when the shell can leave idle subagent children out: absence alone is not deletion there,
+   * only a settled family read without the row is.
+   */
+  readonly familyRead?: ThreadFamilyRead;
 }): ThreadOutboxDeliveryAction {
   if (input.isCreation) {
     // A pending task creates its thread on delivery. If the thread already
@@ -59,7 +65,11 @@ export function resolveThreadOutboxDeliveryAction(input: {
   // A follow-up queued behind its thread's creation becomes the head as soon
   // as the creation leaves the queue, which can be before the shell lands.
   if (!input.threadExists) {
-    return input.shellStatus === "live" && !input.awaitingCreatedThread ? "remove" : "wait";
+    return input.shellStatus === "live" &&
+      !input.awaitingCreatedThread &&
+      (input.familyRead === undefined || input.familyRead === "settled")
+      ? "remove"
+      : "wait";
   }
   return input.environmentConnected ? "send" : "wait";
 }

@@ -681,6 +681,11 @@ export const ServerConfig = Schema.Struct({
    * on a new connection only while this stays the same.
    */
   shellSyncGeneration: Schema.optionalKey(TrimmedNonEmptyString),
+  /**
+   * The shell can leave idle subagent children out of snapshots (`omitIdleSubagents`), and
+   * `getThreadFamily` and `getWorktreeThreadIds` serve the rows it leaves out.
+   */
+  shellThreadFamilies: Schema.optionalKey(Schema.Boolean),
   shellRevealInFileManager: Schema.optionalKey(Schema.Boolean),
   shellRevealInFileManagerKind: Schema.optionalKey(FileManagerRevealKind),
   threadResumeCompletionMarker: Schema.optionalKey(Schema.Boolean),
