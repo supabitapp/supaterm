@@ -1,6 +1,5 @@
 import { requireNativeView } from "expo";
 import { processColor, View, type NativeSyntheticEvent, type ViewProps } from "react-native";
-import { useKeyboardState } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
@@ -9,6 +8,7 @@ import { useAppearancePreferences } from "../settings/appearance/AppearancePrefe
 import { useWorkspaceTabs } from "./WorkspaceTabsContext";
 import type { WorkspaceTab } from "./workspace-tabs-state";
 import { useWorkspaceTabSelection } from "./useWorkspaceTabSelection";
+import { workspaceDockHeight } from "./useWorkspaceDockClearance";
 
 interface NativeNavigationProps extends ViewProps {
   readonly showTabs: boolean;
@@ -41,12 +41,10 @@ export function AndroidWorkspaceNavigation(props: {
   const workspace = useWorkspaceTabs()!;
   const selectTab = useWorkspaceTabSelection();
   const insets = useSafeAreaInsets();
-  const keyboardVisible = useKeyboardState((state) => state.isVisible);
   const { themeAppearance, themeVariables: colors } = useAppearancePreferences();
   const { scale } = useAndroidControlSizing();
   const { containerColor, indicatorColor, selectedColor, unselectedColor } =
     androidWorkspaceNavigationColors(colors);
-  if (keyboardVisible) return null;
 
   return (
     <View
@@ -69,7 +67,7 @@ export function AndroidWorkspaceNavigation(props: {
         onTabSelected={(event) => selectTab(event.nativeEvent.tab)}
         onFilterPressed={props.onFilter}
         onCompose={props.onCompose}
-        style={{ height: 80 * Math.max(1, scale) }}
+        style={{ height: workspaceDockHeight(scale) }}
       />
     </View>
   );
