@@ -1,6 +1,8 @@
 import "vite-plus/test/config";
 import { defineConfig } from "vite-plus";
 import * as NodeURL from "node:url";
+import { remoteCacheUrl } from "./infra/task-cache/src/remoteCache.ts";
+import { cachedTestTasks } from "./scripts/lib/cached-tests.ts";
 import antiSlop from "ultracite/oxlint/anti-slop";
 
 const DOM_TEST_ENVIRONMENT_ALLOWLIST: Array<string> = [];
@@ -69,7 +71,11 @@ const RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS = {
     "Pick a glyph by meaning from PullRequestGlyph in apps/web/src/components/pullRequest/pullRequestIcons.tsx so every surface draws the same pull request the same way.",
 };
 
+const cacheUrl = remoteCacheUrl(import.meta.dirname);
+const taskCacheConfig = { scripts: false, ...(cacheUrl ? { remote: { url: cacheUrl } } : {}) };
+
 export default defineConfig({
+  run: { cache: taskCacheConfig, tasks: cachedTestTasks(process.env.SUPATERM_CACHED_TESTS) },
   resolve: {
     alias: {
       "~": NodeURL.fileURLToPath(new URL("./apps/web/src", import.meta.url)),
@@ -77,6 +83,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    env: { VP_REMOTE_CACHE: "off", VP_REMOTE_CACHE_URL: "" },
     exclude: TEST_EXCLUDE,
     hookTimeout: 60_000,
     testTimeout: 60_000,

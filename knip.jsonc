@@ -5,6 +5,25 @@
   // These executables are supplied by the OS or installed separately from npm.
   "ignoreBinaries": ["eas", "file", "mkfifo", "pkill", "pkg-config", "plutil", "sips"],
   "workspaces": {
+    "evals": {
+      "entry": [
+        "mcp-tool-use/run.ts",
+        "mcp-tool-use/trim-capture.ts",
+        "thread-titles/run.ts",
+        "test-signal/run.ts",
+      ],
+      "ignore": ["mcp-tool-use/templates/**"],
+    },
+    "infra/task-cache": {
+      "entry": [
+        "alchemy.run.ts",
+        "src/nativeHook.js",
+        "src/nativeRunHook.js",
+        "src/preload.mjs",
+        "src/flush.ts",
+        "scripts/*.ts",
+      ],
+    },
     ".": {
       "ignoreDependencies": ["effect"],
       "project": ["*.{js,mjs,cjs,ts,mts,cts}", ".github/**/*.cjs"],
@@ -24,6 +43,11 @@
       // electron-builder loads the macOS signer by path.
       "entry": [
         "check-commit-message.ts",
+        "test-cached.ts",
+        "smoke-desktop-app.ts",
+        "generate-release-notes.ts",
+        "mobile-behavior.ts",
+        "render-metrics.ts",
         "clean-worktree.ts",
         "knip-schemas.ts",
         "mobile-native-client.ts",
