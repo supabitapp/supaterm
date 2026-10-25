@@ -84,27 +84,37 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
                   {project && environments ? (
                     <ProjectEnvironmentBadge group={project} {...environments} />
                   ) : null}
-                  {shortcut ? (
-                    <Kbd variant="plain" aria-hidden>
-                      {shortcut}
-                    </Kbd>
-                  ) : null}
-                  {/* Rows without a gear keep its slot so the shortcuts line up. */}
-                  {project ? (
-                    <Button
-                      size="icon-xs"
-                      variant="ghost-muted"
-                      tabIndex={-1}
-                      aria-hidden="true"
-                      title={`Project settings for ${project.displayName}`}
-                      onPointerDown={(event) => event.stopPropagation()}
-                      onClick={(event) => onProjectSettings(event, project)}
-                    >
-                      <SettingsIcon className="size-3.5" />
-                    </Button>
-                  ) : (
-                    <span aria-hidden className="size-7 shrink-0 sm:size-6" />
-                  )}
+                  <span className="grid shrink-0 items-center justify-items-end *:col-start-1 *:row-start-1">
+                    <span aria-hidden className="size-7 sm:size-6" />
+                    {shortcut ? (
+                      <span
+                        className={
+                          project
+                            ? "in-data-highlighted:invisible pointer-coarse:invisible"
+                            : undefined
+                        }
+                      >
+                        <Kbd variant="plain" aria-hidden>
+                          {shortcut}
+                        </Kbd>
+                      </span>
+                    ) : null}
+                    {project ? (
+                      <span className="invisible flex in-data-highlighted:visible pointer-coarse:visible">
+                        <Button
+                          size="icon-xs"
+                          variant="ghost-muted"
+                          tabIndex={-1}
+                          aria-hidden="true"
+                          title={`Project settings for ${project.displayName}`}
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={(event) => onProjectSettings(event, project)}
+                        >
+                          <SettingsIcon className="size-3.5" />
+                        </Button>
+                      </span>
+                    ) : null}
+                  </span>
                   <span className="flex w-3.5 shrink-0">
                     <MenuRadioItemIndicator />
                   </span>
