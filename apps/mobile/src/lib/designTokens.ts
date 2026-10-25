@@ -4,6 +4,8 @@ import { MOTION_ENTER_DURATION_MS, MOTION_EXIT_DURATION_MS } from "./motionTimin
 export const MOBILE_SHAPE = {
   group: { ios: 24, android: 28 },
   toast: 26,
+  // Half the height of a one-row toast: a 48pt button inside a 6pt inset.
+  toastCapsule: 30,
   glass: 32,
 } as const;
 
