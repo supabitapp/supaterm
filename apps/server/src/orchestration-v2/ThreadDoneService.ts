@@ -640,7 +640,6 @@ export const make = Effect.gen(function* () {
             }),
           ),
       });
-      if (run.status === "skipped") return;
       doneActionRunAt.set(threadId, doneAtMs);
       if (run.status === "started" && run.completion) {
         yield* run.completion.pipe(Effect.forkDetach);

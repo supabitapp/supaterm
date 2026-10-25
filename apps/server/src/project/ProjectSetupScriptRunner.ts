@@ -13,7 +13,6 @@ import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
-import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -24,10 +23,6 @@ import * as ProjectService from "./ProjectService.ts";
 
 export interface ProjectSetupScriptRunnerResultNoScript {
   readonly status: "no-script";
-}
-
-interface ProjectSetupScriptRunnerResultSkipped {
-  readonly status: "skipped";
 }
 
 export interface ProjectSetupScriptRunnerResultStarted {
@@ -55,7 +50,6 @@ export interface ProjectSetupScriptOutputLine {
 
 export type ProjectSetupScriptRunnerResult =
   | ProjectSetupScriptRunnerResultNoScript
-  | ProjectSetupScriptRunnerResultSkipped
   | ProjectSetupScriptRunnerResultStarted;
 
 export interface ProjectSetupScriptRunnerInput {
@@ -75,7 +69,7 @@ export interface ProjectSetupScriptRunnerInput {
   };
   /**
    * Runs the final eligibility check and terminal write in one caller-owned
-   * critical section. False skips the command after opening the shell.
+   * critical section once the shell is ready. False closes the unused shell.
    */
   readonly withCommandWriteGuard?: (
     writeCommand: Effect.Effect<void, ProjectSetupScriptRunnerError>,
@@ -157,6 +151,18 @@ function stripTerminalControl(text: string): string {
   );
 }
 
+// Line editors (zsh, fish, bash 5.1+) enable bracketed paste when they start reading a command.
+const BRACKETED_PASTE_ON = "\x1b[?2004h";
+const BRACKETED_PASTE_OFF = "\x1b[?2004l";
+// Longer than one subprocess poll plus its ps timeout, so a startup prompt is seen as busy first.
+const SHELL_QUIET_FALLBACK = "3 seconds";
+
+function lineEditorReading(text: string, previous: boolean): boolean {
+  const on = text.lastIndexOf(BRACKETED_PASTE_ON);
+  const off = text.lastIndexOf(BRACKETED_PASTE_OFF);
+  return on === off ? previous : on > off;
+}
+
 type CompletionShell = "posix" | "fish" | "powershell";
 
 function resolveCompletionShell(
@@ -199,6 +205,7 @@ export const make = Effect.gen(function* () {
   const terminalManager = yield* TerminalManager.TerminalManager;
   const serverSettings = yield* ServerSettings.ServerSettingsService;
   const crypto = yield* Crypto.Crypto;
+  const serviceScope = yield* Effect.scope;
   const completionShell = resolveCompletionShell(
     yield* HostProcess.Platform,
     yield* HostProcess.Environment,
@@ -290,7 +297,67 @@ export const make = Effect.gen(function* () {
         Effect.tap(() => Deferred.await(promptReturned).pipe(Effect.timeoutOption("1 second"))),
         Effect.ensuring(Effect.sync(() => unsubscribe())),
       );
-      return { completion, unsubscribe };
+      // A startup prompt waits for input on a line that has no newline yet.
+      const flushPartialLine = Effect.suspend(() => {
+        const partial = lineBuffer;
+        lineBuffer = "";
+        return handleLine(partial);
+      });
+      const abandon = settle(null).pipe(
+        Effect.andThen(Deferred.succeed(promptReturned, undefined)),
+      );
+      return { completion, unsubscribe, flushPartialLine, abandon };
+    },
+  );
+
+  // Input typed during shell startup can be read by an rc-file prompt (fnm, nvm) instead of the
+  // shell, which loses the command. Subscribe before the terminal opens so no activity is missed.
+  const watchShellReadiness = Effect.fn("ProjectSetupScriptRunner.watchShellReadiness")(
+    function* (input: {
+      readonly threadId: string;
+      readonly terminalId: string;
+      readonly onStartupPrompt: Effect.Effect<void>;
+    }) {
+      const outcome = yield* Deferred.make<"ready" | "exited">();
+      let reading = false;
+      let carry = "";
+      let busy = false;
+      let activity = 0;
+      const unsubscribe = yield* terminalManager.subscribe((event) => {
+        if (event.threadId !== input.threadId || event.terminalId !== input.terminalId) {
+          return Effect.void;
+        }
+        activity += 1;
+        // A new shell process starts idle; the manager resets its subprocess state without an event.
+        if (event.type === "started" || event.type === "restarted") {
+          busy = false;
+          reading = false;
+          carry = "";
+        }
+        if (event.type === "activity") busy = event.hasRunningSubprocess;
+        if (event.type === "output") {
+          const text = carry + event.data;
+          carry = text.slice(-(BRACKETED_PASTE_ON.length - 1));
+          reading = lineEditorReading(text, reading);
+        }
+        if (event.type === "exited" || event.type === "closed") {
+          return Deferred.succeed(outcome, "exited").pipe(Effect.asVoid);
+        }
+        return reading ? Deferred.succeed(outcome, "ready").pipe(Effect.asVoid) : Effect.void;
+      });
+      // A startup prompt runs as a child process, so a busy shell keeps waiting for the user.
+      const quiet = Effect.gen(function* () {
+        while (true) {
+          const seen = activity;
+          yield* Effect.sleep(SHELL_QUIET_FALLBACK);
+          if (activity !== seen) continue;
+          if (!busy) return "ready" as const;
+          yield* input.onStartupPrompt;
+        }
+      });
+      // Restored history can hold a previous shell's line editor state, so only live output counts.
+      const wait = Deferred.await(outcome).pipe(Effect.raceFirst(quiet));
+      return { wait, unsubscribe };
     },
   );
 
@@ -389,6 +456,28 @@ export const make = Effect.gen(function* () {
           )
         : script.command;
 
+    // Subscribe before opening so neither startup activity nor the sentinel can race the listeners.
+    const observed =
+      observe && completionToken
+        ? yield* observeTerminalCompletion({
+            threadId: input.threadId,
+            terminalId,
+            sentinel: completionSentinel(completionToken),
+            sentinelPattern: completionSentinelPattern(completionToken),
+            echoedWrapperLines: commandLine.split("\r").filter((line) => line.length > 0),
+            onOutputLine: observe.onOutputLine,
+          })
+        : undefined;
+    // PowerShell has no line-editor signal; keep its immediate write.
+    const readiness =
+      completionShell === "powershell"
+        ? undefined
+        : yield* watchShellReadiness({
+            threadId: input.threadId,
+            terminalId,
+            onStartupPrompt: observed?.flushPartialLine ?? Effect.void,
+          });
+
     yield* terminalManager
       .open({
         threadId: input.threadId,
@@ -406,19 +495,13 @@ export const make = Effect.gen(function* () {
               cause,
             }),
         ),
+        Effect.onError(() =>
+          Effect.sync(() => {
+            observed?.unsubscribe();
+            readiness?.unsubscribe();
+          }),
+        ),
       );
-    // Subscribe before writing so the sentinel cannot race past the listener.
-    const observed =
-      observe && completionToken
-        ? yield* observeTerminalCompletion({
-            threadId: input.threadId,
-            terminalId,
-            sentinel: completionSentinel(completionToken),
-            sentinelPattern: completionSentinelPattern(completionToken),
-            echoedWrapperLines: commandLine.split("\r").filter((line) => line.length > 0),
-            onOutputLine: observe.onOutputLine,
-          })
-        : undefined;
 
     const writeCommand = Effect.suspend(() =>
       terminalManager.write({
@@ -436,23 +519,32 @@ export const make = Effect.gen(function* () {
           }),
       ),
     );
-    const cleanupUnusedTerminal = Effect.sync(() => observed?.unsubscribe()).pipe(
+    // A command that never reaches the shell ends its completion and frees the unused shell.
+    const abandonUnusedTerminal = (observed?.abandon ?? Effect.void).pipe(
       Effect.andThen(
         Effect.suspend(() => terminalManager.closeIdle({ threadId: input.threadId, terminalId })),
       ),
     );
-    const commandWritten = yield* (
-      input.withCommandWriteGuard
-        ? input.withCommandWriteGuard(writeCommand)
-        : writeCommand.pipe(Effect.as(true))
-    ).pipe(
-      Effect.onExit((exit) =>
-        Exit.isSuccess(exit) && exit.value ? Effect.void : cleanupUnusedTerminal,
+    // Return once the terminal exists so callers can show it while a startup prompt waits.
+    yield* (readiness?.wait ?? Effect.succeed("ready" as const)).pipe(
+      Effect.flatMap((shell) =>
+        shell === "exited"
+          ? Effect.void
+          : (input.withCommandWriteGuard
+              ? input.withCommandWriteGuard(writeCommand)
+              : writeCommand.pipe(Effect.as(true))
+            ).pipe(Effect.flatMap((written) => (written ? Effect.void : abandonUnusedTerminal))),
       ),
+      Effect.catchCause((cause) =>
+        Effect.logWarning("project script command was not written", {
+          ...errorContext,
+          terminalId,
+          cause,
+        }).pipe(Effect.andThen(abandonUnusedTerminal)),
+      ),
+      Effect.ensuring(Effect.sync(() => readiness?.unsubscribe())),
+      Effect.forkIn(serviceScope),
     );
-    if (!commandWritten) {
-      return { status: "skipped" } as const;
-    }
 
     const completion = observed?.completion.pipe(
       Effect.tap(({ exitCode }) =>

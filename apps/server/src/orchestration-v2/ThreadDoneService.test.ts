@@ -747,11 +747,8 @@ const makeHarness = Effect.fn("makeThreadDoneHarness")(function* (options: Harne
         yield* Queue.offer(scriptRuns, input);
         yield* options.onScriptRun?.(input) ?? Effect.void;
         if (input.withCommandWriteGuard === undefined) return { status: "no-script" } as const;
-        const commandWritten = yield* input.withCommandWriteGuard(
-          options.onCommandWrite?.(input) ?? Effect.void,
-        );
+        yield* input.withCommandWriteGuard(options.onCommandWrite?.(input) ?? Effect.void);
         yield* options.onScriptRunnerReturn?.(input) ?? Effect.void;
-        if (!commandWritten) return { status: "skipped" } as const;
         return {
           status: "started",
           scriptId: "mark-done",
