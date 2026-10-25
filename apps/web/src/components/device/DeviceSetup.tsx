@@ -230,7 +230,7 @@ export function DeviceSetup(props: {
             </div>
             <AgentDeviceSetupStatus state={props.state} pending={pending === "agent"} />
             <p className="text-xs text-muted-foreground">
-              Leave this off to keep manual device controls without giving agents access.
+              Turn this off to keep manual device controls without giving agents access.
             </p>
           </section>
         ) : null}

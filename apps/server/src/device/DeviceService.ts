@@ -511,17 +511,19 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
 
   const configure: DeviceService["Service"]["configure"] = Effect.fn("DeviceService.configure")(
     function* (input) {
-      const currentSettings = yield* readDeviceSettings;
-      const nextEnabled = input.enabled ?? currentSettings.enabled;
-      const nextAgentAccess = input.agentAccessEnabled ?? currentSettings.agentAccessEnabled;
-      yield* lifecycleLock.withPermit(
+      const startAgent = yield* lifecycleLock.withPermit(
         Effect.gen(function* () {
+          const currentSettings = yield* readDeviceSettings;
+          const nextEnabled = input.enabled ?? currentSettings.enabled;
+          const hubTurningOn = input.enabled === true && !currentSettings.enabled;
+          const agentAccessUpdate = input.agentAccessEnabled ?? (hubTurningOn ? true : undefined);
+          const nextAgentAccess = agentAccessUpdate ?? currentSettings.agentAccessEnabled;
           yield* settings
             .updateSettings({
               ...(input.enabled === undefined ? {} : { enableDeviceSupport: input.enabled }),
-              ...(input.agentAccessEnabled === undefined
+              ...(agentAccessUpdate === undefined
                 ? {}
-                : { enableAgentDeviceAccess: input.agentAccessEnabled }),
+                : { enableAgentDeviceAccess: agentAccessUpdate }),
               ...(input.onboardingCompleted === undefined
                 ? {}
                 : { deviceOnboardingCompleted: input.onboardingCompleted }),
@@ -538,7 +540,7 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
             );
           if (!nextEnabled) {
             yield* Effect.forEach(hosts.values(), (host) => host.stop, { discard: true });
-          } else if (input.agentAccessEnabled === false) {
+          } else if (agentAccessUpdate === false) {
             yield* Effect.forEach(hosts.values(), (host) => host.stopAgent, { discard: true });
           }
           yield* publish((state) => ({
@@ -552,9 +554,10 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
             agentAccessEnabled: nextAgentAccess,
             onboardingCompleted: input.onboardingCompleted ?? state.onboardingCompleted,
           }));
+          return nextEnabled && input.agentAccessEnabled === true;
         }),
       );
-      if (nextEnabled && nextAgentAccess && input.agentAccessEnabled === true) {
+      if (startAgent) {
         yield* agentReadinessIfSupported();
       }
       return yield* list;

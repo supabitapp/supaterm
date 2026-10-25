@@ -9,11 +9,12 @@ Device panel work over Tailscale and other remote connections, including when an
 
 [expo-device-hub](../../apps/server/src/device/LocalDeviceHost.ts) streams and
 [agent-device](../../apps/server/src/device/AgentDeviceShim.ts) drives. Each is
-npm-installed at a pinned version into the Supaterm home after its matching Device
-panel consent step. Manual setup installs and starts only expo-device-hub;
-agent-device remains absent and stopped until agent access is granted. Both run
-with the server's Node; `npx` would make the first `device_open` after a reboot
-depend on the registry. The hub is a supervised child rather than an imported
+npm-installed at a pinned version into the Supaterm home. Enabling the hub also
+enables agent access unless the request explicitly opts out. Agent tools start on
+demand so their setup cannot block manual use; explicitly enabling agent access
+prepares them immediately. Agent access can be turned off separately for manual-only
+use. Both run with the server's Node; `npx` would make the first `device_open` after
+a reboot depend on the registry. The hub is a supervised child rather than an imported
 middleware because serve-sim loads private CoreSimulator frameworks through a
 native addon, and a crash there must not take the server down.
 

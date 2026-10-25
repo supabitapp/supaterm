@@ -396,11 +396,61 @@ describe("device setup consent", () => {
     }).pipe(Effect.scoped),
   );
 
-  it.effect("installs agent support only after the separate agent permission", () =>
+  it.effect("enabling the device hub enables agent access and starts agent tools on demand", () =>
+    Effect.gen(function* () {
+      const { service, agentStarts, settings } = yield* fixture();
+      const state = yield* service.configure({ enabled: true });
+      expect((yield* Ref.get(settings)).enableDeviceSupport).toBe(true);
+      expect((yield* Ref.get(settings)).enableAgentDeviceAccess).toBe(true);
+      expect(state.agentAccessEnabled).toBe(true);
+      expect(agentStarts).toEqual([]);
+      yield* service.agentReadinessIfSupported();
+      expect(agentStarts).toEqual(["start"]);
+    }).pipe(Effect.scoped),
+  );
+
+  it.effect("enabling the hub does not fail when agent tools cannot start", () =>
+    Effect.gen(function* () {
+      const startupError = new DeviceHost.AgentDeviceStartError({
+        hostId: LOCAL_DEVICE_HOST_ID,
+        stateDir: "/test/device/agent-device",
+        exitCode: 1,
+        reason: "daemon_lock_not_directory",
+        cause: new Error("Agent daemon failed to start"),
+      });
+      const { service, settings } = yield* fixture(Effect.void, undefined, false, startupError);
+      const state = yield* service.configure({ enabled: true });
+      expect(state.hostStatus).toBe("ready");
+      expect(state.devices.map((device) => device.id)).toEqual(["Pixel_API_35"]);
+      expect((yield* Ref.get(settings)).enableAgentDeviceAccess).toBe(true);
+      const error = yield* service.agentReadinessIfSupported().pipe(Effect.flip);
+      expect(error.cause).toBe(startupError);
+    }).pipe(Effect.scoped),
+  );
+
+  it.effect("keeps an explicit agent opt-out until the device hub is re-enabled", () =>
+    Effect.gen(function* () {
+      const { service, agentStarts, settings } = yield* fixture();
+      yield* service.configure({ enabled: true, agentAccessEnabled: false });
+      yield* service.configure({ enabled: true });
+      expect((yield* Ref.get(settings)).enableAgentDeviceAccess).toBe(false);
+      expect((yield* service.state).agentAccessEnabled).toBe(false);
+      expect(agentStarts).toEqual([]);
+
+      yield* service.configure({ enabled: false });
+      const state = yield* service.configure({ enabled: true });
+      expect((yield* Ref.get(settings)).enableAgentDeviceAccess).toBe(true);
+      expect(state.agentAccessEnabled).toBe(true);
+      expect(agentStarts).toEqual([]);
+    }).pipe(Effect.scoped),
+  );
+
+  it.effect("allows manual device support with an explicit agent opt-out", () =>
     Effect.gen(function* () {
       const { service, agentStarts, agentStops, settings } = yield* fixture();
-      yield* service.configure({ enabled: true });
+      yield* service.configure({ enabled: true, agentAccessEnabled: false });
       expect(agentStarts).toEqual([]);
+      expect(agentStops).toEqual(["stop"]);
       expect(yield* service.agentReadinessIfSupported()).toBeNull();
 
       yield* service.configure({ agentAccessEnabled: true });
@@ -409,7 +459,9 @@ describe("device setup consent", () => {
       expect((yield* service.state).agentAccessEnabled).toBe(true);
 
       yield* service.configure({ agentAccessEnabled: false, onboardingCompleted: true });
-      expect(agentStops).toEqual(["stop"]);
+      expect(agentStops).toEqual(["stop", "stop"]);
+      expect((yield* Ref.get(settings)).enableDeviceSupport).toBe(true);
+      expect((yield* service.state).agentAccessEnabled).toBe(false);
       expect((yield* service.state).onboardingCompleted).toBe(true);
       expect((yield* Ref.get(settings)).deviceOnboardingCompleted).toBe(true);
     }).pipe(Effect.scoped),
@@ -876,7 +928,7 @@ it.effect("retry keeps device and agent consent unchanged", () =>
     yield* service.retryHost(LOCAL_DEVICE_HOST_ID);
     expect(starts).toEqual([]);
     expect(agentStarts).toEqual([]);
-    yield* service.configure({ enabled: true });
+    yield* service.configure({ enabled: true, agentAccessEnabled: false });
     yield* service.retryHost(LOCAL_DEVICE_HOST_ID);
     expect(agentStarts).toEqual([]);
     yield* service.configure({ agentAccessEnabled: true });
