@@ -5,6 +5,13 @@ import * as Path from "effect/Path";
 import { BRAND_ASSET_PATHS, ICON_DOCUMENT } from "./brand-assets.ts";
 import { ICON_CHANNELS, type IconChannel, type StudioIconRender } from "./studio-icon-render.ts";
 
+/** The rendered layers' file names inside a project's `Assets`, bottom to top. */
+export const ICON_LAYERS = {
+  housing: "01-Housing.png",
+  screen: "02-Screen.png",
+  bezel: "03-Bezel.png",
+} as const;
+
 const PROJECTS = {
   prod: BRAND_ASSET_PATHS.productionIconComposerProject,
   nightly: BRAND_ASSET_PATHS.nightlyIconComposerProject,
@@ -39,9 +46,9 @@ export const generateIconProjects = Effect.fn("generateIconProjects")(function* 
     const project = PROJECTS[channel];
     const { housing, screen, bezel } = renders[channel];
     files.set(path.join(project, ICON_DOCUMENT), document);
-    files.set(path.join(project, "Assets", "01-Housing.png"), housing);
-    files.set(path.join(project, "Assets", "02-Screen.png"), screen);
-    files.set(path.join(project, "Assets", "03-Bezel.png"), bezel);
+    files.set(path.join(project, "Assets", ICON_LAYERS.housing), housing);
+    files.set(path.join(project, "Assets", ICON_LAYERS.screen), screen);
+    files.set(path.join(project, "Assets", ICON_LAYERS.bezel), bezel);
   }
   const obsolete: Array<string> = [];
   for (const project of Object.values(PROJECTS)) {

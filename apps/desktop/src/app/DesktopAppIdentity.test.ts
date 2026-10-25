@@ -32,7 +32,7 @@ type TestEnvironmentInput = Partial<DesktopEnvironment.MakeDesktopEnvironmentInp
 
 interface ElectronAppCalls {
   readonly setAboutPanelOptions: Array<Electron.AboutPanelOptionsOptions>;
-  readonly setDockIcon: string[];
+  readonly setDockIcon: Array<Electron.NativeImage | null>;
   readonly setName: string[];
 }
 
@@ -60,9 +60,9 @@ const layerElectronApp = (calls: ElectronAppCalls) =>
     getAppMetrics: Effect.succeed([]),
     setAsDefaultProtocolClient: () => Effect.succeed(true),
     setDesktopName: () => Effect.void,
-    setDockIcon: (iconPath) =>
+    setDockIcon: (image) =>
       Effect.sync(() => {
-        calls.setDockIcon.push(iconPath);
+        calls.setDockIcon.push(image);
       }),
     appendCommandLineSwitch: () => Effect.void,
     onBeforeQuitForUpdate: () => Effect.void,
@@ -77,6 +77,7 @@ const layerAssets = (png: Option.Option<string>) =>
       icns: Option.none(),
       png,
     }),
+    launchIconPaths: () => Effect.succeedNone,
     resolveResourcePath: () => Effect.succeedNone,
   } satisfies DesktopAssets.DesktopAssets["Service"]);
 

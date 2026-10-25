@@ -6,6 +6,7 @@ export const BRAND_ASSET_PATHS = {
   productionIconComposerProject: "assets/prod/app-icon.icon",
   productionIosIconPng: "assets/prod/black-ios-1024.png",
   productionMacIconPng: "assets/prod/black-macos-1024.png",
+  productionMacDarkIconPng: "assets/prod/black-macos-dark-512.png",
   productionLinuxIconPng: "assets/prod/black-universal-1024.png",
   productionWindowsIconIco: "assets/prod/supaterm-black-windows.ico",
   productionWebFaviconIco: "assets/prod/supaterm-black-web-favicon.ico",
@@ -16,6 +17,7 @@ export const BRAND_ASSET_PATHS = {
   nightlyIconComposerProject: "assets/nightly/app-icon.icon",
   nightlyIosIconPng: "assets/nightly/nightly-ios-1024.png",
   nightlyMacIconPng: "assets/nightly/nightly-macos-1024.png",
+  nightlyMacDarkIconPng: "assets/nightly/nightly-macos-dark-512.png",
   nightlyLinuxIconPng: "assets/nightly/nightly-universal-1024.png",
   nightlyWindowsIconIco: "assets/nightly/nightly-windows.ico",
   nightlyWebFaviconIco: "assets/nightly/nightly-web-favicon.ico",
@@ -24,6 +26,11 @@ export const BRAND_ASSET_PATHS = {
   nightlyWebAppleTouchIconPng: "assets/nightly/nightly-web-apple-touch-180.png",
 
   developmentDesktopIconPng: "assets/dev/blueprint-macos-1024.png",
+  developmentDesktopDarkIconPng: "assets/dev/blueprint-macos-dark-512.png",
+
+  // Brands differ only in the bolt, which this render switches off.
+  macUnlitIconPng: "assets/prod/black-macos-unlit-512.png",
+  macUnlitDarkIconPng: "assets/prod/black-macos-unlit-dark-512.png",
   developmentWindowsIconIco: "assets/dev/blueprint-windows.ico",
   developmentWebFaviconIco: "assets/dev/blueprint-web-favicon.ico",
   developmentWebFavicon16Png: "assets/dev/blueprint-web-favicon-16x16.png",

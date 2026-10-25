@@ -11,6 +11,7 @@ import * as Electron from "electron";
 import { type DesktopSnapShotEvent, DEFAULT_CLIENT_SETTINGS } from "@supaterm/contracts";
 
 import * as DesktopAssets from "../app/DesktopAssets.ts";
+import * as DesktopLaunchIcon from "../app/DesktopLaunchIcon.ts";
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
 import { makeComponentLogger } from "../app/DesktopObservability.ts";
 import * as DesktopState from "../app/DesktopState.ts";
@@ -288,6 +289,7 @@ export const make = Effect.gen(function* () {
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const desktopState = yield* DesktopState.DesktopState;
   const assets = yield* DesktopAssets.DesktopAssets;
+  const launchIcon = yield* DesktopLaunchIcon.DesktopLaunchIcon;
   const electronMenu = yield* ElectronMenu.ElectronMenu;
   const electronShell = yield* ElectronShell.ElectronShell;
   const electronTheme = yield* ElectronTheme.ElectronTheme;
@@ -818,7 +820,11 @@ export const make = Effect.gen(function* () {
       if (persistedSettings.mainWindowMaximized) {
         window.maximize();
       }
-      void runPromise(Effect.andThen(electronWindow.reveal(window), dismissConnectingSplash));
+      void runPromise(
+        electronWindow
+          .reveal(window)
+          .pipe(Effect.andThen(dismissConnectingSplash), Effect.andThen(launchIcon.settle)),
+      );
     });
 
     loadApplication();

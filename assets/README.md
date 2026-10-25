@@ -12,7 +12,7 @@ Exporting requires macOS with full Xcode 27 or newer and Icon Composer 2 or newe
 
 ## Platform appearances
 
-macOS release packaging and the local desktop launcher compile the generated Icon Composer project into `Assets.car` and declare `CFBundleIconName`, so macOS can select native light, dark, and tinted appearances. The compiled `.icns` provides the fallback for older macOS versions. The export command also uses `actool` to render the static macOS PNGs with the native safe area and shadow.
+macOS release packaging and the local desktop launcher compile the generated Icon Composer project into `Assets.car` and declare `CFBundleIconName`, so macOS can select native light, dark, and tinted appearances. The compiled `.icns` provides the fallback for older macOS versions. The export command also uses `actool` to render the static macOS PNGs with the native safe area and shadow, plus the renders the Dock's launch animation blends between: each brand's `*-macos-dark-512.png`, and `prod/black-macos-unlit-512.png` and `prod/black-macos-unlit-dark-512.png` with every LED off. It also writes where the bolt's LEDs land on the macOS icon to `apps/desktop/src/app/LaunchIconLeds.generated.ts`. Brands differ only in the bolt, so the unlit renders serve all of them. The dark renders bake in the project's dark specializations, because `actool` only renders the default appearance into PNGs.
 
 iOS uses the generated layered projects for native appearances. Other surfaces use static default renditions.
 

@@ -53,3 +53,23 @@ export function renderBrandIcons(layerSize: number, screenArtSize: number) {
     }),
   );
 }
+
+/**
+ * What the desktop app's launch animation is made from: the screen layer at `layerSize` with every
+ * LED off, and where the bolt's first LED and the step to its neighbours fall on the layers, as
+ * fractions of their size.
+ */
+export function renderLaunchIconArt(layerSize: number) {
+  const renderer = new BoltComputerRenderer();
+  const [x, y] = renderer.iconLedCenter(layerSize, 0, 0);
+  const [nextX, nextY] = renderer.iconLedCenter(layerSize, 1, 1);
+  return {
+    unlitScreen: png(renderer.paintIconUnlitScreen(layerSize)),
+    leds: {
+      x: x / layerSize,
+      y: y / layerSize,
+      pitchX: (nextX - x) / layerSize,
+      pitchY: (nextY - y) / layerSize,
+    },
+  };
+}

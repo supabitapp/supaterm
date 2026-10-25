@@ -34,6 +34,7 @@ vi.mock("electron", async (importOriginal) => ({
 }));
 
 import * as DesktopAssets from "../app/DesktopAssets.ts";
+import * as DesktopLaunchIcon from "../app/DesktopLaunchIcon.ts";
 import * as DesktopConfig from "../app/DesktopConfig.ts";
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
 import * as DesktopState from "../app/DesktopState.ts";
@@ -161,8 +162,14 @@ const layerDesktopAssets = Layer.succeed(DesktopAssets.DesktopAssets, {
     icns: Option.none<string>(),
     png: Option.none<string>(),
   }),
+  launchIconPaths: () => Effect.succeedNone,
   resolveResourcePath: () => Effect.succeed(Option.none<string>()),
 } satisfies DesktopAssets.DesktopAssets["Service"]);
+
+const layerDesktopLaunchIcon = Layer.succeed(DesktopLaunchIcon.DesktopLaunchIcon, {
+  start: Effect.void,
+  settle: Effect.void,
+} satisfies DesktopLaunchIcon.DesktopLaunchIcon["Service"]);
 
 const layerDesktopServerExposure = Layer.succeed(DesktopServerExposure.DesktopServerExposure, {
   getState: Effect.die("unexpected getState"),
@@ -187,6 +194,9 @@ const layerElectronMenu = Layer.succeed(ElectronMenu.ElectronMenu, {
 
 const layerElectronTheme = Layer.succeed(ElectronTheme.ElectronTheme, {
   shouldUseDarkColors: Effect.succeed(false),
+  iconAppearance: Effect.succeed(""),
+  systemDarkMode: Effect.succeed(false),
+  prefersReducedMotion: Effect.succeed(false),
   setSource: () => Effect.void,
   onUpdated: () => Effect.void,
 } satisfies ElectronTheme.ElectronTheme["Service"]);
@@ -291,6 +301,7 @@ function layerTest(input: {
     Layer.provide(
       Layer.mergeAll(
         layerDesktopAssets,
+        layerDesktopLaunchIcon,
         layerDesktopEnvironment,
         layerDesktopAppSettings,
         layerDesktopClientSettings,
@@ -402,6 +413,7 @@ const makeSplashScenario = (createOutcomes: readonly (Electron.BrowserWindow | n
       Layer.provide(
         Layer.mergeAll(
           layerDesktopAssets,
+          layerDesktopLaunchIcon,
           layerDesktopEnvironment,
           DesktopAppSettings.layerTest(),
           layerDesktopClientSettings,

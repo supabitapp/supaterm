@@ -37,6 +37,24 @@ const decodeRendered = Schema.decodeUnknownEffect(
   Schema.Record(Schema.Literals(ICON_CHANNELS), RenderedChannel),
 );
 
+const LedLayout = Schema.Struct({
+  x: Schema.Number,
+  y: Schema.Number,
+  pitchX: Schema.Number,
+  pitchY: Schema.Number,
+});
+const decodeLaunchArt = Schema.decodeUnknownEffect(
+  Schema.Struct({ unlitScreen: Schema.String, leds: LedLayout }),
+);
+
+/** What the desktop app's launch animation is made from, shared by every channel. */
+export interface LaunchIconArt {
+  /** The screen layer with every LED off, `ICON_LAYER_SIZE` square. */
+  readonly unlitScreen: Buffer;
+  /** Where the bolt's first LED and the step to its neighbours fall, as fractions of a layer. */
+  readonly leds: typeof LedLayout.Type;
+}
+
 export class StudioIconRenderError extends Schema.TaggedError<StudioIconRenderError>()(
   "StudioIconRenderError",
   { cause: Schema.Defect() },
@@ -108,11 +126,23 @@ export const renderStudioIcons = Effect.fn("renderStudioIcons")(function* (repos
     Effect.flatMap(decodeRendered),
     Effect.mapError((cause) => new StudioIconRenderError({ cause })),
   );
-  return yield* Effect.all({
-    prod: toBuffers(rendered.prod),
-    nightly: toBuffers(rendered.nightly),
-    dev: toBuffers(rendered.dev),
-  });
+  const launch = yield* attempt(() =>
+    page.evaluate(`StudioIcon.renderLaunchIconArt(${ICON_LAYER_SIZE})`),
+  ).pipe(
+    Effect.flatMap(decodeLaunchArt),
+    Effect.mapError((cause) => new StudioIconRenderError({ cause })),
+  );
+  return {
+    channels: yield* Effect.all({
+      prod: toBuffers(rendered.prod),
+      nightly: toBuffers(rendered.nightly),
+      dev: toBuffers(rendered.dev),
+    }),
+    launch: {
+      unlitScreen: yield* fromDataUrl(launch.unlitScreen),
+      leds: launch.leds,
+    } satisfies LaunchIconArt,
+  };
 }, Effect.scoped);
 
 /**

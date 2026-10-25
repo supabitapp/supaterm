@@ -1,3 +1,4 @@
+import { hash } from "@supaterm/shared/boltFace";
 import {
   GLASS,
   PLATE,
@@ -11,7 +12,7 @@ import {
   newGrid,
   type Bakes,
 } from "./bakes";
-import { FACES, drawSparkles, hash, tear, type BoltComputerState, type Grid } from "./faces";
+import { FACES, boltCell, drawSparkles, tear, type BoltComputerState, type Grid } from "./faces";
 import {
   BEVEL,
   DEPTH,
@@ -313,17 +314,7 @@ export class BoltComputerRenderer {
    * housing's outline touching its edges.
    */
   paintIconLayers(size: number, look: Look): IconLayers {
-    const frame: Frame = {
-      box: size,
-      padTop: 0,
-      padBottom: 0,
-      padSide: 0,
-      unit: size / (2 * Math.max(OUTER.hx, OUTER.hy)),
-      cx: size / 2,
-      cy: size / 2,
-    };
-    const view = viewFor(frame, 1, FRONT_POSE);
-    const sized = this.prepare(view.U);
+    const { view, sized } = this.iconView(size);
     const layer = (paint: (ctx: CanvasRenderingContext2D) => void) => {
       const canvas = makeCanvas(size, size);
       paint(context2d(canvas));
@@ -335,6 +326,46 @@ export class BoltComputerRenderer {
       screen: layer((ctx) => drawGlass(ctx, view, FRONT_POSE, sized)),
       bezel: layer((ctx) => drawBezel(ctx, view, sized, this.controlsFor(sized.unit, look.knobs))),
     };
+  }
+
+  /** The icon's screen layer with every LED off. */
+  paintIconUnlitScreen(size: number): HTMLCanvasElement {
+    const { view, sized } = this.iconView(size);
+    this.grid.v.fill(0);
+    this.drawScreen(sized, this.grid, [0, 0, 0]);
+    const canvas = makeCanvas(size, size);
+    drawGlass(context2d(canvas), view, FRONT_POSE, sized);
+    return canvas;
+  }
+
+  /** Where the middle of the bolt's LED at `column`, `row` falls on the icon's layers, in px. */
+  iconLedCenter(size: number, column: number, row: number): readonly [number, number] {
+    const { view, sized } = this.iconView(size);
+    const [gx, gy] = boltCell(this.grid, column, row);
+    // drawGlass stretches the screen canvas over SCREEN, centred on the screen hole.
+    const x =
+      -SCREEN.hx + ((sized.x0 + (gx + 0.5) * sized.pitch) / sized.screen.width) * 2 * SCREEN.hx;
+    const y =
+      SCREEN_HOLE.cy -
+      SCREEN.hy +
+      ((sized.y0 + (gy + 0.5) * sized.pitch) / sized.screen.height) * 2 * SCREEN.hy;
+    const [px, py] = view.project(x, y, FRONT_Z - RECESS);
+    return [px, py];
+  }
+
+  /** The still front view with the housing's outline touching the edges of a `size` px square. */
+  private iconView(size: number) {
+    const frame: Frame = {
+      box: size,
+      padTop: 0,
+      padBottom: 0,
+      padSide: 0,
+      unit: size / (2 * Math.max(OUTER.hx, OUTER.hy)),
+      cx: size / 2,
+      cy: size / 2,
+    };
+    const view = viewFor(frame, 1, FRONT_POSE);
+    return { view, sized: this.prepare(view.U) };
   }
 
   /** The controls bake only follows the size the other textures were baked at, and their colour. */

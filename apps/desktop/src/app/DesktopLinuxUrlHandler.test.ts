@@ -81,6 +81,7 @@ const layerHandler = (
             ico: Option.none(),
             icns: Option.none(),
           }),
+          launchIconPaths: () => Effect.succeedNone,
           resolveResourcePath: () => Effect.succeedNone,
         }),
         FileSystem.layerNoop({
@@ -388,6 +389,7 @@ const registerWithRealFileSystem = (run: ThemeIconRun) =>
                     ico: Option.none(),
                     icns: Option.none(),
                   }),
+                  launchIconPaths: () => Effect.succeedNone,
                   resolveResourcePath: (fileName: string) =>
                     Effect.succeed(
                       fileName === "icons/256x256.png"

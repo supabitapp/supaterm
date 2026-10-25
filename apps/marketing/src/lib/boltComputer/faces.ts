@@ -1,3 +1,5 @@
+import { BOLT, BOLT_CELLS, hash, thinkingLevel } from "@supaterm/shared/boltFace";
+
 export type BoltComputerState = "idle" | "thinking" | "working" | "error";
 export const BOLT_COMPUTER_STATES: readonly BoltComputerState[] = [
   "idle",
@@ -39,12 +41,6 @@ const put = (g: Grid, c: number, r: number, v: number) => {
   if (v > (g.v[i] ?? 0)) g.v[i] = v;
 };
 
-export const hash = (x: number, y: number) => {
-  let h = Math.imul(x, 374761393) + Math.imul(y, 668265263);
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-};
-
 /** Slide each row sideways by up to `spread` cells, like a CRT losing sync. */
 export function tear(g: Grid, seed: number, spread: number) {
   for (let r = 0; r < g.rows; r++) {
@@ -57,37 +53,14 @@ export function tear(g: Grid, seed: number, spread: number) {
   }
 }
 
-// The bolt from the app icon's screen.
-const BOLT = [
-  "......#######.",
-  ".....#########",
-  "....##########",
-  "...###########",
-  "...##########.",
-  "..##########..",
-  "..#########...",
-  ".#########....",
-  ".#########....",
-  "#############.",
-  "##############",
-  "##############",
-  "#############.",
-  ".###########..",
-  ".....######...",
-  "....#######...",
-  "....######....",
-  "....#####.....",
-  "...#####......",
-  "...####.......",
-  "...###........",
-  "...##.........",
-  "...#..........",
-];
 const BOLT_X = 7;
 const BOLT_Y = 1;
-const BOLT_CELLS = BOLT.flatMap((row, r) =>
-  Array.from(row).flatMap((cell, c) => (cell === "#" ? [[c, r] as const] : [])),
-);
+
+/** The matrix cell lighting the bolt's LED at `column`, `row`. */
+export const boltCell = (g: Grid, column: number, row: number): readonly [number, number] => [
+  g.ox + BOLT_X + column,
+  g.oy + BOLT_Y + row,
+];
 
 const bolt = (g: Grid, level: (c: number, r: number) => number) => {
   for (const [c, r] of BOLT_CELLS) put(g, BOLT_X + c, BOLT_Y + r, level(c, r));
@@ -102,10 +75,7 @@ export const FACES: Record<BoltComputerState, (g: Grid, t: number) => void> = {
   },
 
   thinking(g, t) {
-    bolt(g, (c, r) => {
-      const spark = Math.max(0, Math.sin(t * (1.5 + hash(r, c) * 2.5) + hash(c, r) * 6.28)) ** 12;
-      return 0.22 + 0.78 * spark;
-    });
+    bolt(g, (c, r) => thinkingLevel(c, r, t));
   },
 
   working(g, t) {

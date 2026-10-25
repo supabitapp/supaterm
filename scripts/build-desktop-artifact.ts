@@ -118,6 +118,7 @@ const readWorkspaceConfig = Effect.fn("readWorkspaceConfig")(function* () {
 
 interface DesktopBuildIconAssets {
   readonly macIconPng: string;
+  readonly macDarkIconPng: string;
   readonly macIconProject: string;
   readonly linuxIconPng: string;
   readonly windowsIconIco: string;
@@ -2143,12 +2144,20 @@ export const stageBrowserSecret = Effect.fn("stageBrowserSecret")(function* (inp
 const stageMacIcons = Effect.fn("stageMacIcons")(function* (
   stageResourcesDir: string,
   sourcePng: string,
+  sourceDarkPng: string,
   sourceProject: string,
   verbose: boolean,
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  for (const sourcePath of [sourcePng, sourceProject]) {
+  const repoRoot = yield* RepoRoot;
+  // The Dock's launch animation: the brand's dark icon, and the bolt-off renders all brands share.
+  const launchIcons = [
+    [sourceDarkPng, "icon-dark.png"],
+    [path.join(repoRoot, BRAND_ASSET_PATHS.macUnlitIconPng), "icon-unlit.png"],
+    [path.join(repoRoot, BRAND_ASSET_PATHS.macUnlitDarkIconPng), "icon-unlit-dark.png"],
+  ] as const;
+  for (const sourcePath of [sourcePng, sourceProject, ...launchIcons.map(([source]) => source)]) {
     if (!(yield* fs.exists(sourcePath))) {
       return yield* new DesktopIconSourceMissingError({
         platform: "mac",
@@ -2168,6 +2177,9 @@ const stageMacIcons = Effect.fn("stageMacIcons")(function* (
     label: "sips mac icon",
     verbose,
   });
+  for (const [source, fileName] of launchIcons) {
+    yield* fs.copyFile(source, path.join(stageResourcesDir, fileName));
+  }
 
   yield* runCommand(ChildProcess.make("xcrun", macIconCompilerArguments(sourceProject, tmpRoot)), {
     label: "compile adaptive macOS icon",
@@ -2394,6 +2406,7 @@ export function resolveDesktopBuildIconAssets(version: string): DesktopBuildIcon
   if (resolveDesktopUpdateChannel(version) === "nightly") {
     return {
       macIconPng: BRAND_ASSET_PATHS.nightlyMacIconPng,
+      macDarkIconPng: BRAND_ASSET_PATHS.nightlyMacDarkIconPng,
       macIconProject: BRAND_ASSET_PATHS.nightlyIconComposerProject,
       linuxIconPng: BRAND_ASSET_PATHS.nightlyLinuxIconPng,
       windowsIconIco: BRAND_ASSET_PATHS.nightlyWindowsIconIco,
@@ -2402,6 +2415,7 @@ export function resolveDesktopBuildIconAssets(version: string): DesktopBuildIcon
 
   return {
     macIconPng: BRAND_ASSET_PATHS.productionMacIconPng,
+    macDarkIconPng: BRAND_ASSET_PATHS.productionMacDarkIconPng,
     macIconProject: BRAND_ASSET_PATHS.productionIconComposerProject,
     linuxIconPng: BRAND_ASSET_PATHS.productionLinuxIconPng,
     windowsIconIco: BRAND_ASSET_PATHS.productionWindowsIconIco,
@@ -2656,6 +2670,7 @@ const assertPlatformBuildResources = Effect.fn("assertPlatformBuildResources")(f
     yield* stageMacIcons(
       stageResourcesDir,
       iconAssets.macIconPng,
+      iconAssets.macDarkIconPng,
       iconAssets.macIconProject,
       verbose,
     );
@@ -3469,6 +3484,7 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
     stageResourcesDir,
     {
       macIconPng: path.join(repoRoot, iconAssets.macIconPng),
+      macDarkIconPng: path.join(repoRoot, iconAssets.macDarkIconPng),
       macIconProject: path.join(repoRoot, iconAssets.macIconProject),
       linuxIconPng: path.join(repoRoot, iconAssets.linuxIconPng),
       windowsIconIco: path.join(repoRoot, iconAssets.windowsIconIco),
