@@ -63,6 +63,7 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
           {items.map((item) => {
             const project = projects.get(item.value) ?? null;
             const shortcut = shortcutLabels.get(item);
+            const checked = item.value === value;
             return (
               <MenuRadioItem
                 key={item.value}
@@ -84,23 +85,30 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
                   {project && environments ? (
                     <ProjectEnvironmentBadge group={project} {...environments} />
                   ) : null}
-                  <span className="grid shrink-0 items-center justify-items-end *:col-start-1 *:row-start-1">
+                  {shortcut ? (
+                    <Kbd variant="plain" aria-hidden>
+                      {shortcut}
+                    </Kbd>
+                  ) : null}
+                  <span className="grid shrink-0 place-items-center *:col-start-1 *:row-start-1">
                     <span aria-hidden className="size-7 sm:size-6" />
-                    {shortcut ? (
+                    <span
+                      className={
+                        project
+                          ? "flex in-data-highlighted:invisible pointer-coarse:invisible"
+                          : "flex"
+                      }
+                    >
+                      <MenuRadioItemIndicator />
+                    </span>
+                    {project ? (
                       <span
                         className={
-                          project
-                            ? "in-data-highlighted:invisible pointer-coarse:invisible"
-                            : undefined
+                          checked
+                            ? "invisible flex in-data-highlighted:visible pointer-coarse:visible"
+                            : "flex"
                         }
                       >
-                        <Kbd variant="plain" aria-hidden>
-                          {shortcut}
-                        </Kbd>
-                      </span>
-                    ) : null}
-                    {project ? (
-                      <span className="invisible flex in-data-highlighted:visible pointer-coarse:visible">
                         <Button
                           size="icon-xs"
                           variant="ghost-muted"
@@ -114,9 +122,6 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
                         </Button>
                       </span>
                     ) : null}
-                  </span>
-                  <span className="flex w-3.5 shrink-0">
-                    <MenuRadioItemIndicator />
                   </span>
                 </span>
               </MenuRadioItem>
