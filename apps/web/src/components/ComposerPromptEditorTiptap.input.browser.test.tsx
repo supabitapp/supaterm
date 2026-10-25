@@ -14,7 +14,7 @@ import { createElement, createRef, useEffect, useState } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import { serializeEditorDoc } from "~/composer-rich-text-map";
-import { act, render } from "../../test/render";
+import { act, fakeTimers, render } from "../../test/render";
 
 import { isMacPlatform } from "~/lib/utils";
 import {
@@ -375,10 +375,14 @@ describe("composer context undo lifetime", () => {
 
 describe("an Arabic line", () => {
   async function focusEnd(editor: Editor) {
+    // ProseMirror rewrites the DOM caret 20ms after focus. Run that now, or it
+    // can undo the first arrow key before ProseMirror reads the native move.
+    using _timers = fakeTimers();
     await act(async () => {
       editor.commands.focus("end");
     });
     await vi.waitFor(() => expect(document.activeElement).toBe(editor.view.dom));
+    vi.runOnlyPendingTimers();
   }
 
   it("leaves inline code through its start with ArrowRight, which points back", async () => {
