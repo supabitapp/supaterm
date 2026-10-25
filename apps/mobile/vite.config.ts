@@ -10,6 +10,7 @@ const reactTests = [
   "src/features/voice-input/useVoiceInputController.test.tsx",
   "src/native/NativeHeaderToolbar.test.tsx",
   "src/native/useRetryingImageSource.test.tsx",
+  "src/state/queries.debounce.test.tsx",
   "src/state/use-composer-attachment-actions.test.tsx",
   "src/state/use-selected-thread-git-actions.test.tsx",
 ];
