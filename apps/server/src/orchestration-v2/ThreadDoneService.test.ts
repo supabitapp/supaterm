@@ -9,6 +9,7 @@ import {
   ProviderSessionId,
   RunId,
   ThreadId,
+  TurnItemId,
   type OrchestrationProjectShell,
   type OrchestrationV2AppThread,
   type OrchestrationV2Command,
@@ -702,9 +703,12 @@ const makeHarness = Effect.fn("makeThreadDoneHarness")(function* (options: Harne
       return next;
     });
 
-  const branchPullRequest: GitManager.GitManager["Service"]["branchPullRequest"] = (input) =>
+  const branchPullRequest: GitManager.GitManager["Service"]["branchPullRequest"] = (
+    input,
+    lookupOptions,
+  ) =>
     Ref.update(branchCalls, (calls) => [...calls, input]).pipe(
-      Effect.andThen(options.branchPullRequest?.(input) ?? Effect.succeed(null)),
+      Effect.andThen(options.branchPullRequest?.(input, lookupOptions) ?? Effect.succeed(null)),
     );
   const pullRequestSummary: PullRequestService.PullRequestService["Service"]["summary"] = (
     input,
@@ -1265,6 +1269,78 @@ describe("ThreadDoneServiceV2 worker", () => {
         }).pipe(Effect.provide(fixture.layer));
       }),
     ),
+  );
+
+  it.effect(
+    "marks done an unlinked branch thread its agent merged from a shell, past the cache",
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          yield* TestClock.setTime(Date.parse(NOW));
+          const markedDone = yield* Deferred.make<void>();
+          const thread = makeThread("shell-merged", {
+            branch: "saved-feature",
+            latestUserMessageAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
+          });
+          const fixture = yield* makeHarness({
+            settings: { ...DEFAULT_SERVER_SETTINGS, sidebarAutoMarkDoneOnMerge: true },
+            snapshot: makeSnapshot([thread]),
+            // The host already merged it; only a fresh read sees that past the cached open lookup.
+            branchPullRequest: (_input, lookupOptions) =>
+              Effect.succeed(makeBranchPullRequest(lookupOptions?.refresh ? "merged" : "open")),
+            onDispatch: () => Deferred.succeed(markedDone, undefined),
+          });
+          const at = DateTime.makeUnsafe(NOW);
+          const runId = RunId.make("run:shell-merged");
+          const runEnded: OrchestrationV2DomainEvent = {
+            type: "run.background-work-cancelled",
+            id: EventId.make("event:shell-merged:run-ended"),
+            threadId: thread.id,
+            occurredAt: at,
+            payload: { runId, restartCancelledBackgroundWork: [] },
+          };
+
+          yield* Effect.gen(function* () {
+            const reactor = yield* ThreadDoneService.ThreadDoneServiceV2;
+            yield* startHarness(reactor, fixture.activation, fixture.snapshotReads);
+            yield* fixture.publishEvent(runEnded);
+            yield* Queue.take(fixture.snapshotReads);
+            yield* reactor.drain;
+            assert.deepStrictEqual(yield* Ref.get(fixture.commands), []);
+
+            yield* fixture.publishEvent({
+              type: "turn-item.updated",
+              id: EventId.make("event:shell-merged:command"),
+              threadId: thread.id,
+              runId,
+              occurredAt: at,
+              payload: {
+                id: TurnItemId.make("item:shell-merged:command"),
+                threadId: thread.id,
+                runId,
+                nodeId: null,
+                providerThreadId: null,
+                providerTurnId: null,
+                nativeItemRef: null,
+                parentItemId: null,
+                ordinal: 1,
+                status: "completed",
+                title: null,
+                startedAt: at,
+                completedAt: at,
+                updatedAt: at,
+                type: "command_execution",
+                input: "gh pr merge 42 --squash",
+              },
+            });
+            yield* Deferred.await(markedDone);
+            assert.deepStrictEqual(
+              (yield* Ref.get(fixture.commands)).map((command) => command.threadId),
+              [thread.id],
+            );
+          }).pipe(Effect.provide(fixture.layer));
+        }),
+      ),
   );
 
   it.effect(

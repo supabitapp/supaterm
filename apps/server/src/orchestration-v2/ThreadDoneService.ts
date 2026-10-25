@@ -305,6 +305,9 @@ export const make = Effect.gen(function* () {
   const pullRequests = yield* PullRequestService.PullRequestService;
   const crypto = yield* Crypto.Crypto;
   const fileSystem = yield* FileSystem.FileSystem;
+  // A shell merge or close sends no event, and the branch lookup caches an open pull request for
+  // a minute, so these threads' next lookup reads the host fresh.
+  const shellClosedThreads = new Set<ThreadId>();
   const terminals = yield* TerminalManager.TerminalManager;
   const projectScripts = yield* ProjectSetupScriptRunner.ProjectSetupScriptRunner;
   // Marking a done thread done again re-emits thread.marked-done with the same doneAt,
@@ -512,7 +515,8 @@ export const make = Effect.gen(function* () {
       if (cwd === undefined) {
         return yield* Effect.die(new Error("thread project not found"));
       }
-      return yield* git.branchPullRequest({ cwd, branch: thread.branch });
+      const refresh = group.filter((member) => shellClosedThreads.delete(member.id)).length > 0;
+      return yield* git.branchPullRequest({ cwd, branch: thread.branch }, { refresh });
     });
 
     yield* Effect.forEach(
@@ -674,10 +678,21 @@ export const make = Effect.gen(function* () {
         return backgroundWorkHoldsCompletion(event.payload.pendingBackgroundTasks ?? [])
           ? Effect.void
           : enqueueThread(event.threadId);
-      case "turn-item.updated":
-        return turnItemUpdateCanEndBackgroundWork(event.payload)
+      case "turn-item.updated": {
+        const item = event.payload;
+        if (
+          item.type === "command_execution" &&
+          !isOrchestrationV2WorkActive(item.status) &&
+          sourceControlDefinitions.definitions.some(
+            (definition) => definition.changeRequestCloseCommand?.test(item.input) === true,
+          )
+        ) {
+          shellClosedThreads.add(event.threadId);
+        }
+        return turnItemUpdateCanEndBackgroundWork(item)
           ? enqueueThread(event.threadId)
           : Effect.void;
+      }
       case "provider-session.updated":
         return event.payload.status !== "starting" && event.payload.status !== "running"
           ? enqueueThread(event.threadId)
