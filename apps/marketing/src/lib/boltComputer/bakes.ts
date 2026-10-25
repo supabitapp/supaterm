@@ -220,7 +220,7 @@ export function bakeScreenBase(w: number, h: number, pitch: number, x0: number, 
 }
 
 /** The glass over the LEDs: a vignette, a curved reflection, a cool sheen. */
-function bakeGlass(w: number, h: number) {
+export function bakeGlass(w: number, h: number) {
   const canvas = makeCanvas(w, h);
   const ctx = context2d(canvas);
   const vignette = ctx.createRadialGradient(

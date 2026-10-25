@@ -20,7 +20,7 @@ export interface Outline {
   readonly r: number;
 }
 
-// Head units: x right, y down, z toward the viewer. Proportions follow the app icon.
+// Head units: x right, y down, z toward the viewer. The app icon is this housing seen head-on.
 export const HOUSING: Outline = { cx: 0, cy: 0, bx: 0.23, by: 0.23, r: 0.19 };
 export const SCREEN_HOLE: Outline = { cx: 0, cy: -0.04, bx: 0.18, by: 0.145, r: 0.12 };
 export const DEPTH = 0.6;

@@ -37,12 +37,12 @@ export interface BoltComputer {
   update(changes: Partial<BoltComputerSettings>): void;
 }
 
-const hexToRgb = (hex: string): RGB => {
+export const hexToRgb = (hex: string): RGB => {
   const n = Number.parseInt(hex.slice(1), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 };
 
-const lookOf = (settings: BoltComputerSettings): Look => ({
+export const lookOf = (settings: BoltComputerSettings): Look => ({
   state: settings.state,
   shell: shellMaterial(hexToRgb(settings.shell)),
   phosphor: hexToRgb(settings.phosphor),

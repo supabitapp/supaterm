@@ -199,6 +199,80 @@ function drawSheen(ctx: CanvasRenderingContext2D, pose: Pose) {
   ctx.fillRect(-GLASS.hx, y - GLASS.hy, GLASS.hx * 2, GLASS.hy * 2);
 }
 
+/** Lights an LED matrix over a screen: a soft bloom, then each LED on top of it. */
+export class LedPainter {
+  private readonly tiny: HTMLCanvasElement;
+  private readonly tinyHalf: HTMLCanvasElement;
+  private readonly image: ImageData;
+
+  constructor(cols: number, rows: number) {
+    this.tiny = makeCanvas(cols, rows);
+    this.tinyHalf = makeCanvas(cols / 2, rows / 2);
+    this.image = context2d(this.tiny).createImageData(cols, rows);
+  }
+
+  paint(
+    ctx: CanvasRenderingContext2D,
+    grid: Grid,
+    pitch: number,
+    x0: number,
+    y0: number,
+    led: RGB,
+  ) {
+    const { cols, rows, v: g } = grid;
+    // Bloom first: the matrix at one pixel per LED, scaled up smooth. The cells
+    // go over it so they keep the phosphor's colour instead of washing to white.
+    const tiny = context2d(this.tiny);
+    const d = this.image.data;
+    for (let i = 0; i < cols * rows; i++) {
+      d[i * 4] = led[0];
+      d[i * 4 + 1] = led[1];
+      d[i * 4 + 2] = led[2];
+      d[i * 4 + 3] = Math.round(Math.min(1, g[i] ?? 0) * 255);
+    }
+    tiny.putImageData(this.image, 0, 0);
+    const half = context2d(this.tinyHalf);
+    half.clearRect(0, 0, this.tinyHalf.width, this.tinyHalf.height);
+    half.imageSmoothingEnabled = true;
+    half.drawImage(this.tiny, 0, 0, this.tinyHalf.width, this.tinyHalf.height);
+    ctx.imageSmoothingEnabled = true;
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = 0.45;
+    ctx.drawImage(this.tiny, x0, y0, cols * pitch, rows * pitch);
+    ctx.globalAlpha = 0.55;
+    ctx.drawImage(this.tinyHalf, x0 - pitch, y0 - pitch, (cols + 2) * pitch, (rows + 2) * pitch);
+    ctx.globalCompositeOperation = "source-over";
+    const color = rgb(led);
+    // Each LED's hot centre, a step toward white.
+    const core = rgb(mix(led, [255, 255, 255], 0.35));
+    const cell = pitch * 0.8;
+    const off = (pitch - cell) / 2;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const v = g[r * cols + c] ?? 0;
+        if (v < 0.01) continue;
+        const x = x0 + c * pitch + off;
+        const y = y0 + r * pitch + off;
+        ctx.globalAlpha = Math.min(1, v);
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, cell, cell);
+        ctx.globalAlpha = Math.min(1, v) * 0.5;
+        ctx.fillStyle = core;
+        ctx.fillRect(x + cell * 0.2, y + cell * 0.2, cell * 0.6, cell * 0.6);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+export interface IconLayers {
+  readonly housing: HTMLCanvasElement;
+  readonly screen: HTMLCanvasElement;
+  readonly bezel: HTMLCanvasElement;
+}
+
+const FRONT_POSE: Pose = { yaw: 0, pitch: 0, roll: 0, lift: 0, sx: 1, sy: 1 };
+
 /** Everything that depends on the drawn size. */
 interface Sized {
   readonly unit: number;
@@ -218,9 +292,7 @@ export class BoltComputerRenderer {
   private grain: CanvasPattern | null = null;
   private readonly grid: Grid = newGrid();
   private readonly previous: Grid = newGrid();
-  private readonly tiny = makeCanvas(this.grid.cols, this.grid.rows);
-  private readonly tinyHalf = makeCanvas(this.grid.cols / 2, this.grid.rows / 2);
-  private tinyImage: ImageData | null = null;
+  private readonly leds = new LedPainter(this.grid.cols, this.grid.rows);
   private readonly projected = new Float32Array(bodyMesh().pos.length);
 
   /** Paint a frame; with no sim, the still pose of the look's state. */
@@ -233,6 +305,35 @@ export class BoltComputerRenderer {
       canvas.height = h;
     }
     this.draw(context2d(canvas), frame, dpr, sim?.pose ?? restPose(look.state), sim, look);
+  }
+
+  /**
+   * The still front view as the app icon's layers, bottom to top, each `size` px square with the
+   * housing's outline touching its edges.
+   */
+  paintIconLayers(size: number, look: Look): IconLayers {
+    const frame: Frame = {
+      box: size,
+      padTop: 0,
+      padBottom: 0,
+      padSide: 0,
+      unit: size / (2 * Math.max(OUTER.hx, OUTER.hy)),
+      cx: size / 2,
+      cy: size / 2,
+    };
+    const view = viewFor(frame, 1, FRONT_POSE);
+    const sized = this.prepare(view.U);
+    const layer = (paint: (ctx: CanvasRenderingContext2D) => void) => {
+      const canvas = makeCanvas(size, size);
+      paint(context2d(canvas));
+      return canvas;
+    };
+    this.drawScreen(sized, this.compose(null, look.state), ledColor(null, look));
+    return {
+      housing: layer((ctx) => this.drawHousing(ctx, view, 1, look.shell)),
+      screen: layer((ctx) => drawGlass(ctx, view, FRONT_POSE, sized)),
+      bezel: layer((ctx) => drawBezel(ctx, view, sized, this.controlsFor(sized.unit, look.knobs))),
+    };
   }
 
   /** The controls bake only follows the size the other textures were baked at, and their colour. */
@@ -306,54 +407,10 @@ export class BoltComputerRenderer {
 
   private drawScreen(sized: Sized, grid: Grid, led: RGB) {
     const ctx = context2d(sized.screen);
-    const { cols, rows, v: g } = grid;
     ctx.globalCompositeOperation = "source-over";
     ctx.globalAlpha = 1;
     ctx.drawImage(sized.screenBase, 0, 0);
-    const { pitch, x0, y0 } = sized;
-    // Bloom first: the matrix at one pixel per LED, scaled up smooth. The cells
-    // go over it so they keep the phosphor's colour instead of washing to white.
-    const tiny = context2d(this.tiny);
-    this.tinyImage ??= tiny.createImageData(cols, rows);
-    const d = this.tinyImage.data;
-    for (let i = 0; i < cols * rows; i++) {
-      d[i * 4] = led[0];
-      d[i * 4 + 1] = led[1];
-      d[i * 4 + 2] = led[2];
-      d[i * 4 + 3] = Math.round(Math.min(1, g[i] ?? 0) * 255);
-    }
-    tiny.putImageData(this.tinyImage, 0, 0);
-    const half = context2d(this.tinyHalf);
-    half.clearRect(0, 0, this.tinyHalf.width, this.tinyHalf.height);
-    half.imageSmoothingEnabled = true;
-    half.drawImage(this.tiny, 0, 0, this.tinyHalf.width, this.tinyHalf.height);
-    ctx.imageSmoothingEnabled = true;
-    ctx.globalCompositeOperation = "lighter";
-    ctx.globalAlpha = 0.45;
-    ctx.drawImage(this.tiny, x0, y0, cols * pitch, rows * pitch);
-    ctx.globalAlpha = 0.55;
-    ctx.drawImage(this.tinyHalf, x0 - pitch, y0 - pitch, (cols + 2) * pitch, (rows + 2) * pitch);
-    ctx.globalCompositeOperation = "source-over";
-    const color = rgb(led);
-    // Each LED's hot centre, a step toward white.
-    const core = rgb(mix(led, [255, 255, 255], 0.35));
-    const cell = pitch * 0.8;
-    const off = (pitch - cell) / 2;
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const v = g[r * cols + c] ?? 0;
-        if (v < 0.01) continue;
-        const x = x0 + c * pitch + off;
-        const y = y0 + r * pitch + off;
-        ctx.globalAlpha = Math.min(1, v);
-        ctx.fillStyle = color;
-        ctx.fillRect(x, y, cell, cell);
-        ctx.globalAlpha = Math.min(1, v) * 0.5;
-        ctx.fillStyle = core;
-        ctx.fillRect(x + cell * 0.2, y + cell * 0.2, cell * 0.6, cell * 0.6);
-      }
-    }
-    ctx.globalAlpha = 1;
+    this.leds.paint(ctx, grid, sized.pitch, sized.x0, sized.y0, led);
     ctx.drawImage(sized.bakes.glass, 0, 0);
   }
 
@@ -376,7 +433,8 @@ export class BoltComputerRenderer {
     ctx.save();
     if (facing > 0) {
       this.drawScreen(sized, this.compose(sim, look.state), ledColor(sim, look));
-      drawFront(ctx, view, pose, sized, this.controlsFor(sized.unit, look.knobs));
+      drawGlass(ctx, view, pose, sized);
+      drawBezel(ctx, view, sized, this.controlsFor(sized.unit, look.knobs));
     } else if (facing < 0) {
       view.plane(ctx, -FRONT_Z, true);
       ctx.drawImage(sized.bakes.back, -PLATE.hx, -PLATE.hy, PLATE.hx * 2, PLATE.hy * 2);
@@ -451,14 +509,8 @@ export class BoltComputerRenderer {
   }
 }
 
-/** The bezel, the recessed glass with the LED screen behind it, and the controls. */
-function drawFront(
-  ctx: CanvasRenderingContext2D,
-  view: View,
-  pose: Pose,
-  sized: Sized,
-  controls: HTMLCanvasElement,
-) {
+/** The screen hole and the recessed glass with the LED screen behind it. */
+function drawGlass(ctx: CanvasRenderingContext2D, view: View, pose: Pose, sized: Sized) {
   view.plane(ctx, FRONT_Z, false);
   ctx.beginPath();
   trace(ctx, SCREEN_HOLE);
@@ -474,6 +526,16 @@ function drawFront(
   view.plane(ctx, FRONT_Z, false);
   drawSheen(ctx, pose);
   ctx.restore();
+}
+
+/** The bezel's relief, with the shadow it casts on the glass, and the controls. */
+function drawBezel(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  sized: Sized,
+  controls: HTMLCanvasElement,
+) {
+  view.plane(ctx, FRONT_Z, false);
   ctx.drawImage(sized.bakes.front, -PLATE.hx, -PLATE.hy, PLATE.hx * 2, PLATE.hy * 2);
   ctx.drawImage(controls, -PLATE.hx, -PLATE.hy, PLATE.hx * 2, PLATE.hy * 2);
 }

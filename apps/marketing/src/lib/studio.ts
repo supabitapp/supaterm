@@ -1,4 +1,5 @@
 import { BOLT_COMPUTER_STATES, type BoltComputerState } from "./boltComputer/faces";
+import { ICON_PHOSPHORS } from "./boltComputer/icon";
 import {
   DEFAULT_SETTINGS,
   mountBoltComputer,
@@ -14,11 +15,10 @@ export const SHELLS = [
   ["Graphite", "#3a3d44"],
 ] as const;
 
-// The first three are the bolt's colours on the Latest, Nightly and Dev app icons.
 export const PHOSPHORS = [
-  ["Latest", "#fff06a"],
-  ["Nightly", "#da6aff"],
-  ["Dev", "#6adaff"],
+  ["Latest", ICON_PHOSPHORS.prod],
+  ["Nightly", ICON_PHOSPHORS.nightly],
+  ["Dev", ICON_PHOSPHORS.dev],
   ["Green", "#7dff9a"],
   ["Amber", "#ffb347"],
   ["White", "#eef2ff"],
