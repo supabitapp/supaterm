@@ -11,6 +11,5 @@ export interface WorkspaceDockFilterMenu {
 export interface WorkspaceDockProps {
   readonly onNewTask: () => void;
   readonly filterMenu?: WorkspaceDockFilterMenu;
-  readonly floating?: boolean;
   readonly showTabs?: boolean;
 }

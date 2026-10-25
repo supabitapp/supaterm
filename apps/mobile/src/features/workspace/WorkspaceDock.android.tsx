@@ -5,7 +5,7 @@ import type { WorkspaceDockProps } from "./WorkspaceDock.types";
 
 export function WorkspaceDock(props: WorkspaceDockProps) {
   return (
-    <WorkspaceDockFrame floating={props.floating}>
+    <WorkspaceDockFrame>
       <AndroidAnchoredMenu
         title={props.filterMenu?.title}
         actions={props.filterMenu?.actions ?? []}

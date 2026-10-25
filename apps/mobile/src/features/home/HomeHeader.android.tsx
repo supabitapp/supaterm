@@ -14,9 +14,7 @@ export function HomeHeader(props: HomeHeaderProps) {
   return (
     <>
       <NativeStackScreenOptions options={{ headerShown: false }} />
-      {usesDock ? (
-        <WorkspaceDock floating onNewTask={props.onStartNewTask} filterMenu={menu} />
-      ) : null}
+      {usesDock ? <WorkspaceDock onNewTask={props.onStartNewTask} filterMenu={menu} /> : null}
       <ThreadListToolbar
         showFloatingFilter={!usesDock}
         searchQuery={props.searchQuery}

@@ -416,7 +416,6 @@ export function PullRequestsScreen(
         <WorkspaceHeaderActions filterMenu={headerFilterMenu} />
       ) : (
         <WorkspaceDock
-          floating
           showTabs={!props.sidebar}
           onNewTask={startNewTask}
           filterMenu={headerFilterMenu}
