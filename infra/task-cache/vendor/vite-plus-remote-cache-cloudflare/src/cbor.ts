@@ -1,5 +1,5 @@
-import { badRequest, tooLarge } from './errors.ts';
-import type { Limits } from './limits.ts';
+import { badRequest, tooLarge } from "./errors.ts";
+import type { Limits } from "./limits.ts";
 
 export interface FetchRequest {
   key: Uint8Array;
@@ -89,21 +89,21 @@ export function decodeEnvelope(
   for (let i = 0; i < expected; i++) {
     let name: string;
     try {
-      name = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(
+      name = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
         decoder.string(3, 32),
       );
     } catch {
       badRequest();
     }
-    const allowed = name === 'key' || name === 'secondary_key' || (store && name === 'value');
+    const allowed = name === "key" || name === "secondary_key" || (store && name === "value");
     if (!allowed || fields.has(name)) badRequest();
-    fields.set(name, decoder.string(2, name === 'value' ? limits.value : limits.key));
+    fields.set(name, decoder.string(2, name === "value" ? limits.value : limits.key));
   }
   if ((count === null && !decoder.break()) || !decoder.finished()) badRequest();
   return {
-    key: fields.get('key')!,
-    secondary_key: fields.get('secondary_key')!,
-    ...(store ? { value: fields.get('value')! } : {}),
+    key: fields.get("key")!,
+    secondary_key: fields.get("secondary_key")!,
+    ...(store ? { value: fields.get("value")! } : {}),
   };
 }
 
@@ -125,8 +125,8 @@ export function encodeEnvelope(
 ): Uint8Array<ArrayBuffer> {
   const chunks = [header(5, Object.keys(fields).length)];
   const string = (value: string | Uint8Array) => {
-    const bytes = typeof value === 'string' ? new TextEncoder().encode(value) : value;
-    chunks.push(header(typeof value === 'string' ? 3 : 2, bytes.length), bytes);
+    const bytes = typeof value === "string" ? new TextEncoder().encode(value) : value;
+    chunks.push(header(typeof value === "string" ? 3 : 2, bytes.length), bytes);
   };
   for (const [key, value] of Object.entries(fields)) {
     string(key);
@@ -143,9 +143,9 @@ export function cborResponse(fields: Record<string, string | Uint8Array | null>)
   const body = encodeEnvelope(fields);
   return new Response(body, {
     headers: {
-      'Content-Type': 'application/cbor',
-      'Content-Length': String(body.length),
-      'Cache-Control': 'no-store',
+      "Content-Type": "application/cbor",
+      "Content-Length": String(body.length),
+      "Cache-Control": "no-store",
     },
   });
 }

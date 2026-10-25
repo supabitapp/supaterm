@@ -1,7 +1,7 @@
 // @effect-diagnostics cryptoRandomUUID:off globalConsole:off - vendored upstream protocol, not an Effect service.
-import { HttpError, unavailable } from './errors.ts';
-import { GRACE_SECONDS, LEASE_SECONDS } from './limits.ts';
-import { measured, type Observations } from './observations.ts';
+import { HttpError, unavailable } from "./errors.ts";
+import { GRACE_SECONDS, LEASE_SECONDS } from "./limits.ts";
+import { measured, type Observations } from "./observations.ts";
 
 export interface Scope {
   scope_id: string;
@@ -24,7 +24,7 @@ export interface Generation {
   blob_size: number;
 }
 export interface Selection extends Generation {
-  kind: 'exact' | 'fallback';
+  kind: "exact" | "fallback";
   key: number[];
 }
 
@@ -48,7 +48,7 @@ export async function getScope(db: D1Database, id: string, stats?: Observations)
   } catch {
     unavailable();
   }
-  if (!scope) throw new HttpError(404, 'unknown_scope');
+  if (!scope) throw new HttpError(404, "unknown_scope");
   return scope;
 }
 
@@ -209,7 +209,7 @@ export async function publish(
   } catch {
     unavailable();
   }
-  if (results[0]?.results.length !== 1) throw new HttpError(503, 'publication_guard');
+  if (results[0]?.results.length !== 1) throw new HttpError(503, "publication_guard");
 }
 
 export async function abandon(db: D1Database, id: string): Promise<void> {
@@ -224,7 +224,7 @@ export async function abandon(db: D1Database, id: string): Promise<void> {
 export async function cleanup(env: Env): Promise<void> {
   const limit = Number(env.GC_BATCH_SIZE);
   if (!Number.isInteger(limit) || limit < 1 || limit > 256)
-    throw new Error('Invalid GC batch size');
+    throw new Error("Invalid GC batch size");
   const claim = crypto.randomUUID();
   const claimed =
     await env.INDEX.prepare(`UPDATE generations SET state = 'deleting', gc_claim = ?, gc_after = unixepoch() + 600
@@ -256,15 +256,15 @@ export async function cleanup(env: Env): Promise<void> {
     } catch {
       console.warn(
         JSON.stringify({
-          operation: 'cleanup',
-          error: 'deletion_failed',
+          operation: "cleanup",
+          error: "deletion_failed",
           generation: generation.generation_id,
         }),
       );
     }
   }
   await cleanAssociations(env.INDEX, limit);
-  console.log(JSON.stringify({ operation: 'cleanup', claimed: claimed.results.length, deleted }));
+  console.log(JSON.stringify({ operation: "cleanup", claimed: claimed.results.length, deleted }));
 }
 
 async function cleanAssociations(db: D1Database, limit: number): Promise<void> {
@@ -285,7 +285,7 @@ async function cleanAssociations(db: D1Database, limit: number): Promise<void> {
       AND NOT EXISTS (SELECT 1 FROM entries e WHERE e.scope_id = associations.scope_id AND e.key = associations.target_key)`)
       .bind(limit),
     db
-      .prepare('UPDATE maintenance SET scope_id = ?, secondary_key = ? WHERE id = 1')
-      .bind(last?.scope_id ?? '', binary(new Uint8Array(last?.secondary_key ?? []))),
+      .prepare("UPDATE maintenance SET scope_id = ?, secondary_key = ? WHERE id = 1")
+      .bind(last?.scope_id ?? "", binary(new Uint8Array(last?.secondary_key ?? []))),
   ]);
 }

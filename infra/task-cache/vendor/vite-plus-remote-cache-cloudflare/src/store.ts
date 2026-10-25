@@ -1,5 +1,5 @@
 // @effect-diagnostics cryptoRandomUUID:off globalConsole:off - vendored upstream protocol, not an Effect service.
-import { cborResponse, decodeEnvelope, type StoreMetadata } from './cbor.ts';
+import { cborResponse, decodeEnvelope, type StoreMetadata } from "./cbor.ts";
 import {
   abandon,
   publish,
@@ -7,13 +7,13 @@ import {
   reserve,
   type Generation,
   type Scope,
-} from './database.ts';
-import { badRequest, tooLarge, unavailable } from './errors.ts';
-import { PART_SIZE, type Limits } from './limits.ts';
-import { boundaryFrom, multipart } from './multipart.ts';
-import { collect, contentLength, Deadline, Input } from './streams.ts';
-import type { WriteIdentity } from './auth.ts';
-import type { Observations } from './observations.ts';
+} from "./database.ts";
+import { badRequest, tooLarge, unavailable } from "./errors.ts";
+import { PART_SIZE, type Limits } from "./limits.ts";
+import { boundaryFrom, multipart } from "./multipart.ts";
+import { collect, contentLength, Deadline, Input } from "./streams.ts";
+import type { WriteIdentity } from "./auth.ts";
+import type { Observations } from "./observations.ts";
 
 async function uploadBlob(
   env: Env,
@@ -77,14 +77,14 @@ async function uploadBlob(
 export async function store(
   request: Request,
   env: Env,
-  ctx: Pick<ExecutionContext, 'waitUntil'>,
+  ctx: Pick<ExecutionContext, "waitUntil">,
   scope: Scope,
   identity: WriteIdentity,
   limits: Limits,
   deadline: Deadline,
   stats: Observations,
 ): Promise<Response> {
-  const boundary = boundaryFrom(request.headers.get('Content-Type'));
+  const boundary = boundaryFrom(request.headers.get("Content-Type"));
   const length = contentLength(request, limits.store);
   const generation = await deadline.run(
     reserve(env.INDEX, scope, identity.exp, length ?? limits.store, stats),
@@ -94,7 +94,7 @@ export async function store(
     input = new Input(request.body, Math.min(length ?? limits.store, limits.store), deadline);
     let metadata: StoreMetadata | undefined;
     for await (const part of multipart(input, boundary, limits.headers)) {
-      if (part.name === 'metadata') {
+      if (part.name === "metadata") {
         metadata = decodeEnvelope(await collect(part.body, limits.metadata), true, limits);
         generation.value_size = metadata.value.length;
         stats.r2_operations++;
@@ -116,8 +116,8 @@ export async function store(
       abandon(env.INDEX, generation.generation_id).catch(() => {
         console.warn(
           JSON.stringify({
-            operation: 'cleanup',
-            error: 'abandon_failed',
+            operation: "cleanup",
+            error: "abandon_failed",
             generation: generation.generation_id,
           }),
         );

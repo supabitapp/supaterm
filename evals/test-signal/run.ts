@@ -96,7 +96,8 @@ const tools = [
   {
     type: "function",
     name: "read_file",
-    description: "Read a captured pull request source file or repository test guidance, with line numbers.",
+    description:
+      "Read a captured pull request source file or repository test guidance, with line numbers.",
     parameters: {
       type: "object",
       properties: {

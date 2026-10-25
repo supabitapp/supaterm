@@ -17,8 +17,8 @@ export type Limits = typeof defaults;
 
 export function limitsFrom(raw: string): Limits {
   const input: unknown = JSON.parse(raw);
-  if (!input || typeof input !== 'object' || Array.isArray(input))
-    throw new Error('Invalid limits');
+  if (!input || typeof input !== "object" || Array.isArray(input))
+    throw new Error("Invalid limits");
   const result = { ...defaults };
   for (const [name, value] of Object.entries(input)) {
     if (
@@ -27,7 +27,7 @@ export function limitsFrom(raw: string): Limits {
       value <= 0 ||
       value > defaults[name as keyof Limits]
     ) {
-      throw new Error('Limits must be positive integers no larger than the tested defaults');
+      throw new Error("Limits must be positive integers no larger than the tested defaults");
     }
     result[name as keyof Limits] = value;
   }
@@ -36,7 +36,7 @@ export function limitsFrom(raw: string): Limits {
     result.fetch < 2 * result.key + 128 ||
     result.store < result.metadata + result.blob + 1024
   ) {
-    throw new Error('Envelope limits must accommodate field limits and framing');
+    throw new Error("Envelope limits must accommodate field limits and framing");
   }
   return result;
 }

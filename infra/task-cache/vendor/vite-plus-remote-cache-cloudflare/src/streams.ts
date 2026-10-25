@@ -1,6 +1,6 @@
 // @effect-diagnostics globalTimers:off - vendored upstream protocol, not an Effect service.
-import { Buffer } from 'node:buffer';
-import { badRequest, HttpError, tooLarge } from './errors.ts';
+import { Buffer } from "node:buffer";
+import { badRequest, HttpError, tooLarge } from "./errors.ts";
 
 export class Deadline {
   private controller = new AbortController();
@@ -12,11 +12,11 @@ export class Deadline {
     private signal?: AbortSignal,
   ) {
     this.timer = setTimeout(this.onAbort, ms);
-    signal?.addEventListener('abort', this.onAbort, { once: true });
+    signal?.addEventListener("abort", this.onAbort, { once: true });
     this.cancelled = new Promise((_, reject) =>
       this.controller.signal.addEventListener(
-        'abort',
-        () => reject(new HttpError(503, 'deadline')),
+        "abort",
+        () => reject(new HttpError(503, "deadline")),
         { once: true },
       ),
     );
@@ -25,7 +25,7 @@ export class Deadline {
     if (signal?.aborted) this.onAbort();
   }
   check(): void {
-    if (this.controller.signal.aborted) throw new HttpError(503, 'deadline');
+    if (this.controller.signal.aborted) throw new HttpError(503, "deadline");
   }
   async run<T>(operation: Promise<T>): Promise<T> {
     this.check();
@@ -33,7 +33,7 @@ export class Deadline {
   }
   dispose(): void {
     clearTimeout(this.timer);
-    this.signal?.removeEventListener('abort', this.onAbort);
+    this.signal?.removeEventListener("abort", this.onAbort);
   }
 }
 
@@ -127,7 +127,7 @@ export async function readBody(
 }
 
 export function contentLength(request: Request, maximum: number): number | null {
-  const raw = request.headers.get('Content-Length');
+  const raw = request.headers.get("Content-Length");
   if (raw === null) return null;
   if (!/^\d+$/.test(raw)) badRequest();
   const length = Number(raw);

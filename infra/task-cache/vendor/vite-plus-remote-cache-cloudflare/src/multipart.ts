@@ -1,32 +1,32 @@
-import { Buffer } from 'node:buffer';
-import { badRequest, tooLarge } from './errors.ts';
-import { collect, Input } from './streams.ts';
+import { Buffer } from "node:buffer";
+import { badRequest, tooLarge } from "./errors.ts";
+import { collect, Input } from "./streams.ts";
 
 export function parameters(raw: string): { type: string; params: Map<string, string> } {
-  const separator = raw.indexOf(';');
+  const separator = raw.indexOf(";");
   const type = (separator === -1 ? raw : raw.slice(0, separator)).trim().toLowerCase();
-  let rest = separator === -1 ? '' : raw.slice(separator);
+  let rest = separator === -1 ? "" : raw.slice(separator);
   const params = new Map<string, string>();
   while (rest.length) {
     const match = /^;\s*([\w-]+)\s*=\s*(?:"((?:[^"\\\r\n]|\\[^\r\n])*)"|([^\s;]+))\s*/.exec(rest);
     if (!match) badRequest();
     const name = match[1]!.toLowerCase();
     if (params.has(name)) badRequest();
-    params.set(name, match[2] !== undefined ? match[2].replace(/\\(.)/g, '$1') : match[3]!);
+    params.set(name, match[2] !== undefined ? match[2].replace(/\\(.)/g, "$1") : match[3]!);
     rest = rest.slice(match[0].length);
   }
   return { type, params };
 }
 
 export function boundaryFrom(contentType: string | null): string {
-  const { type, params } = parameters(contentType ?? '');
-  const boundary = params.get('boundary');
+  const { type, params } = parameters(contentType ?? "");
+  const boundary = params.get("boundary");
   if (
-    type !== 'multipart/form-data' ||
+    type !== "multipart/form-data" ||
     !boundary ||
     boundary.length > 70 ||
     !/^[0-9A-Za-z'()+_,./:=? -]+$/.test(boundary) ||
-    boundary.endsWith(' ')
+    boundary.endsWith(" ")
   )
     badRequest();
   return boundary;
@@ -37,41 +37,41 @@ export async function* multipart(
   boundary: string,
   headerLimit: number,
 ): AsyncGenerator<{
-  name: 'metadata' | 'blob';
+  name: "metadata" | "blob";
   body: AsyncGenerator<Uint8Array>;
 }> {
   let preamble = 0;
   while (true) {
-    const line = await input.until(Buffer.from('\r\n'), headerLimit);
+    const line = await input.until(Buffer.from("\r\n"), headerLimit);
     preamble += line.length + 2;
     if (preamble > headerLimit) tooLarge();
-    if (line.toString('utf8').replace(/[ \t]+$/, '') === `--${boundary}`) break;
+    if (line.toString("utf8").replace(/[ \t]+$/, "") === `--${boundary}`) break;
   }
   const delimiter = Buffer.from(`\r\n--${boundary}`);
   const seen = new Set<string>();
   let closed = false;
   while (!closed) {
     if (seen.size >= 2) badRequest();
-    const raw = await input.until(Buffer.from('\r\n\r\n'), headerLimit);
+    const raw = await input.until(Buffer.from("\r\n\r\n"), headerLimit);
     const headers = new Map<string, string>();
-    for (const line of raw.toString('utf8').split('\r\n')) {
+    for (const line of raw.toString("utf8").split("\r\n")) {
       const match = /^([!#$%&'*+.^_`|~\w-]+):[ \t]*([^\r\n]*)$/.exec(line);
       if (!match) badRequest();
       const name = match[1]!.toLowerCase();
       if (headers.has(name)) badRequest();
       headers.set(name, match[2]!.trim());
     }
-    const disposition = parameters(headers.get('content-disposition') ?? '');
-    const name = disposition.params.get('name');
+    const disposition = parameters(headers.get("content-disposition") ?? "");
+    const name = disposition.params.get("name");
     if (
-      disposition.type !== 'form-data' ||
-      (name !== 'metadata' && name !== 'blob') ||
+      disposition.type !== "form-data" ||
+      (name !== "metadata" && name !== "blob") ||
       seen.has(name)
     )
       badRequest();
-    if (headers.has('content-transfer-encoding')) badRequest();
-    const expected = name === 'metadata' ? 'application/cbor' : 'application/octet-stream';
-    if (parameters(headers.get('content-type') ?? '').type !== expected) badRequest();
+    if (headers.has("content-transfer-encoding")) badRequest();
+    const expected = name === "metadata" ? "application/cbor" : "application/octet-stream";
+    if (parameters(headers.get("content-type") ?? "").type !== expected) badRequest();
     seen.add(name);
     let consumed = false;
     async function* body(): AsyncGenerator<Uint8Array> {
@@ -94,9 +94,9 @@ export async function* multipart(
       }
     }
     yield { name, body: body() };
-    if (!consumed) throw new Error('Multipart consumer must drain each part');
+    if (!consumed) throw new Error("Multipart consumer must drain each part");
   }
-  if (!seen.has('metadata')) badRequest();
+  if (!seen.has("metadata")) badRequest();
   await collect(input.rest(), headerLimit);
 }
 
