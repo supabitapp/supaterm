@@ -59,7 +59,7 @@ describe("buildCodexAdditionalContext", () => {
   });
 });
 
-describe("buildCodexDeveloperInstructions", () => {
+describe("Codex runtime context", () => {
   it("flattens multiline metadata into single-line runtime info", () => {
     const instructions = runtimeInstructions({
       model: "gpt\n5.3\ncodex",
