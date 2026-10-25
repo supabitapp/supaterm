@@ -7,6 +7,7 @@ import {
   type ThreadPullRequestLink,
   type ThreadWorkflowRunWatch,
 } from "@supaterm/contracts";
+import { canonicalizeGitCafePullRequestUrl } from "@supaterm/source-control-definitions/registry";
 import * as Cause from "effect/Cause";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
@@ -85,7 +86,10 @@ const resolveTarget = Effect.fn("PullRequestsToolkit.resolveTarget")(function* (
     if (parsed === undefined) {
       return yield* new PullRequestUrlInvalidError({});
     }
-    return { ...normalizeThreadPullRequestKey(parsed), url: input.url } satisfies ResolvedTarget;
+    return {
+      ...normalizeThreadPullRequestKey(parsed),
+      url: canonicalizeGitCafePullRequestUrl(input.url),
+    } satisfies ResolvedTarget;
   }
   if (input.repository === undefined || input.number === undefined) {
     return yield* new PullRequestTargetIncompleteError({});
@@ -98,7 +102,10 @@ const resolveTarget = Effect.fn("PullRequestsToolkit.resolveTarget")(function* (
   const repository = input.repository.toLowerCase();
   // Without a URL, a public forge host says what shape its change request URLs take;
   // any other host is taken to run the project's own forge.
-  const kind = sourceControlDefinitions.findByPublicHost(host)?.kind ?? projectHost.kind;
+  const recognizedKind = sourceControlDefinitions.recognizeRemote(`https://${host}`)?.kind;
+  const kind =
+    sourceControlDefinitions.findByPublicHost(host)?.kind ??
+    (recognizedKind === "gitcafe" ? recognizedKind : projectHost.kind);
   const url =
     kind === null
       ? null
@@ -113,7 +120,7 @@ const resolveTarget = Effect.fn("PullRequestsToolkit.resolveTarget")(function* (
   }
   return {
     ...normalizeThreadPullRequestKey({ host, repository, number: input.number, url }),
-    url,
+    url: canonicalizeGitCafePullRequestUrl(url),
   } satisfies ResolvedTarget;
 });
 
