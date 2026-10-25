@@ -29,7 +29,7 @@ export const BRAND_ASSET_PATHS = {
   developmentDesktopDarkIconPng: "assets/dev/blueprint-macos-dark-512.png",
 
   // Brands differ only in the bolt, which this render switches off.
-  macUnlitIconPng: "assets/prod/black-macos-unlit-512.png",
+  macUnlitIconPng: "assets/prod/black-macos-unlit-1024.png",
   macUnlitDarkIconPng: "assets/prod/black-macos-unlit-dark-512.png",
   developmentWindowsIconIco: "assets/dev/blueprint-windows.ico",
   developmentWebFaviconIco: "assets/dev/blueprint-web-favicon.ico",

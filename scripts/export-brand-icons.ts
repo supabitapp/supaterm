@@ -625,7 +625,10 @@ const renderDockMacIcon = Effect.fn("iconExport.renderDockMacIcon")(function* (
     const document = yield* fs.readFileString(documentPath);
     yield* fs.writeFileString(documentPath, bakeIconAppearance(document, "dark"));
   }
-  return yield* renderMacIcon(projectPath, outputDirectory, "icon_256x256@2x.png");
+  // The animation blends each pair pixel for pixel, so both halves need the same rendition: light
+  // pairs with the brand's 1024px icon, dark with the 512px dark icon rendered here.
+  const rendition = look.dark ? "icon_256x256@2x.png" : "icon_512x512@2x.png";
+  return yield* renderMacIcon(projectPath, outputDirectory, rendition);
 });
 
 const LAUNCH_ICON_LEDS_MODULE = "apps/desktop/src/app/LaunchIconLeds.generated.ts";

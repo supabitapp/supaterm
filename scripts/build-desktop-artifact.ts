@@ -2177,8 +2177,13 @@ const stageMacIcons = Effect.fn("stageMacIcons")(function* (
     label: "sips mac icon",
     verbose,
   });
+  // Through the same resize as icon.png, so each pair the animation blends stays pixel-aligned.
   for (const [source, fileName] of launchIcons) {
-    yield* fs.copyFile(source, path.join(stageResourcesDir, fileName));
+    const target = path.join(stageResourcesDir, fileName);
+    yield* runCommand(ChildProcess.make({})`sips -z 512 512 ${source} --out ${target}`, {
+      label: `sips ${fileName}`,
+      verbose,
+    });
   }
 
   yield* runCommand(ChildProcess.make("xcrun", macIconCompilerArguments(sourceProject, tmpRoot)), {

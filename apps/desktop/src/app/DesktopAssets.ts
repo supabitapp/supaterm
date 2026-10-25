@@ -143,7 +143,7 @@ const launchIconFileNames = {
     sourceTree: {
       dev: "blueprint-macos-1024.png",
       prod: "black-macos-1024.png",
-      unlit: "black-macos-unlit-512.png",
+      unlit: "black-macos-unlit-1024.png",
     },
   },
   dark: {
