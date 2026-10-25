@@ -49,7 +49,10 @@ import {
   effectiveSnoozed,
   threadWokeAt,
 } from "@supaterm/client-runtime/state/thread-snooze";
-import { createInboxReturnTracker } from "@supaterm/client-runtime/state/thread-inbox";
+import {
+  createInboxReturnTracker,
+  isThreadWorking,
+} from "@supaterm/client-runtime/state/thread-inbox";
 import { sortDoneThreads } from "@supaterm/client-runtime/state/thread-sort";
 import {
   threadRuntimeCanArchive,
@@ -74,6 +77,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
@@ -163,7 +167,6 @@ import {
   deleteSelectedThreadEntries,
   firstValidTimestampMs,
   isSidebarNestedLinkClick,
-  isSidebarThreadWorking,
   isTrailingDoubleClick,
   orderItemsByPreferredIds,
   planSidebarThreadDrop,
@@ -307,10 +310,12 @@ interface SidebarThreadPartitionInput {
   readonly serverThreadKeys: ReadonlySet<string>;
   readonly serverConfigs: ReadonlyMap<EnvironmentId, EnvironmentServerConfig>;
   readonly optimisticDrop: SidebarOptimisticDrop | null;
-  // Snooze wakes depend on the clock, so the minute tick and the precise
-  // snooze-wake tick are inputs: either one advancing repartitions.
+  // Snooze wakes and the Working shelf's exit grace depend on the clock, so the
+  // minute tick, the precise snooze-wake tick and the inbox tracker's expiry
+  // version are inputs: any one advancing repartitions.
   readonly nowMinute: string;
   readonly snoozeWakeTickAt: number;
+  readonly inboxReturnsVersion: number;
 }
 
 const NO_DRAGGED_ORDER: readonly string[] = [];
@@ -371,6 +376,10 @@ function useSidebarThreads(input: {
             ),
           ),
         );
+  const inboxReturnsVersion = useSyncExternalStore(
+    inboxReturns.subscribe,
+    inboxReturns.getSnapshot,
+  );
   const nowMinute = useNowMinute();
   // Snooze wake times are second-precise, so classifying with the quantized
   // minute would hold a woken thread on the shelf for up to a minute. The
@@ -433,6 +442,7 @@ function useSidebarThreads(input: {
     optimisticDrop,
     nowMinute,
     snoozeWakeTickAt,
+    inboxReturnsVersion,
   });
   const partitionNextWakeAt = partition.snoozedThreads[0]?.snoozedUntil ?? null;
   if (partitionNextWakeAt !== nextSnoozeWakeAt) setNextSnoozeWakeAt(partitionNextWakeAt);
@@ -550,14 +560,16 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
     Math.max(Date.now(), Date.parse(`${input.nowMinute}:00.000Z`), input.snoozeWakeTickAt),
   ).toISOString();
   const visible = filterSidebarV2VisibleThreads(threads, scopedProjectKeys);
-  inboxReturns.observe(threads);
+  const inboxObservation = inboxReturns.observe(threads);
   const pinned: EnvironmentThreadShell[] = [];
   const active: EnvironmentThreadShell[] = [];
   const working: EnvironmentThreadShell[] = [];
   // Only inbox threads fold into Working. Pins stay where the user put them,
-  // and snoozed or done threads keep their shelves.
-  const inbox = (thread: EnvironmentThreadShell) =>
-    isSidebarThreadWorking(thread) ? working : active;
+  // and snoozed or done threads keep their shelves. A manual move skips the exit grace.
+  const inbox = (thread: EnvironmentThreadShell, manuallyMoved = false) =>
+    (manuallyMoved ? isThreadWorking(thread) : inboxObservation.isWorking(thread))
+      ? working
+      : active;
   const snoozed: EnvironmentThreadShell[] = [];
   const done: EnvironmentThreadShell[] = [];
   const draggable = new Set<string>();
@@ -580,7 +592,7 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
         ? pinned
         : optimisticDrop.section === "done"
           ? done
-          : inbox(projected)
+          : inbox(projected, true)
       ).push(
         optimisticDrop.clearsSnooze
           ? projected
@@ -613,7 +625,7 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
             getId: threadShellKey,
           }),
     draggableThreadKeys: draggable,
-    activeThreads: sortInboxThreadsByReturn(active, inboxReturns.returnedAt),
+    activeThreads: sortInboxThreadsByReturn(active, inboxObservation.returnedAt),
     workingThreads: sortWorkingThreadsBySend(working),
     snoozedThreads: snoozed.toSorted(
       (left, right) =>

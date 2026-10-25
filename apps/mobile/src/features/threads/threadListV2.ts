@@ -721,6 +721,7 @@ export function buildThreadListV2Items(input: {
   readonly collapsedGroups?: readonly string[];
   /** Returns this device observed but the server does not stamp, such as an
       approval request mid-turn. */
+  readonly isWorking?: (thread: EnvironmentThreadShell) => boolean;
   readonly inboxReturnAt?: (thread: EnvironmentThreadShell) => number | undefined;
   readonly snoozedShelfExpanded?: boolean;
   /** Expands the done shelf into rows. Expanded is the default. */
@@ -807,7 +808,7 @@ export function buildThreadListV2Items(input: {
       done.push(thread);
     } else if (thread.pinnedAt != null) {
       pinned.push(thread);
-    } else if (isThreadWorking(thread)) {
+    } else if ((input.isWorking ?? isThreadWorking)(thread)) {
       working.push(thread);
     } else {
       active.push(thread);

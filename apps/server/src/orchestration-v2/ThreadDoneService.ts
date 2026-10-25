@@ -1,8 +1,12 @@
-import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
+import {
+  backgroundWorkHoldsCompletion,
+  turnItemUpdateCanEndBackgroundWork,
+} from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 import { visibleThreadPullRequests } from "@supaterm/shared/threadPullRequests";
 import {
   CommandId,
+  isOrchestrationV2WorkActive,
   type ThreadId,
   type OrchestrationV2DomainEvent,
   type OrchestrationV2ThreadShell,
@@ -13,9 +17,11 @@ import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
+import * as FiberSet from "effect/FiberSet";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
+import * as Semaphore from "effect/Semaphore";
 import type * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 
@@ -545,9 +551,35 @@ export const make = Effect.gen(function* () {
             }),
       ),
     );
-  const worker = yield* makeDrainableWorker((threadId: ThreadId | undefined) =>
-    runSweep(null, threadId),
-  );
+  // A thread that just stopped must not wait behind a full sweep or another thread's host
+  // reads: clients hold it in Working only briefly, so a late settle makes it appear and then vanish.
+  const fullSweeps = yield* makeDrainableWorker(() => runSweep(null));
+  const threadSweeps = yield* FiberSet.make<void>();
+  const threadSweepSlots = yield* Semaphore.make(8);
+  // One sweep per thread at a time; events during a running sweep coalesce into one more pass.
+  const threadSweepStates = new Map<ThreadId, "queued" | "running" | "rerun">();
+  const sweepThread = (
+    threadId: ThreadId,
+  ): Effect.Effect<void, Effect.Error<ReturnType<typeof runSweep>>> =>
+    Effect.sync(() => threadSweepStates.set(threadId, "running")).pipe(
+      Effect.andThen(runSweep(null, threadId)),
+      threadSweepSlots.withPermits(1),
+      Effect.andThen(
+        Effect.suspend(() => {
+          if (threadSweepStates.get(threadId) === "rerun") return sweepThread(threadId);
+          threadSweepStates.delete(threadId);
+          return Effect.void;
+        }),
+      ),
+    );
+  const enqueueThread = (threadId: ThreadId) =>
+    Effect.suspend(() => {
+      const state = threadSweepStates.get(threadId);
+      if (state === "running") threadSweepStates.set(threadId, "rerun");
+      if (state !== undefined) return Effect.void;
+      threadSweepStates.set(threadId, "queued");
+      return sweepThread(threadId).pipe(FiberSet.run(threadSweeps), Effect.asVoid);
+    });
 
   // Marking done closes the thread's shells that sit at an idle prompt, so they stop
   // holding the worktree. A terminal running a command (a dev server, an
@@ -631,16 +663,30 @@ export const make = Effect.gen(function* () {
       case "thread.pull-request-synced":
       case "thread.workflow-run-watch-synced":
       case "provider-session.detached":
-        return worker.enqueue(event.threadId);
+      case "run.background-work-cancelled":
+        return enqueueThread(event.threadId);
+      // Sweep only when the work can have ended: progress updates cannot settle anything.
+      case "subagent.updated":
+        return isOrchestrationV2WorkActive(event.payload.status)
+          ? Effect.void
+          : enqueueThread(event.threadId);
+      case "provider-thread.updated":
+        return backgroundWorkHoldsCompletion(event.payload.pendingBackgroundTasks ?? [])
+          ? Effect.void
+          : enqueueThread(event.threadId);
+      case "turn-item.updated":
+        return turnItemUpdateCanEndBackgroundWork(event.payload)
+          ? enqueueThread(event.threadId)
+          : Effect.void;
       case "provider-session.updated":
         return event.payload.status !== "starting" && event.payload.status !== "running"
-          ? worker.enqueue(event.threadId)
+          ? enqueueThread(event.threadId)
           : Effect.void;
       case "run.updated":
         return ["completed", "interrupted", "failed", "cancelled", "rolled_back"].includes(
           event.payload.status,
         )
-          ? worker.enqueue(event.threadId)
+          ? enqueueThread(event.threadId)
           : Effect.void;
       default:
         return Effect.void;
@@ -656,8 +702,8 @@ export const make = Effect.gen(function* () {
       let lastDoneSettings = autoMarkDoneSettingsKey(initialSettings);
       yield* forkParked(
         Effect.gen(function* () {
-          yield* worker.enqueue(undefined);
-          yield* worker.drain;
+          yield* fullSweeps.enqueue(undefined);
+          yield* fullSweeps.drain;
         }).pipe(Effect.repeat(Schedule.spaced("1 minute")), Effect.asVoid),
       );
       yield* forkParked(
@@ -667,7 +713,7 @@ export const make = Effect.gen(function* () {
             return Effect.void;
           }
           lastDoneSettings = key;
-          return worker.enqueue(undefined);
+          return fullSweeps.enqueue(undefined);
         }),
       );
       yield* forkParked(Stream.runForEach(mergedPullRequests, (event) => runSweep(event)));
@@ -681,7 +727,10 @@ export const make = Effect.gen(function* () {
     },
   );
 
-  return { start, drain: worker.drain } satisfies ThreadDoneServiceV2["Service"];
+  return {
+    start,
+    drain: Effect.andThen(fullSweeps.drain, FiberSet.awaitEmpty(threadSweeps)),
+  } satisfies ThreadDoneServiceV2["Service"];
 });
 
 export const layer = Layer.effect(ThreadDoneServiceV2, make);

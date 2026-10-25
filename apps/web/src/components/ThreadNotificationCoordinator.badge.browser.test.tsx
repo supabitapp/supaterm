@@ -1,11 +1,12 @@
 import { RegistryContext } from "@effect/atom-react";
+import { WORKING_EXIT_GRACE_MS } from "@supaterm/client-runtime/state/thread-inbox";
 import { EnvironmentId } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
 import { Atom, AtomRegistry } from "effect/reactivity";
 import { expect, it, vi } from "vite-plus/test";
 
-import { render, stubGlobal, type Screen } from "../../test/render";
+import { fakeTimers, render, stubGlobal, type Screen } from "../../test/render";
 
 const state = vi.hoisted(() => ({
   mode: "notifications",
@@ -215,3 +216,26 @@ it.each(["hasPendingApprovals", "hasPendingUserInput"] as const)(
     expect(notification.close).toHaveBeenCalled();
   },
 );
+
+it("holds a completion through a continuation gap and notifies once it completes", async () => {
+  await using app = setup();
+  await app.render();
+  using _timers = fakeTimers();
+  const finished = (turnId: string, completedAt: string) => ({
+    latestTurn: { turnId, state: "completed", completedAt },
+  });
+  state.shells.set("one", shell(finished("turn-1", "2026-09-13T07:00:01.000Z")));
+  await app.render();
+  state.shells.set(
+    "one",
+    shell({ latestTurn: { turnId: "turn-2", state: "running", completedAt: null } }),
+  );
+  await app.render();
+  state.shells.set("one", shell(finished("turn-2", "2026-09-13T07:00:02.000Z")));
+  await app.render();
+  expect(TestNotification.sent).toEqual([]);
+  await vi.advanceTimersByTimeAsync(WORKING_EXIT_GRACE_MS - 1);
+  expect(TestNotification.sent).toEqual([]);
+  await vi.advanceTimersByTimeAsync(1);
+  expect(TestNotification.sent.map((sent) => sent.title)).toEqual(["Thread completed"]);
+});
