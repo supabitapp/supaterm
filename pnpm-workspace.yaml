@@ -53,8 +53,8 @@ catalog:
   tailwindcss: 4.3.3
   typescript: npm:@tsc-rs/typescript@0.8.0
   undici: 8.12.3
-  vite: npm:@voidzero-dev/vite-plus-core@1.3.0
-  vite-plus: 1.3.0
+  vite: npm:@voidzero-dev/vite-plus-core@1.4.0
+  vite-plus: 1.4.0
   yaml: ^2.9.0
   # Markdown pipeline: the server counts find matches with the same parser the
   # web renders with, so both must resolve to one version.
