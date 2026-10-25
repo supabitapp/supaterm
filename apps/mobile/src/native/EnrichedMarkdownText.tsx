@@ -6,6 +6,7 @@ import {
   formatComposerContextReference,
 } from "@supaterm/shared/composerContextReferences";
 import {
+  markdownForNativeRendering,
   markdownWithAuthoredWindowsPaths,
   markdownWithFileEmbeds,
   markdownWithHtml,
@@ -166,13 +167,19 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
     sources: mermaidSources,
     fileHrefs,
   } = useMemo(() => {
+    if (!fileEmbedLabel) {
+      return {
+        ...markdownMermaidMedia(
+          markdownForNativeRendering(props.markdown, ENRICHED_INLINE_FILE_LINK_REGEX),
+        ),
+        fileHrefs: new Set<string>(),
+      };
+    }
     const content = markdownWithInlineFileLinks(
       markdownWithAuthoredWindowsPaths(markdownWithHtml(props.markdown)),
       ENRICHED_INLINE_FILE_LINK_REGEX,
     );
-    const files = fileEmbedLabel
-      ? markdownWithFileEmbeds(content, fileEmbedLabel)
-      : { markdown: content, fileHrefs: new Set<string>() };
+    const files = markdownWithFileEmbeds(content, fileEmbedLabel);
     return {
       ...markdownMermaidMedia(markdownWithTableBreaks(files.markdown)),
       fileHrefs: files.fileHrefs,
