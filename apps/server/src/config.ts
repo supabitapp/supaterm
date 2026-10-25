@@ -12,6 +12,7 @@ import type { OtlpEndpointSource } from "@supaterm/contracts";
 import { sweepStalePendingAttachments } from "./attachmentStore.ts";
 import {
   DEFAULT_SIGNAL_EXPORT,
+  nodeProcessRuntimeAttributes,
   processServiceInstanceId,
   type SignalExport,
 } from "@supaterm/shared/observability";
@@ -126,6 +127,7 @@ export const otlpResource = (
     "service.instance.id": processServiceInstanceId(config.otelEnvironment.resourceAttributes),
     ...releaseResourceAttributes(telemetryChannel, config.otelEnvironment.resourceAttributes),
     "host.name": config.otelEnvironment.resourceAttributes["host.name"] || hostName,
+    ...nodeProcessRuntimeAttributes(),
   },
 });
 

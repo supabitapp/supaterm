@@ -2,6 +2,7 @@ import { PRIMARY_LOCAL_ENVIRONMENT_ID } from "@supaterm/contracts";
 import {
   makeLocalFileTracer,
   makeTraceSink,
+  nodeProcessRuntimeAttributes,
   processServiceInstanceId,
   type SignalExport,
 } from "@supaterm/shared/observability";
@@ -607,13 +608,14 @@ const layerTelemetry = Layer.unwrap(
       attributes: {
         "service.namespace": "supaterm",
         "service.runtime": "desktop",
-        "service.mode": environment.isDevelopment ? "development" : "packaged",
+        "supaterm.desktop.mode": environment.isDevelopment ? "development" : "packaged",
         "service.instance.id": processServiceInstanceId(endpoints.resourceAttributes),
         ...releaseResourceAttributes(
           environment.isDevelopment ? "dev" : releaseChannelOf(serviceVersion),
           endpoints.resourceAttributes,
         ),
         "host.name": endpoints.resourceAttributes["host.name"] || (yield* HostProcess.Hostname),
+        ...nodeProcessRuntimeAttributes(),
       },
     };
 
