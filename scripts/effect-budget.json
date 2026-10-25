@@ -284,7 +284,6 @@
   "apps/web/src/components/chat/usePasteToFocusComposer.ts": 1,
   "apps/web/src/components/chat/usePendingThreadRequests.ts": 2,
   "apps/web/src/components/chat/useProviderWorkspaceSnapshotRefresh.ts": 2,
-  "apps/web/src/components/chat/useQueuedRunEdit.ts": 1,
   "apps/web/src/components/chat/useRestingComposerControlsLayout.ts": 1,
   "apps/web/src/components/chat/useRightPanelActions.ts": 1,
   "apps/web/src/components/chat/useSystemComposerBanners.tsx": 1,
