@@ -11,17 +11,25 @@ import {
 } from "@supaterm/client-runtime/state/runtime";
 import { safeErrorLogAttributes } from "@supaterm/client-runtime/errors";
 import { resolvePrimaryEnvironmentHttpUrl } from "../environments/primary";
+import { releaseChannelOf, releaseResourceAttributes } from "@supaterm/shared/releaseResource";
 import * as ClientTracer from "./clientTracer";
 import * as PrimaryEnvironmentHttpLayer from "../environments/primary/httpLayer";
 import { isElectron } from "../env";
 import { APP_VERSION } from "~/branding";
 
 const DEFAULT_EXPORT_INTERVAL_MS = 1_000;
+// PR previews can't mark themselves in APP_VERSION without breaking the version-skew check against the server.
+const RELEASE_CHANNEL =
+  import.meta.env.DEV || import.meta.env.VITE_RELEASE_CHANNEL === "dev"
+    ? "dev"
+    : import.meta.env.VITE_RELEASE_CHANNEL === "preview"
+      ? "preview"
+      : releaseChannelOf(APP_VERSION);
 const CLIENT_TRACING_RESOURCE = {
   serviceName: "supaterm-web",
   attributes: {
     "service.namespace": "supaterm",
-    "deployment.environment.name": import.meta.env.DEV ? "development" : "production",
+    ...releaseResourceAttributes(RELEASE_CHANNEL),
     "service.runtime": "supaterm-web",
     "supaterm.client.surface": isElectron ? "desktop" : "web",
     "service.version": APP_VERSION,

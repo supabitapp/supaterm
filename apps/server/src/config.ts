@@ -12,7 +12,16 @@ import type { OtlpEndpointSource } from "@supaterm/contracts";
 import { sweepStalePendingAttachments } from "./attachmentStore.ts";
 import { DEFAULT_SIGNAL_EXPORT, type SignalExport } from "@supaterm/shared/observability";
 import * as OtelEnvironment from "@supaterm/shared/otelEnvironment";
+import { type ReleaseChannel, releaseResourceAttributes } from "@supaterm/shared/releaseResource";
 import packageJson from "../package.json" with { type: "json" };
+
+// Official release workflows set this telemetry channel; other builds report dev.
+// Unlike __SUPATERM_BUILD_CHANNEL__, this is not the sign-in page's latest/nightly channel.
+declare const __SUPATERM_TELEMETRY_CHANNEL__: ReleaseChannel | undefined;
+export const telemetryChannel: ReleaseChannel =
+  typeof __SUPATERM_TELEMETRY_CHANNEL__ === "undefined" ? "dev" : __SUPATERM_TELEMETRY_CHANNEL__;
+
+export const DEFAULT_PORT = 3773;
 
 export const RuntimeMode = Schema.Literals(["web", "desktop"]);
 export type RuntimeMode = typeof RuntimeMode.Type;
@@ -110,6 +119,7 @@ export const otlpResource = (
     "service.namespace": "supaterm",
     "service.runtime": "supaterm-server",
     "supaterm.server.managed_by": config.mode === "desktop" ? "desktop" : "standalone",
+    ...releaseResourceAttributes(telemetryChannel, config.otelEnvironment.resourceAttributes),
     "host.name": config.otelEnvironment.resourceAttributes["host.name"] || hostName,
   },
 });

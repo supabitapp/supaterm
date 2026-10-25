@@ -600,9 +600,15 @@ with a startup warning, rather than sending it to the Settings endpoint.
 Service names are fixed: `supaterm-server` for the backend and `supaterm-desktop` for the desktop main
 process, both in `service.namespace` `supaterm`. `OTEL_SERVICE_NAME` and a `service.name` or
 `service.namespace` in `OTEL_RESOURCE_ATTRIBUTES` are ignored. Tell installations apart with other
-resource attributes, such as `OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=development`.
-The UI reports `deployment.environment.name` from its build: `development` under the Vite dev server
-and `production` otherwise.
+resource attributes, such as `OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=staging`.
+
+Each process reports its own build, not the one it talks to: the server, the desktop main process,
+and the UI each carry `supaterm.release.channel` (`dev`, `stable`, `nightly`, or `preview`, from
+their own version; desktop PR builds count as `preview`, and a server not built by a release
+workflow reports `dev`) and `deployment.environment.name` (`development`, `production`, or `staging`
+for `preview`). On the server and the desktop main process either key in `OTEL_RESOURCE_ATTRIBUTES`
+wins. The UI never reads that variable: PR preview builds set `VITE_RELEASE_CHANNEL=preview` because
+their `APP_VERSION` must stay comparable with the server's.
 
 Attributes specific to Supaterm use the `supaterm.` prefix. The UI runs as `supaterm-web` in both a
 browser and the desktop window, since it is the same code, and `supaterm.client.surface` is `desktop`

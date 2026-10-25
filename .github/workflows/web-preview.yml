@@ -58,6 +58,8 @@ jobs:
         run: mise exec -- vp install --filter=@supaterm/scripts... --filter=@supaterm/web...
       - name: Build preview
         run: vp run --filter @supaterm/web build
+        env:
+          VITE_RELEASE_CHANNEL: preview
       - name: Upload static assets
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:

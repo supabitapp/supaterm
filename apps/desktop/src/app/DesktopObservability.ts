@@ -7,6 +7,7 @@ import {
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as SharedObservability from "@supaterm/shared/observability";
 import * as OtelEnvironment from "@supaterm/shared/otelEnvironment";
+import { releaseChannelOf, releaseResourceAttributes } from "@supaterm/shared/releaseResource";
 import {
   parsePersistedServerObservabilitySettings,
   type PersistedServerObservabilitySettings,
@@ -595,14 +596,21 @@ const layerTelemetry = Layer.unwrap(
   Effect.gen(function* () {
     const environment = yield* DesktopEnvironment.DesktopEnvironment;
     const endpoints = yield* resolveOtlpEndpoints;
+    // Unpackaged runs launch a script, so Electron reports its own version.
+    const serviceVersion = environment.isPackaged
+      ? environment.appVersion
+      : desktopPackageJson.version;
     const resource = {
       serviceName: "supaterm-desktop",
-      // Unpackaged runs launch a script, so Electron reports its own version.
-      serviceVersion: environment.isPackaged ? environment.appVersion : desktopPackageJson.version,
+      serviceVersion,
       attributes: {
         "service.namespace": "supaterm",
         "service.runtime": "desktop",
         "service.mode": environment.isDevelopment ? "development" : "packaged",
+        ...releaseResourceAttributes(
+          environment.isDevelopment ? "dev" : releaseChannelOf(serviceVersion),
+          endpoints.resourceAttributes,
+        ),
         "host.name": endpoints.resourceAttributes["host.name"] || (yield* HostProcess.Hostname),
       },
     };
