@@ -134,11 +134,7 @@ function normalizeSelectionOptions(
       };
 }
 
-/**
- * `projectId` has no default: a caller that forgets it would silently check only the
- * machine-wide state and miss a project that turned this instance off. Pass `null` explicitly
- * outside a project's scope.
- */
+/** Require explicit projectId or null so omissions cannot bypass project provider disablement. */
 export function isModelSelectionUnavailable(
   config: SupatermServerConfig | null | undefined,
   selection: ModelSelection | null | undefined,

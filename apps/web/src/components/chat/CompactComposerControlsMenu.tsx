@@ -24,11 +24,7 @@ export const CompactComposerControlsMenu = memo(function CompactComposerControls
   keybindings: ResolvedKeybindingsConfig;
   traitsMenuContent?: ReactNode;
   size?: "sm" | "xs";
-  /**
-   * The resting strip keeps this menu mounted out of flow while every block
-   * fits inline. Its portaled popup would outlive that transition, so an
-   * open menu closes when its trigger hides.
-   */
+  /** Close the portaled popup when its trigger hides. */
   hidden?: boolean;
   onRuntimeModeChange: (mode: RuntimeMode) => void;
 }) {

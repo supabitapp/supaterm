@@ -7,7 +7,6 @@ import {
 } from "../../lib/imageCompression";
 import { cn } from "../../lib/utils";
 
-/** Keep full-resolution image decoding out of composer rerenders. */
 export const ComposerImageThumbnail = memo(function ComposerImageThumbnail({
   file,
   mode = "square",

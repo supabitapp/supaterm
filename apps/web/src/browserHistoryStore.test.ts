@@ -222,7 +222,6 @@ describe("pendingTitlesByThreadKey", () => {
 
 describe("mergeBrowserHistoryState", () => {
   it("sanitizes same-version corrupt persisted data and preserves actions", () => {
-    // `migrate` only runs when versions differ; `merge` runs on every rehydrate.
     const current = useBrowserHistoryStore.getState();
     const merged = mergeBrowserHistoryState(
       {

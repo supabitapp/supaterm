@@ -39,7 +39,6 @@ final class SupatermPresentationSourceView: ExpoView {
   }
 }
 
-/// Sizes the containing React Native modal without replacing UIKit's sheet interaction.
 final class SupatermContextSheetSizeView: ExpoView {
   var contentHeight: CGFloat = 0 {
     didSet { updateSheet() }

@@ -3,7 +3,6 @@ import Animated from "react-native-reanimated";
 import { Notice } from "../../components/ui/Notice";
 import { useNoticeMotion } from "../../lib/useNoticeMotion";
 
-/** Why the thread's last message did not send, above the composer until dismissed. */
 export function ComposerErrorNotice(props: {
   readonly message: string;
   readonly onDismiss: () => void;

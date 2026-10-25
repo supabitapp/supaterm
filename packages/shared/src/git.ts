@@ -140,10 +140,7 @@ export function buildTemporaryWorktreeBranchName(
   return `${WORKTREE_BRANCH_PREFIX}/${token}`;
 }
 
-/**
- * Git stores refs as paths, so a plain `supaterm` branch makes every `supaterm/<hex>`
- * ref impossible. This moves a temporary name to the flat `supaterm-<hex>` sibling.
- */
+/** Flatten temporary supaterm/<hex> refs because an existing supaterm branch blocks nested refs. */
 export function flattenTemporaryWorktreeBranchName(refName: string): string {
   const token = refName
     .trim()
@@ -321,14 +318,11 @@ export function parseOriginUrlFromGitConfig(configText: string): string | null {
   let section: string | null = null;
   let originUrl: string | null = null;
   let firstRemoteUrl: string | null = null;
-  // A trailing backslash continues the value on the next line.
   const joined = configText.replace(/\\\r?\n[ \t]*/g, "");
   for (const rawLine of joined.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (line.length === 0 || line.startsWith("#") || line.startsWith(";")) continue;
-    // Both `[remote "origin"]` and the legacy `[remote.origin]` form, with an
-    // optional trailing comment. Git keeps quoted subsections case-sensitive
-    // but folds the dotted form to lowercase.
+    // Git preserves case in quoted remote subsections but lowercases legacy dotted ones.
     const header = /^\[\s*remote(?:\s+"([^"]+)"|\.([^\]\s]+))\s*\](?:\s*[#;].*)?$/i.exec(line);
     if (header) {
       section = header[1] ?? header[2]?.toLowerCase() ?? null;
@@ -372,9 +366,7 @@ function deriveLocalBranchNameCandidatesFromRemoteRef(
   return [...candidates];
 }
 
-// Only the whitespace git actually rejects is replaced — git accepts U+00A0 and
-// friends, and rewriting those would silently create a ref the user never asked
-// for.
+// Replace only Git-rejected whitespace; nonbreaking spaces are valid ref characters.
 export function sanitizeNewRefName(rawName: string): string {
   return rawName.trim().replace(/[ \t\n\r\f\v]+/g, "-");
 }

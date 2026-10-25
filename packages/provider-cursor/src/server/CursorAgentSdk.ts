@@ -328,13 +328,7 @@ export const makeCursorAgentSdkRunner = Effect.fn("makeCursorAgentSdkRunner")(fu
   const { Agent, createAgentPlatform } = yield* CursorSdk.CursorSdk;
   const scope = yield* Effect.scope;
 
-  /**
-   * The Cursor SDK decides once per process whether local sandboxing works, and
-   * caches the answer the first time any run starts. Only sandboxed runs point it
-   * at its `cursorsandbox` helper first, so after an unsandboxed (Full access)
-   * run it caches "unsupported" and rejects every later sandboxed run until the
-   * server restarts.
-   */
+  // Prime with cursorsandbox before any Full access run; the SDK caches sandbox support per process.
   const sandboxSupportPrimeStarted = yield* Ref.make(false);
   const sandboxSupportPrimed = yield* Deferred.make<void>();
   const primeCursorSandboxSupport = Effect.fn("CursorAgentSdkRunner.primeSandboxSupport")(

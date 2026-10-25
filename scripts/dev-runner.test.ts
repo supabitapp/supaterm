@@ -190,9 +190,6 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           assert.equal(env.VITE_HTTP_URL, undefined);
           assert.equal(env.VITE_WS_URL, undefined);
           assert.equal(env.SUPATERM_PORT, "13773");
-          // Deleting the keys is not sufficient — vite.config.ts merges
-          // `.env`/`.env.local` underneath this env and would revive them, so
-          // the intent has to be stated positively.
           assert.equal(env.SUPATERM_SINGLE_ORIGIN_DEV, "1");
         }),
     );
@@ -419,8 +416,6 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
       });
     });
 
-    // `tailscale serve` config outlives the process, so a dry run that shared
-    // would replace and then tear down whatever mapping the port already had.
     it.effect("ignores an ambient SUPATERM_HOME when no home is resolved", () =>
       Effect.gen(function* () {
         const env = yield* createDevRunnerEnv({

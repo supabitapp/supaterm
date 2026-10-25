@@ -67,11 +67,7 @@ export const Arguments = Context.Reference<ReadonlyArray<string>>(
   },
 );
 
-/**
- * The command the shell was given, before Node resolved it to the binary:
- * `supaterm` for a PATH lookup, `./supaterm` or the launcher symlink for an explicit
- * path. `process.argv[0]` and `execPath` are always the resolved binary.
- */
+/** Original shell command spelling; argv[0] and execPath instead identify the resolved binary. */
 export const InvokedAs = Context.Reference<string>("@supaterm/shared/HostProcess/InvokedAs", {
   defaultValue: () => process.argv0,
 });
@@ -83,14 +79,7 @@ export const IsExecutable = Context.Reference<boolean>(
   },
 );
 
-/**
- * Every IP address this machine answers to: the interface addresses, plus
- * whatever the resolver returns for the machine's own hostname. The latter
- * matters because a hostname can map to an address no interface carries —
- * Debian-style hosts put `127.0.1.1` in `/etc/hosts` — and a program that
- * records "its" address by resolving its hostname (Firefox's profile lock does)
- * will write that one.
- */
+/** Includes hostname-resolved addresses absent from interfaces, such as Debian's 127.0.1.1 used by Firefox locks. */
 export const Addresses = Context.Reference<Effect.Effect<ReadonlySet<string>>>(
   "@supaterm/shared/HostProcess/Addresses",
   {
@@ -110,7 +99,6 @@ export const Addresses = Context.Reference<Effect.Effect<ReadonlySet<string>>>(
   },
 );
 
-/** Undefined on platforms without POSIX uids (Windows). */
 export const UserId = Context.Reference<number | undefined>("@supaterm/shared/HostProcess/UserId", {
   defaultValue: () => process.getuid?.(),
 });

@@ -33,7 +33,6 @@ vi.mock(import("../state/server"), async (original) => {
     serverEnvironment: { ...actual.serverEnvironment, configValueAtom: (() => noConfig) as never },
   };
 });
-// A standard client session, so environment-owned file links can open.
 vi.mock(import("../state/session"), async (original) => {
   const { AuthStandardClientScopes } = await import("@supaterm/contracts");
   const granted = new Set<string>(AuthStandardClientScopes);

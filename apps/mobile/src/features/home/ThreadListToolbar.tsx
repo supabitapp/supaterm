@@ -19,7 +19,6 @@ import { WorkspaceFilterButton } from "../workspace/WorkspaceFilterButton";
 import type { WorkspaceFilterMenu } from "../workspace/workspace-filter-menu";
 import { WorkspaceListToolbarRow } from "../workspace/WorkspaceListToolbarRow";
 
-/** One toolbar height for the compact list and expanded sidebar, including search. */
 export function ThreadListToolbar(props: {
   readonly searchQuery: string;
   readonly onSearchQueryChange: (query: string) => void;

@@ -54,8 +54,6 @@ vi.mock(import("../ui/toast"), async (original) => {
   const actual = await original();
   return { ...actual, toastManager: { ...actual.toastManager, add: actions.toast } };
 });
-// The registry search and the sign-in step talk to the environment over RPC; these
-// stand-ins expose the choices a user makes there.
 vi.mock(import("./AcpRegistrySearchStep"), async (original) => ({
   ...(await original()),
   AcpRegistrySearchStep: ((props: {
@@ -256,7 +254,7 @@ describe("AddProviderInstanceDialog environment routing", () => {
     await using screen = await prepareCodexInstance();
     const save = button("Add instance");
     actions.canManageProviders = false;
-    // The rendered button is still enabled; the click must recheck the live grant.
+    // Click before React renders the revoked grant.
     await act(async () => save.click());
 
     expect(settingsHooks.mutate).not.toHaveBeenCalled();

@@ -87,11 +87,7 @@ export interface PendingUserInputCardProps {
   readonly supportsQuestionAutoDismiss?: boolean;
 }
 
-/**
- * Android cannot use the overlay: it does not hit-test touches outside a
- * parent's bounds, which made everything above the bar-sized wrapper
- * untouchable.
- */
+/** Android cannot hit-test overlays beyond their parent's bounds; render its expanded card in-flow. */
 const EXPANDED_CARD_IS_OVERLAY = Platform.OS === "ios";
 
 /** Long enough to see the picked option highlight before the next question replaces it. */
@@ -298,10 +294,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
   const cardMaxHeightStyle = useAnimatedStyle(() => ({ maxHeight: maxHeight.value }));
   const overlayHeightStyle = useAnimatedStyle(() => ({ height: maxHeight.value }));
 
-  // On iOS the card stays MOUNTED while collapsed (hidden via the animated
-  // style): expanding animates existing views on the UI thread the same
-  // frame the host starts the progress timing, instead of paying a React
-  // mount + layout before anything moves.
+  // Keep the iOS card mounted so expansion starts on the UI thread without waiting for React layout.
   const renderCard = EXPANDED_CARD_IS_OVERLAY || !props.collapsed;
   const showBar = props.collapsed || EXPANDED_CARD_IS_OVERLAY;
   const autoDismissAt = props.supportsQuestionAutoDismiss

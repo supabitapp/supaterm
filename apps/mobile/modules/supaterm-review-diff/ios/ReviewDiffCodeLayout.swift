@@ -83,7 +83,6 @@ final class ReviewDiffCodeLayout: NSObject {
     return layout
   }
 
-  /// Only colors change when syntax tokens arrive; the measured text and font stay intact.
   func decorate(text: NSAttributedString, highlights: [NSRange], color: UIColor, version: Int) {
     guard usesNativeLayout else { return }
     let layout = nativeLayout()
