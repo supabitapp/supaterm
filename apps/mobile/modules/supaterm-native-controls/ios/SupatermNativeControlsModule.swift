@@ -43,6 +43,10 @@ public final class SupatermNativeControlsModule: Module {
       Events("onMetricsChange")
     }
 
+    View(SupatermScrollEdgeBleedView.self) {
+      ViewName("ScrollEdgeBleed")
+    }
+
     AsyncFunction("presentVideo") { (url: URL, title: String, sourceIdentifier: String, identifier: String, promise: Promise) in
       try self.presentVideo(
         url: url,
