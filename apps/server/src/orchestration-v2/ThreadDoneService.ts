@@ -188,8 +188,13 @@ export function resolveAutoMarkDoneAt(input: {
   const { thread } = input;
   let pullRequest = input.pullRequest;
   const links = donePullRequestLinks(thread.pullRequests ?? []);
-  if (links.some((link) => link.snapshot === null || link.snapshot.state === "open")) return null;
-  if (links.length > 0) {
+  if (links.some((link) => link.snapshot === null)) return null;
+  // An open link means the pull request has not finished, so only inactivity
+  // can mark the thread done, never a merged or closed lookup.
+  const hasOpenLink = links.some((link) => link.snapshot?.state === "open");
+  if (hasOpenLink) {
+    pullRequest = null;
+  } else if (links.length > 0) {
     const latest = links.reduce((current, candidate) =>
       linkTerminalAtMs(candidate) > linkTerminalAtMs(current) ? candidate : current,
     );
@@ -217,9 +222,10 @@ export function resolveAutoMarkDoneAt(input: {
     return DateTime.makeUnsafe(activityAtMs);
   }
   const hasOpenPullRequest =
-    pullRequest === null
+    hasOpenLink ||
+    (pullRequest === null
       ? thread.linkedPullRequest != null || thread.branchPullRequest != null
-      : pullRequest.state === "open";
+      : pullRequest.state === "open");
   if (input.autoMarkDoneKeepPullRequests === true && hasOpenPullRequest) return null;
   if (input.autoMarkDoneAfterDays === null) return null;
   // A passed wake timer restarts inactivity. An earlier wake can only delay completion.
