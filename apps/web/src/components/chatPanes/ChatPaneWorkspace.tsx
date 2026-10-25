@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { BackgroundThreadContext } from "../chat/backgroundThread";
 
 import {
   focusedPane,
@@ -47,7 +48,14 @@ function useNavigateToPaneTarget() {
  * single thread renders as a one-cell grid, so splitting it, moving it, or
  * closing its neighbours never remounts the view the user is in.
  */
-export function ChatPaneWorkspace({ target }: { target: ThreadRouteTarget }) {
+/** `background` keeps the panes mounted, inert and in place under Settings or Usage. */
+export function ChatPaneWorkspace({
+  target,
+  background = false,
+}: {
+  target: ThreadRouteTarget;
+  background?: boolean;
+}) {
   const layout = useChatPaneStore((state) => state.layout);
   const navigateToTarget = useNavigateToPaneTarget();
   const routeKey = paneTargetKey(target);
@@ -66,12 +74,12 @@ export function ChatPaneWorkspace({ target }: { target: ThreadRouteTarget }) {
   const focusedKey = layout ? paneTargetKey(focusedPane(layout).target) : null;
   // Focus changes move the URL; route changes flow the other way through the reconcile above.
   useEffect(() => {
-    if (focusedKey === null || focusedKey === routeKeyRef.current) return;
+    if (background || focusedKey === null || focusedKey === routeKeyRef.current) return;
     const { layout: current, historyMode } = useChatPaneStore.getState();
     const focused = current ? focusedPane(current).target : null;
     if (!focused || paneTargetKey(focused) !== focusedKey) return;
     navigateToTarget(focused, historyMode === "replace");
-  }, [focusedKey, navigateToTarget]);
+  }, [background, focusedKey, navigateToTarget]);
 
   useEffect(() => trackChatPaneWorkspaceMount(), []);
   useEffect(() => window.desktopBridge?.onMenuAction(runPaneMenuAction), []);
@@ -93,11 +101,16 @@ export function ChatPaneWorkspace({ target }: { target: ThreadRouteTarget }) {
   }, []);
 
   return (
-    <SidebarInset className="h-svh min-h-0 overflow-hidden overscroll-y-none md:h-dvh">
-      <div ref={containerRef} className="isolate flex min-h-0 min-w-0 flex-1">
-        {layout && size ? <PaneGrid layout={layout} size={size} /> : null}
-      </div>
-      <LinkPullRequestDialogHost />
+    <SidebarInset
+      className="h-svh min-h-0 overflow-hidden overscroll-y-none md:h-dvh"
+      inert={background}
+    >
+      <BackgroundThreadContext value={background}>
+        <div ref={containerRef} className="isolate flex min-h-0 min-w-0 flex-1">
+          {layout && size ? <PaneGrid layout={layout} size={size} /> : null}
+        </div>
+        <LinkPullRequestDialogHost />
+      </BackgroundThreadContext>
     </SidebarInset>
   );
 }

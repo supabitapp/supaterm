@@ -1,7 +1,8 @@
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 import type { ScopedThreadRef } from "@supaterm/contracts";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
+import { BackgroundThreadContext } from "./chat/backgroundThread";
 
 import ChatView from "./ChatView";
 import { resolveDraftPromotionNavigationTarget, threadHasStarted } from "./ChatView.logic";
@@ -38,6 +39,8 @@ import {
  */
 export function ThreadRouteView({ target, paneId }: { target: ThreadRouteTarget; paneId: string }) {
   const navigate = useNavigate();
+  // Under Settings or Usage the thread stays mounted but must not move the route.
+  const background = use(BackgroundThreadContext);
   const draftId = target.kind === "draft" ? target.draftId : null;
   const draftSession = useComposerDraftStore((store) =>
     draftId === null ? null : store.getDraftSession(draftId),
@@ -134,7 +137,7 @@ export function ThreadRouteView({ target, paneId }: { target: ThreadRouteTarget;
   }, [draftSession?.promotedTo, inferredThreadRef]);
 
   useEffect(() => {
-    if (!canonicalThreadRef) {
+    if (!canonicalThreadRef || background) {
       return;
     }
     let cancelled = false;
@@ -157,15 +160,15 @@ export function ThreadRouteView({ target, paneId }: { target: ThreadRouteTarget;
     return () => {
       cancelled = true;
     };
-  }, [canonicalThreadRef, navigate, paneId]);
+  }, [background, canonicalThreadRef, navigate, paneId]);
 
   useEffect(() => {
-    if (target.kind !== "draft" || draftSession || canonicalThreadRef) {
+    if (background || target.kind !== "draft" || draftSession || canonicalThreadRef) {
       return;
     }
     if (useChatPaneStore.getState().close(paneId, { remember: false })) return;
     void navigate({ to: "/", replace: true });
-  }, [canonicalThreadRef, draftSession, navigate, paneId, target.kind]);
+  }, [background, canonicalThreadRef, draftSession, navigate, paneId, target.kind]);
 
   useEffect(() => {
     if (target.kind !== "server" || !bootstrapComplete) {
@@ -175,11 +178,19 @@ export function ThreadRouteView({ target, paneId }: { target: ThreadRouteTarget;
       const { clearPendingFileDropsForThread } = useSidebarPendingFileDropStore.getState();
       clearPendingFileDropsForThread(target.threadRef);
       if (useChatPaneStore.getState().close(paneId, { remember: false })) return;
-      if (environmentHasAnyThreads) {
+      if (environmentHasAnyThreads && !background) {
         void navigate({ to: "/", replace: true });
       }
     }
-  }, [bootstrapComplete, environmentHasAnyThreads, navigate, paneId, renderState, target]);
+  }, [
+    background,
+    bootstrapComplete,
+    environmentHasAnyThreads,
+    navigate,
+    paneId,
+    renderState,
+    target,
+  ]);
 
   useEffect(() => {
     if (target.kind !== "server" || !serverThreadStarted || !draftThread) {

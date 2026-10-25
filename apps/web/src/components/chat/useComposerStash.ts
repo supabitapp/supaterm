@@ -9,11 +9,13 @@ import {
   type Dispatch,
   type RefObject,
   type SetStateAction,
+  use,
   useEffect,
   useRef,
   useState,
 } from "react";
 import { flushSync } from "react-dom";
+import { BackgroundThreadContext } from "./backgroundThread";
 import { collapseExpandedComposerCursor } from "../../composer-logic";
 import {
   type ComposerFileAttachment,
@@ -840,7 +842,9 @@ export function useComposerStash(input: {
     setIsStashMenuOpen(false);
   }
 
+  const backgroundThread = use(BackgroundThreadContext);
   useEffect(() => {
+    if (backgroundThread) return;
     const handler = (event: globalThis.KeyboardEvent) => {
       if (!isPaneInputOwner()) return;
       const command = resolveShortcutCommand(event, keybindings, {
@@ -871,6 +875,7 @@ export function useComposerStash(input: {
     return () => window.removeEventListener("keydown", handler, true);
   }, [
     activePendingProgress,
+    backgroundThread,
     isComposerModelPickerOpen,
     keybindings,
     pendingUserInputs.length,

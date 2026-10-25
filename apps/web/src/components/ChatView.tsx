@@ -132,6 +132,7 @@ import { resolveTerminalSessionLabel } from "@supaterm/shared/terminalLabels";
 import { useAtomValue } from "@effect/atom-react";
 import {
   type SetStateAction,
+  use,
   useEffect,
   useEffectEvent,
   useLayoutEffect,
@@ -139,6 +140,7 @@ import {
   useState,
 } from "react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
+import { BackgroundThreadContext } from "./chat/backgroundThread";
 import { assistantCitationFromLocation } from "../lib/assistantCitationNavigation";
 import type { AssistantCitationSourceAnchor } from "~/lib/assistantTextSelection";
 import { useShallow } from "zustand/react/shallow";
@@ -1719,6 +1721,7 @@ export default function ChatView(props: ChatViewProps) {
     resourceKey: `git-status:${activeThreadKey ?? ""}:${gitStatusCwd ?? ""}`,
   });
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
+  const backgroundThread = use(BackgroundThreadContext);
   const scriptKeybindings =
     useAtomValue(serverEnvironment.configValueAtom(environmentId))?.keybindings ??
     DEFAULT_RESOLVED_KEYBINDINGS;
@@ -1731,7 +1734,7 @@ export default function ChatView(props: ChatViewProps) {
     remoteOpenMode: remoteOpenState.mode,
   });
   useOpenFavoriteEditorShortcut({
-    enabled: showOpenInPicker,
+    enabled: showOpenInPicker && !backgroundThread,
     environmentId: activeThread?.environmentId ?? environmentId,
     keybindings,
     availableEditors,
@@ -2905,7 +2908,7 @@ export default function ChatView(props: ChatViewProps) {
     void onRespondToApprovalStable(approval.requestId, decision);
   };
   useChatShortcuts({
-    enabled: activeThreadId !== null,
+    enabled: activeThreadId !== null && !backgroundThread,
     isInputOwner: isPaneInputOwner,
     keybindings,
     scriptKeybindings,

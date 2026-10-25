@@ -7,7 +7,7 @@ function SettingsCodexMicroRoute() {
   return <CodexMicroSettings />;
 }
 
-export const Route = createFileRoute("/settings/codex-micro")({
+export const Route = createFileRoute("/_chat/settings/codex-micro")({
   beforeLoad: () => {
     if (!isSettingsSectionAvailable("/settings/codex-micro")) {
       throw redirect({ to: "/settings/general", replace: true });
