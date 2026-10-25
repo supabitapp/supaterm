@@ -2,14 +2,18 @@ import type {
   ApplicationStoredEvent,
   OrchestrationProjectShell,
   OrchestrationV2ArchivedShellStreamItem,
+  OrchestrationV2OlderDoneCount,
+  OrchestrationV2OlderDoneThreads,
   OrchestrationV2ShellSnapshot,
   OrchestrationV2ThreadShell,
   OrchestrationV2ThreadShellSnapshot,
   OrchestrationV2ShellStreamItem,
   OrchestrationV2StoredEvent,
+  ProjectId,
 } from "@supaterm/contracts";
 import {
   isLiveSubagentShell,
+  isOlderDoneThreadShell,
   OrchestrationProjectShell as ProjectShellSchema,
   OrchestrationV2ThreadShell as ThreadShellSchema,
   ThreadId,
@@ -18,6 +22,7 @@ import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import type * as Arr from "effect/Array";
 import type * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
+import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
@@ -111,6 +116,93 @@ export function activeShellRowsForSubscriber(
   };
 }
 
+const NEWEST_DONE_KEPT = 25;
+
+/**
+ * Opted-in snapshots keep the 25 newest done top-level threads (and ties) and count the rest per
+ * project in `olderDone`; clients page them with `getOlderDoneThreads`. Older rows stay while
+ * pinned, snoozed, live, or above a kept subagent, so walks over shell rows still find them.
+ */
+export function omitOlderDoneShells(input: {
+  readonly threads: ReadonlyArray<OrchestrationV2ThreadShell>;
+  readonly snapshotSequence: number;
+  readonly now: DateTime.Utc;
+}): {
+  readonly threads: ReadonlyArray<OrchestrationV2ThreadShell>;
+  readonly olderDone: OrchestrationV2OlderDoneThreads;
+} {
+  const nowMs = DateTime.toEpochMillis(input.now);
+  const doneTimes = input.threads
+    .flatMap((thread) =>
+      thread.lineage.relationshipToParent !== "subagent" &&
+      thread.doneOverride === "done" &&
+      thread.doneAt !== null
+        ? [DateTime.toEpochMillis(thread.doneAt)]
+        : [],
+    )
+    .sort((left, right) => right - left);
+  // With fewer than 25, the oldest one is the cut, so nothing is older.
+  const beforeMs = doneTimes[NEWEST_DONE_KEPT - 1] ?? doneTimes.at(-1) ?? nowMs;
+  const ancestorIds = new Set<string>();
+  for (const thread of input.threads) {
+    if (thread.lineage.relationshipToParent !== "subagent") continue;
+    if (thread.lineage.parentThreadId !== null) ancestorIds.add(thread.lineage.parentThreadId);
+    ancestorIds.add(thread.lineage.rootThreadId);
+  }
+  const counts = new Map<ProjectId, number>();
+  const threads = input.threads.filter((thread) => {
+    if (!isOlderDoneThreadShell(thread, beforeMs)) return true;
+    counts.set(thread.projectId, (counts.get(thread.projectId) ?? 0) + 1);
+    return (
+      thread.pinnedAt != null ||
+      (thread.snoozedUntil != null && DateTime.toEpochMillis(thread.snoozedUntil) > nowMs) ||
+      isLiveSubagentShell(thread) ||
+      ancestorIds.has(thread.id)
+    );
+  });
+  return {
+    threads,
+    olderDone: {
+      before: DateTime.formatIso(DateTime.makeUnsafe(beforeMs)),
+      asOfSequence: input.snapshotSequence,
+      counts: Array.from(counts, ([projectId, count]) => ({ projectId, count })),
+    },
+  };
+}
+
+/**
+ * The snapshot a shell subscriber gets for its opt-ins, and the subagent ids whose transcript
+ * events its stream drops (from every row, so an omitted child that wakes keeps that filter).
+ */
+export function shellSnapshotForSubscriber(
+  base: OrchestrationV2ShellSnapshot,
+  options: {
+    readonly omitIdleSubagents: boolean;
+    readonly omitOlderDone: boolean;
+    readonly now: DateTime.Utc;
+  },
+): {
+  readonly snapshot: OrchestrationV2ShellSnapshot;
+  readonly subagentThreadIds: Set<string>;
+} {
+  const rows = activeShellRowsForSubscriber(base.threads, options.omitIdleSubagents);
+  if (!options.omitOlderDone) {
+    return {
+      snapshot: { ...base, threads: rows.threads },
+      subagentThreadIds: rows.subagentThreadIds,
+    };
+  }
+  const older = omitOlderDoneShells({
+    threads: rows.threads,
+    snapshotSequence: base.snapshotSequence,
+    now: options.now,
+  });
+  return {
+    snapshot: { ...base, threads: older.threads, olderDone: older.olderDone },
+    subagentThreadIds: rows.subagentThreadIds,
+  };
+}
+
 export const loadShellSnapshotParts = Effect.fn("ShellStream.loadShellSnapshotParts")(function* <
   E1,
   E2,
@@ -169,6 +261,45 @@ export const readShellResumeChanges = Effect.fn("ShellStream.readShellResumeChan
     ? Option.none()
     : Option.some(changed);
 });
+
+/** A page of older done threads, read and decoded like `loadShellSnapshotParts`. */
+export const loadOlderDoneThreadsPage = Effect.fn("ShellStream.loadOlderDoneThreadsPage")(
+  function* <E1, E2, E3, E4>(input: {
+    readonly sql: SqlClient.SqlClient;
+    readonly listThreads: Effect.Effect<
+      {
+        readonly threadIds: ReadonlyArray<ThreadId>;
+        readonly counts: ReadonlyArray<OrchestrationV2OlderDoneCount>;
+      },
+      E1
+    >;
+    readonly readThreads: (
+      threadIds: ReadonlyArray<ThreadId>,
+    ) => Effect.Effect<Effect.Effect<OrchestrationV2ThreadShellSnapshot, E3>, E2>;
+    readonly latestSequence: Effect.Effect<number, E4>;
+  }) {
+    const read = yield* input.sql
+      .withTransaction(
+        Effect.gen(function* () {
+          const listed = yield* input.listThreads;
+          return {
+            listed,
+            decodeThreads:
+              listed.threadIds.length === 0 ? null : yield* input.readThreads(listed.threadIds),
+            snapshotSequence: yield* input.latestSequence,
+          };
+        }),
+      )
+      .pipe(NodeSqliteClient.readOnly);
+    const threads = read.decodeThreads === null ? [] : (yield* read.decodeThreads).threads;
+    const order = new Map(read.listed.threadIds.map((threadId, index) => [threadId, index]));
+    return {
+      snapshotSequence: read.snapshotSequence,
+      threads: threads.toSorted((left, right) => order.get(left.id)! - order.get(right.id)!),
+      counts: read.listed.counts,
+    };
+  },
+);
 
 /** Focused subagents receive these updates through their thread subscription. */
 export function shouldPublishShellApplicationEvent(

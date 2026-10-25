@@ -305,11 +305,6 @@ export function HomeScreen(props: HomeScreenProps) {
           )
         ? [props.selectedEnvironmentId]
         : [];
-  const threadSearch = useThreadSearch(
-    searchEnvironmentIds,
-    tabActivity?.active === false ? "" : props.searchQuery,
-  );
-  const threadSearchMatchByKey = useThreadListSearchMatches(props.threads, threadSearch);
   const handleSwipeableWillOpen = (methods: SwipeableMethods) => {
     if (openSwipeableRef.current !== methods) {
       openSwipeableRef.current?.close();
@@ -398,6 +393,14 @@ export function HomeScreen(props: HomeScreenProps) {
 
   const v2ProjectScopeKey = props.selectedProjectKey;
   const v2ScopedProjectGroup = findHomeProjectScope(projectScopes, v2ProjectScopeKey);
+  const threadSearch = useThreadSearch(
+    searchEnvironmentIds,
+    tabActivity?.active === false ? "" : props.searchQuery,
+    v2ScopedProjectGroup === null
+      ? {}
+      : { projectIds: v2ScopedProjectGroup.projectRefs.map((ref) => ref.projectId) },
+  );
+  const threadSearchMatchByKey = useThreadListSearchMatches(props.threads, threadSearch);
   const v2ProjectTitleByProjectKey = new Map(
     projectScopes.flatMap((scope) =>
       scope.projectRefs.map(
@@ -492,6 +495,7 @@ export function HomeScreen(props: HomeScreenProps) {
     layout: threadListV2Layout,
     items: threadListV2Items,
     contentOnlyThreadKeys,
+    olderDoneShelf,
   } = useThreadListV2({
     grouping: props.threadGrouping,
     groupingProjects: projectScopes.map((scope) => ({
@@ -620,7 +624,16 @@ export function HomeScreen(props: HomeScreenProps) {
       );
     }
     if (item.type === "v2-show-more") {
-      return <ThreadListV2ShowMoreRow hiddenCount={item.hiddenCount} onPress={showMoreDone} />;
+      return (
+        <ThreadListV2ShowMoreRow
+          hiddenCount={item.hiddenCount}
+          {...(item.state === undefined ? {} : { state: item.state })}
+          onPress={() => {
+            olderDoneShelf.retry();
+            showMoreDone();
+          }}
+        />
+      );
     }
     if (item.type === "v2-pinned-shelf") {
       return (
@@ -765,7 +778,9 @@ export function HomeScreen(props: HomeScreenProps) {
   // full-page "No threads yet". Done threads are unarchived live shells,
   // so the archived-at check already covers the done shelf.
   const hasAnyThreads =
-    props.threads.some((thread) => thread.archivedAt === null) || props.pendingTasks.length > 0;
+    props.threads.some((thread) => thread.archivedAt === null) ||
+    props.pendingTasks.length > 0 ||
+    threadListV2Layout.doneCount > 0;
   const selectedEnvironmentLabel =
     props.selectedEnvironmentId === null
       ? null

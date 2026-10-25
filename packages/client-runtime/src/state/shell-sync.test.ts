@@ -791,7 +791,7 @@ describe("environment shell synchronization", () => {
     }),
   );
 
-  it.effect("opts in to idle-child omission and counts authoritative snapshots and removals", () =>
+  it.effect("opts in to shell omissions and counts authoritative snapshots and removals", () =>
     Effect.gen(function* () {
       const events = yield* Queue.unbounded<OrchestrationV2ShellStreamItem>();
       const subscribeInput = yield* Deferred.make<unknown>();
@@ -807,6 +807,7 @@ describe("environment shell synchronization", () => {
         initialConfig: Effect.succeed({
           shellResumeCompletionMarker: true,
           shellThreadFamilies: true,
+          shellOlderDone: true,
         } as never),
       };
       const supervisor = EnvironmentSupervisor.EnvironmentSupervisor.of({
@@ -850,8 +851,11 @@ describe("environment shell synchronization", () => {
       expect(yield* Deferred.await(subscribeInput)).toMatchObject({
         afterSequence: 1,
         omitIdleSubagents: true,
+        omitOlderDone: true,
       });
-      expect(yield* Ref.get(loadOptions)).toEqual([{ omitIdleSubagents: true }]);
+      expect(yield* Ref.get(loadOptions)).toEqual([
+        { omitIdleSubagents: true, omitOlderDone: true },
+      ]);
       const loaded = Option.getOrThrow(yield* stateWhere((state) => state.generation > 0));
       expect(loaded.removedAt.size).toBe(0);
 

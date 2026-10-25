@@ -7,6 +7,7 @@ import {
   createRunningThreadKeepAliveAtom,
   EMPTY_ENVIRONMENT_THREAD_STATE,
   type EnvironmentThreadState,
+  createOlderDoneThreadAtoms,
   createThreadEnvironmentAtoms,
   createThreadFamilyAtoms,
 } from "@supaterm/client-runtime/state/threads";
@@ -24,6 +25,10 @@ import { threadOutboxManager } from "./thread-outbox";
 import { createThreadDetailReadiness } from "./thread-detail-readiness";
 
 export const threadFamilies = createThreadFamilyAtoms(
+  connectionAtomRuntime,
+  environmentShell.stateAtom,
+);
+export const olderDoneThreads = createOlderDoneThreadAtoms(
   connectionAtomRuntime,
   environmentShell.stateAtom,
 );

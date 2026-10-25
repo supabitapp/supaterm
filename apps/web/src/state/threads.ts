@@ -4,6 +4,7 @@ import {
   createEnvironmentThreadShellAtoms,
   createEnvironmentThreadStateAtoms,
   createRunningThreadKeepAliveAtom,
+  createOlderDoneThreadAtoms,
 } from "@supaterm/client-runtime/state/threads";
 import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import { Atom } from "effect/reactivity";
@@ -14,7 +15,13 @@ import { connectionAtomRuntime } from "../connection/runtime";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { directThreadEnvironment, threadFamilies } from "./threadCommands";
 import { createThreadDetailReadiness } from "./threadDetailReadiness";
+import { environmentShell } from "./shell";
 
+export { threadFamilies };
+export const olderDoneThreads = createOlderDoneThreadAtoms(
+  connectionAtomRuntime,
+  environmentShell.stateAtom,
+);
 export const threadEnvironment = directThreadEnvironment;
 export const environmentThreadShells = createEnvironmentThreadShellAtoms({
   catalogValueAtom: environmentCatalog.catalogValueAtom,

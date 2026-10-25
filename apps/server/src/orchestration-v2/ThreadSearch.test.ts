@@ -6,6 +6,7 @@ import {
   ProviderInstanceId,
   ThreadId,
   type OrchestrationV2DomainEvent,
+  type ThreadLinkedPullRequest,
 } from "@supaterm/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as DateTime from "effect/DateTime";
@@ -65,6 +66,9 @@ const thread = (
     readonly deletedAt?: DateTime.Utc;
     readonly subagentOf?: ThreadId;
     readonly title?: string;
+    readonly doneAt?: DateTime.Utc;
+    readonly linkedPullRequest?: ThreadLinkedPullRequest;
+    readonly branchPullRequest?: ThreadLinkedPullRequest;
   } = {},
 ): OrchestrationV2DomainEvent => ({
   id: EventId.make(`created:${threadId}`),
@@ -84,6 +88,8 @@ const thread = (
     interactionMode: "default",
     branch: null,
     worktreePath: null,
+    linkedPullRequest: overrides.linkedPullRequest ?? null,
+    branchPullRequest: overrides.branchPullRequest ?? null,
     activeProviderThreadId: null,
     lineage: overrides.subagentOf
       ? {
@@ -96,8 +102,8 @@ const thread = (
     createdAt: at(0),
     updatedAt: at(0),
     archivedAt: overrides.archivedAt ?? null,
-    doneOverride: null,
-    doneAt: null,
+    doneOverride: overrides.doneAt === undefined ? null : "done",
+    doneAt: overrides.doneAt ?? null,
     lastVisitedAt: null,
     deletedAt: overrides.deletedAt ?? null,
   },
@@ -659,6 +665,152 @@ it.layer(layerTest)("ThreadSearch across scripts and without the index", (it) =>
         assert.deepEqual(yield* threadIds("検索"), [threadId]);
         assert.deepEqual(yield* threadIds("fts"), [threadId]);
       }),
+  );
+});
+
+it.layer(layerTest)("ThreadSearch.searchOlderDone", (it) => {
+  it.effect("returns older done title matches in scope, then older message hits", () =>
+    Effect.gen(function* () {
+      const projections = yield* ProjectionStore.ProjectionStoreV2;
+      const search = yield* ThreadSearch.ThreadSearch;
+      const project = ProjectId.make("project:kestrel");
+      const other = ProjectId.make("project:kestrel-other");
+      yield* createProject(project);
+      yield* createProject(other);
+      const id = (name: string) => ThreadId.make(`thread:kestrel-${name}`);
+      const old = at(10);
+      yield* Effect.forEach(
+        [
+          thread(id("old"), project, { title: "Kestrel nest", doneAt: old }),
+          thread(id("recent"), project, { title: "Kestrel nest", doneAt: at(50) }),
+          thread(id("open"), project, { title: "Kestrel nest" }),
+          thread(id("child"), project, { title: "Kestrel nest", subagentOf: id("old") }),
+          thread(id("elsewhere"), other, { title: "Kestrel nest", doneAt: old }),
+          thread(id("note"), project, { title: "Unrelated", doneAt: old }),
+          thread(id("new-note"), project, { title: "Unrelated", doneAt: at(50) }),
+        ],
+        projections.apply,
+        { discard: true },
+      );
+      const before = DateTime.formatIso(at(30));
+      const messageThreadIds = [id("new-note"), id("note"), id("old")];
+      assert.sameMembers(
+        [...(yield* search.searchOlderDone({ query: "kestrel", before, messageThreadIds }))],
+        [id("old"), id("elsewhere"), id("note")],
+      );
+      // The scope applies to titles and message hits; message hits follow the titles in order.
+      assert.deepEqual(
+        yield* search.searchOlderDone({
+          query: "kestrel",
+          before,
+          projectIds: [project],
+          messageThreadIds: [id("elsewhere"), ...messageThreadIds],
+        }),
+        [id("old"), id("note")],
+      );
+      // A palette also matches the environment's name.
+      assert.include(
+        yield* search.searchOlderDone({
+          query: "laptop unrelated",
+          before,
+          environmentLabel: "Laptop",
+          messageThreadIds: [],
+        }),
+        id("note"),
+      );
+    }),
+  );
+
+  it.effect("matches the branch pull request, like the palette", () =>
+    Effect.gen(function* () {
+      const projections = yield* ProjectionStore.ProjectionStoreV2;
+      const search = yield* ThreadSearch.ThreadSearch;
+      const project = ProjectId.make("project:heron");
+      yield* createProject(project);
+      const pullRequest = (number: number): ThreadLinkedPullRequest => ({
+        projectId: project,
+        repository: "acme/heron",
+        number,
+        url: `https://github.com/acme/heron/pull/${number}`,
+      });
+      const branch = ThreadId.make("thread:heron-branch");
+      yield* projections.apply(
+        thread(branch, project, {
+          title: "Heron",
+          doneAt: at(10),
+          branchPullRequest: pullRequest(4101),
+        }),
+      );
+      const find = (query: string) =>
+        search.searchOlderDone({
+          query,
+          before: DateTime.formatIso(at(30)),
+          messageThreadIds: [],
+        });
+      assert.deepEqual(yield* find("#4101"), [branch]);
+      assert.deepEqual(yield* find("acme/heron#4101"), [branch]);
+    }),
+  );
+});
+
+it.layer(layerTest)("ThreadSearch.searchThreadsWithOlderDoneRows", (it) => {
+  it.effect("adds older done rows to message hits, or alone for titles only", () =>
+    Effect.gen(function* () {
+      const projections = yield* ProjectionStore.ProjectionStoreV2;
+      const search = yield* ThreadSearch.ThreadSearch;
+      const sql = yield* SqlClient.SqlClient;
+      const project = ProjectId.make("project:plover");
+      yield* createProject(project);
+      const old = ThreadId.make("thread:plover-old");
+      const recent = ThreadId.make("thread:plover-recent");
+      yield* Effect.forEach(
+        [
+          thread(old, project, { title: "Plover nest", doneAt: at(10) }),
+          thread(recent, project, { title: "Plover nest", doneAt: at(50) }),
+          message(recent, "plover-note", "user", "a plover note", { minute: 2 }),
+        ],
+        projections.apply,
+        { discard: true },
+      );
+      const run = (request: { readonly titlesOnly?: boolean }) =>
+        ThreadSearch.searchThreadsWithOlderDoneRows({
+          request: { query: "plover", olderDoneBefore: DateTime.formatIso(at(30)), ...request },
+          search: search.search,
+          searchOlderDone: search.searchOlderDone,
+          sql,
+          readThreads: (threadIds) =>
+            projections.readShellSnapshot({ location: "active", threadIds }),
+          latestSequence: Effect.succeed(7),
+        });
+      const withMessages = yield* run({});
+      assert.deepEqual(
+        withMessages.matches.map((match) => match.threadId),
+        [recent],
+      );
+      assert.equal(withMessages.snapshotSequence, 7);
+      assert.deepEqual(
+        withMessages.threads?.map((row) => row.id),
+        [old],
+      );
+      const titles = yield* run({ titlesOnly: true });
+      assert.deepEqual(titles.matches, []);
+      assert.deepEqual(
+        titles.threads?.map((row) => row.id),
+        [old],
+      );
+      // Without the cut it is the plain message search.
+      assert.isUndefined(
+        (yield* ThreadSearch.searchThreadsWithOlderDoneRows({
+          request: { query: "plover" },
+          search: search.search,
+          searchOlderDone: search.searchOlderDone,
+          sql,
+          readThreads: (threadIds) =>
+            projections.readShellSnapshot({ location: "active", threadIds }),
+          latestSequence: Effect.succeed(7),
+        })).threads,
+      );
+    }),
   );
 });
 

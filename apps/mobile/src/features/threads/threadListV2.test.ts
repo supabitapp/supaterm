@@ -963,6 +963,47 @@ describe("buildThreadListV2Items done paging", () => {
     expect(layout.items.map((item) => item.thread.id)).toEqual(["done-3", "done-2", "done-0"]);
     expect(layout.hiddenDoneCount).toBe(1);
   });
+
+  it("lists only loaded done rows and counts the threads the shell left out", () => {
+    const settled = (index: number) =>
+      makeThread({
+        id: ThreadId.make(`settled-${index}`),
+        title: `Settled ${index}`,
+        doneOverride: "done",
+        doneAt: `2026-06-0${index}T00:00:00.000Z`,
+      });
+    const threads = [settled(1), settled(2), settled(3)];
+    const layout = buildThreadListV2Items({
+      threads,
+      environmentId: null,
+      searchQuery: "",
+      doneLimit: 10,
+      now: NOW,
+      // settled-1 came back mid-session, below the loaded range; the route keeps it visible.
+      isListedDone: (thread) => thread.id !== "settled-1",
+      unloadedDoneCount: 40,
+      selectedThreadKey: `${threads[0]!.environmentId}:settled-1`,
+    });
+    expect(layout.items.map((item) => item.thread.id)).toEqual([
+      "settled-3",
+      "settled-2",
+      "settled-1",
+    ]);
+    expect(layout.doneCount).toBe(43);
+    expect(layout.hiddenDoneCount).toBe(40);
+
+    // A scope whose done threads are all older still shows its Done header.
+    const unloadedOnly = buildThreadListV2Items({
+      threads: [],
+      environmentId: null,
+      searchQuery: "",
+      doneLimit: 10,
+      now: NOW,
+      unloadedDoneCount: 5,
+    });
+    expect(unloadedOnly.doneCount).toBe(5);
+    expect(unloadedOnly.doneShelfHeaderIndex).toBe(0);
+  });
 });
 
 describe("buildThreadListV2Items done sort reuse", () => {

@@ -67,10 +67,12 @@ import {
 import {
   AuthOrchestrationOperateScope,
   type KeybindingCommand,
+  ProjectId,
   type ScopedThreadRef,
   type ThreadId,
 } from "@supaterm/contracts";
 import { PlusIcon } from "@supaterm/icons";
+import type { OlderDoneScope } from "@supaterm/client-runtime/state/threads";
 import {
   useEffect,
   useLayoutEffect,
@@ -148,6 +150,7 @@ import { environmentPresentations } from "../state/presentation";
 import { primaryServerKeybindingsAtom } from "../state/server";
 import { environmentProjects } from "../state/projects";
 import { threadEnvironment } from "../state/threads";
+import { useOlderDoneShelf, useOlderDoneShelfGrowth } from "../state/olderDoneShelf";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { readEnvironmentScope } from "../state/session";
 import { buildThreadRouteParams, resolveActiveThreadRouteRef } from "../threadRoutes";
@@ -448,19 +451,30 @@ function useSidebarThreads(input: {
   if (partitionNextWakeAt !== nextSnoozeWakeAt) setNextSnoozeWakeAt(partitionNextWakeAt);
 
   const { pinnedThreads, activeThreads, workingThreads, snoozedThreads, doneThreads } = partition;
+  // Older done threads load in pages; the shelf lists them only as far as they are loaded.
+  const olderDoneShelf = useOlderDoneShelf({
+    scopes: olderDoneScopes([...serverConfigs.keys()], scopedProjectKeys),
+    expanded: doneShelfExpanded,
+    visibleCount: doneVisibleCount,
+  });
+  const listedDoneThreads = doneThreads.filter(olderDoneShelf.isListed);
+  useOlderDoneShelfGrowth(olderDoneShelf, listedDoneThreads);
+  const doneCount = doneThreads.length + olderDoneShelf.unloadedCount(partition.visibleThreads);
   const visibleDoneThreads = (() => {
-    if (doneThreads.length <= doneVisibleCount) return doneThreads;
-    const visible = doneThreads.slice(0, doneVisibleCount);
+    const visible = listedDoneThreads.slice(0, doneVisibleCount);
     // The open thread must never hide under "Show more": navigating into a
     // deep done thread (search, deep link) pulls its row into the visible
     // tail so the highlight and the reopen affordance stay reachable.
-    if (routeRowThreadKey !== null) {
-      const routeThread = doneThreads
-        .slice(doneVisibleCount)
-        .find((thread) => threadShellKey(thread) === routeRowThreadKey);
+    if (
+      routeRowThreadKey !== null &&
+      !visible.some((thread) => threadShellKey(thread) === routeRowThreadKey)
+    ) {
+      const routeThread = doneThreads.find(
+        (thread) => threadShellKey(thread) === routeRowThreadKey,
+      );
       if (routeThread !== undefined) visible.push(routeThread);
     }
-    return visible;
+    return visible.length === doneThreads.length ? doneThreads : visible;
   })();
   const renderedDoneThreads = doneShelfExpanded
     ? visibleDoneThreads
@@ -516,7 +530,9 @@ function useSidebarThreads(input: {
     threads,
     serverThreadKeys,
     doneVisibleCount,
-    hiddenDoneCount: doneThreads.length - visibleDoneThreads.length,
+    doneCount,
+    olderDoneShelf,
+    hiddenDoneCount: Math.max(0, doneCount - visibleDoneThreads.length),
     showMoreDone: () =>
       setDoneTail((current) => ({
         scopeKey: current.scopeKey,
@@ -549,6 +565,23 @@ function useSidebarThreads(input: {
       threads.map((thread) => [threadShellKey(thread), thread.pinOrderKey ?? null] as const),
     ),
   };
+}
+
+/** The sidebar's scope per environment: the scoped projects there, or every project. */
+function olderDoneScopes(
+  environmentIds: ReadonlyArray<EnvironmentId>,
+  scopedProjectKeys: ReadonlySet<string> | null,
+): ReadonlyArray<OlderDoneScope> {
+  if (scopedProjectKeys === null) {
+    return environmentIds.map((environmentId) => ({ environmentId, projectIds: null }));
+  }
+  return environmentIds.flatMap((environmentId) => {
+    const prefix = `${environmentId}:`;
+    const projectIds = [...scopedProjectKeys].flatMap((key) =>
+      key.startsWith(prefix) ? [ProjectId.make(key.slice(prefix.length))] : [],
+    );
+    return projectIds.length === 0 ? [] : [{ environmentId, projectIds }];
+  });
 }
 
 function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
@@ -633,6 +666,7 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
         firstValidTimestampMs(right.snoozedUntil ?? null),
     ),
     doneThreads: sortDoneThreads(done),
+    visibleThreads: visible,
     snoozeNow: preciseNow,
   };
 }
@@ -1092,6 +1126,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     doneThreads,
     snoozeNow,
     doneVisibleCount,
+    doneCount,
+    olderDoneShelf,
     hiddenDoneCount,
     showMoreDone,
     pinnedShelfExpanded,
@@ -1626,7 +1662,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       activeThreads.length +
       workingThreads.length +
       snoozedThreads.length +
-      doneThreads.length >
+      doneCount >
     0;
   const showWorkingShelf = inboxItems.some(
     (item) => item.kind === "marker" && item.marker === "working-header",
@@ -2988,7 +3024,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             <SidebarSectionHeader
                               key="done-shelf-header"
                               marker="done-header"
-                              label={doneShelfExpanded ? "Done" : `Done (${doneThreads.length})`}
+                              label={doneShelfExpanded ? "Done" : `Done (${doneCount})`}
                               dragging={from !== null}
                               isDropTarget={dragTargetSection === "done"}
                               toggle={{
@@ -3025,11 +3061,19 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                     <li className="list-none">
                       <button
                         type="button"
-                        onClick={showMoreDone}
-                        className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-left text-sm text-sidebar-muted-foreground/55 hover:bg-sidebar-row-hover hover:text-sidebar-foreground"
+                        disabled={olderDoneShelf.loading}
+                        onClick={() => {
+                          olderDoneShelf.retry();
+                          showMoreDone();
+                        }}
+                        className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-left text-sm text-sidebar-muted-foreground/55 hover:bg-sidebar-row-hover hover:text-sidebar-foreground disabled:cursor-default"
                       >
                         <PlusIcon aria-hidden className="size-4 shrink-0" />
-                        Show {Math.min(hiddenDoneCount, DONE_TAIL_PAGE_COUNT)} more
+                        {olderDoneShelf.loading
+                          ? "Loading"
+                          : olderDoneShelf.failed
+                            ? "Could not load older threads. Retry"
+                            : `Show ${Math.min(hiddenDoneCount, DONE_TAIL_PAGE_COUNT)} more`}
                       </button>
                     </li>
                   ) : null}
@@ -3043,7 +3087,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             activeThreads.length +
             workingThreads.length +
             snoozedThreads.length +
-            doneThreads.length ===
+            doneCount ===
             0 ? (
             <div className="flex flex-col items-center gap-2 px-2 py-6 text-center text-xs text-muted-foreground/60">
               {projects.length === 0 ? (

@@ -1,5 +1,6 @@
 import { OrchestrationMessageContext } from "./composerContext.ts";
 import { withRecordIdTable } from "./orchestrationV2IdTable.ts";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as SchemaAST from "effect/SchemaAST";
@@ -38,6 +39,10 @@ import {
   TurnItemId,
 } from "./baseSchemas.ts";
 import { ChatAttachment } from "./chatAttachment.ts";
+import {
+  OrchestrationSearchThreadsInput,
+  OrchestrationSearchThreadsResult,
+} from "./threadSearch.ts";
 import {
   OrchestrationGetFullThreadDiffInput,
   OrchestrationGetFullThreadDiffResult,
@@ -2043,6 +2048,40 @@ export function isLiveSubagentShell(
   );
 }
 
+/**
+ * A done top-level thread marked done before `beforeMs`. Shells that omit older done threads
+ * count every such thread, so the server and clients share this one rule.
+ */
+export function isOlderDoneThreadShell(
+  thread: Pick<OrchestrationV2ThreadShell, "lineage" | "doneOverride" | "doneAt">,
+  beforeMs: number,
+): boolean {
+  return (
+    thread.lineage.relationshipToParent !== "subagent" &&
+    thread.doneOverride === "done" &&
+    thread.doneAt !== null &&
+    DateTime.toEpochMillis(thread.doneAt) < beforeMs
+  );
+}
+
+export const OrchestrationV2OlderDoneCount = Schema.Struct({
+  projectId: ProjectId,
+  count: NonNegativeInt,
+});
+export type OrchestrationV2OlderDoneCount = typeof OrchestrationV2OlderDoneCount.Type;
+
+/**
+ * Snapshots that leave out older done threads (`omitOlderDone`) name the cut and count, per
+ * project, every thread `isOlderDoneThreadShell` matches, sent or not. `asOfSequence` is the
+ * snapshot's own sequence: the counts are exact until a later change.
+ */
+export const OrchestrationV2OlderDoneThreads = Schema.Struct({
+  before: IsoDateTime,
+  asOfSequence: NonNegativeInt,
+  counts: Schema.Array(OrchestrationV2OlderDoneCount),
+});
+export type OrchestrationV2OlderDoneThreads = typeof OrchestrationV2OlderDoneThreads.Type;
+
 export const OrchestrationV2ThreadShellSnapshot = Schema.Struct({
   schemaVersion: PositiveInt,
   snapshotSequence: NonNegativeInt,
@@ -2054,6 +2093,7 @@ export type OrchestrationV2ThreadShellSnapshot = typeof OrchestrationV2ThreadShe
 export const OrchestrationV2ShellSnapshot = Schema.Struct({
   ...OrchestrationV2ThreadShellSnapshot.fields,
   projects: Schema.Array(OrchestrationProjectShell),
+  olderDone: Schema.optionalKey(OrchestrationV2OlderDoneThreads),
 });
 export type OrchestrationV2ShellSnapshot = typeof OrchestrationV2ShellSnapshot.Type;
 
@@ -3369,6 +3409,7 @@ export const ORCHESTRATION_V2_WS_METHODS = {
   getArchivedShellSnapshot: "orchestration.getArchivedShellSnapshot",
   getThreadFamily: "orchestration.getThreadFamily",
   getWorktreeThreadIds: "orchestration.getWorktreeThreadIds",
+  getOlderDoneThreads: "orchestration.getOlderDoneThreads",
   getThreadProjection: "orchestration.getThreadProjection",
   getWorkflowScript: "orchestration.getWorkflowScript",
   stopWorkflow: "orchestration.stopWorkflow",
@@ -3492,6 +3533,11 @@ export const OrchestrationV2SubscribeShellInput = Schema.Struct({
    * servers that advertise `shellThreadFamilies`.
    */
   omitIdleSubagents: Schema.optionalKey(Schema.Boolean),
+  /**
+   * Snapshots leave out older done threads and count them in `olderDone`; read them with
+   * `getOlderDoneThreads`. Send only to servers that advertise `shellOlderDone`.
+   */
+  omitOlderDone: Schema.optionalKey(Schema.Boolean),
 });
 export type OrchestrationV2SubscribeShellInput = typeof OrchestrationV2SubscribeShellInput.Type;
 
@@ -3501,9 +3547,9 @@ export const OrchestrationV2GetThreadFamilyInput = Schema.Struct({
 export type OrchestrationV2GetThreadFamilyInput = typeof OrchestrationV2GetThreadFamilyInput.Type;
 
 /**
- * The active subagent threads that share the requested thread's `lineage.rootThreadId`: its whole
- * subagent tree, in any run state. An unknown thread has an empty family; a deleted one still
- * names its root.
+ * The active threads that share the requested thread's `lineage.rootThreadId`: the root, its
+ * forks, and their whole subagent trees, in any run state. An unknown thread has an empty family;
+ * a deleted one still names its root.
  */
 export const OrchestrationV2ThreadFamily = Schema.Struct({
   snapshotSequence: NonNegativeInt,
@@ -3516,6 +3562,59 @@ export const OrchestrationV2GetWorktreeThreadIdsInput = Schema.Struct({
 });
 export type OrchestrationV2GetWorktreeThreadIdsInput =
   typeof OrchestrationV2GetWorktreeThreadIdsInput.Type;
+
+/**
+ * The client's thread search. With `olderDoneBefore`, the result also carries the rows of the
+ * best matching threads marked done before it, which shells that omit older done threads leave out:
+ * title, branch, pull request and project matches (in `projectIds` when given), then message hits.
+ * Send the extra keys only to servers that advertise `shellOlderDone`.
+ */
+export const OrchestrationV2SearchThreadsInput = Schema.Struct({
+  ...OrchestrationSearchThreadsInput.fields,
+  olderDoneBefore: Schema.optionalKey(IsoDateTime),
+  projectIds: Schema.optionalKey(Schema.Array(ProjectId)),
+  /** The client's name for this environment, which its own ranking also matches. */
+  environmentLabel: Schema.optionalKey(Schema.String),
+  /** Skips message search, for pickers that match titles only. */
+  titlesOnly: Schema.optionalKey(Schema.Boolean),
+});
+export type OrchestrationV2SearchThreadsInput = typeof OrchestrationV2SearchThreadsInput.Type;
+
+export const OrchestrationV2SearchThreadsResult = Schema.Struct({
+  ...OrchestrationSearchThreadsResult.fields,
+  snapshotSequence: Schema.optionalKey(NonNegativeInt),
+  threads: Schema.optionalKey(Schema.Array(OrchestrationV2ThreadShell)),
+});
+export type OrchestrationV2SearchThreadsResult = typeof OrchestrationV2SearchThreadsResult.Type;
+
+/** Where a page of older done threads starts: below this done time, then after this id. */
+export const OrchestrationV2OlderDoneCursor = Schema.Struct({
+  doneAt: IsoDateTime,
+  threadId: Schema.optionalKey(ThreadId),
+});
+export type OrchestrationV2OlderDoneCursor = typeof OrchestrationV2OlderDoneCursor.Type;
+
+export const OrchestrationV2GetOlderDoneThreadsInput = Schema.Struct({
+  before: OrchestrationV2OlderDoneCursor,
+  /** Every project when absent. */
+  projectIds: Schema.optionalKey(Schema.Array(ProjectId)),
+  /** 0 reads only the counts. */
+  limit: Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 50 })),
+});
+export type OrchestrationV2GetOlderDoneThreadsInput =
+  typeof OrchestrationV2GetOlderDoneThreadsInput.Type;
+
+/**
+ * Older done threads below the cursor, newest done first (`doneAt` desc, then id asc). A
+ * `limit: 0` read fills `counts` instead: the older done threads below the cursor per project,
+ * as `OrchestrationV2OlderDoneThreads.counts` count them. A cursor without an id is strict.
+ */
+export const OrchestrationV2OlderDoneThreadsPage = Schema.Struct({
+  snapshotSequence: NonNegativeInt,
+  threads: Schema.Array(OrchestrationV2ThreadShell),
+  counts: Schema.Array(OrchestrationV2OlderDoneCount),
+});
+export type OrchestrationV2OlderDoneThreadsPage = typeof OrchestrationV2OlderDoneThreadsPage.Type;
 
 /** Active threads on a worktree path, including subagent children a shell may leave out. */
 export const OrchestrationV2WorktreeThreadIds = Schema.Struct({
@@ -3943,6 +4042,10 @@ export const OrchestrationV2RpcSchemas = {
   getWorktreeThreadIds: {
     input: OrchestrationV2GetWorktreeThreadIdsInput,
     output: OrchestrationV2WorktreeThreadIds,
+  },
+  getOlderDoneThreads: {
+    input: OrchestrationV2GetOlderDoneThreadsInput,
+    output: OrchestrationV2OlderDoneThreadsPage,
   },
   getThreadProjection: {
     input: OrchestrationV2GetThreadProjectionInput,

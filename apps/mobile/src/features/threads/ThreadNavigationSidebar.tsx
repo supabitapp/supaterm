@@ -313,6 +313,7 @@ function ThreadNavigationSidebarPane(
     layout: threadListV2Layout,
     items: listItems,
     contentOnlyThreadKeys,
+    olderDoneShelf,
   } = useThreadListV2({
     grouping: options.threadGrouping,
     groupingProjects: projectScopes.map((scope) => ({
@@ -648,7 +649,11 @@ function ThreadNavigationSidebarPane(
           <ThreadListV2ShowMoreRow
             pane="sidebar"
             hiddenCount={item.hiddenCount}
-            onPress={showMoreDone}
+            {...(item.state === undefined ? {} : { state: item.state })}
+            onPress={() => {
+              olderDoneShelf.retry();
+              showMoreDone();
+            }}
           />
         );
     }

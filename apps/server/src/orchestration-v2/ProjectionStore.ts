@@ -25,6 +25,8 @@ import type {
   PlanId,
   OrchestrationV2ConversationMessage,
   OrchestrationV2DomainEvent,
+  OrchestrationV2OlderDoneCount,
+  OrchestrationV2OlderDoneCursor,
   OrchestrationV2ProjectedTurnItem,
   OrchestrationV2ProviderThread,
   OrchestrationV2ProviderTurn,
@@ -35,7 +37,6 @@ import type {
   OrchestrationV2ThreadShell,
   OrchestrationV2ThreadProjection,
   OrchestrationV2TurnItem,
-  ProjectId,
   ProviderSessionId,
   ProviderThreadId,
   ProviderTurnId,
@@ -67,6 +68,7 @@ import {
   ThreadId,
   TurnItemId,
   NodeId,
+  ProjectId,
   ProviderInstanceId,
   RuntimeRequestId,
   userInputAutoDismissAt,
@@ -426,11 +428,24 @@ export interface ShellSnapshotOptions {
 
   readonly openOnly?: boolean;
   /**
-   * Only the subagent threads sharing this thread's `lineage.rootThreadId`. The thread may be
-   * deleted: forks keep a deleted source's root, and their subagent trees still need it.
+   * Only the threads sharing this thread's `lineage.rootThreadId`: the root, its forks, and their
+   * subagent trees. The thread may be deleted: forks keep a deleted source's root.
    */
-  readonly subagentFamilyOf?: ThreadId;
+  readonly familyOf?: ThreadId;
   readonly worktreePath?: string;
+  readonly threadIds?: ReadonlyArray<ThreadId>;
+}
+
+export interface OlderDoneThreadsQuery {
+  readonly before: OrchestrationV2OlderDoneCursor;
+  readonly projectIds?: ReadonlyArray<ProjectId> | undefined;
+  readonly limit: number;
+}
+
+export interface OlderDoneThreadsListing {
+  readonly threadIds: ReadonlyArray<ThreadId>;
+  /** Only for `limit: 0`. */
+  readonly counts: ReadonlyArray<OrchestrationV2OlderDoneCount>;
 }
 
 export interface ProjectionStoreV2Shape {
@@ -478,6 +493,10 @@ export interface ProjectionStoreV2Shape {
     ReadonlyArray<ThreadId>,
     ProjectionStoreV2Error
   >;
+  /** Older done thread ids below a cursor, newest done first, and per-project counts. */
+  readonly listOlderDoneThreads: (
+    query: OlderDoneThreadsQuery,
+  ) => Effect.Effect<OlderDoneThreadsListing, ProjectionStoreV2Error>;
   readonly readShellSnapshot: (
     options?: ShellSnapshotOptions,
   ) => Effect.Effect<
@@ -5781,8 +5800,9 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
         location,
         projectId,
         openOnly = false,
-        subagentFamilyOf,
+        familyOf,
         worktreePath,
+        threadIds,
       }: ShellSnapshotOptions = {},
     ) =>
       sql<ShellThreadRow>`
@@ -5949,18 +5969,18 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
                 ? sql` AND json_extract(t.payload_json, '$.doneAt') IS NULL AND json_extract(t.payload_json, '$.doneOverride') IS NOT 'done'`
                 : sql``
             }${
-              subagentFamilyOf === undefined
+              familyOf === undefined
                 ? sql``
-                : sql` AND json_extract(t.payload_json, '$.lineage.relationshipToParent') = 'subagent' AND json_extract(t.payload_json, '$.lineage.rootThreadId') = (
+                : sql` AND json_extract(t.payload_json, '$.lineage.rootThreadId') = (
                     SELECT json_extract(member.payload_json, '$.lineage.rootThreadId')
                     FROM orchestration_v2_projection_threads member
-                    WHERE member.thread_id = ${subagentFamilyOf}
+                    WHERE member.thread_id = ${familyOf}
                   )`
             }${
               worktreePath === undefined
                 ? sql``
                 : sql` AND json_extract(t.payload_json, '$.worktreePath') = ${worktreePath}`
-            }
+            }${threadIds === undefined ? sql`` : sql` AND t.thread_id IN ${sql.in(threadIds)}`}
             ORDER BY t.updated_at ASC, t.thread_id ASC
           `;
 
@@ -6663,6 +6683,55 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       Effect.mapError(shellSnapshotReadError),
     );
 
+    const listOlderDoneThreads: ProjectionStoreV2Shape["listOlderDoneThreads"] = Effect.fn(
+      "ProjectionStore.listOlderDoneThreads",
+    )(function* ({ before, projectIds, limit }) {
+      // ISO strings in one format, so string order is time order.
+      const older = sql`
+        SELECT t.thread_id, t.project_id,
+          json_extract(t.payload_json, '$.doneAt') AS done_at
+        FROM orchestration_v2_projection_threads t
+        WHERE t.deleted_at IS NULL
+          AND json_extract(t.payload_json, '$.archivedAt') IS NULL
+          AND json_extract(t.payload_json, '$.lineage.relationshipToParent') IS NOT 'subagent'
+          AND json_extract(t.payload_json, '$.doneOverride') = 'done'
+          AND json_extract(t.payload_json, '$.doneAt') IS NOT NULL${
+            projectIds === undefined ? sql`` : sql` AND t.project_id IN ${sql.in(projectIds)}`
+          }
+      `;
+      const belowCursor =
+        before.threadId === undefined
+          ? sql`older.done_at < ${before.doneAt}`
+          : sql`(older.done_at < ${before.doneAt}
+              OR (older.done_at = ${before.doneAt} AND older.thread_id > ${before.threadId}))`;
+      const pageRows =
+        limit === 0
+          ? []
+          : yield* sql<{ readonly thread_id: string }>`
+              WITH older AS (${older})
+              SELECT older.thread_id FROM older
+              WHERE ${belowCursor}
+              ORDER BY older.done_at DESC, older.thread_id ASC
+              LIMIT ${limit}
+            `;
+      const countRows =
+        limit !== 0
+          ? []
+          : yield* sql<{ readonly project_id: string; readonly count: number }>`
+              WITH older AS (${older})
+              SELECT older.project_id, COUNT(*) AS count FROM older
+              WHERE ${belowCursor}
+              GROUP BY older.project_id
+            `;
+      return {
+        threadIds: pageRows.map((row) => ThreadId.make(row.thread_id)),
+        counts: countRows.map((row) => ({
+          projectId: ProjectId.make(row.project_id),
+          count: row.count,
+        })),
+      };
+    }, Effect.mapError(shellSnapshotReadError));
+
     const getThreadShell: ProjectionStoreV2Shape["getThreadShell"] = (threadId) =>
       sql
         .withTransaction(
@@ -6761,6 +6830,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       getShellSnapshot: readOnReader(getShellSnapshot),
       listActiveSubagentThreadIds: readOnReader(listActiveSubagentThreadIds),
       readShellSnapshot: readOnReader(readShellSnapshot),
+      listOlderDoneThreads: readOnReader(listOlderDoneThreads),
       getThreadShell: readOnReader(getThreadShell),
       getThread: readOnReader(getThread),
       getAutoMarkDoneCandidates: readOnReader(getAutoMarkDoneCandidates),
@@ -6849,15 +6919,20 @@ export const layerMemory: Layer.Layer<ProjectionStoreV2> = Layer.effect(
           ) {
             return [];
           }
-          if (options?.subagentFamilyOf !== undefined) {
-            const member = existing.get(options.subagentFamilyOf)?.thread;
+          if (options?.familyOf !== undefined) {
+            const member = existing.get(options.familyOf)?.thread;
             if (
               member === undefined ||
-              projection.thread.lineage.relationshipToParent !== "subagent" ||
               projection.thread.lineage.rootThreadId !== member.lineage.rootThreadId
             ) {
               return [];
             }
+          }
+          if (
+            options?.threadIds !== undefined &&
+            !options.threadIds.includes(projection.thread.id)
+          ) {
+            return [];
           }
           if (
             options?.worktreePath !== undefined &&
@@ -6898,6 +6973,52 @@ export const layerMemory: Layer.Layer<ProjectionStoreV2> = Layer.effect(
           );
         },
       ),
+      listOlderDoneThreads: Effect.fn("ProjectionStore.listOlderDoneThreads")(function* ({
+        before,
+        projectIds,
+        limit,
+      }) {
+        const older = [...(yield* Ref.get(replayState)).projections.values()].flatMap(
+          ({ thread }) => {
+            if (
+              thread.deletedAt !== null ||
+              thread.archivedAt !== null ||
+              thread.lineage.relationshipToParent === "subagent" ||
+              thread.doneOverride !== "done" ||
+              thread.doneAt === null ||
+              (projectIds !== undefined && !projectIds.includes(thread.projectId))
+            ) {
+              return [];
+            }
+            const doneAt = DateTime.formatIso(thread.doneAt);
+            const below =
+              doneAt < before.doneAt ||
+              (before.threadId !== undefined &&
+                doneAt === before.doneAt &&
+                thread.id > before.threadId);
+            return below ? [{ thread, doneAt }] : [];
+          },
+        );
+        const counts = new Map<ProjectId, number>();
+        for (const { thread } of limit === 0 ? older : []) {
+          counts.set(thread.projectId, (counts.get(thread.projectId) ?? 0) + 1);
+        }
+        return {
+          threadIds: older
+            .toSorted((left, right) =>
+              left.doneAt !== right.doneAt
+                ? left.doneAt > right.doneAt
+                  ? -1
+                  : 1
+                : left.thread.id < right.thread.id
+                  ? -1
+                  : 1,
+            )
+            .slice(0, limit)
+            .map(({ thread }) => thread.id),
+          counts: Array.from(counts, ([projectId, count]) => ({ projectId, count })),
+        };
+      }),
       readShellSnapshot: (options) =>
         service.getShellSnapshot(options).pipe(Effect.map(Effect.succeed)),
       getThreadShell: Effect.fn("ProjectionStore.getThreadShell")(function* (threadId) {

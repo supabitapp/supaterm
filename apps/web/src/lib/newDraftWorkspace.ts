@@ -10,6 +10,7 @@ import { resolveNewThreadEnvMode, resolveProjectSettings } from "@supaterm/share
 import { type DraftId, type DraftThreadEnvMode, useComposerDraftStore } from "~/composerDraftStore";
 import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { readProject, readThreadShells } from "~/state/entities";
+import { readUnloadedThreadCount } from "~/state/olderDoneShelf";
 import { environmentSummaries } from "~/state/presentation";
 import type { Project } from "~/types";
 import {
@@ -50,11 +51,16 @@ export async function resolveNewDraftWorkspace(
     ),
     workspaceRoot: project?.workspaceRoot ?? null,
     newProjectsRoot: serverConfig?.newProjectsRoot,
-    projectHasThreads: readThreadShells().some(
-      (thread) =>
-        thread.environmentId === projectRef.environmentId &&
-        thread.projectId === projectRef.projectId,
-    ),
+    projectHasThreads:
+      readThreadShells().some(
+        (thread) =>
+          thread.environmentId === projectRef.environmentId &&
+          thread.projectId === projectRef.projectId,
+      ) ||
+      readUnloadedThreadCount(
+        [{ environmentId: projectRef.environmentId, id: projectRef.projectId }],
+        [],
+      ) > 0,
   });
   return {
     envMode,

@@ -1,15 +1,19 @@
 import {
   repositoryGroupingKeyOf,
+  type EnvironmentId,
   type ModelSelection,
   type ProjectId,
   type ServerSettings,
   resolveProjectProviderInstanceEnabled,
+  type PullRequestLinkedThreadsResult,
   type RepositoryIdentity,
   type ServerProvider,
   type ThreadLinkedPullRequest,
+  type ThreadId,
   type ThreadPullRequestLink,
 } from "@supaterm/contracts";
 import { resolveSelectableModel, type SelectableModelOption } from "@supaterm/shared/model";
+import type { AsyncResult } from "effect/reactivity";
 import type { PromptLinkPullRequest, PromptLinkRepository } from "@supaterm/shared/promptLinks";
 import {
   threadPullRequestKeyOf,
@@ -21,13 +25,14 @@ const repositoryKey = (repository: PromptLinkRepository) =>
   `github.com/${repository.owner}/${repository.name}`.toLowerCase();
 
 /**
- * Callers pass projects most recently active first, so the user lands where they last worked.
+ * The repository's projects in the order given. Callers pass projects most recently active
+ * first and open the first, so the user lands where they last worked.
  */
-export function findPromptLinkProject<
+export function findPromptLinkProjects<
   P extends { readonly repositoryIdentity?: RepositoryIdentity | null | undefined },
->(projects: ReadonlyArray<P>, repository: PromptLinkRepository): P | undefined {
+>(projects: ReadonlyArray<P>, repository: PromptLinkRepository): P[] {
   const key = repositoryKey(repository);
-  return projects.find(
+  return projects.filter(
     (project) =>
       project.repositoryIdentity != null &&
       repositoryGroupingKeyOf(project.repositoryIdentity).toLowerCase() === key,
@@ -55,6 +60,27 @@ export function findPromptLinkPullRequestThread<
     if (linked) latest = thread;
   }
   return latest;
+}
+
+/**
+ * The first open thread from per-environment pull request lookups, in the order given, once
+ * every lookup before it has answered. `null` when none has one; `undefined` until then.
+ */
+export function pickPromptLinkPullRequestThread(
+  lookups: ReadonlyArray<{
+    readonly environmentId: EnvironmentId;
+    readonly result: AsyncResult.AsyncResult<PullRequestLinkedThreadsResult, unknown>;
+  }>,
+): { readonly environmentId: EnvironmentId; readonly id: ThreadId } | null | undefined {
+  for (const { environmentId, result } of lookups) {
+    if (result._tag === "Initial" || result.waiting) return undefined;
+    const thread =
+      result._tag === "Success"
+        ? result.value.threads.find((candidate) => candidate.archivedAt === null)
+        : undefined;
+    if (thread !== undefined) return { environmentId, id: thread.id };
+  }
+  return null;
 }
 
 const PROVIDER_ALIASES: Record<string, string> = { claude: "claudeagent" };

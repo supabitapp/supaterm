@@ -245,7 +245,7 @@ describe("authenticated environment HTTP requests", () => {
         const harness = makeHarness(() => Response.json(loader.response));
         const result = yield* loader.load(harness.input).pipe(Effect.provide(harness.layerHttp));
 
-        expect(result).toEqual(loader.response);
+        expect(result).toEqual(loader.expected);
         expect(harness.calls).toHaveLength(1);
         const call = harness.calls[0]!;
         const url = new URL(call.url);

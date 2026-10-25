@@ -291,6 +291,8 @@ export interface ThreadListV2Layout {
   readonly items: ThreadListV2Item[];
   /** Done threads beyond the render limit (behind "Show more"). */
   readonly hiddenDoneCount: number;
+  /** The done rows the shelf may list, before its visible limit. */
+  readonly listedDoneThreads: ReadonlyArray<EnvironmentThreadShell>;
   /** Pinned threads in scope, including collapsed rows. */
   readonly pinnedCount: number;
   readonly activeCount: number;
@@ -361,6 +363,8 @@ export interface ThreadListV2ShowMoreListItem {
   readonly type: "v2-show-more";
   readonly key: "v2-show-more";
   readonly hiddenCount: number;
+  /** Older done threads are loading, or their last read failed. */
+  readonly state?: "loading" | "failed";
 }
 
 export interface ThreadListV2WorkingShelfListItem {
@@ -470,7 +474,11 @@ export function threadListV2ListItemsAreEqual(
         previous.disabled === item.disabled
       );
     case "v2-show-more":
-      return previous.type === item.type && previous.hiddenCount === item.hiddenCount;
+      return (
+        previous.type === item.type &&
+        previous.hiddenCount === item.hiddenCount &&
+        previous.state === item.state
+      );
   }
 }
 
@@ -516,6 +524,7 @@ export function buildThreadListV2ListItems(input: {
   readonly doneShelfExpanded?: boolean;
   readonly doneShelfHeaderIndex?: number | null;
   readonly hiddenDoneCount?: number;
+  readonly olderDoneState?: "loading" | "failed";
   readonly snoozeLabelNow?: string;
   readonly loadedEnvironmentIds?: ReadonlySet<EnvironmentId>;
   readonly queuedThreadKeys?: ReadonlySet<string>;
@@ -659,6 +668,7 @@ export function buildThreadListV2ListItems(input: {
         type: "v2-show-more",
         key: "v2-show-more",
         hiddenCount: hiddenDoneCount,
+        ...(input.olderDoneState === undefined ? {} : { state: input.olderDoneState }),
       });
     }
   }
@@ -712,6 +722,10 @@ export function buildThreadListV2Items(input: {
   readonly matchedThreadKeys?: ReadonlySet<string>;
   /** Max done rows to render; the rest are counted, not built. */
   readonly doneLimit?: number;
+  /** Whether the shelf may list a done row yet; older done rows load in pages. */
+  readonly isListedDone?: (thread: EnvironmentThreadShell) => boolean;
+  /** Done threads in scope that are not local (older done threads not loaded). */
+  readonly unloadedDoneCount?: number;
   readonly now: string;
   /** Pins are expanded by default. The selected row stays visible when collapsed. */
   readonly pinnedShelfExpanded?: boolean;
@@ -844,6 +858,7 @@ export function buildThreadListV2Items(input: {
       })),
       searchResults: true,
       hiddenDoneCount: 0,
+      listedDoneThreads: [],
       pinnedCount: 0,
       activeCount: 0,
       workingCount: 0,
@@ -902,15 +917,16 @@ export function buildThreadListV2Items(input: {
           (thread) => `${thread.environmentId}:${thread.id}` === selectedThreadKey,
         );
   const orderedDone = sortDoneThreadsReusingLast(done);
+  const listedDone =
+    input.isListedDone === undefined ? orderedDone : orderedDone.filter(input.isListedDone);
+  const doneTotal = orderedDone.length + (input.unloadedDoneCount ?? 0);
   const doneLimit = input.doneLimit ?? Number.POSITIVE_INFINITY;
-  const limitedDone =
-    orderedDone.length > doneLimit ? orderedDone.slice(0, doneLimit) : orderedDone;
+  const limitedDone = listedDone.length > doneLimit ? listedDone.slice(0, doneLimit) : listedDone;
   const selectedDone =
-    selectedThreadKey === null
+    selectedThreadKey === null ||
+    limitedDone.some((thread) => `${thread.environmentId}:${thread.id}` === selectedThreadKey)
       ? undefined
-      : orderedDone
-          .slice(limitedDone.length)
-          .find((thread) => `${thread.environmentId}:${thread.id}` === selectedThreadKey);
+      : orderedDone.find((thread) => `${thread.environmentId}:${thread.id}` === selectedThreadKey);
   const pagedDone = selectedDone === undefined ? limitedDone : [...limitedDone, selectedDone];
   const visibleDone =
     input.doneShelfExpanded !== false
@@ -971,7 +987,7 @@ export function buildThreadListV2Items(input: {
       isLast: false,
     });
   }
-  const doneShelfHeaderIndex = orderedDone.length > 0 ? items.length : null;
+  const doneShelfHeaderIndex = doneTotal > 0 ? items.length : null;
   for (const thread of visibleDone) {
     items.push({
       thread,
@@ -990,7 +1006,8 @@ export function buildThreadListV2Items(input: {
     items,
     pinnedCount: pinned.length,
     activeCount: inboxCount,
-    hiddenDoneCount: orderedDone.length - pagedDone.length,
+    hiddenDoneCount: Math.max(0, doneTotal - pagedDone.length),
+    listedDoneThreads: listedDone,
     workingCount: orderedWorking.length,
     workingShelfHeaderIndex,
     inboxGroups:
@@ -1006,7 +1023,7 @@ export function buildThreadListV2Items(input: {
           })),
     snoozedCount: orderedSnoozed.length,
     snoozedShelfHeaderIndex,
-    doneCount: orderedDone.length,
+    doneCount: doneTotal,
     doneShelfHeaderIndex,
     nextSnoozeWakeAt,
     searchResults: false,

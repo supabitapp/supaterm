@@ -39,6 +39,7 @@ import {
   SettingsEnvironmentFilterHeader,
 } from "./components/SettingsEnvironmentFilterHeader";
 import { useSettingsEnvironmentFilter, type SettingsTarget } from "./settings-environment-filter";
+import { readUnloadedThreadCount } from "../../state/olderDoneShelf";
 export function SettingsProjectOverviewRouteScreen() {
   const insets = useSafeAreaInsets();
   const [isRemoving, setIsRemoving] = useState(false);
@@ -174,6 +175,7 @@ function ProjectOverviewContent(props: {
       hasOtherMembers: props.hasOtherMembers,
       displayName,
       threads,
+      unloadedThreadCount: readUnloadedThreadCount(members, threads),
     });
     Dialog.confirm({
       title: plan.targetKind === "checkout" ? "Remove checkout" : "Remove project",

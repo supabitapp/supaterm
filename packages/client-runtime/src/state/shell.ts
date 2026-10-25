@@ -390,6 +390,7 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
         const supportsCompletionMarker = config?.shellResumeCompletionMarker === true;
         const generation = config?.shellSyncGeneration ?? null;
         const omitIdleSubagents = config?.shellThreadFamilies === true;
+        const omitOlderDone = config?.shellOlderDone === true && omitIdleSubagents;
         yield* Ref.set(activeSubscription, { session, generation });
         yield* Ref.set(awaitingCompletion, supportsCompletionMarker);
         yield* setSynchronizing;
@@ -423,7 +424,10 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
             ),
           );
           // HTTP and the socket must agree, or omitted children would return through the socket.
-          const httpSnapshot = yield* snapshotLoader.load(prepared, { omitIdleSubagents });
+          const httpSnapshot = yield* snapshotLoader.load(prepared, {
+            omitIdleSubagents,
+            omitOlderDone,
+          });
           if (Option.isSome(httpSnapshot)) {
             yield* cancelActiveFill;
             const previous = yield* SubscriptionRef.get(state);
@@ -445,7 +449,10 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
           }
         }
 
-        const omission = omitIdleSubagents ? { omitIdleSubagents: true as const } : {};
+        const omission = {
+          ...(omitIdleSubagents ? { omitIdleSubagents: true as const } : {}),
+          ...(omitOlderDone ? { omitOlderDone: true as const } : {}),
+        };
         if (!canResume || Option.isNone(current.snapshot)) {
           return {
             ...omission,

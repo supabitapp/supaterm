@@ -30,6 +30,7 @@ vi.mock("../state/presentation", () => ({
 vi.mock("../rpc/atomRegistry", () => ({
   appAtomRegistry: { get: () => testState.connectedEnvironmentIds },
 }));
+vi.mock("../state/olderDoneShelf", () => ({ readUnloadedThreadCount: () => 0 }));
 vi.mock("./supatermProjectFileDefaults", () => ({
   readSupatermProjectFile: async () => {
     testState.projectFileReads += 1;

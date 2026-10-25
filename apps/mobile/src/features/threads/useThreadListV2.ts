@@ -1,7 +1,9 @@
+import type { OlderDoneScope } from "@supaterm/client-runtime/state/threads";
 import type { EnvironmentId } from "@supaterm/contracts";
 import { useMemo, useSyncExternalStore } from "react";
 
 import { scopedProjectKey } from "../../lib/scopedEntities";
+import { useOlderDoneShelf, useOlderDoneShelfGrowth } from "../../state/olderDoneShelf";
 import type { PendingNewTask } from "../../state/use-pending-new-tasks";
 import {
   buildThreadListV2Items,
@@ -64,6 +66,14 @@ export function useThreadListV2(input: {
     // oxlint-disable-next-line react/memo-dependencies -- the version signals an expired grace
     [threads, inboxVersion],
   );
+  // Older done threads load in pages; the shelf lists them only as far as they are loaded.
+  const scopes = olderDoneScopes(input);
+  const olderDoneShelf = useOlderDoneShelf({
+    scopes,
+    expanded: input.doneShelfExpanded,
+    // A search lists only matches, so the shelf would page forever; loaded pages stay.
+    visibleCount: input.searchQuery.trim().length === 0 ? input.doneLimit : 0,
+  });
   // Done threads remain live shells; archived threads stay hidden.
   const layout = buildThreadListV2Items({
     grouping: input.grouping,
@@ -76,6 +86,18 @@ export function useThreadListV2(input: {
     matchedThreadKeys: new Set(input.searchMatches.keys()),
     queuedThreadKeys: input.queuedThreadKeys,
     doneLimit: input.doneLimit,
+    isListedDone: olderDoneShelf.isListed,
+    unloadedDoneCount: olderDoneShelf.unloadedCount(
+      threads.filter(
+        (thread) =>
+          thread.archivedAt === null &&
+          scopes.some(
+            (scope) =>
+              scope.environmentId === thread.environmentId &&
+              (scope.projectIds === null || scope.projectIds.includes(thread.projectId)),
+          ),
+      ),
+    ),
     now: input.now,
     pinnedShelfExpanded: input.pinnedShelfExpanded,
     activeShelfExpanded: input.activeShelfExpanded,
@@ -87,6 +109,7 @@ export function useThreadListV2(input: {
     doneShelfExpanded: input.doneShelfExpanded,
     selectedThreadKey: input.selectedThreadKey,
   });
+  useOlderDoneShelfGrowth(olderDoneShelf, layout.listedDoneThreads);
   const contentOnlyThreadKeys = useKeySet([...layout.contentOnlyThreadKeys].sort().join("\n"));
   const scopedProjectKeys =
     input.projectRefs === null
@@ -114,6 +137,28 @@ export function useThreadListV2(input: {
     loadedEnvironmentIds: input.loadedEnvironmentIds,
     queuedThreadKeys: input.queuedThreadKeys,
     shelfPreferencesLoading: !input.shelfPreferencesLoaded,
+    ...(olderDoneShelf.loading
+      ? { olderDoneState: "loading" as const }
+      : olderDoneShelf.failed
+        ? { olderDoneState: "failed" as const }
+        : {}),
   });
-  return { layout, items, contentOnlyThreadKeys };
+  return { layout, items, contentOnlyThreadKeys, olderDoneShelf };
+}
+
+/** The list's scope per environment: its projects there, or every project. */
+function olderDoneScopes(input: {
+  readonly environmentId: EnvironmentId | null;
+  readonly projectRefs: LayoutInput["projectRefs"];
+  readonly loadedEnvironmentIds: ReadonlySet<EnvironmentId>;
+}): ReadonlyArray<OlderDoneScope> {
+  const environmentIds =
+    input.environmentId === null ? [...input.loadedEnvironmentIds] : [input.environmentId];
+  return environmentIds.flatMap((environmentId): ReadonlyArray<OlderDoneScope> => {
+    if (input.projectRefs == null) return [{ environmentId, projectIds: null }];
+    const projectIds = input.projectRefs.flatMap((ref) =>
+      ref.environmentId === environmentId ? [ref.projectId] : [],
+    );
+    return projectIds.length === 0 ? [] : [{ environmentId, projectIds }];
+  });
 }

@@ -20,6 +20,8 @@ import {
   visibleThreadSearch,
   type EnvironmentThreadSearchMatch,
   type SettledThreadSearch,
+  type ThreadSearchResultsState,
+  type ThreadSearchScope,
 } from "@supaterm/client-runtime/state/thread-search";
 import { THREAD_SEARCH_QUERY_MAX_LENGTH } from "@supaterm/contracts";
 import { messageSearchTokens } from "@supaterm/shared/paletteSearch";
@@ -32,6 +34,7 @@ import { useEffect, useState } from "react";
 
 import { appAtomRegistry } from "./atom-registry";
 import { orchestrationEnvironment } from "./orchestration";
+import { olderDoneThreads, threadFamilies } from "./threads";
 import { projectEnvironment } from "./projects";
 import { useEnvironmentQuery } from "./query";
 import { vcsEnvironment } from "./vcs";
@@ -49,17 +52,31 @@ const VCS_REF_LIST_LIMIT = 100;
 const EMPTY_REFS: ReadonlyArray<VcsRef> = [];
 const INITIAL_BRANCH_CURSORS = [undefined] as const;
 const EMPTY_THREAD_SEARCH_MATCHES: ReadonlyArray<EnvironmentThreadSearchMatch> = Object.freeze([]);
-const EMPTY_THREAD_SEARCH_ATOM = Atom.make({
+const EMPTY_THREAD_SEARCH_ATOM = Atom.make<ThreadSearchResultsState>({
   matches: EMPTY_THREAD_SEARCH_MATCHES,
   isLoading: false,
+  rows: [],
 }).pipe(Atom.withLabel("mobile:thread-search:empty"));
 
-const threadSearchResultsAtom = createThreadSearchResultsAtomFamily({
-  getSearchAtom: (environmentId, query) =>
-    orchestrationEnvironment.threadSearch({
-      environmentId,
-      input: { query },
-    }),
+const olderDoneBeforeAtom = Atom.family((environmentId: EnvironmentId) =>
+  Atom.make((get) => get(olderDoneThreads.olderDoneAtom(environmentId))?.before ?? null).pipe(
+    Atom.withLabel(`mobile:older-done-before:${environmentId}`),
+  ),
+);
+// Whether any of these environments leaves older done threads out, so short queries matter.
+const anyOlderDoneAtom = Atom.family((environmentIdsKey: string) =>
+  Atom.make((get) =>
+    (JSON.parse(environmentIdsKey) as ReadonlyArray<EnvironmentId>).some(
+      (environmentId) => get(olderDoneBeforeAtom(environmentId)) !== null,
+    ),
+  ).pipe(Atom.withLabel(`mobile:any-older-done:${environmentIdsKey}`)),
+);
+const threadSearch = createThreadSearchResultsAtomFamily({
+  getSearchAtom: (environmentId, input) =>
+    input.olderDoneBefore === undefined
+      ? orchestrationEnvironment.threadSearch({ environmentId, input })
+      : olderDoneThreads.searchAtom(environmentId, input),
+  olderDoneBefore: olderDoneBeforeAtom,
   labelPrefix: "mobile:thread-search",
 });
 
@@ -163,9 +180,15 @@ export function useComposerPullRequestSearch(input: {
   };
 }
 
+/**
+ * Server matches for a thread search: message hits, and on environments that leave older done
+ * threads out of the shell, the rows of the best older matches, mounted into the thread list while
+ * they show so the caller's own ranking finds them.
+ */
 export function useThreadSearch(
   environmentIds: ReadonlyArray<EnvironmentId>,
   query: string,
+  scope: ThreadSearchScope = {},
 ): {
   readonly matches: ReadonlyArray<EnvironmentThreadSearchMatch>;
   /** The query `matches` are for, which lags the typed one while a search runs. */
@@ -175,20 +198,25 @@ export function useThreadSearch(
   // A pasted wall of text searches by its start rather than failing the request.
   const normalizedQuery = query.trim().slice(0, THREAD_SEARCH_QUERY_MAX_LENGTH).trim();
   const debouncedQuery = useDebouncedValue(normalizedQuery, THREAD_SEARCH_DEBOUNCE_MS);
-  // The server needs a word of three or more letters; shorter queries would always come back empty.
+  const anyOlderDone = useAtomValue(anyOlderDoneAtom(JSON.stringify(environmentIds)));
+  // Messages need a word of three or more letters; older done titles match from two.
   const canSearch =
-    environmentIds.length > 0 && messageSearchTokens(normalizedQuery).long.length > 0;
+    environmentIds.length > 0 &&
+    ((scope.titlesOnly !== true && messageSearchTokens(normalizedQuery).long.length > 0) ||
+      (anyOlderDone && normalizedQuery.length >= 2));
   const settledQuery = canSearch && normalizedQuery === debouncedQuery ? debouncedQuery : null;
-  const searchKey =
-    settledQuery === null ? null : makeThreadSearchKey(environmentIds, settledQuery);
+  const searchKeyOf = (searchQuery: string) =>
+    makeThreadSearchKey(environmentIds, searchQuery, scope);
+  const searchKey = settledQuery === null ? null : searchKeyOf(settledQuery);
   const result = useAtomValue(
-    searchKey === null ? EMPTY_THREAD_SEARCH_ATOM : threadSearchResultsAtom(searchKey),
+    searchKey === null ? EMPTY_THREAD_SEARCH_ATOM : threadSearch.results(searchKey),
   );
   const isPending = canSearch && (normalizedQuery !== debouncedQuery || result.isLoading);
   // What fast environments returned shows without waiting for a slow one;
   // callers keep shown rows in place with `nextShownOrder`.
   const ready =
-    settledQuery !== null && (!result.isLoading || result.matches.length > 0)
+    settledQuery !== null &&
+    (!result.isLoading || result.matches.length > 0 || result.rows.length > 0)
       ? { query: settledQuery, matches: result.matches }
       : null;
   // Kept from earlier renders: React's pattern for information from previous renders.
@@ -197,6 +225,23 @@ export function useThreadSearch(
   const visible = canSearch
     ? visibleThreadSearch(normalizedQuery, ready, previous)
     : { query: "", matches: EMPTY_THREAD_SEARCH_MATCHES };
+  // The shown results' rows stay mounted until newer results replace them.
+  const shownKey = visible.query === "" ? null : searchKeyOf(visible.query);
+  useEffect(() => {
+    if (shownKey === null) return;
+    const environments = (JSON.parse(shownKey) as [ReadonlyArray<EnvironmentId>])[0];
+    const releases = environments.map((environmentId) =>
+      threadFamilies.mountRows(
+        appAtomRegistry,
+        environmentId,
+        `search:${shownKey}`,
+        threadSearch.rows(shownKey, environmentId),
+      ),
+    );
+    return () => {
+      for (const release of releases) release();
+    };
+  }, [shownKey]);
   return {
     matches: visible.matches,
     query: visible.query,

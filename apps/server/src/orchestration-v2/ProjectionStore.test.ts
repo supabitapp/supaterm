@@ -1165,11 +1165,12 @@ it.effect.each([
 
     const family = (threadId: ThreadId) =>
       store
-        .getShellSnapshot({ location: "active", subagentFamilyOf: threadId })
+        .getShellSnapshot({ location: "active", familyOf: threadId })
         .pipe(Effect.map((snapshot) => snapshot.threads.map((thread) => thread.id)));
-    // Any member, or the root itself, names the same active subagent tree.
-    assert.sameMembers([...(yield* family(id("root")))], [id("child"), id("grandchild")]);
-    assert.sameMembers([...(yield* family(id("grandchild")))], [id("child"), id("grandchild")]);
+    // Any member, or the root itself, names the same active tree, root included.
+    const tree = [id("root"), id("child"), id("grandchild")];
+    assert.sameMembers([...(yield* family(id("root")))], tree);
+    assert.sameMembers([...(yield* family(id("grandchild")))], tree);
     assert.deepEqual([...(yield* family(id("missing")))], []);
 
     // Includes another root's idle child on the same path, which a shell may leave out.
@@ -1187,6 +1188,102 @@ it.effect.each([
       payload: { ...payloadOf({ name: "root", worktreePath }), deletedAt: now },
     });
     assert.sameMembers([...(yield* family(id("root")))], [id("child"), id("grandchild")]);
+  }).pipe(Effect.provide(layer)),
+);
+
+it.effect.each([
+  ["memory", ProjectionStore.layerMemory],
+  ["SQL", layerTest],
+] as const)("%s list older done threads below a cursor", ([, layer]) =>
+  Effect.gen(function* () {
+    const store = yield* ProjectionStore.ProjectionStoreV2;
+    const now = yield* DateTime.now;
+    const id = (name: string) => ThreadId.make(`thread:older:${name}`);
+    const at = (day: number) => DateTime.makeUnsafe(Date.UTC(2026, 9, day));
+    const createThread = (input: {
+      readonly name: string;
+      readonly doneDay: number | null;
+      readonly project?: string;
+      readonly subagent?: boolean;
+      readonly archived?: boolean;
+      readonly snoozedUntilDay?: number;
+    }) =>
+      store.apply({
+        id: EventId.make(`event:older:${input.name}`),
+        type: "thread.created",
+        threadId: id(input.name),
+        occurredAt: now,
+        payload: {
+          createdBy: "user",
+          creationSource: "web",
+          id: id(input.name),
+          projectId: ProjectId.make(input.project ?? "project:a"),
+          title: input.name,
+          providerInstanceId,
+          modelSelection,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          branch: null,
+          worktreePath: null,
+          activeProviderThreadId: null,
+          lineage: {
+            parentThreadId: input.subagent === true ? id("b") : null,
+            relationshipToParent: input.subagent === true ? "subagent" : null,
+            rootThreadId: input.subagent === true ? id("b") : id(input.name),
+          },
+          forkedFrom: null,
+          createdAt: now,
+          updatedAt: now,
+          archivedAt: input.archived === true ? now : null,
+          doneOverride: input.doneDay === null ? null : "done",
+          doneAt: input.doneDay === null ? null : at(input.doneDay),
+          snoozedUntil: input.snoozedUntilDay === undefined ? null : at(input.snoozedUntilDay),
+          lastVisitedAt: null,
+          deletedAt: null,
+        },
+      });
+    yield* createThread({ name: "a", doneDay: 5 });
+    yield* createThread({ name: "b", doneDay: 4 });
+    yield* createThread({ name: "c", doneDay: 4 });
+    yield* createThread({ name: "d", doneDay: 3, project: "project:b" });
+    yield* createThread({ name: "snoozed", doneDay: 2, snoozedUntilDay: 30 });
+    yield* createThread({ name: "recent", doneDay: 20 });
+    yield* createThread({ name: "unsettled", doneDay: null });
+    yield* createThread({ name: "child", doneDay: 1, subagent: true });
+    yield* createThread({ name: "archived", doneDay: 1, archived: true });
+
+    const list = (
+      before: { readonly doneAt: string; readonly threadId?: ThreadId },
+      limit: number,
+      projectIds?: ReadonlyArray<ProjectId>,
+    ) => store.listOlderDoneThreads({ before, projectIds, limit });
+    const before = { doneAt: DateTime.formatIso(at(10)) };
+    const first = yield* list(before, 2);
+    assert.deepEqual(first, { threadIds: [id("a"), id("b")], counts: [] });
+    assert.sameDeepMembers(
+      [...(yield* list(before, 0)).counts],
+      [
+        { projectId: ProjectId.make("project:a"), count: 4 },
+        { projectId: ProjectId.make("project:b"), count: 1 },
+      ],
+    );
+    // A cursor without an id is strict, as the snapshot's cut is: the day-4 tie is not counted.
+    assert.sameDeepMembers(
+      [...(yield* list({ doneAt: DateTime.formatIso(at(4)) }, 0)).counts],
+      [
+        { projectId: ProjectId.make("project:a"), count: 1 },
+        { projectId: ProjectId.make("project:b"), count: 1 },
+      ],
+    );
+    // The cursor is the last row: the tie on day 4 continues by id.
+    const next = yield* list({ doneAt: DateTime.formatIso(at(4)), threadId: id("b") }, 10);
+    assert.deepEqual(next.threadIds, [id("c"), id("d"), id("snoozed")]);
+    assert.deepEqual(yield* list(before, 25, []), { threadIds: [], counts: [] });
+    const scoped = yield* list(before, 0, [ProjectId.make("project:b")]);
+    assert.deepEqual(scoped, {
+      threadIds: [],
+      counts: [{ projectId: ProjectId.make("project:b"), count: 1 }],
+    });
   }).pipe(Effect.provide(layer)),
 );
 

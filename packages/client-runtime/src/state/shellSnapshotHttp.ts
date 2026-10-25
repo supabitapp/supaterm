@@ -28,9 +28,13 @@ export const fetchEnvironmentShellSnapshot = Effect.fn(
   readonly prepared: PreparedConnection;
   readonly timeoutMs?: number;
   readonly omitIdleSubagents?: boolean;
+  readonly omitOlderDone?: boolean;
 }) {
   const endpoint = {
-    query: input.omitIdleSubagents === true ? { omitIdleSubagents: "1" } : {},
+    query: {
+      ...(input.omitIdleSubagents === true ? { omitIdleSubagents: "1" } : {}),
+      ...(input.omitOlderDone === true ? { omitOlderDone: "1" } : {}),
+    },
   };
   return yield* executeAuthenticatedEnvironmentHttpRequest({
     ...input,
@@ -86,7 +90,7 @@ export class ShellSnapshotLoader extends Context.Service<
   {
     readonly load: (
       prepared: PreparedConnection,
-      options?: { readonly omitIdleSubagents?: boolean },
+      options?: { readonly omitIdleSubagents?: boolean; readonly omitOlderDone?: boolean },
     ) => Effect.Effect<Option.Option<DeferredShellSnapshot>>;
   }
 >()("@supaterm/client-runtime/state/shellSnapshotHttp/ShellSnapshotLoader") {}
@@ -100,6 +104,7 @@ export const layer: Layer.Layer<ShellSnapshotLoader, never, HttpClient.HttpClien
         fetchEnvironmentShellSnapshot({
           prepared,
           ...(options?.omitIdleSubagents === true ? { omitIdleSubagents: true } : {}),
+          ...(options?.omitOlderDone === true ? { omitOlderDone: true } : {}),
         }).pipe(
           Effect.map(Option.some<DeferredShellSnapshot>),
           Effect.provideService(HttpClient.HttpClient, httpClient),

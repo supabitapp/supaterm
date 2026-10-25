@@ -11,6 +11,7 @@ import { normalizeThreadPullRequestKey } from "@supaterm/client-runtime/thread-p
 import { useProjects, useServerConfigs, useThreadShell, useThreadShells } from "~/state/entities";
 import { pullRequestEnvironment } from "~/state/pullRequests";
 import { useEnvironmentQuery } from "~/state/query";
+import { useThreadSearch } from "~/state/queries";
 import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { openCommandPalette } from "~/commandPaletteBus";
 import { Button } from "../ui/button";
@@ -182,6 +183,8 @@ function ThreadPicker({
   const linking = usePullRequestLinking(environmentId);
   const projects = useProjects();
   const [query, setQuery] = useState("");
+  // Mounts older done threads matching the query, which shells may leave out.
+  useThreadSearch([environmentId], query, { titlesOnly: true });
   const projectNames = new Map(
     projects
       .filter((project) => project.environmentId === environmentId)

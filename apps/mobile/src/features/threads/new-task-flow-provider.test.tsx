@@ -57,6 +57,7 @@ vi.mock("../home/home-thread-navigation", () => ({
   useHomeThreadRouteSelection: () => (params: object) => transport.navigate("Thread", params),
 }));
 vi.mock("../../state/shell", () => ({ environmentShell: {} }));
+vi.mock("../../state/olderDoneShelf", () => ({ useOlderDoneCount: () => 0 }));
 vi.mock("../../state/entities", () => ({
   useProjects: () => useAtomValue(projectsAtom),
   useThreadShells: () => [],

@@ -127,6 +127,8 @@ import {
   type ProjectionRecordFilter,
   type ProjectionRecords,
   type ProjectionCheckpointContext,
+  type OlderDoneThreadsListing,
+  type OlderDoneThreadsQuery,
   type ShellSnapshotOptions,
 } from "./ProjectionStore.ts";
 import { withPullRequestWatch, endWatches } from "./threadWatches.ts";
@@ -391,7 +393,9 @@ export interface OrchestratorV2Shape {
     ReadonlyArray<ThreadId>,
     OrchestratorV2Error
   >;
-
+  readonly listOlderDoneThreads: (
+    query: OlderDoneThreadsQuery,
+  ) => Effect.Effect<OlderDoneThreadsListing, OrchestratorV2Error>;
   readonly readShellSnapshot: (
     options?: ShellSnapshotOptions,
   ) => Effect.Effect<
@@ -9874,7 +9878,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         "subagents",
         "runtimeRequests",
       ],
-      // Thread-wide, like the Waiting strip: a settled thread's background
+      // Thread-wide, like the Waiting strip: a done thread's background
       // work can belong to an earlier run than the one Stop targets.
       {
         turnItemTypes: [
@@ -12499,6 +12503,8 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       projectionStore.getShellSnapshot(options).pipe(Effect.mapError(shellProjectionError)),
     listActiveSubagentThreadIds: () =>
       projectionStore.listActiveSubagentThreadIds().pipe(Effect.mapError(shellProjectionError)),
+    listOlderDoneThreads: (query) =>
+      projectionStore.listOlderDoneThreads(query).pipe(Effect.mapError(shellProjectionError)),
     readShellSnapshot: (options) =>
       projectionStore
         .readShellSnapshot(options)
