@@ -34,6 +34,7 @@ import {
 } from "@supaterm/client-runtime/state/attachments";
 import {
   classifyComposerAttachmentFile,
+  composerFileAttachmentMimeType,
   normalizeComposerImageFileMimeType,
 } from "./composerAttachmentFiles";
 import type { ComposerPromptEditorHandle } from "../ComposerPromptEditor";
@@ -46,7 +47,6 @@ import { fileContextReference, imageContextReference } from "~/lib/composerConte
 import { requestConfirmDialog } from "~/confirmDialog";
 import { isMacPlatform, randomUUID } from "~/lib/utils";
 import { toastManager } from "../ui/toast";
-import { videoMimeType } from "../../types";
 import type { PendingUserInput } from "../../session-logic";
 import {
   addPreparingComposerImages,
@@ -167,10 +167,7 @@ export function useComposerAttachmentIntake(input: {
     for (const file of files) {
       const attachmentKind = classifyComposerAttachmentFile(file);
       const fileMimeType =
-        attachmentKind === "file"
-          ? (videoMimeType({ name: file.name, mimeType: file.type }) ??
-            (file.type || "application/octet-stream"))
-          : file.type;
+        attachmentKind === "file" ? composerFileAttachmentMimeType(file) : file.type;
       const matchingReattachMarker =
         attachmentKind === "file"
           ? reattachMarkers.find(
