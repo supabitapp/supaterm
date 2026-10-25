@@ -13,6 +13,7 @@ import { SymbolView, type AppSymbolName } from "./AppSymbol";
 export interface ToastProps {
   readonly message: string;
   readonly description?: string;
+  readonly singleLine?: boolean;
   readonly tone?: "default" | "success" | "danger";
   readonly variant?: "card" | "capsule";
   readonly icon?: AppSymbolName;
@@ -25,7 +26,12 @@ export function Toast(props: ToastProps) {
   const { fontScale } = useWindowDimensions();
   // A one-line message keeps its action on the same row. Descriptions and
   // accessibility text sizes need the full width, so the action moves below.
-  const inlineAction = !props.description && fontScale < 1.5;
+  // Explicit single-line notices reserve the action's width and truncate the text.
+  const inlineAction = props.singleLine || (!props.description && fontScale < 1.5);
+  const message =
+    props.singleLine && props.description
+      ? `${props.message}: ${props.description}`
+      : props.message;
   const action = props.action ? (
     <Button label={props.action.label} onPress={props.action.onPress} />
   ) : null;
@@ -59,10 +65,15 @@ export function Toast(props: ToastProps) {
           className={cn("min-w-0", capsule ? "shrink" : "flex-1")}
           accessibilityLiveRegion="polite"
         >
-          <AppText textRole="footnote" className="font-supaterm-semibold">
-            {props.message}
+          <AppText
+            textRole="footnote"
+            className="font-supaterm-semibold"
+            numberOfLines={props.singleLine ? 1 : undefined}
+            accessibilityLabel={props.singleLine ? message : undefined}
+          >
+            {message}
           </AppText>
-          {props.description ? (
+          {props.description && !props.singleLine ? (
             <AppText textRole="label" className="text-foreground-muted">
               {props.description}
             </AppText>
