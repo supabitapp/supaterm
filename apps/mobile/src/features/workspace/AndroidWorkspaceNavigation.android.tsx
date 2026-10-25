@@ -1,6 +1,7 @@
 import { requireNativeView } from "expo";
 import { processColor, View, type NativeSyntheticEvent, type ViewProps } from "react-native";
 import { useKeyboardState } from "react-native-keyboard-controller";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
 import { androidWorkspaceNavigationColors } from "./android-workspace-navigation-colors";
@@ -39,6 +40,7 @@ export function AndroidWorkspaceNavigation(props: {
 }) {
   const workspace = useWorkspaceTabs()!;
   const selectTab = useWorkspaceTabSelection();
+  const insets = useSafeAreaInsets();
   const keyboardVisible = useKeyboardState((state) => state.isVisible);
   const { themeAppearance, themeVariables: colors } = useAppearancePreferences();
   const { scale } = useAndroidControlSizing();
@@ -47,7 +49,13 @@ export function AndroidWorkspaceNavigation(props: {
   if (keyboardVisible) return null;
 
   return (
-    <View style={{ backgroundColor: containerColor }}>
+    <View
+      style={{
+        backgroundColor: containerColor,
+        paddingBottom: insets.bottom,
+        paddingHorizontal: 12,
+      }}
+    >
       <NativeNavigation
         showTabs={props.showTabs}
         filterCustomized={props.filterCustomized}

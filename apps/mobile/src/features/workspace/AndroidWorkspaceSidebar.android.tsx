@@ -1,12 +1,10 @@
 import { useMemo, type ReactNode } from "react";
 import { View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenContent } from "../../components/ui/ScreenContent";
 import { PullRequestsScreen } from "../pull-requests/PullRequestsScreen";
 import { PullRequestToolbar } from "../pull-requests/PullRequestToolbar.android";
 import { WorkspaceTabsContext, useWorkspaceTabs } from "./WorkspaceTabsContext";
-import { WORKSPACE_DOCK } from "./workspace-tabs-state";
-import { useWorkspaceDockHeight } from "./useWorkspaceDockHeight";
+import { useWorkspaceDockClearance } from "./useWorkspaceDockClearance";
 
 export function AndroidWorkspaceSidebar(props: {
   readonly children: ReactNode;
@@ -14,9 +12,7 @@ export function AndroidWorkspaceSidebar(props: {
   readonly selectedPullRequestKey: string | null;
 }) {
   const workspace = useWorkspaceTabs()!;
-  const insets = useSafeAreaInsets();
-  const dockHeight = useWorkspaceDockHeight();
-  const bottomClearance = Math.max(insets.bottom, 12) + WORKSPACE_DOCK.bottomGap + dockHeight + 16;
+  const bottomClearance = useWorkspaceDockClearance();
   const context = useMemo(() => ({ ...workspace, bottomClearance }), [workspace, bottomClearance]);
   return workspace.state.selectedTab === "threads" ? (
     props.children

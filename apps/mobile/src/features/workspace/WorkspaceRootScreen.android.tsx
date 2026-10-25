@@ -10,15 +10,13 @@ import { PullRequestsScreen } from "../pull-requests/PullRequestsScreen";
 import { PullRequestToolbar } from "../pull-requests/PullRequestToolbar.android";
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
 import { WorkspaceTabsContext, useWorkspaceTabs } from "./WorkspaceTabsContext";
-import { WORKSPACE_DOCK } from "./workspace-tabs-state";
-import { useWorkspaceDockHeight } from "./useWorkspaceDockHeight";
+import { useWorkspaceDockClearance } from "./useWorkspaceDockClearance";
 
 export function WorkspaceRootScreen() {
   const { layout } = useAdaptiveWorkspaceLayout();
   const workspace = useWorkspaceTabs()!;
   const insets = useSafeAreaInsets();
-  const dockHeight = useWorkspaceDockHeight();
-  const bottomClearance = Math.max(insets.bottom, 12) + WORKSPACE_DOCK.bottomGap + dockHeight + 16;
+  const bottomClearance = useWorkspaceDockClearance();
   const context = useMemo(
     () => ({
       ...workspace,
