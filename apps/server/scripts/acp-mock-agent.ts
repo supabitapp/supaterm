@@ -56,6 +56,7 @@ const emitGrokBackgroundTaskStarted =
 const emitGrokBackgroundTaskPoll =
   process.env.SUPATERM_ACP_GROK_BACKGROUND_TASK_COMPLETION === "poll";
 const emitForeignSessionUpdates = process.env.SUPATERM_ACP_EMIT_FOREIGN_SESSION_UPDATES === "1";
+const omitInitializeModelState = process.env.SUPATERM_ACP_OMIT_INITIALIZE_MODEL_STATE === "1";
 const waitForResumeRelease = process.env.SUPATERM_ACP_WAIT_FOR_RESUME_RELEASE === "1";
 const completeFirstPromptOnCancel =
   process.env.SUPATERM_ACP_COMPLETE_FIRST_PROMPT_ON_CANCEL === "1";
@@ -585,7 +586,7 @@ const program = Effect.gen(function* () {
       return {
         protocolVersion: 2,
         info: { name: "supaterm-acp-mock-agent", version: "0.0.0" },
-        _meta: { modelState: modelState() },
+        ...(omitInitializeModelState ? {} : { _meta: { modelState: modelState() } }),
         capabilities: {
           session: {
             ...(supportsSessionLifecycle ? { fork: {}, additionalDirectories: {} } : {}),
