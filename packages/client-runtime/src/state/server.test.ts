@@ -1,5 +1,6 @@
 import {
   EnvironmentId,
+  ProviderInstanceId,
   ServerObservability,
   EnvironmentThemeId,
   type ServerConfig,
@@ -38,6 +39,8 @@ import {
   makeEnvironmentServerWelcomeState,
   makeEnvironmentServerConfigState,
   isLegacyUpdateHandoffLoss,
+  recordFetchedWorkspaceSnapshot,
+  withFetchedWorkspaceSnapshots,
   matchesServerUpdateReadyEvent,
   matchesServerUpdateResumeEvent,
   nudgeReconnectDuringUpdateRestart,
@@ -916,6 +919,83 @@ describe("server state projection", () => {
         initial,
       ),
     ).toBe(live);
+  });
+
+  it("merges fetched workspace snapshots only from servers that omit them", () => {
+    const claude = ProviderInstanceId.make("claudeAgent");
+    const codex = ProviderInstanceId.make("codex");
+    const snapshot = (cwd: string, command: string) => ({
+      cwd,
+      checkedAt: "2026-10-25T00:00:00.000Z",
+      slashCommands: [{ name: command }],
+      skills: [],
+    });
+    const provider = (
+      instanceId: ProviderInstanceId,
+      workspaceSnapshots?: ReadonlyArray<ReturnType<typeof snapshot>>,
+      slashCommands: ReadonlyArray<{ readonly name: string }> = [],
+    ) =>
+      ({
+        instanceId,
+        enabled: true,
+        slashCommands,
+        skills: [],
+        ...(workspaceSnapshots ? { workspaceSnapshots } : {}),
+      }) as unknown as ServerConfig["providers"][number];
+    const configWith = (providers: ServerConfig["providers"]) =>
+      ({ ...CONFIG, providers }) as unknown as ServerConfig;
+    const claudeA = snapshot("/a", "claude");
+    const record = (
+      current: Parameters<typeof recordFetchedWorkspaceSnapshot>[0],
+      instanceId: ProviderInstanceId,
+      fresh: boolean,
+      reply: ServerConfig["providers"],
+    ) =>
+      recordFetchedWorkspaceSnapshot(
+        current,
+        { instanceId, cwd: "/a", fresh },
+        reply,
+        provider(instanceId),
+      );
+
+    let fetched = record([], claude, false, [provider(claude, [claudeA])]);
+    fetched = record(fetched, codex, false, [provider(codex, [snapshot("/a", "codex")])]);
+    const merged = withFetchedWorkspaceSnapshots(
+      configWith([provider(claude), provider(codex)]),
+      fetched,
+    );
+    expect(merged.providers[0]?.workspaceSnapshots).toEqual([claudeA]);
+    // An unchanged answer keeps the cache, so config readers do not re-render.
+    expect(
+      record(fetched, claude, false, [
+        provider(claude, [JSON.parse(JSON.stringify(claudeA)) as typeof claudeA]),
+      ]),
+    ).toBe(fetched);
+
+    // Health checks and usage updates leave the snapshot in place.
+    expect(
+      withFetchedWorkspaceSnapshots(
+        configWith([
+          { ...provider(claude), checkedAt: "2026-10-25T00:09:00.000Z", usageLimits: {} },
+        ] as unknown as ServerConfig["providers"]),
+        fetched,
+      ).providers[0]?.workspaceSnapshots,
+    ).toEqual([claudeA]);
+
+    // New provider-wide commands, such as a live session's, retire the old snapshot.
+    expect(
+      withFetchedWorkspaceSnapshots(
+        configWith([provider(claude, undefined, [{ name: "live" }])]),
+        fetched,
+      ).providers[0]?.workspaceSnapshots,
+    ).toBeUndefined();
+
+    // Nothing fetched leaves the config as streamed.
+    const streamed = configWith([provider(claude)]);
+    expect(withFetchedWorkspaceSnapshots(streamed, [])).toBe(streamed);
+
+    // A fresh scan drops the cwd's other provider snapshots, as the server does.
+    expect(record(fetched, claude, true, [])).toEqual([]);
   });
 
   it.effect("starts from cached configuration and persists the live projection", () =>

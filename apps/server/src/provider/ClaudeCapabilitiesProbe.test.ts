@@ -7,7 +7,7 @@ import * as Fiber from "effect/Fiber";
 import * as Logger from "effect/Logger";
 import * as Result from "effect/Result";
 import * as TestClock from "effect/testing/TestClock";
-import { ClaudeSettings } from "@supaterm/contracts";
+import { ClaudeSettings, type ServerProvider } from "@supaterm/contracts";
 import * as NodeFSP from "node:fs/promises";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
@@ -19,6 +19,7 @@ import * as Schema from "effect/Schema";
 import {
   buildClaudeCapabilitiesProbeQueryOptions,
   probeClaudeCapabilities,
+  probeClaudeWorkspaceSnapshot,
 } from "./ClaudeProvider.ts";
 
 vi.mock("@anthropic-ai/claude-agent-sdk", { spy: true });
@@ -178,3 +179,15 @@ it.effect("records an SDK failure without exposing the rejection message", () =>
     assert.equal(JSON.stringify(messages).includes("secret-sdk-output"), false);
   }).pipe(Effect.scoped, Effect.provide([NodeServices.layer, Logger.layer([logger])]));
 });
+
+it.effect("reports a deleted worktree's scan as finished, not pending", () =>
+  Effect.gen(function* () {
+    const snapshot = yield* probeClaudeWorkspaceSnapshot(
+      decodeClaudeSettings({}),
+      { skills: [], slashCommands: [] } as unknown as ServerProvider,
+      "/nonexistent/supaterm-deleted-worktree",
+      { HOME: "/nonexistent/supaterm-home" },
+    );
+    assert.strictEqual(snapshot.slashCommandsPending, false);
+  }).pipe(Effect.provide(NodeServices.layer)),
+);
