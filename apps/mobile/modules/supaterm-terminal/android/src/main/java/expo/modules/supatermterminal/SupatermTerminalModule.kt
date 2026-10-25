@@ -11,9 +11,14 @@ class SupatermTerminalModule : Module() {
     // logs so a stale native binary is distinguishable from a broken key pipeline.
     Constants(
       "hardwareKeyRevision" to 2,
+      "outputRevision" to 1,
     )
 
     View(SupatermTerminalView::class) {
+      AsyncFunction("writeOutput") { view: SupatermTerminalView, data: String, reset: Boolean ->
+        view.writeOutput(data, reset)
+      }
+
       Prop("terminalKey") { view: SupatermTerminalView, terminalKey: String ->
         view.terminalKey = terminalKey
       }
