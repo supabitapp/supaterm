@@ -230,6 +230,8 @@ describe("AssetAccess", () => {
         ["recording.webm", "video/webm"],
         ["report.html", "text/html"],
         ["report.pdf", "application/pdf"],
+        ["tone.wav", "audio/wav"],
+        ["tone.webm-audio", "audio/webm"],
       ] as const) {
         const filePath = path.join(outside, name);
         yield* fs.writeFileString(filePath, "media");
