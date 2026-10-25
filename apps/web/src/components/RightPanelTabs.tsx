@@ -720,6 +720,7 @@ function PullRequestSurfaceIcon({
             ...(surface.host !== undefined ? { host: surface.host } : {}),
             repository: surface.repository,
             number: surface.number,
+            allowStale: false,
           },
         }),
   ).data;
