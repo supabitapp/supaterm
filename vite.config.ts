@@ -587,6 +587,10 @@ export default defineConfig({
         },
       },
       {
+        files: ["apps/web/src/**", "apps/mobile/src/**", "packages/*/src/**"],
+        rules: { "supaterm/react-effect-budget": "error" },
+      },
+      {
         files: ["apps/web/src/**/*.{ts,tsx}", "apps/mobile/src/**/*.{ts,tsx}"],
         excludeFiles: ["**/*.test.ts", "**/*.test.tsx"],
         rules: { "supaterm/no-hookless-use-function": "error" },

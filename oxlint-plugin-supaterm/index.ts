@@ -14,6 +14,7 @@ import noManualEffectRuntimeInTests from "./rules/no-manual-effect-runtime-in-te
 import noMobileUniwindThemeEscapeHatches from "./rules/no-mobile-uniwind-theme-escape-hatches.ts";
 import noMobilePullRequestGlyphLiterals from "./rules/no-mobile-pull-request-glyph-literals.ts";
 import noNativeTitleTooltip from "./rules/no-native-title-tooltip.ts";
+import reactEffectBudget from "./rules/react-effect-budget.ts";
 import requireRegisteredListScroll from "./rules/require-registered-list-scroll.ts";
 import noOutsetStateIndicators from "./rules/no-outset-state-indicators.ts";
 import noPollingLoopInTests from "./rules/no-polling-loop-in-tests.ts";
@@ -50,6 +51,7 @@ export default definePlugin({
     "no-mobile-uniwind-theme-escape-hatches": noMobileUniwindThemeEscapeHatches,
     "no-mobile-pull-request-glyph-literals": noMobilePullRequestGlyphLiterals,
     "no-native-title-tooltip": noNativeTitleTooltip,
+    "react-effect-budget": reactEffectBudget,
     "require-registered-list-scroll": requireRegisteredListScroll,
     "no-outset-state-indicators": noOutsetStateIndicators,
     "no-polling-loop-in-tests": noPollingLoopInTests,
