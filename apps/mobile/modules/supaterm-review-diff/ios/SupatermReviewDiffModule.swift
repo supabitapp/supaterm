@@ -61,6 +61,10 @@ public class SupatermReviewDiffModule: Module {
         view.setInitialRowIndex(initialRowIndex)
       }
 
+      Prop("initialFileId") { (view: SupatermReviewDiffView, fileId: String) in
+        view.setInitialFileId(fileId)
+      }
+
       Prop("scrollEnabled") { (view: SupatermReviewDiffView, enabled: Bool) in
         view.setScrollEnabled(enabled)
       }
@@ -106,8 +110,10 @@ public class SupatermReviewDiffModule: Module {
         view.setTokensJson(tokensJson)
       }
 
-      AsyncFunction("setTokensPatchJson") { (view: SupatermReviewDiffView, tokensPatchJson: String) in
-        view.setTokensPatchJson(tokensPatchJson)
+      AsyncFunction("setTokensPatchJson") { (view: SupatermReviewDiffView, tokensPatchJson: String, promise: Promise) in
+        view.setTokensPatchJson(tokensPatchJson) { accepted in
+          promise.resolve(accepted)
+        }
       }
     }
   }
