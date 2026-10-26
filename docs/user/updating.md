@@ -2,7 +2,7 @@
 
 The app you use and the server running your agents can be on different machines.
 When a server is behind your web or desktop app, an update notice appears in the
-conversation and **Settings → Connections**. Update the machine named in that
+conversation and **Settings → Environments**. Update the machine named in that
 notice. A server installed with the `supaterm` command stays on its release
 channel, so a nightly app does not offer to update a stable server unless the
 server is too old to connect. To switch it, run
@@ -27,7 +27,7 @@ finishes on its own, and the button keeps showing it after the desktop app
 restarts.
 
 The confirmation lists each machine it skips and why, such as a machine that is
-offline or needs a manual update. Use the notice or **Settings → Connections**
+offline or needs a manual update. Use the notice or **Settings → Environments**
 for those.
 
 If a desktop app restarts on its old version, Supaterm tells you the update did
@@ -43,7 +43,7 @@ below.
 Server updates restart the connection and can interrupt active agents and
 terminal commands. Saved threads, settings, and project files remain.
 
-**Settings → General → Continue threads after restarts** is on by default.
+**Settings → Maintenance → Continue threads after restarts** is on by default.
 It resumes supported active threads after an update, crash, or machine
 restart. Changes are saved to connected environments that support this setting;
 update older servers first. If a supported environment was offline or has a

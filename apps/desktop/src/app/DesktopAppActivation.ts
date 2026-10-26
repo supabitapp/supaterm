@@ -337,7 +337,7 @@ export const make = Effect.gen(function* () {
                 ? Promise.resolve(
                     invalidResponse(
                       request.requestId,
-                      "Add connections through Settings → Connections on Windows.",
+                      "Add connections through Settings → Environments on Windows.",
                     ),
                   )
                 : broker.request(request),

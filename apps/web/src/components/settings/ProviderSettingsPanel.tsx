@@ -1096,7 +1096,7 @@ export function EnvironmentProviderSettings({
               <PolicyTooltip>
                 This interval is configured here, then the shared Background activity policy decides
                 whether provider probes may run when the timer fires. Custom intervals appear as
-                Advanced in General settings.
+                Advanced in Maintenance settings.
               </PolicyTooltip>
             </span>
           }

@@ -164,7 +164,7 @@ export class PublicRelayOffError extends Schema.TaggedError<PublicRelayOffError>
   { settingsPath: Schema.String },
 ) {
   override get message(): string {
-    return `Encrypted Relay is off for this server. Turn it on in Settings → Connections, or set "publicRelayEnabled": true in ${this.settingsPath}, then run this again.`;
+    return `Encrypted Relay is off for this server. Turn it on in Settings → Sharing & access, or set "publicRelayEnabled": true in ${this.settingsPath}, then run this again.`;
   }
 }
 

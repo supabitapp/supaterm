@@ -13,6 +13,7 @@ import {
   getThreadAutoMarkDoneSearchAvailability,
   isSettingsSearchScopeAvailable,
   isSettingsSectionAvailable,
+  movedSettingsPath,
   searchSettings,
   SETTINGS_SEARCH_ITEMS,
   sourceControlHostSearchItems,
@@ -30,7 +31,7 @@ const ITEMS: ReadonlyArray<SettingsSearchItem> = [
   {
     id: "network-access",
     title: "Network access",
-    to: "/settings/connections",
+    to: "/settings/access",
     searchTerms: ["remote pairing backend"],
   },
   {
@@ -55,7 +56,7 @@ describe("searchSettings", () => {
   it("matches titles, sections, and remembered setting details", () => {
     expect(searchSettings("word", ITEMS).map((item) => item.id)).toEqual(["word-wrap"]);
     expect(searchSettings("network", ITEMS).map((item) => item.id)).toEqual(["network-access"]);
-    expect(searchSettings("connections", ITEMS).map((item) => item.id)).toEqual(["network-access"]);
+    expect(searchSettings("sharing", ITEMS).map((item) => item.id)).toEqual(["network-access"]);
     expect(searchSettings("claude", ITEMS).map((item) => item.id)).toEqual(["providers"]);
     expect(searchSettings("long lines", ITEMS).map((item) => item.id)).toEqual(["word-wrap"]);
   });
@@ -325,5 +326,41 @@ describe("source control host search items", () => {
     expect(searchSettings("ghes").map((item) => item.id)).toContain(
       sourceControlHostSettingsSearchId("github"),
     );
+  });
+});
+
+describe("movedSettingsPath", () => {
+  it("sends old links to the page their row moved to", () => {
+    expect(movedSettingsPath("/settings/general", "text-generation-model")).toBe(
+      "/settings/threads",
+    );
+    expect(movedSettingsPath("/settings/general", "app-version")).toBe("/settings/about");
+    expect(movedSettingsPath("/settings/general", "next-prompt-suggestions")).toBe(
+      "/settings/threads",
+    );
+    expect(movedSettingsPath("/settings/connections", "authorized-clients")).toBe(
+      "/settings/access",
+    );
+    expect(movedSettingsPath("/settings/connections", "public-relay")).toBe("/settings/access");
+    expect(movedSettingsPath("/settings/source-control", "worktree-branch-naming")).toBe(
+      "/settings/worktrees",
+    );
+    expect(movedSettingsPath("/settings/appearance", "diff-color-scheme")).toBe("/settings/diffs");
+    expect(movedSettingsPath("/settings/storage", "storage-worktrees")).toBe("/settings/worktrees");
+    expect(movedSettingsPath("/settings/storage", "")).toBe("/settings/maintenance");
+    expect(movedSettingsPath("/settings/integrations", "devices")).toBe("/settings/devices");
+    expect(movedSettingsPath("/settings/integrations", "orchestration-skills")).toBe(
+      "/settings/threads",
+    );
+    expect(movedSettingsPath("/settings/integrations", "")).toBe("/settings/browser");
+  });
+
+  it("leaves current pages alone", () => {
+    expect(movedSettingsPath("/settings/general", "time-format")).toBeNull();
+    expect(movedSettingsPath("/settings/general", "")).toBeNull();
+    expect(movedSettingsPath("/settings/projects", "project-defaults")).toBeNull();
+    expect(movedSettingsPath("/settings/connections", "remote-environments")).toBeNull();
+    expect(movedSettingsPath("/settings/appearance", "theme")).toBeNull();
+    expect(movedSettingsPath("/settings/codex-micro", "")).toBeNull();
   });
 });

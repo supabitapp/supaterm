@@ -120,7 +120,6 @@ import {
   SettingsSection,
 } from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
-import { OrchestrationSkillsSettings } from "./OrchestrationSkillsSettings";
 import { AgentBrowserAccessRow } from "./ProjectDefaultsSettings";
 import { useSettingsScope } from "./SettingsScopeContext";
 import { BrowserImportWizard, type WizardTarget } from "./BrowserImportWizard";
@@ -754,7 +753,7 @@ function BrowserSearchEngineSetting() {
   );
 }
 
-function PullRequestLinksOpenInAppSetting() {
+export function PullRequestLinksOpenInAppSetting() {
   const openInApp = useClientSettings((settings) => settings.pullRequestLinksOpenInApp);
   const updateSettings = useUpdatePrimarySettings();
 
@@ -1583,7 +1582,7 @@ function BrowserProfilesSetting({ disabled }: { readonly disabled: boolean }) {
   );
 }
 
-export function IntegrationsSettingsPanel() {
+export function BrowserSettingsPanel() {
   const previewDefaultsDisabled = !isElectron;
   const previewDefaults = (
     <>
@@ -1600,7 +1599,6 @@ export function IntegrationsSettingsPanel() {
 
   return (
     <SettingsPageContainer>
-      <OrchestrationSkillsSettings />
       <SettingsSection id="browser" title="Browser">
         <AgentBrowserAccessRow />
         {previewDefaultsDisabled ? (
@@ -1611,8 +1609,14 @@ export function IntegrationsSettingsPanel() {
           previewDefaults
         )}
         <BrowserSearchEngineSetting />
-        <PullRequestLinksOpenInAppSetting />
       </SettingsSection>
+    </SettingsPageContainer>
+  );
+}
+
+export function DevicesSettingsPanel() {
+  return (
+    <SettingsPageContainer>
       <DeviceIntegrationSettings />
     </SettingsPageContainer>
   );

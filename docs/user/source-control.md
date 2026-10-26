@@ -196,7 +196,7 @@ branch with a rebase, enabling auto-merge, approving workflows, merging or rebas
 discarding a review's pending line comments take two presses: the first asks you to confirm, the
 second runs it. Press Escape or click elsewhere to cancel.
 
-Pull request sharing is off by default. In Settings → Connections → Pull request sharing (Pull
+Pull request sharing is off by default. In Settings → Environments → Pull request sharing (Pull
 request routing under Environments on mobile), choose **Read PRs** or **Read and act** for each
 environment you trust to share its source control access.
 Enable both the original environment and the environment answering its requests on this client.

@@ -142,7 +142,7 @@ export const layer = Layer.effect(
         });
         yield* electronDialog.showErrorBox(
           "WSL backend couldn't start",
-          `${reason}\n\nFalling back to the Windows backend so Supaterm can open. Re-enable the WSL backend from Settings > Connections once the WSL distro is fixed.`,
+          `${reason}\n\nFalling back to the Windows backend so Supaterm can open. Re-enable the WSL backend from Settings > Sharing & access once the WSL distro is fixed.`,
         );
         // Clearing wslBackendEnabled alone would leave a stale wslOnly:true that silently re-traps
         // the user in wsl-only mode the next time they enable WSL. If the persisted write fails,

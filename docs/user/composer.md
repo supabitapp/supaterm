@@ -52,7 +52,7 @@ See [images and videos](#images-and-videos-in-messages) for previewing and savin
 
 ## Send while the agent is working
 
-On web and desktop, choose **Settings → General → Follow-up behavior** to queue
+On web and desktop, choose **Settings → Chat → Follow-up behavior** to queue
 new messages for a later turn or steer the running turn immediately. The setting
 applies to this client; already queued messages keep their place. Queued messages
 are saved on the server and can be edited, reordered, or removed above the composer.
@@ -177,7 +177,7 @@ cache, so each costs almost nothing. Claude suggests nothing at the start of a t
 after an error, or when the next step is not obvious, and only replies from the last few hours get
 one. Threads on other providers never show a suggestion.
 
-They are on by default. Turn them off with **Claude prompt suggestions** in **Settings > General**,
+They are on by default. Turn them off with **Claude prompt suggestions** in **Settings > Threads**,
 or **Next prompt suggestions** in **Settings > Agent behavior** on mobile.
 
 ## Edit an earlier prompt
@@ -280,11 +280,11 @@ highlighted. On mobile,
 
 The slash menu also includes skills unless you turn off **Show skills in slash
 menu**, which also stops `/` from suggesting skills later in a message. It is in
-**Settings → General** on web and desktop, and **Settings → Thread behavior** on
+**Settings → Chat** on web and desktop, and **Settings → Thread behavior** on
 mobile. Only skills enabled for the provider are listed.
 
 To install Supaterm's optional `supaterm-advisor` and `supaterm-commitee` skills,
-choose **Install** in **Settings → Integrations → Orchestration skills**
+choose **Install** in **Settings → Threads → Orchestration skills**
 on web and desktop, or **Settings → Agent behavior** on mobile. Nothing installs
 automatically. Installation applies to all projects on the selected connected
 environments and links the providers' native skill folders to Supaterm's bundled skills.

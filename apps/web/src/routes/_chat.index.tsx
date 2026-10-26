@@ -123,8 +123,8 @@ export const Route = createFileRoute("/_chat/")({
 function HostedStaticOnboardingState() {
   const localEnvironmentOff = isLocalEnvironmentDisabled();
   const description = localEnvironmentOff
-    ? "The local environment is turned off. Connect a remote environment, or turn the local environment back on in Connections."
-    : "Open Connections and add that machine using its pairing link. This app must be able to reach it.";
+    ? "The local environment is turned off. Connect a remote environment, or turn the local environment back on in Environments."
+    : "Open Environments and add that machine using its pairing link. This app must be able to reach it.";
 
   return (
     <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none">
@@ -152,7 +152,7 @@ function HostedStaticOnboardingState() {
               <div className="mt-6 flex justify-center">
                 <Button render={<Link to="/settings/connections" />} size="sm">
                   <PlusIcon className="size-4" />
-                  Open Connections
+                  Open Environments
                 </Button>
               </div>
             </EmptyHeader>

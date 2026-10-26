@@ -85,13 +85,13 @@ and Linux it creates a link in a writable command folder; on Windows it adds the
 app's command folder to your `PATH`. Open a new terminal afterwards. If the command
 folder is not on your `PATH`, add it to run `supaterm` by name.
 
-**Settings → General → About → supaterm command** lets you retry installation or
+**Settings → About → supaterm command** lets you retry installation or
 remove the command. **Remove** also disables automatic installation until you
 choose **Install** again. The bundled command follows desktop app updates.
 
 ### Windows Subsystem for Linux
 
-Choose a WSL distro in **Settings → Connections** to run agents and projects
+Choose a WSL distro in **Settings → Sharing & access** to run agents and projects
 there. Install the provider CLIs inside that distro. Supaterm installs its own
 server runtime there automatically; the first launch after an app update can
 take longer.
@@ -112,7 +112,7 @@ command cannot reach the app, start or update the desktop app and try again.
 ## Mobile app
 
 On iPhone and iPad, [join the Supaterm beta on TestFlight](https://testflight.apple.com/join/VUJkRPwq).
-The link and a QR code are also in **Settings → General → Mobile app** on web and desktop.
+The link and a QR code are also in **Settings → About → Mobile app** on web and desktop.
 On Android, build the client using the [mobile development guide](../../apps/mobile/README.md).
 The phone connects to a server on another machine. Follow
 [remote access](./remote-access.md) to pair it with a pairing URL or QR code.

@@ -44,7 +44,6 @@ import {
   SettingsRow,
   SettingsSection,
 } from "./settingsLayout";
-import { BranchNamingSettings } from "./BranchNamingSettings";
 import { searchableSetting } from "./settingsSearch";
 
 const MODE_OPTIONS: Record<SourceControlWritingStyleMode, { label: string; description: string }> =
@@ -193,7 +192,6 @@ export function SourceControlWritingSettingsSection() {
 
   return (
     <SettingsSection id="source-control-text-generation" title="Text generation">
-      <BranchNamingSettings />
       <SettingsRow
         serverScoped
         settingKeys={["sourceControlWritingStyle"]}
@@ -352,7 +350,7 @@ export function SourceControlWritingSettingsSection() {
         serverScoped
         settingKeys={["sourceControlWriterModelSelection"]}
         {...searchableSetting("source-control-writer-model")}
-        description="Off uses the text generation model from General."
+        description="Off uses the text generation model from Threads."
         control={
           !hasServerTargets ? (
             <span className="text-sm text-muted-foreground">

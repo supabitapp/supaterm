@@ -98,7 +98,7 @@ vi.mock(import("../ui/toast"), async (original) => {
 });
 
 import { clickOnFakeClock } from "~/test/inlineConfirm";
-import { StorageSettingsPanel } from "./StorageSettings";
+import { StorageCleanupSections } from "./StorageSettings";
 
 function setup(): Disposable {
   const timers = fakeTimers({ now: 0 });
@@ -127,7 +127,7 @@ function setup(): Disposable {
 
 const panel = () => (
   <RegistryProvider>
-    <StorageSettingsPanel />
+    <StorageCleanupSections />
   </RegistryProvider>
 );
 const deleteButton = (container: HTMLElement) =>

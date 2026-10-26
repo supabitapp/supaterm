@@ -6,7 +6,7 @@ machine. That machine must stay running and reachable while you work.
 ## Pair through the Encrypted Relay
 
 Connect across networks without opening a port on the host. On the machine
-running your agents, open **Settings → Connections** and create a pairing link.
+running your agents, open **Settings → Sharing & access** and create a pairing link.
 **Encrypted Relay** is enabled by default. If you turned it off, enable it first.
 The relay connects when you create the first link;
 the app waits until it is ready before making the link available. Paste that link into
@@ -79,16 +79,16 @@ With the desktop app running on your receiving Mac or Linux machine, run:
 supaterm app connection add "<pairing-link>"
 ```
 
-Replace `<pairing-link>` with the full URL created in **Settings → Connections** or by `supaterm pair` on the host.
+Replace `<pairing-link>` with the full URL created in **Settings → Sharing & access** or by `supaterm pair` on the host.
 The command pairs and saves the connection in your local desktop app. Run it
 on the receiving machine, outside an SSH session. Manage or remove the saved
-connection in **Settings → Connections**.
+connection in **Settings → Environments**.
 
 ## Pair over a LAN or private network
 
 Use direct pairing when the other device can reach the host's network address.
 
-On a desktop host, open **Settings → Connections**, enable **Network access**,
+On a desktop host, open **Settings → Sharing & access**, enable **Network access**,
 then create a pairing link using an address the other device can reach. Changing
 network access restarts the desktop app. You can turn it off in the same place.
 
@@ -106,7 +106,7 @@ supaterm pair --no-relay
 ```
 
 Scan the QR code on your phone or paste the pairing URL into **Add environment**
-in the receiving app. Connection settings are under **Settings → Connections**
+in the receiving app. Connection settings are under **Settings → Environments**
 on web and desktop and **Settings → Environments** on mobile. A loopback address
 such as `127.0.0.1` reaches only the device opening the link.
 
@@ -156,7 +156,7 @@ to the app, and periodically while using a fallback.
 A browser opened over HTTPS needs HTTPS routes; it cannot connect to plain HTTP
 LAN addresses.
 
-On web and desktop, open the machine's routes in **Settings → Connections** to
+On web and desktop, open the machine's routes in **Settings → Environments** to
 reorder or remove them. On mobile, open the machine under
 **Settings → Environments** and choose **Edit**. Learned routes can be reordered,
 but removing their saved pairing also removes the addresses learned through it.
@@ -174,7 +174,7 @@ different permissions.
 ### Balance new threads across machines
 
 Auto balance is off by default. On web and desktop, enable it in
-**Settings → Connections → Load balancing** to automatically choose a machine for
+**Settings → Environments → Load balancing** to automatically choose a machine for
 new threads in projects grouped across connected environments. The section
 appears once two or more machines are switched on.
 Each machine starts at **Normal**. Choose **Prefer** to favor it when it has CPU and
@@ -193,7 +193,7 @@ set to **Manual only** remains excluded. Mobile keeps its manual environment sel
 ### Tailscale HTTPS
 
 Join both devices to the same tailnet. In the desktop app, enable **Tailscale
-HTTPS** in **Settings → Connections**. **Network access** can stay off; Tailscale
+HTTPS** in **Settings → Sharing & access**. **Network access** can stay off; Tailscale
 reaches the backend on this machine. Turn it off there to remove that route.
 
 To start a command-line server with Tailscale HTTPS:
@@ -233,7 +233,7 @@ scheme uses HTTP, so include `https://` when your server uses HTTPS.
 
 ## Desktop-managed SSH
 
-In the desktop app, open **Settings → Connections → Add environment**, choose
+In the desktop app, open **Settings → Environments → Add environment**, choose
 **SSH**, and enter a host or SSH alias such as `user@example.com`. Supaterm starts
 or reuses a server there and opens the port forward for you. Projects, provider
 credentials, and agent work stay on the remote machine.
@@ -320,7 +320,7 @@ threads on an environment through its MCP server. See
 
 ## Manage or revoke access
 
-On the host, **Settings → Connections** lets authorized administrators create
+On the host, **Settings → Sharing & access** lets authorized administrators create
 pairing links and revoke client sessions. Revoking an unused link prevents new
 pairings; revoke a device's session to remove its existing access. Command-line
 management is available through `supaterm auth --help`.
@@ -382,7 +382,7 @@ screenshots, logs, or bug reports.
 ## Using the Desktop App as a Remote Only
 
 If a computer should only drive work running elsewhere, turn off its local environment. In the
-desktop app, open **Settings → Connections** and switch off **Local
+desktop app, open **Settings → Environments** and switch off **Local
 environment**. Supaterm restarts without a local server: no local agents or terminals run, WSL
 backends stay off, and other devices can no longer connect to this computer. Your projects,
 history, and saved connections are kept, and you keep working through paired environments or SSH.

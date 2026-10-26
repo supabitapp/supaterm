@@ -48,7 +48,7 @@ and other phone-only settings ignore the filter.
 
 ## Worktree branch names
 
-In **Settings → Source Control → Worktree branch naming**, choose a static prefix,
+In **Settings → Worktrees → Worktree branch naming**, choose a static prefix,
 the repository name as a prefix, a model-selected semantic prefix such as `feat/` or `fix/`,
 or custom instructions for the complete name. The static prefix defaults to `supaterm/`; a
 trailing slash is optional, and an empty prefix adds nothing. Invalid characters in a static
@@ -94,7 +94,7 @@ built-in default. Leave a setting on **Inherit** to let the next tier decide.
 Browser access changes apply when an agent session next starts.
 
 New worktrees initialize git submodules recursively. If that step is slow because the repository
-declares many nested submodules, set **Submodules** in **Settings → General** (with the project
+declares many nested submodules, set **Submodules** in **Settings → Worktrees** (with the project
 selected to override it there) to **Top level only** to stop at the ones the repository declares
 itself, or **Skip** to leave them for a setup script. It resolves in the same order as the
 workspace default: a `"worktreeSubmodules"` value in the `supaterm.json` of the branch being checked out
@@ -103,14 +103,14 @@ applies when the project and environment are both on **Inherit**.
 ## Worktree location
 
 New worktrees go in the `worktrees` folder of the Supaterm home directory. To put them somewhere else,
-such as another drive, set **Settings → Storage → Worktree location** to an absolute path like
+such as another drive, set **Settings → Worktrees → Worktree location** to an absolute path like
 `D:\worktrees` or `~/worktrees`. The setting is per machine. Existing worktrees stay where they
 are, and cleanup covers both the default folder and the custom one.
 
 ## Storage cleanup
 
-Open **Settings → Storage** to configure automatic cleanup on one machine or all connected
-environments. Cleanup rules for merged, unchanged, and deleted-thread worktrees are on by default;
+Open **Settings → Worktrees** to configure automatic worktree cleanup, and **Settings →
+Maintenance** for browser artifacts and logs, on one machine or all connected environments. Cleanup rules for merged, unchanged, and deleted-thread worktrees are on by default;
 inactive-worktree and done-worktree cleanup remain disabled until you choose an age. Policies run on the server at
 startup, when changed, and hourly. Offline machines keep their existing policies.
 
@@ -140,7 +140,8 @@ deleted, including archived threads and worktrees left by earlier deletions. The
 sessions and terminals to stop and retries skipped worktrees after restart. Turn this policy off to
 keep those worktrees and retain the existing prompts for deleting one manually.
 
-Choose **Delete now**, then click again to confirm, to run the enabled rules immediately. The
+Choose **Delete now** in **Settings → Maintenance**, then click again to confirm, to run the
+enabled rules immediately. The
 latest results show which worktrees were removed or kept and why, plus any failures.
 Results also list folders in the worktree folder that no thread uses, with their sizes; cleanup never removes them, so remove them manually if you want.
 

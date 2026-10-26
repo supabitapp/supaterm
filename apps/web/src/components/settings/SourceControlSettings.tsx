@@ -352,7 +352,7 @@ function GitFetchIntervalSettings() {
             <PolicyTooltip>
               This interval is configured for Git only. The shared Background activity policy still
               decides whether Git refreshes may run when the timer fires. Custom intervals appear as
-              Advanced in General settings.
+              Advanced in Maintenance settings.
             </PolicyTooltip>
             <span
               className={cn(
