@@ -72,7 +72,6 @@ interface TargetPathAndPosition {
  * line break ends the command there, and a double quote closes the quoting
  * that keeps `&` or `|` literal. Neither can occur in a Windows path.
  */
-// oxlint-disable-next-line no-control-regex
 const WINDOWS_SHIM_UNSAFE_ARG_PATTERN = /[\u0000-\u001f\u007f"]/;
 const TARGET_WITH_POSITION_PATTERN = /^(.*?):(\d+)(?::(\d+))?$/;
 const POWERSHELL_ARGUMENTS_PREFIX = [

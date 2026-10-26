@@ -209,6 +209,7 @@ export default defineConfig({
       "array-guardrails/no-array-filter-map": "error",
       "array-guardrails/no-reduce-accumulator-copy": "error",
       "oxc/no-accumulating-spread": "error",
+      "eslint/no-control-regex": "off",
       "typescript/no-this-alias": "off",
       "unicorn/prefer-add-event-listener": "off",
       "unicorn/prefer-string-starts-ends-with": "off",
