@@ -25,7 +25,7 @@ export function useVoiceInputController(input: {
   readonly onSubmit?: () => void;
 }) {
   const global = useGlobalVoiceInput();
-  const { setOwnerFocused, session } = global;
+  const { session } = global;
   const latestInput = useRef(input);
   useLayoutEffect(() => {
     latestInput.current = input;
@@ -44,12 +44,12 @@ export function useVoiceInputController(input: {
     useCallback(() => {
       const ownerKey = input.ownerKey;
       if (!ownerKey) return;
-      setOwnerFocused(ownerKey, true);
+      session.setOwnerFocused(ownerKey, true);
       return () => {
         submission.current = null;
-        setOwnerFocused(ownerKey, false);
+        session.setOwnerFocused(ownerKey, false);
       };
-    }, [input.ownerKey, setOwnerFocused]),
+    }, [input.ownerKey, session]),
   );
 
   const start = useCallback(() => {

@@ -29,7 +29,6 @@ import { takeScheduledTaskNewLink } from "./features/settings/scheduled-task-edi
 import { useMobileNavigationTheme } from "./lib/useMobileNavigationTheme";
 import { useUiRuntimeMemoryWarningGc } from "./lib/useUiRuntimeMemoryWarningGc";
 import { SubscriptionUsageCoordinator } from "./widgets/SubscriptionUsageCoordinator";
-import { VoiceInputProvider } from "./features/voice-input/VoiceInputProvider";
 import { GlobalVoiceInputControl } from "./features/voice-input/GlobalVoiceInputControl";
 import { NativeLayoutMetricsProvider } from "./native/native-layout-metrics";
 
@@ -94,29 +93,25 @@ function AppContent() {
       <GestureHandlerRootView className="flex-1" onTouchStart={disarmInlineConfirmsOnTouch}>
         <KeyboardProvider statusBarTranslucent>
           <SafeAreaProvider>
-            <VoiceInputProvider>
-              {Platform.OS === "android" ? (
-                <StatusBar
-                  barStyle={themeAppearance === "dark" ? "light-content" : "dark-content"}
-                />
-              ) : null}
-              {/* native-stack forwards the navigation theme's `dark` as the nav bar's
+            {Platform.OS === "android" ? (
+              <StatusBar barStyle={themeAppearance === "dark" ? "light-content" : "dark-content"} />
+            ) : null}
+            {/* native-stack forwards the navigation theme's `dark` as the nav bar's
                 overrideUserInterfaceStyle; without it every native header is forced light
                 even in system dark mode. */}
-              <GlobalVoiceInputControl>
-                <NativeLayoutMetricsProvider>
-                  <IncomingShareProvider>
-                    <Navigation linking={appLinking} theme={navigationTheme} />
-                  </IncomingShareProvider>
-                  <Dialog.Host />
-                  <ThreadArrangementHost />
-                  <ProjectChipIconRasterizer />
-                </NativeLayoutMetricsProvider>
-              </GlobalVoiceInputControl>
-              {/* Anchored-menu overlays render here — in-window, so the
+            <GlobalVoiceInputControl>
+              <NativeLayoutMetricsProvider>
+                <IncomingShareProvider>
+                  <Navigation linking={appLinking} theme={navigationTheme} />
+                </IncomingShareProvider>
+                <Dialog.Host />
+                <ThreadArrangementHost />
+                <ProjectChipIconRasterizer />
+              </NativeLayoutMetricsProvider>
+            </GlobalVoiceInputControl>
+            {/* Anchored-menu overlays render here — in-window, so the
                 keyboard stays up while a dropdown is open. */}
-              <OverlayPortalHost />
-            </VoiceInputProvider>
+            <OverlayPortalHost />
           </SafeAreaProvider>
         </KeyboardProvider>
       </GestureHandlerRootView>

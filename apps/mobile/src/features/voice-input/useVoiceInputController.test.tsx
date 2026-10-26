@@ -40,7 +40,6 @@ vi.mock("./VoiceInputProvider", () => ({
       ownerKey: session.ownerKey,
       isAvailable: true,
       isBusy: state.phase === "recording" || state.phase === "transcribing",
-      setOwnerFocused,
       stop: () => session.controller.stop(),
       cancel: () => session.controller.cancel(),
     };
@@ -57,7 +56,6 @@ let ownerKey: string;
 let allowed: boolean;
 const drafts = new Map<string, string>();
 const sends = vi.fn<(text: string) => void>();
-const setOwnerFocused = vi.fn();
 let recording: ReturnType<typeof Promise.withResolvers<void>>;
 let transcribing: ReturnType<typeof Promise.withResolvers<void>>;
 let settled: ReturnType<typeof Promise.withResolvers<void>>;
@@ -144,12 +142,17 @@ beforeEach(() => {
     configureRecording: async () => {},
     releaseRecording: async () => {},
     deleteRecording: () => {},
-    onStateChange: (next) => {
-      state = next;
-      store.notify();
-      if (next.phase === "recording") recording.resolve();
-      if (next.phase === "idle" || next.phase === "error") settled.resolve();
-    },
+    sampleRecording: () => null,
+    publishAudioLevels: () => {},
+    keepAwake: () => () => {},
+  });
+  session.subscribe(() => {
+    const next = session.getSnapshot().state;
+    if (next === state) return;
+    state = next;
+    store.notify();
+    if (next.phase === "recording") recording.resolve();
+    if (next.phase === "idle" || next.phase === "error") settled.resolve();
   });
   root = createRoot(document.createElement("div"));
   act(() => root.render(<Probe />));
@@ -157,7 +160,7 @@ beforeEach(() => {
 
 afterEach(() => {
   act(() => root.unmount());
-  session.controller.dispose();
+  session.dispose();
 });
 
 describe("dictation submission", () => {

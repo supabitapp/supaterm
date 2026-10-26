@@ -200,7 +200,7 @@ export function ComposerDictationToolbar(props: {
 }
 
 const WaveformBar = memo(function WaveformBar(props: {
-  readonly audioLevels: SharedValue<number[]>;
+  readonly audioLevels: SharedValue<ReadonlyArray<number>>;
   readonly sampleIndex: number;
   readonly height?: number;
 }) {
@@ -233,7 +233,7 @@ const COMPACT_WAVEFORM_BAR_COUNT = 8;
 const COMPACT_WAVEFORM_BAR_HEIGHT = 14;
 
 export const CompactVoiceWaveform = memo(function CompactVoiceWaveform(props: {
-  readonly audioLevels: SharedValue<number[]>;
+  readonly audioLevels: SharedValue<ReadonlyArray<number>>;
 }) {
   return (
     <View
@@ -255,7 +255,7 @@ export const CompactVoiceWaveform = memo(function CompactVoiceWaveform(props: {
 });
 
 const VoiceWaveform = memo(function VoiceWaveform(props: {
-  readonly audioLevels: SharedValue<number[]>;
+  readonly audioLevels: SharedValue<ReadonlyArray<number>>;
 }) {
   const [barCount, setBarCount] = useState(0);
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
@@ -354,7 +354,7 @@ function SessionCapsuleButton(props: {
 }
 
 export function ComposerDictationStatus(props: {
-  readonly audioLevels: SharedValue<number[]>;
+  readonly audioLevels: SharedValue<ReadonlyArray<number>>;
   readonly elapsedSeconds: number;
   readonly phase: VoiceInputPhase;
   readonly presentation: VoiceComposerPresentation;
