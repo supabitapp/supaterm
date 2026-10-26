@@ -1,7 +1,7 @@
 import type { RuntimeSubagent } from "@supaterm/client-runtime/state/subagentRuntime";
 import { isOrchestrationV2WorkActive } from "@supaterm/contracts";
 import { deriveSubagentElapsedMs } from "@supaterm/shared/orchestrationTiming";
-import { useEffect, useRef } from "react";
+import { tickTextContent } from "~/lib/tickTextContent";
 
 function formatElapsedSeconds(totalSeconds: number): string {
   const seconds = Math.max(0, Math.floor(totalSeconds));
@@ -25,38 +25,18 @@ export function AgentElapsed({
 }: {
   agent: Pick<RuntimeSubagent, "status" | "startedAt" | "completedAt">;
 }) {
-  const textRef = useRef<HTMLSpanElement>(null);
   const live = isOrchestrationV2WorkActive(agent.status);
-  const startedAt = agent.startedAt;
-  const completedAt = agent.completedAt;
-
-  useEffect(() => {
-    if (!startedAt) {
-      return;
-    }
-    const update = () => {
-      if (textRef.current) {
-        const elapsedMs = deriveSubagentElapsedMs(
-          { status: agent.status, startedAt, completedAt },
-          Date.now(),
-        );
-        textRef.current.textContent =
-          elapsedMs === null ? "" : formatElapsedSeconds(elapsedMs / 1000);
-      }
-    };
-    update();
-    if (!live) return;
-    const id = setInterval(update, 1000);
-    return () => clearInterval(id);
-  }, [live, startedAt, completedAt, agent.status]);
-
-  const elapsedMs = deriveSubagentElapsedMs(agent, 0);
-  if (elapsedMs === null) {
+  const { status, startedAt, completedAt } = agent;
+  if (deriveSubagentElapsedMs(agent, 0) === null) {
     return null;
   }
   return (
-    <span ref={textRef} className="tabular-nums">
-      {formatElapsedSeconds(elapsedMs / 1000)}
-    </span>
+    <span
+      ref={tickTextContent((nowMs) => {
+        const elapsedMs = deriveSubagentElapsedMs({ status, startedAt, completedAt }, nowMs);
+        return elapsedMs === null ? "" : formatElapsedSeconds(elapsedMs / 1000);
+      }, live)}
+      className="tabular-nums"
+    />
   );
 }

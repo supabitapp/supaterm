@@ -7,7 +7,7 @@ import {
   resolveTimelineMinimapInteractiveWidth,
 } from "./MessagesTimeline.logic";
 import { type TimelineMinimapItem, resolveTimelineMinimapPreview } from "./timelineMinimapItems";
-import { useState, useRef, useEffect, type MouseEvent } from "react";
+import { useState, useRef, type MouseEvent } from "react";
 import { ChevronDownIcon, ChevronUpIcon } from "@supaterm/icons";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipTrigger, TooltipPopup } from "../ui/tooltip";
@@ -67,11 +67,6 @@ export function TimelineMinimap({
 
   const pressedOnStripRef = useRef(false);
   const [passThrough, setPassThrough] = useState(false);
-
-  useEffect(() => {
-    if (!passThrough) return;
-    return onMouseButtonsReleased(() => setPassThrough(false));
-  }, [passThrough]);
 
   const resolvedActiveIndex =
     activeIndex !== null && activeIndex < items.length ? activeIndex : null;
@@ -147,7 +142,9 @@ export function TimelineMinimap({
             });
           }}
           onMouseMove={(event) => {
-            if (event.buttons !== 0 && !pressedOnStripRef.current) setPassThrough(true);
+            if (event.buttons === 0 || pressedOnStripRef.current || passThrough) return;
+            setPassThrough(true);
+            onMouseButtonsReleased(() => setPassThrough(false));
           }}
           style={{
             height: resolveTimelineMinimapHeightStyle(items.length),
