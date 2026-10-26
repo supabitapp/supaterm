@@ -6,9 +6,10 @@ import {
   type EnvironmentId,
   type ResolvedKeybindingsConfig,
 } from "@supaterm/contracts";
-import { memo, use, useEffect, useRef } from "react";
+import { memo, use, useRef } from "react";
 import { BackgroundThreadContext } from "./backgroundThread";
-import { isOpenFavoriteEditorShortcut, shortcutLabelForCommand } from "../../keybindings";
+import { shortcutLabelForCommand } from "../../keybindings";
+import { OPEN_FAVORITE_EDITOR_ATTRIBUTE } from "./OpenInPickerShortcut";
 import { usePreferredEditor } from "../../editorPreferences";
 import { editorLabelForPlatform } from "../../editorLabels";
 import {
@@ -72,7 +73,7 @@ import {
 } from "./threadDetailsPanelStyles";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
 import { useComposerMenuState } from "./useComposerMenuState";
-import { usePaneInputOwner } from "../../chatPanes/paneScope";
+import { useIsPaneInputOwner } from "../../chatPanes/paneScope";
 
 type OpenInOption = {
   label: string;
@@ -283,42 +284,9 @@ export const OpenInPicker = memo(function OpenInPicker({
     "editor.openFavorite",
   );
 
-  const isPaneInputOwner = usePaneInputOwner();
+  // Only the focused pane's picker answers the shortcut.
+  const ownsPaneInput = useIsPaneInputOwner();
   const backgroundThread = use(BackgroundThreadContext);
-  useEffect(() => {
-    if (!enableShortcut || !canOpenEditor || backgroundThread) return;
-    const handler = (e: globalThis.KeyboardEvent) => {
-      if (e.defaultPrevented || !isOpenFavoriteEditorShortcut(e, keybindings)) return;
-      if (!isPaneInputOwner()) return;
-      if (!openInCwd) return;
-      if (!preferredEditor) return;
-      if (
-        remote.mode === "local-exec" &&
-        !readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)
-      )
-        return;
-
-      e.preventDefault();
-      const label = editorLabelForPlatform(preferredEditor, navigator.platform);
-      void openInEditor(preferredEditor).then((opened) => {
-        if (opened) announce(`Opened in ${label}`);
-      });
-    };
-    window.addEventListener("keydown", handler, true);
-    return () => window.removeEventListener("keydown", handler, true);
-  }, [
-    backgroundThread,
-    canOpenEditor,
-    enableShortcut,
-    environmentId,
-    isPaneInputOwner,
-    keybindings,
-    openInCwd,
-    openInEditor,
-    preferredEditor,
-    remote.mode,
-  ]);
-  // Derive after the shortcut effect to preserve the editor list's compiler cache.
   const options = resolveOpenInOptions(navigator.platform, effectiveEditors);
   const primaryOption = options.find(({ value }) => value === preferredEditor) ?? null;
   const openInLabel = `Open in ${primaryOption?.label ?? "editor"}`;
@@ -412,7 +380,16 @@ export const OpenInPicker = memo(function OpenInPicker({
               part="primary"
               panel={isPanel}
               disabled={!preferredEditor || !openInCwd || !canOpenEditor}
-              onClick={() => openInEditor(preferredEditor)}
+              {...(enableShortcut && !backgroundThread && ownsPaneInput
+                ? { [OPEN_FAVORITE_EDITOR_ATTRIBUTE]: "" }
+                : {})}
+              onClick={() => {
+                if (!preferredEditor) return;
+                const label = editorLabelForPlatform(preferredEditor, navigator.platform);
+                void openInEditor(preferredEditor).then((opened) => {
+                  if (opened) announce(`Opened in ${label}`);
+                });
+              }}
             />
           }
         >

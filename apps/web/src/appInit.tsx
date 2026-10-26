@@ -35,6 +35,7 @@ import { startProviderAuthDelivery } from "./providerAuthDelivery";
 import { getRouter, type AppRouter } from "./router";
 import { appAtomRegistry } from "./rpc/atomRegistry";
 import { resolveThreadRouteTarget, type ThreadRouteTarget } from "./threadRoutes";
+import { registerOpenFavoriteEditorCommand } from "./components/chat/OpenInPickerShortcut";
 
 /** Writes appearance settings onto the document, touching only the groups that changed. */
 function startClientAppearance(): void {
@@ -153,6 +154,7 @@ export function startAppServices(): AppRouter {
   if (isElectron) startElectronBrowserHost();
   startPreviewTitleRecording();
   startBrowserProfileReporting();
+  registerOpenFavoriteEditorCommand();
   startThreadOverlayRetention(router);
   startMainAppLocationTracking(router);
   startBackgroundThreadAnnouncements(appAtomRegistry, router);
