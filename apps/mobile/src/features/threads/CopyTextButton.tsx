@@ -1,16 +1,17 @@
 import * as Dialog from "../../components/ui/Dialog";
 import { SymbolView } from "../../components/ui/AppSymbol";
-import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useState } from "react";
 import { Pressable, View, type ColorValue } from "react-native";
 import Animated, {
   Easing,
   ReduceMotion,
   useAnimatedStyle,
-  useSharedValue,
+  useDerivedValue,
   withTiming,
 } from "react-native-reanimated";
 import { useReducedMotionPreference } from "../../lib/useReducedMotionPreference";
 
+import { useDeadlinePassed } from "../../lib/clock";
 import { tryCopyTextWithHaptic } from "../../lib/copyTextWithHaptic";
 
 const COPY_FEEDBACK_DURATION_MS = 1200;
@@ -28,22 +29,23 @@ export const CopyTextButton = memo(function CopyTextButton(props: {
   readonly iconSize?: number;
   readonly buttonSize?: number;
 }) {
-  const [copied, setCopied] = useState(false);
+  const [copiedAtMs, setCopiedAtMs] = useState<number | null>(null);
+  const feedbackEnded = useDeadlinePassed(
+    copiedAtMs === null ? null : copiedAtMs + COPY_FEEDBACK_DURATION_MS,
+  );
+  const copied = copiedAtMs !== null && !feedbackEnded;
   const reducedMotion = useReducedMotionPreference();
-  const feedback = useSharedValue(0);
-  useLayoutEffect(() => {
-    feedback.set(
-      reducedMotion
-        ? copied
-          ? 1
-          : 0
-        : withTiming(copied ? 1 : 0, {
-            duration: 120,
-            easing: Easing.out(Easing.cubic),
-            reduceMotion: ReduceMotion.Never,
-          }),
-    );
-  }, [copied, feedback, reducedMotion]);
+  const feedback = useDerivedValue(() =>
+    reducedMotion
+      ? copied
+        ? 1
+        : 0
+      : withTiming(copied ? 1 : 0, {
+          duration: 120,
+          easing: Easing.out(Easing.cubic),
+          reduceMotion: ReduceMotion.Never,
+        }),
+  );
   const copyStyle = useAnimatedStyle(() => ({
     opacity: 1 - feedback.value,
     transform: [{ scale: 1 - feedback.value * 0.03 }],
@@ -52,16 +54,6 @@ export const CopyTextButton = memo(function CopyTextButton(props: {
     opacity: feedback.value,
     transform: [{ scale: 0.97 + feedback.value * 0.03 }],
   }));
-  const resetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(
-    () => () => {
-      if (resetTimeoutRef.current) {
-        clearTimeout(resetTimeoutRef.current);
-      }
-    },
-    [],
-  );
 
   return (
     <Pressable
@@ -81,14 +73,7 @@ export const CopyTextButton = memo(function CopyTextButton(props: {
           Dialog.alert("Could not copy", "Try again.");
           return;
         }
-        setCopied(true);
-        if (resetTimeoutRef.current) {
-          clearTimeout(resetTimeoutRef.current);
-        }
-        resetTimeoutRef.current = setTimeout(() => {
-          setCopied(false);
-          resetTimeoutRef.current = null;
-        }, COPY_FEEDBACK_DURATION_MS);
+        setCopiedAtMs(Date.now());
       }}
       style={({ pressed }) => ({
         width: props.buttonSize ?? 30,
