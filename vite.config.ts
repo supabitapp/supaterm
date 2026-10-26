@@ -209,6 +209,7 @@ export default defineConfig({
       "array-guardrails/no-array-filter-map": "error",
       "array-guardrails/no-reduce-accumulator-copy": "error",
       "oxc/no-accumulating-spread": "error",
+      "unicorn/prefer-array-find": "off",
       "unicorn/no-new-array": "off",
       "unicorn/no-array-reverse": "off",
       "react/no-object-type-as-default-prop": "off",
