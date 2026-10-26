@@ -7,6 +7,7 @@ import { getTerminalLabel } from "@supaterm/shared/terminalLabels";
 import { closePreviewSession } from "../components/preview/closePreviewSession";
 import { useThreadTerminalActions } from "../components/terminal/useThreadTerminalActions";
 import { confirmRightPanelSurfacesClose } from "../lib/rightPanelCloseConfirm";
+import { focusPanelTerminalAfterClose } from "../lib/terminalFocus";
 import { setActivePreviewTab, useThreadPreviewState } from "../previewStateStore";
 import {
   selectActiveRightPanelSurface,
@@ -81,6 +82,7 @@ export function useRightPanelSurfaceClose(input: {
     if (nextActiveSurface?.kind === "preview" && nextActiveSurface.resourceId) {
       setActivePreviewTab(threadRef, nextActiveSurface.resourceId);
     }
+    focusPanelTerminalAfterClose(threadRef, activeId);
   };
   const terminalCloseTarget = (terminalId: string) => ({
     label: terminalLabelsById.get(terminalId) ?? getTerminalLabel(terminalId),

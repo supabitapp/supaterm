@@ -145,7 +145,6 @@ it.each(["horizontal", "vertical"] as const)(
           { id: "group", terminalIds, ...(direction ? { splitDirection: direction } : {}) },
         ]}
         activeTerminalGroupId="group"
-        focusRequestId={0}
         onSplitTerminal={state.otherCommand}
         onSplitTerminalVertical={state.otherCommand}
         onNewTerminal={state.otherCommand}
