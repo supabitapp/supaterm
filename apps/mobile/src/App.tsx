@@ -25,6 +25,7 @@ import { environmentShell } from "./state/shell";
 import { OverlayPortalHost } from "./components/ui/OverlayPortal";
 import { shouldHandleAppLink, restoreDraftLinkState } from "./lib/appLinking";
 import { disarmInlineConfirmsOnTouch } from "./lib/useInlineConfirm";
+import { takeScheduledTaskNewLink } from "./features/settings/scheduled-task-editor-state";
 import { useMobileNavigationTheme } from "./lib/useMobileNavigationTheme";
 import { useUiRuntimeMemoryWarningGc } from "./lib/useUiRuntimeMemoryWarningGc";
 import { SubscriptionUsageCoordinator } from "./widgets/SubscriptionUsageCoordinator";
@@ -45,7 +46,7 @@ const appLinking = {
   config: { initialRouteName: "Home" },
   filter: shouldHandleAppLink,
   getStateFromPath: (path: string, options: Parameters<typeof getStateFromPath>[1]) =>
-    restoreDraftLinkState(getStateFromPath(path, options), path),
+    takeScheduledTaskNewLink(restoreDraftLinkState(getStateFromPath(path, options), path)),
 };
 
 const Navigation = createStaticNavigation(RootStack);

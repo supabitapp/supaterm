@@ -13,7 +13,7 @@ import {
 import { deriveProjectGroupLabel } from "@supaterm/client-runtime/state/project-grouping";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
 import { useNavigation } from "@react-navigation/native";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Platform, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { projectEnvironment } from "../../state/projects";
@@ -54,15 +54,16 @@ export function SettingsProjectOverviewRouteScreen() {
     setIsRemoving(false);
   };
   const navigation = useNavigation();
-  const { selectedTargets, projectGroups, selectedProjectKey, selectProject } =
-    useSettingsEnvironmentFilter();
-  const latestProjectKey = useRef(selectedProjectKey);
-  useEffect(() => {
-    latestProjectKey.current = selectedProjectKey;
-  }, [selectedProjectKey]);
+  const {
+    selectedTargets,
+    projectGroups,
+    selectedProjectKey,
+    selectProject,
+    getSelectedProjectKey,
+  } = useSettingsEnvironmentFilter();
   // The filter can move to another project while a removal is still running.
   const finishProjectRemoval = (projectKey: string | null) => {
-    if (latestProjectKey.current !== projectKey) return;
+    if (getSelectedProjectKey() !== projectKey) return;
     if (navigation.isFocused()) navigation.goBack();
     // Otherwise the filter keeps pointing at the removed project as an unavailable one.
     selectProject(null);

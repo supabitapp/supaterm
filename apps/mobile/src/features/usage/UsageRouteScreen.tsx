@@ -30,17 +30,11 @@ import {
 } from "@supaterm/shared/usageFormat";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, RefreshControl, View } from "react-native";
-import Animated, {
-  FadeIn,
-  ReduceMotion,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withTiming,
-} from "react-native-reanimated";
+import Animated, { FadeIn, ReduceMotion } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
+import { useReducedMotionPreference } from "../../lib/useReducedMotionPreference";
 import { AppText as Text } from "../../components/ui/AppText";
 import { ProviderIcon } from "../../components/ProviderIcon";
 import { cn } from "../../lib/cn";
@@ -372,15 +366,14 @@ function UsageUpdating({
   readonly label: string | null;
   readonly children: ReactNode;
 }) {
-  const opacity = useSharedValue(1);
-  useLayoutEffect(() => {
-    opacity.set(
-      dimmed
-        ? withDelay(150, withTiming(0.5, { duration: 150, reduceMotion: ReduceMotion.System }))
-        : withTiming(1, { duration: 150, reduceMotion: ReduceMotion.System }),
-    );
-  }, [opacity, dimmed]);
-  const dimStyle = useAnimatedStyle(() => ({ opacity: opacity.get() }));
+  const reduceMotion = useReducedMotionPreference();
+  // The delay keeps a quick refresh from flashing the content.
+  const dimStyle = {
+    opacity: dimmed ? 0.5 : 1,
+    transitionProperty: "opacity",
+    transitionDuration: reduceMotion ? 0 : 150,
+    transitionDelay: dimmed ? 150 : 0,
+  } as const;
 
   return (
     <View>

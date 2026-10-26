@@ -29,3 +29,23 @@ export function restoreDraftLinkState(
   if (pathname !== "new/draft") routes.push(target);
   return { ...state, index: routes.length - 1, routes };
 }
+
+type LinkState = PartialState<NavigationState>;
+type LinkRoute = LinkState["routes"][number];
+
+function isLinkState(value: unknown): value is LinkState {
+  return typeof value === "object" && value !== null && Array.isArray((value as LinkState).routes);
+}
+
+/** The first route named one of `names`, at any nesting depth of a parsed link. */
+export function findLinkedRoute(
+  state: LinkState | undefined,
+  names: ReadonlyArray<string>,
+): LinkRoute | undefined {
+  for (const route of state?.routes ?? []) {
+    if (names.includes(route.name)) return route;
+    const nested = isLinkState(route.state) ? findLinkedRoute(route.state, names) : undefined;
+    if (nested) return nested;
+  }
+  return undefined;
+}

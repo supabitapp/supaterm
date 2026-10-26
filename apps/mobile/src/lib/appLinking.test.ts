@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { shouldHandleAppLink, restoreDraftLinkState } from "./appLinking";
+import { findLinkedRoute, restoreDraftLinkState, shouldHandleAppLink } from "./appLinking";
 
 describe("shouldHandleAppLink", () => {
   it.each(["supaterm://", "supaterm:///", "supaterm-dev://", "supaterm-preview://"])(
@@ -63,5 +63,30 @@ describe("draft deep links", () => {
     expect(restoreDraftLinkState(state, "/threads/env-1/thread-1")).toBe(state);
     expect(restoreDraftLinkState(state, "/new")).toBe(state);
     expect(restoreDraftLinkState(undefined, "/new/draft")).toBeUndefined();
+  });
+});
+
+describe("nested link routes", () => {
+  const settingsLink = {
+    routes: [
+      { name: "Home" },
+      {
+        name: "SettingsSheet",
+        state: {
+          routes: [
+            { name: "Settings" },
+            { name: "SettingsEnvironmentNew", params: { pairingUrl: "x", autoConnect: "1" } },
+          ],
+        },
+      },
+    ],
+  };
+
+  it("finds a route the link opens inside a nested navigator", () => {
+    expect(findLinkedRoute(settingsLink, ["SettingsEnvironmentNew"])?.params).toEqual({
+      pairingUrl: "x",
+      autoConnect: "1",
+    });
+    expect(findLinkedRoute(settingsLink, ["ConnectionsNew"])).toBeUndefined();
   });
 });
