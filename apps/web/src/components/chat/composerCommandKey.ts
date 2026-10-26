@@ -1,6 +1,6 @@
 import type { PreviewAnnotationPayload } from "@supaterm/contracts";
 import type { ComposerTrigger } from "@supaterm/shared/composerTrigger";
-import { type Dispatch, type RefObject, type SetStateAction, useLayoutEffect, useRef } from "react";
+import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import type { ChatComposerProps } from "./ChatComposer";
 import {
@@ -27,9 +27,10 @@ import type { ReviewCommentContext } from "../../reviewCommentContext";
 /**
  * The composer's key handling inside the editor: send shortcuts, the slash/mention menu,
  * Escape cancelling a queued-message edit, ArrowUp editing the latest queued message before
- * prompt history, and list continuation.
+ * prompt history, and list continuation. The returned handlers read the inputs captured by the
+ * render that built them.
  */
-export function useComposerCommandKey(input: {
+export function composerCommandKeyHandler(input: {
   readonly keybindings: ChatComposerProps["keybindings"];
   readonly sendShortcut: ChatComposerProps["settings"]["sendShortcut"];
   readonly routeKind: ChatComposerProps["routeKind"];
@@ -123,13 +124,6 @@ export function useComposerCommandKey(input: {
     onEditLatestQueuedMessage,
     onCancelQueuedMessageEdit,
   } = input;
-  // Entries are built on the keypress, not per render: the timeline changes
-  // on every streamed delta and ArrowUp is rare.
-  const promptHistoryMessagesRef = useRef(promptHistoryMessages);
-  useLayoutEffect(() => {
-    promptHistoryMessagesRef.current = promptHistoryMessages;
-  });
-
   // The composer persists across threads. A recall from thread A must not
   // be treated as active in thread B, where the text-match fallback could
   // otherwise turn B's own draft into a browsing position.
@@ -180,7 +174,8 @@ export function useComposerCommandKey(input: {
     }
     const step = stepComposerPromptHistory({
       direction,
-      entries: buildComposerPromptHistoryEntries(promptHistoryMessagesRef.current),
+      // Built on the keypress, not per render: the timeline changes on every streamed delta.
+      entries: buildComposerPromptHistoryEntries(promptHistoryMessages),
       position,
       currentPrompt: promptRef.current,
     });
