@@ -210,7 +210,6 @@ export function PullRequestsPage() {
           ...renderedPullRequestSurface,
           projectId: renderedPullRequestSurface.projectId as ProjectId,
         },
-    null,
   );
   const updateSearch = (patch: {
     [Key in keyof PullRequestsSearch]?: PullRequestsSearch[Key] | undefined;
