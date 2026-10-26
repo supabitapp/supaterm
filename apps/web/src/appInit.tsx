@@ -14,6 +14,7 @@ import { startMainAppLocationTracking } from "./components/sidebar/mainAppLocati
 import { startDesktopUpdateLaunchNotice } from "./components/sidebar/updateEverythingRun";
 import { startThreadNotifications } from "./components/ThreadNotificationCoordinator";
 import { APP_DISPLAY_NAME } from "./branding";
+import { startGuideRunNotifications } from "./components/pullRequest/guide/PullRequestGuideRunCoordinator";
 import { isElectron } from "./env";
 import { useComposerDraftStore } from "./composerDraftStore";
 import { startDefaultThemeAdoption } from "./hooks/useDefaultTheme";
@@ -133,6 +134,7 @@ export function startAppServices(): AppRouter {
 
   startHostFreezeToasts();
   startThreadNotifications(appAtomRegistry, router);
+  startGuideRunNotifications(appAtomRegistry, router);
   if (isElectron) startDesktopUpdateLaunchNotice();
 
   return router;

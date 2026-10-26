@@ -1539,6 +1539,7 @@ export function PullRequestsPage() {
                     ) ?? null
                   }
                   refreshToken={detailRefreshToken}
+                  tabOnPage
                   onActed={(action, phase = "done") => {
                     // State-only actions are written onto the row as sent and taken back if the
                     // host refuses; the rest need fresh reads once done. Look in every held row,
