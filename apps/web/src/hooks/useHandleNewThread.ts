@@ -4,7 +4,7 @@ import {
   scopeThreadRef,
 } from "@supaterm/client-runtime/environment";
 import { DEFAULT_SERVER_SETTINGS, type ScopedProjectRef, type ThreadId } from "@supaterm/contracts";
-import { useRouter } from "@tanstack/react-router";
+import { type AnyRouter, useRouter } from "@tanstack/react-router";
 import {
   composerDraftHasUserContent,
   markPromotedDraftThreadByRef,
@@ -39,7 +39,7 @@ import { appAtomRegistry } from "../rpc/atomRegistry";
 import { environmentServerConfigsAtom } from "../state/server";
 import { resolveThreadRouteTarget } from "../threadRoutes";
 import { useUiStateStore } from "../uiStateStore";
-import { useClientSettings } from "./useSettings";
+import { getClientSettings } from "./useSettings";
 import { useThreadRouteTarget } from "./useThreadRouteTarget";
 import { resolveProjectDefaultProviderModelSelection } from "../providerInstances";
 import { resolveNewThreadModelSelection } from "@supaterm/shared/usageLimits";
@@ -61,8 +61,12 @@ function pickExplicitWorkspaceOptions(options: NewThreadWorkspaceOptions | undef
 }
 
 export function useNewThreadHandler() {
-  const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
-  const router = useRouter();
+  return createNewThreadHandler(useRouter());
+}
+
+export type NewThreadHandler = ReturnType<typeof createNewThreadHandler>;
+
+export function createNewThreadHandler(router: AnyRouter) {
   const getCurrentRouteTarget = () => {
     const currentRouteParams = router.state.matches[router.state.matches.length - 1]?.params ?? {};
     return resolveThreadRouteTarget(currentRouteParams);
@@ -81,6 +85,7 @@ export function useNewThreadHandler() {
     },
   ): Promise<{ draftId: DraftId; threadId: ThreadId } | null> => {
     const projects = readProjects();
+    const projectGroupingSettings = selectProjectGroupingSettings(getClientSettings());
     // Read at call time; status pushes replace the config map and would recreate every sidebar handler.
     const environmentServerConfigs = appAtomRegistry.get(environmentServerConfigsAtom);
     const targetServerSettings =
@@ -369,7 +374,7 @@ export function useNewThreadHandler() {
 }
 
 /** The first project in the user's sidebar order, where a new thread lands without other context. */
-function firstOrderedProjectRef(
+export function resolveDefaultProjectRef(
   projects: ReturnType<typeof readProjects>,
   projectOrder: readonly string[],
 ): ScopedProjectRef | null {
@@ -381,35 +386,45 @@ function firstOrderedProjectRef(
   return first ? scopeProjectRef(first.environmentId, first.id) : null;
 }
 
-/**
- * Starts a thread in the project being viewed. Context is read when called,
- * not while rendering, so the callback stays stable for memoized children.
- */
+/** The thread or draft the route shows, read when called. */
+export function readRouteThreadContext(router: AnyRouter) {
+  const params = router.state.matches[router.state.matches.length - 1]?.params ?? {};
+  const routeTarget = resolveThreadRouteTarget(params);
+  const { getDraftSession, getDraftThread } = useComposerDraftStore.getState();
+  return {
+    activeThread:
+      routeTarget?.kind === "server"
+        ? (readThreadShell(routeTarget.threadRef) ?? undefined)
+        : undefined,
+    activeDraftThread:
+      routeTarget?.kind === "server"
+        ? getDraftThread(routeTarget.threadRef)
+        : routeTarget?.kind === "draft"
+          ? getDraftSession(routeTarget.draftId)
+          : null,
+  };
+}
+
+/** Starts a thread in the project being viewed, reading the route and projects when called. */
+export function startNewThreadInCurrentProject(
+  router: AnyRouter,
+  handleNewThread: NewThreadHandler,
+) {
+  return startNewThreadFromContext({
+    ...readRouteThreadContext(router),
+    defaultProjectRef: resolveDefaultProjectRef(
+      readProjects(),
+      useUiStateStore.getState().projectOrder,
+    ),
+    handleNewThread,
+  });
+}
+
+/** Context is read when called, not while rendering, so the callback stays stable for memoized children. */
 export function useStartNewThreadInCurrentProject() {
   const router = useRouter();
   const handleNewThread = useNewThreadHandler();
-  return () => {
-    const params = router.state.matches[router.state.matches.length - 1]?.params ?? {};
-    const routeTarget = resolveThreadRouteTarget(params);
-    const { getDraftSession, getDraftThread } = useComposerDraftStore.getState();
-    return startNewThreadFromContext({
-      activeThread:
-        routeTarget?.kind === "server"
-          ? (readThreadShell(routeTarget.threadRef) ?? undefined)
-          : undefined,
-      activeDraftThread:
-        routeTarget?.kind === "server"
-          ? getDraftThread(routeTarget.threadRef)
-          : routeTarget?.kind === "draft"
-            ? getDraftSession(routeTarget.draftId)
-            : null,
-      defaultProjectRef: firstOrderedProjectRef(
-        readProjects(),
-        useUiStateStore.getState().projectOrder,
-      ),
-      handleNewThread,
-    });
-  };
+  return () => startNewThreadInCurrentProject(router, handleNewThread);
 }
 
 export function useHandleNewThread() {
@@ -428,7 +443,7 @@ export function useHandleNewThread() {
   );
   const projects = useProjects();
   const handleNewThread = useNewThreadHandler();
-  const defaultProjectRef = firstOrderedProjectRef(projects, projectOrder);
+  const defaultProjectRef = resolveDefaultProjectRef(projects, projectOrder);
 
   return {
     activeDraftThread,
