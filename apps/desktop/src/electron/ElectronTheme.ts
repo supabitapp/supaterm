@@ -45,15 +45,16 @@ export const make = ElectronTheme.of({
   prefersReducedMotion: Effect.sync(
     () => Electron.systemPreferences.getAnimationSettings().prefersReducedMotion,
   ),
-  setSource: (theme) =>
-    Effect.try({
+  setSource: Effect.fn("ElectronTheme.setSource")(function (theme) {
+    return Effect.try({
       try: () => {
         Electron.nativeTheme.themeSource = theme;
       },
       catch: (cause) => new ElectronThemeSetSourceError({ source: theme, cause }),
-    }),
-  onUpdated: (listener) =>
-    Effect.acquireRelease(
+    });
+  }),
+  onUpdated: Effect.fn("ElectronTheme.onUpdated")(function (listener) {
+    return Effect.acquireRelease(
       Effect.suspend(() => {
         Electron.nativeTheme.on("updated", listener);
         return Effect.void;
@@ -63,7 +64,8 @@ export const make = ElectronTheme.of({
           Electron.nativeTheme.removeListener("updated", listener);
           return Effect.void;
         }),
-    ),
+    );
+  }),
 });
 
 export const layer = Layer.succeed(ElectronTheme, make);

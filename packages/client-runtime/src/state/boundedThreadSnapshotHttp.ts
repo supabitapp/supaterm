@@ -58,7 +58,10 @@ export const layer: Layer.Layer<
   Effect.gen(function* () {
     const httpClient = yield* HttpClient.HttpClient;
     return ThreadSnapshotLoader.ThreadSnapshotLoader.of({
-      load: (prepared: PreparedConnection, threadId: ThreadId) => {
+      load: Effect.fn("ThreadSnapshotLoader.load")(function (
+        prepared: PreparedConnection,
+        threadId: ThreadId,
+      ) {
         return fetchEnvironmentBoundedThreadSnapshot({
           prepared,
           threadId,
@@ -99,7 +102,7 @@ export const layer: Layer.Layer<
             ),
           ),
         );
-      },
+      }),
     });
   }),
 );

@@ -339,7 +339,9 @@ export const make = Effect.gen(function* () {
 
   return ConnectionDriver.of({
     connect,
-    checkRoute: (entry, route) => Effect.scoped(checkRoute(entry, route, ROUTE_CHECK_TIMEOUT_MS)),
+    checkRoute: Effect.fn("ConnectionDriver.checkRoute")(function (entry, route) {
+      return Effect.scoped(checkRoute(entry, route, ROUTE_CHECK_TIMEOUT_MS));
+    }),
     preflight,
   });
 });

@@ -55,8 +55,8 @@ export const make = Effect.fn("DesktopOpenEvents.make")(function* (isDevelopment
     receive({ type: "second-instance", argv });
   });
   return DesktopOpenEvents.of({
-    subscribe: (listener) =>
-      Effect.acquireRelease(
+    subscribe: Effect.fn("DesktopOpenEvents.subscribe")(function (listener) {
+      return Effect.acquireRelease(
         Effect.sync(() => {
           receiver = listener;
           for (const event of pending.splice(0)) listener(event);
@@ -65,7 +65,8 @@ export const make = Effect.fn("DesktopOpenEvents.make")(function* (isDevelopment
           Effect.sync(() => {
             if (receiver === listener) receiver = undefined;
           }),
-      ).pipe(Effect.asVoid),
+      ).pipe(Effect.asVoid);
+    }),
   });
 });
 

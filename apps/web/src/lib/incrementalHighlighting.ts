@@ -8,11 +8,16 @@ import {
   type ThemedToken,
 } from "@pierre/diffs";
 
+export interface HighlightedDocument {
+  type: "root";
+  children: Array<ReturnType<typeof createHastElement>>;
+}
+
 function highlightedDocument(
   highlighter: DiffsHighlighter,
   themeName: DiffsThemeNames,
   children: ReturnType<typeof renderTokenLines>,
-) {
+): HighlightedDocument {
   const theme = highlighter.getTheme(themeName);
   return {
     type: "root" as const,
@@ -29,8 +34,6 @@ function highlightedDocument(
     ],
   };
 }
-
-export type HighlightedDocument = ReturnType<typeof highlightedDocument>;
 
 export function highlightCodeDocument(
   highlighter: DiffsHighlighter,

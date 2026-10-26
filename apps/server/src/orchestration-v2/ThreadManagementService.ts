@@ -1108,12 +1108,13 @@ const make = Effect.gen(function* () {
     getThreadHistoryPage: orchestrator.getThreadHistoryPage,
     getTimelinePage: orchestrator.getTimelinePage,
     getMessageCount: orchestrator.getMessageCount,
-    getTurnItem: (input) =>
-      orchestrator
+    getTurnItem: Effect.fn("ThreadManagementService.getTurnItem")(function (input) {
+      return orchestrator
         .getTurnItem(input)
         .pipe(
           Effect.map((item) => ({ item: item === null ? null : projectTurnItemForDetail(item) })),
-        ),
+        );
+    }),
     getThreadRecords: orchestrator.getThreadRecords,
     getThreadProjection,
     getCheckpointContext: orchestrator.getCheckpointContext,

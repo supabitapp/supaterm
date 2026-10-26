@@ -814,7 +814,7 @@ export function createServerEnvironmentAtoms<R, E>(
     label: "environment-data:server:update-server",
     scheduler: updateScheduler,
     concurrency: configConcurrency,
-    execute: (target, atomRegistry) => {
+    execute: Effect.fn("ServerUpdate.updateServer")(function (target, atomRegistry) {
       const stateAtom = serverUpdateStateAtom(target.environmentId);
       let targetVersion = target.input.targetVersion;
       let fromVersion =
@@ -1036,7 +1036,7 @@ export function createServerEnvironmentAtoms<R, E>(
           }),
         ),
       );
-    },
+    }),
   });
   const settingsValueAtom = Atom.family((environmentId: EnvironmentId) =>
     Atom.make((get) => get(configValueAtom(environmentId))?.settings ?? null).pipe(

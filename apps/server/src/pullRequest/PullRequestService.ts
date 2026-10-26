@@ -3770,10 +3770,13 @@ export const make = Effect.gen(function* () {
     withRoutingCredential,
     list,
     filterOptions,
-    listStats: (input) =>
-      Effect.forEach(input.refs, (ref) => canonicalRef(ref).pipe(Effect.option)).pipe(
-        Effect.flatMap((refs) => listStats({ ...input, refs: refs.flatMap(Option.toArray) })),
-      ),
+    // The local operation owns the span; this wrapper only canonicalizes refs.
+    listStats: Effect.fnUntraced(function* (input) {
+      const refs = yield* Effect.forEach(input.refs, (ref) =>
+        canonicalRef(ref).pipe(Effect.option),
+      );
+      return yield* listStats({ ...input, refs: refs.flatMap(Option.toArray) });
+    }),
     summary: credentialCached(summary),
     stack: credentialCached(stack),
     subscribeMerges: PubSub.subscribe(mergedPullRequests).pipe(
@@ -3789,7 +3792,7 @@ export const make = Effect.gen(function* () {
     refreshAfterTurn,
     detail: credentialCached(detail),
     checks: credentialCached((input) => Cache.get(checksCache, refCacheKey(input))),
-    workflowRun: (input, options) => {
+    workflowRun: Effect.fn("PullRequestService.workflowRun")(function (input, options) {
       const key = JSON.stringify({
         projectId: input.projectId,
         host: input.host?.toLowerCase(),
@@ -3801,7 +3804,7 @@ export const make = Effect.gen(function* () {
             Effect.andThen(Cache.get(workflowRunCache, key)),
           )
         : Cache.get(workflowRunCache, key);
-    },
+    }),
     watchFingerprint: credentialCached((input) =>
       Cache.get(watchFingerprintCache, refCacheKey(input)),
     ),

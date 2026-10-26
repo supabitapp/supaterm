@@ -83,19 +83,19 @@ export const IsExecutable = Context.Reference<boolean>(
 export const Addresses = Context.Reference<Effect.Effect<ReadonlySet<string>>>(
   "@supaterm/shared/HostProcess/Addresses",
   {
-    defaultValue: () =>
-      Effect.gen(function* () {
-        const interfaces = Object.values(NodeOS.networkInterfaces())
-          .flat()
-          .flatMap((entry) => (entry ? [entry.address] : []));
-        const resolved = yield* Effect.tryPromise(() =>
-          NodeDns.promises.lookup(NodeOS.hostname(), { all: true }),
-        ).pipe(
-          Effect.map((entries) => entries.map((entry) => entry.address)),
-          Effect.orElseSucceed(() => [] as ReadonlyArray<string>),
-        );
-        return new Set([...interfaces, ...resolved]);
-      }),
+    // The enclosing operation owns the span for this inline handler.
+    defaultValue: Effect.fnUntraced(function* () {
+      const interfaces = Object.values(NodeOS.networkInterfaces())
+        .flat()
+        .flatMap((entry) => (entry ? [entry.address] : []));
+      const resolved = yield* Effect.tryPromise(() =>
+        NodeDns.promises.lookup(NodeOS.hostname(), { all: true }),
+      ).pipe(
+        Effect.map((entries) => entries.map((entry) => entry.address)),
+        Effect.orElseSucceed(() => [] as ReadonlyArray<string>),
+      );
+      return new Set([...interfaces, ...resolved]);
+    }),
   },
 );
 

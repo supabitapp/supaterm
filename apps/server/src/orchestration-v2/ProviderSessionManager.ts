@@ -1008,50 +1008,50 @@ export const layerWithOptions = (
           ([entry, releasedAt]) =>
             Option.match(entry, {
               onNone: () => Effect.void,
-              onSome: (entry) =>
-                Effect.gen(function* () {
-                  const releasedBackgroundTasks = yield* readReleasedBackgroundTasks({
+              // The enclosing operation owns the span for this inline handler.
+              onSome: Effect.fnUntraced(function* (entry) {
+                const releasedBackgroundTasks = yield* readReleasedBackgroundTasks({
+                  entry,
+                  reason: input.reason,
+                  ...(input.detachedThreadId === undefined
+                    ? {}
+                    : { detachedThreadId: input.detachedThreadId }),
+                });
+                if (input.cancelIdleFiber !== false) {
+                  yield* cancelIdleFiber(entry.idleFiber);
+                }
+                if (input.gracefulSubscribers === true) {
+                  yield* endSubscribers(entry);
+                } else if (input.reason === "server_shutdown") {
+                  yield* interruptSubscribers(entry);
+                } else {
+                  yield* failSubscribers(
                     entry,
-                    reason: input.reason,
-                    ...(input.detachedThreadId === undefined
-                      ? {}
-                      : { detachedThreadId: input.detachedThreadId }),
-                  });
-                  if (input.cancelIdleFiber !== false) {
-                    yield* cancelIdleFiber(entry.idleFiber);
-                  }
-                  if (input.gracefulSubscribers === true) {
-                    yield* endSubscribers(entry);
-                  } else if (input.reason === "server_shutdown") {
-                    yield* interruptSubscribers(entry);
-                  } else {
-                    yield* failSubscribers(
-                      entry,
-                      input.detail ?? `Provider session released: ${input.reason}.`,
-                    );
-                  }
-                  const closeExit = yield* closeScopeWithin(entry.scope, {
-                    providerSessionId: input.providerSessionId,
-                    reason: input.reason,
-                  });
-                  const records = {
-                    entry,
-                    reason: input.reason,
-                    ...(input.detail === undefined ? {} : { detail: input.detail }),
-                    releasedBackgroundTasks,
-                    releasedAt,
-                  };
-                  const recorded = yield* Effect.exit(
-                    writeReleaseRecords({ ...records, replaced: false }),
+                    input.detail ?? `Provider session released: ${input.reason}.`,
                   );
-                  if (Exit.isFailure(recorded)) {
-                    yield* retryReleaseRecords(records);
-                    return yield* recorded;
-                  }
-                  if (Option.isSome(closeExit) && Exit.isFailure(closeExit.value)) {
-                    return yield* Effect.failCause(closeExit.value.cause);
-                  }
-                }),
+                }
+                const closeExit = yield* closeScopeWithin(entry.scope, {
+                  providerSessionId: input.providerSessionId,
+                  reason: input.reason,
+                });
+                const records = {
+                  entry,
+                  reason: input.reason,
+                  ...(input.detail === undefined ? {} : { detail: input.detail }),
+                  releasedBackgroundTasks,
+                  releasedAt,
+                };
+                const recorded = yield* Effect.exit(
+                  writeReleaseRecords({ ...records, replaced: false }),
+                );
+                if (Exit.isFailure(recorded)) {
+                  yield* retryReleaseRecords(records);
+                  return yield* recorded;
+                }
+                if (Option.isSome(closeExit) && Exit.isFailure(closeExit.value)) {
+                  return yield* Effect.failCause(closeExit.value.cause);
+                }
+              }),
             }),
           ([entry]) =>
             Option.match(entry, {
