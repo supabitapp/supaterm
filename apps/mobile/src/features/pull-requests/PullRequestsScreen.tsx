@@ -3,9 +3,7 @@ import {
   applyPullRequestDraftFilterChange,
   parsePullRequestQuery,
 } from "@supaterm/client-runtime/pull-request-query";
-import { WorkspaceDock } from "../workspace/WorkspaceDock";
 import { WorkspaceHeaderActions } from "../workspace/WorkspaceHeaderActions";
-import { useAdaptiveWorkspaceLayout } from "../layout/adaptiveWorkspaceContext";
 import { LegendList, type LegendListRef } from "@legendapp/list/react-native";
 import { useNavigation } from "@react-navigation/native";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -38,6 +36,7 @@ import { createPullRequestListFilterMenu } from "./pullRequestListFilterMenu";
 import { usePullRequestList } from "./usePullRequestList";
 import { usePullRequestListControls } from "./usePullRequestListControls";
 import { usePullRequestListActions } from "./usePullRequestListActions";
+import { usePublishPullRequestFilterMenu } from "./PullRequestFilterMenuContext";
 import {
   filterPullRequestList,
   pullRequestListFacets,
@@ -95,7 +94,6 @@ export function PullRequestsScreen(
     readonly selectedPullRequestKey?: string | null;
   } = {},
 ) {
-  const { startNewTask } = useAdaptiveWorkspaceLayout();
   const navigation = useNavigation();
   const primaryColumn = use(NativePrimaryColumnContext);
   const workspace = useWorkspaceTabs()!;
@@ -283,6 +281,7 @@ export function PullRequestsScreen(
       });
     },
   };
+  usePublishPullRequestFilterMenu(Platform.OS === "android" ? headerFilterMenu : null);
   return (
     <View className={sidebar ? "flex-1 bg-drawer" : "flex-1 bg-screen"}>
       <LegendList
@@ -412,15 +411,7 @@ export function PullRequestsScreen(
           )
         }
       />
-      {Platform.OS === "ios" ? (
-        <WorkspaceHeaderActions filterMenu={headerFilterMenu} />
-      ) : (
-        <WorkspaceDock
-          showTabs={!props.sidebar}
-          onNewTask={startNewTask}
-          filterMenu={headerFilterMenu}
-        />
-      )}
+      {Platform.OS === "ios" ? <WorkspaceHeaderActions filterMenu={headerFilterMenu} /> : null}
     </View>
   );
 }

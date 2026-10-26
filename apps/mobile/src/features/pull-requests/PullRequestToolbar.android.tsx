@@ -11,6 +11,8 @@ import { WorkspaceConnectionTitle } from "../home/WorkspaceConnectionTitle";
 import { useHardwareKeyboardCommand } from "../keyboard/hardwareKeyboardCommands";
 import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
 import { useWorkspaceListNavigation } from "../workspace/useAndroidWorkspaceNavigation";
+import { WorkspaceFilterButton } from "../workspace/WorkspaceFilterButton";
+import { usePullRequestFilterMenu } from "./PullRequestFilterMenuContext";
 
 /** PR search shares the thread list's native Android header placement. */
 export function PullRequestToolbar(props: {
@@ -19,6 +21,7 @@ export function PullRequestToolbar(props: {
 }) {
   const navigation = useNavigation();
   const workspace = useWorkspaceTabs()!;
+  const filterMenu = usePullRequestFilterMenu();
   const { dispatch, getScrollOffset, recordScrollOffset, isTabActive } = workspace;
   const homeFocused = useNavigationState((state) => state.routes[state.index]?.name === "Home");
   const listFocused = homeFocused && workspace.state.selectedTab === "pullRequests";
@@ -118,16 +121,24 @@ export function PullRequestToolbar(props: {
                 icon: "magnifyingglass",
                 onPress: openSearch,
               },
-              {
-                accessibilityLabel: "Open settings",
-                icon: "gearshape",
-                onPress: () =>
-                  navigation.navigate("SettingsSheet", {
-                    screen: "SettingsContent",
-                    params: { screen: "Settings" },
-                  }),
-              },
             ]
+      }
+      trailing={
+        searching ? undefined : (
+          <>
+            {filterMenu ? <WorkspaceFilterButton {...filterMenu} /> : null}
+            <AndroidHeaderIconButton
+              accessibilityLabel="Open settings"
+              icon="gearshape"
+              onPress={() =>
+                navigation.navigate("SettingsSheet", {
+                  screen: "SettingsContent",
+                  params: { screen: "Settings" },
+                })
+              }
+            />
+          </>
+        )
       }
     />
   );

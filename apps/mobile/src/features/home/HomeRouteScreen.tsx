@@ -213,10 +213,7 @@ export function HomeRouteScreen() {
   }
 
   return (
-    <AndroidHomeFabLayout
-      disabled={workspace !== null && !layout.usesSplitView}
-      onStartNewTask={startNewTask}
-    >
+    <AndroidHomeFabLayout onStartNewTask={startNewTask}>
       <>
         {/* Restore the header after leaving split view; screen options are
             shallow-merged. Connection status appears beneath the brand
@@ -240,7 +237,6 @@ export function HomeRouteScreen() {
         )}
         <HomeHeader
           {...threadListFilters}
-          usesWorkspaceToolbar={workspace !== null}
           searchQuery={searchQuery}
           onOpenEnvironments={() =>
             navigation.navigate("SettingsSheet", {
@@ -255,7 +251,6 @@ export function HomeRouteScreen() {
             })
           }
           onSearchQueryChange={setSearchQuery}
-          onStartNewTask={startNewTask}
         />
 
         <HomeScreen
