@@ -1,5 +1,5 @@
 import { findThreadSearchOccurrences } from "@supaterm/shared/threadSearch";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import { THREAD_FIND_BLOCK_TAGS } from "@supaterm/shared/threadFindText";
 
 const THREAD_FIND_HIGHLIGHT_NAME = "supaterm-thread-find";
@@ -120,14 +120,12 @@ export function useThreadFindHighlights(input: {
 
   const rangesRef = useRef<readonly ThreadFindRange[]>([]);
   const paintRef = useRef<ReturnType<typeof makeThreadFindHighlightPainter> | null>(null);
-  const selectionRef = useRef({ activeRowId, activeOccurrence, onActiveRange });
-  useLayoutEffect(() => {
-    selectionRef.current = { activeRowId, activeOccurrence, onActiveRange };
-  }, [activeRowId, activeOccurrence, onActiveRange]);
+  // The observer repaints with whichever match is selected when text changes.
+  const readSelection = useEffectEvent(() => ({ activeRowId, activeOccurrence, onActiveRange }));
 
   useEffect(() => {
     if (typeof CSS === "undefined" || !CSS.highlights || typeof Highlight === "undefined") {
-      selectionRef.current.onActiveRange(null);
+      readSelection().onActiveRange(null);
       return;
     }
     const clearHighlights = () => {
@@ -136,7 +134,7 @@ export function useThreadFindHighlights(input: {
     };
     rangesRef.current = [];
     if (!container || query.length === 0) {
-      selectionRef.current.onActiveRange(null);
+      readSelection().onActiveRange(null);
       clearHighlights();
       return;
     }
@@ -162,7 +160,7 @@ export function useThreadFindHighlights(input: {
       }
       for (const row of cache.keys()) if (!rows.has(row)) cache.delete(row);
       rangesRef.current = ranges;
-      paint(ranges, selectionRef.current);
+      paint(ranges, readSelection());
     };
     let frame: number | null = null;
     const observer = new MutationObserver((mutations) => {
@@ -208,9 +206,15 @@ export function useThreadFindHighlights(input: {
     };
   }, [container, query]);
 
+  // onActiveRange is read at paint time: its identity follows the caller's
+  // layout inputs, and repainting the active highlight for those is wasted work.
   useEffect(() => {
-    paintRef.current?.(rangesRef.current, { activeRowId, activeOccurrence, onActiveRange });
-  }, [activeOccurrence, activeRowId, onActiveRange]);
+    paintRef.current?.(rangesRef.current, {
+      activeRowId,
+      activeOccurrence,
+      onActiveRange: readSelection().onActiveRange,
+    });
+  }, [activeOccurrence, activeRowId]);
 }
 
 function makeThreadFindHighlightPainter(container: HTMLElement) {

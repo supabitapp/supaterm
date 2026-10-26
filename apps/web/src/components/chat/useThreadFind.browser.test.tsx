@@ -10,7 +10,9 @@ import {
 import { act, fakeTimers, render } from "../../../test/render";
 import { useThreadFind } from "./useThreadFind";
 import { orchestrationEnvironment } from "~/state/orchestration";
-import { requestThreadFindOpen } from "./threadFindActionBus";
+import { scopedThreadKey } from "@supaterm/client-runtime/environment";
+import type { ThreadFindPositionReader } from "./threadFind";
+import { attachThreadFindTimeline, closeThreadFind, openThreadFind } from "./threadFindStore";
 
 const queries = vi.hoisted(() => ({
   results: new Map<string, OrchestrationV2SearchThreadResult>(),
@@ -49,6 +51,8 @@ vi.mock("~/state/query", () => ({
 vi.mock("../ui/toast", () => ({ toastManager: { add: vi.fn() } }));
 
 let find: ReturnType<typeof useThreadFind>;
+let shownThreadKey = "";
+let readPosition: ThreadFindPositionReader | null = null;
 const a = EnvironmentId.make("environment:a");
 const b = EnvironmentId.make("environment:b");
 const threadId = ThreadId.make("shared-thread");
@@ -67,15 +71,24 @@ function Probe({
     enabled,
     progressive,
   });
+  const threadKey = scopedThreadKey({ environmentId, threadId });
   useLayoutEffect(() => {
     find = state;
+    shownThreadKey = threadKey;
   });
+  useLayoutEffect(
+    () => attachThreadFindTimeline({ threadKey, readPosition: (query) => readPosition?.(query) }),
+    [threadKey],
+  );
   return null;
 }
+const openFind = () => openThreadFind(shownThreadKey);
 function setup() {
   queries.results.clear();
   queries.pending = false;
   threadDetail.content = undefined;
+  readPosition = null;
+  closeThreadFind();
   vi.clearAllMocks();
 }
 
@@ -92,7 +105,7 @@ describe("V2 find state", () => {
   it("reveals an early match and updates its count without requesting another jump", async () => {
     setup();
     await using screen = await render(<Probe environmentId={a} progressive />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("needle"));
     const partial: OrchestrationV2SearchThreadResult = {
       complete: false,
@@ -134,7 +147,7 @@ describe("V2 find state", () => {
     using _timers = fakeTimers();
     queries.pending = true;
     await using screen = await render(<Probe environmentId={a} progressive />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("needle"));
     queries.results.set(a, { ...messageResult(0), complete: false, totalMatches: 1 });
     threadDetail.content = { visibleTurnItems: [], runs: [] };
@@ -163,15 +176,15 @@ describe("V2 find state", () => {
     setup();
     queries.results.set(a, messageResult(0));
     await using _screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
-    find.timelineProps.findPositionReaderRef.current = () => ({
+    await act(async () => openFind());
+    readPosition = () => ({
       entryId: "reading",
       occurrence: 0,
     });
     await act(async () => find.barProps.onQueryChange("COD4"));
     const firstNavigationId = find.timelineProps.findNavigationId;
     const firstMatch = find.timelineProps.activeFindMatch;
-    find.timelineProps.findPositionReaderRef.current = () => ({ entryId: "bottom", occurrence: 0 });
+    readPosition = () => ({ entryId: "bottom", occurrence: 0 });
     await act(async () => find.barProps.onQueryChange("COD4"));
     expect(find.timelineProps.findNavigationId).toBeGreaterThan(firstNavigationId);
     expect(find.timelineProps.activeFindMatch).toEqual(firstMatch);
@@ -180,11 +193,11 @@ describe("V2 find state", () => {
       input: { threadId, query: "COD4", skills: [], start: { entryId: "bottom", occurrence: 0 } },
     });
     const repeatedNavigationId = find.timelineProps.findNavigationId;
-    find.timelineProps.findPositionReaderRef.current = () => ({
+    readPosition = () => ({
       entryId: "new-bottom",
       occurrence: 0,
     });
-    await act(async () => requestThreadFindOpen());
+    await act(async () => openFind());
     expect(find.timelineProps.findNavigationId).toBeGreaterThan(repeatedNavigationId);
     expect(find.timelineProps.activeFindMatch).toEqual(firstMatch);
     expect(orchestrationEnvironment.threadFind).toHaveBeenLastCalledWith({
@@ -211,7 +224,7 @@ describe("V2 find state", () => {
     };
     queries.results.set(a, initial);
     await using _screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("COD4"));
     const requests = vi.mocked(orchestrationEnvironment.threadFind).mock.calls.length;
     await act(async () => {
@@ -244,7 +257,7 @@ describe("V2 find state", () => {
     };
     queries.results.set(a, initial);
     await using screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("COD4"));
     const requests = vi.mocked(orchestrationEnvironment.threadFind).mock.calls.length;
     await act(async () => find.barProps.onNext());
@@ -275,7 +288,7 @@ describe("V2 find state", () => {
     };
     queries.results.set(a, initial);
     await using screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("COD4"));
     await act(async () => find.barProps.onNext());
     expect(find.timelineProps.activeFindMatch?.occurrence).toBe(1);
@@ -317,7 +330,7 @@ describe("V2 find state", () => {
     };
     queries.results.set(a, initial);
     await using screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("COD4"));
     await act(async () => find.barProps.onNext());
     expect(find.timelineProps.activeFindMatch?.entryId).toBe("second");
@@ -356,7 +369,7 @@ describe("V2 find state", () => {
     };
     queries.results.set(a, initial);
     await using screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("COD4"));
     threadDetail.content = { runs: [], visibleTurnItems: [] };
     await screen.rerender(<Probe environmentId={a} />);
@@ -377,8 +390,8 @@ describe("V2 find state", () => {
     setup();
     queries.results.set(a, messageResult(4));
     await using _screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
-    find.timelineProps.findPositionReaderRef.current = () => ({
+    await act(async () => openFind());
+    readPosition = () => ({
       entryId: "message:6",
       occurrence: 1,
     });
@@ -425,7 +438,7 @@ describe("V2 find state", () => {
     setup();
     queries.results.set(a, messageResult(4));
     await using screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("COD4"));
     queries.pending = true;
     queries.results.delete(a);
@@ -454,7 +467,7 @@ describe("V2 find state", () => {
     using _timers = fakeTimers();
     queries.results.set(a, messageResult(4));
     await using screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("COD4"));
     for (let i = 0; i < 3; i++) {
       threadDetail.content = { visibleTurnItems: [], runs: [] };
@@ -497,7 +510,7 @@ describe("V2 find state", () => {
     using _timers = fakeTimers();
     queries.results.set(a, messageResult(4));
     await using screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("COD4"));
     queries.pending = true;
     queries.results.delete(a);
@@ -529,7 +542,7 @@ describe("V2 find state", () => {
     setup();
     queries.results.set(a, messageResult(0));
     await using screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("COD4"));
     queries.pending = true;
     queries.results.delete(a);
@@ -550,8 +563,8 @@ describe("V2 find state", () => {
     setup();
     queries.pending = true;
     await using _screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
-    find.timelineProps.findPositionReaderRef.current = () => ({
+    await act(async () => openFind());
+    readPosition = () => ({
       entryId: "message:6",
       occurrence: 1,
     });
@@ -572,7 +585,7 @@ describe("V2 find state", () => {
     setup();
     queries.pending = true;
     await using screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("COD4"));
     expect(find.barProps.status).toBe("loading");
     queries.pending = false;
@@ -595,30 +608,29 @@ describe("V2 find state", () => {
     setup();
     await using _screen = await render(<Probe environmentId={a} enabled={false} />);
     await act(async () => {
-      find.open();
-      requestThreadFindOpen();
+      openFind();
+      openFind();
     });
-    expect(find.isOpen).toBe(false);
+    expect(find.barProps.open).toBe(false);
     expect(find.timelineProps.activeFindMatch).toBeNull();
     expect(orchestrationEnvironment.threadFind).not.toHaveBeenCalled();
   });
 
-  it("closes search when support disappears without restoring stale queries", async () => {
+  it("hides search while support is gone and shows the same find when it returns", async () => {
     setup();
     await using screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("needle"));
-    expect(find.isOpen).toBe(true);
+    expect(find.barProps.open).toBe(true);
     vi.mocked(orchestrationEnvironment.threadFind).mockClear();
     await screen.rerender(<Probe environmentId={a} enabled={false} />);
-    expect(find.isOpen).toBe(false);
+    expect(find.barProps.open).toBe(false);
     expect(find.timelineProps.activeFindMatch).toBeNull();
     expect(find.timelineProps.findQuery).toBe("");
     expect(orchestrationEnvironment.threadFind).not.toHaveBeenCalled();
     await screen.rerender(<Probe environmentId={a} />);
-    expect(find.isOpen).toBe(false);
-    await act(async () => find.open());
-    expect(find.barProps.query).toBe("");
+    expect(find.barProps.open).toBe(true);
+    expect(find.barProps.query).toBe("needle");
   });
 
   it("preserves plan item ID and run ownership for navigation", async () => {
@@ -631,7 +643,7 @@ describe("V2 find state", () => {
     });
     await using _screen = await render(<Probe environmentId={a} />);
     await act(async () => {
-      find.open();
+      openFind();
     });
     await act(async () => {
       find.barProps.onQueryChange("needle");
@@ -642,7 +654,7 @@ describe("V2 find state", () => {
       occurrence: 0,
     });
     await act(async () => {
-      find.close();
+      closeThreadFind();
     });
     expect(find.timelineProps.activeFindMatch).toBeNull();
     expect(find.timelineProps.findQuery).toBe("");
@@ -664,23 +676,23 @@ describe("V2 find state", () => {
     });
     await using screen = await render(<Probe environmentId={a} />);
     await act(async () => {
-      find.open();
+      openFind();
     });
     await act(async () => {
       find.barProps.onQueryChange("needle");
     });
     expect(find.barProps.matchCount).toBe(3);
     await screen.rerender(<Probe environmentId={b} />);
-    expect(find.isOpen).toBe(false);
+    expect(find.barProps.open).toBe(false);
     expect(find.timelineProps.activeFindMatch).toBeNull();
     await act(async () => {
-      find.open();
+      openFind();
     });
     await act(async () => {
       find.barProps.onQueryChange("needle");
     });
     expect(find.barProps.matchCount).toBe(0);
     await screen.rerender(<Probe environmentId={a} />);
-    expect(find.isOpen).toBe(false);
+    expect(find.barProps.open).toBe(false);
   });
 });

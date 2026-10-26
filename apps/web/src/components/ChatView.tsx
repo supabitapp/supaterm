@@ -8,7 +8,8 @@ import {
   type WebPendingThreadCreation,
 } from "../state/pendingThreadCreation";
 import { useThreadOutboxAttachments } from "../state/threadOutboxEditing";
-import { ThreadFind, ThreadFindCanvas, type ThreadFindControls } from "./chat/ThreadFindProvider";
+import { ThreadFind, ThreadFindCanvas } from "./chat/ThreadFindProvider";
+import { closeThreadFind, openThreadFind, useThreadFindOpen } from "./chat/threadFindStore";
 import { THREAD_FIND_BAR_RESERVED_HEIGHT } from "./chat/ThreadFindBar";
 import { usageLimitRecoveryBannerItem } from "./chat/UsageLimitRecoveryBanner";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
@@ -2864,12 +2865,9 @@ export default function ChatView(props: ChatViewProps) {
   const timelineSkills = activeProviderStatus
     ? resolveProviderSkillsForCwd(activeProviderStatus, gitCwd)
     : EMPTY_PROVIDER_SKILLS;
-  const threadFindControlsRef = useRef<ThreadFindControls | null>(null);
-  const [isThreadFindActive, setIsThreadFindActive] = useState(false);
-  const openThreadFind = () => threadFindControlsRef.current?.open();
-  const openThreadFindStable = useStableCallback(openThreadFind);
-  const closeThreadFind = () => threadFindControlsRef.current?.close();
-  const closeThreadFindStable = useStableCallback(closeThreadFind);
+  const threadFindEnabled =
+    isServerThread && serverConfig?.threadFind === true && !paintOnlyDisplayedTimeline;
+  const isThreadFindActive = useThreadFindOpen(activeThreadRef, threadFindEnabled);
 
   const respondToActiveApproval = (decision: "accept" | "decline", repeat: boolean) => {
     const approval = activePendingApproval;
@@ -2894,7 +2892,7 @@ export default function ChatView(props: ChatViewProps) {
       branchPicker: isGitRepo && showDraftProjectPicker,
     },
     closeThreadFind: () => {
-      closeThreadFindStable();
+      closeThreadFind();
       focusComposerStable();
     },
     commands: {
@@ -2923,8 +2921,9 @@ export default function ChatView(props: ChatViewProps) {
         if (!repeat) copyActiveThreadReferenceStable();
       },
       "chat.find": () => {
-        if (!isServerThread || serverConfig?.threadFind !== true) return false;
-        openThreadFindStable();
+        if (!isServerThread || serverConfig?.threadFind !== true || activeThreadKey === null)
+          return false;
+        openThreadFind(activeThreadKey);
       },
       "composer.cycleHost": ({ repeat }) => {
         if (!canChangeEnvironment) return false;
@@ -3447,13 +3446,8 @@ export default function ChatView(props: ChatViewProps) {
                   skills: timelineSkills,
                   progressive: serverConfig?.threadFindProgressive === true,
                   thread: activeThreadRef,
-                  enabled:
-                    isServerThread &&
-                    serverConfig?.threadFind === true &&
-                    !paintOnlyDisplayedTimeline,
+                  enabled: threadFindEnabled,
                 }}
-                controlsRef={threadFindControlsRef}
-                onOpenChange={setIsThreadFindActive}
                 detailsCardTopInset={isThreadFindActive ? THREAD_FIND_BAR_RESERVED_HEIGHT : 0}
                 composerOverlayElement={isDraftHeroState ? null : composerOverlayElement}
                 data-chat-workspace-drop-target="true"

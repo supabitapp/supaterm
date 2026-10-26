@@ -105,7 +105,7 @@ import {
   resolveTimelineMinimapHitStripWidth,
   worktreeSetupAgentStarted,
 } from "./MessagesTimeline.logic";
-import type { ThreadFindPositionReader, ThreadFindMatch } from "./threadFind";
+import type { ThreadFindMatch } from "./threadFind";
 import { useThreadFindNavigation } from "./useThreadFindNavigation";
 import { useTimelineMessageJump } from "./useTimelineMessageJump";
 import type { MessageJump, MessageJumpHandlers } from "@supaterm/client-runtime/message-jump";
@@ -283,7 +283,6 @@ interface MessagesTimelineProps {
   onTogglePinnedMessage?: (projectedItem: PinnableProjectedItem, pinned: boolean) => void;
   messageJump?: MessageJump | null;
   onMessageJumpFailed?: MessageJumpHandlers["fail"];
-  findPositionReaderRef?: React.RefObject<ThreadFindPositionReader | null>;
   findExpanded?: boolean;
   findQuery?: string;
   activeFindMatch?: ThreadFindMatch | null;
@@ -331,7 +330,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
   findQuery = "",
   activeFindMatch = null,
   findNavigationId = 0,
-  findPositionReaderRef,
   latestRun,
   announcedRun = null,
   detailBehindShell = false,
@@ -1054,7 +1052,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   }, [endFollowAllowed]);
 
   useThreadFindPositionReader({
-    findPositionReaderRef,
+    threadKey: listIdentityKey,
     timelineViewportElement,
     findFoldRunIds,
     timelineEntries,
