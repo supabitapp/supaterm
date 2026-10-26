@@ -90,7 +90,7 @@
       "generatedNotices": [
         {
           "licenseId": "MIT",
-          "copyrights": ["Copyright \u00a9 2017 JD"]
+          "copyrights": ["Copyright © 2017 JD"]
         }
       ]
     },
@@ -110,13 +110,13 @@
     {
       "bundles": ["assets", "desktop", "web", "mobile"],
       "license": "MIT",
-      "name": "Ros\u00e9 Pine themes",
+      "name": "Rosé Pine themes",
       "sourceUrl": "https://github.com/rose-pine/vscode",
       "version": "2.15.2",
       "generatedNotices": [
         {
           "licenseId": "MIT",
-          "copyrights": ["Copyright (c) 2021 Ros\u00e9 Pine"]
+          "copyrights": ["Copyright (c) 2021 Rosé Pine"]
         }
       ]
     },
@@ -299,7 +299,7 @@
       "generatedNotices": [
         {
           "licenseId": "Apache-2.0",
-          "copyrights": ["Copyright 2009, 2010, 2013 Andr\u00e9 Berg"]
+          "copyrights": ["Copyright 2009, 2010, 2013 André Berg"]
         }
       ]
     },
@@ -366,8 +366,6 @@
       "bundles": ["desktop", "web"],
       "license": "MIT",
       "name": "Office viewer helpers",
-      "sourceUrl": null,
-      "version": null,
       "noticeFiles": ["apps/web/src/components/files/office/LICENSE.office-helpers"]
     },
     {
