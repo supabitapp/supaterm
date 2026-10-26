@@ -259,7 +259,7 @@ overrides:
   node-pty: 1.2.0-beta.15
   react-native-gesture-handler: 3.3.0
   react-native-reanimated: 4.7.1
-  react-native-keyboard-controller: 1.22.7
+  react-native-keyboard-controller: 1.22.8
   react-native-pdf-jsi: 5.0.0
   react-native-webview: 14.0.1
   '@expo/ui': 58.0.20
@@ -335,7 +335,7 @@ patchedDependencies:
   react-native-enriched-markdown@1.2.0-supacode.18: 5d0c99cb31ca709281dd84465d6135928c8d1aa8ac83b9ba481d6037d9a27c8d
   react-native-gesture-handler@3.3.0: abe20e1d1c23549297cbbc818e14fe479b41455930d9663135d6b40fe359b626
   react-native-image-viewing@0.2.2: 419f35ee91eac88ced9438058281db5eb09d9c799d8974c1172926068c9448cf
-  react-native-keyboard-controller@1.22.7: dcbd9cf0e325531ad50a25722671572210519ad03700f4f43a9cdad9b90e6ed8
+  react-native-keyboard-controller@1.22.8: 8769ce5cc04811a6c798400a8b57c6e92963afbd332bb9c7a500a3f109b9d473
   react-native-pdf-jsi@5.0.0: 6f52854210f61bef499850ebd498229a111bc34ec5b2a4925e644f2f48f42760
   react-native-reanimated@4.7.1: 95ee26e5fcab5f50bc4b4c47b3f7e6278a0b20850205efb9f6ee7e70a22d2b59
   react-native-webview@14.0.1: 81caa279ec3dc1f81209062133b66e8f824e13f106cca57f1fa732a72c2ab378
@@ -704,8 +704,8 @@ importers:
         specifier: 0.2.2
         version: 0.2.2(patch_hash=419f35ee91eac88ced9438058281db5eb09d9c799d8974c1172926068c9448cf)(@types/react-native@0.72.8(react-native@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6)))(@types/react@19.3.0)(react-native@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
       react-native-keyboard-controller:
-        specifier: 1.22.7
-        version: 1.22.7(patch_hash=dcbd9cf0e325531ad50a25722671572210519ad03700f4f43a9cdad9b90e6ed8)(dd97d9f190a7845abfe274be9f3b7bf9)
+        specifier: 1.22.8
+        version: 1.22.8(patch_hash=8769ce5cc04811a6c798400a8b57c6e92963afbd332bb9c7a500a3f109b9d473)(dd97d9f190a7845abfe274be9f3b7bf9)
       react-native-nitro-modules:
         specifier: 0.37.1
         version: 0.37.1(@types/react@19.3.0)(react-native@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
@@ -9806,8 +9806,8 @@ packages:
       react: '*'
       react-native: '*'
 
-  react-native-keyboard-controller@1.22.7:
-    resolution: {integrity: sha512-IBR9z6Nl/iDLRfiv1zN9QQroOXAwYMugeAjVDb+CFbRBNC8fayXlHTBbshVcWc4j95Itsv+1/FgwfxKnIn1Vmg==}
+  react-native-keyboard-controller@1.22.8:
+    resolution: {integrity: sha512-1eJk1bPMyRq+MlKxak1p0tyZ3sOF3KWi4ilVCYm1u7RSGJ4bVXu0Kn6lKzByrc/vH+m0LqWNhGNuUDyOJ/Lwhw==}
     peerDependencies:
       '@types/react': '*'
       react: '*'
@@ -19755,7 +19755,7 @@ snapshots:
       react: 19.3.0
       react-native: 0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6)
 
-  react-native-keyboard-controller@1.22.7(patch_hash=dcbd9cf0e325531ad50a25722671572210519ad03700f4f43a9cdad9b90e6ed8)(dd97d9f190a7845abfe274be9f3b7bf9):
+  react-native-keyboard-controller@1.22.8(patch_hash=8769ce5cc04811a6c798400a8b57c6e92963afbd332bb9c7a500a3f109b9d473)(dd97d9f190a7845abfe274be9f3b7bf9):
     dependencies:
       '@types/react': 19.3.0
       react: 19.3.0
