@@ -346,8 +346,6 @@
   "apps/web/src/components/settings/useSnapShotShortcutRecorder.tsx": 1,
   "apps/web/src/components/sidebar/SidebarProviderUpdatePill.tsx": 2,
   "apps/web/src/components/sidebar/SidebarThreadRow.tsx": 4,
-  "apps/web/src/components/sidebar/SidebarThreadUndoNotice.tsx": 1,
-  "apps/web/src/components/sidebar/SidebarUpdatePill.tsx": 1,
   "apps/web/src/components/ui/resizable.tsx": 4,
   "apps/web/src/components/ui/sidebar.tsx": 1,
   "apps/web/src/components/ui/toast.tsx": 2,
