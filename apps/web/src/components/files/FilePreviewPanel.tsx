@@ -11,7 +11,9 @@ import { AuthFilesystemWriteScope } from "@supaterm/contracts";
 import {
   isWorkspaceAudioPreviewPath,
   isWorkspaceImagePreviewPath,
+  isWorkspaceFontPreviewPath,
   isWorkspaceVideoPreviewPath,
+  officePreviewKind,
 } from "@supaterm/shared/filePreview";
 import { useAtomValue } from "@effect/atom-react";
 import {
@@ -41,7 +43,7 @@ import { mediaFileReference } from "@supaterm/client-runtime/media-reference";
 import { EarthIcon, FolderTreeIcon, WrapTextIcon } from "@supaterm/icons";
 import { CodeXml, Eye, Table } from "@supaterm/icons/nodes";
 import * as Schema from "effect/Schema";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 
 import { isBrowserPreviewFile, openFileInPreview } from "~/browser/openFileInPreview";
 import { useAssetUrlRefresh, useAssetUrlState } from "~/assets/assetUrls";
@@ -140,6 +142,10 @@ interface FilePreviewPanelProps {
   selectedFilePending: boolean;
   workspaceMutationId: string | null;
 }
+
+const MermaidFilePreview = lazy(() =>
+  import("./MermaidFilePreview").then((module) => ({ default: module.MermaidFilePreview })),
+);
 
 const FILE_EXPLORER_STORAGE_KEY = "supaterm.fileExplorerOpen";
 const RENDER_MARKDOWN_STORAGE_KEY = "supaterm.renderMarkdown";
@@ -374,26 +380,32 @@ function WorkspaceAudioPreview(props: {
   );
 }
 
+// Office files and fonts render from the host; other binary files only offer a download.
 function WorkspaceBinaryFilePreview(props: {
   readonly environmentId: EnvironmentId;
   readonly threadRef: ScopedThreadRef;
   readonly absolutePath: string;
   readonly name: string;
+  readonly document: boolean;
+  readonly draftCwd: string | null;
 }) {
   return (
     <AttachmentFilePreview
       name={fileBasename(props.name)}
       mimeType="application/octet-stream"
       sizeBytes={0}
-      kind="unsupported"
+      {...(props.document ? {} : { kind: "unsupported" as const })}
       asset={{
         environmentId: props.environmentId,
-        resource: {
-          _tag: "media-file",
-          threadId: props.threadRef.threadId,
-          path: props.absolutePath,
-          disposition: "attachment",
-        },
+        resource:
+          props.document && props.draftCwd !== null
+            ? { _tag: "draft-workspace-file", cwd: props.draftCwd, path: props.absolutePath }
+            : {
+                _tag: "media-file",
+                threadId: props.threadRef.threadId,
+                path: props.absolutePath,
+                ...(props.document ? {} : { disposition: "attachment" as const }),
+              },
       }}
       origin="File"
     />
@@ -984,7 +996,11 @@ function RenderedMarkdownSurface({
   );
 }
 
-function renderedToggleLabel(mode: "markdown" | "html" | "table", rendered: boolean): string {
+function renderedToggleLabel(
+  mode: "markdown" | "mermaid" | "html" | "table",
+  rendered: boolean,
+): string {
+  if (mode === "mermaid") return rendered ? "Show Mermaid source" : "Show rendered diagram";
   if (mode === "markdown") return rendered ? "Show markdown source" : "Show rendered markdown";
   if (mode === "table") return rendered ? "Show source" : "Show table";
   return rendered ? "Show HTML source" : "Show rendered page";
@@ -1023,6 +1039,7 @@ export default function FilePreviewPanel({
     attachment === undefined ? resolveFilePreviewPath(requestedPath, cwd) : requestedPath;
 
   const draft = typeof composerDraftTarget === "string";
+  const [documentRefreshId, setDocumentRefreshId] = useState(0);
   const { resolvedTheme } = useTheme();
   const wordWrap = useClientSettings((settings) => settings.wordWrap);
   const canOperatePreview = useEnvironmentScope(environmentId, AuthPreviewOperateScope);
@@ -1042,6 +1059,10 @@ export default function FilePreviewPanel({
   const isImage = relativePath !== null && !isVideo && isWorkspaceImagePreviewPath(relativePath);
   const isMedia = isImage || isVideo || isAudio;
   const isPdf = relativePath !== null && isPdfPreviewFile(relativePath);
+  const isDocument =
+    relativePath !== null &&
+    (officePreviewKind({ name: relativePath }) !== null ||
+      isWorkspaceFontPreviewPath(relativePath));
   const isHtml = relativePath !== null && !isPdf && isBrowserPreviewFile(relativePath);
   const isHostFile =
     attachment !== undefined || (relativePath !== null && isHostPath(relativePath));
@@ -1101,35 +1122,54 @@ export default function FilePreviewPanel({
   );
   const breadcrumbRef = useRef<HTMLDivElement>(null);
   const isMarkdown = previewPath ? isMarkdownPreviewFile(previewPath) : false;
+  const isMermaid = previewPath !== null && /\.(mmd|mermaid)$/i.test(previewPath);
+  const [renderMermaidPreferred, setRenderMermaidPreferred] = useLocalStorage(
+    "supaterm.renderMermaid",
+    true,
+    Schema.Boolean,
+  );
   const tableDelimiter =
     previewPath && attachment === undefined ? filePreviewDelimiter({ name: previewPath }) : null;
   const revealHandled =
     revealLine === null ||
     (handledReveal?.path === relativePath && handledReveal.requestId === revealRequestId);
   const renderMarkdown = isMarkdown && renderMarkdownPreferred && revealHandled;
+  const renderMermaid = isMermaid && renderMermaidPreferred && revealHandled;
   const renderBrowserFile = isPdf || (isHtml && renderBrowserFilePreferred && revealHandled);
   const renderTable = tableDelimiter !== null && renderTablePreferred && revealHandled;
-  const renderedMode = isMarkdown
-    ? ("markdown" as const)
-    : tableDelimiter
-      ? ("table" as const)
-      : isHtml
-        ? ("html" as const)
-        : null;
+  const renderedMode = isMermaid
+    ? ("mermaid" as const)
+    : isMarkdown
+      ? ("markdown" as const)
+      : tableDelimiter
+        ? ("table" as const)
+        : isHtml
+          ? ("html" as const)
+          : null;
   const canToggleRendered =
     previewPath !== null && attachment === undefined && renderedMode !== null;
   const showsRawText =
     previewPath !== null &&
     file.data !== null &&
     !(isMarkdown && renderMarkdown) &&
+    !renderMermaid &&
     !(tableDelimiter && renderTable) &&
-    !renderBrowserFile;
-  const rendered = isMarkdown ? renderMarkdown : tableDelimiter ? renderTable : renderBrowserFile;
-  const setRenderedPreferred = isMarkdown
-    ? setRenderMarkdownPreferred
-    : tableDelimiter
-      ? setRenderTablePreferred
-      : setRenderBrowserFilePreferred;
+    !renderBrowserFile &&
+    !isDocument;
+  const rendered = isMermaid
+    ? renderMermaid
+    : isMarkdown
+      ? renderMarkdown
+      : tableDelimiter
+        ? renderTable
+        : renderBrowserFile;
+  const setRenderedPreferred = isMermaid
+    ? setRenderMermaidPreferred
+    : isMarkdown
+      ? setRenderMarkdownPreferred
+      : tableDelimiter
+        ? setRenderTablePreferred
+        : setRenderBrowserFilePreferred;
   const canOpenInBrowser =
     canOperatePreview &&
     previewPath !== null &&
@@ -1156,9 +1196,8 @@ export default function FilePreviewPanel({
     enabled:
       attachment === undefined &&
       relativePath !== null &&
-      // Skip mutation reads for media/PDF files; re-read similarly named folders to detect conversion to
-      // files.
-      (isFolder || (!isMedia && !isPdf)) &&
+      // Skip mutation reads for media and documents; folders still detect conversion to files.
+      (isFolder || (!isMedia && !isPdf && !isDocument)) &&
       !selectedFilePending,
     mutationId: workspaceMutationId,
     refresh: file.refresh,
@@ -1383,13 +1422,21 @@ export default function FilePreviewPanel({
               title={relativePath}
               workspaceMutationId={workspaceMutationId}
             />
-          ) : relativePath && absolutePath && file.readError?.failure === "binary_file" ? (
+          ) : relativePath &&
+            absolutePath &&
+            (isDocument || file.readError?.failure === "binary_file") ? (
             <WorkspaceBinaryFilePreview
-              key={`${environmentId}:${absolutePath}`}
+              key={
+                isDocument
+                  ? `${environmentId}:${absolutePath}:${workspaceMutationId}:${documentRefreshId}`
+                  : `${environmentId}:${absolutePath}`
+              }
               environmentId={environmentId}
               threadRef={threadRef}
               absolutePath={absolutePath}
               name={relativePath}
+              document={isDocument}
+              draftCwd={draft ? cwd : null}
             />
           ) : relativePath && file.error && file.data === null ? (
             <div
@@ -1424,7 +1471,11 @@ export default function FilePreviewPanel({
               <Spinner size="lg" />
             </div>
           ) : relativePath && file.data ? (
-            isMarkdown && renderMarkdown ? (
+            renderMermaid ? (
+              <Suspense fallback={<FileSurfaceLoading />}>
+                <MermaidFilePreview text={file.data.contents} />
+              </Suspense>
+            ) : isMarkdown && renderMarkdown ? (
               <RenderedMarkdownSurface
                 key={relativePath}
                 environmentId={environmentId}
@@ -1493,7 +1544,11 @@ export default function FilePreviewPanel({
               onOpenFile={onOpenFile}
               workspaceMutationId={workspaceMutationId}
               {...(previewPath && !isMedia && !isPdf
-                ? { onRefreshSelectedFile: file.refresh }
+                ? {
+                    onRefreshSelectedFile: isDocument
+                      ? () => setDocumentRefreshId((revision) => revision + 1)
+                      : file.refresh,
+                  }
                 : {})}
             />
           </aside>
