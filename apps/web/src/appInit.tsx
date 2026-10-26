@@ -7,6 +7,8 @@ import { applyAppearanceFontVariables } from "./appearanceFonts";
 import { startElectronBrowserHost } from "./browser/ElectronBrowserHost";
 import { useChatPaneStore } from "./chatPanes/store";
 import { retainThreadOverlaysFor } from "./components/chat/threadOverlayRetention";
+import { startBrowserProfileReporting } from "./browser/BrowserProfileReporter";
+import { startPreviewTitleRecording } from "./browserHistoryStore";
 import { startBackgroundThreadAnnouncements } from "./components/BackgroundThreadAnnouncer";
 import { startSshPasswordPromptQueue } from "./components/desktop/SshPasswordPromptDialog";
 import { startHostFreezeToasts } from "./components/HostFreezeToastCoordinator";
@@ -149,6 +151,8 @@ export function startAppServices(): AppRouter {
   startDefaultThemeAdoption();
   startAgentOpenedPreviews();
   if (isElectron) startElectronBrowserHost();
+  startPreviewTitleRecording();
+  startBrowserProfileReporting();
   startThreadOverlayRetention(router);
   startMainAppLocationTracking(router);
   startBackgroundThreadAnnouncements(appAtomRegistry, router);
