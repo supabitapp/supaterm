@@ -237,7 +237,7 @@ it.effect("resends the snapshot only when the tunnel endpoints change", () =>
       Stream.empty,
       {
         resolveAvailableEditors: () => Effect.succeed([]),
-        resolveFileManagerRevealKind: () => Effect.succeed(undefined),
+        resolveFileManagerRevealKind: () => Effect.undefined,
       },
       Stream.make(Option.none(), Option.some(endpoints), Option.some(endpoints), Option.none()),
     ).pipe(Stream.runCollect);
@@ -262,7 +262,7 @@ it.effect.each([relayAdvertisement, null])(
         Stream.make({ version: 1, type: "relayAdvertisementUpdated", payload }),
         {
           resolveAvailableEditors: () => Deferred.await(sent).pipe(Effect.as(["file-manager"])),
-          resolveFileManagerRevealKind: () => Effect.succeed(undefined),
+          resolveFileManagerRevealKind: () => Effect.undefined,
         },
         Stream.empty,
       ).pipe(
@@ -612,6 +612,7 @@ it.effect(
               Effect.andThen(Deferred.await(finishDiscovery)),
               Effect.as([]),
             ),
+          // @effect-diagnostics-next-line effectSucceedWithVoid:off - This optional result requires undefined, not the wider void type.
           resolveFileManagerRevealKind: () => Effect.succeed(undefined),
         }),
         Layer.mock(ProviderRegistry.ProviderRegistry)({
@@ -785,6 +786,7 @@ it.effect("on-demand clients get provider config without workspace snapshots", (
       layerUnusedConfigRpcServices,
       Layer.mock(ExternalLauncher.ExternalLauncher)({
         resolveAvailableEditors: () => Effect.succeed([]),
+        // @effect-diagnostics-next-line effectSucceedWithVoid:off - This optional result requires undefined, not the wider void type.
         resolveFileManagerRevealKind: () => Effect.succeed(undefined),
       }),
       Layer.mock(ProviderRegistry.ProviderRegistry)({

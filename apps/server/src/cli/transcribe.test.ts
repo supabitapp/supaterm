@@ -108,7 +108,7 @@ const withServer = <A, E, R>(
       Layer.provideMerge(McpHttpServer.layerMcpTransport),
       Layer.provide(
         Layer.mock(McpSessionRegistry.McpSessionRegistry)({
-          resolve: () => Effect.succeed(undefined),
+          resolve: () => Effect.undefined,
         }),
       ),
       Layer.provide(
