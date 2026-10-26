@@ -2,7 +2,7 @@ import { useStableCallback } from "../../hooks/useStableCallback";
 import { type EnvironmentId } from "@supaterm/contracts";
 import { type EnvironmentConnectionPresentation } from "@supaterm/client-runtime/connection";
 import { useAtomValue } from "@effect/atom-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   isAtomCommandInterrupted,
@@ -13,14 +13,14 @@ import { stackedThreadToast, toastManager } from "../ui/toast";
 import { environmentCatalog } from "../../connection/catalog";
 import { ConnectionDiagnosisHeadline } from "../settings/ConnectionDiagnosisDetails";
 import { isDesktopLocalConnectionTarget } from "../../connection/desktopLocal";
-import { useEnvironmentDisconnectDelay } from "../../hooks/useEnvironmentDisconnectDelay";
+import {
+  useEnvironmentDisconnectDelay,
+  useEnvironmentStateHeldFor,
+} from "../../hooks/useEnvironmentDisconnectDelay";
 import { serverEnvironment } from "../../state/server";
 import { type EnvironmentPresentation } from "../../state/environments";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
-import {
-  hasEnvironmentReconnectWarningGraceElapsed,
-  scheduleEnvironmentReconnectWarning,
-} from "../ChatView.logic";
+import { ENVIRONMENT_RECONNECT_WARNING_GRACE_MS } from "../ChatView.logic";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -82,22 +82,12 @@ export function useSystemComposerBanners(input: SystemComposerBannersInput) {
     activeEnvironmentConnectionPhase === "reconnecting"
       ? (activeEnvironment?.environmentId ?? null)
       : null;
-  const [reconnectWarningGraceElapsedEnvironmentId, setReconnectWarningGraceElapsedEnvironmentId] =
-    useState<EnvironmentId | null>(null);
-  const reconnectWarningGraceElapsed = hasEnvironmentReconnectWarningGraceElapsed(
+  // Each reconnect attempt gets its own grace period, including a later one to
+  // the same environment.
+  const reconnectWarningGraceElapsed = useEnvironmentStateHeldFor(
     activeReconnectingEnvironmentId,
-    reconnectWarningGraceElapsedEnvironmentId,
+    ENVIRONMENT_RECONNECT_WARNING_GRACE_MS,
   );
-  useEffect(() => {
-    if (activeReconnectingEnvironmentId === null) return;
-    const cancelReconnectWarning = scheduleEnvironmentReconnectWarning(() =>
-      setReconnectWarningGraceElapsedEnvironmentId(activeReconnectingEnvironmentId),
-    );
-    return () => {
-      cancelReconnectWarning();
-      setReconnectWarningGraceElapsedEnvironmentId(null);
-    };
-  }, [activeReconnectingEnvironmentId]);
   const handleReconnectActiveEnvironment = async (environmentId: EnvironmentId) => {
     const result = await retryEnvironment(environmentId);
     if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
