@@ -54,6 +54,7 @@ import * as McpProviderSessions from "@supaterm/provider-core/server/McpProvider
 import * as OpenCodeRuntime from "@supaterm/provider-opencode/server/OpenCodeRuntime";
 import * as OpenCodeServerLedger from "@supaterm/provider-opencode/server/OpenCodeServerLedger";
 import * as ProviderHostLive from "./provider/ProviderHostLive.ts";
+import * as DocumentText from "./provider/DocumentText.ts";
 import * as AcpRegistrySupport from "@supaterm/provider-acp-registry/server/AcpRegistrySupport";
 import * as CheckpointDiffQuery from "./checkpointing/CheckpointDiffQuery.ts";
 import * as CheckpointStore from "./checkpointing/CheckpointStore.ts";
@@ -277,7 +278,7 @@ const layerHttpServer = Layer.unwrap(
   }),
 );
 
-const layerPlatformServices = NodeServices.layer;
+const layerPlatformServices = DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer));
 
 const layerPersistence = Layer.empty.pipe(Layer.provideMerge(SqlitePersistence.layerConfig));
 

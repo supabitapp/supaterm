@@ -2320,10 +2320,11 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         attachments: ReadonlyArray<ChatAttachment>,
       ) {
         const images: Array<{ type: "image"; data: string; mimeType: string }> = [];
-        const message = providerMessageTextWithAttachmentPaths({
+        const message = yield* providerMessageTextWithAttachmentPaths({
           text,
           attachments,
           resolveAttachmentPath: host.resolveAttachmentPath,
+          resolveExtractedTextPath: host.resolveExtractedTextPath,
         });
         for (const attachment of attachments) {
           const path = host.resolveAttachmentPath(attachment);

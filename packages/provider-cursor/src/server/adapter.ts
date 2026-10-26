@@ -2212,13 +2212,14 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
             );
           }
           const userText = supatermOrchestrationPromptForFirstRun({
-            prompt: providerMessageTextWithAttachmentPaths({
+            prompt: yield* providerMessageTextWithAttachmentPaths({
               text:
                 cursorSkillNames === undefined
                   ? rawText
                   : rewriteCursorSkillMentions(rawText, cursorSkillNames),
               attachments: turnInput.message.attachments,
               resolveAttachmentPath: host.resolveAttachmentPath,
+              resolveExtractedTextPath: host.resolveExtractedTextPath,
             }),
             runOrdinal: turnInput.runOrdinal,
             hasSupatermMcp: mcpServers !== undefined,

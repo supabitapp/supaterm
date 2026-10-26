@@ -1,3 +1,4 @@
+import * as DocumentText from "../../provider/DocumentText.ts";
 import { revertCodexThread } from "../../provider/CodexThreadRevert.ts";
 import { historyResponseItems } from "@supaterm/provider-core/server/handoffBudget";
 import { makeProviderTextDeltaCoalescer } from "./ProviderTextDeltaCoalescer.ts";
@@ -3168,9 +3169,13 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           >,
         ) {
           const inputItems: Array<CodexSchema.V2TurnStartParams__UserInput> = [];
-          const text = providerMessageTextWithAttachmentPaths({
+          const text = yield* providerMessageTextWithAttachmentPaths({
             text: codexSkillMentionText(turnInput.message.text),
             attachments: turnInput.message.attachments,
+            resolveExtractedTextPath: (path) =>
+              DocumentText.resolveExtractedTextPath(path).pipe(
+                Effect.provideService(FileSystem.FileSystem, fileSystem),
+              ),
             resolveAttachmentPath: (attachment) =>
               resolveAttachmentPath({ attachmentsDir: serverConfig.attachmentsDir, attachment }),
           });
