@@ -209,6 +209,7 @@ export default defineConfig({
       "array-guardrails/no-array-filter-map": "error",
       "array-guardrails/no-reduce-accumulator-copy": "error",
       "oxc/no-accumulating-spread": "error",
+      "eslint/no-unsafe-optional-chaining": "error",
       "eslint/no-unneeded-ternary": "error",
       "unicorn/no-useless-fallback-in-spread": "error",
       "unicorn/require-module-specifiers": "error",
