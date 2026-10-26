@@ -3,7 +3,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { withOccurrenceKeys } from "@supaterm/shared/occurrenceKeys";
 import { AsyncResult } from "effect/reactivity";
 import type { ComponentType } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   FlatList,
   Platform,
@@ -38,6 +38,7 @@ import { SourceText } from "@supaterm/mobile-source-text";
 
 import { boundedSelectableSourceTokens, prepareSourceFileDocument } from "./source-file-document";
 import { sourceHighlightAtom } from "./sourceHighlightingState";
+import { createSourceLineScroll } from "./source-file-scroll";
 
 interface SourceFileSurfaceProps {
   readonly contents: string;
@@ -248,25 +249,21 @@ function JavaScriptSourceFileSurface(props: SourceFileSurfaceProps) {
   const { normalizedContents, lines, status, targetIndex, tokens } = useSourceFileModel(props);
   const selectableTokens = props.selectable ? boundedSelectableSourceTokens(tokens) : null;
   const listRef = useRef<FlatList<string>>(null);
+  const [lineScroll] = useState(createSourceLineScroll);
   const { isPullRefreshing, handlePullToRefresh } = useSourceFileRefresh(props.onRefresh);
   const refreshControl = props.onRefresh ? (
     <RefreshControl refreshing={isPullRefreshing} onRefresh={() => void handlePullToRefresh()} />
   ) : undefined;
 
   const scrollTarget = targetIndex === null ? null : { path: props.path, index: targetIndex };
-  useEffect(() => {
+  // Layout effect so a pending jump is cancelled in the commit that swaps the file.
+  useLayoutEffect(() => {
     if (scrollTarget === null) {
       return;
     }
-    const frame = requestAnimationFrame(() => {
-      listRef.current?.scrollToIndex({
-        index: scrollTarget.index,
-        animated: false,
-        viewPosition: 0.3,
-      });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [scrollTarget]);
+    lineScroll.scrollToLine(listRef.current, scrollTarget.index);
+    return lineScroll.cancel;
+  }, [lineScroll, scrollTarget]);
 
   const renderLine = ({ item, index }: { item: string; index: number }) => (
     <HighlightedSourceLine
@@ -363,6 +360,8 @@ function JavaScriptSourceFileSurface(props: SourceFileSurfaceProps) {
         paddingTop: 8,
       }}
       renderItem={renderLine}
+      onScrollToIndexFailed={lineScroll.onScrollToIndexFailed}
+      onScrollBeginDrag={lineScroll.cancel}
     />
   );
 
