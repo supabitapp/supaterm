@@ -26,7 +26,14 @@ import {
 } from "./TimelineAssistantRows";
 import { V2EventTimelineRow } from "./TimelineV2EventRow";
 import { useIncrementalTimelineRows, useStableRows, useStableHandoffRuns } from "./useTimelineRows";
-import { useTimelinePositionRestore } from "./useTimelinePositionRestore";
+import { usePaneInputOwner } from "../../chatPanes/paneScope";
+import { startTimelinePositionRestore } from "./useTimelinePositionRestore";
+import {
+  attachTimelineViewport,
+  nextListOpening,
+  type TimelineListOpening,
+  type TimelineViewport,
+} from "./timelineViewport";
 import { useThreadFindPositionReader } from "./useThreadFindPositionReader";
 import { ThreadFindTimelineContext } from "./ThreadFindProvider";
 import {
@@ -272,9 +279,9 @@ interface MessagesTimelineProps {
   liveFollowEnabled: boolean;
   onContentOverflowChange?: (overflows: boolean) => void;
   onToolOutputCollapsedAtEnd?: () => void;
-  onManualNavigation: () => void;
+  /** Receives the list's viewport when it mounts; the returned cleanup runs when it goes away. */
+  onViewportAttach?: (viewport: TimelineViewport) => () => void;
   findOpen?: boolean;
-  cancelPositionRestoreRef?: React.RefObject<(() => void) | null> | undefined;
   hideEmptyPlaceholder?: boolean;
   loading?: boolean;
   /** Composer space to center the empty state against; held steady through collapse. */
@@ -294,10 +301,6 @@ interface MessagesTimelineProps {
 export function MessagesTimeline(props: MessagesTimelineProps) {
   const find = useContext(ThreadFindTimelineContext);
   const findOpen = find?.findOpen ?? props.findOpen;
-  const { onManualNavigation } = props;
-  useEffect(() => {
-    if (findOpen) onManualNavigation();
-  }, [findOpen, onManualNavigation]);
   return (
     <ConversationTimeline
       {...props}
@@ -328,6 +331,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   awaitingRequestId = null,
   listRef,
   timelineEntries,
+  findOpen = false,
   findExpanded = false,
   findQuery = "",
   activeFindMatch = null,
@@ -372,8 +376,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   onContentOverflowChange,
   liveFollowEnabled,
   onToolOutputCollapsedAtEnd,
-  onManualNavigation,
-  cancelPositionRestoreRef,
+  onViewportAttach,
   hideEmptyPlaceholder = false,
   loading = false,
   emptyPlaceholderInset,
@@ -385,9 +388,16 @@ const ConversationTimeline = memo(function ConversationTimeline({
   onMessageJumpFailed = NOOP_MESSAGE_JUMP_FAILED,
 }: MessagesTimelineProps) {
   const listIdentityKey = displayThreadKey ?? routeThreadKey;
+  // Keys typed outside every list reach each pane's viewport; only the focused pane's reacts.
+  const isPaneInputOwner = usePaneInputOwner();
   // The remembered position is a snapshot taken when the list identity changes;
   // scrolling keeps rewriting the stored entry, which must not move the restore.
-  const [listState, setListState] = useState(() => timelineListStateFor(listIdentityKey));
+  // Find open at the opening is part of the snapshot: opening find later
+  // announces its own navigation (threadFindStore's announceOpening).
+  const [listState, setListState] = useState(() => ({
+    ...timelineListStateFor(listIdentityKey),
+    findOpenAtOpening: findOpen,
+  }));
   const [expandedRunIds, setExpandedRunIds] = useState<ReadonlySet<RunId>>(
     () => listState.rememberedPosition?.disclosures?.runs ?? new Set(),
   );
@@ -397,8 +407,10 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const [expandedAttemptIds, setExpandedAttemptIds] = useState<ReadonlySet<RunAttemptId>>(
     () => listState.rememberedPosition?.disclosures?.attempts ?? new Set(),
   );
+  // A list that opens on a thread with find open takes the opening step below,
+  // so the restore runs and releases follow once for find.
   const [positionedThreadKey, setPositionedThreadKey] = useState<string | null>(() =>
-    listState.rememberedPosition?.atEnd === false ? null : listIdentityKey,
+    listState.rememberedPosition?.atEnd === false || findOpen ? null : listIdentityKey,
   );
   const restoringThreadPosition = positionedThreadKey !== listIdentityKey;
   const prefersReducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
@@ -415,7 +427,12 @@ const ConversationTimeline = memo(function ConversationTimeline({
     : listState;
   if (identityChanged) {
     setPlayingAudioRows(new Map());
-    setListState({ identity: listIdentityKey, rememberedPosition, workGroupViewState });
+    setListState({
+      identity: listIdentityKey,
+      rememberedPosition,
+      workGroupViewState,
+      findOpenAtOpening: findOpen,
+    });
     setPositionedThreadKey(null);
     setSettlingListIdentity(listIdentityKey);
     paintedExpandedRunIds = rememberedPosition?.disclosures?.runs ?? new Set();
@@ -681,17 +698,50 @@ const ConversationTimeline = memo(function ConversationTimeline({
       : -1;
   const restoringAlwaysRender =
     restoringThreadPosition && restoreRowIndex >= 0 ? { indices: [restoreRowIndex] } : undefined;
-  useTimelinePositionRestore({
-    listRef,
-    listIdentityKey,
-    restoringThreadPosition,
-    rememberedPosition,
-    rows,
+  const showsEmptyState =
+    rows.length === 0 &&
+    !isWorking &&
+    parentThreadLink === null &&
+    historyControls === undefined &&
+    footer === null;
+  const listMounted = !showsEmptyState && !(timelineEntries.length === 0 && loading);
+  const [listOpening, setListOpening] = useState<TimelineListOpening>(() =>
+    nextListOpening({ mounted: false }, listMounted, listIdentityKey),
+  );
+  const nextOpening = nextListOpening(listOpening, listMounted, listIdentityKey);
+  if (nextOpening !== listOpening) setListOpening(nextOpening);
+  const listOpenedOn = nextOpening.mounted ? nextOpening.identity : null;
+  const viewportRef = useRef<TimelineViewport | null>(null);
+  const navigateTimeline = () => viewportRef.current?.navigate({ releasesFollow: true });
+  const restoreReady = restoringThreadPosition && rows.length > 0;
+  // Z: syncs LegendList's scroll position with which thread it shows. The list
+  // is not keyed per thread and reports no "new data" event, and the restore
+  // must land before paint, after LegendList's own layout effects applied the
+  // new data. A citation request that arrives mid-restore takes over.
+  const { findOpenAtOpening } = identityChanged ? { findOpenAtOpening: findOpen } : listState;
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    const viewport = viewportRef.current;
+    if (!restoreReady || !list || !viewport) return;
+    return startTimelinePositionRestore({
+      list,
+      viewport,
+      listIdentityKey,
+      listOpenedOn,
+      rememberedPosition,
+      citationPending: citationRequest !== null,
+      releaseForFind: findOpenAtOpening,
+      onPositioned: setPositionedThreadKey,
+    });
+  }, [
     citationRequest,
-    cancelPositionRestoreRef,
-    onManualNavigation,
-    onPositioned: setPositionedThreadKey,
-  });
+    findOpenAtOpening,
+    listIdentityKey,
+    listOpenedOn,
+    listRef,
+    rememberedPosition,
+    restoreReady,
+  ]);
 
   const [timelineViewportElement, setTimelineViewportElement] = useState<HTMLDivElement | null>(
     null,
@@ -724,7 +774,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
         })
       : null,
     viewport: timelineViewportElement,
-    onManualNavigation,
+    onManualNavigation: navigateTimeline,
   });
   const [findListReady, setFindListReady] = useState(false);
   const [prefetchHistory] = useState(createThreadHistoryPrefetcher);
@@ -1084,7 +1134,20 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const registerTimeline = canvas?.registerTimeline;
   const setTimelineList = (list: LegendListRef | null) => {
     listRef.current = list;
-    registerTimeline?.(list?.getScrollableNode() ?? null);
+    const scrollNode: HTMLElement | null = list?.getScrollableNode() ?? null;
+    registerTimeline?.(scrollNode);
+    const viewport = scrollNode
+      ? attachTimelineViewport(scrollNode, { isInputOwner: isPaneInputOwner })
+      : null;
+    viewportRef.current = viewport;
+    const detachViewport = viewport ? onViewportAttach?.(viewport) : undefined;
+    return () => {
+      detachViewport?.();
+      viewport?.dispose();
+      if (viewportRef.current === viewport) viewportRef.current = null;
+      listRef.current = null;
+      registerTimeline?.(null);
+    };
   };
   const endFollowAllowed = !(
     citationPositioning ||
@@ -1098,6 +1161,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
 
   useThreadFindPositionReader({
     threadKey: listIdentityKey,
+    navigate: navigateTimeline,
     timelineViewportElement,
     findFoldRunIds,
     timelineEntries,
@@ -1116,7 +1180,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     listReady: findListReady,
     historyControls,
     handlers: {
-      start: onManualNavigation,
+      start: navigateTimeline,
       scroll: (index) => {
         void listRef.current?.scrollToIndex({
           index,
@@ -1144,7 +1208,9 @@ const ConversationTimeline = memo(function ConversationTimeline({
   });
 
   useThreadFindNavigation({
-    listReady: findListReady,
+    // Find reveals its match only after the opening restore settles; both
+    // scroll the list directly, so the restore would otherwise pull it back.
+    listReady: findListReady && !restoringThreadPosition,
     historyControls,
     entries: timelineEntries,
     container: timelineViewportElement,
@@ -1210,13 +1276,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     return <ThreadTimelineLoading bottomInset={contentInsetEndAdjustment} />;
   }
 
-  if (
-    rows.length === 0 &&
-    !isWorking &&
-    parentThreadLink === null &&
-    historyControls === undefined &&
-    footer === null
-  ) {
+  if (showsEmptyState) {
     if (hideEmptyPlaceholder) {
       return (
         <>
@@ -1312,7 +1372,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
                 stripMap={minimapStripMap}
                 onWheel={forwardMinimapWheel}
                 onSelect={(item) => {
-                  onManualNavigation();
+                  navigateTimeline();
                   void listRef.current?.scrollToIndex({
                     index: item.rowIndex,
                     animated: !prefersReducedMotion,

@@ -77,7 +77,12 @@ function Probe({
     shownThreadKey = threadKey;
   });
   useLayoutEffect(
-    () => attachThreadFindTimeline({ threadKey, readPosition: (query) => readPosition?.(query) }),
+    () =>
+      attachThreadFindTimeline({
+        threadKey,
+        readPosition: (query) => readPosition?.(query),
+        navigate: () => {},
+      }),
     [threadKey],
   );
   return null;
