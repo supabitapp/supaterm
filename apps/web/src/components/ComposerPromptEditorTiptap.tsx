@@ -1,3 +1,4 @@
+import { documentIconColorForFileName } from "~/pierre-icons";
 import { isProviderSkillUserInvocable } from "@supaterm/client-runtime/providerSkills";
 import { formatProviderSkillDisplayName } from "@supaterm/shared/inlineSkills";
 import {
@@ -45,6 +46,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type RefObject,
 } from "react";
@@ -270,9 +272,11 @@ const ComposerMentionExtension = Node.create({
 function ComposerMentionNodeView({ node }: NodeViewProps) {
   const actions = use(ComposerContextActionsContext);
   const path = (node.attrs.path as string) ?? "";
+  const accent = documentIconColorForFileName(path);
   const chip = (
     <ContextChip
       kind="mention"
+      style={accent ? ({ "--context-chip-accent": accent } as CSSProperties) : undefined}
       dir="ltr"
       render={<button type="button" />}
       onClick={() => actions.openMention(path)}

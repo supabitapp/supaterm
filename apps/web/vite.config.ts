@@ -11,6 +11,7 @@ import "vite-plus/test/config";
 import { defineConfig, type Connect, type Plugin } from "vite-plus";
 import * as Hash from "effect/Hash";
 import pkg from "./package.json" with { type: "json" };
+import pdfjsPkg from "pdfjs-dist/package.json" with { type: "json" };
 
 import {
   DEV_PROXIED_ORIGIN_PRESERVING_PREFIXES,
@@ -93,9 +94,11 @@ const browserTestProject = {
       "@betteroffice/xlsx/headless",
       "@supaterm/mermaid > pele",
       "fast-xml-parser",
+      "entities",
       "dompurify",
       "heic-to/next",
       "jszip",
+      "pdfjs-dist",
       "sql.js",
       "tiff",
     ],
@@ -318,6 +321,15 @@ export default defineConfig(() => {
       emptyOutDir: true,
       manifest: true,
       sourcemap: buildSourcemap,
+      rolldownOptions: {
+        output: {
+          // PDF.js resolves decoder modules and ICC data relative to wasmUrl.
+          assetFileNames: (asset) =>
+            asset.originalFileNames.some((path) => /[/\\]pdfjs-dist[/\\]wasm[/\\]/.test(path))
+              ? `assets/pdfjs-${pdfjsPkg.version}/[name][extname]`
+              : "assets/[name]-[hash][extname]",
+        },
+      },
     },
     test: {
       projects: [

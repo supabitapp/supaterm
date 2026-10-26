@@ -7,6 +7,7 @@ import * as AsyncResult from "effect/reactivity/AsyncResult";
 import * as Cause from "effect/Cause";
 import {
   filePreviewKind,
+  officePreviewKind,
   FILE_TEXT_PREVIEW_MAX_BYTES,
   type FilePreviewKind,
 } from "@supaterm/shared/filePreview";
@@ -133,7 +134,8 @@ export function AttachmentFilePreview(props: {
   onClose?: () => void;
 }) {
   const kind = props.kind ?? filePreviewKind(props);
-  const officeKind = kind === "docx" || kind === "xlsx" || kind === "pptx" ? kind : null;
+  const documentKind = officePreviewKind(props);
+  const officeKind = documentKind === kind ? documentKind : null;
   const delimiter = kind === "text" ? filePreviewDelimiter(props) : null;
   const renderedMode =
     kind === "mermaid"
