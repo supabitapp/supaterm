@@ -50,45 +50,46 @@ async function setupThemeSync(mode: "dark" | "system" = "dark") {
   });
   vi.stubGlobal("requestAnimationFrame", vi.fn());
 
-  let published: ReadonlyArray<EnvironmentTheme> = [NIGHTFALL_THEME];
   let readSnapshot: (() => unknown) | undefined;
   const effects: Array<() => void> = [];
-  const lastPublished: { current: ReadonlyArray<EnvironmentTheme> | null } = { current: null };
   vi.doMock("react", () => ({
     useCallback: <A>(callback: A) => callback,
     useEffect: (effect: () => void) => effects.push(effect),
-    useRef: () => lastPublished,
     useSyncExternalStore: (_subscribe: unknown, getSnapshot: () => unknown) => {
       readSnapshot = getSnapshot;
       return getSnapshot();
     },
   }));
-  vi.doMock("@effect/atom-react", () => ({ useAtomValue: () => published }));
-  vi.doMock("../state/server", () => ({ primaryServerEnvironmentThemesAtom: {} }));
+  const { Atom } = await import("effect/reactivity");
+  const publishedAtom = Atom.make<ReadonlyArray<EnvironmentTheme>>([NIGHTFALL_THEME]);
+  vi.doMock("../state/server", () => ({ primaryServerEnvironmentThemesAtom: publishedAtom }));
 
   const palette = await import("../themePalette");
   storage.set(palette.THEME_APPEARANCE_MODE_STORAGE_KEY, mode);
+  const { appAtomRegistry } = await import("../rpc/atomRegistry");
   const { useTheme } = await import("./useTheme");
-  const { useEnvironmentThemeSync } = await import("./useEnvironmentTheme");
+  const { startEnvironmentThemeRepaint } = await import("./useEnvironmentTheme");
+  stopRepaint = startEnvironmentThemeRepaint();
   const flushEffects = () => {
     for (const effect of effects.splice(0)) effect();
   };
   const publish = (themes: ReadonlyArray<EnvironmentTheme>) => {
-    published = themes;
-    useEnvironmentThemeSync();
-    flushEffects();
+    appAtomRegistry.set(publishedAtom, themes);
     const theme = useTheme();
     flushEffects();
     return theme;
   };
-  publish(published);
+  publish([NIGHTFALL_THEME]);
 
   return { publish, palette, root, styles, readSnapshot: () => readSnapshot?.() };
 }
 
+let stopRepaint: (() => void) | undefined;
+
 afterEach(() => {
+  stopRepaint?.();
+  stopRepaint = undefined;
   vi.doUnmock("react");
-  vi.doUnmock("@effect/atom-react");
   vi.doUnmock("../state/server");
   vi.resetModules();
   vi.restoreAllMocks();

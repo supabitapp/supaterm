@@ -10,16 +10,21 @@ import { retainThreadOverlaysFor } from "./components/chat/threadOverlayRetentio
 import { startBackgroundThreadAnnouncements } from "./components/BackgroundThreadAnnouncer";
 import { startSshPasswordPromptQueue } from "./components/desktop/SshPasswordPromptDialog";
 import { startHostFreezeToasts } from "./components/HostFreezeToastCoordinator";
+import { startKeybindingsUpdateToasts } from "./components/KeybindingsUpdateToast";
 import { startAgentOpenedPreviews } from "./components/preview/agentOpenedPreviews";
 import { startMainAppLocationTracking } from "./components/sidebar/mainAppLocation";
 import { startDesktopUpdateLaunchNotice } from "./components/sidebar/updateEverythingRun";
+import { startSlowRpcRequestToasts } from "./components/SlowRpcRequestToastCoordinator";
 import { startThreadNotifications } from "./components/ThreadNotificationCoordinator";
 import { APP_DISPLAY_NAME } from "./branding";
 import { startGuideRunNotifications } from "./components/pullRequest/guide/PullRequestGuideRunCoordinator";
 import { isElectron } from "./env";
 import { useComposerDraftStore } from "./composerDraftStore";
 import { startDefaultThemeAdoption } from "./hooks/useDefaultTheme";
+import { startEnvironmentThemeRepaint } from "./hooks/useEnvironmentTheme";
 import { getClientSettings, subscribeClientSettings } from "./hooks/useSettings";
+import { syncBrowserChromeTheme } from "./hooks/useTheme";
+import { installDesktopPasteAsText } from "./lib/desktopPasteAsText";
 import {
   syncDocumentElectronPlatformClasses,
   syncDocumentWindowControlsOverlayClass,
@@ -90,6 +95,17 @@ function shownThreadKey(target: ThreadRouteTarget | null): string | null {
     : null;
 }
 
+/**
+ * Each route paints its own surface, which the browser chrome samples once it is on screen.
+ * onRendered only fires for a new href; onResolved also covers `router.invalidate()`, which
+ * can swap the root between the bare outlet and the shell at the same address.
+ */
+function startBrowserChromeThemeSync(router: AppRouter): void {
+  const resync = () => window.requestAnimationFrame(syncBrowserChromeTheme);
+  router.subscribe("onRendered", resync);
+  router.subscribe("onResolved", resync);
+}
+
 /** Chat overlays belong to the thread they were opened in, so a thread no route or pane shows drops them. */
 function startThreadOverlayRetention(router: AppRouter): void {
   const retain = () => {
@@ -124,8 +140,12 @@ export function startAppServices(): AppRouter {
     syncDocumentWindowControlsOverlayClass();
   }
 
+  installDesktopPasteAsText(window.desktopBridge, window);
+
   startClientAppearance();
   document.title = APP_DISPLAY_NAME;
+  startEnvironmentThemeRepaint();
+  startBrowserChromeThemeSync(router);
   startDefaultThemeAdoption();
   startAgentOpenedPreviews();
   if (isElectron) startElectronBrowserHost();
@@ -134,6 +154,8 @@ export function startAppServices(): AppRouter {
   startBackgroundThreadAnnouncements(appAtomRegistry, router);
   startSshPasswordPromptQueue();
 
+  startKeybindingsUpdateToasts();
+  startSlowRpcRequestToasts();
   startHostFreezeToasts();
   startThreadNotifications(appAtomRegistry, router);
   startGuideRunNotifications(appAtomRegistry, router);

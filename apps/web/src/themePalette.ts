@@ -1,5 +1,8 @@
+import type { EnvironmentTheme } from "@supaterm/contracts";
 import * as Equal from "effect/Equal";
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import { Atom } from "effect/reactivity";
 import "culori/css";
 import { converter, parse } from "culori/fn";
 import {
@@ -14,6 +17,9 @@ import {
   type ThemeDefinition,
   type ThemeVariants,
 } from "@supaterm/shared/themePalettes";
+
+import { appAtomRegistry, subscribeAtomChanges } from "./rpc/atomRegistry";
+import { primaryServerEnvironmentThemesAtom } from "./state/server";
 
 export { THEME_COLOR_ROLES };
 export type { ThemeAppearance, ThemeColorRole, ThemeColors, ThemeDefinition, ThemeVariants };
@@ -41,12 +47,6 @@ export type ThemeFile = Readonly<{
   collection?: ThemeCollection;
   managed?: boolean;
 }>;
-
-/**
- * The environment's palettes are not saved: they are republished by the server
- * on every change and would go stale the moment the machine's theme moved on.
- */
-let environmentThemeDefinitions: ReadonlyArray<ThemeDefinition> = [];
 
 const customThemeListeners = new Set<() => void>();
 type CustomThemeLibrarySnapshot =
@@ -106,7 +106,7 @@ function parseThemeCollection(value: unknown): ThemeCollection | undefined {
     : undefined;
 }
 
-export function lenientThemeColorOverrides(
+function lenientThemeColorOverrides(
   value: Readonly<Record<string, unknown>>,
 ): Partial<Record<ThemeColorRole, string>> {
   const overrides: Partial<Record<ThemeColorRole, string>> = {};
@@ -246,20 +246,93 @@ export function getCustomThemes(): ReadonlyArray<ThemeDefinition> {
   return snapshot.status === "ready" ? snapshot.themes : EMPTY_CUSTOM_THEMES;
 }
 
-export function getEnvironmentThemes(): ReadonlyArray<ThemeDefinition> {
-  return environmentThemeDefinitions;
+function publishedThemeColors(
+  theme: EnvironmentTheme,
+  appearance: ThemeAppearance,
+  colors: Readonly<Record<string, string>> | undefined,
+): ThemeColors {
+  // A variant builds on that appearance's stock defaults: the generator follows
+  // the seed canvas's luminance, so dark seeds would give a light variant
+  // unreadable colors.
+  const base =
+    appearance === theme.appearance && theme.canvas !== undefined && theme.accent !== undefined
+      ? createVividThemeColors(appearance, theme.canvas, theme.accent)
+      : getStandardThemeColors(appearance);
+  return { ...base, ...lenientThemeColorOverrides(colors ?? {}) };
+}
+
+export function environmentThemeDefinition(theme: EnvironmentTheme): ThemeDefinition {
+  const variants: Partial<Record<ThemeAppearance, ThemeColors>> = {};
+  for (const [variantAppearance, variantColors] of Object.entries(theme.variants ?? {})) {
+    if (variantAppearance === theme.appearance) continue;
+    variants[variantAppearance as ThemeAppearance] = publishedThemeColors(
+      theme,
+      variantAppearance as ThemeAppearance,
+      variantColors,
+    );
+  }
+
+  return {
+    id: theme.id,
+    label: theme.name,
+    appearance: theme.appearance,
+    colors: publishedThemeColors(theme, theme.appearance, theme.colors),
+    ...(Object.keys(variants).length > 0 ? { variants } : {}),
+    // Only the pure seeded form is guided-generator output. An exported file,
+    // or seeds carrying explicit role overrides, must open Duplicate in the
+    // advanced editor -- the guided one regenerates from canvas and accent and
+    // would discard whatever the machine hand-tuned.
+    ...(theme.canvas !== undefined &&
+    theme.accent !== undefined &&
+    theme.colors === undefined &&
+    theme.variants === undefined
+      ? { managed: true }
+      : {}),
+  };
 }
 
 /**
- * Returns whether anything changed, structurally: config snapshots arrive as
- * fresh arrays on every reconnect, and a repaint for identical colors is the
- * kind of wasted work users of this product notice.
+ * Published palettes this client can render. Reserved ids are dropped here rather
+ * than rendered: a published `iris.json` would show this palette on its
+ * card while "Use" resolved the built-in, and a published `dark.json` would
+ * capture everyone whose stored preference is the stock `"dark"`.
  */
-export function setEnvironmentThemes(themes: ReadonlyArray<ThemeDefinition>): boolean {
-  if (Equal.equals(environmentThemeDefinitions, themes)) return false;
-  environmentThemeDefinitions = themes;
-  notifyCustomThemeListeners();
-  return true;
+export function publishedThemeDefinitions(
+  themes: ReadonlyArray<EnvironmentTheme>,
+): ReadonlyArray<ThemeDefinition> {
+  return themes.flatMap((theme) => {
+    if (isReservedThemeId(theme.id)) return [];
+    if (theme.canvas !== undefined && theme.accent !== undefined) {
+      return [environmentThemeDefinition(theme)];
+    }
+    const otherAppearance = theme.appearance === "dark" ? "light" : "dark";
+    const hasColors = [theme.colors, theme.variants?.[otherAppearance]].some(
+      (colors) =>
+        colors !== undefined && Object.keys(lenientThemeColorOverrides(colors)).length > 0,
+    );
+    return hasColors ? [environmentThemeDefinition(theme)] : [];
+  });
+}
+
+// Every reconnect snapshot delivers a fresh but usually identical array; keeping the
+// previous one skips regenerating palettes and repainting the document for it.
+const publishedThemesAtom = Atom.make((get): ReadonlyArray<EnvironmentTheme> => {
+  const next = get(primaryServerEnvironmentThemesAtom);
+  const previous = Option.getOrNull(get.self<ReadonlyArray<EnvironmentTheme>>());
+  return previous !== null && Equal.equals(previous, next) ? previous : next;
+}).pipe(Atom.withLabel("web-published-environment-themes"));
+
+/**
+ * The environment's palettes are not saved: they are republished by the server
+ * on every change and would go stale the moment the machine's theme moved on.
+ * Kept alive because theme lookups read it outside React on every repaint.
+ */
+export const environmentThemeDefinitionsAtom = Atom.make((get) =>
+  publishedThemeDefinitions(get(publishedThemesAtom)),
+).pipe(Atom.keepAlive, Atom.withLabel("web-environment-theme-definitions"));
+
+function getEnvironmentThemes(): ReadonlyArray<ThemeDefinition> {
+  return appAtomRegistry.get(environmentThemeDefinitionsAtom);
 }
 
 export function isReservedThemeId(themeId: string): boolean {
@@ -276,8 +349,14 @@ export function getStoredCustomThemeCollection(
 
 export function subscribeToCustomThemes(listener: () => void): () => void {
   customThemeListeners.add(listener);
+  const unsubscribeEnvironment = subscribeAtomChanges(environmentThemeDefinitionsAtom, () =>
+    listener(),
+  );
   if (typeof window === "undefined") {
-    return () => customThemeListeners.delete(listener);
+    return () => {
+      customThemeListeners.delete(listener);
+      unsubscribeEnvironment();
+    };
   }
   const handleStorage = (event: StorageEvent) => {
     if (event.key === CUSTOM_THEMES_STORAGE_KEY || event.key === null) {
@@ -288,6 +367,7 @@ export function subscribeToCustomThemes(listener: () => void): () => void {
 
   return () => {
     customThemeListeners.delete(listener);
+    unsubscribeEnvironment();
     window.removeEventListener("storage", handleStorage);
   };
 }
@@ -1022,7 +1102,7 @@ export function getThemeDefinition(theme: ThemePreference): ThemeDefinition | nu
   return (
     BUILT_IN_THEME_DEFINITIONS.find((definition) => definition.id === theme) ??
     getCustomThemes().find((definition) => definition.id === theme) ??
-    environmentThemeDefinitions.find((definition) => definition.id === theme) ??
+    getEnvironmentThemes().find((definition) => definition.id === theme) ??
     null
   );
 }

@@ -1,4 +1,3 @@
-import { useAtomValue } from "@effect/atom-react";
 import { ORCHESTRATION_V2_WS_METHODS, WS_METHODS } from "@supaterm/contracts";
 import { Atom } from "effect/reactivity";
 
@@ -137,6 +136,8 @@ function evictOldestPendingRpcRequestIfNeeded(): void {
   }
 }
 
-export function useSlowRpcAckRequests(): ReadonlyArray<SlowRpcAckRequest> {
-  return useAtomValue(slowRpcAckRequestsAtom);
+export function subscribeSlowRpcAckRequests(
+  listener: (requests: ReadonlyArray<SlowRpcAckRequest>) => void,
+): () => void {
+  return appAtomRegistry.subscribe(slowRpcAckRequestsAtom, listener);
 }
