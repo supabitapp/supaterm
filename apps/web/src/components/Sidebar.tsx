@@ -2971,6 +2971,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               key="working-shelf-header"
                               marker="working-header"
                               className="mt-auto"
+                              hostsUndoNotice
                               label={
                                 workingShelfExpanded
                                   ? "Working"
@@ -2990,6 +2991,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               key="snoozed-shelf-header"
                               marker="snoozed-header"
                               className={cn(!showWorkingShelf && "mt-auto")}
+                              hostsUndoNotice={!showWorkingShelf}
                               label={
                                 snoozedShelfExpanded
                                   ? "Snoozed"
@@ -3016,6 +3018,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               key="done-shelf-header"
                               marker="done-header"
                               label={doneShelfExpanded ? "Done" : `Done (${doneCount})`}
+                              hostsUndoNotice={!showWorkingShelf && snoozedThreads.length === 0}
                               dragging={from !== null}
                               isDropTarget={dragTargetSection === "done"}
                               toggle={{
@@ -3102,7 +3105,13 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           ) : null}
         </SidebarGroup>
       </SidebarContent>
-      <SidebarChromeFooter />
+      <SidebarChromeFooter
+        showUndoNotice={
+          !sidebarListItemsFresh.some(
+            (item) => item.kind === "marker" && item.marker === "done-header",
+          )
+        }
+      />
     </>
   );
 }
