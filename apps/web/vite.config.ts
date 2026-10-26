@@ -92,6 +92,9 @@ const browserTestProject = {
       "@betteroffice/xlsx",
       "@betteroffice/xlsx/headless",
       "@supaterm/mermaid > pele",
+      "fast-xml-parser",
+      "dompurify",
+      "jszip",
     ],
   },
   test: {
