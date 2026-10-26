@@ -332,6 +332,8 @@ export const DesktopCliCommandStateSchema = Schema.Struct({
   onPath: Schema.Boolean,
 
   shadowedBy: Schema.optionalKey(Schema.String),
+  /** The app's bundled `supaterm` launcher, which runs without Node or a PATH entry. */
+  launcherPath: Schema.NullOr(Schema.String),
 });
 export type DesktopCliCommandState = typeof DesktopCliCommandStateSchema.Type;
 
