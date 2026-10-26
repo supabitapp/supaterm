@@ -363,7 +363,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
   const result = useEnvironmentQuery(detailAtom);
   const pullRefresh = usePullToRefresh(detailAtom);
   const { refresh: refreshDetail } = result;
-  useFocusEffect(() => refreshDetail());
+  useFocusEffect(refreshDetail);
   const pr = usePullRequestLiveChecks(params, result.data);
   const summary = params.initialSummary;
   const identity = pr ?? summary;
