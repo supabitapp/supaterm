@@ -40,6 +40,7 @@ import {
   searchSettings,
   isSettingsSectionAvailable,
   SETTINGS_NAV_GROUPS,
+  revealSettingsSearchTarget,
   SETTINGS_SECTION_LABELS,
   type SettingsPath,
   type SettingsSearchItem,
@@ -97,6 +98,11 @@ const SETTINGS_NAV_SECTIONS = SETTINGS_NAV_GROUPS.map((group) => ({
   paths: group.paths.filter(isSettingsSectionAvailable),
 })).filter((group) => group.paths.length > 0);
 
+// Attached only to the highlighted result, so it runs whenever the highlight lands on a row.
+function scrollResultIntoView(row: HTMLElement | null) {
+  row?.scrollIntoView({ block: "nearest" });
+}
+
 function SettingsSectionIcon({ to }: { to: SettingsPath }) {
   const Icon = SETTINGS_SECTION_ICONS[to];
   return <Icon className="size-3.5 h-5 shrink-0 text-sidebar-muted-foreground/60" />;
@@ -129,15 +135,6 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
   if (activeResultIndex > maxResultIndex) {
     setActiveResultIndex(maxResultIndex);
   }
-
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- scrolls the active search result's DOM node into view
-  useEffect(() => {
-    const result = results[activeResultIndex];
-    if (!result) return;
-    document
-      .getElementById(`settings-search-result-${result.id}`)
-      ?.scrollIntoView({ block: "nearest" });
-  }, [activeResultIndex, results]);
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- window keydown listener for the find and slash search shortcuts
   useEffect(() => {
@@ -197,6 +194,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
     clearSearch();
     setCompactSearchOpen(false);
     const targetId = item.targetId ?? item.id;
+    revealSettingsSearchTarget(targetId);
     if (pathname === item.to && currentHash.replace(/^#/, "") === targetId) {
       scrollToSettingsTarget(targetId);
       return;
@@ -315,7 +313,11 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                 aria-label={hasResults ? "Settings search results" : undefined}
               >
                 {results.map((item, index) => (
-                  <SidebarMenuItem key={item.id} role="presentation">
+                  <SidebarMenuItem
+                    key={item.id}
+                    role="presentation"
+                    ref={index === activeResultIndex ? scrollResultIntoView : undefined}
+                  >
                     <SidebarMenuButton
                       id={`settings-search-result-${item.id}`}
                       role="option"
