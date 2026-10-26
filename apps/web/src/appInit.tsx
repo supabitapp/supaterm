@@ -3,6 +3,7 @@ import { createBrowserHistory, createHashHistory } from "@tanstack/react-router"
 
 import { applyAppearanceContrast } from "./appearanceContrast";
 import { applyAppearanceFontVariables } from "./appearanceFonts";
+import { startAgentOpenedPreviews } from "./components/preview/agentOpenedPreviews";
 import { APP_DISPLAY_NAME } from "./branding";
 import { isElectron } from "./env";
 import { getClientSettings, subscribeClientSettings } from "./hooks/useSettings";
@@ -80,6 +81,7 @@ export function startAppServices(): AppRouter {
 
   startClientAppearance();
   document.title = APP_DISPLAY_NAME;
+  startAgentOpenedPreviews();
 
   return router;
 }
