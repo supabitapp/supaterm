@@ -17,32 +17,24 @@ export const openOnHostLabel = (host: SourceControlClientDefinition, number?: nu
 };
 
 function pullRequestLinkContextMenuItems({
-  hasUrl,
   host,
   number,
   showLinked,
 }: {
-  readonly hasUrl: boolean;
   readonly host: SourceControlClientDefinition;
   readonly number: number | undefined;
   readonly showLinked: boolean;
 }): readonly ContextMenuItem<PullRequestLinkContextMenuAction>[] {
-  const items: ContextMenuItem<PullRequestLinkContextMenuAction>[] = hasUrl
-    ? [
-        {
-          id: "copy-link",
-          label: number === undefined ? "Copy link" : `Copy link to #${number}`,
-          icon: "copy",
-        },
-        { id: "open-external", label: openOnHostLabel(host, number) },
-      ]
-    : [];
+  const items: ContextMenuItem<PullRequestLinkContextMenuAction>[] = [
+    {
+      id: "copy-link",
+      label: number === undefined ? "Copy link" : `Copy link to #${number}`,
+      icon: "copy",
+    },
+    { id: "open-external", label: openOnHostLabel(host, number) },
+  ];
   if (showLinked) {
-    items.push({
-      id: "show-linked",
-      label: "Show linked pull requests",
-      separatorBefore: items.length > 0,
-    });
+    items.push({ id: "show-linked", label: "Show linked pull requests", separatorBefore: true });
   }
   return items;
 }
@@ -54,7 +46,7 @@ export async function showPullRequestLinkContextMenu({
   number,
   onShowLinked,
 }: {
-  readonly url: string | undefined;
+  readonly url: string;
   readonly host: SourceControlClientDefinition;
   readonly position: { readonly x: number; readonly y: number };
   /** Names the pull request in the labels, for triggers that do not show which one they mean. */
@@ -64,12 +56,10 @@ export async function showPullRequestLinkContextMenu({
   const api = readLocalApi();
   if (!api) return;
   const items = pullRequestLinkContextMenuItems({
-    hasUrl: url !== undefined,
     host,
     number,
     showLinked: onShowLinked !== undefined,
   });
-  if (items.length === 0) return;
   let action: PullRequestLinkContextMenuAction | null = null;
   try {
     action = await api.contextMenu.show(items, position);
@@ -80,7 +70,6 @@ export async function showPullRequestLinkContextMenu({
     onShowLinked?.();
     return;
   }
-  if (url === undefined) return;
   try {
     if (action === "copy-link") await writeTextToClipboard(url, "link");
     else if (action === "open-external") await api.shell.openExternal(url);

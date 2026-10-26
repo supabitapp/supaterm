@@ -236,7 +236,7 @@ export function ThreadPullRequestBadgeControl({
 // through the portal, so the right-click must stop here.
 function showPullRequestContextMenuAt(
   event: MouseEvent<HTMLElement>,
-  url: string | undefined,
+  url: string,
   options?: Pick<Parameters<typeof showPullRequestLinkContextMenu>[0], "number" | "onShowLinked">,
 ) {
   event.preventDefault();
@@ -244,9 +244,7 @@ function showPullRequestContextMenuAt(
   void showPullRequestLinkContextMenu({
     ...options,
     url,
-    host:
-      (url === undefined ? undefined : sourceControlClients.findByChangeRequestUrl(url)) ??
-      UNKNOWN_SOURCE_CONTROL_CLIENT,
+    host: sourceControlClients.findByChangeRequestUrl(url) ?? UNKNOWN_SOURCE_CONTROL_CLIENT,
     position: { x: event.clientX, y: event.clientY },
   });
 }
@@ -280,11 +278,14 @@ function PullRequestBadge({
       }
     : onOpenPullRequest;
   const hasLinkedPullRequests = visibleThreadPullRequests(pullRequests).length > 0;
-  const onContextMenu = (event: MouseEvent<HTMLElement>) =>
-    showPullRequestContextMenuAt(event, url, {
-      number: opensList ? number : undefined,
-      onShowLinked: hasLinkedPullRequests ? onOpenList : undefined,
-    });
+  const onContextMenu =
+    url === undefined
+      ? undefined
+      : (event: MouseEvent<HTMLElement>) =>
+          showPullRequestContextMenuAt(event, url, {
+            number: opensList ? number : undefined,
+            onShowLinked: hasLinkedPullRequests ? onOpenList : undefined,
+          });
   const element = opensList ? (
     <button type="button" />
   ) : (
