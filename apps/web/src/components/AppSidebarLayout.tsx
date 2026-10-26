@@ -31,7 +31,6 @@ import { selectActiveRightPanel, useRightPanelStore } from "../rightPanelStore";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { cn, isMacPlatform } from "../lib/utils";
 import { primaryServerKeybindingsAtom } from "../state/server";
-import { useEnvironmentIdentificationMode } from "../hooks/useSettings";
 import {
   PanelAnimationSuppressionProvider,
   usePanelAnimationSettings,
@@ -42,7 +41,6 @@ import { SettingsSidebarNav } from "./settings/SettingsSidebarNav";
 import { SidebarBrandWidthProbe, SidebarChromeHeader } from "./sidebar/SidebarChrome";
 import { MainAppLocationTracker } from "./sidebar/mainAppLocation";
 import type { SidebarRouteReveal } from "./sidebar/routeReveal";
-import { useSidebarStageBackdrop } from "./SidebarStageBackdrop";
 import { useProjects } from "../state/entities";
 import {
   resolveDefaultThreadSidebarWidth,
@@ -103,9 +101,6 @@ function SidebarControl() {
   const usagePageOpen = useLocation({ select: (location) => location.pathname === "/usage" });
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const { toggleSidebar, isMobile, mobileSheetMounted } = useSidebar();
-  const isSidebarVisible = useSidebarVisibility();
-  const environmentIdentificationMode = useEnvironmentIdentificationMode();
-  const showStageBackdrop = useSidebarStageBackdrop(environmentIdentificationMode === "artwork");
   const shortcutLabel = shortcutLabelForCommand(keybindings, "sidebar.toggle", {
     context: { usagePageOpen },
   });
@@ -167,14 +162,7 @@ function SidebarControl() {
       <Tooltip>
         <TooltipTrigger
           render={
-            <SidebarTrigger
-              variant={isSidebarVisible && showStageBackdrop ? "media-navigation" : "ghost"}
-              className={cn(
-                "pointer-events-auto",
-                isSidebarVisible && showStageBackdrop && "relative top-auto translate-y-0",
-              )}
-              aria-label="Toggle main sidebar"
-            />
+            <SidebarTrigger className="pointer-events-auto" aria-label="Toggle main sidebar" />
           }
         />
         <TooltipPopup side="bottom" shortcut={shortcutLabel}>

@@ -29,7 +29,7 @@ import {
   useSidebar,
   SidebarInput,
 } from "../ui/sidebar";
-import { SidebarUtilityMenu } from "../sidebar/SidebarChrome";
+import { SidebarBackToApp, SidebarUtilityMenu } from "../sidebar/SidebarChrome";
 import { scrollToSettingsTarget } from "./settingsLayout";
 import {
   searchSettings,
@@ -221,6 +221,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
       <SidebarContent className="overflow-x-hidden">
         <SidebarGroup>
           <div className="flex flex-col gap-2">
+            <SidebarBackToApp />
             <div className="flex h-8 items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-sidebar-muted-foreground hover:bg-sidebar-row-hover hover:text-sidebar-foreground">
               <SearchIcon className="size-4 shrink-0 text-sidebar-muted-foreground/80" />
               <SidebarInput
@@ -333,7 +334,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <SidebarUtilityMenu />
+        <SidebarUtilityMenu showBack={false} />
       </SidebarFooter>
     </>
   );

@@ -22,7 +22,6 @@ import {
   resolveThemeAppearance,
   serializeThemeFile,
   subscribeToThemePreview,
-  themeAllowsSidebarArtwork,
   updateCustomTheme,
   updateThemeColorFamily,
   CUSTOM_THEMES_STORAGE_KEY,
@@ -342,19 +341,6 @@ describe("theme files", () => {
     });
   });
 
-  it("ignores built-in artwork metadata in custom theme files", () => {
-    const theme = parseThemeFile({
-      version: THEME_FILE_VERSION,
-      name: "Art sidebar",
-      appearance: "light",
-      colors: { accent: "#5b6cff" },
-      sidebarArtwork: true,
-    });
-
-    expect(theme.sidebarArtwork).toBeUndefined();
-    expect(JSON.parse(serializeThemeFile(theme))).not.toHaveProperty("sidebarArtwork");
-  });
-
   it("publishes the live preview appearance and clears it when restoring a theme", () => {
     const listener = vi.fn();
     const unsubscribe = subscribeToThemePreview(listener);
@@ -418,7 +404,6 @@ describe("theme files", () => {
     for (const theme of BUILT_IN_THEMES) {
       expect(getThemeDefinition(theme.id)).toBe(theme);
       expect(getThemeModes(theme)).toEqual([theme.appearance]);
-      expect(themeAllowsSidebarArtwork(theme.id)).toBe(false);
       const colors = theme.colors;
       expect(contrastRatio(colors.text, colors.canvas)).toBeGreaterThanOrEqual(4.5);
       expect(contrastRatio(colors.textMuted, colors.canvas)).toBeGreaterThanOrEqual(4.5);
@@ -448,7 +433,6 @@ describe("theme files", () => {
       expect(contrastRatio(colors.mutedForeground, colors.muted)).toBeGreaterThanOrEqual(4.5);
       expect(contrastRatio(colors.placeholder, colors.surfaceRaised)).toBeGreaterThanOrEqual(4.5);
     }
-    expect(themeAllowsSidebarArtwork("my-custom-theme")).toBe(false);
   });
 
   it("keeps a saved theme whose id became a built-in visible and removable", () => {
@@ -644,7 +628,6 @@ describe("theme files", () => {
         name: "Aurora",
         appearance: "light",
         colors: { canvas: "#f8fbff", accent: "#5b6cff" },
-        sidebarArtwork: true,
       }),
     );
     const updatedTheme = updateCustomTheme({
@@ -658,7 +641,6 @@ describe("theme files", () => {
       label: "Aurora Night",
       colors: { accent: canonical("hsl(263 70% 58%)") },
     });
-    expect(updatedTheme).not.toHaveProperty("sidebarArtwork");
     const storedThemes = JSON.parse(stored.get(CUSTOM_THEMES_STORAGE_KEY) ?? "[]");
     expect(storedThemes[0]).toEqual(untouchedTheme);
     expect(storedThemes[1]).toMatchObject({
@@ -666,7 +648,6 @@ describe("theme files", () => {
       label: "Aurora Night",
       colors: { accent: canonical("hsl(263 70% 58%)") },
     });
-    expect(storedThemes[1]).not.toHaveProperty("sidebarArtwork");
     invalidateCustomThemes();
     expect(getCustomThemes().find((theme) => theme.id === "aurora")).toMatchObject({
       id: "aurora",

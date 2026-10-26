@@ -2619,9 +2619,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       <SidebarContent
         className="min-h-full"
         fixedHeader={
-          // Lifted above the stage backdrop, whose fade bleeds below the
-          // header and would otherwise paint across its rows.
-          <SidebarGroup className="z-[1]">
+          <SidebarGroup>
             <div className="flex flex-col gap-2">
               <SidebarPrimaryNavigation projectGroupCount={projectGroups.length} />
               {projectGroups.length > 0 ? (
