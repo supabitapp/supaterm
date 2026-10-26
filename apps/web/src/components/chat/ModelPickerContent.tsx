@@ -191,10 +191,12 @@ function modelJumpLabelsByKey(
 function ModelPickerProviderNotices({
   setupEntries,
   updateRequiredNotices,
+  emptyLabel,
   onRequestClose,
   onOpenProviderSetup,
 }: {
   setupEntries: ReadonlyArray<ProviderInstanceEntry>;
+  emptyLabel: string;
   updateRequiredNotices: ReadonlyArray<{ instanceId: ProviderInstanceId; notice: string }>;
   onRequestClose: (() => void) | undefined;
   onOpenProviderSetup: ((instanceId: ProviderInstanceId) => void) | undefined;
@@ -222,7 +224,7 @@ function ModelPickerProviderNotices({
           ))}
         </div>
       ) : (
-        <ComboboxEmpty className="empty:h-0">No models found</ComboboxEmpty>
+        <ComboboxEmpty className="empty:h-0">{emptyLabel}</ComboboxEmpty>
       )}
       {updateRequiredNotices.map(({ instanceId, notice }) => (
         <p
@@ -997,6 +999,11 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
             <ModelPickerProviderNotices
               setupEntries={providerSetupEntries}
               updateRequiredNotices={updateRequiredNotices}
+              emptyLabel={
+                selectedInstanceId === "favorites" && !isSearching
+                  ? "No favorites yet"
+                  : "No models found"
+              }
               onRequestClose={onRequestClose}
               onOpenProviderSetup={onOpenProviderSetup}
             />

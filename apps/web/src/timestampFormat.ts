@@ -273,31 +273,6 @@ export function formatElapsedDurationLabel(isoDate: string, nowMs: number = Date
   return `${days}d`;
 }
 
-function formatRelativeTimeUntil(
-  isoDate: string,
-  nowMs: number = Date.now(),
-): RelativeTimeParts | null {
-  const date = parseTimestampDate(isoDate);
-  if (!date) return null;
-  const diffMs = date.getTime() - nowMs;
-  if (diffMs <= 0) return { value: "Expired", suffix: null };
-  const seconds = Math.floor(diffMs / 1000);
-  if (seconds < 5) return { value: "Soon", suffix: null };
-  if (seconds < 60) return { value: `${seconds}s`, suffix: "left" };
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return { value: `${minutes}m`, suffix: "left" };
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return { value: `${hours}h`, suffix: "left" };
-  const days = Math.floor(hours / 24);
-  return { value: `${days}d`, suffix: "left" };
-}
-
-export function formatRelativeTimeUntilLabel(isoDate: string, nowMs: number = Date.now()): string {
-  const relative = formatRelativeTimeUntil(isoDate, nowMs);
-  if (!relative) return "";
-  return relative.suffix ? `${relative.value} ${relative.suffix}` : relative.value;
-}
-
 /** Pass nowMs to match a parent-driven render tick. */
 export function formatExpiresInLabel(isoDate: string, nowMs: number = Date.now()): string {
   const date = parseTimestampDate(isoDate);

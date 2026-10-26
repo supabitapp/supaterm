@@ -19,7 +19,11 @@ import {
   type ThreadId,
   RuntimeMode,
 } from "@supaterm/contracts";
-import { effectiveSnoozed, threadWokeAt } from "@supaterm/client-runtime/state/thread-snooze";
+import {
+  effectiveSnoozed,
+  snoozeWakeLabel,
+  threadWokeAt,
+} from "@supaterm/client-runtime/state/thread-snooze";
 import { useAcknowledgeThreadWoke, useThreadActions } from "../../hooks/useThreadActions";
 import { markDoneAndAdvance } from "../../markDoneAndAdvance";
 import type { ChatShortcutCommands } from "./useChatShortcuts";
@@ -45,7 +49,7 @@ import { vcsEnvironment } from "../../state/vcs";
 import { useChildThreadInputs, readThreadShell, waitForThreadShell } from "../../state/entities";
 import { environmentShell } from "../../state/shell";
 import { ThreadStatusLine } from "./ThreadStatusLine";
-import { formatRelativeTimeLabel, formatRelativeTimeUntilLabel } from "../../timestampFormat";
+import { formatRelativeTimeLabel } from "../../timestampFormat";
 import { appAtomRegistry } from "../../rpc/atomRegistry";
 import { readEnvironmentScope } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -514,14 +518,14 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   const activeSnoozedUntil = activeThreadShell?.snoozedUntil;
   const threadStatusLine = (() => {
     const nowMs = Date.parse(`${nowMinute}:00.000Z`);
+    // Same rounding as the sidebar's snoozed shelf, so both read the same hour.
+    const snoozeWake = activeSnoozedUntil
+      ? snoozeWakeLabel(activeSnoozedUntil, { now: `${nowMinute}:00.000Z` })
+      : null;
     return activeThreadSnoozed ? (
       <ThreadStatusLine
         icon={<ClockSnoozeIcon />}
-        label={
-          activeSnoozedUntil
-            ? `Snoozed, ${formatRelativeTimeUntilLabel(activeSnoozedUntil, nowMs)}`
-            : "Snoozed"
-        }
+        label={snoozeWake && snoozeWake !== "now" ? `Snoozed, ${snoozeWake} left` : "Snoozed"}
         actionLabel={isUnsnoozing ? "Waking..." : "Wake now"}
         actionDisabled={!canOperateThread || isUnsnoozing}
         onAction={() => void handleUnsnoozeActiveThreadStable()}
