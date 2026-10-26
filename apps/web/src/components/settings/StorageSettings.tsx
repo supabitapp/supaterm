@@ -15,6 +15,7 @@ import { environmentAtomList, environmentIdsKey } from "../../state/environmentA
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { formatRelativeTimeLabel } from "../../timestampFormat";
+import { useNowMinute } from "../../hooks/useNowMinute";
 import { InlineConfirmButton } from "../InlineConfirm";
 import { toastManager } from "../ui/toast";
 
@@ -27,7 +28,6 @@ import {
   SettingsPageContainer,
   SettingsRow,
   SettingsSection,
-  useRelativeTimeTick,
 } from "./settingsLayout";
 import { DatabaseStorageNotice } from "./DatabaseStorageNotice";
 import { SettingsScopeNotice } from "./SettingsScopeNotice";
@@ -227,7 +227,8 @@ const storageCleanupPermissionsAtom = environmentAtomList(
 );
 
 function CleanupSection() {
-  useRelativeTimeTick(60_000);
+  const nowMinute = useNowMinute();
+  const nowMs = Date.parse(`${nowMinute}:00.000Z`);
   const { connectedEnvironments } = useSettingsScope();
   const [pending, setPending] = useState(false);
   const run = useAtomCommand(serverEnvironment.runStorageCleanup);
@@ -276,7 +277,7 @@ function CleanupSection() {
         ? `${report.counts.removed} removed, ${report.counts.kept} kept${report.counts.failed > 0 ? `, ${report.counts.failed} failed` : ""}`
         : "",
       description: report
-        ? `Last run ${formatRelativeTimeLabel(report.finishedAt)}. ${formatBytes(report.bytesFreed)} recovered.${report.counts.failed > 0 ? ` ${report.counts.failed} ${report.counts.failed === 1 ? "item" : "items"} couldn't be removed.` : ""}`
+        ? `Last run ${formatRelativeTimeLabel(report.finishedAt, nowMs)}. ${formatBytes(report.bytesFreed)} recovered.${report.counts.failed > 0 ? ` ${report.counts.failed} ${report.counts.failed === 1 ? "item" : "items"} couldn't be removed.` : ""}`
         : query?.failed
           ? "Could not load the last run."
           : query?.loading

@@ -28,7 +28,8 @@ import type {
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { RegistryContext } from "@effect/atom-react";
+import { useContext, useRef, useState, type ReactNode } from "react";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -809,6 +810,18 @@ export function ResourceTelemetryDiagnostics({
 }: {
   environmentId: EnvironmentId | null;
 }) {
+  // Pending signals and retries belong to one environment, so a switch starts fresh.
+  return (
+    <ResourceTelemetryDiagnosticsBody key={environmentId ?? ""} environmentId={environmentId} />
+  );
+}
+
+function ResourceTelemetryDiagnosticsBody({
+  environmentId,
+}: {
+  environmentId: EnvironmentId | null;
+}) {
+  const registry = useContext(RegistryContext);
   const [windowMs, setWindowMs] = useState(15 * 60_000);
   const selectedWindow =
     HISTORY_WINDOWS.find((option) => option.windowMs === windowMs) ?? HISTORY_WINDOWS[1];
@@ -822,11 +835,6 @@ export function ResourceTelemetryDiagnostics({
     },
     environmentId,
   );
-  const refreshHistory = history.refresh;
-  const selectedHistoryRef = useRef({ environmentId, windowMs, refreshHistory });
-  useEffect(() => {
-    selectedHistoryRef.current = { environmentId, windowMs, refreshHistory };
-  }, [environmentId, windowMs, refreshHistory]);
   const signalServerProcess = useAtomCommand(serverEnvironment.signalProcess, {
     reportFailure: false,
   });
@@ -894,13 +902,15 @@ export function ResourceTelemetryDiagnostics({
     setIsRetrying(true);
     void retryTelemetry()
       .then(() => {
-        refreshHistory();
-        const selectedHistory = selectedHistoryRef.current;
-        if (
-          selectedHistory.environmentId === environmentId &&
-          selectedHistory.windowMs !== windowMs
-        ) {
-          selectedHistory.refreshHistory();
+        // The user can pick another window while the retry runs; refreshing every window
+        // re-reads the one on screen and only invalidates the rest.
+        for (const option of HISTORY_WINDOWS) {
+          registry.refresh(
+            serverEnvironment.resourceTelemetryHistory({
+              environmentId,
+              input: { windowMs: option.windowMs, bucketMs: option.bucketMs },
+            }),
+          );
         }
       })
       .catch((error: unknown) => {

@@ -6,14 +6,7 @@ import { InfoIcon, UndoIcon } from "@supaterm/icons";
 import { DEFAULT_SERVER_SETTINGS, type ServerSettings } from "@supaterm/contracts";
 import * as Equal from "effect/Equal";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import {
-  createContext,
-  type ComponentPropsWithoutRef,
-  type ReactNode,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
+import { createContext, type ComponentPropsWithoutRef, type ReactNode, useContext } from "react";
 
 import {
   PRIMARY_SETTINGS_UNAVAILABLE_MESSAGE,
@@ -200,15 +193,6 @@ export function PolicyTooltip({ children }: { readonly children: string }) {
       <TooltipPopup side="top">{children}</TooltipPopup>
     </Tooltip>
   );
-}
-
-export function useRelativeTimeTick(intervalMs = 1_000) {
-  const [nowMs, setNowMs] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNowMs(Date.now()), intervalMs);
-    return () => clearInterval(id);
-  }, [intervalMs]);
-  return nowMs;
 }
 
 export function SettingsSection({

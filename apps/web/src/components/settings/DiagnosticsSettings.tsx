@@ -704,6 +704,12 @@ function DiagnosticsRefreshButton({
 
 export function DiagnosticsSettingsPanel() {
   const { environment } = useSettingsScope();
+  // Signals and pending UI state belong to one environment, so a scope switch starts fresh.
+  return <DiagnosticsSettingsBody key={environment?.environmentId ?? ""} />;
+}
+
+function DiagnosticsSettingsBody() {
+  const { environment } = useSettingsScope();
   const environmentId = environment?.environmentId ?? null;
   const canMaintainEnvironment = useEnvironmentScope(environmentId, AuthEnvironmentMaintainScope);
   const observability = environment?.serverConfig?.observability;
