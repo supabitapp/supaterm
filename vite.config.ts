@@ -209,6 +209,7 @@ export default defineConfig({
       "array-guardrails/no-array-filter-map": "error",
       "array-guardrails/no-reduce-accumulator-copy": "error",
       "oxc/no-accumulating-spread": "error",
+      "unicorn/require-module-specifiers": "error",
       "unicorn/no-array-sort": "off",
       "unicorn/consistent-function-scoping": "off",
       "oxc/no-map-spread": "off",
