@@ -83,6 +83,7 @@ import {
 import { isCommandPaletteOpen } from "~/commandPaletteBus";
 import { isElectron } from "~/env";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "~/keybindings";
+import { registerCommands } from "~/shortcuts/dispatcher";
 import { isTerminalFocused } from "~/lib/terminalFocus";
 import { PanelLayoutControls, RightPanelMaximizeControl } from "../chat/PanelLayoutControls";
 import { Button } from "../ui/button";
@@ -291,13 +292,21 @@ export function PullRequestsPage() {
      * host forever.
      */
     regrown: ReadonlyArray<string>;
-  }>({ key: filterKey, size: PAGE_SIZE, cursors: null, regrown: [] });
+    /** The turn refreshes a continuation was read under; a later turn makes its cursors stale. */
+    turn: string;
+  }>({ key: filterKey, size: PAGE_SIZE, cursors: null, regrown: [], turn: turnRefreshToken });
   const pageSize = page.key === filterKey ? page.size : PAGE_SIZE;
   const sentCursors = page.key === filterKey ? page.cursors : null;
   const sentRegrown = page.key === filterKey ? page.regrown : [];
 
   if (page.key !== filterKey) {
-    setPage({ key: filterKey, size: PAGE_SIZE, cursors: null, regrown: [] });
+    setPage({
+      key: filterKey,
+      size: PAGE_SIZE,
+      cursors: null,
+      regrown: [],
+      turn: turnRefreshToken,
+    });
   }
 
   const listTargets = environmentQueries.flatMap(({ environmentId, projectIds }) => {
@@ -596,6 +605,7 @@ export function PullRequestsPage() {
         size: regrown.length === 0 ? pageSize : Math.min(pageSize + PAGE_SIZE, MAX_PAGE_SIZE),
         cursors: nextCursors,
         regrown,
+        turn: turnRefreshToken,
       });
       return;
     }
@@ -604,8 +614,27 @@ export function PullRequestsPage() {
       size: Math.min(pageSize + PAGE_SIZE, MAX_PAGE_SIZE),
       cursors: null,
       regrown: [],
+      turn: turnRefreshToken,
     });
   };
+
+  const collapsedPage = () => {
+    const loadedCount =
+      ordered?.key === filterKey ? largestPullRequestReadCount(ordered.entries) : pageSize;
+    return {
+      key: filterKey,
+      regrown: [],
+      size: Math.min(
+        Math.max(pageSize, Math.ceil(loadedCount / PAGE_SIZE) * PAGE_SIZE),
+        MAX_PAGE_SIZE,
+      ),
+      cursors: null,
+      turn: turnRefreshToken,
+    };
+  };
+  // Every list read refetches itself when a turn completes, but a continuation would refetch only
+  // its later page and strand the rows before it, so the whole loaded list is asked for again.
+  if (sentCursors !== null && page.turn !== turnRefreshToken) setPage(collapsedPage());
 
   const refreshList = (includeRelated = false, actedEnvironmentId?: EnvironmentId) => {
     const related = (
@@ -632,30 +661,8 @@ export function PullRequestsPage() {
       return;
     }
     if (related.length > 0) listQuery.refresh(related);
-    const loadedCount =
-      ordered?.key === filterKey ? largestPullRequestReadCount(ordered.entries) : pageSize;
-    setPage({
-      key: filterKey,
-      regrown: [],
-      size: Math.min(
-        Math.max(pageSize, Math.ceil(loadedCount / PAGE_SIZE) * PAGE_SIZE),
-        MAX_PAGE_SIZE,
-      ),
-      cursors: null,
-    });
+    setPage(collapsedPage());
   };
-
-  const appliedTurnRefreshToken = useRef("");
-  const refreshAfterTurn = useEffectEvent(() => {
-    if (sentCursors !== null) refreshList();
-  });
-  useEffect(() => {
-    if (turnRefreshToken.length === 0 || appliedTurnRefreshToken.current === turnRefreshToken) {
-      return;
-    }
-    appliedTurnRefreshToken.current = turnRefreshToken;
-    refreshAfterTurn();
-  }, [turnRefreshToken]);
 
   useLiveRefresh(
     () => {
@@ -922,15 +929,6 @@ export function PullRequestsPage() {
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- The pointer sensor lives outside React; a new list under a sweep in progress must end it.
     [filterKey, search.q, sort],
   );
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || closeSensorRef.current === null) return;
-      event.preventDefault();
-      closeSensorRef.current.cancel();
-    };
-    document.addEventListener("keydown", onKeyDown, true);
-    return () => document.removeEventListener("keydown", onKeyDown, true);
-  }, []);
   const startCloseSweep = useStableCallback(
     (entry: EnvironmentPullRequestEntry, event: PointerEvent) => {
       closeSensorRef.current?.cancel();
@@ -962,14 +960,27 @@ export function PullRequestsPage() {
         sweptKeys = resolveSidebarSweepKeys(orderedKeys, originKey, key, canClose);
         setCloseSweepKeys(new Set(sweptKeys));
       };
-      closeSensorRef.current = new SidebarPointerSensor({
+      // Only while a sweep runs: Escape ends it, ahead of any other scope that would also take it.
+      const releaseEscape = registerCommands(
+        {},
+        {
+          capture: true,
+          onKeyDown: (keyEvent) => {
+            if (keyEvent.key !== "Escape") return false;
+            keyEvent.preventDefault();
+            sensor.cancel();
+          },
+        },
+      );
+      const sensor = new SidebarPointerSensor({
         active: originKey,
         event,
         options: {
           distance: 6,
           onAttach: () => {},
           onFinish: () => {
-            closeSensorRef.current = null;
+            releaseEscape();
+            if (closeSensorRef.current === sensor) closeSensorRef.current = null;
             setCloseSweepKeys(new Set());
           },
         },
@@ -997,6 +1008,7 @@ export function PullRequestsPage() {
         onCancel: () => {},
         onAbort: () => {},
       });
+      closeSensorRef.current = sensor;
     },
   );
   const rightPanelAvailable = selectedPullRequestSurface !== null;
