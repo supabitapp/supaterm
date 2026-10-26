@@ -54,3 +54,26 @@ export function splitAndroidHeaderActions<Action extends { readonly overflowOnly
     overflowActions: actions.filter((action) => !visibleActions.includes(action)),
   };
 }
+
+/**
+ * Keeps as many actions inline as fit beside a title at least one button wide, moving the rest
+ * behind an overflow button that takes one of the slots.
+ */
+export function fitAndroidHeaderActions<Action>(
+  actions: ReadonlyArray<Action>,
+  layout: {
+    readonly width: number;
+    readonly buttonSize: number;
+    readonly gap: number;
+    readonly reservedButtons: number;
+  },
+) {
+  const slots =
+    layout.width === 0
+      ? actions.length
+      : Math.floor((layout.width - layout.buttonSize) / (layout.buttonSize + layout.gap)) -
+        layout.reservedButtons;
+  if (actions.length <= slots) return { visibleActions: actions, overflowActions: [] };
+  const visibleActions = actions.slice(0, Math.max(0, slots - 1));
+  return { visibleActions, overflowActions: actions.slice(visibleActions.length) };
+}
