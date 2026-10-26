@@ -60,7 +60,6 @@ vi.mock(import("../../state/server"), async (original) => {
 
 const environmentId = EnvironmentId.make("environment");
 const threadId = ThreadId.make("thread");
-const activeThread = { id: threadId };
 let requestId: RuntimeRequestId;
 let requestSequence = 0;
 const nodeId = NodeId.make("question-node");
@@ -135,7 +134,6 @@ function Probe({ serverProjection }: { serverProjection: OrchestrationV2ThreadPr
   const current = usePendingThreadRequestsWithTimerPause({
     environmentId,
     activeThreadId: threadId,
-    activeThread,
     serverProjection,
     supportsQuestionAttachments: false,
     composerDraftTarget: DraftId.make("draft"),

@@ -1412,7 +1412,6 @@ export default function ChatView(props: ChatViewProps) {
   } = usePendingThreadRequestsWithTimerPause({
     environmentId,
     activeThreadId,
-    activeThread,
     serverProjection,
     supportsQuestionAttachments,
     composerDraftTarget,
