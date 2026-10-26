@@ -1,6 +1,6 @@
 {
   "name": "@supaterm/desktop",
-  "version": "26.10.5",
+  "version": "26.10.6",
   "private": true,
   "type": "module",
   "main": "dist-electron/boot.cjs",
