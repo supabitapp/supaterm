@@ -1,11 +1,15 @@
+import { scopedThreadKey, scopeThreadRef } from "@supaterm/client-runtime/environment";
 import type { ClientSettings } from "@supaterm/contracts/settings";
 import { createBrowserHistory, createHashHistory } from "@tanstack/react-router";
 
 import { applyAppearanceContrast } from "./appearanceContrast";
 import { applyAppearanceFontVariables } from "./appearanceFonts";
+import { useChatPaneStore } from "./chatPanes/store";
+import { retainThreadOverlaysFor } from "./components/chat/threadOverlayRetention";
 import { startAgentOpenedPreviews } from "./components/preview/agentOpenedPreviews";
 import { APP_DISPLAY_NAME } from "./branding";
 import { isElectron } from "./env";
+import { useComposerDraftStore } from "./composerDraftStore";
 import { getClientSettings, subscribeClientSettings } from "./hooks/useSettings";
 import {
   syncDocumentElectronPlatformClasses,
@@ -13,6 +17,7 @@ import {
 } from "./lib/windowControlsOverlay";
 import { prepareProviderAuthDelivery } from "./providerAuthDelivery";
 import { getRouter, type AppRouter } from "./router";
+import { resolveThreadRouteTarget, type ThreadRouteTarget } from "./threadRoutes";
 
 /** Writes appearance settings onto the document, touching only the groups that changed. */
 function startClientAppearance(): void {
@@ -63,6 +68,36 @@ function startClientAppearance(): void {
   apply();
 }
 
+/** The thread a route or pane shows, as the key its chat overlays were opened under. */
+function shownThreadKey(target: ThreadRouteTarget | null): string | null {
+  if (target?.kind === "server") return scopedThreadKey(target.threadRef);
+  const draftSession =
+    target?.kind === "draft"
+      ? useComposerDraftStore.getState().getDraftSession(target.draftId)
+      : null;
+  return draftSession
+    ? scopedThreadKey(scopeThreadRef(draftSession.environmentId, draftSession.threadId))
+    : null;
+}
+
+/** Chat overlays belong to the thread they were opened in, so a thread no route or pane shows drops them. */
+function startThreadOverlayRetention(router: AppRouter): void {
+  const retain = () => {
+    const shown = new Set<string>();
+    const routeKey = shownThreadKey(
+      resolveThreadRouteTarget(router.state.matches.at(-1)?.params ?? {}),
+    );
+    if (routeKey !== null) shown.add(routeKey);
+    for (const cell of useChatPaneStore.getState().layout?.cells ?? []) {
+      const paneKey = shownThreadKey(cell.target);
+      if (paneKey !== null) shown.add(paneKey);
+    }
+    retainThreadOverlaysFor(shown);
+  };
+  router.subscribe("onResolved", retain);
+  useChatPaneStore.subscribe(retain);
+}
+
 /**
  * Starts every app-lifetime service once, before the first render, and returns the router.
  * They run for the life of the page, so their disposers are dropped here.
@@ -82,6 +117,7 @@ export function startAppServices(): AppRouter {
   startClientAppearance();
   document.title = APP_DISPLAY_NAME;
   startAgentOpenedPreviews();
+  startThreadOverlayRetention(router);
 
   return router;
 }

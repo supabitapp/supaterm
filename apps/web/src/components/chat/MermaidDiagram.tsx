@@ -1,6 +1,6 @@
 import DOMPurify from "dompurify";
 import type { MathResolver } from "@supaterm/mermaid/diagram";
-import { use, useLayoutEffect, useRef, useState } from "react";
+import { use, useState } from "react";
 
 import { mountDiagram } from "../../diagrams/mountDiagram";
 import { serializeCodeBlockToMarkdown } from "../../markdown-clipboard";
@@ -193,14 +193,12 @@ export function MermaidDiagram({
   // An error belongs to the source that produced it. The worker only lays out a visible target,
   // so a new source must not inherit the error that hides it.
   const [failure, setFailure] = useState<{ source: string; message: string } | null>(null);
-  const containerRef = useRef<HTMLSpanElement>(null);
   const trimmedSource = source.trim();
   const renderError = failure?.source === trimmedSource ? failure.message : null;
   const math = trimmedSource.includes("$$") ? use(loadMath()) : null;
 
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+  // Re-created, and so remounted, whenever math support or the source changes.
+  const attachDiagram = (container: HTMLSpanElement) => {
     const mounted = mountDiagram(container, trimmedSource, {
       links: false,
       images: false,
@@ -216,7 +214,7 @@ export function MermaidDiagram({
         }),
     });
     return () => mounted.destroy();
-  }, [math, trimmedSource]);
+  };
 
   return (
     <div
@@ -230,12 +228,12 @@ export function MermaidDiagram({
         aria-label="Expand diagram"
         hidden={renderError !== null}
         className="block w-full cursor-zoom-in rounded-md focus-visible:outline-2 focus-visible:outline-ring"
-        onClick={() => {
-          const svg = containerRef.current?.querySelector("svg");
+        onClick={(event) => {
+          const svg = event.currentTarget.querySelector("svg");
           if (svg) onExpand(diagramImageUrl(svg));
         }}
       >
-        <span ref={containerRef} className="flex w-full justify-center" />
+        <span ref={attachDiagram} className="flex w-full justify-center" />
       </button>
     </div>
   );
