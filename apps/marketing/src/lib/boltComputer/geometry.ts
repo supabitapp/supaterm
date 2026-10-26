@@ -30,7 +30,7 @@ export const RECESS = 0.03;
 export const LED_PITCH = 0.0155;
 export const KNOB = { x: -0.25, y: 0.29, r: 0.036 } as const;
 export const SLOT = { x: 0.105, y: 0.29, hw: 0.148, hh: 0.015 } as const;
-export const SLIDER = { x: 0.232, hw: 0.018, hh: 0.026 } as const;
+export const SLIDER = { x: 0.04, hw: 0.018, hh: 0.026 } as const;
 
 export function extents(o: Outline, inset = 0) {
   return { hx: o.bx + o.r - inset, hy: o.by + o.r - inset };
