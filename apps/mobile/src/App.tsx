@@ -1,3 +1,9 @@
+import { installComposerAttachmentUploads } from "./state/composer-attachment-uploads";
+import { installThreadOutboxDelivery } from "./state/threadOutboxDelivery";
+import {
+  disposeOnFoundationReplace,
+  type FoundationHotModule,
+} from "./lib/foundation-fast-refresh";
 import * as Linking from "expo-linking";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
@@ -49,6 +55,12 @@ const appLinking = {
 };
 
 const Navigation = createStaticNavigation(RootStack);
+declare const module: { readonly hot?: FoundationHotModule } | undefined;
+
+const appServiceDisposers = [installThreadOutboxDelivery(), installComposerAttachmentUploads()];
+disposeOnFoundationReplace(typeof module === "undefined" ? undefined : module.hot, () => {
+  for (const dispose of appServiceDisposers) dispose();
+});
 
 function SplashScreenCoordinator() {
   const { isReady } = useAppearancePreferences();

@@ -17,6 +17,9 @@ import type { PreparedTurnAttachments } from "../lib/attachmentUpload";
 
 const harness = vi.hoisted(() => ({
   canOperate: true,
+  threadProjection: null as unknown as import("effect/reactivity").Atom.Writable<{
+    readonly projection: { readonly messages: ReadonlyArray<{ readonly id: string }> };
+  } | null>,
   manager: null as unknown as ReturnType<
     typeof import("./thread-outbox-manager").createThreadOutboxManager
   >,
@@ -81,11 +84,9 @@ vi.mock("../lib/attachmentUpload", () => ({
   prepareTurnAttachments: harness.prepareTurnAttachments,
 }));
 
-vi.mock("./entities", () => ({
-  useProjects: () => [],
-  useServerConfigs: () => new Map(),
-  useThreadShells: () => [],
-}));
+vi.mock("./projects", () => ({ environmentProjects: {} }));
+
+vi.mock("./workspace", () => ({ workspaceConnections: {} }));
 
 vi.mock("./server", async () => {
   const { Atom } = await import("effect/reactivity");
@@ -96,21 +97,21 @@ vi.mock("./git", () => ({ gitEnvironment: {} }));
 
 vi.mock("./threads", async () => {
   const { Atom } = await import("effect/reactivity");
+  harness.threadProjection = Atom.make<{
+    readonly projection: { readonly messages: ReadonlyArray<{ readonly id: string }> };
+  } | null>(null).pipe(Atom.keepAlive);
   return {
     threadEnvironment: {},
-    environmentThreadDetails: { threadAtom: Atom.family((_key: unknown) => Atom.make(null)) },
+    environmentThreadDetails: { threadAtom: () => harness.threadProjection },
   };
 });
 
 vi.mock("./vcs", () => ({ fetchVcsRefs: {} }));
 
-vi.mock("./use-atom-command", () => ({
-  useAtomCommand: () => async () => undefined,
-}));
-
 vi.mock("./session", () => ({
+  environmentSession: {},
   readEnvironmentScope: () => harness.canOperate,
-  useEnvironmentsWithScope: () => new Set(),
+  sessionHasScope: () => harness.canOperate,
 }));
 
 vi.mock("./use-thread-outbox", async () => {
@@ -119,14 +120,10 @@ vi.mock("./use-thread-outbox", async () => {
     editingQueuedMessageIdsAtom: Atom.make<Record<string, "editing" | "paused" | "deleting">>(
       {},
     ).pipe(Atom.keepAlive),
-    useThreadOutboxMessages: () => ({}),
-    useThreadOutboxShellStatuses: () => new Map(),
+    dispatchingQueuedMessageIdAtom: Atom.make(null).pipe(Atom.keepAlive),
+    threadOutboxShellStatusesAtom: Atom.make(new Map()),
   };
 });
-
-vi.mock("./use-remote-environment-registry", () => ({
-  useRemoteConnectionStatus: () => ({ connectedEnvironments: [] }),
-}));
 
 vi.mock("./thread-outbox", async () => {
   const { createThreadOutboxManager } = await import("./thread-outbox-manager");
@@ -174,7 +171,7 @@ import {
   recoverEditedCreationAfterDelivery,
   removeAcknowledgedExistingThreadMessage,
   restoreRejectedQueuedMessage,
-} from "./use-thread-outbox-drain";
+} from "./threadOutboxDelivery";
 
 function queuedMessage(input: {
   readonly messageId: string;
@@ -227,6 +224,7 @@ function remainingMessages(): ReadonlyArray<QueuedThreadMessage> {
 
 beforeEach(() => {
   appAtomRegistry.set(acknowledgedThreadMessagesAtom, []);
+  appAtomRegistry.set(harness.threadProjection, null);
   harness.canOperate = true;
   harness.draftFile.setDocument({ schemaVersion: 1, drafts: {} });
 });
