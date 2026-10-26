@@ -1130,7 +1130,7 @@ export function NewTaskDraftScreen(props: {
             draftKey={flow.draftKey}
             value={flow.prompt}
             onChangeText={flow.setPrompt}
-            placeholder="Ask the repo agent, or run a command…"
+            placeholder="Ask anything"
             multiline
             style={{ minHeight: 64 }}
           />

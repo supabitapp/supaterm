@@ -1707,7 +1707,7 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
                             ? props.activePendingApproval.supportsFeedback
                               ? "Send feedback to decline this request"
                               : "Send a message to decline and redirect the agent"
-                            : (suggestedPrompt ?? "Ask the repo agent, or run a command…")
+                            : (suggestedPrompt ?? "Ask anything")
                         }
                         suggestedPrompt={suggestedPrompt}
                         contentMaxWidth={contentMaxWidth}
