@@ -1,9 +1,14 @@
 import { BOLT_CELLS, thinkingLevel } from "@supaterm/shared/boltFace";
 import { assert, describe, it } from "@effect/vitest";
 
-import { ledCenter, makeLaunchIconFrames } from "./LaunchIconFrames.ts";
+import { makeLaunchIconFrames } from "./LaunchIconFrames.ts";
+import { LAUNCH_ICON_LEDS } from "./LaunchIconLeds.generated.ts";
 
 const SIZE = 256;
+const ledCenter = (column: number, row: number): readonly [number, number] => [
+  LAUNCH_ICON_LEDS.x + column * LAUNCH_ICON_LEDS.pitchX,
+  LAUNCH_ICON_LEDS.y + row * LAUNCH_ICON_LEDS.pitchY,
+];
 const OFF = [14, 14, 14, 255] as const;
 // BGRA, as macOS bitmaps are.
 const YELLOW = [110, 240, 250, 255] as const;

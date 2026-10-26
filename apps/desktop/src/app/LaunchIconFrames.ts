@@ -2,12 +2,6 @@ import { BOLT_CELLS, thinkingLevel } from "@supaterm/shared/boltFace";
 
 import { LAUNCH_ICON_LEDS } from "./LaunchIconLeds.generated.ts";
 
-/** Where the bolt's LED at `column`, `row` lights, as a fraction of the macOS icon tile. */
-export const ledCenter = (column: number, row: number): readonly [number, number] => [
-  LAUNCH_ICON_LEDS.x + column * LAUNCH_ICON_LEDS.pitchX,
-  LAUNCH_ICON_LEDS.y + row * LAUNCH_ICON_LEDS.pitchY,
-];
-
 // Pixels this far apart in the two renders are resampling noise, not LED light.
 const LIGHT_THRESHOLD = 8;
 // In LED pitches: sharp enough that a sparking LED owns its cell, wide enough
@@ -104,13 +98,18 @@ export function makeLaunchIconFrames(lit: Buffer, unlit: Buffer, size: number): 
       BOLT_CELLS.forEach(([c, r], index) => {
         const level = 1 - (1 - thinkingLevel(c, r, t)) * DIMMING * (1 - glow);
         const hue = hueAt(c, r, t);
+        const cosine = level * (glow + (1 - glow) * SATURATION * Math.cos(hue));
+        const sine = level * (1 - glow) * SATURATION * Math.sin(hue);
         levels[index] = level;
-        cosines[index] = level * (glow + (1 - glow) * SATURATION * Math.cos(hue));
-        sines[index] = level * (1 - glow) * SATURATION * Math.sin(hue);
-        meanLevel += level / BOLT_CELLS.length;
-        meanCosine += (cosines[index] ?? 0) / BOLT_CELLS.length;
-        meanSine += (sines[index] ?? 0) / BOLT_CELLS.length;
+        cosines[index] = cosine;
+        sines[index] = sine;
+        meanLevel += level;
+        meanCosine += cosine;
+        meanSine += sine;
       });
+      meanLevel /= BOLT_CELLS.length;
+      meanCosine /= BOLT_CELLS.length;
+      meanSine /= BOLT_CELLS.length;
       for (let k = 0; k < pixels.length; k++) {
         const meanWeight = meanWeights[k] ?? 0;
         let level = meanWeight * meanLevel;

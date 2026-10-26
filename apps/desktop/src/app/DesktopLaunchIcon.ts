@@ -88,24 +88,6 @@ export const make = Effect.gen(function* () {
     );
   });
 
-  const loadFrames = (appearance: DesktopAssets.IconAppearance) =>
-    assets.launchIconPaths(appearance).pipe(
-      Effect.flatMap((paths) =>
-        Effect.sync(() =>
-          Option.flatMap(paths, ({ lit, unlit }) =>
-            Option.zipWith(loadBitmap(lit), loadBitmap(unlit), (litBitmap, unlitBitmap) =>
-              makeLaunchIconFrames(litBitmap, unlitBitmap, TILE_PIXELS),
-            ),
-          ),
-        ),
-      ),
-      Effect.catch((error) =>
-        Effect.logWarning("Dock launch icon assets are unavailable", {
-          message: error.message,
-        }).pipe(Effect.as(Option.none<LaunchIconFrames>())),
-      ),
-    );
-
   const animate = Effect.fnUntraced(function* (frames: LaunchIconFrames) {
     const startedAt = yield* Clock.currentTimeMillis;
     const elapsed = Clock.currentTimeMillis.pipe(Effect.map((now) => (now - startedAt) / 1000));
@@ -149,10 +131,22 @@ export const make = Effect.gen(function* () {
   const start = Effect.gen(function* () {
     const appearance = yield* dockAppearance;
     if (Option.isNone(appearance)) return;
-    const frames = yield* loadFrames(appearance.value);
-    if (Option.isNone(frames)) return;
-    yield* animate(frames.value).pipe(Effect.ensuring(electronApp.setDockIcon(null)));
-  }).pipe(Effect.withSpan("desktop.launchIcon"), Effect.forkScoped, Effect.asVoid);
+    const paths = yield* assets.launchIconPaths(appearance.value);
+    if (Option.isNone(paths)) return;
+    const lit = loadBitmap(paths.value.lit);
+    const unlit = loadBitmap(paths.value.unlit);
+    if (Option.isNone(lit) || Option.isNone(unlit)) return;
+    yield* animate(makeLaunchIconFrames(lit.value, unlit.value, TILE_PIXELS)).pipe(
+      Effect.ensuring(electronApp.setDockIcon(null)),
+    );
+  }).pipe(
+    Effect.catch((error) =>
+      Effect.logWarning("Dock launch icon assets are unavailable", { message: error.message }),
+    ),
+    Effect.withSpan("desktop.launchIcon"),
+    Effect.forkScoped,
+    Effect.asVoid,
+  );
 
   return DesktopLaunchIcon.of({
     start,

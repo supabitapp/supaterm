@@ -6,14 +6,13 @@ import * as Predicate from "effect/Predicate";
  * the unconditional one, so tools that render one appearance render this one.
  */
 export function bakeIconAppearance(document: string, appearance: string): string {
+  const appearanceOf = (entry: unknown) => (Predicate.isObject(entry) ? entry.appearance : null);
   const specialize = (entries: ReadonlyArray<unknown>) => {
-    const forAppearance = entries.filter(
-      (entry) => Predicate.isObject(entry) && entry.appearance === appearance,
-    );
+    const forAppearance = entries.filter((entry) => appearanceOf(entry) === appearance);
     const chosen =
       forAppearance.length > 0
         ? forAppearance
-        : entries.filter((entry) => Predicate.isObject(entry) && entry.appearance === undefined);
+        : entries.filter((entry) => appearanceOf(entry) === undefined);
     return chosen.map((entry) =>
       Predicate.isObject(entry)
         ? Object.fromEntries(Object.entries(entry).filter(([key]) => key !== "appearance"))
