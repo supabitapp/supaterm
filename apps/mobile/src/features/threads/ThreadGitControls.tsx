@@ -397,7 +397,7 @@ function useThreadGitHeaderActionItems(props: ThreadGitControlsProps) {
                 : "Commit, files, branches",
             disabled: props.hasThread === false,
             icon: { name: "ellipsis", type: "sfSymbol" },
-            label: "Git overview",
+            label: "More",
             onPress: model.openGitInspector,
             type: "action",
           },
@@ -412,44 +412,13 @@ function useThreadGitHeaderActionItems(props: ThreadGitControlsProps) {
 }
 
 export function useThreadGitRightHeaderItems(props: ThreadGitControlsProps): HeaderItems {
-  const actionItems = useThreadGitHeaderActionItems(props);
-  return [
-    {
-      accessibilityLabel: "More actions",
-      icon: { name: "ellipsis", type: "sfSymbol" },
-      identifier: "thread-right-more",
-      label: "",
-      menu: {
-        items: [
-          {
-            type: "submenu",
-            label: "Terminal",
-            icon: actionItems.terminal.icon,
-            items: actionItems.terminal.menu.items.map((item) => ({
-              ...item,
-              disabled: actionItems.terminal.disabled || ("disabled" in item && item.disabled),
-            })),
-          },
-          {
-            type: "action",
-            label: "Files",
-            icon: actionItems.files.icon,
-            disabled: actionItems.files.disabled,
-            onPress: actionItems.files.onPress,
-          },
-          {
-            type: "submenu",
-            label: "Git",
-            icon: actionItems.git.icon,
-            items: actionItems.git.menu.items,
-          },
-        ],
-      },
-      sharesBackground: true,
-      type: "menu",
-      variant: "plain",
-    },
-  ] satisfies HeaderItems;
+  const { files, git, terminal } = useThreadGitHeaderActionItems(props);
+  return [git, files, terminal];
+}
+
+export function useThreadGitCenterHeaderItems(props: ThreadGitControlsProps): HeaderItems {
+  const { files, git, terminal } = useThreadGitHeaderActionItems(props);
+  return [files, git, terminal];
 }
 
 export function ThreadGitControls(props: ThreadGitControlsProps) {
@@ -470,63 +439,69 @@ export function ThreadGitControls(props: ThreadGitControlsProps) {
           separateBackground
         />
       ) : null}
-      <Toolbar.Menu accessibilityLabel="More actions" icon="ellipsis" separateBackground>
-        <Toolbar.Menu title="Terminal" icon="terminal">
-          {props.projectScripts.length > 0 ? (
-            props.projectScripts.map((script) => (
-              <Toolbar.MenuAction
-                key={script.id}
-                icon={projectScriptMenuIcon(script.icon)}
-                disabled={!props.canOpenTerminal || !props.canOperateTerminal}
-                onPress={() => void props.onRunProjectScript(script)}
-                subtitle={script.command}
-              >
-                <Toolbar.Label>{projectScriptMenuLabel(script)}</Toolbar.Label>
-              </Toolbar.MenuAction>
-            ))
-          ) : (
+      <Toolbar.Menu
+        accessibilityLabel="Open terminal"
+        icon="terminal"
+        disabled={!props.canOpenTerminal}
+        separateBackground
+      >
+        {props.projectScripts.length > 0 ? (
+          props.projectScripts.map((script) => (
             <Toolbar.MenuAction
-              icon="play"
-              disabled
-              onPress={() => {}}
-              subtitle="This project has no saved scripts yet"
+              key={script.id}
+              icon={projectScriptMenuIcon(script.icon)}
+              disabled={!props.canOperateTerminal}
+              onPress={() => void props.onRunProjectScript(script)}
+              subtitle={script.command}
             >
-              <Toolbar.Label>No project scripts</Toolbar.Label>
+              <Toolbar.Label>{projectScriptMenuLabel(script)}</Toolbar.Label>
             </Toolbar.MenuAction>
-          )}
-          {props.terminalSessions.map((session) => (
-            <Toolbar.MenuAction
-              key={session.terminalId}
-              icon="terminal"
-              disabled={!props.canOpenTerminal}
-              onPress={() => props.onOpenTerminal(session.terminalId)}
-              subtitle={[
-                getTerminalStatusLabel({
-                  status: session.status,
-                  hasRunningSubprocess: session.hasRunningSubprocess,
-                }),
-                basename(session.cwd),
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            >
-              <Toolbar.Label>{session.displayLabel}</Toolbar.Label>
-            </Toolbar.MenuAction>
-          ))}
+          ))
+        ) : (
           <Toolbar.MenuAction
-            icon="plus"
-            disabled={!props.canOpenTerminal || !props.canOperateTerminal}
-            onPress={props.onOpenNewTerminal}
-            subtitle="Start another shell for this thread"
+            icon="play"
+            disabled
+            onPress={() => {}}
+            subtitle="This project has no saved scripts yet"
           >
-            <Toolbar.Label>Open new terminal</Toolbar.Label>
+            <Toolbar.Label>No project scripts</Toolbar.Label>
           </Toolbar.MenuAction>
-        </Toolbar.Menu>
-        <Toolbar.MenuAction disabled={!props.canOpenFiles} icon="folder" onPress={model.openFiles}>
-          Files
+        )}
+        {props.terminalSessions.map((session) => (
+          <Toolbar.MenuAction
+            key={session.terminalId}
+            icon="terminal"
+            onPress={() => props.onOpenTerminal(session.terminalId)}
+            subtitle={[
+              getTerminalStatusLabel({
+                status: session.status,
+                hasRunningSubprocess: session.hasRunningSubprocess,
+              }),
+              basename(session.cwd),
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          >
+            <Toolbar.Label>{session.displayLabel}</Toolbar.Label>
+          </Toolbar.MenuAction>
+        ))}
+        <Toolbar.MenuAction
+          icon="plus"
+          disabled={!props.canOperateTerminal}
+          onPress={props.onOpenNewTerminal}
+          subtitle="Start another shell for this thread"
+        >
+          <Toolbar.Label>Open new terminal</Toolbar.Label>
         </Toolbar.MenuAction>
-        {createNativeHeaderMenu({ ...threadGitMenuDefinition(props, model), title: "Git" })}
       </Toolbar.Menu>
+      <Toolbar.Button
+        accessibilityLabel="Open files"
+        disabled={!props.canOpenFiles}
+        icon="folder"
+        onPress={model.openFiles}
+        separateBackground
+      />
+      {createNativeHeaderMenu(threadGitMenuDefinition(props, model))}
     </Toolbar>
   );
 }
@@ -586,7 +561,7 @@ function threadGitMenuDefinition(
       },
       {
         id: "git-more",
-        title: "Git overview",
+        title: "More",
         icon: "ellipsis",
         disabled: props.hasThread === false,
         subtitle:
