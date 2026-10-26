@@ -209,6 +209,7 @@ export default defineConfig({
       "array-guardrails/no-array-filter-map": "error",
       "array-guardrails/no-reduce-accumulator-copy": "error",
       "oxc/no-accumulating-spread": "error",
+      "react/jsx-no-constructed-context-values": "off",
       "react/immutability": "error",
       "react/no-array-index-key": "error",
       "react/no-unstable-nested-components": "error",
@@ -598,10 +599,7 @@ export default defineConfig({
         // (apps/mobile/src/reactCompilerCoverage.test.ts). Directives would hide bailouts from it;
         // the manual memo hooks go once the allowlist there is empty.
         files: ["apps/mobile/src/**/*.{ts,tsx}"],
-        rules: {
-          "supaterm/no-manual-memo": ["error", { allowMemoHooks: true }],
-          "react/jsx-no-constructed-context-values": "off",
-        },
+        rules: { "supaterm/no-manual-memo": ["error", { allowMemoHooks: true }] },
       },
       {
         files: ["apps/web/src/**", "apps/mobile/src/**", "packages/*/src/**"],
