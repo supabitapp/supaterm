@@ -14,6 +14,12 @@ const state = vi.hoisted(() => ({
   baseDirectory: "",
   projects: [] as string[],
   createRequests: [] as { environmentId: string; workspaceRoot: string }[],
+  dispatch: vi.fn(),
+  navigationState: { index: 0, routes: [{ key: "home", name: "Home" }] } as {
+    index: number;
+    routes: ReadonlyArray<{ key: string; name: string; params?: unknown }>;
+  },
+  waitForProject: vi.fn(async (): Promise<unknown> => null),
 }));
 
 vi.mock("react", async (importOriginal) => ({
@@ -39,8 +45,8 @@ vi.mock("react-native", () => ({
 }));
 vi.mock("@react-navigation/native", () => ({
   useNavigation: () => ({
-    dispatch: () => {},
-    getState: () => ({ index: 0, routes: [{ key: "home", name: "Home" }] }),
+    dispatch: state.dispatch,
+    getState: () => state.navigationState,
   }),
   CommonActions: { reset: (input: unknown) => input },
   StackActions: {},
@@ -64,7 +70,7 @@ vi.mock("../../state/session", () => ({
 }));
 vi.mock("../../state/entities", () => ({
   useProjects: () => [],
-  waitForProject: async () => null,
+  waitForProject: () => state.waitForProject(),
   useServerConfigs: () =>
     new Map([
       [
@@ -173,6 +179,10 @@ describe("clone project permissions", () => {
     state.otherScopes = new Set();
     state.projects = [];
     state.createRequests = [];
+    state.dispatch.mockReset();
+    state.navigationState = { index: 0, routes: [{ key: "home", name: "Home" }] };
+    state.waitForProject.mockReset();
+    state.waitForProject.mockResolvedValue(null);
   });
 
   afterEach(async () => {
@@ -198,4 +208,27 @@ describe("clone project permissions", () => {
       expect(state.projects).toEqual([]);
     },
   );
+
+  it("opens the cloned project's draft from the screen that started the clone", async () => {
+    state.scopes.add(AuthOrchestrationOperateScope);
+    state.waitForProject.mockResolvedValue({ id: "project" });
+    await cloneAction()();
+
+    const reset = state.dispatch.mock.calls.at(-1)?.[0] as {
+      routes: ReadonlyArray<{ name: string; params?: { draft?: { projectId?: string } } }>;
+    };
+    expect(reset.routes.at(-1)?.name).toBe("Thread");
+    expect(reset.routes.at(-1)?.params?.draft?.projectId).toBe("project");
+  });
+
+  it("leaves navigation alone when the user moved on while the project arrived", async () => {
+    state.scopes.add(AuthOrchestrationOperateScope);
+    state.waitForProject.mockImplementation(async () => {
+      state.navigationState = { index: 0, routes: [{ key: "settings", name: "Settings" }] };
+      return { id: "project" };
+    });
+    await cloneAction()();
+
+    expect(state.dispatch).not.toHaveBeenCalled();
+  });
 });
