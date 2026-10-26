@@ -19,7 +19,6 @@ import {
   mergeEnvironmentSettings,
   persistClientSettingsPatch,
   persistClientSettingsUpdate,
-  resolveEnvironmentIdentificationMode,
 } from "./useSettings";
 
 beforeEach(() => {
@@ -241,44 +240,6 @@ describe("persistClientSettingsUpdate", () => {
     expect(durableSettings.browserProfiles).toContainEqual(importedProfile);
     expect(getClientSettings().wordWrap).toBe(false);
     expect(getClientSettings().browserProfiles).toContainEqual(importedProfile);
-  });
-});
-
-describe("resolveEnvironmentIdentificationMode", () => {
-  it("keeps identification hidden until client settings hydrate", () => {
-    expect(
-      resolveEnvironmentIdentificationMode({
-        settingsHydrated: false,
-        appearance: "light",
-        paletteThemeActive: true,
-      }),
-    ).toBe("none");
-  });
-
-  it("uses a pill with a custom light palette", () => {
-    expect(
-      resolveEnvironmentIdentificationMode({
-        settingsHydrated: true,
-        appearance: "light",
-        paletteThemeActive: true,
-      }),
-    ).toBe("pill");
-  });
-
-  it("shows nothing with the default palette or a dark appearance", () => {
-    expect(
-      resolveEnvironmentIdentificationMode({
-        settingsHydrated: true,
-        appearance: "light",
-      }),
-    ).toBe("none");
-    expect(
-      resolveEnvironmentIdentificationMode({
-        settingsHydrated: true,
-        appearance: "dark",
-        paletteThemeActive: true,
-      }),
-    ).toBe("none");
   });
 });
 

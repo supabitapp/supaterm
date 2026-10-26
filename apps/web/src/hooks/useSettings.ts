@@ -29,13 +29,6 @@ import {
   supportsSharedSettingsSync,
 } from "@supaterm/client-runtime/state/shared-settings";
 import { ensureLocalApi } from "~/localApi";
-import {
-  getThemeDefinition,
-  getThemePreviewAppearance,
-  resolveThemeHalf,
-  subscribeToThemePreview,
-  type ThemeAppearance,
-} from "~/themePalette";
 import * as Equal from "effect/Equal";
 import * as Struct from "effect/Struct";
 import * as Option from "effect/Option";
@@ -46,7 +39,6 @@ import { isHostedStaticApp } from "~/hostedPairing";
 import { primaryServerSettingsAtom, serverEnvironment } from "~/state/server";
 import { useEnvironments, usePrimaryEnvironment } from "~/state/environments";
 import { useAtomCommand } from "~/state/use-atom-command";
-import { useTheme } from "./useTheme";
 import {
   environmentSession,
   environmentSessionStatesAtom,
@@ -335,34 +327,6 @@ export function useMergedSettings<T = UnifiedSettings>(
   return useClientSettings((clientSettings) => {
     const merged = mergeEnvironmentSettings(serverSettings, clientSettings);
     return selector ? selector(merged) : (merged as T);
-  });
-}
-
-type EnvironmentIdentificationMode = "pill" | "none";
-
-export function resolveEnvironmentIdentificationMode(input: {
-  settingsHydrated: boolean;
-  appearance: ThemeAppearance;
-  paletteThemeActive?: boolean;
-}): EnvironmentIdentificationMode {
-  // Avoid briefly rendering the pill before client settings hydrate.
-  if (!input.settingsHydrated) return "none";
-  return input.appearance === "light" && input.paletteThemeActive ? "pill" : "none";
-}
-
-export function useEnvironmentIdentificationMode(): EnvironmentIdentificationMode {
-  const settingsHydrated = useClientSettingsHydrated();
-  const { resolvedTheme, theme, themeHalves } = useTheme();
-  const previewAppearance = useSyncExternalStore(
-    subscribeToThemePreview,
-    getThemePreviewAppearance,
-    () => null,
-  );
-  const activeTheme = resolveThemeHalf(theme, themeHalves, resolvedTheme);
-  return resolveEnvironmentIdentificationMode({
-    settingsHydrated,
-    appearance: previewAppearance ?? resolvedTheme,
-    paletteThemeActive: previewAppearance !== null || getThemeDefinition(activeTheme) !== null,
   });
 }
 
