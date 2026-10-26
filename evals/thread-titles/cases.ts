@@ -2,16 +2,17 @@ import type { ThreadTitleMessage } from "@supaterm/provider-core/server/threadTi
 
 export const threadTitleEvaluationCases = [
   {
-    id: "linked-reset-credits",
-    source: "https://github.com/supabitapp/supaterm/pull/10462",
-    request: "Review the reset credit routing change.",
-    previousTitle: "Review PR 10462",
-    messages: [{ role: "user", text: "Review https://github.com/supabitapp/supaterm/pull/10462" }],
-    rubric: "Name reset credit routing. Distinguish it from displaying credit balances.",
+    id: "linked-idle-history",
+    source: "https://github.com/supabitapp/supaterm/pull/421",
+    request: "Review preservation of full history when resuming idle threads.",
+    previousTitle: "Review PR 421",
+    messages: [{ role: "user", text: "Review https://github.com/supabitapp/supaterm/pull/421" }],
+    rubric:
+      "Name preserved full history when resuming idle threads. Distinguish preventing idle-resume compaction from changing manual compaction or paging older messages.",
   },
   {
     id: "onboarding-merge",
-    source: "https://github.com/supabitapp/supaterm/pull/10465",
+    source: "Authored fixture: shared multi-computer onboarding followed by a merge request",
     request: "Make onboarding one shared wizard across computers, then merge when green.",
     previousTitle: "Finish onboarding PR",
     messages: [
