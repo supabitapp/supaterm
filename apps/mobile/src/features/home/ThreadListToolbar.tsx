@@ -12,15 +12,14 @@ import {
 import type { MenuAction } from "@react-native-menu/menu";
 
 import { AndroidHeaderIconButton } from "../../components/ui/AndroidScreenHeader";
-import { CompactBrandTitle } from "../../components/CompactBrandTitle";
 import { Menu } from "../../components/ui/Menu";
 import { SearchField } from "../../components/ui/SearchField";
 import { useHardwareKeyboardCommand } from "../keyboard/hardwareKeyboardCommands";
-import { WorkspaceConnectionTitle } from "./WorkspaceConnectionTitle";
 import { useWorkspaceState } from "../../state/workspace";
 import { useToolbarLayout } from "../../components/ui/useToolbarLayout";
 import { PullRequestGlyph } from "../pull-requests/pullRequestGlyphs";
 import { WorkspaceFilterButton } from "../workspace/WorkspaceFilterButton";
+import { WorkspaceListToolbarRow } from "../workspace/WorkspaceListToolbarRow";
 
 /** One toolbar height for the compact list and expanded sidebar, including search. */
 export function ThreadListToolbar(props: {
@@ -41,7 +40,7 @@ export function ThreadListToolbar(props: {
   const homeFocused = useNavigationState((state) => state.routes[state.index]?.name === "Home");
   const listFocused =
     homeFocused && (workspace === null || workspace.state.selectedTab === "threads");
-  const { height: toolbarHeight, ...headerPadding } = useToolbarLayout();
+  const { paddingTop, paddingBottom } = useToolbarLayout();
   const { state } = useWorkspaceState();
   const { onRequestVisibility, onSearchQueryChange } = props;
   const showPullRequests = useWorkspaceListNavigation("pullRequests");
@@ -95,27 +94,15 @@ export function ThreadListToolbar(props: {
     <View
       onLayout={props.onLayout}
       className={props.sidebar ? "absolute inset-x-0 top-0 z-[4] bg-header px-2" : "bg-header px-2"}
-      style={headerPadding}
+      style={{ paddingTop, paddingBottom }}
     >
-      <View className="flex-row items-center gap-1" style={{ minHeight: toolbarHeight }}>
-        {searching ? (
+      <WorkspaceListToolbarRow
+        searching={searching}
+        searchField={searchField}
+        onCloseSearch={closeSearch}
+        onOpenEnvironments={props.onOpenEnvironments}
+        actions={
           <>
-            <AndroidHeaderIconButton
-              accessibilityLabel="Close search"
-              icon="arrow.left"
-              onPress={closeSearch}
-            />
-            {searchField}
-          </>
-        ) : (
-          <>
-            <View className="min-w-0 flex-1 pl-4">
-              <WorkspaceConnectionTitle
-                grow
-                onPress={props.onOpenEnvironments}
-                brand={<CompactBrandTitle allowFontScaling={false} fit />}
-              />
-            </View>
             {props.sidebar && workspace ? (
               <AndroidHeaderIconButton
                 accessibilityLabel="Show pull requests"
@@ -142,8 +129,8 @@ export function ThreadListToolbar(props: {
               onPress={props.onOpenSettings}
             />
           </>
-        )}
-      </View>
+        }
+      />
     </View>
   );
 }
