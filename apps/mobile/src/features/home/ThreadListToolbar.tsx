@@ -11,7 +11,6 @@ import {
 } from "react-native";
 import type { MenuAction } from "@react-native-menu/menu";
 
-import { AndroidHeaderIconButton } from "../../components/ui/AndroidScreenHeader";
 import { Menu } from "../../components/ui/Menu";
 import { SearchField } from "../../components/ui/SearchField";
 import { useHardwareKeyboardCommand } from "../keyboard/hardwareKeyboardCommands";
@@ -101,34 +100,28 @@ export function ThreadListToolbar(props: {
         searchField={searchField}
         onCloseSearch={closeSearch}
         onOpenEnvironments={props.onOpenEnvironments}
-        actions={
-          <>
-            {props.sidebar && workspace ? (
-              <AndroidHeaderIconButton
-                accessibilityLabel="Show pull requests"
-                icon={PullRequestGlyph.pullRequest}
-                onPress={showPullRequests}
-              />
-            ) : null}
-            <AndroidHeaderIconButton
-              accessibilityLabel="Search threads"
-              icon="magnifyingglass"
-              onPress={openSearch}
+        actions={[
+          ...(props.sidebar && workspace
+            ? [
+                {
+                  accessibilityLabel: "Show pull requests",
+                  icon: PullRequestGlyph.pullRequest,
+                  onPress: showPullRequests,
+                },
+              ]
+            : []),
+          { accessibilityLabel: "Search threads", icon: "magnifyingglass", onPress: openSearch },
+          { accessibilityLabel: "Open settings", icon: "gearshape", onPress: props.onOpenSettings },
+        ]}
+        filter={
+          state.hasConnections ? (
+            <WorkspaceFilterButton
+              accessibilityLabel="Filter threads"
+              actions={props.filterActions}
+              customized={props.filterCustomized}
+              onPressAction={props.onFilterAction}
             />
-            {state.hasConnections ? (
-              <WorkspaceFilterButton
-                accessibilityLabel="Filter threads"
-                actions={props.filterActions}
-                customized={props.filterCustomized}
-                onPressAction={props.onFilterAction}
-              />
-            ) : null}
-            <AndroidHeaderIconButton
-              accessibilityLabel="Open settings"
-              icon="gearshape"
-              onPress={props.onOpenSettings}
-            />
-          </>
+          ) : null
         }
       />
     </View>

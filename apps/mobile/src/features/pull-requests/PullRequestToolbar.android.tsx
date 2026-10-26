@@ -1,7 +1,6 @@
 import { useNavigation, useNavigationState } from "@react-navigation/native";
 import { useCallback, useEffect, useRef } from "react";
 import { BackHandler, Keyboard, View, type TextInputInstance } from "react-native";
-import { AndroidHeaderIconButton } from "../../components/ui/AndroidScreenHeader";
 import { SearchField } from "../../components/ui/SearchField";
 import { useToolbarLayout } from "../../components/ui/useToolbarLayout";
 import { useHardwareKeyboardCommand } from "../keyboard/hardwareKeyboardCommands";
@@ -79,33 +78,32 @@ export function PullRequestToolbar(props: {
             params: { screen: "SettingsEnvironments" },
           })
         }
-        actions={
-          <>
-            {props.sidebar ? (
-              <AndroidHeaderIconButton
-                accessibilityLabel="Show threads"
-                icon="text.bubble"
-                onPress={showThreads}
-              />
-            ) : null}
-            <AndroidHeaderIconButton
-              accessibilityLabel="Search pull requests"
-              icon="magnifyingglass"
-              onPress={openSearch}
-            />
-            {filterMenu ? <WorkspaceFilterButton {...filterMenu} /> : null}
-            <AndroidHeaderIconButton
-              accessibilityLabel="Open settings"
-              icon="gearshape"
-              onPress={() =>
-                navigation.navigate("SettingsSheet", {
-                  screen: "SettingsContent",
-                  params: { screen: "Settings" },
-                })
-              }
-            />
-          </>
-        }
+        actions={[
+          ...(props.sidebar
+            ? [
+                {
+                  accessibilityLabel: "Show threads",
+                  icon: "text.bubble",
+                  onPress: showThreads,
+                } as const,
+              ]
+            : []),
+          {
+            accessibilityLabel: "Search pull requests",
+            icon: "magnifyingglass",
+            onPress: openSearch,
+          },
+          {
+            accessibilityLabel: "Open settings",
+            icon: "gearshape",
+            onPress: () =>
+              navigation.navigate("SettingsSheet", {
+                screen: "SettingsContent",
+                params: { screen: "Settings" },
+              }),
+          },
+        ]}
+        filter={filterMenu ? <WorkspaceFilterButton {...filterMenu} /> : null}
       />
     </View>
   );
