@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ComponentProps } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigation, useNavigationState } from "@react-navigation/native";
 import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
 import { useWorkspaceListNavigation } from "../workspace/useAndroidWorkspaceNavigation";
@@ -9,24 +9,21 @@ import {
   View,
   type LayoutChangeEvent,
 } from "react-native";
-import type { MenuAction } from "@react-native-menu/menu";
 
-import { Menu } from "../../components/ui/Menu";
 import { SearchField } from "../../components/ui/SearchField";
 import { useHardwareKeyboardCommand } from "../keyboard/hardwareKeyboardCommands";
 import { useWorkspaceState } from "../../state/workspace";
 import { useToolbarLayout } from "../../components/ui/useToolbarLayout";
 import { PullRequestGlyph } from "../pull-requests/pullRequestGlyphs";
 import { WorkspaceFilterButton } from "../workspace/WorkspaceFilterButton";
+import type { WorkspaceFilterMenu } from "../workspace/workspace-filter-menu";
 import { WorkspaceListToolbarRow } from "../workspace/WorkspaceListToolbarRow";
 
 /** One toolbar height for the compact list and expanded sidebar, including search. */
 export function ThreadListToolbar(props: {
   readonly searchQuery: string;
   readonly onSearchQueryChange: (query: string) => void;
-  readonly filterActions: MenuAction[];
-  readonly filterCustomized: boolean;
-  readonly onFilterAction: NonNullable<ComponentProps<typeof Menu>["onPressAction"]>;
+  readonly filterMenu: WorkspaceFilterMenu;
   readonly onOpenSettings: () => void;
   readonly onOpenEnvironments: () => void;
   readonly sidebar?: boolean;
@@ -113,16 +110,7 @@ export function ThreadListToolbar(props: {
           { accessibilityLabel: "Search threads", icon: "magnifyingglass", onPress: openSearch },
           { accessibilityLabel: "Open settings", icon: "gearshape", onPress: props.onOpenSettings },
         ]}
-        filter={
-          state.hasConnections ? (
-            <WorkspaceFilterButton
-              accessibilityLabel="Filter threads"
-              actions={props.filterActions}
-              customized={props.filterCustomized}
-              onPressAction={props.onFilterAction}
-            />
-          ) : null
-        }
+        filter={state.hasConnections ? <WorkspaceFilterButton {...props.filterMenu} /> : null}
       />
     </View>
   );

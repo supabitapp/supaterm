@@ -391,18 +391,16 @@ function ThreadNavigationSidebarPane(
     });
     return items;
   })();
-  const { actions: listMenuActions, onPressAction: handleListMenuAction } = useThreadListFilterMenu(
-    {
-      environments,
-      projects: projectFilterOptions,
-      selectedEnvironmentId: options.selectedEnvironmentId,
-      selectedProjectKey,
-      onEnvironmentChange: setSelectedEnvironmentId,
-      onProjectChange: setSelectedProjectKey,
-      grouping: options.threadGrouping,
-      onGroupingChange: setThreadGrouping,
-    },
-  );
+  const threadFilterMenu = useThreadListFilterMenu({
+    environments,
+    projects: projectFilterOptions,
+    selectedEnvironmentId: options.selectedEnvironmentId,
+    selectedProjectKey,
+    onEnvironmentChange: setSelectedEnvironmentId,
+    onProjectChange: setSelectedProjectKey,
+    grouping: options.threadGrouping,
+    onGroupingChange: setThreadGrouping,
+  });
 
   const [measuredHeaderHeight, setMeasuredHeaderHeight] = useState<number | null>(null);
   const { height, paddingTop, paddingBottom } = useToolbarLayout();
@@ -688,8 +686,7 @@ function ThreadNavigationSidebarPane(
       {renderListItemContent(itemProps)}
     </Animated.View>
   );
-  const filterCustomized = options.selectedEnvironmentId !== null || selectedProjectKey !== null;
-  const filterIcon = filterCustomized
+  const filterIcon = threadFilterMenu.customized
     ? "line.3.horizontal.decrease.circle.fill"
     : "line.3.horizontal.decrease.circle";
   const filterMenu = buildHomeListFilterMenu({
@@ -885,9 +882,7 @@ function ThreadNavigationSidebarPane(
           onLayout={handleStickyHeaderLayout}
           searchQuery={props.searchQuery}
           onSearchQueryChange={props.onSearchQueryChange}
-          filterActions={listMenuActions}
-          filterCustomized={filterCustomized}
-          onFilterAction={handleListMenuAction}
+          filterMenu={threadFilterMenu}
           onOpenSettings={props.onOpenSettings}
           onOpenEnvironments={props.onOpenEnvironmentSettings}
           onRequestVisibility={props.onRequestVisibility}
@@ -911,7 +906,10 @@ function ThreadNavigationSidebarPane(
               brand={<CompactBrandTitle allowFontScaling={false} />}
             />
             <View className="flex-row items-center gap-2.5">
-              <Menu actions={listMenuActions} onPressAction={handleListMenuAction}>
+              <Menu
+                actions={threadFilterMenu.actions}
+                onPressAction={threadFilterMenu.onPressAction}
+              >
                 <SidebarFilterButton accessibilityLabel="Filter threads" icon={filterIcon} />
               </Menu>
               <SidebarHeaderActions onOpenSettings={props.onOpenSettings} />

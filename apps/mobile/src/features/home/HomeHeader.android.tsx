@@ -13,9 +13,7 @@ export function HomeHeader(props: HomeHeaderProps) {
       <ThreadListToolbar
         searchQuery={props.searchQuery}
         onSearchQueryChange={props.onSearchQueryChange}
-        filterActions={menu.actions}
-        filterCustomized={menu.customized}
-        onFilterAction={menu.onPressAction}
+        filterMenu={menu}
         onOpenSettings={props.onOpenSettings}
         onOpenEnvironments={props.onOpenEnvironments}
       />

@@ -3,13 +3,13 @@ import { useNavigation, type ParamListBase } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { NATIVE_LIQUID_GLASS_SUPPORTED } from "../../native/native-glass";
 import { dispatchHardwareKeyboardCommand } from "../keyboard/hardwareKeyboardCommands";
-import type { WorkspaceDockFilterMenu } from "./WorkspaceDock.types";
+import type { WorkspaceFilterMenu } from "./workspace-filter-menu";
 
-function invokeFilterAction(menu: WorkspaceDockFilterMenu, id: string | undefined) {
+function invokeFilterAction(menu: WorkspaceFilterMenu, id: string | undefined) {
   menu.onPressAction({ nativeEvent: { event: id ?? "" } });
 }
 
-export function WorkspaceHeaderActions(props: { readonly filterMenu?: WorkspaceDockFilterMenu }) {
+export function WorkspaceHeaderActions(props: { readonly filterMenu?: WorkspaceFilterMenu }) {
   const navigation = useNavigation<NativeStackNavigationProp<ParamListBase>>();
   const filterMenu = props.filterMenu;
   const filterIcon = filterMenu?.customized

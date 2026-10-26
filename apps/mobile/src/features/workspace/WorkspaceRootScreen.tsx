@@ -25,7 +25,7 @@ import {
   WorkspaceTabsProvider,
   useWorkspaceTabs,
 } from "./WorkspaceTabsContext";
-import { WorkspaceToolbar } from "./WorkspaceToolbar";
+import { WorkspaceToolbar } from "./WorkspaceToolbar.ios";
 import { WORKSPACE_TOOLBAR, workspaceToolbarHeight } from "./workspace-tabs-state";
 import { WorkspaceSidebarTabs } from "./WorkspaceSidebarTabs";
 import { useSidebarWorkspaceTabs } from "./useSidebarWorkspaceTabs";

@@ -7,12 +7,12 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
-import type { WorkspaceDockFilterMenu } from "../workspace/WorkspaceDock.types";
+import type { WorkspaceFilterMenu } from "../workspace/workspace-filter-menu";
 
-const MenuContext = createContext<WorkspaceDockFilterMenu | null>(null);
-const PublishContext = createContext<Dispatch<
-  SetStateAction<WorkspaceDockFilterMenu | null>
-> | null>(null);
+const MenuContext = createContext<WorkspaceFilterMenu | null>(null);
+const PublishContext = createContext<Dispatch<SetStateAction<WorkspaceFilterMenu | null>> | null>(
+  null,
+);
 
 /**
  * The Android PR header opens the filter menu, but its facets come from the list below it.
@@ -20,7 +20,7 @@ const PublishContext = createContext<Dispatch<
  * don't fan out.
  */
 export function PullRequestFilterMenuProvider(props: { readonly children: ReactNode }) {
-  const [menu, setMenu] = useState<WorkspaceDockFilterMenu | null>(null);
+  const [menu, setMenu] = useState<WorkspaceFilterMenu | null>(null);
   return (
     <PublishContext value={setMenu}>
       <MenuContext value={menu}>{props.children}</MenuContext>
@@ -32,7 +32,7 @@ export function usePullRequestFilterMenu() {
   return use(MenuContext);
 }
 
-export function usePublishPullRequestFilterMenu(menu: WorkspaceDockFilterMenu | null) {
+export function usePublishPullRequestFilterMenu(menu: WorkspaceFilterMenu | null) {
   const publish = use(PublishContext);
   // A layout effect lands the header's filter button in the same frame as the list. There is no
   // cleanup: the list lives exactly as long as this provider.

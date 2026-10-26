@@ -1,15 +1,8 @@
-import {
-  AndroidAnchoredMenu,
-  type AndroidAnchoredMenuProps,
-} from "../../components/ui/AndroidAnchoredMenu";
+import { AndroidAnchoredMenu } from "../../components/ui/AndroidAnchoredMenu";
 import { AndroidHeaderIconButton } from "../../components/ui/AndroidScreenHeader";
+import type { WorkspaceFilterMenu } from "./workspace-filter-menu";
 
-export function WorkspaceFilterButton(
-  props: Pick<AndroidAnchoredMenuProps, "title" | "actions" | "onPressAction"> & {
-    readonly accessibilityLabel: string;
-    readonly customized: boolean;
-  },
-) {
+export function WorkspaceFilterButton(props: WorkspaceFilterMenu) {
   return (
     <AndroidAnchoredMenu
       title={props.title}
