@@ -6,7 +6,7 @@ import { cn } from "~/lib/utils";
 import { readLocalApi } from "~/localApi";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
-import { openOnHostLabel, showPullRequestLinkContextMenu } from "./pullRequestLinkContextMenu";
+import { showPullRequestLinkContextMenu } from "./pullRequestLinkContextMenu";
 
 interface CrumbsPullRequest {
   readonly url: string;
@@ -21,7 +21,7 @@ const openNumberContextMenu = (event: ReactMouseEvent, detail: CrumbsPullRequest
   event.stopPropagation();
   void showPullRequestLinkContextMenu({
     url: detail.url,
-    openLabel: openOnHostLabel(sourceControlClients.get(detail.provider)),
+    host: sourceControlClients.get(detail.provider),
     position: { x: event.clientX, y: event.clientY },
   });
 };

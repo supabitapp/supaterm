@@ -36,7 +36,10 @@ import { useEnvironmentQuery } from "../state/query";
 import { linkedPullRequestDetailAtom, useSharedPullRequestSummary } from "../state/pullRequests";
 import { useThreadRunningTerminalIds } from "../state/terminalSessions";
 import { vcsEnvironment } from "../state/vcs";
-import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
+import {
+  sourceControlClients,
+  UNKNOWN_SOURCE_CONTROL_CLIENT,
+} from "@supaterm/client-runtime/source-control-clients";
 import {
   pullRequestMatchesSearchQuery,
   resolveThreadStatusPill,
@@ -53,6 +56,7 @@ import {
   PullRequestGlyph,
   type PullRequestGlyphIcon,
 } from "./pullRequest/pullRequestIcons";
+import { showPullRequestLinkContextMenu } from "./pullRequest/pullRequestLinkContextMenu";
 import { resolvePullRequestState } from "./pullRequest/pullRequestPresentation";
 
 export interface PrStatusIndicator {
@@ -228,6 +232,23 @@ export function ThreadPullRequestBadgeControl({
   );
 }
 
+// The badge sits inside rows with their own menu, and React bubbles its popup's events there
+// through the portal, so the right-click must stop here.
+function showPullRequestContextMenuAt(
+  event: MouseEvent<HTMLElement>,
+  url: string,
+  options?: Pick<Parameters<typeof showPullRequestLinkContextMenu>[0], "number" | "onShowLinked">,
+) {
+  event.preventDefault();
+  event.stopPropagation();
+  void showPullRequestLinkContextMenu({
+    ...options,
+    url,
+    host: sourceControlClients.findByChangeRequestUrl(url) ?? UNKNOWN_SOURCE_CONTROL_CLIENT,
+    position: { x: event.clientX, y: event.clientY },
+  });
+}
+
 function PullRequestBadge({
   render,
   presentation,
@@ -256,6 +277,15 @@ function PullRequestBadge({
         onOpenList();
       }
     : onOpenPullRequest;
+  const hasLinkedPullRequests = visibleThreadPullRequests(pullRequests).length > 0;
+  const onContextMenu =
+    url === undefined
+      ? undefined
+      : (event: MouseEvent<HTMLElement>) =>
+          showPullRequestContextMenuAt(event, url, {
+            number: opensList ? number : undefined,
+            onShowLinked: hasLinkedPullRequests ? onOpenList : undefined,
+          });
   const element = opensList ? (
     <button type="button" />
   ) : (
@@ -268,6 +298,7 @@ function PullRequestBadge({
       "aria-label": presentation.label,
       onPointerDown: (event: MouseEvent<HTMLElement>) => event.stopPropagation(),
       onClick,
+      onContextMenu,
     },
   });
   return (
@@ -287,7 +318,7 @@ function PullRequestBadge({
         className="pointer-events-auto w-80 max-w-[calc(100vw-2rem)] text-left whitespace-normal"
       >
         <div className="-mx-1 max-h-[calc(var(--available-height)-0.5rem-2px)] overflow-y-auto overscroll-contain">
-          {visibleThreadPullRequests(pullRequests).length > 0 ? (
+          {hasLinkedPullRequests ? (
             <ThreadPullRequestsMiniList
               pullRequests={pullRequests}
               onOpenPullRequest={onOpenPullRequest}
@@ -389,6 +420,7 @@ function ThreadPullRequestMiniListItem({
           className="flex min-w-0 items-center gap-2 rounded-sm px-1 py-1 hover:bg-accent focus-visible:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => onOpenPullRequest(event, url)}
+          onContextMenu={(event) => showPullRequestContextMenuAt(event, url)}
         >
           {content}
         </a>

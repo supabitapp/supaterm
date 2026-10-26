@@ -9,35 +9,65 @@ import { readLocalApi } from "~/localApi";
 
 import { toastManager } from "../ui/toast";
 
-export type PullRequestLinkContextMenuAction = "copy-link" | "open-external";
+export type PullRequestLinkContextMenuAction = "copy-link" | "open-external" | "show-linked";
 
-export const openOnHostLabel = (host: SourceControlClientDefinition): string =>
-  host === UNKNOWN_SOURCE_CONTROL_CLIENT ? "Open on host" : `Open on ${host.label}`;
+export const openOnHostLabel = (host: SourceControlClientDefinition, number?: number): string => {
+  const verb = number === undefined ? "Open" : `Open #${number}`;
+  return host === UNKNOWN_SOURCE_CONTROL_CLIENT ? `${verb} on host` : `${verb} on ${host.label}`;
+};
 
-function pullRequestLinkContextMenuItems(
-  openLabel: string,
-): readonly ContextMenuItem<PullRequestLinkContextMenuAction>[] {
-  return [
-    { id: "copy-link", label: "Copy link", icon: "copy" },
-    { id: "open-external", label: openLabel },
+function pullRequestLinkContextMenuItems({
+  host,
+  number,
+  showLinked,
+}: {
+  readonly host: SourceControlClientDefinition;
+  readonly number: number | undefined;
+  readonly showLinked: boolean;
+}): readonly ContextMenuItem<PullRequestLinkContextMenuAction>[] {
+  const items: ContextMenuItem<PullRequestLinkContextMenuAction>[] = [
+    {
+      id: "copy-link",
+      label: number === undefined ? "Copy link" : `Copy link to #${number}`,
+      icon: "copy",
+    },
+    { id: "open-external", label: openOnHostLabel(host, number) },
   ];
+  if (showLinked) {
+    items.push({ id: "show-linked", label: "Show linked pull requests", separatorBefore: true });
+  }
+  return items;
 }
 
 export async function showPullRequestLinkContextMenu({
   url,
-  openLabel,
+  host,
   position,
+  number,
+  onShowLinked,
 }: {
   readonly url: string;
-  readonly openLabel: string;
+  readonly host: SourceControlClientDefinition;
   readonly position: { readonly x: number; readonly y: number };
+  /** Names the pull request in the labels, for triggers that do not show which one they mean. */
+  readonly number?: number | undefined;
+  readonly onShowLinked?: (() => void) | undefined;
 }): Promise<void> {
   const api = readLocalApi();
   if (!api) return;
+  const items = pullRequestLinkContextMenuItems({
+    host,
+    number,
+    showLinked: onShowLinked !== undefined,
+  });
   let action: PullRequestLinkContextMenuAction | null = null;
   try {
-    action = await api.contextMenu.show(pullRequestLinkContextMenuItems(openLabel), position);
+    action = await api.contextMenu.show(items, position);
   } catch {
+    return;
+  }
+  if (action === "show-linked") {
+    onShowLinked?.();
     return;
   }
   try {
