@@ -16,12 +16,13 @@ import {
 } from "./pullRequestDiffDebug";
 import { usePullRequestDiffHighlightFiles } from "./usePullRequestDiffHighlightFiles";
 import { isPullRequestTestFile } from "./pullRequestFileFilters";
+import { pullRequestFileJumpScope, subscribePullRequestFileJump } from "./pullRequestFileJump";
 import { useFocusEffect, useNavigation, type StaticScreenProps } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { pullRequestReviewKey } from "./pullRequestReviewDrafts";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 
@@ -70,7 +71,6 @@ const EMPTY_IDS: readonly string[] = [];
 type PullRequestFileRouteProps = StaticScreenProps<
   PullRequestDiffParams & {
     readonly path: string;
-    readonly fileSelectionId?: string;
     readonly replacingDraftId?: string;
     readonly focus?: GuideDiffFocus;
   }
@@ -196,50 +196,37 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
   const [collapsedIds, setCollapsedIds] = useState<readonly string[]>(EMPTY_IDS);
   const [visibleFileId, setVisibleFileId] = useState<string | null>(null);
   const nativeView = useRef<NativeReviewDiffViewHandle>(null);
-  // Native applies the entry destination before its first viewport. Imperative
-  // jumps below are for subsequent selections and filter changes only.
-  const jumpStarted = useRef(true);
-  const lastSelection = useRef({ path: route.params.path, id: route.params.fileSelectionId });
-  // Each sheet selection jumps in this reader, including reselecting its original file.
-  useEffect(() => {
-    if (
-      lastSelection.current.path === route.params.path &&
-      lastSelection.current.id === route.params.fileSelectionId
-    )
-      return;
-    lastSelection.current = { path: route.params.path, id: route.params.fileSelectionId };
-    if (route.params.focus) navigation.setParams({ focus: undefined });
-    setJumpPath(route.params.path);
-    setSelectedRowId(null);
-    jumpStarted.current = false;
-    const file = data.files.find((entry) => entry.path === route.params.path);
-    if (!file || !nativeView.current) return;
-    setCollapsedIds((ids) => ids.filter((id) => id !== file.id));
-    jumpStarted.current = true;
-    void nativeView.current.scrollToFile(file.id, false).catch(() => {
-      jumpStarted.current = false;
+  // The filter the current jump was made under. Hiding or showing test files replaces the rows,
+  // so a jump made under the other filter has to run again. Native applies the entry
+  // destination before its first viewport, so the first one counts as made.
+  const jumpedUnder = useRef<boolean | null>(filter.hideTestFiles);
+  const hasTestFiles =
+    result.parsed.kind === "files" &&
+    result.parsed.files.some((file) => isPullRequestTestFile(file.path));
+  const jumpStarted = () =>
+    jumpedUnder.current !== null && (!hasTestFiles || jumpedUnder.current === filter.hideTestFiles);
+  const scrollToFile = (fileId: string) => {
+    if (!nativeView.current) return;
+    jumpedUnder.current = filter.hideTestFiles;
+    void nativeView.current.scrollToFile(fileId, false).catch(() => {
+      jumpedUnder.current = null;
     });
-  }, [
-    route.params.path,
-    route.params.fileSelectionId,
-    route.params.focus,
-    data.files,
-    navigation,
-    setCollapsedIds,
-    lastSelection,
-    nativeView,
-  ]);
-  const appliedFilter = useRef(filter.hideTestFiles);
-  useEffect(() => {
-    if (appliedFilter.current === filter.hideTestFiles) return;
-    appliedFilter.current = filter.hideTestFiles;
-    if (
-      result.parsed.kind === "files" &&
-      result.parsed.files.some((file) => isPullRequestTestFile(file.path))
-    ) {
-      jumpStarted.current = false;
-    }
-  }, [filter.hideTestFiles, result.parsed]);
+  };
+  const jumpScope = pullRequestFileJumpScope(route.params);
+  // Each sheet selection jumps in this reader, including reselecting its original file.
+  const jumpToFile = useEffectEvent((path: string) => {
+    if (route.params.focus) navigation.setParams({ focus: undefined });
+    setJumpPath(path);
+    setSelectedRowId(null);
+    jumpedUnder.current = null;
+    const file = data.files.find((entry) => entry.path === path);
+    if (!file) return;
+    setCollapsedIds((ids) => ids.filter((id) => id !== file.id));
+    scrollToFile(file.id);
+  });
+  // Subscribed for the whole screen, so a pick made while the diff is still loading is kept for
+  // the first draw.
+  useEffect(() => subscribePullRequestFileJump(jumpScope, (path) => jumpToFile(path)), [jumpScope]);
   const { nativeReviewDiffStyle } = useAppearanceCodeSurface();
   const { themeAppearance, appearance, setCodeWordBreak } = useAppearancePreferences();
   const bridge = useNativeReviewDiffBridge({
@@ -265,6 +252,9 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
       isIos: Platform.OS === "ios",
       nativeView,
       jumpStarted,
+      setJumpStarted: (started) => {
+        jumpedUnder.current = started ? filter.hideTestFiles : null;
+      },
       onDebug: bridge.onDebug,
       loadMore,
     })) satisfies NonNullable<NativeReviewDiffViewProps["onDebug"]>;
@@ -421,7 +411,7 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
             onPress={() => {
               result.refresh();
               setDiffHead({ scopeKey, sha: detail.data?.headSha ?? null });
-              jumpStarted.current = false;
+              jumpedUnder.current = null;
               setSelectedRowId(null);
               setCollapsedIds(EMPTY_IDS);
             }}

@@ -38,7 +38,7 @@ import { type PullRequestDetail, type PullRequestListEntry } from "@supaterm/con
 import { PullRequestOverviewLoading } from "./PullRequestOverviewLoading";
 import { copyPullRequestLink, sharePullRequestLink } from "./pullRequestLink";
 import { pullRequestStatus } from "./pullRequestStatus";
-import { use, useEffect, useRef, useState } from "react";
+import { use, useRef, useState } from "react";
 import {
   Linking,
   Platform,
@@ -305,16 +305,26 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
   const params = route.params;
   usePullRequestEnvironmentFallback(params);
   const connected = usePullRequestConnected(params.environmentId);
-  const [section, setSection] = useState<"overview" | "activity" | "guide">("overview");
-  const requestedSection = useRef(section);
+  const [chosenSection, setSection] = useState<"overview" | "activity" | "guide">("overview");
+  const requestedSection = useRef(chosenSection);
   const [listAnimationsReady, setListAnimationsReady] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const filesContent = usePullRequestFilesSection(params);
   const guidesEnabled = useReviewGuidesEnabled(params);
+  // The guide tab goes away while guides are off and overview stands in. The pick is kept, so
+  // guides coming back (a settings reload, a reconnect) return to the guide the user chose.
+  const shown = (tab: typeof chosenSection) =>
+    !guidesEnabled && tab === "guide" ? "overview" : tab;
+  const section = shown(chosenSection);
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>(DEFAULT_ACTIVITY_FILTER);
   const activityContent = usePullRequestActivityRows(params, activityFilter);
   const scrollOffsets = useRef<Record<string, number>>({});
-  const currentScrollOffset = useRef(-insets.top);
+  // The offset of the tab last shown, and which tab that was: a tab standing in for a hidden guide
+  // has its own offset, which only its next scroll would record here.
+  const currentScrollOffset = useRef<{ tab: typeof section; offset: number }>({
+    tab: "overview",
+    offset: -insets.top,
+  });
   const bodyY = useRef(0);
   const [headerHeight, setHeaderHeight] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -333,28 +343,20 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
   });
   const selectSection = (next: typeof section) => {
     if (next === section) return;
-    scrollOffsets.current[section] = currentScrollOffset.current;
+    const from = shown(requestedSection.current);
+    const current =
+      currentScrollOffset.current.tab === from
+        ? currentScrollOffset.current.offset
+        : (scrollOffsets.current[from] ?? -insets.top);
+    scrollOffsets.current[section] = current;
     const headerEnd = Math.max(-insets.top, bodyY.current - insets.top);
-    const offset = pullRequestTabOffset(
-      currentScrollOffset.current,
-      scrollOffsets.current[next],
-      headerEnd,
-    );
+    const offset = pullRequestTabOffset(current, scrollOffsets.current[next], headerEnd);
     requestedSection.current = next;
     scrollOffsets.current[next] = offset;
-    currentScrollOffset.current = offset;
+    currentScrollOffset.current = { tab: next, offset };
     scrollViews.current[next]?.scrollToOffset({ offset, animated: false });
     setSection(next);
   };
-  useEffect(() => {
-    if (!guidesEnabled && section === "guide") {
-      requestedSection.current = "overview";
-      currentScrollOffset.current = scrollOffsets.current.overview ?? -insets.top;
-      // oxlint-disable-next-line react/set-state-in-effect -- The server turned review guides off.
-      setSection("overview");
-    }
-    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- The pager's refs hold no render state.
-  }, [guidesEnabled, section, insets.top]);
   const tabContent = activityContent;
   const filesY = useRef(0);
   const descriptionY = useRef(0);
@@ -623,7 +625,8 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
                   onScroll={(event) => {
                     const offset = event.nativeEvent.contentOffset.y;
                     scrollOffsets.current[tab] = offset;
-                    if (requestedSection.current === tab) currentScrollOffset.current = offset;
+                    if (shown(requestedSection.current) === tab)
+                      currentScrollOffset.current = { tab, offset };
                   }}
                   className="flex-1"
                   renderScrollComponent={
@@ -699,7 +702,8 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
                                   filesY.current = event.nativeEvent.layout.y;
                                   if (pendingFilesJump.current) {
                                     requestAnimationFrame(() => {
-                                      if (requestedSection.current === "overview") jumpToFiles();
+                                      if (shown(requestedSection.current) === "overview")
+                                        jumpToFiles();
                                     });
                                   }
                                 }}

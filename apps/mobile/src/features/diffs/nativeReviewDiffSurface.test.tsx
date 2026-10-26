@@ -223,7 +223,10 @@ function setup(integrated = false) {
         focusIndex: -1,
         isIos: true,
         nativeView,
-        jumpStarted,
+        jumpStarted: () => jumpStarted.current,
+        setJumpStarted: (started) => {
+          jumpStarted.current = started;
+        },
         loadMore: () => {},
         onDebug: bridge.onDebug,
       });
