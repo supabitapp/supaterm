@@ -11982,20 +11982,19 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     }
 
     const plan = yield* dispatchOnce(command).pipe(
-      Effect.flatMap((planned) =>
-        planned.events.length > 0 ||
-        command.type === "thread.background-work.settle" ||
-        command.type === "thread.user-input.auto-dismiss" ||
-        command.type === "thread.stop" ||
-        command.type === "subagent.stop"
-          ? Effect.succeed(planned)
-          : Effect.fail(
-              new OrchestratorDispatchError({
-                commandId: command.commandId,
-                commandType: command.type,
-                cause: "Command produced no domain events.",
-              }),
-            ),
+      Effect.filterOrFail(
+        (planned) =>
+          planned.events.length > 0 ||
+          command.type === "thread.background-work.settle" ||
+          command.type === "thread.user-input.auto-dismiss" ||
+          command.type === "thread.stop" ||
+          command.type === "subagent.stop",
+        (_planned) =>
+          new OrchestratorDispatchError({
+            commandId: command.commandId,
+            commandType: command.type,
+            cause: "Command produced no domain events.",
+          }),
       ),
       Effect.catch((cause) =>
         Effect.gen(function* () {
