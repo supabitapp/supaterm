@@ -60,7 +60,9 @@ and worktree while you stay in the new thread composer. This requires a Git proj
 
 ## Pin and reorder threads
 
-Pin a thread from its menu to keep it above your active work.
+Pin a thread from its menu to keep it above your active work. On web and desktop, the
+command palette also offers the thread menu's actions for the thread you are viewing, such
+as **Rename thread**, **Pin thread**, and **Snooze thread**.
 
 On web and desktop, unpinning, marking as Done, snoozing, and archiving a thread each show
 a notification with **Undo** for five seconds. Undo restores the thread's previous
