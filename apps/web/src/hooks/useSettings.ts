@@ -263,6 +263,10 @@ export function getClientSettings(): ClientSettings {
   return getClientSettingsSnapshot();
 }
 
+export function isClientSettingsHydrated(): boolean {
+  return getClientSettingsHydratedSnapshot();
+}
+
 /**
  * Failed reads reject and remain retryable. They must not allow defaults to overwrite saved
  * preferences.
