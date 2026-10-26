@@ -186,7 +186,7 @@ function runIdsFor(threadId: string, ordinal: number) {
 
 function encodePayload(schema: Schema.Codec<unknown, unknown>, payload: object): string {
   try {
-    Schema.decodeUnknownSync(schema)(payload);
+    Schema.decodeSync(schema)(payload);
   } catch (error) {
     const id = "id" in payload ? String(payload.id) : "payload";
     throw new Error(`${id} no longer matches its contract schema:\n${String(error)}`, {
