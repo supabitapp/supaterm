@@ -51,7 +51,7 @@ const LARGE_DEV_DATABASE_BYTES = 500 * 1024 * 1024;
 
 /**
  * Loopback and the wildcards qualify; a specific interface (e.g. a LAN IP) does
- * not — the OS binds only that address and the proxy target goes dark.
+ * not , the OS binds only that address and the proxy target goes dark.
  */
 export function isProxiableBindHost(host: string): boolean {
   const normalized = host.trim();
@@ -341,21 +341,11 @@ export const createDevRunnerEnv = Effect.fn("dev-runner.createDevRunnerEnv")(fun
     delete output.SUPATERM_HOME;
   }
 
-  // A dev-runner server is never launcher-managed. When the shell that runs
-  // this script was itself spawned by the machine's managed Supaterm service (an
-  // agent working inside Supaterm), these leak through and the child server
-  // fails startup with "The service launcher started a different Supaterm version"
-  // (serviceLauncherClient.ts resolveStartup).
   delete output.SUPATERM_SERVICE_LAUNCHER_CONTEXT;
   delete output.SUPATERM_BOOT_SERVICE_UNIT;
 
   if (!isDesktopMode) {
     output.SUPATERM_PORT = String(serverPort);
-    // HOST is Vite's own bind address, and the desktop branch below is the
-    // only place we set it. An inherited one (an exported HOST, a container,
-    // a `HOST=0.0.0.0 npm start` habit) would otherwise reach Vite and pin
-    // its HMR socket to that address — see the `explicitHost` gate in
-    // apps/web/vite.config.ts.
     delete output.HOST;
     if (mode === "dev" || mode === "dev:web") {
       // Browser dev is single-origin: everything (including /ws) is proxied
@@ -655,17 +645,25 @@ const prepareFirstStart = Effect.fn("dev-runner.prepareFirstStart")(function* (i
     if (
       input.seed &&
       !(yield* exists(path.join(stateDir, "statev2.sqlite"))) &&
-      !(yield* exists(path.join(stateDir, "state.sqlite"))) &&
-      (yield* exists(source))
+      !(yield* exists(path.join(stateDir, "state.sqlite")))
     ) {
-      yield* Effect.logInfo(
-        `[dev-runner] seeding ${input.worktreeHome} from ${source} (read-only). --no-seed or SUPATERM_DEV_SEED=0 skips this.`,
-      );
-      yield* runRepoScript(
-        "apps/server/scripts/migrate-dev-db.ts",
-        ["--base-dir", input.worktreeHome, "--source", source],
-        input.env,
-      );
+      const info = yield* fs.stat(source).pipe(Effect.option);
+      if (Option.isSome(info)) {
+        if (Number(info.value.size) > LARGE_DEV_DATABASE_BYTES) {
+          yield* Effect.logWarning(
+            `[dev-runner] ${source} exceeds 500 MiB; skipping automatic database seeding and starting with an empty database. Run \`vp run migrate-dev-db\` manually with dev stopped if needed; it may use substantial disk space before pruning.`,
+          );
+        } else {
+          yield* Effect.logInfo(
+            `[dev-runner] seeding ${input.worktreeHome} from ${source} (read-only). --no-seed or SUPATERM_DEV_SEED=0 skips this.`,
+          );
+          yield* runRepoScript(
+            "apps/server/scripts/migrate-dev-db.ts",
+            ["--base-dir", input.worktreeHome, "--source", source],
+            input.env,
+          );
+        }
+      }
     }
   }
 
@@ -737,11 +735,11 @@ export const runDevRunnerWithInput = Effect.fn("dev-runner.runDevRunnerWithInput
 
   const hostEnvironment = yield* HostProcess.Environment;
   // A dev server started inside a worktree defaults to that worktree's own
-  // (gitignored) `.supaterm` — see @supaterm/shared/devHome for why this must
+  // (gitignored) `.supaterm` , see @supaterm/shared/devHome for why this must
   // outrank an ambient SUPATERM_HOME. `--home-dir` still wins.
   const worktreeHome = yield* resolveWorktreeSupatermHome(yield* HostProcess.WorkingDirectory);
   // Trim before choosing: `--home-dir ""` is not a selection, and treating it
-  // as one would skip the worktree default and land on the shared home —
+  // as one would skip the worktree default and land on the shared home ,
   // exactly the outcome this precedence exists to prevent.
   const resolvedSupatermHome =
     (input.supatermHome?.trim() || undefined) ??
@@ -772,7 +770,7 @@ export const runDevRunnerWithInput = Effect.fn("dev-runner.runDevRunnerWithInput
   );
 
   // Before the share block: --dry-run only resolves and prints. Sharing would
-  // replace, then tear down, whatever mapping the port already had — a
+  // replace, then tear down, whatever mapping the port already had , a
   // surprising side effect from a command documented as inert.
   if (input.dryRun) {
     return;
@@ -822,7 +820,7 @@ export const runDevRunnerWithInput = Effect.fn("dev-runner.runDevRunnerWithInput
         Effect.tapError((error: DevShareError) =>
           Effect.logWarning(
             `[dev-runner] could not share on the tailnet: ${error.message}${
-              error.hint ? ` — ${error.hint}` : ""
+              error.hint ? ` , ${error.hint}` : ""
             }`,
           ),
         ),
@@ -848,7 +846,7 @@ export const runDevRunnerWithInput = Effect.fn("dev-runner.runDevRunnerWithInput
           env.SUPATERM_BUILT_DEV = "1";
         } else if (env.SUPATERM_BUNDLED_DEV === undefined) {
           // A shared origin serves a remote browser, where unbundled dev's
-          // per-module requests each pay a tailnet round trip — a cold module
+          // per-module requests each pay a tailnet round trip , a cold module
           // graph takes minutes to first paint. Bundled dev collapses that to a
           // few chunk requests.
           env.SUPATERM_BUNDLED_DEV = "1";
@@ -974,7 +972,7 @@ const devRunnerCli = Command.make("dev-runner", {
   ),
   seed: Flag.Boolean("seed").pipe(
     Flag.withDescription(
-      "Seed an empty worktree database from ~/.supaterm on first start (read-only, via migrate-dev-db). On by default; --no-seed or SUPATERM_DEV_SEED=0 skips it.",
+      "Seed an empty worktree database from ~/.supaterm on first start (read-only, via migrate-dev-db). On by default for sources at most 500 MiB; --no-seed or SUPATERM_DEV_SEED=0 skips it.",
     ),
     Flag.withFallbackConfig(optionalBooleanConfig("SUPATERM_DEV_SEED")),
   ),
