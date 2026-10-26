@@ -9,9 +9,9 @@ const MIME_TYPE_CANDIDATES = [
 ];
 const AUDIO_BITS_PER_SECOND = 32_000;
 const LEVEL_SAMPLE_MS = 100;
-export const DICTATION_LEVEL_PROPERTY = "--dictation-level";
+const DICTATION_LEVEL_PROPERTY = "--dictation-level";
 
-export const DEV_FAKE_MICROPHONE_STORAGE_KEY = "supaterm:dev-fake-microphone";
+const DEV_FAKE_MICROPHONE_STORAGE_KEY = "supaterm:dev-fake-microphone";
 
 function usesFakeMicrophone(): boolean {
   if (!import.meta.env.DEV) return false;

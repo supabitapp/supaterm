@@ -335,7 +335,7 @@ export function createRecordingConsumers() {
 
 export type RecordingConsumers = ReturnType<typeof createRecordingConsumers>;
 
-export const DICTATION_UNAVAILABLE_MESSAGE = {
+const DICTATION_UNAVAILABLE_MESSAGE = {
   unsupported: "This environment can't transcribe recordings.",
   forbidden: "This connection can't use dictation.",
   disabled: "Dictation is turned off for this environment.",
@@ -343,7 +343,7 @@ export const DICTATION_UNAVAILABLE_MESSAGE = {
   "no-capture": "No transcription account is available.",
 } satisfies Record<Exclude<DictationHiddenReason, "unknown">, string>;
 
-export function savedRecordingAfterFailure(
+function savedRecordingAfterFailure(
   recording: Pick<SavedRecording, "attempts">,
   failure: Pick<DictationClipFailure, "kind" | "message">,
   now: number,
@@ -372,7 +372,7 @@ export const RETRY_SAVED_RECORDING: SavedRecordingPatch = {
   retryAt: 0,
 };
 
-export function planSavedRecordingRuns(input: {
+function planSavedRecordingRuns(input: {
   readonly recordings: ReadonlyArray<SavedRecordingEntry>;
   readonly reachable: ReadonlySet<EnvironmentId>;
   readonly isRunning: (id: string) => boolean;

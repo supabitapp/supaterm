@@ -14,7 +14,7 @@ export {
   type VoiceTranscriptEdit,
 } from "./controller.ts";
 export { VoiceInputSession, type VoiceInputTarget } from "./session.ts";
-export { resolveParkedInsertion, type ParkedInsertion } from "./clips.ts";
+export type { ParkedInsertion } from "./clips.ts";
 export {
   VoiceTranscriptionError,
   throwIfVoiceTranscriptionAborted,
@@ -30,11 +30,8 @@ export {
   createRecordingConsumers,
   createSavedRecordingRunner,
   createSavedRecordings,
-  DICTATION_UNAVAILABLE_MESSAGE,
-  planSavedRecordingRuns,
   RETRY_SAVED_RECORDING,
   SavedRecording,
-  savedRecordingAfterFailure,
   type RecordingConsumers,
   type SavedRecordingConsumer,
   type SavedRecordingEntry,

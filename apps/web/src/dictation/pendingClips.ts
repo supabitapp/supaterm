@@ -146,10 +146,3 @@ export async function clearPendingClipsEnvironment(environmentId: EnvironmentId)
       .map((clip) => webRecordings.discard(clip.id)),
   );
 }
-
-export function resetPendingClipsForTests(): void {
-  webRecordings.resetForTests();
-  database = null;
-  channel?.close();
-  channel = null;
-}

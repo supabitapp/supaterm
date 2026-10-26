@@ -43,7 +43,7 @@ const UNKNOWN: DictationEnvironmentState = { status: "unknown" };
 const UNSUPPORTED: DictationEnvironmentState = { status: "unsupported" };
 const FORBIDDEN: DictationEnvironmentState = { status: "forbidden" };
 
-export function projectDictationEnvironment(
+function projectDictationEnvironment(
   previous: DictationEnvironmentState | null,
   config: ServerConfig | null,
   session: AsyncResult.AsyncResult<AuthSessionState, unknown>,
