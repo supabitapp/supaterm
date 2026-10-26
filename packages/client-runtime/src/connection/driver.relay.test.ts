@@ -88,7 +88,7 @@ const connectWithRealResolver = Effect.fnUntraced(function* (
     Layer.succeed(
       ConnectionCredentialStore.ConnectionCredentialStore,
       ConnectionCredentialStore.ConnectionCredentialStore.of({
-        get: () => Effect.succeed(Option.some(new BearerConnectionCredential({ token: "t" }))),
+        get: () => Effect.succeedSome(new BearerConnectionCredential({ token: "t" })),
         put: () => Effect.void,
         remove: () => Effect.void,
       }),

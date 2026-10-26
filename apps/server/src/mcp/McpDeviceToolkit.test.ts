@@ -9,7 +9,6 @@ import {
 } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
 import { McpSchema, McpServer } from "effect/ai";
 
 import * as ServerConfig from "../config.ts";
@@ -102,7 +101,7 @@ const readiness = {
   agentDevice: null,
 };
 const layerProjectsMock = Layer.mock(ProjectService.ProjectService)({
-  getById: () => Effect.succeed(Option.none()),
+  getById: () => Effect.succeedNone,
 });
 
 const layerDeviceServiceMock = Layer.mock(DeviceService.DeviceService)({

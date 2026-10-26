@@ -1670,7 +1670,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
                               Effect.asSome,
                               Effect.tapError(() => stopPendingWake(wake)),
                             )
-                          : Effect.succeed(Option.none()),
+                          : Effect.succeedNone,
                       ),
                     ),
                   clearIfCurrent: () => sessionEventPermit.withPermits(1)(stopPendingWake(wake)),

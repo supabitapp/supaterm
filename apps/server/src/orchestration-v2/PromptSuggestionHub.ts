@@ -57,7 +57,7 @@ const make = Effect.sync(() => {
     await: (target) =>
       Effect.suspend(() => {
         const pending = predictions.get(keyOf(target));
-        if (pending === undefined) return Effect.succeed(Option.none());
+        if (pending === undefined) return Effect.succeedNone;
         return Deferred.await(pending).pipe(
           Effect.timeoutOption(PREDICTION_WAIT),
           Effect.map((text) => Option.some(Option.getOrNull(text))),

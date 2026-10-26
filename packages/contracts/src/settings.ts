@@ -7,7 +7,6 @@ import {
 } from "./auth.ts";
 import * as Effect from "effect/Effect";
 import * as Duration from "effect/Duration";
-import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 import {
@@ -408,7 +407,7 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   // An unknown grouping falls back to Default instead of failing the whole settings document.
   sidebarThreadGrouping: SidebarThreadGrouping.pipe(
-    Schema.catchDecoding(() => Effect.succeed(Option.some("status" as const))),
+    Schema.catchDecoding(() => Effect.succeedSome("status" as const)),
     Schema.withDecodingDefault(Effect.succeed("status" as const)),
   ),
   sidebarThreadPreviewCount: SidebarThreadPreviewCount.pipe(
