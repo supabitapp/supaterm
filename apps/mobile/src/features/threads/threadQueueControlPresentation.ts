@@ -21,6 +21,8 @@ export function resolveThreadQueueRowControls(input: {
   readonly canPromoteToSteer: boolean;
   readonly canSendNow: boolean;
   readonly canReorder: boolean;
+  /** Something else holds the composer, such as an open question. */
+  readonly editBlocked?: boolean;
   readonly index: number;
   readonly isEditing?: boolean;
   readonly queuedCount: number;
@@ -31,7 +33,7 @@ export function resolveThreadQueueRowControls(input: {
 
   return {
     canDismiss: mutationEnabled,
-    canEdit: mutationEnabled && !isEditing,
+    canEdit: mutationEnabled && !isEditing && input.editBlocked !== true,
     canMoveDown: mutationEnabled && input.canReorder && input.index < input.queuedCount - 1,
     canMoveUp: mutationEnabled && input.canReorder && input.index > 0,
     canOpen: mutationEnabled,

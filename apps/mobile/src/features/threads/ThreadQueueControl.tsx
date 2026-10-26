@@ -1,6 +1,9 @@
 import { type StaticScreenProps, useNavigation } from "@react-navigation/native";
 import { useAtomValue } from "@effect/atom-react";
-import { makeQueuedRunsAtom } from "@supaterm/client-runtime/queued-run-edit";
+import {
+  makeQueuedRunsAtom,
+  queuedRunEditBlockedReason,
+} from "@supaterm/client-runtime/queued-run-edit";
 import {
   AuthOrchestrationOperateScope,
   type EnvironmentId,
@@ -64,6 +67,10 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
   const workflow = useThreadQueueWorkflow(target);
   const threadKey = scopedThreadKey(target.environmentId, target.threadId);
   const editing = useQueuedRunEdit(threadKey);
+  const pendingRequests = useAtomValue(environmentThreadDetails.pendingRequestsAtom(target));
+  const editBlockedReason = queuedRunEditBlockedReason({
+    openQuestionCount: pendingRequests?.userInputs.length ?? 0,
+  });
   const reorder = useAtomCommand(threadEnvironment.reorderQueuedRun, "reorder queued message");
   const promote = useAtomCommand(threadEnvironment.promoteQueuedRun, "promote queued message");
   const cancel = useAtomCommand(threadEnvironment.cancelQueuedRun, "remove queued message");
@@ -154,6 +161,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
         navigation.goBack();
         return;
       }
+      if (editBlockedReason !== null) return;
       const entry = queuedRuns[index]!;
       void Haptics.selectionAsync();
       beginQueuedRunEdit(
@@ -238,9 +246,10 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
           </View>
           {canOperate ? (
             <Text className="text-sm text-foreground-muted">
-              {canSendQueuedMessages
-                ? `Tap to edit · ${canSendNow ? "Send now" : "Steer"} or swipe for more`
-                : "Tap to edit · Swipe for actions"}
+              {editBlockedReason ??
+                (canSendQueuedMessages
+                  ? `Tap to edit · ${canSendNow ? "Send now" : "Steer"} or swipe for more`
+                  : "Tap to edit · Swipe for actions")}
             </Text>
           ) : null}
         </View>
@@ -278,6 +287,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
           canPromoteToSteer: workflow?.canPromoteToSteer ?? false,
           canSendNow,
           canReorder: workflow?.canReorder ?? false,
+          editBlocked: editBlockedReason !== null,
           index,
           isEditing: editing?.runId === run.id,
           queuedCount: queuedRuns.length,

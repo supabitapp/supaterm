@@ -77,6 +77,8 @@ export function QueuedRunsControl({
     Pick<ChatMessage, "id" | "inputIntent" | "text" | "attachments">
   >;
   readonly editingRunId: RunId | null;
+  /** Set while something else holds the composer, such as an open question. */
+  readonly editBlockedReason: string | null;
   readonly onEditQueuedRun: (request: EditQueuedRunRequest) => void;
   readonly onCancelEdit: () => void;
 }) {
@@ -205,7 +207,7 @@ export function QueuedRunsControl({
     // older message than the one shown last.
     editLatest(repeat) {
       const latest = items.at(-1);
-      if (!latest) return false;
+      if (!latest || props.editBlockedReason !== null) return false;
       if (!repeat && latest.runId !== null && latest.messageId !== null && busyRunId === null) {
         setExpanded(true);
         props.onEditQueuedRun({
@@ -411,32 +413,39 @@ export function QueuedRunsControl({
                         ) : (
                           <>
                             <Tooltip>
-                              <TooltipTrigger
-                                render={
-                                  <Button
-                                    size="icon-xs"
-                                    variant="ghost-muted"
-                                    aria-label="Edit queued message"
-                                    disabled={item.runId === null || busyRunId !== null}
-                                    onClick={() => {
-                                      if (item.runId !== null && item.messageId !== null) {
-                                        props.onEditQueuedRun({
-                                          runId: item.runId,
-                                          messageId: item.messageId,
-                                          text: item.text,
-                                          attachments: item.attachments,
-                                        });
-                                      }
-                                    }}
-                                  />
-                                }
-                              >
-                                <PencilIcon />
+                              {/* The span keeps the tooltip, and its reason, on a disabled button. */}
+                              <TooltipTrigger render={<span className="flex shrink-0" />}>
+                                <Button
+                                  size="icon-xs"
+                                  variant="ghost-muted"
+                                  aria-label="Edit queued message"
+                                  disabled={
+                                    item.runId === null ||
+                                    busyRunId !== null ||
+                                    props.editBlockedReason !== null
+                                  }
+                                  onClick={() => {
+                                    if (item.runId !== null && item.messageId !== null) {
+                                      props.onEditQueuedRun({
+                                        runId: item.runId,
+                                        messageId: item.messageId,
+                                        text: item.text,
+                                        attachments: item.attachments,
+                                      });
+                                    }
+                                  }}
+                                >
+                                  <PencilIcon />
+                                </Button>
                               </TooltipTrigger>
                               <TooltipPopup
-                                shortcut={item === items.at(-1) ? props.editShortcutLabel : null}
+                                shortcut={
+                                  props.editBlockedReason === null && item === items.at(-1)
+                                    ? props.editShortcutLabel
+                                    : null
+                                }
                               >
-                                Edit in the composer
+                                {props.editBlockedReason ?? "Edit in the composer"}
                               </TooltipPopup>
                             </Tooltip>
                             <Tooltip>
