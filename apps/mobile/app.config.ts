@@ -205,7 +205,7 @@ const config: ExpoConfig = {
   slug: "supaterm",
   platforms: ["ios", "android"],
   scheme: variant.scheme,
-  version: "26.10.5",
+  version: "26.10.6",
   runtimeVersion: {
     // Development manifests resolve on every launch, so avoid fingerprint's
     // expensive native-project calculation there. Preview and production stay
