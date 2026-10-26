@@ -6,7 +6,10 @@ import { applyAppearanceContrast } from "./appearanceContrast";
 import { applyAppearanceFontVariables } from "./appearanceFonts";
 import { useChatPaneStore } from "./chatPanes/store";
 import { retainThreadOverlaysFor } from "./components/chat/threadOverlayRetention";
+import { startBackgroundThreadAnnouncements } from "./components/BackgroundThreadAnnouncer";
+import { startSshPasswordPromptQueue } from "./components/desktop/SshPasswordPromptDialog";
 import { startAgentOpenedPreviews } from "./components/preview/agentOpenedPreviews";
+import { startMainAppLocationTracking } from "./components/sidebar/mainAppLocation";
 import { APP_DISPLAY_NAME } from "./branding";
 import { isElectron } from "./env";
 import { useComposerDraftStore } from "./composerDraftStore";
@@ -17,6 +20,7 @@ import {
 } from "./lib/windowControlsOverlay";
 import { prepareProviderAuthDelivery } from "./providerAuthDelivery";
 import { getRouter, type AppRouter } from "./router";
+import { appAtomRegistry } from "./rpc/atomRegistry";
 import { resolveThreadRouteTarget, type ThreadRouteTarget } from "./threadRoutes";
 
 /** Writes appearance settings onto the document, touching only the groups that changed. */
@@ -118,6 +122,9 @@ export function startAppServices(): AppRouter {
   document.title = APP_DISPLAY_NAME;
   startAgentOpenedPreviews();
   startThreadOverlayRetention(router);
+  startMainAppLocationTracking(router);
+  startBackgroundThreadAnnouncements(appAtomRegistry, router);
+  startSshPasswordPromptQueue();
 
   return router;
 }

@@ -1,16 +1,14 @@
-import { useAtomValue } from "@effect/atom-react";
 import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/environment";
 import { effectiveSnoozed } from "@supaterm/client-runtime/state/thread-snooze";
-import { useEffect, useRef } from "react";
-import { useShallow } from "zustand/react/shallow";
+import type { AnyRouter } from "@tanstack/react-router";
+import type { AtomRegistry } from "effect/reactivity";
 
 import { useChatPaneStore } from "../chatPanes/store";
 import { useComposerDraftStore } from "../composerDraftStore";
-import { useLiveRegion } from "../hooks/useLiveRegion";
-import { useThreadRouteTarget } from "../hooks/useThreadRouteTarget";
-import { useQuietThreadShells } from "../state/entities";
+import { createLiveRegion } from "../hooks/useLiveRegion";
 import { liveShellEnvironmentIdsAtom } from "../state/shell";
-import { resolveActiveThreadRouteRef } from "../threadRoutes";
+import { environmentThreadShells } from "../state/threads";
+import { resolveActiveThreadRouteRef, resolveThreadRouteTarget } from "../threadRoutes";
 import {
   type BackgroundThreadMemory,
   type BackgroundThreadSnapshot,
@@ -18,30 +16,37 @@ import {
   resolveBackgroundThreadRequest,
 } from "./backgroundThreadAnnouncement";
 
-/**
- * Speaks status changes for threads other than the open one. It lives outside
- * the sidebar because a collapsed sidebar is inert, which silences its rows.
- */
-export function BackgroundThreadAnnouncer() {
-  const threads = useQuietThreadShells();
-  const liveEnvironmentIds = useAtomValue(liveShellEnvironmentIdsAtom);
-  const routeTarget = useThreadRouteTarget();
-  const routeDraftThread = useComposerDraftStore((store) =>
-    routeTarget?.kind === "draft" ? store.getDraftSession(routeTarget.draftId) : null,
-  );
-  const openThreadRef = resolveActiveThreadRouteRef(routeTarget, routeDraftThread);
-  const openThreadKey = openThreadRef === null ? null : scopedThreadKey(openThreadRef);
-  const paneThreadKeys = useChatPaneStore(
-    useShallow((state) =>
-      (state.layout?.cells ?? []).flatMap((cell) =>
-        cell.target.kind === "server" ? [scopedThreadKey(cell.target.threadRef)] : [],
-      ),
+const backgroundThreadLiveRegion = createLiveRegion();
+const attachBackgroundThreadRegion = backgroundThreadLiveRegion.attach;
+
+/** The route's thread and every split-pane thread, in a stable order for comparison. */
+function readOpenThreadKeys(router: AnyRouter): ReadonlyArray<string> {
+  const target = resolveThreadRouteTarget(router.state.matches.at(-1)?.params ?? {});
+  const draft =
+    target?.kind === "draft"
+      ? useComposerDraftStore.getState().getDraftSession(target.draftId)
+      : null;
+  const ref = resolveActiveThreadRouteRef(target, draft);
+  const keys = new Set(
+    (useChatPaneStore.getState().layout?.cells ?? []).flatMap((cell) =>
+      cell.target.kind === "server" ? [scopedThreadKey(cell.target.threadRef)] : [],
     ),
   );
-  const { regionRef, announce } = useLiveRegion();
-  const memoryRef = useRef<BackgroundThreadMemory>(new Map());
+  if (ref !== null) keys.add(scopedThreadKey(ref));
+  return [...keys].toSorted();
+}
 
-  useEffect(() => {
+/** Speaks status changes for threads no open pane shows, for the life of the app. */
+export function startBackgroundThreadAnnouncements(
+  registry: AtomRegistry.AtomRegistry,
+  router: AnyRouter,
+): () => void {
+  let memory: BackgroundThreadMemory = new Map();
+  let openThreadKeys = readOpenThreadKeys(router);
+
+  const update = () => {
+    const threads = registry.get(environmentThreadShells.quietThreadShellsAtom);
+    const liveEnvironmentIds = registry.get(liveShellEnvironmentIdsAtom);
     const now = new Date().toISOString();
     const snapshots: BackgroundThreadSnapshot[] = [];
     for (const thread of threads) {
@@ -59,17 +64,37 @@ export function BackgroundThreadAnnouncer() {
         snoozed: effectiveSnoozed(thread, { now }),
       });
     }
-    const openThreadKeys = new Set(paneThreadKeys);
-    if (openThreadKey !== null) openThreadKeys.add(openThreadKey);
-    const { memory, announcement } = nextBackgroundThreadAnnouncement(
-      memoryRef.current,
-      snapshots,
-      openThreadKeys,
-    );
-    memoryRef.current = memory;
-    if (announcement !== null) announce(announcement);
-  }, [threads, liveEnvironmentIds, openThreadKey, paneThreadKeys, announce]);
+    const next = nextBackgroundThreadAnnouncement(memory, snapshots, new Set(openThreadKeys));
+    memory = next.memory;
+    if (next.announcement !== null) backgroundThreadLiveRegion.announce(next.announcement);
+  };
 
+  // The draft and pane stores change often; only a new set of open threads matters here.
+  const updateOpenThreads = () => {
+    const next = readOpenThreadKeys(router);
+    if (next.join("\n") === openThreadKeys.join("\n")) return;
+    openThreadKeys = next;
+    update();
+  };
+
+  const unsubscribes = [
+    registry.subscribe(environmentThreadShells.quietThreadShellsAtom, update),
+    registry.subscribe(liveShellEnvironmentIdsAtom, update),
+    router.subscribe("onResolved", updateOpenThreads),
+    useComposerDraftStore.subscribe(updateOpenThreads),
+    useChatPaneStore.subscribe(updateOpenThreads),
+  ];
+  update();
+  return () => {
+    for (const unsubscribe of unsubscribes) unsubscribe();
+  };
+}
+
+/**
+ * The region the background announcements are spoken through. It lives outside
+ * the sidebar because a collapsed sidebar is inert, which silences its rows.
+ */
+export function BackgroundThreadAnnouncer() {
   // No role="status": Orca 50 maps it to a status bar in Chromium and drops its updates.
-  return <div ref={regionRef} aria-live="polite" className="sr-only" />;
+  return <div ref={attachBackgroundThreadRegion} aria-live="polite" className="sr-only" />;
 }
