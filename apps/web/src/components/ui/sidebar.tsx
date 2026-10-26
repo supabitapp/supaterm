@@ -23,7 +23,7 @@ import {
   ResizablePanelGroup,
   useCollapsiblePanel,
 } from "~/components/ui/resizable";
-import { useIsMobile } from "~/hooks/useMediaQuery";
+import { useMediaQuery } from "~/hooks/useMediaQuery";
 import { resolveSidebarState, type ResponsiveSidebarState } from "./sidebarState";
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
@@ -66,46 +66,87 @@ function useSidebarVisibility() {
   return isMobile ? openMobile : open;
 }
 
+// Same breakpoint as useIsMobile, also read when a shortcut fires.
+const SIDEBAR_MOBILE_QUERY = "(max-width: 767px)";
+
+function isMobileViewport(): boolean {
+  return typeof window !== "undefined" && window.matchMedia(SIDEBAR_MOBILE_QUERY).matches;
+}
+
+async function persistSidebarOpen(open: boolean) {
+  await cookieStore.set({
+    expires: Date.now() + SIDEBAR_COOKIE_MAX_AGE * 1000,
+    name: SIDEBAR_COOKIE_NAME,
+    path: "/",
+    value: String(open),
+  });
+}
+
+// The desktop sidebar turns inert once collapsed, which drops focus to the body.
+function moveFocusOutOfCollapsingSidebar() {
+  const sidebar = document.activeElement?.closest<HTMLElement>('[data-slot="sidebar"]');
+  const wrapper = sidebar?.closest<HTMLElement>('[data-slot="sidebar-wrapper"]');
+  if (!sidebar || !wrapper) return;
+  const trigger = Array.from(
+    wrapper.querySelectorAll<HTMLElement>('[data-sidebar="trigger"]'),
+  ).find((element) => !sidebar.contains(element));
+  trigger?.focus({ preventScroll: true });
+}
+
+interface SidebarOpenState {
+  readonly open: boolean;
+  readonly openMobile: boolean;
+}
+
+/** Per-provider open state, kept outside React so shortcuts can toggle it at event time. */
+function createSidebarOpenStore(defaultOpen: boolean) {
+  let state: SidebarOpenState = { open: defaultOpen, openMobile: false };
+  const listeners = new Set<() => void>();
+  const publish = (next: SidebarOpenState) => {
+    state = next;
+    for (const listener of listeners) listener();
+  };
+  const setOpen = (open: boolean) => {
+    if (!open && state.open) moveFocusOutOfCollapsingSidebar();
+    if (open !== state.open) publish({ ...state, open });
+    void persistSidebarOpen(open);
+  };
+  const setOpenMobile = (openMobile: boolean) => {
+    if (openMobile !== state.openMobile) publish({ ...state, openMobile });
+  };
+  return {
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    getSnapshot: () => state,
+    setOpen,
+    setOpenMobile,
+    toggle: () => (isMobileViewport() ? setOpenMobile(!state.openMobile) : setOpen(!state.open)),
+  };
+}
+
 function SidebarProvider({
   defaultOpen = true,
-  open: openProp,
-  onOpenChange: setOpenProp,
   className,
   style,
   children,
   ...props
 }: React.ComponentProps<"div"> & {
   defaultOpen?: boolean;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
 }) {
-  const isMobile = useIsMobile();
-  const [openMobile, setOpenMobile] = React.useState(false);
+  const isMobile = useMediaQuery(SIDEBAR_MOBILE_QUERY);
+  const [store] = React.useState(() => createSidebarOpenStore(defaultOpen));
+  const { open, openMobile } = React.useSyncExternalStore(
+    store.subscribe,
+    store.getSnapshot,
+    store.getSnapshot,
+  );
   const [mobileSheetMounted, setMobileSheetMounted] = React.useState(false);
   const setMobileSheetElement = (element: HTMLDivElement | null) => {
     setMobileSheetMounted(element !== null);
-  };
-
-  const [_open, _setOpen] = React.useState(defaultOpen);
-  const open = openProp ?? _open;
-  const setOpen = async (value: boolean | ((value: boolean) => boolean)) => {
-    const openState = typeof value === "function" ? value(open) : value;
-    if (setOpenProp) {
-      setOpenProp(openState);
-    } else {
-      _setOpen(openState);
-    }
-
-    await cookieStore.set({
-      expires: Date.now() + SIDEBAR_COOKIE_MAX_AGE * 1000,
-      name: SIDEBAR_COOKIE_NAME,
-      path: "/",
-      value: String(openState),
-    });
-  };
-
-  const toggleSidebar = () => {
-    return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
   };
 
   const state = resolveSidebarState({ isMobile, open, openMobile });
@@ -116,10 +157,10 @@ function SidebarProvider({
     openMobile,
     mobileSheetMounted,
     setMobileSheetElement,
-    setOpen,
-    setOpenMobile,
+    setOpen: store.setOpen,
+    setOpenMobile: store.setOpenMobile,
     state,
-    toggleSidebar,
+    toggleSidebar: store.toggle,
   };
 
   return (
@@ -169,23 +210,7 @@ function Sidebar({
     open,
     onCollapse: () => setOpen(false),
   });
-  const desktopSidebarRef = React.useRef<HTMLDivElement>(null);
   const offcanvasCollapsed = !isMobile && state === "collapsed";
-
-  React.useLayoutEffect(() => {
-    const sidebar = desktopSidebarRef.current;
-    if (!sidebar) return;
-
-    // Transfer focus before inert causes the browser to clear the focused descendant.
-    if (offcanvasCollapsed && sidebar.contains(document.activeElement)) {
-      const wrapper = sidebar.closest('[data-slot="sidebar-wrapper"]');
-      const trigger = Array.from(
-        wrapper?.querySelectorAll<HTMLElement>('[data-sidebar="trigger"]') ?? [],
-      ).find((element) => !sidebar.contains(element));
-      trigger?.focus({ preventScroll: true });
-    }
-    sidebar.toggleAttribute("inert", offcanvasCollapsed);
-  }, [offcanvasCollapsed]);
 
   if (isMobile) {
     return (
@@ -234,8 +259,8 @@ function Sidebar({
       id={`sidebar-${side}`}
     >
       <div
-        ref={desktopSidebarRef}
         className="group flex h-full w-full text-sidebar-foreground"
+        inert={offcanvasCollapsed}
         data-side={side}
         data-slot="sidebar"
         data-state={state}

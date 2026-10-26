@@ -4,6 +4,7 @@ import { createBrowserHistory, createHashHistory } from "@tanstack/react-router"
 
 import { applyAppearanceContrast } from "./appearanceContrast";
 import { applyAppearanceFontVariables } from "./appearanceFonts";
+import { startElectronBrowserHost } from "./browser/ElectronBrowserHost";
 import { useChatPaneStore } from "./chatPanes/store";
 import { retainThreadOverlaysFor } from "./components/chat/threadOverlayRetention";
 import { startBackgroundThreadAnnouncements } from "./components/BackgroundThreadAnnouncer";
@@ -127,6 +128,7 @@ export function startAppServices(): AppRouter {
   document.title = APP_DISPLAY_NAME;
   startDefaultThemeAdoption();
   startAgentOpenedPreviews();
+  if (isElectron) startElectronBrowserHost();
   startThreadOverlayRetention(router);
   startMainAppLocationTracking(router);
   startBackgroundThreadAnnouncements(appAtomRegistry, router);
