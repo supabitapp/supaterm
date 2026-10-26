@@ -2300,7 +2300,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     stashQueue,
     isStashMenuOpen,
     setIsStashMenuOpen,
-    stashPulse,
+    stashPulseKey,
     stashSendAllBlockedReason,
     restoreStashEntryStable,
     deleteStashEntryStable,
@@ -3720,8 +3720,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         <ComposerStashBadge
           count={stashQueue.length}
           menuOpen={isStashMenuOpen}
-          pulseKey={stashPulse.key}
-          pulsing={stashPulse.active}
+          pulseKey={stashPulseKey}
           onToggleMenu={toggleStashMenuStable}
         />
       </ComposerBanner.Dock>

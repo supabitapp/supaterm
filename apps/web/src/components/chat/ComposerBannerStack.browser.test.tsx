@@ -1,12 +1,13 @@
 import { act, render as renderUi, type Screen } from "../../../test/render";
 import "../../index.css";
 
+import { InfoIcon } from "@supaterm/icons";
 import { type ComponentProps } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { RunId } from "@supaterm/contracts";
 
-import { ComposerBannerStack } from "./ComposerBannerStack";
+import { ComposerBannerStack, type ComposerBannerStackItem } from "./ComposerBannerStack";
 import { usageLimitRecoveryBannerItem } from "./UsageLimitRecoveryBanner";
 
 let fixtureScreen: Screen;
@@ -187,3 +188,22 @@ async function setup() {
     },
   };
 }
+
+it("commits a dismissal when the thread switches during the exit transition", async () => {
+  const onDismiss = vi.fn();
+  const item: ComposerBannerStackItem = {
+    id: "notice",
+    variant: "info",
+    icon: <InfoIcon />,
+    title: "Thread A notice",
+    dismissLabel: "Dismiss notice",
+    onDismiss,
+  };
+  await using screen = await renderUi(<ComposerBannerStack key="thread-a" items={[item]} />);
+
+  await userEvent.click(screen.getByRole("button", { name: "Dismiss notice" }));
+  // The composer keys the stack by thread, so switching threads remounts it mid-exit.
+  await screen.rerender(<ComposerBannerStack key="thread-b" items={[]} />);
+
+  await vi.waitFor(() => expect(onDismiss).toHaveBeenCalledTimes(1));
+});

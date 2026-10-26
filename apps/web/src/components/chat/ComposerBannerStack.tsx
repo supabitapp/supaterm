@@ -1,5 +1,6 @@
 import { InfoIcon } from "@supaterm/icons";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 
 import { animationsSettled } from "~/lib/motion";
 import { cn } from "~/lib/utils";
@@ -125,7 +126,6 @@ export function ComposerBannerStack({ className, items }: ComposerBannerStackPro
   const noticesRef = useRef<HTMLDivElement>(null);
   const peekRef = useRef<HTMLButtonElement>(null);
   const expandedItemsRef = useRef<HTMLDivElement>(null);
-  const pendingFocusRef = useRef<"peek" | "notice" | null>(null);
   const slotElementsRef = useRef(new Map<string, HTMLElement>());
   const expandedItemsId = useId();
   // A dismissed notice leaves at once, even if its owner removes it asynchronously.
@@ -178,18 +178,14 @@ export function ComposerBannerStack({ className, items }: ComposerBannerStackPro
     setStackExpanded(false);
   }
 
-  useLayoutEffect(() => {
-    if (stackExpanded && pendingFocusRef.current === "notice") {
-      pendingFocusRef.current = null;
-      const firstControl = expandedItemsRef.current?.querySelector<HTMLElement>(
-        'button:not(:disabled), a[href], input:not(:disabled), [tabindex="0"]',
-      );
-      (firstControl ?? expandedItemsRef.current)?.focus({ preventScroll: true });
-    } else if (!stackExpanded && pendingFocusRef.current === "peek") {
-      pendingFocusRef.current = null;
-      peekRef.current?.focus({ preventScroll: true });
-    }
-  }, [stackExpanded]);
+  const expandAndFocusNotice = () => {
+    flushSync(() => setStackExpanded(true));
+    const container = expandedItemsRef.current;
+    const firstControl = container?.querySelector<HTMLElement>(
+      'button:not(:disabled), a[href], input:not(:disabled), [tabindex="0"]',
+    );
+    (firstControl ?? container)?.focus({ preventScroll: true });
+  };
 
   if (!front) {
     return null;
@@ -227,7 +223,8 @@ export function ComposerBannerStack({ className, items }: ComposerBannerStackPro
           onPointerEnter={(event) => {
             if (event.pointerType === "touch") return;
             if (document.activeElement === peekRef.current) {
-              pendingFocusRef.current = "notice";
+              expandAndFocusNotice();
+              return;
             }
             setStackExpanded(true);
           }}
@@ -246,8 +243,8 @@ export function ComposerBannerStack({ className, items }: ComposerBannerStackPro
             if (event.key !== "Escape" || !stackExpanded) return;
             event.preventDefault();
             event.stopPropagation();
-            pendingFocusRef.current = "peek";
-            setStackExpanded(false);
+            flushSync(() => setStackExpanded(false));
+            peekRef.current?.focus({ preventScroll: true });
           }}
         >
           {showCollapsedStackCap ? (
@@ -261,8 +258,7 @@ export function ComposerBannerStack({ className, items }: ComposerBannerStackPro
               tabIndex={stackExpanded ? -1 : 0}
               onClick={(event) => {
                 event.currentTarget.focus({ preventScroll: true });
-                pendingFocusRef.current = "notice";
-                setStackExpanded(true);
+                expandAndFocusNotice();
               }}
               className={cn(
                 (stackExpanded || stackLeaving) && "pointer-events-none invisible opacity-0",
