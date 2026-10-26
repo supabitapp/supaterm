@@ -292,6 +292,7 @@ import {
   RevertConfirmHost,
 } from "./chat/ChatOverlayHosts";
 import type { AssistantCitationRequest } from "./chat/AssistantCitationSource";
+import { useCitedHistory } from "./chat/citationProcedure";
 import type { MessagesTimelineHistoryControls } from "./chat/MessagesTimeline";
 import type { PinnableProjectedItem } from "./chat/PinnedMessages";
 import type { MessageJump, MessageJumpFailure } from "@supaterm/client-runtime/message-jump";
@@ -689,6 +690,7 @@ export default function ChatView(props: ChatViewProps) {
       ? { citation, key: citationLocation.key ?? citationLocation.href }
       : null;
   })();
+  const citationHistory = useCitedHistory(citationRequest);
   const { resolvedTheme } = useTheme();
   const composerRuntimeMode = useComposerDraftStore(
     (store) => store.getComposerDraft(composerDraftTarget)?.runtimeMode ?? null,
@@ -3464,7 +3466,7 @@ export default function ChatView(props: ChatViewProps) {
                     readyWorkspaceRoot={activeWorkspaceRoot ?? null}
                     timelineScope={paneScope?.paneId}
                     citationRequest={paintOnlyDisplayedTimeline ? null : citationRequest}
-                    citationHistoryLoading={threadDetailLoading}
+                    citationHistory={citationHistory}
                     {...(!paintOnlyDisplayedTimeline
                       ? {
                           onCiteAssistantText: citeAssistantTextStable,
