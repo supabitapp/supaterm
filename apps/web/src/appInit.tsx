@@ -8,17 +8,21 @@ import { useChatPaneStore } from "./chatPanes/store";
 import { retainThreadOverlaysFor } from "./components/chat/threadOverlayRetention";
 import { startBackgroundThreadAnnouncements } from "./components/BackgroundThreadAnnouncer";
 import { startSshPasswordPromptQueue } from "./components/desktop/SshPasswordPromptDialog";
+import { startHostFreezeToasts } from "./components/HostFreezeToastCoordinator";
 import { startAgentOpenedPreviews } from "./components/preview/agentOpenedPreviews";
 import { startMainAppLocationTracking } from "./components/sidebar/mainAppLocation";
+import { startDesktopUpdateLaunchNotice } from "./components/sidebar/updateEverythingRun";
+import { startThreadNotifications } from "./components/ThreadNotificationCoordinator";
 import { APP_DISPLAY_NAME } from "./branding";
 import { isElectron } from "./env";
 import { useComposerDraftStore } from "./composerDraftStore";
+import { startDefaultThemeAdoption } from "./hooks/useDefaultTheme";
 import { getClientSettings, subscribeClientSettings } from "./hooks/useSettings";
 import {
   syncDocumentElectronPlatformClasses,
   syncDocumentWindowControlsOverlayClass,
 } from "./lib/windowControlsOverlay";
-import { prepareProviderAuthDelivery } from "./providerAuthDelivery";
+import { startProviderAuthDelivery } from "./providerAuthDelivery";
 import { getRouter, type AppRouter } from "./router";
 import { appAtomRegistry } from "./rpc/atomRegistry";
 import { resolveThreadRouteTarget, type ThreadRouteTarget } from "./threadRoutes";
@@ -108,7 +112,7 @@ function startThreadOverlayRetention(router: AppRouter): void {
  */
 export function startAppServices(): AppRouter {
   // Ahead of the history: the provider auth code must leave the address before anything reads it.
-  prepareProviderAuthDelivery();
+  startProviderAuthDelivery();
 
   // Electron loads the app from a file-backed shell, so hash history avoids path resolution issues.
   const router = getRouter(isElectron ? createHashHistory() : createBrowserHistory());
@@ -120,11 +124,16 @@ export function startAppServices(): AppRouter {
 
   startClientAppearance();
   document.title = APP_DISPLAY_NAME;
+  startDefaultThemeAdoption();
   startAgentOpenedPreviews();
   startThreadOverlayRetention(router);
   startMainAppLocationTracking(router);
   startBackgroundThreadAnnouncements(appAtomRegistry, router);
   startSshPasswordPromptQueue();
+
+  startHostFreezeToasts();
+  startThreadNotifications(appAtomRegistry, router);
+  if (isElectron) startDesktopUpdateLaunchNotice();
 
   return router;
 }

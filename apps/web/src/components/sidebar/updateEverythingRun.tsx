@@ -2,12 +2,11 @@ import { useAtomValue } from "@effect/atom-react";
 import { EnvironmentId } from "@supaterm/contracts";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import { Atom } from "effect/reactivity";
-import { useEffect } from "react";
+import { AsyncResult, Atom } from "effect/reactivity";
 
 import { APP_VERSION } from "~/branding";
 import { appAtomRegistry } from "~/rpc/atomRegistry";
-import { useDesktopUpdateState } from "~/state/desktopUpdate";
+import { desktopUpdateStateAtom } from "~/state/desktopUpdate";
 import { serverEnvironment } from "~/state/server";
 import { resolveVersionMismatch } from "~/versionSkew";
 import type { ServerUpdateOutcome, ServerUpdateTarget } from "../ServerUpdateAction";
@@ -307,32 +306,33 @@ function followHandedOffServers(servers: ReadonlyArray<HandedOffServer>): void {
   }
 }
 
-let notifiedNotAppliedVersion: string | null = null;
-
-export function DesktopUpdateLaunchNotice() {
-  const notAppliedVersion = useDesktopUpdateState()?.notAppliedVersion ?? null;
-
-  useEffect(() => {
-    const saved = takeSavedUpdateEverythingResult();
-    if (!saved) return;
+/** Reports, once per launch, how the update run that restarted the app ended. */
+export function startDesktopUpdateLaunchNotice(): () => void {
+  const saved = takeSavedUpdateEverythingResult();
+  if (saved) {
     showUpdateEverythingResult({
       ...saved,
       restarting: saved.handedOff.map((server) => server.label),
     });
     followHandedOffServers(saved.handedOff);
-  }, []);
+  }
 
-  useEffect(() => {
-    if (notAppliedVersion === null || notifiedNotAppliedVersion === notAppliedVersion) return;
-    notifiedNotAppliedVersion = notAppliedVersion;
-    toastManager.add(
-      stackedThreadToast({
-        type: "error",
-        title: "Update did not apply",
-        description: `Supaterm is still on ${APP_VERSION}. Install ${notAppliedVersion} again from the update button.`,
-      }),
-    );
-  }, [notAppliedVersion]);
-
-  return null;
+  let notifiedNotAppliedVersion: string | null = null;
+  return appAtomRegistry.subscribe(
+    desktopUpdateStateAtom,
+    (result) => {
+      const notAppliedVersion =
+        AsyncResult.getOrElse(result, () => null)?.notAppliedVersion ?? null;
+      if (notAppliedVersion === null || notifiedNotAppliedVersion === notAppliedVersion) return;
+      notifiedNotAppliedVersion = notAppliedVersion;
+      toastManager.add(
+        stackedThreadToast({
+          type: "error",
+          title: "Update did not apply",
+          description: `Supaterm is still on ${APP_VERSION}. Install ${notAppliedVersion} again from the update button.`,
+        }),
+      );
+    },
+    { immediate: true },
+  );
 }
