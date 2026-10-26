@@ -1,13 +1,27 @@
 import { ThreadId, type ThreadPullRequestLink, type VcsStatusResult } from "@supaterm/contracts";
 import { expect, it, vi } from "vite-plus/test";
+import { userEvent } from "vite-plus/test/browser";
 
 import "../index.css";
 
 import { render } from "../../test/render";
 import { AppAtomRegistryProvider } from "../rpc/atomRegistry";
 import { makeThreadFixture } from "../test-fixtures";
+import { InlineButton } from "./ui/button";
 
-const state = vi.hoisted(() => ({ queries: [] as string[] }));
+const state = vi.hoisted(() => ({
+  queries: [] as string[],
+  showContextMenu: vi.fn(),
+  openExternal: vi.fn(),
+}));
+
+vi.mock(import("../localApi"), async (original) => ({
+  ...(await original()),
+  readLocalApi: (() => ({
+    contextMenu: { show: state.showContextMenu },
+    shell: { openExternal: state.openExternal },
+  })) as never,
+}));
 
 vi.mock(import("../state/entities"), async (original) => ({
   ...(await original()),
@@ -76,30 +90,66 @@ vi.mock(import("../state/pullRequests"), async (importOriginal) => {
       summaries(input.number)) as never,
   };
 });
-import { ThreadSearchPullRequestNumber } from "./ThreadStatusIndicators";
+import {
+  ThreadPullRequestBadgeControl,
+  ThreadSearchPullRequestNumber,
+  resolveThreadPullRequestBadge,
+} from "./ThreadStatusIndicators";
+
+const linkedPullRequest = (number: number, state: "open" | "merged"): ThreadPullRequestLink => ({
+  host: "github.com",
+  repository: "example/repo",
+  number,
+  url: `https://github.com/example/repo/pull/${number}`,
+  source: "manual",
+  linkedAt: "2026-09-04T00:00:00.000Z",
+  snapshot: {
+    state,
+    title: `Linked PR ${number}`,
+    headBranch: `feature/${number}`,
+    baseBranch: "main",
+    isDraft: false,
+    updatedAt: "2026-09-04T00:00:00.000Z",
+    syncedAt: "2026-09-04T00:00:00.000Z",
+  },
+  stack: null,
+});
+
+it("right-clicking the PR badge opens the pull request's menu instead of the row's", async () => {
+  state.showContextMenu.mockReset().mockResolvedValue("show-linked");
+  const onRowContextMenu = vi.fn();
+  const onOpenList = vi.fn();
+  const pullRequests = [linkedPullRequest(7, "open"), linkedPullRequest(8, "merged")];
+  await using screen = await render(
+    <div onContextMenu={onRowContextMenu}>
+      <ThreadPullRequestBadgeControl
+        render={<InlineButton tone="link" />}
+        badge={resolveThreadPullRequestBadge(pullRequests)}
+        pullRequests={pullRequests}
+        number={7}
+        url="https://github.com/example/repo/pull/7"
+        status={null}
+        onOpenList={onOpenList}
+        onOpenPullRequest={vi.fn()}
+      />
+    </div>,
+  );
+
+  await userEvent.click(screen.getByRole("button"), { button: "right" });
+
+  await vi.waitFor(() => expect(onOpenList).toHaveBeenCalledOnce());
+  expect(onRowContextMenu).not.toHaveBeenCalled();
+  expect(state.showContextMenu.mock.calls[0]?.[0]).toEqual([
+    { id: "copy-link", label: "Copy link to #7", icon: "copy" },
+    { id: "open-external", label: "Open #7 on GitHub" },
+    { id: "show-linked", label: "Show linked pull requests", separatorBefore: true },
+  ]);
+});
 
 it("shows the sidebar's PR badge in thread search when the query matches any linked PR", async () => {
-  const link = (number: number, state: "open" | "merged"): ThreadPullRequestLink => ({
-    host: "github.com",
-    repository: "example/repo",
-    number,
-    url: `https://github.com/example/repo/pull/${number}`,
-    source: "manual",
-    linkedAt: "2026-09-04T00:00:00.000Z",
-    snapshot: {
-      state,
-      title: `Linked PR ${number}`,
-      headBranch: `feature/${number}`,
-      baseBranch: "main",
-      isDraft: false,
-      updatedAt: "2026-09-04T00:00:00.000Z",
-      syncedAt: "2026-09-04T00:00:00.000Z",
-    },
-    stack: null,
-  });
   const thread = makeThreadFixture({
     id: ThreadId.make("search-thread"),
-    pullRequests: [link(7, "open"), link(8, "merged")],
+    pullRequests: [linkedPullRequest(7, "open"), linkedPullRequest(8, "merged")],
   });
   await using screen = await render(
     <AppAtomRegistryProvider>
