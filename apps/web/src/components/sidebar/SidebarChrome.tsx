@@ -28,6 +28,7 @@ import {
 } from "../SidebarStageBackdrop";
 import { GitHubIcon } from "../Icons";
 import { Badge } from "../ui/badge";
+import { Kbd } from "../ui/kbd";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import {
   SidebarFooter,
@@ -216,7 +217,36 @@ function SidebarHelpItem({ closeMobileSidebar }: { closeMobileSidebar: () => voi
   );
 }
 
-export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
+export function SidebarBackToApp() {
+  const navigateToMainApp = useNavigateToMainApp();
+  const { isMobile, setOpenMobile } = useSidebar();
+  const handleClick = () => {
+    if (isMobile) setOpenMobile(false);
+    void navigateToMainApp();
+  };
+
+  return (
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <SidebarMenuButton variant="outline" onClick={handleClick}>
+          <ArrowLeftIcon />
+          <span>Back to app</span>
+          {isMobile ? null : (
+            <Kbd variant="plain" className="ms-auto" aria-hidden>
+              Esc
+            </Kbd>
+          )}
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    </SidebarMenu>
+  );
+}
+
+export const SidebarUtilityMenu = memo(function SidebarUtilityMenu({
+  showBack = true,
+}: {
+  showBack?: boolean;
+}) {
   const navigate = useNavigate();
   const navigateToMainApp = useNavigateToMainApp();
   const { isMobile, setOpenMobile } = useSidebar();
@@ -257,14 +287,15 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
 
   return (
     <SidebarMenu className="flex-row items-center">
-      {isOnUtilityPage ? (
+      {isOnUtilityPage && showBack ? (
         <SidebarMenuItem className="min-w-0 flex-1">
           <SidebarMenuButton onClick={handleBackClick}>
             <ArrowLeftIcon />
             <span>Back</span>
           </SidebarMenuButton>
         </SidebarMenuItem>
-      ) : (
+      ) : null}
+      {isOnUtilityPage ? null : (
         <>
           <SidebarUtilityItem
             icon={<SettingsIcon />}
