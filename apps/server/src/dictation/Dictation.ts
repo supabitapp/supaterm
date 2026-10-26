@@ -121,34 +121,35 @@ const make = Effect.gen(function* () {
   const operationScope = yield* Scope.make("parallel");
   yield* Effect.addFinalizer(() => Scope.close(operationScope, Exit.void));
 
-  const describeInstance = (instance: ProviderInstance) =>
-    Effect.gen(function* () {
-      const transcription = instance.transcription;
-      if (!instance.enabled || transcription === undefined) return Option.none();
-      const description = yield* transcription.describe;
-      if (description === null) return Option.none();
-      const snapshot = yield* instance.snapshot.getSnapshot;
-      const descriptor = decodeDescriptor({
-        id: `${transcription.kind}:${instance.instanceId}`,
-        kind: transcription.kind,
-        runsOn: "environment",
-        label: instance.displayName?.trim() || snapshot.displayName || instance.instanceId,
-        serviceLabel: description.serviceLabel,
-        accountLabel: description.accountLabel?.trim() || null,
-        providerInstanceId: instance.instanceId,
-        eligible: description.eligible,
-        ...(!description.eligible && description.unavailableReason?.trim()
-          ? { unavailableReason: description.unavailableReason }
-          : {}),
-        audioFormats: description.audioFormats,
-      });
-      if (Option.isNone(descriptor))
-        yield* Effect.logWarning("Skipped a transcription source that does not fit the catalog.", {
-          instanceId: instance.instanceId,
-          kind: transcription.kind,
-        });
-      return descriptor;
+  const describeInstance = Effect.fn("Dictation.describeInstance")(function* (
+    instance: ProviderInstance,
+  ) {
+    const transcription = instance.transcription;
+    if (!instance.enabled || transcription === undefined) return Option.none();
+    const description = yield* transcription.describe;
+    if (description === null) return Option.none();
+    const snapshot = yield* instance.snapshot.getSnapshot;
+    const descriptor = decodeDescriptor({
+      id: `${transcription.kind}:${instance.instanceId}`,
+      kind: transcription.kind,
+      runsOn: "environment",
+      label: instance.displayName?.trim() || snapshot.displayName || instance.instanceId,
+      serviceLabel: description.serviceLabel,
+      accountLabel: description.accountLabel?.trim() || null,
+      providerInstanceId: instance.instanceId,
+      eligible: description.eligible,
+      ...(!description.eligible && description.unavailableReason?.trim()
+        ? { unavailableReason: description.unavailableReason }
+        : {}),
+      audioFormats: description.audioFormats,
     });
+    if (Option.isNone(descriptor))
+      yield* Effect.logWarning("Skipped a transcription source that does not fit the catalog.", {
+        instanceId: instance.instanceId,
+        kind: transcription.kind,
+      });
+    return descriptor;
+  });
 
   const sources = instances.listInstances.pipe(
     Effect.flatMap((all) => Effect.forEach(all, describeInstance, { concurrency: "unbounded" })),
@@ -288,30 +289,29 @@ const make = Effect.gen(function* () {
 
   // The work belongs to the service, not the RPC: a client that disconnects
   // mid-transcription can ask again and join it instead of starting over.
-  const transcribe = (input: DictationTranscribeInput) =>
-    Effect.gen(function* () {
-      const existing = operations.get(input.requestId);
-      if (existing !== undefined) {
-        if (existing.sourceId !== input.sourceId)
-          return yield* new DictationUnavailableError({ reason: "unknown-source" });
-        return yield* Deferred.await(existing.done).pipe(Effect.ensuring(discardUpload(input)));
-      }
-      const done = yield* Deferred.make<DictationTranscribeResult, DictationTranscribeError>();
-      operations.set(input.requestId, { sourceId: input.sourceId, done });
-      const forget = Effect.sync(() => {
-        if (operations.get(input.requestId)?.done === done) operations.delete(input.requestId);
-      });
-      yield* runTranscription(input).pipe(
-        Effect.exit,
-        Effect.tap((exit) => Deferred.done(done, exit)),
-        Effect.flatMap((exit) =>
-          Exit.isSuccess(exit) ? Effect.sleep(RESULT_RETENTION) : Effect.void,
-        ),
-        Effect.ensuring(forget),
-        Effect.forkIn(operationScope),
-      );
-      return yield* Deferred.await(done);
+  const transcribe = Effect.fn("Dictation.transcribe")(function* (input: DictationTranscribeInput) {
+    const existing = operations.get(input.requestId);
+    if (existing !== undefined) {
+      if (existing.sourceId !== input.sourceId)
+        return yield* new DictationUnavailableError({ reason: "unknown-source" });
+      return yield* Deferred.await(existing.done).pipe(Effect.ensuring(discardUpload(input)));
+    }
+    const done = yield* Deferred.make<DictationTranscribeResult, DictationTranscribeError>();
+    operations.set(input.requestId, { sourceId: input.sourceId, done });
+    const forget = Effect.sync(() => {
+      if (operations.get(input.requestId)?.done === done) operations.delete(input.requestId);
     });
+    yield* runTranscription(input).pipe(
+      Effect.exit,
+      Effect.tap((exit) => Deferred.done(done, exit)),
+      Effect.flatMap((exit) =>
+        Exit.isSuccess(exit) ? Effect.sleep(RESULT_RETENTION) : Effect.void,
+      ),
+      Effect.ensuring(forget),
+      Effect.forkIn(operationScope),
+    );
+    return yield* Deferred.await(done);
+  });
 
   return Dictation.of({ sources, streamSources, transcribe });
 });

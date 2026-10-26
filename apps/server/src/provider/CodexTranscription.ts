@@ -1,6 +1,7 @@
 import type { ServerProvider } from "@supaterm/contracts";
 import {
   type ProviderTranscription,
+  type TranscriptionClip,
   TranscriptionFailure,
   type TranscriptionFailureReason,
   type TranscriptionSourceDescription,
@@ -278,20 +279,22 @@ export const makeCodexTranscription = Effect.fn("makeCodexTranscription")(functi
   const acquireCredentials = (refreshToken: boolean) =>
     credentialsLock.withPermits(1)(readCredentials(refreshToken));
 
-  const reject = (credentials: CodexCredentials, status: number) =>
-    Effect.gen(function* () {
-      const nowMs = yield* Clock.currentTimeMillis;
-      yield* Ref.set(rejectedUntilMs, nowMs + REJECTED_COOLDOWN_MS);
-      yield* Effect.logWarning("Transcription endpoint rejected the request; pausing the source.", {
-        endpoint: credentials.endpoint.name,
-        status,
-        cooldownMs: REJECTED_COOLDOWN_MS,
-      });
-      return yield* failure({ _tag: "endpointRejected" });
+  const reject = Effect.fn("CodexTranscription.reject")(function* (
+    credentials: CodexCredentials,
+    status: number,
+  ) {
+    const nowMs = yield* Clock.currentTimeMillis;
+    yield* Ref.set(rejectedUntilMs, nowMs + REJECTED_COOLDOWN_MS);
+    yield* Effect.logWarning("Transcription endpoint rejected the request; pausing the source.", {
+      endpoint: credentials.endpoint.name,
+      status,
+      cooldownMs: REJECTED_COOLDOWN_MS,
     });
+    return yield* failure({ _tag: "endpointRejected" });
+  });
 
-  const sendOnce = (credentials: CodexCredentials, audio: File, language: string | undefined) =>
-    Effect.gen(function* () {
+  const sendOnce = Effect.fn("CodexTranscription.sendOnce")(
+    function* (credentials: CodexCredentials, audio: File, language: string | undefined) {
       const request = HttpClientRequest.post(credentials.endpoint.url).pipe(
         HttpClientRequest.bearerToken(credentials.token),
         HttpClientRequest.setHeaders({
@@ -345,16 +348,15 @@ export const makeCodexTranscription = Effect.fn("makeCodexTranscription")(functi
         Effect.mapError(() => failure({ _tag: "upstream", category: "bad-response", status })),
       );
       return { text: body.text };
-    }).pipe(
-      Effect.timeoutOption(ATTEMPT_TIMEOUT),
-      Effect.flatMap(
-        Option.match({
-          onNone: () =>
-            Effect.fail(failure({ _tag: "upstream", category: "timeout", status: null })),
-          onSome: Effect.succeed,
-        }),
-      ),
-    );
+    },
+    Effect.timeoutOption(ATTEMPT_TIMEOUT),
+    Effect.flatMap(
+      Option.match({
+        onNone: () => Effect.fail(failure({ _tag: "upstream", category: "timeout", status: null })),
+        onSome: Effect.succeed,
+      }),
+    ),
+  );
 
   const transcribeWith = (audio: File, language: string | undefined, refreshToken: boolean) =>
     acquireCredentials(refreshToken).pipe(
@@ -366,26 +368,27 @@ export const makeCodexTranscription = Effect.fn("makeCodexTranscription")(functi
     return until !== null && (yield* Clock.currentTimeMillis) < until;
   });
 
-  const transcribe: ProviderTranscription["transcribe"] = (clip) =>
-    Effect.gen(function* () {
-      if (yield* isPaused) return yield* failure({ _tag: "endpointRejected" });
-      const bytes = yield* fileSystem
-        .readFile(clip.filePath)
-        .pipe(Effect.mapError(() => failure({ _tag: "invalidAudio" })));
-      const audio = new File([new Uint8Array(bytes)], clip.fileName, { type: clip.mimeType });
-      const language = languageCode(clip.language);
-      return yield* transcribeWith(audio, language, false).pipe(
-        Effect.catchTags({
-          CredentialsRejected: (rejected) =>
-            rejected.endpoint === "chatgpt"
-              ? transcribeWith(audio, language, true)
-              : Effect.fail(rejected),
-        }),
-        Effect.catchTags({
-          CredentialsRejected: () => Effect.fail(failure({ _tag: "auth" })),
-        }),
-      );
-    });
+  const transcribe: ProviderTranscription["transcribe"] = Effect.fn(
+    "CodexTranscription.transcribe",
+  )(function* (clip: TranscriptionClip) {
+    if (yield* isPaused) return yield* failure({ _tag: "endpointRejected" });
+    const bytes = yield* fileSystem
+      .readFile(clip.filePath)
+      .pipe(Effect.mapError(() => failure({ _tag: "invalidAudio" })));
+    const audio = new File([new Uint8Array(bytes)], clip.fileName, { type: clip.mimeType });
+    const language = languageCode(clip.language);
+    return yield* transcribeWith(audio, language, false).pipe(
+      Effect.catchTags({
+        CredentialsRejected: (rejected) =>
+          rejected.endpoint === "chatgpt"
+            ? transcribeWith(audio, language, true)
+            : Effect.fail(rejected),
+      }),
+      Effect.catchTags({
+        CredentialsRejected: () => Effect.fail(failure({ _tag: "auth" })),
+      }),
+    );
+  });
 
   const describe = Effect.gen(function* () {
     const provider = yield* input.account;

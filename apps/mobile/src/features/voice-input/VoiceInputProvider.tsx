@@ -249,14 +249,16 @@ function useVoiceInputRuntime() {
           ? getLocalVoiceTranscriber()
           : createSavingVoiceTranscriber(activeRoute, () => durationMs);
       },
-      requestPermission: async () => {
+      requestPermission: () => {
         requestingPermission = true;
-        try {
-          const permission = await requestRecordingPermissionsAsync();
-          return { granted: permission.granted, canAskAgain: permission.canAskAgain };
-        } finally {
-          requestingPermission = false;
-        }
+        return requestRecordingPermissionsAsync()
+          .then((permission) => ({
+            granted: permission.granted,
+            canAskAgain: permission.canAskAgain,
+          }))
+          .finally(() => {
+            requestingPermission = false;
+          });
       },
       configureRecording: configureVoiceRecordingAudio,
       releaseRecording: releaseVoiceRecordingAudio,
