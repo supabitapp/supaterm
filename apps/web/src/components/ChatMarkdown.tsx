@@ -63,7 +63,7 @@ import {
   markdownImageSourceFragment,
 } from "@supaterm/client-runtime/markdown-images";
 import { mediaUrlReference } from "@supaterm/client-runtime/media-reference";
-import { mediaKindFromPath, mediaMimeTypeFromExtension } from "@supaterm/shared/filePreview";
+import { mediaKindFromPath, mediaMimeTypeFromExtension } from "@supaterm/shared/mediaPreview";
 import { InlineAudioPreview } from "./files/InlineAudioPreview";
 import * as Cause from "effect/Cause";
 import * as Option from "effect/Option";

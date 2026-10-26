@@ -12,7 +12,7 @@ import type { ComposerFileAttachment, ComposerImageAttachment } from "../../comp
 import { isHeicImageFile } from "../../lib/imageCompression";
 import { isVideoAttachment, videoMimeType } from "../../types";
 import { isSvgAttachment } from "@supaterm/shared/image";
-import { isWorkspaceImagePreviewPath } from "@supaterm/shared/filePreview";
+import { isWorkspaceImagePreviewPath } from "@supaterm/shared/mediaPreview";
 
 type ComposerAttachmentFileKind = "image" | "file" | "unsupported-image";
 

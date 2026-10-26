@@ -94,7 +94,10 @@ const browserTestProject = {
       "@supaterm/mermaid > pele",
       "fast-xml-parser",
       "dompurify",
+      "heic-to/next",
       "jszip",
+      "sql.js",
+      "tiff",
     ],
   },
   test: {

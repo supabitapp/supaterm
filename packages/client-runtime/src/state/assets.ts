@@ -7,7 +7,7 @@ import {
   type ProjectCloneSnapshot,
   WS_METHODS,
 } from "@supaterm/contracts";
-import { mediaMimeTypeFromExtension } from "@supaterm/shared/filePreview";
+import { mediaMimeTypeFromExtension } from "@supaterm/shared/mediaPreview";
 import { isWindowsAbsolutePath } from "@supaterm/shared/path";
 import {
   getProjectFaviconResourceKey,

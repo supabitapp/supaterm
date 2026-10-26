@@ -12,7 +12,7 @@ import {
   LoaderCircle,
 } from "@supaterm/icons/nodes";
 import { VIDEO_FILE_EXTENSIONS } from "@supaterm/shared/video";
-import { fileIconPathForMimeType } from "@supaterm/shared/filePreview";
+import { fileIconPathForMimeType } from "@supaterm/shared/mediaPreview";
 
 export interface PierreIconResolution {
   name: string;
@@ -105,6 +105,8 @@ export const SUPATERM_PIERRE_ICONS = {
     ex: "supaterm-file-icon-elixir",
     exs: "supaterm-file-icon-elixir",
     hs: "supaterm-file-icon-haskell",
+    heic: "file-tree-builtin-image",
+    heif: "file-tree-builtin-image",
     lhs: "supaterm-file-icon-haskell",
     java: "supaterm-file-icon-java",
     kt: "supaterm-file-icon-kotlin",
@@ -170,6 +172,8 @@ export function resolvePierreIconForEntry(
 ): PierreIconResolution | null {
   if (kind === "directory") return null;
   const icon = completeIconResolver.resolveIcon("file-tree-icon-file", pathValue);
+  if (icon?.name === "file-tree-builtin-image" && icon.token === undefined)
+    return { ...icon, token: "image" };
   return icon?.token === "default" && mimeType
     ? completeIconResolver.resolveIcon(
         "file-tree-icon-file",

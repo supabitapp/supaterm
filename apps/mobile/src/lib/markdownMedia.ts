@@ -5,7 +5,7 @@ import {
 import {
   audioMimeTypeFromExtension,
   mediaMimeTypeFromExtension,
-} from "@supaterm/shared/filePreview";
+} from "@supaterm/shared/mediaPreview";
 import { splitFilePathPosition } from "@supaterm/shared/fileLinks";
 import { parseMarkdownFileLink } from "@supaterm/shared/markdownLinks";
 import {
