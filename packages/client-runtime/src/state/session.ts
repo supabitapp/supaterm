@@ -20,6 +20,7 @@ import { connectionRouteId, relayRouteIdentity } from "../connection/routes.ts";
 import type { PreparedConnection } from "../connection/model.ts";
 import { RelayGateway, type RelayTransport } from "../relay/gateway.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
+import type { RemoteEnvironmentRequestError } from "../rpc/http.ts";
 import { safeErrorLogAttributes } from "../errors/safeLog.ts";
 import { executeAuthenticatedEnvironmentHttpRequest } from "./environmentHttpAuth.ts";
 import { followStreamInEnvironment } from "./environmentStreams.ts";
@@ -43,10 +44,11 @@ function initialConfigOption<E>(
   );
 }
 
-// Bounded so a wedged environment cannot pin the permissions check (and with it
-// the settings UI) in a loading state for long: with the transient retries in
-// sessionStateAtom, it settles within about half a minute.
+// A responsive host answers well inside the first timeout; each timeout doubles
+// the wait up to the cap, so a busy host is waited out instead of read as having
+// no grants, and a wedged one still settles within about two and a half minutes.
 const DEFAULT_SESSION_STATE_TIMEOUT_MS = 6_000;
+const MAX_SESSION_STATE_TIMEOUT_MS = 60_000;
 
 /**
  * Read the granted scopes of this client's session on one environment via its
@@ -55,13 +57,25 @@ const DEFAULT_SESSION_STATE_TIMEOUT_MS = 6_000;
 export const fetchEnvironmentSessionState = Effect.fn(
   "clientRuntime.state.fetchEnvironmentSessionState",
 )(function* (input: { readonly prepared: PreparedConnection; readonly timeoutMs?: number }) {
-  return yield* executeAuthenticatedEnvironmentHttpRequest({
-    ...input,
-    group: "auth",
-    url: (urls) => urls.session(),
-    timeoutMs: input.timeoutMs ?? DEFAULT_SESSION_STATE_TIMEOUT_MS,
-    request: ({ client, headers }) => client.session({ headers }),
-  });
+  const request = (
+    timeoutMs: number,
+  ): Effect.Effect<AuthSessionState, RemoteEnvironmentRequestError, HttpClient.HttpClient> =>
+    executeAuthenticatedEnvironmentHttpRequest({
+      ...input,
+      group: "auth",
+      url: (urls) => urls.session(),
+      timeoutMs,
+      request: ({ client, headers }) => client.session({ headers }),
+    }).pipe(
+      // A timeout says nothing about grants; failing would show a busy host as read-only.
+      Effect.catchTags({
+        RemoteEnvironmentAuthTimeoutError: (error) => {
+          const nextTimeoutMs = Math.min(timeoutMs * 2, MAX_SESSION_STATE_TIMEOUT_MS);
+          return nextTimeoutMs > timeoutMs ? request(nextTimeoutMs) : Effect.fail(error);
+        },
+      }),
+    );
+  return yield* request(input.timeoutMs ?? DEFAULT_SESSION_STATE_TIMEOUT_MS);
 });
 
 function makeEnvironmentSessionAtoms<R, E>(
@@ -140,7 +154,9 @@ function makeEnvironmentSessionAtoms<R, E>(
           if (Option.isNone(client)) return yield* new SessionHttpClientUnavailable();
           return yield* fetchEnvironmentSessionState({ prepared }).pipe(
             Effect.retry({
+              // Timeouts already escalated inside the fetch; retrying them would wait minutes more.
               while: (error) =>
+                error._tag !== "RemoteEnvironmentAuthTimeoutError" &&
                 mapRemoteEnvironmentError(error)._tag === "ConnectionTransientError",
               schedule: Schedule.exponential("1 second"),
               times: 3,
