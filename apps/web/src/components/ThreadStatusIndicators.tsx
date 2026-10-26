@@ -232,6 +232,25 @@ export function ThreadPullRequestBadgeControl({
   );
 }
 
+// The badge sits inside rows with their own menu, and React bubbles its popup's events there
+// through the portal, so the right-click must stop here.
+function showPullRequestContextMenuAt(
+  event: MouseEvent<HTMLElement>,
+  url: string | undefined,
+  options?: Pick<Parameters<typeof showPullRequestLinkContextMenu>[0], "number" | "onShowLinked">,
+) {
+  event.preventDefault();
+  event.stopPropagation();
+  void showPullRequestLinkContextMenu({
+    ...options,
+    url,
+    host:
+      (url === undefined ? undefined : sourceControlClients.findByChangeRequestUrl(url)) ??
+      UNKNOWN_SOURCE_CONTROL_CLIENT,
+    position: { x: event.clientX, y: event.clientY },
+  });
+}
+
 function PullRequestBadge({
   render,
   presentation,
@@ -261,20 +280,11 @@ function PullRequestBadge({
       }
     : onOpenPullRequest;
   const hasLinkedPullRequests = visibleThreadPullRequests(pullRequests).length > 0;
-  // Sits inside rows with their own menu, so the right-click must stop here.
-  const onContextMenu = (event: MouseEvent<HTMLElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    void showPullRequestLinkContextMenu({
-      url,
-      host:
-        (url === undefined ? undefined : sourceControlClients.findByChangeRequestUrl(url)) ??
-        UNKNOWN_SOURCE_CONTROL_CLIENT,
-      position: { x: event.clientX, y: event.clientY },
+  const onContextMenu = (event: MouseEvent<HTMLElement>) =>
+    showPullRequestContextMenuAt(event, url, {
       number: opensList ? number : undefined,
       onShowLinked: hasLinkedPullRequests ? onOpenList : undefined,
     });
-  };
   const element = opensList ? (
     <button type="button" />
   ) : (
@@ -409,16 +419,7 @@ function ThreadPullRequestMiniListItem({
           className="flex min-w-0 items-center gap-2 rounded-sm px-1 py-1 hover:bg-accent focus-visible:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => onOpenPullRequest(event, url)}
-          onContextMenu={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            void showPullRequestLinkContextMenu({
-              url,
-              host:
-                sourceControlClients.findByChangeRequestUrl(url) ?? UNKNOWN_SOURCE_CONTROL_CLIENT,
-              position: { x: event.clientX, y: event.clientY },
-            });
-          }}
+          onContextMenu={(event) => showPullRequestContextMenuAt(event, url)}
         >
           {content}
         </a>
