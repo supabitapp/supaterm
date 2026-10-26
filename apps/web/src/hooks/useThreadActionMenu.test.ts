@@ -62,7 +62,10 @@ vi.mock("../state/entities", () => ({
     runtime: null,
     latestRun: null,
   }),
-  useProjects: () => [{ id: "project", environmentId: "secondary" }],
+  useProjects: () => [
+    { id: "project", environmentId: "primary", workspaceRoot: "/primary" },
+    { id: "project", environmentId: "secondary", workspaceRoot: "/secondary" },
+  ],
 }));
 vi.mock("../state/environments", () => ({ usePrimaryEnvironmentId: () => "primary" }));
 vi.mock("../state/threads", () => ({ threadEnvironment: { updateMetadata: "metadata" } }));
@@ -108,7 +111,9 @@ vi.mock("../components/Sidebar.snooze", () => ({
   snoozeWakeDescription: () => "later",
 }));
 vi.mock("./useCopyToClipboard", () => ({
-  useCopyToClipboard: () => ({ copyToClipboard: () => recordEffect("copy") }),
+  useCopyToClipboard: () => ({
+    copyToClipboard: (value: string) => recordEffect(`copy:${value}`),
+  }),
 }));
 vi.mock("./useHandleNewThread", () => ({
   useNewThreadHandler: () => async () => recordEffect("draft"),
@@ -154,7 +159,6 @@ const position = { x: 10, y: 20 };
 const createMenu = () =>
   useThreadActionMenu({
     threadRef: target,
-    projectCwd: "/project",
     onStartRename: () => recordEffect("rename"),
   });
 
@@ -179,4 +183,13 @@ describe("thread menu permissions", () => {
       expect(state.effects).toEqual([]);
     },
   );
+});
+
+describe("thread menu copy", () => {
+  it("copies the workspace root of the thread's own environment", async () => {
+    state.show.mockResolvedValue("copy-path");
+    createMenu().openMenu(position);
+    await state.completed.promise;
+    expect(state.effects).toEqual(["copy:/secondary"]);
+  });
 });

@@ -67,10 +67,9 @@ function failureToast(title: string, error: unknown) {
  */
 export function useThreadActionMenu(input: {
   readonly threadRef: ScopedThreadRef | null;
-  readonly projectCwd: string | null;
-  readonly onStartRename: () => void;
+  readonly onStartRename: (threadRef: ScopedThreadRef) => void;
 }) {
-  const { threadRef, projectCwd, onStartRename } = input;
+  const { threadRef, onStartRename } = input;
   const router = useRouter();
   const projects = useProjects();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
@@ -127,6 +126,10 @@ export function useThreadActionMenu(input: {
     const api = readLocalApi();
     if (!api) return;
     const threadRef = scopeThreadRef(thread.environmentId, thread.id);
+    const project = projects.find(
+      (candidate) =>
+        candidate.environmentId === thread.environmentId && candidate.id === thread.projectId,
+    );
     if (
       threadActionRequiresOperate(action) &&
       !readEnvironmentScope(threadRef.environmentId, AuthOrchestrationOperateScope)
@@ -160,10 +163,6 @@ export function useThreadActionMenu(input: {
     };
     switch (action) {
       case "project-settings": {
-        const project = projects.find(
-          (candidate) =>
-            candidate.environmentId === thread.environmentId && candidate.id === thread.projectId,
-        );
         if (!project) return;
         const projectKey =
           logicalProjectKeyByPhysicalKey.get(derivePhysicalProjectKey(project)) ??
@@ -211,7 +210,7 @@ export function useThreadActionMenu(input: {
         );
         return;
       case "rename":
-        onStartRename();
+        onStartRename(threadRef);
         return;
       case "regenerate-title":
         if (thread.titleRegeneration != null) return;
@@ -226,7 +225,7 @@ export function useThreadActionMenu(input: {
         markThreadUnread(threadRef);
         return;
       case "copy-path": {
-        const workspacePath = thread.worktreePath ?? projectCwd;
+        const workspacePath = thread.worktreePath ?? project?.workspaceRoot;
         if (!workspacePath) {
           toastManager.add(
             stackedThreadToast({

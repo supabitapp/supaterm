@@ -796,7 +796,6 @@ function OpenCommandPaletteDialog(props: {
     : null;
   const { threadActions } = useThreadActionMenu({
     threadRef: activeThreadRef,
-    projectCwd: currentProjectCwd,
     onStartRename: requestThreadRename,
   });
   const currentProjectCwdForBrowse =

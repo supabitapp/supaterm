@@ -83,7 +83,6 @@ export const ChatHeader = memo(function ChatHeader({
   onOpenProjectSettings,
 }: ChatHeaderProps) {
   const activeProjectName = activeProject?.isScratch ? "No project" : activeProject?.title;
-  const activeProjectCwd = activeProject?.workspaceRoot ?? null;
   const newThreadShortcut = useShortcutLabel("chat.newLocal");
   const interfaceFont = useClientSettings((settings) => settings.fontFamilySans);
   const breadcrumbContainerRef = useRef<HTMLDivElement>(null);
@@ -172,10 +171,16 @@ export const ChatHeader = memo(function ChatHeader({
   const isPaneInputOwner = usePaneInputOwner();
   useEffect(
     () =>
-      subscribeThreadRename(() => {
-        if (isPaneInputOwner()) startRename();
+      subscribeThreadRename((threadRef) => {
+        if (
+          threadRef.environmentId === activeThreadEnvironmentId &&
+          threadRef.threadId === activeThreadId &&
+          isPaneInputOwner()
+        ) {
+          startRename();
+        }
       }),
-    [isPaneInputOwner, startRename],
+    [activeThreadEnvironmentId, activeThreadId, isPaneInputOwner, startRename],
   );
   const commitRename = (title: string) => {
     setRenaming(null);
@@ -202,7 +207,6 @@ export const ChatHeader = memo(function ChatHeader({
   };
   const { openMenu, closeMenu } = useThreadActionMenu({
     threadRef: isServerThread ? activeThreadRef : null,
-    projectCwd: activeProjectCwd,
     onStartRename: startRename,
   });
   const titleButtonRef = useRef<HTMLButtonElement | null>(null);
