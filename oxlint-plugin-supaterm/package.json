@@ -3,11 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsc-rs --noEmit",
+    "typecheck": "tsc --noEmit",
     "test": "vp test run --config ../vite.config.ts --dir ."
   },
   "dependencies": {
-    "@oxlint/plugins": "1.85.0",
+    "@oxlint/plugins": "1.88.0",
     "effect": "catalog:"
   },
   "devDependencies": {

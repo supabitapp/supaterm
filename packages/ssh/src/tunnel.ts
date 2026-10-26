@@ -2,10 +2,7 @@ import type {
   DesktopSshEnvironmentBootstrap,
   DesktopSshEnvironmentTarget,
 } from "@supaterm/contracts";
-import {
-  describeReadinessCause,
-  waitForHttpReady as waitForHttpReadyShared,
-} from "@supaterm/shared/httpReadiness";
+import { waitForHttpReady as waitForHttpReadyShared } from "@supaterm/shared/httpReadiness";
 import { cliReleaseDownloadBaseUrl } from "@supaterm/shared/cliRelease";
 import * as KeyedLock from "@supaterm/shared/KeyedLock";
 import * as NetService from "@supaterm/shared/Net";
@@ -237,9 +234,7 @@ function applyScriptPlaceholders(
   return result;
 }
 
-export { describeReadinessCause };
-
-export const REMOTE_PICK_PORT_SCRIPT = `const fs = require("node:fs");
+const REMOTE_PICK_PORT_SCRIPT = `const fs = require("node:fs");
 const net = require("node:net");
 const filePath = process.argv[2] ?? "";
 const defaultPort = Number.parseInt(process.argv[3] ?? "", 10);
@@ -838,7 +833,7 @@ export function buildRemoteNodeEnvScript(input?: RemoteSupatermRunnerOptions): s
   );
 }
 
-export function buildRemoteLaunchScript(input?: RemoteSupatermRunnerOptions): string {
+function buildRemoteLaunchScript(input?: RemoteSupatermRunnerOptions): string {
   return applyScriptPlaceholders(REMOTE_LAUNCH_SCRIPT, {
     SUPATERM_ARCHIVE_MODE: isNodeScriptRunner(input) ? "0" : "1",
     SUPATERM_NODE_ENV_SCRIPT: buildRemoteNodeEnvScript(input),
@@ -853,17 +848,14 @@ export function buildRemoteLaunchScript(input?: RemoteSupatermRunnerOptions): st
   });
 }
 
-export function buildRemotePairingScript(
-  stateKey: string,
-  input?: RemoteSupatermRunnerOptions,
-): string {
+function buildRemotePairingScript(stateKey: string, input?: RemoteSupatermRunnerOptions): string {
   return applyScriptPlaceholders(REMOTE_PAIRING_SCRIPT, {
     SUPATERM_STATE_KEY: stateKey,
     SUPATERM_RUNNER_SCRIPT: stripTrailingNewlines(buildRemoteSupatermRunnerScript(input)),
   });
 }
 
-export function buildRemoteStopScript(stateKey: string): string {
+function buildRemoteStopScript(stateKey: string): string {
   return applyScriptPlaceholders(REMOTE_STOP_SCRIPT, {
     SUPATERM_STATE_KEY: stateKey,
   });
@@ -1036,7 +1028,7 @@ const readRemoteServerLogTail = Effect.fn("ssh/tunnel.readRemoteServerLogTail")(
   return result.stdout.trim();
 });
 
-export const waitForHttpReady = (input: {
+const waitForHttpReady = (input: {
   readonly baseUrl: string;
   readonly timeoutMs?: number;
   readonly intervalMs?: number;

@@ -18,8 +18,9 @@ does the same. Change these shortcuts in **Settings → Keybindings** under
 or **Composer: Send and Start New Thread**. These bindings take priority over the
 send shortcut. Click the send button to use the configured follow-up behavior.
 
-When an active turn has queued messages, `mod+Shift+Enter` sends the first as a
-steer. Change it under **Queue: Send First Queued Message as Steer** in Keybindings.
+When a thread has queued messages, `mod+Shift+Enter` sends the first: as a steer while a
+turn runs, or as a new turn once the agent is stopped. Change it under **Queue: Send First
+Queued Message** in Keybindings.
 
 Use `mod+shift+m` to choose a model, `mod+shift+e` for effort, and `mod+shift+a` for
 access mode. While you create a thread, use `mod+shift+h` to choose a host, `mod+shift+x`
@@ -163,8 +164,9 @@ text so copying keeps working. Change it in **Settings → Keybindings**.
 bottom of the sidebar, such as unpin, mark as Done, snooze, archive, or discarding a
 draft. Consecutive
 actions of the same kind undo together. The notice remains available for five
-seconds after the latest action. The default shortcut skips text fields and
-terminals so native undo keeps working there.
+seconds after the latest action. Right after an action, the shortcut works even
+in a text field such as the composer. Once you type or press another key, the
+field gets its own undo back. Terminals always keep their native shortcut.
 
 `navigation.back` (`mod+[` by default) and `navigation.forward` (`mod+]`) move
 through the pages you have visited, like a browser's back and forward buttons.

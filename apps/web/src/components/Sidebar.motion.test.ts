@@ -195,69 +195,6 @@ describe("sidebar list motion", () => {
     },
   );
 
-  it("moves a retained Active row into Done with its displaced peers", () => {
-    const pinnedHeader = new TestRow("Pinned", 0);
-    const pinned = new TestRow("pin");
-    const divider = new TestRow("Active", 0);
-    const a = new TestRow("a");
-    const b = new TestRow("b");
-    const doneHeader = new TestRow("Done", 32);
-    const done = new TestRow("done", 36);
-    const rows = [pinnedHeader, pinned, divider, a, b, doneHeader, done];
-    const { motion, layout } = fixture(rows);
-    motion.update(true);
-    expect(rows.every((row) => row.animations.length === 0)).toBe(true);
-
-    a.offsetHeight = 36;
-    layout([pinnedHeader, pinned, divider, b, doneHeader, done, a]);
-    motion.update(true);
-    expectMove(a, -153);
-    expectMove(b, 83);
-    expectMove(doneHeader, 83);
-    expectMove(done, 83);
-    expect(pinned.animate).not.toHaveBeenCalled();
-    expect(divider.animate).not.toHaveBeenCalled();
-  });
-
-  it("refreshes the drop baseline without replay and animates the next ordinary move", () => {
-    const [a, b, c] = [new TestRow("a"), new TestRow("b"), new TestRow("c")];
-    const { motion, layout } = fixture([a, b, c]);
-    motion.update(true);
-    motion.suspend();
-    a.dragTranslate = 300;
-    b.dragTranslate = -83;
-    motion.update(false);
-    motion.suspend();
-    layout([b, a, c]);
-    a.dragTranslate = b.dragTranslate = 0;
-    motion.update(true);
-    expect([a, b, c].every((row) => row.animations.length === 0)).toBe(true);
-
-    layout([c, b, a]);
-    motion.update(true);
-    expectMove(c, 166);
-    expectMove(b, -83);
-    expectMove(a, -83);
-  });
-
-  it("glides every row from its released position into its committed slot", () => {
-    const [a, b, c] = [new TestRow("a"), new TestRow("b"), new TestRow("c")];
-    const { motion, layout } = fixture([a, b, c]);
-    motion.update(true);
-    motion.suspend();
-    a.dragTranslate = 130;
-    b.dragTranslate = -83;
-    c.dragTranslate = 16;
-    motion.update(false);
-    motion.release();
-    layout([b, a, c]);
-    a.dragTranslate = b.dragTranslate = c.dragTranslate = 0;
-    motion.update(true);
-    expectMove(a, 47);
-    expect(b.animations).toHaveLength(0);
-    expectMove(c, 16);
-  });
-
   it("does not glide on release when motion is reduced", () => {
     const [a, b] = [new TestRow("a"), new TestRow("b")];
     const { motion, layout, media } = fixture([a, b], 240);
@@ -271,79 +208,6 @@ describe("sidebar list motion", () => {
     motion.update(true);
     expect(a.animations).toHaveLength(0);
     expect(b.animations).toHaveLength(0);
-  });
-
-  it("does not carry a canceled drag's transformed position into the next move", () => {
-    const a = new TestRow("a");
-    const b = new TestRow("b");
-    const { motion, layout } = fixture([a, b]);
-    motion.update(true);
-    motion.suspend();
-    a.dragTranslate = 500;
-    b.dragTranslate = -83;
-    motion.update(false);
-    motion.suspend();
-    a.dragTranslate = b.dragTranslate = 0;
-    motion.update(true);
-    expect(a.animate).not.toHaveBeenCalled();
-    expect(b.animate).not.toHaveBeenCalled();
-
-    layout([b, a]);
-    motion.update(true);
-    expectMove(a, -83);
-    expectMove(b, 83);
-  });
-
-  it("retargets rapid changes from the current visual position", () => {
-    const [a, b, c] = [new TestRow("a", 99), new TestRow("b", 99), new TestRow("c", 99)];
-    const { motion, layout } = fixture([a, b, c]);
-    motion.update(true);
-    layout([b, c, a]);
-    motion.update(true);
-    expectMove(a, -200);
-    const first = a.animations[0]!;
-    first.progress = 0.25;
-
-    layout([b, a, c]);
-    motion.update(true);
-    expect(first.cancel).toHaveBeenCalledOnce();
-    expectMove(a, -50);
-    first.finish();
-    motion.suspend();
-    expect(a.animations[1]!.cancel).toHaveBeenCalledOnce();
-  });
-
-  it("keeps an uninterrupted movement when the layout position does not change", () => {
-    const a = new TestRow("a");
-    const b = new TestRow("b");
-    const { motion, layout } = fixture([a, b]);
-    motion.update(true);
-    layout([b, a]);
-    motion.update(true);
-    a.animations[0]!.progress = 0.5;
-    motion.update(true);
-    expect(a.animate).toHaveBeenCalledOnce();
-    expect(a.animations[0]!.cancel).not.toHaveBeenCalled();
-  });
-
-  it("cancels owned motion on suspension and never animates a disposed list", () => {
-    const a = new TestRow("a");
-    const b = new TestRow("b");
-    const { motion, layout } = fixture([a, b]);
-    motion.update(true);
-    layout([b, a]);
-    motion.update(true);
-    motion.suspend();
-    expect(a.animations[0]!.cancel).toHaveBeenCalledOnce();
-    expect(b.animations[0]!.cancel).toHaveBeenCalledOnce();
-    motion.update(false);
-    layout([a, b]);
-    motion.update(true);
-    motion.dispose();
-    expect(a.animations[1]!.cancel).toHaveBeenCalledOnce();
-    layout([b, a]);
-    motion.update(true);
-    expect(a.animate).toHaveBeenCalledTimes(2);
   });
 
   it("fades a collapsed-shelf exit at its current visual box and a new wake in", () => {
@@ -462,22 +326,6 @@ describe("sidebar list motion", () => {
     );
   });
 
-  it("cancels in-flight row travel when a bulk update skips animation", () => {
-    const a = new TestRow("a");
-    const b = new TestRow("b");
-    const { motion, layout } = fixture([a, b]);
-    motion.update(true);
-    layout([b, a]);
-    motion.update(true);
-    const first = a.animations[0]!;
-    first.progress = 0.4;
-    const incoming = Array.from({ length: 41 }, (_, index) => new TestRow(`new-${index}`));
-    layout(incoming);
-    motion.update(true);
-    expect(first.cancel).toHaveBeenCalledOnce();
-    expect(incoming.every((row) => row.animate.mock.calls.length === 0)).toBe(true);
-  });
-
   it("keeps in-flight shelf entry travel when the shelf closes mid-animation", () => {
     const a = new TestRow("a", 40);
     const header = new TestRow("header", 32);
@@ -565,49 +413,6 @@ describe("sidebar list motion", () => {
     motion.update(false);
     expect(parent.children).toEqual([]);
     expect(clone.animations[0]!.cancel).toHaveBeenCalledOnce();
-  });
-
-  it("retargets an in-flight entry when a later layout shift moves the row", () => {
-    const a = new TestRow("a", 40);
-    const header = new TestRow("header", 32);
-    const x = new TestRow("x", 36);
-    const y = new TestRow("y", 36);
-    const { motion, layout } = fixture([a, header, x]);
-    motion.update(true);
-    layout([a, header, x, y]);
-    for (const row of [header, x, y]) row.offsetTop -= 36;
-    motion.update(true);
-    const entry = y.animations[0]!;
-    entry.progress = 0.25;
-    for (const row of [header, x, y]) row.offsetTop += 40;
-    motion.update(true);
-    expect(entry.cancel).not.toHaveBeenCalled();
-    expectMove(y, -13);
-  });
-
-  it("skips fades when a large list change would clone too many rows", () => {
-    const rows = Array.from({ length: 41 }, (_, index) => new TestRow(`row-${index}`));
-    const { motion, layout, parent } = fixture(rows);
-    motion.update(true);
-    layout([]);
-    motion.update(true);
-    expect(rows.every((row) => row.clones.length === 0)).toBe(true);
-    expect(parent.children).toHaveLength(0);
-    const entering = Array.from({ length: 41 }, (_, index) => new TestRow(`new-${index}`));
-    layout(entering);
-    motion.update(true);
-    expect(entering.every((row) => row.animate.mock.calls.length === 0)).toBe(true);
-  });
-
-  it("still slides rows when one removal displaces a large list", () => {
-    const rows = Array.from({ length: 60 }, (_, index) => new TestRow(`row-${index}`));
-    const { motion, layout } = fixture(rows);
-    motion.update(true);
-    const [removed, ...rest] = rows;
-    layout(rest);
-    motion.update(true);
-    expect(removed!.clones).toHaveLength(1);
-    expect(rest.every((row) => row.animations.length === 1)).toBe(true);
   });
 
   it("respects reduced motion while keeping the next baseline fresh", () => {

@@ -5,6 +5,14 @@ so UIKit can animate the header within one navigation controller. The iPad sideb
 has its own stack. Splitting Home and threads between controllers loses that
 continuous transition.
 
+A new thread's draft is the same `Thread` route with `draft` params, not a
+separate sheet. [ThreadScreenHost](../../apps/mobile/src/features/threads/ThreadScreenHost.tsx)
+keeps one detail screen mounted while the route moves between a draft and its
+thread, and sending the first message swaps the params in place
+([`submittedThreadParams`](../../apps/mobile/src/features/threads/thread-route-state.ts)).
+Pushing or replacing the route on submit, or publishing an empty loading screen
+while a draft resolves its project, flashes between two surfaces.
+
 ## UIKit constraints
 
 The [react-native-screens patch](../../patches/react-native-screens@4.26.2.patch)

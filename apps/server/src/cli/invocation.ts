@@ -117,7 +117,7 @@ function suggestedPackageSpec(version: string): string {
  * `npx supaterm serve`, a global install suggests `supaterm serve`, and a nightly build
  * keeps the `@nightly` tag.
  */
-export function formatCliCommand(input: {
+function formatCliCommand(input: {
   readonly subcommand: string;
   readonly entryPath: string;
   readonly version: string;

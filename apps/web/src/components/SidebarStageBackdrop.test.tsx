@@ -2,7 +2,6 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   isSidebarStageBackdropSupported,
-  resolveEnvironmentIdentificationPillLabel,
   shouldShowSidebarStageBackdrop,
 } from "./SidebarStageBackdrop";
 
@@ -36,11 +35,4 @@ describe("SidebarStageBackdrop", () => {
       expect(shouldShowSidebarStageBackdrop("Preview", appearance)).toBe(false);
     },
   );
-
-  it("resolves supported environment pill labels", () => {
-    expect(resolveEnvironmentIdentificationPillLabel("Dev")).toBe("Dev");
-    expect(resolveEnvironmentIdentificationPillLabel("nightly")).toBe("Nightly");
-    expect(resolveEnvironmentIdentificationPillLabel("Latest")).toBeNull();
-    expect(resolveEnvironmentIdentificationPillLabel(null)).toBeNull();
-  });
 });

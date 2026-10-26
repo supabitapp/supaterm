@@ -53,10 +53,6 @@ function sanitizePlanFileSegment(input: string): string {
 
 export const PLAN_IMPLEMENTATION_PROMPT_PREFIX = "PLEASE IMPLEMENT THIS PLAN:\n";
 
-export function buildPlanImplementationPrompt(planMarkdown: string): string {
-  return `${PLAN_IMPLEMENTATION_PROMPT_PREFIX}${planMarkdown.trim()}`;
-}
-
 export function buildProposedPlanMarkdownFilename(planMarkdown: string): string {
   const title = proposedPlanTitle(planMarkdown);
   return `${sanitizePlanFileSegment(title ?? "plan")}.md`;

@@ -310,6 +310,8 @@ const systemPermissionCheck = Effect.fnUntraced(function* (pane: SystemSettingsP
       return () =>
         runPromise(inputMonitoring.status.pipe(Effect.map((status) => status === "granted")));
     }
+    case "microphone":
+      return () => Promise.resolve(isSystemMicrophoneGranted("darwin"));
   }
 });
 

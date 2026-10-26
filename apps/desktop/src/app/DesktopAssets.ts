@@ -13,6 +13,14 @@ export interface DesktopIconPaths {
   readonly png: Option.Option<string>;
 }
 
+export type IconAppearance = "light" | "dark";
+
+/** The macOS icon with its bolt lit and with it switched off, for the Dock's launch animation. */
+export interface LaunchIconPaths {
+  readonly lit: string;
+  readonly unlit: string;
+}
+
 export class DesktopAssetProbeError extends Schema.TaggedError<DesktopAssetProbeError>()(
   "DesktopAssetProbeError",
   {
@@ -30,6 +38,9 @@ export class DesktopAssets extends Context.Service<
   DesktopAssets,
   {
     readonly iconPaths: Effect.Effect<DesktopIconPaths>;
+    readonly launchIconPaths: (
+      appearance: IconAppearance,
+    ) => Effect.Effect<Option.Option<LaunchIconPaths>, DesktopAssetProbeError>;
     readonly resolveResourcePath: (
       fileName: string,
     ) => Effect.Effect<Option.Option<string>, DesktopAssetProbeError>;
@@ -90,33 +101,74 @@ function resolveSourceTreeIconPath(
   return environment.path.join(environment.rootDir, "assets", brand, fileName);
 }
 
-const resolveIconPath = Effect.fn("desktop.assets.resolveIconPath")(function* (
-  ext: keyof DesktopIconPaths,
+const resolveAssetPath = Effect.fn("desktop.assets.resolveAssetPath")(function* (
+  sourceTreePath: string | undefined,
+  resourceFileName: string,
 ): Effect.fn.Return<
   Option.Option<string>,
   DesktopAssetProbeError,
   FileSystem.FileSystem | DesktopEnvironment.DesktopEnvironment
 > {
   const fileSystem = yield* FileSystem.FileSystem;
-  const environment = yield* DesktopEnvironment.DesktopEnvironment;
-  const sourceTreeIconPath = resolveSourceTreeIconPath(environment, ext);
-  if (sourceTreeIconPath !== undefined) {
-    const sourceTreeIconExists = yield* fileSystem.exists(sourceTreeIconPath).pipe(
+  if (sourceTreePath !== undefined) {
+    const sourceTreeExists = yield* fileSystem.exists(sourceTreePath).pipe(
       Effect.mapError(
         (cause) =>
           new DesktopAssetProbeError({
-            fileName: `icon.${ext}`,
-            candidatePath: sourceTreeIconPath,
+            fileName: resourceFileName,
+            candidatePath: sourceTreePath,
             cause,
           }),
       ),
     );
-    if (sourceTreeIconExists) {
-      return Option.some(sourceTreeIconPath);
+    if (sourceTreeExists) {
+      return Option.some(sourceTreePath);
     }
   }
 
-  return yield* resolveResourcePath(`icon.${ext}`);
+  return yield* resolveResourcePath(resourceFileName);
+});
+
+const resolveIconPath = Effect.fn("desktop.assets.resolveIconPath")(function* (
+  ext: keyof DesktopIconPaths,
+) {
+  const environment = yield* DesktopEnvironment.DesktopEnvironment;
+  return yield* resolveAssetPath(resolveSourceTreeIconPath(environment, ext), `icon.${ext}`);
+});
+
+// Brands differ only in the bolt, so one unlit render per appearance serves all of them.
+const launchIconFileNames = {
+  light: {
+    resource: { lit: "icon.png", unlit: "icon-unlit.png" },
+    sourceTree: {
+      dev: "blueprint-macos-1024.png",
+      prod: "black-macos-1024.png",
+      unlit: "black-macos-unlit-1024.png",
+    },
+  },
+  dark: {
+    resource: { lit: "icon-dark.png", unlit: "icon-unlit-dark.png" },
+    sourceTree: {
+      dev: "blueprint-macos-dark-512.png",
+      prod: "black-macos-dark-512.png",
+      unlit: "black-macos-unlit-dark-512.png",
+    },
+  },
+} as const;
+
+const resolveLaunchIconPaths = Effect.fn("desktop.assets.resolveLaunchIconPaths")(function* (
+  appearance: IconAppearance,
+) {
+  const environment = yield* DesktopEnvironment.DesktopEnvironment;
+  const { resource, sourceTree } = launchIconFileNames[appearance];
+  const brand = environment.isDevelopment ? "dev" : "prod";
+  const inSourceTree = (brandDirectory: string, fileName: string) =>
+    environment.isPackaged
+      ? undefined
+      : environment.path.join(environment.rootDir, "assets", brandDirectory, fileName);
+  const lit = yield* resolveAssetPath(inSourceTree(brand, sourceTree[brand]), resource.lit);
+  const unlit = yield* resolveAssetPath(inSourceTree("prod", sourceTree.unlit), resource.unlit);
+  return Option.zipWith(lit, unlit, (lit, unlit) => ({ lit, unlit }));
 });
 
 /** @public */
@@ -132,6 +184,9 @@ export const make = Effect.gen(function* () {
 
   return DesktopAssets.of({
     iconPaths: Effect.succeed(iconPaths),
+    launchIconPaths: Effect.fn("desktop.assets.launchIconPaths.scoped")(function* (appearance) {
+      return yield* resolveLaunchIconPaths(appearance).pipe(Effect.provide(context));
+    }),
     resolveResourcePath: Effect.fn("desktop.assets.resolveResourcePath.scoped")(
       function* (fileName) {
         return yield* resolveResourcePath(fileName).pipe(Effect.provide(context));

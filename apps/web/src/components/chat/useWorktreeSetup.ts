@@ -1,6 +1,6 @@
+import type { ThreadStructure } from "@supaterm/client-runtime/state/shell";
 import type {
   EnvironmentId,
-  OrchestrationV2ThreadProjection,
   RunId,
   ScopedThreadRef,
   ThreadId,
@@ -35,7 +35,7 @@ export function useWorktreeSetup(input: {
     | { readonly id: ThreadId; readonly worktreePath: string | null }
     | undefined;
   readonly threadRef: ScopedThreadRef | null;
-  readonly serverProjection: OrchestrationV2ThreadProjection | null;
+  readonly serverProjection: ThreadStructure | null;
   readonly activityRun: Thread["latestRun"] | null;
   readonly localPreparing: boolean;
   // A send the server queues behind the setup run, or the outbox behind the pending task.

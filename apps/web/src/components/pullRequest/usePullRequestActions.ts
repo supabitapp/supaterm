@@ -34,7 +34,7 @@ import { pullRequestEntryKey, type EnvironmentPullRequestEntry } from "./pullReq
 
 export function usePullRequestDefaultMergeMethod(
   environmentId: EnvironmentId,
-  projectId: ProjectId,
+  projectId: ProjectId | null,
 ) {
   return (
     useEnvironmentSettings(

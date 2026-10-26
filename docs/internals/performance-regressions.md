@@ -44,7 +44,8 @@ The v2 checks pin these invariants:
 - The initial shell contains active navigation rows only. Archived rows use the dedicated archive
   query, and transcript message bodies stay in thread detail regardless of message size.
 - Shell resume sends deltas plus compact repository-enrichment metadata, not another full project
-  and thread snapshot.
+  and thread snapshot. It finds changed aggregates with one grouped query over a covering index,
+  never by decoding the event payloads in the gap.
 - Auto, steer, and restart sends resolve delivery from authoritative state inside the
   server's per-thread dispatch lock. Model selection also dispatches without first fetching a
   full thread projection when the server advertises support. Older servers retain
@@ -116,8 +117,7 @@ After the budget is exhausted, publication waits for another relevant event inst
 continuous traffic during an outage.
 
 Focused coverage: `ProjectionDone.test.ts`, `ThreadDoneService.test.ts`,
-`runtimeLayer.test.ts`, `AgentAwarenessRelay.test.ts`, `GitVcsDriverCore.test.ts`,
-`ThreadStatusIndicators.subscriptions.browser.test.tsx`, and `desktopLocal.test.ts`.
+`runtimeLayer.test.ts`, `GitVcsDriverCore.test.ts`, and `desktopLocal.test.ts`.
 
 ## Mobile looping animations
 

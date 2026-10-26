@@ -452,9 +452,3 @@ export function resolveSupatermMcpToolPresentation(
   const definition = resolveSupatermMcpToolDefinition(toolName);
   return definition === null ? null : { displayName: definition.displayName, logo: "supaterm" };
 }
-
-export function resolveSupatermMcpToolSummaryAction(
-  toolName: string | null | undefined,
-): SupatermMcpToolSummaryAction | null {
-  return resolveSupatermMcpToolDefinition(toolName)?.summaryAction ?? null;
-}

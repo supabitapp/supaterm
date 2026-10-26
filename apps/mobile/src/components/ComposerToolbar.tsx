@@ -229,6 +229,7 @@ export function ComposerToolbarScroller(props: {
 }
 
 export function ComposerActionButton(props: {
+  readonly size?: "regular" | "large";
   readonly accessibilityLabel: string;
   readonly disabled?: boolean;
   readonly icon: ComponentProps<typeof SymbolView>["name"];
@@ -240,13 +241,14 @@ export function ComposerActionButton(props: {
   readonly onTouchStart?: PressableProps["onTouchStart"];
 }) {
   const { scale, smallIconSize } = useAndroidControlSizing();
-  const circleSize = Math.round(30 * scale);
+  const circleSize = Math.round((props.size === "large" ? 44 : 30) * scale);
   return (
     <Pressable
       accessibilityLabel={props.accessibilityLabel}
       accessibilityRole="button"
       accessibilityState={{ disabled: props.disabled }}
       className="size-[44px] shrink-0 items-center justify-center active:opacity-70"
+      style={props.size === "large" ? { width: 62 } : undefined}
       disabled={props.disabled}
       onPress={props.onPress}
       onLongPress={props.onLongPress}
@@ -265,7 +267,7 @@ export function ComposerActionButton(props: {
       >
         <SymbolView
           name={props.icon}
-          size={smallIconSize}
+          size={props.size === "large" ? Math.round(20 * scale) : smallIconSize}
           weight="semibold"
           tintColorClassName={
             props.variant === "danger" ? "accent-danger-foreground" : "accent-primary-foreground"

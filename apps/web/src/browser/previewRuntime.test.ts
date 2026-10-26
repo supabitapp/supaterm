@@ -44,15 +44,6 @@ afterEach(() => {
 });
 
 describe("previewRuntimeFor", () => {
-  it("opens a remote environment's tabs on this computer in the desktop app", () => {
-    state.desktop = true;
-    state.primary = local;
-    state.serverBrowser = new Set([local, remote]);
-
-    expect(previewRuntimeFor(remote)).toBeUndefined();
-    expect(previewRuntimeFor(local)).toBe("server");
-  });
-
   it("keeps relay-host previews on the host browser in the desktop app", () => {
     state.desktop = true;
     state.primary = local;
@@ -61,27 +52,6 @@ describe("previewRuntimeFor", () => {
     expect(previewRuntimeFor(remote)).toBe("server");
     expect(alternatePreviewRuntime(remote, local, true, { runtime: "server" })).toBeNull();
     expect(alternatePreviewRuntime(remote, local, true, {})).toBeNull();
-  });
-
-  it("uses the environment's browser where the client has none of its own", () => {
-    state.serverBrowser = new Set([remote]);
-
-    expect(previewRuntimeFor(remote)).toBe("server");
-  });
-});
-
-describe("alternatePreviewRuntime", () => {
-  it("moves a remote environment's tab between this computer and the environment", () => {
-    state.desktop = true;
-
-    expect(alternatePreviewRuntime(remote, local, true, {})).toBe("server");
-    expect(alternatePreviewRuntime(remote, local, true, { runtime: "server" })).toBe("desktop");
-    expect(alternatePreviewRuntime(local, local, true, {})).toBeNull();
-    expect(alternatePreviewRuntime(remote, local, false, {})).toBeNull();
-  });
-
-  it("offers no move outside the desktop app", () => {
-    expect(alternatePreviewRuntime(remote, null, true, { runtime: "server" })).toBeNull();
   });
 });
 

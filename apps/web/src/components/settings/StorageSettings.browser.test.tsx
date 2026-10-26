@@ -1,39 +1,37 @@
-import { act, render } from "../../../test/render";
+import { act, fakeTimers, render } from "../../../test/render";
 import { RegistryProvider } from "@effect/atom-react";
 import {
   DEFAULT_SERVER_SETTINGS,
-  ProjectId,
-  ThreadId,
   type DatabaseStorageStatus,
   type StorageCleanupReport,
 } from "@supaterm/contracts";
 import { type ReactNode } from "react";
 import { expect, it, vi } from "vite-plus/test";
-import { page } from "vite-plus/test/browser";
 
 const state = vi.hoisted(() => ({
   settings: {} as typeof DEFAULT_SERVER_SETTINGS,
   run: vi.fn(),
   report: null as StorageCleanupReport | null,
-  databaseStorage: null as DatabaseStorageStatus | null,
+  databaseRecommendations: [] as Array<{ environmentId: string; status: DatabaseStorageStatus }>,
+  databaseRecommendationKeys: [] as string[],
+  extraEnvironments: [] as Array<{ environmentId: string; label: string }>,
 }));
 
 vi.mock(import("../../state/server"), async (original) => {
   const actual = await original();
   const { Atom } = await import("effect/reactivity");
   const report = Atom.make(() => ({ _tag: "Success", value: state.report, waiting: false }));
-  const databaseStorage = Atom.make(() => ({
-    _tag: "Success",
-    value: state.databaseStorage,
-    waiting: false,
-  }));
+  const databaseRecommendations = Atom.make(() => state.databaseRecommendations);
   const allowed = Atom.make(true);
   return {
     ...actual,
     serverEnvironment: {
       ...actual.serverEnvironment,
       storageCleanupReport: (() => report) as never,
-      databaseStorage: (() => databaseStorage) as never,
+      databaseCompactionRecommendations: ((key: string) => {
+        state.databaseRecommendationKeys.push(key);
+        return databaseRecommendations;
+      }) as never,
       runStorageCleanup: {
         ...actual.serverEnvironment.runStorageCleanup,
         permissionAtom: () => allowed,
@@ -61,10 +59,14 @@ vi.mock(import("./SettingsScopeContext"), async (original) => ({
         },
       },
     };
+    const connectedEnvironments = [
+      environment,
+      ...state.extraEnvironments.map((extra) => ({ ...environment, ...extra })),
+    ];
     return {
       scope: { kind: "environment" },
-      environments: [environment],
-      connectedEnvironments: [environment],
+      environments: connectedEnvironments,
+      connectedEnvironments,
       targets: [],
       target: null,
     };
@@ -100,8 +102,8 @@ vi.mock(import("../ui/toast"), async (original) => {
 import { clickOnFakeClock } from "~/test/inlineConfirm";
 import { StorageSettingsPanel } from "./StorageSettings";
 
-function setup() {
-  vi.useFakeTimers({ now: 0 });
+function setup(): Disposable {
+  const timers = fakeTimers({ now: 0 });
   state.settings = {
     ...DEFAULT_SERVER_SETTINGS,
     storageCleanup: {
@@ -117,8 +119,12 @@ function setup() {
     projectSettingsOverrides: {},
   };
   state.report = null;
-  state.databaseStorage = null;
+  state.databaseRecommendations = [];
+  state.databaseRecommendationKeys = [];
+  state.extraEnvironments = [];
+  localStorage.removeItem("database-storage-notice-dismissed");
   state.run.mockReset();
+  return timers;
 }
 
 const panel = () => (
@@ -137,56 +143,8 @@ async function pressTwice(button: HTMLButtonElement) {
   await act(async () => clickOnFakeClock(button));
 }
 
-it.each(["machine-wide immediate", "project custom"])(
-  "runs cleanup when only %s done retention is enabled",
-  async (scope) => {
-    setup();
-    if (scope === "machine-wide immediate") {
-      state.settings = {
-        ...state.settings,
-        storageCleanup: { ...state.settings.storageCleanup, worktreeDoneAfterDays: 0 },
-      };
-    } else {
-      state.settings = {
-        ...state.settings,
-        projectSettingsOverrides: {
-          [ProjectId.make("project")]: {
-            worktreeCleanup: {
-              mode: "custom",
-              rules: { ...state.settings.storageCleanup, worktreeDoneAfterDays: 7 },
-            },
-          },
-        },
-      };
-    }
-    const report: StorageCleanupReport = {
-      trigger: "manual",
-      startedAt: "2026-10-14T12:00:00.000Z",
-      finishedAt: "2026-10-14T12:00:01.000Z",
-      entries: [],
-      counts: { removed: 0, kept: 0, failed: 0 },
-      omittedCount: 0,
-      bytesFreed: 0,
-    };
-    let complete!: (result: { _tag: "Success"; value: StorageCleanupReport }) => void;
-    state.run.mockImplementation(() => new Promise((resolve) => (complete = resolve)));
-    await using screen = await render(panel());
-    const button = deleteButton(screen.container);
-
-    expect(button.disabled).toBe(false);
-    await pressTwice(button);
-    expect(state.run).toHaveBeenCalledExactlyOnceWith({ environmentId: "env", input: {} });
-    expect(button.disabled).toBe(true);
-    expect(button.textContent).toContain("Deleting…");
-
-    await act(async () => complete({ _tag: "Success", value: report }));
-    expect(button.disabled).toBe(false);
-    expect(button.textContent).toContain("Delete now");
-  },
-);
-
 it("keeps cleanup disabled when done retention and all other rules are off", async () => {
-  setup();
+  using _timers = setup();
   await using screen = await render(panel());
   const button = deleteButton(screen.container);
 
@@ -195,94 +153,44 @@ it("keeps cleanup disabled when done retention and all other rules are off", asy
   expect(state.run).not.toHaveBeenCalled();
 });
 
-it("shows orphan sizes and identifies failed worktrees with one connected machine", async () => {
-  setup();
-  state.settings = {
-    ...state.settings,
-    storageCleanup: { ...state.settings.storageCleanup, worktreeDoneAfterDays: 0 },
-  };
-  state.report = {
-    trigger: "manual",
-    startedAt: "2026-10-14T12:00:00.000Z",
-    finishedAt: "2026-10-14T12:00:01.000Z",
-    entries: [
-      {
-        kind: "worktree",
-        outcome: "kept",
-        path: "/worktrees/repo/orphan",
-        projectPath: null,
-        threadId: null,
-        threadTitle: null,
-        reason: "No thread uses this folder, and it isn't a git worktree",
-        bytes: 6600000,
-        files: null,
-      },
-      {
-        kind: "worktree",
-        outcome: "failed",
-        path: "/worktrees/repo/thread-checkout",
-        projectPath: "/projects/repo",
-        threadId: ThreadId.make("thread"),
-        threadTitle: "Thread title",
-        reason: "Git index is locked. Status will resume when the index lock is removed.",
-        bytes: null,
-        files: null,
-      },
-    ],
-    counts: { removed: 0, kept: 1, failed: 1 },
-    omittedCount: 0,
-    bytesFreed: 0,
-  };
-  await using screen = await render(panel());
-  const { container } = screen;
-  const lastRun = Array.from(container.querySelectorAll("button")).find((button) =>
-    button.textContent?.includes("Last run"),
-  )!;
-  await act(async () => lastRun.click());
-  const titles = Array.from(container.querySelectorAll("h3"), (heading) => heading.textContent);
-  expect(titles).toContain("/worktrees/repo/orphan");
-  expect(titles).toContain("thread-checkout");
-  const failedRow = page.elementLocator(
-    page.getByRole("heading", { name: "thread-checkout", exact: true }).element().parentElement!,
-  );
-  await expect.element(failedRow.getByText("Build workstation", { exact: true })).toBeVisible();
-  await expect.element(failedRow.getByText("/projects/repo", { exact: true })).toBeVisible();
-  await expect
-    .element(failedRow.getByText("/worktrees/repo/thread-checkout", { exact: true }))
-    .toBeVisible();
-  await expect.element(failedRow.getByText("Thread title", { exact: true })).toBeVisible();
-  await expect
-    .element(
-      failedRow.getByText(
-        "Git index is locked. Status will resume when the index lock is removed.",
-        { exact: true },
-      ),
-    )
-    .toBeVisible();
-  expect(titles).not.toContain("/worktrees/repo/thread-checkout");
-  expect(container.textContent).toContain(
-    "No thread uses this folder, and it isn't a git worktree",
-  );
-  expect(container.textContent).toContain("6.29 MB");
-  expect(container.textContent).toContain("0 B recovered.");
-});
-
-it.each([
-  ["an unconverted database with 2 GiB free", {}, true],
-  ["a database that already shrinks itself", { incrementalVacuumEnabled: true }, false],
-  ["less than 1 GiB free", { reclaimableBytes: 512 * 1024 ** 2 }, false],
-] as const)("suggests supaterm doctor for %s", async (_name, change, shown) => {
-  const status = {
+it("lists every machine's reclaimable database space and dismisses one machine at a time", async () => {
+  const status = (reclaimableGiB: number, baseDir: string) => ({
     databaseBytes: 4 * 1024 ** 3,
-    reclaimableBytes: 2 * 1024 ** 3,
+    reclaimableBytes: reclaimableGiB * 1024 ** 3,
     incrementalVacuumEnabled: false,
-    compactCommand: "supaterm doctor --base-dir /home/jane/.supaterm",
-    ...change,
-  };
-  setup();
-  state.databaseStorage = status;
+    compactCommand: `supaterm doctor --base-dir ${baseDir}`,
+  });
+  using _timers = setup();
+  state.extraEnvironments = [{ environmentId: "laptop", label: "Laptop" }];
+  state.databaseRecommendations = [
+    { environmentId: "laptop", status: status(3, "/Users/jane/.supaterm") },
+    { environmentId: "env", status: status(2, "/home/jane/.supaterm") },
+  ];
   await using screen = await render(panel());
   const { container } = screen;
-  expect(container.textContent?.includes("Reclaim 2.0 GiB on Build workstation")).toBe(shown);
-  expect(container.textContent?.includes(status.compactCommand)).toBe(shown);
+  const headings = () =>
+    Array.from(container.querySelectorAll("h3"), (heading) => heading.textContent);
+  expect(headings()).toEqual(
+    expect.arrayContaining([
+      "Reclaim freed database space",
+      "3.0 GiB on Laptop",
+      "2.0 GiB on Build workstation",
+    ]),
+  );
+  expect(container.textContent).toContain("supaterm doctor --base-dir /Users/jane/.supaterm");
+  expect(state.databaseRecommendationKeys.at(-1)).toBe(JSON.stringify(["env", "laptop"]));
+
+  const dismissButtons = () =>
+    Array.from(container.querySelectorAll("button")).filter(
+      (button) => button.textContent === "Dismiss",
+    );
+  await act(async () => dismissButtons()[0]!.click());
+  expect(headings()).not.toContain("3.0 GiB on Laptop");
+  expect(headings()).toContain("2.0 GiB on Build workstation");
+  expect(JSON.parse(localStorage.getItem("database-storage-notice-dismissed")!)).toEqual([
+    "laptop",
+  ]);
+
+  await act(async () => dismissButtons()[0]!.click());
+  expect(headings()).not.toContain("Reclaim freed database space");
 });

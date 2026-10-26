@@ -9,8 +9,8 @@ On web and desktop, a new thread keeps the current project and carries your mode
 and mode selections, unless the destination project has its own model default.
 Its branch and workspace mode come from your configured defaults. To continue in
 an existing worktree, use **New thread in this worktree** from the branch toolbar.
-On mobile, a new task opens in the project you last chose; tap the project in the
-draft to pick another.
+On mobile, a new task opens in the project you last chose, or your first project
+when that one is gone; tap the project in the draft to pick another.
 
 When you change a new thread's project, its branch, workspace mode, and machine
 choice reset to that project's defaults; the prompt and a model you picked stay.
@@ -66,7 +66,7 @@ On web and desktop, unpinning, marking as Done, snoozing, and archiving a thread
 a notification with **Undo** for five seconds. Undo restores the thread's previous
 state, including its pinned position, and reopens an archived thread you were
 viewing. Discarding an unsent draft from the sidebar works the same way: Undo brings
-back its text and attachments. `mod+z` triggers the most recent Undo when no text field is focused; see
+back its text and attachments. `mod+z` triggers the most recent Undo, even from the composer; see
 [Keybindings](./keybindings.md#commands-with-special-behavior).
 
 On web and desktop, you can also drag files from your computer onto any thread row:

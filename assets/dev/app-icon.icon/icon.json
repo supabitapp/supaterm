@@ -1,5 +1,5 @@
 {
-  "features": ["refractivity", "specular-location"],
+  "features": ["specular-location"],
   "fill-specializations": [
     {
       "value": "system-light"
@@ -13,50 +13,28 @@
     {
       "layers": [
         {
-          "image-name": "05-Glass-Lightning.svg",
-          "name": "05-Glass-Lightning"
+          "glass": false,
+          "image-name": "03-Bezel.png",
+          "name": "03-Bezel"
         },
         {
           "glass": false,
-          "image-name": "04-Phosphor-Glow.svg",
-          "name": "04-Phosphor-Glow"
+          "image-name": "02-Screen.png",
+          "name": "02-Screen"
         },
         {
           "glass": false,
-          "image-name": "03-Controls.svg",
-          "name": "03-Controls"
-        },
-        {
-          "glass": false,
-          "image-name": "02-CRT-Screen.svg",
-          "name": "02-CRT-Screen"
-        },
-        {
-          "glass": false,
-          "image-name": "01-Tactile-Housing.png",
-          "name": "01-Tactile-Housing",
+          "image-name": "01-Housing.png",
+          "name": "01-Housing",
           "opacity-specializations": [
             {
               "appearance": "dark",
               "value": 0.4
             }
-          ],
-          "position": {
-            "scale": 0.8165869218500797,
-            "translation-in-points": [0, 0]
-          }
+          ]
         }
       ],
-      "name": "Continuous corners · Glass lightning",
-      "position": {
-        "scale": 1,
-        "translation-in-points": [0, 0]
-      },
-      "refractivity": {
-        "depth": 0.08,
-        "enabled": true,
-        "strength": 0.18
-      },
+      "name": "Bolt computer",
       "shadow": {
         "kind": "neutral",
         "opacity": 0.2

@@ -97,9 +97,14 @@ function codePairCaretPlugin(type: MarkType) {
 
 export const ComposerCodeExtension = Code.extend({
   excludes: "code",
-  // ArrowRight leaves code through the caret stops at styled edges, so the
-  // stock exit (inserting a space at the end of a line) is not needed.
+  // The forward arrow leaves code through the caret stops at styled edges, so
+  // the stock exit (inserting a space at the end of a line) is not needed.
   exitable: false,
+  // Code reads left to right inside an Arabic or Hebrew line, and the isolate
+  // keeps its punctuation from trading places with the text around it.
+  addOptions() {
+    return { ...this.parent!(), HTMLAttributes: { dir: "ltr" } };
+  },
   addProseMirrorPlugins() {
     return [...(this.parent?.() ?? []), codePairCaretPlugin(this.type)];
   },
@@ -378,7 +383,7 @@ function listItemTypeAt($pos: ResolvedPos): "listItem" | "taskItem" | null {
   return name === "listItem" || name === "taskItem" ? name : null;
 }
 
-export function backspaceAcrossList(editor: Editor): boolean {
+function backspaceAcrossList(editor: Editor): boolean {
   const { state } = editor;
   const { $from, empty } = state.selection;
   if (!empty || $from.parentOffset !== 0) return false;
@@ -399,7 +404,7 @@ export function backspaceAcrossList(editor: Editor): boolean {
   return false;
 }
 
-export function deleteAcrossList(editor: Editor): boolean {
+function deleteAcrossList(editor: Editor): boolean {
   const { state } = editor;
   const { $from, empty } = state.selection;
   if (!empty || !$from.parent.isTextblock || $from.depth === 0) return false;

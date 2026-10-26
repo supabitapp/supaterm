@@ -1,5 +1,3 @@
-"use client";
-
 import type { PreviewViewportSetting, PreviewViewportSize } from "@supaterm/contracts";
 import {
   useEffect,

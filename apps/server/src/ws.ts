@@ -4,6 +4,7 @@ import * as OrchestrationSkills from "./provider/OrchestrationSkills.ts";
 import { OrchestrationDispatchCommandError } from "@supaterm/contracts";
 import * as Crypto from "effect/Crypto";
 import * as Orchestrator from "./orchestration-v2/Orchestrator.ts";
+import * as ShellSyncGeneration from "./orchestration-v2/ShellSyncGeneration.ts";
 
 import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
@@ -88,7 +89,7 @@ import {
   PersistChatAttachmentsError,
   RpcClientId,
   EnvironmentAuthorizationError,
-  type ProjectId,
+  ProjectId,
   type ProviderDriverKind,
   type ProviderInstanceId,
   ThreadId,
@@ -127,13 +128,13 @@ import {
   composeShellStreamWithEnrichment,
   dedupeShellEnrichment,
   loadShellSnapshotParts,
+  readShellResumeChanges,
   shellStreamItemFromEnrichmentRefresh,
   shellStreamItemFromThreadShell,
   shellStreamItemsFromInitialSnapshot,
   shellStreamItemsFromResumeSnapshot,
   skipUnchangedThreadShells,
   toShellApplicationEvent,
-  type ShellApplicationEvent,
 } from "./orchestration-v2/ShellStream.ts";
 import { ORCHESTRATION_V2_PROJECTION_SCHEMA_VERSION } from "./orchestration-v2/ProjectionStore.ts";
 import { bufferLiveStream } from "./orchestration-v2/LiveStreamBudget.ts";
@@ -157,6 +158,7 @@ import {
 import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as ThreadSearch from "./orchestration-v2/ThreadSearch.ts";
 import * as OrchestrationEventStore from "./persistence/OrchestrationEventStore.ts";
+import type { ChangedApplicationAggregate } from "./persistence/OrchestrationEventStore.ts";
 import { userFacingDispatchErrorMessage } from "./orchestration-v2/UserFacingErrors.ts";
 import * as ProviderRegistry from "./provider/ProviderRegistry.ts";
 import * as Dictation from "./dictation/Dictation.ts";
@@ -241,6 +243,7 @@ import * as SourceControlRepositoryService from "./sourceControl/SourceControlRe
 import * as PairingGrantStore from "./auth/PairingGrantStore.ts";
 import * as SessionStore from "./auth/SessionStore.ts";
 import { failEnvironmentAuthInvalid, failEnvironmentInternal } from "./auth/http.ts";
+import { isNetworkPath } from "@supaterm/shared/path";
 import { isTelemetryIdHash } from "@supaterm/shared/telemetryId";
 import { withUsageLimitsCommands } from "@supaterm/shared/usageLimits";
 import * as AgentSessionScanner from "./project/AgentSessionScanner.ts";
@@ -258,7 +261,7 @@ const resolveDiscoveryForConfig = <A, E, R>(
     Effect.map(Option.getOrElse(onTimeout)),
   );
 
-export const resolveAvailableEditorsForConfig = <A, E, R>(
+const resolveAvailableEditorsForConfig = <A, E, R>(
   discovery: Effect.Effect<ReadonlyArray<A>, E, R>,
 ) => resolveDiscoveryForConfig(discovery, () => []);
 
@@ -558,13 +561,6 @@ const PROVIDER_STATUS_DEBOUNCE_MS = 200;
 
 // Middleware added later wraps middleware added earlier, so instrumentation wraps authorization.
 const ServerWsRpcGroup = WsRpcGroup.middleware(RpcInstrumentation);
-// Replaying each intervening event costs a shell refetch; past this gap a
-// single O(active-threads) snapshot is cheaper and bounded.
-const SHELL_RESUME_MAX_GAP = 1_000;
-// Row count alone does not bound replay memory: a few events with large tool
-// payloads can decode to gigabytes. Before replaying, sum the serialized
-// payload bytes of the range in SQL and reset with a snapshot past this budget.
-const ORCHESTRATION_REPLAY_PAYLOAD_BUDGET_BYTES = 8 * 1024 * 1024;
 
 function toAuthAccessStreamEvent(
   change: PairingGrantStore.BootstrapCredentialChange | SessionStore.SessionCredentialChange,
@@ -616,14 +612,14 @@ const MAX_CLIENT_APP_VERSION_LENGTH = 64;
 const MAX_CLIENT_BROWSER_LENGTH = 64;
 const MAX_CLIENT_DEVICE_MODEL_LENGTH = 80;
 
-export function hasCompatibleOrchestrationProtocol(url: URL): boolean {
+function hasCompatibleOrchestrationProtocol(url: URL): boolean {
   return (
     url.searchParams.get(ORCHESTRATION_PROTOCOL_QUERY_PARAM) ===
     String(ORCHESTRATION_PROTOCOL_VERSION)
   );
 }
 
-export function shouldUseBoundedThreadSnapshot(input: {
+function shouldUseBoundedThreadSnapshot(input: {
   readonly acceptBoundedSnapshot?: boolean;
 }): boolean {
   return input.acceptBoundedSnapshot === true;
@@ -704,35 +700,6 @@ function readClientOwners(
   const ownerId = url.value.searchParams.get("clientDevice");
   return ownerId !== null && isTelemetryIdHash(ownerId) ? [{ source: "device", ownerId }] : [];
 }
-
-const canReplayPersistedRange = Effect.fnUntraced(function* (
-  afterSequence: number,
-  headSequence: number,
-  maxGap: number,
-) {
-  const applicationEvents = yield* OrchestrationEventStore.OrchestrationEventStore;
-
-  const replayGap = headSequence - afterSequence;
-  if (replayGap < 0 || replayGap > maxGap) {
-    return false;
-  }
-  const stats = yield* applicationEvents.getReplayStats({
-    afterSequence,
-    throughSequence: headSequence,
-  });
-  if (stats.rawPayloadBytes > ORCHESTRATION_REPLAY_PAYLOAD_BUDGET_BYTES) {
-    yield* Effect.logDebug("orchestration replay replaced by snapshot", {
-      afterSequence,
-      headSequence,
-      replayGap,
-      eventCount: stats.eventCount,
-      payloadBytes: stats.rawPayloadBytes,
-      payloadBudgetBytes: ORCHESTRATION_REPLAY_PAYLOAD_BUDGET_BYTES,
-    });
-    return false;
-  }
-  return true;
-});
 
 const enrichProjectShells = Effect.fn("ws.orchestrationV2.enrichProjectShells")(
   (projects: ReadonlyArray<OrchestrationProjectShell>) =>
@@ -990,21 +957,16 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
       };
     });
     const projectItem = Effect.fn("ws.orchestrationV2.projectShellItem")(function* (
-      stored: Extract<ShellApplicationEvent, { readonly aggregateKind: "project" }>,
+      stored: ChangedApplicationAggregate,
     ) {
-      if (stored.type === "project.deleted") {
-        return {
-          kind: "project.removed" as const,
-          sequence: stored.sequence,
-          projectId: stored.aggregateId,
-        };
-      }
-      const project = yield* projectService.getShell(stored.aggregateId);
+      const projectId = ProjectId.make(stored.aggregateId);
+      // A deleted project has no shell, so the same read covers removal.
+      const project = yield* projectService.getShell(projectId);
       return Option.match(project, {
         onNone: () => ({
           kind: "project.removed" as const,
           sequence: stored.sequence,
-          projectId: stored.aggregateId,
+          projectId,
         }),
         onSome: (value) => ({
           kind: "project.updated" as const,
@@ -1015,23 +977,23 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
     });
 
     const projectShellItems = Effect.fn("ws.orchestrationV2.projectShellItems")(function* (
-      events: ReadonlyArray<ShellApplicationEvent>,
+      events: ReadonlyArray<ChangedApplicationAggregate>,
     ) {
       return yield* Effect.forEach(
         coalesceShellApplicationEvents(events),
         (stored) =>
           Effect.gen(function* () {
-            if ("aggregateKind" in stored) {
+            if (stored.aggregateKind === "project") {
               return yield* projectItem(stored);
             }
-            const shell = yield* threadManagement.getThreadShell(stored.event.threadId);
+            const shell = yield* threadManagement.getThreadShell(ThreadId.make(stored.aggregateId));
             return shellStreamItemFromThreadShell({ stored, shell });
           }),
         { concurrency: 8 },
       );
     });
 
-    const toShellStream = <E, R>(stream: Stream.Stream<ShellApplicationEvent, E, R>) =>
+    const toShellStream = <E, R>(stream: Stream.Stream<ChangedApplicationAggregate, E, R>) =>
       stream.pipe(
         Stream.groupedWithin(512, Duration.millis(50)),
         Stream.mapEffect((events) => projectShellItems(Array.from(events))),
@@ -1126,7 +1088,12 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
       }
 
       const highWater = yield* applicationEvents.latestApplicationSequence;
-      if (!(yield* canReplayPersistedRange(input.afterSequence, highWater, SHELL_RESUME_MAX_GAP))) {
+      const changed = yield* readShellResumeChanges({
+        afterSequence: input.afterSequence,
+        highWater,
+        readChanged: applicationEvents.readChangedApplicationAggregates,
+      });
+      if (Option.isNone(changed)) {
         const loaded = yield* loadSnapshot();
         return composeShellStreamWithEnrichment({
           initial: initialSnapshotItems(loaded),
@@ -1136,16 +1103,7 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
       }
 
       const loaded = yield* loadProjectMetadataSnapshot(highWater);
-      const replay = toShellStream(
-        applicationEvents.readApplicationEvents({
-          afterSequence: input.afterSequence,
-          throughSequence: highWater,
-          // A row a newer build wrote (e.g. after a downgrade) must not fail
-          // every shell resubscribe. The live tail below resumes from
-          // highWater, so a dropped row never hides later events.
-          skipUnknownEventTypes: true,
-        }),
-      );
+      const replay = toShellStream(Stream.fromIterable(changed.value));
       return composeShellStreamWithEnrichment({
         initial: initialEnrichmentItems(loaded),
         tail: Stream.concat(Stream.concat(replay, completionMarker), liveFrom(highWater)),
@@ -1224,6 +1182,7 @@ export const layerWsRpc = (
         yield* Effect.context<Effect.Services<ReturnType<typeof remoteSshDeviceHosts>>>();
       const orchestrationEngine = yield* Orchestrator.OrchestratorV2;
       const crypto = yield* Crypto.Crypto;
+      const shellSyncGeneration = yield* ShellSyncGeneration.ShellSyncGeneration;
       const serverCommandId = (tag: string) =>
         crypto.randomUUIDv4().pipe(
           Effect.orDie,
@@ -1699,6 +1658,7 @@ export const layerWsRpc = (
           },
           settings,
           shellResumeCompletionMarker: true,
+          shellSyncGeneration: shellSyncGeneration.id,
           threadResumeCompletionMarker: true,
           threadSnapshotPagination: true,
           threadFind: true,
@@ -2664,7 +2624,10 @@ export const layerWsRpc = (
               input.resource._tag === "native-app-icon" ||
               input.resource._tag === "tool-output-image" ||
               input.resource._tag === "github-media" ||
-              (input.resource._tag === "media-file" && path.isAbsolute(input.resource.path))
+              // A network path is served only from the thread's project, looked up below.
+              (input.resource._tag === "media-file" &&
+                path.isAbsolute(input.resource.path) &&
+                !isNetworkPath(input.resource.path))
             ) {
               return yield* issueAssetUrl({ resource: input.resource });
             }

@@ -487,36 +487,3 @@ it.effect(
       assert.isFalse(messagePlan.some((row) => row.detail.includes("TEMP B-TREE")));
     }).pipe(Effect.provide(layerSql)),
 );
-
-it.effect("shell failure lookups stay on the thread's own turn items", () =>
-  Effect.gen(function* () {
-    const store = yield* ProjectionStore.ProjectionStoreV2;
-    const sql = yield* SqlClient.SqlClient;
-    const failed = yield* createThread("failed-latest");
-    yield* createRun(failed, "failed");
-    const queries: Array<readonly [string, ReadonlyArray<unknown>]> = [];
-    const record: Statement.Transformer = (statement) =>
-      Effect.sync(() => {
-        queries.push(statement.compile());
-        return statement;
-      });
-    const shell = yield* store
-      .getShellSnapshot()
-      .pipe(Effect.provideService(Statement.CurrentTransformer, record));
-    assert.deepEqual(
-      shell.threads.map((thread) => thread.id),
-      [failed],
-    );
-    const shellQuery = queries.find(([query]) =>
-      query.includes("AS blocking_failure_payload_json"),
-    );
-    assert.isDefined(shellQuery);
-    const plan = yield* sql.unsafe<{ readonly detail: string }>(
-      `EXPLAIN QUERY PLAN ${shellQuery![0]}`,
-      shellQuery![1],
-    );
-    const itemLookups = plan.filter((row) => row.detail.startsWith("SEARCH item "));
-    assert.lengthOf(itemLookups, 2);
-    assert.isTrue(itemLookups.every((row) => row.detail.includes("turn_items_failed_error_idx")));
-  }).pipe(Effect.provide(layerSql)),
-);

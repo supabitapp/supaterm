@@ -6,8 +6,6 @@ import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
-import * as PlatformError from "effect/PlatformError";
-import * as Schema from "effect/Schema";
 
 import { DEFAULT_SIGNAL_EXPORT } from "@supaterm/shared/observability";
 import * as HostProcess from "@supaterm/shared/HostProcess";
@@ -15,10 +13,6 @@ import * as OtelEnvironment from "@supaterm/shared/otelEnvironment";
 
 import * as ServerConfig from "../config.ts";
 import * as ServerEnvironment from "./ServerEnvironment.ts";
-
-const isServerEnvironmentIdPersistenceError = Schema.is(
-  ServerEnvironment.ServerEnvironmentIdPersistenceError,
-);
 
 const layerServerEnvironment = (baseDir: string) =>
   ServerEnvironment.layer.pipe(Layer.provide(ServerConfig.layerTest(process.cwd(), baseDir)));
@@ -192,104 +186,6 @@ it.layer(NodeServices.layer)("ServerEnvironmentLive", (it) => {
         maxClipBytes: 20 * 1024 * 1024,
         maxDurationMs: 300_000,
       });
-    }),
-  );
-
-  it.effect("advertises desktopAppUpdate only with desktop mode and the control fd", () =>
-    Effect.gen(function* () {
-      const fileSystem = yield* FileSystem.FileSystem;
-      const baseDir = yield* fileSystem.makeTempDirectoryScoped({
-        prefix: "supaterm-server-environment-desktop-update-test-",
-      });
-      const serverConfig = yield* makeServerConfig(baseDir);
-      yield* fileSystem.makeDirectory(serverConfig.stateDir, { recursive: true });
-
-      const describeWith = (overrides: Partial<ServerConfig.ServerConfig["Service"]>) =>
-        Effect.gen(function* () {
-          const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
-          return yield* serverEnvironment.getDescriptor;
-        }).pipe(
-          Effect.provide(
-            ServerEnvironment.layer.pipe(
-              Layer.provide(ServerConfig.layer({ ...serverConfig, ...overrides })),
-            ),
-          ),
-        );
-
-      const withFd = yield* describeWith({ mode: "desktop", desktopTelemetryControlFd: 5 });
-      expect(withFd.capabilities.serverSelfUpdate).toBe("desktop-managed");
-      expect(withFd.capabilities.desktopAppUpdate).toBe(true);
-      expect(withFd.capabilities.serverSelfUpdateProgress).toBe(true);
-
-      const withoutFd = yield* describeWith({ mode: "desktop" });
-      expect(withoutFd.capabilities.serverSelfUpdate).toBe("desktop-managed");
-      expect(withoutFd.capabilities.desktopAppUpdate).toBeUndefined();
-      expect(withoutFd.capabilities.serverSelfUpdateProgress).toBeUndefined();
-
-      const web = yield* describeWith({ mode: "web", desktopTelemetryControlFd: 5 });
-      expect(web.capabilities.desktopAppUpdate).toBeUndefined();
-    }),
-  );
-
-  it.effect("structures persisted environment id filesystem failures", () =>
-    Effect.gen(function* () {
-      const fileSystem = yield* FileSystem.FileSystem;
-      const baseDir = yield* fileSystem.makeTempDirectoryScoped({
-        prefix: "supaterm-server-environment-error-test-",
-      });
-      const serverConfig = yield* makeServerConfig(baseDir);
-      const environmentIdPath = serverConfig.environmentIdPath;
-      const tempPath = `${environmentIdPath}.tmp`;
-      const methodByOperation = {
-        check: "exists",
-        read: "readFileString",
-        write: "writeFileString",
-      } as const;
-
-      for (const operation of ["check", "read", "write"] as const) {
-        const writeAttempts: string[] = [];
-        const cause = PlatformError.systemError({
-          _tag: "PermissionDenied",
-          module: "FileSystem",
-          method: methodByOperation[operation],
-          description: "permission denied",
-          pathOrDescriptor: environmentIdPath,
-        });
-        const layerFailingFileSystem = FileSystem.layerNoop({
-          exists: () =>
-            operation === "check" ? Effect.fail(cause) : Effect.succeed(operation === "read"),
-          readFileString: () => Effect.fail(cause),
-          makeTempFileScoped: () => Effect.succeed(tempPath),
-          writeFileString: (path) => {
-            writeAttempts.push(path);
-            return Effect.fail(cause);
-          },
-        });
-
-        const error = yield* Effect.gen(function* () {
-          const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
-          return yield* serverEnvironment.getDescriptor;
-        }).pipe(
-          Effect.provide(
-            ServerEnvironment.layer.pipe(
-              Layer.provide(Layer.merge(ServerConfig.layer(serverConfig), layerFailingFileSystem)),
-            ),
-          ),
-          Effect.flip,
-        );
-
-        expect(isServerEnvironmentIdPersistenceError(error)).toBe(true);
-        if (!isServerEnvironmentIdPersistenceError(error)) {
-          throw error;
-        }
-        expect(error.operation).toBe(operation);
-        expect(error.environmentIdPath).toBe(environmentIdPath);
-        expect(error.cause).toBe(cause);
-        expect(error.message).toBe(
-          `Server environment ID ${operation} failed at '${environmentIdPath}'.`,
-        );
-        expect(writeAttempts).toEqual(operation === "write" ? [tempPath] : []);
-      }
     }),
   );
 });

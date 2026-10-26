@@ -49,6 +49,7 @@ import { gitCommandDuration, gitCommandsTotal, withMetrics } from "../observabil
 import * as GitVcsDriver from "./GitVcsDriver.ts";
 import { removeEmptyDirectory } from "./removeEmptyDirectory.ts";
 import { explicitBareRepositoryEnv, gitConfigEnv } from "./VcsProcess.ts";
+import { removeLinkedWorktree } from "./worktreeRemoval.ts";
 import { resolveWorktreesDirectory } from "../worktreesDirectory.ts";
 import {
   parseRemoteNames,
@@ -85,7 +86,6 @@ const REVIEW_DIFF_ARGS = [
   "--no-color",
   "--no-ext-diff",
   "--no-textconv",
-  "--minimal",
   ...PATCH_RENDER_PREFIX_ARGS,
 ];
 const STATUS_UPSTREAM_REFRESH_INTERVAL = Duration.seconds(15);
@@ -445,7 +445,31 @@ const GIT_FAILURE_REASON_PATTERNS: ReadonlyArray<readonly [RegExp, GitCommandFai
     /^fatal: (?:invalid reference: |not a valid object name|needed a single revision|bad revision |'.+' is not a commit and a branch '.+' cannot be created from it)/im,
     "ref_not_found",
   ],
+  // `[remote rejected]` is only printed for a push. The remote's explanation
+  // follows in parentheses; it is server text, so it is never quoted.
+  [/^[ \t]*![ \t]+\[remote rejected\]/im, "push_rejected_by_remote"],
+  // A fetch into a diverged local branch prints the same `[rejected]` line, but
+  // only a push goes on to report "failed to push some refs".
+  [
+    /^[ \t]*![ \t]+\[rejected\][^\n]*\((?:non-fast-forward|fetch first)\)[\s\S]*^error: failed to push some refs/im,
+    "push_rejected_non_fast_forward",
+  ],
 ];
+
+// Reasons the user can act on get a sentence in place of the generic detail.
+const GIT_FAILURE_REASON_DETAILS: Partial<Record<GitCommandFailureReason, string>> = {
+  push_rejected_by_remote:
+    "The remote rejected the push. Push this branch from a terminal to see the server's message.",
+  push_rejected_non_fast_forward:
+    "The remote has commits this branch doesn't have. Pull or rebase, then push again.",
+};
+
+function gitFailureDetail(reason: GitCommandFailureReason | null): string {
+  return (
+    (reason === null ? undefined : GIT_FAILURE_REASON_DETAILS[reason]) ??
+    "Git command exited with a non-zero status."
+  );
+}
 
 // Existing non-commit objects share the missing-ref fatal diagnostic; Git
 // distinguishes them with a separate error line.
@@ -1063,7 +1087,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
             new GitCommandError({
               ...gitCommandContext(commandInput),
               ...(reason === null ? {} : { reason }),
-              detail: "Git command exited with a non-zero status.",
+              detail: gitFailureDetail(reason),
               exitCode: result.exitCode,
               stdoutLength: result.stdout.length,
               stderrLength: result.stderr.length,
@@ -1155,7 +1179,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
           new GitCommandError({
             ...gitCommandContext({ operation, cwd, args }),
             ...(reason === null ? {} : { reason }),
-            detail: options.fallbackErrorDetail ?? "Git command exited with a non-zero status.",
+            detail: options.fallbackErrorDetail ?? gitFailureDetail(reason),
             ...(result.exitCode === null ? {} : { exitCode: result.exitCode }),
             stdoutLength: result.stdout.length,
             stderrLength: result.stderr.length,
@@ -3092,6 +3116,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
 
     const diffArgs = [
       ...REVIEW_DIFF_ARGS,
+      "--minimal",
       ...(input.ignoreWhitespace ? ["--ignore-all-space"] : []),
     ];
     const readStats = Effect.fn("GitVcsDriver.getReviewDiffPreview.stat")(function* (
@@ -4176,20 +4201,20 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     "removeWorktree",
   )(function* (input) {
     const target = path.resolve(input.cwd, input.path);
-
-    const args = ["-c", "status.showUntrackedFiles=normal", "worktree", "remove"];
-    if (input.force) {
-      args.push("--force");
-    }
-    args.push("--", target);
-    const result = yield* executeGitWithStableDiagnostics(
-      "GitVcsDriver.removeWorktree",
-      input.cwd,
-      args,
-      {
-        timeoutMs: WORKTREE_REMOVE_TIMEOUT_MS,
-        allowNonZeroExit: true,
-      },
+    const result = yield* removeLinkedWorktree({
+      operation: "GitVcsDriver.removeWorktree",
+      cwd: input.cwd,
+      worktreePath: target,
+      force: input.force === true,
+      execute,
+      run: (args) =>
+        executeGitWithStableDiagnostics("GitVcsDriver.removeWorktree", input.cwd, args, {
+          timeoutMs: WORKTREE_REMOVE_TIMEOUT_MS,
+          allowNonZeroExit: true,
+        }).pipe(Effect.map((result) => ({ ...result, args }))),
+    }).pipe(
+      Effect.provideService(FileSystem.FileSystem, fileSystem),
+      Effect.provideService(Path.Path, path),
     );
     if (result.exitCode === 0) {
       // Git for Windows never descends into NTFS junctions, such as pnpm's
@@ -4221,7 +4246,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     // than an error.
     const alreadyGone =
       isMissingWorktreeStderr(result.stderr) &&
-      !(yield* fileSystem.exists(input.path).pipe(Effect.orElseSucceed(() => false)));
+      !(yield* fileSystem.exists(target).pipe(Effect.orElseSucceed(() => false)));
     if (alreadyGone) {
       yield* pruneWorktrees({ cwd: input.cwd });
       return;
@@ -4230,7 +4255,11 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       `GitVcsDriver.removeWorktree: git worktree remove exited with code ${result.exitCode} for ${input.path} (stderr length ${result.stderr.length}).`,
     );
     return yield* new GitCommandError({
-      ...gitCommandContext({ operation: "GitVcsDriver.removeWorktree", cwd: input.cwd, args }),
+      ...gitCommandContext({
+        operation: "GitVcsDriver.removeWorktree",
+        cwd: input.cwd,
+        args: result.args,
+      }),
       detail: "git worktree remove failed",
       ...(result.exitCode === null ? {} : { exitCode: result.exitCode }),
       stdoutLength: result.stdout.length,

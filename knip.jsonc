@@ -20,13 +20,15 @@
     },
     "scripts": {
       // Knip loads its preprocessor through a CLI option; native verification and
-      // worktree setup and cleanup (from supaterm.json) run directly.
+      // worktree setup and cleanup (from supaterm.json) run directly, and
+      // electron-builder loads the macOS signer by path.
       "entry": [
         "check-commit-message.ts",
         "clean-worktree.ts",
         "knip-schemas.ts",
         "mobile-native-client.ts",
         "setup-worktree.ts",
+        "sign-macos.ts",
         "verify-windows-desktop-artifact.ts",
       ],
       "ignoreDependencies": ["esbuild"],
@@ -80,13 +82,17 @@
       "ignoreDependencies": ["playwright-core", "electron-builder"],
     },
     "apps/web": {
-      // Worktree setup (scripts/setup-worktree.ts) runs this directly, and evidence
+      // The first dev start (scripts/dev-runner.ts) runs this directly, and evidence
       // fixtures run under node.
       "entry": ["scripts/warm-dep-cache.ts", "test/fixtures/**/*.mjs"],
       // UI component modules are copied and adapted as cohesive sets. Keep their
       // named subcomponents even before they have callers; the file audit still
       // reports an entire component module when nothing imports it.
       "ignoreIssues": { "src/components/ui/*.tsx": ["exports", "nsExports", "duplicates"] },
+    },
+    "apps/marketing": {
+      // `astro check` runs from the typecheck task in vite.config.ts, which knip does not read.
+      "ignoreDependencies": ["@astrojs/check"],
     },
     "apps/mobile": {
       // Expo loads plugins and the fingerprint config by string; Metro embeds the browser entry in the native WebView.

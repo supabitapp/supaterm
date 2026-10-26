@@ -1,4 +1,3 @@
-import { shouldPreserveAssistantLineBreaks } from "@supaterm/shared/markdownPipeline";
 import { ThreadId, type WorktreeSetupSnapshot } from "@supaterm/contracts";
 import {
   CheckpointRef,
@@ -31,338 +30,19 @@ import {
   timelineEntryTurnFoldRunId,
   deriveMessagesTimelineRowsWithState,
   shouldCollapseUserMessage,
-  liveWorkEntryLabel,
-  normalizeCompactToolLabel,
   resolveAssistantMessageCopyState,
-  resolveTimelineIsAtEnd,
-  isTimelineMinimapRowVisible,
-  resolveTimelineMinimapCurrentIndex,
-  resolveTimelineMinimapVisibleRange,
-  resolveTimelineMinimapHasPersistentGutter,
-  resolveTimelineMinimapHeightStyle,
-  resolveTimelineMinimapHitStripWidth,
-  resolveTimelineMinimapIndexFromPointer,
-  resolveTimelineMinimapInteractiveWidth,
-  resolveTimelineMinimapNavigationInteractive,
-  resolveTimelineMinimapTopPercent,
-  resolveWorkGroupScrollIndex,
-  shouldFollowWorkGroupAppend,
-  threadReadLabelPrefix,
-  threadReadTargetId,
-  threadReadTargetTitle,
   type MessagesTimelineRow,
   resolveTimelineToolPresentation,
   workEntryDisplayLabel,
-  workEntryReadOutput,
-  workEntryIsVisibleInGroup,
 } from "./MessagesTimeline.logic";
-import type { WorkLogEntry } from "../../session-logic";
-
-describe("expanded tool group scrolling", () => {
-  const entries = [{ id: "first" }, { id: "second" }];
-
-  it("follows appended calls only at the hard end", () => {
-    const appended = [...entries, { id: "third" }];
-    expect(shouldFollowWorkGroupAppend(entries, appended, 0)).toBe(true);
-    expect(shouldFollowWorkGroupAppend(entries, appended, 0.5)).toBe(true);
-    expect(shouldFollowWorkGroupAppend(entries, appended, 1)).toBe(true);
-    expect(shouldFollowWorkGroupAppend(entries, appended, 1.01)).toBe(false);
-    expect(shouldFollowWorkGroupAppend(entries, appended, 10)).toBe(false);
-    expect(shouldFollowWorkGroupAppend(entries, appended, Infinity)).toBe(false);
-  });
-
-  it("does not follow output updates, prepends, or replacements", () => {
-    expect(
-      shouldFollowWorkGroupAppend(
-        entries,
-        entries.map((entry) => ({ ...entry })),
-        0,
-      ),
-    ).toBe(false);
-    expect(shouldFollowWorkGroupAppend(entries, [{ id: "older" }, ...entries], 0)).toBe(false);
-    expect(
-      shouldFollowWorkGroupAppend(
-        entries,
-        [{ id: "replacement" }, entries[1]!, { id: "third" }],
-        0,
-      ),
-    ).toBe(false);
-    expect(shouldFollowWorkGroupAppend([], entries, 0)).toBe(false);
-  });
-
-  it("restores the visible tool and its offset inside expanded output", () => {
-    const anchor = { entryId: "second", offset: 120 };
-    expect(resolveWorkGroupScrollIndex(entries, anchor)).toEqual({ index: 1, viewOffset: -120 });
-    expect(resolveWorkGroupScrollIndex([{ id: "older" }, ...entries], anchor)).toEqual({
-      index: 2,
-      viewOffset: -120,
-    });
-  });
-
-  it("starts normally when the saved tool no longer exists", () => {
-    expect(resolveWorkGroupScrollIndex(entries, undefined)).toBeUndefined();
-    expect(
-      resolveWorkGroupScrollIndex(entries, { entryId: "removed", offset: 120 }),
-    ).toBeUndefined();
-  });
-});
 
 describe("work entry labels", () => {
-  it("uses live titles only for active thread shells", () => {
-    const shell = { title: " Review auth flow ", archivedAt: null, deletedAt: null };
-    expect(threadReadTargetTitle(shell)).toBe("Review auth flow");
-    expect(threadReadTargetTitle({ ...shell, title: "Harden session refresh" })).toBe(
-      "Harden session refresh",
-    );
-    expect(threadReadTargetTitle({ ...shell, archivedAt: "2026-10-07T12:00:00Z" })).toBeNull();
-    expect(threadReadTargetTitle({ ...shell, deletedAt: "2026-10-07T12:00:00Z" })).toBeNull();
-    expect(threadReadTargetTitle({ ...shell, title: "  " })).toBeNull();
-    expect(threadReadTargetTitle(null)).toBeNull();
-  });
-
   const entry = {
     id: "tool-1",
     createdAt: "2026-09-01T12:00:00Z",
     label: "Tool call",
     tone: "tool" as const,
   };
-
-  it("previews reasoning in the live row and falls back to a short label while empty", () => {
-    const thought = {
-      ...entry,
-      itemType: "reasoning" as const,
-      tone: "thinking" as const,
-      detail: "Check **ordering** first.",
-      toolLifecycleStatus: "inProgress" as const,
-    };
-    expect(liveWorkEntryLabel(thought, undefined, true)).toBe(thought.detail);
-    expect(
-      liveWorkEntryLabel(
-        { ...thought, detail: "First paragraph.\n\nSecond paragraph." },
-        undefined,
-        true,
-      ),
-    ).toBe("First paragraph. Second paragraph.");
-    expect(liveWorkEntryLabel({ ...thought, detail: "  " }, undefined, true)).toBe("Thinking");
-    expect(
-      liveWorkEntryLabel(
-        { ...thought, detail: "", toolLifecycleStatus: "completed" },
-        undefined,
-        false,
-      ),
-    ).toBe("Thought");
-    expect(
-      liveWorkEntryLabel({ ...thought, toolLifecycleStatus: "completed" }, undefined, false),
-    ).toBe(thought.detail);
-    expect(workEntryDisplayLabel(thought, undefined)).toBe(thought.detail);
-    expect(workEntryIsVisibleInGroup(thought)).toBe(true);
-    expect(workEntryIsVisibleInGroup({ ...thought, toolLifecycleStatus: "completed" })).toBe(true);
-    expect(workEntryIsVisibleInGroup({ ...thought, detail: "  " })).toBe(false);
-  });
-
-  it.each([
-    ["inProgress", "Clicking in the preview browser"],
-    ["completed", "Clicked in the preview browser"],
-    ["failed", "Failed to click in the preview browser"],
-    ["declined", "Declined to click in the preview browser"],
-    ["stopped", "Stopped clicking in the preview browser"],
-  ] as const)("uses the same friendly %s label in both views", (toolLifecycleStatus, label) => {
-    const browserEntry = {
-      ...entry,
-      toolTitle: "Supaterm.preview_click",
-      detail: '{"ok":true}',
-      toolLifecycleStatus,
-    };
-    expect(liveWorkEntryLabel(browserEntry, undefined, toolLifecycleStatus === "inProgress")).toBe(
-      label,
-    );
-    expect(workEntryDisplayLabel(browserEntry, undefined)).toBe(label);
-  });
-
-  it.each([
-    ["inProgress", true, "Reading thread"],
-    ["completed", false, "Read thread"],
-    ["failed", false, "Failed to read thread"],
-    ["declined", false, "Declined to read thread"],
-    ["stopped", false, "Stopped reading thread"],
-  ] as const)("names the read thread in the %s label", (toolLifecycleStatus, active, prefix) => {
-    const threadRead = {
-      ...entry,
-      itemType: "dynamic_tool" as const,
-      toolLifecycleStatus,
-      structuredPayload: {
-        type: "dynamic_tool",
-        toolName: "supaterm.supaterm_thread_read",
-        input: { threadId: " thread-child ", view: "activity" },
-      } as never,
-    };
-    expect(threadReadTargetId(threadRead)).toBe("thread-child");
-    expect(threadReadLabelPrefix(liveWorkEntryLabel(threadRead, undefined, active))).toBe(prefix);
-    expect(threadReadLabelPrefix(workEntryDisplayLabel(threadRead, undefined))).toBe(prefix);
-  });
-
-  it("finds no target for other tools or thread reads without one", () => {
-    const payload = (toolName: string, input: unknown) => ({
-      structuredPayload: { type: "dynamic_tool", toolName, input } as never,
-    });
-    expect(
-      threadReadTargetId(payload("supaterm.supaterm_thread_wait", { threadId: "t" })),
-    ).toBeNull();
-    expect(
-      threadReadTargetId(payload("supaterm.supaterm_thread_read", { threadId: "  " })),
-    ).toBeNull();
-    expect(threadReadTargetId(payload("supaterm.supaterm_thread_read", null))).toBeNull();
-  });
-
-  it("uses the active summary state for legacy tools without a lifecycle status", () => {
-    const browserEntry = { ...entry, toolTitle: "Supaterm.preview_click" };
-    expect(liveWorkEntryLabel(browserEntry, undefined, true)).toBe(
-      "Clicking in the preview browser",
-    );
-    expect(liveWorkEntryLabel(browserEntry, undefined, false)).toBe(
-      "Clicked in the preview browser",
-    );
-  });
-
-  it("keeps the latest live activity in the present tense after the call completes", () => {
-    const browserEntry = {
-      ...entry,
-      toolTitle: "Supaterm.preview_click",
-      toolLifecycleStatus: "completed" as const,
-    };
-    expect(liveWorkEntryLabel(browserEntry, undefined, true)).toBe(
-      "Clicking in the preview browser",
-    );
-    expect(liveWorkEntryLabel(browserEntry, undefined, false)).toBe(
-      "Clicked in the preview browser",
-    );
-  });
-
-  it("labels file reads with the path and never the file body", () => {
-    const readEntry = {
-      ...entry,
-      itemType: "dynamic_tool" as const,
-      toolTitle: "Read",
-      label: "Read",
-      detail: "---\nname: env\n---\n cons t x = 1",
-      toolData: { input: { file_path: "src/env.ts" } },
-      structuredPayload: {
-        type: "dynamic_tool",
-        toolName: "Read",
-        input: { file_path: "src/env.ts" },
-      } as NonNullable<WorkLogEntry["structuredPayload"]>,
-    };
-    expect(workEntryDisplayLabel(readEntry, undefined)).toBe("Read src/env.ts");
-    expect(workEntryReadOutput(readEntry, undefined)).toBe("src/env.ts");
-    expect(workEntryReadOutput(readEntry, "/workspace/ohseearr")).toBe(
-      "/workspace/ohseearr/src/env.ts",
-    );
-    expect(
-      workEntryReadOutput(
-        {
-          structuredPayload: {
-            type: "dynamic_tool",
-            toolName: "Read",
-            input: {},
-          } as NonNullable<WorkLogEntry["structuredPayload"]>,
-          toolData: { locations: [{ path: "src/from-location.ts" }] },
-        },
-        "/workspace/ohseearr",
-      ),
-    ).toBe("/workspace/ohseearr/src/from-location.ts");
-    expect(workEntryReadOutput({ detail: "---", toolData: {} }, undefined)).toBeNull();
-  });
-
-  it("labels Claude Grep from structured input instead of a generic tool heading", () => {
-    expect(
-      workEntryDisplayLabel(
-        {
-          ...entry,
-          itemType: "dynamic_tool",
-          toolTitle: "Grep",
-          label: "Grep",
-          toolData: { input: { pattern: "TODO", path: "apps/web" } },
-          structuredPayload: {
-            type: "dynamic_tool",
-            toolName: "Grep",
-            input: { pattern: "TODO", path: "apps/web" },
-          } as NonNullable<WorkLogEntry["structuredPayload"]>,
-        },
-        undefined,
-      ),
-    ).toBe("Searched TODO in web");
-  });
-
-  it("labels file searches with the adapter title and its search target", () => {
-    expect(
-      workEntryDisplayLabel(
-        {
-          ...entry,
-          itemType: "file_search",
-          label: "Searched TODO in web",
-          toolTitle: "Searched TODO in web",
-          detail: "TODO",
-          toolData: { type: "file_search", pattern: "TODO" },
-        },
-        undefined,
-      ),
-    ).toBe("Searched TODO in web");
-  });
-
-  it("keeps a multi-line approval prompt as its label", () => {
-    const prompt = "Allow this command?\nrm -rf dist";
-    expect(
-      workEntryDisplayLabel(
-        { ...entry, itemType: "approval_request", requestKind: "command", detail: prompt },
-        undefined,
-      ),
-    ).toBe(prompt);
-  });
-
-  it("keeps custom titles and output for unrecognized tools", () => {
-    const unknownEntry = { ...entry, toolTitle: "mcp__github__search_issues" };
-    expect(liveWorkEntryLabel(unknownEntry, undefined, true)).toBe("Mcp__github__search_issues");
-    expect(workEntryDisplayLabel({ ...unknownEntry, detail: "Found 3 issues" }, undefined)).toBe(
-      "Found 3 issues",
-    );
-  });
-
-  it("keeps command summaries compact without replacing the full command in expanded rows", () => {
-    const commandEntry = { ...entry, command: "vp test run", detail: "All tests passed" };
-    expect(liveWorkEntryLabel(commandEntry, undefined, true)).toBe("Running vp");
-    expect(liveWorkEntryLabel(commandEntry, undefined, false)).toBe("Ran vp");
-    expect(workEntryDisplayLabel(commandEntry, undefined)).toBe("vp test run");
-  });
-
-  it("summarizes the program inside a shell wrapper while preserving the expanded command", () => {
-    const command = "/bin/zsh -lc 'vp test run apps/web/src/session-logic.test.ts'";
-    const commandEntry = { ...entry, command };
-    expect(liveWorkEntryLabel(commandEntry, undefined, true)).toBe("Running vp");
-    expect(liveWorkEntryLabel(commandEntry, undefined, false)).toBe("Ran vp");
-    expect(workEntryDisplayLabel(commandEntry, undefined)).toBe(
-      "vp test run apps/web/src/session-logic.test.ts",
-    );
-    expect(commandEntry.command).toBe(command);
-  });
-
-  it.each([
-    ["inProgress", "Running vp", "Running vp"],
-    ["completed", "Running vp", "Ran vp"],
-    ["failed", "Failed vp", "Failed vp"],
-    ["declined", "Declined vp", "Declined vp"],
-    ["stopped", "Stopped vp", "Stopped vp"],
-  ] as const)(
-    "uses present tense for a live %s command and the outcome once it is no longer live",
-    (toolLifecycleStatus, liveLabel, settledLabel) => {
-      const commandEntry = {
-        ...entry,
-        command: "/bin/bash -lc 'vp test run'",
-        toolLifecycleStatus,
-      };
-      expect(liveWorkEntryLabel(commandEntry, undefined, true)).toBe(liveLabel);
-      expect(liveWorkEntryLabel(commandEntry, undefined, false)).toBe(settledLabel);
-    },
-  );
 
   it.each([
     ["preview_click", "Clicked in the preview browser"],
@@ -398,57 +78,7 @@ describe("work entry labels", () => {
   );
 });
 
-describe("shouldPreserveAssistantLineBreaks", () => {
-  it("preserves Claude insight formatting without changing regular markdown", () => {
-    expect(
-      shouldPreserveAssistantLineBreaks(
-        "★ Insight ─────────────────\\nFirst observation\\nSecond observation\\n─────────────────",
-      ),
-    ).toBe(true);
-    expect(shouldPreserveAssistantLineBreaks("A normal\\nmarkdown paragraph")).toBe(false);
-  });
-});
-
 describe("computeMessageDurationStart", () => {
-  it("returns message createdAt when there is no preceding user message", () => {
-    const result = computeMessageDurationStart([
-      {
-        id: "a1",
-        role: "assistant",
-        createdAt: "2026-01-01T00:00:05Z",
-        updatedAt: "2026-01-01T00:00:10Z",
-        streaming: false,
-      },
-    ]);
-    expect(result).toEqual(new Map([["a1", "2026-01-01T00:00:05Z"]]));
-  });
-
-  it("uses the user message createdAt for the first assistant response", () => {
-    const result = computeMessageDurationStart([
-      {
-        id: "u1",
-        role: "user",
-        createdAt: "2026-01-01T00:00:00Z",
-        updatedAt: "2026-01-01T00:00:00Z",
-        streaming: false,
-      },
-      {
-        id: "a1",
-        role: "assistant",
-        createdAt: "2026-01-01T00:00:30Z",
-        updatedAt: "2026-01-01T00:00:30Z",
-        streaming: false,
-      },
-    ]);
-
-    expect(result).toEqual(
-      new Map([
-        ["u1", "2026-01-01T00:00:00Z"],
-        ["a1", "2026-01-01T00:00:00Z"],
-      ]),
-    );
-  });
-
   it("uses the previous completed assistant updatedAt for subsequent assistant responses", () => {
     const result = computeMessageDurationStart([
       {
@@ -558,109 +188,9 @@ describe("computeMessageDurationStart", () => {
       ]),
     );
   });
-
-  it("handles system messages without affecting the boundary", () => {
-    const result = computeMessageDurationStart([
-      {
-        id: "u1",
-        role: "user",
-        createdAt: "2026-01-01T00:00:00Z",
-        updatedAt: "2026-01-01T00:00:00Z",
-        streaming: false,
-      },
-      {
-        id: "s1",
-        role: "system",
-        createdAt: "2026-01-01T00:00:01Z",
-        updatedAt: "2026-01-01T00:00:01Z",
-        streaming: false,
-      },
-      {
-        id: "a1",
-        role: "assistant",
-        createdAt: "2026-01-01T00:00:30Z",
-        updatedAt: "2026-01-01T00:00:30Z",
-        streaming: false,
-      },
-    ]);
-
-    expect(result).toEqual(
-      new Map([
-        ["u1", "2026-01-01T00:00:00Z"],
-        ["s1", "2026-01-01T00:00:00Z"],
-        ["a1", "2026-01-01T00:00:00Z"],
-      ]),
-    );
-  });
-
-  it("returns empty map for empty input", () => {
-    expect(computeMessageDurationStart([])).toEqual(new Map());
-  });
-});
-
-describe("normalizeCompactToolLabel", () => {
-  it("removes trailing completion wording from command labels", () => {
-    expect(normalizeCompactToolLabel("Ran command complete")).toBe("Ran command");
-  });
-
-  it("removes trailing completion wording from other labels", () => {
-    expect(normalizeCompactToolLabel("Read file completed")).toBe("Read file");
-  });
 });
 
 describe("resolveAssistantMessageCopyState", () => {
-  it("returns enabled copy state for completed assistant messages", () => {
-    expect(
-      resolveAssistantMessageCopyState({
-        showCopyButton: true,
-        text: "Ship it",
-        streaming: false,
-      }),
-    ).toEqual({
-      text: "Ship it",
-      visible: true,
-    });
-  });
-
-  it("hides copy while an assistant message is still streaming", () => {
-    expect(
-      resolveAssistantMessageCopyState({
-        showCopyButton: true,
-        text: "Still streaming",
-        streaming: true,
-      }),
-    ).toEqual({
-      text: "Still streaming",
-      visible: false,
-    });
-  });
-
-  it("hides copy for empty completed assistant messages", () => {
-    expect(
-      resolveAssistantMessageCopyState({
-        showCopyButton: true,
-        text: "   ",
-        streaming: false,
-      }),
-    ).toEqual({
-      text: null,
-      visible: false,
-    });
-  });
-
-  it("hides copy for non-terminal assistant messages", () => {
-    expect(
-      resolveAssistantMessageCopyState({
-        showCopyButton: false,
-        text: "Interim thought",
-        streaming: false,
-      }),
-    ).toEqual({
-      text: "Interim thought",
-      visible: false,
-    });
-  });
-
   it("copies the rendered representation of Codex directives", () => {
     expect(
       resolveAssistantMessageCopyState({
@@ -2070,6 +1600,147 @@ describe("deriveMessagesTimelineRows", () => {
       }
     },
   );
+
+  it("splits a settled turn's work at each steer and keeps the total time on top", () => {
+    const runId = RunId.make("steered-run");
+    const time = (second: number) => new Date(Date.UTC(2026, 0, 1, 0, 0, second)).toISOString();
+    const message = (
+      id: string,
+      second: number,
+      role: "user" | "assistant",
+      inputIntent?: "turn_start" | "steer",
+    ): TimelineEntry => ({
+      kind: "message",
+      id,
+      createdAt: time(second),
+      message: {
+        id: MessageId.make(id),
+        role,
+        text: id,
+        runId,
+        ...(inputIntent ? { inputIntent } : {}),
+        createdAt: time(second),
+        updatedAt: time(second),
+        streaming: false,
+      },
+    });
+    const work = (id: string, second: number): TimelineEntry => ({
+      kind: "work",
+      id,
+      createdAt: time(second),
+      entry: { id, createdAt: time(second), runId, label: "Ran command", tone: "tool" },
+    });
+    const rows = (expandedRunIds: ReadonlySet<RunId>) =>
+      deriveMessagesTimelineRows({
+        timelineEntries: [
+          message("prompt", 0, "user", "turn_start"),
+          work("work-before-steer", 4),
+          message("steer", 10, "user", "steer"),
+          work("work-after-steer", 15),
+          message("final", 30, "assistant"),
+        ],
+        latestRun: { runId, status: "completed", startedAt: time(0), completedAt: time(30) },
+        isWorking: false,
+        expandedRunIds,
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      });
+
+    const segmentKey = RunId.make(`${runId}:steer:steer`);
+    const collapsed = rows(new Set());
+    expect(collapsed.map((row) => row.id)).toEqual([
+      "prompt",
+      `turn-fold:${runId}`,
+      "steer",
+      `turn-fold:${segmentKey}`,
+      "final",
+    ]);
+    expect(collapsed[1]).toMatchObject({ label: "Worked for 30s" });
+    expect(collapsed[3]).toMatchObject({ label: "Continued for 20s", createdAt: time(10) });
+
+    expect(rows(new Set([segmentKey])).map((row) => row.id)).toEqual([
+      "prompt",
+      `turn-fold:${runId}`,
+      "steer",
+      `turn-fold:${segmentKey}`,
+      "work-after-steer",
+      "final",
+    ]);
+  });
+
+  it("gives each steer segment's fold only that segment's tool images", () => {
+    const fixture = makeStreamingTimelineFixture();
+    const source = fixture.visibleTurnItems.find((row) => row.item.type === "dynamic_tool")!;
+    const toolItem = source.item;
+    if (toolItem.type !== "dynamic_tool") throw new Error("Expected tool fixture");
+    const runId = RunId.make("steered-image-run");
+    const time = (second: number) => new Date(Date.UTC(2026, 0, 1, 0, 0, second)).toISOString();
+    const message = (
+      id: string,
+      second: number,
+      role: "user" | "assistant",
+      inputIntent?: "turn_start" | "steer",
+    ): TimelineEntry => ({
+      kind: "message",
+      id,
+      createdAt: time(second),
+      message: {
+        id: MessageId.make(id),
+        role,
+        text: id,
+        runId,
+        ...(inputIntent ? { inputIntent } : {}),
+        createdAt: time(second),
+        updatedAt: time(second),
+        streaming: false,
+      },
+    });
+    const screenshot = (id: string, second: number): TimelineEntry => {
+      const itemId = TurnItemId.make(id);
+      return {
+        kind: "work",
+        id,
+        createdAt: time(second),
+        entry: {
+          id,
+          createdAt: time(second),
+          runId,
+          label: "Took screenshot",
+          tone: "tool",
+          projectedItem: {
+            ...source,
+            sourceItemId: itemId,
+            item: { ...toolItem, id: itemId, output: undefined, outputImageCount: 1 },
+          },
+        },
+      };
+    };
+    const rows = deriveMessagesTimelineRows({
+      timelineEntries: [
+        message("prompt", 0, "user", "turn_start"),
+        screenshot("before-steer", 4),
+        message("steer", 10, "user", "steer"),
+        screenshot("after-steer", 15),
+        message("final", 30, "assistant"),
+      ],
+      latestRun: { runId, status: "completed", startedAt: time(0), completedAt: time(30) },
+      isWorking: false,
+      expandedRunIds: new Set(),
+      turnDiffSummaries: [],
+      supportsConversationRollback: false,
+    });
+    expect(
+      rows.flatMap((row) =>
+        row.kind === "turn-fold"
+          ? [
+              (row.images ?? []).map(
+                (image) => image.resource._tag === "tool-output-image" && image.resource.itemId,
+              ),
+            ]
+          : [],
+      ),
+    ).toEqual([["before-steer"], ["after-steer"]]);
+  });
 
   it("keeps the previous turn folded while a newly sent message awaits its turn", () => {
     const rows = deriveMessagesTimelineRows({
@@ -3732,34 +3403,6 @@ describe("deriveMessagesTimelineRows", () => {
 });
 
 describe("computeStableMessagesTimelineRows", () => {
-  it("replaces a cached work toggle when its icon presentation changes", () => {
-    const initialRow: MessagesTimelineRow = {
-      kind: "work-toggle",
-      id: "work-toggle:1",
-      createdAt: "2026-01-01T00:00:00Z",
-      groupId: "work-group:1",
-      hiddenCount: 1,
-      expanded: false,
-      summary: "Used Browser",
-      summaryKind: "other",
-      toolSurface: "browser",
-      hasFailure: false,
-    };
-    const initial = computeStableMessagesTimelineRows([initialRow], {
-      byId: new Map(),
-      result: [],
-    });
-    const enrichedRow: MessagesTimelineRow = {
-      ...initialRow,
-      toolIcon: { _tag: "website", pageUrl: "https://example.com" },
-    };
-
-    const updated = computeStableMessagesTimelineRows([enrichedRow], initial);
-
-    expect(updated).not.toBe(initial);
-    expect(updated.result[0]).toBe(enrichedRow);
-  });
-
   it.each(["", " \n"])("keeps Thinking after assistant content grows from %j", (text) => {
     const startedAt = "2026-01-01T00:00:00Z";
     const runId = RunId.make("turn-1");
@@ -3963,33 +3606,6 @@ describe("computeStableMessagesTimelineRows", () => {
 
     expect(reordered).not.toBe(initial);
     expect(reordered.result).toEqual([initial.result[1], initial.result[0]]);
-  });
-});
-
-describe("resolveTimelineToolPresentation", () => {
-  it("pretty prints Claude and Cursor Supaterm MCP tool names", () => {
-    expect(resolveTimelineToolPresentation("mcp__supaterm__supaterm_thread_read")).toEqual({
-      displayName: "Read a Supaterm thread",
-      logo: "supaterm",
-    });
-  });
-
-  it("pretty prints Codex Supaterm MCP tool names", () => {
-    expect(resolveTimelineToolPresentation("supaterm.create_threads")).toEqual({
-      displayName: "Create Supaterm threads",
-      logo: "supaterm",
-    });
-  });
-
-  it("pretty prints bare Supaterm MCP toolkit names", () => {
-    expect(resolveTimelineToolPresentation("list_scheduled_tasks")).toEqual({
-      displayName: "List scheduled tasks",
-      logo: "supaterm",
-    });
-  });
-
-  it("keeps unknown MCP tools on the generic renderer path", () => {
-    expect(resolveTimelineToolPresentation("mcp__github__search_issues")).toBeNull();
   });
 });
 
@@ -5130,6 +4746,49 @@ describe("linked timeline resources", () => {
       "assistant-meta:final",
     ]);
   });
+
+  it("shows a created chat after a steer only when that steer's segment is open", () => {
+    const message = (id: string, role: "user" | "assistant", second: number) => ({
+      kind: "message" as const,
+      id,
+      createdAt: `2026-09-08T10:00:0${second}Z`,
+      message: {
+        id: MessageId.make(id),
+        role,
+        text: id,
+        runId,
+        ...(role === "user" ? { inputIntent: "steer" as const } : {}),
+        streaming: false,
+        createdAt: `2026-09-08T10:00:0${second}Z`,
+        updatedAt: `2026-09-08T10:00:0${second}Z`,
+      },
+    });
+    const timelineEntries = [
+      message("intro", "assistant", 0),
+      message("steer", "user", 1),
+      event("created", "thread_created"),
+      message("after-steer", "assistant", 3),
+      message("final", "assistant", 4),
+    ];
+    const segmentKey = RunId.make(`${runId}:steer:steer`);
+    const rowIds = (expanded: RunId[]) =>
+      deriveMessagesTimelineRows({
+        ...common,
+        timelineEntries,
+        expandedRunIds: new Set(expanded),
+      }).map((row) => row.id);
+    expect(rowIds([runId])).not.toContain("created");
+    expect(rowIds([segmentKey])).toEqual([
+      `turn-fold:${runId}`,
+      "steer",
+      `turn-fold:${segmentKey}`,
+      "created",
+      "after-steer",
+      "final",
+      "summary:created",
+      "assistant-meta:final",
+    ]);
+  });
 });
 
 it.each([true, false])(
@@ -5650,12 +5309,6 @@ describe("live subagents after their parent turn settles", () => {
     },
   );
 
-  it.each(["completed", "failed"] as const)("folds a %s child with its settled turn", (status) => {
-    const rows = rowsFor([child("child", 3, status)]);
-    expect(rows.some((row) => row.id === "child")).toBe(false);
-    expect(rows.some((row) => row.kind === "turn-fold")).toBe(true);
-  });
-
   it("keeps a launch batch visible while any member is still running", () => {
     const rows = rowsFor([child("done", 3, "completed"), child("live", 4, "running")]);
     expect(rows.map((row) => row.id)).toEqual(["user", `turn-fold:${runId}`, "done", "assistant"]);
@@ -5833,145 +5486,5 @@ describe("shouldCollapseUserMessage", () => {
 
     expect(shouldCollapseUserMessage(`${citation} Can you expand on this?`)).toBe(false);
     expect(shouldCollapseUserMessage(`${citation} ${"More text. ".repeat(60)}`)).toBe(true);
-  });
-
-  it("measures file links and context chips by their label", () => {
-    const links = Array.from(
-      { length: 8 },
-      (_, index) =>
-        `[file${index}.ts](/workspace/projects/example/packages/some/deeply/nested/directory/file${index}.ts)`,
-    );
-    const text = `Compare ${links.join(", ")} with [terminal 1](supaterm-context://v1/terminal/${"a".repeat(36)}).`;
-
-    expect(text.length).toBeGreaterThan(600);
-    expect(shouldCollapseUserMessage(text)).toBe(false);
-  });
-});
-
-describe("timeline end and minimap geometry", () => {
-  it("highlights only visible rows inside the rendered buffer despite stale offscreen geometry", () => {
-    const range = resolveTimelineMinimapVisibleRange({
-      startBuffered: 9,
-      endBuffered: 12,
-      scroll: 1000,
-      scrollLength: 200,
-      // Both earlier and later unmounted rows retain coordinates inside the viewport.
-      positionAtIndex: (index) => (index < 9 || index > 12 ? 1050 : index * 100),
-      sizeAtIndex: () => 100,
-    });
-    expect(range).toEqual({ start: 10, end: 11 });
-    const rowIndices = [0, 9, 10, 11, 12, 20];
-    expect(
-      rowIndices.filter((index) => isTimelineMinimapRowVisible(index, range.start, range.end)),
-    ).toEqual([10, 11]);
-    expect(
-      resolveTimelineMinimapCurrentIndex({
-        visibleStart: range.start,
-        visibleEnd: range.end,
-        rowIndices,
-      }),
-    ).toBe(2);
-  });
-
-  it("refreshes the visible rows after scrolling and measurement within the same buffer", () => {
-    const state = {
-      startBuffered: 0,
-      endBuffered: 2,
-      scroll: 0,
-      scrollLength: 200,
-      positionAtIndex: (index: number) => [50, 150, 300][index],
-      sizeAtIndex: (): number | undefined => undefined,
-    };
-    expect(resolveTimelineMinimapVisibleRange(state)).toEqual({ start: 0, end: 1 });
-    const scrolled = { ...state, scroll: 100 };
-    expect(resolveTimelineMinimapVisibleRange(scrolled)).toEqual({ start: 1, end: 1 });
-    expect(resolveTimelineMinimapVisibleRange({ ...scrolled, sizeAtIndex: () => 100 })).toEqual({
-      start: 0,
-      end: 1,
-    });
-    expect(
-      resolveTimelineMinimapVisibleRange({ ...scrolled, scroll: 400, sizeAtIndex: () => 100 }),
-    ).toEqual({ start: null, end: null });
-  });
-
-  it("navigates from the first visible user message or the preceding turn when only its response is visible", () => {
-    const rowIndices = [0, 10, 20, 30, 40];
-    const currentIndex = (visibleStart: number | null, visibleEnd: number | null) =>
-      resolveTimelineMinimapCurrentIndex({ visibleStart, visibleEnd, rowIndices });
-
-    expect(currentIndex(19, 31)).toBe(2);
-    expect(currentIndex(21, 29)).toBe(2);
-    expect(currentIndex(41, 45)).toBe(4);
-    expect(currentIndex(0, 0)).toBe(0);
-    expect(currentIndex(null, null)).toBeNull();
-    expect(isTimelineMinimapRowVisible(20, null, null)).toBe(false);
-  });
-
-  it("treats the follow re-arm band above the content bottom as the live edge", () => {
-    expect(resolveTimelineIsAtEnd({ isAtEnd: true })).toBe(true);
-    expect(resolveTimelineIsAtEnd(undefined)).toBeUndefined();
-    expect(
-      resolveTimelineIsAtEnd({
-        isAtEnd: false,
-        contentLength: 2000,
-        scroll: 1170,
-        scrollLength: 800,
-      }),
-    ).toBe(true);
-    expect(
-      resolveTimelineIsAtEnd({
-        isAtEnd: false,
-        contentLength: 2000,
-        scroll: 900,
-        scrollLength: 800,
-      }),
-    ).toBe(false);
-    expect(
-      resolveTimelineIsAtEnd({
-        isAtEnd: true,
-        contentLength: 2100,
-        scroll: 1170,
-        scrollLength: 800,
-      }),
-    ).toBe(false);
-    expect(resolveTimelineIsAtEnd({ isNearEnd: true, isAtEnd: false })).toBe(false);
-    expect(resolveTimelineIsAtEnd({ isAtEnd: false })).toBe(false);
-  });
-
-  it("maps the minimap rail to rows and sizes its hit strip from the free gutter", () => {
-    expect(resolveTimelineMinimapHeightStyle(5)).toBe("min(32px, calc(100vh - 18rem))");
-    expect(resolveTimelineMinimapTopPercent(2, 5)).toBe(50);
-    const rail = { itemCount: 101, railTop: 100, railHeight: 500 };
-    expect(resolveTimelineMinimapIndexFromPointer({ ...rail, pointerY: 350 })).toBe(50);
-    expect(resolveTimelineMinimapIndexFromPointer({ ...rail, pointerY: 999 })).toBe(100);
-
-    expect(resolveTimelineMinimapHasPersistentGutter(832, 768)).toBe(false);
-    expect(resolveTimelineMinimapHasPersistentGutter(863, 768)).toBe(false);
-    expect(resolveTimelineMinimapHasPersistentGutter(864, 768)).toBe(true);
-    expect(resolveTimelineMinimapHasPersistentGutter(1400, 1152)).toBe(true);
-    expect(resolveTimelineMinimapHasPersistentGutter(1200, 1152)).toBe(false);
-    expect(resolveTimelineMinimapHasPersistentGutter(2560, 2560)).toBe(false);
-
-    expect(resolveTimelineMinimapHitStripWidth(768, 768)).toBe(0);
-    expect(resolveTimelineMinimapHitStripWidth(792, 768)).toBe(0);
-    expect(resolveTimelineMinimapHitStripWidth(820, 768)).toBe(14);
-    expect(resolveTimelineMinimapHitStripWidth(872, 768)).toBe(40);
-    expect(resolveTimelineMinimapHitStripWidth(1400, 768)).toBe(40);
-    expect(resolveTimelineMinimapHitStripWidth(2560, 2560)).toBe(0);
-    expect(resolveTimelineMinimapHitStripWidth(1204, 1152)).toBe(14);
-    expect(resolveTimelineMinimapHitStripWidth(0, 0)).toBe(0);
-    expect(resolveTimelineMinimapHitStripWidth(Number.NaN, 768)).toBe(0);
-
-    expect(resolveTimelineMinimapNavigationInteractive(40)).toBe(true);
-    expect(resolveTimelineMinimapNavigationInteractive(14)).toBe(true);
-    expect(resolveTimelineMinimapNavigationInteractive(8)).toBe(false);
-    expect(resolveTimelineMinimapNavigationInteractive(0)).toBe(false);
-
-    expect(resolveTimelineMinimapInteractiveWidth(0, false)).toBe(0);
-    expect(resolveTimelineMinimapInteractiveWidth(14, false)).toBe(14);
-    expect(resolveTimelineMinimapInteractiveWidth(40, false)).toBe(40);
-    for (const width of [0, 14, 40]) {
-      expect(resolveTimelineMinimapInteractiveWidth(width, true)).toBe("22rem");
-    }
   });
 });

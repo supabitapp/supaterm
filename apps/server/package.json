@@ -1,6 +1,6 @@
 {
   "name": "supaterm",
-  "version": "26.10.4",
+  "version": "26.10.5",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -16,10 +16,11 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch --watch-path=src --watch-path=../../packages src/bin.ts",
+    "dev:built": "vp run dev",
     "build:bundle": "vp pack",
     "build:exe": "node scripts/cli.ts build-exe",
     "start": "node dist/bin.mjs",
-    "typecheck": "tsc-rs --noEmit",
+    "typecheck": "tsc --noEmit",
     "test": "vp test run",
     "record:codex-replay": "bun scripts/record-codex-app-server-replay-fixture.ts",
     "record:claude-replay": "bun scripts/record-claude-agent-sdk-replay-fixture.ts",
@@ -54,7 +55,7 @@
     "@supaterm/source-control-gitlab": "workspace:*",
     "effect": "catalog:",
     "jose": "catalog:",
-    "node-pty": "^1.2.0-beta.15",
+    "node-pty": "1.2.0-beta.15",
     "playwright-core": "1.60.0",
     "proper-lockfile": "4.1.2",
     "stream-chain": "^4.2.5",

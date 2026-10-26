@@ -1,3 +1,5 @@
+import { useActiveNewTask } from "../../state/active-new-task";
+import { ThreadUndoNotice } from "../home/ThreadUndoNotice";
 import { useThreadListV2Layout } from "./use-thread-list-v2-layout";
 import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
 import { resolveScratchProjectScopeKey } from "@supaterm/client-runtime/state/project-grouping";
@@ -185,6 +187,7 @@ function ThreadNavigationSidebarPane(
     regenerateThreadTitle,
   } = useThreadListActions();
   const pendingTasks = usePendingNewTasks();
+  const activeNewTask = useActiveNewTask();
   const queuedThreadKeys = useQueuedThreadKeys();
   const { confirmDeletePendingTask } = usePendingTaskListActions();
   const environments = Object.values(savedConnectionsById)
@@ -316,6 +319,7 @@ function ThreadNavigationSidebarPane(
     now: new Date().toISOString(),
   }));
   if (listClock.nowMinute !== nowMinute || listClock.snoozeWakeTick !== snoozeWakeTick) {
+    // oxlint-disable-next-line react/purity -- Resamples the clock only when the minute or a snooze wake changes; the sample lives in state.
     setListClock({ nowMinute, snoozeWakeTick, now: new Date().toISOString() });
   }
   const listEnvironments = useAtomValue(threadListEnvironmentsAtom);
@@ -387,18 +391,16 @@ function ThreadNavigationSidebarPane(
     });
     return items;
   })();
-  const { actions: listMenuActions, onPressAction: handleListMenuAction } = useThreadListFilterMenu(
-    {
-      environments,
-      projects: projectFilterOptions,
-      selectedEnvironmentId: options.selectedEnvironmentId,
-      selectedProjectKey,
-      onEnvironmentChange: setSelectedEnvironmentId,
-      onProjectChange: setSelectedProjectKey,
-      grouping: options.threadGrouping,
-      onGroupingChange: setThreadGrouping,
-    },
-  );
+  const threadFilterMenu = useThreadListFilterMenu({
+    environments,
+    projects: projectFilterOptions,
+    selectedEnvironmentId: options.selectedEnvironmentId,
+    selectedProjectKey,
+    onEnvironmentChange: setSelectedEnvironmentId,
+    onProjectChange: setSelectedProjectKey,
+    grouping: options.threadGrouping,
+    onGroupingChange: setThreadGrouping,
+  });
 
   const [measuredHeaderHeight, setMeasuredHeaderHeight] = useState<number | null>(null);
   const { height, paddingTop, paddingBottom } = useToolbarLayout();
@@ -459,6 +461,7 @@ function ThreadNavigationSidebarPane(
   // clock deliberately stays out: its per-row text lives on the items, so a
   // tick only re-renders rows whose displayed text actually moved.
   const listExtraData = {
+    activeNewTask,
     selectedThreadKey: props.selectedThreadKey ?? "",
     projectByKey,
     projectScopes,
@@ -506,6 +509,14 @@ function ThreadNavigationSidebarPane(
         return (
           <ThreadListV2PendingRow
             pendingTask={item.pendingTask}
+            selected={
+              activeNewTask?.pendingKey === item.pendingTask.key ||
+              (item.pendingTask.kind === "pending" &&
+                scopedThreadKey(
+                  item.pendingTask.environmentId,
+                  item.pendingTask.message.threadId,
+                ) === props.selectedThreadKey)
+            }
             project={projectByKey.get(pendingScopeKey) ?? null}
             projectTitle={projectTitleByProjectKey.get(pendingScopeKey)}
             environmentLabel={
@@ -536,6 +547,7 @@ function ThreadNavigationSidebarPane(
             hasQueuedMessages={item.hasQueuedMessages}
             snoozed={item.item.snoozed}
             pinned={item.item.pinned}
+            wokeAt={item.item.wokeAt}
             snoozePresetMinute={item.snoozePresetMinute ?? ""}
             snoozeWakeLabelText={item.snoozeWakeLabelText}
             timeLabel={item.timeLabel}
@@ -558,7 +570,10 @@ function ThreadNavigationSidebarPane(
             )}
             searchQuery={props.searchQuery}
             pane="sidebar"
-            selected={scopedThreadKey(thread.environmentId, thread.id) === props.selectedThreadKey}
+            selected={
+              !activeNewTask &&
+              scopedThreadKey(thread.environmentId, thread.id) === props.selectedThreadKey
+            }
             fullSwipeWidth={props.width - 20}
             onSelectThread={handleSelectThread}
             onOpenThreadPullRequests={handleOpenThreadPullRequests}
@@ -671,8 +686,7 @@ function ThreadNavigationSidebarPane(
       {renderListItemContent(itemProps)}
     </Animated.View>
   );
-  const filterCustomized = options.selectedEnvironmentId !== null || selectedProjectKey !== null;
-  const filterIcon = filterCustomized
+  const filterIcon = threadFilterMenu.customized
     ? "line.3.horizontal.decrease.circle.fill"
     : "line.3.horizontal.decrease.circle";
   const filterMenu = buildHomeListFilterMenu({
@@ -786,6 +800,7 @@ function ThreadNavigationSidebarPane(
               />
             </GestureDetector>
           </SwipeableScrollGateProvider>
+          <ThreadUndoNotice visible={props.visible} />
         </View>
       </>
     );
@@ -867,9 +882,7 @@ function ThreadNavigationSidebarPane(
           onLayout={handleStickyHeaderLayout}
           searchQuery={props.searchQuery}
           onSearchQueryChange={props.onSearchQueryChange}
-          filterActions={listMenuActions}
-          filterCustomized={filterCustomized}
-          onFilterAction={handleListMenuAction}
+          filterMenu={threadFilterMenu}
           onOpenSettings={props.onOpenSettings}
           onOpenEnvironments={props.onOpenEnvironmentSettings}
           onRequestVisibility={props.onRequestVisibility}
@@ -893,7 +906,10 @@ function ThreadNavigationSidebarPane(
               brand={<CompactBrandTitle allowFontScaling={false} />}
             />
             <View className="flex-row items-center gap-2.5">
-              <Menu actions={listMenuActions} onPressAction={handleListMenuAction}>
+              <Menu
+                actions={threadFilterMenu.actions}
+                onPressAction={threadFilterMenu.onPressAction}
+              >
                 <SidebarFilterButton accessibilityLabel="Filter threads" icon={filterIcon} />
               </Menu>
               <SidebarHeaderActions onOpenSettings={props.onOpenSettings} />
@@ -926,6 +942,7 @@ function ThreadNavigationSidebarPane(
           </View>
         </View>
       )}
+      <ThreadUndoNotice visible={props.visible} />
     </View>
   );
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   detectComposerTrigger,
+  extendReplacementRangeForTrailingSpace,
   replaceTextRange,
   serializeComposerFileLink,
 } from "./composerTrigger.ts";
@@ -164,6 +165,28 @@ describe("detectComposerTrigger", () => {
       rangeEnd: cursorAfterQuery,
     });
   });
+
+  it.each([
+    "It costs $5",
+    "budget $9.99",
+    "only $.99",
+    "about €20",
+    "raise $10k",
+    "$1,000",
+    "£2e6",
+    "raise $10k.",
+    "is it $5?",
+    "(about $9.99)",
+  ])("does not open the skill menu for the amount in %j", (text) =>
+    expect(detectComposerTrigger(text, text.length)).toBeNull(),
+  );
+
+  it.each(["$", "$1password", "$2fa"])("still detects the skill prefix %j", (text) => {
+    expect(detectComposerTrigger(text, text.length)).toMatchObject({
+      kind: "skill",
+      query: text.slice(1),
+    });
+  });
 });
 
 describe("replaceTextRange", () => {
@@ -176,13 +199,16 @@ describe("replaceTextRange", () => {
   });
 });
 
-describe("serializeComposerFileLink", () => {
-  it("uses the basename as the markdown label", () => {
-    expect(serializeComposerFileLink("path/to/package.json")).toBe(
-      "[package.json](path/to/package.json)",
-    );
+describe("extendReplacementRangeForTrailingSpace", () => {
+  it("swallows one existing space after the range when the replacement ends with one", () => {
+    expect(extendReplacementRangeForTrailingSpace("@fi rest", 3, "@file ")).toBe(4);
+    expect(extendReplacementRangeForTrailingSpace("@firest", 3, "@file ")).toBe(3);
+    expect(extendReplacementRangeForTrailingSpace("@fi rest", 3, "@file")).toBe(3);
+    expect(extendReplacementRangeForTrailingSpace("@fi", 3, "@file ")).toBe(3);
   });
+});
 
+describe("serializeComposerFileLink", () => {
   it("encodes markdown-sensitive destination characters", () => {
     expect(serializeComposerFileLink("docs/My File (draft).md")).toBe(
       "[My File (draft).md](docs/My%20File%20%28draft%29.md)",

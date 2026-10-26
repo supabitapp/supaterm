@@ -15,8 +15,9 @@ and modes you choose in a draft keep their permissions.
 | **Auto**              | Uses the provider's automatic review to approve routine actions and ask about others. |
 | **Full access**       | Allows commands and edits without approval prompts.                                   |
 
-Approve or reject requests in the conversation to let the agent continue. Permission modes do
-not prevent the agent from asking questions about the task.
+Approve or reject requests in the conversation to let the agent continue. You can also send a
+message instead: it declines the waiting requests and redirects the agent with your message.
+Permission modes do not prevent the agent from asking questions about the task.
 
 Unanswered Codex and Claude questions close automatically after two minutes. The question
 shows its remaining time, with a warning in the final 20 seconds. Start typing or select an
@@ -40,8 +41,10 @@ session-wide choice, because Grok would remember that command for the whole proj
 ACP Registry agents run their own tools in their own mode; Supaterm answers their approval requests
 by the permission mode. See [ACP Registry permissions](./providers-acp.md#permissions-and-terminals).
 
-Claude can still ask in **Full access** when its settings disable bypass permissions or require
-approval for an action.
+Claude can still ask in **Full access** when its settings disable bypass permissions or an ask rule
+matches the action, and for a few safety checks of its own that no setting skips. The approval
+shows Claude's reason when it gives one, and **Why am I being asked this?** explains which case
+applies.
 
 Antigravity can still send native approval requests in **Full access**. It only offers remembered
 approvals for actions that support them.

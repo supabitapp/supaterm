@@ -81,6 +81,14 @@ The workarounds live in the [web entry](../../apps/web/src/bootstrap.ts),
 [Tailwind plugin](../../apps/web/vite/tailwind.ts), and
 [startup warmup](../../apps/web/vite/warmBundledDev.ts).
 
+`vp run dev --share --built` skips the Vite dev server. It runs `vp build --watch` for the web
+app, and the backend serves `apps/web/dist` on the same tailnet URL and pairing flow. Use it when
+someone tests over a slow link or only needs to use the app: loads are production size, and the
+first load does not wait for dev bundling. There is no HMR. After an edit, wait for the
+`built in` line (about 6 s), then reload. Until the first build exists, the URL shows a page that
+reloads by itself. The license manifest is not generated in this mode. `--built` requires
+`--share` and the `dev` mode.
+
 #### Reusable dev credential
 
 Use this only on a hostname where you trust every service. Browsers send cookies to all ports
@@ -123,7 +131,15 @@ for the security model.
 
 ## Checks
 
-Run checks for the files and packages you changed:
+`vp run check:changed` runs CI's fast checks for your branch's changes: format and lint of the
+changed files, `knip:check` when code or a manifest changes, the generated GraphQL checks, typecheck
+of the affected packages and their dependents, and the test files beside the changed files. It maps
+files to packages with [changed-packages.ts](../../scripts/lib/changed-packages.ts) and compares
+against the merge base with `origin/main`, or with a ref you pass. A changed `package.json` or a path
+the mapping does not recognize affects every package. CI still runs the full test suites and the
+jobs the summary lists, so a local pass does not promise a green CI run.
+
+While you iterate, run single checks:
 
 ```sh
 vp test run <files>
@@ -136,11 +152,9 @@ and runs in headless Chromium with the React Compiler on, like the app. There is
 `*.test.ts` files run in Node. Install the browser once with
 `node apps/web/node_modules/playwright/cli.js install --only-shell chromium`.
 
-TypeScript workspaces typecheck with tsc-rs, which has Effect diagnostics built in.
-Keep `typescript`, `@effect/tsgo`, and the `effect-tsgo patch` prepare step: editors
-still use them for Effect quick fixes and refactors. Keep `@effect/tsgo` on the
-effect-tsgo version that tsc-rs ports (see the tsc-rs README), or the two disagree
-on rule names.
+TypeScript workspaces typecheck with `tsc`. The `typescript` catalog entry is
+`@tsc-rs/typescript`, the tsc-rs drop-in, with Effect diagnostics, quick fixes, and
+refactors built in. VS Code uses it through `js/ts.tsdk.path` in `.vscode/settings.json`.
 Marketing keeps `astro check` for Astro files.
 
 Use `vp run lint:mobile` for native mobile changes. CI owns the full suite; see

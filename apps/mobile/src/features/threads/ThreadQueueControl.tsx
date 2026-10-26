@@ -82,7 +82,8 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
   const [translation] = useState(() => new Animated.Value(0));
   const reducedMotion = useReducedMotionPreference();
   const queuedRuns = workflow?.queuedRuns ?? [];
-  const canSteerQueuedMessages = workflow?.canPromoteToSteer === true;
+  const canSendNow = workflow?.canSendNow === true;
+  const canSendQueuedMessages = workflow?.canPromoteToSteer === true || canSendNow;
   const showResume = workflow?.isHeld === true && queuedRuns.length > 0;
   const sheetHeight = contentHeight + (showResume ? footerHeight : 0);
   const order = queuedRuns.map(({ run }) => run.id).join(",");
@@ -169,6 +170,8 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
     void Haptics.selectionAsync();
     if (action === "remove") {
       await cancel(buildCancelQueuedRunCommand({ ...target, runId }));
+    } else if (workflow?.canSendNow) {
+      await resume({ ...target, input: { threadId: target.threadId, runId } });
     } else if (workflow?.activeRun && workflow.canPromoteToSteer) {
       await promote({
         ...target,
@@ -222,8 +225,8 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
           </View>
           {canOperate ? (
             <Text className="text-sm text-foreground-muted">
-              {canSteerQueuedMessages
-                ? "Tap to edit · Steer or swipe for more"
+              {canSendQueuedMessages
+                ? `Tap to edit · ${canSendNow ? "Send now" : "Steer"} or swipe for more`
                 : "Tap to edit · Swipe for actions"}
             </Text>
           ) : null}
@@ -260,6 +263,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
           canOperate,
           busy: busyRunId !== null || draggedRunId !== null,
           canPromoteToSteer: workflow?.canPromoteToSteer ?? false,
+          canSendNow,
           canReorder: workflow?.canReorder ?? false,
           index,
           isEditing: editing?.runId === run.id,
@@ -373,13 +377,15 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
                       title={title}
                       attachments={attachments}
                       controls={controls}
-                      canPromoteToSteer={canSteerQueuedMessages}
+                      canPromoteToSteer={workflow?.canPromoteToSteer ?? false}
+                      canSendNow={canSendNow}
                       onAction={(action) => void act(run.id, action)}
                     />
                   </View>
-                  {canSteerQueuedMessages ? (
-                    <QueueSteerButton
-                      canSteer={controls.canSteer}
+                  {canSendQueuedMessages ? (
+                    <QueueSendButton
+                      canSend={controls.canSend}
+                      sendsNow={canSendNow}
                       onPress={() => void act(run.id, "steer")}
                     />
                   ) : null}
@@ -514,14 +520,22 @@ function QueueRowSwipeable(props: {
   );
 }
 
-function QueueSteerButton(props: { readonly canSteer: boolean; readonly onPress: () => void }) {
+function QueueSendButton(props: {
+  readonly canSend: boolean;
+  readonly sendsNow: boolean;
+  readonly onPress: () => void;
+}) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Steer with queued message"
-      accessibilityHint="Send this queued message to the active turn"
-      accessibilityState={{ disabled: !props.canSteer }}
-      disabled={!props.canSteer}
+      accessibilityLabel={props.sendsNow ? "Send queued message now" : "Steer with queued message"}
+      accessibilityHint={
+        props.sendsNow
+          ? "Start a turn with this message"
+          : "Send this queued message to the active turn"
+      }
+      accessibilityState={{ disabled: !props.canSend }}
+      disabled={!props.canSend}
       onPress={props.onPress}
       className="min-h-16 items-center justify-center border-l border-border bg-subtle px-2 active:opacity-70"
       style={{ width: QUEUE_ACTION_WIDTH }}
@@ -529,16 +543,16 @@ function QueueSteerButton(props: { readonly canSteer: boolean; readonly onPress:
       <SymbolView
         name="arrow.turn.left.up"
         size={16}
-        tintColorClassName={props.canSteer ? "accent-primary-text" : "accent-foreground-muted"}
+        tintColorClassName={props.canSend ? "accent-primary-text" : "accent-foreground-muted"}
       />
       <Text
         className={
-          props.canSteer
+          props.canSend
             ? "pt-1 text-2xs font-supaterm-medium text-primary-text"
             : "pt-1 text-2xs font-supaterm-medium text-foreground-muted"
         }
       >
-        Steer
+        {props.sendsNow ? "Send now" : "Steer"}
       </Text>
     </Pressable>
   );

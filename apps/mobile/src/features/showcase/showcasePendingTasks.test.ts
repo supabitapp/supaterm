@@ -66,7 +66,3 @@ it("builds sendable-looking pending tasks against real showcase projects", () =>
     true,
   );
 });
-
-it("waits until every referenced project has hydrated", () => {
-  assert.equal(buildShowcasePendingTasks(projects.slice(0, 1), Date.now()).length, 1);
-});

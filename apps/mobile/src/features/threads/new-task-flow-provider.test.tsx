@@ -52,10 +52,9 @@ vi.mock("@react-navigation/native", () => ({
     goBack: transport.goBack,
     canGoBack: () => true,
   }),
-  useIsFocused: () => true,
 }));
-vi.mock("../layout/AdaptiveWorkspaceLayout", () => ({
-  useAdaptiveWorkspaceLayout: () => ({ panes: { primarySidebarVisible: false } }),
+vi.mock("../home/home-thread-navigation", () => ({
+  useHomeThreadRouteSelection: () => (params: object) => transport.navigate("Thread", params),
 }));
 vi.mock("../../state/shell", () => ({ environmentShell: {} }));
 vi.mock("../../state/entities", () => ({
@@ -88,6 +87,7 @@ vi.mock("../../state/query", () => ({
 }));
 vi.mock("../../state/vcs", () => ({ vcsEnvironment: { status: () => null } }));
 vi.mock("../../state/queries", () => ({
+  useBranches: () => ({ data: null }),
   useDebouncedValue: (value: string) => value,
   usePaginatedBranches: () => ({
     refs: [],
@@ -391,6 +391,26 @@ describe("pending task editor dismissal", () => {
     expect(transport.removePendingTask).not.toHaveBeenCalled();
     expect(vi.mocked(Alert.alert).mock.calls.at(-1)?.[0]).toBe("Pending task is open");
     expect(flow.prompt).toBe(pendingTask.text);
+  });
+
+  // The next draft resets the shared flow before this editor's cleanup runs.
+  it("saves an edited pending task when the next draft resets the flow", async () => {
+    await act(() => flow.setPrompt("Changed prompt"));
+    await act(() => flow.reset());
+
+    expect(flow.editingPendingTask).toBeNull();
+    expect(transport.editorWrite).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.objectContaining({ text: "Changed prompt" }) }),
+    );
+  });
+
+  it("keeps a cleared pending task held when the next draft resets the flow", async () => {
+    await act(() => flow.setPrompt(""));
+    await act(() => flow.reset());
+
+    expect(flow.editingPendingTask).toBeNull();
+    expect(transport.editorWrite).not.toHaveBeenCalled();
+    expect(appAtomRegistry.get(editingQueuedMessageIdsAtom)[pendingTask.messageId]).toBe("paused");
   });
 
   it("reopens retained edits after a failed save", async () => {

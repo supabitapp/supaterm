@@ -37,6 +37,7 @@ import { usePullRequestChecksRefresh } from "~/hooks/usePullRequestChecksRefresh
 import { cn } from "~/lib/utils";
 import { useServerConfigs } from "~/state/entities";
 import { pullRequestEnvironment } from "~/state/pullRequests";
+import { useUiStateStore } from "~/uiStateStore";
 import {
   useEnvironmentQueryIsNewer,
   useEnvironmentQueryRefresh,
@@ -49,7 +50,7 @@ import {
   classifyPullRequestChecks,
   describePullRequestChecks,
   isPullRequestConflicting,
-  resolveSelectedMergeMethod,
+  resolvePullRequestMergeMethod,
   allowedPullRequestMergeMethods,
   resolveThreadPanelPullRequestAction,
 } from "../pullRequest/pullRequestDetail.logic";
@@ -62,6 +63,7 @@ import {
 } from "../pullRequest/pullRequestPresentation";
 import {
   usePullRequestActionRunner,
+  usePullRequestDefaultMergeMethod,
   usePullRequestHandoffs,
 } from "../pullRequest/usePullRequestActions";
 import {
@@ -170,6 +172,11 @@ export function ThreadDetailsPrRow({
     },
   });
   const { handoff, startHandoff } = usePullRequestHandoffs({ environmentId, detail });
+  const lastSelectedMergeMethod = useUiStateStore((state) => state.pullRequestMergeMethod);
+  const projectDefaultMergeMethod = usePullRequestDefaultMergeMethod(
+    environmentId,
+    (project?.id as ProjectId | undefined) ?? null,
+  );
   const confirm = useInlineConfirm<"merge">();
 
   const rowAction = resolveThreadPanelPullRequestAction(detail);
@@ -178,9 +185,11 @@ export function ThreadDetailsPrRow({
   // Checks stop refreshing once the pull request is no longer open, so jobs that start on merge or
   // close would otherwise show as pending forever.
   const checksRollup = detail?.state === "open" ? pullRequestChecksState(detail.checks) : null;
-  const selectedMergeMethod = resolveSelectedMergeMethod(
+  const selectedMergeMethod = resolvePullRequestMergeMethod(
     allowedPullRequestMergeMethods(detail),
-    "merge",
+    null,
+    projectDefaultMergeMethod,
+    lastSelectedMergeMethod,
   );
 
   const startResolveConflicts = () => {

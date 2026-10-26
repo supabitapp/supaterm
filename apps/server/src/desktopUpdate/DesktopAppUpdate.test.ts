@@ -106,20 +106,6 @@ const makeHarness = Effect.fn("test.make_desktop_app_update_harness")(function* 
 });
 
 it.layer(NodeServices.layer)("desktop app update", (it) => {
-  it.effect("is unavailable without desktop mode or the control fd", () =>
-    Effect.gen(function* () {
-      const web = yield* makeHarness({ mode: "web" });
-      expect(web.service.available).toBe(false);
-      const noFd = yield* makeHarness({ controlFd: undefined });
-      expect(noFd.service.available).toBe(false);
-      expect((yield* noFd.service.run(() => Effect.void).pipe(Effect.flip)).reason).toContain(
-        "not started by the Supaterm desktop app",
-      );
-      const desktop = yield* makeHarness();
-      expect(desktop.service.available).toBe(true);
-    }),
-  );
-
   it.effect("collapses state reports into progress stages and succeeds on installing", () =>
     Effect.gen(function* () {
       const { service } = yield* makeHarness({

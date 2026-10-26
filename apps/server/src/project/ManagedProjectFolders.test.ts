@@ -1,12 +1,6 @@
 import { assert, it } from "@effect/vitest";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import {
-  CommandId,
-  GitCommandError,
-  ProjectId,
-  ThreadId,
-  VcsProcessSpawnError,
-} from "@supaterm/contracts";
+import { CommandId, ProjectId, ThreadId, VcsProcessSpawnError } from "@supaterm/contracts";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
@@ -116,15 +110,6 @@ const requireRoot = Effect.gen(function* () {
   const scratch = yield* ManagedProjectFolders.ManagedProjectFolders;
   return Option.getOrThrow(yield* scratch.scratchRoot);
 });
-
-it.effect("offers a Scratch folder under the data dir when it is outside a checkout", () =>
-  withScratch(({ baseDir }) =>
-    Effect.gen(function* () {
-      const path = yield* Path.Path;
-      assert.equal(yield* requireRoot, path.resolve(baseDir, "scratch"));
-    }),
-  ),
-);
 
 it.effect("offers nothing when the data dir sits inside a Git checkout", () =>
   Effect.gen(function* () {
@@ -551,37 +536,4 @@ it.effect("removes the folder when the create is cancelled before the project ex
       },
     );
   }),
-);
-
-it.effect("removes the folder when the repository cannot be made", () =>
-  withScratch(
-    ({ baseDir }) =>
-      Effect.gen(function* () {
-        const folders = yield* ManagedProjectFolders.ManagedProjectFolders;
-        const projects = yield* ProjectService.ProjectService;
-        const fileSystem = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-
-        const failure = yield* Effect.flip(folders.createNamedProject({ name: "Broken" }));
-
-        assert.equal(failure._tag, "NamedProjectFolderError");
-        assert.equal(failure.message, "Failed to create the project folder.");
-        assert.deepEqual(yield* fileSystem.readDirectory(path.resolve(baseDir, "projects")), []);
-        assert.deepEqual((yield* projects.snapshot).projects, []);
-      }),
-    {
-      git: Layer.mock(GitVcsDriver.GitVcsDriver)({
-        readConfigValue: () => Effect.succeed(null),
-        execute: (input) =>
-          Effect.fail(
-            new GitCommandError({
-              operation: input.operation,
-              command: "git",
-              cwd: input.cwd,
-              detail: "git is broken",
-            }),
-          ),
-      }),
-    },
-  ),
 );

@@ -1651,7 +1651,7 @@ code,
      custom property, so without this a task-list under a multi-digit ordered
      list would inherit the outer gutter instead of its own default. */
   --list-gutter: 1.25rem;
-  padding-left: 1.25rem;
+  padding-inline-start: 1.25rem;
   list-style-type: disc;
 }
 
@@ -1662,7 +1662,7 @@ code,
    nested ol without its own widened marker doesn't inherit the outer one. */
 :is(.chat-markdown, .composer-tiptap) ol {
   --list-gutter: 1.25rem;
-  padding-left: var(--list-gutter, 1.25rem);
+  padding-inline-start: var(--list-gutter, 1.25rem);
   list-style-type: decimal;
 }
 
@@ -1715,7 +1715,7 @@ code,
 }
 
 .composer-tiptap ul {
-  padding-left: max(1.25rem, 2ch);
+  padding-inline-start: max(1.25rem, 2ch);
 }
 
 :is(.chat-markdown, .composer-tiptap) ul ul {
@@ -1744,7 +1744,8 @@ code,
 }
 
 .chat-markdown li.task-list-item input[type="checkbox"] {
-  margin: 0 0.35em 0.15em calc(-1 * var(--list-gutter, 1.25rem));
+  margin-block: 0 0.15em;
+  margin-inline: calc(-1 * var(--list-gutter, 1.25rem)) 0.35em;
   vertical-align: middle;
 }
 
@@ -1758,13 +1759,23 @@ code,
   text-decoration: none;
 }
 
-/* File links are Chips and own their color and focus ring. */
-.chat-markdown a:not(.chat-markdown-file-link) {
+/* File links and context chips own their color and focus ring. */
+.chat-markdown a:not(.chat-markdown-file-link, :has([data-slot="context-chip-label"])) {
   color: var(--info-foreground);
 }
 
-.chat-markdown a:not(.chat-markdown-file-link, [data-markdown-image-link]):hover,
-.chat-markdown a:not(.chat-markdown-file-link, [data-markdown-image-link]):focus-visible {
+.chat-markdown
+  a:not(
+    .chat-markdown-file-link,
+    :has([data-slot="context-chip-label"]),
+    [data-markdown-image-link]
+  ):hover,
+.chat-markdown
+  a:not(
+    .chat-markdown-file-link,
+    :has([data-slot="context-chip-label"]),
+    [data-markdown-image-link]
+  ):focus-visible {
   background-image: radial-gradient(circle, currentcolor 0.75px, transparent 1px);
   background-position: left bottom;
   background-repeat: repeat-x;
@@ -1772,8 +1783,8 @@ code,
 }
 
 :is(.chat-markdown, .composer-tiptap) blockquote {
-  border-left: 2px solid var(--contrast-border);
-  padding-left: 0.8rem;
+  border-inline-start: 2px solid var(--contrast-border);
+  padding-inline-start: 0.8rem;
   color: var(--contrast-muted-foreground);
 }
 
@@ -1925,7 +1936,7 @@ code,
 .chat-markdown th,
 .chat-markdown td {
   padding: 0.45rem 0.75rem;
-  text-align: left;
+  text-align: start;
 }
 
 .chat-markdown thead th {
@@ -2194,7 +2205,7 @@ code,
 }
 
 .composer-tiptap ul[data-type="taskList"] ul[data-type="taskList"] {
-  padding-left: 1.375rem;
+  padding-inline-start: 1.375rem;
 }
 
 .composer-tiptap li[data-checked] {

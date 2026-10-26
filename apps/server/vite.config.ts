@@ -2,6 +2,7 @@ import "vite-plus/test/config";
 import { defineConfig, mergeConfig } from "vite-plus";
 
 import baseConfig from "../../vite.config.ts";
+import { SEA_NODE_VERSION } from "./scripts/seaNodeVersion.ts";
 import { WeightedShardSequencer } from "./src/testUtils/weightedShardSequencer.ts";
 
 // NSIS install time tracks file count, not bytes.
@@ -25,7 +26,6 @@ if (!TELEMETRY_CHANNELS.includes(telemetryChannel)) {
 // executable needs a host Node that supports `--build-sea` (25.7+), so this is
 // a separate mode rather than a second entry in the default build.
 const packExecutable = process.env.SUPATERM_PACK_EXE === "1";
-const SEA_NODE_VERSION = "26.12.1";
 const SEA_TARGETS = {
   "darwin-arm64": { platform: "darwin", arch: "arm64" },
   "darwin-x64": { platform: "darwin", arch: "x64" },
@@ -35,6 +35,11 @@ const SEA_TARGETS = {
   "win-x64": { platform: "win", arch: "x64" },
 } as const;
 const packExecutableTarget = process.env.SUPATERM_PACK_EXE_TARGET?.trim();
+if (packExecutable && !packExecutableTarget && process.versions.node !== SEA_NODE_VERSION) {
+  throw new Error(
+    `Native CLI executables must be built with Node ${SEA_NODE_VERSION}; running ${process.versions.node}.`,
+  );
+}
 if (packExecutableTarget && !Object.hasOwn(SEA_TARGETS, packExecutableTarget)) {
   throw new Error(
     `SUPATERM_PACK_EXE_TARGET must be one of ${Object.keys(SEA_TARGETS).join(", ")}, got "${packExecutableTarget}".`,
@@ -49,8 +54,12 @@ const packExecutableTargets = packExecutableTarget
     ]
   : undefined;
 
+// The root config's `projects` route repo-root runs to package configs,
+// including this one. Inheriting them would make this config a container.
+const { projects: _rootTestProjects, ...baseTestConfig } = baseConfig.test ?? {};
+
 export default mergeConfig(
-  baseConfig,
+  { ...baseConfig, test: baseTestConfig },
   defineConfig({
     run: {
       tasks: {

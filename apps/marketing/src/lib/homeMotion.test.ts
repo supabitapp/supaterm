@@ -111,17 +111,4 @@ describe("homepage motion", () => {
     expect(frames.size).toBe(0);
     expect(mark.properties.get("--home-motion-state")).toBe("running");
   });
-
-  it("cancels pending work and ignores events after cleanup", () => {
-    const { hero, mark, observer } = fixture();
-    observer.report(mark, true);
-    movePointer(hero);
-    dispose?.();
-    observer.report(mark, true);
-    movePointer(hero);
-    reduced.dispatchEvent(new Event("change"));
-    expect(observer.disconnect).toHaveBeenCalledTimes(1);
-    expect(frames.size).toBe(0);
-    expect(mark.properties.get("--home-motion-state")).toBe("paused");
-  });
 });

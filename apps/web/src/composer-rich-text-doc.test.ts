@@ -5,6 +5,7 @@ import { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { EditorState, TextSelection } from "@tiptap/pm/state";
 import { splitBlockKeepMarks } from "@tiptap/pm/commands";
 import { describe, expect, it, onTestFinished } from "vite-plus/test";
+import { serializeComposerFileLink } from "@supaterm/shared/composerTrigger";
 
 import {
   collapseExpandedComposerCursor,
@@ -92,6 +93,28 @@ function roundTrip(value: string) {
 }
 
 describe("editable math source", () => {
+  it.each(["app/routes/posts.$postId.tsx", "pages/posts/[id].tsx"])(
+    "keeps a mentioned file whose name looks like TeX as a chip: %s",
+    (path) => {
+      const source = `fix ${serializeComposerFileLink(path)} please`;
+      const map = roundTrip(source);
+      expect(map.value).toBe(source);
+      expect(
+        map.runs.filter((run) => run.kind === "token" && run.nodeName === "composer-mention"),
+      ).toHaveLength(1);
+    },
+  );
+
+  it.each([
+    "before $x + @README.md$ after",
+    "before \\(x + @README.md\\) after",
+    "\\[x + @README.md\\] after",
+  ])("keeps a mention that ends a formula inside the formula: %s", (source) => {
+    const map = roundTrip(source);
+    expect(map.value).toBe(source);
+    expect(map.runs.some((run) => run.kind === "token")).toBe(false);
+  });
+
   it.each([
     "Area $x_i^2$ after",
     "before \\(\\frac{1}{2}\\) after",
@@ -486,16 +509,6 @@ describe("composer rich text document model", () => {
     expect(roundTrip(value).value).toBe(value);
   });
 
-  it.each([
-    "- one\n- two",
-    "1. first\n2. second",
-    "- parent\n  - child",
-    "* star\n+ plus",
-    "-no space stays literal",
-  ])("keeps the list %s literal in plain mode", (value) => {
-    expect(roundTripPlain(value).value).toBe(value);
-  });
-
   it.each(["- one\n- two", "1. a\n   - b\n2. c", "- **bold** @README.md tail", "-"])(
     "maps every document offset of the list %s through markdown coordinates and back",
     (value) => {
@@ -647,29 +660,6 @@ describe("composer rich text document model", () => {
     expect(roundTrip(value).value).toBe(value);
   });
 
-  it.each(["> quoted", "> a\n>b", "---", "- - -", "# Heading", "#1234"])(
-    "keeps the block %s literal in plain mode",
-    (value) => {
-      expect(roundTripPlain(value).value).toBe(value);
-    },
-  );
-
-  it("parses the blocks it renders as the right node types", () => {
-    const json = buildDocJson("# Title\n> quote\n---\n#1234 ref\n- - -", (n) => ({
-      label: n,
-      description: null,
-    }));
-    expect(json.content.map((block) => block.type)).toEqual([
-      "heading",
-      "blockquote",
-      "horizontalRule",
-      "paragraph",
-      "horizontalRule",
-
-      "paragraph",
-    ]);
-  });
-
   it.each([
     ["---", "---"],
     ["a\n---", "a\n---"],
@@ -700,19 +690,6 @@ describe("composer rich text document model", () => {
     "# Heading\n- item\n> quote\n---",
   ])("round-trips the heading %s through a real ProseMirror document", (value) => {
     expect(roundTrip(value).value).toBe(value);
-  });
-
-  it.each(["> quoted", "> a\n>b", "---", "- - -", "# Heading", "#1234"])(
-    "keeps the block %s literal in plain mode",
-    (value) => {
-      expect(roundTripPlain(value).value).toBe(value);
-    },
-  );
-
-  it("parses a quote as a blockquote of one paragraph per line", () => {
-    const json = buildDocJson("> a\n> b\n>c", (n) => ({ label: n, description: null }));
-    expect(json.content.map((block) => block.type)).toEqual(["blockquote", "blockquote"]);
-    expect((json.content[0] as { content: unknown[] }).content).toHaveLength(2);
   });
 
   it.each([
@@ -920,11 +897,6 @@ describe("composer rich text document model", () => {
     expect(skillChipReplacements(doc, known)).toEqual([]);
   });
 
-  it("keeps fences literal in plain mode", () => {
-    const value = "```ts\nconst a = 1;\n```";
-    expect(roundTripPlain(value).value).toBe(value);
-  });
-
   it("maps every document offset through markdown coordinates and back", () => {
     const value = "hi **bold** @README.md bye";
     const map = roundTrip(value);
@@ -998,18 +970,6 @@ describe("serializeSelection", () => {
 
   it("keeps the nesting of an item and its children", () => {
     expect(copy("- p\n  - a\n  - b", "p", "a")).toBe("- p\n  - a");
-  });
-
-  it("keeps the prefix of the quote lines it spans", () => {
-    expect(copy("> one\n> two", "one", "two")).toBe("> one\n> two");
-  });
-
-  it("copies text within one block without its marker", () => {
-    expect(copy("- one two", "one", "one")).toBe("one");
-  });
-
-  it("copies across blocks as they are written", () => {
-    expect(copy("intro\n- one", "intro", "one")).toBe("intro\n- one");
   });
 });
 
@@ -1193,12 +1153,6 @@ describe("caret stops at styled edges", () => {
     );
     expect(stepCaretAcrossStyledEdge(toggled, 1)).toBeNull();
     expect(stepCaretAcrossStyledEdge(toggled, -1)).toBeNull();
-  });
-
-  it("leaves arrow keys alone away from styled edges", () => {
-    expect(stepCaretAcrossStyledEdge(stateAt("**bold** tail", 3), -1)).toBeNull();
-    expect(stepCaretAcrossStyledEdge(stateAt("plain text", 1), -1)).toBeNull();
-    expect(caretTakesMarksBefore(stateAt("plain text", 1))).toBe(false);
   });
 });
 

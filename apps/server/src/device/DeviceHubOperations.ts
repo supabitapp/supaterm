@@ -3,6 +3,7 @@ import {
   type DeviceHostId,
   DeviceOperationError,
   type DevicePlatform,
+  type DevicePlatformAvailability,
 } from "@supaterm/contracts";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -13,6 +14,7 @@ import type { DeviceHostReady, DeviceOperations, HostDevice } from "./DeviceHost
 
 const BOOT_TIMEOUT = Duration.minutes(3);
 const SCREENSHOT_TIMEOUT = Duration.seconds(20);
+const IOS_RUNTIME_PREFIX = "com.apple.CoreSimulator.SimRuntime.iOS-";
 
 const HubDevice = Schema.Struct({
   id: Schema.String,
@@ -29,6 +31,22 @@ const HubDeviceList = Schema.Struct({
     Schema.Array(Schema.Struct({ message: Schema.String, error: Schema.optional(Schema.String) })),
   ),
 });
+const decodeSimctlDevices = Schema.decodeUnknownEffect(
+  Schema.fromJsonString(
+    Schema.Struct({
+      devices: Schema.Record(
+        Schema.String,
+        Schema.Array(
+          Schema.Struct({
+            udid: Schema.String,
+            name: Schema.String,
+            state: Schema.String,
+          }),
+        ),
+      ),
+    }),
+  ),
+);
 const HubActionResult = Schema.Struct({
   ok: Schema.Boolean,
   id: Schema.optional(Schema.String),
@@ -42,14 +60,81 @@ const HubActionResult = Schema.Struct({
 const vendorPrefix = (platform: DevicePlatform) =>
   platform === "ios" ? "/vendor/serve-sim" : "/vendor/serve-emu";
 
+interface DeviceDiscovery {
+  readonly devices: ReadonlyArray<HostDevice>;
+  readonly detail?: string;
+}
+
+const listIosSimulators = Effect.fn("DeviceHubOperations.listIosSimulators")(function* (
+  run: DeviceHostReady["run"],
+): Effect.fn.Return<DeviceDiscovery> {
+  const result = yield* run("xcrun", ["simctl", "list", "devices", "available", "--json"]);
+  if (result.code !== 0) {
+    return {
+      devices: [],
+      detail: `Could not list iOS Simulators (xcrun simctl, exit code ${result.code}). Discovered devices remain available.`,
+    };
+  }
+  const parsed = yield* decodeSimctlDevices(result.stdout).pipe(Effect.result);
+  if (parsed._tag === "Failure") {
+    return {
+      devices: [],
+      detail:
+        "Could not read the iOS Simulator list from xcrun simctl. Discovered devices remain available.",
+    };
+  }
+  return {
+    devices: Object.entries(parsed.success.devices).flatMap(([runtime, simulators]) =>
+      runtime.startsWith(IOS_RUNTIME_PREFIX)
+        ? simulators.map((simulator) => ({
+            id: simulator.udid,
+            name: simulator.name,
+            version: `iOS ${runtime.slice(IOS_RUNTIME_PREFIX.length).replaceAll("-", ".")}`,
+            platform: "ios" as const,
+            booted: simulator.state === "Booted",
+            physical: false,
+          }))
+        : [],
+    ),
+  };
+});
+
+const listAndroidAvds = Effect.fn("DeviceHubOperations.listAndroidAvds")(function* (
+  run: DeviceHostReady["run"],
+): Effect.fn.Return<DeviceDiscovery> {
+  const result = yield* run("emulator", ["-list-avds"]);
+  if (result.code !== 0) {
+    return {
+      devices: [],
+      detail: `Could not list Android virtual devices (emulator -list-avds, exit code ${result.code}). Discovered devices remain available.`,
+    };
+  }
+  return {
+    devices: result.stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((name) => ({
+        id: name,
+        name,
+        platform: "android" as const,
+        version: "Android",
+        booted: false,
+        physical: false,
+      })),
+  };
+});
+
+const discoveryKey = (device: HostDevice) =>
+  `${device.platform}:${device.platform === "ios" ? device.id : device.name}`;
+
 /** Device operations for a host that runs expo-device-hub at `origin`. */
 export const makeDeviceHubOperations = (options: {
   readonly hostId: DeviceHostId;
   readonly origin: string;
   readonly http: HttpClient.HttpClient;
   readonly run: DeviceHostReady["run"];
-  /** Whether to list AVDs, which the hub does not report until they boot. */
-  readonly androidAvailable: Effect.Effect<boolean>;
+  readonly platforms: Effect.Effect<ReadonlyArray<DevicePlatformAvailability>>;
 }): DeviceOperations => {
   const { hostId, origin, run } = options;
   const httpClient = options.http.pipe(HttpClient.withScope);
@@ -91,12 +176,37 @@ export const makeDeviceHubOperations = (options: {
     );
 
   const list: DeviceOperations["list"] = Effect.gen(function* () {
-    const hubList = yield* hubJson(
-      HttpClientRequest.get(`${origin}/api/devices`),
-      HubDeviceList,
-      "list",
+    const [hubList, supplemental] = yield* Effect.all(
+      [
+        hubJson(HttpClientRequest.get(`${origin}/api/devices`), HubDeviceList, "list"),
+        options.platforms.pipe(
+          Effect.flatMap((platforms) => {
+            const available = new Set(
+              platforms
+                .filter((platform) => platform.available)
+                .map((platform) => platform.platform),
+            );
+            const empty: DeviceDiscovery = { devices: [] };
+            return Effect.all(
+              {
+                ios: available.has("ios") ? listIosSimulators(run) : Effect.succeed(empty),
+                android: available.has("android") ? listAndroidAvds(run) : Effect.succeed(empty),
+              },
+              { concurrency: "unbounded" },
+            );
+          }),
+        ),
+      ],
+      { concurrency: "unbounded" },
     );
     const devices: Array<HostDevice> = [...hubList.simulators, ...hubList.emulators];
+    const seen = new Set(devices.map(discoveryKey));
+    for (const device of [...supplemental.ios.devices, ...supplemental.android.devices]) {
+      const key = discoveryKey(device);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      devices.push(device);
+    }
     const warnings = hubList.errors?.filter(
       (error) =>
         // CoreSimulator can retain deleted devices; their optional usage timestamps are absent.
@@ -107,36 +217,12 @@ export const makeDeviceHubOperations = (options: {
         ),
     );
     const details = warnings?.map((error) => error.message) ?? [];
-    let androidDiscoveryIncomplete = false;
-    if (yield* options.androidAvailable) {
-      const avds = yield* run("emulator", ["-list-avds"]);
-      // Discovered devices stay listed; the AVDs that could not be listed are a warning.
-      if (avds.code !== 0) {
-        androidDiscoveryIncomplete = true;
-        details.push(
-          `Could not list Android virtual devices (emulator -list-avds, exit code ${avds.code}). Discovered devices remain available.`,
-        );
-      }
-      for (const name of (avds.code === 0 ? avds.stdout : "")
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean)) {
-        if (!devices.some((device) => device.platform === "android" && device.name === name)) {
-          devices.push({
-            id: name,
-            name,
-            platform: "android",
-            version: "Android",
-            booted: false,
-            physical: false,
-          });
-        }
-      }
-    }
+    if (supplemental.ios.detail) details.push(supplemental.ios.detail);
+    if (supplemental.android.detail) details.push(supplemental.android.detail);
     return {
       devices,
       detail: details.join("\n") || undefined,
-      androidDiscoveryIncomplete,
+      androidDiscoveryIncomplete: supplemental.android.detail !== undefined,
     };
   }).pipe(Effect.withSpan("DeviceHubOperations.list"));
 

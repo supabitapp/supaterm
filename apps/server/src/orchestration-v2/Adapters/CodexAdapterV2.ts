@@ -14,6 +14,7 @@ import {
 } from "../../provider/CodexTurnTokenUsage.ts";
 import type { ManagedServerProvider } from "@supaterm/provider-core/server/snapshot";
 import type { CodexEffectiveRuntime } from "../../provider/CodexManagedRuntime.ts";
+import { classifyCodexManagedError } from "../../provider/CodexManagedErrors.ts";
 import {
   buildCodexInitializeParams,
   codexAppServerEnvironment,
@@ -160,7 +161,7 @@ type CodexFileChangeKinds = Readonly<
   Record<string, CodexSchema.V2ItemStartedNotification__PatchChangeKind>
 >;
 
-export function codexFileChangeApprovalPrompt(input: {
+function codexFileChangeApprovalPrompt(input: {
   readonly reason?: string | null;
   readonly grantRoot?: string | null;
   readonly fileChanges?: CodexFileChangeKinds;
@@ -423,14 +424,14 @@ function codexItemStatus(status: "inProgress" | "completed" | "failed" | "declin
  * The composers let a skill be typed with any currency sigil (`€review`), but
  * Codex only parses `$name` as a skill mention.
  */
-export function codexSkillMentionText(text: string): string {
+function codexSkillMentionText(text: string): string {
   return text.replace(SKILL_MENTION_PATTERN, "$1$$$2");
 }
 
 const BACKGROUND_COMMAND_DETAIL_COMMAND_MAX_LENGTH = 200;
 const BACKGROUND_COMMAND_DETAIL_OUTPUT_TAIL_MAX_LENGTH = 1_000;
 
-export function codexBackgroundCommandDetail(item: {
+function codexBackgroundCommandDetail(item: {
   readonly command: string;
   readonly exitCode?: number | null | undefined;
   readonly aggregatedOutput?: string | null | undefined;
@@ -915,7 +916,7 @@ export type CodexGoalCommand =
   | { readonly type: "resume" }
   | { readonly type: "set"; readonly objective: string };
 
-export function parseCodexGoalCommand(text: string): CodexGoalCommand | null {
+function parseCodexGoalCommand(text: string): CodexGoalCommand | null {
   const match = /^\/goal(?:\s+([\s\S]*))?$/u.exec(text.trim());
   if (match === null) return null;
   const argument = (match[1] ?? "").trim();
@@ -1156,10 +1157,25 @@ function codexUsageLimitError(
   );
 }
 
+/**
+ * ChatGPT sharing reports its own reason inside Codex's generic turn error, so
+ * the code it names replaces Codex's, and clients pick a recovery from it.
+ */
+function withCodexManagedFailure(
+  failure: OrchestrationV2ProviderFailure,
+  nativeError: unknown,
+): OrchestrationV2ProviderFailure {
+  const managed = classifyCodexManagedError(nativeError);
+  return managed === undefined
+    ? failure
+    : { ...failure, message: managed.message, code: managed.code };
+}
+
 interface ActiveCodexTurnContext {
   closedCommandItemIds?: ReadonlySet<string>;
   latestProviderFailure?: {
     readonly nativeMessage: string;
+    readonly nativeCode: string | null;
     readonly failure: OrchestrationV2ProviderFailure;
   };
   readonly nativeStartReady?: Deferred.Deferred<void>;
@@ -1190,6 +1206,7 @@ interface ActiveCodexTurnContext {
 
 interface ActiveCodexProviderRetry {
   readonly nativeMessage: string;
+  readonly nativeCode: string | null;
   readonly retry: OrchestrationV2ProviderRetry;
   readonly failure: OrchestrationV2ProviderFailure;
   readonly startedAt: DateTime.Utc;
@@ -3592,6 +3609,12 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               type: "file_change",
               fileName: firstChange.path,
               diffStr: firstChange.diff,
+              changes: item.changes.map((change) => {
+                const movePath = change.kind.type === "update" ? change.kind.move_path : undefined;
+                return movePath
+                  ? { operation: change.kind.type, path: movePath, oldPath: change.path }
+                  : { operation: change.kind.type, path: change.path };
+              }),
             };
             return { node, turnItem };
           },
@@ -4502,13 +4525,17 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             if (!payload.willRetry) {
               context.latestProviderFailure = {
                 nativeMessage: payload.error.message,
-                failure: makeProviderFailure({
-                  message: payload.error.additionalDetails?.trim() || payload.error.message,
-                  code: notificationCode,
-                  class: codexUsageLimitError(notificationCode, payload.error.codexErrorInfo)
-                    ? "usage_limit"
-                    : "provider_error",
-                }),
+                nativeCode: notificationCode,
+                failure: withCodexManagedFailure(
+                  makeProviderFailure({
+                    message: payload.error.additionalDetails?.trim() || payload.error.message,
+                    code: notificationCode,
+                    class: codexUsageLimitError(notificationCode, payload.error.codexErrorInfo)
+                      ? "usage_limit"
+                      : "provider_error",
+                  }),
+                  payload.error,
+                ),
               };
               return;
             }
@@ -4522,24 +4549,28 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             };
             const code = codexErrorInfoCode(payload.error.codexErrorInfo);
             const additionalDetails = payload.error.additionalDetails?.trim();
-            const failure = makeProviderFailure({
-              message:
-                additionalDetails === undefined || additionalDetails.length === 0
-                  ? payload.error.message
-                  : additionalDetails,
-              code,
-              class: codexUsageLimitError(code, payload.error.codexErrorInfo)
-                ? "usage_limit"
-                : code?.startsWith("http") === true || code?.startsWith("responseStream") === true
-                  ? "transport_error"
-                  : "provider_error",
-              retryable: true,
-            });
+            const failure = withCodexManagedFailure(
+              makeProviderFailure({
+                message:
+                  additionalDetails === undefined || additionalDetails.length === 0
+                    ? payload.error.message
+                    : additionalDetails,
+                code,
+                class: codexUsageLimitError(code, payload.error.codexErrorInfo)
+                  ? "usage_limit"
+                  : code?.startsWith("http") === true || code?.startsWith("responseStream") === true
+                    ? "transport_error"
+                    : "provider_error",
+                retryable: true,
+              }),
+              payload.error,
+            );
             const itemOrdinal =
               previous?.itemOrdinal ??
               (yield* resolveItemOrdinal(context, `terminal-failure:${context.providerTurnId}`));
             const state: ActiveCodexProviderRetry = {
               nativeMessage: payload.error.message,
+              nativeCode: code,
               retry,
               failure,
               startedAt: previous?.startedAt ?? updatedAt,
@@ -5610,14 +5641,17 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                 previousFailure !== undefined &&
                 (input.failureMessage === undefined ||
                   input.failureMessage === previousFailure.nativeMessage) &&
-                (failureCode === undefined || failureCode === previousFailure.failure.code) &&
+                (failureCode === undefined || failureCode === previousFailure.nativeCode) &&
                 (exhaustionStatus === null || previousFailure.failure.class === failureClass)
                   ? previousFailure.failure
-                  : makeProviderFailure({
-                      message: input.failureMessage,
-                      code: failureCode,
-                      class: failureClass,
-                    });
+                  : withCodexManagedFailure(
+                      makeProviderFailure({
+                        message: input.failureMessage,
+                        code: failureCode,
+                        class: failureClass,
+                      }),
+                      input.failureMessage,
+                    );
               return {
                 type: "turn.terminal",
                 driver: CODEX_PROVIDER,

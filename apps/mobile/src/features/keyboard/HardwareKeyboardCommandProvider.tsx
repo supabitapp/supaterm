@@ -33,7 +33,7 @@ import { uuidv4 } from "../../lib/uuid";
 import { waitForThreadShellReady } from "../threads/threadForkNavigation";
 import type { GitActionProgress } from "../../state/use-vcs-action-state";
 import { GitActionProgressOverlay } from "../threads/GitActionProgressOverlay";
-import { useStartNewTask } from "../threads/use-start-new-task";
+import { readStartNewTaskDestination } from "../threads/use-start-new-task";
 import { CommandPalette } from "./CommandPalette";
 import {
   dispatchHardwareKeyboardCommand,
@@ -76,7 +76,6 @@ export function HardwareKeyboardCommandProvider({
   pathname,
 }: PropsWithChildren<{ readonly pathname: string }>) {
   const navigation = useNavigation();
-  const startNewTask = useStartNewTask();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const closePalette = useCallback(() => setPaletteOpen(false), []);
   const activeThreadRef = useMemo(() => parseActiveThreadPath(pathname), [pathname]);
@@ -229,7 +228,9 @@ export function HardwareKeyboardCommandProvider({
       }
 
       if (command === "newTask") {
-        startNewTask();
+        void readStartNewTaskDestination(uuidv4()).then((params) =>
+          navigation.navigate("Thread", params),
+        );
         return;
       }
       if (command === "back") {
@@ -262,7 +263,6 @@ export function HardwareKeyboardCommandProvider({
       navigation,
       pathname,
       showCopyFeedback,
-      startNewTask,
     ],
   );
 

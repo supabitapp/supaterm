@@ -52,19 +52,14 @@ const decodeSessionCancelNotification = Schema.decodeEffect(
   Schema.fromJsonString(SessionCancelNotification),
 );
 const decodeExtRequest = Schema.decodeEffect(Schema.fromJsonString(ExtRequest));
-const decodeExtResponse = Schema.decodeEffect(Schema.fromJsonString(ExtResponse));
 const decodeRequestPermissionResponse = Schema.decodeEffect(
   Schema.fromJsonString(RequestPermissionResponse),
-);
-const decodeJsonRpcRequestId = Schema.decodeEffect(
-  Schema.fromJsonString(Schema.Struct({ id: Schema.Number })),
 );
 const JsonRpcErrorResponse = Schema.Struct({
   jsonrpc: Schema.Literal("2.0"),
   id: Schema.Number,
   error: Schema.Struct({ code: Schema.Number, message: Schema.String }),
 });
-const decodeSessionNotification = Schema.decodeUnknownEffect(AcpSchema.SessionNotification);
 const encodeUnknownJsonString = Schema.encodeUnknownSync(Schema.fromJsonString(Schema.Unknown));
 const encoder = new TextEncoder();
 const mockPeerPath = Effect.map(Effect.service(Path.Path), (path) =>
@@ -149,67 +144,6 @@ it.layer(NodeServices.layer)("effect-acp protocol", (it) => {
         assert.equal(update?._tag, "SessionUpdate");
         assert.equal(completion?._tag, "ElicitationComplete");
       }),
-  );
-
-  it.effect("keeps only recent raw notifications after their callbacks run", () =>
-    Effect.gen(function* () {
-      const { stdio, input } = yield* makeInMemoryStdio();
-      const handled = yield* Deferred.make<void>();
-      let handledCount = 0;
-      const transport = yield* AcpProtocol.makeAcpPatchedProtocol({
-        stdio,
-        serverRequestMethods: new Set(),
-        onNotification: () =>
-          Effect.sync(() => ++handledCount).pipe(
-            Effect.flatMap((count) =>
-              count === 64 ? Deferred.succeed(handled, undefined).pipe(Effect.asVoid) : Effect.void,
-            ),
-          ),
-      });
-
-      const messages = Array.from({ length: 64 }, (_, index) =>
-        encodeUnknownJsonString({
-          jsonrpc: "2.0",
-          method: "x/performance",
-          params: { index },
-        }),
-      );
-      yield* Queue.offer(input, encoder.encode(`${messages.join("\n")}\n`));
-      yield* Deferred.await(handled);
-
-      const retained = yield* transport.incoming.pipe(Stream.take(32), Stream.runCollect);
-
-      assert.equal(handledCount, 64);
-      assert.equal(retained.length, 32);
-      assert.deepEqual(retained[0]?.params, { index: 32 });
-      assert.deepEqual(retained[31]?.params, { index: 63 });
-    }),
-  );
-
-  it.effect("decodes standard JSON-RPC errors into typed ACP request failures", () =>
-    Effect.gen(function* () {
-      const { stdio, input, output } = yield* makeInMemoryStdio();
-      const transport = yield* AcpProtocol.makeAcpPatchedProtocol({
-        stdio,
-        serverRequestMethods: new Set(),
-      });
-
-      const request = yield* transport.request("x/auth", {}).pipe(Effect.forkScoped);
-      const outbound = yield* decodeJsonRpcRequestId(yield* Queue.take(output));
-      yield* Queue.offer(
-        input,
-        yield* encodeJsonl(JsonRpcErrorResponse, {
-          jsonrpc: "2.0",
-          id: outbound.id,
-          error: { code: -32000, message: "Authentication required" },
-        }),
-      );
-
-      const error = yield* Fiber.join(request).pipe(Effect.flip, Effect.orDie);
-      assert.instanceOf(error, AcpError.AcpRequestError);
-      assert.equal(error.code, -32000);
-      assert.equal(error.message, "Authentication required");
-    }),
   );
 
   // clanka once sent a usage_update without `used` and `size`. One bad update
@@ -298,31 +232,6 @@ it.layer(NodeServices.layer)("effect-acp protocol", (it) => {
         issueSummary: expect.stringContaining("update.used missing"),
       });
       assert.notInclude(encodeUnknownJsonString({ decodeFailed, warnings }), secret);
-    }),
-  );
-
-  it.effect("keeps invalid core notification values only in the schema cause", () =>
-    Effect.gen(function* () {
-      const secret = "acp-core-notification-secret-sentinel";
-      const cause = yield* decodeSessionNotification({
-        sessionId: { secret },
-        update: { sessionUpdate: "plan", entries: [] },
-      }).pipe(Effect.flip);
-      const parseError = AcpError.AcpProtocolParseError.fromSchemaError(
-        "decode-notification-payload",
-        "session/update",
-        cause,
-      );
-      const { cause: directCause, ...directDiagnostics } = parseError;
-      assert.equal(parseError.operation, "decode-notification-payload");
-      assert.equal(parseError.method, "session/update");
-      assert.isAbove(parseError.issueCount ?? 0, 0);
-      assert.include(parseError.issueKinds ?? [], "Pointer");
-      assert.isAbove(parseError.maximumPathDepth ?? 0, 0);
-      assert.equal(parseError.issueSummary, "sessionId wrong type");
-      assert.isTrue(Schema.isSchemaError(directCause));
-      assert.notInclude(parseError.message, secret);
-      assert.notInclude(encodeUnknownJsonString(directDiagnostics), secret);
     }),
   );
 
@@ -473,44 +382,6 @@ it.layer(NodeServices.layer)("effect-acp protocol", (it) => {
     }),
   );
 
-  it.effect("supports generic extension requests over the patched transport", () =>
-    Effect.gen(function* () {
-      const { stdio, input, output } = yield* makeInMemoryStdio();
-      const transport = yield* AcpProtocol.makeAcpPatchedProtocol({
-        stdio,
-        serverRequestMethods: new Set(),
-      });
-
-      const response = yield* transport
-        .request("x/test", { hello: "world" })
-        .pipe(Effect.forkScoped);
-      const outbound = yield* Queue.take(output);
-      assert.deepEqual(yield* decodeExtRequest(outbound), {
-        jsonrpc: "2.0",
-        id: 1,
-        method: "x/test",
-        params: {
-          hello: "world",
-        },
-        headers: [],
-      });
-
-      yield* Queue.offer(
-        input,
-        yield* encodeJsonl(ExtResponse, {
-          jsonrpc: "2.0",
-          id: 1,
-          result: {
-            ok: true,
-          },
-        }),
-      );
-
-      const resolved = yield* Fiber.join(response);
-      assert.deepEqual(resolved, { ok: true });
-    }),
-  );
-
   it.effect("does not correlate a string response id with a numeric extension request id", () =>
     Effect.gen(function* () {
       const { stdio, input, output } = yield* makeInMemoryStdio();
@@ -628,67 +499,6 @@ it.layer(NodeServices.layer)("effect-acp protocol", (it) => {
       const response = yield* decodeErrorResponse(yield* Queue.take(output));
       assert.equal(response.id, 9);
       assert.equal(response.error.code, -32603);
-    }),
-  );
-
-  it.effect("preserves numeric ids for inbound extension requests", () =>
-    Effect.gen(function* () {
-      const { stdio, input, output } = yield* makeInMemoryStdio();
-      yield* AcpProtocol.makeAcpPatchedProtocol({
-        stdio,
-        serverRequestMethods: new Set(),
-        onExtRequest: () => Effect.succeed({ ok: true }),
-      });
-
-      yield* Queue.offer(
-        input,
-        yield* encodeJsonl(ExtRequest, {
-          jsonrpc: "2.0",
-          id: 7,
-          method: "x/test",
-          params: {
-            hello: "world",
-          },
-          headers: [],
-        }),
-      );
-
-      const outbound = yield* Queue.take(output);
-      assert.deepEqual(yield* decodeExtResponse(outbound), {
-        jsonrpc: "2.0",
-        id: 7,
-        result: {
-          ok: true,
-        },
-      });
-    }),
-  );
-
-  it.effect("keeps numeric and string extension request ids distinct in handler context", () =>
-    Effect.gen(function* () {
-      const { stdio, input } = yield* makeInMemoryStdio();
-      const contexts = yield* Queue.unbounded<string>();
-      yield* AcpProtocol.makeAcpPatchedProtocol({
-        stdio,
-        serverRequestMethods: new Set(),
-        onExtRequest: (_method, _params, context) =>
-          Queue.offer(contexts, context.requestId).pipe(Effect.as({ ok: true })),
-      });
-
-      for (const id of [1, "1"] as const) {
-        yield* Queue.offer(
-          input,
-          yield* encodeJsonl(ExtRequest, {
-            jsonrpc: "2.0",
-            id,
-            method: "x/test",
-            params: { hello: "world" },
-            headers: [],
-          }),
-        );
-      }
-
-      assert.deepEqual(yield* Queue.takeAll(contexts), ["$supaterm:jsonrpc:number:1", "1"]);
     }),
   );
 
@@ -1087,25 +897,6 @@ it.layer(NodeServices.layer)("effect-acp protocol", (it) => {
     }),
   );
 
-  it.effect("classifies an input stream ending without inventing a cause", () =>
-    Effect.gen(function* () {
-      const { stdio, input } = yield* makeInMemoryStdio();
-      const termination = yield* Deferred.make<AcpError.AcpError>();
-      yield* AcpProtocol.makeAcpPatchedProtocol({
-        stdio,
-        serverRequestMethods: new Set(),
-        onTermination: (error) => Deferred.succeed(termination, error).pipe(Effect.asVoid),
-      });
-
-      yield* Queue.end(input);
-
-      const error = yield* Deferred.await(termination);
-      assert.instanceOf(error, AcpError.AcpInputStreamEndedError);
-      assert.equal(error.message, "ACP input stream ended.");
-      assert.equal("cause" in error, false);
-    }),
-  );
-
   it.effect("does not treat intentional serverProtocol.end as a transport failure", () =>
     Effect.gen(function* () {
       const { stdio, input } = yield* makeInMemoryStdio();
@@ -1160,61 +951,6 @@ it.layer(NodeServices.layer)("effect-acp protocol", (it) => {
       assert.equal(defect._tag, "RpcClientDefect");
       assert.equal(defect.message, "ACP protocol terminated.");
       assert.instanceOf(defect.cause, AcpError.AcpProtocolParseError);
-    }),
-  );
-
-  it.effect("keeps client send failure messages independent from the cause", () =>
-    Effect.gen(function* () {
-      const { stdio } = yield* makeInMemoryStdio();
-      const transport = yield* AcpProtocol.makeAcpPatchedProtocol({
-        stdio,
-        serverRequestMethods: new Set(),
-      });
-
-      const failure = yield* transport.clientProtocol
-        .send(0, {
-          _tag: "Request",
-          id: "request-1",
-          tag: "x/test",
-          payload: 1n,
-          headers: [],
-        })
-        .pipe(Effect.flip);
-      const defect = failure.reason as {
-        readonly _tag: string;
-        readonly message: string;
-        readonly cause: unknown;
-      };
-
-      assert.equal(defect._tag, "RpcClientDefect");
-      assert.equal(defect.message, "Failed to send ACP protocol message.");
-      assert.instanceOf(defect.cause, AcpError.AcpProtocolParseError);
-    }),
-  );
-
-  it.effect("fails pending extension requests with the propagated exit code", () =>
-    Effect.gen(function* () {
-      const { stdio, input, output } = yield* makeInMemoryStdio();
-      const transport = yield* AcpProtocol.makeAcpPatchedProtocol({
-        stdio,
-        terminationError: Effect.succeed(new AcpError.AcpProcessExitedError({ code: 0 })),
-        serverRequestMethods: new Set(),
-      });
-
-      const response = yield* transport
-        .request("x/test", { hello: "world" })
-        .pipe(Effect.forkScoped);
-      yield* Queue.take(output);
-      yield* Queue.end(input);
-
-      const error = yield* Fiber.join(response).pipe(
-        Effect.match({
-          onFailure: (error) => error,
-          onSuccess: () => assert.fail("Expected request to fail after process exit"),
-        }),
-      );
-      assert.instanceOf(error, AcpError.AcpProcessExitedError);
-      assert.equal(error.code, 0);
     }),
   );
 

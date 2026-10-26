@@ -3,9 +3,7 @@ import {
   applyPullRequestDraftFilterChange,
   parsePullRequestQuery,
 } from "@supaterm/client-runtime/pull-request-query";
-import { WorkspaceDock } from "../workspace/WorkspaceDock";
 import { WorkspaceHeaderActions } from "../workspace/WorkspaceHeaderActions";
-import { useStartNewTask } from "../threads/use-start-new-task";
 import { LegendList, type LegendListRef } from "@legendapp/list/react-native";
 import { useNavigation } from "@react-navigation/native";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -25,6 +23,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppText as Text } from "../../components/ui/AppText";
 import { EmptyState } from "../../components/ui/EmptyState";
+import { useRestingTopOffset } from "../../native/useRestingTopOffset";
 import { NativePrimaryColumnContext } from "../../native/v5-workspace-context";
 import { useWorkspaceState } from "../../state/workspace";
 import { useProjects } from "../../state/entities";
@@ -32,10 +31,12 @@ import { useMobileProjectGroupingSettings } from "../../state/project-grouping";
 import { homeProjectOrderAtom } from "../home/homeProjectOrder";
 import { environmentServerConfigsAtom } from "../../state/server";
 import { PullRequestListRow } from "./PullRequestListRow";
+import { PullRequestCardRow } from "./PullRequestControls";
 import { createPullRequestListFilterMenu } from "./pullRequestListFilterMenu";
 import { usePullRequestList } from "./usePullRequestList";
 import { usePullRequestListControls } from "./usePullRequestListControls";
 import { usePullRequestListActions } from "./usePullRequestListActions";
+import { usePublishPullRequestFilterMenu } from "./PullRequestFilterMenuContext";
 import {
   filterPullRequestList,
   pullRequestListFacets,
@@ -51,15 +52,39 @@ import { useAndroidWorkspaceSelection } from "../workspace/useAndroidWorkspaceSe
 
 function PullRequestScrollView(props: ScrollViewProps) {
   const insets = useSafeAreaInsets();
+  const restingOffset = useRestingTopOffset(insets.top, props);
   return (
     <ScrollViewMarker style={{ flex: 1 }}>
       <ScrollView
         {...props}
+        {...restingOffset}
         automaticallyAdjustContentInsets={false}
         contentInsetAdjustmentBehavior="never"
-        contentOffset={props.contentOffset ?? { x: 0, y: -insets.top }}
       />
     </ScrollViewMarker>
+  );
+}
+
+function PullRequestListErrors(props: { readonly messages: readonly string[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const title = `${props.messages.length} ${props.messages.length === 1 ? "error" : "errors"} loading pull requests`;
+  return (
+    <View>
+      <PullRequestCardRow
+        title={title}
+        icon="exclamationmark.triangle"
+        compact
+        last
+        expanded={expanded}
+        accessibilityLabel={`${title}. ${expanded ? "Hide" : "Show"} details`}
+        onPress={() => setExpanded((value) => !value)}
+      />
+      {expanded ? (
+        <Text selectable className="px-4 pb-3 text-sm text-foreground-muted">
+          {props.messages.join("\n")}
+        </Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -69,7 +94,6 @@ export function PullRequestsScreen(
     readonly selectedPullRequestKey?: string | null;
   } = {},
 ) {
-  const startNewTask = useStartNewTask();
   const navigation = useNavigation();
   const primaryColumn = use(NativePrimaryColumnContext);
   const workspace = useWorkspaceTabs()!;
@@ -257,6 +281,7 @@ export function PullRequestsScreen(
       });
     },
   };
+  usePublishPullRequestFilterMenu(Platform.OS === "android" ? headerFilterMenu : null);
   return (
     <View className={sidebar ? "flex-1 bg-drawer" : "flex-1 bg-screen"}>
       <LegendList
@@ -320,14 +345,13 @@ export function PullRequestsScreen(
         ListHeaderComponent={
           <>
             {result.data?.errors.length ? (
-              <Text className="px-4 py-3 text-sm text-foreground-muted">
-                {result.data.errors
-                  .map(
-                    (error) =>
-                      `${error.projectTitle || environments.find((environment) => environment.environmentId === error.environmentId)?.environmentLabel || "Environment"}: ${error.message}`,
-                  )
-                  .join("\n")}
-              </Text>
+              <PullRequestListErrors
+                key={JSON.stringify(targets)}
+                messages={result.data.errors.map(
+                  (error) =>
+                    `${error.projectTitle || environments.find((environment) => environment.environmentId === error.environmentId)?.environmentLabel || "Environment"}: ${error.message}`,
+                )}
+              />
             ) : null}
           </>
         }
@@ -387,16 +411,7 @@ export function PullRequestsScreen(
           )
         }
       />
-      {Platform.OS === "ios" ? (
-        <WorkspaceHeaderActions filterMenu={headerFilterMenu} />
-      ) : (
-        <WorkspaceDock
-          floating
-          showTabs={!props.sidebar}
-          onNewTask={startNewTask}
-          filterMenu={headerFilterMenu}
-        />
-      )}
+      {Platform.OS === "ios" ? <WorkspaceHeaderActions filterMenu={headerFilterMenu} /> : null}
     </View>
   );
 }

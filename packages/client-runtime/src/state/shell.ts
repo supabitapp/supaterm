@@ -9,6 +9,7 @@ import {
   type ThreadPullRequestLink,
 } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
+import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Option from "effect/Option";
@@ -26,20 +27,30 @@ import * as ConnectionWakeups from "../connection/wakeups.ts";
 import { safeErrorLogAttributes } from "../errors/safeLog.ts";
 import * as Persistence from "../platform/persistence.ts";
 import { runCachePersistence } from "./cachePersistence.ts";
-import { subscribeDynamic } from "../rpc/client.ts";
+import { subscribeDynamicWithSession } from "../rpc/client.ts";
 import type { RpcSession } from "../rpc/session.ts";
 import * as ShellSnapshotLoader from "./shellSnapshotHttp.ts";
 import type { DeferredShellSnapshot } from "./shellPullRequests.ts";
 import {
+  PENDING_SHELL_RESUME,
+  advanceShellResume,
   applyShellStreamEvent,
+  isAuthoritativeShellSnapshot,
   mergeShellSnapshotProjects,
   reuseUnchangedThreadShells,
   sameThreadPullRequests,
+  type ShellResumeProgress,
 } from "./shellReducer.ts";
 import { type EnvironmentCatalogState, enabledEnvironmentIds } from "./connections.ts";
 import { followStreamInEnvironment } from "./runtime.ts";
 
 export type EnvironmentShellStatus = "empty" | "cached" | "synchronizing" | "live";
+
+// Resuming from a cursor misses rows that read another thread's state, such as a
+// fork's item count or a shared provider session's error. That state rarely
+// changes, so a new session resumes only while the last authoritative snapshot is
+// younger than this, and otherwise reloads it.
+const SHELL_RESUME_MAX_SNAPSHOT_AGE_MS = 6 * 60 * 60 * 1000;
 
 export interface EnvironmentShellState {
   readonly snapshot: Option.Option<OrchestrationV2ShellSnapshot>;
@@ -92,7 +103,12 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
   });
   const awaitingCompletion = yield* Ref.make(false);
   const lastAuthoritativeSession = yield* Ref.make<RpcSession | null>(null);
-  const activeSubscriptionSession = yield* Ref.make<RpcSession | null>(null);
+  const resumeProgress = yield* Ref.make<ShellResumeProgress>(PENDING_SHELL_RESUME);
+  const lastAuthoritativeAt = yield* Ref.make(0);
+  const activeSubscription = yield* Ref.make<{
+    readonly session: RpcSession;
+    readonly generation: string | null;
+  } | null>(null);
   const latestLiveSnapshot = yield* Ref.make<Option.Option<OrchestrationV2ShellSnapshot>>(
     Option.none(),
   );
@@ -176,23 +192,32 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
   const snapshotWriteLock = yield* Semaphore.make(1);
 
   const applyItems = Effect.fn("EnvironmentShellState.applyItems")(function* (
-    items: ReadonlyArray<OrchestrationV2ShellStreamItem>,
-
+    entries: ReadonlyArray<readonly [RpcSession, OrchestrationV2ShellStreamItem]>,
     pendingLinkIds?: ReadonlySet<ThreadId>,
   ) {
     const initial = yield* SubscriptionRef.get(state);
     let waiting = yield* Ref.get(awaitingCompletion);
+    let progress = yield* Ref.get(resumeProgress);
+    const subscription = yield* Ref.get(activeSubscription);
     let next = initial;
-    let receivedSnapshot = false;
-    for (const item of items) {
+    let snapshotSession: RpcSession | null = null;
+    for (const [source, item] of entries) {
       if (item.kind === "synchronized") {
+        // A marker still buffered from a replaced session says nothing about the current one.
+        if (source !== subscription?.session) continue;
         waiting = false;
         if (Option.isSome(next.snapshot)) {
           next = { snapshot: next.snapshot, status: "live", error: Option.none() };
+          progress = advanceShellResume(progress, item, subscription.generation);
         }
         continue;
       }
+      progress = advanceShellResume(progress, item, null);
       if (item.kind === "unknown-item") continue;
+      if (isAuthoritativeShellSnapshot(item)) {
+        snapshotSession = source;
+        yield* Ref.set(lastAuthoritativeAt, yield* Clock.currentTimeMillis);
+      }
       const nextSnapshot =
         item.kind === "snapshot"
           ? mergeShellSnapshotProjects(
@@ -212,7 +237,6 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
                   : snapshot,
             });
       if (nextSnapshot === null) continue;
-      receivedSnapshot ||= item.kind === "snapshot";
       next = {
         snapshot: Option.some(nextSnapshot),
         status: waiting ? "synchronizing" : "live",
@@ -220,6 +244,7 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
       };
     }
     yield* Ref.set(awaitingCompletion, waiting);
+    yield* Ref.set(resumeProgress, progress);
     if (next === initial) return;
     if (pendingLinkIds !== undefined && Option.isSome(next.snapshot)) {
       pendingLinkRows = new Set(
@@ -230,11 +255,8 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
       yield* Ref.set(latestLiveSnapshot, next.snapshot);
     }
     yield* SubscriptionRef.set(state, next);
-    if (receivedSnapshot) {
-      const session = yield* Ref.get(activeSubscriptionSession);
-      if (session !== null) {
-        yield* Ref.set(lastAuthoritativeSession, session);
-      }
+    if (snapshotSession !== null) {
+      yield* Ref.set(lastAuthoritativeSession, snapshotSession);
     }
     if (next.snapshot !== initial.snapshot && Option.isSome(next.snapshot)) {
       yield* Queue.offer(persistence, next.snapshot.value);
@@ -316,24 +338,30 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
 
   yield* setSynchronizing;
   yield* Effect.forkScoped(
-    subscribeDynamic(
+    subscribeDynamicWithSession(
       ORCHESTRATION_V2_WS_METHODS.subscribeShell,
       Effect.fn("EnvironmentShellState.makeSubscribeInput")(function* (session) {
-        yield* Ref.set(activeSubscriptionSession, session);
-        const supportsCompletionMarker = yield* session.initialConfig.pipe(
-          Effect.map((config) => config.shellResumeCompletionMarker === true),
-          Effect.orElseSucceed(() => false),
-        );
+        const config = Option.getOrUndefined(yield* session.initialConfig.pipe(Effect.option));
+        const supportsCompletionMarker = config?.shellResumeCompletionMarker === true;
+        const generation = config?.shellSyncGeneration ?? null;
+        yield* Ref.set(activeSubscription, { session, generation });
         yield* Ref.set(awaitingCompletion, supportsCompletionMarker);
         yield* setSynchronizing;
 
-        // Foreground resubscriptions on the same live session can resume from
-        // the in-memory cursor. A new session reloads the authoritative HTTP
-        // snapshot so a valid cursor cannot preserve incomplete cached data.
-        const hasAuthoritativeSnapshot = (yield* Ref.get(lastAuthoritativeSession)) === session;
-        let canResume = hasAuthoritativeSnapshot;
+        // A resubscription on the same live session, or a new session to the
+        // same server run after this shell synchronized from a recent snapshot,
+        // resumes from the in-memory cursor. Otherwise reload the authoritative
+        // HTTP snapshot so a valid cursor cannot preserve incomplete cached data.
+        const progress = yield* Ref.get(resumeProgress);
+        const snapshotAge =
+          (yield* Clock.currentTimeMillis) - (yield* Ref.get(lastAuthoritativeAt));
+        let canResume =
+          (yield* Ref.get(lastAuthoritativeSession)) === session ||
+          (progress._tag === "completed" &&
+            progress.generation === generation &&
+            snapshotAge < SHELL_RESUME_MAX_SNAPSHOT_AGE_MS);
         let current = yield* SubscriptionRef.get(state);
-        if (!hasAuthoritativeSnapshot || Option.isNone(current.snapshot)) {
+        if (!canResume || Option.isNone(current.snapshot)) {
           const prepared = yield* SubscriptionRef.get(supervisor.prepared).pipe(
             Effect.flatMap(
               Option.match({
@@ -361,7 +389,7 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
                 ? []
                 : httpSnapshot.value.threads.map((thread) => thread.id),
             );
-            yield* applyItems([{ kind: "snapshot", snapshot }], pendingLinkIds);
+            yield* applyItems([[session, { kind: "snapshot", snapshot }]], pendingLinkIds);
             canResume = true;
             current = yield* SubscriptionRef.get(state);
             if (Option.isSome(current.snapshot)) {
@@ -390,7 +418,7 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
         retryExpectedFailureAfter: "250 millis",
         resubscribe: foregroundResubscriptions,
       },
-    ).pipe(Stream.runForEachArray((items) => applyItems(items))),
+    ).pipe(Stream.runForEachArray((entries) => applyItems(entries))),
   );
   yield* SubscriptionRef.changes(supervisor.state).pipe(
     Stream.runForEach((connectionState) => {
@@ -525,7 +553,7 @@ export function createEnvironmentServerConfigsAtom(input: {
  * Every shell push replaces the state, so views that gate on load progress read these
  * primitives instead and stay put while threads stream.
  */
-export function createEnvironmentShellProgressAtoms(
+function createEnvironmentShellProgressAtoms(
   stateValueAtom: (environmentId: EnvironmentId) => Atom.Atom<EnvironmentShellState>,
 ) {
   return {

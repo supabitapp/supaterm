@@ -1,4 +1,5 @@
 import {
+  OrchestratorMcpCapabilitiesInput,
   OrchestratorMcpCapabilitiesResult,
   OrchestrationV2StopWorkflowInput,
   OrchestratorMcpCreateThreadsInput,
@@ -50,7 +51,8 @@ const threadMetadataDependencies = [
 
 const OrchestratorCapabilitiesTool = Tool.make("orchestrator_capabilities", {
   description:
-    "List the V2 provider instances and their current models from the same live catalog as the composer, including configured custom models, inherited runtime settings, and app-owned orchestration features available to this caller. For a separate top-level thread in a new or existing worktree, use supaterm_thread_launch with workspaceStrategy.",
+    "List the V2 provider instances, a short list of their models from the same live catalog as the composer, inherited runtime settings, and app-owned orchestration features available to this caller. The list has the user's favorite and custom models, your own model, every current Codex, Claude, Muse and Grok model, and the first 8 current models of other providers. Other legacy models are left out. omittedModels counts models left out; pass search, such as 'sonnet 4.6', to find them. delegate_task accepts any catalog model, listed or not. For a separate top-level thread in a new or existing worktree, use supaterm_thread_launch with workspaceStrategy.",
+  parameters: OrchestratorMcpCapabilitiesInput,
   success: OrchestratorMcpCapabilitiesResult,
   failure: OrchestratorMcpFailure,
   failureMode: "return",
@@ -61,7 +63,7 @@ const OrchestratorCapabilitiesTool = Tool.make("orchestrator_capabilities", {
   .annotate(Tool.Destructive, false)
   .annotate(Tool.Idempotent, true);
 
-export const DelegateTaskTool = Tool.make("delegate_task", {
+const DelegateTaskTool = Tool.make("delegate_task", {
   description:
     "Needs an agent running inside a Supaterm thread. Delegate one task to a Supaterm-owned child agent/subagent of THIS thread and run it with only the supplied task prompt, without copying parent conversation history. Choose providers and models from orchestrator_capabilities, which uses the same live catalog as the composer. Prefer native subagent tools for same-provider work only when they support the chosen model and no model options are requested or inherited. Use this for any model missing from the native tool, including same-provider work, for cross-provider work, or for explicitly Supaterm-owned child tasks. For every Supaterm delegated review round, call delegate_task again with the original brief, prior findings, responses, and unresolved objections in the task prompt. Track each round by its own taskId and use a distinct clientRequestId per round, stable across retries of that round. The childThreadId is backing storage, not the target for starting another delegated review round through supaterm_thread_send. Set isolation to worktree for a separate checkout based on the parent local commit, with project setup completed before the child starts. Uncommitted edits are not copied; omitted isolation shares the parent checkout. Use delegate_task when model options are requested or the child keeps the parent's provider instance and model with nonempty inheritedOptions from orchestrator_capabilities, even for native-supported models. Native subagents cannot reliably apply Supaterm model options. Set target.options using advertised IDs: Claude {effort: 'max', fastMode: true}; Codex {reasoningEffort: 'max', serviceTier: 'priority'}. Check providerInstanceId, model, and options in the result. Provider/model and modes inherit unless overridden. Options inherit only for the same instance and model; explicit entries override individual values and [] or {} clears them. A requested runtimeMode must be one the target provider lists in orchestrator_capabilities runtimeModes; an inherited one steps down to the broadest mode it offers. Leave runtimeMode unset unless the user asks for a supervised child: approval-required and auto-accept-edits usually make the child wait for a person at each action that needs approval. Prefer mode='async' for long work; mode='wait' blocks until completion, a blocking question, a pending approval, or timeout. If hasPendingQuestion, pass threadId=childThreadId to supaterm_pending_request_list, supaterm_pending_request_read (with requestId) and supaterm_pending_request_respond, or ask the user; the task's completion still wakes this thread. If pendingApproval is set, read the fresh full request in childThreadId before responding: the record can outlive its provider callback. It grants no approval authority; decisions remain with the child's existing approval holder, and pending request tools answer questions only. The child keeps running and its completion still wakes this thread. timeoutMs on mode=wait is only the parent's wait budget and does not cancel the child. waitTimedOut on that wait call means the timeout fired; keep that taskId and read status on later task_status. An async child's completion wakes this thread through a notification, steered into active turns where supported or queued otherwise, so end the turn instead of polling or spawning watchers; use task_status only when the result is needed mid-turn.",
   parameters: OrchestratorMcpDelegateTaskInput,
@@ -112,7 +114,7 @@ const WorkflowStopTool = Tool.make("supaterm_workflow_stop", {
   .annotate(Tool.Title, "Stop a workflow")
   .annotate(Tool.Destructive, true);
 
-export const ScheduleTaskTool = Tool.make("schedule_task", {
+const ScheduleTaskTool = Tool.make("schedule_task", {
   description:
     "Create persistent recurring work in the app scheduler, which runs even when no turn is active. Pass schedule as a STRUCTURED OBJECT, never JSON text: {type:'interval', everyMs:3600000} means hourly; {type:'fixed_time', timeOfDay:'09:00', weekdays:[1,2,3,4,5]} means weekday mornings. Omit projectId for this thread's project. In this thread's project, runs post into THIS thread by default (bindToCurrentThread=true); use false only when the user wants a fresh top-level thread per run. Elsewhere each run launches a fresh thread. Provider, model, and runtime settings inherit from this thread, or from the project default when there is no calling thread. Report the returned schedule and nextRunAt after success.",
   parameters: OrchestratorMcpScheduleTaskInput,
@@ -163,7 +165,7 @@ const DeleteScheduledTaskTool = Tool.make("delete_scheduled_task", {
   .annotate(Tool.Title, "Delete a scheduled task")
   .annotate(Tool.Destructive, true);
 
-export const CreateThreadsTool = Tool.make("create_threads", {
+const CreateThreadsTool = Tool.make("create_threads", {
   description:
     "Needs an agent running inside a Supaterm thread. Create one or more ORDINARY TOP-LEVEL Supaterm conversations. This is not delegation and does not create child agents/subagents. For delegated work, choose models from orchestrator_capabilities. Prefer native subagents only when they support the chosen model and no model options are requested or inherited; otherwise call delegate_task, including for same-provider work. This includes keeping the parent's provider instance and model with nonempty inheritedOptions from orchestrator_capabilities. Use create_threads for a batch of separate top-level threads sharing this checkout. Prefer supaterm_thread_launch for a single thread. Both require the user to request separate/new/top-level threads or conversations. Each entry may override provider, model, options, runtime mode, and interaction mode; omitted settings inherit. Project, branch, and worktree always inherit and cannot be overridden here. For independent implementation or a PR stack in its own worktree, use supaterm_thread_launch with workspaceStrategy instead of asking the agent to create a worktree in its prompt.",
   parameters: OrchestratorMcpCreateThreadsInput,
@@ -205,7 +207,7 @@ const ThreadReadTool = Tool.make("supaterm_thread_read", {
   .annotate(Tool.Destructive, false)
   .annotate(Tool.Idempotent, true);
 
-export const ThreadUpdateTool = Tool.make("supaterm_thread_update", {
+const ThreadUpdateTool = Tool.make("supaterm_thread_update", {
   description:
     "Update metadata for a thread. Omit threadId to update this thread. Use action='rename' with title, action='regenerate_title' with no extra field, action='link_pull_request' with pullRequest, or action='unlink_pull_request'. Workspace and branch changes are intentionally not supported. clientRequestId makes retries idempotent.",
   parameters: ThreadMetadataMcpUpdateInput,

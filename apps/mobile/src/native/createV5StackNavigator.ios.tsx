@@ -255,8 +255,7 @@ export function V5StackView(props: V5StackViewProps) {
   const groups = partitionStackPresentations(props.state.routes, (route) => {
     const presentation = props.descriptors[route.key]?.options.presentation;
     return (
-      ["SettingsSheet", "NewTaskSheet"].includes(route.name) ||
-      (presentation !== undefined && presentation !== "card")
+      route.name === "SettingsSheet" || (presentation !== undefined && presentation !== "card")
     );
   });
   const routes = groups.map((group) => group[0]!);
@@ -364,6 +363,7 @@ export function V5SheetStackView(props: V5StackViewProps) {
             initialDetentIndex={options.sheetInitialDetentIndex}
             largestUndimmedDetentIndex={options.sheetLargestUndimmedDetentIndex}
             prefersGrabberVisible={options.sheetGrabberVisible}
+            prefersHorizontalBars={options.sheetPrefersHorizontalBars}
             preferredCornerRadius={options.sheetCornerRadius}
             prefersScrollingExpandsWhenScrolledToEdge={options.sheetExpandsWhenScrolledToEdge}
             nativeContainerStyle={{

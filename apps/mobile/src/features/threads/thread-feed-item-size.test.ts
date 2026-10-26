@@ -1,20 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import {
-  resolveThreadFeedFixedItemSize,
-  threadWorkRowNeedsMeasurement,
-} from "./thread-feed-item-size";
-
-describe("resolveThreadFeedFixedItemSize", () => {
-  it("leaves activity groups to native measurement", () => {
-    expect(resolveThreadFeedFixedItemSize("activity-group")).toBeUndefined();
-  });
-
-  it("keeps fixed timeline chrome on the premeasured path", () => {
-    expect(resolveThreadFeedFixedItemSize("run-fold")).toBe(42);
-    expect(resolveThreadFeedFixedItemSize("work-toggle")).toBe(28);
-  });
-});
+import { threadWorkRowNeedsMeasurement } from "./thread-feed-item-size";
 
 describe("threadWorkRowNeedsMeasurement", () => {
   it("keeps unopened rows on the fixed-size path", () => {

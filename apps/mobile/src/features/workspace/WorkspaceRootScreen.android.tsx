@@ -5,26 +5,26 @@ import { NativeStackScreenOptions } from "../../native/StackHeader";
 import { AndroidScreenHeader } from "../../components/ui/AndroidScreenHeader";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ScreenContent } from "../../components/ui/ScreenContent";
+import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
 import { HomeRouteScreen } from "../home/HomeRouteScreen";
+import { PullRequestFilterMenuProvider } from "../pull-requests/PullRequestFilterMenuContext";
 import { PullRequestsScreen } from "../pull-requests/PullRequestsScreen";
 import { PullRequestToolbar } from "../pull-requests/PullRequestToolbar.android";
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
+import { AndroidWorkspaceNavigation } from "./AndroidWorkspaceNavigation";
 import { WorkspaceTabsContext, useWorkspaceTabs } from "./WorkspaceTabsContext";
-import { WORKSPACE_DOCK } from "./workspace-tabs-state";
-import { useWorkspaceDockHeight } from "./useWorkspaceDockHeight";
 
 export function WorkspaceRootScreen() {
   const { layout } = useAdaptiveWorkspaceLayout();
   const workspace = useWorkspaceTabs()!;
   const insets = useSafeAreaInsets();
-  const dockHeight = useWorkspaceDockHeight();
-  const bottomClearance = Math.max(insets.bottom, 12) + WORKSPACE_DOCK.bottomGap + dockHeight + 16;
+  const { fabClearance } = useAndroidControlSizing();
   const context = useMemo(
     () => ({
       ...workspace,
-      bottomClearance,
+      bottomClearance: workspace.state.selectedTab === "threads" ? fabClearance + 16 : 16,
     }),
-    [workspace, bottomClearance],
+    [workspace, fabClearance],
   );
 
   if (layout.usesSplitView) {
@@ -49,20 +49,21 @@ export function WorkspaceRootScreen() {
     <WorkspaceTabsContext value={context}>
       <View className="flex-1 bg-header">
         <NativeStackScreenOptions options={{ headerShown: false }} />
-        <SafeAreaInsetsContext value={insets}>
+        <SafeAreaInsetsContext value={{ ...insets, bottom: 0 }}>
           <View className="flex-1">
             {workspace.state.selectedTab === "threads" ? (
               <HomeRouteScreen />
             ) : (
-              <>
+              <PullRequestFilterMenuProvider>
                 <PullRequestToolbar />
                 <ScreenContent>
                   <PullRequestsScreen />
                 </ScreenContent>
-              </>
+              </PullRequestFilterMenuProvider>
             )}
           </View>
         </SafeAreaInsetsContext>
+        <AndroidWorkspaceNavigation />
       </View>
     </WorkspaceTabsContext>
   );

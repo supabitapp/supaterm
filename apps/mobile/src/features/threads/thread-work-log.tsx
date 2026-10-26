@@ -9,6 +9,7 @@ import { useNoticeMotion } from "../../lib/useNoticeMotion";
 import { useForegroundMotion } from "../../lib/useForegroundMotion";
 import { ThreadWorkLogDetail } from "./thread-work-log-detail";
 import { threadWorkRowNeedsMeasurement } from "./thread-feed-item-size";
+import { ProposedPlanCard } from "./ProposedPlanCard";
 import {
   WorkLogLabel,
   WorkLogBlock,
@@ -410,6 +411,7 @@ interface ThreadWorkLogProps {
   readonly activities: ReadonlyArray<ThreadFeedActivity>;
   readonly anchorKey: string;
   readonly environmentId: EnvironmentId;
+  readonly workspaceRoot?: string | null | undefined;
   readonly copiedRowId: string | null;
   readonly expandedRows: Readonly<Record<string, boolean>>;
   readonly rowSizing: ReturnType<typeof deriveThreadWorkLogSizing>;
@@ -445,6 +447,18 @@ export function ThreadWorkLog(props: ThreadWorkLogProps) {
 
   if (props.activities.length === 0) {
     return null;
+  }
+
+  const plan = props.activities[0]?.projectedItem.item;
+  if (plan?.type === "proposed_plan") {
+    return (
+      <ProposedPlanCard
+        environmentId={props.environmentId}
+        workspaceRoot={props.workspaceRoot}
+        markdown={plan.markdown}
+        renderMarkdown={props.renderReasoning}
+      />
+    );
   }
 
   if (props.activities[0]?.projectedItem.item.type === "subagent") {
@@ -1026,6 +1040,7 @@ export function ThreadWorkGroupToggle(props: {
   readonly hasFailure: boolean;
   readonly shimmer: boolean;
   readonly thought?: string | undefined;
+  readonly trailing?: ReactNode;
   readonly onToggle: () => void;
 }) {
   const statusLabel = props.hasFailure ? `${props.summary}, tool call failed` : props.summary;
@@ -1058,49 +1073,54 @@ export function ThreadWorkGroupToggle(props: {
           </Text>
         </Pressable>
       ) : null}
-      <WorkLogPressable
-        accessibilityRole="button"
-        accessibilityState={{ expanded: props.expanded }}
-        accessibilityLabel={accessibilityLabel}
-        accessibilityHint={`Double tap to ${props.expanded ? "hide" : "show"} ${props.hiddenCount} tool ${props.hiddenCount === 1 ? "call" : "calls"}.`}
-        onPress={() => {
-          void Haptics.selectionAsync();
-          props.onToggle();
-        }}
-        rowSizing={props.rowSizing}
-      >
-        {props.shimmer ? (
-          <ShimmeringWorkContent
-            key={props.rowSizing.textSizeKey}
-            environmentId={props.environmentId}
-            icon={icon}
-            iconSubtleColor={props.iconSubtleColor}
-            label={props.summary}
-            showIcon
-            themeAppearance={props.themeAppearance}
-            toolIcon={props.toolIcon}
-          />
-        ) : (
-          <>
-            <WorkLogIconSlot>
-              <ToolActivityIconView
+      <View className="flex-row items-center">
+        <View className="min-w-0 flex-1">
+          <WorkLogPressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: props.expanded }}
+            accessibilityLabel={accessibilityLabel}
+            accessibilityHint={`Double tap to ${props.expanded ? "hide" : "show"} ${props.hiddenCount} tool ${props.hiddenCount === 1 ? "call" : "calls"}.`}
+            onPress={() => {
+              void Haptics.selectionAsync();
+              props.onToggle();
+            }}
+            rowSizing={props.rowSizing}
+          >
+            {props.shimmer ? (
+              <ShimmeringWorkContent
+                key={props.rowSizing.textSizeKey}
                 environmentId={props.environmentId}
-                icon={props.toolIcon}
-                fallback={icon}
-                fallbackColor={props.iconSubtleColor}
+                icon={icon}
+                iconSubtleColor={props.iconSubtleColor}
+                label={props.summary}
+                showIcon
                 themeAppearance={props.themeAppearance}
+                toolIcon={props.toolIcon}
               />
-            </WorkLogIconSlot>
-            <WorkLogLabel key={props.rowSizing.textSizeKey}>{props.summary}</WorkLogLabel>
-          </>
-        )}
-        <ThreadDisclosureChevron
-          expanded={props.expanded}
-          collapsedDirection="down"
-          size={11}
-          tintColor={props.iconSubtleColor}
-        />
-      </WorkLogPressable>
+            ) : (
+              <>
+                <WorkLogIconSlot>
+                  <ToolActivityIconView
+                    environmentId={props.environmentId}
+                    icon={props.toolIcon}
+                    fallback={icon}
+                    fallbackColor={props.iconSubtleColor}
+                    themeAppearance={props.themeAppearance}
+                  />
+                </WorkLogIconSlot>
+                <WorkLogLabel key={props.rowSizing.textSizeKey}>{props.summary}</WorkLogLabel>
+              </>
+            )}
+            <ThreadDisclosureChevron
+              expanded={props.expanded}
+              collapsedDirection="down"
+              size={11}
+              tintColor={props.iconSubtleColor}
+            />
+          </WorkLogPressable>
+        </View>
+        {props.trailing}
+      </View>
       <ThreadToolImageStrip
         images={props.images}
         environmentId={props.environmentId}

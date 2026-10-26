@@ -31,6 +31,7 @@ import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 
 import { getInitialServerConfig, request } from "../rpc/client.ts";
+import { deriveThreadQueueWorkflowState } from "../state/threadWorkflows.ts";
 
 interface CommandMetadata {
   readonly commandId?: CommandId;
@@ -210,6 +211,10 @@ export interface MergeThreadBackInput extends CommandMetadata {
   readonly sourceThreadId: ThreadId;
   readonly targetThreadId: ThreadId;
   readonly runId: RunId;
+}
+
+export interface ResumeThreadQueueInput extends ThreadCommandInput {
+  readonly runId?: RunId;
 }
 
 export interface ReorderQueuedRunInput extends ThreadCommandInput {
@@ -709,19 +714,36 @@ export const startThreadTurn = Effect.fn("EnvironmentCommands.startThreadTurn")(
 export const interruptThreadTurn = Effect.fn("EnvironmentCommands.interruptThreadTurn")(function* (
   input: InterruptThreadTurnInput,
 ) {
+  let threadId = input.threadId;
   if (input.subagentId !== undefined) {
     const projection = yield* getProjection(input.threadId);
     const subagent = projection.subagents.find((agent) => agent.id === input.subagentId);
-    if (subagent?.runId == null) return { sequence: 0 };
-    return yield* dispatch({
-      type: "subagent.stop",
-      commandId: yield* allocateCommandId(input),
-      threadId: input.threadId,
-      runId: subagent.runId,
-      subagentId: subagent.id,
-    });
+    if (subagent?.origin === "app_owned" && subagent.childThreadId !== null) {
+      // The parent ends the task even when its child lost track of it (#19002). Older
+      // servers reject this for app-owned tasks, so the child stop below still runs.
+      if (subagent.runId !== null) {
+        yield* dispatch({
+          type: "subagent.stop",
+          commandId: yield* allocateCommandId({}),
+          threadId: input.threadId,
+          runId: subagent.runId,
+          subagentId: subagent.id,
+        }).pipe(Effect.ignore);
+      }
+      threadId = subagent.childThreadId;
+    } else {
+      if (subagent?.runId == null) return { sequence: 0 };
+      return yield* dispatch({
+        type: "subagent.stop",
+        commandId: yield* allocateCommandId(input),
+        threadId: input.threadId,
+        runId: subagent.runId,
+        subagentId: subagent.id,
+      });
+    }
   }
-  let runId = input.runId;
+  // A run named by the caller belongs to the parent, not the rerouted child.
+  let runId = threadId === input.threadId ? input.runId : undefined;
   if (runId === undefined) {
     const config = yield* getInitialServerConfig();
     if (config.environment.capabilities.threadStop === true) {
@@ -729,12 +751,12 @@ export const interruptThreadTurn = Effect.fn("EnvironmentCommands.interruptThrea
       return yield* dispatch({
         type: "thread.stop",
         commandId: yield* allocateCommandId(input),
-        threadId: input.threadId,
+        threadId,
       });
     }
   }
   if (runId === undefined) {
-    const projection = yield* getProjection(input.threadId);
+    const projection = yield* getProjection(threadId);
     runId = projection.runs.findLast(
       (run) =>
         run.status === "preparing" ||
@@ -763,7 +785,7 @@ export const interruptThreadTurn = Effect.fn("EnvironmentCommands.interruptThrea
         result = yield* dispatch({
           type: "thread.pull-request.watch",
           commandId: yield* allocateCommandId(result.sequence === 0 ? input : {}),
-          threadId: input.threadId,
+          threadId,
           host: link.host,
           repository: link.repository,
           number: link.number,
@@ -787,7 +809,7 @@ export const interruptThreadTurn = Effect.fn("EnvironmentCommands.interruptThrea
   return yield* dispatch({
     type: "run.interrupt",
     commandId: yield* allocateCommandId(input),
-    threadId: input.threadId,
+    threadId,
     runId,
     holdQueue: true,
   });
@@ -903,9 +925,34 @@ export const mergeThreadBack = Effect.fn("EnvironmentCommands.mergeThreadBack")(
   });
 });
 
+/** With a run id, sends that queued message now instead of the first one. */
 export const resumeThreadQueue = Effect.fn("EnvironmentCommands.resumeThreadQueue")(function* (
-  input: ThreadCommandInput,
+  input: ResumeThreadQueueInput,
 ) {
+  if (input.runId !== undefined) {
+    const config = yield* getInitialServerConfig();
+    if (config.environment.capabilities.queuedRunStart === true) {
+      return yield* dispatch({
+        type: "queued-run.start",
+        commandId: yield* allocateCommandId(input),
+        threadId: input.threadId,
+        runId: input.runId,
+      });
+    }
+    // Older servers reject queued-run.start, so the message moves to the front
+    // of the queue and the queue resumes from it.
+    const first = deriveThreadQueueWorkflowState(yield* getProjection(input.threadId)).queuedRuns[0]
+      ?.run;
+    if (first !== undefined && first.id !== input.runId) {
+      yield* dispatch({
+        type: "queued-run.reorder",
+        commandId: yield* allocateCommandId({}),
+        threadId: input.threadId,
+        runId: input.runId,
+        beforeRunId: first.id,
+      });
+    }
+  }
   return yield* dispatch({
     type: "queue.resume",
     commandId: yield* allocateCommandId(input),

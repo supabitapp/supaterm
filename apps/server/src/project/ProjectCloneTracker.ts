@@ -5,7 +5,6 @@ import type {
   ProjectCloneStartInput,
   ProjectCloneStartResult,
   ProjectId,
-  SourceControlRepositoryInfo,
 } from "@supaterm/contracts";
 import {
   OrchestrationDispatchCommandError,
@@ -20,6 +19,7 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
@@ -67,6 +67,10 @@ export interface ProjectCloneHooks {
 }
 
 const DONE_RETENTION = "30 seconds";
+// Git prints nothing while a transfer waits on the network, and the kernel can
+// take 15+ minutes to give up on a dead connection. Without this the banner
+// keeps showing the last transfer speed as if data were still arriving.
+const STALL_AFTER = "20 seconds";
 
 function clampText(text: string, maxLength: number): string {
   return text.length <= maxLength ? text : `${text.slice(0, maxLength - 1)}…`;
@@ -79,10 +83,9 @@ interface TrackedClone {
   readonly fiber: Fiber.Fiber<unknown, unknown> | null;
   readonly hooks: ProjectCloneHooks;
   readonly input: {
-    /** What git is given; may carry credentials and never leaves the server. */
-    readonly cloneUrl: string;
-    readonly destinationPath: string;
-    readonly repository: SourceControlRepositoryInfo | null;
+    readonly request: ProjectCloneStartInput;
+    /** Its cloneUrl is what git is given; it may carry credentials and never leaves the server. */
+    readonly prepared: SourceControlRepositoryService.SourceControlPreparedClone;
   };
 }
 
@@ -165,8 +168,27 @@ export const make = Effect.gen(function* () {
         percent: update.percent,
         detail:
           update.detail === null ? null : clampText(update.detail, PROJECT_CLONE_DETAIL_MAX_LENGTH),
+        stalled: false,
       },
     })).pipe(Effect.asVoid);
+
+  const markStalled = (projectId: ProjectId) =>
+    modify(projectId, (tracked) => ({
+      ...tracked,
+      snapshot: { ...tracked.snapshot, stalled: true },
+    })).pipe(Effect.asVoid);
+
+  /** Marks the clone stalled once, then waits for git to speak again. */
+  const watchForStall = (projectId: ProjectId, pulses: Queue.Dequeue<void>) =>
+    Queue.take(pulses).pipe(
+      Effect.timeoutOption(STALL_AFTER),
+      Effect.flatMap((pulse) =>
+        Option.isSome(pulse)
+          ? Effect.void
+          : markStalled(projectId).pipe(Effect.andThen(Queue.take(pulses))),
+      ),
+      Effect.forever,
+    );
 
   const finish = Effect.fn("ProjectCloneTracker.finish")(function* (
     projectId: ProjectId,
@@ -182,11 +204,25 @@ export const make = Effect.gen(function* () {
         phase,
         endedAt,
         percent: phase === "done" ? 100 : tracked.snapshot.percent,
+        stalled: false,
         error: error === null ? null : clampText(error, PROJECT_CLONE_ERROR_MAX_LENGTH),
       },
     }));
     if (phase === "done") yield* scheduleRemoval(projectId);
   });
+
+  const cloneWatchingForStall = Effect.fn("ProjectCloneTracker.cloneWatchingForStall")(function* (
+    projectId: ProjectId,
+    tracked: TrackedClone,
+  ) {
+    const pulses = yield* Queue.sliding<void>(1);
+    yield* watchForStall(projectId, pulses).pipe(Effect.forkScoped);
+    return yield* repositories.clonePrepared(tracked.input.request, tracked.input.prepared, {
+      onProgress: (update) =>
+        Queue.offer(pulses, undefined).pipe(Effect.andThen(progress(projectId, update))),
+      timeoutMs: null,
+    });
+  }, Effect.scoped);
 
   /**
    * Runs in its own fiber; the tracker records the outcome through `onExit`,
@@ -196,26 +232,21 @@ export const make = Effect.gen(function* () {
    * checkout.
    */
   const runClone = (projectId: ProjectId, tracked: TrackedClone) =>
-    repositories
-      .cloneRepository(
-        { remoteUrl: tracked.input.cloneUrl, destinationPath: tracked.input.destinationPath },
-        { onProgress: (update) => progress(projectId, update), timeoutMs: null },
-      )
-      .pipe(
-        Effect.onExit((exit) =>
-          Exit.isSuccess(exit)
-            ? finish(projectId, "done", null)
-            : Cause.hasInterruptsOnly(exit.cause)
-              ? finish(projectId, "cancelled", null)
-              : finish(projectId, "failed", describeCloneFailure(exit.cause)),
-        ),
-        Effect.flatMap(() =>
-          tracked.hooks
-            .onCloned({ projectId, workspaceRoot: tracked.input.destinationPath })
-            .pipe(Effect.ignoreCause({ log: true })),
-        ),
-        Effect.ignoreCause(),
-      );
+    cloneWatchingForStall(projectId, tracked).pipe(
+      Effect.onExit((exit) =>
+        Exit.isSuccess(exit)
+          ? finish(projectId, "done", null)
+          : Cause.hasInterruptsOnly(exit.cause)
+            ? finish(projectId, "cancelled", null)
+            : finish(projectId, "failed", describeCloneFailure(exit.cause)),
+      ),
+      Effect.flatMap(() =>
+        tracked.hooks
+          .onCloned({ projectId, workspaceRoot: tracked.input.prepared.destinationPath })
+          .pipe(Effect.ignoreCause({ log: true })),
+      ),
+      Effect.ignoreCause(),
+    );
 
   const launch = Effect.fn("ProjectCloneTracker.launch")(function* (projectId: ProjectId) {
     const current = yield* Ref.get(clones);
@@ -244,6 +275,7 @@ export const make = Effect.gen(function* () {
         stage: "connecting",
         percent: null,
         detail: null,
+        stalled: false,
         error: null,
         startedAt,
         endedAt: null,
@@ -253,7 +285,7 @@ export const make = Effect.gen(function* () {
         const conflict = Array.from(current.values()).some(
           (tracked) =>
             tracked.snapshot.projectId === input.projectId ||
-            tracked.input.destinationPath === prepared.destinationPath,
+            tracked.input.prepared.destinationPath === prepared.destinationPath,
         );
         if (conflict) return [false, current] as const;
         const next = new Map(current);
@@ -261,11 +293,7 @@ export const make = Effect.gen(function* () {
           snapshot,
           fiber: null,
           hooks,
-          input: {
-            cloneUrl: prepared.cloneUrl,
-            destinationPath: prepared.destinationPath,
-            repository: prepared.repository,
-          },
+          input: { request: input, prepared },
         });
         return [true, next] as const;
       });
@@ -319,7 +347,9 @@ export const make = Effect.gen(function* () {
           const after = yield* get(projectId);
           if (after?.phase === "done") return;
           if (after?.phase === "running") yield* finish(projectId, "cancelled", null);
-          yield* repositories.discardClone(tracked.input.destinationPath).pipe(Effect.ignore);
+          yield* repositories
+            .discardClone(tracked.input.prepared.destinationPath)
+            .pipe(Effect.ignore);
         }),
       );
       return true;
@@ -336,7 +366,7 @@ export const make = Effect.gen(function* () {
       ) {
         return false;
       }
-      yield* repositories.discardClone(tracked.input.destinationPath);
+      yield* repositories.discardClone(tracked.input.prepared.destinationPath);
       const startedAt = yield* nowIso;
       yield* modify(projectId, (entry) => ({
         ...entry,
@@ -346,6 +376,7 @@ export const make = Effect.gen(function* () {
           stage: "connecting",
           percent: null,
           detail: null,
+          stalled: false,
           error: null,
           startedAt,
           endedAt: null,
@@ -367,7 +398,7 @@ export const make = Effect.gen(function* () {
     // is going away either way, but a complete checkout is the user's.
     const after = yield* get(projectId);
     if (after?.phase !== "done") {
-      yield* repositories.discardClone(tracked.input.destinationPath).pipe(Effect.ignore);
+      yield* repositories.discardClone(tracked.input.prepared.destinationPath).pipe(Effect.ignore);
     }
     yield* clearRetention(projectId);
     yield* remove(projectId);

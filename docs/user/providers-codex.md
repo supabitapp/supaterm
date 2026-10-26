@@ -99,6 +99,10 @@ when it resets, when Codex reports them. Send the message again after the reset.
 message also says whether your workspace owner needs to add credits or raise the
 spend limit to continue sooner.
 
+A ChatGPT workspace can also cap how much of your plan other apps use. When Codex stops on that
+cap, the thread offers **Copy request for admin**, a message to send your workspace admin asking
+for higher limits.
+
 ## Send feedback to OpenAI
 
 In an existing Codex thread, send `/feedback` with an optional description, for

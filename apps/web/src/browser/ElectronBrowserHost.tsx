@@ -1,5 +1,3 @@
-"use client";
-
 import { parseScopedThreadKey } from "@supaterm/client-runtime/environment";
 import {
   AuthPreviewOperateScope,

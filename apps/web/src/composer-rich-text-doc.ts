@@ -6,7 +6,7 @@ import {
   MARK_TO_TIPTAP,
   type RichTextMark,
 } from "~/composer-rich-text";
-import { markdownMathRanges } from "@supaterm/shared/markdownMath";
+import { composerMathRanges } from "@supaterm/shared/composerInlineTokens";
 
 export type SkillMeta = { label: string; description: string | null };
 
@@ -249,7 +249,7 @@ export function buildTiptapContent(
   const atomSources: string[] = [];
   const literal = value.slice(0, options?.literalLength ?? 0);
   const remainder = value.slice(literal.length);
-  const formulas = markdownMathRanges(remainder);
+  const formulas = composerMathRanges(remainder);
   let offset = 0;
   const chunks: Array<{ text: string } | { source: string }> = [];
   for (const formula of formulas) {

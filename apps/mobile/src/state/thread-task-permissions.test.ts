@@ -60,6 +60,7 @@ const state = vi.hoisted(() => ({
 vi.mock("react", () => ({
   useCallback: <A>(callback: A) => callback,
   useEffect: () => {},
+  useLayoutEffect: () => {},
   useRef: <A>(current: A) => ({ current }),
   useMemo: <A>(factory: () => A) => factory(),
   useState: <A>(initial: A | (() => A)) => [
@@ -108,7 +109,10 @@ vi.mock("./use-atom-command", () => ({ useAtomCommand: <A>(command: A) => comman
 vi.mock("./threads", async () => {
   const { Atom } = await import("effect/reactivity");
   return {
-    environmentThreadDetails: { queueWorkflowAtom: () => Atom.make(null) },
+    environmentThreadDetails: {
+      queueWorkflowAtom: () => Atom.make(null),
+      checkpointSummariesAtom: () => Atom.make([]),
+    },
     threadEnvironment: {
       respondToApproval: state.approve,
       respondToUserInput: state.answer,
@@ -283,6 +287,32 @@ describe("mobile task permissions", () => {
       environmentId: "secondary",
       input: { threadId: "thread", requestId: "input", answers: { language: "TypeScript" } },
     });
+  });
+});
+
+describe("mobile approval redirect", () => {
+  it("sends only after the approvals are declined and the draft is still what the user sent", async () => {
+    state.grantedEnvironments.add("secondary");
+    const declined = vi.fn(async () => false);
+    expect(await useThreadComposerState().onSendMessage(undefined, declined)).toBeNull();
+    expect(declined).toHaveBeenCalledTimes(1);
+    expect(state.enqueue).not.toHaveBeenCalled();
+    expect(state.clearDraft).not.toHaveBeenCalled();
+
+    const editedDuringDecline = async () => {
+      state.draft = { ...state.draft, text: "Edited while declining" };
+      return true;
+    };
+    expect(await useThreadComposerState().onSendMessage(undefined, editedDuringDecline)).toBeNull();
+    expect(state.enqueue).not.toHaveBeenCalled();
+    expect(state.clearDraft).not.toHaveBeenCalled();
+
+    expect(await useThreadComposerState().onSendMessage(undefined, async () => true)).toBe(
+      "message",
+    );
+    expect(state.enqueue).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ text: "Edited while declining" }),
+    );
   });
 });
 

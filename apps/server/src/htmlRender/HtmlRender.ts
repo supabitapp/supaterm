@@ -1,6 +1,7 @@
 import type { ThreadId } from "@supaterm/contracts";
 import * as McpProviderSessions from "@supaterm/provider-core/server/McpProviderSessions";
 import * as HostProcess from "@supaterm/shared/HostProcess";
+import { isNetworkPath } from "@supaterm/shared/path";
 import {
   clampHtmlRenderHeight,
   HTML_RENDER_COLUMN_WIDTH,
@@ -243,13 +244,17 @@ const inlineLocalImages = Effect.fn("HtmlRender.inlineLocalImages")(function* (h
   const files = yield* Effect.forEach(
     [...new Set(references.map((reference) => reference.path))],
     (path) =>
-      fileSystem.stat(filePathFor(path)).pipe(
-        Effect.map((info) => ({
-          path,
-          size: info.type === "File" ? Number(info.size) : undefined,
-        })),
-        Effect.orElseSucceed(() => ({ path, size: undefined })),
-      ),
+      // Statting a network path makes Windows sign in to its host with the
+      // user's NTLM credentials, so one is reported as unreadable instead.
+      isNetworkPath(filePathFor(path))
+        ? Effect.succeed({ path, size: undefined })
+        : fileSystem.stat(filePathFor(path)).pipe(
+            Effect.map((info) => ({
+              path,
+              size: info.type === "File" ? Number(info.size) : undefined,
+            })),
+            Effect.orElseSucceed(() => ({ path, size: undefined })),
+          ),
     { concurrency: 8 },
   );
   const oversized = files.find((file) => file.size !== undefined && file.size > MAX_IMAGE_BYTES);

@@ -2,13 +2,8 @@ package expo.modules.supatermnativecontrols
 
 import android.content.Context
 import android.view.ViewGroup
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -21,13 +16,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.modules.Module
@@ -41,12 +34,6 @@ class SupatermWorkspaceNavigationModule : Module() {
     View(SupatermWorkspaceNavigationView::class) {
       Prop("selectedTab") { view: SupatermWorkspaceNavigationView, value: String ->
         view.selectedTab = value
-      }
-      Prop("showTabs") { view: SupatermWorkspaceNavigationView, value: Boolean ->
-        view.showTabs = value
-      }
-      Prop("filterCustomized") { view: SupatermWorkspaceNavigationView, value: Boolean ->
-        view.filterCustomized = value
       }
       Prop("dark") { view: SupatermWorkspaceNavigationView, value: Boolean -> view.dark = value }
       Prop("textScale") { view: SupatermWorkspaceNavigationView, value: Float ->
@@ -64,12 +51,12 @@ class SupatermWorkspaceNavigationModule : Module() {
       Prop("unselectedColor") { view: SupatermWorkspaceNavigationView, value: Int ->
         view.unselectedColor = value
       }
-      Events("onTabSelected", "onFilterPressed", "onCompose")
+      Events("onTabSelected")
     }
   }
 }
 
-/** Material3 workspace dock: filter, the workspace tabs, and compose. */
+/** Material3 navigation bar for the workspace tabs. */
 class SupatermWorkspaceNavigationView(
   context: Context,
   appContext: AppContext
@@ -78,10 +65,6 @@ class SupatermWorkspaceNavigationView(
   override val shouldUseAndroidLayout = true
 
   private val onTabSelected by EventDispatcher()
-  private val onFilterPressed by EventDispatcher()
-  private val onCompose by EventDispatcher()
-  var showTabs by mutableStateOf(true)
-  var filterCustomized by mutableStateOf(false)
   var selectedTab by mutableStateOf("threads")
   var dark by mutableStateOf(false)
   var textScale by mutableStateOf(1f)
@@ -120,32 +103,7 @@ class SupatermWorkspaceNavigationView(
         )
         setContent {
           MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme()) {
-            Row(
-              modifier = Modifier.fillMaxSize(),
-              verticalAlignment = Alignment.CenterVertically
-            ) {
-              dockButton(
-                drawable = R.drawable.supaterm_filter,
-                label = if (selectedTab ==
-                  "threads"
-                ) {
-                  "Filter threads"
-                } else {
-                  "Filter pull requests"
-                },
-                customized = filterCustomized
-              ) {
-                onFilterPressed(emptyMap<String, String>())
-              }
-              if (showTabs) {
-                tabBar(Modifier.weight(1f))
-              } else {
-                Spacer(Modifier.weight(1f))
-              }
-              dockButton(R.drawable.supaterm_compose, "New chat") {
-                onCompose(emptyMap<String, String>())
-              }
-            }
+            tabBar()
           }
         }
       },
@@ -154,28 +112,9 @@ class SupatermWorkspaceNavigationView(
   }
 
   @Composable
-  private fun dockButton(
-    drawable: Int,
-    label: String,
-    customized: Boolean = false,
-    onClick: () -> Unit
-  ) {
-    FilledTonalIconButton(
-      onClick = onClick,
-      modifier = Modifier.size(56.dp),
-      colors = IconButtonDefaults.filledTonalIconButtonColors(
-        containerColor = Color(if (customized) selectedColor else indicatorColor),
-        contentColor = Color(if (customized) indicatorColor else selectedColor)
-      )
-    ) {
-      Icon(painter = painterResource(drawable), contentDescription = label)
-    }
-  }
-
-  @Composable
-  private fun tabBar(modifier: Modifier) {
+  private fun tabBar() {
     NavigationBar(
-      modifier = modifier,
+      modifier = Modifier.fillMaxSize(),
       containerColor = Color(containerColor),
       tonalElevation = androidx.compose.ui.unit.Dp(0f),
       windowInsets = WindowInsets(0),

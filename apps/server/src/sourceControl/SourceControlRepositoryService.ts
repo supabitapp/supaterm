@@ -7,6 +7,7 @@ import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
 
 import {
+  GitCommandError,
   SourceControlProviderError,
   SourceControlRepositoryError,
   type GitCommandFailureReason,
@@ -31,8 +32,10 @@ import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as BitbucketApi from "@supaterm/source-control-bitbucket/server/BitbucketApi";
 import * as SourceControlProviderRegistry from "./SourceControlProviderRegistry.ts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
+import { cloneUrlForProtocol, cloneUrlProtocol } from "@supaterm/shared/cloneUrl";
 const isSourceControlRepositoryError = Schema.is(SourceControlRepositoryError);
 const isSourceControlProviderError = Schema.is(SourceControlProviderError);
+const isGitCommandError = Schema.is(GitCommandError);
 const isBitbucketRepositoryLocatorError = Schema.is(BitbucketApi.BitbucketRepositoryLocatorError);
 
 export class SourceControlRepositoryService extends Context.Service<
@@ -46,6 +49,12 @@ export class SourceControlRepositoryService extends Context.Service<
     ) => Effect.Effect<SourceControlPreparedClone, SourceControlRepositoryError>;
     readonly cloneRepository: (
       input: SourceControlCloneRepositoryInput,
+      options?: SourceControlCloneOptions,
+    ) => Effect.Effect<SourceControlCloneRepositoryResult, SourceControlRepositoryError>;
+    /** Clones what `prepareClone` resolved, keeping the request's protocol for the HTTPS retry. */
+    readonly clonePrepared: (
+      input: SourceControlCloneRepositoryInput,
+      prepared: SourceControlPreparedClone,
       options?: SourceControlCloneOptions,
     ) => Effect.Effect<SourceControlCloneRepositoryResult, SourceControlRepositoryError>;
     readonly discardClone: (
@@ -162,6 +171,27 @@ function publishPushFailureDetail(input: {
       return `${created}. Fix the problem, then push again.`;
   }
 }
+
+/**
+ * Adding a project clones over SSH for most hosts, and a machine with no SSH
+ * key there would fail every time, while the host's HTTPS credential helper
+ * may be set up. A clone whose SSH login was refused is retried once over
+ * HTTPS, unless the caller asked for SSH. A looked-up repository has the
+ * provider's own HTTPS URL; any other URL is rewritten, which is refused
+ * where it would have to guess.
+ */
+function httpsFallbackUrl(
+  input: SourceControlCloneRepositoryInput,
+  prepared: SourceControlPreparedClone,
+): string | null {
+  if (input.protocol === "ssh" || cloneUrlProtocol(prepared.cloneUrl) !== "ssh") return null;
+  if (prepared.repository?.sshUrl === prepared.cloneUrl) return prepared.repository.url;
+  return cloneUrlForProtocol(prepared.cloneUrl, "https");
+}
+
+const isSshRejection = (error: SourceControlRepositoryError) =>
+  isGitCommandError(error.cause) &&
+  (error.cause.reason === "authentication_failed" || error.cause.reason === "host_key_unverified");
 
 function selectRemoteUrl(
   urls: SourceControlRepositoryCloneUrls,
@@ -306,11 +336,12 @@ export const make = Effect.gen(function* () {
     } satisfies SourceControlPreparedClone;
   });
 
-  const cloneRepository = Effect.fn("SourceControlRepositoryService.cloneRepository")(function* (
+  const runClone = Effect.fn("SourceControlRepositoryService.runClone")(function* (
     input: SourceControlCloneRepositoryInput,
+    destinationPath: string,
+    cloneUrl: string,
     options?: SourceControlCloneOptions,
   ) {
-    const prepared = yield* prepareClone(input);
     const onProgress = options?.onProgress;
     // Git interleaves progress redraws with its real messages on stderr. The
     // last non-progress lines are what explain a failure ("Repository not
@@ -330,14 +361,8 @@ export const make = Effect.gen(function* () {
     yield* git
       .execute({
         operation: "SourceControlRepositoryService.cloneRepository",
-        cwd: path.dirname(prepared.destinationPath),
-        args: [
-          "clone",
-          "--progress",
-          "--",
-          prepared.cloneUrl,
-          path.basename(prepared.destinationPath),
-        ],
+        cwd: path.dirname(destinationPath),
+        args: ["clone", "--progress", "--", cloneUrl, path.basename(destinationPath)],
         timeoutMs: options?.timeoutMs === undefined ? CLONE_TIMEOUT_MS : options.timeoutMs,
         // Progress redraws add up on a slow multi-GB clone. The buffered copy
         // is never read (the tail is kept by hand above), so keep it small
@@ -362,12 +387,51 @@ export const make = Effect.gen(function* () {
             }),
         ),
       );
+  });
+
+  const clonePrepared = Effect.fn("SourceControlRepositoryService.clonePrepared")(function* (
+    input: SourceControlCloneRepositoryInput,
+    prepared: SourceControlPreparedClone,
+    options?: SourceControlCloneOptions,
+  ) {
+    const httpsUrl = httpsFallbackUrl(input, prepared);
+    const remoteUrl = yield* runClone(
+      input,
+      prepared.destinationPath,
+      prepared.cloneUrl,
+      options,
+    ).pipe(
+      Effect.as(prepared.remoteUrl),
+      Effect.catch((sshError) =>
+        httpsUrl === null || !isSshRejection(sshError)
+          ? Effect.fail(sshError)
+          : runClone(input, prepared.destinationPath, httpsUrl, options).pipe(
+              Effect.as(redactRemoteUrl(httpsUrl)),
+              Effect.mapError(
+                (httpsError) =>
+                  new SourceControlRepositoryError({
+                    operation: "cloneRepository",
+                    provider: sshError.provider,
+                    detail: `${sshError.detail} Cloning over HTTPS instead also failed: ${httpsError.detail}`,
+                    cause: httpsError.cause,
+                  }),
+              ),
+            ),
+      ),
+    );
 
     return {
       cwd: prepared.destinationPath,
-      remoteUrl: prepared.remoteUrl,
+      remoteUrl,
       repository: prepared.repository,
     };
+  });
+
+  const cloneRepository = Effect.fn("SourceControlRepositoryService.cloneRepository")(function* (
+    input: SourceControlCloneRepositoryInput,
+    options?: SourceControlCloneOptions,
+  ) {
+    return yield* clonePrepared(input, yield* prepareClone(input), options);
   });
 
   const discardClone = Effect.fn("SourceControlRepositoryService.discardClone")(function* (
@@ -503,6 +567,13 @@ export const make = Effect.gen(function* () {
       ),
     cloneRepository: (input, options) =>
       cloneRepository(input, options).pipe(
+        mapRepositoryError(
+          "cloneRepository",
+          input.provider ?? SourceControlProviderKind.make("unknown"),
+        ),
+      ),
+    clonePrepared: (input, prepared, options) =>
+      clonePrepared(input, prepared, options).pipe(
         mapRepositoryError(
           "cloneRepository",
           input.provider ?? SourceControlProviderKind.make("unknown"),

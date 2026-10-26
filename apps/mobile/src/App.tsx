@@ -5,7 +5,7 @@ import { Platform, StatusBar } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { createStaticNavigation } from "@react-navigation/native";
+import { createStaticNavigation, getStateFromPath } from "@react-navigation/native";
 
 import { RegistryContext } from "@effect/atom-react";
 import { ThreadArrangementHost } from "./features/threads/ThreadArrangementSheet";
@@ -22,7 +22,7 @@ import { subscribeComposerDraftModelReconciliation } from "./state/use-composer-
 import { environmentThreadShells } from "./state/threads";
 import { environmentShell } from "./state/shell";
 import { OverlayPortalHost } from "./components/ui/OverlayPortal";
-import { shouldHandleAppLink } from "./lib/appLinking";
+import { shouldHandleAppLink, restoreDraftLinkState } from "./lib/appLinking";
 import { disarmInlineConfirmsOnTouch } from "./lib/useInlineConfirm";
 import { useMobileNavigationTheme } from "./lib/useMobileNavigationTheme";
 import { useUiRuntimeMemoryWarningGc } from "./lib/useUiRuntimeMemoryWarningGc";
@@ -43,6 +43,8 @@ const appLinking = {
   prefixes: [Linking.createURL("/"), "supaterm://", "supaterm-dev://", "supaterm-preview://"],
   config: { initialRouteName: "Home" },
   filter: shouldHandleAppLink,
+  getStateFromPath: (path: string, options: Parameters<typeof getStateFromPath>[1]) =>
+    restoreDraftLinkState(getStateFromPath(path, options), path),
 };
 
 const Navigation = createStaticNavigation(RootStack);

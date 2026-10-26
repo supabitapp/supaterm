@@ -9,7 +9,7 @@ export interface ThreadQueueRowControls {
   readonly canMoveDown: boolean;
   readonly canMoveUp: boolean;
   readonly canOpen: boolean;
-  readonly canSteer: boolean;
+  readonly canSend: boolean;
   readonly dismissAccessibilityLabel: string;
   readonly displayText: string;
   readonly isEditing: boolean;
@@ -19,6 +19,7 @@ export function resolveThreadQueueRowControls(input: {
   readonly busy: boolean;
   readonly canOperate: boolean;
   readonly canPromoteToSteer: boolean;
+  readonly canSendNow: boolean;
   readonly canReorder: boolean;
   readonly index: number;
   readonly isEditing?: boolean;
@@ -34,7 +35,7 @@ export function resolveThreadQueueRowControls(input: {
     canMoveDown: mutationEnabled && input.canReorder && input.index < input.queuedCount - 1,
     canMoveUp: mutationEnabled && input.canReorder && input.index > 0,
     canOpen: mutationEnabled,
-    canSteer: mutationEnabled && input.canPromoteToSteer && !isEditing,
+    canSend: mutationEnabled && (input.canPromoteToSteer || input.canSendNow) && !isEditing,
     dismissAccessibilityLabel: REMOVE_QUEUED_MESSAGE_ACCESSIBILITY_LABEL,
     displayText: assistantCitationsToPlainText(input.text),
     isEditing,

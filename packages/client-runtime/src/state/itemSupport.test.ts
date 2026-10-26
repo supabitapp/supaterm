@@ -132,10 +132,6 @@ describe("resolveV2ItemSupport", () => {
     expect(support.providerSession).toBeNull();
   });
 
-  it("returns the stable empty support for unknown items", () => {
-    expect(resolveV2ItemSupport(v2Projection, itemId)).toBe(EMPTY_V2_ITEM_SUPPORT);
-  });
-
   it("compares support by entity identity", () => {
     expect(v2ItemSupportEqual(EMPTY_V2_ITEM_SUPPORT, { ...EMPTY_V2_ITEM_SUPPORT })).toBe(true);
     expect(

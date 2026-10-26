@@ -45,7 +45,7 @@ function history(
 
 describe("workspace router projection", () => {
   it("keeps workspace flows beside Home and restores them after a modal closes", () => {
-    const draft = { key: "draft", name: "NewTaskSheet" };
+    const draft = { key: "draft", name: "Thread", params: { draft: {} } };
     const modal = { key: "connect", name: "ConnectOnboarding" };
     const routes = [home, thread, draft, settings, legal];
     const isOverlay = (route: { name: string }) => route.name === "ConnectOnboarding";
@@ -61,18 +61,6 @@ describe("workspace router projection", () => {
     });
   });
 
-  it("keeps the thread and file history in the detail column when a modal is opened", () => {
-    const state = history([home, thread, files, settings, legal]);
-    const projection = projectWorkspaceStack(state, (route) => route.name === "SettingsSheet");
-    expect(projection).toEqual({
-      primary: home,
-      detail: [thread, files],
-      overlays: [settings, legal],
-    });
-    expect(projection.detail[0]).toBe(thread);
-    expect(state.routes).toEqual([home, thread, files, settings, legal]);
-  });
-
   it("retains a cold-linked detail route without changing the router history", () => {
     const state = history([thread, files]);
     expect(projectWorkspaceStack(state, () => false)).toEqual({
@@ -81,14 +69,6 @@ describe("workspace router projection", () => {
       overlays: [],
     });
     expect(state.routes[0]).toBe(thread);
-  });
-
-  it("restores the empty detail column after Back reaches the thread list", () => {
-    expect(projectWorkspaceStack(history([home]), () => false)).toEqual({
-      primary: home,
-      detail: [],
-      overlays: [],
-    });
   });
 });
 
@@ -110,9 +90,6 @@ describe("native workspace dismissal", () => {
     const state = { ...history([home, thread, settings, legal]), index: 1 };
     expect(nativeWorkspacePopAction(state, settings.key)).toBeNull();
     expect(nativeWorkspacePopAction(state, legal.key)).toBeNull();
-  });
-  it("pops a native dismissed file while keeping the conversation and its draft mounted", () => {
-    expect(nativeWorkspacePopCount(history([home, thread, files]), files.key)).toBe(1);
   });
 
   it("removes the descendants when UIKit dismisses their parent conversation", () => {

@@ -63,6 +63,7 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
           {items.map((item) => {
             const project = projects.get(item.value) ?? null;
             const shortcut = shortcutLabels.get(item);
+            const checked = item.value === value;
             return (
               <MenuRadioItem
                 key={item.value}
@@ -89,24 +90,38 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
                       {shortcut}
                     </Kbd>
                   ) : null}
-                  {/* Rows without a gear keep its slot so the shortcuts line up. */}
-                  {project ? (
-                    <Button
-                      size="icon-xs"
-                      variant="ghost-muted"
-                      tabIndex={-1}
-                      aria-hidden="true"
-                      title={`Project settings for ${project.displayName}`}
-                      onPointerDown={(event) => event.stopPropagation()}
-                      onClick={(event) => onProjectSettings(event, project)}
+                  <span className="grid shrink-0 place-items-center *:col-start-1 *:row-start-1">
+                    <span aria-hidden className="size-7 sm:size-6" />
+                    <span
+                      className={
+                        project
+                          ? "flex in-data-highlighted:invisible pointer-coarse:invisible"
+                          : "flex"
+                      }
                     >
-                      <SettingsIcon className="size-3.5" />
-                    </Button>
-                  ) : (
-                    <span aria-hidden className="size-7 shrink-0 sm:size-6" />
-                  )}
-                  <span className="flex w-3.5 shrink-0">
-                    <MenuRadioItemIndicator />
+                      <MenuRadioItemIndicator />
+                    </span>
+                    {project ? (
+                      <span
+                        className={
+                          checked
+                            ? "invisible flex in-data-highlighted:visible pointer-coarse:visible"
+                            : "flex"
+                        }
+                      >
+                        <Button
+                          size="icon-xs"
+                          variant="ghost-muted"
+                          tabIndex={-1}
+                          aria-hidden="true"
+                          title={`Project settings for ${project.displayName}`}
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={(event) => onProjectSettings(event, project)}
+                        >
+                          <SettingsIcon className="size-3.5" />
+                        </Button>
+                      </span>
+                    ) : null}
                   </span>
                 </span>
               </MenuRadioItem>

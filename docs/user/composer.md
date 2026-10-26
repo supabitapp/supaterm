@@ -64,10 +64,11 @@ your default follow-up behavior; add **Shift** to use the opposite action. This
 applies only to multiline messages when you choose the multiline send option.
 
 Use `Cmd+Shift+Enter` on macOS or `Ctrl+Shift+Enter` on Windows and Linux to send
-the oldest queued message as a steer. This leaves the current draft intact and
-requires an active turn that supports steering. If that shortcut sends the opposite
-action for your draft, move focus outside the composer to steer the queued message. Change
-`thread.steerQueuedMessage` in **Settings → Keybindings** to use another shortcut.
+the oldest queued message. This leaves the current draft intact. While a turn that supports
+steering runs, the message steers it; once the agent is stopped, it starts a new turn. If that
+shortcut sends the opposite action for your draft, move focus outside the composer to send the
+queued message. Change `thread.steerQueuedMessage` in **Settings → Keybindings** to use another
+shortcut.
 
 Press `ArrowUp` in an empty composer to edit the most recently queued message,
 including one still waiting to send. When the composer has text, press `Option+Up`
@@ -265,10 +266,11 @@ microphone stays low. By default, CarPlay comes after the built-in microphone.
 ## Queued messages
 
 On web and desktop, the composer shows **Interrupt** while the agent is working and the draft is
-empty. Adding text or attachments replaces it with a steer arrow. Click it to send a message into
-the active turn, or press `Enter` on desktop. Hold `Cmd` on macOS or `Ctrl` on Windows and Linux to
-switch the button to a queue icon. Click while holding that key, or press `Cmd+Enter` or
-`Ctrl+Enter` on desktop, to queue the message for after the active turn.
+empty. Adding text or attachments replaces it with a send button that shows your
+[Follow-up behavior](#send-while-the-agent-is-working): a queue icon for Queue or a steer arrow for
+Steer. Click it or press your send shortcut to use that action. Hold `Cmd` on macOS or `Ctrl` on
+Windows and Linux to switch the button to the opposite action, then click, or use the opposite-action
+shortcut described above.
 
 Queued messages appear above the composer. Rows show a thumbnail of any attached image alongside
 the text. Drag a row by its handle to reorder it, use the handle's arrow keys, promote the message
@@ -278,7 +280,8 @@ because the message is discarded, not returned to the composer.
 If you stop the agent or the server restarts, queued messages keep their order and are held.
 Press **Resume** in an empty composer on web and desktop, or **Resume queue** on mobile, to
 continue. Sending a new message also resumes the queue, unless it steers a turn that is already
-running. You can edit, reorder, or remove held messages without starting them.
+running. You can edit, reorder, or remove held messages without starting them. **Send now** on a
+held row starts a turn with that message ahead of the others.
 
 The pencil on a queued row opens that message in the composer for editing. The original message
 stays in the queue until you save, and its row is highlighted while you edit. The message's

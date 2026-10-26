@@ -65,7 +65,7 @@ export class ElectronProtocol extends Context.Service<
   }
 >()("@supaterm/desktop/electron/ElectronProtocol") {}
 
-export function makeDesktopContentSecurityPolicy(input: DesktopProtocolRegistrationInput): string {
+function makeDesktopContentSecurityPolicy(input: DesktopProtocolRegistrationInput): string {
   const scriptSources = ["'self'", "'unsafe-inline'", "'wasm-unsafe-eval'"];
 
   // The renderer connects directly to user-configured environments. Those environment

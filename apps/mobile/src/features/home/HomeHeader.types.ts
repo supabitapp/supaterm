@@ -6,10 +6,8 @@ import type {
 export type HomeHeaderEnvironment = HomeListFilterMenuEnvironment;
 
 export interface HomeHeaderProps extends HomeListFilterMenuInput {
-  readonly usesWorkspaceToolbar?: boolean;
   readonly searchQuery: string;
   readonly onSearchQueryChange: (query: string) => void;
   readonly onOpenEnvironments: () => void;
   readonly onOpenSettings: () => void;
-  readonly onStartNewTask: () => void;
 }

@@ -7,14 +7,15 @@ import {
 export function resolveMobileMarkdownMediaSource(href: string, input: ResolveMediaSourceInput) {
   const media = resolveMediaSource(href, input);
   if (media?.access !== "unavailable" || !input.workspaceRoot) return media;
-  const source = classifyMarkdownImageSource(href, input.workspaceRoot);
+  const projectRoot = input.projectRoot === undefined ? input.workspaceRoot : input.projectRoot;
+  const source = classifyMarkdownImageSource(href, input.workspaceRoot, projectRoot);
   if (source._tag !== "WorkspaceFile") return media;
   return {
     ...media,
     access: "environment" as const,
     resource: {
       _tag: "draft-workspace-file" as const,
-      cwd: input.workspaceRoot,
+      cwd: projectRoot ?? input.workspaceRoot,
       path: source.path,
     },
   };

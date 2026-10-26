@@ -22,6 +22,7 @@ import * as DesktopApplicationMenu from "../window/DesktopApplicationMenu.ts";
 import * as DesktopWindow from "../window/DesktopWindow.ts";
 import * as DesktopBackendPool from "../backend/DesktopBackendPool.ts";
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
+import * as DesktopLaunchIcon from "./DesktopLaunchIcon.ts";
 import * as DesktopLifecycle from "./DesktopLifecycle.ts";
 import * as DesktopLinuxUrlHandler from "./DesktopLinuxUrlHandler.ts";
 import * as DesktopObservability from "./DesktopObservability.ts";
@@ -146,7 +147,7 @@ const handleFatalStartupError = Effect.fn("desktop.startup.handleFatalStartupErr
 const fatalStartupCause = <E>(stage: string, cause: Cause.Cause<E>) =>
   handleFatalStartupError(stage, Cause.pretty(cause)).pipe(Effect.andThen(Effect.failCause(cause)));
 
-export const stopAllPoolInstances = Effect.fn("desktop.app.stopAllPoolInstances")(
+const stopAllPoolInstances = Effect.fn("desktop.app.stopAllPoolInstances")(
   function* (): Effect.fn.Return<void, never, DesktopBackendPool.DesktopBackendPool> {
     const pool = yield* DesktopBackendPool.DesktopBackendPool;
     const instances = yield* pool.list;
@@ -262,6 +263,7 @@ const startup = Effect.gen(function* () {
   const safeStorage = yield* ElectronSafeStorage.ElectronSafeStorage;
   const updates = yield* DesktopUpdates.DesktopUpdates;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
+  const launchIcon = yield* DesktopLaunchIcon.DesktopLaunchIcon;
 
   yield* shellEnvironment.installIntoProcess;
   const hasCommandLinePasswordStore =
@@ -308,6 +310,7 @@ const startup = Effect.gen(function* () {
     Effect.catchCause((cause) => fatalStartupCause("whenReady", cause)),
   );
   yield* logStartupInfo("app ready");
+  yield* launchIcon.start;
   yield* (yield* PreviewPasskeys.PreviewPasskeys).configure;
   if (environment.platform === "linux") {
     const selectedBackend = yield* safeStorage.selectedStorageBackend;

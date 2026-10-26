@@ -1,5 +1,3 @@
-"use client";
-
 import { FILL_PREVIEW_VIEWPORT, type ScopedThreadRef } from "@supaterm/contracts";
 import { shouldShowFloatingBrowser } from "@supaterm/client-runtime/preview/floating-browser";
 import { previewPdfAssetUrl } from "@supaterm/shared/preview";

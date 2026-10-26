@@ -10,7 +10,7 @@ it("preserves queued messages and delivery leases after a silent database close"
   const entry = {
     id,
     scope: `environment:${id}`,
-    createdAt: new Date().toISOString(),
+    createdAt: "2026-10-06T00:00:00.000Z",
     position: 1,
     payload: {
       environmentId: EnvironmentId.make("environment"),

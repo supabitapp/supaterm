@@ -9,11 +9,12 @@ Device panel work over Tailscale and other remote connections, including when an
 
 [expo-device-hub](../../apps/server/src/device/LocalDeviceHost.ts) streams and
 [agent-device](../../apps/server/src/device/AgentDeviceShim.ts) drives. Each is
-npm-installed at a pinned version into the Supaterm home after its matching Device
-panel consent step. Manual setup installs and starts only expo-device-hub;
-agent-device remains absent and stopped until agent access is granted. Both run
-with the server's Node; `npx` would make the first `device_open` after a reboot
-depend on the registry. The hub is a supervised child rather than an imported
+npm-installed at a pinned version into the Supaterm home. Enabling the hub also
+enables agent access unless the request explicitly opts out. Agent tools start on
+demand so their setup cannot block manual use; explicitly enabling agent access
+prepares them immediately. Agent access can be turned off separately for manual-only
+use. Both run with the server's Node; `npx` would make the first `device_open` after
+a reboot depend on the registry. The hub is a supervised child rather than an imported
 middleware because serve-sim loads private CoreSimulator frameworks through a
 native addon, and a crash there must not take the server down.
 
@@ -105,10 +106,14 @@ binary WebSocket; Android multiplexes SEMU-framed H.264 and JSON gestures over
 one WebSocket. [`deviceStream.ts`](../../apps/web/src/components/device/deviceStream.ts)
 speaks both so one panel covers both platforms.
 
-Simulators encode H.264 High 5.1. Hardware decoders on some machines and all
-headless browsers reject that profile, and WebCodecs is secure-context only, so
-the viewer probes `isConfigSupported` and falls back to the MJPEG endpoint on
-iOS. Android has no MJPEG; there the panel reports that it cannot decode.
+Simulators encode H.264 High 5.1 without frame reordering, but the hub's fallback
+encoder can omit the SPS VUI that declares its reorder limits. Chromium's hardware
+decoder then retains frames for seconds despite `optimizeForLatency` and an empty
+`decodeQueueSize`. The iOS AVCC viewer restores the missing metadata before
+configuring the decoder so hardware decoding can remain enabled. WebCodecs is
+secure-context only, so the viewer probes `isConfigSupported` and falls back to
+MJPEG on iOS when decoding is unavailable. Android has no MJPEG; there the panel
+reports that it cannot decode.
 
 serve-sim can also be locked to WebRTC, as on EAS Simulator, and then refuses
 AVCC with a 409 naming the transport. The viewer still asks for AVCC first, so

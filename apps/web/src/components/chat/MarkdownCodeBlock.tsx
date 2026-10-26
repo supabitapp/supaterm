@@ -1,9 +1,15 @@
 import { Check, Copy } from "lucide";
 import { PlayIcon, WrapTextIcon } from "lucide-react";
-import React, { useState, type ReactNode } from "react";
+import { toHtml } from "hast-util-to-html";
+import React, { use, useEffect, useState, type ReactNode } from "react";
 
+import { useIncrementalHighlightedDocument } from "../../hooks/useIncrementalHighlightedDocument";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { getClientSettings } from "../../hooks/useSettings";
+import type { DiffThemeName } from "../../lib/diffRendering";
+import { highlightCodeDocument } from "../../lib/incrementalHighlighting";
+import { LRUCache } from "../../lib/lruCache";
+import { getSyntaxHighlighterPromise } from "../../lib/syntaxHighlighting";
 import { cn } from "../../lib/utils";
 import {
   hasSpecificPierreIconForFileName,
@@ -12,8 +18,22 @@ import {
 import { MorphIcon } from "../MorphIcon";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { HighlightedCodeLines } from "./HighlightedCodeLines";
+import {
+  createHighlightCacheKey,
+  estimateHighlightedSize,
+  extractFenceLanguage,
+} from "./MarkdownCodeBlock.logic";
 import { reportMarkdownActionFailure } from "./markdownActionFailure";
 import { PierreEntryIcon } from "./PierreEntryIcon";
+
+const MAX_HIGHLIGHT_CACHE_ENTRIES = 500;
+const MAX_HIGHLIGHT_CACHE_MEMORY_BYTES = 50 * 1024 * 1024;
+
+const highlightedCodeCache = new LRUCache<string>(
+  MAX_HIGHLIGHT_CACHE_ENTRIES,
+  MAX_HIGHLIGHT_CACHE_MEMORY_BYTES,
+);
 
 const THREAD_FIND_IGNORE_PROPS = {
   "data-thread-find-ignore": "",
@@ -243,5 +263,108 @@ export function MarkdownCodeBlock({
     >
       {children}
     </MarkdownCodeBlockFrame>
+  );
+}
+
+interface SuspenseShikiCodeBlockProps {
+  className: string | undefined;
+  code: string;
+  themeName: DiffThemeName;
+  isStreaming: boolean;
+}
+
+export function SuspenseShikiCodeBlock({
+  className,
+  code,
+  themeName,
+  isStreaming,
+}: SuspenseShikiCodeBlockProps) {
+  const [hasStreamed, setHasStreamed] = useState(isStreaming);
+  if (isStreaming && !hasStreamed) setHasStreamed(true);
+  const language = extractFenceLanguage(className);
+  const cacheKey = createHighlightCacheKey(code, language, themeName);
+  // Once lines are mounted individually, keep that renderer when streaming
+  // finishes so switching to cached HTML cannot clear an existing selection.
+  const cachedHighlightedHtml =
+    !isStreaming && !hasStreamed ? highlightedCodeCache.get(cacheKey) : null;
+
+  if (cachedHighlightedHtml != null) {
+    return (
+      <div
+        className="chat-markdown-shiki"
+        dangerouslySetInnerHTML={{ __html: cachedHighlightedHtml }}
+      />
+    );
+  }
+
+  return (
+    <UncachedShikiCodeBlock
+      code={code}
+      language={language}
+      themeName={themeName}
+      cacheKey={cacheKey}
+      isStreaming={isStreaming}
+      preserveLines={isStreaming || hasStreamed}
+    />
+  );
+}
+
+interface UncachedShikiCodeBlockProps {
+  code: string;
+  language: string;
+  themeName: DiffThemeName;
+  cacheKey: string;
+  isStreaming: boolean;
+  preserveLines: boolean;
+}
+
+function UncachedShikiCodeBlock({
+  code,
+  language,
+  themeName,
+  cacheKey,
+  isStreaming,
+  preserveLines,
+}: UncachedShikiCodeBlockProps) {
+  const highlighter = use(getSyntaxHighlighterPromise(language));
+  const incrementalHighlight = useIncrementalHighlightedDocument(
+    preserveLines,
+    highlighter,
+    language,
+    themeName,
+  );
+  const highlighted = (() => {
+    try {
+      if (incrementalHighlight) return incrementalHighlight(code);
+      return highlighter.codeToHtml(code, { lang: language, theme: themeName });
+    } catch (error) {
+      incrementalHighlight?.dispose();
+      console.warn(
+        `Code highlighting failed for language "${language}", falling back to plain text.`,
+        error instanceof Error ? error.message : error,
+      );
+      return preserveLines
+        ? highlightCodeDocument(highlighter, code, "text", themeName)
+        : highlighter.codeToHtml(code, { lang: "text", theme: themeName });
+    }
+  })();
+
+  useEffect(() => {
+    if (!isStreaming) {
+      const highlightedHtml = typeof highlighted === "string" ? highlighted : toHtml(highlighted);
+      highlightedCodeCache.set(
+        cacheKey,
+        highlightedHtml,
+        estimateHighlightedSize(highlightedHtml, code),
+      );
+    }
+  }, [cacheKey, code, highlighted, isStreaming]);
+
+  return typeof highlighted === "string" ? (
+    <div className="chat-markdown-shiki" dangerouslySetInnerHTML={{ __html: highlighted }} />
+  ) : (
+    <div className="chat-markdown-shiki">
+      <HighlightedCodeLines root={highlighted} />
+    </div>
   );
 }

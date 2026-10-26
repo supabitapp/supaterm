@@ -9,7 +9,8 @@ yourself. Agents get the same device through `device_*` tools and the
 
 Open the right panel in a project thread and choose **Device**. On first use,
 the panel walks through three steps: starting the device hub, checking iOS and
-Android support, and choosing whether agents may control devices. Opening the
+Android support, and reviewing agent access. Enabling the hub also enables agent
+access; turn off **Agent device access** to keep manual control only. Opening the
 panel alone does not download or start anything. If the hub is already
 installed, the setup screen says so and reuses it.
 
@@ -80,8 +81,8 @@ activity also appears in the thread timeline.
 Agents drive the device through the `agent-device` command line. Supaterm
 installs and starts it only after **Agent device access** is enabled. iOS
 taps build a small test runner on first use, which takes a couple of minutes
-once per server. Restart an existing agent session after granting access so it
-receives the device CLI environment.
+once per server. After enabling the device hub or agent access, restart existing
+agent sessions so they receive the device CLI environment.
 
 To keep agents away from simulators, turn off **Agent device access** in
 **Settings → Integrations → Devices**. This hides the device tools from agents

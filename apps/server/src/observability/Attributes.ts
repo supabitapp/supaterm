@@ -30,3 +30,20 @@ export function outcomeFromExit(exit: Exit.Exit<unknown, unknown>): Observabilit
   }
   return Cause.hasInterruptsOnly(exit.cause) ? "interrupt" : "failure";
 }
+
+export function normalizeModelMetricLabel(model: string | null | undefined): string | undefined {
+  const normalized = model?.trim().toLowerCase();
+  if (!normalized) {
+    return undefined;
+  }
+  if (normalized.includes("gpt")) {
+    return "gpt";
+  }
+  if (normalized.includes("claude")) {
+    return "claude";
+  }
+  if (normalized.includes("gemini")) {
+    return "gemini";
+  }
+  return "other";
+}

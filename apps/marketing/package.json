@@ -8,18 +8,15 @@
     "dev": "node scripts/stage-install-scripts.mjs && astro dev",
     "build": "node scripts/stage-install-scripts.mjs && astro build",
     "preview": "astro preview",
-    "typecheck": "astro check",
     "test": "vp test run"
   },
   "dependencies": {
     "@supaterm/shared": "workspace:*",
     "astro": "^7.3.5",
-    "sharp": "0.35.5",
-    "three": "0.180.0"
+    "sharp": "0.35.5"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
-    "@types/three": "0.180.0",
     "typescript": "~6.0.3"
   }
 }

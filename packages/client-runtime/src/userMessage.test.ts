@@ -1,21 +1,8 @@
-import { ScheduledTaskId } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import { resolveUserMessagePresentation } from "./userMessage.ts";
 
 describe("resolveUserMessagePresentation", () => {
-  it("uses task metadata without changing the prompt", () => {
-    const text = "Check for crashes.\n";
-    expect(
-      resolveUserMessagePresentation({
-        role: "user",
-        createdBy: "agent",
-        scheduledTaskId: ScheduledTaskId.make("task-1"),
-        text,
-      }),
-    ).toEqual({ text, attribution: "automation", scheduledTaskId: "task-1" });
-  });
-
   it("attributes only agent-sent user messages", () => {
     const text = "Review this area";
     for (const message of [

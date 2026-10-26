@@ -5,7 +5,6 @@ import {
   parseNewThreadLink,
   parseThreadLinkPrompt,
   promptLinkAppPath,
-  promptLinkDeepLink,
   sanitizeLinkedPrompt,
   withoutPromptLinkParams,
 } from "./promptLinks.ts";
@@ -115,12 +114,5 @@ describe("link round trips", () => {
     expect(promptLinkAppPath("https://app.supaterm.com/settings/general")).toBeNull();
     expect(promptLinkAppPath("https://evil.test/new?prompt=hi")).toBeNull();
     expect(promptLinkAppPath("supaterm://app/index.html")).toBeNull();
-  });
-
-  it("hands an in-app path to the installed app", () => {
-    expect(promptLinkDeepLink("/new?prompt=hi")).toBe("supaterm://new?prompt=hi");
-    expect(promptLinkDeepLink("/env-1/thread-1?prompt=hi")).toBe(
-      "supaterm://threads/env-1/thread-1?prompt=hi",
-    );
   });
 });

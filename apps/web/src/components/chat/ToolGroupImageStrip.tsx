@@ -5,7 +5,7 @@ import { useState, type CSSProperties } from "react";
 import { useClientSettings } from "~/hooks/useSettings";
 import { usePresence } from "~/hooks/usePresence";
 import { cn } from "~/lib/utils";
-import { ChatMarkdownAssetImage } from "../ChatMarkdown";
+import { ChatMarkdownAssetImage } from "./ChatMarkdownMedia";
 import type { ExpandedImageItem, ExpandedImagePreview } from "./ExpandedImagePreview";
 
 const VISIBLE_IMAGE_LIMIT = 12;

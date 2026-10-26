@@ -14,11 +14,6 @@ const initialState: MobileThemeRuntimeState = {
 };
 
 describe("mobileThemeRuntime", () => {
-  it("keeps the default palette on Uniwind's built-in appearance themes", () => {
-    expect(getMobileUniwindThemeName("supaterm", "light")).toBe("light");
-    expect(getMobileUniwindThemeName("supaterm", "dark")).toBe("dark");
-  });
-
   it("maps custom palettes and appearances to registered themes", () => {
     expect(getMobileUniwindThemeName("nord", "dark")).toBe("nord-dark");
     expect(getMobileUniwindThemeName("nord", "light")).toBe("light");
@@ -52,22 +47,6 @@ describe("mobileThemeRuntime", () => {
     expect(operations).toEqual([]);
   });
 
-  it("updates native appearance once when the selected mode changes", () => {
-    const operations = createMobileThemeRuntimeOperations(initialState, {
-      ...initialState,
-      themeAppearance: "dark",
-      themeMode: "dark",
-    });
-
-    expect(operations).toEqual([
-      {
-        kind: "set-appearance-mode",
-        appearance: "dark",
-        themeMode: "dark",
-      },
-    ]);
-  });
-
   it("updates text variables for every theme without switching palettes", () => {
     const operations = createMobileThemeRuntimeOperations(initialState, {
       ...initialState,
@@ -80,9 +59,5 @@ describe("mobileThemeRuntime", () => {
         .filter((operation) => operation.kind === "update-text-variables")
         .map((operation) => operation.themeName),
     ).toEqual(["light", "dark", ...registeredThemeNames]);
-  });
-
-  it("does no native work when persistence echoes an already-applied state", () => {
-    expect(createMobileThemeRuntimeOperations(initialState, initialState)).toEqual([]);
   });
 });

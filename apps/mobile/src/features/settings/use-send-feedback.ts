@@ -1,5 +1,5 @@
 import * as Dialog from "../../components/ui/Dialog";
-import { StackActions, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import { buildFeedbackPrompt } from "@supaterm/client-runtime/feedback-prompt";
 import {
   isAtomCommandInterrupted,
@@ -11,6 +11,7 @@ import Constants from "expo-constants";
 import { useRef, useState } from "react";
 import { Platform } from "react-native";
 
+import { uuidv4 } from "../../lib/uuid";
 import { projectEnvironment } from "../../state/projects";
 import { useAtomCommand } from "../../state/use-atom-command";
 import {
@@ -18,9 +19,11 @@ import {
   setComposerDraftText,
   waitForComposerDraftsLoaded,
 } from "../../state/use-composer-drafts";
+import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
 
 export function useSendFeedback() {
   const navigation = useNavigation();
+  const { selectThreadRoute } = useAdaptiveWorkspaceLayout();
   const openScratch = useAtomCommand(projectEnvironment.openScratch, { reportFailure: false });
   const inFlight = useRef(false);
   const [isPending, setIsPending] = useState(false);
@@ -51,17 +54,15 @@ export function useSendFeedback() {
                 client: `${Platform.OS === "ios" ? "iOS" : "Android"} app ${Constants.expoConfig?.version ?? "0.0.0"}`,
               }),
             );
-            navigation.dispatch(
-              StackActions.replace("NewTaskSheet", {
-                screen: "NewTaskDraft",
-                params: {
-                  draftId: draftKey,
-                  environmentId: String(project.environmentId),
-                  projectId: String(project.id),
-                  title: project.title,
-                },
-              }),
-            );
+            selectThreadRoute({
+              draft: {
+                requestId: uuidv4(),
+                draftId: draftKey,
+                environmentId: String(project.environmentId),
+                projectId: String(project.id),
+                title: project.title,
+              },
+            });
           });
     inFlight.current = false;
     setIsPending(false);

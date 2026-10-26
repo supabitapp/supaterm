@@ -13,6 +13,7 @@ import {
 import * as NetService from "@supaterm/shared/Net";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { assert, describe, expect, it } from "@effect/vitest";
+import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
@@ -37,9 +38,9 @@ import {
 import {
   DevServerNotProxiableError,
   PairRouteConflictError,
-  resolveDirectPairingBaseUrl,
   resolveTailscaleLocalTarget,
 } from "./pair.ts";
+import { CliServerVersionMismatchError } from "./config.ts";
 
 import packageJson from "../../package.json" with { type: "json" };
 
@@ -52,21 +53,6 @@ const baseState = {
   origin: "http://127.0.0.1:3773",
   startedAt: "2026-06-20T00:00:00.000Z",
 } as const satisfies PersistedServerRuntimeState;
-
-describe("pair base URL selection", () => {
-  it("pairs through the dev web origin when the server fronts a dev server", () => {
-    expect(resolveDirectPairingBaseUrl({ ...baseState, devUrl: "http://localhost:5733/" })).toBe(
-      "http://localhost:5733/",
-    );
-  });
-
-  it("pairs through the bound host when there is no dev server", () => {
-    expect(resolveDirectPairingBaseUrl({ ...baseState, host: "100.64.0.7" })).toBe(
-      "http://100.64.0.7:3773",
-    );
-    expect(resolveDirectPairingBaseUrl(baseState)).toBe("http://localhost:3773");
-  });
-});
 
 describe("pair tailscale local target", () => {
   it("proxies the dev web port for dev servers", () => {
@@ -88,17 +74,6 @@ describe("pair tailscale local target", () => {
     expect(
       resolveTailscaleLocalTarget({ ...baseState, devUrl: "https://localhost:5733/" }),
     ).toBeInstanceOf(DevServerNotProxiableError);
-  });
-
-  it("proxies the backend port directly otherwise", () => {
-    expect(resolveTailscaleLocalTarget(baseState)).toEqual({ localPort: 3_773 });
-    expect(resolveTailscaleLocalTarget({ ...baseState, host: "0.0.0.0" })).toEqual({
-      localPort: 3_773,
-    });
-    expect(resolveTailscaleLocalTarget({ ...baseState, host: "192.168.1.42" })).toEqual({
-      localPort: 3_773,
-      localHost: "192.168.1.42",
-    });
   });
 });
 
@@ -457,6 +432,32 @@ describe("supaterm pair", () => {
     }),
   );
 
+  // Minting opens the server's database with this build's migrations.
+  it.effect("refuses a server from another build before opening its database", () =>
+    withDescriptorServer((origin) =>
+      Effect.gen(function* () {
+        const baseDir = NodeFS.mkdtempSync(
+          NodePath.join(NodeOS.tmpdir(), "supaterm-pair-version-test-"),
+        );
+        const state = yield* makePersistedServerRuntimeState({
+          config: { host: "127.0.0.1", devUrl: undefined },
+          port: Number(new URL(origin).port),
+        });
+        yield* persistServerRuntimeState({
+          path: NodePath.join(baseDir, "userdata", "server-runtime.json"),
+          state: { ...state, serverVersion: "0.0.1-older" },
+        });
+
+        const error = yield* provideCliTestLayers(
+          runCli(["pair", "--no-relay", "--base-dir", baseDir]).pipe(Effect.flip),
+        );
+
+        assert.instanceOf(error, CliServerVersionMismatchError);
+        assert.isFalse(NodeFS.existsSync(NodePath.join(baseDir, "userdata", "statev2.sqlite")));
+      }),
+    ).pipe(Effect.provide(NodeServices.layer)),
+  );
+
   it.effect("ignores runtime state whose recorded pid is no longer alive", () =>
     withDescriptorServer((origin) =>
       Effect.gen(function* () {
@@ -485,29 +486,52 @@ describe("supaterm pair", () => {
     ).pipe(Effect.provide(NodeServices.layer)),
   );
 
-  it.effect("ignores stale runtime state pointing at a dead server", () =>
-    Effect.gen(function* () {
-      const baseDir = NodeFS.mkdtempSync(
-        NodePath.join(NodeOS.tmpdir(), "supaterm-pair-stale-test-"),
-      );
-      const statePath = NodePath.join(baseDir, "userdata", "server-runtime.json");
-      yield* persistServerRuntimeState({
-        path: statePath,
-        state: yield* makePersistedServerRuntimeState({
-          config: { host: "127.0.0.1", devUrl: undefined },
-          port: 1,
-        }),
-      });
+  // regression: minting opens the target database with this checkout's
+  // migrations, so a worktree must never fall back to the live install.
+  it.effect("does not fall back to the shared home from a linked worktree", () =>
+    withDescriptorServer((origin) =>
+      Effect.gen(function* () {
+        const root = NodeFS.mkdtempSync(
+          NodePath.join(NodeOS.tmpdir(), "supaterm-pair-worktree-test-"),
+        );
+        const worktree = NodePath.join(root, "worktree");
+        NodeFS.mkdirSync(worktree);
+        NodeFS.writeFileSync(
+          NodePath.join(worktree, ".git"),
+          `gitdir: ${NodePath.join(root, "repo", ".git", "worktrees", "worktree")}\n`,
+        );
+        const sharedHome = NodePath.join(root, "shared");
+        yield* persistServerRuntimeState({
+          path: NodePath.join(sharedHome, "userdata", "server-runtime.json"),
+          state: yield* makePersistedServerRuntimeState({
+            config: { host: "127.0.0.1", devUrl: undefined },
+            port: Number(new URL(origin).port),
+          }),
+        });
 
-      const error = yield* provideCliTestLayers(
-        runCli(["pair", "--base-dir", baseDir]).pipe(Effect.flip),
-      );
+        const entry = NodePath.join(worktree, "apps", "server", "src", "bin.ts");
+        NodeFS.mkdirSync(NodePath.dirname(entry), { recursive: true });
+        NodeFS.writeFileSync(entry, "");
 
-      const rendered = String(
-        typeof error === "object" && error !== null && "cause" in error ? error.cause : error,
-      );
-      assert.include(rendered, "No running Supaterm server found.");
-    }).pipe(Effect.provide(NodeServices.layer)),
+        const error = yield* provideCliTestLayers(
+          runCli(["pair"]).pipe(
+            Effect.provideService(HostProcess.WorkingDirectory, worktree),
+            Effect.provideService(HostProcess.Arguments, [process.execPath, entry]),
+            Effect.provide(
+              ConfigProvider.layer(ConfigProvider.fromEnv({ env: { SUPATERM_HOME: sharedHome } })),
+            ),
+            Effect.flip,
+          ),
+        );
+
+        assert.include(String(error), "No running Supaterm server found.");
+        assert.include(String(error), "pass --base-dir");
+        assert.notInclude(String(error), sharedHome);
+        assert.deepEqual(NodeFS.readdirSync(NodePath.join(sharedHome, "userdata")), [
+          "server-runtime.json",
+        ]);
+      }),
+    ).pipe(Effect.provide(NodeServices.layer)),
   );
 
   // Without the capability `tailscale serve` blocks on an enablement URL, so

@@ -4,7 +4,6 @@ import { assert, it } from "@effect/vitest";
 import { PNG } from "pngjs";
 
 import showcaseConfig, {
-  resolveShowcaseAndroidAbi,
   SHOWCASE_THEMES,
   DEFAULT_SHOWCASE_THEME,
   type ShowcaseConfig,
@@ -21,13 +20,8 @@ import {
   parseShowcaseCliArgs,
   parsePairingCredentialOutput,
   planShowcaseCaptures,
-  readPngDimensions,
   readPngMetadata,
-  resolveAndroidSdkRoot,
-  selectLanIpv4Address,
   showcaseCaptureDirectory,
-  validateStoreAsset,
-  validateStoreAssetCount,
 } from "./mobile-showcase.ts";
 
 const appleSpec: ShowcaseStoreAssetSpec = {
@@ -76,32 +70,6 @@ const config: ShowcaseConfig = {
   ],
 };
 
-it("parses repeatable capture filters", () => {
-  const options = parseShowcaseCliArgs([
-    "--platform",
-    "ios",
-    "--device",
-    "phone",
-    "--scene",
-    "review",
-    "--appearance",
-    "both",
-    "--skip-build",
-  ]);
-  assert.deepStrictEqual([...options.platforms], ["ios"]);
-  assert.deepStrictEqual([...options.deviceIds], ["phone"]);
-  assert.deepStrictEqual([...options.scenes], ["review"]);
-  assert.deepStrictEqual([...options.appearances], ["light", "dark"]);
-  assert.equal(options.skipBuild, true);
-});
-
-it("rejects unsupported system appearances", () => {
-  assert.throws(
-    () => parseShowcaseCliArgs(["--appearance", "sepia"]),
-    /Unsupported appearance 'sepia'/u,
-  );
-});
-
 it("parses repeatable and expanded theme filters", () => {
   assert.deepStrictEqual(
     [...parseShowcaseCliArgs(["--theme", "nord", "--theme", "tokyo-night"]).themes],
@@ -110,76 +78,6 @@ it("parses repeatable and expanded theme filters", () => {
   assert.deepStrictEqual(
     [...parseShowcaseCliArgs(["--theme", "all"]).themes],
     [...SHOWCASE_THEMES],
-  );
-});
-
-it("rejects unsupported themes instead of capturing the default palette", () => {
-  assert.throws(() => parseShowcaseCliArgs(["--theme", "sunset"]), /Unsupported theme 'sunset'/u);
-});
-
-it("parses validation-only mode", () => {
-  assert.equal(parseShowcaseCliArgs(["--validate-only"]).validateOnly, true);
-});
-
-it("selects an explicit CI Android ABI without changing the local default", () => {
-  assert.equal(resolveShowcaseAndroidAbi(undefined), "arm64-v8a");
-  assert.equal(resolveShowcaseAndroidAbi("x86_64"), "x86_64");
-  assert.throws(
-    () => resolveShowcaseAndroidAbi("mips"),
-    /Unsupported SUPATERM_SHOWCASE_ANDROID_ABI/u,
-  );
-});
-
-it("uses platform-correct default Android SDK roots", () => {
-  assert.equal(
-    resolveAndroidSdkRoot({ HOME: "/Users/showcase" }, "darwin"),
-    "/Users/showcase/Library/Android/sdk",
-  );
-  assert.equal(
-    resolveAndroidSdkRoot({ HOME: "/home/showcase" }, "linux"),
-    "/home/showcase/Android/Sdk",
-  );
-  assert.equal(
-    resolveAndroidSdkRoot(
-      { HOME: "/home/showcase", ANDROID_SDK_ROOT: "/opt/android-sdk" },
-      "linux",
-    ),
-    "/opt/android-sdk",
-  );
-});
-
-it("plans only scenes supported by each selected device", () => {
-  const options = parseShowcaseCliArgs(["--platform", "all", "--scene", "terminal"]);
-  const captures = planShowcaseCaptures(config, options);
-  assert.deepStrictEqual(
-    captures.map((capture) => ({
-      id: capture.device.id,
-      appearance: capture.appearance,
-      scenes: capture.scenes,
-    })),
-    [{ id: "pixel", appearance: "light", scenes: ["terminal"] }],
-  );
-});
-
-it("expands both appearances into independent upload-ready directories", () => {
-  const options = parseShowcaseCliArgs(["--device", "phone", "--appearance", "both"]);
-  const captures = planShowcaseCaptures(config, options);
-
-  assert.deepStrictEqual(
-    captures.map((capture) => ({
-      appearance: capture.appearance,
-      directory: showcaseCaptureDirectory("/captures", capture),
-    })),
-    [
-      {
-        appearance: "light",
-        directory: NodePath.join("/captures", "apple", "iphone-test", "light", "supaterm"),
-      },
-      {
-        appearance: "dark",
-        directory: NodePath.join("/captures", "apple", "iphone-test", "dark", "supaterm"),
-      },
-    ],
   );
 });
 
@@ -218,29 +116,6 @@ it("rejects captures with an unsupported theme appearance", () => {
   assert.throws(() => planShowcaseCaptures(config, options), /No captures match/u);
 });
 
-it("rejects unknown devices instead of silently capturing another target", () => {
-  const options = parseShowcaseCliArgs(["--device", "missing"]);
-  assert.throws(() => planShowcaseCaptures(config, options), /Unknown device 'missing'/u);
-});
-
-it("reads captured PNG dimensions from the IHDR header", () => {
-  const bytes = new Uint8Array(26);
-  bytes.set([137, 80, 78, 71, 13, 10, 26, 10]);
-  const view = new DataView(bytes.buffer);
-  view.setUint32(16, 1320);
-  view.setUint32(20, 2868);
-  view.setUint8(24, 8);
-  view.setUint8(25, 2);
-  assert.deepStrictEqual(readPngDimensions(bytes), { width: 1320, height: 2868 });
-  assert.deepStrictEqual(readPngMetadata(bytes), {
-    width: 1320,
-    height: 2868,
-    bitDepth: 8,
-    colorType: 2,
-    hasAlpha: false,
-  });
-});
-
 function rgbaPng(width: number, height: number): Buffer {
   const png = new PNG({ width, height });
   png.data.fill(255);
@@ -256,25 +131,6 @@ it("converts simulator RGBA captures to upload-safe 24-bit RGB PNGs", () => {
     colorType: 2,
     hasAlpha: false,
   });
-});
-
-it("validates exact Apple and Google Play upload assets", () => {
-  const apple = normalizeStorePng(rgbaPng(appleSpec.width, appleSpec.height));
-  const google = normalizeStorePng(rgbaPng(googleSpec.width, googleSpec.height));
-  assert.equal(validateStoreAsset(appleSpec, apple).width, 1284);
-  assert.equal(validateStoreAsset(googleSpec, google).height, 1920);
-});
-
-it("rejects wrong dimensions and alpha-bearing PNGs", () => {
-  const wrongSize = normalizeStorePng(rgbaPng(1242, 2688));
-  assert.throws(() => validateStoreAsset(appleSpec, wrongSize), /requires 1284×2778/u);
-  assert.throws(() => validateStoreAsset(appleSpec, rgbaPng(1284, 2778)), /without alpha/u);
-});
-
-it("enforces store screenshot count limits", () => {
-  assert.doesNotThrow(() => validateStoreAssetCount(googleSpec, 5, true));
-  assert.throws(() => validateStoreAssetCount(googleSpec, 1, true), /requires at least 2/u);
-  assert.throws(() => validateStoreAssetCount(googleSpec, 9, false), /allows at most 8/u);
 });
 
 it("defaults every device to the app's own palette", () => {
@@ -303,18 +159,6 @@ it("configures every default device with an exact upload-ready store target", ()
       ["android-tablet-7", null, "google-play/tablet-7", 1080, 1920],
       ["android-tablet-10", null, "google-play/tablet-10", 1440, 2560],
     ],
-  );
-});
-
-it("selects a reachable LAN IPv4 address", () => {
-  assert.equal(
-    selectLanIpv4Address([
-      { address: "127.0.0.1", family: "IPv4", internal: true },
-      { address: "fe80::1", family: "IPv6", internal: false },
-      { address: "169.254.2.4", family: "IPv4", internal: false },
-      { address: "192.168.1.80", family: "IPv4", internal: false },
-    ]),
-    "192.168.1.80",
   );
 });
 

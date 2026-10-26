@@ -7,7 +7,21 @@ import fixtures from "../../../packages/mermaid/src/fixtures.json" with { type: 
 
 const WORKLET_BUILD_TIMEOUT_MS = 120_000;
 
-const supported = fixtures.map((fixture) => fixture.source);
+const range = (length: number) => Array.from({ length }, (_, index) => index);
+// Ordering edges across subgraphs costs pele millions of steps while still finishing well
+// inside the time budget.
+const subgraphFlowchart = [
+  "flowchart TD",
+  ...range(8).flatMap((group) => [
+    `subgraph G${group}`,
+    ...range(9).map((node) => `  S${group}_${node} --> S${group}_${node + 1}`),
+    "end",
+  ]),
+  ...range(80).map(
+    (edge) => `S${edge % 8}_${(edge * 7) % 10} --> S${(edge * 5 + 1) % 8}_${(edge * 3 + 2) % 10}`,
+  ),
+].join("\n");
+const supported = [...fixtures.map((fixture) => fixture.source), subgraphFlowchart];
 const rejected = [
   "not a diagram",
   "x".repeat(limits.sourceChars + 1),
@@ -45,6 +59,7 @@ describe("generated native Mermaid worklet", () => {
 
   it("preserves rendering and work bounds after native Babel serialization", () => {
     const expected = supported.map((source) => renderDiagram(source, { maxWidth: 320, now: 0 }));
+    for (const output of expected) expect(output).not.toBeNull();
     for (const source of rejected) expect(renderDiagram(source)).toBeNull();
     for (const platform of ["ios", "android"]) {
       expect(output.platforms[platform]).toEqual({

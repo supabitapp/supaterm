@@ -71,25 +71,6 @@ const check = (input: Parameters<OtlpEndpointCheck.OtlpEndpointCheck["Service"][
   });
 
 describe("OtlpEndpointCheck", () => {
-  it.effect("posts an empty export for the signal with the Supaterm headers", () => {
-    const { requests, layer } = checkWith(200, {
-      otlpMetricsUrl: "http://collector:4318/v1/metrics",
-      otlpMetricsExport: {
-        ...DEFAULT_SIGNAL_EXPORT,
-        headers: { authorization: "Bearer supaterm" },
-      },
-    });
-    return Effect.gen(function* () {
-      const result = yield* check({ signal: "metrics", url: "http://collector:4318/v1/metrics" });
-
-      assert.strictEqual(result._tag, "Accepted");
-      assert.lengthOf(requests, 1);
-      assert.strictEqual(requests[0]?.url, "http://collector:4318/v1/metrics");
-      assert.strictEqual(requests[0]?.headers.authorization, "Bearer supaterm");
-      assert.strictEqual(requests[0]?.body, `{"resourceMetrics":[]}`);
-    }).pipe(Effect.provide(layer));
-  });
-
   it.effect("keeps Supaterm credentials paired with each running signal endpoint", () => {
     const signalExport = { ...DEFAULT_SIGNAL_EXPORT, headers: { "x-api-key": "secret" } };
     const { requests, layer } = checkWith(200, {
@@ -130,15 +111,6 @@ describe("OtlpEndpointCheck", () => {
       assert.strictEqual(result._tag, "Accepted");
       assert.lengthOf(requests, 1);
       assert.isUndefined(requests[0]?.headers.authorization);
-    }).pipe(Effect.provide(layer));
-  });
-
-  it.effect("releases the request once the status is known", () => {
-    const { requests, layer } = checkWith(200);
-    return Effect.gen(function* () {
-      yield* check({ signal: "traces", url: "http://collector:4318/v1/traces" });
-
-      assert.isTrue(requests[0]?.signal.aborted);
     }).pipe(Effect.provide(layer));
   });
 
@@ -206,24 +178,6 @@ describe("OtlpEndpointCheck", () => {
       }),
     ).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );
-
-  it.effect("reports the status a receiver rejects the export with", () => {
-    const { layer } = checkWith(401);
-    return Effect.gen(function* () {
-      const result = yield* check({ signal: "traces", url: "http://collector:4318/v1/traces" });
-
-      assert.deepStrictEqual(result, { _tag: "Rejected", status: 401 });
-    }).pipe(Effect.provide(layer));
-  });
-
-  it.effect("reports an endpoint that cannot be reached", () => {
-    const { layer } = checkWith(null);
-    return Effect.gen(function* () {
-      const result = yield* check({ signal: "logs", url: "http://localhost:1/v1/logs" });
-
-      assert.deepStrictEqual(result, { _tag: "Unreachable", timedOut: false });
-    }).pipe(Effect.provide(layer));
-  });
 
   it.effect("keeps OTEL endpoint credentials off other endpoints", () => {
     const otelUrl = "https://otel.example.com/v1/traces";

@@ -82,6 +82,29 @@ const ensureUnrecordedSchema = Effect.fn("ensureUnrecordedSchema")(function* () 
     )
     WHERE type = 'error' AND status = 'failed'
   `;
+  yield* sql`
+    CREATE INDEX IF NOT EXISTS orchestration_v2_projection_turn_items_run_interrupt_idx
+    ON orchestration_v2_projection_turn_items(thread_id, run_id)
+    WHERE type = 'run_interrupt_request'
+  `;
+  // Shell resume groups a sequence range by aggregate. Covering it, without a predicate on
+  // the columns stored after the payload, keeps both the query and the first build off
+  // payload overflow pages. The first build still reads every event once.
+  const unindexedEvents = yield* sql`
+    SELECT 1 FROM orchestration_events
+    WHERE NOT EXISTS (
+      SELECT 1 FROM sqlite_master
+      WHERE type = 'index' AND name = 'idx_orchestration_events_sequence_aggregate'
+    )
+    LIMIT 1
+  `;
+  if (unindexedEvents.length > 0) {
+    yield* Effect.log("Indexing orchestration events for shell resume; this runs once");
+  }
+  yield* sql`
+    CREATE INDEX IF NOT EXISTS idx_orchestration_events_sequence_aggregate
+    ON orchestration_events(sequence, aggregate_kind, stream_id)
+  `;
 });
 
 const run = Migrator.make({});

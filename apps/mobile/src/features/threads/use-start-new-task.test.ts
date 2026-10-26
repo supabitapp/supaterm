@@ -2,49 +2,53 @@ import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
 import { EnvironmentId, ProjectId } from "@supaterm/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 
-vi.mock("@react-navigation/native", () => ({}));
+vi.mock("../../state/atom-registry", () => ({}));
 vi.mock("../../state/projects", () => ({}));
 vi.mock("../../state/use-composer-drafts", () => ({}));
 
-import { resolveStartNewTaskTarget } from "./use-start-new-task";
+import { resolveStartNewTaskDestination } from "./use-start-new-task";
 
-const project = {
-  environmentId: EnvironmentId.make("environment-1"),
-  id: ProjectId.make("project-1"),
-  title: "supaterm",
-} as EnvironmentProject;
-const stickyProject = { environmentId: project.environmentId, projectId: project.id };
+const project = (id: string) =>
+  ({
+    environmentId: EnvironmentId.make("environment-1"),
+    id: ProjectId.make(id),
+    title: id,
+  }) as EnvironmentProject;
+const remembered = project("remembered");
+const first = project("first");
+const stickyProject = { environmentId: remembered.environmentId, projectId: remembered.id };
 
-describe("resolveStartNewTaskTarget", () => {
+describe("resolveStartNewTaskDestination", () => {
   it("opens a draft in the remembered project", () => {
     expect(
-      resolveStartNewTaskTarget({ topRouteName: "Home", stickyProject, projects: [project] }),
+      resolveStartNewTaskDestination({
+        stickyProject,
+        projects: [first, remembered],
+        requestId: "request-1",
+      }),
     ).toEqual({
-      screen: "NewTaskDraft",
-      params: { environmentId: "environment-1", projectId: "project-1", title: "supaterm" },
+      draft: { requestId: "request-1", environmentId: "environment-1", projectId: "remembered" },
     });
   });
 
-  it("opens the picker when the remembered project is not listed", () => {
-    // Removed projects and projects on disabled environments both drop out of the catalog.
+  it.each([
+    ["the remembered project is no longer listed", stickyProject],
+    ["nothing is remembered", null],
+  ])("falls back to the first project when %s", (_case, sticky) => {
     expect(
-      resolveStartNewTaskTarget({ topRouteName: "Home", stickyProject, projects: [] }),
-    ).toEqual({ screen: "NewTask" });
-  });
-
-  it("opens the picker when nothing is remembered", () => {
-    expect(
-      resolveStartNewTaskTarget({ topRouteName: "Home", stickyProject: null, projects: [project] }),
-    ).toEqual({ screen: "NewTask" });
-  });
-
-  it("leaves an open new task alone", () => {
-    expect(
-      resolveStartNewTaskTarget({
-        topRouteName: "NewTaskSheet",
-        stickyProject,
-        projects: [project],
+      resolveStartNewTaskDestination({
+        stickyProject: sticky,
+        projects: [first],
+        requestId: "request-1",
       }),
-    ).toBeNull();
+    ).toEqual({
+      draft: { requestId: "request-1", environmentId: "environment-1", projectId: "first" },
+    });
+  });
+
+  it("opens a projectless draft when there are no projects", () => {
+    expect(
+      resolveStartNewTaskDestination({ stickyProject, projects: [], requestId: "request-1" }),
+    ).toEqual({ draft: { requestId: "request-1" } });
   });
 });

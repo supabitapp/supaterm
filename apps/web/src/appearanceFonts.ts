@@ -17,7 +17,7 @@ export const DEFAULT_CODE_FONT_FAMILY = "JetBrains Mono";
 
 // Concrete names first: some engines alias `ui-monospace` to the
 // proportional system UI font, which would break every code surface.
-export const DEFAULT_CODE_FONT_STACK = `"${DEFAULT_CODE_FONT_FAMILY}", "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace`;
+const DEFAULT_CODE_FONT_STACK = `"${DEFAULT_CODE_FONT_FAMILY}", "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace`;
 
 export const TYPOGRAPHY_ADVANCED_STORAGE_KEY = "supaterm:typography-advanced";
 
@@ -47,7 +47,7 @@ function quoteFontFamilyName(name: string): string {
   return `"${bare.replaceAll('"', "")}"`;
 }
 
-export function cssFontFamilies(input: string): string | null {
+function cssFontFamilies(input: string): string | null {
   const families = input
     .split(",")
     .map(quoteFontFamilyName)
@@ -111,7 +111,7 @@ function clampFontSize(value: number, minimum: number, maximum: number, fallback
   return Math.min(maximum, Math.max(minimum, Math.round(value)));
 }
 
-export function clampInterfaceFontSize(value: number): number {
+function clampInterfaceFontSize(value: number): number {
   return clampFontSize(
     value,
     MIN_INTERFACE_FONT_SIZE,
@@ -120,11 +120,11 @@ export function clampInterfaceFontSize(value: number): number {
   );
 }
 
-export function clampPromptFontSize(value: number): number {
+function clampPromptFontSize(value: number): number {
   return clampFontSize(value, MIN_PROMPT_FONT_SIZE, MAX_PROMPT_FONT_SIZE, DEFAULT_PROMPT_FONT_SIZE);
 }
 
-export function clampCodeFontSize(value: number): number {
+function clampCodeFontSize(value: number): number {
   return clampFontSize(value, MIN_CODE_FONT_SIZE, MAX_CODE_FONT_SIZE, DEFAULT_CODE_FONT_SIZE);
 }
 
@@ -166,7 +166,7 @@ const MONOSPACE_PROBE_VARIANTS = ["normal 400", "normal 700", "italic 400", "ita
 const MONOSPACE_PROBE_GLYPHS = ["i", "M", "W", "0", "@", "#", ".", " "] as const;
 const MONOSPACE_ADVANCE_TOLERANCE = 0.01;
 
-export function areFontAdvancesMonospace(advances: readonly number[]): boolean {
+function areFontAdvancesMonospace(advances: readonly number[]): boolean {
   const reference = advances[0];
   if (
     reference === undefined ||

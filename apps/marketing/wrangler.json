@@ -6,7 +6,8 @@
   "preview_urls": false,
   "name": "supaterm-marketing",
   "assets": {
-    "directory": "dist"
+    "directory": "dist",
+    "not_found_handling": "404-page"
   },
   "routes": [
     {

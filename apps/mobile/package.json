@@ -44,7 +44,7 @@
     "measure-renders": "node scripts/measure-renders.mts",
     "generate": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/generate-uniwind-themes.mts",
     "test": "vp test run --project unit --project react",
-    "typecheck": "tsc-rs --noEmit",
+    "typecheck": "tsc --noEmit",
     "sync:chip-icons": "node scripts/sync-context-chip-icons.mjs"
   },
   "dependencies": {
@@ -130,7 +130,7 @@
     "react-native-pdf-jsi": "5.0.0",
     "react-native-reanimated": "4.7.1",
     "react-native-safe-area-context": "~5.10.1",
-    "react-native-screens": "file:deps/react-native-screens-5.0.0-supacode.30.tgz",
+    "react-native-screens": "file:deps/react-native-screens-5.0.0-supacode.36.tgz",
     "react-native-shiki-engine": "^0.3.12",
     "react-native-svg": "15.16.0",
     "react-native-webview": "14.0.1",

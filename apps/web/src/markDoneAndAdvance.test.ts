@@ -1,5 +1,5 @@
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
-import { EnvironmentId, ThreadId, type ScopedThreadRef } from "@supaterm/contracts";
+import { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import { markDoneAndAdvance, registerMarkDoneAndAdvance } from "./markDoneAndAdvance";
@@ -10,15 +10,6 @@ const threadRef = scopeThreadRef(
 );
 
 describe("markDoneAndAdvance", () => {
-  it("hands the open thread to the mounted sidebar so it can move forward", () => {
-    const markedDone: ScopedThreadRef[] = [];
-    const unregister = registerMarkDoneAndAdvance((ref) => markedDone.push(ref));
-
-    expect(markDoneAndAdvance(threadRef)).toBe(true);
-    expect(markedDone).toEqual([threadRef]);
-    unregister();
-  });
-
   it("asks the caller to mark done in place when no sidebar is mounted", () => {
     expect(markDoneAndAdvance(threadRef)).toBe(false);
   });

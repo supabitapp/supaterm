@@ -1,13 +1,10 @@
 import type { InlineSkill } from "@supaterm/shared/inlineSkills";
-import type {
-  OrchestrationV2ThreadProjection,
-  OrchestrationV2SearchThreadResult,
-  ScopedThreadRef,
-} from "@supaterm/contracts";
+import type { OrchestrationV2SearchThreadResult, ScopedThreadRef } from "@supaterm/contracts";
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { useStableCallback } from "~/hooks/useStableCallback";
 import { orchestrationEnvironment } from "~/state/orchestration";
+import { useThreadProjection } from "~/state/entities";
 import { useEnvironmentQuery } from "~/state/query";
 import { useDebouncedValue } from "~/state/queries";
 import {
@@ -43,14 +40,15 @@ export function useThreadFind({
   enabled,
   progressive = false,
   skills = EMPTY_SKILLS,
-  content,
 }: {
   thread: ScopedThreadRef | null;
   enabled: boolean;
   progressive?: boolean;
   skills?: readonly InlineSkill[];
-  content: Pick<OrchestrationV2ThreadProjection, "visibleTurnItems" | "runs"> | undefined;
 }) {
+  // Read here rather than passed in: a streamed delta re-renders only the find
+  // provider, which refreshes open results from it.
+  const content = useThreadProjection(enabled ? thread : null)?.projection;
   // Held in state so the timeline props that carry it can be stored in state too.
   const [positionReader] = useState<RefObject<ThreadFindPositionReader | null>>(() => ({
     current: null,

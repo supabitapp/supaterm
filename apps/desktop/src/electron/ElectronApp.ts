@@ -74,7 +74,8 @@ export class ElectronApp extends Context.Service<
       args?: readonly string[],
     ) => Effect.Effect<boolean>;
     readonly setDesktopName: (desktopName: string) => Effect.Effect<void>;
-    readonly setDockIcon: (iconPath: string) => Effect.Effect<void>;
+    /** `null` hands the Dock back the bundle's icon, with its system appearances. */
+    readonly setDockIcon: (image: Electron.NativeImage | null) => Effect.Effect<void>;
     readonly appendCommandLineSwitch: (switchName: string, value?: string) => Effect.Effect<void>;
     readonly onBeforeQuitForUpdate: (
       listener: () => void,
@@ -201,9 +202,10 @@ export const make = ElectronApp.of({
       };
       linuxApp.setDesktopName?.(desktopName);
     }),
-  setDockIcon: (iconPath) =>
+  setDockIcon: (image) =>
     Effect.sync(() => {
-      Electron.app.dock?.setIcon(iconPath);
+      // Electron's types omit null, but it passes nil to setApplicationIconImage:, which restores the bundle icon.
+      Electron.app.dock?.setIcon(image as Electron.NativeImage);
     }),
   appendCommandLineSwitch: (switchName, value) =>
     Effect.sync(() => {

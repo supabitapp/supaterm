@@ -11,6 +11,9 @@ import * as Path from "effect/Path";
 import * as PlatformError from "effect/PlatformError";
 import * as Schema from "effect/Schema";
 
+import { isNetworkPath } from "@supaterm/shared/path";
+
+import { isWithinRoot } from "../workspace/KnownWorkspaces.ts";
 import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
 import * as SupatermProjectFileLoader from "./SupatermProjectFileLoader.ts";
 
@@ -163,7 +166,16 @@ export const make = Effect.gen(function* () {
     relativeCandidates: ReadonlyArray<string>,
     candidateScope: "workspace" | "filesystem",
   ): Effect.fn.Return<string | null, ProjectFaviconResolutionError> {
-    for (const relativePath of relativeCandidates) {
+    for (const candidatePath of relativeCandidates) {
+      // A favicon path can come from an agent, and statting a network path makes
+      // Windows sign in to its host with the user's NTLM credentials. Windows
+      // reads a `\\?\` path as written, `..` included, so the lookup gets the
+      // resolved path this check approved.
+      const isNetwork = isNetworkPath(candidatePath);
+      const relativePath = isNetwork ? path.resolve(candidatePath) : candidatePath;
+      if (isNetwork && !isWithinRoot(path, relativePath, path.resolve(projectCwd))) {
+        continue;
+      }
       const candidate = yield* (
         candidateScope === "filesystem" && path.isAbsolute(relativePath)
           ? Effect.succeed({ absolutePath: relativePath, relativePath })

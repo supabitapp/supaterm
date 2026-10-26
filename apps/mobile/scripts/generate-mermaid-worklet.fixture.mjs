@@ -38,8 +38,10 @@ try {
     const render = NodeVM.runInContext(`(${worklet.__initData.code})`, runtime);
     const outputs = sources.map((source) => render(source, { maxWidth: 320, now: 0 }));
     let clock = 0;
-    runtime.Date = { now: () => (clock += 1_000) };
+    runtime.performance = { now: () => (clock += 1_000) };
+    runtime.Date = { now: () => -clock };
     const rejectsExpiredBudget = render("flowchart LR\nA --> B", { now: 0 }) === null;
+    runtime.performance = performance;
     runtime.Date = Date;
     platforms[platform] = {
       closureSize: Object.keys(worklet.__closure ?? {}).length,

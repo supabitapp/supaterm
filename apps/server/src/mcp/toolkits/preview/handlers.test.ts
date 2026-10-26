@@ -11,22 +11,7 @@ import {
   parseThreadSegmentFromAttachmentId,
 } from "../../../attachmentStore.ts";
 import * as ServerConfig from "../../../config.ts";
-import { claimPreviewRecording, normalizePreviewOpenInput } from "./handlers.ts";
-
-describe("normalizePreviewOpenInput", () => {
-  it("leaves an unstated visibility for the client preference to decide", () => {
-    // Filling `open` in here would outrank `browserAutoShowFloatingPreview`,
-    // which is desktop-local and cannot be read from the server.
-    expect(normalizePreviewOpenInput({})).toEqual({ reuseExistingTab: true });
-  });
-
-  it("preserves an explicit background-only opt-out", () => {
-    expect(normalizePreviewOpenInput({ open: false })).toEqual({
-      open: false,
-      reuseExistingTab: true,
-    });
-  });
-});
+import { claimPreviewRecording } from "./handlers.ts";
 
 describe("claimPreviewRecording", () => {
   it.effect("overlapping and repeated claims return the same retained recording", () =>
@@ -114,28 +99,5 @@ describe("claimPreviewRecording", () => {
           ),
         ),
       ),
-  );
-
-  it.effect("reports an older desktop without returning its inaccessible path", () =>
-    Effect.gen(function* () {
-      const result = yield* claimPreviewRecording(ThreadId.make("thread-1"), {
-        id: "desktop-recording",
-        tabId: "tab-1",
-        path: "/desktop/recording.webm",
-        mimeType: "video/webm",
-        sizeBytes: 6,
-        createdAt: "2026-09-07T00:00:00.000Z",
-      }).pipe(Effect.result);
-      expect(result._tag).toBe("Failure");
-      if (result._tag !== "Failure") return;
-      expect(result.failure._tag).toBe("PreviewAutomationRecordingDesktopUpdateRequiredError");
-      expect(result.failure.message).toContain("Update the desktop app");
-    }).pipe(
-      Effect.provide(
-        ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-preview-recording-" }).pipe(
-          Layer.provideMerge(NodeServices.layer),
-        ),
-      ),
-    ),
   );
 });

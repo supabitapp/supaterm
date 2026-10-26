@@ -53,7 +53,7 @@ const defined = (entries: Readonly<Record<string, unknown>>) =>
 
 export const MAX_REPORTED_DEPTH = 5;
 
-export function callerOrigin(input: {
+function callerOrigin(input: {
   readonly thread: Pick<AgentThread, "createdBy">;
   readonly scheduledRun: boolean;
 }) {

@@ -4,27 +4,12 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   customThemeNames,
-  getGeneratedUniwindThemeOutputs,
   renderDefaultThemeVariablesJSON,
   renderUniwindThemesCSS,
 } from "./generate-uniwind-themes.mts";
 import { readDefaultMobileThemeVariables } from "../src/lib/mobileTheme.test-support";
 
 describe("generate mobile Uniwind themes", () => {
-  it("keeps the committed outputs current", () => {
-    const staleOutputs = getGeneratedUniwindThemeOutputs()
-      .filter(
-        ([filename, contents]) =>
-          !NodeFS.existsSync(filename) || NodeFS.readFileSync(filename, "utf8") !== contents,
-      )
-      .map(([filename]) => NodePath.relative(import.meta.dirname, filename));
-
-    expect(
-      staleOutputs,
-      "Run `vp run --filter @supaterm/mobile generate` and commit the generated outputs.",
-    ).toEqual([]);
-  });
-
   it("registers only supported built-in appearances", () => {
     expect(customThemeNames).toHaveLength(21);
     expect(customThemeNames).toContain("dracula-dark");

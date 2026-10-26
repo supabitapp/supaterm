@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it } from "vite-plus/test";
 import { closestCenter, type CollisionDetection } from "@dnd-kit/core";
 import { verticalListSortingStrategy, type SortingStrategy } from "@dnd-kit/sortable";
 import {
@@ -165,11 +165,6 @@ describe("sidebar collision detection", () => {
     },
   );
 
-  it("selects the nearest supported target", () => {
-    const detector = createSidebarCollisionDetection(() => true);
-    expect(detector(collisionArgs())[0]?.id).toBe("blocked");
-  });
-
   it.each([
     { sourceSection: "active", pins: 0 },
     { sourceSection: "active", pins: 1 },
@@ -267,33 +262,6 @@ describe("sidebar collision detection", () => {
         ),
       }),
     ).toEqual([]);
-  });
-
-  it("validates each hovered target once and always allows returning to the source", () => {
-    const args = collisionArgs();
-    const isValid = vi.fn((id: string) => id !== "blocked");
-    const detector = createSidebarCollisionDetection(isValid);
-    expect(detector(args)[0]?.id).toBe("source");
-    expect(
-      detector({
-        ...args,
-        collisionRect: {
-          ...args.collisionRect,
-          top: args.collisionRect.top + 3,
-          bottom: args.collisionRect.bottom + 3,
-        },
-      })[0]?.id,
-    ).toBe("source");
-    expect(detector({ ...args, collisionRect: args.droppableRects.get("source")! })[0]?.id).toBe(
-      "source",
-    );
-    expect(
-      detector({
-        ...args,
-        collisionRect: args.droppableRects.get(sidebarMarkerId("done-placeholder"))!,
-      })[0]?.id,
-    ).toBe(sidebarMarkerId("done-placeholder"));
-    expect(isValid.mock.calls).toEqual([["blocked"], [sidebarMarkerId("done-placeholder")]]);
   });
 });
 

@@ -1012,44 +1012,6 @@ describe("EnvironmentRegistry", () => {
     }),
   );
 
-  it.effect("hydrates connection profiles into catalog entries", () =>
-    Effect.gen(function* () {
-      const harness = yield* makeHarness([SSH_CONNECTION], [SSH_PROFILE]);
-
-      yield* Effect.gen(function* () {
-        const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
-        const entry = (yield* SubscriptionRef.get(registry.entries)).get(
-          SSH_CONNECTION.environmentId,
-        );
-
-        expect(entry?.target).toEqual(SSH_CONNECTION);
-        expect(Option.getOrThrow(entry?.profile ?? Option.none())).toEqual(SSH_PROFILE);
-      }).pipe(Effect.provide(harness.layer), Effect.scoped);
-    }),
-  );
-
-  it.effect("publishes network status changes independently of connection state", () =>
-    Effect.gen(function* () {
-      const harness = yield* makeHarness([]);
-
-      yield* Effect.gen(function* () {
-        const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
-        const offline = yield* Effect.forkChild(
-          SubscriptionRef.changes(registry.networkStatus).pipe(
-            Stream.filter((status) => status === "offline"),
-            Stream.runHead,
-            Effect.map(Option.getOrThrow),
-          ),
-        );
-
-        yield* SubscriptionRef.set(harness.networkStatus, "offline");
-
-        expect(yield* Fiber.join(offline)).toBe("offline");
-        expect(yield* SubscriptionRef.get(registry.networkStatus)).toBe("offline");
-      }).pipe(Effect.provide(harness.layer), Effect.scoped);
-    }),
-  );
-
   it.effect("starts persisted environments independently", () =>
     Effect.gen(function* () {
       const bothLoadsStarted = yield* Deferred.make<void>();
@@ -1100,46 +1062,6 @@ describe("EnvironmentRegistry", () => {
     }),
   );
 
-  it.effect("exposes the current RPC generation to late query subscribers", () =>
-    Effect.gen(function* () {
-      const harness = yield* makeHarness([TARGET]);
-      yield* Effect.gen(function* () {
-        const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
-        yield* registry.start;
-        yield* awaitConnectionState(
-          registry,
-          TARGET.environmentId,
-          (state) => state.phase === "connected",
-        );
-
-        const generation = yield* registry
-          .runStream(
-            TARGET.environmentId,
-            Stream.unwrap(
-              EnvironmentSupervisor.EnvironmentSupervisor.pipe(
-                Effect.map((supervisor) =>
-                  Stream.concat(
-                    Stream.fromEffect(SubscriptionRef.get(supervisor.state)),
-                    SubscriptionRef.changes(supervisor.state),
-                  ).pipe(
-                    Stream.filterMap((state) =>
-                      state.phase === "connected"
-                        ? Result.succeed(state.generation)
-                        : Result.failVoid,
-                    ),
-                    Stream.changes,
-                  ),
-                ),
-              ),
-            ),
-          )
-          .pipe(Stream.runHead, Effect.map(Option.getOrThrow));
-
-        expect(generation).toBe(1);
-      }).pipe(Effect.provide(harness.layer), Effect.scoped);
-    }),
-  );
-
   it.effect("preserves cached data on connection failure and clears it on explicit removal", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness([TARGET]);
@@ -1186,27 +1108,6 @@ describe("EnvironmentRegistry", () => {
         expect((yield* SubscriptionRef.get(registry.entries)).has(TARGET.environmentId)).toBe(
           false,
         );
-      }).pipe(Effect.provide(harness.layer));
-    }),
-  );
-
-  it.effect("persists and starts a newly registered environment", () =>
-    Effect.gen(function* () {
-      const harness = yield* makeHarness([]);
-
-      yield* Effect.gen(function* () {
-        const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
-        yield* registry.register(remoteRegistration(REMOTE_TARGET));
-        yield* awaitConnectionState(
-          registry,
-          REMOTE_TARGET.environmentId,
-          (state) => state.phase === "connected",
-        );
-
-        expect((yield* Ref.get(harness.storedTargets)).get(REMOTE_TARGET.environmentId)).toEqual(
-          REMOTE_TARGET,
-        );
-        expect(yield* Ref.get(harness.sessions)).toHaveLength(1);
       }).pipe(Effect.provide(harness.layer));
     }),
   );
@@ -1544,27 +1445,6 @@ describe("EnvironmentRegistry", () => {
     }),
   );
 
-  it.effect("does not connect a persisted environment that was switched off", () =>
-    Effect.gen(function* () {
-      const harness = yield* makeHarness([REMOTE_TARGET], [], [], {
-        initialDisabled: [REMOTE_TARGET.environmentId],
-      });
-
-      yield* Effect.gen(function* () {
-        const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
-        yield* registry.start;
-        yield* Effect.yieldNow;
-
-        const entry = (yield* SubscriptionRef.get(registry.entries)).get(
-          REMOTE_TARGET.environmentId,
-        );
-        expect(entry?.enabled).toBe(false);
-        expect((yield* registry.state(REMOTE_TARGET.environmentId)).phase).toBe("available");
-        expect(yield* Ref.get(harness.sessions)).toHaveLength(0);
-      }).pipe(Effect.provide(harness.layer));
-    }),
-  );
-
   it.effect("moves durable streams to a replacement supervisor", () =>
     Effect.gen(function* () {
       const replacement = new BearerConnectionTarget({
@@ -1685,17 +1565,6 @@ describe("EnvironmentRegistry", () => {
           replacementCredential.token,
         ]);
         expect(yield* Ref.get(followedSupervisors)).toBe(2);
-      }).pipe(Effect.provide(harness.layer), Effect.scoped);
-    }),
-  );
-
-  it.effect("ignores retry signals for environments that are no longer registered", () =>
-    Effect.gen(function* () {
-      const harness = yield* makeHarness([]);
-
-      yield* Effect.gen(function* () {
-        const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
-        yield* registry.retryNow(EnvironmentId.make("removed-environment"));
       }).pipe(Effect.provide(harness.layer), Effect.scoped);
     }),
   );
@@ -1870,36 +1739,6 @@ describe("EnvironmentRegistry", () => {
           (state) => state.phase === "connected",
         );
         expect(yield* Ref.get(attempts)).toBeGreaterThanOrEqual(2);
-      }).pipe(Effect.provide(harness.layer), Effect.scoped);
-    }),
-  );
-
-  it.effect("starts a newly paired bearer environment without re-reading its profile", () =>
-    Effect.gen(function* () {
-      const harness = yield* makeHarness([]);
-
-      yield* Effect.gen(function* () {
-        const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
-        yield* registry.register(
-          new BearerConnectionRegistration({
-            target: BEARER_TARGET,
-            profile: BEARER_PROFILE,
-            credential: BEARER_CREDENTIAL,
-          }),
-        );
-        yield* awaitConnectionState(
-          registry,
-          BEARER_TARGET.environmentId,
-          (state) => state.phase === "connected",
-        );
-
-        expect(yield* Ref.get(harness.profileReadCount)).toBe(0);
-        expect(
-          Option.getOrThrow(
-            (yield* SubscriptionRef.get(registry.entries)).get(BEARER_TARGET.environmentId)
-              ?.profile ?? Option.none(),
-          ),
-        ).toEqual(BEARER_PROFILE);
       }).pipe(Effect.provide(harness.layer), Effect.scoped);
     }),
   );

@@ -7,6 +7,7 @@ import { page } from "vite-plus/test/browser";
 const state = vi.hoisted(() => ({
   projection: null as unknown,
   workflow: null as unknown,
+  commands: [] as Array<{ command: unknown; input: unknown }>,
 }));
 
 vi.mock(import("@supaterm/client-runtime/state/thread-workflows"), async (importOriginal) => ({
@@ -21,7 +22,9 @@ vi.mock(import("../../state/entities"), async (importOriginal) => ({
 
 vi.mock(import("../../state/use-atom-command"), async (importOriginal) => ({
   ...(await importOriginal()),
-  useAtomCommand: (() => async () => undefined) as never,
+  useAtomCommand: ((command: unknown) => async (input: unknown) => {
+    state.commands.push({ command, input });
+  }) as never,
 }));
 
 vi.mock(import("../../assets/assetUrls"), async (importOriginal) => ({
@@ -31,11 +34,13 @@ vi.mock(import("../../assets/assetUrls"), async (importOriginal) => ({
 }));
 
 import { act, render as renderUi } from "../../../test/render";
+import { threadEnvironment } from "../../state/threads";
 import { QueuedRunsControl, type QueuedRunsControlHandle } from "./QueuedRunsControl";
 
 function setup() {
   state.projection = null;
   state.workflow = null;
+  state.commands = [];
 }
 
 const baseProps = {
@@ -160,6 +165,46 @@ describe("QueuedRunsControl attachments and edit mode", () => {
     await using screen = await renderQueue({ editingRunId: "run:queued" as never });
 
     expect(screen.container.textContent).toContain("Queued with a screenshot");
+  });
+});
+
+describe("QueuedRunsControl send", () => {
+  it("starts a held message as a new turn once the agent is stopped", async () => {
+    setup();
+    state.projection = { projection: { messages: [] } };
+    state.workflow = {
+      activeRun: null,
+      canSendNow: true,
+      canPromoteToSteer: false,
+      canReorder: true,
+      queuedRuns: [
+        { run: { id: "run:held", userMessageId: "message:held" }, text: "Held", attachments: [] },
+      ],
+    };
+    const ref = createRef<QueuedRunsControlHandle>();
+
+    await using _screen = await renderQueue({
+      ref,
+      optimisticMessages: [
+        { id: "message:outbox" as never, inputIntent: "queued_turn", text: "In the outbox" },
+      ],
+    });
+    const sendNow = page.getByRole("button", { name: "Send now" });
+    await expect.element(sendNow.nth(0)).toBeEnabled();
+    await expect.element(sendNow.nth(1)).toBeDisabled();
+    await act(async () => {
+      ref.current?.steerNext(false);
+    });
+
+    expect(state.commands).toEqual([
+      {
+        command: threadEnvironment.resumeThreadQueue,
+        input: {
+          environmentId: "environment:test",
+          input: { threadId: "thread:test", runId: "run:held" },
+        },
+      },
+    ]);
   });
 });
 

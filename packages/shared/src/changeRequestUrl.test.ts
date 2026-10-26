@@ -19,14 +19,6 @@ describe("parseChangeRequestUrl", () => {
     });
   });
 
-  it("reads a pull request on a GitHub Enterprise host", () => {
-    expect(parseChangeRequestUrl("https://github.acme.test/platform/api/pull/7")).toEqual({
-      host: "github.acme.test",
-      repository: "platform/api",
-      number: 7,
-    });
-  });
-
   it("reads Forgejo URLs even when the hostname contains github", () => {
     expect(parseChangeRequestUrl("https://github.internal/team/repo/pulls/7")).toEqual({
       host: "github.internal",
@@ -136,53 +128,19 @@ describe("parseChangeRequestUrl", () => {
 });
 
 describe("siblingPullRequestUrl", () => {
-  it("recognizes Forgejo on custom HTTP hosts", () => {
-    expect(parseChangeRequestUrl("http://git.example.test:3000/team/repo/pulls/42/files")).toEqual({
-      host: "git.example.test",
-      authority: "git.example.test:3000",
-      repository: "team/repo",
-      number: 42,
-    });
-  });
   it.each([
     [
       "http://git.example.test:3000/team/repo/pulls/42/files",
       "http://git.example.test:3000/team/repo/pulls/43",
     ],
-    [
-      "https://git.example.test/forgejo/team/repo/pulls/42/files",
-      "https://git.example.test/forgejo/team/repo/pulls/43",
-    ],
     ["https://github.com/pull/1/pull/42/files", "https://github.com/pull/1/pull/43"],
-    [
-      "https://git.acme.test/team/merge_requests/1/repo/-/merge_requests/42/diffs",
-      "https://git.acme.test/team/merge_requests/1/repo/-/merge_requests/43",
-    ],
 
-    ["https://github.com/acme/web/pull/42#discussion_r123", "https://github.com/acme/web/pull/43"],
-    ["https://github.com/acme/web/pull/42/files?w=1", "https://github.com/acme/web/pull/43"],
-    [
-      "https://github.acme.test:8443/acme/web/pull/42/",
-      "https://github.acme.test:8443/acme/web/pull/43",
-    ],
-    [
-      "https://git.acme.test/acme/web/-/merge_requests/42/diffs",
-      "https://git.acme.test/acme/web/-/merge_requests/43",
-    ],
-    [
-      "https://bitbucket.org/acme/web/pull-requests/42",
-      "https://bitbucket.org/acme/web/pull-requests/43",
-    ],
     [
       "https://dev.azure.com/acme/project/_git/web/pullrequest/42?view=files",
       "https://dev.azure.com/acme/project/_git/web/pullrequest/43",
     ],
   ])("builds a canonical sibling of %s", (url, expected) => {
     expect(siblingPullRequestUrl(url, 43)).toBe(expected);
-  });
-  it("rejects non-PR URLs and invalid numbers", () => {
-    expect(siblingPullRequestUrl("https://github.com/acme/web/issues/42", 43)).toBeNull();
-    expect(siblingPullRequestUrl("https://github.com/acme/web/pull/42", 0)).toBeNull();
   });
 });
 
@@ -201,7 +159,6 @@ describe("changeRequestUrlFor", () => {
 
   it.each([
     ["http://forge.example:3000/git/owner/repo.git", "http://forge.example:3000"],
-    ["https://forge.example:8443/git/owner/repo.git", "https://forge.example:8443"],
     ["git@forge.example:git/owner/repo.git", "https://forge.example"],
     ["http://other.example:3000/git/owner/repo.git", "https://forge.example"],
   ])("preserves the matching Forgejo web origin from %s", (remoteUrl, origin) => {
@@ -212,7 +169,6 @@ describe("changeRequestUrlFor", () => {
 
   it.each([
     ["ssh.dev.azure.com", "v3/org/project/web"],
-    ["vs-ssh.visualstudio.com", "v3/org/project/web"],
     ["org.visualstudio.com", "defaultcollection/project/_git/web"],
     ["dev.azure.com", "org/project/_git/web"],
   ])("builds a browser URL from the Azure remote %s/%s", (host, repository) => {

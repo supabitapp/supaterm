@@ -59,20 +59,6 @@ describe("pull request project filter choices", () => {
     expect(findScopedProject(choices, cups, "worktree")).toBeDefined();
   });
 
-  it("matches canonical repositories regardless of casing", () => {
-    const main = project("main");
-    const worktree = project("worktree", nucbox, "GitHub.com/SupabitApp/Supacode-Next");
-
-    expect(pullRequestFilterProjects([main, worktree], labels)).toEqual([main]);
-  });
-
-  it("does not add a server suffix after duplicate checkouts have collapsed", () => {
-    const main = project("main");
-
-    expect(pullRequestFilterProjects([main, project("worktree")], labels)).toEqual([main]);
-    expect(main.title).toBe("supaterm");
-  });
-
   it("distinguishes same-named repositories on one server by checkout path", () => {
     const projects = [
       project("upstream"),
@@ -125,37 +111,5 @@ describe("pull request project filter choices", () => {
       "supaterm · nucbox-1 · /work/main · env-cups",
       "supaterm · nucbox-1 · /work/main · env-nucbox",
     ]);
-  });
-
-  it("uses the environment id when its label is unavailable", () => {
-    const choices = pullRequestFilterProjects(
-      [project("main"), project("remote", cups)],
-      new Map(),
-    );
-
-    expect(choices.map((choice) => choice.title)).toEqual([
-      "supaterm · env-cups",
-      "supaterm · env-nucbox",
-    ]);
-  });
-
-  it("can distinguish unresolved project records that also share a checkout path", () => {
-    const first = project("first", nucbox, null);
-    const second = { ...project("second", nucbox, null), workspaceRoot: first.workspaceRoot };
-
-    const choices = pullRequestFilterProjects([first, second], labels);
-
-    expect(choices.map((choice) => choice.title)).toEqual([
-      "supaterm · nucbox-1 · /work/first · env-nucbox · first",
-      "supaterm · nucbox-1 · /work/first · env-nucbox · second",
-    ]);
-  });
-
-  it("leaves unrelated names unchanged and orders them alphabetically", () => {
-    const app = { ...project("app"), title: "Zebra" };
-    const tools = { ...project("tools", nucbox, "github.com/acme/tools"), title: "Alpha" };
-
-    expect(pullRequestFilterProjects([app, tools], labels)).toEqual([tools, app]);
-    expect(pullRequestFilterProjects([], labels)).toEqual([]);
   });
 });

@@ -1,5 +1,3 @@
-"use client";
-
 import type { DesktopPreviewColorScheme, KeybindingCommand } from "@supaterm/contracts";
 import { Minus, MoreVertical, Plus as PlusIcon, RotateCcw } from "lucide-react";
 import { useId, type ReactNode } from "react";

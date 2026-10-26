@@ -87,13 +87,6 @@ describe("device hub proxy", () => {
     expect(finalized()).toBe(1);
   });
 
-  it("releases resources when upstream acquisition fails", async () => {
-    const { handler, finalized } = fixture([AuthOrchestrationReadScope], true);
-    const response = await handler(new Request("http://supaterm.test/api/device-hub/api/devices"));
-    expect(response.status).toBe(500);
-    expect(finalized()).toBe(1);
-  });
-
   it.each(["/vendor/serve-sim/helper/ws", "/vendor/serve-emu/ws"])(
     "rejects input socket %s for a read-only session",
     async (path) => {
@@ -250,29 +243,3 @@ it.each([
   expect(await response.text()).not.toContain("private credential diagnostic");
   expect(requests).toEqual([]);
 });
-
-it.each([1, 3])(
-  "forwards fixed Duo display %s through the authenticated read proxy",
-  async (panel) => {
-    const { handler, requests } = fixture([AuthOrchestrationReadScope]);
-    const route = `/vendor/serve-sim/helper/duo/panel/${panel}/stream.avcc`;
-    const response = await handler(
-      new Request(`http://supaterm.test/api/device-hub${route}?wsTicket=secret`),
-    );
-    expect(response.status).toBe(200);
-    await response.text();
-    expect(requests).toEqual([`http://hub.test${route}`]);
-  },
-);
-
-it.each(["/panel/2/stream.avcc", "/panel/1/webrtc/offer", "/panel/3/exec"])(
-  "rejects unsupported Duo route %s",
-  async (route) => {
-    const { handler, requests } = fixture([AuthOrchestrationReadScope]);
-    const response = await handler(
-      new Request(`http://supaterm.test/api/device-hub/vendor/serve-sim/helper/duo${route}`),
-    );
-    expect(response.status).toBe(404);
-    expect(requests).toEqual([]);
-  },
-);

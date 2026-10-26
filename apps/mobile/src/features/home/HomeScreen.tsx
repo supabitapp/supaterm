@@ -1,5 +1,6 @@
 import type { SidebarThreadGrouping } from "@supaterm/contracts";
 import { useThreadListV2Layout } from "../threads/use-thread-list-v2-layout";
+import { useActiveNewTask } from "../../state/active-new-task";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
 import { type LegendListRef } from "@legendapp/list/react-native";
@@ -48,6 +49,7 @@ import {
   NativeWorkspaceTabActivityContext,
 } from "../../native/v5-workspace-context";
 import { nativeHeaderScrollEdgeEffects } from "../../native/scrollEdgeEffects";
+import { useRestingTopOffset } from "../../native/useRestingTopOffset";
 import {
   useNativeColumnLayoutMetrics,
   useNativeLayoutMetrics,
@@ -232,6 +234,7 @@ function HomeTopContentSpacer() {
 function HomeScrollView(props: ComponentProps<typeof ScrollView>) {
   const insets = useSafeAreaInsets();
   const primaryColumn = use(NativePrimaryColumnContext);
+  const restingOffset = useRestingTopOffset(insets.top, props);
   if (Platform.OS !== "ios") return <ScrollView {...props} />;
 
   return (
@@ -245,12 +248,11 @@ function HomeScrollView(props: ComponentProps<typeof ScrollView>) {
     >
       <ScrollView
         {...props}
-
+        {...restingOffset}
         className={cn(props.className, primaryColumn ? "bg-drawer" : "bg-screen")}
 
         automaticallyAdjustContentInsets={false}
         contentInsetAdjustmentBehavior="never"
-        contentOffset={props.contentOffset ?? { x: 0, y: -insets.top }}
       />
     </ScrollViewMarker>
   );
@@ -272,7 +274,8 @@ export function HomeScreen(props: HomeScreenProps) {
     Platform.OS === "android" ? "bg-header" : contentBackground,
   );
   const columnMetrics = useNativeColumnLayoutMetrics();
-  const selectedThreadKey = primaryColumn?.selectedThreadKey ?? null;
+  const activeNewTask = useActiveNewTask();
+  const selectedThreadKey = activeNewTask ? null : (primaryColumn?.selectedThreadKey ?? null);
   const fullSwipeWidth = primaryColumn && columnMetrics ? columnMetrics.width - 20 : undefined;
   const queuedThreadKeys = useQueuedThreadKeys();
   const openSwipeableRef = useRef<SwipeableMethods | null>(null);
@@ -498,6 +501,7 @@ export function HomeScreen(props: HomeScreenProps) {
     now: new Date().toISOString(),
   }));
   if (listClock.nowMinute !== nowMinute || listClock.snoozeWakeTick !== snoozeWakeTick) {
+    // oxlint-disable-next-line react/purity -- Resamples the clock only when the minute or a snooze wake changes; the sample lives in state.
     setListClock({ nowMinute, snoozeWakeTick, now: new Date().toISOString() });
   }
   useFocusEffect(() => {
@@ -593,7 +597,14 @@ export function HomeScreen(props: HomeScreenProps) {
       );
       return (
         <ThreadListV2PendingRow
+          pane={primaryColumn ? "sidebar" : "screen"}
           pendingTask={item.pendingTask}
+          selected={
+            activeNewTask?.pendingKey === item.pendingTask.key ||
+            (item.pendingTask.kind === "pending" &&
+              scopedThreadKey(item.pendingTask.environmentId, item.pendingTask.message.threadId) ===
+                selectedThreadKey)
+          }
           project={projectByKey.get(pendingScopeKey) ?? null}
           projectTitle={v2ProjectTitleByProjectKey.get(pendingScopeKey)}
           environmentLabel={
@@ -694,6 +705,7 @@ export function HomeScreen(props: HomeScreenProps) {
         hasQueuedMessages={item.hasQueuedMessages}
         snoozed={item.item.snoozed}
         pinned={item.item.pinned}
+        wokeAt={item.item.wokeAt}
         snoozePresetMinute={item.snoozePresetMinute ?? ""}
         snoozeWakeLabelText={item.snoozeWakeLabelText}
         timeLabel={item.timeLabel}
@@ -761,6 +773,7 @@ export function HomeScreen(props: HomeScreenProps) {
   // every HomeScreen render — and the minute clock must stay out of it for
   // the same reason: the clock text is precomputed per item instead.
   const v2ExtraData = {
+    activeNewTask,
     projectByKey,
     projectScopes,
     projectTitleByProjectKey: v2ProjectTitleByProjectKey,

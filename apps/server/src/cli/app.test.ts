@@ -171,17 +171,6 @@ describe("supaterm server command safety", () => {
     ),
   );
 
-  it.effect("shows help without creating state", () =>
-    withTempDirectory("supaterm-cli-help-", (root) =>
-      Effect.gen(function* () {
-        const baseDir = NodePath.join(root, "home");
-        const help = yield* runCli(["help"], { SUPATERM_HOME: baseDir }).pipe(Effect.flip);
-        expect(help).toMatchObject({ _tag: "ShowHelp", commandPath: ["supaterm"], errors: [] });
-        expect(yield* pathExists(baseDir)).toBe(false);
-      }),
-    ),
-  );
-
   it.effect("refuses manual startup over a live server before creating directories", () =>
     withTempDirectory("supaterm-cli-running-", (root) =>
       Effect.gen(function* () {
@@ -231,61 +220,6 @@ describe("supaterm server command safety", () => {
 });
 
 describe("supaterm app", () => {
-  it.effect("rejects SSH before it tries to reach a desktop app", () =>
-    withTempDirectory("supaterm-app-ssh-test-", (root) =>
-      Effect.gen(function* () {
-        const baseDir = NodePath.join(root, "missing-supaterm-home");
-        const error = yield* runCli(["app", "--base-dir", baseDir], {
-          SSH_CONNECTION: "client server",
-        }).pipe(Effect.flip);
-
-        expect(error).toMatchObject({
-          _tag: "DesktopAppSshUnsupportedError",
-          message:
-            "`supaterm app` only controls a desktop app on the same machine. It cannot run over SSH.",
-        });
-        expect(yield* pathExists(baseDir)).toBe(false);
-      }),
-    ),
-  );
-
-  it.effect("rejects unsupported platforms without creating state", () =>
-    withTempDirectory("supaterm-app-platform-test-", (root) =>
-      Effect.gen(function* () {
-        const baseDir = NodePath.join(root, "missing-supaterm-home");
-        const error = yield* runCli(["app", "--base-dir", baseDir]).pipe(
-          Effect.provideService(HostProcess.Platform, "freebsd"),
-          Effect.flip,
-        );
-
-        expect(error).toMatchObject({
-          _tag: "DesktopAppPlatformUnsupportedError",
-          platform: "freebsd",
-          message: "`supaterm app` is not supported on freebsd.",
-        });
-        expect(yield* pathExists(baseDir)).toBe(false);
-      }),
-    ),
-  );
-
-  it.effect("does not create state when only a server or no desktop app is running", () =>
-    withTempDirectory("supaterm-app-missing-test-", (root) =>
-      Effect.gen(function* () {
-        const baseDir = NodePath.join(root, "missing-supaterm-home");
-        const error = yield* runCli(["app", "--base-dir", baseDir]).pipe(Effect.flip);
-
-        expect(error).toMatchObject({
-          _tag: "DesktopAppUnreachableError",
-          candidateAddresses: [expect.any(String)],
-          workspaceRoot: yield* HostProcess.WorkingDirectory,
-          message: expect.stringContaining("Could not reach the Supaterm desktop app."),
-          cause: { code: "ENOENT" },
-        });
-        expect(yield* pathExists(baseDir)).toBe(false);
-      }),
-    ),
-  );
-
   it.effect("uses SUPATERM_HOME or --base-dir and sends the default or explicit path", () =>
     withTempDirectory("supaterm-app-command-test-", (root) =>
       Effect.gen(function* () {

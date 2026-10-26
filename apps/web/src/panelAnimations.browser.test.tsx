@@ -1,17 +1,15 @@
-import { act, render as renderUi, type Screen } from "../test/render";
+import { act, fakeTimers, render as renderUi, type Screen } from "../test/render";
 import { useLayoutEffect } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
   PanelAnimationSuppressionProvider,
   usePanelAnimationSettings,
-  usePanelNavigationSuppression,
   usePanelPresence,
 } from "./panelAnimations";
 
 let fixtureScreen: Screen;
 let pendingFrames: FrameRequestCallback[] = [];
-let observed: boolean[] = [];
 let reducedMotion = false;
 let mediaListeners = new Set<() => void>();
 let settings: ReturnType<typeof usePanelAnimationSettings>;
@@ -31,19 +29,6 @@ function AnimationProbe({ open = true }: { open?: boolean }) {
     presence = panel;
   });
   return null;
-}
-
-function SuppressionProbe({ navigationKey }: { navigationKey: string }) {
-  const suppressed = usePanelNavigationSuppression(navigationKey);
-  useLayoutEffect(() => {
-    observed.push(suppressed);
-  }, [suppressed]);
-  return null;
-}
-
-async function paintPendingFrame() {
-  const callback = pendingFrames.shift();
-  await act(() => callback?.(0));
 }
 
 async function setReducedMotion(value: boolean) {
@@ -118,31 +103,8 @@ describe("panel motion", () => {
   });
 });
 
-describe("usePanelNavigationSuppression", () => {
-  it("suppresses initial and navigated panel state until each route has painted", async () => {
-    await using _fixture = await setup(false);
-
-    await act(() => fixtureScreen.rerender(<SuppressionProbe navigationKey="/thread/one" />));
-    expect(observed.at(-1)).toBe(true);
-
-    await paintPendingFrame();
-    expect(observed.at(-1)).toBe(true);
-    await paintPendingFrame();
-    expect(observed.at(-1)).toBe(false);
-
-    await act(() => fixtureScreen.rerender(<SuppressionProbe navigationKey="/thread/two" />));
-    expect(observed.at(-1)).toBe(true);
-
-    await paintPendingFrame();
-    expect(observed.at(-1)).toBe(true);
-    await paintPendingFrame();
-    expect(observed.at(-1)).toBe(false);
-  });
-});
-
 async function setup(fakeClock = true) {
   pendingFrames = [];
-  observed = [];
   reducedMotion = false;
   mediaListeners = new Set();
   // Frames are stepped by hand so each assertion lands between two paints.
@@ -163,14 +125,14 @@ async function setup(fakeClock = true) {
   );
   fixtureScreen = await renderUi(null, { router: false });
 
-  if (fakeClock) vi.useFakeTimers();
+  const clock = fakeClock ? fakeTimers() : null;
 
   const ownedScreen = fixtureScreen;
   return {
     async [Symbol.asyncDispose]() {
       await ownedScreen[Symbol.asyncDispose]();
 
-      vi.useRealTimers();
+      clock?.[Symbol.dispose]();
       vi.restoreAllMocks();
       vi.unstubAllGlobals();
     },

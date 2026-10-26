@@ -23,7 +23,8 @@ const workspaceConfig = fs.readFileSync(path.join(repoRoot, "pnpm-workspace.yaml
 const appliedPatches = [...workspaceConfig.matchAll(/: (patches\/\S+\.patch)$/gm)].flatMap(
   ([, patch]) => (patch ? [patch] : []),
 );
-const nativePath = /^(ios|android|cpp)\/|\.podspec$|(^|\/)Native\w*\.tsx?$|NativeComponent\.tsx?$/;
+const nativePath =
+  /^(ios|android|cpp)\/|(^|\/)cpp\/|\.(c|cc|cpp|h|hpp|m|mm|swift|kt|java)$|\.podspec$|(^|\/)Native\w*\.tsx?$|NativeComponent\.tsx?$/;
 const nativePatchSources = appliedPatches.flatMap((patch) => {
   const contents = fs.readFileSync(path.join(repoRoot, patch), "utf8");
   const touchesNative = [...contents.matchAll(/^diff --git a\/(\S+)/gm)].some(([, touched = ""]) =>

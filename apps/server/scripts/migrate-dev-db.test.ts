@@ -44,6 +44,13 @@ const createFixtureSource = Effect.fn("createMigrateDevDbFixtureSource")(functio
         ["running-thread", "project-kept", "running", "{}", "2026-08-05"],
         ["done-thread", "project-kept", "completed", '{"doneAt":"2026-08-01"}', "2026-08-05"],
         [
+          "archived-thread",
+          "project-kept",
+          "completed",
+          '{"archivedAt":"2026-08-01"}',
+          "2026-08-05",
+        ],
+        [
           "limit-thread",
           "project-kept",
           "completed",
@@ -73,7 +80,7 @@ const createFixtureSource = Effect.fn("createMigrateDevDbFixtureSource")(functio
         VALUES ('session-shared', 'running-thread'), ('session-shared', 'stopped-thread')`;
       yield* sql`INSERT INTO orchestration_v2_projection_context_transfers
         (context_transfer_id, source_thread_id, target_thread_id, type, status, updated_at, payload_json)
-        VALUES ('transfer-1', 'done-thread', 'stopped-thread', 'provider_handoff', 'completed', '2026-08-01', '{}')`;
+        VALUES ('transfer-1', 'archived-thread', 'stopped-thread', 'provider_handoff', 'completed', '2026-08-01', '{}')`;
       yield* sql`INSERT INTO scheduled_tasks
         (task_id, title, prompt, enabled, schedule_json, project_id, workspace_strategy_json,
           model_selection_json, runtime_mode, interaction_mode, created_by, creation_source,
@@ -88,7 +95,7 @@ const createFixtureSource = Effect.fn("createMigrateDevDbFixtureSource")(functio
 });
 
 it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
-  it.effect("keeps stopped thread families from live projects and clears pending work", () =>
+  it.effect("keeps stopped and Done thread families and clears pending work", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
@@ -97,7 +104,7 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
       const source = yield* createFixtureSource(sourceDir);
 
       const result = yield* runMigrateDevDb(
-        { baseDir: destDir, source, projects: 5, threadsPerProject: 1 },
+        { baseDir: destDir, source, projects: 5, threadsPerProject: 2 },
         { sharedHome: sourceDir },
       );
 
@@ -124,11 +131,11 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
       );
       assert.deepStrictEqual(
         kept.threads.map((row) => row.thread_id),
-        ["fork-thread", "stopped-thread"],
+        ["done-thread", "fork-thread", "stopped-thread"],
       );
       assert.deepStrictEqual(
         kept.events.map((row) => row.stream_id),
-        ["fork-thread", "stopped-thread"],
+        ["done-thread", "fork-thread", "stopped-thread"],
       );
       assert.deepStrictEqual(
         kept.sessions.map((row) => row.provider_session_id),
@@ -140,7 +147,7 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
     }),
   );
 
-  it.effect("never copies a done thread's rows, and new events append after the source's", () =>
+  it.effect("never copies an archived thread, and new events append after the source's", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const sourceDir = yield* fs.makeTempDirectoryScoped({ prefix: "migrate-dev-db-slice-" });
@@ -164,18 +171,45 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
         result.databasePath,
         Effect.gen(function* () {
           const sql = yield* SqlClient.SqlClient;
-          const [doneRows] = yield* sql<{ count: number }>`
+          const [archivedRows] = yield* sql<{ count: number }>`
             SELECT
-              (SELECT COUNT(*) FROM orchestration_v2_projection_runs WHERE thread_id = 'done-thread')
-              + (SELECT COUNT(*) FROM orchestration_events WHERE stream_id = 'done-thread')
+              (SELECT COUNT(*) FROM orchestration_v2_projection_runs WHERE thread_id = 'archived-thread')
+              + (SELECT COUNT(*) FROM orchestration_events WHERE stream_id = 'archived-thread')
               AS count`;
           const [sequence] = yield* sql<{ seq: number }>`
             SELECT seq FROM sqlite_sequence WHERE name = 'orchestration_events'`;
-          return { doneRows: doneRows?.count, sequence: sequence?.seq };
+          return { archivedRows: archivedRows?.count, sequence: sequence?.seq };
         }),
       );
-      assert.equal(copied.doneRows, 0);
+      assert.equal(copied.archivedRows, 0);
       assert.equal(copied.sequence, sourceSequence?.seq);
+    }),
+  );
+
+  it.effect("skips a thread family larger than the per-project limit", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const sourceDir = yield* fs.makeTempDirectoryScoped({ prefix: "migrate-dev-db-family-" });
+      const destDir = yield* fs.makeTempDirectoryScoped({ prefix: "migrate-dev-db-family-dest-" });
+      const source = yield* createFixtureSource(sourceDir);
+
+      // stopped-thread and its fork are 2 threads; done-thread is 1.
+      const result = yield* runMigrateDevDb(
+        { baseDir: destDir, source, projects: 5, threadsPerProject: 1 },
+        { sharedHome: sourceDir },
+      );
+      const threads = yield* withDatabase(
+        result.databasePath,
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          return yield* sql<{ thread_id: string }>`
+            SELECT thread_id FROM orchestration_v2_projection_threads`;
+        }),
+      );
+      assert.deepStrictEqual(
+        threads.map((row) => row.thread_id),
+        ["done-thread"],
+      );
     }),
   );
 
@@ -203,7 +237,7 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
       );
 
       const result = yield* runMigrateDevDb(
-        { baseDir: destDir, source, projects: 5, threadsPerProject: 1 },
+        { baseDir: destDir, source, projects: 5, threadsPerProject: 2 },
         { sharedHome: sourceDir },
       );
 
@@ -227,7 +261,7 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
       assert.deepStrictEqual(copied.retired, []);
       assert.deepStrictEqual(
         copied.threads.map((row) => row.thread_id),
-        ["fork-thread", "stopped-thread"],
+        ["done-thread", "fork-thread", "stopped-thread"],
       );
     }),
   );

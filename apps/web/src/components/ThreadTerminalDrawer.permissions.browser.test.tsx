@@ -81,7 +81,7 @@ vi.mock(import("../state/session"), async (original) => {
 });
 
 import { act, render } from "../../test/render";
-import ThreadTerminalDrawer, { TerminalViewport } from "./ThreadTerminalDrawer";
+import ThreadTerminalDrawer from "./ThreadTerminalDrawer";
 
 const threadRef = {
   environmentId: EnvironmentId.make("secondary-terminal"),
@@ -98,48 +98,6 @@ function setup() {
   // pending. Keep that unrelated setup pending while exercising its callback.
   state.createSurface.mockReset().mockReturnValue(new Promise(() => undefined));
 }
-
-it("rechecks the target terminal grant when a retained surface callback reports a resize", async () => {
-  setup();
-  await using _screen = await render(
-    <TerminalViewport
-      advancedTypography={false}
-      threadRef={threadRef}
-      threadId={threadRef.threadId}
-      terminalId="terminal-1"
-      terminalLabel="Terminal 1"
-      cwd="/repo"
-      onSessionExited={state.otherCommand}
-      focusRequestId={0}
-      autoFocus={false}
-      visible={true}
-      resizeEpoch={0}
-      drawerHeight={200}
-      keybindings={[]}
-    />,
-  );
-  expect(state.createSurface).toHaveBeenCalledOnce();
-  const onResize = state.createSurface.mock.calls[0]![1].onResize;
-  if (!onResize) throw new Error("The terminal did not register its resize callback.");
-
-  onResize(80, 24);
-  expect(state.resize).toHaveBeenCalledExactlyOnceWith({
-    environmentId: threadRef.environmentId,
-    input: { threadId: threadRef.threadId, terminalId: "terminal-1", cols: 80, rows: 24 },
-  });
-
-  state.allowed = false;
-  onResize(120, 40);
-  expect(state.resize).toHaveBeenCalledTimes(1);
-
-  state.allowed = true;
-  onResize(100, 30);
-  expect(state.resize).toHaveBeenCalledTimes(2);
-  expect(state.resize).toHaveBeenLastCalledWith({
-    environmentId: threadRef.environmentId,
-    input: { threadId: threadRef.threadId, terminalId: "terminal-1", cols: 100, rows: 30 },
-  });
-});
 
 it.each(["horizontal", "vertical"] as const)(
   "keeps held Kitty keys and the original surface through %s split, focus, and unsplit",

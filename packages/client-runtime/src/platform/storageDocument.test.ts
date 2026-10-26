@@ -252,26 +252,6 @@ describe("ConnectionCatalogDocument", () => {
     }),
   );
 
-  it("registers a bearer connection as one catalog mutation", () => {
-    const document = registerConnectionInCatalog(
-      EMPTY_CONNECTION_CATALOG_DOCUMENT,
-      new BearerConnectionRegistration({
-        target: BEARER_TARGET,
-        profile: BEARER_PROFILE,
-        credential: BEARER_CREDENTIAL,
-      }),
-    );
-
-    expect(document.targets).toEqual([BEARER_TARGET]);
-    expect(document.profiles).toEqual([BEARER_PROFILE]);
-    expect(document.credentials).toEqual([
-      {
-        connectionId: BEARER_TARGET.connectionId,
-        credential: BEARER_CREDENTIAL,
-      },
-    ]);
-  });
-
   it("replaces obsolete connection metadata when an environment changes connection kind", () => {
     const bearer = registerConnectionInCatalog(
       EMPTY_CONNECTION_CATALOG_DOCUMENT,

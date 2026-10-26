@@ -46,6 +46,18 @@ export function eventPathContainsSelector(event: Event, selector: string): boole
   return path.some((target) => target instanceof Element && target.closest(selector));
 }
 
+const SURFACE_LAUNCHER_KEYS_ATTRIBUTE = "data-surface-launcher-keys";
+
+// The right-panel launcher registers its own window capture listener when it
+// mounts. When the panel opens after page load that listener runs after ours,
+// so we must leave its letters alone or the composer takes them first.
+function isSurfaceLauncherKey(key: string): boolean {
+  const launcherKeys = document
+    .querySelector(`[${SURFACE_LAUNCHER_KEYS_ATTRIBUTE}]`)
+    ?.getAttribute(SURFACE_LAUNCHER_KEYS_ATTRIBUTE);
+  return launcherKeys?.toLowerCase().includes(key.toLowerCase()) ?? false;
+}
+
 export function shouldRedirectInputToComposer(event: Event): boolean {
   if (event.defaultPrevented) return false;
   if (eventPathContainsSelector(event, TYPE_TO_FOCUS_EDITABLE_SELECTOR)) return false;
@@ -59,6 +71,7 @@ export function shouldTypeToFocusComposer(event: KeyboardEvent): boolean {
   if (event.metaKey || event.ctrlKey || event.altKey) return false;
   if (event.key.length !== 1) return false;
   if (!shouldRedirectInputToComposer(event)) return false;
+  if (isSurfaceLauncherKey(event.key)) return false;
 
   return true;
 }

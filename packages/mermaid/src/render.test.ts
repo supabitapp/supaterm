@@ -56,6 +56,20 @@ describe("Pele diagrams", () => {
     expect(expanded).toContain("supaterm-diagram-label");
   });
 
+  it("gives each presentation its own paint servers", () => {
+    const result = renderDiagram("sankey-beta\nRequests,Allowed,80\nAllowed,Cached,30")!;
+    const resources = (svg: string) => ({
+      ids: [...svg.matchAll(/<linearGradient id="([^"]+)"/g)].map((match) => match[1]),
+      references: [...svg.matchAll(/url\(#([^)]+)\)/g)].map((match) => match[1]),
+    });
+    const inline = resources(diagramInstanceSvg(result, "inline"));
+    const expanded = resources(diagramInstanceSvg(result, "expanded"));
+    expect(inline.ids).toHaveLength(2);
+    expect(new Set(inline.references)).toEqual(new Set(inline.ids));
+    expect(new Set(expanded.references)).toEqual(new Set(expanded.ids));
+    expect(inline.ids.filter((id) => expanded.ids.includes(id))).toEqual([]);
+  });
+
   it("never emits active links or remote images", () => {
     const result = renderDiagram(
       'flowchart LR\nA["<img src=x onerror=alert(1)>"] --> B\nclick A "https://example.com"',

@@ -131,6 +131,10 @@
       "types": "./src/favicon.ts",
       "import": "./src/favicon.ts"
     },
+    "./boltFace": {
+      "types": "./src/boltFace.ts",
+      "import": "./src/boltFace.ts"
+    },
     "./Struct": {
       "types": "./src/Struct.ts",
       "import": "./src/Struct.ts"
@@ -498,10 +502,14 @@
     "./markdownMath": {
       "types": "./src/markdownMath.ts",
       "import": "./src/markdownMath.ts"
+    },
+    "./cloneUrl": {
+      "types": "./src/cloneUrl.ts",
+      "import": "./src/cloneUrl.ts"
     }
   },
   "scripts": {
-    "typecheck": "tsc-rs --noEmit",
+    "typecheck": "tsc --noEmit",
     "test": "vp test run --config ../../vite.config.ts --dir ."
   },
   "dependencies": {

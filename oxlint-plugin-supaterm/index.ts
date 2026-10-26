@@ -2,6 +2,7 @@ import { definePlugin } from "@oxlint/plugins";
 
 import namespaceNodeImports from "./rules/namespace-node-imports.ts";
 import noDomTestEnvironment from "./rules/no-dom-test-environment.ts";
+import noFrameWaitsInBrowserTests from "./rules/no-frame-waits-in-browser-tests.ts";
 import noGlobalProcessRuntime from "./rules/no-global-process-runtime.ts";
 import noHermesUnsupportedApis from "./rules/no-hermes-unsupported-apis.ts";
 import noHooklessUseFunction from "./rules/no-hookless-use-function.ts";
@@ -13,11 +14,15 @@ import noMobileUniwindThemeEscapeHatches from "./rules/no-mobile-uniwind-theme-e
 import noMobilePullRequestGlyphLiterals from "./rules/no-mobile-pull-request-glyph-literals.ts";
 import noNativeTitleTooltip from "./rules/no-native-title-tooltip.ts";
 import noOutsetStateIndicators from "./rules/no-outset-state-indicators.ts";
+import noPollingLoopInTests from "./rules/no-polling-loop-in-tests.ts";
 import noRawMcpRegistration from "./rules/no-raw-mcp-registration.ts";
 import noRawResizeObserver from "./rules/no-raw-resize-observer.ts";
+import noRealTimeWaitInTests from "./rules/no-real-time-wait-in-tests.ts";
 import noTestInLoop from "./rules/no-test-in-loop.ts";
+import noTestTimeoutOrRetry from "./rules/no-test-timeout-or-retry.ts";
 import noRpcPermissionBypass from "./rules/no-rpc-permission-bypass.ts";
 import noUnscopedHas from "./rules/no-unscoped-has.ts";
+import noWallClockInTests from "./rules/no-wall-clock-in-tests.ts";
 import preferCatchTags from "./rules/prefer-catch-tags.ts";
 import preferEffectFn from "./rules/prefer-effect-fn.ts";
 import requireCenteredScrollGutter from "./rules/require-centered-scroll-gutter.ts";
@@ -31,6 +36,7 @@ export default definePlugin({
   rules: {
     "namespace-node-imports": namespaceNodeImports,
     "no-dom-test-environment": noDomTestEnvironment,
+    "no-frame-waits-in-browser-tests": noFrameWaitsInBrowserTests,
     "no-global-process-runtime": noGlobalProcessRuntime,
     "no-hermes-unsupported-apis": noHermesUnsupportedApis,
     "no-hookless-use-function": noHooklessUseFunction,
@@ -42,11 +48,15 @@ export default definePlugin({
     "no-mobile-pull-request-glyph-literals": noMobilePullRequestGlyphLiterals,
     "no-native-title-tooltip": noNativeTitleTooltip,
     "no-outset-state-indicators": noOutsetStateIndicators,
+    "no-polling-loop-in-tests": noPollingLoopInTests,
     "no-raw-mcp-registration": noRawMcpRegistration,
     "no-raw-resize-observer": noRawResizeObserver,
+    "no-real-time-wait-in-tests": noRealTimeWaitInTests,
     "no-test-in-loop": noTestInLoop,
+    "no-test-timeout-or-retry": noTestTimeoutOrRetry,
     "no-rpc-permission-bypass": noRpcPermissionBypass,
     "no-unscoped-has": noUnscopedHas,
+    "no-wall-clock-in-tests": noWallClockInTests,
     "prefer-catch-tags": preferCatchTags,
     "prefer-effect-fn": preferEffectFn,
     "require-centered-scroll-gutter": requireCenteredScrollGutter,

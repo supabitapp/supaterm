@@ -25,7 +25,6 @@ import { SnapShotCoordinator } from "../components/desktop/SnapShotCoordinator";
 import { DesktopWebLinkCoordinator } from "../components/desktop/DesktopWebLinkCoordinator";
 import { DesktopAppActivationCoordinator } from "../components/desktop/DesktopAppActivationCoordinator";
 import { RunningThreadKeepAlive } from "../components/desktop/RunningThreadKeepAlive";
-import { ProviderUpdateLaunchNotification } from "../components/ProviderUpdateLaunchNotification";
 import { DesktopUpdateLaunchNotice } from "../components/sidebar/updateEverythingRun";
 import { ThreadNotificationCoordinator } from "../components/ThreadNotificationCoordinator";
 import { getCodexMicroBridge } from "../components/codexMicro/codexMicroBridge";
@@ -263,7 +262,6 @@ function RootRouteView() {
           {primaryEnvironmentAuthenticated ? (
             <EventRouter skipInitialBootstrapNavigation={returningFromWelcome} />
           ) : null}
-          {primaryEnvironmentAuthenticated ? <ProviderUpdateLaunchNotification /> : null}
           {isElectron ? <DesktopUpdateLaunchNotice /> : null}
           {/* Hosted Nightly is "hosted-static", not authenticated, and needs it too. */}
           {appShell}

@@ -14,6 +14,7 @@ import {
   ThreadId,
   type OrchestrationV2DomainEvent,
 } from "@supaterm/contracts";
+import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as Context from "effect/Context";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as SqlSchema from "effect/sql/SqlSchema";
@@ -37,6 +38,12 @@ export type UnsequencedProjectEvent = ApplicationProjectEvent extends infer Even
     ? Omit<Event, "sequence">
     : never
   : never;
+
+export interface ChangedApplicationAggregate {
+  readonly aggregateKind: "project" | "thread";
+  readonly aggregateId: string;
+  readonly sequence: number;
+}
 
 export class OrchestrationEventStore extends Context.Service<
   OrchestrationEventStore,
@@ -79,17 +86,6 @@ export class OrchestrationEventStore extends Context.Service<
       OrchestrationEventStoreError
     >;
 
-    readonly getReplayStats: (input: {
-      readonly afterSequence: number;
-      readonly throughSequence: number;
-    }) => Effect.Effect<
-      {
-        readonly eventCount: number;
-        readonly rawPayloadBytes: number;
-      },
-      OrchestrationEventStoreError
-    >;
-
     readonly latestAgentSequence: (
       threadId?: ThreadId,
     ) => Effect.Effect<number, OrchestrationEventStoreError>;
@@ -97,14 +93,21 @@ export class OrchestrationEventStore extends Context.Service<
     readonly latestApplicationSequence: Effect.Effect<number, OrchestrationEventStoreError>;
 
     /**
-     * A row whose `event_type` this build does not know fails the read unless
-     * `skipUnknownEventTypes` is set, which logs and drops it instead. Only
-     * client shell replay opts in; anything that builds server state stays strict.
+     * Each project or thread with an event in the range, at its newest
+     * sequence, oldest first. Reads no payloads, so unknown event types from a
+     * newer build are included rather than failing the read. Legacy thread rows
+     * are included too; refetching an aggregate is idempotent.
      */
+    readonly readChangedApplicationAggregates: (input: {
+      readonly afterSequence: number;
+      readonly throughSequence: number;
+      readonly limit: number;
+    }) => Effect.Effect<ReadonlyArray<ChangedApplicationAggregate>, OrchestrationEventStoreError>;
+
+    /** A row whose `event_type` this build does not know fails the read. */
     readonly readApplicationEvents: (input: {
       readonly afterSequence: number;
       readonly throughSequence: number;
-      readonly skipUnknownEventTypes?: boolean;
     }) => Stream.Stream<ApplicationStoredEvent, OrchestrationEventStoreError>;
 
     /** Publish only after the surrounding event/projection transaction commits. */
@@ -247,16 +250,11 @@ function rowToApplicationStoredEvent(
   return row.aggregate_kind === "project" ? rowToProjectEvent(row) : rowToV2StoredEvent(row);
 }
 
-const isKnownProjectEventType = Schema.is(ProjectEventType);
-
+// Only agent replay reads rows this way, and it reads thread rows alone.
 const keepReplayRow = (row: ApplicationEventRow, skipUnknownEventTypes?: boolean) =>
-  skipUnknownEventTypes !== true ||
-  (row.aggregate_kind === "project"
-    ? isKnownProjectEventType(row.event_type)
-    : isKnownOrchestrationV2EventType(row.event_type))
+  skipUnknownEventTypes !== true || isKnownOrchestrationV2EventType(row.event_type)
     ? Effect.succeed(true)
-    : Effect.logWarning("Skipping an application event row with an unknown event type", {
-        aggregateKind: row.aggregate_kind,
+    : Effect.logWarning("Skipping an agent event row with an unknown event type", {
         sequence: row.sequence,
         eventTypeLength: row.event_type.length,
       }).pipe(Effect.as(false));
@@ -622,26 +620,6 @@ const makeEventStore = Effect.gen(function* () {
       })),
     );
 
-  const getReplayStats: OrchestrationEventStore["Service"]["getReplayStats"] = (input) =>
-    sql<{ readonly eventCount: number; readonly rawPayloadBytes: number }>`
-      SELECT
-        COUNT(*) AS "eventCount",
-        COALESCE(SUM(octet_length(${restoredPayloadJson})), 0) AS "rawPayloadBytes"
-      FROM orchestration_events INDEXED BY idx_orchestration_events_application_high_water
-      WHERE sequence > ${input.afterSequence}
-        AND sequence <= ${input.throughSequence}
-        AND (
-          aggregate_kind = 'project'
-          OR (application_event_version = 2 AND aggregate_kind = 'thread')
-        )
-    `.pipe(
-      Effect.mapError(toPersistenceSqlError("OrchestrationEventStore.getReplayStats:query")),
-      Effect.map((rows) => ({
-        eventCount: rows[0]?.eventCount ?? 0,
-        rawPayloadBytes: rows[0]?.rawPayloadBytes ?? 0,
-      })),
-    );
-
   const latestAgentSequence: OrchestrationEventStore["Service"]["latestAgentSequence"] = (
     threadId,
   ) =>
@@ -674,11 +652,30 @@ const makeEventStore = Effect.gen(function* () {
     ),
   );
 
-  // Advance over raw rows so even a full page of unknown types cannot end replay early.
+  const readChangedApplicationAggregates: OrchestrationEventStore["Service"]["readChangedApplicationAggregates"] =
+    (input) =>
+      sql<ChangedApplicationAggregate>`
+        SELECT
+          aggregate_kind AS "aggregateKind",
+          stream_id AS "aggregateId",
+          MAX(sequence) AS "sequence"
+        FROM orchestration_events INDEXED BY idx_orchestration_events_sequence_aggregate
+        WHERE sequence > ${input.afterSequence}
+          AND sequence <= ${input.throughSequence}
+        GROUP BY aggregate_kind, stream_id
+        ORDER BY "sequence" ASC
+        LIMIT ${input.limit}
+      `.pipe(
+        // GROUP BY scans the whole range before LIMIT applies; keep it off the writer.
+        NodeSqliteClient.readOnly,
+        Effect.mapError(
+          toPersistenceSqlError("OrchestrationEventStore.readChangedApplicationAggregates:query"),
+        ),
+      );
+
   const catchUpApplicationEvents = (input: {
     readonly afterSequence: number;
     readonly throughSequence: number;
-    readonly skipUnknownEventTypes?: boolean;
   }): Stream.Stream<ApplicationStoredEvent, OrchestrationEventStoreError> =>
     Stream.paginate(input.afterSequence, (afterSequence) =>
       readApplicationRows({
@@ -702,7 +699,6 @@ const makeEventStore = Effect.gen(function* () {
         }),
       ),
     ).pipe(
-      Stream.filterEffect((row) => keepReplayRow(row, input.skipUnknownEventTypes)),
       Stream.mapEffect((row) =>
         rowToApplicationStoredEvent(row).pipe(
           Effect.mapError(
@@ -741,9 +737,9 @@ const makeEventStore = Effect.gen(function* () {
     appendAgentEvents,
     readAgentEvents,
     getAgentReplayStats,
-    getReplayStats,
     latestAgentSequence,
     latestApplicationSequence,
+    readChangedApplicationAggregates,
     readApplicationEvents: catchUpApplicationEvents,
     publishCommitted: (events) => PubSub.publishAll(committedEvents, events).pipe(Effect.asVoid),
     streamApplicationEvents,

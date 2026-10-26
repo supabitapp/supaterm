@@ -62,6 +62,15 @@ function tokenEndForCursor(text: string, cursor: number): number {
 }
 
 /**
+ * `$5`, `€9.99` and `$10k` are money, not skills. Matches the amounts the inline skill
+ * token regexes already refuse to render as skills, plus the punctuation prose puts after
+ * one (`$10k.`, `($5)`).
+ */
+function isCurrencyAmountQuery(query: string): boolean {
+  return /^\.?[0-9][0-9,._]*(?:[kKmMbBtT]|[eE][0-9]+)?[.,;:!?)]*$/.test(query);
+}
+
+/**
  * Detect an active trigger (@path, #pull-request, $skill, /command at prompt
  * start, /skill elsewhere) at the cursor position.
  */
@@ -99,6 +108,7 @@ export function detectComposerTrigger(text: string, cursorInput: number): Compos
   }
   const skillPrefix = /^\p{Sc}/u.exec(token);
   if (skillPrefix) {
+    if (isCurrencyAmountQuery(token.slice(skillPrefix[0].length))) return null;
     return {
       kind: "skill",
       query: token.slice(skillPrefix[0].length),
@@ -116,6 +126,21 @@ export function detectComposerTrigger(text: string, cursorInput: number): Compos
     rangeStart: tokenStart,
     rangeEnd: cursor,
   };
+}
+
+/**
+ * A replacement ending in a space swallows one space already after the range, so inserting
+ * `@file ` before existing text does not leave a double space.
+ */
+export function extendReplacementRangeForTrailingSpace(
+  text: string,
+  rangeEnd: number,
+  replacement: string,
+): number {
+  if (!replacement.endsWith(" ")) {
+    return rangeEnd;
+  }
+  return text[rangeEnd] === " " ? rangeEnd + 1 : rangeEnd;
 }
 
 export function replaceTextRange(

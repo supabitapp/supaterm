@@ -32,6 +32,14 @@ public final class SupatermNativeControlsModule: Module {
       Prop("appearance") { (view: SupatermSegmentedControlView, value: String) in view.appearance = value }
     }
 
+    View(SupatermSidebarTabBarView.self) {
+      ViewName("SidebarTabBar")
+      Events("onSelectionChange")
+      Prop("selectedIndex") { (view: SupatermSidebarTabBarView, value: Int) in view.selectedIndex = value }
+      Prop("selectedColor") { (view: SupatermSidebarTabBarView, value: UIColor) in view.selectedColor = value }
+      Prop("appearance") { (view: SupatermSidebarTabBarView, value: String) in view.appearance = value }
+    }
+
     View(SupatermLayoutMetricsView.self) {
       ViewName("LayoutMetrics")
       Events("onMetricsChange")

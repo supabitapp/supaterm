@@ -41,6 +41,15 @@ jobs:
         run: mise exec -- jactionlint --format github --shellcheck=shellcheck
       - name: Install workspace dependencies
         uses: ./.github/actions/setup-ci-deps
+      # electron's install.js (run by ensure:electron) reads this cache before it
+      # downloads from GitHub and verifies the bundled checksums. The key changes
+      # only with the Electron version. The package path goes through the global
+      # virtual store symlink, so there is no node_modules/.pnpm to glob.
+      - name: Cache Electron download
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/electron
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apps/desktop/node_modules/electron/package.json') }}
       - name: Ensure Electron runtime is installed
         run: vp run --filter @supaterm/desktop ensure:electron
 
@@ -52,6 +61,9 @@ jobs:
 
       - name: Check generated GitHub GraphQL operations
         run: vp run --filter @supaterm/source-control-github generate --check
+
+      - name: Check rendered icons match their sources
+        run: vp run icons:check-inputs
 
       - name: Check
         run: vp check
@@ -70,6 +82,15 @@ jobs:
         uses: ./.github/actions/setup-mise
       - name: Install workspace dependencies
         uses: ./.github/actions/setup-ci-deps
+      # electron's install.js (run by ensure:electron) reads this cache before it
+      # downloads from GitHub and verifies the bundled checksums. The key changes
+      # only with the Electron version. The package path goes through the global
+      # virtual store symlink, so there is no node_modules/.pnpm to glob.
+      - name: Cache Electron download
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/electron
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apps/desktop/node_modules/electron/package.json') }}
       - name: Ensure Electron runtime is installed
         run: vp run --filter @supaterm/desktop ensure:electron
 
@@ -102,6 +123,15 @@ jobs:
         uses: ./.github/actions/setup-mise
       - name: Install workspace dependencies
         uses: ./.github/actions/setup-ci-deps
+      # electron's install.js (run by ensure:electron) reads this cache before it
+      # downloads from GitHub and verifies the bundled checksums. The key changes
+      # only with the Electron version. The package path goes through the global
+      # virtual store symlink, so there is no node_modules/.pnpm to glob.
+      - name: Cache Electron download
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/electron
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apps/desktop/node_modules/electron/package.json') }}
       - name: Ensure Electron runtime is installed
         run: vp run --filter @supaterm/desktop ensure:electron
 
@@ -143,6 +173,15 @@ jobs:
         uses: ./.github/actions/setup-mise
       - name: Install workspace dependencies
         uses: ./.github/actions/setup-ci-deps
+      # electron's install.js (run by ensure:electron) reads this cache before it
+      # downloads from GitHub and verifies the bundled checksums. The key changes
+      # only with the Electron version. The package path goes through the global
+      # virtual store symlink, so there is no node_modules/.pnpm to glob.
+      - name: Cache Electron download
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/electron
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apps/desktop/node_modules/electron/package.json') }}
       - name: Ensure Electron runtime is installed
         run: vp run --filter @supaterm/desktop ensure:electron
 

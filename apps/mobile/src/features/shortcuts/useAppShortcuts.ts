@@ -1,7 +1,7 @@
 import * as QuickActions from "expo-quick-actions";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Platform } from "react-native";
-import { useLinkTo, type NavigationState } from "@react-navigation/native";
+import { useLinkTo, useNavigation, type NavigationState } from "@react-navigation/native";
 
 import {
   loadRecentThreadShortcuts,
@@ -9,7 +9,8 @@ import {
   type RecentThreadShortcut,
 } from "../../persistence/imperative";
 import { useThreadShell } from "../../state/entities";
-import { useStartNewTask } from "../threads/use-start-new-task";
+import { readStartNewTaskDestination } from "../threads/use-start-new-task";
+import { uuidv4 } from "../../lib/uuid";
 import {
   activeThreadRef,
   buildShortcutActions,
@@ -25,14 +26,16 @@ export function useAppShortcuts(state: NavigationState): void {
 
 function useShortcutNavigation(): void {
   const linkTo = useLinkTo();
-  const startNewTask = useStartNewTask();
+  const navigation = useNavigation();
   const handledInitialAction = useRef(false);
 
   useEffect(() => {
     // "New task" goes through the compose action so it opens the last project.
     const open = (action: QuickActions.Action) => {
       if (action.id === NEW_TASK_SHORTCUT_ID) {
-        startNewTask();
+        void readStartNewTaskDestination(uuidv4()).then((params) =>
+          navigation.navigate("Thread", params),
+        );
         return;
       }
       const href = shortcutHref(action);
@@ -52,7 +55,7 @@ function useShortcutNavigation(): void {
 
     const subscription = QuickActions.addListener(open);
     return () => subscription.remove();
-  }, [linkTo, startNewTask]);
+  }, [linkTo, navigation]);
 }
 
 function useRecentThreadShortcutSync(state: NavigationState): void {

@@ -84,6 +84,7 @@ const entry: PendingThreadTurn = {
 
 const sendContext: ReturnType<ChatComposerHandle["getSendContext"]> = {
   answeringPendingUserInput: false,
+  shownPendingApprovalIds: [],
   prompt: "Edited message",
   images: [],
   files: [],

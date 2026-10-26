@@ -32,7 +32,7 @@ type TestEnvironmentInput = Partial<DesktopEnvironment.MakeDesktopEnvironmentInp
 
 interface ElectronAppCalls {
   readonly setAboutPanelOptions: Array<Electron.AboutPanelOptionsOptions>;
-  readonly setDockIcon: string[];
+  readonly setDockIcon: Array<Electron.NativeImage | null>;
   readonly setName: string[];
 }
 
@@ -60,9 +60,9 @@ const layerElectronApp = (calls: ElectronAppCalls) =>
     getAppMetrics: Effect.succeed([]),
     setAsDefaultProtocolClient: () => Effect.succeed(true),
     setDesktopName: () => Effect.void,
-    setDockIcon: (iconPath) =>
+    setDockIcon: (image) =>
       Effect.sync(() => {
-        calls.setDockIcon.push(iconPath);
+        calls.setDockIcon.push(image);
       }),
     appendCommandLineSwitch: () => Effect.void,
     onBeforeQuitForUpdate: () => Effect.void,
@@ -77,6 +77,7 @@ const layerAssets = (png: Option.Option<string>) =>
       icns: Option.none(),
       png,
     }),
+    launchIconPaths: () => Effect.succeedNone,
     resolveResourcePath: () => Effect.succeedNone,
   } satisfies DesktopAssets.DesktopAssets["Service"]);
 
@@ -139,36 +140,6 @@ const withIdentity = <A, E, R>(
 };
 
 describe("DesktopAppIdentity", () => {
-  it.effect("configures app identity from the environment commit override", () => {
-    const calls: ElectronAppCalls = {
-      setAboutPanelOptions: [],
-      setDockIcon: [],
-      setName: [],
-    };
-
-    return withIdentity(
-      Effect.gen(function* () {
-        const identity = yield* DesktopAppIdentity.DesktopAppIdentity;
-        yield* identity.configure;
-
-        assert.deepEqual(calls.setName, ["Supaterm"]);
-        assert.equal(calls.setAboutPanelOptions[0]?.applicationName, "Supaterm");
-        assert.equal(calls.setAboutPanelOptions[0]?.applicationVersion, "1.2.3");
-        assert.equal(calls.setAboutPanelOptions[0]?.version, "0123456789ab");
-        assert.deepEqual(calls.setDockIcon, []);
-      }),
-      {
-        calls,
-        environment: {
-          env: {
-            SUPATERM_COMMIT_HASH: "0123456789abcdef",
-          },
-        },
-        pngIconPath: Option.some("/icon.png"),
-      },
-    );
-  });
-
   it.effect.each([
     { stage: "Stable", runtimeName: "Supaterm", aboutName: "Supaterm", environment: {} },
     {

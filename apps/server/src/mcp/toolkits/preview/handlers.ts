@@ -41,9 +41,7 @@ import { PreviewSnapshotToolkit, PreviewStandardToolkit, PreviewToolkit } from "
  * preference, which is desktop-local and unreadable from here — filling in
  * `true` would silently override it for every `preview_open`.
  */
-export function normalizePreviewOpenInput(
-  input: PreviewAutomationOpenInput,
-): PreviewAutomationOpenInput {
+function normalizePreviewOpenInput(input: PreviewAutomationOpenInput): PreviewAutomationOpenInput {
   return {
     ...input,
     reuseExistingTab: input.reuseExistingTab ?? true,

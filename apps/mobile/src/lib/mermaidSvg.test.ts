@@ -79,6 +79,37 @@ describe("native diagram styles", () => {
     expect(normalized).not.toContain("currentColor");
   });
 
+  it("draws sankey gradients and sub/superscript labels with values native SVG accepts", () => {
+    const props: Array<Record<string, unknown>> = [];
+    for (const source of [
+      "sankey-beta\nRequests,Allowed,80\nAllowed,Cached,30",
+      'flowchart LR\nA["H<sub>2</sub>O x<sup>2</sup>"]',
+    ]) {
+      parse(renderDiagram(source)!.svg, (root) => {
+        nativeDiagramStyles(root, palette);
+        const collect = (node: typeof root) => {
+          props.push(node.props);
+          for (const child of node.children) if (typeof child !== "string") collect(child);
+        };
+        collect(root);
+        return root;
+      });
+    }
+    const gradientFills = props.flatMap(({ fill }) =>
+      typeof fill === "string" && fill.startsWith("url(") ? [fill] : [],
+    );
+    expect(gradientFills).toHaveLength(2);
+    for (const fill of gradientFills) expect(fill).toMatch(/^url\(#[\w-]+\)$/);
+    expect(
+      props.flatMap(({ baselineShift, fontSize }) =>
+        baselineShift ? [[baselineShift, fontSize]] : [],
+      ),
+    ).toEqual([
+      ["-0.24em", "0.83em"],
+      ["0.4em", "0.83em"],
+    ]);
+  });
+
   it("applies inherited theme aliases, group tints and author overrides to native props", () => {
     let props: unknown;
     parse(

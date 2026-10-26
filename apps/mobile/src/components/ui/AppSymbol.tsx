@@ -9,6 +9,7 @@ import IconAlertCircle from "@tabler/icons-react-native/IconAlertCircle";
 import IconAlertTriangle from "@tabler/icons-react-native/IconAlertTriangle";
 import IconApps from "@tabler/icons-react-native/IconApps";
 import IconArchive from "@tabler/icons-react-native/IconArchive";
+import IconCalendarClock from "@tabler/icons-react-native/IconCalendarClock";
 import IconArrowBackUp from "@tabler/icons-react-native/IconArrowBackUp";
 import IconArrowDown from "@tabler/icons-react-native/IconArrowDown";
 import IconArrowForwardUp from "@tabler/icons-react-native/IconArrowForwardUp";
@@ -24,6 +25,7 @@ import IconArrowsLeftRight from "@tabler/icons-react-native/IconArrowsLeftRight"
 import IconArrowsDiagonal2 from "@tabler/icons-react-native/IconArrowsDiagonal2";
 import IconArrowsMinimize from "@tabler/icons-react-native/IconArrowsMinimize";
 import IconBan from "@tabler/icons-react-native/IconBan";
+import IconBellRinging from "@tabler/icons-react-native/IconBellRinging";
 import IconBolt from "@tabler/icons-react-native/IconBolt";
 import IconBox from "@tabler/icons-react-native/IconBox";
 import IconBrain from "@tabler/icons-react-native/IconBrain";
@@ -163,6 +165,7 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   "arrow.uturn.forward": IconArrowForwardUp,
   archivebox: IconArchive,
   "archivebox.fill": IconArchive,
+  "bell.badge": IconBellRinging,
   "bolt.horizontal.circle": IconBolt,
   brain: IconBrain,
   "cable.connector": IconPlug,
@@ -176,6 +179,7 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   "circle.dashed": IconCircleDashed,
   "circle.inset.filled": IconCircleDot,
   "circle.dashed.inset.filled": IconCircleDot,
+  "calendar.badge.clock": IconCalendarClock,
   clock: IconClock,
   timer: IconClock,
   ticket: IconTicket,

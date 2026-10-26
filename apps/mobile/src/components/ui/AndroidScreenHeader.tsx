@@ -34,6 +34,34 @@ export function AndroidHeaderIconButton(props: {
   return <IconButton {...props} tintColorClassName="accent-header-foreground" />;
 }
 
+export function AndroidHeaderOverflowMenu(props: {
+  readonly actions: ReadonlyArray<AndroidHeaderAction>;
+}) {
+  return (
+    <AndroidAnchoredMenu
+      actions={props.actions.map((action, index) => ({
+        id: String(index),
+        title: action.accessibilityLabel,
+        attributes: {
+          disabled: Boolean(action.disabled),
+          destructive: action.destructive,
+          state: action.selected ? "on" : undefined,
+        },
+      }))}
+      onPressAction={({ nativeEvent }) => props.actions[Number(nativeEvent.event)]?.onPress()}
+    >
+      {(open) => (
+        <IconButton
+          accessibilityLabel="More actions"
+          icon="ellipsis"
+          tintColorClassName="accent-header-foreground"
+          onPress={open}
+        />
+      )}
+    </AndroidAnchoredMenu>
+  );
+}
+
 export function AndroidScreenHeader(props: {
   readonly title: string;
   readonly titleContent?: ReactNode;
@@ -166,29 +194,7 @@ export function AndroidScreenHeader(props: {
                 ),
               )}
               {overflowActions.length > 0 ? (
-                <AndroidAnchoredMenu
-                  actions={overflowActions.map((action, index) => ({
-                    id: String(index),
-                    title: action.accessibilityLabel,
-                    attributes: {
-                      disabled: Boolean(action.disabled),
-                      destructive: action.destructive,
-                      state: action.selected ? "on" : undefined,
-                    },
-                  }))}
-                  onPressAction={({ nativeEvent }) =>
-                    overflowActions[Number(nativeEvent.event)]?.onPress()
-                  }
-                >
-                  {(open) => (
-                    <IconButton
-                      accessibilityLabel="More actions"
-                      icon="ellipsis"
-                      tintColorClassName="accent-header-foreground"
-                      onPress={open}
-                    />
-                  )}
-                </AndroidAnchoredMenu>
+                <AndroidHeaderOverflowMenu actions={overflowActions} />
               ) : null}
               {props.trailing}
             </View>

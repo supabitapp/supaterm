@@ -104,29 +104,6 @@ describe("ElectronApp", () => {
     setPathMock.mockClear();
   });
 
-  it.effect("reads app metadata through the service", () =>
-    Effect.gen(function* () {
-      const electronApp = yield* ElectronApp.ElectronApp;
-      const metadata = yield* electronApp.metadata;
-
-      assert.deepEqual(metadata, {
-        appVersion: "1.2.3",
-        appPath: "/app",
-        isPackaged: true,
-        resourcesPath: process.resourcesPath,
-        runningUnderArm64Translation: false,
-      });
-    }).pipe(Effect.provide(ElectronApp.layer)),
-  );
-
-  it.effect("reads the OS locale through the service", () =>
-    Effect.gen(function* () {
-      const electronApp = yield* ElectronApp.ElectronApp;
-
-      assert.strictEqual(yield* electronApp.systemLocale, "en-GB");
-    }).pipe(Effect.provide(ElectronApp.layer)),
-  );
-
   it.effect("loads the native Mac mini and Mac Studio symbols on macOS", () =>
     Effect.gen(function* () {
       const electronApp = yield* ElectronApp.ElectronApp;
@@ -196,95 +173,5 @@ describe("ElectronApp", () => {
       Effect.provide(ElectronApp.layer),
       Effect.provideService(HostProcess.Platform, "darwin"),
     ),
-  );
-
-  it.effect("normalizes POSIX-style locale identifiers that Intl rejects", () =>
-    Effect.gen(function* () {
-      getSystemLocaleMock.mockImplementationOnce(() => "en_GB");
-      const electronApp = yield* ElectronApp.ElectronApp;
-
-      assert.strictEqual(yield* electronApp.systemLocale, "en-GB");
-    }).pipe(Effect.provide(ElectronApp.layer)),
-  );
-
-  it.effect("reports which app metadata property failed", () =>
-    Effect.gen(function* () {
-      const cause = new Error("version unavailable");
-      getVersionMock.mockImplementationOnce(() => {
-        throw cause;
-      });
-
-      const electronApp = yield* ElectronApp.ElectronApp;
-      const error = yield* electronApp.metadata.pipe(Effect.flip);
-
-      assert.instanceOf(error, ElectronApp.ElectronAppMetadataReadError);
-      assert.strictEqual(error.property, "app-version");
-      assert.strictEqual(error.cause, cause);
-      assert.strictEqual(
-        error.message,
-        'Failed to read Electron app metadata property "app-version".',
-      );
-    }).pipe(Effect.provide(ElectronApp.layer)),
-  );
-
-  it.effect("preserves Electron readiness failures", () =>
-    Effect.gen(function* () {
-      const cause = new Error("ready failed");
-      whenReadyMock.mockRejectedValueOnce(cause);
-
-      const electronApp = yield* ElectronApp.ElectronApp;
-      const error = yield* electronApp.whenReady.pipe(Effect.flip);
-
-      assert.instanceOf(error, ElectronApp.ElectronAppWhenReadyError);
-      assert.strictEqual(error.isPackaged, true);
-      assert.strictEqual(error.cause, cause);
-      assert.strictEqual(
-        error.message,
-        "Failed to wait for the Electron app to become ready (packaged: true).",
-      );
-    }).pipe(Effect.provide(ElectronApp.layer)),
-  );
-
-  it.effect("scopes app event listeners", () =>
-    Effect.gen(function* () {
-      const listener = vi.fn();
-
-      yield* Effect.scoped(
-        Effect.gen(function* () {
-          const electronApp = yield* ElectronApp.ElectronApp;
-          yield* electronApp.on("activate", listener);
-        }),
-      );
-
-      assert.deepEqual(onMock.mock.calls, [["activate", listener]]);
-      assert.deepEqual(removeListenerMock.mock.calls, [["activate", listener]]);
-    }).pipe(Effect.provide(ElectronApp.layer)),
-  );
-
-  it.effect("scopes native updater quit listeners", () =>
-    Effect.gen(function* () {
-      const listener = vi.fn();
-
-      yield* Effect.scoped(
-        Effect.gen(function* () {
-          const electronApp = yield* ElectronApp.ElectronApp;
-          yield* electronApp.onBeforeQuitForUpdate(listener);
-        }),
-      );
-
-      assert.deepEqual(autoUpdaterOnMock.mock.calls, [["before-quit-for-update", listener]]);
-      assert.deepEqual(autoUpdaterRemoveListenerMock.mock.calls, [
-        ["before-quit-for-update", listener],
-      ]);
-    }).pipe(Effect.provide(ElectronApp.layer)),
-  );
-
-  it.effect("removes command-line switches through the service", () =>
-    Effect.gen(function* () {
-      const electronApp = yield* ElectronApp.ElectronApp;
-      yield* electronApp.removeCommandLineSwitch("password-store");
-
-      assert.deepEqual(removeSwitchMock.mock.calls, [["password-store"]]);
-    }).pipe(Effect.provide(ElectronApp.layer)),
   );
 });

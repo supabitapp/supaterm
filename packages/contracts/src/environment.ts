@@ -88,6 +88,8 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
       foreground runs). */
   serverSelfUpdate: ForwardCompatibleOptional(ServerSelfUpdateCapability),
   threadStop: Schema.optionalKey(Schema.Boolean),
+  /** The server accepts queued-run.start, which sends one held message now. */
+  queuedRunStart: Schema.optionalKey(Schema.Boolean),
   /** Manual commands must update this install, not the host's default global prefix. */
   serverInstallation: ForwardCompatibleOptional(ServerInstallation),
   serverSelfUpdateProgress: Schema.optionalKey(Schema.Boolean),
@@ -126,6 +128,7 @@ export type RepositoryIdentityLocator = typeof RepositoryIdentityLocator.Type;
 
 export const RepositoryOrigin = Schema.Struct({
   canonicalKey: TrimmedNonEmptyString,
+  remoteUrl: Schema.optionalKey(TrimmedNonEmptyString),
   displayName: Schema.optionalKey(TrimmedNonEmptyString),
 });
 export type RepositoryOrigin = typeof RepositoryOrigin.Type;

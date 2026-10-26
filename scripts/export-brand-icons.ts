@@ -14,16 +14,23 @@ import { Command, Flag } from "effect/cli";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 import { generateAndroidIcons } from "./lib/android-icons.ts";
-import { BRAND_ASSET_PATHS } from "./lib/brand-assets.ts";
+import { BRAND_ASSET_PATHS, ICON_DOCUMENT } from "./lib/brand-assets.ts";
 import { generateBrandIconDerivatives } from "./lib/brand-icon-derivatives.ts";
 import { encodePngIco, readPngDimensions, WINDOWS_ICON_SIZES } from "./lib/icon-export.ts";
-import { generateIconProjects } from "./lib/icon-projects.ts";
+import { bakeIconAppearance } from "./lib/icon-appearance.ts";
+import { generateIconProjects, ICON_LAYERS } from "./lib/icon-projects.ts";
 import {
   MAC_ICON_NAME,
   XCODE_REQUIREMENT,
   isSupportedXcodeVersion,
   macIconCompilerArguments,
 } from "./lib/mac-icon-assets.ts";
+import {
+  ICON_INPUTS_STAMP,
+  iconInputsDigest,
+  renderStudioIcons,
+  type LaunchIconArt,
+} from "./lib/studio-icon-render.ts";
 
 const DESIGN_GENERATION = 26;
 const ICON_COMPOSER_EXECUTABLE_PARTS = [
@@ -55,6 +62,7 @@ type IconPlatform = "iOS";
 interface VariantOutputs {
   readonly ios: string;
   readonly macos: string;
+  readonly macosDark: string;
   readonly universal: string;
   readonly appleTouch: string;
   readonly favicon16: string;
@@ -230,6 +238,7 @@ const ICON_VARIANTS = [
     outputs: {
       ios: BRAND_ASSET_PATHS.developmentIosIconPng,
       macos: BRAND_ASSET_PATHS.developmentDesktopIconPng,
+      macosDark: BRAND_ASSET_PATHS.developmentDesktopDarkIconPng,
       universal: BRAND_ASSET_PATHS.developmentUniversalIconPng,
       appleTouch: BRAND_ASSET_PATHS.developmentWebAppleTouchIconPng,
       favicon16: BRAND_ASSET_PATHS.developmentWebFavicon16Png,
@@ -244,6 +253,7 @@ const ICON_VARIANTS = [
     outputs: {
       ios: BRAND_ASSET_PATHS.nightlyIosIconPng,
       macos: BRAND_ASSET_PATHS.nightlyMacIconPng,
+      macosDark: BRAND_ASSET_PATHS.nightlyMacDarkIconPng,
       universal: BRAND_ASSET_PATHS.nightlyLinuxIconPng,
       appleTouch: BRAND_ASSET_PATHS.nightlyWebAppleTouchIconPng,
       favicon16: BRAND_ASSET_PATHS.nightlyWebFavicon16Png,
@@ -258,6 +268,7 @@ const ICON_VARIANTS = [
     outputs: {
       ios: BRAND_ASSET_PATHS.productionIosIconPng,
       macos: BRAND_ASSET_PATHS.productionMacIconPng,
+      macosDark: BRAND_ASSET_PATHS.productionMacDarkIconPng,
       universal: BRAND_ASSET_PATHS.productionLinuxIconPng,
       appleTouch: BRAND_ASSET_PATHS.productionWebAppleTouchIconPng,
       favicon16: BRAND_ASSET_PATHS.productionWebFavicon16Png,
@@ -563,6 +574,7 @@ const renderIcon = Effect.fn("iconExport.renderIcon")(function* (
 const renderMacIcon = Effect.fn("iconExport.renderMacIcon")(function* (
   sourcePath: string,
   outputDirectory: string,
+  iconsetImage: string,
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -589,8 +601,57 @@ const renderMacIcon = Effect.fn("iconExport.renderMacIcon")(function* (
       });
     }
   }
-  return Buffer.from(yield* fs.readFile(path.join(iconset, "icon_512x512@2x.png")));
+  return Buffer.from(yield* fs.readFile(path.join(iconset, iconsetImage)));
 });
+
+// The Dock's launch animation lights the bolt LED by LED between the icon and the same icon with
+// its screen switched off, in whichever appearance the Dock is drawing.
+const renderDockMacIcon = Effect.fn("iconExport.renderDockMacIcon")(function* (
+  sourcePath: string,
+  outputDirectory: string,
+  look: { readonly screen?: Buffer; readonly dark: boolean },
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  // actool names the compiled icon after the project, so the copy keeps the original name.
+  const projectPath = path.join(outputDirectory, "project", `${MAC_ICON_NAME}.icon`);
+  yield* fs.makeDirectory(path.dirname(projectPath), { recursive: true });
+  yield* fs.copy(sourcePath, projectPath);
+  if (look.screen) {
+    yield* fs.writeFile(path.join(projectPath, "Assets", ICON_LAYERS.screen), look.screen);
+  }
+  if (look.dark) {
+    const documentPath = path.join(projectPath, "icon.json");
+    const document = yield* fs.readFileString(documentPath);
+    yield* fs.writeFileString(documentPath, bakeIconAppearance(document, "dark"));
+  }
+  // The animation blends each pair pixel for pixel, so both halves need the same rendition: light
+  // pairs with the brand's 1024px icon, dark with the 512px dark icon rendered here.
+  const rendition = look.dark ? "icon_256x256@2x.png" : "icon_512x512@2x.png";
+  return yield* renderMacIcon(projectPath, outputDirectory, rendition);
+});
+
+const LAUNCH_ICON_LEDS_MODULE = "apps/desktop/src/app/LaunchIconLeds.generated.ts";
+// actool draws an icon's canvas as an 824px body centred in the 1024px macOS tile.
+const MAC_ICON_BODY = 824 / 1024;
+
+/** The desktop app's map from the bolt's LEDs to the macOS icon tile, as a module. */
+const launchIconLedsModule = (leds: LaunchIconArt["leds"]) => {
+  const toTile = (fraction: number) => (1 - MAC_ICON_BODY) / 2 + fraction * MAC_ICON_BODY;
+  return Buffer.from(
+    [
+      "// Generated by scripts/export-brand-icons.ts. Do not edit.",
+      "/** Where the bolt's first LED lights on the macOS icon, and the step to the next, as fractions of the tile. */",
+      "export const LAUNCH_ICON_LEDS = {",
+      `  x: ${toTile(leds.x)},`,
+      `  y: ${toTile(leds.y)},`,
+      `  pitchX: ${leds.pitchX * MAC_ICON_BODY},`,
+      `  pitchY: ${leds.pitchY * MAC_ICON_BODY},`,
+      "} as const;",
+      "",
+    ].join("\n"),
+  );
+};
 
 const renderVariant = Effect.fn("iconExport.renderVariant")(function* (
   toolPath: string,
@@ -644,7 +705,19 @@ const renderVariant = Effect.fn("iconExport.renderVariant")(function* (
     [variant.outputs.ios, ios],
     [
       variant.outputs.macos,
-      yield* renderMacIcon(sourcePath, path.join(temporaryDirectory, `${variant.label}-macos`)),
+      yield* renderMacIcon(
+        sourcePath,
+        path.join(temporaryDirectory, `${variant.label}-macos`),
+        "icon_512x512@2x.png",
+      ),
+    ],
+    [
+      variant.outputs.macosDark,
+      yield* renderDockMacIcon(
+        sourcePath,
+        path.join(temporaryDirectory, `${variant.label}-macos-dark`),
+        { dark: true },
+      ),
     ],
     [variant.outputs.universal, ios],
     [variant.outputs.appleTouch, yield* render("iOS", 180)],
@@ -776,15 +849,16 @@ export const exportBrandIcons = Effect.fn("exportBrandIcons")(function* (checkOn
     `Exporting icons with Icon Composer ${tool.version}, design generation ${DESIGN_GENERATION}.`,
   );
 
-  const projects = yield* generateIconProjects(repositoryRoot);
+  yield* Console.log("Rendering the studio's bolt computer...");
+  const renders = yield* renderStudioIcons(repositoryRoot);
+  const projects = yield* generateIconProjects(repositoryRoot, renders.channels);
+  const source = path.join(BRAND_ASSET_PATHS.productionIconComposerProject, ICON_DOCUMENT);
   const generated = new Map<string, Buffer>();
   for (const [relativePath, contents] of projects.files) {
     const staged = path.join(temporaryDirectory, relativePath);
     yield* fs.makeDirectory(path.dirname(staged), { recursive: true });
     yield* fs.writeFile(staged, contents);
-    if (!relativePath.startsWith(`${BRAND_ASSET_PATHS.productionIconComposerProject}/`)) {
-      generated.set(relativePath, contents);
-    }
+    if (relativePath !== source) generated.set(relativePath, contents);
   }
   for (const variant of ICON_VARIANTS) {
     yield* Console.log(`Rendering ${variant.label} from ${variant.source}...`);
@@ -794,9 +868,30 @@ export const exportBrandIcons = Effect.fn("exportBrandIcons")(function* (checkOn
     }
   }
 
-  for (const [relativePath, contents] of yield* generateAndroidIcons(temporaryDirectory)) {
+  const productionProject = path.join(
+    temporaryDirectory,
+    BRAND_ASSET_PATHS.productionIconComposerProject,
+  );
+  generated.set(
+    BRAND_ASSET_PATHS.macUnlitIconPng,
+    yield* renderDockMacIcon(productionProject, path.join(temporaryDirectory, "macos-unlit"), {
+      screen: renders.launch.unlitScreen,
+      dark: false,
+    }),
+  );
+  generated.set(
+    BRAND_ASSET_PATHS.macUnlitDarkIconPng,
+    yield* renderDockMacIcon(productionProject, path.join(temporaryDirectory, "macos-unlit-dark"), {
+      screen: renders.launch.unlitScreen,
+      dark: true,
+    }),
+  );
+  generated.set(LAUNCH_ICON_LEDS_MODULE, launchIconLedsModule(renders.launch.leds));
+
+  for (const [relativePath, contents] of yield* generateAndroidIcons(renders.channels)) {
     generated.set(relativePath, contents);
   }
+  generated.set(ICON_INPUTS_STAMP, Buffer.from(yield* iconInputsDigest(repositoryRoot)));
   for (const [relativePath, contents] of yield* generateBrandIconDerivatives(
     repositoryRoot,
     generated,
@@ -846,7 +941,7 @@ export const exportBrandIconsCommand = Command.make(
     ),
   },
   ({ check }) => exportBrandIcons(check).pipe(Effect.scoped),
-).pipe(Command.withDescription("Derive all application icons from assets/prod/app-icon.icon."));
+).pipe(Command.withDescription("Render all application icons from the studio's bolt computer."));
 
 if (import.meta.main) {
   Command.run(exportBrandIconsCommand, { version: "0.0.0" }).pipe(

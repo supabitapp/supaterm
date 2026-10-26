@@ -28,6 +28,15 @@ vi.mock("~/state/orchestration", () => ({
   },
 }));
 vi.mock("~/state/queries", () => ({ useDebouncedValue: <T,>(value: T) => value }));
+const threadDetail = vi.hoisted(() => ({
+  content: undefined as { visibleTurnItems: []; runs: [] } | undefined,
+}));
+vi.mock("~/state/entities", () => ({
+  useThreadProjection: (ref: unknown) =>
+    ref === null || threadDetail.content === undefined
+      ? null
+      : { projection: threadDetail.content },
+}));
 vi.mock("~/state/query", () => ({
   useEnvironmentQuery: (atom: { environmentId: EnvironmentId } | null) => ({
     data: atom === null ? null : (queries.results.get(atom.environmentId) ?? null),
@@ -48,18 +57,15 @@ function Probe({
   environmentId,
   enabled = true,
   progressive = false,
-  content,
 }: {
   environmentId: EnvironmentId;
   enabled?: boolean;
   progressive?: boolean;
-  content?: Parameters<typeof useThreadFind>[0]["content"];
 }) {
   const state = useThreadFind({
     thread: { environmentId, threadId },
     enabled,
     progressive,
-    content,
   });
   useLayoutEffect(() => {
     find = state;
@@ -69,6 +75,7 @@ function Probe({
 function setup() {
   queries.results.clear();
   queries.pending = false;
+  threadDetail.content = undefined;
   vi.clearAllMocks();
 }
 
@@ -130,15 +137,15 @@ describe("V2 find state", () => {
     await act(async () => find.open());
     await act(async () => find.barProps.onQueryChange("needle"));
     queries.results.set(a, { ...messageResult(0), complete: false, totalMatches: 1 });
-    const content = { visibleTurnItems: [], runs: [] };
-    await screen.rerender(<Probe environmentId={a} progressive content={content} />);
+    threadDetail.content = { visibleTurnItems: [], runs: [] };
+    await screen.rerender(<Probe environmentId={a} progressive />);
     const requests = vi.mocked(orchestrationEnvironment.threadFindProgressive).mock.calls.length;
     await act(async () => vi.advanceTimersByTime(300));
     expect(orchestrationEnvironment.threadFindProgressive).toHaveBeenCalledTimes(requests);
     expect(queries.refresh).not.toHaveBeenCalled();
     queries.results.set(a, messageResult(0));
     queries.pending = false;
-    await screen.rerender(<Probe environmentId={a} progressive content={content} />);
+    await screen.rerender(<Probe environmentId={a} progressive />);
     expect(orchestrationEnvironment.threadFindProgressive).toHaveBeenCalledTimes(requests + 1);
     expect(orchestrationEnvironment.threadFindProgressive).toHaveBeenLastCalledWith({
       environmentId: a,
@@ -314,8 +321,8 @@ describe("V2 find state", () => {
     await act(async () => find.barProps.onQueryChange("COD4"));
     await act(async () => find.barProps.onNext());
     expect(find.timelineProps.activeFindMatch?.entryId).toBe("second");
-    const content = { runs: [], visibleTurnItems: [] };
-    await screen.rerender(<Probe environmentId={a} content={content} />);
+    threadDetail.content = { runs: [], visibleTurnItems: [] };
+    await screen.rerender(<Probe environmentId={a} />);
     await act(async () => vi.advanceTimersByTime(300));
     expect(orchestrationEnvironment.threadFind).toHaveBeenLastCalledWith({
       environmentId: a,
@@ -332,7 +339,7 @@ describe("V2 find state", () => {
         { entryId: "second", runId, startIndex: 2, count: 1 },
       ],
     });
-    await screen.rerender(<Probe environmentId={a} content={content} />);
+    await screen.rerender(<Probe environmentId={a} />);
     expect(find.barProps.matchCount).toBe(11);
     expect(find.barProps.activeIndex).toBe(2);
     expect(find.timelineProps.activeFindMatch?.entryId).toBe("second");
@@ -351,7 +358,8 @@ describe("V2 find state", () => {
     await using screen = await render(<Probe environmentId={a} />);
     await act(async () => find.open());
     await act(async () => find.barProps.onQueryChange("COD4"));
-    await screen.rerender(<Probe environmentId={a} content={{ runs: [], visibleTurnItems: [] }} />);
+    threadDetail.content = { runs: [], visibleTurnItems: [] };
+    await screen.rerender(<Probe environmentId={a} />);
     await act(async () => find.barProps.onNext());
     expect(orchestrationEnvironment.threadFind).toHaveBeenLastCalledWith({
       environmentId: a,
@@ -449,9 +457,8 @@ describe("V2 find state", () => {
     await act(async () => find.open());
     await act(async () => find.barProps.onQueryChange("COD4"));
     for (let i = 0; i < 3; i++) {
-      await screen.rerender(
-        <Probe environmentId={a} content={{ visibleTurnItems: [], runs: [] }} />,
-      );
+      threadDetail.content = { visibleTurnItems: [], runs: [] };
+      await screen.rerender(<Probe environmentId={a} />);
       await act(async () => vi.advanceTimersByTime(100));
     }
     expect(orchestrationEnvironment.threadFind).toHaveBeenLastCalledWith({
@@ -465,6 +472,7 @@ describe("V2 find state", () => {
     });
     const updated = { ...messageResult(5, 10), totalMatches: 11, match: messageResult(4).match };
     queries.results.set(a, updated);
+    threadDetail.content = undefined;
     await screen.rerender(<Probe environmentId={a} />);
     expect(find.barProps.matchCount).toBe(11);
     expect(find.barProps.activeIndex).toBe(5);
@@ -494,7 +502,8 @@ describe("V2 find state", () => {
     queries.pending = true;
     queries.results.delete(a);
     await act(async () => find.barProps.onNext());
-    await screen.rerender(<Probe environmentId={a} content={{ visibleTurnItems: [], runs: [] }} />);
+    threadDetail.content = { visibleTurnItems: [], runs: [] };
+    await screen.rerender(<Probe environmentId={a} />);
     await act(async () => vi.advanceTimersByTime(300));
     expect(queries.refresh).toHaveBeenCalledTimes(1);
     expect(orchestrationEnvironment.threadFind).toHaveBeenLastCalledWith({
@@ -509,6 +518,7 @@ describe("V2 find state", () => {
     });
     queries.pending = false;
     queries.results.set(a, { ...messageResult(6, 10), totalMatches: 11 });
+    threadDetail.content = undefined;
     await screen.rerender(<Probe environmentId={a} />);
     expect(find.timelineProps.activeFindMatch?.entryId).toBe("message:8");
     expect(find.timelineProps.findNavigationId).toBe(2);

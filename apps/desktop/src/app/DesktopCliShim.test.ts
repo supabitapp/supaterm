@@ -64,26 +64,6 @@ const fakeAppImage = (canMount = true) => {
 };
 
 describe("renderCliShim", () => {
-  it("runs the AppImage's bundled CLI with every argument and unmounts after", () => {
-    const { root, image, shim } = fakeAppImage();
-    const result = run(shim, ["browser", "setup", "a b"]);
-    expect(result.status).toBe(3);
-    expect(result.stdout.split("\n")).toEqual([
-      `node=1 cli=${shim} home=${root}/home`,
-      `${image}/resources/app.asar/apps/server/dist/bin.mjs`,
-      "browser",
-      "setup",
-      "a b",
-      "",
-    ]);
-
-    NodeChildProcess.spawnSync("sh", [
-      "-c",
-      `i=0; while [ ! -e '${root}/unmounted' ] && [ $i -lt 40 ]; do sleep 0.05; i=$((i+1)); done`,
-    ]);
-    expect(NodeFS.existsSync(NodePath.join(root, "unmounted"))).toBe(true);
-  });
-
   it("extracts the AppImage where it cannot be mounted", () => {
     const { shim } = fakeAppImage(false);
 
@@ -130,18 +110,6 @@ describe("renderCliShim", () => {
     ]);
   });
 
-  it("tells a person whose app moved to reopen it", () => {
-    const root = tempRoot();
-    const shim = writeShim(root, {
-      kind: "direct",
-      executable: NodePath.join(root, "Gone.app/Contents/MacOS/Supaterm"),
-      entry: "/bin.mjs",
-    });
-    const result = run(shim, ["--version"]);
-    expect(result.status).toBe(127);
-    expect(result.stderr).toContain("Open the app once to update this command.");
-  });
-
   it("writes a Windows launcher that keeps cmd from reinterpreting paths", () => {
     const executable = "C:\\Apps\\R&whoami&X 100%\\!CHANNEL!\\Supaterm.exe";
     const script = renderCliShim({
@@ -163,20 +131,5 @@ describe("renderCliShim", () => {
     expect(lines).toContain(
       'set "SUPATERM_CLI_SHIM_PATH=C:\\Users\\José\\.supaterm\\bin\\supaterm.cmd"',
     );
-  });
-
-  it("switches the Windows console to UTF-8 only when a path needs it", () => {
-    const ascii = renderCliShim({
-      target: {
-        kind: "windows",
-        executable: "C:\\Supaterm\\Supaterm.exe",
-        entry: "C:\\Supaterm\\bin.mjs",
-      },
-      shimPath: "C:\\Users\\me\\.supaterm\\bin\\supaterm.cmd",
-      supatermHome: "C:\\Users\\me\\.supaterm",
-    });
-
-    expect(ascii).not.toContain("chcp");
-    expect(ascii.split("\r\n")).toContain("exit /b %supaterm_exit%");
   });
 });

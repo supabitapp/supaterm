@@ -1,17 +1,9 @@
-import {
-  ProjectId,
-  ThreadId,
-  type ThreadPullRequestLink,
-  type VcsStatusResult,
-} from "@supaterm/contracts";
-import type { MouseEvent } from "react";
+import { ThreadId, type ThreadPullRequestLink, type VcsStatusResult } from "@supaterm/contracts";
 import { expect, it, vi } from "vite-plus/test";
-import { page, userEvent } from "vite-plus/test/browser";
 
 import "../index.css";
-import { Button } from "./ui/button";
 
-import { act, render } from "../../test/render";
+import { render } from "../../test/render";
 import { AppAtomRegistryProvider } from "../rpc/atomRegistry";
 import { makeThreadFixture } from "../test-fixtures";
 
@@ -84,164 +76,44 @@ vi.mock(import("../state/pullRequests"), async (importOriginal) => {
       summaries(input.number)) as never,
   };
 });
-import { ThreadPullRequestBadgeControl, ThreadRowLeadingStatus } from "./ThreadStatusIndicators";
+import { ThreadSearchPullRequestNumber } from "./ThreadStatusIndicators";
 
-// The lease overscans 160px around a 20px viewport, a 340px band. With 45px rows the band
-// covers exactly 8 rows at each scroll position below.
-const ROW_HEIGHT = 45;
-const SPACER = 1000;
-
-it("leases only visible palette results while retaining observed and cached PR badges", async () => {
-  const threads = Array.from({ length: 128 }, (_, index) =>
-    makeThreadFixture({
-      id: ThreadId.make(`palette-thread-${index}`),
-      branch: "feature/test",
-      worktreePath: `/test/worktree-${index}`,
-      pullRequests:
-        index % 2 === 0
-          ? []
-          : [
-              {
-                host: "github.com",
-                repository: "example/repo",
-                number: index,
-                url: `https://github.com/example/repo/pull/${index}`,
-                source: "manual",
-                linkedAt: "2026-09-04T00:00:00.000Z",
-                snapshot: {
-                  state: "open",
-                  title: "Persisted linked PR",
-                  headBranch: "feature/test",
-                  baseBranch: "main",
-                  isDraft: false,
-                  updatedAt: "2026-09-04T00:00:00.000Z",
-                  syncedAt: "2026-09-04T00:00:00.000Z",
-                },
-                stack: null,
-              },
-            ],
-      linkedPullRequest:
-        index % 2 === 0
-          ? null
-          : {
-              projectId: ProjectId.make("project-test"),
-              repository: "example/repo",
-              number: index,
-              url: `https://github.com/example/repo/pull/${index}`,
-            },
-    }),
-  );
-  state.queries.length = 0;
-  const viewport = () =>
-    screen.container.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]')!;
-  const scrollTo = async (top: number) => {
-    await act(async () => {
-      viewport().scrollTop = top;
-      await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 50)));
-    });
-  };
-  const badgeCount = () =>
-    [...screen.container.querySelectorAll("[aria-label]")].filter((node) =>
-      node.getAttribute("aria-label")!.startsWith("PR #"),
-    ).length;
-  await using screen = await render(
-    <AppAtomRegistryProvider>
-      <div data-slot="scroll-area-viewport" style={{ height: 20, overflowY: "auto" }}>
-        <div style={{ height: SPACER }} />
-        {threads.map((thread, index) => (
-          <div key={thread.id} style={{ height: ROW_HEIGHT, overflow: "hidden" }}>
-            <ThreadRowLeadingStatus
-              thread={thread}
-              snapshot={
-                index === 126
-                  ? {
-                      branch: "feature/test",
-                      sourceControlProvider: undefined,
-                      pr: {
-                        number: 126,
-                        title: "Cached badge",
-                        url: "https://github.com/example/repo/pull/126",
-                        baseRef: "main",
-                        headRef: "feature/test",
-                        state: "open",
-                      },
-                    }
-                  : undefined
-              }
-            />
-            {thread.title}
-          </div>
-        ))}
-      </div>
-    </AppAtomRegistryProvider>,
-  );
-  await scrollTo(0);
-  expect(state.queries).toEqual([]);
-  expect(badgeCount()).toBe(65);
-
-  // Band [1000, 1340]: rows 0..7.
-  await scrollTo(SPACER + 160);
-  expect(state.queries).toHaveLength(4);
-  expect(state.queries.filter((key) => key.startsWith("vcs:"))).toHaveLength(4);
-  expect(state.queries.filter((key) => key.startsWith("pr:"))).toHaveLength(0);
-  expect(badgeCount()).toBe(69);
-
-  // Band [1370, 1710]: rows 8..15.
-  await scrollTo(SPACER + 8 * ROW_HEIGHT + 10 + 160);
-  expect(state.queries).toHaveLength(8);
-  expect(badgeCount()).toBe(73);
-});
-
-it("keeps a long PR hover list in the viewport and lets the last row be selected", async () => {
-  const previousViewport = { width: window.innerWidth, height: window.innerHeight };
-  await page.viewport(800, 480);
-  await using _viewport = {
-    [Symbol.asyncDispose]: () => page.viewport(previousViewport.width, previousViewport.height),
-  };
-  const pullRequests = Array.from({ length: 40 }, (_, index): ThreadPullRequestLink => ({
+it("shows the sidebar's PR badge in thread search when the query matches any linked PR", async () => {
+  const link = (number: number, state: "open" | "merged"): ThreadPullRequestLink => ({
     host: "github.com",
     repository: "example/repo",
-    number: index + 1,
-    url: `https://github.com/example/repo/pull/${index + 1}`,
+    number,
+    url: `https://github.com/example/repo/pull/${number}`,
     source: "manual",
-    linkedAt: "2026-01-01T00:00:00Z",
-    snapshot: null,
+    linkedAt: "2026-09-04T00:00:00.000Z",
+    snapshot: {
+      state,
+      title: `Linked PR ${number}`,
+      headBranch: `feature/${number}`,
+      baseBranch: "main",
+      isDraft: false,
+      updatedAt: "2026-09-04T00:00:00.000Z",
+      syncedAt: "2026-09-04T00:00:00.000Z",
+    },
     stack: null,
-  }));
-  const onOpenPullRequest = vi.fn((event: MouseEvent<HTMLElement>) => event.preventDefault());
+  });
+  const thread = makeThreadFixture({
+    id: ThreadId.make("search-thread"),
+    pullRequests: [link(7, "open"), link(8, "merged")],
+  });
   await using screen = await render(
-    <div style={{ position: "fixed", top: 220, left: 300 }}>
-      <ThreadPullRequestBadgeControl
-        render={<Button size="xs" />}
-        badge={{ kind: "pull-request", others: 39, state: "open" }}
-        pullRequests={pullRequests}
-        number={1}
-        url={pullRequests[0]!.url}
-        status={null}
-        onOpenList={() => {}}
-        onOpenPullRequest={onOpenPullRequest}
-      />
-    </div>,
+    <AppAtomRegistryProvider>
+      <span data-testid="match">
+        <ThreadSearchPullRequestNumber thread={thread} query="#8" />
+      </span>
+      <span data-testid="miss">
+        <ThreadSearchPullRequestNumber thread={thread} query="#9" />
+      </span>
+    </AppAtomRegistryProvider>,
   );
-  await userEvent.hover(screen.container.querySelector("button")!);
-  const popup = () => document.querySelector<HTMLElement>('[data-slot="tooltip-popup"]')!;
-  await expect.poll(() => popup()?.querySelectorAll("a").length).toBe(40);
-  await expect.poll(() => popup().getBoundingClientRect().top).toBeGreaterThanOrEqual(0);
-  await expect
-    .poll(() => popup().getBoundingClientRect().bottom)
-    .toBeLessThanOrEqual(window.innerHeight);
-
-  const lastRow = popup().querySelector<HTMLAnchorElement>("li:last-child a")!;
-  expect(lastRow.getBoundingClientRect().top).toBeGreaterThan(
-    popup().getBoundingClientRect().bottom,
-  );
-  await userEvent.wheel(popup(), { delta: { y: 10_000 } });
-  await expect
-    .poll(() => lastRow.getBoundingClientRect().bottom)
-    .toBeLessThanOrEqual(popup().getBoundingClientRect().bottom);
-  expect(lastRow.getBoundingClientRect().top).toBeGreaterThanOrEqual(
-    popup().getBoundingClientRect().top,
-  );
-  await userEvent.click(lastRow);
-  expect(onOpenPullRequest).toHaveBeenCalledExactlyOnceWith(expect.anything(), lastRow.href);
+  const match = screen.container.querySelector('[data-testid="match"] > span')!;
+  expect(match.textContent).toBe("+2");
+  expect(match.getAttribute("aria-label")).toContain("and 1 more linked; overall open");
+  expect(match.querySelector("svg")).not.toBeNull();
+  expect(screen.container.querySelector('[data-testid="miss"]')!.childElementCount).toBe(0);
 });

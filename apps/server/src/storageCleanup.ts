@@ -32,6 +32,7 @@ import type { PlatformError } from "effect/PlatformError";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
+import { parse as parseYaml } from "yaml";
 
 import * as ServerConfig from "./config.ts";
 import * as GitManager from "./git/GitManager.ts";
@@ -45,15 +46,24 @@ import * as Settings from "./serverSettings.ts";
 import * as TerminalManager from "./terminal/Manager.ts";
 import { isFilesystemRoot, managedWorktreesDirectories } from "./worktreesDirectory.ts";
 import * as GitVcsDriver from "./vcs/GitVcsDriver.ts";
+import { removeLinkedWorktree } from "./vcs/worktreeRemoval.ts";
 import { withWorkspaceLease } from "./workspace/workspaceLease.ts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
+import { isNetworkPath } from "@supaterm/shared/path";
 
 const decodeCleanupThread = Schema.decodeUnknownEffect(
   Schema.fromJsonString(OrchestrationV2AppThreadJson),
 );
 const decodeCleanupSession = Schema.decodeUnknownEffect(
   Schema.fromJsonString(OrchestrationV2ProviderSessionJson),
+);
+// pnpm 11 writes this file as JSON, older versions as YAML.
+const decodePnpmModulesManifest = Schema.decodeUnknownEffect(
+  Schema.Struct({
+    storeDir: Schema.String,
+    virtualStoreDir: Schema.optional(Schema.String),
+  }),
 );
 
 const DAY_MS = 86_400_000;
@@ -242,27 +252,75 @@ const make = Effect.gen(function* () {
         );
       });
 
+  // Effect's stat follows links. Probe with readLink first to get lstat
+  // semantics, including skipping dangling links and directory links.
+  const isLink = (target: string) =>
+    fs.readLink(target).pipe(
+      Effect.as(true),
+      Effect.catchIf(
+        (error) =>
+          error.cause instanceof Error && "code" in error.cause && error.cause.code === "EINVAL",
+        () => Effect.succeed(false),
+      ),
+    );
+
+  // A link from a checkout or an agent would send reads to its target, which
+  // can be a network path. Checkouts only place links inside the worktree, so
+  // every component below its root is probed, not just the last one.
+  const reachesThroughLink = Effect.fnUntraced(function* (root: string, target: string) {
+    const relative = path.relative(root, target);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) return yield* isLink(target);
+    let current = root;
+    for (const part of relative.split(path.sep)) {
+      current = path.join(current, part);
+      if (yield* isLink(current)) return true;
+    }
+    return false;
+  });
+
+  // pnpm imports packages by clone or reflink when its store shares a device
+  // with the worktree. Those files have one link but share blocks with the
+  // store, so removing them frees almost nothing. A store on another device
+  // forces real copies, which still count.
+  const sharedPnpmVirtualStore = Effect.fnUntraced(
+    function* (root: string) {
+      const nodeModules = path.join(root, "node_modules");
+      const manifestPath = path.join(nodeModules, ".modules.yaml");
+      if (yield* reachesThroughLink(root, manifestPath)) return null;
+      const text = yield* fs.readFileString(manifestPath);
+      const manifest = yield* decodePnpmModulesManifest(yield* Effect.try(() => parseYaml(text)));
+      // An agent can write this manifest, and statting a network path makes
+      // Windows sign in to its host with the user's NTLM credentials.
+      if (isNetworkPath(manifest.storeDir) || isNetworkPath(manifest.virtualStoreDir ?? "")) {
+        return null;
+      }
+      const virtualStore = path.resolve(nodeModules, manifest.virtualStoreDir ?? ".pnpm");
+      if (
+        (yield* reachesThroughLink(root, manifest.storeDir)) ||
+        (yield* reachesThroughLink(root, virtualStore))
+      ) {
+        return null;
+      }
+      const [store, virtual] = yield* Effect.all([
+        fs.stat(manifest.storeDir),
+        fs.stat(virtualStore),
+      ]);
+      return store.dev === virtual.dev ? virtualStore : null;
+    },
+    Effect.orElseSucceed(() => null),
+  );
+
   const measureWorktree = Effect.fn("storageCleanup.measureWorktree")(
     function* (worktreePath: string) {
       const root = yield* fs.realPath(worktreePath);
+      const skipped = yield* sharedPnpmVirtualStore(root);
       const pending = [root];
       let entries = 1;
       let bytes = 0;
       while (pending.length > 0) {
         const target = pending.pop()!;
-        // Effect's stat follows links. Probe with readLink first to get lstat
-        // semantics, including skipping dangling links and directory links.
-        const isLink = yield* fs.readLink(target).pipe(
-          Effect.as(true),
-          Effect.catchIf(
-            (error) =>
-              error.cause instanceof Error &&
-              "code" in error.cause &&
-              error.cause.code === "EINVAL",
-            () => Effect.succeed(false),
-          ),
-        );
-        if (isLink) continue;
+        if (target === skipped) continue;
+        if (yield* isLink(target)) continue;
         if ((yield* fs.realPath(target)) !== target) return null;
         const stat = yield* fs.stat(target);
         if (stat.type === "File") {
@@ -978,20 +1036,15 @@ const make = Effect.gen(function* () {
           const changes = yield* localChangesReason(worktreePath, settings);
           if (changes !== null) return keep(changes);
         }
-        yield* cleanupGit(
-          project.workspaceRoot,
-          [
-            "-c",
-            "status.showUntrackedFiles=normal",
-            "worktree",
-            "remove",
-            // Git requires force for submodules; recursive checks above cannot make removal atomic.
-            ...(submodules.force ? ["--force"] : []),
-            "--",
-            worktreePath,
-          ],
-          "git worktree remove",
-        );
+        yield* removeLinkedWorktree({
+          operation: "StorageCleanup.cleanupGit",
+          cwd: project.workspaceRoot,
+          worktreePath,
+          // Git requires force for submodules; recursive checks above cannot make removal atomic.
+          force: submodules.force,
+          execute: git.execute,
+          run: (args) => cleanupGit(project.workspaceRoot, [...args], "git worktree remove"),
+        });
         entries.push({ ...entry, outcome: "removed", reason: sentence(removalReason), bytes });
         yield* gitManager.invalidateStatus(project.workspaceRoot);
         // Preserve branch and path: ProviderTurnStartService recreates the checkout

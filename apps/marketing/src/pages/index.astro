@@ -4,6 +4,7 @@ import { getImage, Image } from "astro:assets";
 import desktopScreenshot from "../assets/app-desktop.webp";
 import appIcon from "../assets/icon.webp";
 import Layout from "../layouts/Layout.astro";
+import "../styles/boltComputer.css";
 import { GITHUB_REPOSITORY_URL, IOS_TESTFLIGHT_URL, RELAY_REPOSITORY_URL } from "../lib/site";
 
 const screenshot = await getImage({
@@ -35,7 +36,7 @@ const screenshot = await getImage({
     </div>
 
     <div class="container hero-inner">
-      <div class="hero-crt">
+      <div class="hero-crt bolt-computer">
         <Image src={appIcon} alt="" width={380} height={380} densities={[1, 2]} format="webp" quality={90} loading="eager" />
       </div>
       <h1 class="hero-title display">
@@ -236,7 +237,11 @@ const screenshot = await getImage({
 
   const crt = document.querySelector<HTMLElement>(".hero-crt");
   if (crt) {
-    void import("../lib/crtModel").then(({ mountCrtModel }) => mountCrtModel(crt));
+    // Thinking never settles, so the hero repaints while on screen: a deliberate exception to the
+    // no-continuous-animation rule.
+    void import("../lib/boltComputer/mount").then(({ DEFAULT_SETTINGS, mountBoltComputer }) =>
+      mountBoltComputer(crt, { ...DEFAULT_SETTINGS, state: "thinking" }),
+    );
   }
 </script>
 
@@ -268,36 +273,12 @@ const screenshot = await getImage({
     text-align: center;
   }
 
-  /* The icon holds the spot until the model's canvas arrives, and stays if it never does. */
   .hero-crt {
-    position: relative;
     width: var(--crt-size);
-    aspect-ratio: 1;
     margin: 0 auto;
-    user-select: none;
   }
 
-  /* The model's canvas is created at runtime, so it carries no scoped-style attribute. */
-  .hero-crt img,
-  .hero-crt :global(canvas) {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    transition: opacity 0.6s ease;
-  }
-
-  .hero-crt :global(canvas) {
-    cursor: grab;
-    touch-action: pan-y;
-  }
-
-  @starting-style {
-    .hero-crt :global(canvas) { opacity: 0; }
-  }
-
-  .hero-crt :global(canvas:active) { cursor: grabbing; }
-  .hero-crt:has(:global(canvas)) img { opacity: 0; }
+  .hero-crt:has(:global(canvas)) { cursor: pointer; }
 
   .hero-title {
     font-size: clamp(38px, 5.6vw, 76px);

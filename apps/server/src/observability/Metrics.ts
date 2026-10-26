@@ -54,6 +54,18 @@ export const serverEventLoopDelayMax = Metric.gauge("supaterm_server_event_loop_
   attributes: { unit: "ms" },
 });
 
+export const runsTotal = Metric.counter("supaterm_runs_total", {
+  description: "Runs that finished, by outcome. A later rollback does not count again.",
+});
+
+export const runDuration = Metric.timer("supaterm_run_duration", {
+  description: "Wall time of a run, from when it started to its terminal status.",
+});
+
+export const runQueueWait = Metric.timer("supaterm_run_queue_wait", {
+  description: "Time a run waited between being requested and starting.",
+});
+
 export const gitCommandsTotal = Metric.counter("supaterm_git_commands_total", {
   description: "Total git commands executed by the server runtime.",
 });

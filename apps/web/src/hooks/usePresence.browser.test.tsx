@@ -17,7 +17,6 @@ let finishExit: () => void;
 
 const render = (value: string | null) => screen.rerender(<Harness value={value} />);
 const item = () => screen.container.querySelector("[data-testid=item]");
-const nextFrame = () => act(() => new Promise((resolve) => requestAnimationFrame(resolve)));
 
 async function setupTest() {
   await using resources = new AsyncDisposableStack();
@@ -51,7 +50,6 @@ describe("usePresence", () => {
     expect(item()?.textContent).toBe("notice");
     expect(item()?.hasAttribute("data-ending-style")).toBe(true);
 
-    await nextFrame();
     await act(async () => finishExit());
     expect(item()).toBeNull();
   });
@@ -72,7 +70,6 @@ describe("usePresence", () => {
     expect(item()?.textContent).toBe("second");
     expect(item()?.hasAttribute("data-ending-style")).toBe(false);
 
-    await nextFrame();
     await act(async () => finishExit());
     expect(item()?.textContent).toBe("second");
   });
