@@ -51,17 +51,16 @@ describe("buildThreadPaletteItems", () => {
 
   it("offers the way back for each toggled state", () => {
     const { items } = paletteItems({ isPinned: true, isDone: true, isSnoozed: true });
-    const titles = items.map((item) => item.title);
+    const autoMarkDone = paletteItems({ autoMarkDoneEnabled: false }).items.filter((item) =>
+      item.value.startsWith("action:thread:auto-mark-done"),
+    );
 
-    expect(titles).toEqual(
-      expect.arrayContaining(["Unpin thread", "Reopen thread", "Wake thread"]),
-    );
-    expect(titles).not.toEqual(
-      expect.arrayContaining(["Pin thread", "Mark thread as Done", "Snooze thread"]),
-    );
-    expect(paletteItems({ autoMarkDoneEnabled: false }).items.map((item) => item.title)).toContain(
-      "Turn on automatic completion",
-    );
+    expect(items.slice(1, 4).map((item) => item.title)).toEqual([
+      "Unpin thread",
+      "Reopen thread",
+      "Wake thread",
+    ]);
+    expect(autoMarkDone.map((item) => item.title)).toEqual(["Turn on automatic completion"]);
   });
 
   it("runs the chosen snooze preset from the snooze submenu", async () => {
