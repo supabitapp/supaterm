@@ -1,16 +1,7 @@
 import { scopeProjectRef, scopeThreadRef } from "@supaterm/client-runtime/environment";
 import type { EnvironmentId, ProjectId, ScopedThreadRef, ThreadId } from "@supaterm/contracts";
-import {
-  type ReactNode,
-  type Ref,
-  memo,
-  useImperativeHandle,
-  useEffect,
-  useEffectEvent,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, type Ref, memo, useImperativeHandle, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 import { useComposerDraftStore, type DraftId } from "../composerDraftStore";
 import { useProject, useThreadShellsForProjectRefs } from "../state/entities";
@@ -101,151 +92,159 @@ function labelTextWidth(label: HTMLElement, range: Range): number {
   return Number.isFinite(maxWidth) ? Math.min(width, maxWidth) : width;
 }
 
-function useLabelsOverflow(element: HTMLDivElement | null): boolean {
+function animateLabelWidths(
+  previousRects: ReadonlyMap<HTMLElement, DOMRect>,
+  animations: Map<HTMLElement, Animation>,
+) {
+  for (const animation of animations.values()) animation.cancel();
+  animations.clear();
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+  for (const [label, previousRect] of previousRects) {
+    if (!label.isConnected) continue;
+    const nextWidth = label.getBoundingClientRect().width;
+    if (Math.abs(previousRect.width - nextWidth) < 0.5) continue;
+
+    const animation = label.animate(
+      [
+        { width: `${previousRect.width}px`, maxWidth: `${previousRect.width}px` },
+        { width: `${nextWidth}px`, maxWidth: `${nextWidth}px` },
+      ],
+      {
+        duration: COMPOSER_CONTEXT_MOTION_DURATION_MS,
+        easing: EASE_DRAWER,
+        fill: "backwards",
+      },
+    );
+    animations.set(label, animation);
+    animation.addEventListener(
+      "finish",
+      () => {
+        if (animations.get(label) === animation) animations.delete(label);
+      },
+      { once: true },
+    );
+  }
+}
+
+/**
+ * Whether the strip's labels must collapse to icons. The strip is measured when
+ * it, a control group or a hosted control resizes, when its text or children
+ * change, and when fonts load, which covers everything the widths depend on.
+ */
+function useLabelsOverflow(): readonly [
+  attach: (element: HTMLDivElement | null) => (() => void) | undefined,
+  overflows: boolean,
+] {
   const [overflows, setOverflows] = useState(false);
-  const pendingLabelRectsRef = useRef<{
-    readonly overflows: boolean;
-    readonly rects: Map<HTMLElement, DOMRect>;
-  } | null>(null);
-  const labelAnimationsRef = useRef(new Map<HTMLElement, Animation>());
-  const measure = useEffectEvent(() => {
-    const current = element;
-    const compact = overflows;
+
+  const attach = (current: HTMLDivElement | null) => {
     if (!current) return;
-    const stripWidth = current.clientWidth;
-    if (stripWidth === 0) return;
-    const stripStyle = getComputedStyle(current);
-    const available =
-      stripWidth -
-      (Number.parseFloat(stripStyle.paddingInlineStart) || 0) -
-      (Number.parseFloat(stripStyle.paddingInlineEnd) || 0);
-    const contentWidth = (parent: Element): number => {
-      const gap = Number.parseFloat(getComputedStyle(parent).columnGap) || 0;
-      let width = 0;
-      let counted = 0;
-      for (const child of parent.children) {
-        if (!(child instanceof HTMLElement)) continue;
-        if (child.offsetWidth === 0) continue;
-        const style = getComputedStyle(child);
-        const position = style.position;
-        if (position === "absolute" || position === "fixed") continue;
-        width +=
-          child.offsetWidth +
-          (Number.parseFloat(style.marginInlineStart) || 0) +
-          (Number.parseFloat(style.marginInlineEnd) || 0);
-        counted += 1;
-      }
-      return width + gap * Math.max(0, counted - 1);
-    };
-    const stripGap = Number.parseFloat(stripStyle.columnGap) || 0;
-    let needed = 0;
-    let groups = 0;
-    for (const child of current.children) {
-      if (!(child instanceof HTMLElement)) continue;
-      // Reserve the natural width of the hosted controls, overflowed ones included, so Git labels
-      // compact first. Reserving only visible controls lets the labels re-expand and hide them.
-      const hostedControls = child.matches('[data-chat-resting-composer-controls-host="true"]')
-        ? child.querySelector<HTMLElement>('[data-chat-composer-resting-controls="true"]')
-        : null;
-      const hostedMeasurement = hostedControls
-        ? measureRestingComposerControls(hostedControls)
-        : null;
-      const width = hostedMeasurement
-        ? resolveRestingComposerControlsNaturalWidth(hostedMeasurement)
-        : contentWidth(hostedControls ?? child);
-      if (width <= 1) continue;
-      groups += 1;
-      needed += width;
-    }
-    needed += stripGap * Math.max(0, groups - 1);
-    const range = document.createRange();
-    for (const label of current.querySelectorAll<HTMLElement>("[data-composer-label]")) {
-      needed += Math.max(0, labelTextWidth(label, range) - label.getBoundingClientRect().width);
-    }
-    const nextOverflows = resolveContextStripLabelsCompact({
-      compact,
-      neededWidth: needed,
-      availableWidth: available,
-    });
-    if (nextOverflows !== compact) {
-      pendingLabelRectsRef.current = {
-        overflows: nextOverflows,
-        rects: new Map(
-          Array.from(current.querySelectorAll<HTMLElement>(COMPOSER_CONTEXT_LABEL_SELECTOR)).map(
-            (label) => [label, label.getBoundingClientRect()],
-          ),
-        ),
+    const labelAnimations = new Map<HTMLElement, Animation>();
+
+    const measure = () => {
+      // The committed attribute, not render state, so a stale closure cannot misread it.
+      const compact = current.hasAttribute("data-compact");
+      const stripWidth = current.clientWidth;
+      if (stripWidth === 0) return;
+      const stripStyle = getComputedStyle(current);
+      const available =
+        stripWidth -
+        (Number.parseFloat(stripStyle.paddingInlineStart) || 0) -
+        (Number.parseFloat(stripStyle.paddingInlineEnd) || 0);
+      const contentWidth = (parent: Element): number => {
+        const gap = Number.parseFloat(getComputedStyle(parent).columnGap) || 0;
+        let width = 0;
+        let counted = 0;
+        for (const child of parent.children) {
+          if (!(child instanceof HTMLElement)) continue;
+          if (child.offsetWidth === 0) continue;
+          const style = getComputedStyle(child);
+          const position = style.position;
+          if (position === "absolute" || position === "fixed") continue;
+          width +=
+            child.offsetWidth +
+            (Number.parseFloat(style.marginInlineStart) || 0) +
+            (Number.parseFloat(style.marginInlineEnd) || 0);
+          counted += 1;
+        }
+        return width + gap * Math.max(0, counted - 1);
       };
-    }
-    setOverflows(nextOverflows);
-  });
-
-  useLayoutEffect(() => {
-    const pending = pendingLabelRectsRef.current;
-    if (pending?.overflows !== overflows) return;
-    pendingLabelRectsRef.current = null;
-
-    for (const animation of labelAnimationsRef.current.values()) {
-      animation.cancel();
-    }
-    labelAnimationsRef.current.clear();
-
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-
-    for (const [label, previousRect] of pending.rects) {
-      if (!label.isConnected) continue;
-      const nextWidth = label.getBoundingClientRect().width;
-      if (Math.abs(previousRect.width - nextWidth) < 0.5) continue;
-
-      const animation = label.animate(
-        [
-          { width: `${previousRect.width}px`, maxWidth: `${previousRect.width}px` },
-          { width: `${nextWidth}px`, maxWidth: `${nextWidth}px` },
-        ],
-        {
-          duration: COMPOSER_CONTEXT_MOTION_DURATION_MS,
-          easing: EASE_DRAWER,
-          fill: "backwards",
-        },
-      );
-      labelAnimationsRef.current.set(label, animation);
-      animation.addEventListener(
-        "finish",
-        () => {
-          if (labelAnimationsRef.current.get(label) === animation) {
-            labelAnimationsRef.current.delete(label);
-          }
-        },
-        { once: true },
-      );
-    }
-  }, [overflows]);
-
-  useEffect(
-    () => () => {
-      for (const animation of labelAnimationsRef.current.values()) {
-        animation.cancel();
+      const stripGap = Number.parseFloat(stripStyle.columnGap) || 0;
+      let needed = 0;
+      let groups = 0;
+      for (const child of current.children) {
+        if (!(child instanceof HTMLElement)) continue;
+        // Reserve the natural width of the hosted controls, overflowed ones included, so Git labels
+        // compact first. Reserving only visible controls lets the labels re-expand and hide them.
+        const hostedControls = child.matches('[data-chat-resting-composer-controls-host="true"]')
+          ? child.querySelector<HTMLElement>('[data-chat-composer-resting-controls="true"]')
+          : null;
+        const hostedMeasurement = hostedControls
+          ? measureRestingComposerControls(hostedControls)
+          : null;
+        const width = hostedMeasurement
+          ? resolveRestingComposerControlsNaturalWidth(hostedMeasurement)
+          : contentWidth(hostedControls ?? child);
+        if (width <= 1) continue;
+        groups += 1;
+        needed += width;
       }
-    },
-    [],
-  );
+      needed += stripGap * Math.max(0, groups - 1);
+      const range = document.createRange();
+      for (const label of current.querySelectorAll<HTMLElement>("[data-composer-label]")) {
+        needed += Math.max(0, labelTextWidth(label, range) - label.getBoundingClientRect().width);
+      }
+      const nextOverflows = resolveContextStripLabelsCompact({
+        compact,
+        neededWidth: needed,
+        availableWidth: available,
+      });
+      if (nextOverflows === compact) return;
+      const previousRects = new Map(
+        Array.from(current.querySelectorAll<HTMLElement>(COMPOSER_CONTEXT_LABEL_SELECTOR)).map(
+          (label) => [label, label.getBoundingClientRect()] as const,
+        ),
+      );
+      flushSync(() => setOverflows(nextOverflows));
+      animateLabelWidths(previousRects, labelAnimations);
+    };
 
-  useLayoutEffect(() => {
-    // oxlint-disable-next-line react/set-state-in-effect -- The label mode comes from measuring the committed DOM, which render cannot read.
-    measure();
-  });
-
-  useEffect(() => {
-    if (!element) return;
-    const stopObserving = observeResize(element, measure);
+    let stopResize = () => {};
+    const observeSizes = () => {
+      stopResize();
+      stopResize = observeResize(
+        [
+          current,
+          ...Array.from(current.children),
+          ...Array.from(current.querySelectorAll("[data-chat-composer-resting-controls='true']")),
+          ...Array.from(current.querySelectorAll(COMPOSER_CONTEXT_LABEL_SELECTOR)),
+        ],
+        measure,
+      );
+    };
+    observeSizes();
+    // Text and control changes alter natural widths without resizing a hidden
+    // or squeezed label, so they re-measure too. Only added or removed elements
+    // can change the observed set; re-subscribing delivers a measure itself.
+    const mutations = new MutationObserver((records) => {
+      const elementsChanged = records.some((record) =>
+        [...record.addedNodes, ...record.removedNodes].some((node) => node instanceof Element),
+      );
+      if (elementsChanged) observeSizes();
+      else measure();
+    });
+    mutations.observe(current, { childList: true, characterData: true, subtree: true });
     document.fonts.addEventListener("loadingdone", measure);
     return () => {
-      stopObserving();
+      stopResize();
+      mutations.disconnect();
       document.fonts.removeEventListener("loadingdone", measure);
+      for (const animation of labelAnimations.values()) animation.cancel();
     };
-  }, [element]);
+  };
 
-  return overflows;
+  return [attach, overflows] as const;
 }
 
 export const BranchToolbar = memo(function BranchToolbar({
@@ -353,8 +352,7 @@ export const BranchToolbar = memo(function BranchToolbar({
 
   const onAddToMachine = () =>
     openAddProjectToMachine({ projectRef: activeProjectRef, targetEnvironmentId: null });
-  const [stripElement, setStripElement] = useState<HTMLDivElement | null>(null);
-  const labelsOverflow = useLabelsOverflow(stripElement);
+  const [attachStrip, labelsOverflow] = useLabelsOverflow();
 
   if (!activeProject) {
     return layout === "composer" && projectPicker ? (
@@ -407,7 +405,7 @@ export const BranchToolbar = memo(function BranchToolbar({
 
   return (
     <ComposerSurface.ContextStrip
-      ref={setStripElement}
+      ref={attachStrip}
       placement={contextStripPlacement}
       data-compact={labelsOverflow ? "" : undefined}
       className={cn(
