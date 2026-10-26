@@ -4,7 +4,6 @@ import {
   type ChangeRequestTerminology,
 } from "@supaterm/client-runtime/source-control-clients";
 import * as Schema from "effect/Schema";
-
 import {
   GitCommandError,
   PullRequestDetail,

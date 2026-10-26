@@ -83,7 +83,6 @@ function expandRecordIds(container: JsonObject, ids: ReadonlyArray<unknown>): vo
 
 // `toCodecJson` turns `Schema.Unknown` into a recursive JSON check of the whole
 // tree. The input is parsed JSON and the inner codec validates it anyway.
-// oxlint-disable-next-line no-unused-vars -- An accept-all guard names its parameter only in the predicate.
 const ParsedJson = Schema.declare((_: unknown): _ is unknown => true, {
   toCodecJson: () => undefined,
 });
