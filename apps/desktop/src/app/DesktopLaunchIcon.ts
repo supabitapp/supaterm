@@ -17,7 +17,9 @@ import { makeLaunchIconFrames, type LaunchIconFrames } from "./LaunchIconFrames.
 // The Dock's largest tile, 128pt at 2x.
 const TILE_PIXELS = 256;
 const FRAME_MILLIS = 66;
-const FADE_SECONDS = 0.35;
+const FADE_SECONDS = 0.6;
+// A quick launch still shows the rainbow run its whole course down the bolt.
+const MIN_THINKING_SECONDS = 2.4;
 // A launch that never shows a window stops animating rather than repaint the Dock for good.
 const MAX_THINKING_SECONDS = 60;
 
@@ -51,7 +53,7 @@ const loadBitmap = (path: string) => {
  * the automatic Dark style follows it. Clear and tinted icons have no frames:
  * the Dock would jump between looks when it takes the bundle's icon back.
  */
-export const dockAppearanceFor = (
+const dockAppearanceFor = (
   iconStyle: string,
   systemDarkMode: boolean,
 ): Option.Option<DesktopAssets.IconAppearance> => {
@@ -118,10 +120,18 @@ export const make = Effect.gen(function* () {
         )
         .pipe(Effect.andThen(Effect.sleep(FRAME_MILLIS)));
 
+    const thinking = (seconds: number) =>
+      Deferred.isDone(settleRequested).pipe(
+        Effect.map(
+          (settled) =>
+            seconds < MAX_THINKING_SECONDS && (!settled || seconds < MIN_THINKING_SECONDS),
+        ),
+      );
+
     // Ease out of the lit icon the Dock bounced with...
     let t = 0;
     let glow = 1;
-    while (!(yield* Deferred.isDone(settleRequested)) && t < MAX_THINKING_SECONDS) {
+    while (yield* thinking(t)) {
       glow = 1 - ease(t / FADE_SECONDS);
       yield* show(t, glow);
       t = yield* elapsed;

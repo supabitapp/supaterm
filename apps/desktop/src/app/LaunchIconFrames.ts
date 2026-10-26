@@ -20,12 +20,18 @@ const MEAN_WEIGHT = falloff(1);
 // While thinking, a rainbow runs down the bolt: one turn of hue per period,
 // spread over this many cells along the diagonal.
 const HUE_PERIOD_SECONDS = 2.4;
-const HUE_WAVELENGTH_CELLS = 24;
+const HUE_WAVELENGTH_CELLS = 14;
+// At Dock size the studio's dim thinking face reads as an unlit icon, so LEDs
+// dim only this share of the way, and the rainbow is this much more saturated
+// than a plain turn of the bolt's own hue.
+const DIMMING = 0.4;
+const SATURATION = 2;
 const hueAt = (column: number, row: number, t: number) =>
   2 * Math.PI * (t / HUE_PERIOD_SECONDS - (column + row) / HUE_WAVELENGTH_CELLS);
 
-// CSS's hue-rotate(θ) is LUMA + cos θ · COS + sin θ · SIN, row-major over RGB.
-// It keeps luminance, and grey light stays grey.
+// CSS's hue-rotate(θ) is LUMA + cos θ · COS + sin θ · SIN, row-major over RGB,
+// and saturate(s) after it scales the COS and SIN terms by s. Both keep
+// luminance, and grey light stays grey.
 const LUMA = [0.213, 0.715, 0.072, 0.213, 0.715, 0.072, 0.213, 0.715, 0.072];
 const COS = [0.787, -0.715, -0.072, -0.213, 0.285, -0.072, -0.213, -0.715, 0.928];
 const SIN = [-0.213, -0.715, 0.928, 0.143, 0.14, -0.283, -0.787, 0.715, 0.072];
@@ -96,11 +102,11 @@ export function makeLaunchIconFrames(lit: Buffer, unlit: Buffer, size: number): 
       let meanCosine = 0;
       let meanSine = 0;
       BOLT_CELLS.forEach(([c, r], index) => {
-        const level = 1 - (1 - thinkingLevel(c, r, t)) * (1 - glow);
+        const level = 1 - (1 - thinkingLevel(c, r, t)) * DIMMING * (1 - glow);
         const hue = hueAt(c, r, t);
         levels[index] = level;
-        cosines[index] = level * (glow + (1 - glow) * Math.cos(hue));
-        sines[index] = level * (1 - glow) * Math.sin(hue);
+        cosines[index] = level * (glow + (1 - glow) * SATURATION * Math.cos(hue));
+        sines[index] = level * (1 - glow) * SATURATION * Math.sin(hue);
         meanLevel += level / BOLT_CELLS.length;
         meanCosine += (cosines[index] ?? 0) / BOLT_CELLS.length;
         meanSine += (sines[index] ?? 0) / BOLT_CELLS.length;

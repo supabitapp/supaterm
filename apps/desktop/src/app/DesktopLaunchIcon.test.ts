@@ -36,6 +36,7 @@ const run = (input: {
   readonly iconAppearance?: string;
   readonly systemDarkMode?: boolean;
   readonly prefersReducedMotion?: boolean;
+  readonly windowShowsAfterSeconds?: number;
 }) =>
   Effect.gen(function* () {
     const dockIcons: Array<Electron.NativeImage | null> = [];
@@ -81,24 +82,35 @@ const run = (input: {
     );
     const launchIcon = yield* DesktopLaunchIcon.DesktopLaunchIcon.pipe(Effect.provide(layer));
     yield* launchIcon.start;
-    yield* TestClock.adjust(Duration.seconds(2));
-    const thinking = dockIcons.length;
+    yield* TestClock.adjust(Duration.seconds(input.windowShowsAfterSeconds ?? 2));
     yield* launchIcon.settle;
-    yield* TestClock.adjust(Duration.seconds(2));
+    const atWindow = dockIcons.length;
+    yield* TestClock.adjust(Duration.seconds(1));
+    const stillThinking = dockIcons.length > atWindow && dockIcons.at(-1) !== null;
+    yield* TestClock.adjust(Duration.seconds(3));
     const settled = dockIcons.length;
     yield* TestClock.adjust(Duration.seconds(2));
-    return { thinking, settled, dockIcons, appearances };
+    return { atWindow, stillThinking, settled, dockIcons, appearances };
   }).pipe(Effect.scoped);
 
 describe("DesktopLaunchIcon", () => {
   it.effect("thinks until settled, then hands the Dock back the bundle's icon", () =>
     Effect.gen(function* () {
-      const { thinking, settled, dockIcons } = yield* run({});
+      const { atWindow, settled, dockIcons } = yield* run({ windowShowsAfterSeconds: 3 });
 
-      assert.isAbove(thinking, 20);
-      assert.isTrue(dockIcons.slice(0, thinking).every((image) => image !== null));
+      assert.isAbove(atWindow, 30);
+      assert.isTrue(dockIcons.slice(0, atWindow).every((image) => image !== null));
       assert.isNull(dockIcons.at(-1));
       assert.equal(dockIcons.length, settled);
+    }),
+  );
+
+  it.effect("keeps thinking through a quick launch so the rainbow still shows", () =>
+    Effect.gen(function* () {
+      const { stillThinking, dockIcons } = yield* run({ windowShowsAfterSeconds: 0.5 });
+
+      assert.isTrue(stillThinking);
+      assert.isNull(dockIcons.at(-1));
     }),
   );
 

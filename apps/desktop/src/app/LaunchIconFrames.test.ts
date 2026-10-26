@@ -51,8 +51,8 @@ describe("LaunchIconFrames", () => {
     const frame = frames.render(t, 0);
 
     assert.isAbove(thinkingLevel(...brightest, t), 0.9);
-    assert.isAbove(pixelAt(frame, ledCenter(...brightest)).red, OFF[0] + 0.85 * (GREY[0] - OFF[0]));
-    assert.isBelow(pixelAt(frame, ledCenter(...dimmest)).red, OFF[0] + 0.3 * (GREY[0] - OFF[0]));
+    assert.isAbove(pixelAt(frame, ledCenter(...brightest)).red, OFF[0] + 0.9 * (GREY[0] - OFF[0]));
+    assert.isBelow(pixelAt(frame, ledCenter(...dimmest)).red, OFF[0] + 0.75 * (GREY[0] - OFF[0]));
     assert.equal(pixelAt(frame, [0.1, 0.9]).red, OFF[0]);
   });
 
