@@ -21,7 +21,9 @@ import {
 import { isTrailingDoubleClick } from "../Sidebar.logic";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { toastManager } from "../ui/toast";
+import { usePaneInputOwner } from "~/chatPanes/paneScope";
 import { useShortcutLabel } from "~/hooks/useShortcutLabel";
+import { useStableCallback } from "~/hooks/useStableCallback";
 import { useThreadActionMenu } from "~/hooks/useThreadActionMenu";
 import { readLocalApi } from "~/localApi";
 import { threadEnvironment } from "../../state/threads";
@@ -37,6 +39,7 @@ import {
 import { observeResize } from "~/lib/observeResize";
 import { cn } from "~/lib/utils";
 import { textDirection } from "~/textDirection";
+import { subscribeThreadRename } from "./threadRenameActionBus";
 import { useClientSettings } from "../../hooks/useSettings";
 
 interface ChatHeaderProps {
@@ -153,7 +156,7 @@ export const ChatHeader = memo(function ChatHeader({
     isRenamingTitle,
   ]);
   const renameCommittedRef = useRef(false);
-  const startRename = () => {
+  const startRename = useStableCallback(() => {
     if (
       !isServerThread ||
       !readEnvironmentScope(activeThreadEnvironmentId, AuthOrchestrationOperateScope)
@@ -165,7 +168,15 @@ export const ChatHeader = memo(function ChatHeader({
       threadId: activeThreadId,
       title: activeThreadTitle,
     });
-  };
+  });
+  const isPaneInputOwner = usePaneInputOwner();
+  useEffect(
+    () =>
+      subscribeThreadRename(() => {
+        if (isPaneInputOwner()) startRename();
+      }),
+    [isPaneInputOwner, startRename],
+  );
   const commitRename = (title: string) => {
     setRenaming(null);
     if (!readEnvironmentScope(activeThreadEnvironmentId, AuthOrchestrationOperateScope)) return;

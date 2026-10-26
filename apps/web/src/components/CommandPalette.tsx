@@ -80,6 +80,8 @@ import {
   XIcon,
 } from "lucide-react";
 import { requestThreadFindOpen } from "./chat/threadFindActionBus";
+import { requestThreadRename } from "./chat/threadRenameActionBus";
+import { buildThreadPaletteItems } from "./CommandPaletteThreadActions";
 import {
   useDeferredValue,
   useEffect,
@@ -98,6 +100,7 @@ import { useDesktopLocalBootstraps } from "../connection/useDesktopLocalBootstra
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
 import { useActiveThreadRef } from "../hooks/useActiveThreadRef";
 import { useForkThread } from "../hooks/useForkThread";
+import { useThreadActionMenu } from "../hooks/useThreadActionMenu";
 import { useOpenPanelPullRequestUrl } from "../hooks/useOpenPanelPullRequestUrl";
 import { writeTextToClipboard } from "../hooks/useCopyToClipboard";
 import {
@@ -791,6 +794,11 @@ function OpenCommandPaletteDialog(props: {
   const currentProjectCwd = currentProjectId
     ? (projectCwdById.get(currentProjectId) ?? null)
     : null;
+  const { threadActions } = useThreadActionMenu({
+    threadRef: activeThreadRef,
+    projectCwd: currentProjectCwd,
+    onStartRename: requestThreadRename,
+  });
   const currentProjectCwdForBrowse =
     browseEnvironmentId && currentProjectEnvironmentId === browseEnvironmentId
       ? currentProjectCwd
@@ -1653,6 +1661,18 @@ function OpenCommandPaletteDialog(props: {
         if (refreshed._tag === "Failure") throw squashAtomCommandFailure(refreshed);
       },
     });
+  }
+
+  if (activeThread !== null) {
+    const { items, run } = threadActions(activeThread);
+    actionItems.push(
+      ...buildThreadPaletteItems(items, run).filter(
+        // Without a pull request, the copy-reference command above already copies the thread ID.
+        (item) =>
+          item.value !== "action:thread:copy-thread-id" ||
+          activeThreadReferenceCopyTarget?.kind !== "thread",
+      ),
+    );
   }
 
   actionItems.push({
