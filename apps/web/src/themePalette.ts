@@ -1027,14 +1027,6 @@ export function getThemeDefinition(theme: ThemePreference): ThemeDefinition | nu
   );
 }
 
-/** Only reviewed built-ins opt into artwork for light palettes. */
-export function themeAllowsSidebarArtwork(theme: ThemePreference): boolean {
-  return (
-    BUILT_IN_THEME_DEFINITIONS.find((definition) => definition.id === theme)?.sidebarArtwork ===
-    true
-  );
-}
-
 /**
  * Selecting a single-appearance theme as the base preference would clear the
  * light/dark mix and leave the appearance tiles disagreeing with what is on

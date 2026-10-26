@@ -230,7 +230,7 @@ describe("ClientSettings panel animations", () => {
 });
 
 describe("ClientSettings retired environment identification", () => {
-  it("drops the old presentation preference so artwork remains the default", () => {
+  it("drops the old presentation preference", () => {
     const stored = { environmentIdentificationMode: "none" };
     expect(decodeClientSettings(stored)).not.toHaveProperty("environmentIdentificationMode");
     expect(decodeClientSettingsPatch(stored)).toEqual({});

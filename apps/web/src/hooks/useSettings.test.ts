@@ -249,18 +249,13 @@ describe("resolveEnvironmentIdentificationMode", () => {
     expect(
       resolveEnvironmentIdentificationMode({
         settingsHydrated: false,
-        appearance: "dark",
+        appearance: "light",
+        paletteThemeActive: true,
       }),
     ).toBe("none");
-    expect(
-      resolveEnvironmentIdentificationMode({
-        settingsHydrated: true,
-        appearance: "dark",
-      }),
-    ).toBe("artwork");
   });
 
-  it("uses a pill instead of artwork with a custom light palette", () => {
+  it("uses a pill with a custom light palette", () => {
     expect(
       resolveEnvironmentIdentificationMode({
         settingsHydrated: true,
@@ -270,26 +265,20 @@ describe("resolveEnvironmentIdentificationMode", () => {
     ).toBe("pill");
   });
 
-  it("keeps artwork when the palette theme opts into it", () => {
+  it("shows nothing with the default palette or a dark appearance", () => {
     expect(
       resolveEnvironmentIdentificationMode({
         settingsHydrated: true,
         appearance: "light",
-        paletteThemeActive: true,
-        paletteThemeAllowsArtwork: true,
       }),
-    ).toBe("artwork");
-  });
-
-  it("keeps artwork with a custom dark palette", () => {
+    ).toBe("none");
     expect(
       resolveEnvironmentIdentificationMode({
         settingsHydrated: true,
         appearance: "dark",
         paletteThemeActive: true,
-        paletteThemeAllowsArtwork: false,
       }),
-    ).toBe("artwork");
+    ).toBe("none");
   });
 });
 

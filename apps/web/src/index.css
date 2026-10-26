@@ -492,31 +492,6 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
     var(--app-scrollbar-width) 100%;
 }
 
-/* Stage-channel art needs a mask and pseudo-element gradient, so keep the
-   behavior composable without tying it to the global components layer. */
-@utility sidebar-stage-backdrop {
-  --stage-fade: var(--sidebar-stage-fade, var(--app-chrome-background));
-  mask-image: linear-gradient(to bottom, black 0%, black 55%, transparent 92%);
-  -webkit-mask-image: linear-gradient(to bottom, black 0%, black 55%, transparent 92%);
-
-  &::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      to bottom,
-      transparent 0%,
-      transparent 28%,
-      color-mix(in srgb, var(--stage-fade) 10%, transparent) 40%,
-      color-mix(in srgb, var(--stage-fade) 30%, transparent) 52%,
-      color-mix(in srgb, var(--stage-fade) 58%, transparent) 64%,
-      color-mix(in srgb, var(--stage-fade) 82%, transparent) 75%,
-      color-mix(in srgb, var(--stage-fade) 96%, transparent) 85%,
-      var(--stage-fade) 93%
-    );
-  }
-}
-
 @keyframes live-tool-shine {
   from {
     background-position:
@@ -645,18 +620,6 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
   ::highlight(supaterm-assistant-citation-comment) {
     background-color: color-mix(in oklab, var(--primary) 45%, transparent);
   }
-  :root {
-    --stage-night-base-top: oklch(0.283792 0.117327 297.201);
-    --stage-night-base-mid: oklch(0.227147 0.086086 277.99);
-    --stage-night-base-bottom: oklch(0.200528 0.055699 261.216);
-    --stage-night-top: var(--stage-night-base-top);
-    --stage-night-mid: var(--stage-night-base-mid);
-    --stage-night-bottom: var(--stage-night-base-bottom);
-    --stage-night-line: oklch(0.938794 0.029114 273.103);
-    --stage-night-sparkle: oklch(0.880867 0.057747 269.011);
-    --stage-meteor-tail: oklch(0.81 0.09 294);
-  }
-
   * {
     @apply border-border outline-ring/50;
   }
@@ -694,33 +657,6 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
 
   [data-slot="animated-height"] [data-slot="collapsible-panel"][data-closed] {
     display: none;
-  }
-
-  /* The default palette tints the night sky behind the meteor shower.
-     These colors stay deliberately deep at the top edge so the white stage
-     wordmark and controls retain contrast in both appearance modes. */
-  html[data-theme-id="__default"] {
-    --stage-art-top: oklch(0.66 0.012 275);
-    --stage-art-mid: oklch(0.52 0.014 275);
-    --stage-art-bottom: oklch(0.36 0.012 275);
-    --stage-art-line: oklch(0.975 0.002 275);
-
-    --stage-night-top: color-mix(in oklch, var(--stage-art-top) 38%, var(--stage-night-base-top));
-    --stage-night-mid: color-mix(in oklch, var(--stage-art-mid) 38%, var(--stage-night-base-mid));
-    --stage-night-bottom: color-mix(
-      in oklch,
-      var(--stage-art-bottom) 38%,
-      var(--stage-night-base-bottom)
-    );
-    --stage-night-line: color-mix(in oklch, var(--stage-art-line) 82%, oklch(1 0 0));
-    --stage-night-sparkle: var(--stage-night-line);
-
-    @variant dark {
-      --stage-art-top: oklch(0.54 0.012 275);
-      --stage-art-mid: oklch(0.42 0.012 275);
-      --stage-art-bottom: oklch(0.27 0.01 275);
-      --stage-art-line: oklch(0.95 0.003 275);
-    }
   }
 
   @keyframes settings-search-target-pulse {
@@ -979,7 +915,6 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
   --sidebar-row-active: var(--color-white);
   --sidebar-row-selected: var(--color-white);
   --sidebar-border: var(--border);
-  --sidebar-stage-fade: var(--sidebar);
   --code-background: color-mix(in srgb, var(--card) 90%, var(--background));
   --code-foreground: var(--foreground);
   --terminal-background: var(--background);
@@ -1022,7 +957,6 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
     --sidebar-row-hover: var(--accent);
     --sidebar-row-active: var(--accent);
     --sidebar-row-selected: var(--muted);
-    --sidebar-stage-fade: var(--card);
     --terminal-cursor: rgb(180 203 255);
     --terminal-selection-background: rgb(180 203 255 / 25%);
   }
@@ -1049,7 +983,6 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
   --sidebar-row-active: var(--color-white);
   --sidebar-row-selected: var(--color-white);
   --sidebar-border: var(--color-zinc-200);
-  --sidebar-stage-fade: var(--sidebar);
 
   @variant dark {
     --background: #000;
@@ -1070,7 +1003,6 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
     --sidebar-row-active: color-mix(in srgb, var(--contrast-foreground) 11%, transparent);
     --sidebar-row-selected: color-mix(in srgb, var(--contrast-foreground) 7%, transparent);
     --sidebar-border: var(--border);
-    --sidebar-stage-fade: var(--card);
   }
 }
 
@@ -1139,7 +1071,6 @@ html[data-theme-id]:not([data-theme-id=""]) {
   --sidebar-row-active: var(--app-theme-sidebar-row-active);
   --sidebar-row-selected: var(--app-theme-sidebar-row-selected);
   --sidebar-border: var(--app-theme-sidebar-border);
-  --sidebar-stage-fade: var(--app-theme-sidebar);
   --code-background: var(--app-theme-code-background);
   --code-foreground: var(--app-theme-code-foreground);
   --terminal-background: var(--app-theme-terminal-background);
@@ -1317,7 +1248,6 @@ html[data-theme-id] [data-app-sidebar] {
   --sidebar-row-active: var(--app-theme-sidebar-row-active);
   --sidebar-row-selected: var(--app-theme-sidebar-row-selected);
   --sidebar-border: var(--app-theme-sidebar-border);
-  --sidebar-stage-fade: var(--app-theme-sidebar);
   border-color: color-mix(in srgb, var(--contrast-sidebar-foreground) 10%, transparent);
 
   @variant dark {

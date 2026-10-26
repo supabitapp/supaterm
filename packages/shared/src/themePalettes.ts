@@ -135,8 +135,6 @@ export type ThemeDefinition = Readonly<{
   colors: ThemeColors;
   variants?: ThemeVariants;
   collection?: Readonly<{ id: string; label: string }>;
-  /** Allows reviewed built-ins to render sidebar artwork in light appearances. */
-  sidebarArtwork?: boolean;
   managed?: boolean;
 }>;
 

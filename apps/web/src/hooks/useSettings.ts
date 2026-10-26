@@ -34,7 +34,6 @@ import {
   getThemePreviewAppearance,
   resolveThemeHalf,
   subscribeToThemePreview,
-  themeAllowsSidebarArtwork,
   type ThemeAppearance,
 } from "~/themePalette";
 import * as Equal from "effect/Equal";
@@ -56,7 +55,6 @@ import {
 } from "~/state/session";
 import { environmentIdsKey } from "~/state/environmentAtomList";
 import { appAtomRegistry } from "~/rpc/atomRegistry";
-import type { EnvironmentIdentificationMode } from "../components/SidebarStageBackdrop";
 
 const CLIENT_SETTINGS_PERSISTENCE_ERROR_SCOPE = "[CLIENT_SETTINGS]";
 
@@ -340,20 +338,16 @@ export function useMergedSettings<T = UnifiedSettings>(
   });
 }
 
+type EnvironmentIdentificationMode = "pill" | "none";
+
 export function resolveEnvironmentIdentificationMode(input: {
   settingsHydrated: boolean;
   appearance: ThemeAppearance;
   paletteThemeActive?: boolean;
-  paletteThemeAllowsArtwork?: boolean;
 }): EnvironmentIdentificationMode {
-  // Avoid briefly rendering artwork before client settings hydrate.
+  // Avoid briefly rendering the pill before client settings hydrate.
   if (!input.settingsHydrated) return "none";
-  // Custom light palettes use the pill; every other palette supports artwork.
-  return input.appearance === "light" &&
-    input.paletteThemeActive &&
-    !input.paletteThemeAllowsArtwork
-    ? "pill"
-    : "artwork";
+  return input.appearance === "light" && input.paletteThemeActive ? "pill" : "none";
 }
 
 export function useEnvironmentIdentificationMode(): EnvironmentIdentificationMode {
@@ -365,12 +359,10 @@ export function useEnvironmentIdentificationMode(): EnvironmentIdentificationMod
     () => null,
   );
   const activeTheme = resolveThemeHalf(theme, themeHalves, resolvedTheme);
-  const activeThemeDefinition = getThemeDefinition(activeTheme);
   return resolveEnvironmentIdentificationMode({
     settingsHydrated,
     appearance: previewAppearance ?? resolvedTheme,
-    paletteThemeActive: previewAppearance !== null || activeThemeDefinition !== null,
-    paletteThemeAllowsArtwork: previewAppearance === null && themeAllowsSidebarArtwork(activeTheme),
+    paletteThemeActive: previewAppearance !== null || getThemeDefinition(activeTheme) !== null,
   });
 }
 
