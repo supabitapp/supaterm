@@ -1,29 +1,134 @@
-import { View } from "react-native";
+import { useState } from "react";
+import { StyleSheet, View } from "react-native";
+import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
+import Animated, {
+  Easing,
+  FadeInDown,
+  FadeOut,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { AppSymbolName } from "../../components/ui/AppSymbol";
 import { Toast } from "../../components/ui/Toast";
-import { APP_BAR_HEIGHT } from "../../lib/layoutMetrics";
-import { dismissThreadUndoNotice, useThreadUndoNotice } from "./thread-undo-notice";
+import { MOBILE_MOTION } from "../../lib/designTokens";
+import { useReduceMotion } from "../../lib/useReducedMotionPreference";
+import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
+import {
+  dismissThreadUndoNotice,
+  readThreadUndoNotice,
+  useThreadUndoNotice,
+} from "./thread-undo-notice";
+
+type Notice = NonNullable<ReturnType<typeof useThreadUndoNotice>>;
+
+const NOTICE_CONTENT = {
+  Done: { message: "Marked as Done", icon: "checkmark.circle" },
+  Snoozed: { message: "Snoozed", icon: "clock" },
+  Unpinned: { message: "Unpinned", icon: "pin.slash" },
+} satisfies Record<Notice["action"], { message: string; icon: AppSymbolName }>;
 
 export function ThreadUndoNotice(props: { readonly visible: boolean }) {
   const notice = useThreadUndoNotice();
-  const insets = useSafeAreaInsets();
+  // Replacing a notice must also cancel the native gesture tracking the old one.
+  const [instance, setInstance] = useState({ notice, key: 0 });
+  if (instance.notice !== notice) setInstance({ notice, key: instance.key + 1 });
   if (!props.visible || notice === null) return null;
+  return <SwipeableUndoNotice key={instance.key} notice={notice} />;
+}
+
+function SwipeableUndoNotice(props: { readonly notice: Notice }) {
+  const { notice } = props;
+  const content = NOTICE_CONTENT[notice.action];
+  const insets = useSafeAreaInsets();
+  const workspace = useWorkspaceTabs();
+  const reduceMotion = useReduceMotion();
+  const exitTiming = {
+    duration: MOBILE_MOTION.exit,
+    easing: Easing.in(Easing.cubic),
+    reduceMotion,
+  };
+  const returnTiming = {
+    duration: MOBILE_MOTION.adjust,
+    easing: Easing.out(Easing.cubic),
+    reduceMotion,
+  };
+  // Float above the tab bar, dock, or keyboard, within reach of the thumb that triggered it.
+  const bottom = workspace?.bottomClearance ?? Math.max(insets.bottom, 12) + 12;
+  const translation = useSharedValue(0);
+  const height = useSharedValue(0);
+
+  const dismiss = () => {
+    // A newer action can replace the notice while the swipe is animating out.
+    if (readThreadUndoNotice() === notice) dismissThreadUndoNotice();
+  };
+  // It leaves through the edge it arrived from.
+  const gesture = usePanGesture({
+    activeOffsetY: [-10, 10],
+    failOffsetX: [-20, 20],
+    onUpdate: (event) => {
+      translation.set(event.translationY > 0 ? event.translationY : event.translationY * 0.2);
+    },
+    onDeactivate: (event) => {
+      if (
+        !event.canceled &&
+        (event.translationY > height.value * 0.4 ||
+          (event.velocityY > 600 && event.translationY > 0))
+      ) {
+        translation.set(
+          withTiming(bottom + height.value, exitTiming, (finished) => {
+            if (finished) runOnJS(dismiss)();
+          }),
+        );
+      } else {
+        translation.set(withTiming(0, returnTiming));
+      }
+    },
+  });
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translation.value }],
+  }));
+
   return (
-    <View
+    <Animated.View
       className="absolute inset-x-3 z-[100]"
-      style={{ top: insets.top + APP_BAR_HEIGHT + 8 }}
+      style={{ bottom }}
       pointerEvents="box-none"
+      entering={FadeInDown.duration(MOBILE_MOTION.enter)
+        .easing(Easing.out(Easing.cubic))
+        .reduceMotion(reduceMotion)}
+      exiting={FadeOut.duration(MOBILE_MOTION.exit).reduceMotion(reduceMotion)}
     >
-      <Toast
-        message={notice.action === "Done" ? "Marked thread as Done" : `${notice.action} thread`}
-        action={{
-          label: "Undo",
-          onPress: () => {
-            void notice.undo();
-          },
-        }}
-        onDismiss={dismissThreadUndoNotice}
-      />
-    </View>
+      <GestureDetector gesture={gesture}>
+        <Animated.View
+          collapsable={false}
+          className="self-center"
+          style={animatedStyle}
+          onLayout={(event) => {
+            height.set(event.nativeEvent.layout.height);
+          }}
+          onAccessibilityEscape={dismiss}
+        >
+          {/* Keep the dismiss target separate so screen readers can also focus Undo. */}
+          <View
+            accessible
+            accessibilityRole="alert"
+            accessibilityLabel={content.message}
+            accessibilityActions={[{ name: "dismiss", label: "Dismiss" }]}
+            onAccessibilityAction={dismiss}
+            pointerEvents="none"
+            style={StyleSheet.absoluteFill}
+          />
+          <Toast
+            variant="capsule"
+            message={content.message}
+            icon={content.icon}
+            action={{ label: "Undo", onPress: () => void notice.undo() }}
+          />
+        </Animated.View>
+      </GestureDetector>
+    </Animated.View>
   );
 }
