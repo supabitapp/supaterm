@@ -20,6 +20,7 @@ import {
 import { useThreadSearch } from "../state/queries";
 import { primaryServerProvidersAtom } from "../state/server";
 import { buildThreadRouteParams } from "../threadRoutes";
+import { withoutHiddenSideChats } from "./chat/sideChat.logic";
 import { buildThreadActionItems, ITEM_ICON_CLASS } from "./CommandPalette.logic";
 import { useEnvironmentLookups, useProjectLookups } from "./CommandPaletteLookups";
 import { ThreadCommandSubtitle } from "./ThreadCommandSubtitle";
@@ -82,7 +83,7 @@ export function useCommandPaletteThreadItems(input: {
   const { projectByKey, projectTitleById } = useProjectLookups();
 
   const threadItems = buildThreadActionItems({
-    threads,
+    threads: withoutHiddenSideChats(threads),
     ...(activeThreadId ? { activeThreadId } : {}),
     projectTitleById,
     sortOrder: sidebarThreadSortOrder,

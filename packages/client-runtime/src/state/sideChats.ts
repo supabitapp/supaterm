@@ -33,3 +33,25 @@ export function sideChatsOf<Thread extends SideChatShell>(
   }
   return sideChats;
 }
+
+interface ListedSideChat extends SideChatShell {
+  readonly archivedAt: string | null;
+  readonly deletedAt?: string | null | undefined;
+  readonly createdAt: string;
+  readonly latestUserMessageAt: string | null;
+}
+
+const lastAskedAt = (thread: ListedSideChat) => thread.latestUserMessageAt ?? thread.createdAt;
+
+/**
+ * A parent's open side chats, the one asked most recently first. Streaming
+ * answers do not move the user's last question, so the order holds meanwhile.
+ */
+export function openSideChatsOf<Thread extends ListedSideChat>(
+  threads: Iterable<Thread>,
+  parentThreadId: ThreadId,
+): ReadonlyArray<Thread> {
+  return sideChatsOf(threads, parentThreadId)
+    .filter((thread) => thread.archivedAt === null && thread.deletedAt == null)
+    .toSorted((left, right) => lastAskedAt(right).localeCompare(lastAskedAt(left)));
+}

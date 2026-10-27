@@ -70,6 +70,7 @@ import {
   LinkIcon,
   MessageSquareIcon,
   MessageSquareTextIcon,
+  MessagesSquareIcon,
   PaletteIcon,
   RotateCcwIcon,
   Rows2Icon,
@@ -100,6 +101,7 @@ import { useDesktopLocalBootstraps } from "../connection/useDesktopLocalBootstra
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
 import { useActiveThreadRef } from "../hooks/useActiveThreadRef";
 import { useForkThread } from "../hooks/useForkThread";
+import { useOpenSideChat } from "../hooks/useOpenSideChat";
 import { useThreadActionMenu } from "../hooks/useThreadActionMenu";
 import { useOpenPanelPullRequestUrl } from "../hooks/useOpenPanelPullRequestUrl";
 import { writeTextToClipboard } from "../hooks/useCopyToClipboard";
@@ -577,6 +579,7 @@ function OpenCommandPaletteDialog(props: {
       activeThreadRef !== null && store.rewindingThreadKeys.has(scopedThreadKey(activeThreadRef)),
   );
   const { onForkFromRun, disabled: forkDisabled } = useForkThread(activeThread, isRewinding);
+  const sideChat = useOpenSideChat(activeThread);
   const forkSource =
     activeThreadProjection === null
       ? null
@@ -1597,6 +1600,20 @@ function OpenCommandPaletteDialog(props: {
           run: () => onForkFromRun(forkSource),
         };
   if (forkThreadItem !== null) actionItems.push(forkThreadItem);
+  if (sideChat.available) {
+    actionItems.push({
+      kind: "action",
+      value: "action:side-chat",
+      searchTerms: ["side chat", "side", "btw", "ask", "question", "aside"],
+      title: "Ask in side chat",
+      icon: <MessagesSquareIcon className={ITEM_ICON_CLASS} />,
+      shortcutCommand: "thread.sideChat",
+      disabled: sideChat.busy,
+      run: async () => {
+        await sideChat.open("");
+      },
+    });
+  }
 
   if (activeThread !== null && activeThreadServerConfig != null) {
     const threadRef = scopeThreadRef(activeThread.environmentId, activeThread.id);

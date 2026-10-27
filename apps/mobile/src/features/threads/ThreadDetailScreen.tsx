@@ -175,9 +175,12 @@ import { ComposerQueuedEditBanner } from "./ComposerQueuedEdit";
 import type { ThreadContentPresentation } from "./threadContentPresentation";
 import { resolveThreadFeedSubmissionAnchor } from "./thread-feed-live-follow";
 import { useGlobalVoiceInput } from "../voice-input/VoiceInputProvider";
+import { takePendingSideChatFocus } from "./use-open-side-chat";
 
 export interface ThreadDetailScreenProps {
   readonly header?: React.ReactNode;
+  /** Sits above the composer in a side chat. */
+  readonly sideChatBar?: React.ReactNode;
   readonly draftMode?: {
     readonly content: (
       headerInset: number,
@@ -1122,6 +1125,11 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
     userInputInsetProgress.set(1);
   }, [activeUserInputRequestId, userInputCardProgress, userInputInsetProgress]);
   const showContent = props.showContent ?? true;
+  useEffect(() => {
+    if (!showContent || !takePendingSideChatFocus(selectedThreadKey)) return;
+    const frame = requestAnimationFrame(() => composerEditorRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [composerEditorRef, selectedThreadKey, showContent]);
   const layoutVariant = props.layoutVariant ?? "compact";
   const isSplitLayout = layoutVariant === "split";
   const contentMaxWidth =
@@ -1720,6 +1728,14 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
                   ) : (
                     <>
                       {props.draftMode?.controls}
+                      {props.sideChatBar ? (
+                        <View
+                          className="w-full self-center px-3 pt-1.5"
+                          style={{ maxWidth: contentMaxWidth }}
+                        >
+                          {props.sideChatBar}
+                        </View>
+                      ) : null}
                       <ThreadComposer
                         isDraft={Boolean(props.draftMode)}
                         canOperateThread={props.canOperateThread}

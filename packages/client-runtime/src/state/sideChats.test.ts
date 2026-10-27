@@ -1,5 +1,5 @@
 import { ThreadId } from "@supaterm/contracts";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@effect/vitest";
 
 import { isHiddenSideChat, sideChatsOf } from "./sideChats.ts";
 

@@ -13,6 +13,7 @@ import {
 } from "@react-navigation/native";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import * as Option from "effect/Option";
+import { isAtomCommandInterrupted } from "@supaterm/client-runtime/state/runtime";
 import {
   AuthOrchestrationOperateScope,
   AuthTerminalOperateScope,
@@ -94,6 +95,9 @@ import {
 import { threadRouteIsHydrating } from "./thread-route-hydration";
 import { useThreadPromptLink } from "../prompt-links/useThreadPromptLink";
 import { ThreadHeader } from "./ThreadHeader";
+import { SideChatBar } from "./SideChatBar";
+import { commandFailureMessage } from "./side-chat";
+import { useSideChatsMenu } from "./use-side-chats";
 import {
   useAndroidWorkspaceBack,
   useWorkspaceBackNavigation,
@@ -338,7 +342,10 @@ function ThreadRouteContent(
   })();
   const navigation = useNavigation();
   const openPullRequest = useOpenPullRequest();
-  const mergeBack = useAtomCommand(threadEnvironment.mergeBack, "merge thread back");
+  const mergeBack = useAtomCommand(threadEnvironment.mergeBack, {
+    label: "merge thread back",
+    reportFailure: false,
+  });
   const mergeBackBusyRef = useRef(false);
   const handleMergeBack = async () => {
     if (
@@ -360,7 +367,12 @@ function ThreadRouteContent(
       },
     });
     mergeBackBusyRef.current = false;
-    if (result._tag !== "Success") return;
+    if (result._tag !== "Success") {
+      if (!isAtomCommandInterrupted(result)) {
+        Dialog.alert("Could not merge back", commandFailureMessage(result.cause, "Try again."));
+      }
+      return;
+    }
     navigation.navigate("Thread", {
       environmentId: selectedThread.environmentId,
       threadId: mergeBackTargetThreadId,
@@ -434,6 +446,14 @@ function ThreadRouteContent(
     };
   });
   const routeEnvironmentRuntime = useRemoteEnvironmentRuntime(environmentId);
+  const isSideChat = selectedThread?.sideChat === true;
+  const sideChatsMenu = useSideChatsMenu({
+    parent: selectedThread,
+    offered:
+      !isSideChat &&
+      routeEnvironmentRuntime?.serverConfig?.environment.capabilities.sideChats === true,
+    canOperate: canOperateThread,
+  });
   const routeConnectionState =
     routeEnvironmentRuntime?.connectionState ?? (environmentId ? "available" : connectionState);
   const routeConnectionError = routeEnvironmentRuntime?.connectionError ?? null;
@@ -734,10 +754,12 @@ function ThreadRouteContent(
     onOpenFilesInspector:
       fileInspector.supported && selectedThreadCwd !== null ? handleOpenFilesInspector : undefined,
     onOpenGitInspector: fileInspector.supported ? handleOpenGitInspector : undefined,
+    // A side chat's bar owns merge back, with the reason it is unavailable.
     onMergeBack:
-      mergeBackTargetThreadId !== null && mergeBackRun !== null
+      !isSideChat && mergeBackTargetThreadId !== null && mergeBackRun !== null
         ? () => void handleMergeBack()
         : undefined,
+    sideChats: sideChatsMenu,
     currentBranch: selectedThread?.branch ?? null,
     gitStatus: gitStatus.data,
     gitOperationLabel: gitState.gitOperationLabel,
@@ -929,6 +951,20 @@ function ThreadRouteContent(
               onOpenFilesInspector={handleOpenFilesInspector}
               onReturnToThread={props.onReturnToThread}
             />
+          }
+          sideChatBar={
+            isSideChat ? (
+              <SideChatBar
+                sideChat={selectedThreadWithDraftSettings ?? selectedThread}
+                canOperate={canOperateThread}
+                onMergeBack={
+                  mergeBackTargetThreadId !== null && mergeBackRun !== null
+                    ? () => void handleMergeBack()
+                    : null
+                }
+                onUpdateRuntimeMode={composer.onUpdateRuntimeMode}
+              />
+            ) : null
           }
           canOperateThread={canOperateThread}
           selectedThread={selectedThreadWithDraftSettings ?? selectedThread}

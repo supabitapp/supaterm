@@ -64,6 +64,20 @@ describe("threadAllowsProviderSwitch", () => {
     ).toBe(false);
   });
 
+  it("keeps a side chat on its parent's provider even when the session could hand off", () => {
+    expect(
+      threadAllowsProviderSwitch({
+        thread: {
+          latestRun: { id: "run-1" },
+          latestUserMessageAt: "2026-06-01T00:00:00.000Z",
+          runtime: { status: "idle" },
+          sideChat: true,
+        } as never,
+        projection: projectionWithSession(true),
+      }),
+    ).toBe(false);
+  });
+
   it("keeps a started thread bound until its projection resolves a session", () => {
     expect(threadAllowsProviderSwitch({ thread: startedThread, projection: null })).toBe(false);
   });

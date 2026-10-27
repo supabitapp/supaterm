@@ -1815,6 +1815,29 @@ it("excludes subagents from navigation, search and ordering while retaining user
   ).toEqual([fork.id, root.id]);
 });
 
+it("hides a side chat while its parent exists, in lists and ordering alike", () => {
+  const parent = makeThread({ id: ThreadId.make("parent"), title: "Parent" });
+  const sideChat = makeThread({
+    id: ThreadId.make("side"),
+    title: "Side",
+    sideChat: true,
+    lineage: { parentThreadId: parent.id, rootThreadId: parent.id, relationshipToParent: "fork" },
+  });
+  const listed = (threads: EnvironmentThreadShell[]) => ({
+    items: buildThreadListV2Items({
+      threads,
+      environmentId: null,
+      searchQuery: "",
+      now: NOW,
+    }).items.map((item) => item.thread.id),
+    ordered: getThreadListV2OrderedSection({ threads, section: "active", now: NOW }).map(
+      (thread) => thread.id,
+    ),
+  });
+  expect(listed([parent, sideChat])).toEqual({ items: [parent.id], ordered: [parent.id] });
+  expect(listed([sideChat])).toEqual({ items: [sideChat.id], ordered: [sideChat.id] });
+});
+
 const BASE_MS = Date.parse(NOW);
 const isoAt = (ms: number) => new Date(ms).toISOString();
 const MINUTE_MS = 60_000;

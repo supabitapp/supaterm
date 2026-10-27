@@ -102,6 +102,8 @@ import { ComposerCommandPopover } from "./ComposerCommandPopover";
 import { ComposerPopoverAnchor } from "./ComposerPopoverAnchor";
 import { ComposerQueuedEditAttachments } from "./ComposerQueuedEdit";
 import { useComposerCommandMenu } from "./use-composer-command-menu";
+import { parseSideChatCommand } from "./side-chat";
+import { useOpenSideChat } from "./use-open-side-chat";
 import {
   ComposerDictationConfirmAction,
   ComposerDictationLeadingAction,
@@ -469,6 +471,12 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     return report !== null;
   };
 
+  // A side chat cannot open another side chat; the server refuses that fork.
+  const offersSideChats =
+    !props.isDraft &&
+    props.selectedThread.sideChat !== true &&
+    props.serverConfig?.environment.capabilities.sideChats === true;
+  const openSideChat = useOpenSideChat();
   const composerMenu = useComposerCommandMenu({
     draftMessage: draftMessage,
     ownerKey: composerDraftKey,
@@ -484,6 +492,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     hasCompactableConversation: props.hasCompactableConversation,
     onChangeDraftMessage: props.onChangeDraftMessage,
     offersUsageLimits: usageLimitsOffered,
+    offersSideChats,
     onUsageLimits:
       usageLimitsOffered && draftAttachments.length === 0 ? openUsageLimits : undefined,
   });
@@ -612,6 +621,15 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     }
     const threadKey = scopedThreadKey(props.environmentId, props.selectedThread.id);
     if (inFlightThreadIdsRef.current.has(threadKey)) return;
+    if (offersSideChats && queuedEdit === null && parseSideChatCommand(draftMessage) !== null) {
+      inFlightThreadIdsRef.current.add(threadKey);
+      await openSideChat({ parent: props.selectedThread, draftKey: composerDraftKey }).finally(
+        () => {
+          inFlightThreadIdsRef.current.delete(threadKey);
+        },
+      );
+      return;
+    }
     inFlightThreadIdsRef.current.add(threadKey);
     const draftAtSend = getComposerDraftSnapshot(composerDraftKey);
     const stillSendable = () => {

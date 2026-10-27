@@ -74,6 +74,7 @@ import {
 import { threadEnvironment } from "../../state/threads";
 import { useOrchestrationCommand } from "../../state/use-orchestration-command";
 import { draftSendState } from "./chatViewSend";
+import { parseSideChatCommand } from "./sideChat.logic";
 import type { makeThreadErrorSetter } from "../ChatView.logic";
 import type { usePendingThreadRequests } from "./usePendingThreadRequests";
 import type { useQueuedRunEditWithOutbox } from "./useQueuedRunEditWithOutbox";
@@ -154,6 +155,8 @@ interface ComposerSendInput {
   readonly setThreadError: ReturnType<typeof makeThreadErrorSetter>;
   readonly anchorNewTurn: TimelineFollow["anchorNewTurn"];
   readonly handleNewThreadInActiveProject: () => void;
+  /** Set where `/side` and `/btw` open a side chat instead of reaching this thread. */
+  readonly openSideChat: ((question: string) => Promise<boolean>) | null;
 }
 
 /**
@@ -215,6 +218,7 @@ export function useComposerSend(input: ComposerSendInput) {
     setThreadError,
     anchorNewTurn,
     handleNewThreadInActiveProject,
+    openSideChat,
   } = input;
   const openPaneThread = usePaneThreadNavigation();
   const clientSettingsHydrated = useClientSettingsHydrated();
@@ -259,6 +263,34 @@ export function useComposerSend(input: ComposerSendInput) {
       isUsageLimitsCommand(promptRef.current)
     ) {
       if (openUsageLimits()) {
+        promptRef.current = "";
+        setComposerDraftPrompt(composerDraftTarget, "");
+        composerRef.current?.resetCursorState();
+      }
+      return;
+    }
+
+    const answeringPendingUserInput =
+      activePendingProgress !== null &&
+      composerRef.current?.getSendContext().answeringPendingUserInput !== false;
+    const sideChatQuestion =
+      directAnnotation || queuedRunEdit.isEditing || answeringPendingUserInput
+        ? null
+        : parseSideChatCommand(promptAtSend);
+    if (openSideChat !== null && sideChatQuestion !== null) {
+      if (sideChatQuestion.length > 0 && draftHasNonPromptContent(composerDraftTarget)) {
+        toastManager.add(
+          stackedThreadToast({
+            type: "warning",
+            title: "Side chat questions are text only",
+            description:
+              "Remove the attachments, or open the side chat with /side and add them there.",
+          }),
+        );
+        return;
+      }
+      // Cleared only once the side chat has the question, so a failed open keeps it.
+      if ((await openSideChat(sideChatQuestion)) && promptRef.current === promptAtSend) {
         promptRef.current = "";
         setComposerDraftPrompt(composerDraftTarget, "");
         composerRef.current?.resetCursorState();

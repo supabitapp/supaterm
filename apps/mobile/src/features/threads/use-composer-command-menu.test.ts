@@ -52,4 +52,32 @@ describe("mobile slash commands", () => {
       }),
     ).toEqual({ text: "/plan ", cursor: 6 });
   });
+
+  it("offers /side and /btw over provider commands of the same name only where side chats exist", () => {
+    const provider = {
+      driver: ProviderDriverKind.make("codex"),
+      slashCommands: [
+        { name: "side", description: "Provider side" },
+        { name: "btw", description: "Provider btw" },
+      ],
+    };
+    const commands = (offersSideChats: boolean) =>
+      buildComposerSlashCommandItems({
+        query: "",
+        hasThread: true,
+        offersSideChats,
+        selectedProviderStatus: provider,
+      }).map((item) => [item.type, item.label]);
+
+    expect(commands(true)).toEqual([
+      ["slash-command", "/model"],
+      ["slash-command", "/side"],
+      ["slash-command", "/btw"],
+    ]);
+    expect(commands(false)).toEqual([
+      ["slash-command", "/model"],
+      ["provider-slash-command", "/side"],
+      ["provider-slash-command", "/btw"],
+    ]);
+  });
 });

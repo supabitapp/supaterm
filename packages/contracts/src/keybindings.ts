@@ -97,6 +97,7 @@ const THREAD_KEYBINDING_COMMANDS = [
   "thread.next",
   "thread.copyReference",
   "thread.fork",
+  "thread.sideChat",
   "thread.mark-done",
   "thread.pin",
   "thread.undo",

@@ -145,6 +145,8 @@ export function openRevertConfirm(threadKey: string, pending: PendingRevert): vo
 
 export function RevertConfirmHost(props: {
   readonly threadKey: string;
+  /** A side chat shares its parent's worktree, so the server refuses to restore its files. */
+  readonly restoreFilesAvailable: boolean;
   readonly onConfirm: (turnCount: number, messageId: MessageId, restoreFiles: boolean) => void;
 }) {
   const pending = useThreadOverlay(revertConfirmAtom, props.threadKey);
@@ -165,14 +167,18 @@ export function RevertConfirmHost(props: {
           <AlertDialogTitle>Edit from here?</AlertDialogTitle>
           <AlertDialogDescription>
             Rewind chat to before this message. Your prompt and attachments return to the composer.
-            “Revert files too” also undoes your own edits.
+            {props.restoreFilesAvailable
+              ? " “Revert files too” also undoes your own edits."
+              : " Files stay as they are, because this side chat shares its parent's worktree."}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>
-          <Button variant="destructive-outline" onClick={() => confirm(true)}>
-            Revert files too
-          </Button>
+          {props.restoreFilesAvailable ? (
+            <Button variant="destructive-outline" onClick={() => confirm(true)}>
+              Revert files too
+            </Button>
+          ) : null}
           <Button onClick={() => confirm(false)}>Revert and keep changes</Button>
         </AlertDialogFooter>
       </AlertDialogPopup>

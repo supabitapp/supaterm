@@ -143,6 +143,7 @@ function sendInput(
     setThreadError: () => {},
     anchorNewTurn: () => {},
     handleNewThreadInActiveProject: () => {},
+    openSideChat: null,
   };
 }
 

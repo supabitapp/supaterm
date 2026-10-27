@@ -80,6 +80,32 @@ running the send button shows which action it will take. Long-press it to use th
 other action for a single message, or hold `Cmd` while sending from a hardware
 keyboard. The button only offers Steer when the running agent supports it.
 
+## Ask in a side chat
+
+Type `/side` or `/btw` followed by a question to ask about a thread without
+interrupting it. The question goes to a side chat that starts from the thread's
+conversation and opens beside it, or in its place on mobile. Nothing you write
+there reaches the thread, and the thread keeps working.
+
+With Codex the side chat also sees the turn in progress, up to its last completed
+step. With other providers it starts from the last finished turn, so `/side`
+waits until the thread has finished one.
+
+A side chat shares the thread's workspace, so it asks before changing anything.
+Turn on **Allow edits** in its header to let it edit files. It stays on the
+thread's provider, and it cannot restore files from a checkpoint. While you keep
+a side chat, the thread cannot restore files either; discard the side chat first.
+
+Side chats stay out of the sidebar. Bare `/side`, the command palette's **Ask in
+side chat**, or a shortcut you assign to `thread.sideChat` reopens the one you
+last asked in. The thread's relationships menu lists them all. From a side chat's
+header you can:
+
+- **Merge back** its answer into the thread's next turn, once the thread is idle.
+  A thread takes one merge at a time.
+- **Promote** it to a normal thread, which lifts its restrictions.
+- **Discard** it.
+
 ## Queue messages offline
 
 Web, desktop, and mobile save sent messages locally until the environment accepts

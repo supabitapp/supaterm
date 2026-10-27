@@ -6,6 +6,7 @@ import {
   THREAD_JUMP_KEYBINDING_COMMANDS,
 } from "@supaterm/contracts";
 import { resolveThreadForkSource } from "@supaterm/client-runtime/state/thread-workflows";
+import { isHiddenSideChat } from "@supaterm/client-runtime/state/sideChats";
 import { threadPullRequestSearchTerms } from "@supaterm/shared/threadPullRequests";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -31,13 +32,19 @@ import { deriveBottomControlInsets } from "../../lib/reserved-regions";
 import { scopedProjectKey, scopedThreadKey } from "../../lib/scopedEntities";
 import { useNativeLayoutMetrics } from "../../native/native-layout-metrics";
 import { SupatermKeyboardCommands } from "../../native/SupatermKeyboardCommands";
-import { useProjects, useThreadShell, useThreadShells } from "../../state/entities";
+import {
+  useEnvironmentServerConfig,
+  useProjects,
+  useThreadShell,
+  useThreadShells,
+} from "../../state/entities";
 import { useThreadSearch } from "../../state/queries";
 import { useThreadProjection } from "../../state/use-thread-detail";
 import { useEnvironmentScope } from "../../state/session";
 import { useWorkspaceEnvironments } from "../../state/workspace";
 import { useSavedRemoteConnections } from "../../state/use-remote-environment-registry";
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
+import { useOpenSideChat } from "../threads/use-open-side-chat";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { ThreadSearchMatchExcerpt } from "../threads/thread-search-match";
 import {
@@ -166,6 +173,15 @@ export function CommandPalette(props: {
   );
   const canFork =
     canOperate && projection !== null && resolveThreadForkSource(projection.projection) !== null;
+  const activeServerConfig = useEnvironmentServerConfig(activeThreadRef?.environmentId ?? null);
+  const sideChatParent =
+    canOperate &&
+    activeThread !== null &&
+    activeThread.sideChat !== true &&
+    activeServerConfig?.environment.capabilities.sideChats === true
+      ? activeThread
+      : null;
+  const openSideChat = useOpenSideChat();
   const environments = useWorkspaceEnvironments();
   const { savedConnectionsById } = useSavedRemoteConnections();
   const [query, setQuery] = useState("");
@@ -332,6 +348,15 @@ export function CommandPalette(props: {
           run: () => runCommand("forkThread"),
         });
       }
+      if (sideChatParent !== null) {
+        actions.push({
+          key: "sideChat",
+          kind: "action",
+          title: "Side chat",
+          searchTerms: ["side", "btw", "ask", "question"],
+          run: () => void openSideChat({ parent: sideChatParent }),
+        });
+      }
     }
     const projectItems: CommandPaletteItem[] = projects.map((project) => ({
       key: `project:${scopedProjectKey(project.environmentId, project.id)}`,
@@ -349,8 +374,9 @@ export function CommandPalette(props: {
           },
         }),
     }));
+    const threadIds = new Set(threads.map((thread) => thread.id));
     const threadItems: CommandPaletteItem[] = threads
-      .filter((thread) => thread.archivedAt === null)
+      .filter((thread) => thread.archivedAt === null && !isHiddenSideChat(thread, threadIds))
       .sort((left, right) =>
         (right.latestUserMessageAt ?? right.updatedAt).localeCompare(
           left.latestUserMessageAt ?? left.updatedAt,
@@ -380,11 +406,13 @@ export function CommandPalette(props: {
     activeThreadRef,
     canFork,
     navigation,
+    openSideChat,
     projects,
     runCommand,
     savedConnectionsById,
     selectThread,
     selectThreadRoute,
+    sideChatParent,
     threads,
   ]);
   const results = useMemo(

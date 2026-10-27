@@ -30,6 +30,7 @@ import { Command, CommandGroup, CommandItem, CommandList } from "../ui/command";
 import { PierreEntryIcon } from "./PierreEntryIcon";
 import { ComposerBanner } from "./ComposerBanner";
 import { resolvePullRequestState } from "../pullRequest/pullRequestPresentation";
+import type { SideChatSlashCommand } from "./sideChat.logic";
 
 export type ComposerCommandItem =
   | {
@@ -44,7 +45,7 @@ export type ComposerCommandItem =
   | {
       id: string;
       type: "slash-command";
-      command: ComposerSlashCommand;
+      command: ComposerSlashCommand | SideChatSlashCommand;
       label: string;
       description: string;
     }

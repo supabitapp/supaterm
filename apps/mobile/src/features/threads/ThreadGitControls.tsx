@@ -90,6 +90,8 @@ export type ThreadGitMenuProps = {
 };
 
 type ThreadGitControlsProps = ThreadGitMenuProps & {
+  /** The parent's side chats; null hides the control. */
+  readonly sideChats?: AppBarMenu | null;
   readonly auxiliaryPaneControl?: {
     readonly accessibilityLabel: string;
     readonly onPress: () => void;
@@ -267,6 +269,35 @@ function useThreadGitControlModel(props: ThreadGitMenuProps) {
   };
 }
 
+function sideChatsHeaderItem(menu: AppBarMenu) {
+  return {
+    accessibilityLabel: menu.title,
+    icon: { name: typeof menu.icon === "string" ? menu.icon : menu.icon.ios, type: "sfSymbol" },
+    identifier: "thread-right-side-chats",
+    label: menu.title,
+    menu: {
+      items: menu.items.flatMap((item) =>
+        "items" in item
+          ? []
+          : [
+              {
+                description: item.subtitle,
+                disabled: item.disabled,
+                ...(item.icon ? { icon: { name: item.icon, type: "sfSymbol" as const } } : {}),
+                label: item.title,
+                onPress: item.onPress,
+                type: "action" as const,
+              },
+            ],
+      ),
+      title: menu.status ?? menu.title,
+    },
+    sharesBackground: true,
+    type: "menu",
+    variant: "plain",
+  };
+}
+
 function useThreadGitHeaderActionItems(props: ThreadGitControlsProps) {
   const model = useThreadGitControlModel(props);
   const { onOpenTerminal, onRunProjectScript } = props;
@@ -413,12 +444,16 @@ function useThreadGitHeaderActionItems(props: ThreadGitControlsProps) {
 
 export function useThreadGitRightHeaderItems(props: ThreadGitControlsProps): HeaderItems {
   const { files, git, terminal } = useThreadGitHeaderActionItems(props);
-  return [git, files, terminal];
+  return props.sideChats
+    ? [sideChatsHeaderItem(props.sideChats), git, files, terminal]
+    : [git, files, terminal];
 }
 
 export function useThreadGitCenterHeaderItems(props: ThreadGitControlsProps): HeaderItems {
   const { files, git, terminal } = useThreadGitHeaderActionItems(props);
-  return [files, git, terminal];
+  return props.sideChats
+    ? [files, git, terminal, sideChatsHeaderItem(props.sideChats)]
+    : [files, git, terminal];
 }
 
 export function ThreadGitControls(props: ThreadGitControlsProps) {
@@ -502,6 +537,7 @@ export function ThreadGitControls(props: ThreadGitControlsProps) {
         separateBackground
       />
       {createNativeHeaderMenu(threadGitMenuDefinition(props, model))}
+      {props.sideChats ? createNativeHeaderMenu(props.sideChats) : null}
     </Toolbar>
   );
 }

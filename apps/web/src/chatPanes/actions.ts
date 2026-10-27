@@ -56,7 +56,7 @@ export function openThreadPickerBeside(edge: PaneEdge) {
 }
 
 /** A keyboard switch moves typing into the newly focused pane, as a click would. */
-function focusFocusedPaneComposer() {
+export function focusFocusedPaneComposer() {
   const layout = useChatPaneStore.getState().layout;
   if (layout) requestAnimationFrame(() => focusPaneComposer(layout.focusedPaneId));
 }

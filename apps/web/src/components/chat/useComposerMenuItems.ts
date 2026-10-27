@@ -35,6 +35,26 @@ import {
 } from "../pullRequest/pullRequestList.logic";
 import type { ComposerCommandItem } from "./ComposerCommandMenu";
 import { searchSlashCommandItems } from "./composerSlashCommandSearch";
+import { isSideChatSlashCommand } from "./sideChat.logic";
+
+type SlashCommandItem = Extract<ComposerCommandItem, { type: "slash-command" }>;
+
+const SIDE_CHAT_SLASH_COMMAND_ITEMS: ReadonlyArray<SlashCommandItem> = [
+  {
+    id: "slash:side",
+    type: "slash-command",
+    command: "side",
+    label: "/side",
+    description: "Ask in a side chat without interrupting this thread",
+  },
+  {
+    id: "slash:btw",
+    type: "slash-command",
+    command: "btw",
+    label: "/btw",
+    description: "Ask in a side chat, same as /side",
+  },
+];
 
 const COMPOSER_PULL_REQUEST_LIST_LIMIT = 99;
 const COMPOSER_PULL_REQUEST_RESULT_LIMIT = 12;
@@ -51,6 +71,7 @@ export function useComposerMenuItems({
   pullRequestRepository,
   threadPullRequests,
   compactSlashCommandAvailable,
+  sideChatSlashCommandAvailable,
   selectedProvider,
   selectedProviderSkills,
   selectedProviderSlashCommands,
@@ -64,6 +85,7 @@ export function useComposerMenuItems({
   readonly pullRequestRepository: string | null;
   readonly threadPullRequests: ReadonlyArray<ThreadPullRequestLink> | undefined;
   readonly compactSlashCommandAvailable: boolean;
+  readonly sideChatSlashCommandAvailable: boolean;
   readonly selectedProvider: ProviderDriverKind;
   readonly selectedProviderSkills: ServerProvider["skills"];
   readonly selectedProviderSlashCommands: ServerProvider["slashCommands"];
@@ -178,7 +200,8 @@ export function useComposerMenuItems({
           label: "/model",
           description: "Switch response model for this thread",
         },
-      ] satisfies ReadonlyArray<Extract<ComposerCommandItem, { type: "slash-command" }>>;
+        ...(sideChatSlashCommandAvailable ? SIDE_CHAT_SLASH_COMMAND_ITEMS : []),
+      ] satisfies ReadonlyArray<SlashCommandItem>;
       const slashMenuSkills = getProviderSkillsForSlashMenu(
         selectedProviderSkills,
         showSkillsInSlashMenu,
@@ -207,7 +230,9 @@ export function useComposerMenuItems({
           (skill.scope ? `${skill.scope} skill` : ""),
       }));
       const visibleProviderSlashCommandItems = providerSlashCommandItems.filter(
-        (item) => item.command.name !== "compact" || compactSlashCommandAvailable,
+        (item) =>
+          (item.command.name !== "compact" || compactSlashCommandAvailable) &&
+          !(sideChatSlashCommandAvailable && isSideChatSlashCommand(item.command.name)),
       );
       return searchSlashCommandItems(
         [...builtInSlashCommandItems, ...visibleProviderSlashCommandItems, ...skillItems],

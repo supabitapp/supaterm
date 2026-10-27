@@ -22,6 +22,7 @@ import {
   type ThreadSortInput,
 } from "../lib/threadSort";
 import type { SidebarThreadSummary, Thread } from "../types";
+import { withoutHiddenSideChats } from "./chat/sideChat.logic";
 import { normalizeSearchText } from "../lib/utils";
 
 export {
@@ -505,16 +506,17 @@ function isSidebarSubagentThread(thread: Pick<SidebarThreadSummary, "lineage">):
   return thread.lineage.relationshipToParent === "subagent";
 }
 
+/** A subagent or side chat highlights the row of the thread it belongs to. */
 export function resolveSidebarRowThreadId(
   threadId: ThreadId,
   environmentId: EnvironmentId,
-  threads: readonly Pick<SidebarThreadSummary, "id" | "environmentId" | "lineage">[],
+  threads: readonly Pick<SidebarThreadSummary, "id" | "environmentId" | "lineage" | "sideChat">[],
 ): ThreadId {
   const findThread = (id: ThreadId) =>
     threads.find((thread) => thread.id === id && thread.environmentId === environmentId);
   const visited = new Set<ThreadId>();
   let thread = findThread(threadId);
-  while (thread !== undefined && isSidebarSubagentThread(thread)) {
+  while (thread !== undefined && (isSidebarSubagentThread(thread) || thread.sideChat === true)) {
     if (thread.lineage.parentThreadId === null || visited.has(thread.id)) return threadId;
     visited.add(thread.id);
     thread = findThread(thread.lineage.parentThreadId);
@@ -523,12 +525,12 @@ export function resolveSidebarRowThreadId(
 }
 
 export function filterSidebarV2VisibleThreads<
-  T extends Pick<SidebarThreadSummary, "archivedAt" | "lineage"> & {
+  T extends Pick<SidebarThreadSummary, "id" | "archivedAt" | "lineage" | "sideChat"> & {
     environmentId: string;
     projectId: string;
   },
 >(threads: readonly T[], scopedProjectKeys: ReadonlySet<string> | null): T[] {
-  return threads.filter(
+  return withoutHiddenSideChats(threads).filter(
     (thread) =>
       thread.archivedAt === null &&
       !isSidebarSubagentThread(thread) &&
@@ -1132,7 +1134,7 @@ export function sortLogicalProjectsForSidebar<
 
 export function sortSidebarV2ProjectGroups<
   TProject extends LogicalSidebarProject,
-  TThread extends ScopedSidebarThread & Pick<SidebarThreadSummary, "lineage">,
+  TThread extends ScopedSidebarThread & Pick<SidebarThreadSummary, "id" | "lineage" | "sideChat">,
 >(
   projects: readonly TProject[],
   threads: readonly TThread[],

@@ -13,6 +13,10 @@ Provider handoffs use either the full eligible app history or the delta since th
 participated. Fork merge-back handoffs summarize eligible delta items from the child. Neither path
 reconstructs provider-native session state, tool state, approvals, or omitted text.
 
+A native fork's inherited history exists only in the provider's copy of the conversation. Provider
+handoffs and history rebuilds read the fork's own items, so a fork that switches provider loses its
+parent's context. Side chats refuse provider switches for this reason.
+
 Legacy v1 continuation uses a separate algorithm. It considers only user and assistant messages,
 walks backward from the newest message, and builds a transcript suffix within a 32,000-character
 budget. Do not describe that migration budget as the limit for portable handoffs, and do not describe

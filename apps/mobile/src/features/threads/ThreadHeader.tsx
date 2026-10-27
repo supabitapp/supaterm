@@ -100,6 +100,7 @@ export function ThreadHeader(
         }
         onBack={layout.usesSplitView ? undefined : goBack}
         actions={androidHeaderActions}
+        menus={props.gitControls.sideChats ? [props.gitControls.sideChats] : undefined}
         hideBottomBorder
         compact={composerKeyboardActive}
       />

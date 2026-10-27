@@ -6,6 +6,7 @@ import { AsyncResult } from "effect/reactivity";
 import {
   archiveSelectedThreadEntries,
   deleteSelectedThreadEntries,
+  filterSidebarV2VisibleThreads,
   formatWorkingDurationLabel,
   getFallbackThreadIdAfterDelete,
   hasUnseenCompletion,
@@ -194,6 +195,35 @@ describe("sidebar thread lineage helpers", () => {
     const loopA = subagentOf("thread-loop-a", ThreadId.make("thread-loop-b"));
     const loopB = subagentOf("thread-loop-b", loopA.id);
     expect(resolveSidebarRowThreadId(loopA.id, environmentId, [loopA, loopB])).toBe(loopA.id);
+  });
+
+  it("keeps a side chat under its parent's row until the parent is deleted", () => {
+    const environmentId = EnvironmentId.make("environment-side-chat");
+    const parent = makeThreadFixture({ id: ThreadId.make("thread-parent"), environmentId });
+    const sideChat = makeThreadFixture({
+      id: ThreadId.make("thread-side-chat"),
+      environmentId,
+      sideChat: true,
+      lineage: {
+        rootThreadId: parent.id,
+        parentThreadId: parent.id,
+        relationshipToParent: "fork",
+      },
+    });
+    const elsewhere = makeThreadFixture({
+      id: ThreadId.make("thread-parent"),
+      environmentId: EnvironmentId.make("environment-elsewhere"),
+    });
+
+    expect(filterSidebarV2VisibleThreads([parent, sideChat], null)).toEqual([parent]);
+    expect(resolveSidebarRowThreadId(sideChat.id, environmentId, [parent, sideChat])).toBe(
+      parent.id,
+    );
+    expect(filterSidebarV2VisibleThreads([elsewhere, sideChat], null)).toEqual([
+      elsewhere,
+      sideChat,
+    ]);
+    expect(resolveSidebarRowThreadId(sideChat.id, environmentId, [sideChat])).toBe(sideChat.id);
   });
 });
 

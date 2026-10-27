@@ -18,6 +18,7 @@ import type { SnoozePreset } from "@supaterm/client-runtime/state/thread-snooze"
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import { resolveThreadProviderStack } from "@supaterm/client-runtime/state/models";
 import { threadSearchMatchKey } from "@supaterm/client-runtime/state/thread-search";
+import { isHiddenSideChat } from "@supaterm/client-runtime/state/sideChats";
 import {
   createInboxReturnTracker,
   isThreadWorking,
@@ -235,8 +236,13 @@ export function getThreadListV2OrderedSection(input: {
   readonly queuedThreadKeys?: ReadonlySet<string>;
 }): EnvironmentThreadShell[] {
   const queuedThreadKeys = input.queuedThreadKeys?.size ? input.queuedThreadKeys : undefined;
+  const threadIds = new Set(input.threads.map((thread) => thread.id));
   const threads = input.threads.filter((thread) => {
-    if (thread.archivedAt !== null || thread.lineage.relationshipToParent === "subagent")
+    if (
+      thread.archivedAt !== null ||
+      thread.lineage.relationshipToParent === "subagent" ||
+      isHiddenSideChat(thread, threadIds)
+    )
       return false;
     if (
       thread.doneOverride === "done" &&
@@ -737,8 +743,14 @@ export function buildThreadListV2Items(input: {
   let nextSnoozeWakeAt: string | null = null;
 
   const queuedThreadKeys = input.queuedThreadKeys?.size ? input.queuedThreadKeys : undefined;
+  const threadIds = new Set(input.threads.map((thread) => thread.id));
   for (const thread of input.threads) {
-    if (thread.archivedAt !== null || thread.lineage.relationshipToParent === "subagent") continue;
+    if (
+      thread.archivedAt !== null ||
+      thread.lineage.relationshipToParent === "subagent" ||
+      isHiddenSideChat(thread, threadIds)
+    )
+      continue;
     // The server stamps doneOverride for the tail.
     if (input.environmentId !== null && thread.environmentId !== input.environmentId) continue;
     if (projectKeys !== null && !projectKeys.has(`${thread.environmentId}:${thread.projectId}`)) {

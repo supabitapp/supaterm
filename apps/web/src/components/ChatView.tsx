@@ -35,6 +35,7 @@ import { useComposerSelection } from "./chat/useComposerSelection";
 import { useRightPanelActions } from "./chat/useRightPanelActions";
 import { useThreadLifecycle } from "./chat/useThreadLifecycle";
 import { useComposerSend } from "./chat/useComposerSend";
+import { useSideChatBannerItems } from "./chat/SideChatBanners";
 import { useComposerResume } from "./chat/useComposerResume";
 import { type TerminalLaunchContext, useChatTerminalActions } from "./chat/useChatTerminalActions";
 import { useDraftEnvironmentRouting } from "./chat/useDraftEnvironmentRouting";
@@ -56,6 +57,7 @@ import {
   rememberCheckoutIsRepo,
 } from "./ChatView.logic";
 import { useLogicalProjectEnvironments } from "../hooks/useLogicalProjectEnvironments";
+import { useOpenSideChat } from "../hooks/useOpenSideChat";
 import { useStableCallback } from "../hooks/useStableCallback";
 import { useProjectScriptEditing } from "./chat/useProjectScriptEditing";
 import { RightPanelSurfaceContent } from "./chat/RightPanelSurfaceContent";
@@ -1236,10 +1238,17 @@ export default function ChatView(props: ChatViewProps) {
     : (primaryEnvironment?.serverConfig ?? null);
   const providerEnvironmentId = (activeThread ? activeEnvironment : primaryEnvironment)
     ?.environmentId;
-  const providerStatuses =
+  const environmentProviderStatuses =
     (providerEnvironmentId === undefined
       ? undefined
       : providersByEnvironment.get(providerEnvironmentId)) ?? EMPTY_PROVIDERS;
+  // The server refuses a side chat's turn on any other provider instance until it is promoted.
+  const providerStatuses =
+    serverThread?.sideChat === true
+      ? environmentProviderStatuses.filter(
+          (provider) => provider.instanceId === serverThread.providerInstanceId,
+        )
+      : environmentProviderStatuses;
   const selectedProviderByThreadId = composerActiveProvider ?? null;
   const threadProvider =
     activeThread?.modelSelection.instanceId ??
@@ -2658,11 +2667,23 @@ export default function ChatView(props: ChatViewProps) {
           },
         })
       : null;
+  const sideChat = useOpenSideChat(serverThread);
+  const sideChatBannerItems = useSideChatBannerItems({
+    environmentId,
+    thread: serverThread,
+    projection: serverProjection,
+    canOperate: canOperateThread,
+    runtimeMode,
+    onRuntimeModeChange: handleRuntimeModeChangeStable,
+  });
   const composerBannerItems = ((): ComposerBannerStackItem[] => {
     const limitRecoveryItems = limitRecoveryBanner === null ? [] : [limitRecoveryBanner];
-    const backgroundWorkItems = [childInputBanner, goalBanner, backgroundWorkBanner].filter(
-      (item) => item !== null,
-    );
+    const backgroundWorkItems = [
+      ...sideChatBannerItems,
+      childInputBanner,
+      goalBanner,
+      backgroundWorkBanner,
+    ].filter((item) => item !== null);
     const usageLimitsItems = usageLimitsBanner === null ? [] : [usageLimitsBanner];
     const projectCloneItems = projectCloneBannerItem === null ? [] : [projectCloneBannerItem];
     if (!localCheckoutBranchMismatch || !showBranchMismatchBanner || !activeBranchMismatchKey) {
@@ -2860,6 +2881,10 @@ export default function ChatView(props: ChatViewProps) {
       ...threadLifecycleShortcuts,
       ...timelineRewindShortcuts,
       ...timelineFollowShortcuts,
+      "thread.sideChat": ({ repeat }) => {
+        if (!sideChat.available) return false;
+        if (!repeat) void sideChat.open("");
+      },
       "pane.close": ({ repeat }) => {
         if (!paneScope || !paneSplit) return false;
         if (!repeat) useChatPaneStore.getState().close(paneScope.paneId);
@@ -3015,6 +3040,7 @@ export default function ChatView(props: ChatViewProps) {
     setThreadError,
     anchorNewTurn,
     handleNewThreadInActiveProject,
+    openSideChat: sideChat.available ? sideChat.open : null,
   });
 
   const onWorktreeSetupWorkLocally = () => {
@@ -3761,6 +3787,7 @@ export default function ChatView(props: ChatViewProps) {
                                   activeTasksProgress={activeComposerTasksProgress}
                                   activeTaskSteps={activeComposerTaskSteps}
                                   compactThreadUnavailable={compactThreadUnavailable}
+                                  sideChatSlashCommandAvailable={sideChat.available}
                                   compactDisabled={compactDisabled}
                                   compactDisabledReason={compactDisabledReason}
                                   resolvedTheme={resolvedTheme}
@@ -4000,7 +4027,11 @@ export default function ChatView(props: ChatViewProps) {
         <ChatRightPanel sheet {...rightPanelProps} />
       ) : null}
 
-      <RevertConfirmHost threadKey={routeThreadKey} onConfirm={onConfirmRevertStable} />
+      <RevertConfirmHost
+        threadKey={routeThreadKey}
+        restoreFilesAvailable={serverThread?.sideChat !== true}
+        onConfirm={onConfirmRevertStable}
+      />
       <ThreadVisitWatermark threadRef={routeThreadRef} />
       <ExpandedImageDialogHost threadKey={routeThreadKey} />
     </div>

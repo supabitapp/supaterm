@@ -54,6 +54,7 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { useComposerPathSearch, useComposerPullRequestSearch } from "../../state/queries";
 import type { ComposerCommandItem } from "./ComposerCommandPopover";
 import { matchesCommandMenuSkillQuery } from "./composerCommandMenuSkillSearch";
+import { isSideChatCommandName, SIDE_CHAT_COMMANDS } from "./side-chat";
 
 const WORKSPACE_SNAPSHOT_RETRY_COOLDOWN_MS = 10_000;
 
@@ -66,10 +67,11 @@ export function buildComposerSlashCommandItems(input: {
   readonly hasThread: boolean;
   readonly hasCompactableConversation?: boolean;
   readonly offersUsageLimits?: boolean;
+  readonly offersSideChats?: boolean;
   readonly selectedProviderStatus: Pick<ServerProvider, "driver" | "slashCommands"> | null;
 }): ComposerCommandItem[] {
   const query = input.query.toLowerCase();
-  const builtIn = [
+  const builtIn: Array<Extract<ComposerCommandItem, { readonly type: "slash-command" }>> = [
     {
       id: "cmd:model",
       type: "slash-command",
@@ -77,11 +79,21 @@ export function buildComposerSlashCommandItems(input: {
       label: "/model",
       description: "Switch model",
     },
-  ] satisfies ComposerCommandItem[];
+    ...(input.offersSideChats
+      ? SIDE_CHAT_COMMANDS.map((command) => ({
+          id: `cmd:${command.name}`,
+          type: "slash-command" as const,
+          command: command.name,
+          label: `/${command.name}`,
+          description: command.description,
+        }))
+      : []),
+  ];
   const items: ComposerCommandItem[] = builtIn.filter((item) => item.command.includes(query));
 
   for (const command of input.selectedProviderStatus?.slashCommands ?? []) {
     if (!command.name.toLowerCase().includes(query)) continue;
+    if (input.offersSideChats && isSideChatCommandName(command.name)) continue;
     if (command.name === "compact" && !input.hasCompactableConversation) continue;
     if (command.name === USAGE_LIMITS_COMMAND.name && input.offersUsageLimits && !input.hasThread) {
       continue;
@@ -141,6 +153,7 @@ export function useComposerCommandMenu({
   hasThread,
   hasCompactableConversation,
   offersUsageLimits = false,
+  offersSideChats = false,
   enabled = true,
   onChangeDraftMessage,
   onUsageLimits,
@@ -158,6 +171,7 @@ export function useComposerCommandMenu({
   readonly hasThread: boolean;
   readonly hasCompactableConversation: boolean;
   readonly offersUsageLimits?: boolean;
+  readonly offersSideChats?: boolean;
   readonly enabled?: boolean;
   readonly onChangeDraftMessage: (value: string) => void;
   readonly onUsageLimits?: () => void;
@@ -346,6 +360,7 @@ export function useComposerCommandMenu({
         hasThread,
         hasCompactableConversation,
         offersUsageLimits,
+        offersSideChats,
         selectedProviderStatus: selectedProviderStatus
           ? {
               ...selectedProviderStatus,

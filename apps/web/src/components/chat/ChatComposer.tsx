@@ -450,6 +450,8 @@ export interface ChatComposerProps {
   activeProjectId: ProjectId | null;
 
   compactThreadUnavailable: boolean;
+  /** `/side` and `/btw` open a side chat; ChatView intercepts them on send. */
+  sideChatSlashCommandAvailable: boolean;
   compactDisabled: boolean;
   compactDisabledReason: string | null;
 
@@ -586,6 +588,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     reportedModelSelection,
     activeProjectId,
     compactThreadUnavailable,
+    sideChatSlashCommandAvailable,
     compactDisabled,
     compactDisabledReason,
     resolvedTheme,
@@ -1194,6 +1197,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     pullRequestRepository,
     threadPullRequests,
     compactSlashCommandAvailable,
+    sideChatSlashCommandAvailable,
     selectedProvider,
     selectedProviderSkills,
     selectedProviderSlashCommands,
@@ -1944,6 +1948,21 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           setIsComposerModelPickerOpen(true);
         }
         return;
+      }
+      if (item.command === "side" || item.command === "btw") {
+        const replacement = `/${item.command} `;
+        const replacementRangeEnd = extendReplacementRangeForTrailingSpace(
+          snapshot.value,
+          trigger.rangeEnd,
+          replacement,
+        );
+        const applied = applyPromptReplacement(
+          trigger.rangeStart,
+          replacementRangeEnd,
+          replacement,
+          { expectedText: snapshot.value.slice(trigger.rangeStart, replacementRangeEnd) },
+        );
+        if (applied) setComposerHighlightedItemId(null);
       }
       return;
     }
