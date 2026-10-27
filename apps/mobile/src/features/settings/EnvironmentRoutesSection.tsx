@@ -91,7 +91,7 @@ export function EnvironmentRoutesSection({
 
   const byId = new Map(saved.map((route) => [connectionRouteId(route.target), route]));
   const routes = order.flatMap((id) => byId.get(id) ?? []);
-  const usable = new Set(usableRoutes(entry));
+  const usable = new Set(usableRoutes(entry).map((route) => connectionRouteId(route.target)));
   const activeRouteId =
     connected && Option.isSome(prepared) ? connectionRouteId(prepared.value.target) : null;
 
@@ -196,7 +196,7 @@ export function EnvironmentRoutesSection({
       ) : null}
       {routes.map((route, index) => {
         const id = connectionRouteId(route.target);
-        const unused = !usable.has(route);
+        const unused = !usable.has(connectionRouteId(route.target));
         const lifted = drag === null ? 0 : (heights.get(drag.id) ?? 0);
         const shift =
           dragFrom === -1 || index === dragFrom

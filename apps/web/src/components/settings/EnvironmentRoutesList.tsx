@@ -63,7 +63,9 @@ export function EnvironmentRoutesList({
       : savedIds;
   const byId = new Map(saved.map((route) => [connectionRouteId(route.target), route]));
   const routes = order.flatMap((id) => byId.get(id) ?? []);
-  const usable = new Set(usableRoutes(environment.entry));
+  const usable = new Set(
+    usableRoutes(environment.entry).map((route) => connectionRouteId(route.target)),
+  );
 
   const prepared = usePreparedConnection(environment.environmentId);
   const activeRouteId =
@@ -114,7 +116,7 @@ export function EnvironmentRoutesList({
         <SortableContext items={order} strategy={verticalListSortingStrategy}>
           <ol aria-label={`Routes to ${environment.label}, preferred first`}>
             {routes.map((route, index) => {
-              const unused = !usable.has(route);
+              const unused = !usable.has(connectionRouteId(route.target));
               return (
                 <SortableRouteRow
                   key={connectionRouteId(route.target)}
