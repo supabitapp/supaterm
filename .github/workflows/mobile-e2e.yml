@@ -132,7 +132,8 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: ~/.cache/supaterm/mobile-e2e
-          key: mobile-e2e-${{ runner.os }}-${{ runner.arch }}-${{ steps.fingerprint.outputs.hash }}-${{ hashFiles('scripts/mobile-e2e/build.ts', 'scripts/mobile-native-client.ts', '.github/workflows/mobile-e2e.yml') }}
+          key: mobile-e2e-${{ runner.os }}-${{ runner.arch }}-${{ steps.fingerprint.outputs.hash }}-v1
+          restore-keys: mobile-e2e-${{ runner.os }}-${{ runner.arch }}-${{ steps.fingerprint.outputs.hash }}-
       - name: Run mobile checks
         env:
           MOBILE_PLATFORM: ${{ matrix.platform }}

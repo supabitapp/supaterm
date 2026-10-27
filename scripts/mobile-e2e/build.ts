@@ -30,7 +30,7 @@ async function nativeClient(
       cwd: REPO_ROOT,
       env: BUILD_ENV,
       allowFailure: mode === "check",
-      timeoutMs: mode === "ensure" ? 1_800_000 : 120_000,
+      timeoutMs: mode === "ensure" ? 2_700_000 : 120_000,
       ...(logPath ? { logPath } : {}),
     },
   );

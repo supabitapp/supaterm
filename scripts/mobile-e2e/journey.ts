@@ -189,10 +189,26 @@ export async function runJourney(
     },
   );
 
-  await device.agent(["scroll", "up"]);
+  const input = composer(thread)!;
+  const swipeX = Math.round(input.rect!.x + input.rect!.width / 2);
+  const swipeTop = Math.round(thread.viewport.height * 0.25);
+  const swipeBottom = Math.round(Math.min(input.rect!.y - 30, thread.viewport.height * 0.7));
+  await device.agent([
+    "swipe",
+    String(swipeX),
+    String(swipeTop),
+    String(swipeX),
+    String(swipeBottom),
+  ]);
   await delay(800);
   await capture("scrolled up", await device.snapshot());
-  await device.agent(["scroll", "down"]);
+  await device.agent([
+    "swipe",
+    String(swipeX),
+    String(swipeBottom),
+    String(swipeX),
+    String(swipeTop),
+  ]);
   await delay(800);
 
   await tap(composer(await device.snapshot()), "composer");
