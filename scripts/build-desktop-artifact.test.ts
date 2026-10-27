@@ -3,7 +3,7 @@ import * as NodeCrypto from "node:crypto";
 import * as NodePath from "node:path";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { extractFile, statFile } from "@electron/asar";
+import { createPackageWithOptions, extractFile, statFile } from "@electron/asar";
 import { assert, it } from "@effect/vitest";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Deferred from "effect/Deferred";
@@ -45,7 +45,9 @@ import {
   ancestorNodeModulesPaths,
   copyDirectoryPreservingSymlinks,
   LinuxBrowserSecretHostError,
+  MacPackagedAppMissingError,
   stageBrowserSecret,
+  validateMacPackagedPayload,
   validateWindowsPackagedPayload,
   verifyPackagedBundleIsSelfContained,
   WindowsPrimaryNativeProbeError,
@@ -210,6 +212,26 @@ const makeWindowsPayloadFixture = Effect.fn("test.makeWindowsPayloadFixture")(fu
     generatedAsarPath,
     appExecutableName,
   } as const;
+});
+
+const makeMacPayloadFixture = Effect.fn("test.makeMacPayloadFixture")(function* (input: {
+  readonly serverEntrySource?: string;
+}) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const tempDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-mac-payload-test-" });
+  const sourceDir = path.join(tempDir, "app-source");
+  const serverEntryPath = path.join(sourceDir, "apps/server/dist/bin.mjs");
+  yield* fs.makeDirectory(path.dirname(serverEntryPath), { recursive: true });
+  yield* fs.writeFileString(serverEntryPath, input.serverEntrySource ?? "console.log('server');\n");
+
+  const stageDistDir = path.join(tempDir, "dist");
+  const resourcesDir = path.join(stageDistDir, "mac-arm64/Supaterm.app/Contents/Resources");
+  yield* fs.makeDirectory(resourcesDir, { recursive: true });
+  yield* Effect.promise(() =>
+    createPackageWithOptions(sourceDir, path.join(resourcesDir, "app.asar"), {}),
+  );
+  return { stageDistDir } as const;
 });
 
 it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
@@ -1440,6 +1462,62 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
 
         assert.instanceOf(error, BundleNotSelfContainedError);
         assert.include(error.output, "supaterm-deliberately-missing-package");
+      }),
+    ),
+  );
+
+  it.effect("rejects a macOS app whose packaged server bundle cannot resolve", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const fixture = yield* makeMacPayloadFixture({
+          serverEntrySource: 'import "supaterm-deliberately-missing-package";\n',
+        });
+        const error = yield* validateMacPackagedPayload({
+          stageDistDir: fixture.stageDistDir,
+        }).pipe(Effect.flip);
+
+        assert.instanceOf(error, BundleNotSelfContainedError);
+        assert.include(error.output, "supaterm-deliberately-missing-package");
+      }),
+    ),
+  );
+
+  it.effect("accepts a macOS app whose packaged server bundle resolves", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const fixture = yield* makeMacPayloadFixture({});
+        yield* validateMacPackagedPayload({ stageDistDir: fixture.stageDistDir });
+      }),
+    ),
+  );
+
+  it.effect("rejects a macOS stage without a packaged app", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const stageDistDir = yield* fs.makeTempDirectoryScoped({
+          prefix: "supaterm-mac-payload-test-",
+        });
+        const error = yield* validateMacPackagedPayload({ stageDistDir }).pipe(Effect.flip);
+
+        assert.instanceOf(error, MacPackagedAppMissingError);
+      }),
+    ),
+  );
+
+  it.effect("rejects a macOS app without app.asar", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const stageDistDir = yield* fs.makeTempDirectoryScoped({
+          prefix: "supaterm-mac-payload-test-",
+        });
+        yield* fs.makeDirectory(`${stageDistDir}/mac-arm64/Supaterm.app/Contents/Resources`, {
+          recursive: true,
+        });
+        const error = yield* validateMacPackagedPayload({ stageDistDir }).pipe(Effect.flip);
+
+        assert.instanceOf(error, BundleNotSelfContainedError);
       }),
     ),
   );
