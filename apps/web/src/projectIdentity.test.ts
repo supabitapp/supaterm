@@ -1,6 +1,8 @@
+import { projectColorKey } from "@supaterm/client-runtime/project-colors";
 import { describe, expect, it } from "vite-plus/test";
+
 import { PROJECT_ICON_COLORS } from "./projectIconColors";
-import { assignProjectColors, projectColorKey, projectMonogram } from "./projectIdentity";
+import { assignProjectColors, projectMonogram } from "./projectIdentity";
 
 function projects(...titles: ReadonlyArray<string>) {
   return titles.map((title, index) => ({

@@ -1,13 +1,9 @@
 import { useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
 
-import {
-  assignProjectColors,
-  preferredProjectColor,
-  projectColorKey,
-  projectMonogram,
-  type ProjectIdentity,
-} from "../projectIdentity";
+import { preferredProjectColor, projectColorKey } from "@supaterm/client-runtime/project-colors";
+
+import { assignProjectColors, projectMonogram, type ProjectIdentity } from "../projectIdentity";
 import { environmentProjects } from "./projects";
 
 const projectColorsAtom = Atom.make((get) =>

@@ -1,23 +1,14 @@
+import {
+  AUTOMATIC_PROJECT_COLORS,
+  preferredProjectColorIndex,
+  projectColorKey,
+} from "@supaterm/client-runtime/project-colors";
 import type { ProjectIconColor } from "@supaterm/contracts";
 
 export interface ProjectIdentity {
   readonly monogram: string;
   readonly color: ProjectIconColor;
 }
-
-// Hue-ordered and limited to hues that stay distinct on a 16px tile; neighbors such as
-// purple and fuchsia read as the same color there. The picker still offers every color.
-const AUTOMATIC_PROJECT_COLORS = [
-  "red",
-  "orange",
-  "amber",
-  "lime",
-  "emerald",
-  "cyan",
-  "blue",
-  "violet",
-  "pink",
-] as const satisfies ReadonlyArray<ProjectIconColor>;
 
 function normalizeProjectName(projectName: string): string {
   return projectName.normalize("NFKC").trim();
@@ -35,22 +26,6 @@ export function projectMonogram(projectName: string): string {
     (words.length > 1 ? Array.from(words.at(-1) ?? "")[0] : glyphs.at(-1)) ??
     first;
   return Array.from(`${first}${second}`.toUpperCase()).slice(0, 2).join("");
-}
-
-export function projectColorKey(projectName: string): string {
-  return normalizeProjectName(projectName).toLocaleLowerCase("en-US");
-}
-
-function preferredColorIndex(colorKey: string): number {
-  let hash = 0x811c9dc5;
-  for (const glyph of colorKey) {
-    hash = Math.imul(hash ^ (glyph.codePointAt(0) ?? 0), 0x01000193);
-  }
-  return (hash >>> 0) % AUTOMATIC_PROJECT_COLORS.length;
-}
-
-export function preferredProjectColor(colorKey: string): ProjectIconColor {
-  return AUTOMATIC_PROJECT_COLORS[preferredColorIndex(colorKey)] ?? "blue";
 }
 
 function hueDistance(left: number, right: number): number {
@@ -91,7 +66,7 @@ export function assignProjectColors(
     const colorKey = projectColorKey(project.title);
     if (colors.has(colorKey)) continue;
     if (used.size === AUTOMATIC_PROJECT_COLORS.length) used = new Set();
-    const index = distinctColorIndex(preferredColorIndex(colorKey), used);
+    const index = distinctColorIndex(preferredProjectColorIndex(colorKey), used);
     used.add(index);
     colors.set(colorKey, AUTOMATIC_PROJECT_COLORS[index] ?? "blue");
   }

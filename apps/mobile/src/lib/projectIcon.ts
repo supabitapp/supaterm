@@ -1,3 +1,4 @@
+import { preferredProjectColor, projectColorKey } from "@supaterm/client-runtime/project-colors";
 import { isScratchProject } from "@supaterm/client-runtime/state/projects";
 import { ProjectIconColor, type ProjectIconOverride } from "@supaterm/contracts";
 import { isProjectFaviconFallbackUrl } from "@supaterm/shared/projectFavicon";
@@ -32,26 +33,10 @@ export function projectMonogram(projectName: string): string {
   return Array.from(`${first}${second}`.toUpperCase()).slice(0, 2).join("");
 }
 
-// Mirrors the desktop's preferred project color (apps/web/src/projectIdentity.ts), so a
-// project without an icon gets the same tile color on every client.
-const AUTOMATIC_PROJECT_COLORS = [
-  "red",
-  "orange",
-  "amber",
-  "lime",
-  "emerald",
-  "cyan",
-  "blue",
-  "violet",
-  "pink",
-] as const satisfies ReadonlyArray<ProjectIconColor>;
-
+// Same preferred color as the desktop. The desktop also moves a project off a color an
+// older project already holds, so two projects can differ between clients.
 export function projectMonogramColor(projectName: string): ProjectIconColor {
-  let hash = 0x811c9dc5;
-  for (const glyph of projectName.normalize("NFKC").trim().toLocaleLowerCase("en-US")) {
-    hash = Math.imul(hash ^ (glyph.codePointAt(0) ?? 0), 0x01000193);
-  }
-  return AUTOMATIC_PROJECT_COLORS[(hash >>> 0) % AUTOMATIC_PROJECT_COLORS.length] ?? "blue";
+  return preferredProjectColor(projectColorKey(projectName));
 }
 
 export function projectAutoMonogram(projectTitle: string): ProjectIconGlyph | null {
