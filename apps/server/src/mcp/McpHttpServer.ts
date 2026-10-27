@@ -1044,7 +1044,8 @@ export const layerMcpTransport = McpServer.layerHttp({
   allowSessionTermination: true,
 }).pipe(Layer.provide(layerMcpAuthMiddleware));
 
-export const layer = Layer.mergeAll(
+/** Every tool the Supaterm MCP server advertises. AgentContextBudget.test.ts measures this set. */
+export const layerTools = Layer.mergeAll(
   layerPreviewToolkit,
   layerOrchestratorToolkit,
   layerThreadToolkit,
@@ -1061,5 +1062,6 @@ export const layer = Layer.mergeAll(
   // One instance, so an upload prepared through the attachment tools is the
   // same caller's upload the transcription tools check.
   Layer.provide(McpPendingUploads.layer),
-  Layer.provideMerge(layerMcpTransport),
 );
+
+export const layer = layerTools.pipe(Layer.provideMerge(layerMcpTransport));
