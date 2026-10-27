@@ -450,6 +450,10 @@ export interface TunnelClientOptions {
   readonly signal?: AbortSignal;
 }
 
+// An unreachable LAN address must not hold back the relay's answer that the
+// host is offline, so direct candidates give up well before the relay does.
+const DIRECT_HANDSHAKE_TIMEOUT_MS = 5_000;
+
 interface EstablishedTunnel {
   readonly session: TunnelSession;
   readonly via: TunnelVia;
@@ -459,6 +463,7 @@ function dialCandidate(
   url: string,
   identity: Uint8Array,
   options: TunnelClientOptions,
+  timeoutMs: number,
   signal: AbortSignal,
   claim: () => boolean,
   onClose?: (error?: Error) => void,
@@ -479,9 +484,7 @@ function dialCandidate(
     };
     const abort = () => fail(new Error("Relay connection canceled"));
     signal.addEventListener("abort", abort, { once: true });
-    const cancelTimeout = after(options.handshakeTimeoutMs ?? 15_000, () =>
-      fail(new Error("Relay handshake timed out")),
-    );
+    const cancelTimeout = after(timeoutMs, () => fail(new Error("Relay handshake timed out")));
     if (signal.aborted) {
       abort();
       return;
@@ -546,11 +549,17 @@ function connectTunnel(
   const identity = parseRelayAddress(address);
   if (!identity) return Promise.reject(new Error("Not a relay address"));
   const relayUrl = options.relayUrl ?? DEFAULT_PUBLIC_RELAY_URL;
-  const candidates: Array<{ readonly url: string; readonly via: TunnelVia }> = [
-    { url: relayUrl, via: "relay" },
+  const relayTimeoutMs = options.handshakeTimeoutMs ?? 15_000;
+  const candidates: Array<{
+    readonly url: string;
+    readonly via: TunnelVia;
+    readonly timeoutMs: number;
+  }> = [
+    { url: relayUrl, via: "relay", timeoutMs: relayTimeoutMs },
     ...directTunnelUrls(options.directUrls?.() ?? [], relayUrl).map((url) => ({
       url,
       via: "direct" as const,
+      timeoutMs: Math.min(relayTimeoutMs, DIRECT_HANDSHAKE_TIMEOUT_MS),
     })),
   ];
   const race = new AbortController();
@@ -568,8 +577,8 @@ function connectTunnel(
       race.abort();
       return true;
     };
-    candidates.forEach(({ url, via }, index) => {
-      dialCandidate(url, identity, options, race.signal, claim, onClose).then(
+    candidates.forEach(({ url, via, timeoutMs }, index) => {
+      dialCandidate(url, identity, options, timeoutMs, race.signal, claim, onClose).then(
         (session) => resolve({ session, via }),
         (error: Error) => {
           failures[index] = error;

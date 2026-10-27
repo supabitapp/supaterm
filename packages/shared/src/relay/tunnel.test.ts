@@ -497,6 +497,27 @@ describe("relay and direct candidate race", () => {
     host.connector.close();
   });
 
+  it("gives up on a silent direct candidate before the relay's handshake deadline", async () => {
+    vi.useFakeTimers();
+    try {
+      const host = tunnelHost(() => [LAN]);
+      let settled = false;
+      const connecting = host.connector.session().finally(() => {
+        settled = true;
+      });
+      const rejected = expect(connecting).rejects.toThrow("host-offline");
+      host.dialed(RELAY).emit("close", { code: 4404, reason: "host-offline" });
+      host.dialed(LAN);
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await rejected;
+      host.connector.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("does not open a session from a welcome that arrives after the race failed", async () => {
     vi.useFakeTimers();
     try {
