@@ -653,6 +653,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const terminalStatus = terminalStatusFromRunningIds(runningTerminalIds);
   const terminalProcessCount = runningTerminalIds.length;
   const hasUnsentDraft = useThreadHasUnsentDraft(threadRef) && !props.isRouteThread;
+  // A thread open in a pane announces its own status, so its row stays quiet
+  // instead of saying everything twice.
+  const statusAnnouncedByTimeline = props.isRouteThread || props.inOtherPane;
   const handleDiscardDraftClick = (event: ReactMouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
@@ -1407,14 +1410,19 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                   )}
                 >
                   {topStatus && !showDuration && topStatusKind !== "connecting" ? (
-                    <span role="status" className={cn("inline-flex shrink-0", topStatus.className)}>
+                    <span
+                      role={statusAnnouncedByTimeline ? undefined : "status"}
+                      className={cn("inline-flex shrink-0", topStatus.className)}
+                    >
                       <StatusIcon aria-hidden className="size-3.5" />
                       <span className="sr-only">{topStatus.label}</span>
                     </span>
                   ) : null}
                   {topStatus && (showDuration || topStatusKind === "connecting") ? (
                     <span className={cn("whitespace-nowrap", topStatus.className)}>
-                      <span role="status">{topStatus.label}</span>
+                      <span role={statusAnnouncedByTimeline ? undefined : "status"}>
+                        {topStatus.label}
+                      </span>
                       {showDuration ? (
                         <span aria-hidden>
                           {" "}
