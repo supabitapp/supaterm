@@ -198,6 +198,7 @@ overrides:
   "@expo/ui": 58.0.20
   "@expo/fingerprint": 0.21.5
   app-builder-lib: 26.17.0
+  "@muse-code/sdk": 1.4.6
   expo-modules-core: 58.0.22
   # Keep jsdom's optional peer consistent so Vite+ has one test-runner instance.
   "@exodus/bytes>@noble/hashes": "1.8.0"
@@ -321,6 +322,8 @@ patchedDependencies:
   # Android: Maven-resolved gradle plugins (expo-widgets) have no sourceDir; without this
   # skip, the fingerprint silently drops every Expo native module and OTAs reach stale binaries.
   "@expo/fingerprint@0.21.5": patches/@expo__fingerprint@0.21.5.patch
+  # Observe the owned host exit independently of descendants retaining its stdio.
+  "@muse-code/sdk@1.4.6": patches/@muse-code__sdk@1.4.6.patch
   app-builder-lib@26.17.0: patches/app-builder-lib@26.17.0.patch
 
 peerDependencyRules:
