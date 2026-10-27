@@ -13,12 +13,10 @@ import { usePresence } from "../../hooks/usePresence";
 import { animationsSettled } from "../../lib/motion";
 import { Popover, PopoverPopup, PopoverCreateHandle } from "../ui/popover";
 import { selectThreadPanelOpen, useRightPanelStore } from "../../rightPanelStore";
-import type { ThreadPanelPresentation } from "../../rightPanelLayout";
 import { useChatCanvas } from "./ChatCanvasContext";
 import {
   THREAD_DETAILS_CARD_GAP,
   resolveThreadDetailsCardDensity,
-  resolveThreadDetailsCardLayout,
 } from "./threadDetailsCardLayout";
 import { observeResize } from "../../lib/observeResize";
 
@@ -26,33 +24,16 @@ export function ThreadDetailsCard({
   threadRef,
   anchor,
   handle,
-  onPresentationChange,
   children,
 }: {
   threadRef: ScopedThreadRef;
   anchor: RefObject<Element | null>;
   handle: ReturnType<typeof PopoverCreateHandle>;
-  onPresentationChange: (presentation: ThreadPanelPresentation) => void;
   children: (density: "full" | "compact" | "essential") => ReactNode;
 }) {
   const canvas = useChatCanvas();
-  const preferredPlacement = canvas
-    ? resolveThreadDetailsCardLayout({
-        container: canvas.container,
-        lane: canvas.lane,
-        frame: null,
-        topInset: canvas.detailsCardTopInset,
-      })
-    : null;
-  const placement = canvas
-    ? resolveThreadDetailsCardLayout({
-        container: canvas.container,
-        lane: canvas.lane,
-        frame: canvas.layout.frame,
-        overlapsDetailsCard: canvas.layout.overlapsDetailsCard,
-        topInset: canvas.detailsCardTopInset,
-      })
-    : null;
+  const preferredPlacement = canvas?.preferredDetailsCard ?? null;
+  const placement = canvas?.detailsCardPlacement ?? null;
   const mode = placement ? "inline" : "popover";
   const topInset = canvas?.detailsCardTopInset ?? 0;
   const inlineOpen = useRightPanelStore((state) =>
@@ -62,44 +43,32 @@ export function ThreadDetailsCard({
     selectThreadPanelOpen(state.threadPanelVisibilityByThreadKey, threadRef, "popover"),
   );
   const threadKey = `${threadRef.environmentId}:${threadRef.threadId}`;
-  const [contentElement, setContentElement] = useState<HTMLDivElement | null>(null);
   const measurementKey = `${threadKey}:${preferredPlacement?.width ?? "popup"}`;
   const [measurements, setMeasurements] = useState({
     key: measurementKey,
     heights: { full: 0, compact: 0 },
-    fullContentHeight: 0,
   });
   const contentHeights =
     measurements.key === measurementKey ? measurements.heights : { full: 0, compact: 0 };
   const height = placement?.height ?? Math.max(0, (canvas?.container.height ?? 0) - 52);
   const density = resolveThreadDetailsCardDensity(height, contentHeights);
-  const reportDetailsCard = canvas?.reportDetailsCard;
-  const cardLeft = preferredPlacement?.x;
-  const cardRight = preferredPlacement
-    ? preferredPlacement.x + preferredPlacement.width
-    : undefined;
-  const cardBottom =
-    preferredPlacement && measurements.key === measurementKey && measurements.fullContentHeight > 0
-      ? preferredPlacement.y + Math.min(measurements.fullContentHeight, preferredPlacement.height)
-      : undefined;
+  const measureDetailsCard = canvas?.measureDetailsCard;
+  const cardWidth = preferredPlacement?.width;
+  // The mode derives from canvas measurements, the preview frame and the
+  // inline flag, which live in three stores, so no single write site sees the
+  // card leave popover mode. A flag left set would reopen the popover unasked
+  // when the card returns to popover mode.
   useLayoutEffect(() => {
-    reportDetailsCard?.(
-      inlineOpen && cardLeft !== undefined && cardRight !== undefined && cardBottom !== undefined
-        ? { left: cardLeft, right: cardRight, bottom: cardBottom }
-        : null,
-    );
-  }, [reportDetailsCard, inlineOpen, cardLeft, cardRight, cardBottom]);
-  useLayoutEffect(() => () => reportDetailsCard?.(null), [reportDetailsCard]);
-  useLayoutEffect(() => {
-    onPresentationChange(mode);
     if (mode === "inline" && popoverOpen)
       useRightPanelStore.getState().setThreadPanelOpen(threadRef, "popover", false);
-  }, [mode, onPresentationChange, threadRef, popoverOpen]);
+  }, [mode, popoverOpen, threadRef]);
+  const [contentElement, setContentElement] = useState<HTMLDivElement | null>(null);
+  const { environmentId, threadId } = threadRef;
+  // Re-measures when the density or measurement key changes, so each density's
+  // height is measured once it renders.
   useLayoutEffect(() => {
     const element = contentElement;
     if (!element || density === "essential") return;
-    // Measure the single content tree before the scroll viewport clips it. Retain each
-    // observed height so increasing available space restores the detail it can hold.
     // A disclosure resizes the content every frame while it animates, so a resize measures
     // once its transitions settle instead of re-rendering the panel per frame.
     const measure = () => {
@@ -114,22 +83,19 @@ export function ThreadDetailsCard({
         next - Array.from(lists).reduce((sum, list) => sum + list.offsetHeight, 0);
       setMeasurements((current) => {
         const heights = current.key === measurementKey ? current.heights : { full: 0, compact: 0 };
-        const fullContentHeight =
-          density === "full"
-            ? next
-            : current.key === measurementKey
-              ? current.fullContentHeight
-              : 0;
-        return current.key === measurementKey &&
-          heights[density] === fittingHeight &&
-          current.fullContentHeight === fullContentHeight
+        return current.key === measurementKey && heights[density] === fittingHeight
           ? current
-          : {
-              key: measurementKey,
-              heights: { ...heights, [density]: fittingHeight },
-              fullContentHeight,
-            };
+          : { key: measurementKey, heights: { ...heights, [density]: fittingHeight } };
       });
+      // Only the laid-out DOM knows the full card height, and the canvas keeps preview
+      // frames clear of it, so it is reported from this measure effect.
+      if (density === "full" && cardWidth !== undefined) {
+        measureDetailsCard?.({
+          threadRef: { environmentId, threadId },
+          width: cardWidth,
+          fullContentHeight: next,
+        });
+      }
     };
     let settling = false;
     let disposed = false;
@@ -146,7 +112,15 @@ export function ThreadDetailsCard({
       disposed = true;
       stopObserving();
     };
-  }, [contentElement, density, measurementKey]);
+  }, [
+    contentElement,
+    density,
+    measurementKey,
+    cardWidth,
+    measureDetailsCard,
+    environmentId,
+    threadId,
+  ]);
   const renderCard = (motionProps?: PresenceProps) => (
     <div
       {...motionProps}
@@ -199,23 +173,27 @@ export function ThreadDetailsCard({
         >
           {renderCard}
         </InlineThreadDetails>
-      ) : (
-        <PopoverPopup
-          anchor={anchor}
-          align="end"
-          // Lines the card up with the find bar: the panel pads its card by 8px.
-          alignOffset={THREAD_DETAILS_CARD_GAP - 8}
-          collisionAvoidance={{ side: "shift", align: "shift", fallbackAxisSide: "none" }}
-          side="bottom"
-          sideOffset={topInset}
-          variant="panel"
-          padding="none"
-        >
+      ) : null}
+      {/* Rendered in both modes: base-ui keeps a popup that unmounts mid-open
+          mounted, because its exit animation never finishes. Staying in the tree
+          lets it close cleanly when the card switches inline. */}
+      <PopoverPopup
+        anchor={anchor}
+        align="end"
+        // Lines the card up with the find bar: the panel pads its card by 8px.
+        alignOffset={THREAD_DETAILS_CARD_GAP - 8}
+        collisionAvoidance={{ side: "shift", align: "shift", fallbackAxisSide: "none" }}
+        side="bottom"
+        sideOffset={topInset}
+        variant="panel"
+        padding="none"
+      >
+        {mode === "popover" ? (
           <div data-density={density} data-thread-details-panel="popover">
             {renderCard()}
           </div>
-        </PopoverPopup>
-      )}
+        ) : null}
+      </PopoverPopup>
     </Popover>
   );
 }
