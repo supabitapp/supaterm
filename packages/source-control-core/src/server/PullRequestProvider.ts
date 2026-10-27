@@ -262,6 +262,11 @@ export interface ProviderFileRevisions {
 /** A run as its host reads it; `repository` is resolved from `cwd` when the caller named none. */
 export type ProviderWorkflowRun = Omit<PullRequestWorkflowRun, "host">;
 
+export interface ProviderFilterOptionPage<A> {
+  readonly items: ReadonlyArray<A>;
+  readonly truncated: boolean;
+}
+
 export interface ProviderRepositoryRef {
   readonly cwd: string;
   readonly repository: string;
@@ -543,6 +548,22 @@ export interface PullRequestProviderApi {
   readonly listLabelCandidates?: (
     input: ProviderRepositoryRef & { readonly number: number },
   ) => Effect.Effect<PullRequestLabelCandidateList, PullRequestProviderError>;
+
+  /**
+   * The labels a repository offers, for narrowing a listing by. `query` narrows by name as far as
+   * the host can; the caller still matches the answer against it.
+   */
+  readonly listRepositoryLabels?: (
+    input: ProviderRepositoryRef & { readonly query?: string | undefined },
+  ) => Effect.Effect<ProviderFilterOptionPage<PullRequestLabel>, PullRequestProviderError>;
+
+  /**
+   * People who could have opened a change request in the repository, for narrowing a listing by
+   * author. A host that can only search its whole user base answers from that.
+   */
+  readonly searchRepositoryAuthors?: (
+    input: ProviderRepositoryRef & { readonly query?: string | undefined },
+  ) => Effect.Effect<ProviderFilterOptionPage<PullRequestActor>, PullRequestProviderError>;
 
   readonly setLabels?: (
     input: ProviderRepositoryRef & {
