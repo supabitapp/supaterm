@@ -108,6 +108,7 @@ export interface ThreadFeedActivity {
     | "eye"
     | "globe"
     | "search"
+    | "stop"
     | "hammer"
     | "lock"
     | "message"
@@ -561,6 +562,7 @@ function itemIcon(item: OrchestrationV2TurnItem): ThreadFeedActivity["icon"] {
       return "hammer";
     case "run_interrupt_request":
     case "run_interrupt_result":
+      return "stop";
     case "system_notice":
       return "warning";
     case "error":
