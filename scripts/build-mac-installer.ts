@@ -38,6 +38,10 @@ export class MacInstallerCommandFailedError extends Schema.TaggedError<MacInstal
   }
 }
 
+// hdiutil intermittently fails with "Resource busy" on CI runners.
+const retryHdiutil = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+  effect.pipe(Effect.retry({ times: 2, schedule: Schedule.spaced("5 seconds") }));
+
 const run = Effect.fn("run")(function* (command: string, args: ReadonlyArray<string>) {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const child = yield* spawner.spawn(
@@ -112,12 +116,26 @@ const buildMacInstaller = Effect.fn("buildMacInstaller")(function* (input: {
   for (const file of [`${MAC_ICON_NAME}.icns`, "Assets.car"]) {
     yield* fs.copyFile(path.join(iconDir, file), path.join(resources, file));
   }
+  yield* fs.copyFile(
+    path.join(iconDir, `${MAC_ICON_NAME}.icns`),
+    path.join(imageRoot, ".VolumeIcon.icns"),
+  );
 
   yield* run("codesign", codesignArgs(identity, appDir));
 
-  yield* fs.makeDirectory(input.outputDir, { recursive: true });
-  const dmgPath = path.resolve(input.outputDir, MAC_INSTALLER_FILE_NAME);
-  // hdiutil create intermittently fails with "Resource busy" on CI runners.
+  const layoutTool = path.join(workDir, "DiskImageLayout");
+  yield* run("xcrun", [
+    "swiftc",
+    "-O",
+    "-o",
+    layoutTool,
+    path.join(sourceDir, "DiskImageLayout/main.swift"),
+  ]);
+  yield* run(layoutTool, ["background", imageRoot]);
+
+  // The Finder view's background alias must point into the volume itself, so
+  // the .DS_Store is written on a mounted read-write copy before compressing.
+  const layoutImage = path.join(workDir, "layout.dmg");
   yield* run("hdiutil", [
     "create",
     "-volname",
@@ -127,10 +145,38 @@ const buildMacInstaller = Effect.fn("buildMacInstaller")(function* (input: {
     "-fs",
     "HFS+",
     "-format",
-    "UDZO",
+    "UDRW",
     "-ov",
+    layoutImage,
+  ]).pipe(retryHdiutil);
+  const volume = path.join(workDir, "volume");
+  yield* Effect.acquireUseRelease(
+    run("hdiutil", [
+      "attach",
+      layoutImage,
+      "-readwrite",
+      "-nobrowse",
+      "-noautoopen",
+      "-mountpoint",
+      volume,
+    ]),
+    () => run(layoutTool, ["finder-view", volume, `${APP_NAME}.app`]),
+    () => run("hdiutil", ["detach", volume]).pipe(retryHdiutil),
+  );
+
+  yield* fs.makeDirectory(input.outputDir, { recursive: true });
+  const dmgPath = path.resolve(input.outputDir, MAC_INSTALLER_FILE_NAME);
+  yield* run("hdiutil", [
+    "convert",
+    layoutImage,
+    "-format",
+    "UDZO",
+    "-imagekey",
+    "zlib-level=9",
+    "-ov",
+    "-o",
     dmgPath,
-  ]).pipe(Effect.retry({ times: 2, schedule: Schedule.spaced("5 seconds") }));
+  ]);
   if (identity === "-") {
     yield* Effect.log(`[mac-installer] Wrote ${dmgPath}, signed ad hoc.`);
     return dmgPath;
