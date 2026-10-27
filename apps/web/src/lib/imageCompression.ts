@@ -252,7 +252,7 @@ export function inheritComposerImageThumbnail(source: File, target: File): void 
   const sourceThumbnails = composerThumbnails.get(source);
   if (source === target || !sourceThumbnails || composerThumbnails.has(target)) return;
   const settled = settledComposerThumbnails.get(source);
-  if (settled) settledComposerThumbnails.set(target, { ...settled });
+  if (settled) settledComposerThumbnails.set(target, settled);
   for (const mode of Object.keys(sourceThumbnails) as ComposerImageThumbnailMode[]) {
     const sourceThumbnail = sourceThumbnails[mode];
     if (!sourceThumbnail) continue;

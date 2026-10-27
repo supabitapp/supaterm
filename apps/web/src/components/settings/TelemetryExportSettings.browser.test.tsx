@@ -6,10 +6,7 @@ import { userEvent } from "vite-plus/test/browser";
 const { state, updateSettings, checkOtlpEndpoint, checkOtlpEndpointCommand } = vi.hoisted(() => ({
   state: {
     observability: {} as typeof DEFAULT_SERVER_SETTINGS.observability,
-    serverConfig: { environment: { capabilities: {} } } as {
-      environment: { capabilities: Record<string, never> };
-      observability?: ServerObservability;
-    },
+    serverConfig: {} as { observability?: ServerObservability },
   },
   updateSettings: vi.fn(async () => ({ _tag: "Success" as const, value: undefined })),
   checkOtlpEndpoint: vi.fn(async (_request: unknown) => ({
@@ -64,7 +61,7 @@ import { TelemetryExportSettings } from "./TelemetryExportSettings";
 function setup() {
   updateSettings.mockClear();
   checkOtlpEndpoint.mockClear();
-  state.serverConfig = { environment: { capabilities: {} } };
+  state.serverConfig = {};
 }
 
 describe("TelemetryExportSettings", () => {
@@ -103,7 +100,6 @@ describe("TelemetryExportSettings", () => {
     setup();
     state.observability = { ...DEFAULT_SERVER_SETTINGS.observability, otlpTracesUrl: "" };
     state.serverConfig = {
-      environment: { capabilities: {} },
       observability: {
         logsDirectoryPath: "/tmp/logs",
         localTracingEnabled: true,
