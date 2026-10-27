@@ -67,10 +67,6 @@ export class Device {
   private closed = false;
   private runnerLogPath: string | undefined;
 
-  get deviceId() {
-    return this.id;
-  }
-
   private constructor(pose: Pose, root: string, directory: string) {
     this.pose = pose;
     this.session = `supaterm-e2e-${pose.id}`;
@@ -124,12 +120,16 @@ export class Device {
     )?.[0];
     NodeProcess.stderr.write(`[mobile-e2e] ${this.pose.id}: runtime ${runtime ?? "unknown"}\n`);
     await suppressIosSystemFollowUps(this.id);
-    await run("xcrun", ["simctl", "boot", this.id]);
-    await run("xcrun", ["simctl", "bootstatus", this.id, "-b"], { timeoutMs: 240_000 });
+    NodeProcess.stderr.write(`[mobile-e2e] ${this.pose.id}: waiting for simulator startup\n`);
+    await run("xcrun", ["simctl", "bootstatus", this.id, "-b"], {
+      timeoutMs: 900_000,
+      logPath: NodePath.join(this.directory, "simulator-boot.log"),
+    });
     if (this.pose.form === "tablet") await ensureIosFullScreenAppsMode(this.id);
   }
 
   private async bootAndroid(profile: string) {
+    await run(androidSdkTool("platform-tools/adb"), ["start-server"], { env: this.env });
     const image =
       NodeProcess.env.SUPATERM_E2E_ANDROID_IMAGE ??
       `system-images;android-36;google_apis;${NodeProcess.arch === "arm64" ? "arm64-v8a" : "x86_64"}`;
@@ -158,8 +158,6 @@ export class Device {
           "-no-audio",
           "-no-boot-anim",
           "-no-snapshot",
-          "-memory",
-          "2048",
           "-cores",
           "2",
           "-gpu",
@@ -372,6 +370,29 @@ export class Device {
   }
 
   async saveDiagnostics() {
+    if (this.emulator)
+      await NodeFSP.writeFile(
+        NodePath.join(this.directory, "emulator-status.json"),
+        JSON.stringify(
+          {
+            exitCode: this.emulator.exitCode,
+            signalCode: this.emulator.signalCode,
+          },
+          null,
+          2,
+        ),
+      );
+    if (this.pose.platform === "ios" && this.id) {
+      const state = await run("xcrun", ["simctl", "list", "devices", this.id, "--json"], {
+        allowFailure: true,
+        timeoutMs: 15_000,
+      }).catch(() => undefined);
+      if (state)
+        await NodeFSP.writeFile(
+          NodePath.join(this.directory, "simulator-state.json"),
+          state.stdout,
+        );
+    }
     if (this.runnerLogPath)
       await NodeFSP.copyFile(
         this.runnerLogPath,

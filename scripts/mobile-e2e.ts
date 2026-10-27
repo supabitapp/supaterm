@@ -9,6 +9,7 @@ import * as NodeUtil from "node:util";
 
 import { BUILD_ENV, prepareClient } from "./mobile-e2e/build.ts";
 import { Device, stopDeviceDaemon } from "./mobile-e2e/device.ts";
+import { captureHostResources } from "./mobile-e2e/diagnostics.ts";
 import { runJourney, type StepResult } from "./mobile-e2e/journey.ts";
 import { POSES, type Pose } from "./mobile-e2e/poses.ts";
 import { MOBILE_ROOT, REPO_ROOT } from "./mobile-e2e/process.ts";
@@ -39,7 +40,7 @@ async function runPose(
   output: string,
   metroPort: number,
   pair: (host: string) => Promise<string>,
-  client: (deviceId: string, logPath: string) => Promise<string>,
+  client: string,
 ): Promise<PoseResult> {
   const directory = NodePath.join(output, pose.id);
   await NodeFSP.mkdir(directory, { recursive: true });
@@ -47,17 +48,17 @@ async function runPose(
   let device: Device | undefined;
   let result: PoseResult = { pose, steps };
   try {
+    await captureHostResources(directory, "Before device startup");
     log(`${pose.id}: booting ${pose.device}`);
     device = await Device.create(pose, root, directory);
     log(`${pose.id}: preparing native client`);
-    await device.install(
-      await client(device.deviceId, NodePath.join(directory, "native-build.log")),
-    );
+    await device.install(client);
     await device.prepare();
     const host = pose.platform === "ios" ? "127.0.0.1" : "10.0.2.2";
     await device.launch(`http://${host}:${metroPort}`);
     await runJourney(device, directory, () => pair(host), steps);
   } catch (error) {
+    await captureHostResources(directory, "Device failure");
     await device?.saveDiagnostics().catch(() => undefined);
     const stopped = NodePath.join(directory, "stopped.png");
     const screenshot = await device?.screenshot(stopped).then(
@@ -140,10 +141,12 @@ async function main() {
   let metro: NodeChildProcess.ChildProcess | undefined;
   const results: PoseResult[] = [];
   const errors: string[] = [];
-  let preparedClient: Promise<string> | undefined;
-  const client = (deviceId: string, logPath: string) =>
-    (preparedClient ??= prepareClient(platform, deviceId, logPath));
   try {
+    await captureHostResources(output, "Before native build");
+    log(`Preparing the ${platform} native client before starting devices.`);
+    const client = await prepareClient(platform, output);
+    await NodeFSP.writeFile(NodePath.join(output, "native-client.txt"), `${client}\n`);
+    await captureHostResources(output, "After native build");
     const [environment] = await startShowcaseEnvironments(
       root,
       (server) => servers.push(server),
