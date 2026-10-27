@@ -29,6 +29,7 @@ import {
   resolveFffNativeDependencies,
   STAGE_INSTALL_ARGS,
 } from "./build-desktop-artifact.ts";
+import { assertLinuxArm64PageCompatibility } from "./lib/linux-arm64-sea.ts";
 import { selectCliRuntimeExternalDependencies } from "./lib/cli-external-packages.ts";
 import { codesignArgs, MacSigningConfig, notarytoolSubmitArgs } from "./lib/mac-signing.ts";
 import { signWithJsign } from "./lib/windows-jsign.ts";
@@ -443,8 +444,13 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
 
   yield* requireInput(
     builtExecutable,
-    `Run \`node apps/server/scripts/cli.ts build-exe --target ${targetKey}\` first.`,
+    `Run \`node apps/server/scripts/cli.ts build-exe${targetKey === hostKey ? "" : ` --target ${targetKey}`}\` first.`,
   );
+  // TEMPORARY one-time Node fix. Remove when fixed: https://github.com/nodejs/node/issues/67048
+  if (input.platform === "linux" && input.arch === "arm64") {
+    const bytes = yield* fs.readFile(builtExecutable);
+    yield* Effect.try(() => assertLinuxArm64PageCompatibility(bytes));
+  }
   yield* requireInput(
     path.join(webClient, "index.html"),
     "Run `vp run --filter supaterm build` first.",

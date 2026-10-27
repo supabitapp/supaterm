@@ -2190,6 +2190,9 @@ importers:
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
+      postject:
+        specifier: 1.0.0-alpha.6
+        version: 1.0.0-alpha.6
       typescript:
         specifier: 'catalog:'
         version: '@tsc-rs/typescript@0.8.0'
@@ -16655,8 +16658,7 @@ snapshots:
 
   commander@8.3.0: {}
 
-  commander@9.5.0:
-    optional: true
+  commander@9.5.0: {}
 
   common-ancestor-path@2.0.0: {}
 
@@ -19791,7 +19793,6 @@ snapshots:
   postject@1.0.0-alpha.6:
     dependencies:
       commander: 9.5.0
-    optional: true
 
   preact-render-to-string@6.6.5(preact@11.0.0-beta.0):
     dependencies:
