@@ -250,7 +250,6 @@ export function QueuedRunsControl({
           </ComposerBanner.Icon>
           <ComposerBanner.Content className="text-muted-foreground">Queued</ComposerBanner.Content>
           <ComposerBanner.Actions>
-            <ComposerBanner.Count>{items.length}</ComposerBanner.Count>
             <ComposerBanner.ToggleIcon expanded={expanded} />
           </ComposerBanner.Actions>
         </ComposerBanner.Row>
