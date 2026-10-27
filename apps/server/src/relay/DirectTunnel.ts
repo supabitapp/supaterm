@@ -1,16 +1,9 @@
 // @effect-diagnostics nodeBuiltinImport:off - the direct tunnel owns its native WebSocket upgrade.
-import * as NodeCrypto from "node:crypto";
 import type * as NodeHttp from "node:http";
 import * as NodeOS from "node:os";
 import WebSocket, { WebSocketServer } from "ws";
 import { MAX_DIRECT_TUNNEL_URLS, type ServerTunnelEndpoints } from "@supaterm/contracts";
-import { acceptClientHandshake } from "@supaterm/shared/relay/protocol";
-import {
-  createTunnelSession,
-  TUNNEL_MAX_PLAIN_BYTES,
-  type TunnelSession,
-  type TunnelStream,
-} from "@supaterm/shared/relay/tunnel";
+import { TUNNEL_MAX_PLAIN_BYTES } from "@supaterm/shared/relay/tunnel";
 import * as Context from "effect/Context";
 import * as Deferred from "effect/Deferred";
 import * as Duration from "effect/Duration";
@@ -22,11 +15,11 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import * as ServerConfig from "../config.ts";
 import { resolveBoundEndpoints } from "../environment/DirectEndpoints.ts";
+import { serveHostTunnel } from "./hostTunnel.ts";
 import * as RelayIdentity from "./RelayIdentity.ts";
 import { RelayIngress } from "./RelayIngress.ts";
 
 const HANDSHAKE_TIMEOUT = Duration.seconds(15);
-const MAX_HELLO_BYTES = 4096;
 const EMPTY_HEAD = Buffer.alloc(0);
 
 export class DirectTunnelNotFoundError extends Schema.TaggedError<DirectTunnelNotFoundError>()(
@@ -88,60 +81,6 @@ const isWebSocketUpgrade = (request: NodeHttp.IncomingMessage) =>
 
 const peerKey = (address: string | undefined) =>
   address?.startsWith("::ffff:") ? address.slice("::ffff:".length) : (address ?? "");
-
-// The accept side of the relay's data socket (see transport.ts): one small
-// text hello, then encrypted binary records only.
-function serveTunnel(
-  ws: WebSocket,
-  input: {
-    readonly secret: Uint8Array;
-    readonly onStream: (stream: TunnelStream) => void;
-    readonly onEstablished: () => void;
-    readonly onClose: () => void;
-  },
-) {
-  let session: TunnelSession | undefined;
-  const stop = () => {
-    session?.close();
-    ws.terminate();
-  };
-  ws.once("close", () => {
-    session?.close();
-    input.onClose();
-  });
-  ws.on("error", stop);
-  ws.on("message", (data, binary) => {
-    try {
-      const bytes = Array.isArray(data)
-        ? Buffer.concat(data)
-        : data instanceof ArrayBuffer
-          ? Buffer.from(data)
-          : data;
-      if (session) {
-        if (!binary) throw new Error("Unencrypted tunnel record");
-        session.receive(bytes);
-        return;
-      }
-      if (binary || bytes.length > MAX_HELLO_BYTES) throw new Error("Invalid handshake");
-      const accepted = acceptClientHandshake(
-        bytes.toString("utf8"),
-        input.secret,
-        NodeCrypto.randomBytes,
-      );
-      session = createTunnelSession({
-        cipher: accepted.cipher,
-        initiator: false,
-        onStream: input.onStream,
-        send: (message) => ws.send(message),
-        onClose: stop,
-      });
-      ws.send(accepted.welcome);
-      input.onEstablished();
-    } catch {
-      stop();
-    }
-  });
-}
 
 const make = Effect.fn("DirectTunnel.make")(function* (limits: DirectTunnelLimits) {
   const config = yield* ServerConfig.ServerConfig;
@@ -239,7 +178,7 @@ const make = Effect.fn("DirectTunnel.make")(function* (limits: DirectTunnelLimit
     const established = yield* Deferred.make<boolean>();
     const closed = yield* Deferred.make<void>();
     const ok = yield* upgrade(input.request, (ws) =>
-      serveTunnel(ws, {
+      serveHostTunnel(ws, {
         secret: input.secret,
         onStream: (stream) =>
           ingress.accept(stream, { transport: "direct", remoteAddress: input.peer }),

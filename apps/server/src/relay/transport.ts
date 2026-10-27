@@ -3,20 +3,15 @@ import * as NodeCrypto from "node:crypto";
 import WebSocket from "ws";
 import * as Schema from "effect/Schema";
 import {
-  acceptClientHandshake,
   decodeBase64,
   encodeBase64,
   relayEndpointId,
   relayPublicKey,
   signRelayChallenge,
 } from "@supaterm/shared/relay/protocol";
-import {
-  createTunnelSession,
-  TUNNEL_MAX_PLAIN_BYTES,
-  type TunnelSession,
-  type TunnelStream,
-} from "@supaterm/shared/relay/tunnel";
+import { TUNNEL_MAX_PLAIN_BYTES, type TunnelStream } from "@supaterm/shared/relay/tunnel";
 import { after, every } from "@supaterm/shared/relay/timer";
+import { serveHostTunnel } from "./hostTunnel.ts";
 
 const ControlEvent = Schema.Union([
   Schema.Struct({ type: Schema.Literal("challenge"), nonce: Schema.String }),
@@ -55,52 +50,17 @@ export function startRelayTransport(input: {
       maxPayload: TUNNEL_MAX_PLAIN_BYTES + 24,
       perMessageDeflate: false,
     });
-    let session: TunnelSession | undefined;
-    let closed = false;
-    const stop = () => {
-      if (closed) return;
-      closed = true;
-      cancelHandshake();
-      session?.close();
-      socket.terminate();
-      pairs.delete(connectionId);
-    };
+    const stop = serveHostTunnel(socket, {
+      secret: input.secret,
+      onStream: input.acceptStream,
+      onEstablished: () => cancelHandshake(),
+      onClose: () => {
+        cancelHandshake();
+        pairs.delete(connectionId);
+      },
+    });
     const cancelHandshake = after(15_000, stop);
     pairs.set(connectionId, stop);
-    socket.on("error", stop);
-    socket.on("close", stop);
-    socket.on("message", (data, binary) => {
-      if (closed) return;
-      try {
-        const bytes = Array.isArray(data)
-          ? Buffer.concat(data)
-          : data instanceof ArrayBuffer
-            ? Buffer.from(data)
-            : data;
-        if (session) {
-          if (!binary) throw new Error("Unencrypted relay record");
-          session.receive(bytes);
-          return;
-        }
-        if (binary || bytes.length > 4096) throw new Error("Invalid relay handshake");
-        const handshake = acceptClientHandshake(
-          bytes.toString("utf8"),
-          input.secret,
-          NodeCrypto.randomBytes,
-        );
-        session = createTunnelSession({
-          cipher: handshake.cipher,
-          initiator: false,
-          onStream: input.acceptStream,
-          send: (message) => socket.send(message),
-          onClose: stop,
-        });
-        cancelHandshake();
-        socket.send(handshake.welcome);
-      } catch {
-        stop();
-      }
-    });
   };
 
   const connect = () => {
