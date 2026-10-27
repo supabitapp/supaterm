@@ -356,7 +356,7 @@ it.layer(NodeServices.layer)("DirectTunnel", (it) => {
         connectionMethod: "direct-tunnel",
         remoteAddress: "127.0.0.1",
       });
-      expect(relay.via()).toBe("direct");
+      expect(relay.via?.()).toBe("direct");
     }).pipe(Effect.scoped),
   );
 
