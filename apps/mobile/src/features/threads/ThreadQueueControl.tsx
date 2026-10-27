@@ -241,6 +241,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
                   <QueueSendButton
                     canSend={controls.canSend}
                     sendsNow={canSendNow}
+                    skipsCompaction={workflow?.promoteSkipsCompaction === true}
                     onPress={() => void act(run.id, "steer")}
                   />
                 ) : null}
@@ -349,6 +350,7 @@ function QueueRowSwipeable(props: {
 function QueueSendButton(props: {
   readonly canSend: boolean;
   readonly sendsNow: boolean;
+  readonly skipsCompaction: boolean;
   readonly onPress: () => void;
 }) {
   return (
@@ -356,7 +358,11 @@ function QueueSendButton(props: {
       accessibilityRole="button"
       accessibilityLabel="Send queued message now"
       accessibilityHint={
-        props.sendsNow ? "Start a turn with this message" : "Send into the current turn"
+        props.sendsNow
+          ? "Start a turn with this message"
+          : props.skipsCompaction
+            ? "Skip compaction and send this message"
+            : "Send into the current turn"
       }
       accessibilityState={{ disabled: !props.canSend }}
       disabled={!props.canSend}

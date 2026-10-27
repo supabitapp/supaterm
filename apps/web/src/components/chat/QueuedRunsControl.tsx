@@ -309,7 +309,9 @@ export function QueuedRunsControl({
                               >
                                 {workflow?.canSendNow
                                   ? "Start a turn with this message"
-                                  : "Send into the current turn"}
+                                  : workflow?.promoteSkipsCompaction
+                                    ? "Skip compaction and send this message"
+                                    : "Send into the current turn"}
                               </TooltipPopup>
                             </Tooltip>
                             <Separator orientation="vertical" className="mx-1 h-4" />
