@@ -190,7 +190,7 @@ with `mod+w` once its right panel is closed. `pane.splitRight` and
 
 In the desktop app, `mod+w` closes the focused terminal or the active right-panel
 tab, then the focused pane when threads are side by side. When nothing remains to
-close, it closes the window. In a browser, `mod+w`
+close, it does nothing; it never closes the window. In a browser, `mod+w`
 closes the browser tab; rebind `rightPanel.close` and `terminal.close` to an available
 shortcut such as `alt+w`.
 
