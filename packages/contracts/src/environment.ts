@@ -88,6 +88,8 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
       foreground runs). */
   serverSelfUpdate: ForwardCompatibleOptional(ServerSelfUpdateCapability),
   threadStop: Schema.optionalKey(Schema.Boolean),
+  /** Absent on older servers and on Windows hosts, which cannot stop a discovered server. */
+  localServerStop: Schema.optionalKey(Schema.Boolean),
   /** The server accepts queued-run.start, which sends one held message now. */
   queuedRunStart: Schema.optionalKey(Schema.Boolean),
   /** Manual commands must update this install, not the host's default global prefix. */

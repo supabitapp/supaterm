@@ -137,6 +137,7 @@ import {
   type CompiledClaudeModelSelection,
 } from "../../claudeModelOptions.ts";
 import * as ServerConfig from "../../config.ts";
+import * as PortScanner from "../../preview/PortScanner.ts";
 import { expandHomePath } from "@supaterm/provider-core/server/pathExpansion";
 import { spawnAndCollect } from "@supaterm/provider-core/server/snapshotProbe";
 import { signalProcessGroup } from "@supaterm/provider-core/server/processGroup";
@@ -893,6 +894,7 @@ export const layerQueryRunner: Layer.Layer<
   | ChildProcessSpawner.ChildProcessSpawner
   | Crypto.Crypto
   | Path.Path
+  | PortScanner.PortDiscovery
   | ProviderEventLoggers.ProviderEventLoggers
 > = Layer.effect(
   ClaudeAgentSdkQueryRunner,
@@ -903,6 +905,8 @@ export const layerQueryRunner: Layer.Layer<
     const { native: nativeEventLogger } = yield* ProviderEventLoggers.ProviderEventLoggers;
     const agentScope = yield* AgentScope;
     const platform = yield* HostProcess.Platform;
+    const hostEnvironment = yield* HostProcess.Environment;
+    const portDiscovery = yield* PortScanner.PortDiscovery;
 
     return ClaudeAgentSdkQueryRunner.of({
       allocateSessionId: crypto
@@ -929,7 +933,15 @@ export const layerQueryRunner: Layer.Layer<
           // which every local user can read. They go over the CLI's stdin control
           // channel instead, so header credentials stay out of its argv and out
           // of the environment every command the agent runs inherits.
-          const { mcpServers, ...queryOptions } = input.options;
+          const { mcpServers, ...sdkOptions } = input.options;
+          // Jobs the agent starts inherit the thread, so port discovery can attribute their servers.
+          const queryOptions = {
+            ...sdkOptions,
+            env: {
+              ...(sdkOptions.env ?? hostEnvironment),
+              [PortScanner.AGENT_THREAD_ENV]: input.threadId,
+            },
+          };
           // The SDK spawns a native binary as `path ...executableArgs ...sdkArgs`,
           // which lets the agent scope wrapper go in front of the CLI. The SDK
           // runs a script entry through node instead, so those launch unwrapped.
@@ -976,6 +988,10 @@ export const layerQueryRunner: Layer.Layer<
           const spawnClaudeCodeProcess = (spawnOptions: ClaudeSpawnOptions) => {
             const child = spawnProcess(spawnOptions);
             spawnedProcess = child;
+            // A spawn that fails emits only "error".
+            const releaseAgent = portDiscovery.trackAgent();
+            child.once("exit", releaseAgent);
+            child.on("error", releaseAgent);
             processExited = child.exitCode !== null || child.signalCode != null;
             processExit = new Promise<void>((resolve) => {
               if (processExited) resolve();

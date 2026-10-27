@@ -75,6 +75,7 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 import { getModelSelectionStringOptionValue } from "@supaterm/shared/model";
 import { SpawnExecutableResolution } from "@supaterm/shared/shell";
 
+import * as PortScanner from "../../preview/PortScanner.ts";
 import { attachmentRelativePath } from "../../attachmentStore.ts";
 import { WorkflowAgentTranscriptReadObserver } from "../workflowAgentTranscript.ts";
 import * as ServerConfig from "../../config.ts";
@@ -2320,7 +2321,7 @@ describe("ClaudeAdapterV2 MCP credential channel", () => {
         },
       });
     }).pipe(
-      Effect.provide(ClaudeAdapterV2.layerQueryRunner),
+      Effect.provide(ClaudeAdapterV2.layerQueryRunner.pipe(Layer.provide(PortScanner.layerTest))),
       Effect.provideService(ProviderEventLoggers.ProviderEventLoggers, {
         ...ProviderEventLoggers.NoOpProviderEventLoggers,
         native,

@@ -266,6 +266,8 @@ import {
   PreviewClearProfileInput,
   PreviewReportProfilesInput,
   PreviewNavigateInput,
+  PreviewStopLocalServerError,
+  PreviewStopLocalServerInput,
   PreviewOpenInput,
   PreviewRefreshInput,
   PreviewReportStatusInput,
@@ -465,6 +467,7 @@ export const WS_METHODS = {
   previewClearProfile: "preview.clearProfile",
   previewReportProfiles: "preview.reportProfiles",
   previewReportStatus: "preview.reportStatus",
+  previewStopLocalServer: "preview.stopLocalServer",
 
   deviceConfigure: "device.configure",
   deviceList: "device.list",
@@ -1600,6 +1603,11 @@ const WsSubscribePreviewEventsRpc = Rpc.make(WS_METHODS.subscribePreviewEvents, 
   stream: true,
 });
 
+const WsPreviewStopLocalServerRpc = Rpc.make(WS_METHODS.previewStopLocalServer, {
+  payload: PreviewStopLocalServerInput,
+  error: Schema.Union([PreviewStopLocalServerError, EnvironmentAuthorizationError]),
+});
+
 const WsSubscribeDiscoveredLocalServersRpc = Rpc.make(WS_METHODS.subscribeDiscoveredLocalServers, {
   payload: Schema.Struct({
     configuredUrls: Schema.optional(ConfiguredLocalServerUrls),
@@ -2101,6 +2109,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsPreviewReportProfilesRpc,
   WsPreviewReportStatusRpc,
   WsSubscribePreviewEventsRpc,
+  WsPreviewStopLocalServerRpc,
   WsSubscribeDiscoveredLocalServersRpc,
   WsDeviceConfigureRpc,
   WsDeviceListRpc,
