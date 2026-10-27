@@ -117,6 +117,9 @@ const PackageManifest = Schema.Struct({
   devDependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
   optionalDependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
   peerDependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  peerDependenciesMeta: Schema.optional(
+    Schema.Record(Schema.String, Schema.Struct({ optional: Schema.optional(Schema.Boolean) })),
+  ),
 });
 const decodeManifest = Schema.decodeEffect(Schema.fromJsonString(PackageManifest));
 
