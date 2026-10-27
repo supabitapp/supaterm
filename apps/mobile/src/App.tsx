@@ -28,6 +28,7 @@ import * as Dialog from "./components/ui/Dialog";
 import { prepareNativeShowcaseCapture } from "./features/showcase/nativeShowcaseScene";
 import {
   presentPendingIncomingShare,
+  pruneIncomingShareImports,
   startIncomingShareInbox,
 } from "./features/sharing/IncomingShareProvider";
 import {
@@ -103,6 +104,7 @@ function handleNavigationStateChange(state: NavigationState | undefined): void {
   if (!state) return;
   recordAppShortcutNavigationState(state);
   pruneNewTaskBranchCheckouts(state);
+  pruneIncomingShareImports(state);
 }
 
 function handleNavigationReady(): void {
