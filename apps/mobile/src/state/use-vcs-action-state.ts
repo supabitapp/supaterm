@@ -2,6 +2,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { type VcsActionState, type VcsActionTarget } from "@supaterm/client-runtime/state/vcs";
 import { Atom } from "effect/reactivity";
 import { useEffect, useState } from "react";
+import * as Haptics from "expo-haptics";
 
 import { appAtomRegistry } from "./atom-registry";
 import { vcsActionManager } from "./vcs";
@@ -30,6 +31,12 @@ function broadcast(result: GitActionResultNotification | null): void {
 }
 
 export function showGitActionResult(result: GitActionResultNotification): void {
+  // Best effort: devices without a haptics engine reject.
+  Haptics.notificationAsync(
+    result.type === "success"
+      ? Haptics.NotificationFeedbackType.Success
+      : Haptics.NotificationFeedbackType.Error,
+  ).catch(() => undefined);
   if (dismissTimer) clearTimeout(dismissTimer);
   broadcast(result);
   dismissTimer = setTimeout(() => {
