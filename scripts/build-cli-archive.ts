@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-/**
- * The archive is the unit every runtime installer downloads, so nothing in it
- * may require Node, npm, or a compiler on the machine that unpacks it.
- */
+   
+                                                                              
+                                                                       
+   
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Config from "effect/Config";
@@ -29,6 +29,7 @@ import {
   resolveFffNativeDependencies,
   STAGE_INSTALL_ARGS,
 } from "./build-desktop-artifact.ts";
+import { assertLinuxArm64PageCompatibility } from "./lib/linux-arm64-sea.ts";
 import { selectCliRuntimeExternalDependencies } from "./lib/cli-external-packages.ts";
 import { codesignArgs, MacSigningConfig, notarytoolSubmitArgs } from "./lib/mac-signing.ts";
 import { signWithJsign } from "./lib/windows-jsign.ts";
@@ -93,8 +94,8 @@ export function cliArchiveStem(version: string, platform: BuildPlatform, arch: B
 }
 
 export function cliArchiveFileName(version: string, platform: BuildPlatform, arch: BuildArch) {
-  // gzip rather than xz: GNU tar needs an external xz binary for -J, which
-  // minimal hosts lack, while every tar (and Node's zlib) handles gzip alone.
+                                                                           
+                                                                              
   return `${cliArchiveStem(version, platform, arch)}.${platform === "win" ? "zip" : "tar.gz"}`;
 }
 
@@ -125,10 +126,10 @@ const requireInput = Effect.fn("requireInput")(function* (inputPath: string, hin
   }
 });
 
-/**
- * The tree is archived and unpacked on machines without pnpm, so the store
- * layout cannot be relied on to survive the trip.
- */
+   
+                                                                           
+                                                  
+   
 const stageRuntimeExternals = Effect.fn("stageRuntimeExternals")(function* (input: {
   readonly repoRoot: string;
   readonly stageDir: string;
@@ -221,10 +222,10 @@ const stageRuntimeExternals = Effect.fn("stageRuntimeExternals")(function* (inpu
   ]) {
     yield* fs.remove(path.join(input.stageDir, entry), { recursive: true, force: true });
   }
-  // A hoisted install still leaves nested `node_modules/.bin` shim directories
-  // inside packages that declare bins (msgpackr-extract's). They are symlinks
-  // nothing runs, and the npm registry refuses a tarball that contains any
-  // symlink, so strip every `.bin` directory below node_modules.
+                                                                               
+                                                                              
+                                                                           
+                                                                 
   yield* removeNestedBinDirectories(fs, path, path.join(input.stageDir, "node_modules"));
 });
 
@@ -261,13 +262,75 @@ const stageWebClient = Effect.fn("stageWebClient")(function* (source: string, ta
   }
 });
 
-/**
- * Apple Silicon refuses to run unsigned Mach-O binaries at all, so the
- * executable is always signed: ad hoc when no identity is configured, or with
- * the Developer ID plus notarization when it is. The hardened runtime that
- * notarization requires only loads signed libraries, so every native addon in
- * the archive is signed with the same identity.
- */
+   
+                                                                       
+                                                                              
+                                                                           
+                                                                              
+                                                
+   
+const bundleLinuxLibatomic = Effect.fn("bundleLinuxLibatomic")(function* (input: {
+  readonly repoRoot: string;
+  readonly contentDir: string;
+  readonly executablePath: string;
+}) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+  const ldd = yield* spawner.string(ChildProcess.make("ldd", [input.executablePath]));
+  const source = /libatomic\.so\.1 => (\/\S+)/.exec(ldd)?.[1];
+  if (source === undefined) {
+    return yield* new CliArchiveInputMissingError({
+      inputPath: "libatomic.so.1",
+      hint: `ldd did not resolve it for ${input.executablePath}. Install libatomic1 on the build host.`,
+    });
+  }
+  yield* fs.makeDirectory(path.join(input.contentDir, "lib"));
+  yield* fs.copyFile(source, path.join(input.contentDir, "lib/libatomic.so.1"));
+
+                                                                                                  
+  const owner = yield* spawner.string(
+    ChildProcess.make("dpkg-query", ["-S", yield* fs.realPath(source)]),
+  );
+                                                                                
+  const [, qualifiedPkg, pkg] = /^(([^:\s]+)(?::[^:\s]+)?): /.exec(owner) ?? [];
+  const versions = qualifiedPkg
+    ? yield* spawner.string(
+        ChildProcess.make("dpkg-query", [
+          "-W",
+          "-f=${Version} ${source:Package} ${source:Version}",
+          qualifiedPkg,
+        ]),
+      )
+    : "";
+  const [version, sourcePackage, sourceVersion] = versions.trim().split(" ");
+  if (!pkg || !version || !sourcePackage || !sourceVersion) {
+    return yield* new CliArchiveInputMissingError({
+      inputPath: `dpkg package for ${source}`,
+      hint: "The archive copies libatomic's license and source reference from its Ubuntu package.",
+    });
+  }
+  const header = [
+    `libatomic.so.1 is copied from the Ubuntu package ${pkg} ${version}.`,
+    `Source: https://launchpad.net/ubuntu/+source/${sourcePackage}/${sourceVersion}`,
+  ].join("\n");
+                                                            
+  const license = yield* fs.readFileString(
+    path.join(input.repoRoot, "scripts/licenses/libatomic.LICENSE"),
+  );
+  yield* fs.writeFileString(
+    path.join(input.contentDir, "lib/libatomic.so.1.LICENSE"),
+    `${header}\n\n${license}`,
+  );
+
+                                                                                                       
+  yield* runCommand(
+    ChildProcess.make("patchelf", ["--set-rpath", "$ORIGIN/lib", input.executablePath]),
+    "patchelf --set-rpath",
+  );
+  yield* Effect.log(`[cli-archive] Bundled ${source} as lib/libatomic.so.1.`);
+});
+
 const signMacArchiveContents = Effect.fn("signMacArchiveContents")(function* (input: {
   readonly repoRoot: string;
   readonly contentDir: string;
@@ -312,8 +375,8 @@ const signMacArchiveContents = Effect.fn("signMacArchiveContents")(function* (in
     );
     return;
   }
-  // notarytool only accepts archives, and a bare executable cannot be stapled,
-  // so notarize a zip of the binary and rely on the online ticket lookup.
+                                                                               
+                                                                          
   const notarizeZip = path.join(path.dirname(input.executablePath), ".notarize-supaterm.zip");
   yield* runCommand(
     ChildProcess.make("ditto", ["-c", "-k", "--keepParent", input.executablePath, notarizeZip]),
@@ -334,13 +397,13 @@ const WindowsSigningConfig = Config.all({
   ),
 });
 
-/**
- * Node's --build-sea injects the blob into a copy of node.exe by rebuilding its
- * resource section but, unlike its Mach-O path, leaves node's original
- * Authenticode data-directory entry in the PE header. The file grows, so the
- * entry now points into the middle of the new section at bytes that are not a
- * certificate table.
- */
+   
+                                                                                
+                                                                       
+                                                                             
+                                                                              
+                     
+   
 const stripStaleAuthenticodeEntry = Effect.fn("stripStaleAuthenticodeEntry")(function* (
   executablePath: string,
 ) {
@@ -356,15 +419,15 @@ const stripStaleAuthenticodeEntry = Effect.fn("stripStaleAuthenticodeEntry")(fun
   }
   const optionalHeader = peOffset + 24;
   const magic = view.getUint16(optionalHeader, true);
-  // Data directories start at +112 (PE32+) or +96 (PE32); the certificate
-  // table is directory index 4, eight bytes (file offset, size).
+                                                                          
+                                                                 
   const securityEntry = optionalHeader + (magic === 0x20b ? 112 : 96) + 4 * 8;
   const offset = view.getUint32(securityEntry, true);
   const size = view.getUint32(securityEntry + 4, true);
   if (offset === 0 && size === 0) return;
   if (offset + size === bytes.byteLength) {
-    // A certificate table that still ends at EOF is intact; leave it for
-    // signtool to replace rather than second-guessing it here.
+                                                                         
+                                                               
     return;
   }
   view.setUint32(securityEntry, 0, true);
@@ -423,16 +486,16 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
   const repoRoot = yield* RepoRoot;
   const serverDir = path.join(repoRoot, "apps/server");
   const executableName = input.platform === "win" ? "supaterm.exe" : "supaterm";
-  // tsdown suffixes cross-built executables with their target (supaterm-darwin-x64);
-  // a host build is plain supaterm. Prefer the exact target when both exist.
+                                                                                     
+                                                                             
   const targetKey = `${input.platform === "mac" ? "darwin" : input.platform}-${input.arch}`;
   const targetExecutable = path.join(
     serverDir,
     "dist-exe",
     `supaterm-${targetKey}${input.platform === "win" ? ".exe" : ""}`,
   );
-  // The unsuffixed host build is only a valid stand-in when it was built for
-  // this platform and architecture; otherwise a missing target must fail.
+                                                                             
+                                                                          
   const hostPlatform = yield* HostProcess.Platform;
   const hostKey = `${hostPlatform === "win32" ? "win" : hostPlatform}-${yield* HostProcess.Architecture}`;
   const builtExecutable = (yield* fs.exists(targetExecutable))
@@ -476,6 +539,14 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
   });
 
   const executablePath = path.join(contentDir, executableName);
+  if (input.platform === "linux") {
+    yield* bundleLinuxLibatomic({ repoRoot, contentDir, executablePath });
+  }
+                                                                                                
+  if (input.platform === "linux" && input.arch === "arm64") {
+    const bytes = yield* fs.readFile(executablePath);
+    yield* Effect.try(() => assertLinuxArm64PageCompatibility(bytes));
+  }
   if (input.platform === "mac") {
     yield* signMacArchiveContents({ repoRoot, contentDir, executablePath });
   } else if (input.platform === "win") {
@@ -499,19 +570,19 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
       "zip",
     );
   } else if (input.platform === "win") {
-    // Windows ships bsdtar, which writes zip natively. Name it by path: under
-    // the Git Bash shell CI uses, a bare `tar` is GNU tar, which neither
-    // writes zip nor accepts a drive-letter path.
+                                                                              
+                                                                         
+                                                  
     yield* runCommand(
       ChildProcess.make(windowsSystemTar(), ["-a", "-c", "-f", archivePath, "-C", stageRoot, stem]),
       "tar (zip)",
     );
   } else {
-    // On Linux, pnpm hard-links identical files out of its store and node-gyp
-    // hard-links build outputs, and GNU tar records those as link entries.
-    // The npm registry rejects a tarball containing any, and the npm platform
-    // packages are re-packed from this archive's contents, so store every
-    // file as a file. macOS's bsdtar has no such flag; pnpm clones there.
+                                                                              
+                                                                           
+                                                                              
+                                                                          
+                                                                          
     yield* runCommand(
       ChildProcess.make("tar", [
         ...(input.platform === "linux" ? ["--hard-dereference"] : []),

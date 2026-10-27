@@ -27,6 +27,7 @@
     "esbuild": "0.28.2",
     "typescript": "catalog:",
     "typescript-legacy": "npm:typescript@~6.0.3",
-    "vite-plus": "catalog:"
+    "vite-plus": "catalog:",
+    "postject": "1.0.0-alpha.6"
   }
 }

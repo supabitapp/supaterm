@@ -46,8 +46,8 @@ const runExecutable = Effect.fn("runExecutable")(function* (
   const child = yield* spawner.spawn(
     ChildProcess.make(executable, args, {
       cwd,
-      // Empty PATH: the archive must not reach a system node, and the
-      // launcher context must not leak in from a developer shell.
+                                                                      
+                                                                  
       env: { PATH: "", HOME: cwd, USERPROFILE: cwd, TMPDIR: cwd, TEMP: cwd },
       extendEnv: false,
     }),
@@ -68,9 +68,9 @@ const smokeCliArchive = Effect.fn("smokeCliArchive")(function* (input: {
   const platform = yield* HostProcess.Platform;
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const scratch = yield* fs.makeTempDirectory({ prefix: "supaterm-cli-smoke-" });
-  // Windows can keep supaterm.exe locked (EBUSY) for a moment after the server
-  // exits. A leftover scratch directory on a CI runner is harmless, so
-  // cleanup retries briefly and never fails a smoke test that passed.
+                                                                               
+                                                                       
+                                                                      
   yield* Effect.addFinalizer(() =>
     fs.remove(scratch, { recursive: true }).pipe(
       Effect.retry({ times: 10, schedule: Schedule.spaced("500 millis") }),
@@ -80,8 +80,8 @@ const smokeCliArchive = Effect.fn("smokeCliArchive")(function* (input: {
     ),
   );
 
-  // On Windows the archive is a zip and the Git Bash `tar` on PATH is GNU
-  // tar; use the bsdtar Windows ships, which reads both formats.
+                                                                          
+                                                                 
   const tar = platform === "win32" ? windowsSystemTar() : "tar";
   const extract = yield* spawner
     .spawn(ChildProcess.make(tar, ["-xf", input.archive, "-C", scratch]))
@@ -101,11 +101,28 @@ const smokeCliArchive = Effect.fn("smokeCliArchive")(function* (input: {
   }
   const contentDir = path.join(scratch, root);
   const executable = path.join(contentDir, platform === "win32" ? "supaterm.exe" : "supaterm");
-  for (const required of [executable, path.join(contentDir, "client/index.html")]) {
+  const bundledLibatomic = path.join(contentDir, "lib/libatomic.so.1");
+  for (const required of [executable, path.join(contentDir, "client/index.html"), ...(platform === "linux" ? [bundledLibatomic, `${bundledLibatomic}.LICENSE`] : [])]) {
     if (!(yield* fs.exists(required))) {
       return yield* new CliArchiveSmokeError({
         step: "checking the archive layout",
         detail: `missing ${path.relative(contentDir, required)}`,
+      });
+    }
+  }
+
+                                                                     
+  if (platform === "linux") {
+    const ldd = yield* spawner.string(ChildProcess.make("ldd", [executable]));
+                                                                                             
+    const loaded = /libatomic\.so\.1 => (\/.*) \(0x[0-9a-f]+\)/.exec(ldd)?.[1];
+    if (
+      loaded === undefined ||
+      (yield* fs.realPath(loaded)) !== (yield* fs.realPath(bundledLibatomic))
+    ) {
+      return yield* new CliArchiveSmokeError({
+        step: "checking that Supaterm loads the bundled libatomic",
+        detail: ldd,
       });
     }
   }
@@ -134,6 +151,9 @@ const smokeCliArchive = Effect.fn("smokeCliArchive")(function* (input: {
           TMPDIR: scratch,
           TEMP: scratch,
           SUPATERM_HOME: home,
+                                                                            
+                                          
+          SUPATERM_TELEMETRY_ENABLED: "false",
         },
         extendEnv: false,
       },
@@ -143,8 +163,8 @@ const smokeCliArchive = Effect.fn("smokeCliArchive")(function* (input: {
     Effect.all([collect(server.stdout), collect(server.stderr)]),
   );
   const httpClient = yield* HttpClient.HttpClient;
-  // A request that connects while the server is still initializing can hang,
-  // so each probe gets its own deadline, like the SSH readiness probe.
+                                                                             
+                                                                       
   const probe = httpClient.execute(HttpClientRequest.get(`http://127.0.0.1:${String(port)}/`)).pipe(
     Effect.map((response) => response.status === 200),
     Effect.timeout(Duration.seconds(2)),
