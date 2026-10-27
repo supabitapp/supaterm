@@ -151,7 +151,6 @@ async function main() {
         "--dev-client",
         "--scheme",
         "supaterm-dev",
-        "--localhost",
         "--port",
         String(metroPort),
       ],
