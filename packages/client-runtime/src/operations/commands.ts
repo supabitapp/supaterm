@@ -124,6 +124,8 @@ export interface UpdateThreadMetadataInput extends ThreadCommandInput {
   readonly worktreePath?: string | null;
   readonly regenerateTitle?: boolean;
   readonly linkedPullRequest?: ThreadLinkedPullRequest | null;
+  /** Promotes a side chat to a normal thread. */
+  readonly sideChat?: false;
 }
 
 export interface SetThreadRuntimeModeInput extends ThreadCommandInput {
@@ -204,6 +206,12 @@ export interface ForkThreadFromRunInput extends CommandMetadata {
   readonly sourceThreadId: ThreadId;
   readonly targetThreadId: ThreadId;
   readonly runId: RunId;
+  readonly title?: string;
+}
+
+export interface OpenSideChatInput extends CommandMetadata {
+  readonly sourceThreadId: ThreadId;
+  readonly targetThreadId: ThreadId;
   readonly title?: string;
 }
 
@@ -551,7 +559,8 @@ export const updateThreadMetadata = Effect.fn("EnvironmentCommands.updateThreadM
       input.worktreePath !== undefined ||
       input.regenerateTitle !== undefined ||
       input.linkedPullRequest !== undefined ||
-      input.limitRecovery !== undefined
+      input.limitRecovery !== undefined ||
+      input.sideChat !== undefined
     ) {
       result = yield* dispatch({
         type: "thread.metadata.update",
@@ -565,6 +574,7 @@ export const updateThreadMetadata = Effect.fn("EnvironmentCommands.updateThreadM
         ...(input.linkedPullRequest === undefined
           ? {}
           : { linkedPullRequest: input.linkedPullRequest }),
+        ...(input.sideChat === undefined ? {} : { sideChat: input.sideChat }),
       });
     }
     if (input.modelSelection !== undefined) {
@@ -907,6 +917,27 @@ export const forkThreadFromRun = Effect.fn("EnvironmentCommands.forkThreadFromRu
     sourceThreadId: input.sourceThreadId,
     targetThreadId: input.targetThreadId,
     sourcePoint: { type: "run", runId: input.runId },
+    ...(input.title === undefined ? {} : { title: input.title }),
+  });
+});
+
+/**
+ * Forks the thread as it stands, a run in progress included where the provider
+ * can, into a supervised side chat that stays out of thread lists.
+ */
+export const openSideChat = Effect.fn("EnvironmentCommands.openSideChat")(function* (
+  input: OpenSideChatInput,
+) {
+  return yield* dispatch({
+    type: "thread.fork",
+    commandId: yield* allocateCommandId(input),
+    createdBy: "user",
+    creationSource: input.creationSource ?? "web",
+    sourceThreadId: input.sourceThreadId,
+    targetThreadId: input.targetThreadId,
+    sourcePoint: { type: "live" },
+    sideChat: true,
+    runtimeMode: "approval-required",
     ...(input.title === undefined ? {} : { title: input.title }),
   });
 });

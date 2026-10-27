@@ -13,6 +13,7 @@ import { Atom } from "effect/reactivity";
 import type { EnvironmentThreadShell, PendingSubagentRequest } from "./models.ts";
 import { presentThreadShell, threadRuntimeIsActive } from "./models.ts";
 import { type EnvironmentCatalogState, enabledEnvironmentIds } from "./connections.ts";
+import { isHiddenSideChat } from "./sideChats.ts";
 import {
   arrayElementsEqual,
   parseProjectRefCollectionKey,
@@ -399,8 +400,14 @@ export function createEnvironmentThreadShellAtoms(input: {
     const next: EnvironmentThreadShell[] = [];
     for (const environmentId of enabledEnvironmentIds(get(input.catalogValueAtom))) {
       const subagentRequests = get(pendingSubagentRequestsAtom(environmentId));
-      for (const thread of get(environmentThreadsAtom(environmentId))) {
-        if (thread.archivedAt !== null || thread.lineage.relationshipToParent === "subagent")
+      const threads = get(environmentThreadsAtom(environmentId));
+      const threadIds = new Set(threads.map((thread) => thread.id));
+      for (const thread of threads) {
+        if (
+          thread.archivedAt !== null ||
+          thread.lineage.relationshipToParent === "subagent" ||
+          isHiddenSideChat(thread, threadIds)
+        )
           continue;
         next.push(scopedThread(environmentId, thread, subagentRequests));
       }

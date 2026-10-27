@@ -151,6 +151,10 @@
       "types": "./src/supatermToolSummary.ts",
       "default": "./src/supatermToolSummary.ts"
     },
+    "./state/sideChats": {
+      "types": "./src/state/sideChats.ts",
+      "default": "./src/state/sideChats.ts"
+    },
     "./state/auth": {
       "types": "./src/state/auth.ts",
       "default": "./src/state/auth.ts"
