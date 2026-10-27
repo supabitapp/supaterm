@@ -792,7 +792,6 @@ export default function ChatView(props: ChatViewProps) {
   const composerExpandedHeightRef = useRef(0);
   const composerRestingRef = useRef(false);
   const [composerResting, setComposerResting] = useState(false);
-  const composerMountedRef = useRef(true);
   const [scrollToEndClearance, setScrollToEndClearance] = useState(0);
   const [timelineOverflows, setTimelineOverflows] = useState(false);
   const fanoutSelectionsAtom = draftFanoutSelectionsAtom(routeThreadKey);
@@ -2318,7 +2317,7 @@ export default function ChatView(props: ChatViewProps) {
     const nextHeight = Math.ceil(height);
     if (nextHeight <= 0) return;
     const isResting = overlayComposerIsResting({
-      composerMounted: composerMountedRef.current,
+      composerMounted,
       composerReportedResting: composerRestingRef.current,
     });
     const modelStrip = composerOverlayElement?.querySelector<HTMLElement>(
@@ -2406,20 +2405,33 @@ export default function ChatView(props: ChatViewProps) {
   const composerTimelineInsetOwnerRef = useRef<{
     readonly threadKey: string | null;
     readonly overlay: HTMLDivElement;
+    readonly composerMounted: boolean;
   } | null>(null);
+  // A thread switch or a composer mount/unmount re-measures the overlay for the new timeline.
   useLayoutEffect(() => {
     if (!composerOverlayElement) return;
     const owner = composerTimelineInsetOwnerRef.current;
-    if (owner?.threadKey === activeThreadKey && owner.overlay === composerOverlayElement) return;
+    if (
+      owner?.threadKey === activeThreadKey &&
+      owner.overlay === composerOverlayElement &&
+      owner.composerMounted === composerMounted
+    )
+      return;
     composerTimelineInsetOwnerRef.current = {
       threadKey: activeThreadKey,
       overlay: composerOverlayElement,
+      composerMounted,
     };
     composerTimelineInsetRef.current = 0;
     composerReservedHeightRef.current = 0;
     composerExpandedHeightRef.current = 0;
     publishComposerOverlayHeightStable(composerOverlayElement.getBoundingClientRect().height);
-  }, [activeThreadKey, composerOverlayElement, publishComposerOverlayHeightStable]);
+  }, [
+    activeThreadKey,
+    composerMounted,
+    composerOverlayElement,
+    publishComposerOverlayHeightStable,
+  ]);
 
   useLayoutEffect(() => {
     if (!composerOverlayElement) return;
@@ -2464,15 +2476,6 @@ export default function ChatView(props: ChatViewProps) {
     measuredScrollToEndVisibleRef.current = showScrollToBottom;
     publishComposerOverlayHeightStable(composerOverlayElement.getBoundingClientRect().height);
   }, [composerOverlayElement, publishComposerOverlayHeightStable, showScrollToBottom]);
-  useLayoutEffect(() => {
-    if (composerMountedRef.current === composerMounted) return;
-    composerMountedRef.current = composerMounted;
-    if (!composerOverlayElement) return;
-    composerTimelineInsetRef.current = 0;
-    composerReservedHeightRef.current = 0;
-    composerExpandedHeightRef.current = 0;
-    publishComposerOverlayHeightStable(composerOverlayElement.getBoundingClientRect().height);
-  }, [composerMounted, composerOverlayElement, publishComposerOverlayHeightStable]);
   const openPanelPullRequestUrl = useOpenPanelPullRequestUrl(activeThreadRef);
   const activeThreadReferenceCopyTarget =
     activeThreadId === null || !isServerThread
