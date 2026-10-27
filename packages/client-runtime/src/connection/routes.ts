@@ -545,7 +545,10 @@ function isTailnetUrl(httpBaseUrl: string): boolean {
 
 /**
  * Whether a token paired over `credential` may go to `httpBaseUrl`, where the
- * user moves that route. Loopback stays open for SSH forwards.
+ * user moves that route. Loopback stays open for SSH forwards. A moved route
+ * owns its token and the catalog keeps no record of how it was paired, so a
+ * relay-paired route stays on relay addresses: moving it to HTTPS first would
+ * let a later edit take the token to plain HTTP.
  */
 export function credentialAllowsAddress(credential: ConnectionRoute, httpBaseUrl: string): boolean {
   let url: URL;
@@ -554,7 +557,9 @@ export function credentialAllowsAddress(credential: ConnectionRoute, httpBaseUrl
   } catch {
     return false;
   }
-  if (url.protocol !== "http:" || isLocalLoopbackHost(url.hostname)) return true;
+  if (isLocalLoopbackHost(url.hostname)) return true;
+  if (connectionRouteKind(credential) === "relay") return relayIdentity(url.href) !== null;
+  if (url.protocol !== "http:") return true;
   return plainHttpAllowed(
     [credential],
     connectionRouteId(credential.target),

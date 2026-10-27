@@ -533,7 +533,12 @@ describe("plain HTTP learned routes", () => {
     expect(credentialAllowsAddress(RELAY, "http://10.0.0.42:3773/")).toBe(false);
     expect(credentialAllowsAddress(RELAY, "http://100.101.102.103:3773/")).toBe(false);
     expect(credentialAllowsAddress(RELAY, "http://127.0.0.1:44000/")).toBe(true);
-    expect(credentialAllowsAddress(RELAY, "https://desk.example.com/")).toBe(true);
+  });
+
+  it("keeps a relay-paired route on relay addresses so a second edit can't reach plain HTTP", () => {
+    expect(credentialAllowsAddress(RELAY, "https://desk.example.com/")).toBe(false);
+    expect(credentialAllowsAddress(RELAY, routeHttpBaseUrl(RELAY)!)).toBe(true);
+    expect(credentialAllowsAddress(PUBLIC, "https://desk.example.com/")).toBe(true);
   });
 });
 

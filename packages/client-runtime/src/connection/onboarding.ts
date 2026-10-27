@@ -325,7 +325,7 @@ export const prepareBearerConnectionUpdate = Effect.fn(
     return yield* new ConnectionBlockedError({
       reason: "configuration",
       detail:
-        "This route was paired over an encrypted connection, so its token can't be sent over plain HTTP. Pair again at the new address.",
+        "This route's token was paired over an encrypted connection and can't move to this address. Pair again at the new address.",
     });
   }
   const connectionId = entry.target.connectionId;
