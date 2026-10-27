@@ -11,6 +11,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
+import * as SubscriptionRef from "effect/SubscriptionRef";
 import * as SynchronizedRef from "effect/SynchronizedRef";
 
 import * as FileSystem from "effect/FileSystem";
@@ -20,6 +21,7 @@ import { ChildProcessSpawner } from "effect/process";
 import * as DesktopBackendConfiguration from "./DesktopBackendConfiguration.ts";
 import * as DesktopBackendManager from "./DesktopBackendManager.ts";
 import * as DesktopObservability from "../app/DesktopObservability.ts";
+import * as DesktopState from "../app/DesktopState.ts";
 import * as DesktopAppSettings from "../settings/DesktopAppSettings.ts";
 import * as DesktopTelemetryPublisher from "../telemetry/DesktopTelemetryPublisher.ts";
 import * as DesktopBrowserHost from "../preview/DesktopBrowserHost.ts";
@@ -111,6 +113,7 @@ export const layer = Layer.effect(
     const electronDialog = yield* ElectronDialog.ElectronDialog;
     const electronApp = yield* ElectronApp.ElectronApp;
     const appSettings = yield* DesktopAppSettings.DesktopAppSettings;
+    const { primaryBackendStartup } = yield* DesktopState.DesktopState;
     // Without this, instance scopes are orphaned: they only close via explicit unregister() calls,
     // so on app shutdown the WSL backend child process gets hard-killed by the OS instead of
     // receiving the graceful SIGTERM + grace period the instance's stop finalizer would otherwise
@@ -173,12 +176,16 @@ export const layer = Layer.effect(
       // callback (that would prevent restartAttempt from being reset), so we absorb them here.
       onReady: (httpBaseUrl) =>
         desktopWindow.handleBackendReady(httpBaseUrl).pipe(
+          // Only once the main window exists, so the recovery window never closes into nothing.
+          Effect.andThen(SubscriptionRef.set(primaryBackendStartup, { _tag: "Ready" })),
           Effect.catch((error) =>
             logBackendPoolWarning("failed to open main window after backend readiness", {
               error: error.message,
             }),
           ),
         ),
+      onStartupFailure: (failure) =>
+        SubscriptionRef.set(primaryBackendStartup, { _tag: "Failing", ...failure }),
       onShutdown: () => desktopWindow.handleBackendNotReady,
       onPreflightFailed: handlePrimaryPreflightFailure,
       onStateDirOwned: () =>

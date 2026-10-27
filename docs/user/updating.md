@@ -110,6 +110,14 @@ Only one server can use a Supaterm home directory at a time. If startup reports 
 another server owns it, stop that server before retrying, or use a separate home
 directory and pair with the running server.
 
+## If the desktop app does not start
+
+If the desktop app's server keeps failing at startup, Supaterm shows a "Supaterm
+could not start" window instead of the app. If a newer version is available,
+choose **Update** to install it. If not, the window links to the last version
+that started on your computer. Download and install it to go back. Use **Copy
+details** to include the error in a bug report.
+
 ## Update providers
 
 **Settings → Providers** shows provider updates for the selected environment.
