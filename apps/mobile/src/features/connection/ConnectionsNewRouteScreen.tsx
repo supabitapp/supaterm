@@ -10,8 +10,8 @@ import {
   type StaticScreenProps,
 } from "@react-navigation/native";
 import type { EnvironmentId } from "@supaterm/contracts";
-import { AsyncResult } from "effect/reactivity";
-import { useEffect, useRef, useState } from "react";
+import { useAtomValue } from "@effect/atom-react";
+import { useRef, useState } from "react";
 import { Linking, Pressable, StyleSheet, View } from "react-native";
 import Svg, { Defs, RadialGradient, Rect, Stop } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -22,10 +22,8 @@ import { SettingsScreen } from "../settings/components/SettingsScreen";
 import { AppText as Text, AppTextInput, type AppTextInputProps } from "../../components/ui/AppText";
 import { FrostedCutout } from "../../components/ui/FrostedCutout";
 import { pairingUrlForFields, extractPairingUrlFromQrPayload, parsePairingUrl } from "./pairing";
-import {
-  setPendingConnectionError,
-  useRemoteConnections,
-} from "../../state/use-remote-environment-registry";
+import { useRemoteConnections } from "../../state/use-remote-environment-registry";
+import { autoConnectReport, devAutoConnectAttemptAtom } from "./devAutoConnect";
 import { SymbolView } from "../../components/ui/AppSymbol";
 
 type ConnectionsNewRouteParams = {
@@ -38,37 +36,38 @@ type ConnectionsNewRouteParams = {
 export function ConnectionsNewRouteScreen({
   route,
 }: StaticScreenProps<ConnectionsNewRouteParams | undefined>) {
-  const {
-    connectionPairingUrl,
-    onChangeConnectionPairingUrl,
-    onConnectPress,
-    pairingConnectionError,
-  } = useRemoteConnections();
+  const { connectionPairingUrl, onChangeConnectionPairingUrl, onConnectPress } =
+    useRemoteConnections();
   const navigation = useNavigation();
   const routeName = useRoute().name;
   const params = route.params ?? {};
   // Deep-link prefill exists for development automation only. A production
   // link must not arrive with attacker-chosen host and token already filled.
   const routePairingUrl = __DEV__ ? (params.pairingUrl?.trim() ?? "") : "";
-  const shouldAutoConnect =
-    __DEV__ &&
-    routePairingUrl.length > 0 &&
-    (params.autoConnect === "1" || params.autoConnect === "true");
   const insets = useSafeAreaInsets();
   const [hostInput, setHostInput] = useState("");
   const [codeInput, setCodeInput] = useState("");
   const [originalPairingUrl, setOriginalPairingUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  // The user's own edit or submit dismisses the dev auto-connect report.
+  const [ownAttempt, setOwnAttempt] = useState(false);
+  const autoConnect = autoConnectReport(
+    useAtomValue(devAutoConnectAttemptAtom),
+    routePairingUrl,
+    ownAttempt,
+  );
+  const connecting = isSubmitting || autoConnect.connecting;
+  const pairingConnectionError = submitError ?? autoConnect.error;
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const screenFocused = useIsFocused();
   const scannerLockedRef = useRef(false);
 
   const [scanComplete, setScanComplete] = useState(false);
-  const attemptedAutoConnectRef = useRef<string | null>(null);
 
   const headerIconColor = useUniwindTheme()["--color-icon"];
 
-  const connectDisabled = isSubmitting || hostInput.trim().length === 0;
+  const connectDisabled = connecting || hostInput.trim().length === 0;
 
   const [syncedPairingUrls, setSyncedPairingUrls] = useState<{
     readonly connection: string;
@@ -93,14 +92,10 @@ export function ConnectionsNewRouteScreen({
     }
   }
 
-  const [seenPairingConnectionError, setSeenPairingConnectionError] =
-    useState(pairingConnectionError);
-  if (seenPairingConnectionError !== pairingConnectionError) {
-    setSeenPairingConnectionError(pairingConnectionError);
-    if (pairingConnectionError) {
-      setIsSubmitting(false);
-    }
-  }
+  const clearError = () => {
+    setSubmitError(null);
+    setOwnAttempt(true);
+  };
 
   const handleHostChange = (value: string) => {
     const parsed = parsePairingUrl(value);
@@ -111,18 +106,16 @@ export function ConnectionsNewRouteScreen({
       return;
     }
     setHostInput(value);
-    setPendingConnectionError(null);
+    clearError();
   };
 
   const handleCodeChange = (value: string) => {
     setCodeInput(value);
-    setPendingConnectionError(null);
+    clearError();
   };
 
-  useEffect(() => () => setPendingConnectionError(null), []);
-
   const handleScanPress = async () => {
-    if (isSubmitting) return;
+    if (connecting) return;
     const permission = await requestCameraPermission();
     if (permission.granted) {
       scannerLockedRef.current = false;
@@ -141,16 +134,19 @@ export function ConnectionsNewRouteScreen({
   };
 
   const connectAndClose = async (pairingUrl: string) => {
+    setOwnAttempt(true);
+    setSubmitError(null);
     setIsSubmitting(true);
     onChangeConnectionPairingUrl(pairingUrl);
     const connect = async () => {
-      const result = await onConnectPress(pairingUrl, params.routeFor);
+      const outcome = await onConnectPress(pairingUrl, params.routeFor);
+      setSubmitError(outcome.error);
       void Haptics.notificationAsync(
-        AsyncResult.isSuccess(result)
+        outcome.ok
           ? Haptics.NotificationFeedbackType.Success
           : Haptics.NotificationFeedbackType.Error,
       );
-      if (AsyncResult.isSuccess(result)) {
+      if (outcome.ok) {
         // Return to whatever opened the sheet. Replacing it with Home would
         // nest Home inside any sheet still below it.
         if (!navigation.canGoBack()) {
@@ -164,7 +160,7 @@ export function ConnectionsNewRouteScreen({
   };
 
   const handleQrScan = ({ data }: { readonly data: string }) => {
-    if (scannerLockedRef.current || isSubmitting) {
+    if (scannerLockedRef.current || connecting) {
       return;
     }
 
@@ -195,23 +191,14 @@ export function ConnectionsNewRouteScreen({
     await connectAndClose(pairingUrlForFields(hostInput, codeInput, originalPairingUrl));
   };
 
-  useEffect(() => {
-    if (!shouldAutoConnect || attemptedAutoConnectRef.current === routePairingUrl) {
-      return;
-    }
-
-    attemptedAutoConnectRef.current = routePairingUrl;
-    void connectAndClose(routePairingUrl);
-  }, [connectAndClose, routePairingUrl, shouldAutoConnect]);
-
   return (
     <SettingsScreen
       formSheet={routeName === "ConnectionsNew"}
       title={params.routeFor ? "Add route" : "Add environment"}
       actions={[
         {
-          accessibilityLabel: isSubmitting ? "Connecting" : "Add environment",
-          loading: isSubmitting,
+          accessibilityLabel: connecting ? "Connecting" : "Add environment",
+          loading: connecting,
           icon: "checkmark",
           tintColor: headerIconColor,
           disabled: connectDisabled,
@@ -236,7 +223,7 @@ export function ConnectionsNewRouteScreen({
         <View collapsable={false} className="gap-6.5">
           <PairingScanCard
             cameraActive={
-              cameraPermission?.granted === true && screenFocused && !scanComplete && !isSubmitting
+              cameraPermission?.granted === true && screenFocused && !scanComplete && !connecting
             }
             onScan={handleQrScan}
             onScanPress={() => {
