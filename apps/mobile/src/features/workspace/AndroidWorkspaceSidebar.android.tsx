@@ -1,7 +1,6 @@
 import { useMemo, type ReactNode } from "react";
 import { View } from "react-native";
 import { ScreenContent } from "../../components/ui/ScreenContent";
-import { PullRequestFilterMenuProvider } from "../pull-requests/PullRequestFilterMenuContext";
 import { PullRequestsScreen } from "../pull-requests/PullRequestsScreen";
 import { PullRequestToolbar } from "../pull-requests/PullRequestToolbar.android";
 import { WorkspaceTabsContext, useWorkspaceTabs } from "./WorkspaceTabsContext";
@@ -17,14 +16,20 @@ export function AndroidWorkspaceSidebar(props: {
     props.children
   ) : (
     <WorkspaceTabsContext value={context}>
-      <PullRequestFilterMenuProvider>
-        <View className="flex-1 bg-header">
-          <PullRequestToolbar sidebar onRequestVisibility={props.onRequestVisibility} />
-          <ScreenContent insetHorizontal>
-            <PullRequestsScreen sidebar selectedPullRequestKey={props.selectedPullRequestKey} />
-          </ScreenContent>
-        </View>
-      </PullRequestFilterMenuProvider>
+      <PullRequestsScreen
+        sidebar
+        selectedPullRequestKey={props.selectedPullRequestKey}
+        renderFrame={(filters, list) => (
+          <View className="flex-1 bg-header">
+            <PullRequestToolbar
+              sidebar
+              filters={filters}
+              onRequestVisibility={props.onRequestVisibility}
+            />
+            <ScreenContent insetHorizontal>{list}</ScreenContent>
+          </View>
+        )}
+      />
     </WorkspaceTabsContext>
   );
 }

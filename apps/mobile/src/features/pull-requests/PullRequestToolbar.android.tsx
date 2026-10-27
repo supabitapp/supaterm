@@ -1,4 +1,4 @@
-import { useNavigation, useNavigationState } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import { useCallback, useEffect, useRef } from "react";
 import { BackHandler, Keyboard, View, type TextInputInstance } from "react-native";
 import { SearchField } from "../../components/ui/SearchField";
@@ -8,19 +8,18 @@ import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
 import { useWorkspaceListNavigation } from "../workspace/useAndroidWorkspaceNavigation";
 import { WorkspaceFilterButton } from "../workspace/WorkspaceFilterButton";
 import { WorkspaceListToolbarRow } from "../workspace/WorkspaceListToolbarRow";
-import { usePullRequestFilterMenu } from "./PullRequestFilterMenuContext";
+import type { WorkspaceFilterMenu } from "../workspace/workspace-filter-menu";
 
 export function PullRequestToolbar(props: {
+  readonly filters: WorkspaceFilterMenu | null;
   readonly sidebar?: boolean;
   readonly onRequestVisibility?: () => void;
 }) {
   const navigation = useNavigation();
   const workspace = useWorkspaceTabs()!;
-  const filterMenu = usePullRequestFilterMenu();
+  const filterMenu = props.filters;
   const { paddingTop, paddingBottom } = useToolbarLayout();
   const { dispatch, getScrollOffset, recordScrollOffset, isTabActive } = workspace;
-  const homeFocused = useNavigationState((state) => state.routes[state.index]?.name === "Home");
-  const listFocused = homeFocused && workspace.state.selectedTab === "pullRequests";
   const { onRequestVisibility } = props;
   const showThreads = useWorkspaceListNavigation("threads");
   const tab = workspace.state.tabs.pullRequests;
@@ -44,9 +43,10 @@ export function PullRequestToolbar(props: {
     dispatch({ type: "cancel", tab: "pullRequests" });
   }, [dispatch, recordScrollOffset, tab.searchEntryOffset]);
   useEffect(() => {
-    if (!searching || !listFocused) return;
+    if (!searching) return;
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
-      // Frozen Home screens can keep effects alive after a detail route opens.
+      // Frozen Home screens stay mounted under a detail route or another tab,
+      // so back only applies while the PR list is in front.
       const state = navigation.getState();
       if (!state || state.routes[state.index]?.name !== "Home" || !isTabActive("pullRequests"))
         return false;
@@ -55,7 +55,7 @@ export function PullRequestToolbar(props: {
       return true;
     });
     return () => subscription.remove();
-  }, [searching, closeSearch, listFocused, navigation, isTabActive]);
+  }, [searching, closeSearch, navigation, isTabActive]);
   return (
     <View className="bg-header px-2" style={{ paddingTop, paddingBottom }}>
       <WorkspaceListToolbarRow

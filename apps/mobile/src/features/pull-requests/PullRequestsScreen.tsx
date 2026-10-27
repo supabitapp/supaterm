@@ -6,7 +6,7 @@ import {
 import { WorkspaceHeaderActions } from "../workspace/WorkspaceHeaderActions";
 import { LegendList, type LegendListRef } from "@legendapp/list/react-native";
 import { useNavigation } from "@react-navigation/native";
-import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { sortProjectsByGroupOrder } from "@supaterm/client-runtime/state/project-grouping";
 import { useAtomValue } from "@effect/atom-react";
 import {
@@ -35,7 +35,7 @@ import { createPullRequestListFilterMenu } from "./pullRequestListFilterMenu";
 import { usePullRequestList } from "./usePullRequestList";
 import { usePullRequestListControls } from "./usePullRequestListControls";
 import { usePullRequestListActions } from "./usePullRequestListActions";
-import { usePublishPullRequestFilterMenu } from "./PullRequestFilterMenuContext";
+import type { WorkspaceFilterMenu } from "../workspace/workspace-filter-menu";
 import {
   filterPullRequestList,
   pullRequestListFacets,
@@ -84,6 +84,8 @@ export function PullRequestsScreen(
   props: {
     readonly sidebar?: boolean;
     readonly selectedPullRequestKey?: string | null;
+    /** Places the list in a frame whose header shows its filters (the Android toolbar). */
+    readonly renderFrame?: PullRequestsFrameRender;
   } = {},
 ) {
   const navigation = useNavigation();
@@ -288,8 +290,7 @@ export function PullRequestsScreen(
       });
     },
   };
-  usePublishPullRequestFilterMenu(Platform.OS === "android" ? headerFilterMenu : null);
-  return (
+  const list = (
     <View className={sidebar ? "flex-1 bg-drawer" : "flex-1 bg-screen"}>
       <LegendList
         ref={listRef}
@@ -433,4 +434,24 @@ export function PullRequestsScreen(
       {Platform.OS === "ios" ? <WorkspaceHeaderActions filterMenu={headerFilterMenu} /> : null}
     </View>
   );
+  return props.renderFrame ? (
+    <PullRequestsFrame
+      render={props.renderFrame}
+      filters={Platform.OS === "android" ? headerFilterMenu : null}
+      list={list}
+    />
+  ) : (
+    list
+  );
+}
+
+type PullRequestsFrameRender = (filters: WorkspaceFilterMenu | null, list: ReactNode) => ReactNode;
+
+// Rendered as an element so the menu's press handler, which scrolls the list, is not called in render.
+function PullRequestsFrame(props: {
+  readonly render: PullRequestsFrameRender;
+  readonly filters: WorkspaceFilterMenu | null;
+  readonly list: ReactNode;
+}) {
+  return props.render(props.filters, props.list);
 }
