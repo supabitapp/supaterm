@@ -14,6 +14,8 @@ On mobile, **New thread** starts in the last project you opened or chose on that
 device. If it is not available, the project picker opens; tap the project in the
 draft to pick another. Turn off **Settings → General → Use last project** to choose
 a project every time.
+When you pick a project that is on more than one machine, the thread starts on a
+connected one if any is connected.
 
 When you change a new thread's project, its branch, workspace mode, and machine
 choice reset to that project's defaults; the prompt and a model you picked stay.
