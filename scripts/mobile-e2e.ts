@@ -182,8 +182,8 @@ async function main() {
   };
   const onSigint = () => interrupt("SIGINT");
   const onSigterm = () => interrupt("SIGTERM");
-  NodeProcess.once("SIGINT", onSigint);
-  NodeProcess.once("SIGTERM", onSigterm);
+  process.once("SIGINT", onSigint);
+  process.once("SIGTERM", onSigterm);
   setRunSignal(interruption.signal);
   try {
     await saveReport();
@@ -288,8 +288,8 @@ async function main() {
       );
     });
     await saveReport(undefined, true);
-    NodeProcess.removeListener("SIGINT", onSigint);
-    NodeProcess.removeListener("SIGTERM", onSigterm);
+    process.removeListener("SIGINT", onSigint);
+    process.removeListener("SIGTERM", onSigterm);
   }
   const failed = results.filter(poseFailed).length;
   NodeProcess.stdout.write(
