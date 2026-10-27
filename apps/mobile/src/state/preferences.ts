@@ -144,7 +144,3 @@ export const showSkillsInSlashMenuAtom = Atom.make((get) => {
   const preferences = get(mobilePreferencesAtom);
   return !AsyncResult.isSuccess(preferences) || preferences.value.showSkillsInSlashMenu !== false;
 }).pipe(Atom.withLabel("mobile:preferences:show-skills-in-slash-menu"));
-export const showToolImagesAtom = Atom.make((get) => {
-  const preferences = get(mobilePreferencesAtom);
-  return !AsyncResult.isSuccess(preferences) || preferences.value.showToolImages !== false;
-}).pipe(Atom.withLabel("mobile:preferences:show-tool-images"));

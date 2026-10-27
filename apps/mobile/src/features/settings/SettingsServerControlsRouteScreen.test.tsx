@@ -41,7 +41,6 @@ vi.mock("@effect/atom-react", () => ({
 }));
 vi.mock("../../state/preferences", () => ({
   mobilePreferencesAtom: {},
-  showToolImagesAtom: {},
   showSkillsInSlashMenuAtom: {},
   updateMobilePreferencesAtom: {},
 }));

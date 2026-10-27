@@ -68,7 +68,6 @@ export interface Preferences {
   /** What the Return key does in the composer on a hardware keyboard. iOS only. */
   readonly composerEnterBehavior?: ComposerEnterBehavior;
   readonly showSkillsInSlashMenu?: boolean;
-  readonly showToolImages?: boolean;
   readonly followUpBehavior?: FollowUpBehavior;
   readonly microphones?: ReadonlyArray<MicrophoneEntry>;
   readonly projectGroupingMode?: SidebarProjectGroupingMode;
@@ -136,7 +135,6 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     dismissedDatabaseStorageNotices?: readonly string[];
     composerEnterBehavior?: ComposerEnterBehavior;
     showSkillsInSlashMenu?: boolean;
-    showToolImages?: boolean;
     followUpBehavior?: FollowUpBehavior;
     microphones?: ReadonlyArray<MicrophoneEntry>;
     projectGroupingMode?: SidebarProjectGroupingMode;
@@ -207,9 +205,6 @@ function sanitizePreferences(parsed: Preferences): Preferences {
   }
   if (typeof parsed.showSkillsInSlashMenu === "boolean") {
     preferences.showSkillsInSlashMenu = parsed.showSkillsInSlashMenu;
-  }
-  if (typeof parsed.showToolImages === "boolean") {
-    preferences.showToolImages = parsed.showToolImages;
   }
   if (parsed.followUpBehavior === "queue" || parsed.followUpBehavior === "steer") {
     preferences.followUpBehavior = parsed.followUpBehavior;

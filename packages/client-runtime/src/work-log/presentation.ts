@@ -7,7 +7,6 @@ import {
   type ToolActivitySurface,
   type ToolActivityIcon,
   type OrchestrationV2TurnItem,
-  type OrchestrationV2ProjectedTurnItem,
   type ThreadId,
 } from "@supaterm/contracts";
 import {
@@ -21,7 +20,6 @@ import { parseChangeRequestUrl } from "@supaterm/shared/changeRequestUrl";
 import { isWorkspaceImagePreviewPath } from "@supaterm/shared/filePreview";
 import { formatTokens } from "@supaterm/shared/usageFormat";
 import { classifyToolActivity } from "@supaterm/shared/toolActivity";
-import { turnItemOutputImages } from "./itemDetail.ts";
 import { toolOutputIndicatesFailure } from "@supaterm/shared/toolOutput";
 
 import {
@@ -508,49 +506,6 @@ export interface ViewedImageAsset {
   readonly resource: Extract<AssetResource, { readonly _tag: "media-file" }>;
   readonly alt: string;
   readonly srcFragment: string;
-}
-
-export interface ToolGroupImage {
-  /** Unique per tool call, so the same file read twice still gets two thumbnails. */
-  readonly key: string;
-  readonly resource: Extract<AssetResource, { readonly _tag: "media-file" | "tool-output-image" }>;
-  readonly alt: string;
-  readonly srcFragment?: string;
-}
-
-/** Newest first, so a strip shows what just happened without scrolling. */
-export function toolGroupImages(
-  rows: ReadonlyArray<OrchestrationV2ProjectedTurnItem>,
-  workspaceRoot?: string,
-): ReadonlyArray<ToolGroupImage> {
-  const images: ToolGroupImage[] = [];
-  for (let rowIndex = rows.length - 1; rowIndex >= 0; rowIndex -= 1) {
-    const row = rows[rowIndex]!;
-    if (row.item.type !== "dynamic_tool") continue;
-    const item = row.item;
-    const imageCount = item.outputImageCount ?? turnItemOutputImages(item).length;
-    for (let index = imageCount - 1; index >= 0; index -= 1) {
-      images.push({
-        key: `${row.sourceItemId}:${index}`,
-        resource: {
-          _tag: "tool-output-image",
-          threadId: row.sourceThreadId,
-          itemId: row.sourceItemId,
-          index,
-        },
-        alt: item.title || "Tool output image",
-      });
-    }
-    const viewedImage =
-      imageCount === 0 && item.viewedImagePath
-        ? resolveViewedImageAsset(item.viewedImagePath, {
-            threadId: row.sourceThreadId,
-            workspaceRoot,
-          })
-        : null;
-    if (viewedImage) images.push({ ...viewedImage, key: `${row.sourceItemId}:viewed` });
-  }
-  return images;
 }
 
 export function resolveViewedImageAsset(

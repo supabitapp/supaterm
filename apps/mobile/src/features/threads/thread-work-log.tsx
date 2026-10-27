@@ -1,5 +1,3 @@
-import type { ToolGroupImage } from "@supaterm/client-runtime/work-log/presentation";
-import { ThreadToolImageStrip } from "./thread-tool-image-strip";
 import { Button } from "../../components/ui/Button";
 import { SubagentStatusDot } from "./SubagentStatusDot";
 import { ThreadSubagentGroup } from "./thread-subagent-group";
@@ -1024,8 +1022,6 @@ const ThreadWorkLogRow = function ThreadWorkLogRow(
 };
 
 export function ThreadWorkGroupToggle(props: {
-  readonly images?: ReadonlyArray<ToolGroupImage>;
-  readonly onPressPreview: (source: FilePreviewSource) => void;
   readonly environmentId: EnvironmentId;
   readonly rowSizing: ReturnType<typeof deriveThreadWorkLogSizing>;
   readonly expanded: boolean;
@@ -1121,11 +1117,6 @@ export function ThreadWorkGroupToggle(props: {
         </View>
         {props.trailing}
       </View>
-      <ThreadToolImageStrip
-        images={props.images}
-        environmentId={props.environmentId}
-        onPressPreview={props.onPressPreview}
-      />
     </WorkLogBlock>
   );
 }
