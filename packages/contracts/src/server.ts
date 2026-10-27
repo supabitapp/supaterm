@@ -32,7 +32,7 @@ import { ProviderDriverKind, ProviderInstanceId } from "./providerInstance.ts";
 import { ServerProviderUsageLimits } from "./providerUsageLimits.ts";
 import { ServerProviderTranscription } from "./transcription.ts";
 import { ServerSettings } from "./settings.ts";
-import { RelayConnectionInfo } from "./relay.ts";
+import { RelayConnectionInfo, RelayServerUrl } from "./relay.ts";
 
 const KeybindingsMalformedConfigIssue = Schema.Struct({
   kind: Schema.Literal("keybindings.malformed-config"),
@@ -593,6 +593,17 @@ export const ServerDirectEndpoint = Schema.Struct({
 });
 export type ServerDirectEndpoint = typeof ServerDirectEndpoint.Type;
 
+/**
+ * Kept apart from `directEndpoints`, which older clients turn into plain HTTP
+ * routes. Only a client that already trusts `address` from a relay pairing
+ * dials these, and the tunnel handshake proves the host before any request.
+ */
+export const ServerTunnelEndpoints = Schema.Struct({
+  address: TrimmedNonEmptyString,
+  urls: ForwardCompatibleArray(RelayServerUrl),
+});
+export type ServerTunnelEndpoints = typeof ServerTunnelEndpoints.Type;
+
 const ServerConfigSettings = Schema.Struct({
   ...ServerSettings.fields,
   autoDismissQuestions: Schema.optionalKey(Schema.Boolean),
@@ -626,6 +637,7 @@ export const ServerConfig = Schema.Struct({
    * before using it.
    */
   directEndpoints: Schema.optionalKey(ForwardCompatibleArray(ServerDirectEndpoint)),
+  tunnelEndpoints: Schema.optionalKey(ServerTunnelEndpoints),
   observability: ServerObservability,
   settings: ServerConfigSettings,
   shellResumeCompletionMarker: Schema.optionalKey(Schema.Boolean),

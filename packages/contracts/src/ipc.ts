@@ -1056,7 +1056,12 @@ export interface DesktopBridge {
   getConnectionCatalog?: () => Promise<string | null>;
   setConnectionCatalog?: (catalog: string) => Promise<boolean>;
   clearConnectionCatalog?: () => Promise<void>;
-  startRelay?: (address: string, relayUrl: string) => Promise<string>;
+  startRelay?: (
+    address: string,
+    relayUrl: string,
+    directUrls?: ReadonlyArray<string>,
+  ) => Promise<string>;
+  getRelayVia?: (address: string) => Promise<"relay" | "direct" | null>;
   stopRelay?: (address: string) => Promise<void>;
   discoverSshHosts: () => Promise<readonly DesktopDiscoveredSshHost[]>;
   resolveSshHost: (alias: string) => Promise<DesktopSshEnvironmentTarget>;

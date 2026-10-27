@@ -3,6 +3,7 @@ import { requireNativeModule, type NativeModule } from "expo";
 export type RelayTunnelOptions = {
   relayUrl: string;
   hostAddress: string;
+  directUrls?: string[];
   port?: number;
 };
 
@@ -14,6 +15,7 @@ export type RelayTunnelStatus = {
   bytesReceived: number;
   activeStreams: number;
   sessionCount: number;
+  via?: "relay" | "direct";
   reason?: string;
 };
 

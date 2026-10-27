@@ -1252,6 +1252,7 @@ describe("EnvironmentRegistry", () => {
             RelayGateway,
             RelayGateway.of({
               available: true,
+              via: () => undefined,
               lease: () => {
                 throw new Error("Unexpected pairing lease");
               },
@@ -2202,6 +2203,7 @@ it.effect(
         Effect.provide(harness.layer),
         Effect.provideService(RelayGateway, {
           available: true,
+          via: () => undefined,
           lease: () => {
             throw new Error("Unexpected pairing lease");
           },

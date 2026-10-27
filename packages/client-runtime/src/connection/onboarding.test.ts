@@ -393,6 +393,7 @@ describe("connection onboarding", () => {
           ),
           Effect.provideService(RelayGateway, {
             available: true,
+            via: () => undefined,
             resolve: async (address) => address,
             lease: (address) => ({
               prepare: async () => {
@@ -489,6 +490,7 @@ describe("connection onboarding", () => {
         Effect.provide(Layer.mergeAll(layerClientPresentation, layerRoutedHttp(calls, {}))),
         Effect.provideService(RelayGateway, {
           available: true,
+          via: () => undefined,
           resolve: async (address) => address,
           lease: () => ({
             prepare: () => {

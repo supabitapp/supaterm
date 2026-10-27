@@ -89,6 +89,7 @@ export const RelayCompanionRequest = Schema.Struct({
   action: Schema.Literals(["open", "close"]),
   address: Schema.String.check(Schema.isMaxLength(256)),
   relayUrl: Schema.optionalKey(RelayServerUrl),
+  directUrls: Schema.optionalKey(Schema.Array(RelayServerUrl).check(Schema.isMaxLength(8))),
 });
 
 export const RelayCompanionReply = Schema.Struct({

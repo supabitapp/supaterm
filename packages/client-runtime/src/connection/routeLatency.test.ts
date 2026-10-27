@@ -239,6 +239,7 @@ it.effect.each([undefined, "wss://custom.example.test/relay"])(
       const route = relayRoute(relayUrl);
       const gateway = RelayGateway.of({
         available: true,
+        via: () => undefined,
         lease: (address, url) => {
           expect(address).toBe(relayEndpoint);
           relayUrls.push(url);
@@ -297,6 +298,7 @@ it.effect.each(["latency", "route"] as const)(
       const fiber = yield* probe.pipe(
         Effect.provideService(RelayGateway, {
           available: true,
+          via: () => undefined,
           lease: () => ({ prepare: resolve, retain: () => {}, close: async () => {} }),
           resolve,
           release: async () => {},
