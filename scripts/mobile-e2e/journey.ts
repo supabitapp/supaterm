@@ -2,6 +2,7 @@
 
 import * as NodePath from "node:path";
 import * as NodeFSP from "node:fs/promises";
+import * as NodeProcess from "node:process";
 
 import {
   check,
@@ -105,12 +106,37 @@ export async function runJourney(
     findLabel(snapshot, /^(Dismiss|OK|Close)$/) !== undefined
       ? findLabel(snapshot, /^Could not|failed|went wrong/i)
       : undefined;
+  const systemDialog = (snapshot: Snapshot) =>
+    snapshot.nodes.find(
+      (node) =>
+        node.bundleId === "android" &&
+        node.identifier === "android:id/alertTitle" &&
+        /^(System UI|Google Play services) isn't responding$/.test(node.label ?? ""),
+    );
   for (let dialogs = 0; ; dialogs++) {
     const launch = await device.waitFor(
-      (snapshot) => loaded(snapshot) || errorDialog(snapshot) !== undefined,
+      (snapshot) =>
+        loaded(snapshot) ||
+        errorDialog(snapshot) !== undefined ||
+        systemDialog(snapshot) !== undefined,
       "the app to load",
       180_000,
     );
+    const system = systemDialog(launch);
+    if (system) {
+      const evidence = NodePath.join(directory, `startup-dialog-${dialogs + 1}`);
+      await device.screenshot(`${evidence}.png`);
+      await NodeFSP.writeFile(`${evidence}.json`, JSON.stringify(launch, null, 2));
+      if (dialogs >= 2) throw new Error(`${system.label} during device startup`);
+      NodeProcess.stderr.write(`[mobile-e2e] ${device.pose.id}: waiting for ${system.label}\n`);
+      await tap(
+        launch.nodes.find(
+          (node) => node.bundleId === "android" && node.identifier === "android:id/aerr_wait",
+        ),
+        "system dialog Wait button",
+      );
+      continue;
+    }
     const dialog = errorDialog(launch);
     if (!dialog || dialogs >= 3) break;
     await capture("launch error", launch, [
@@ -119,6 +145,7 @@ export async function runJourney(
     await device.agent(["press", `label="${findLabel(launch, /^(Dismiss|OK|Close)$/)!.label}"`]);
     await delay(1_000);
   }
+  if (device.pose.fold) await device.agent(["fold", device.pose.fold]);
   let threads: Snapshot | null = null;
   for (let attempt = 1; attempt <= 2 && !threads; attempt++) {
     const pairing = new URLSearchParams({ pairingUrl: await pair(), autoConnect: "1" });

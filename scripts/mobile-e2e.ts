@@ -55,7 +55,7 @@ async function runPose(
     await device.install(client);
     await device.prepare();
     const host = pose.platform === "ios" ? "127.0.0.1" : "10.0.2.2";
-    await device.launch(`http://${host}:${metroPort}`);
+    await device.launch(metroPort);
     await runJourney(device, directory, () => pair(host), steps);
   } catch (error) {
     await captureHostResources(directory, "Device failure");
