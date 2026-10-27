@@ -37,6 +37,8 @@ export interface ProviderClientDefinition {
   readonly label: string;
 
   readonly icon?: ProviderIcon;
+  /** Model-name family prefixes the provider's own icon already shows, e.g. "Claude ". */
+  readonly modelFamilies?: ReadonlyArray<string>;
   readonly settingsSchema: ProviderSettingsSchema;
   readonly environmentFields?: ReadonlyArray<ProviderEnvironmentField>;
 

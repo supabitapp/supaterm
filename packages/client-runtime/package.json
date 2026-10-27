@@ -518,6 +518,10 @@
     "./pull-request-query": {
       "types": "./src/pullRequestQuery.ts",
       "default": "./src/pullRequestQuery.ts"
+    },
+    "./provider-clients": {
+      "types": "./src/providerClients.ts",
+      "default": "./src/providerClients.ts"
     }
   },
   "scripts": {
@@ -528,6 +532,14 @@
     "@pierre/diffs": "catalog:",
     "@supaterm/contracts": "workspace:*",
     "@supaterm/mermaid": "workspace:*",
+    "@supaterm/provider-acp-registry": "workspace:*",
+    "@supaterm/provider-core": "workspace:*",
+    "@supaterm/provider-cursor": "workspace:*",
+    "@supaterm/provider-fx": "workspace:*",
+    "@supaterm/provider-grok": "workspace:*",
+    "@supaterm/provider-muse": "workspace:*",
+    "@supaterm/provider-opencode": "workspace:*",
+    "@supaterm/provider-pi": "workspace:*",
     "@supaterm/shared": "workspace:*",
     "@supaterm/source-control-core": "workspace:*",
     "@supaterm/source-control-definitions": "workspace:*",

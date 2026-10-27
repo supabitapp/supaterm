@@ -11,15 +11,17 @@ import type {
   RuntimeMode,
   ServerConfig as SupatermServerConfig,
 } from "@supaterm/contracts";
-import { resolveProjectProviderInstanceEnabled } from "@supaterm/contracts";
+import { isProviderDriverKind, resolveProjectProviderInstanceEnabled } from "@supaterm/contracts";
 import {
   buildExplicitProviderOptionSelectionsFromDescriptors,
   getProviderOptionDescriptors,
 } from "@supaterm/shared/model";
+import { resolveModelShortName } from "@supaterm/client-runtime/provider-clients";
 
 export type ModelOption = {
   readonly key: string;
   readonly label: string;
+  readonly shortName?: string;
   readonly subtitle: string;
   readonly providerKey: string;
   readonly providerLabel: string;
@@ -320,9 +322,11 @@ export function buildModelOptions(
       models.sort((a, b) => (order.get(a.slug) ?? Infinity) - (order.get(b.slug) ?? Infinity));
     for (const model of models) {
       const key = `${provider.instanceId}:${model.slug}`;
+      const shortName = resolveModelShortName(model, provider.driver);
       options.set(key, {
         key,
         label: model.name,
+        ...(shortName ? { shortName } : {}),
         subtitle: model.subProvider ?? "",
         providerKey: provider.instanceId,
         providerLabel,
@@ -385,9 +389,13 @@ export function buildModelOptions(
         displayName: provider?.displayName ?? instanceConfig?.displayName,
         instanceId: fallbackModelSelection.instanceId,
       });
+      const shortName = model
+        ? resolveModelShortName(model, isProviderDriverKind(providerDriver) ? providerDriver : null)
+        : undefined;
       options.set(key, {
         key,
         label: model?.name ?? fallbackModelSelection.model,
+        ...(shortName ? { shortName } : {}),
         subtitle: model?.subProvider ?? "",
         providerKey: fallbackModelSelection.instanceId,
         providerLabel,
