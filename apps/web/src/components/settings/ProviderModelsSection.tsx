@@ -1,4 +1,4 @@
-import { ArrowDownIcon, ArrowUpIcon, PencilIcon, PlusIcon, StarIcon, XIcon } from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, PencilIcon, PlusIcon, StarIcon, XIcon } from "@supaterm/icons";
 import { useEffect, useRef, useState } from "react";
 import {
   ProviderDriverKind,

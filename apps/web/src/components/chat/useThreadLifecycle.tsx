@@ -33,7 +33,7 @@ import {
   squashAtomCommandFailure,
   type AtomCommandResult,
 } from "@supaterm/client-runtime/state/runtime";
-import { AlarmClockIcon, CheckCircle2Icon } from "lucide-react";
+import { CircleCheckIcon, ClockSnoozeIcon } from "@supaterm/icons";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { newMessageId } from "~/lib/utils";
 import { buildThreadRouteParams } from "../../threadRoutes";
@@ -521,7 +521,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     const nowMs = Date.parse(`${nowMinute}:00.000Z`);
     return activeThreadSnoozed ? (
       <ThreadStatusLine
-        icon={<AlarmClockIcon />}
+        icon={<ClockSnoozeIcon />}
         label={
           activeSnoozedUntil
             ? `Snoozed, ${formatRelativeTimeUntilLabel(activeSnoozedUntil, nowMs)}`
@@ -533,7 +533,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
       />
     ) : activeThreadDone ? (
       <ThreadStatusLine
-        icon={<CheckCircle2Icon />}
+        icon={<CircleCheckIcon />}
         label={activeDoneAt ? `Done ${formatRelativeTimeLabel(activeDoneAt, nowMs)}` : "Done"}
         actionLabel={isReopening ? "Reopening..." : "Reopen"}
         actionDisabled={!canOperateThread || isReopening}
@@ -541,7 +541,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
       />
     ) : activeThreadWokeVisible ? (
       <ThreadStatusLine
-        icon={<AlarmClockIcon />}
+        icon={<ClockSnoozeIcon />}
         label="Woke from snooze"
         actionLabel="Dismiss"
         onAction={acknowledgeActiveThreadWokeStable}

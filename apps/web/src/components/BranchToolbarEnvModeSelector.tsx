@@ -1,7 +1,7 @@
 import { formatFilePathForClipboard } from "@supaterm/client-runtime/media-actions";
 import { ThreadDetailsComboboxControl, ThreadDetailsControl } from "./chat/ThreadDetailsControl";
 import { ComposerContextLabel } from "./ComposerContextLabel";
-import { CheckIcon, CopyIcon, FolderGit2Icon, FolderGitIcon, FolderIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, FolderGitIcon, FolderIcon } from "@supaterm/icons";
 import { memo, type MouseEvent as ReactMouseEvent } from "react";
 import { useCopyToClipboard, writeTextToClipboard } from "../hooks/useCopyToClipboard";
 import { useShortcutLabel } from "../hooks/useShortcutLabel";
@@ -165,7 +165,7 @@ export const BranchToolbarEnvModeSelector = memo(function BranchToolbarEnvModeSe
             className={displayMode === "panel" ? THREAD_DETAILS_PANEL_ICON_CLASS : "size-3"}
           />
         ) : effectiveEnvMode === "worktree" ? (
-          <FolderGit2Icon
+          <FolderGitIcon
             className={displayMode === "panel" ? THREAD_DETAILS_PANEL_ICON_CLASS : "size-3"}
           />
         ) : (
@@ -231,7 +231,7 @@ export const BranchToolbarEnvModeSelector = memo(function BranchToolbarEnvModeSe
           }
         >
           {effectiveEnvMode === "worktree" ? (
-            <FolderGit2Icon
+            <FolderGitIcon
               className={displayMode === "panel" ? THREAD_DETAILS_PANEL_ICON_CLASS : "size-3"}
             />
           ) : activeWorktreePath ? (

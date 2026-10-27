@@ -16,7 +16,7 @@ import {
   cloneUrlForProtocol,
   cloneUrlProtocol,
 } from "@supaterm/shared/cloneUrl";
-import { ArrowRightIcon } from "lucide-react";
+import { ArrowRightIcon } from "@supaterm/icons";
 import { useEffect, useId, useState } from "react";
 import { create } from "zustand";
 

@@ -1,5 +1,5 @@
 import type { DevicePlatformAvailability } from "@supaterm/contracts";
-import { Check, Minus } from "lucide-react";
+import { CheckIcon, MinusIcon } from "@supaterm/icons";
 import { Tooltip, TooltipTrigger, TooltipPopup } from "../ui/tooltip";
 
 export function DeviceHostAvailability({
@@ -12,7 +12,11 @@ export function DeviceHostAvailability({
       {platforms.map((platform) => (
         <Tooltip key={platform.platform}>
           <TooltipTrigger render={<span tabIndex={0} className="inline-flex items-center gap-1" />}>
-            {platform.available ? <Check className="size-3" /> : <Minus className="size-3" />}
+            {platform.available ? (
+              <CheckIcon className="size-3" />
+            ) : (
+              <MinusIcon className="size-3" />
+            )}
             {platform.platform === "ios" ? "iOS" : "Android"}{" "}
             {platform.available ? "available" : "unavailable"}
           </TooltipTrigger>

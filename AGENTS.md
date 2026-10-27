@@ -145,6 +145,7 @@ Architecture and its constraints: `docs/internals/overview.md`. Glossary: `docs/
 - `packages/contracts` - Effect/Schema contracts plus small derived helpers. No heavy runtime logic.
 - `packages/shared` - shared runtime utils, subpath exports, no barrel.
 - `packages/client-runtime` - client code shared by web and mobile.
+- `packages/icons` - every icon outside iOS SF Symbols, vendored from a paid set. Import from `@supaterm/icons`; never add another icon library or hand-draw a glyph. Adding one needs the license key, see [Icons](docs/operations/development.md#icons).
 
 ## Taste
 

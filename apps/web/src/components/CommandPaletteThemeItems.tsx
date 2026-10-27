@@ -1,5 +1,5 @@
 import { BUILT_IN_THEMES } from "@supaterm/shared/themePalettes";
-import { MonitorIcon, MoonIcon, PaletteIcon, SunIcon } from "lucide-react";
+import { MonitorIcon, MoonIcon, PaletteIcon, SunIcon } from "@supaterm/icons";
 
 import { useCustomThemes } from "../hooks/useCustomThemes";
 import { useEnvironmentThemeDefinitions } from "../hooks/useEnvironmentTheme";

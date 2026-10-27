@@ -11,10 +11,10 @@ import {
   ChevronDownIcon,
   CircleCheckIcon,
   ExternalLinkIcon,
-  FileCode2Icon,
-  GitCommitHorizontalIcon,
+  FileCodeIcon,
+  GitCommitIcon,
   MessageSquareIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 import { useState, type ReactNode } from "react";
 
 import { cn } from "~/lib/utils";
@@ -230,7 +230,7 @@ function ConversationCard({
               </span>
               {showPath && event.path ? (
                 <span className="inline-flex min-w-0 items-center gap-1">
-                  <FileCode2Icon aria-hidden className="size-3 shrink-0" />
+                  <FileCodeIcon aria-hidden className="size-3 shrink-0" />
                   <span className="truncate">{event.path}</span>
                 </span>
               ) : null}
@@ -403,7 +403,7 @@ function ReviewThreadEvent({
         aria-expanded={expanded}
         onClick={() => setExpanded((current) => !current)}
       >
-        <FileCode2Icon aria-hidden className="size-3 shrink-0" />
+        <FileCodeIcon aria-hidden className="size-3 shrink-0" />
         <span className="min-w-0 truncate font-mono">
           {thread.line === null ? thread.path : `${thread.path}:${thread.line}`}
         </span>
@@ -483,7 +483,7 @@ function CommitEvent({
     >
       <ActorTimelineMarker
         actors={event.commitAuthors}
-        fallback={<GitCommitHorizontalIcon className="size-3.5" />}
+        fallback={<GitCommitIcon className="size-3.5" />}
       />
       <div className="flex min-w-0 items-center gap-2.5 py-1.5">
         <div className="min-w-0 flex-1">
@@ -594,7 +594,7 @@ function ReviewVerdictEvent({
               </span>
               {event.path ? (
                 <span className="inline-flex min-w-0 items-center gap-1">
-                  <FileCode2Icon aria-hidden className="size-3 shrink-0" />
+                  <FileCodeIcon aria-hidden className="size-3 shrink-0" />
                   <span className="truncate">{event.path}</span>
                 </span>
               ) : null}

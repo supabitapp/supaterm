@@ -1,5 +1,5 @@
 import { memo, useRef } from "react";
-import { Check, Copy } from "lucide";
+import { Check, Copy } from "@supaterm/icons/nodes";
 import { Button } from "../ui/button";
 import { MorphIcon } from "~/components/MorphIcon";
 import { cn } from "~/lib/utils";

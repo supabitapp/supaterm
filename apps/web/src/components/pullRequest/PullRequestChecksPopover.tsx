@@ -8,7 +8,7 @@ import type {
   ScopedThreadRef,
 } from "@supaterm/contracts";
 import { withOccurrenceKeys } from "@supaterm/shared/occurrenceKeys";
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon } from "@supaterm/icons";
 
 import { useOpenLink } from "~/browser/useOpenLink";
 import { cn } from "~/lib/utils";

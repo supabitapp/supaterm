@@ -1,5 +1,5 @@
 import type { PullRequestContextMetadata } from "@supaterm/contracts";
-import { ArrowRightIcon } from "lucide-react";
+import { ArrowRightIcon } from "@supaterm/icons";
 
 import { cn } from "~/lib/utils";
 

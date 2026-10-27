@@ -24,7 +24,7 @@ import { useSidebarWorkspaceTabs } from "./useSidebarWorkspaceTabs";
 import { useWorkspaceTabSelection } from "./useWorkspaceTabSelection";
 import { useMobileNavigationTheme } from "../../lib/useMobileNavigationTheme";
 
-// Tabler's git-pull-request geometry, shared with the UIKit tab bar.
+// @supaterm/icons GitPullRequest, rendered to PNG and shared with the UIKit tab bar.
 const PULL_REQUEST_ICON = require("../../../modules/supaterm-native-controls/ios/Resources/pull-request.png");
 
 /**

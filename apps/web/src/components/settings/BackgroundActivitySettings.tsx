@@ -1,5 +1,5 @@
 import { useScopedSettingsWriteAllowed } from "./useScopedSettings";
-import { SettingsIcon } from "lucide-react";
+import { SettingsIcon } from "@supaterm/icons";
 import { useState } from "react";
 import { type BackgroundActivityProfile } from "@supaterm/contracts";
 import { DEFAULT_UNIFIED_SETTINGS } from "@supaterm/contracts/settings";

@@ -5,7 +5,7 @@ import {
   htmlRenderFrameHeight,
   type HtmlRenderReference,
 } from "@supaterm/shared/htmlRender";
-import { Maximize2Icon, PanelRightIcon } from "lucide-react";
+import { ExpandIcon, PanelRightIcon } from "@supaterm/icons";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useAssetUrlRefresh, useAssetUrlState } from "~/assets/assetUrls";
@@ -152,7 +152,7 @@ export function HtmlRenderFrame(props: {
                   />
                 }
               >
-                <Maximize2Icon className="size-3.5" />
+                <ExpandIcon className="size-3.5" />
               </TooltipTrigger>
               <TooltipPopup side="bottom">Open full screen</TooltipPopup>
             </Tooltip>

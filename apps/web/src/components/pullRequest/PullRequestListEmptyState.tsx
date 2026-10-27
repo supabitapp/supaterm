@@ -1,5 +1,5 @@
 import { RefreshIcon } from "~/components/ui/refresh-icon";
-import { PlusIcon, SearchIcon } from "lucide-react";
+import { PlusIcon, SearchIcon } from "@supaterm/icons";
 
 import { openCommandPalette } from "../../commandPaletteBus";
 import { Button } from "../ui/button";

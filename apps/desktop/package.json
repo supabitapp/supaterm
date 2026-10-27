@@ -18,6 +18,7 @@
     "@supaterm/client-runtime": "workspace:*",
     "@supaterm/codex-micro": "workspace:*",
     "@supaterm/contracts": "workspace:*",
+    "@supaterm/icons": "workspace:*",
     "@supaterm/shared": "workspace:*",
     "@supaterm/ssh": "workspace:*",
     "@supaterm/tailscale": "workspace:*",

@@ -1,6 +1,6 @@
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import type { ScopedThreadRef } from "@supaterm/contracts";
-import { Clock3Icon } from "lucide-react";
+import { Clock3Icon } from "@supaterm/icons";
 import { memo } from "react";
 
 import { cn } from "../lib/utils";

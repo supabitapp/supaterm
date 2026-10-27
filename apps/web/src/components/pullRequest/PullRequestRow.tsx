@@ -1,6 +1,6 @@
 import type { PullRequestAction } from "@supaterm/contracts";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
-import { SearchIcon } from "lucide-react";
+import { SearchIcon } from "@supaterm/icons";
 import { PullRequestChangeBreakdownStat } from "./PullRequestChangeBreakdownStat";
 import { PullRequestStackPopover } from "./PullRequestStackPopover";
 import {

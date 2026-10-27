@@ -1,7 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import { ThreadDetailsControl } from "./ThreadDetailsControl";
 import { useNavigate } from "@tanstack/react-router";
-import { CalendarClockIcon, PencilIcon, PlayIcon, Settings2Icon } from "lucide-react";
+import { CalendarClockIcon, PencilIcon, PlayIcon, SlidersHorizontalIcon } from "@supaterm/icons";
 import { useState } from "react";
 import {
   AuthOrchestrationOperateScope,
@@ -159,7 +159,7 @@ export function ThreadAutomationsPanel(props: {
                 aria-label="Manage automations"
                 onClick={() => void navigate({ to: "/automations" })}
               >
-                <Settings2Icon className="size-3.5" />
+                <SlidersHorizontalIcon className="size-3.5" />
               </ThreadDetailsControl>
             }
           />

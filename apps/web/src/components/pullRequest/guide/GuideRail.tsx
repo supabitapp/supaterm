@@ -1,5 +1,5 @@
 import type { PullRequestReviewGuideStop } from "@supaterm/contracts";
-import { CheckIcon } from "lucide-react";
+import { CheckIcon } from "@supaterm/icons";
 
 import { cn } from "~/lib/utils";
 

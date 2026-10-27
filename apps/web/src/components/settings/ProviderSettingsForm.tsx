@@ -8,7 +8,7 @@ import {
   type ProviderSettingsFormOption,
   type ProviderSettingsFormSchemaAnnotation,
 } from "@supaterm/contracts";
-import { PlusIcon, XIcon } from "lucide-react";
+import { PlusIcon, XIcon } from "@supaterm/icons";
 
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";

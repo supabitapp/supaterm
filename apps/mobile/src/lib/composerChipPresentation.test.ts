@@ -37,7 +37,7 @@ describe("pull request chip status", () => {
   };
 
   it("gives composer and message chips web's per-state pull request glyphs", async () => {
-    expect((await chip("open")).icon).toBe("git-pull-request-arrow");
+    expect((await chip("open")).icon).toBe("git-pull-request");
     expect((await chip("open", true)).icon).toBe("git-pull-request-draft");
     expect((await chip("merged")).icon).toBe("git-merge");
     expect((await chip("closed")).icon).toBe("git-pull-request-closed");

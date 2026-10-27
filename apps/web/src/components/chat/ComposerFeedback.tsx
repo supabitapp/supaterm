@@ -2,7 +2,7 @@ import {
   codexFeedbackNotice,
   type CodexFeedbackSubmission,
 } from "@supaterm/client-runtime/state/threads";
-import { MessageSquareIcon } from "lucide-react";
+import { MessageSquareIcon } from "@supaterm/icons";
 
 import { writeTextToClipboard } from "../../hooks/useCopyToClipboard";
 import { Button } from "../ui/button";

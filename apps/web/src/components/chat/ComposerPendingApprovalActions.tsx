@@ -4,7 +4,7 @@ import {
   type RuntimeRequestId,
 } from "@supaterm/contracts";
 import { memo } from "react";
-import { EllipsisIcon, TriangleAlertIcon } from "lucide-react";
+import { EllipsisIcon, TriangleAlertIcon } from "@supaterm/icons";
 import { Button } from "../ui/button";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";

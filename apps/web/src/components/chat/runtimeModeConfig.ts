@@ -1,9 +1,15 @@
 import type { RuntimeMode } from "@supaterm/contracts";
-import { type LucideIcon, LockIcon, LockOpenIcon, PenLineIcon, SparklesIcon } from "lucide-react";
+import {
+  type IconComponent,
+  LockIcon,
+  LockOpenIcon,
+  PenLineIcon,
+  SparklesIcon,
+} from "@supaterm/icons";
 
 export const runtimeModeConfig: Record<
   RuntimeMode,
-  { label: string; description: string; icon: LucideIcon }
+  { label: string; description: string; icon: IconComponent }
 > = {
   "approval-required": {
     label: "Supervised",

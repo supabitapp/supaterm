@@ -1,5 +1,5 @@
 import type { DesktopPreviewColorScheme, KeybindingCommand } from "@supaterm/contracts";
-import { Minus, MoreVertical, Plus as PlusIcon, RotateCcw } from "lucide-react";
+import { EllipsisVerticalIcon, MinusIcon, PlusIcon, RotateCcwIcon } from "@supaterm/icons";
 import { useId, type ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
@@ -103,7 +103,7 @@ const MenuTriggerButton = () => (
         />
       }
     >
-      <MoreVertical />
+      <EllipsisVerticalIcon />
     </TooltipTrigger>
     <TooltipPopup>More</TooltipPopup>
   </Tooltip>
@@ -178,7 +178,7 @@ export function PreviewMoreMenu({
               disabled={disabled}
               onClick={actions.zoomOut}
             >
-              <Minus />
+              <MinusIcon />
             </ZoomButton>
             <span className="min-w-12 text-center text-xs tabular-nums text-muted-foreground">
               {zoomLabel}
@@ -199,7 +199,7 @@ export function PreviewMoreMenu({
               disabled={disabled}
               onClick={actions.resetZoom}
             >
-              <RotateCcw />
+              <RotateCcwIcon />
             </ZoomButton>
           </span>
         </MenuItem>

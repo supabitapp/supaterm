@@ -38,8 +38,8 @@ import {
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
 import { mediaFileReference } from "@supaterm/client-runtime/media-reference";
-import { FolderTree, Globe2, WrapTextIcon } from "lucide-react";
-import { Code2, Eye, Table2 } from "lucide";
+import { EarthIcon, FolderTreeIcon, WrapTextIcon } from "@supaterm/icons";
+import { CodeXml, Eye, Table } from "@supaterm/icons/nodes";
 import * as Schema from "effect/Schema";
 import { useEffect, useRef, useState } from "react";
 
@@ -1309,7 +1309,7 @@ export default function FilePreviewPanel({
             >
               <MorphIcon
                 className="size-3.5"
-                icon={rendered ? Code2 : renderedMode === "table" ? Table2 : Eye}
+                icon={rendered ? CodeXml : renderedMode === "table" ? Table : Eye}
               />
             </FileSurfaceAction>
           ) : null}
@@ -1324,7 +1324,7 @@ export default function FilePreviewPanel({
           ) : null}
           {canOpenInBrowser ? (
             <FileSurfaceAction label="Open file in preview browser" onPress={handleOpenInBrowser}>
-              <Globe2 className="size-3.5" />
+              <EarthIcon className="size-3.5" />
             </FileSurfaceAction>
           ) : null}
           {!isHostFile && previewPath !== null ? (
@@ -1333,7 +1333,7 @@ export default function FilePreviewPanel({
               pressed={explorerOpen}
               onPress={toggleExplorer}
             >
-              <FolderTree className="size-3.5" />
+              <FolderTreeIcon className="size-3.5" />
             </FileSurfaceAction>
           ) : null}
         </div>

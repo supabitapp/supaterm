@@ -1,4 +1,4 @@
-import { ChevronLeftIcon, ChevronRightIcon, GripVerticalIcon, XIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, GripVerticalIcon, XIcon } from "@supaterm/icons";
 
 import { orderedPanes } from "../../chatPanes/layout";
 import { usePaneScope } from "../../chatPanes/paneScope";

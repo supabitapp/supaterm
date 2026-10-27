@@ -1,5 +1,5 @@
 import type { DesktopBridge, DesktopUpdateState } from "@supaterm/contracts";
-import { ArrowRightIcon } from "lucide-react";
+import { ArrowRightIcon } from "@supaterm/icons";
 
 import {
   getDesktopUpdateDownloadedVersion,

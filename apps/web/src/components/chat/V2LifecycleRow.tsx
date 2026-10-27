@@ -31,15 +31,15 @@ import {
 } from "@supaterm/contracts";
 import type { TimestampFormat } from "@supaterm/contracts/settings";
 import {
+  ArrowRightIcon,
+  ArrowRightLeftIcon,
   BotIcon,
   ChevronRightIcon,
-  ArrowRightLeftIcon,
-  ArrowRightIcon,
   GitForkIcon,
   MessageSquareIcon,
   MinusIcon,
   XIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 
 import { Tooltip, TooltipTrigger, TooltipPopup } from "../ui/tooltip";
 import {

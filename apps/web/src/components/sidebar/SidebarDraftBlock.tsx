@@ -4,7 +4,7 @@ import { CollapsibleSectionHeader } from "../ui/collapsible-section-header";
 import { discardComposerDraft } from "../../lib/discardComposerDraft";
 import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";
 import * as Schema from "effect/Schema";
-import { SquarePenIcon } from "lucide-react";
+import { SquarePenIcon } from "@supaterm/icons";
 import {
   memo,
   useState,

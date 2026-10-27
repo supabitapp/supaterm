@@ -1,4 +1,4 @@
-import { PaperclipIcon } from "lucide-react";
+import { PaperclipIcon } from "@supaterm/icons";
 
 import { usePresence } from "~/hooks/usePresence";
 

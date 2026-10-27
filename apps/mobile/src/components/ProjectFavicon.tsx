@@ -1,8 +1,10 @@
 import { SymbolView } from "./ui/AppSymbol";
 import { AppText } from "./ui/AppText";
+import { NodeIcon } from "./ui/NodeIcon";
 import { Image } from "expo-image";
 import { memo, useLayoutEffect, useMemo, useState } from "react";
 import { View } from "react-native";
+import { useResolveClassNames } from "uniwind";
 import type { EnvironmentId, ProjectIconOverride } from "@supaterm/contracts";
 import {
   getProjectFaviconCacheKey,
@@ -39,7 +41,7 @@ export const ProjectFavicon = memo(function ProjectFavicon(props: {
   readonly projectIcon?: ProjectIconOverride | null;
 }) {
   const size = props.size ?? 42;
-  const glyph = resolveProjectIconGlyph(props.projectIcon, props.projectTitle);
+  const glyph = resolveProjectIconGlyph(props.projectIcon);
   const faviconUrl = useAtomValue(
     props.workspaceRoot == null || glyph !== null
       ? EMPTY_FAVICON_URL
@@ -107,6 +109,10 @@ function ProjectIconGlyphView(props: { readonly glyph: ProjectIconGlyph; readonl
         </AppText>
       </View>
     );
+  }
+
+  if (glyph.kind === "icon") {
+    return <ProjectIconNodeView glyph={glyph} size={size} />;
   }
 
   const colors = projectIconColorClassNames(glyph.color);
@@ -211,6 +217,25 @@ function ProjectFaviconImage(props: {
           }}
         />
       ) : null}
+    </View>
+  );
+}
+
+function ProjectIconNodeView(props: {
+  readonly glyph: Extract<ProjectIconGlyph, { kind: "icon" }>;
+  readonly size: number;
+}) {
+  const { color } = useResolveClassNames(projectIconColorClassNames(props.glyph.color).text);
+  return (
+    <View
+      style={{
+        width: props.size,
+        height: props.size,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <NodeIcon node={props.glyph.node} size={props.size * 0.8} color={color} />
     </View>
   );
 }

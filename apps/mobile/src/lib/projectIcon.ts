@@ -1,7 +1,10 @@
 import type { ProjectIconColor, ProjectIconOverride } from "@supaterm/contracts";
+import type { IconNode } from "@supaterm/icons/nodes";
+import { resolveProjectIcon } from "@supaterm/icons/project";
 
 export type ProjectIconGlyph =
   | { readonly kind: "emoji"; readonly emoji: string }
+  | { readonly kind: "icon"; readonly node: IconNode; readonly color: ProjectIconColor }
   | { readonly kind: "monogram"; readonly text: string; readonly color: ProjectIconColor };
 
 /**
@@ -12,35 +15,17 @@ export function countGlyphs(text: string): number {
   return Array.from(text.replace(/\p{M}/gu, "")).length;
 }
 
-export function projectMonogram(projectName: string): string {
-  const words =
-    projectName
-      .normalize("NFKC")
-      .trim()
-      .match(/[\p{L}\p{N}]+/gu) ?? [];
-  const firstWord = words[0];
-  if (!firstWord) return "PR";
-
-  const glyphs = Array.from(firstWord);
-  const first = glyphs[0] ?? "P";
-  const second =
-    glyphs.slice(1).find((glyph) => /\p{N}/u.test(glyph)) ??
-    (words.length > 1 ? Array.from(words.at(-1) ?? "")[0] : glyphs.at(-1)) ??
-    first;
-  return Array.from(`${first}${second}`.toUpperCase()).slice(0, 2).join("");
-}
-
 export function resolveProjectIconGlyph(
   projectIcon: ProjectIconOverride | null | undefined,
-  projectTitle: string,
 ): ProjectIconGlyph | null {
   switch (projectIcon?.kind) {
     case "emoji":
       return { kind: "emoji", emoji: projectIcon.emoji };
     case "monogram":
       return { kind: "monogram", text: projectIcon.text, color: projectIcon.color };
+    case "icon":
     case "lucide":
-      return { kind: "monogram", text: projectMonogram(projectTitle), color: projectIcon.color };
+      return { kind: "icon", node: resolveProjectIcon(projectIcon).node, color: projectIcon.color };
     case undefined:
       return null;
   }

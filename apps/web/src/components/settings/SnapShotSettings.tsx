@@ -7,7 +7,7 @@ import {
   type DesktopSnapShotSetupAction,
   type SnapShotShortcut,
 } from "@supaterm/contracts";
-import { PlayIcon } from "lucide-react";
+import { PlayIcon } from "@supaterm/icons";
 import { settlePromise } from "@supaterm/client-runtime/state/runtime";
 import * as Cause from "effect/Cause";
 import { useEffect, useRef, useState } from "react";

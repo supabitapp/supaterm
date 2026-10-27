@@ -1,5 +1,5 @@
 import type { RunId, ThreadId } from "@supaterm/contracts";
-import { GitForkIcon } from "lucide-react";
+import { GitForkIcon } from "@supaterm/icons";
 import { useState } from "react";
 
 import { useShortcutLabel } from "../../hooks/useShortcutLabel";

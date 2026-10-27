@@ -301,7 +301,7 @@ const make = Effect.gen(function* () {
           .update({
             commandId: CommandId.make(`scratch-project-icon:${id}`),
             projectId: bootstrapped.project.id,
-            projectIcon: { kind: "lucide", name: "message-square-dashed", color: "gray" },
+            projectIcon: { kind: "icon", name: "message-square-more", color: "gray" },
           })
           .pipe(Effect.mapError((cause) => new ScratchProjectError({ workspaceRoot, cause })));
       }

@@ -1,18 +1,18 @@
 import { Spinner } from "~/components/ui/spinner";
 
 import {
-  AlertTriangleIcon,
   CheckIcon,
-  ArrowUpCircleIcon,
+  CircleArrowUpIcon,
   CopyIcon,
   DownloadIcon,
   ExternalLinkIcon,
   LayersIcon,
   PlusIcon,
-  Trash2Icon,
+  TrashIcon,
+  TriangleAlertIcon,
   XIcon,
-} from "lucide-react";
-import { Lock as LockGlyph, LockOpen } from "lucide";
+} from "@supaterm/icons";
+import { Lock as LockGlyph, LockOpen } from "@supaterm/icons/nodes";
 import * as Arr from "effect/Array";
 import * as Result from "effect/Result";
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
@@ -686,7 +686,7 @@ export function ProviderInstanceCard({
     compatibility !== undefined &&
     compatibility.status !== "supported" &&
     compatibility.status !== "unknown";
-  const VersionAdvisoryIcon = hasCompatibilityWarning ? AlertTriangleIcon : ArrowUpCircleIcon;
+  const VersionAdvisoryIcon = hasCompatibilityWarning ? TriangleAlertIcon : CircleArrowUpIcon;
   const onRunVersionAction = readOnly
     ? undefined
     : versionAdvisory?.targetVersion
@@ -1094,7 +1094,7 @@ export function ProviderInstanceCard({
             size="icon-xs"
             variant="ghost-destructive"
             disabled={readOnly}
-            icon={<Trash2Icon />}
+            icon={<TrashIcon />}
             label={`Delete instance ${instanceId}`}
             confirmLabel={`Confirm delete instance ${instanceId}`}
             tooltip="Delete instance"

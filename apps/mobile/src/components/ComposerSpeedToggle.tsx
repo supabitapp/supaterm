@@ -7,17 +7,23 @@ import type { ProviderOptionDescriptor, ProviderOptionSelection } from "@supater
 import { getProviderOptionCurrentValue } from "@supaterm/shared/model";
 import * as Haptics from "expo-haptics";
 import { Platform, Pressable } from "react-native";
-import Svg, { Path } from "react-native-svg";
+import { Zap } from "@supaterm/icons/nodes";
+import Svg, { G } from "react-native-svg";
 import { withUniwind } from "uniwind";
 
 import { applyProviderOptionSelection } from "../lib/providerOptions";
 import { Menu } from "./ui/Menu";
+import { NodeIconElements } from "./ui/NodeIcon";
 import { useAndroidControlSizing } from "./ui/useAndroidControlSizing";
 
 const ThemedSvg = withUniwind(Svg);
 
-const BOLT_PATH =
-  "M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z";
+const BOLT_STROKE = {
+  stroke: "currentColor",
+  strokeWidth: 2,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+} as const;
 
 export function ComposerSpeedToggle(props: {
   readonly provider: string | null | undefined;
@@ -64,18 +70,22 @@ export function ComposerSpeedToggle(props: {
       >
         {speedToggle.level === "ultrafast" ? (
           <>
-            <Path d="m17 2-10 12h7l-1 8 10-12h-7l1-8Z" fill="currentColor" opacity={0.4} />
-            <Path d="m11 2-10 12h7l-1 8 10-12h-7l1-8Z" fill="currentColor" />
+            <G
+              transform="translate(4.6 1.8) scale(0.85)"
+              opacity={0.4}
+              fill="currentColor"
+              {...BOLT_STROKE}
+            >
+              <NodeIconElements node={Zap} />
+            </G>
+            <G transform="translate(-2.4 1.8) scale(0.85)" fill="currentColor" {...BOLT_STROKE}>
+              <NodeIconElements node={Zap} />
+            </G>
           </>
         ) : (
-          <Path
-            d={BOLT_PATH}
-            fill={on ? "currentColor" : "none"}
-            stroke="currentColor"
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+          <G fill={on ? "currentColor" : "none"} {...BOLT_STROKE}>
+            <NodeIconElements node={Zap} />
+          </G>
         )}
       </ThemedSvg>
     </Pressable>

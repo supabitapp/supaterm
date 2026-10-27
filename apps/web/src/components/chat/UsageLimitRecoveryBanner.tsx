@@ -3,7 +3,7 @@ import {
   type OrchestrationV2LimitRecoveryUpdate,
   type RunId,
 } from "@supaterm/contracts";
-import { GaugeIcon } from "lucide-react";
+import { GaugeIcon } from "@supaterm/icons";
 import { useEffect, useState } from "react";
 import { Button } from "../ui/button";
 import { toastManager } from "../ui/toast";

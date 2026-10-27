@@ -1,5 +1,5 @@
-import { PanelBottomIcon, PanelRightIcon, SquareMenuIcon } from "lucide-react";
-import { Maximize2, Minimize2 } from "lucide";
+import { PanelBottomIcon, PanelRightIcon, SquareMenuIcon } from "@supaterm/icons";
+import { Expand, Shrink } from "@supaterm/icons/nodes";
 import { MorphIcon } from "~/components/MorphIcon";
 import { memo, type ReactElement, type ReactNode } from "react";
 
@@ -160,7 +160,7 @@ export const RightPanelMaximizeControl = memo(function RightPanelMaximizeControl
             variant="ghost"
             size="sm"
           >
-            <MorphIcon className="size-4" icon={maximized ? Minimize2 : Maximize2} />
+            <MorphIcon className="size-4" icon={maximized ? Shrink : Expand} />
           </Toggle>
         }
       />

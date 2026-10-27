@@ -27,7 +27,7 @@ import {
 import { PREFERRED_HIGHLIGHTER } from "../../lib/syntaxHighlighting";
 import ChatMarkdown, { type ChatMarkdownContextReference } from "../ChatMarkdown";
 import { ThreadContextChip } from "../ThreadContextChip";
-import { PaintbrushIcon, MousePointerClickIcon, MessageCircleIcon } from "lucide-react";
+import { MessageCircleIcon, MousePointerClickIcon, PaintbrushIcon } from "@supaterm/icons";
 import { buildExpandedImagePreview } from "./ExpandedImagePreview";
 import { WorkspaceEntryIcon, WorkspaceEntryTooltip } from "./WorkspaceEntryIcon";
 import { TerminalContextInlineChip } from "./TerminalContextInlineChip";

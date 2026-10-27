@@ -13,17 +13,17 @@ import type {
 import {
   ChevronDownIcon,
   ChevronRightIcon,
-  Columns2Icon,
+  ColumnsIcon,
   FolderTreeIcon,
   InfoIcon,
   MessageSquareOffIcon,
   PilcrowIcon,
-  Rows3Icon,
-  Settings2Icon,
-  TextWrapIcon,
+  RowsIcon,
+  SlidersHorizontalIcon,
   TriangleAlertIcon,
-} from "lucide-react";
-import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucide";
+  WrapTextIcon,
+} from "@supaterm/icons";
+import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from "@supaterm/icons/nodes";
 import { useAtomRefresh } from "@effect/atom-react";
 import * as Schema from "effect/Schema";
 import {
@@ -1143,7 +1143,7 @@ function PullRequestCodeTab({
                 />
               }
             >
-              <Settings2Icon className="size-3.5" />
+              <SlidersHorizontalIcon className="size-3.5" />
             </TooltipTrigger>
             <TooltipPopup side="top">Diff options</TooltipPopup>
           </Tooltip>
@@ -1212,10 +1212,10 @@ function PullRequestCodeTab({
             }}
           >
             <Toggle aria-label="Stacked diff view" value="stacked">
-              <Rows3Icon className="size-3.5" />
+              <RowsIcon className="size-3.5" />
             </Toggle>
             <Toggle aria-label="Split diff view" value="split">
-              <Columns2Icon className="size-3.5" />
+              <ColumnsIcon className="size-3.5" />
             </Toggle>
           </ToggleGroup>
           <Tooltip>
@@ -1232,7 +1232,7 @@ function PullRequestCodeTab({
                 />
               }
             >
-              <TextWrapIcon className="size-3.5" />
+              <WrapTextIcon className="size-3.5" />
             </TooltipTrigger>
             <TooltipPopup side="top">
               {wordWrap ? "Disable line wrapping" : "Enable line wrapping"}

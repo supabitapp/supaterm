@@ -1,6 +1,6 @@
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import type { EnvironmentId, PullRequestDetailView, PullRequestRef } from "@supaterm/contracts";
-import { MessageSquareIcon, Trash2Icon, XIcon } from "lucide-react";
+import { MessageSquareIcon, TrashIcon, XIcon } from "@supaterm/icons";
 import { useRef, useState } from "react";
 
 import { InlineConfirmButton } from "../InlineConfirm";
@@ -130,7 +130,7 @@ export function PullRequestComposer({
                 size="icon-xs"
                 variant="ghost"
                 disabled={reviewPending}
-                icon={<Trash2Icon className="size-3.5" />}
+                icon={<TrashIcon className="size-3.5" />}
                 label="Discard pending line comments"
                 confirmLabel="Confirm discard"
                 tooltip="Discard pending line comments"

@@ -1,5 +1,5 @@
 import type { EnvironmentId, PullRequestContextMetadata } from "@supaterm/contracts";
-import { CircleDashedIcon, FilmIcon, ImageIcon } from "lucide-react";
+import { CircleDashedIcon, FilmIcon, ImageIcon } from "@supaterm/icons";
 import {
   useState,
   type ComponentProps,

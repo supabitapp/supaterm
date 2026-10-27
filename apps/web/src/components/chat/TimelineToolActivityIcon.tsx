@@ -8,21 +8,21 @@ import { SupatermIcon } from "../SupatermIcon";
 import {
   BotIcon,
   BrainIcon,
-  Code2Icon,
-  SmartphoneIcon,
   CheckIcon,
   CircleAlertIcon,
+  CodeXmlIcon,
   EyeIcon,
   GlobeIcon,
   HammerIcon,
-  SearchIcon,
   MessageCircleIcon,
+  SearchIcon,
+  SmartphoneIcon,
   SquarePenIcon,
   TerminalIcon,
   WrenchIcon,
   XIcon,
   ZapIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 import { useAssetUrlState } from "../../assets/assetUrls";
 import { cn } from "~/lib/utils";
 
@@ -242,7 +242,7 @@ function WorkEntryIcon({ name, className }: { name: WorkEntryIconName; className
     case "computer":
       return <BrowserAppIcon className={className} />;
     case "code":
-      return <Code2Icon className={className} aria-hidden />;
+      return <CodeXmlIcon className={className} aria-hidden />;
     case "device":
       return <SmartphoneIcon className={className} aria-hidden />;
     case "supaterm":

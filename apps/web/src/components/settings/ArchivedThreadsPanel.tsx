@@ -1,6 +1,6 @@
 import { settingsScopeEnvironmentLabels } from "./settingsScopeAxis";
 import { Spinner } from "~/components/ui/spinner";
-import { ArchiveIcon, ArchiveX } from "lucide-react";
+import { ArchiveIcon, ArchiveXIcon } from "@supaterm/icons";
 import { type ScopedThreadRef } from "@supaterm/contracts";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { presentThreadShell } from "@supaterm/client-runtime/state/shell";
@@ -273,7 +273,7 @@ export function ArchivedThreadsPanel() {
                       })();
                     }}
                   >
-                    <ArchiveX className="size-3.5" />
+                    <ArchiveXIcon className="size-3.5" />
                     <span>Unarchive</span>
                   </Button>
                 }

@@ -1,4 +1,4 @@
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon } from "@supaterm/icons";
 
 import { usePresence } from "~/hooks/usePresence";
 import { Button } from "../ui/button";

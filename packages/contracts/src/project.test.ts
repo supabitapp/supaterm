@@ -143,6 +143,25 @@ effectIt.effect("project favicon paths accept only supported image files", () =>
 const decodeReceivedIcon = Schema.decodeUnknownEffect(ReceivedProjectIcon);
 const decodeProjectShell = Schema.decodeUnknownEffect(OrchestrationProjectShell);
 
+effectIt.effect(
+  "project icons saved under the Lucide kind still decode next to current icons",
+  () =>
+    Effect.gen(function* () {
+      assert.deepStrictEqual(
+        yield* decodeReceivedIcon({ kind: "icon", name: "rocket", color: "blue" }),
+        {
+          kind: "icon",
+          name: "rocket",
+          color: "blue",
+        },
+      );
+      assert.deepStrictEqual(
+        yield* decodeReceivedIcon({ kind: "lucide", name: "folder-code", color: "gray" }),
+        { kind: "lucide", name: "folder-code", color: "gray" },
+      );
+    }),
+);
+
 effectIt.effect("an icon kind from a newer server shows the default icon", () =>
   Effect.gen(function* () {
     assert.isNull(yield* decodeReceivedIcon({ kind: "image", url: "https://example.com/a.png" }));

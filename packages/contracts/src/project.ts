@@ -66,7 +66,7 @@ export const ProjectIconColor = Schema.Literals([
 ]);
 export type ProjectIconColor = typeof ProjectIconColor.Type;
 
-const ProjectLucideIconName = TrimmedNonEmptyString.check(
+const ProjectIconName = TrimmedNonEmptyString.check(
   Schema.isMaxLength(64),
   Schema.isPattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
 );
@@ -79,9 +79,16 @@ export const ProjectMonogramText = TrimmedNonEmptyString.check(
   Schema.isPattern(/^[\p{L}\p{N}][\p{L}\p{N}\p{M}\u200c\u200d]*$/u),
 );
 
+const ProjectSymbolIcon = Schema.Struct({
+  kind: Schema.Literal("icon"),
+  name: ProjectIconName,
+  color: ProjectIconColor,
+});
+// Projects saved before Supaterm switched icon sets name a Lucide icon; clients map
+// those names onto the current set.
 const ProjectLucideIcon = Schema.Struct({
   kind: Schema.Literal("lucide"),
-  name: ProjectLucideIconName,
+  name: ProjectIconName,
   color: ProjectIconColor,
 });
 const ProjectEmojiIcon = Schema.Struct({
@@ -100,17 +107,25 @@ export const ProjectFaviconPath = TrimmedNonEmptyString.check(
 export type ProjectFaviconPath = typeof ProjectFaviconPath.Type;
 
 export const ProjectIconOverride = Schema.Union([
+  ProjectSymbolIcon,
   ProjectLucideIcon,
   ProjectEmojiIcon,
   ProjectMonogramIcon,
 ]);
 export type ProjectIconOverride = typeof ProjectIconOverride.Type;
 
+/** An override that names an icon from the project icon set, saved now or before the switch. */
+export type ProjectSymbolIconOverride = Extract<ProjectIconOverride, { kind: "icon" | "lucide" }>;
+
+export function isProjectSymbolIcon(icon: ProjectIconOverride): icon is ProjectSymbolIconOverride {
+  return icon.kind === "icon" || icon.kind === "lucide";
+}
+
 /** An icon the server stores. */
 export const StoredProjectIcon = ProjectIconOverride;
 
 export const ReceivedProjectIcon = ForwardCompatibleUnion(
-  [ProjectLucideIcon, ProjectEmojiIcon, ProjectMonogramIcon],
+  [ProjectSymbolIcon, ProjectLucideIcon, ProjectEmojiIcon, ProjectMonogramIcon],
   "kind",
 ).pipe(
   Schema.decodeTo(

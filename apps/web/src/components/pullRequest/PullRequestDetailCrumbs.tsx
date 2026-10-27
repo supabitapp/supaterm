@@ -1,5 +1,5 @@
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
-import { ArrowLeftIcon, ExternalLinkIcon } from "lucide-react";
+import { ArrowLeftIcon, ExternalLinkIcon } from "@supaterm/icons";
 import type { MouseEvent as ReactMouseEvent } from "react";
 
 import { cn } from "~/lib/utils";

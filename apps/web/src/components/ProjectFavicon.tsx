@@ -3,9 +3,10 @@ import {
   getProjectFaviconResourceKey,
   isProjectFaviconFallbackUrl,
 } from "@supaterm/shared/projectFavicon";
-import { FolderCodeIcon } from "lucide-react";
+import { FolderIcon, NodeIcon } from "@supaterm/icons";
+import { isProjectSymbolIcon, type ProjectSymbolIconOverride } from "@supaterm/contracts";
 import type { ComponentType } from "react";
-import { createElement, lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useAtomValue } from "@effect/atom-react";
 import { projectFaviconUrlAtom } from "../state/assets";
 import { useProjectIdentity } from "../state/projectIdentity";
@@ -13,19 +14,20 @@ import { projectIconColorClassName } from "../projectIconColors";
 import { ProjectMonogram } from "./ProjectMonogram";
 import { cn } from "~/lib/utils";
 
-// All lucide icons load as one chunk, only once a project uses a lucide override.
-const LucideProjectIcon = lazy(() =>
-  import("../lib/lucideIconByName").then(({ lucideIconByName }) => ({
-    default: function LucideProjectIcon(props: { name: string; className: string }) {
-      return createElement(lucideIconByName(props.name) ?? FolderCodeIcon, {
-        className: props.className,
-      });
+// The project icon set loads as one chunk, only once a project picks an icon.
+const ProjectSymbolIcon = lazy(() =>
+  import("@supaterm/icons/project").then(({ resolveProjectIcon }) => ({
+    default: function ProjectSymbolIcon(props: {
+      icon: ProjectSymbolIconOverride;
+      className: string;
+    }) {
+      return <NodeIcon node={resolveProjectIcon(props.icon).node} className={props.className} />;
     },
   })),
 );
 
 function DynamicProjectIconFallback() {
-  return <FolderCodeIcon className="size-full text-inherit" />;
+  return <FolderIcon className="size-full text-inherit" />;
 }
 
 // Every surface must pass the project record itself (or a snapshot spread from it)
@@ -60,12 +62,12 @@ export function ProjectFavicon(input: {
     return (
       <ProjectFaviconFallback
         className={input.className}
-        icon={FolderCodeIcon}
+        icon={FolderIcon}
         emoji={project.projectIcon.emoji}
       />
     );
   }
-  if (project.projectIcon?.kind === "lucide") {
+  if (project.projectIcon && isProjectSymbolIcon(project.projectIcon)) {
     const colorClassName = projectIconColorClassName(project.projectIcon.color);
     const iconClassName = cn(
       "inline-flex size-3.5 shrink-0 items-center justify-center",
@@ -75,15 +77,15 @@ export function ProjectFavicon(input: {
     return (
       <span aria-hidden="true" className={iconClassName}>
         <Suspense fallback={<DynamicProjectIconFallback />}>
-          <LucideProjectIcon
-            name={project.projectIcon.name}
+          <ProjectSymbolIcon
+            icon={project.projectIcon}
             className={cn("size-full", colorClassName)}
           />
         </Suspense>
       </span>
     );
   }
-  const FallbackIcon = input.fallbackIcon ?? FolderCodeIcon;
+  const FallbackIcon = input.fallbackIcon ?? FolderIcon;
 
   if (!src || isProjectFaviconFallbackUrl(src)) {
     return (

@@ -7,8 +7,8 @@ import type {
   PullRequestThreadCommentsResult,
   PullRequestThreadComment,
 } from "@supaterm/contracts";
-import { HammerIcon, MessageSquareIcon, Trash2Icon } from "lucide-react";
-import { Circle, CircleCheck } from "lucide";
+import { HammerIcon, MessageSquareIcon, TrashIcon } from "@supaterm/icons";
+import { Circle, CircleCheck } from "@supaterm/icons/nodes";
 import { useRef, useState } from "react";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 
@@ -96,7 +96,7 @@ export function PendingReviewCommentCard({
           aria-label="Discard this comment"
           onClick={onRemove}
         >
-          <Trash2Icon className="size-3.5" />
+          <TrashIcon className="size-3.5" />
         </Button>
       </div>
       <p className="mt-2 whitespace-pre-wrap leading-relaxed">{comment.body}</p>

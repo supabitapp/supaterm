@@ -27,7 +27,6 @@ import {
 } from "@supaterm/contracts";
 import {
   AlarmClockIcon,
-  AlarmClockOffIcon,
   ArrowRightLeftIcon,
   BrainIcon,
   CheckIcon,
@@ -35,18 +34,19 @@ import {
   CircleCheckIcon,
   CircleDashedIcon,
   ClockIcon,
+  ClockSnoozeIcon,
   GitBranchIcon,
   MessageCircleQuestionIcon,
   PinIcon,
   PinOffIcon,
-  ShieldQuestionIcon,
+  ShieldAlertIcon,
   SquarePenIcon,
   TerminalIcon,
   TimerIcon,
-  Undo2Icon,
+  UndoIcon,
   XIcon,
   ZapIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 import {
   memo,
   useEffect,
@@ -532,13 +532,13 @@ const dropVerbBadge: Record<SidebarDropVerb, ReactNode> = {
   ),
   reopen: (
     <>
-      <Undo2Icon aria-hidden className="size-3" />
+      <UndoIcon aria-hidden className="size-3" />
       Reopen
     </>
   ),
   wake: (
     <>
-      <AlarmClockOffIcon aria-hidden className="size-3" />
+      <AlarmClockIcon aria-hidden className="size-3" />
       Wake
     </>
   ),
@@ -1257,7 +1257,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                             onClick={handleAcknowledgeWokeClick}
                             className="inline-flex cursor-pointer items-center gap-1 rounded-sm text-xs font-medium text-warning-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                           >
-                            <AlarmClockIcon aria-hidden className="size-3" />
+                            <ClockSnoozeIcon aria-hidden className="size-3" />
                             <span role="status">Woke</span>
                           </button>
                         }
@@ -1298,7 +1298,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                           onClick={handleUnsnoozeClick}
                           onSweepStart={handleSweepPointerDown}
                         >
-                          <AlarmClockOffIcon className="mb-px size-3" />
+                          <AlarmClockIcon className="mb-px size-3" />
                         </SidebarParkedActionButton>
                       </>
                     ) : (
@@ -1309,7 +1309,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                         onClick={handleReopenClick}
                         onSweepStart={handleSweepPointerDown}
                       >
-                        <Undo2Icon className="mb-px size-3.5" />
+                        <UndoIcon className="mb-px size-3.5" />
                       </SidebarParkedActionButton>
                     )}
                   </span>
@@ -1329,10 +1329,10 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     ? {
         working: CircleDashedIcon,
         input: MessageCircleQuestionIcon,
-        approval: ShieldQuestionIcon,
+        approval: ShieldAlertIcon,
         failed: CircleAlertIcon,
         done: CircleCheckIcon,
-        woke: AlarmClockIcon,
+        woke: ClockSnoozeIcon,
       }[topStatus.icon]
     : isPendingCreation
       ? CircleDashedIcon
@@ -1447,7 +1447,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                           />
                         }
                       >
-                        <AlarmClockIcon aria-hidden className="size-3.5" />
+                        <ClockSnoozeIcon aria-hidden className="size-3.5" />
                       </TooltipTrigger>
                       <TooltipPopup side="top">Dismiss Woke notification</TooltipPopup>
                     </Tooltip>

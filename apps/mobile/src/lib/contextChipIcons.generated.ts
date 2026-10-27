@@ -4,7 +4,7 @@ export const CONTEXT_CHIP_ICON_SOURCES = {
   "circle-dashed": require("../../assets/context-chip-icons/circle-dashed.png"),
   film: require("../../assets/context-chip-icons/film.png"),
   "git-merge": require("../../assets/context-chip-icons/git-merge.png"),
-  "git-pull-request-arrow": require("../../assets/context-chip-icons/git-pull-request-arrow.png"),
+  "git-pull-request": require("../../assets/context-chip-icons/git-pull-request.png"),
   "git-pull-request-closed": require("../../assets/context-chip-icons/git-pull-request-closed.png"),
   "git-pull-request-draft": require("../../assets/context-chip-icons/git-pull-request-draft.png"),
   image: require("../../assets/context-chip-icons/image.png"),

@@ -1,6 +1,6 @@
 import { useAtomCommand } from "~/state/use-atom-command";
 import type { EnvironmentId, PullRequestRef, PullRequestReviewVerdict } from "@supaterm/contracts";
-import { CheckIcon, MessageSquareIcon, XCircleIcon } from "lucide-react";
+import { CheckIcon, CircleXIcon, MessageSquareIcon } from "@supaterm/icons";
 import { useState, type ReactNode, type RefObject } from "react";
 
 import { pullRequestEnvironment } from "~/state/pullRequests";
@@ -37,7 +37,7 @@ const VERDICTS: ReadonlyArray<{
     value: "request-changes",
     label: "Request changes",
     sent: "Changes requested",
-    icon: <XCircleIcon className="size-3" />,
+    icon: <CircleXIcon className="size-3" />,
   },
 ];
 

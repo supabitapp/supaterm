@@ -10,7 +10,7 @@ import {
   presentProviderGoal,
 } from "@supaterm/client-runtime/state/thread-execution";
 import { childThreadInputsTitle } from "@supaterm/client-runtime/state/threads";
-import { GitBranchIcon, MessageCircleIcon, ShieldQuestionIcon, TargetIcon } from "lucide-react";
+import { GitBranchIcon, MessageCircleIcon, ShieldAlertIcon, TargetIcon } from "@supaterm/icons";
 import { Fragment } from "react";
 import { InlineConfirmButton } from "../InlineConfirm";
 import { Button, InlineButton } from "../ui/button";
@@ -31,7 +31,7 @@ export function childInputBannerItem(input: {
     id: `child-input:${first.id}`,
     variant: "info",
     priority: "activity",
-    icon: first.hasPendingApprovals ? <ShieldQuestionIcon /> : <MessageCircleIcon />,
+    icon: first.hasPendingApprovals ? <ShieldAlertIcon /> : <MessageCircleIcon />,
     title: childThreadInputsTitle(childThreadInputs),
     description: childThreadInputs.map((child, index) => (
       <Fragment key={child.id}>

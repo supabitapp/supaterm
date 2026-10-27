@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { XIcon } from "@supaterm/icons";
 import type { ReactNode } from "react";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 
@@ -27,7 +27,7 @@ export function PanelTabCloseButton({
       <span className="relative flex size-3 items-center justify-center group-hover/tab:hidden group-focus-visible/close:hidden">
         {children}
       </span>
-      <X className="hidden size-3 group-hover/tab:block group-focus-visible/close:block" />
+      <XIcon className="hidden size-3 group-hover/tab:block group-focus-visible/close:block" />
     </button>
   );
 

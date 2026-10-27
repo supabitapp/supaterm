@@ -3,7 +3,7 @@
  * and open Automations.
  */
 import { Link, useLocation, useParams } from "@tanstack/react-router";
-import { CalendarClockIcon, SearchIcon, SquarePenIcon } from "lucide-react";
+import { CalendarClockIcon, SearchIcon, SquarePenIcon } from "@supaterm/icons";
 
 import { openCommandPalette } from "../../commandPaletteBus";
 import { useStartNewThreadInCurrentProject } from "../../hooks/useHandleNewThread";

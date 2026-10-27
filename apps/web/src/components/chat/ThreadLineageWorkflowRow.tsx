@@ -3,7 +3,7 @@ import type {
   RuntimeSubagent,
 } from "@supaterm/client-runtime/state/subagentRuntime";
 import type { ProviderDriverKind, ProviderInstanceId, ServerProvider } from "@supaterm/contracts";
-import { LoaderCircleIcon, SquareIcon } from "lucide-react";
+import { LoaderCircleIcon, SquareIcon } from "@supaterm/icons";
 import { useState, type ReactNode } from "react";
 
 import { AgentElapsed } from "./AgentElapsed";

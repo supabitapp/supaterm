@@ -1,5 +1,5 @@
 import type { EnvironmentId, EnvironmentMachineKind } from "@supaterm/contracts";
-import { FolderIcon, SettingsIcon } from "lucide-react";
+import { FolderIcon, SettingsIcon } from "@supaterm/icons";
 import type { MouseEvent } from "react";
 import type { SidebarProjectSnapshot } from "~/sidebarProjectGrouping";
 import { ProjectEnvironmentBadge } from "../ProjectEnvironmentBadge";

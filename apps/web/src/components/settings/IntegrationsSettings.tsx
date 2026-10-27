@@ -37,7 +37,7 @@ import {
 } from "@supaterm/contracts";
 import { isValidSearchUrlTemplate } from "@supaterm/shared/preview";
 import { PREVIEW_VIEWPORT_PRESETS } from "@supaterm/shared/previewViewport";
-import { MoreVertical, Plus as PlusIcon } from "lucide-react";
+import { EllipsisVerticalIcon, PlusIcon } from "@supaterm/icons";
 import { useId, useRef, useState } from "react";
 
 import { ScreenRotationIcon } from "~/browser/ScreenRotationIcon";
@@ -1437,7 +1437,7 @@ function BrowserProfilesSetting({ disabled }: { readonly disabled: boolean }) {
                     />
                   }
                 >
-                  <MoreVertical />
+                  <EllipsisVerticalIcon />
                 </MenuTrigger>
                 <MenuPopup align="end">
                   <MenuItem

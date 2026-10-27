@@ -6,7 +6,7 @@ import type {
   SnapShotSource,
 } from "@supaterm/contracts";
 import { formatAttachmentSize } from "@supaterm/client-runtime/state/attachments";
-import { CircleAlertIcon, PaperclipIcon, PlayIcon, XIcon } from "lucide-react";
+import { CircleAlertIcon, PaperclipIcon, PlayIcon, XIcon } from "@supaterm/icons";
 import { type ComponentProps, useLayoutEffect, useRef } from "react";
 
 import {

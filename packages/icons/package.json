@@ -1,0 +1,35 @@
+{
+  "name": "@supaterm/icons",
+  "private": true,
+  "license": "SEE LICENSE IN LICENSE.md",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/react.ts",
+      "import": "./src/react.ts"
+    },
+    "./nodes": {
+      "types": "./src/nodes.ts",
+      "import": "./src/nodes.ts"
+    },
+    "./project": {
+      "types": "./src/project.ts",
+      "import": "./src/project.ts"
+    }
+  },
+  "scripts": {
+    "sync": "mise exec github:jdx/fnox@1.35.0 -- fnox --config ../../.github/fnox.toml --profile central-icons --no-defaults --if-missing error exec -- node scripts/sync-central-icons.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vp test run --config ../../vite.config.ts --dir ."
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "react": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "catalog:"
+  }
+}

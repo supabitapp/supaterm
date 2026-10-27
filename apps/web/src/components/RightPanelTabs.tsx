@@ -26,17 +26,17 @@ import { restrictToFirstScrollableAncestor, restrictToHorizontalAxis } from "@dn
 import { horizontalListSortingStrategy, SortableContext, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  Smartphone,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  FileDiff,
-  Files,
-  Globe2,
-  Plus,
-  TerminalSquare,
-} from "lucide-react";
-import { Volume2, VolumeOff } from "lucide";
+  ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  DiffIcon,
+  EarthIcon,
+  FilesIcon,
+  PlusIcon,
+  SmartphoneIcon,
+  SquareTerminalIcon,
+} from "@supaterm/icons";
+import { Volume, VolumeOff } from "@supaterm/icons/nodes";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
@@ -326,7 +326,7 @@ function RightPanelEmptyState(props: {
   const actions = [
     {
       label: "Browser",
-      icon: Globe2,
+      icon: EarthIcon,
       shortcut: "B",
       available: props.browserAvailable,
       disabledReason: SURFACE_UNAVAILABLE_HINTS.browser,
@@ -334,7 +334,7 @@ function RightPanelEmptyState(props: {
     },
     {
       label: "Terminal",
-      icon: TerminalSquare,
+      icon: SquareTerminalIcon,
       shortcut: "T",
       available: props.terminalAvailable,
       disabledReason: SURFACE_UNAVAILABLE_HINTS.terminal,
@@ -342,7 +342,7 @@ function RightPanelEmptyState(props: {
     },
     {
       label: "Files",
-      icon: Files,
+      icon: FilesIcon,
       shortcut: "F",
       available: props.filesAvailable,
       disabledReason: SURFACE_UNAVAILABLE_HINTS.files,
@@ -350,7 +350,7 @@ function RightPanelEmptyState(props: {
     },
     {
       label: "Diff",
-      icon: FileDiff,
+      icon: DiffIcon,
       shortcut: "D",
       available: props.diffAvailable,
       disabledReason: SURFACE_UNAVAILABLE_HINTS.diff,
@@ -375,7 +375,7 @@ function RightPanelEmptyState(props: {
     {
       label: "Device",
       description: "Watch an iOS Simulator or Android Emulator.",
-      icon: Smartphone,
+      icon: SmartphoneIcon,
       shortcut: "M",
       available: props.deviceAvailable,
       disabledReason: SURFACE_UNAVAILABLE_HINTS.device,
@@ -503,7 +503,7 @@ function RightPanelEmptyState(props: {
                         />
                       }
                     >
-                      <ChevronDown className="size-3.5" />
+                      <ChevronDownIcon className="size-3.5" />
                     </MenuTrigger>
                     <MenuPopup align="end" side="bottom" sideOffset={6} className="max-w-56">
                       {props.browserProfiles.map((profile) => (
@@ -585,7 +585,7 @@ function PreviewFavicon({ capturedUrl, url }: { capturedUrl: string | null; url:
   return (
     <FaviconImage
       sources={[capturedUrl, publicProviderUrl]}
-      fallback={<Globe2 className="size-3 shrink-0" />}
+      fallback={<EarthIcon className="size-3 shrink-0" />}
       className="size-3 shrink-0 rounded-sm object-contain"
     />
   );
@@ -631,9 +631,9 @@ function SurfaceIcon({
     case "preview":
       return <PreviewFavicon capturedUrl={previewCapturedUrl} url={previewUrl} />;
     case "diff":
-      return <FileDiff className="size-3 shrink-0" />;
+      return <DiffIcon className="size-3 shrink-0" />;
     case "files":
-      return <Files className="size-3 shrink-0" />;
+      return <FilesIcon className="size-3 shrink-0" />;
     case "file":
       return (
         <PierreEntryIcon
@@ -644,7 +644,7 @@ function SurfaceIcon({
         />
       );
     case "terminal":
-      return <TerminalSquare className="size-3 shrink-0" />;
+      return <SquareTerminalIcon className="size-3 shrink-0" />;
     case "pull-request":
       return (
         <PullRequestSurfaceIcon
@@ -661,7 +661,7 @@ function SurfaceIcon({
       ) : surface.target?.platform === "android" ? (
         <AndroidIcon className="size-3 shrink-0" />
       ) : (
-        <Smartphone className="size-3 shrink-0" />
+        <SmartphoneIcon className="size-3 shrink-0" />
       );
   }
 }
@@ -877,7 +877,7 @@ function RightPanelTab(
                     .catch(() => undefined);
                 }}
               >
-                <MorphIcon className="size-3" icon={audio === "muted" ? VolumeOff : Volume2} />
+                <MorphIcon className="size-3" icon={audio === "muted" ? VolumeOff : Volume} />
               </button>
             }
           />
@@ -1032,7 +1032,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
   const addSurfaceActions = [
     {
       label: "Browser",
-      icon: Globe2,
+      icon: EarthIcon,
       shortcut: "B",
       available: props.browserAvailable,
       disabledReason: SURFACE_DISABLED_REASONS.browser,
@@ -1040,7 +1040,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
     },
     {
       label: "Terminal",
-      icon: TerminalSquare,
+      icon: SquareTerminalIcon,
       shortcut: "T",
       available: props.terminalAvailable,
       disabledReason: SURFACE_DISABLED_REASONS.terminal,
@@ -1048,7 +1048,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
     },
     {
       label: "Files",
-      icon: Files,
+      icon: FilesIcon,
       shortcut: "F",
       available: props.filesAvailable,
       disabledReason: SURFACE_DISABLED_REASONS.files,
@@ -1056,7 +1056,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
     },
     {
       label: "Diff",
-      icon: FileDiff,
+      icon: DiffIcon,
       shortcut: "D",
       available: props.diffAvailable,
       disabledReason: SURFACE_DISABLED_REASONS.diff,
@@ -1080,7 +1080,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
     },
     {
       label: "Device",
-      icon: Smartphone,
+      icon: SmartphoneIcon,
       shortcut: "M",
       available: props.deviceAvailable,
       disabledReason: SURFACE_DISABLED_REASONS.device,
@@ -1326,7 +1326,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                     />
                   }
                 >
-                  <Plus className="size-3.5" />
+                  <PlusIcon className="size-3.5" />
                 </MenuTrigger>
                 <MenuPopup
                   align="start"
@@ -1406,7 +1406,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                       size="icon-xs"
                       variant="ghost"
                     >
-                      <ChevronLeft />
+                      <ChevronLeftIcon />
                     </Button>
                   </span>
                 }
@@ -1424,7 +1424,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                       size="icon-xs"
                       variant="ghost"
                     >
-                      <ChevronRight />
+                      <ChevronRightIcon />
                     </Button>
                   </span>
                 }

@@ -1,5 +1,5 @@
 import { relayName } from "@supaterm/shared/relay/name";
-import { QrCodeIcon } from "lucide-react";
+import { QrCodeIcon } from "@supaterm/icons";
 import { type ReactNode, type RefObject, memo, useId, useState } from "react";
 import {
   type AuthEnvironmentScope,

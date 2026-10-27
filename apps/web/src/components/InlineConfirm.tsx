@@ -1,4 +1,4 @@
-import { CheckIcon } from "lucide-react";
+import { CheckIcon } from "@supaterm/icons";
 import { useLayoutEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";

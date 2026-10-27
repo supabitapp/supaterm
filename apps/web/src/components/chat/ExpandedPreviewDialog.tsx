@@ -1,5 +1,5 @@
 import { PREVIEW_ZOOM, stepPreviewZoom } from "@supaterm/client-runtime/preview-zoom";
-import { MinusIcon, PlusIcon, XIcon } from "lucide-react";
+import { MinusIcon, PlusIcon, XIcon } from "@supaterm/icons";
 import { createContext, type ReactNode, use, useEffect, useRef, useState } from "react";
 
 import { Button } from "../ui/button";

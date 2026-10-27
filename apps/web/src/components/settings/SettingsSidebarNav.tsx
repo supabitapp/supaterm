@@ -3,17 +3,17 @@ import {
   ArchiveIcon,
   BlocksIcon,
   BotIcon,
-  createLucideIcon,
+  createIcon,
   GitBranchIcon,
   HardDriveIcon,
-  PanelsTopLeftIcon,
   KeyboardIcon,
-  Link2Icon,
+  LinkHorizontalIcon,
   PaletteIcon,
+  PanelsTopLeftIcon,
   SearchIcon,
-  Settings2Icon,
+  SlidersHorizontalIcon,
   XIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 
 import { CodexMicroIcon } from "../codexMicro/CodexMicroIcon";
@@ -41,7 +41,7 @@ import {
 import { useAvailableSettingsSearchItems } from "./useAvailableSettingsSearchItems";
 import { validateSettingsScopeSearch } from "./settingsScope";
 
-const SnapShotIcon = createLucideIcon("snap-shot", [
+const SnapShotIcon = createIcon("snap-shot", [
   [
     "path",
     {
@@ -56,8 +56,8 @@ const SnapShotIcon = createLucideIcon("snap-shot", [
 const SETTINGS_SECTION_ICONS: Readonly<
   Record<SettingsPath, ComponentType<{ className?: string }>>
 > = {
-  "/settings/general": Settings2Icon,
-  "/settings/diagnostics": Settings2Icon,
+  "/settings/general": SlidersHorizontalIcon,
+  "/settings/diagnostics": SlidersHorizontalIcon,
   "/settings/appearance": PaletteIcon,
   "/settings/projects": PanelsTopLeftIcon,
   "/settings/keybindings": KeyboardIcon,
@@ -67,7 +67,7 @@ const SETTINGS_SECTION_ICONS: Readonly<
   "/settings/integrations": BlocksIcon,
   "/settings/source-control": GitBranchIcon,
   "/settings/storage": HardDriveIcon,
-  "/settings/connections": Link2Icon,
+  "/settings/connections": LinkHorizontalIcon,
   "/settings/archived": ArchiveIcon,
 };
 

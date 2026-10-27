@@ -1,4 +1,4 @@
-import { PencilIcon } from "lucide-react";
+import { PencilIcon } from "@supaterm/icons";
 import type { ComponentProps } from "react";
 
 import { cn } from "../../lib/utils";

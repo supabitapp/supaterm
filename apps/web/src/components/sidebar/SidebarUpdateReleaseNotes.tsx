@@ -1,5 +1,5 @@
 import type { DesktopBridge, DesktopUpdateState } from "@supaterm/contracts";
-import { ExternalLinkIcon } from "lucide-react";
+import { ExternalLinkIcon } from "@supaterm/icons";
 
 import {
   getDesktopUpdateReleaseHistoryUrl,

@@ -52,22 +52,12 @@ const RESTRICTED_UI_VARIANT_PATTERNS = [
 ];
 
 const RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS = {
-  name: "lucide-react",
+  name: "@supaterm/icons",
   importNames: [
-    "GitMerge",
     "GitMergeIcon",
-    "GitPullRequest",
     "GitPullRequestIcon",
-    "GitPullRequestArrow",
-    "GitPullRequestArrowIcon",
-    "GitPullRequestClosed",
     "GitPullRequestClosedIcon",
-    "GitPullRequestDraft",
     "GitPullRequestDraftIcon",
-    "GitPullRequestCreate",
-    "GitPullRequestCreateIcon",
-    "GitPullRequestCreateArrow",
-    "GitPullRequestCreateArrowIcon",
   ],
   message:
     "Pick a glyph by meaning from PullRequestGlyph in apps/web/src/components/pullRequest/pullRequestIcons.tsx so every surface draws the same pull request the same way.",

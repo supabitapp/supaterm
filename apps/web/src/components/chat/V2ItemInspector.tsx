@@ -14,7 +14,7 @@ import {
 } from "@supaterm/client-runtime/work-log/item-detail";
 import { formatDiffCount } from "@supaterm/client-runtime/diff-count";
 import { isJavaScriptReplTool } from "@supaterm/shared/toolActivity";
-import { ExternalLinkIcon, GitBranchIcon } from "lucide-react";
+import { ExternalLinkIcon, GitBranchIcon } from "@supaterm/icons";
 import { memo, type ReactNode, Suspense, use } from "react";
 
 import { useRenderedAppearance } from "../../hooks/useTheme";

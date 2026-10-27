@@ -1,6 +1,6 @@
 import { useAtomCommand } from "~/state/use-atom-command";
 import type { EnvironmentId, PullRequestDetailView, PullRequestRef } from "@supaterm/contracts";
-import { SendIcon } from "lucide-react";
+import { SendIcon } from "@supaterm/icons";
 import { useState, type RefObject } from "react";
 
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";

@@ -30,7 +30,7 @@ const CONTEXT_CHIP_PRESENTATIONS = {
   "review-comment": { accent: "#8a70dd", icon: "message-circle" },
   "pull-request": {
     accent: "#7079e4",
-    icon: "git-pull-request-arrow",
+    icon: "git-pull-request",
   },
   skill: { accent: "#b261be", icon: "skill" },
   thread: {
@@ -52,7 +52,7 @@ export function composerChipSizeSuffix(record?: {
 }
 
 const PULL_REQUEST_CHIP_PRESENTATIONS = {
-  open: { accent: "#009f6e", icon: "git-pull-request-arrow" },
+  open: { accent: "#009f6e", icon: "git-pull-request" },
   draft: { accent: "#7f8793", icon: "git-pull-request-draft" },
   merged: { accent: "#8a70dd", icon: "git-merge" },
   closed: { accent: "#d55665", icon: "git-pull-request-closed" },

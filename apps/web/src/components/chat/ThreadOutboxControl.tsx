@@ -1,7 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/environment";
 import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
-import { CircleAlertIcon, Clock3Icon, PencilIcon, RotateCwIcon, XIcon } from "lucide-react";
+import { CircleAlertIcon, Clock3Icon, PencilIcon, RotateCwIcon, XIcon } from "@supaterm/icons";
 import { type ReactNode, type Ref, useImperativeHandle, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";

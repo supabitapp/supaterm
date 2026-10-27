@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
 
+import type { ProjectIconOverride } from "@supaterm/contracts";
+
 import { act, render } from "../../../test/render";
 import { ProjectIconPickerDialog } from "./ProjectIconPickerDialog";
 
@@ -22,12 +24,12 @@ async function click(name: string) {
   await act(async () => target.click());
 }
 
-async function openPicker() {
+async function openPicker(current: ProjectIconOverride | null = null) {
   const onSelect = vi.fn();
   const onOpenChange = vi.fn();
   const screen = await render(
     <ProjectIconPickerDialog
-      current={null}
+      current={current}
       automatic={automatic}
       open
       onOpenChange={onOpenChange}
@@ -51,11 +53,27 @@ describe("ProjectIconPickerDialog", () => {
     await click("Save icon");
 
     expect(onSelect).toHaveBeenCalledExactlyOnceWith({
-      kind: "lucide",
+      kind: "icon",
       name: "rocket",
       color: automatic.color,
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("keeps a saved icon the picker no longer offers when only the color changes", async () => {
+    await using screen = await openPicker({
+      kind: "lucide",
+      name: "alarm-clock-check",
+      color: "red",
+    });
+    await click("Blue");
+    await click("Save icon");
+
+    expect(screen.onSelect).toHaveBeenCalledExactlyOnceWith({
+      kind: "lucide",
+      name: "alarm-clock-check",
+      color: "blue",
+    });
   });
 
   it("saves a monogram only once the letters are letters or numbers", async () => {
@@ -83,5 +101,5 @@ describe("ProjectIconPickerDialog", () => {
 });
 
 function searchBox() {
-  return document.querySelector<HTMLInputElement>('input[aria-label="Search Lucide icons"]')!;
+  return document.querySelector<HTMLInputElement>('input[aria-label="Search icons"]')!;
 }

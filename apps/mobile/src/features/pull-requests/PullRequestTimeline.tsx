@@ -1,7 +1,7 @@
 import { PullRequestEntryRow } from "./PullRequestEntryRow";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
-import IconGitCommit from "@tabler/icons-react-native/IconGitCommit";
+import { GitCommit } from "@supaterm/icons/nodes";
 import type { PullRequestActivity, PullRequestComment } from "@supaterm/contracts";
 import { StackActions, type NavigationProp } from "@react-navigation/native";
 import { useMemo, useState, type ReactNode } from "react";
@@ -9,6 +9,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { parseMarkdownDocument } from "../../lib/markdownDocument";
 import { AppText as Text } from "../../components/ui/AppText";
 import { SymbolView, type AppSymbolName } from "../../components/ui/AppSymbol";
+import { NodeIcon } from "../../components/ui/NodeIcon";
 import { relativeTime } from "../../lib/time";
 import { PullRequestAvatar } from "./PullRequestPresentation";
 import { PullRequestMarkdown } from "./PullRequestMarkdown";
@@ -28,13 +29,12 @@ function TimelineEvent(props: {
           <View className="absolute top-0 bottom-0 w-px bg-border-subtle" />
           <View className="size-8 items-center justify-center rounded-full border border-border-subtle bg-grouped-card">
             {props.icon === "commit" ? (
-              <View style={{ transform: [{ rotate: "90deg" }] }}>
-                <IconGitCommit
-                  size={17}
-                  color={colors["--color-foreground-muted"] ?? "#838383"}
-                  strokeWidth={1.8}
-                />
-              </View>
+              <NodeIcon
+                node={GitCommit}
+                size={17}
+                color={colors["--color-foreground-muted"] ?? "#838383"}
+                strokeWidth={1.8}
+              />
             ) : (
               <SymbolView
                 name={props.icon}

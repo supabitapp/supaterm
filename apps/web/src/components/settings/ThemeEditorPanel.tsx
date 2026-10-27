@@ -1,5 +1,5 @@
-import { MousePointer2Icon, PaintbrushIcon, PlusIcon, XIcon } from "lucide-react";
-import { ChevronDown, ChevronUp } from "lucide";
+import { MousePointerIcon, PaintbrushIcon, PlusIcon, XIcon } from "@supaterm/icons";
+import { ChevronDown, ChevronUp } from "@supaterm/icons/nodes";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import {
   applyThemeColorPreview,
@@ -1136,7 +1136,7 @@ export function ThemeEditorPanel({
                   setIsInspecting(true);
                 }}
               >
-                <MousePointer2Icon />
+                <MousePointerIcon />
                 {isInspecting ? "Cancel" : "Inspect"}
               </Button>
             }

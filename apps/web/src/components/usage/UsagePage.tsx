@@ -10,7 +10,7 @@ import {
   type UsageProviderKind,
   type UsageSummaryInput,
 } from "@supaterm/contracts";
-import { CircleAlertIcon, ChevronDownIcon, InfoIcon, SlidersHorizontalIcon } from "lucide-react";
+import { ChevronDownIcon, CircleAlertIcon, InfoIcon, SlidersHorizontalIcon } from "@supaterm/icons";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { settlePromise } from "@supaterm/client-runtime/state/runtime";
 import * as AsyncResult from "effect/reactivity/AsyncResult";

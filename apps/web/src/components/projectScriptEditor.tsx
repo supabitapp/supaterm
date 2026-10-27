@@ -13,12 +13,12 @@ import {
 } from "@supaterm/client-runtime/state/runtime";
 import {
   BugIcon,
-  FlaskConicalIcon,
+  FlaskIcon,
   HammerIcon,
   ListChecksIcon,
   PlayIcon,
   WrenchIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 import React, {
   type FormEvent,
   type KeyboardEvent,
@@ -70,7 +70,7 @@ export function ScriptIcon({
   icon: ProjectScriptIcon;
   className?: string;
 }) {
-  if (icon === "test") return <FlaskConicalIcon className={className} />;
+  if (icon === "test") return <FlaskIcon className={className} />;
   if (icon === "lint") return <ListChecksIcon className={className} />;
   if (icon === "configure") return <WrenchIcon className={className} />;
   if (icon === "build") return <HammerIcon className={className} />;

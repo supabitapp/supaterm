@@ -1,5 +1,5 @@
 import type { CodexMicroEncoderInput, CodexMicroLayout } from "@supaterm/contracts";
-import { HandIcon, MousePointerClickIcon, RotateCcwIcon, RotateCwIcon } from "lucide-react";
+import { HandIcon, MousePointerClickIcon, RotateCcwIcon, RotateCwIcon } from "@supaterm/icons";
 
 import { CodexMicroInputDialog, type CodexMicroInputRow } from "./CodexMicroInputDialog";
 import {

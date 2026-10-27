@@ -58,7 +58,7 @@ import {
 } from "../../session-logic";
 import ChatMarkdown from "../ChatMarkdown";
 import { ChatMarkdownAssetImage } from "./ChatMarkdownMedia";
-import { CircleAlertIcon, RotateCcwIcon, XIcon } from "lucide-react";
+import { CircleAlertIcon, RotateCcwIcon, XIcon } from "@supaterm/icons";
 import { Button, InlineButton } from "../ui/button";
 import { useAssetUrls } from "../../assets/assetUrls";
 import { useThreadShell } from "../../state/entities";

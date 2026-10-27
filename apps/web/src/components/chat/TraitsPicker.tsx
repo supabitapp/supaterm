@@ -31,7 +31,7 @@ import {
   type SpeedToggleLevel,
 } from "@supaterm/client-runtime/provider-speed-toggle";
 import { memo } from "react";
-import { BrainIcon, ZapIcon } from "lucide-react";
+import { BrainIcon, ZapIcon } from "@supaterm/icons";
 import { UltrafastIcon } from "../Icons";
 import {
   Menu,

@@ -17,7 +17,7 @@ import {
   paceRemainingPercent,
   remainingPercent,
 } from "@supaterm/shared/usageLimits";
-import { GaugeIcon, TrendingDownIcon, TrendingUpIcon } from "lucide-react";
+import { GaugeIcon, TrendingDownIcon, TrendingUpIcon } from "@supaterm/icons";
 import { Fragment, type ReactNode, useLayoutEffect, useState } from "react";
 
 import { useInlineConfirm } from "../../hooks/useInlineConfirm";

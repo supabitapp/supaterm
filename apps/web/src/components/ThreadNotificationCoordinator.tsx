@@ -11,8 +11,8 @@ import {
   CircleAlertIcon,
   CircleCheckIcon,
   MessageCircleQuestionIcon,
-  ShieldQuestionIcon,
-} from "lucide-react";
+  ShieldAlertIcon,
+} from "@supaterm/icons";
 import { useEffect, useRef } from "react";
 
 import { getClientSettings, useClientSettings } from "../hooks/useSettings";
@@ -191,7 +191,7 @@ function EnvironmentNotifications({
               kind === "completion" ? (
                 <CircleCheckIcon aria-hidden className="size-4 text-success-foreground" />
               ) : status === "approval" ? (
-                <ShieldQuestionIcon aria-hidden className="size-4 text-warning-foreground" />
+                <ShieldAlertIcon aria-hidden className="size-4 text-warning-foreground" />
               ) : status === "failed" ? (
                 <CircleAlertIcon aria-hidden className="size-4 text-destructive-foreground" />
               ) : (

@@ -1,5 +1,5 @@
 import type { DesktopBridge, DesktopUpdateState } from "@supaterm/contracts";
-import { TriangleAlertIcon } from "lucide-react";
+import { TriangleAlertIcon } from "@supaterm/icons";
 import { type ComponentProps, useEffect, useId, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";

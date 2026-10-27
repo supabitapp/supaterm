@@ -7,7 +7,7 @@ import {
   type CustomSnoozeInput,
 } from "@supaterm/client-runtime/state/thread-snooze";
 import { Button } from "./ui/button";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon } from "@supaterm/icons";
 import { Calendar } from "./ui/calendar";
 import { useNowMinuteMs } from "../hooks/useNowMinute";
 import { weekStartsOn } from "../timestampFormat";

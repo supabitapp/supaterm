@@ -15,7 +15,7 @@ import {
   remainingPercent,
 } from "@supaterm/shared/usageLimits";
 import type { Popover as PopoverPrimitive } from "@base-ui/react/popover";
-import { AlertTriangleIcon, ExternalLinkIcon, TicketIcon } from "lucide-react";
+import { ExternalLinkIcon, TicketIcon, TriangleAlertIcon } from "@supaterm/icons";
 import {
   createContext,
   Fragment,
@@ -655,7 +655,7 @@ function LimitNotices({ notices }: { readonly notices: readonly string[] }) {
   if (notices.length === 0) return null;
   return (
     <Alert variant="warning" controlAlignment="first-line">
-      <AlertTriangleIcon />
+      <TriangleAlertIcon />
       {notices.map((notice) => (
         <AlertTitle key={notice} className="break-words">
           {notice}

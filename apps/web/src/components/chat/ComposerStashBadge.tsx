@@ -1,4 +1,4 @@
-import { BookmarkIcon } from "lucide-react";
+import { BookmarkIcon } from "@supaterm/icons";
 import { memo } from "react";
 
 import { cn } from "~/lib/utils";

@@ -2,7 +2,7 @@ import { FILL_PREVIEW_VIEWPORT, type ScopedThreadRef } from "@supaterm/contracts
 import { shouldShowFloatingBrowser } from "@supaterm/client-runtime/preview/floating-browser";
 import { previewPdfAssetUrl } from "@supaterm/shared/preview";
 import { useEnvironmentHttpBaseUrl } from "~/state/environments";
-import { PanelRightIcon, PictureInPicture2, XIcon } from "lucide-react";
+import { PanelRightIcon, PictureInPictureIcon, XIcon } from "@supaterm/icons";
 import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
@@ -219,7 +219,7 @@ function BrowserMiniPlayer({ threadRef, tabId, miniPlayer }: Props & { readonly 
                 />
               }
             >
-              <PictureInPicture2 />
+              <PictureInPictureIcon />
             </TooltipTrigger>
             <TooltipPopup side="top">
               {poppedOut ? "Close separate window" : "Pop into separate window"}

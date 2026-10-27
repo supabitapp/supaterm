@@ -1,4 +1,4 @@
-import { DownloadIcon, PlusIcon } from "lucide-react";
+import { DownloadIcon, PlusIcon } from "@supaterm/icons";
 import type { ChangeEvent, DragEvent, UIEvent } from "react";
 import { settlePromise } from "@supaterm/client-runtime/state/runtime";
 import { useLayoutEffect, useRef, useState } from "react";

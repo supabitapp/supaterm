@@ -1,5 +1,5 @@
 import type { CodexMicroAction } from "@supaterm/contracts";
-import { CheckIcon, XIcon } from "lucide-react";
+import { CheckIcon, XIcon } from "@supaterm/icons";
 import { useState } from "react";
 
 import { codexMicroActionValue } from "../codexMicroCatalog";

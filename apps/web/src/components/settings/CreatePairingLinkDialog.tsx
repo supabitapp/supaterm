@@ -13,7 +13,7 @@ import {
 } from "@supaterm/contracts";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { AUTH_SCOPE_OPTIONS } from "@supaterm/shared/authScopeOptions";
-import { LinkIcon, PlusIcon } from "lucide-react";
+import { LinkIcon, PlusIcon } from "@supaterm/icons";
 import { type RefObject, useId, useRef, useState } from "react";
 
 import { createServerPairingCredential } from "~/environments/primary";

@@ -1,5 +1,5 @@
 import type { PullRequestUpdateMethod } from "@supaterm/contracts";
-import { TriangleAlertIcon } from "lucide-react";
+import { TriangleAlertIcon } from "@supaterm/icons";
 import type { ReactNode } from "react";
 
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";

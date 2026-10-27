@@ -6,7 +6,7 @@ import {
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@supaterm/shared/keybindings";
-import { ChevronDownIcon, PlusIcon } from "lucide-react";
+import { ChevronDownIcon, PlusIcon } from "@supaterm/icons";
 import { useState } from "react";
 import { useSupatermProjectFileState } from "../../hooks/useSupatermProjectFileScripts";
 import { useEnvironments } from "../../state/environments";

@@ -2,7 +2,7 @@ import { SettingsGroup } from "./SettingsGroup";
 import { AuthSettingsWriteScope } from "@supaterm/contracts";
 import { usePrimaryEnvironmentId, usePrimaryEnvironment } from "../../state/environments";
 import { useEnvironmentScope, useEnvironmentsWithScope } from "../../state/session";
-import { InfoIcon, Undo2Icon } from "lucide-react";
+import { InfoIcon, UndoIcon } from "@supaterm/icons";
 import { DEFAULT_SERVER_SETTINGS, type ServerSettings } from "@supaterm/contracts";
 import * as Equal from "effect/Equal";
 import { useLocation, useNavigate } from "@tanstack/react-router";
@@ -554,7 +554,7 @@ export function SettingResetButton({
         size="icon-micro"
         variant="ghost-muted"
         disabled={disabled}
-        icon={<Undo2Icon className="size-3" />}
+        icon={<UndoIcon className="size-3" />}
         label={`Reset ${label} to default`}
         confirmLabel={`Confirm reset ${label}`}
         tooltip={tooltip}
@@ -577,7 +577,7 @@ export function SettingResetButton({
               onClick();
             }}
           >
-            <Undo2Icon className="size-3" />
+            <UndoIcon className="size-3" />
           </Button>
         }
       />

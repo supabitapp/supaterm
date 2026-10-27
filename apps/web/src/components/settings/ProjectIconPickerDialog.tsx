@@ -2,20 +2,22 @@ import * as Schema from "effect/Schema";
 import type { ProjectIdentity } from "../../projectIdentity";
 import { ProjectMonogram } from "../ProjectMonogram";
 import {
+  isProjectSymbolIcon,
   ProjectMonogramText,
   type ProjectIconColor,
   type ProjectIconOverride,
 } from "@supaterm/contracts";
-import { createElement, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  filterProjectIconNames,
+  filterProjectIcons,
   firstEmoji,
   PROJECT_EMOJIS,
   PROJECT_ICON_COLORS,
   projectIconColorClassName,
 } from "../../projectIconOptions";
 import { cn } from "~/lib/utils";
-import { lucideIconByName } from "../../lib/lucideIconByName";
+import { NodeIcon } from "@supaterm/icons";
+import { DEFAULT_PROJECT_ICON, resolveProjectIcon } from "@supaterm/icons/project";
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -30,12 +32,32 @@ import { Input } from "../ui/input";
 import { ScrollArea } from "../ui/scroll-area";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
 
-const DEFAULT_ICON = "folder-code";
+type PickerMode = "icon" | "emoji" | "monogram";
+
 const isMonogramText = Schema.is(ProjectMonogramText);
 
-function PickerIcon({ name }: { name: string }) {
-  const icon = lucideIconByName(name);
-  return icon ? createElement(icon, { className: "size-5" }) : null;
+function initialMode(current: ProjectIconOverride | null): PickerMode {
+  if (current?.kind === "emoji" || current?.kind === "monogram") return current.kind;
+  return "icon";
+}
+
+function initialIconName(current: ProjectIconOverride | null): string {
+  return current && isProjectSymbolIcon(current)
+    ? resolveProjectIcon(current).name
+    : DEFAULT_PROJECT_ICON.name;
+}
+
+// Saving without picking another icon keeps the saved name, so recoloring an icon the
+// picker no longer offers does not replace it with the default.
+function symbolIconToSave(
+  current: ProjectIconOverride | null,
+  iconName: string,
+  color: ProjectIconColor,
+): ProjectIconOverride {
+  if (current && isProjectSymbolIcon(current) && iconName === initialIconName(current)) {
+    return { ...current, color };
+  }
+  return { kind: "icon", name: iconName, color };
 }
 
 function iconLabel(name: string): string {
@@ -58,10 +80,8 @@ export function ProjectIconPickerDialog({
   readonly onOpenChange: (open: boolean) => void;
   readonly onSelect: (icon: ProjectIconOverride) => void;
 }) {
-  const [mode, setMode] = useState<ProjectIconOverride["kind"]>(current?.kind ?? "lucide");
-  const [iconName, setIconName] = useState<string>(
-    current?.kind === "lucide" ? current.name : DEFAULT_ICON,
-  );
+  const [mode, setMode] = useState<PickerMode>(initialMode(current));
+  const [iconName, setIconName] = useState<string>(initialIconName(current));
   const [color, setColor] = useState<ProjectIconColor>(
     current && current.kind !== "emoji" ? current.color : automatic.color,
   );
@@ -75,8 +95,8 @@ export function ProjectIconPickerDialog({
 
   useEffect(() => {
     if (open && !previousOpenRef.current) {
-      setMode(current?.kind ?? "lucide");
-      setIconName(current?.kind === "lucide" ? current.name : DEFAULT_ICON);
+      setMode(initialMode(current));
+      setIconName(initialIconName(current));
       setColor(current && current.kind !== "emoji" ? current.color : automatic.color);
       setLetters(current?.kind === "monogram" ? current.text : automatic.monogram);
       setEmoji(current?.kind === "emoji" ? current.emoji : "💻");
@@ -86,7 +106,7 @@ export function ProjectIconPickerDialog({
     previousOpenRef.current = open;
   }, [current, open, automatic.color, automatic.monogram]);
 
-  const icons = filterProjectIconNames(query);
+  const icons = filterProjectIcons(query);
   const selectedColorClassName = projectIconColorClassName(color);
   const monogram = letters.normalize("NFKC").trim().toUpperCase();
   const validMonogram = isMonogramText(monogram);
@@ -95,8 +115,8 @@ export function ProjectIconPickerDialog({
     onSelect(
       mode === "monogram"
         ? { kind: "monogram", text: monogram, color }
-        : mode === "lucide"
-          ? { kind: "lucide", name: iconName, color }
+        : mode === "icon"
+          ? symbolIconToSave(current, iconName, color)
           : { kind: "emoji", emoji },
     );
     onOpenChange(false);
@@ -116,10 +136,10 @@ export function ProjectIconPickerDialog({
             value={[mode]}
             onValueChange={(next) => {
               const value = next[0];
-              if (value === "lucide" || value === "emoji" || value === "monogram") setMode(value);
+              if (value === "icon" || value === "emoji" || value === "monogram") setMode(value);
             }}
           >
-            <Toggle value="lucide">Icons</Toggle>
+            <Toggle value="icon">Icons</Toggle>
             <Toggle value="emoji">Emoji</Toggle>
             <Toggle value="monogram">Monogram</Toggle>
           </ToggleGroup>
@@ -147,31 +167,31 @@ export function ProjectIconPickerDialog({
             </div>
           ) : null}
 
-          {mode === "lucide" ? (
+          {mode === "icon" ? (
             <>
               <Input
                 type="search"
                 value={query}
-                aria-label="Search Lucide icons"
-                placeholder="Search all Lucide icons"
+                aria-label="Search icons"
+                placeholder="Search icons"
                 onChange={(event) => setQuery(event.currentTarget.value)}
               />
               <ScrollArea scrollFade className="max-h-64">
                 <div className="grid grid-cols-8 gap-1 p-0.5 sm:grid-cols-10">
-                  {icons.map((name) => (
+                  {icons.map((icon) => (
                     <button
-                      key={name}
+                      key={icon.name}
                       type="button"
-                      aria-label={iconLabel(name)}
-                      aria-pressed={iconName === name}
+                      aria-label={iconLabel(icon.name)}
+                      aria-pressed={iconName === icon.name}
                       className={cn(
                         "flex aspect-square items-center justify-center rounded-md border border-transparent outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                        iconName === name && "border-border bg-accent",
+                        iconName === icon.name && "border-border bg-accent",
                         selectedColorClassName,
                       )}
-                      onClick={() => setIconName(name)}
+                      onClick={() => setIconName(icon.name)}
                     >
-                      <PickerIcon name={name} />
+                      <NodeIcon node={icon.node} className="size-5" />
                     </button>
                   ))}
                 </div>

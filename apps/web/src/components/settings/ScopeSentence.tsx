@@ -1,5 +1,5 @@
 import { resolveEnvironmentMachineKind } from "@supaterm/contracts";
-import { CheckIcon, ChevronDownIcon, FolderIcon, LayersIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, FolderIcon, LayersIcon } from "@supaterm/icons";
 import { Fragment, useState, type ReactNode } from "react";
 
 import type { SidebarProjectSnapshot } from "../../sidebarProjectGrouping";

@@ -1,4 +1,4 @@
-import { Check, Copy } from "lucide";
+import { Check, Copy } from "@supaterm/icons/nodes";
 
 import { MorphIcon } from "~/components/MorphIcon";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";

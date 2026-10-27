@@ -1,5 +1,5 @@
 import { AuthSettingsWriteScope, type EnvironmentId } from "@supaterm/contracts";
-import { ExternalLinkIcon } from "lucide-react";
+import { ExternalLinkIcon } from "@supaterm/icons";
 import { useState } from "react";
 
 import { useEnvironmentSettings } from "../../hooks/useSettings";

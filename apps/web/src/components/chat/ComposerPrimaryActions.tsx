@@ -5,7 +5,7 @@ import {
   CornerUpRightIcon,
   ListPlusIcon,
   PlayIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 import type { ResolvedKeybindingsConfig } from "@supaterm/contracts";
 import type { ClientSettings } from "@supaterm/contracts/settings";
 import { useSoftwareKeyboardOpen } from "~/hooks/useSoftwareKeyboardOpen";

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Smartphone } from "lucide-react";
+import { SmartphoneIcon } from "@supaterm/icons";
 
 import { Spinner } from "~/components/ui/spinner";
 
@@ -18,7 +18,7 @@ export function DeviceLoadingView(props: {
     >
       <div className="flex max-w-sm flex-col items-center gap-3 text-center">
         <div className="grid size-12 place-items-center rounded-xl border bg-muted/30">
-          <Smartphone className="size-6 text-muted-foreground" />
+          <SmartphoneIcon className="size-6 text-muted-foreground" />
         </div>
         <div className="space-y-1">
           <p className="text-sm font-medium">{props.name}</p>

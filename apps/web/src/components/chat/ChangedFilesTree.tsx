@@ -6,8 +6,8 @@ import {
   summarizeTurnDiffStats,
   type TurnDiffTreeNode,
 } from "../../lib/turnDiffTree";
-import { FileDiffIcon } from "lucide-react";
-import { ChevronsDownUp, ChevronsUpDown, Folder, FolderClosed } from "lucide";
+import { DiffIcon } from "@supaterm/icons";
+import { ChevronsDownUp, ChevronsUpDown, Folder, FolderOpen } from "@supaterm/icons/nodes";
 import { DiffStatLabel, hasNonZeroStat } from "./DiffStatLabel";
 import { PierreEntryIcon } from "./PierreEntryIcon";
 import { Button } from "../ui/button";
@@ -114,7 +114,7 @@ export const ChangedFilesCard = memo(function ChangedFilesCard(props: {
                 />
               }
             >
-              <FileDiffIcon className="size-3" />
+              <DiffIcon className="size-3" />
               <span className="hidden @[24rem]/changed-files:inline">Open diff</span>
             </TooltipTrigger>
             <TooltipPopup side="top">Open the full diff</TooltipPopup>
@@ -197,7 +197,7 @@ const ChangedFilesTree = memo(function ChangedFilesTree(props: {
           <DisclosureChevron open={isExpanded} size="sm" />
           <MorphIcon
             className="size-3.5 shrink-0 text-muted-foreground/75"
-            icon={isExpanded ? Folder : FolderClosed}
+            icon={isExpanded ? FolderOpen : Folder}
           />
           <span className="truncate font-mono text-2xs text-muted-foreground/90 group-hover:text-foreground/90">
             {node.name}

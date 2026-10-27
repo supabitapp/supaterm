@@ -56,29 +56,29 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   CalendarClockIcon,
-  ChartNoAxesColumnIcon,
+  ChartColumnIcon,
   CheckIcon,
   ChevronRightIcon,
-  Columns2Icon,
+  ColumnsIcon,
   CornerLeftUpIcon,
   FileSearchIcon,
-  FolderGit2Icon,
+  FolderGitIcon,
   FolderIcon,
   FolderPlusIcon,
   GitForkIcon,
-  MessageSquareDashedIcon,
   LinkIcon,
   MessageSquareIcon,
+  MessageSquareMoreIcon,
   MessageSquareTextIcon,
   PaletteIcon,
   RotateCcwIcon,
-  Rows2Icon,
+  RowsIcon,
   SettingsIcon,
   SquareIcon,
   SquarePenIcon,
   TextSearchIcon,
   XIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 import { requestThreadFindOpen } from "./chat/threadFindActionBus";
 import { requestThreadRename } from "./chat/threadRenameActionBus";
 import { buildThreadPaletteItems } from "./CommandPaletteThreadActions";
@@ -948,7 +948,7 @@ function OpenCommandPaletteDialog(props: {
         value: "new-thread-in:no-project",
         searchTerms: ["no project", "without project", "none"],
         title: "No project",
-        icon: <MessageSquareDashedIcon className={ITEM_ICON_CLASS} />,
+        icon: <MessageSquareMoreIcon className={ITEM_ICON_CLASS} />,
         shortcutCommand: "chat.newWithoutProject" as const,
         run: () => startScratchThread(scratchTargetEnvironmentId),
       },
@@ -1044,7 +1044,7 @@ function OpenCommandPaletteDialog(props: {
     setNewProjectPublishes(false);
     setNewProjectPublishKind(null);
     pushPaletteView({
-      addonIcon: <FolderGit2Icon className={ADDON_ICON_CLASS} />,
+      addonIcon: <FolderGitIcon className={ADDON_ICON_CLASS} />,
       groups: [],
     });
   };
@@ -1080,7 +1080,7 @@ function OpenCommandPaletteDialog(props: {
         searchTerms: ["new project", "create", "empty", "repository", "git init"],
         title: "New project",
         description: "Start a new Git repository from a name",
-        icon: <FolderGit2Icon className={ITEM_ICON_CLASS} />,
+        icon: <FolderGitIcon className={ITEM_ICON_CLASS} />,
         keepOpen: true,
         run: async () => {
           startNewProject(environmentId, environmentId);
@@ -1410,7 +1410,7 @@ function OpenCommandPaletteDialog(props: {
       value: "action:new-thread-without-project",
       searchTerms: ["new thread", "no project", "without project", "none", "chat"],
       title: "New thread without a project",
-      icon: <MessageSquareDashedIcon className={ITEM_ICON_CLASS} />,
+      icon: <MessageSquareMoreIcon className={ITEM_ICON_CLASS} />,
       shortcutCommand: "chat.newWithoutProject",
       run: () => startScratchThread(scratchTargetEnvironmentId),
     });
@@ -1451,7 +1451,7 @@ function OpenCommandPaletteDialog(props: {
         value: "action:pane-split-right",
         title: "Open a thread on the right",
         searchTerms: ["split", "side by side", "pane", "right", "beside"],
-        icon: <Columns2Icon className={ITEM_ICON_CLASS} />,
+        icon: <ColumnsIcon className={ITEM_ICON_CLASS} />,
         shortcutCommand: "pane.splitRight",
         keepOpen: true,
         run: openBeside("right"),
@@ -1461,7 +1461,7 @@ function OpenCommandPaletteDialog(props: {
         value: "action:pane-split-down",
         title: "Open a thread below",
         searchTerms: ["split", "pane", "down", "below", "stack"],
-        icon: <Rows2Icon className={ITEM_ICON_CLASS} />,
+        icon: <RowsIcon className={ITEM_ICON_CLASS} />,
         shortcutCommand: "pane.splitDown",
         keepOpen: true,
         run: openBeside("bottom"),
@@ -1512,7 +1512,7 @@ function OpenCommandPaletteDialog(props: {
         value: "action:pane-equalize",
         title: "Make panes the same size",
         searchTerms: ["pane", "equalize", "even", "reset", "size"],
-        icon: <Columns2Icon className={ITEM_ICON_CLASS} />,
+        icon: <ColumnsIcon className={ITEM_ICON_CLASS} />,
         run: async () => {
           panes().equalize();
         },
@@ -1706,7 +1706,7 @@ function OpenCommandPaletteDialog(props: {
       value: "action:new-project",
       searchTerms: ["new project", "create project", "empty", "repository", "repo", "git init"],
       title: "New project",
-      icon: <FolderGit2Icon className={ITEM_ICON_CLASS} />,
+      icon: <FolderGitIcon className={ITEM_ICON_CLASS} />,
       keepOpen: true,
       run: async () => {
         openNewProjectFlow();
@@ -1802,7 +1802,7 @@ function OpenCommandPaletteDialog(props: {
     value: "action:usage",
     searchTerms: ["usage", "use", "tokens", "cost", "spend", "limits", "stats", "analytics"],
     title: "Open usage",
-    icon: <ChartNoAxesColumnIcon className={ITEM_ICON_CLASS} />,
+    icon: <ChartColumnIcon className={ITEM_ICON_CLASS} />,
     shortcutCommand: "usage.open",
     run: async () => {
       await navigate({ to: "/usage" });

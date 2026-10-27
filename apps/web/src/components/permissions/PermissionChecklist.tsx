@@ -1,4 +1,4 @@
-import { CircleCheckIcon } from "lucide-react";
+import { CircleCheckIcon } from "@supaterm/icons";
 import type { ComponentProps, ReactNode } from "react";
 import { Button } from "../ui/button";
 

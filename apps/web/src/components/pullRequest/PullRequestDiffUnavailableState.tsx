@@ -1,5 +1,5 @@
 import type { SourceControlProviderKind } from "@supaterm/contracts";
-import { ExternalLinkIcon, TriangleAlertIcon } from "lucide-react";
+import { ExternalLinkIcon, TriangleAlertIcon } from "@supaterm/icons";
 
 import { getSourceControlPresentationForKind } from "~/sourceControlPresentation";
 

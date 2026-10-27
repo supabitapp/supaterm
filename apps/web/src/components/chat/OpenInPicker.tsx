@@ -17,7 +17,7 @@ import {
   useRemoteOpenState,
 } from "../../remoteOpen";
 import { useEnvironment } from "../../state/environments";
-import { ChevronDownIcon, FolderClosedIcon, SquareArrowOutUpRightIcon } from "lucide-react";
+import { ChevronDownIcon, ExternalLinkIcon, FolderIcon } from "@supaterm/icons";
 
 import { Group, GroupSeparator } from "../ui/group";
 import {
@@ -186,7 +186,7 @@ const resolveOpenInOptions = (platform: string, availableEditors: ReadonlyArray<
         ? FinderIcon
         : isWindowsPlatform(platform)
           ? FileExplorerIcon
-          : FolderClosedIcon,
+          : FolderIcon,
       value: "file-manager",
       kind: isMacPlatform(platform) || isWindowsPlatform(platform) ? "brand" : "generic",
     },
@@ -380,7 +380,7 @@ export const OpenInPicker = memo(function OpenInPicker({
         )}
         <MenuSub>
           <MenuSubTrigger density="touch" disabled={isHostEditorDenied}>
-            <SquareArrowOutUpRightIcon className="size-4" />
+            <ExternalLinkIcon className="size-4" />
             <MenuItemLabel>Open in…</MenuItemLabel>
           </MenuSubTrigger>
           <MenuSubPopup>{editorItems}</MenuSubPopup>
@@ -420,10 +420,7 @@ export const OpenInPicker = memo(function OpenInPicker({
               )}
             />
           ) : isPanel ? (
-            <SquareArrowOutUpRightIcon
-              aria-hidden="true"
-              className={THREAD_DETAILS_PANEL_ICON_CLASS}
-            />
+            <ExternalLinkIcon aria-hidden="true" className={THREAD_DETAILS_PANEL_ICON_CLASS} />
           ) : null}
           <span
             className={cn(

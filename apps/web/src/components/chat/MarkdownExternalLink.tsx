@@ -1,5 +1,5 @@
 import { faviconUrlForOrigin } from "@supaterm/shared/favicon";
-import { GlobeIcon } from "lucide-react";
+import { GlobeIcon } from "@supaterm/icons";
 import { Children, Fragment, memo, useState, type ReactNode } from "react";
 
 import { cn } from "../../lib/utils";

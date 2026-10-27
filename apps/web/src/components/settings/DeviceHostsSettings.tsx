@@ -21,10 +21,10 @@ import {
   CheckIcon,
   ChevronDownIcon,
   CircleIcon,
-  MoreVertical,
+  EllipsisVerticalIcon,
   PlusIcon,
   TriangleAlertIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "../ui/collapsible";
 import { Menu, MenuTrigger, MenuPopup, MenuItem } from "../ui/menu";
 import { SettingsRow } from "./settingsLayout";
@@ -553,7 +553,7 @@ function DeviceHostList({
                   />
                 }
               >
-                <MoreVertical />
+                <EllipsisVerticalIcon />
               </MenuTrigger>
               <MenuPopup align="end">
                 <MenuItem onClick={() => onEdit(host)}>Edit</MenuItem>

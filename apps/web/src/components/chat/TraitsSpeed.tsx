@@ -1,6 +1,6 @@
 import type { ProviderDriverKind, ProviderOptionDescriptor } from "@supaterm/contracts";
 import { getProviderOptionCurrentValue } from "@supaterm/shared/model";
-import { ZapIcon } from "lucide-react";
+import { ZapIcon } from "@supaterm/icons";
 import { UltrafastIcon } from "../Icons";
 import { cn } from "~/lib/utils";
 import { ComposerControlIcon, type ComposerControlSize } from "./ComposerControl";

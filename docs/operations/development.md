@@ -129,6 +129,28 @@ startup and keeps its own SQLite data, signing key, and revocation state. Deskto
 servers ignore the value. See [environment authentication](../internals/environment-auth.md#reusable-dev-credential)
 for the security model.
 
+## Icons
+
+Web, desktop, Android, the marketing site, and the project icon picker draw icons from
+`@supaterm/icons` (`packages/icons`). iOS and macOS native menus use SF Symbols. Surfaces outside
+React (sprites, injected pages, canvas, rasterized assets) render the same glyphs with
+`iconSvgElements` from `@supaterm/icons/nodes`. The glyphs are vendored from
+[Central Icons](https://iconists.co/central) (`round-outlined-radius-2-stroke-2`), which is paid
+and licensed only for use in Supaterm; see `packages/icons/LICENSE.md`.
+
+Use an existing export when one fits. To add or swap a glyph, add the export name and its Central
+icon to `packages/icons/icons.json` (`project` lists the picker's icons), then regenerate:
+
+```sh
+vp run --filter @supaterm/icons sync
+```
+
+The sync needs the license key. fnox reads `CENTRAL_LICENSE_KEY` from the `Supacode Next Central
+Icons` item in the `Supacode Next CI` 1Password vault (the `central-icons` profile in
+[`.github/fnox.toml`](../../.github/fnox.toml)), so sign in to the 1Password CLI (`op`) with access
+to that vault first. Commit `icons.json` with the regenerated `src/generated/` files. Contributors
+without vault access can ask a maintainer to add the icon. Never commit the key.
+
 ## Checks
 
 `vp run check:changed` runs CI's fast checks for your branch's changes: format and lint of the

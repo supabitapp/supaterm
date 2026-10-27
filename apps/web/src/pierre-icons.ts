@@ -3,6 +3,14 @@ import {
   getBuiltInSpriteSheet,
   type FileTreeIcons,
 } from "@pierre/trees";
+import {
+  CodeXml,
+  Diff,
+  Film,
+  ICON_SVG_ROOT_ATTRIBUTES,
+  iconSvgElements,
+  LoaderCircle,
+} from "@supaterm/icons/nodes";
 import { VIDEO_FILE_EXTENSIONS } from "@supaterm/shared/video";
 import { fileIconPathForMimeType } from "@supaterm/shared/filePreview";
 
@@ -15,12 +23,8 @@ const PIERRE_ICON_SPRITE_ID = "supaterm-pierre-file-icon-sprite";
 
 const SUPATERM_FILE_ICON_SPRITE = `
 <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" aria-hidden="true">
-  <!-- Lucide Film icon, ISC license. -->
   <symbol id="supaterm-file-icon-video" viewBox="0 0 24 24">
-    <g fill="none" stroke="#a631be" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <rect width="18" height="18" x="3" y="3" rx="2" />
-      <path d="M7 3v18M3 7.5h4M3 12h18M3 16.5h4M17 3v18M17 7.5h4M17 16.5h4" />
-    </g>
+    <g color="#a631be" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(Film)}</g>
   </symbol>
   <symbol id="supaterm-file-icon-agents" viewBox="0 0 32 32">
     <path fill="currentColor" d="M27.2 16c0-6.19-5.01-11.2-11.2-11.2C9.81 4.8 4.8 9.81 4.8 16S9.81 27.2 16 27.2c6.19 0 11.2-5.01 11.2-11.2Zm-5.6 2.1a1.4 1.4 0 1 1 0 2.8h-4.2a1.4 1.4 0 1 1 0-2.8Zm-11.2-6.8c.622-.373 1.42-.208 1.84.361l.079.119 2.1 3.5.088.171c.15.351.15.748 0 1.1l-.088.171-2.1 3.5a1.4 1.4 0 0 1-2.4-1.44L11.59 16l-1.67-2.78-.067-.127c-.302-.642-.075-1.42.547-1.79ZM30 16c0 7.73-6.27 14-14 14S2 23.73 2 16 8.27 2 16 2s14 6.27 14 14Z" />
@@ -29,17 +33,14 @@ const SUPATERM_FILE_ICON_SPRITE = `
     <path fill="#f9ad00" d="M30 10.75h-8.749V2H30Zm-9.626 0h-8.75V2h8.75Zm-9.625 0H2V2h8.749ZM30 20.375h-8.749v-8.75H30Z" />
     <path fill="currentColor" d="M20.374 20.375h-8.75v-8.75h8.75Zm0 9.625h-8.75v-8.75h8.75ZM30 30h-8.749v-8.75H30Zm-19.251 0H2v-8.75h8.749Z" />
   </symbol>
-  <!-- Lucide Loader Circle icon, ISC license. -->
   <symbol id="supaterm-tree-icon-loading" viewBox="0 0 24 24">
-    <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M21 12a9 9 0 1 1-6.219-8.56" />
+    <g ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(LoaderCircle)}</g>
   </symbol>
-  <!-- Lucide Diff icon, ISC license. -->
   <symbol id="supaterm-file-icon-diff" viewBox="0 0 24 24">
-    <path fill="none" style="stroke: light-dark(#199f43, #5ecc71)" stroke-width="2" stroke-linecap="round" d="M12 3v14M5 10h14M5 21h14" />
+    <g style="color: light-dark(#199f43, #5ecc71)" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(Diff)}</g>
   </symbol>
-  <!-- Lucide Code Xml icon, ISC license. -->
   <symbol id="supaterm-file-icon-xml" viewBox="0 0 24 24">
-    <path fill="none" style="stroke: light-dark(#d47628, #ffa359)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m18 16 4-4-4-4M6 8l-4 4 4 4M14.5 4l-5 16" />
+    <g style="color: light-dark(#d47628, #ffa359)" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(CodeXml)}</g>
   </symbol>
   <!-- Language logos from Simple Icons, CC0. -->
   <symbol id="supaterm-file-icon-csharp" viewBox="0 0 24 24">

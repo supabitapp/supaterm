@@ -1,5 +1,5 @@
 import { LegendList, type LegendListRef } from "@legendapp/list/react";
-import { CheckIcon } from "lucide-react";
+import { CheckIcon } from "@supaterm/icons";
 import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
 import { isMonospaceFamily, queryInstalledFontFamilies } from "../../appearanceFonts";
 import {

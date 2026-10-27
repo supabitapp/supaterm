@@ -29,13 +29,13 @@ import type {
 import { sourceControlRepositorySelector } from "@supaterm/shared/sourceControl";
 import {
   ArrowUpRightIcon,
+  DiffIcon,
   EyeIcon,
   EyeOffIcon,
-  FileDiffIcon,
   GitBranchIcon,
-  MoreHorizontalIcon,
+  EllipsisIcon,
   TriangleAlertIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 import { AsyncResult } from "effect/reactivity";
 import { useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 
@@ -354,7 +354,7 @@ export function ThreadDetailsPrRow({
               </div>
             ) : null}
             <div className="flex min-w-0 items-center gap-2">
-              <FileDiffIcon className="size-3 shrink-0 stroke-muted-foreground" />
+              <DiffIcon className="size-3 shrink-0 stroke-muted-foreground" />
               <div className="min-w-0 flex items-baseline gap-1 truncate text-foreground/75">
                 {detail.changedFiles.toLocaleString()}{" "}
                 {detail.changedFiles === 1 ? "file" : "files"}
@@ -516,7 +516,7 @@ export function ThreadDetailsPrRow({
                     />
                   }
                 >
-                  <MoreHorizontalIcon aria-hidden className={THREAD_DETAILS_PANEL_CHEVRON_CLASS} />
+                  <EllipsisIcon aria-hidden className={THREAD_DETAILS_PANEL_CHEVRON_CLASS} />
                 </MenuTrigger>
               }
             />

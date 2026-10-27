@@ -3,7 +3,7 @@ import {
   type ProviderSubagentStatus,
 } from "@supaterm/client-runtime/state/thread-execution";
 import { isOrchestrationV2WorkActive } from "@supaterm/contracts";
-import { ArrowUpLeftIcon } from "lucide-react";
+import { ArrowUpLeftIcon } from "@supaterm/icons";
 import { useLayoutEffect, useRef } from "react";
 
 import type { ProviderInstanceEntry } from "../../providerInstances";

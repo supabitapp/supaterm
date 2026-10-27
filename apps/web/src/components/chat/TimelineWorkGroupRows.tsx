@@ -46,7 +46,7 @@ import { memo, use, useRef, useEffect, useState, useLayoutEffect, type ReactNode
 import { type LegendListRef, LegendList } from "@legendapp/list/react";
 import { workEntryDisplayIndicatesToolFailure } from "../../session-logic";
 import ChatMarkdown from "../ChatMarkdown";
-import { Minimize2Icon, XIcon } from "lucide-react";
+import { ShrinkIcon, XIcon } from "@supaterm/icons";
 import { Button } from "../ui/button";
 import { getVirtualizedScrollFadeClassName } from "../ui/scroll-area";
 import { Popover, PopoverTrigger, PopoverPopup } from "../ui/popover";
@@ -353,7 +353,7 @@ function BackgroundWorktreeSetupChip({ snapshot }: { snapshot: WorktreeSetupSnap
 function CompactingLabel() {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <Minimize2Icon aria-hidden="true" className="size-3" />
+      <ShrinkIcon aria-hidden="true" className="size-3" />
       Compacting…
     </span>
   );

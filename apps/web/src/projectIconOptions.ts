@@ -1,32 +1,5 @@
-import { lucideIconNames } from "./lib/lucideIconByName";
+import { PROJECT_ICONS, type ProjectIcon } from "@supaterm/icons/project";
 export { PROJECT_ICON_COLORS, projectIconColorClassName } from "./projectIconColors";
-
-const POPULAR_PROJECT_ICONS: ReadonlyArray<string> = [
-  "folder-code",
-  "code-2",
-  "terminal",
-  "globe-2",
-  "server",
-  "database",
-  "bot",
-  "sparkles",
-  "smartphone",
-  "monitor",
-  "cloud-cog",
-  "package",
-  "book-open",
-  "flask-conical",
-  "shield-check",
-  "rocket",
-  "gamepad-2",
-  "music",
-  "image",
-  "shopping-bag",
-  "git-branch",
-  "workflow",
-  "wrench",
-  "layers-3",
-];
 
 export const PROJECT_EMOJIS: ReadonlyArray<{ readonly emoji: string; readonly label: string }> = [
   { emoji: "💻", label: "Computer" },
@@ -61,10 +34,16 @@ export const PROJECT_EMOJIS: ReadonlyArray<{ readonly emoji: string; readonly la
   { emoji: "🌱", label: "Seedling" },
 ];
 
-export function filterProjectIconNames(query: string): ReadonlyArray<string> {
-  const normalized = query.trim().toLowerCase().replaceAll(/\s+/g, "-");
-  if (!normalized) return POPULAR_PROJECT_ICONS;
-  return lucideIconNames.filter((name) => name.includes(normalized)).slice(0, 60);
+export function filterProjectIcons(query: string): ReadonlyArray<ProjectIcon> {
+  const terms = query
+    .trim()
+    .toLowerCase()
+    .split(/[\s-]+/)
+    .filter(Boolean);
+  if (terms.length === 0) return PROJECT_ICONS;
+  return PROJECT_ICONS.filter((icon) =>
+    terms.every((term) => icon.name.includes(term) || icon.keywords.includes(term)),
+  );
 }
 
 export function firstEmoji(value: string): string | null {
