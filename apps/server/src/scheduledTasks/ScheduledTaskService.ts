@@ -19,6 +19,7 @@ import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
+import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as PubSub from "effect/PubSub";
@@ -179,7 +180,7 @@ export const listDueTasks = Effect.fn("ScheduledTaskService.listDueTasks")(funct
     WHERE enabled = 1 AND next_run_at IS NOT NULL
       AND next_run_at <= ${iso(now)} AND last_run_status <> 'running'
     ORDER BY next_run_at ASC, task_id ASC
-  `;
+  `.pipe(NodeSqliteClient.readOnly);
   const tasks: ScheduledTask[] = [];
   for (const row of rows) {
     const decoded = yield* Effect.result(decodeRow(row));
@@ -221,7 +222,8 @@ export const layer = Layer.effect(
     const changesPubSub = yield* PubSub.sliding<void>(1);
     const notifyChanged = PubSub.publish(changesPubSub, undefined).pipe(Effect.asVoid);
 
-    const selectAllRows = () => sql<ScheduledTaskRow>`
+    const selectAllRows = () =>
+      sql<ScheduledTaskRow>`
       SELECT
         task_id,
         title,
@@ -247,14 +249,15 @@ export const layer = Layer.effect(
       -- Not updated_at: toggles, runs and edits rewrite it, and clients render
       -- this order as-is, so rows would move under the pointer.
       ORDER BY created_at DESC, task_id ASC
-    `;
+    `.pipe(NodeSqliteClient.readOnly);
 
     const listRows = Effect.fn("ScheduledTaskService.listRows")(function* () {
       const rows = yield* selectAllRows();
       return yield* Effect.forEach(rows, decodeRow, { concurrency: 1 });
     });
 
-    const getRows = (id: ScheduledTaskId) => sql<ScheduledTaskRow>`
+    const getRows = (id: ScheduledTaskId) =>
+      sql<ScheduledTaskRow>`
       SELECT
         task_id,
         title,
@@ -278,7 +281,7 @@ export const layer = Layer.effect(
         run_count
       FROM scheduled_tasks
       WHERE task_id = ${id}
-    `;
+    `.pipe(NodeSqliteClient.readOnly);
 
     const findTask = Effect.fn("ScheduledTaskService.findTask")(function* (id: ScheduledTaskId) {
       const rows = yield* getRows(id).pipe(

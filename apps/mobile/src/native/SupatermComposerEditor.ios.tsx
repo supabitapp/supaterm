@@ -18,6 +18,7 @@ import { StyleSheet } from "react-native";
 import {
   composerChipSizeSuffix,
   contextChipIcon,
+  contextChipAccent,
   contextChipPresentation,
   contextRecordFileName,
 } from "../lib/composerChipPresentation";
@@ -168,6 +169,7 @@ export function ComposerEditor({
   );
 
   const skillLabels = useMemo(() => composerSkillLabels(skills), [skills]);
+  const chipTextColor = createNativeComposerTheme(theme).text;
   const tokensJson = useMemo(() => {
     return JSON.stringify(
       composerContextEditorTokens(props.value, inlineTokens, skillLabels).map((token) => {
@@ -188,7 +190,7 @@ export function ComposerEditor({
           source: token.source,
           start: token.start,
           end: token.end,
-          accent: presentation.accent,
+          accent: contextChipAccent(presentation.accent, theme, chipTextColor),
           label:
             token.type === "skill"
               ? (skillLabels.get(token.value) ?? token.value)
@@ -201,7 +203,7 @@ export function ComposerEditor({
         };
       }),
     );
-  }, [inlineTokens, props.value, props.context, skillLabels]);
+  }, [inlineTokens, props.value, props.context, skillLabels, theme, chipTextColor]);
   // Every render resolves against the snapshot history, so a render whose
   // (value, selection) lags the acknowledged native state is stamped behind
   // the native revision and rejected by the editor instead of re-applying a

@@ -48,7 +48,9 @@ Add `--browser` to open a browser automatically.
 ### State and ports
 
 Linked worktrees default to their own `.supaterm/userdata`, even when `SUPATERM_HOME` is set.
-The main checkout defaults to `~/.supaterm/dev/userdata`. An explicit `--home-dir` wins in both cases.
+The main checkout defaults to `~/.supaterm/dev`. An explicit `--home-dir` wins in both cases.
+The first start in a worktree seeds its empty database from a read-only copy of
+`~/.supaterm/userdata`; `--no-seed` or `SUPATERM_DEV_SEED=0` skips that.
 Never run a development server against the live `~/.supaterm/userdata`.
 See [test data](../../AGENTS.md#test-data) for copying a consistent database snapshot.
 
@@ -138,6 +140,11 @@ files to packages with [changed-packages.ts](../../scripts/lib/changed-packages.
 against the merge base with `origin/main`, or with a ref you pass. A changed `package.json` or a path
 the mapping does not recognize affects every package. CI still runs the full test suites and the
 jobs the summary lists, so a local pass does not promise a green CI run.
+
+The steps run side by side, so a run takes about as long as its slowest step, usually knip's
+exports pass at about 10 s. When the files are exactly those of the last passing run, it prints that
+run's summary instead of running again. Any change to a file, the install, or a generated file runs
+the checks again.
 
 While you iterate, run single checks:
 

@@ -145,6 +145,12 @@ export interface ProviderChangeRequestPage {
    * may need to count malformed raw rows it consumed too.
    */
   readonly cursorAdvance?: number;
+  /**
+   * Where a host that can only page from the top carries on: an opaque position past the last
+   * row delivered, handed back as the cursor's `resumeAfter`. Unlike a count of rows it survives
+   * rows above it closing between reads.
+   */
+  readonly resumeAfter?: string;
   readonly continues: boolean;
 }
 
@@ -161,6 +167,7 @@ export interface ProviderListCursor {
    * applying their limit so a full page of tied updates does not repeat the same prefix.
    */
   readonly seenAt?: ReadonlyArray<number> | undefined;
+  readonly resumeAfter?: string | undefined;
 }
 
 export interface ProviderBatchedChangeRequest extends ProviderChangeRequest {
@@ -255,6 +262,11 @@ export interface ProviderFileRevisions {
 /** A run as its host reads it; `repository` is resolved from `cwd` when the caller named none. */
 export type ProviderWorkflowRun = Omit<PullRequestWorkflowRun, "host">;
 
+export interface ProviderFilterOptionPage<A> {
+  readonly items: ReadonlyArray<A>;
+  readonly truncated: boolean;
+}
+
 export interface ProviderRepositoryRef {
   readonly cwd: string;
   readonly repository: string;
@@ -346,7 +358,7 @@ export interface PullRequestProviderApi {
 
   readonly getChangeRequestChecks?: (
     input: ProviderRepositoryRef & { readonly number: number },
-  ) => Effect.Effect<PullRequestChecks, PullRequestProviderError>;
+  ) => Effect.Effect<Pick<PullRequestChecks, "state" | "checks">, PullRequestProviderError>;
 
   /**
    * A CI run and its jobs, as checks. Only hosts whose runs have ids implement it. Without a
@@ -536,6 +548,22 @@ export interface PullRequestProviderApi {
   readonly listLabelCandidates?: (
     input: ProviderRepositoryRef & { readonly number: number },
   ) => Effect.Effect<PullRequestLabelCandidateList, PullRequestProviderError>;
+
+  /**
+   * The labels a repository offers, for narrowing a listing by. `query` narrows by name as far as
+   * the host can; the caller still matches the answer against it.
+   */
+  readonly listRepositoryLabels?: (
+    input: ProviderRepositoryRef & { readonly query?: string | undefined },
+  ) => Effect.Effect<ProviderFilterOptionPage<PullRequestLabel>, PullRequestProviderError>;
+
+  /**
+   * People who could have opened a change request in the repository, for narrowing a listing by
+   * author. A host that can only search its whole user base answers from that.
+   */
+  readonly searchRepositoryAuthors?: (
+    input: ProviderRepositoryRef & { readonly query?: string | undefined },
+  ) => Effect.Effect<ProviderFilterOptionPage<PullRequestActor>, PullRequestProviderError>;
 
   readonly setLabels?: (
     input: ProviderRepositoryRef & {

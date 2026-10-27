@@ -60,7 +60,7 @@ env:
 
 jobs:
   ios:
-    name: iPhone 6.9, iPhone 6.3, iPhone 6.5, and iPad 13
+    name: iPhone 6.9, iPhone 6.3, iPhone 6.5, iPhone Duo, and iPad 13
     if: inputs.platform == 'all' || inputs.platform == 'ios'
     runs-on: xcode-27
     # Capturing every palette multiplies the device matrix, and only the one
@@ -88,6 +88,9 @@ jobs:
           mise exec -- vp install --filter=@supaterm/mobile... --filter=@supaterm/scripts... --filter=supaterm...
       - name: Expose pnpm
         run: mise exec -- pnpm --version
+
+      - name: Install foldable simulator controls
+        run: mise exec -- npm install --global agent-device@0.21.25
 
       - name: Capture iOS showcase
         run: |

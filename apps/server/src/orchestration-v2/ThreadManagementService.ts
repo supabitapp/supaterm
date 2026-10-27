@@ -325,6 +325,7 @@ export interface ThreadManagementServiceShape {
   readonly getShellSnapshot: (options?: {
     readonly location?: "active" | "archive";
   }) => Effect.Effect<OrchestrationV2ThreadShellSnapshot, Orchestrator.OrchestratorV2Error>;
+  readonly listActiveSubagentThreadIds: Orchestrator.OrchestratorV2["Service"]["listActiveSubagentThreadIds"];
   readonly readShellSnapshot: (options?: {
     readonly location?: "active" | "archive";
   }) => Effect.Effect<
@@ -1007,6 +1008,7 @@ const make = Effect.gen(function* () {
         type: "thread.stop",
         commandId: CommandId.make(`${input.commandId}:stop:${threadId}`),
         threadId,
+        stopDelegatedTasks: false,
         ...(input.reason === undefined ? {} : { reason: input.reason }),
       }).pipe(
         Effect.andThen(stopDelegatedTasks({ ...input, threadId })),
@@ -1044,6 +1046,7 @@ const make = Effect.gen(function* () {
     getProjectThreadRecords,
     getProjectThread,
     getShellSnapshot: orchestrator.getShellSnapshot,
+    listActiveSubagentThreadIds: orchestrator.listActiveSubagentThreadIds,
     readShellSnapshot: orchestrator.readShellSnapshot,
     getThreadShell: orchestrator.getThreadShell,
     listProjectThreads,

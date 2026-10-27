@@ -14,6 +14,7 @@ const testState = vi.hoisted(() => ({
   projects: [] as Project[],
   projectFile: null as SupatermProjectFile | null,
   projectFileReads: 0,
+  connectedEnvironmentIds: [] as string[],
 }));
 
 vi.mock("../state/entities", () => ({
@@ -22,6 +23,12 @@ vi.mock("../state/entities", () => ({
       (project) => project.environmentId === ref.environmentId && project.id === ref.projectId,
     ) ?? null,
   readThreadShells: () => [],
+}));
+vi.mock("../rpc/atomRegistry", () => ({
+  appAtomRegistry: { get: () => testState.connectedEnvironmentIds },
+}));
+vi.mock("../state/presentation", () => ({
+  environmentSummaries: { connectedEnvironmentIdsAtom: "connected-environment-ids" },
 }));
 vi.mock("./supatermProjectFileDefaults", () => ({
   readSupatermProjectFile: async () => {
@@ -59,6 +66,7 @@ beforeEach(() => {
   testState.projects = [];
   testState.projectFile = null;
   testState.projectFileReads = 0;
+  testState.connectedEnvironmentIds = [environmentId];
   useComposerDraftStore.setState({
     draftsByThreadKey: {},
     draftThreadsByThreadKey: {},
@@ -91,6 +99,20 @@ describe("resolveNewDraftWorkspace", () => {
         serverConfigWith({ defaultThreadEnvMode: "local", newWorktreesStartFromOrigin: true }),
       ),
     ).resolves.toEqual({ envMode: "local", startFromOrigin: false });
+    expect(testState.projectFileReads).toBe(0);
+  });
+
+  it("opens without waiting on supaterm.json from an offline machine", async () => {
+    const project = makeProject("remote-repo");
+    testState.projects = [project];
+    testState.projectFile = { defaultThreadEnvMode: "worktree" };
+    testState.connectedEnvironmentIds = [];
+
+    const workspace = await resolveNewDraftWorkspace(
+      scopeProjectRef(environmentId, project.id),
+      serverConfigWith({ defaultThreadEnvMode: null }),
+    );
+    expect(workspace.envMode).not.toBe("worktree");
     expect(testState.projectFileReads).toBe(0);
   });
 });

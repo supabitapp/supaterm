@@ -249,6 +249,7 @@ const OVERRIDE_KEYS_OLDER_CLIENTS_OMIT = [
   "reviewGuideModelSelection",
   "reviewGuideInstructions",
   "sidebarAutoMarkDoneKeepPullRequests",
+  "threadTitleInstructions",
 ] as const;
 
 function withStoredWorktreeRules(

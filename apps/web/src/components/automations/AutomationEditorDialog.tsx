@@ -314,7 +314,7 @@ export function AutomationEditorDialog({
         <DialogHeader>
           <DialogTitle>{draft.editingId ? "Edit automation" : "New automation"}</DialogTitle>
           <DialogDescription>
-            Run a prompt automatically — on an interval or at a fixed time.
+            Run a prompt automatically on an interval or at a fixed time.
           </DialogDescription>
         </DialogHeader>
 

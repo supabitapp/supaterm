@@ -303,10 +303,6 @@ export default defineConfig({
         rules: { "supaterm/no-frame-waits-in-browser-tests": "error" },
       },
       {
-        files: ["**/*.browser.test.*"],
-        rules: { "supaterm/no-real-time-wait-in-tests": "off" },
-      },
-      {
         files: ["apps/**/src/**", "packages/**/src/**"],
         excludeFiles: DOM_TEST_ENVIRONMENT_ALLOWLIST,
         rules: { "supaterm/no-dom-test-environment": "error" },
@@ -411,6 +407,15 @@ export default defineConfig({
       {
         files: ["apps/web/src/**"],
         rules: { "supaterm/no-outset-state-indicators": "error" },
+      },
+      {
+        files: ["apps/*/src/**", "packages/*/src/**"],
+        excludeFiles: [
+          "**/*.{test,spec}.{ts,tsx,js,jsx,mts,cts,mjs,cjs}",
+          "**/testkit/**",
+          "**/_generated/**",
+        ],
+        rules: { "supaterm/no-em-dash-copy": "error" },
       },
       {
         files: ["apps/web/src/**"],
@@ -548,6 +553,7 @@ export default defineConfig({
           "apps/mobile/src/native/SupatermComposerEditor.native.tsx",
           "apps/mobile/src/native/SelectableMarkdownText.tsx",
           "apps/mobile/src/native/NativeMermaidSvg.tsx",
+          "apps/mobile/src/native/useEnrichedLinkVariants.ts",
         ],
         rules: {
           "supaterm/no-mobile-uniwind-theme-escape-hatches": ["error", { allowUniwindTheme: true }],

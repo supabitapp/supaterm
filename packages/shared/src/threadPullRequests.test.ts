@@ -2,6 +2,7 @@ import { type ThreadPullRequestLink, type ThreadPullRequestSnapshot } from "@sup
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 
 import {
+  legacyThreadPullRequestKey,
   threadPullRequestSearchTerms,
   resolveThreadCurrentPullRequest,
   resolveThreadPullRequestChains,
@@ -76,6 +77,26 @@ describe("threadPullRequestKeysEqual", () => {
         url: "http://forge.example:4000/team/repo/pulls/1",
       }),
     ).toBe(false);
+  });
+
+  it("recovers Azure repository keys from stored URLs", () => {
+    const own = link(7, {
+      host: "dev.azure.com",
+      repository: "org-a/project/_git/web",
+      url: "https://dev.azure.com/org-a/project/_git/web/pullrequest/7",
+    });
+    expect(legacyThreadPullRequestKey({ ...own, repository: "web" })).toEqual({
+      host: "dev.azure.com",
+      repository: "org-a/project/_git/web",
+      number: 7,
+    });
+    expect(
+      threadPullRequestKeysEqual(own, {
+        host: "org-a.visualstudio.com",
+        repository: "DefaultCollection/project/_git/web",
+        number: 7,
+      }),
+    ).toBe(true);
   });
 });
 

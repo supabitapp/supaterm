@@ -10,6 +10,7 @@ import {
   PullRequestViewerPermissions,
   pullRequestActionAllowed,
   pullRequestHostOf,
+  resolvePullRequestAuthorFilter,
 } from "./pullRequest.ts";
 
 const decodeListResult = Schema.decodeUnknownSync(Schema.toCodecJson(PullRequestListResult));
@@ -212,5 +213,22 @@ describe("action lists from a newer server", () => {
     expect(pullRequestActionAllowed(viewer, "delete-branch")).toBe(true);
     expect(pullRequestActionAllowed(decodePermissions(permissions), "delete-branch")).toBe(false);
     expect(pullRequestActionAllowed(viewer, "merge")).toBe(false);
+  });
+});
+
+describe("resolvePullRequestAuthorFilter", () => {
+  it("reads me as the signed-in account on the host", () => {
+    expect(resolvePullRequestAuthorFilter("me", "bilal")).toBe("bilal");
+    expect(resolvePullRequestAuthorFilter(" @Me ", "bilal")).toBe("bilal");
+  });
+
+  it("keeps me as a literal login when the host has no viewer", () => {
+    expect(resolvePullRequestAuthorFilter("me", null)).toBe("me");
+    expect(resolvePullRequestAuthorFilter("@me", " ")).toBe("@me");
+  });
+
+  it("passes any other login through trimmed", () => {
+    expect(resolvePullRequestAuthorFilter(" ana ", "bilal")).toBe("ana");
+    expect(resolvePullRequestAuthorFilter("meredith", "bilal")).toBe("meredith");
   });
 });

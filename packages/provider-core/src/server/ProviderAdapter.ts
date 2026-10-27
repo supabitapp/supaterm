@@ -451,6 +451,7 @@ export interface ProviderAdapterV2InterruptInput {
 export interface ProviderAdapterV2RuntimeRequestResponseInput {
   readonly requestId: RuntimeRequestId;
   readonly decision?: ProviderApprovalDecision;
+  readonly feedback?: string;
   readonly answers?: ProviderUserInputAnswers;
   readonly response?: unknown;
 }

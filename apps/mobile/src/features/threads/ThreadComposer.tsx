@@ -151,6 +151,7 @@ export interface ThreadComposerProps {
   readonly canOperateThread: boolean;
   readonly placeholder: string;
   readonly contentMaxWidth?: number;
+  readonly draftControls?: ReactNode;
   readonly bottomInset?: number;
   readonly connectionState: RemoteClientConnectionState;
   readonly environmentLabel: string | null;
@@ -797,6 +798,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
         className="relative w-full self-center"
         style={{ maxWidth: props.contentMaxWidth }}
       >
+        {props.draftControls}
         {commandMenuTrigger ? (
           <ComposerPopoverAnchor>
             <ComposerCommandPopover
