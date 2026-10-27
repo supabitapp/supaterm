@@ -168,18 +168,18 @@ const make = Effect.fn("DirectTunnel.make")(function* (limits: DirectTunnelLimit
   let sessions = 0;
   const peers = new Map<string, number>();
 
+  const exceededLimit = (peerSessions: number) => {
+    if (pendingHandshakes >= limits.pendingHandshakes) return "pending-handshakes";
+    if (sessions >= limits.sessions) return "sessions";
+    if (peerSessions >= limits.sessionsPerPeer) return "peer-sessions";
+    return undefined;
+  };
+
   const admit = (peer: string) =>
     Effect.acquireRelease(
       Effect.suspend(() => {
         const peerSessions = peers.get(peer) ?? 0;
-        const limit =
-          pendingHandshakes >= limits.pendingHandshakes
-            ? "pending-handshakes"
-            : sessions >= limits.sessions
-              ? "sessions"
-              : peerSessions >= limits.sessionsPerPeer
-                ? "peer-sessions"
-                : undefined;
+        const limit = exceededLimit(peerSessions);
         if (limit !== undefined) return Effect.fail(new DirectTunnelBusyError({ limit }));
         pendingHandshakes++;
         sessions++;
@@ -266,6 +266,8 @@ const make = Effect.fn("DirectTunnel.make")(function* (limits: DirectTunnelLimit
   }) {
     if (!isWebSocketUpgrade(input.request))
       return yield* new DirectTunnelNotFoundError({ reason: "not-websocket" });
+    // Read, never create: an identity makes RelayAccess register with the public
+    // relay on the next start, and only relay-paired clients can pin one anyway.
     const current = yield* identity.existing.pipe(
       Effect.mapError((cause) => new DirectTunnelIdentityError({ cause })),
     );

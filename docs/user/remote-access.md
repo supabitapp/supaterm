@@ -56,9 +56,7 @@ encrypted bytes, including HTTP requests. When the host has **Network access**
 on and both devices share a network or tailnet, a relay pairing connects to the
 host directly over the same encrypted connection and skips the relay. A relay
 pairing never connects over plain HTTP; pair with `supaterm pair --no-relay`
-when you want that. If you paired a device through the relay before this
-update and used it on a network you don't trust, revoke it under **Settings →
-Connections → Authorized clients** on the host and pair it again.
+when you want that.
 
 Pairing permissions and authorized client revocation work as they do for direct
 connections. Turning off **Encrypted Relay** closes relay connections; turning it

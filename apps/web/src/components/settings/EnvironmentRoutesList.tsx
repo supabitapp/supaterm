@@ -180,6 +180,7 @@ function SortableRouteRow({
   const address = connectionRouteAddress(route);
   const latency = useAtomValue(environmentSession.routeLatencyAtoms(route).labelAtom);
   const transport = relayRouteTransport(route, useAtomValue(environmentSession.relayGatewayAtom));
+  const note = unusedReason ?? (isLearned(route) ? "Discovered" : null);
   const {
     attributes,
     listeners,
@@ -243,11 +244,7 @@ function SortableRouteRow({
               </TooltipTrigger>
               <TooltipPopup side="top">{address}</TooltipPopup>
             </Tooltip>
-            {unusedReason !== null ? (
-              <span className="shrink-0">{unusedReason}</span>
-            ) : isLearned(route) ? (
-              <span className="shrink-0">Discovered</span>
-            ) : null}
+            {note === null ? null : <span className="shrink-0">{note}</span>}
           </p>
         ) : null}
       </div>

@@ -34,12 +34,14 @@ const tunnelTransport = (request: HttpServerRequest.HttpServerRequest) =>
     : undefined;
 
 export const tunnelConnectionMethod = (request: HttpServerRequest.HttpServerRequest) => {
-  const transport = tunnelTransport(request);
-  return transport === "relay"
-    ? ("relay" as const)
-    : transport === "direct"
-      ? ("direct-tunnel" as const)
-      : undefined;
+  switch (tunnelTransport(request)) {
+    case "relay":
+      return "relay" as const;
+    case "direct":
+      return "direct-tunnel" as const;
+    case undefined:
+      return undefined;
+  }
 };
 
 export const isRelayPath = (pathname: string) =>
