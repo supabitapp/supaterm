@@ -1,10 +1,12 @@
 import ExpoModulesCore
+import Network
 import UIKit
 import os
 
 struct RelayStartOptions: Record {
   @Field var relayUrl: String = ""
   @Field var hostAddress: String = ""
+  @Field var directUrls: [String] = []
   @Field var port: Int?
 }
 
@@ -16,6 +18,8 @@ public final class SupatermRelayTunnelModule: Module {
   private var foregroundObserver: NSObjectProtocol?
   private var backgroundTask = UIBackgroundTaskIdentifier.invalid
   private var graceGeneration: UInt64 = 0
+  private let pathMonitor = NWPathMonitor()
+  private var pathSignature: [String]?
   private let logger = Logger(subsystem: "com.supaterm.mobile", category: "relay-tunnel")
 
   public func definition() -> ModuleDefinition {
@@ -36,6 +40,8 @@ public final class SupatermRelayTunnelModule: Module {
         let tunnels = self.setBackgrounded(false)
         Task { for tunnel in tunnels { _ = try? await tunnel.resume() } }
       }
+      self.pathMonitor.pathUpdateHandler = { [weak self] path in self?.pathChanged(path) }
+      self.pathMonitor.start(queue: DispatchQueue(label: "com.supaterm.relay-tunnel.path"))
     }
     AsyncFunction("start") { (options: RelayStartOptions) async throws -> [String: String] in
       if let port = options.port, !(0...65535).contains(port) {
@@ -57,11 +63,26 @@ public final class SupatermRelayTunnelModule: Module {
     }
     OnDestroy {
       DispatchQueue.main.async { self.cancelBackgroundGrace() }
+      self.pathMonitor.cancel()
       if let observer = self.backgroundObserver { NotificationCenter.default.removeObserver(observer) }
       if let observer = self.foregroundObserver { NotificationCenter.default.removeObserver(observer) }
       let tunnels = self.removeAll()
       Task { for tunnel in tunnels { await tunnel.stop() } }
     }
+  }
+
+  // A LAN or tailnet address that answered on the old network may now be unreachable or belong to
+  // another machine, so direct sessions are dropped and the next request races again.
+  private func pathChanged(_ path: NWPath) {
+    let signature = path.status == .satisfied
+      ? path.availableInterfaces.map(\.name) + path.gateways.map(\.debugDescription) : []
+    lock.lock()
+    let previous = pathSignature
+    pathSignature = signature
+    let current = Array(tunnels.values)
+    lock.unlock()
+    guard let previous, previous != signature else { return }
+    for tunnel in current { tunnel.networkChanged() }
   }
 
   private func beginBackgroundGrace() {
@@ -108,15 +129,20 @@ public final class SupatermRelayTunnelModule: Module {
     guard !backgrounded else {
       throw RelayError.invalid("Relay tunnel is suspended while the app is in the background")
     }
-    if let tunnel = tunnels[identity.endpointID] { return tunnel }
-    let tunnel = try RelayTunnel(relayURL: options.relayUrl, hostAddress: options.hostAddress) { [weak self] status in
+    if let tunnel = tunnels[identity.endpointID] {
+      tunnel.setDirectURLs(options.directUrls)
+      return tunnel
+    }
+    let tunnel = try RelayTunnel(relayURL: options.relayUrl, hostAddress: options.hostAddress,
+                                 directURLs: options.directUrls) { [weak self] status in
       guard let self else { return }
-      self.logger.debug("[native-relay] \(status.state, privacy: .public) origin=\(status.origin, privacy: .public) sessions=\(status.sessionCount) streams=\(status.activeStreams) up=\(status.bytesSent) down=\(status.bytesReceived) reason=\(status.reason ?? "", privacy: .public)")
+      self.logger.debug("[native-relay] \(status.state, privacy: .public) origin=\(status.origin, privacy: .public) sessions=\(status.sessionCount) streams=\(status.activeStreams) up=\(status.bytesSent) down=\(status.bytesReceived) via=\(status.via ?? "", privacy: .public) reason=\(status.reason ?? "", privacy: .public)")
       var event: [String: Any] = [
         "state": status.state, "hostAddress": status.hostAddress, "origin": status.origin,
         "bytesSent": status.bytesSent, "bytesReceived": status.bytesReceived,
         "activeStreams": status.activeStreams, "sessionCount": status.sessionCount
       ]
+      if let via = status.via { event["via"] = via }
       if let reason = status.reason { event["reason"] = reason }
       self.sendEvent("onStatus", event)
     }

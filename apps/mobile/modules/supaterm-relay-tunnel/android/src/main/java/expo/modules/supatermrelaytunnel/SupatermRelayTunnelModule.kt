@@ -1,5 +1,7 @@
 package expo.modules.supatermrelaytunnel
 
+import android.net.ConnectivityManager
+import android.net.Network
 import android.util.Log
 import android.os.SystemClock
 import expo.modules.kotlin.modules.Module
@@ -16,12 +18,38 @@ class RelayTunnelOptions : Record {
 
   @Field var hostAddress: String = ""
 
+  @Field var directUrls: List<String> = emptyList()
+
   @Field var port: Int? = null
 }
 
 class SupatermRelayTunnelModule : Module() {
   private val tunnels = LinkedHashMap<String, NativeTunnel>()
   private var backgroundDeadline: Long? = null
+  private var connectivity: ConnectivityManager? = null
+
+  // A LAN or tailnet address that answered on the old network may now be unreachable or belong to
+  // another machine, so direct sessions are dropped and the next request races again.
+  private val networkCallback =
+    object : ConnectivityManager.NetworkCallback() {
+      private var current: Network? = null
+
+      override fun onAvailable(network: Network) {
+        val previous = current
+        current = network
+        if (previous != null && previous != network) networkChanged()
+      }
+
+      override fun onLost(network: Network) {
+        if (network != current) return
+        current = null
+        networkChanged()
+      }
+    }
+
+  private fun networkChanged() = synchronized(tunnels) {
+    tunnels.values.forEach { it.networkChanged() }
+  }
 
   private fun stopAll() =
     synchronized(tunnels) {
@@ -32,6 +60,12 @@ class SupatermRelayTunnelModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("SupatermRelayTunnel")
     Events("onStatus")
+    OnCreate {
+      connectivity =
+        appContext.reactContext?.getSystemService(ConnectivityManager::class.java)?.also {
+          it.registerDefaultNetworkCallback(networkCallback)
+        }
+    }
     AsyncFunction("start") { options: RelayTunnelOptions ->
       synchronized(tunnels) {
         val graceRemaining = backgroundDeadline?.minus(SystemClock.elapsedRealtime())
@@ -42,6 +76,7 @@ class SupatermRelayTunnelModule : Module() {
         val key = digest.hex()
         val existing = tunnels[key]
         if (existing != null) {
+          existing.setDirectUrls(options.directUrls)
           mapOf("origin" to existing.origin)
         } else {
           val port =
@@ -57,6 +92,7 @@ class SupatermRelayTunnelModule : Module() {
               port,
               { event -> sendEvent("onStatus", event) },
               { line -> Log.i("SupatermRelayTunnel", line) },
+              directUrls = options.directUrls,
             )
           val tunnel =
             try {
@@ -91,6 +127,10 @@ class SupatermRelayTunnelModule : Module() {
         tunnels.values.forEach { it.resume() }
       }
     }
-    OnDestroy { stopAll() }
+    OnDestroy {
+      connectivity?.unregisterNetworkCallback(networkCallback)
+      connectivity = null
+      stopAll()
+    }
   }
 }

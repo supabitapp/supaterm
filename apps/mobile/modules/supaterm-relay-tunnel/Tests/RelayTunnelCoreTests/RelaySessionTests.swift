@@ -28,22 +28,26 @@ private func listen(_ listener: NWListener, on queue: DispatchQueue,
 private final class FakeRelay: @unchecked Sendable {
   enum Greeting { case welcome, silence, hangUp }
 
-  let signing = Curve25519.Signing.PrivateKey()
+  let signing: Curve25519.Signing.PrivateKey
   let frames: AsyncStream<MuxFrameValue>
   private let continuation: AsyncStream<MuxFrameValue>.Continuation
   private let greeting: Greeting
+  private let welcomeDelay: TimeInterval
   private let queue = DispatchQueue(label: "fake-relay")
   private let listener: NWListener
   private var connection: NWConnection?
   private var cipher: RelayCipher?
+  private var count = 0
+  var dials: Int { queue.sync { count } }
 
   var address: String {
     let hex = signing.publicKey.rawRepresentation.hex
     return "https://\(hex.prefix(32)).\(hex.suffix(32)).relay.supaterm.alt/"
   }
 
-  init(greeting: Greeting = .welcome) throws {
-    self.greeting = greeting
+  init(greeting: Greeting = .welcome, signing: Curve25519.Signing.PrivateKey = .init(),
+       welcomeDelay: TimeInterval = 0) throws {
+    self.greeting = greeting; self.signing = signing; self.welcomeDelay = welcomeDelay
     let parameters = NWParameters.tcp
     parameters.defaultProtocolStack.applicationProtocols.insert(NWProtocolWebSocket.Options(), at: 0)
     parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)
@@ -54,7 +58,7 @@ private final class FakeRelay: @unchecked Sendable {
   func start() async throws -> String {
     try await listen(listener, on: queue) { [weak self] connection in
       guard let self else { return }
-      self.connection = connection
+      self.connection = connection; self.count += 1
       connection.start(queue: self.queue)
       self.receive(connection)
     }
@@ -80,7 +84,11 @@ private final class FakeRelay: @unchecked Sendable {
       }
       if opcode == .text && self.greeting == .hangUp { connection.cancel(); return }
       do {
-        if opcode == .text && self.greeting == .welcome { try self.welcome(data) }
+        if opcode == .text && self.greeting == .welcome {
+          if self.welcomeDelay > 0 {
+            self.queue.asyncAfter(deadline: .now() + self.welcomeDelay) { try? self.welcome(data) }
+          } else { try self.welcome(data) }
+        }
         if opcode == .binary, let cipher = self.cipher {
           for frame in try decodeFrames(cipher.open(data)) { self.continuation.yield(frame) }
         }
@@ -378,6 +386,136 @@ final class RelaySessionTests: XCTestCase {
       reason = update.reason; break
     }
     XCTAssertEqual(reason, "Relay session timed out")
+    await tunnel.stop()
+  }
+
+  func testDirectCandidateWinsAndTheSilentRelayDialIsCancelled() async throws {
+    let key = Curve25519.Signing.PrivateKey()
+    let relay = try FakeRelay(greeting: .silence, signing: key)
+    let direct = try FakeRelay(signing: key)
+    defer { relay.stop(); direct.stop() }
+    let connected = expectation(description: "direct session up")
+    let tunnel = try RelayTunnel(relayURL: try await relay.start(), hostAddress: relay.address,
+                                 directURLs: [try await direct.start()]) { status in
+      if status.state == "up" && status.via == "direct" { connected.fulfill() }
+    }
+    let client = try openStream(try await tunnel.start(port: 0))
+    defer { client.cancel() }
+    await fulfillment(of: [connected], timeout: 5)
+    for await _ in relay.frames {}
+    XCTAssertEqual(relay.dials, 1)
+    await tunnel.stop()
+  }
+
+  func testRelayFailureWaitsForAPendingDirectCandidate() async throws {
+    let key = Curve25519.Signing.PrivateKey()
+    let relay = try FakeRelay(greeting: .hangUp, signing: key)
+    let direct = try FakeRelay(signing: key, welcomeDelay: 0.2)
+    defer { relay.stop(); direct.stop() }
+    let connected = expectation(description: "direct session up")
+    let tunnel = try RelayTunnel(relayURL: try await relay.start(), hostAddress: relay.address,
+                                 directURLs: [try await direct.start()]) { status in
+      if status.state == "up" && status.via == "direct" { connected.fulfill() }
+    }
+    let client = try openStream(try await tunnel.start(port: 0))
+    defer { client.cancel() }
+    await fulfillment(of: [connected], timeout: 5)
+    await tunnel.stop()
+  }
+
+  func testImpostorAtADirectAddressLosesToTheRelay() async throws {
+    let relay = try FakeRelay(welcomeDelay: 0.2)
+    let impostor = try FakeRelay()
+    defer { relay.stop(); impostor.stop() }
+    let connected = expectation(description: "relay session up")
+    var vias: [String?] = []
+    let tunnel = try RelayTunnel(relayURL: try await relay.start(), hostAddress: relay.address,
+                                 directURLs: [try await impostor.start()]) { status in
+      guard status.state == "up" else { return }
+      vias.append(status.via); connected.fulfill()
+    }
+    let client = try openStream(try await tunnel.start(port: 0))
+    defer { client.cancel() }
+    await fulfillment(of: [connected], timeout: 5)
+    XCTAssertEqual(impostor.dials, 1)
+    XCTAssertEqual(tunnel.queue.sync { vias }, ["relay"])
+    await tunnel.stop()
+  }
+
+  func testAnswerWaitsForEveryCandidateAndKeepsTheRelayReason() async throws {
+    let relay = try RejectingRelay(status: "404 Not Found")
+    let direct = try FakeRelay(greeting: .silence)
+    defer { relay.stop(); direct.stop() }
+    let tunnel = try RelayTunnel(relayURL: try await relay.start(), hostAddress: relay.address,
+                                 directURLs: [try await direct.start()], directTimeout: 0.2)
+    let session = localSession()
+    defer { session.invalidateAndCancel() }
+    let response = try await fetchDescriptor(session, try await tunnel.start(port: 0))
+    XCTAssertEqual(response.statusCode, 503)
+    XCTAssertEqual(response.value(forHTTPHeaderField: relayErrorHeader), "host-offline")
+    XCTAssertEqual(direct.dials, 1)
+    await tunnel.stop()
+  }
+
+  func testNewCandidatesApplyToTheNextDialWithoutTearingDownTheSession() async throws {
+    let key = Curve25519.Signing.PrivateKey()
+    let relay = try FakeRelay(greeting: .silence, signing: key)
+    let first = try FakeRelay(signing: key)
+    let second = try FakeRelay(signing: key)
+    defer { relay.stop(); first.stop(); second.stop() }
+    let (statuses, status) = AsyncStream.makeStream(of: RelayTunnelStatus.self)
+    let tunnel = try RelayTunnel(relayURL: try await relay.start(), hostAddress: relay.address,
+                                 directURLs: [try await first.start()]) { status.yield($0) }
+    let secondURL = try await second.start()
+    let origin = try await tunnel.start(port: 0)
+    let client = try openStream(origin)
+    defer { client.cancel() }
+    var updates = statuses.makeAsyncIterator()
+    while let update = await updates.next(), update.state != "up" {}
+    let listener = try XCTUnwrap(tunnel.listener)
+
+    tunnel.setDirectURLs([secondURL])
+    let resumed = try await tunnel.start(port: 0)
+    XCTAssertEqual(resumed, origin)
+    XCTAssertTrue(tunnel.listener === listener)
+    XCTAssertEqual(tunnel.queue.sync { tunnel.route }, .direct)
+    XCTAssertEqual(tunnel.queue.sync { tunnel.directURLs.map(\.absoluteString) }, [secondURL])
+
+    tunnel.networkChanged()
+    var dropped: RelayTunnelStatus?
+    while let update = await updates.next() {
+      if update.state == "down" { dropped = update; break }
+    }
+    XCTAssertEqual(dropped?.reason, "Network changed")
+    XCTAssertNil(dropped?.via)
+    let next = try openStream(origin)
+    defer { next.cancel() }
+    var redialed: RelayTunnelStatus?
+    while let update = await updates.next() {
+      if update.state == "up" { redialed = update; break }
+    }
+    XCTAssertEqual(redialed?.via, "direct")
+    XCTAssertEqual(redialed?.sessionCount, 2)
+    XCTAssertEqual([relay.dials, first.dials, second.dials], [2, 1, 1])
+    await tunnel.stop()
+  }
+
+  func testNetworkChangeKeepsARelaySession() async throws {
+    let relay = try FakeRelay()
+    defer { relay.stop() }
+    let connected = expectation(description: "relay session up")
+    let dropped = expectation(description: "relay session should survive a network change")
+    dropped.isInverted = true
+    let tunnel = try RelayTunnel(relayURL: try await relay.start(), hostAddress: relay.address) { status in
+      if status.state == "up" { connected.fulfill() }
+      if status.reason == "Network changed" { dropped.fulfill() }
+    }
+    let client = try openStream(try await tunnel.start(port: 0))
+    defer { client.cancel() }
+    await fulfillment(of: [connected], timeout: 5)
+    tunnel.networkChanged()
+    await fulfillment(of: [dropped], timeout: 0.3)
+    XCTAssertEqual(tunnel.queue.sync { tunnel.route }, .relay)
     await tunnel.stop()
   }
 }

@@ -9,6 +9,7 @@ public struct RelayTunnelStatus {
   public let bytesReceived: UInt64
   public let activeStreams: Int
   public let sessionCount: Int
+  public let via: String?
   public let reason: String?
 }
 
@@ -24,12 +25,39 @@ private final class LocalStream {
   }
 }
 
+private final class RelayDial {
+  let id: Int
+  let route: TunnelRoute
+  let handshake: RelayHandshake
+  let session: URLSession
+  let socket: URLSessionWebSocketTask
+  var deadline: DispatchWorkItem?
+
+  init(id: Int, route: TunnelRoute, url: URL, identity: RelayIdentity) throws {
+    self.id = id; self.route = route
+    handshake = try RelayHandshake(identity: identity)
+    let config = URLSessionConfiguration.ephemeral
+    config.timeoutIntervalForRequest = 15
+    config.connectionProxyDictionary = [:]
+    session = URLSession(configuration: config)
+    socket = session.webSocketTask(with: url)
+    socket.maximumMessageSize = maxPlain + 24
+  }
+
+  func close() {
+    deadline?.cancel(); deadline = nil
+    socket.cancel(with: .goingAway, reason: nil)
+    session.invalidateAndCancel()
+  }
+}
+
 public final class RelayTunnel: @unchecked Sendable {
   public let identity: RelayIdentity
   private let relayURL: URL
   private let keepaliveInterval: TimeInterval
   private let probeTimeout: TimeInterval
   private let handshakeTimeout: TimeInterval
+  private let directTimeout: TimeInterval
   private let failureCooldown: TimeInterval
   let queue = DispatchQueue(label: "com.supaterm.relay-tunnel", qos: .userInitiated)
   private let onStatus: (RelayTunnelStatus) -> Void
@@ -43,13 +71,15 @@ public final class RelayTunnel: @unchecked Sendable {
   private var suspended = false
   private var streams: [UInt32: LocalStream] = [:]
   private var nextID: UInt32 = 1
+  private(set) var directURLs: [URL]
+  private var dials: [Int: RelayDial] = [:]
+  private var race: TunnelRace<(reason: String, failure: RelayFailure)>?
+  private(set) var route: TunnelRoute?
   private var websocket: URLSessionWebSocketTask?
   private var urlSession: URLSession?
-  private var handshake: RelayHandshake?
   private var cipher: RelayCipher?
   private var mux: TunnelMux?
   private var generation: UInt64 = 0
-  private var handshakeDeadline: DispatchWorkItem?
   private var probeDeadline: DispatchWorkItem?
   private var cooldown: (failure: RelayFailure, until: Date)?
   private var sending = false
@@ -60,17 +90,29 @@ public final class RelayTunnel: @unchecked Sendable {
   private var state = "down"
   private var lastStatus = Date.distantPast
 
-  public init(relayURL: String, hostAddress: String, keepaliveInterval: TimeInterval = 15,
-              probeTimeout: TimeInterval = 2, handshakeTimeout: TimeInterval = 15,
+  public init(relayURL: String, hostAddress: String, directURLs: [String] = [],
+              keepaliveInterval: TimeInterval = 15, probeTimeout: TimeInterval = 2,
+              handshakeTimeout: TimeInterval = 15, directTimeout: TimeInterval = 5,
               failureCooldown: TimeInterval = 2,
               onStatus: @escaping (RelayTunnelStatus) -> Void = { _ in }) throws {
     identity = try RelayIdentity(address: hostAddress)
-    guard let url = URL(string: relayURL), ["ws", "wss"].contains(url.scheme),
-          url.host != nil, url.user == nil, url.password == nil,
-          url.query == nil, url.fragment == nil else { throw RelayError.invalid("Invalid relay URL") }
+    guard let url = tunnelBaseURL(relayURL) else { throw RelayError.invalid("Invalid relay URL") }
     self.relayURL = url; self.keepaliveInterval = keepaliveInterval; self.onStatus = onStatus
     self.probeTimeout = probeTimeout; self.handshakeTimeout = handshakeTimeout
-    self.failureCooldown = failureCooldown
+    self.directTimeout = directTimeout; self.failureCooldown = failureCooldown
+    self.directURLs = directTunnelURLs(directURLs)
+  }
+
+  public func setDirectURLs(_ values: [String]) {
+    let urls = directTunnelURLs(values)
+    queue.async { self.directURLs = urls }
+  }
+
+  public func networkChanged() {
+    queue.async {
+      guard self.route == .direct else { return }
+      self.drop("Network changed")
+    }
   }
 
   public func start(port requested: UInt16? = nil) async throws -> String {
@@ -135,7 +177,7 @@ public final class RelayTunnel: @unchecked Sendable {
 
   private func checkSession() {
     guard let mux else {
-      if websocket != nil { drop("Relay resumed during handshake", answering: .unreachable) }
+      if race != nil { drop("Relay resumed during handshake", answering: .unreachable) }
       cooldown = nil
       return
     }
@@ -181,7 +223,7 @@ public final class RelayTunnel: @unchecked Sendable {
     lastStatus = Date()
     onStatus(RelayTunnelStatus(state: state, hostAddress: identity.address, origin: origin,
       bytesSent: bytesSent, bytesReceived: bytesReceived, activeStreams: streams.count,
-      sessionCount: sessionCount, reason: reason))
+      sessionCount: sessionCount, via: route?.rawValue, reason: reason))
   }
 
   private func listen(port requested: UInt16, fallback: Bool) {
@@ -248,38 +290,92 @@ public final class RelayTunnel: @unchecked Sendable {
   }
 
   private func connect() {
-    guard websocket == nil, !stopped, !suspended else { return }
+    guard websocket == nil, race == nil, !stopped, !suspended else { return }
+    generation += 1
+    let bases = [(relayURL, TunnelRoute.relay)] + directURLs.map { ($0, TunnelRoute.direct) }
     do {
-      generation += 1
-      let attempt = generation
-      handshake = try RelayHandshake(identity: identity)
-      var url = URLComponents(url: relayURL, resolvingAgainstBaseURL: false)!
-      url.path = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/v1/connect"
-      if !url.path.hasPrefix("/") { url.path = "/" + url.path }
-      url.queryItems = [URLQueryItem(name: "endpointId", value: identity.endpointID)]
-      let config = URLSessionConfiguration.ephemeral
-      config.timeoutIntervalForRequest = 15
-      config.connectionProxyDictionary = [:]
-      let session = URLSession(configuration: config)
-      let socket = session.webSocketTask(with: url.url!)
-      socket.maximumMessageSize = maxPlain + 24
-      urlSession = session; websocket = socket
-      emit("connecting")
-      let timeout = DispatchWorkItem { [weak self] in
-        guard let self, self.generation == attempt, self.cipher == nil else { return }
-        self.fail("Handshake timed out", .timeout)
+      for (id, (base, route)) in bases.enumerated() {
+        dials[id] = try RelayDial(id: id, route: route, url: connectURL(base), identity: identity)
       }
-      handshakeDeadline = timeout; queue.asyncAfter(deadline: .now() + handshakeTimeout, execute: timeout)
-      socket.resume()
-      socket.send(.string(handshake!.hello)) { [weak self] error in
-        guard let self else { return }
-        self.queue.async {
-          guard self.generation == attempt else { return }
-          if error != nil { self.fail("Relay send failed") }
-          else { self.receive(attempt: attempt, socket: socket) }
+    } catch { fail("Handshake setup failed", .unreachable); return }
+    race = TunnelRace(dials.mapValues(\.route))
+    emit("connecting")
+    for dial in dials.values.sorted(by: { $0.id < $1.id }) { start(dial) }
+  }
+
+  private func connectURL(_ base: URL) -> URL {
+    var url = URLComponents(url: base, resolvingAgainstBaseURL: false)!
+    url.path = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/v1/connect"
+    if !url.path.hasPrefix("/") { url.path = "/" + url.path }
+    url.queryItems = [URLQueryItem(name: "endpointId", value: identity.endpointID)]
+    return url.url!
+  }
+
+  private func start(_ dial: RelayDial) {
+    let deadline = DispatchWorkItem { [weak self, weak dial] in
+      guard let self, let dial else { return }
+      self.lose(dial, "Handshake timed out", .timeout)
+    }
+    dial.deadline = deadline
+    let timeout = dial.route == .relay ? handshakeTimeout : min(directTimeout, handshakeTimeout)
+    queue.asyncAfter(deadline: .now() + timeout, execute: deadline)
+    dial.socket.resume()
+    dial.socket.send(.string(dial.handshake.hello)) { [weak self] error in
+      guard let self else { return }
+      self.queue.async {
+        if error != nil { self.lose(dial, "Relay send failed") }
+        else { self.awaitWelcome(dial) }
+      }
+    }
+  }
+
+  private func awaitWelcome(_ dial: RelayDial) {
+    guard dials[dial.id] === dial else { return }
+    dial.socket.receive { [weak self] result in
+      guard let self else { return }
+      self.queue.async {
+        guard self.dials[dial.id] === dial else { dial.close(); return }
+        do {
+          guard case .string(let text) = try result.get() else { throw RelayError.invalid("Invalid relay welcome") }
+          self.win(dial, try dial.handshake.finish(text))
+        } catch {
+          let protocolError = error as? RelayError
+          self.lose(dial, protocolError?.description ?? "Relay disconnected", protocolError == nil ? nil : .unreachable)
         }
       }
-    } catch { fail("Handshake setup failed") }
+    }
+  }
+
+  private func win(_ dial: RelayDial, _ cipher: RelayCipher) {
+    guard dials[dial.id] === dial, let losers = race?.welcome(dial.id) else { dial.close(); return }
+    race = nil
+    dial.deadline?.cancel(); dial.deadline = nil
+    for id in losers { dials[id]?.close() }
+    dials.removeAll()
+    websocket = dial.socket; urlSession = dial.session; route = dial.route
+    self.cipher = cipher
+    cooldown = nil; sessionCount += 1
+    let mux = TunnelMux(); self.mux = mux
+    mux.onPong = { [weak self] in
+      self?.probeDeadline?.cancel(); self?.probeDeadline = nil
+    }
+    for stream in streams.values.sorted(by: { $0.id < $1.id }) {
+      mux.open(stream.id)
+      read(stream)
+    }
+    let attempt = generation
+    keepalive(attempt: attempt)
+    emit("up"); schedulePump()
+    receive(attempt: attempt, socket: dial.socket)
+  }
+
+  private func lose(_ dial: RelayDial, _ reason: String, _ failure: RelayFailure? = nil) {
+    guard dials[dial.id] === dial else { return }
+    dials.removeValue(forKey: dial.id)
+    let failure = failure ?? RelayFailure(relayStatus: (dial.socket.response as? HTTPURLResponse)?.statusCode)
+    dial.close()
+    guard let exhausted = race?.fail(dial.id, (reason, failure)) else { return }
+    fail(exhausted.reason, exhausted.failure)
   }
 
   private func receive(attempt: UInt64, socket: URLSessionWebSocketTask) {
@@ -288,37 +384,14 @@ public final class RelayTunnel: @unchecked Sendable {
       self.queue.async {
         guard self.generation == attempt else { return }
         do {
-          let message = try result.get()
-          if self.cipher == nil {
-            guard case .string(let text) = message, let handshake = self.handshake else {
-              throw RelayError.invalid("Invalid relay welcome")
-            }
-            self.cipher = try handshake.finish(text); self.handshake = nil
-            self.handshakeDeadline?.cancel(); self.handshakeDeadline = nil
-            self.cooldown = nil; self.sessionCount += 1
-            let mux = TunnelMux(); self.mux = mux
-            mux.onPong = { [weak self] in
-              self?.probeDeadline?.cancel(); self?.probeDeadline = nil
-            }
-            for stream in self.streams.values.sorted(by: { $0.id < $1.id }) {
-              mux.open(stream.id)
-              self.read(stream)
-            }
-            self.keepalive(attempt: attempt)
-            self.emit("up"); self.schedulePump()
-          } else {
-            guard case .data(let record) = message, let cipher = self.cipher, let mux = self.mux else {
-              throw RelayError.invalid("Unencrypted relay message")
-            }
-            self.deliver(try mux.receive(cipher.open(record)), attempt: attempt)
-            self.schedulePump()
+          guard case .data(let record) = try result.get(), let cipher = self.cipher, let mux = self.mux else {
+            throw RelayError.invalid("Unencrypted relay message")
           }
+          self.deliver(try mux.receive(cipher.open(record)), attempt: attempt)
+          self.schedulePump()
           self.receive(attempt: attempt, socket: socket)
         } catch {
-          let protocolError = error as? RelayError
-          let reason = protocolError?.description ?? "Relay disconnected"
-          if self.cipher != nil { self.drop(reason) }
-          else { self.fail(reason, protocolError == nil ? nil : .unreachable) }
+          self.drop((error as? RelayError)?.description ?? "Relay disconnected")
         }
       }
     }
@@ -338,11 +411,12 @@ public final class RelayTunnel: @unchecked Sendable {
 
   private func drop(_ reason: String, answering failure: RelayFailure? = nil) {
     generation += 1
-    handshakeDeadline?.cancel(); handshakeDeadline = nil
     probeDeadline?.cancel(); probeDeadline = nil
+    for dial in dials.values { dial.close() }
+    dials.removeAll(); race = nil; route = nil
     websocket?.cancel(with: .goingAway, reason: nil); websocket = nil
     urlSession?.invalidateAndCancel(); urlSession = nil
-    cipher = nil; mux = nil; handshake = nil; sending = false
+    cipher = nil; mux = nil; sending = false
     let old = streams; streams.removeAll()
     for stream in old.values {
       if let failure { answer(stream.connection, failure) } else { stream.connection.cancel() }
@@ -350,8 +424,7 @@ public final class RelayTunnel: @unchecked Sendable {
     emit("down", reason: failure.map { "\(reason): \($0.rawValue)" } ?? reason)
   }
 
-  private func fail(_ reason: String, _ failure: RelayFailure? = nil) {
-    let failure = failure ?? RelayFailure(relayStatus: (websocket?.response as? HTTPURLResponse)?.statusCode)
+  private func fail(_ reason: String, _ failure: RelayFailure) {
     cooldown = (failure, Date() + failureCooldown)
     drop(reason, answering: failure)
   }
