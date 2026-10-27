@@ -599,6 +599,8 @@ Service names are fixed: `supaterm-server` for the backend and `supaterm-desktop
 process, both in `service.namespace` `supaterm`. `OTEL_SERVICE_NAME` and a `service.name` or
 `service.namespace` in `OTEL_RESOURCE_ATTRIBUTES` are ignored. Tell installations apart with other
 resource attributes, such as `OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=development`.
+The UI reports `deployment.environment.name` from its build: `development` under the Vite dev server
+and `production` otherwise.
 
 If the OTLP URLs are unset, local tracing still works, metrics stay in-process only, and logs stay
 on stdout only.
