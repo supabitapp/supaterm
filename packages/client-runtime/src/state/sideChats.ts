@@ -53,5 +53,5 @@ export function openSideChatsOf<Thread extends ListedSideChat>(
 ): ReadonlyArray<Thread> {
   return sideChatsOf(threads, parentThreadId)
     .filter((thread) => thread.archivedAt === null && thread.deletedAt == null)
-    .toSorted((left, right) => lastAskedAt(right).localeCompare(lastAskedAt(left)));
+    .sort((left, right) => lastAskedAt(right).localeCompare(lastAskedAt(left)));
 }

@@ -7,7 +7,7 @@ import type {
   ThreadId,
 } from "@supaterm/contracts";
 
-export const SIDE_CHAT_SLASH_COMMANDS = ["side", "btw"] as const;
+const SIDE_CHAT_SLASH_COMMANDS = ["side", "btw"] as const;
 export type SideChatSlashCommand = (typeof SIDE_CHAT_SLASH_COMMANDS)[number];
 
 export function isSideChatSlashCommand(name: string): name is SideChatSlashCommand {
