@@ -2238,9 +2238,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     enabled: settings.nextPromptSuggestionsEnabled,
     latestRun: activeThreadShell?.latestRun,
   });
+  // Matches when the editor shows its placeholder, so a key never accepts text the user cannot see.
   const promptSuggestion =
     nextPrompt.suggestion !== null &&
     prompt === "" &&
+    composerContextRecords.size === 0 &&
     !isComposerApprovalState &&
     activePendingProgress === null &&
     !projectSelectionRequired &&

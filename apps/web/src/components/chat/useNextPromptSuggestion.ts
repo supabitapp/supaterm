@@ -1,4 +1,5 @@
 import type { EnvironmentId, RunId, ThreadId } from "@supaterm/contracts";
+import { nextPromptSuggestionRunId } from "@supaterm/client-runtime/state/orchestration";
 import { useAtomValue } from "@effect/atom-react";
 import { useEffect, useState } from "react";
 
@@ -37,8 +38,8 @@ export function useNextPromptSuggestion(input: {
   );
   const [result, setResult] = useState<(SuggestedRun & { readonly text: string }) | null>(null);
   const [dismissed, setDismissed] = useState<SuggestedRun | null>(null);
-  const runId = latestRun?.status === "completed" ? latestRun.runId : null;
-  const active = connected && enabled && canSuggest && threadId !== null && runId !== null;
+  const runId = nextPromptSuggestionRunId({ enabled, connected, canSuggest, latestRun });
+  const active = threadId !== null && runId !== null;
 
   useEffect(() => {
     if (!active) return;

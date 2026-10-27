@@ -5,6 +5,7 @@ import {
   type OrchestrationV2Run,
   type OrchestrationV2RunStatus,
   type OrchestrationV2ThreadProjection,
+  type OrchestrationV2ThreadShell,
   ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
@@ -34,6 +35,14 @@ const projectModel = {
   instanceId: ProviderInstanceId.make("claudeAgent"),
   model: "claude-haiku-5-5",
 } as const;
+
+const ACTIVE_STATUSES: ReadonlySet<OrchestrationV2RunStatus> = new Set([
+  "preparing",
+  "queued",
+  "starting",
+  "running",
+  "waiting",
+]);
 
 interface Turn {
   readonly id: string;
@@ -88,13 +97,23 @@ function makeLayer(options: {
   readonly enabled?: boolean;
   readonly generate?: TextGeneration.TextGeneration["Service"]["generateNextPrompt"];
 }) {
-  const projection = threadRecords(options.turns);
+  let turns = options.turns;
+  const getThreadShell = () => {
+    const latest = turns.at(-1);
+    const latestStatus = latest?.status ?? "completed";
+    return Effect.succeed({
+      latestRunId: latest === undefined ? null : RunId.make(latest.id),
+      activeRunId:
+        latest !== undefined && ACTIVE_STATUSES.has(latestStatus) ? RunId.make(latest.id) : null,
+    } as OrchestrationV2ThreadShell);
+  };
   const getThreadRecords = (
     _threadId: ThreadId,
     _fields: unknown,
     filter?: ProjectionRecordFilter,
-  ) =>
-    Effect.succeed({
+  ) => {
+    const projection = threadRecords(turns);
+    return Effect.succeed({
       ...projection,
       messages: projection.messages.filter(
         (message) =>
@@ -105,6 +124,7 @@ function makeLayer(options: {
         (run) => filter?.runIds === undefined || filter.runIds.includes(run.id),
       ),
     });
+  };
   const generateNextPrompt = vi.fn(
     options.generate ?? (() => Effect.succeed({ suggestion: "yes, score rows on the same shots" })),
   );
@@ -113,6 +133,7 @@ function makeLayer(options: {
     Layer.provide(
       Layer.mergeAll(
         Layer.mock(ThreadManagement.ThreadManagementService)({
+          getThreadShell,
           getThreadRecords:
             getThreadRecords as ThreadManagement.ThreadManagementService["Service"]["getThreadRecords"],
         }),
@@ -127,7 +148,13 @@ function makeLayer(options: {
       ),
     ),
   );
-  return { layer, generateNextPrompt };
+  return {
+    layer,
+    generateNextPrompt,
+    setTurns: (next: ReadonlyArray<Turn>) => {
+      turns = next;
+    },
+  };
 }
 
 const suggest = (afterRunId: string) =>
@@ -268,6 +295,40 @@ describe("NextPromptSuggestionService", () => {
 
       assert.deepStrictEqual(yield* Fiber.join(pending), { suggestion: null });
       assert.strictEqual(generateNextPrompt.mock.calls.length, 0);
+    }).pipe(Effect.provide(layer));
+  });
+
+  it.effect("stops offering a kept suggestion once the thread moves on", () => {
+    const { layer, generateNextPrompt, setTurns } = makeLayer({ turns: answeredTurns });
+    return Effect.gen(function* () {
+      assert.deepStrictEqual(yield* suggest("run-2"), {
+        suggestion: "yes, score rows on the same shots",
+      });
+      setTurns([...answeredTurns, { id: "run-3", user: "Yes, do it.", status: "queued" }]);
+
+      assert.deepStrictEqual(yield* suggest("run-2"), { suggestion: null });
+      assert.strictEqual(generateNextPrompt.mock.calls.length, 1);
+    }).pipe(Effect.provide(layer));
+  });
+
+  it.effect("tries the model again after a failed suggestion", () => {
+    let attempts = 0;
+    const { layer } = makeLayer({
+      turns: answeredTurns,
+      generate: () => {
+        attempts += 1;
+        return attempts === 1
+          ? Effect.fail(
+              new TextGenerationError({ operation: "generateNextPrompt", detail: "boom" }),
+            )
+          : Effect.succeed({ suggestion: "yes, score rows on the same shots" });
+      },
+    });
+    return Effect.gen(function* () {
+      assert.deepStrictEqual(yield* suggest("run-2"), { suggestion: null });
+      assert.deepStrictEqual(yield* suggest("run-2"), {
+        suggestion: "yes, score rows on the same shots",
+      });
     }).pipe(Effect.provide(layer));
   });
 

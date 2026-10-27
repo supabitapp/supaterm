@@ -3450,7 +3450,8 @@ interface ClaudeLiveQueryContext {
   readonly queryPolicyKey: string;
   selection: CompiledClaudeModelSelection;
   readonly closed: Deferred.Deferred<void, never>;
-  readonly promptSuggestions: boolean;
+  // "unavailable" when the process started without the SDK option, which only a new process adds.
+  promptSuggestions: "unavailable" | "on" | "off";
   lastTurn: ActiveClaudeTurnContext | null;
   // Whether this CLI process echoes a prompt's uuid on the first frame of the turn answering it
   // ("early") or only on its result. "acknowledged": the CLI confirmed it took a prompt's uuid
@@ -6720,7 +6721,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           const promptSuggestionQuery = yield* Ref.get(queryContext);
           if (
             input.status === "completed" &&
-            promptSuggestionQuery?.promptSuggestions === true &&
+            promptSuggestionQuery?.promptSuggestions === "on" &&
             promptSuggestionQuery.nativeThreadId === input.context.nativeThreadId
           ) {
             yield* emitProviderEvent({
@@ -7392,6 +7393,30 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           }
           const subagent = (yield* Ref.get(sessionSubagentsByTaskId)).get(taskId);
           return subagent?.task.status === "running" ? settled : null;
+        });
+
+        // The setting can change while a process lives; Claude's own flag stops or resumes its
+        // predictions without restarting it.
+        const reconcilePromptSuggestions = Effect.fnUntraced(function* (
+          live: ClaudeLiveQueryContext,
+        ) {
+          if (live.promptSuggestions === "unavailable") return;
+          const wanted = (yield* adapterOptions.promptSuggestionsEnabled ?? Effect.succeed(false))
+            ? "on"
+            : "off";
+          if (live.promptSuggestions === wanted) return;
+          yield* live.query
+            .applyFlagSettings({ promptSuggestionEnabled: wanted === "on" ? null : false })
+            .pipe(
+              Effect.tap(() =>
+                Effect.sync(() => {
+                  live.promptSuggestions = wanted;
+                }),
+              ),
+              Effect.catch((cause) =>
+                Effect.logWarning("Claude prompt suggestion setting not applied", { cause }),
+              ),
+            );
         });
 
         const handleSdkMessageFrame = Effect.fnUntraced(function* (input: {
@@ -9208,6 +9233,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             existing.queryPolicyKey === queryPolicyKey &&
             existing.selection.queryIdentity === compiledSelection.queryIdentity
           ) {
+            yield* reconcilePromptSuggestions(existing);
             if (existing.permissionMode === "plan" && existing.openedPermissionMode !== "plan") {
               existing.permissionMode = yield* existing.query
                 .setPermissionMode(existing.openedPermissionMode)
@@ -9353,7 +9379,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             queryPolicyKey,
             selection: compiledSelection,
             closed,
-            promptSuggestions: queryOptions.promptSuggestions === true,
+            promptSuggestions: queryOptions.promptSuggestions === true ? "on" : "unavailable",
             lastTurn: null,
             promptEchoMode: "unknown",
             openedPermissionMode: queryOptions.permissionMode,

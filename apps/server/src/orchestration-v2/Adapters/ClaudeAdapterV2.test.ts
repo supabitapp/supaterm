@@ -3781,6 +3781,55 @@ describe("ClaudeAdapterV2 background wake turns", () => {
     ),
   );
 
+  it.effect("stops and resumes Claude's predictions when the setting changes mid-process", () =>
+    Effect.gen(function* () {
+      const enabled = yield* Ref.make(true);
+      const harness = yield* makeWakeHarnessWithOptions({
+        promptSuggestionsEnabled: Ref.get(enabled),
+      });
+      const now = yield* DateTime.now;
+      const turn = (ordinal: number) =>
+        makeClaudeTestTurnInput({
+          threadId: harness.threadId,
+          providerThread: harness.providerThread,
+          now,
+          attemptId: RunAttemptId.make(`attempt-claude-prompt-suggestion-toggle:${ordinal}`),
+          providerTurnOrdinal: ordinal,
+          text: `Request ${ordinal}`,
+          attachments: [],
+        });
+      const expectedRuns = () =>
+        harness.events.flatMap((event) =>
+          event.type === "prompt_suggestion.expected" ? [event.runId] : [],
+        );
+      const run = Effect.fnUntraced(function* (ordinal: number) {
+        const input = turn(ordinal);
+        yield* harness.runtime.startTurn(input);
+        yield* harness.offerAndWait(turnOneResult);
+        yield* Queue.take(harness.terminalReceipts);
+        return input.runId;
+      });
+
+      const first = yield* run(1);
+      yield* Ref.set(enabled, false);
+      const second = yield* run(2);
+      yield* Ref.set(enabled, true);
+      const third = yield* run(3);
+
+      assert.deepEqual(expectedRuns(), [first, third]);
+      assert.notInclude(expectedRuns(), second);
+      assert.deepEqual(harness.liveSelectionChanges, [
+        { promptSuggestionEnabled: false },
+        { promptSuggestionEnabled: null },
+      ]);
+    }).pipe(
+      Effect.scoped,
+      Effect.provide(
+        Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
+      ),
+    ),
+  );
+
   it.effect("leaves next prompt prediction off unless suggestions are enabled", () =>
     Effect.gen(function* () {
       const harness = yield* makeWakeHarness;

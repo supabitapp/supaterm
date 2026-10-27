@@ -1,5 +1,6 @@
 import type { EnvironmentId, RunId, ThreadId } from "@supaterm/contracts";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
+import { nextPromptSuggestionRunId } from "@supaterm/client-runtime/state/orchestration";
 import { useAtomValue } from "@effect/atom-react";
 import { useEffect, useState } from "react";
 
@@ -15,9 +16,10 @@ export function useNextPromptSuggestion(input: {
   readonly threadId: ThreadId | null;
   /** A request made before the environment connects fails, and nothing would retry it. */
   readonly connected: boolean;
+  readonly enabled: boolean;
   readonly latestRun: EnvironmentThreadShell["latestRun"];
 }): string | null {
-  const { environmentId, threadId, connected, latestRun } = input;
+  const { environmentId, threadId, connected, enabled, latestRun } = input;
   const canSuggest = useAtomValue(
     orchestrationEnvironment.suggestNextPrompt.permissionAtom(environmentId),
   );
@@ -30,8 +32,8 @@ export function useNextPromptSuggestion(input: {
     readonly runId: RunId;
     readonly text: string;
   } | null>(null);
-  const runId = latestRun?.status === "completed" ? latestRun.runId : null;
-  const active = connected && canSuggest && threadId !== null && runId !== null;
+  const runId = nextPromptSuggestionRunId({ enabled, connected, canSuggest, latestRun });
+  const active = threadId !== null && runId !== null;
 
   useEffect(() => {
     if (!active) return;
