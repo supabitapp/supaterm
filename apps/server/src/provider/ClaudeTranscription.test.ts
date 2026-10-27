@@ -12,6 +12,7 @@ import { WebSocketServer } from "ws";
 
 import {
   claudeKeytermsHeader,
+  claudeVoiceStreamRequest,
   runVoiceStream,
   streamClaudeTranscription,
   type VoiceStreamEvent,
@@ -59,6 +60,48 @@ describe("claudeKeytermsHeader", () => {
     expect(claudeKeytermsHeader(many).split(",")).toHaveLength(50);
     const long = Array.from({ length: 50 }, (_, index) => `${"x".repeat(30)}${index}`);
     expect(claudeKeytermsHeader(long).length).toBeLessThanOrEqual(1_024);
+  });
+});
+
+describe("claudeVoiceStreamRequest", () => {
+  it("asks for the CLI's audio format with its identity and keyterms", () => {
+    const request = claudeVoiceStreamRequest({
+      token: "oauth-token",
+      cliVersion: "2.1.310",
+      language: "ja",
+      keyterms: ["Supaterm", "supaterm", "thermos"],
+    });
+    const url = new URL(request.url);
+    expect(`${url.origin}${url.pathname}`).toBe(
+      "wss://api.anthropic.com/api/ws/speech_to_text/voice_stream",
+    );
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      encoding: "linear16",
+      sample_rate: "16000",
+      channels: "1",
+      endpointing_ms: "300",
+      utterance_end_ms: "1000",
+      language: "ja",
+      use_conversation_engine: "true",
+    });
+    expect(request.headers).toEqual({
+      Authorization: "Bearer oauth-token",
+      "User-Agent": "claude-cli/2.1.310 (external, cli)",
+      "x-app": "cli",
+      "anthropic-client-platform": "claude_code_cli",
+      "x-config-keyterms": "Supaterm,thermos",
+    });
+  });
+
+  it("defaults to English and leaves the keyterm header out when there are none", () => {
+    const request = claudeVoiceStreamRequest({
+      token: "t",
+      cliVersion: "2.1.310",
+      language: undefined,
+      keyterms: [],
+    });
+    expect(new URL(request.url).searchParams.get("language")).toBe("en");
+    expect("x-config-keyterms" in request.headers).toBe(false);
   });
 });
 

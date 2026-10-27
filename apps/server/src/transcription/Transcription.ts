@@ -340,26 +340,29 @@ const make = Effect.gen(function* () {
   );
 
   // Under the store lock throughout, so a reconnect can't start new work on the
-  // upload between dropping the entry and deleting the file.
+  // upload between dropping the entry and deleting the file. Uninterruptible, so
+  // a client that disconnects mid-cancel can't leave it half done.
   const cancel: Transcription["Service"]["cancel"] = Effect.fn("Transcription.cancel")(
     function* (input) {
-      yield* storeLock.withPermits(1)(
-        Effect.gen(function* () {
-          const entry = (yield* Ref.get(entriesRef)).get(input.audioAttachmentId);
-          if (entry) {
-            yield* Ref.update(entriesRef, (entries) => {
-              const remaining = new Map(entries);
-              remaining.delete(input.audioAttachmentId);
-              return remaining;
-            });
-          }
-          if (entry?._tag === "Running") {
-            yield* Fiber.interrupt(entry.fiber);
-            yield* Deferred.fail(entry.result, new TranscriptionError({ reason: "cancelled" }));
-          }
-          yield* deleteUpload(input.audioAttachmentId);
-        }),
-      );
+      yield* storeLock
+        .withPermits(1)(
+          Effect.gen(function* () {
+            const entry = (yield* Ref.get(entriesRef)).get(input.audioAttachmentId);
+            if (entry) {
+              yield* Ref.update(entriesRef, (entries) => {
+                const remaining = new Map(entries);
+                remaining.delete(input.audioAttachmentId);
+                return remaining;
+              });
+            }
+            if (entry?._tag === "Running") {
+              yield* Fiber.interrupt(entry.fiber);
+              yield* Deferred.fail(entry.result, new TranscriptionError({ reason: "cancelled" }));
+            }
+            yield* deleteUpload(input.audioAttachmentId);
+          }),
+        )
+        .pipe(Effect.uninterruptible);
     },
   );
 

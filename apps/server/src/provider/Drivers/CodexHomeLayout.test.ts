@@ -55,6 +55,10 @@ it.layer(NodeServices.layer)("CodexHomeLayout", (it) => {
         expect(yield* resolve({}, { CODEX_HOME: "~/.codex_work" })).toBe(
           path.join(home, ".codex_work"),
         );
+        expect(yield* resolve({}, { HOME: "/home/agent" })).toBe("/home/agent/.codex");
+        expect(yield* resolve({}, { HOME: "/home/agent", CODEX_HOME: "~/work" })).toBe(
+          "/home/agent/work",
+        );
         expect(yield* resolve({ homePath: "/srv/codex" }, { CODEX_HOME: "/elsewhere" })).toBe(
           "/srv/codex",
         );

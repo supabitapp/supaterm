@@ -271,6 +271,35 @@ export const streamClaudeTranscription = Effect.fn("ClaudeTranscription.stream")
   return yield* runVoiceStream({ events, audioMs: input.audio.durationMs });
 }, Effect.scoped);
 
+/** The CLI's own request: its query, its identity headers, and its keyterm header. */
+export function claudeVoiceStreamRequest(input: {
+  readonly token: string;
+  readonly cliVersion: string;
+  readonly language: string | undefined;
+  readonly keyterms: ReadonlyArray<string>;
+}) {
+  const query = new URLSearchParams({
+    encoding: "linear16",
+    sample_rate: "16000",
+    channels: "1",
+    endpointing_ms: "300",
+    utterance_end_ms: "1000",
+    language: input.language ?? "en",
+    use_conversation_engine: "true",
+  });
+  const keyterms = claudeKeytermsHeader(input.keyterms);
+  return {
+    url: `${VOICE_STREAM_URL}?${query}`,
+    headers: {
+      Authorization: `Bearer ${input.token}`,
+      "User-Agent": `claude-cli/${input.cliVersion} (external, cli)`,
+      "x-app": "cli",
+      "anthropic-client-platform": "claude_code_cli",
+      ...(keyterms ? { "x-config-keyterms": keyterms } : {}),
+    },
+  };
+}
+
 export const makeClaudeTranscription = Effect.fn("makeClaudeTranscription")(function* (input: {
   /** The environment the instance's CLI runs with. */
   readonly environment: NodeJS.ProcessEnv;
@@ -292,29 +321,13 @@ export const makeClaudeTranscription = Effect.fn("makeClaudeTranscription")(func
   const transcribe: ProviderTranscription["transcribe"] = Effect.fn(
     "ClaudeTranscription.transcribe",
   )(function* ({ audio, language, keyterms }) {
-    const token = yield* readToken;
-    const version = (yield* input.cliVersion) ?? FALLBACK_CLI_VERSION;
-    const query = new URLSearchParams({
-      encoding: "linear16",
-      sample_rate: "16000",
-      channels: "1",
-      endpointing_ms: "300",
-      utterance_end_ms: "1000",
-      language: language ?? "en",
-      use_conversation_engine: "true",
+    const request = claudeVoiceStreamRequest({
+      token: yield* readToken,
+      cliVersion: (yield* input.cliVersion) ?? FALLBACK_CLI_VERSION,
+      language,
+      keyterms,
     });
-    const header = claudeKeytermsHeader(keyterms);
-    const text = yield* streamClaudeTranscription({
-      url: `${VOICE_STREAM_URL}?${query}`,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "User-Agent": `claude-cli/${version} (external, cli)`,
-        "x-app": "cli",
-        "anthropic-client-platform": "claude_code_cli",
-        ...(header ? { "x-config-keyterms": header } : {}),
-      },
-      audio,
-    });
+    const text = yield* streamClaudeTranscription({ ...request, audio });
     return { text };
   });
 
