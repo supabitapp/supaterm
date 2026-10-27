@@ -40,6 +40,7 @@ import * as ServerSettings from "../serverSettings.ts";
 import * as McpSessionRegistry from "../mcp/McpSessionRegistry.ts";
 import * as EventSink from "./EventSink.ts";
 import * as CommandOutputHub from "./CommandOutputHub.ts";
+import * as PromptSuggestionHub from "./PromptSuggestionHub.ts";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
 import * as ProviderEventIngestor from "./ProviderEventIngestor.ts";
 import * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
@@ -302,6 +303,7 @@ export const layerWithOptions = (
   | McpProviderSessions.McpProviderSessions
   | McpSessionRegistry.McpSessionRegistry
   | ProjectionStore.ProjectionStoreV2
+  | PromptSuggestionHub.PromptSuggestionHub
   | ProviderEventIngestor.ProviderEventIngestorV2
   | ProviderAdapterRegistry.ProviderAdapterRegistryV2
 > =>
@@ -322,6 +324,7 @@ export const layerWithOptions = (
       const projectService = yield* Effect.serviceOption(ProjectService.ProjectService);
       const eventSink = yield* EventSink.EventSinkV2;
       const commandOutput = yield* CommandOutputHub.CommandOutputHub;
+      const promptSuggestions = yield* PromptSuggestionHub.PromptSuggestionHub;
       const idAllocator = yield* IdAllocator.IdAllocatorV2;
       const providerEventIngestor = yield* ProviderEventIngestor.ProviderEventIngestorV2;
       const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
@@ -1961,6 +1964,12 @@ export const layerWithOptions = (
             // never persisted, and a flood of it must not queue ahead of real events.
             if (event.type === "command_output.delta") {
               return commandOutput.append(event);
+            }
+            if (
+              event.type === "prompt_suggestion.expected" ||
+              event.type === "prompt_suggestion.ready"
+            ) {
+              return promptSuggestions.offer(event);
             }
             // A settled item carries its final output, so its live tail can go.
             const releaseLiveOutput =

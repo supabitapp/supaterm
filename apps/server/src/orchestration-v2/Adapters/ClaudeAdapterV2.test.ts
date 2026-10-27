@@ -2168,6 +2168,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
     readonly settings?: ClaudeSettings;
 
     readonly fastModeBlocked?: Effect.Effect<boolean>;
+    readonly promptSuggestionsEnabled?: Effect.Effect<boolean>;
     readonly freshQueueOnReopen?: boolean;
     readonly forkSession?: ClaudeAdapterV2.ClaudeAgentSdkQueryRunnerShape["forkSession"];
     readonly allocateSessionId?: Effect.Effect<string>;
@@ -2232,6 +2233,9 @@ describe("ClaudeAdapterV2 background wake turns", () => {
         instanceId: ClaudeAdapterV2.CLAUDE_DEFAULT_INSTANCE_ID,
         settings: options?.settings ?? DEFAULT_CLAUDE_SETTINGS,
         ...(options?.fastModeBlocked ? { fastModeBlocked: options.fastModeBlocked } : {}),
+        ...(options?.promptSuggestionsEnabled
+          ? { promptSuggestionsEnabled: options.promptSuggestionsEnabled }
+          : {}),
         environment: options?.environment ?? {},
         attachmentsDir,
         fileSystem,
@@ -3717,6 +3721,91 @@ describe("ClaudeAdapterV2 background wake turns", () => {
         Effect.provide(
           Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
         ),
+      ),
+    ),
+  );
+
+  it.effect("relays Claude's own next prompt prediction for the turn it follows", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeWakeHarnessWithOptions({
+        promptSuggestionsEnabled: Effect.succeed(true),
+      });
+      const now = yield* DateTime.now;
+      const input = makeClaudeTestTurnInput({
+        threadId: harness.threadId,
+        providerThread: harness.providerThread,
+        now,
+        attemptId: RunAttemptId.make("attempt-claude-prompt-suggestion"),
+        providerTurnOrdinal: 1,
+        text: "Find the failing tests.",
+        attachments: [],
+      });
+      yield* harness.runtime.startTurn(input);
+      assert.equal(harness.getOpenedOptions()?.promptSuggestions, true);
+      yield* harness.offerAndWait(turnOneResult);
+      yield* Queue.take(harness.terminalReceipts);
+      yield* harness.offerAndWait(
+        claudeSdkFrame({
+          type: "prompt_suggestion",
+          suggestion: "fix the time zone test too",
+          uuid: "00000000-0000-4000-8000-000000000701",
+          session_id: WAKE_NATIVE_SESSION,
+        }),
+      );
+
+      yield* harness.until(() =>
+        harness.events.some((event) => event.type === "prompt_suggestion.ready"),
+      );
+      const run = { threadId: harness.threadId, runId: input.runId };
+      const types = harness.events.map((event) => event.type);
+      assert.isBelow(
+        types.indexOf("prompt_suggestion.expected"),
+        types.indexOf("turn.terminal"),
+        "a client that sees the run complete must find the prediction pending",
+      );
+      assert.deepInclude(harness.events, {
+        type: "prompt_suggestion.expected",
+        driver: ProviderDriverKind.make("claudeAgent"),
+        ...run,
+      });
+      assert.deepInclude(harness.events, {
+        type: "prompt_suggestion.ready",
+        driver: ProviderDriverKind.make("claudeAgent"),
+        ...run,
+        suggestion: "fix the time zone test too",
+      });
+    }).pipe(
+      Effect.provide(
+        Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
+      ),
+    ),
+  );
+
+  it.effect("leaves next prompt prediction off unless suggestions are enabled", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeWakeHarness;
+      const now = yield* DateTime.now;
+      yield* harness.runtime.startTurn(
+        makeClaudeTestTurnInput({
+          threadId: harness.threadId,
+          providerThread: harness.providerThread,
+          now,
+          attemptId: RunAttemptId.make("attempt-claude-no-prompt-suggestion"),
+          providerTurnOrdinal: 1,
+          text: "Find the failing tests.",
+          attachments: [],
+        }),
+      );
+      assert.isUndefined(harness.getOpenedOptions()?.promptSuggestions);
+      yield* harness.offerAndWait(turnOneResult);
+      yield* Queue.take(harness.terminalReceipts);
+      assert.notInclude(
+        harness.events.map((event) => event.type),
+        "prompt_suggestion.expected",
+      );
+    }).pipe(
+      Effect.provide(
+        Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
       ),
     ),
   );

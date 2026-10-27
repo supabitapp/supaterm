@@ -2,6 +2,7 @@ import { ClaudeSettings, ProviderDriverKind } from "@supaterm/contracts";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
+import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import { HttpClient } from "effect/http";
@@ -11,6 +12,7 @@ import { makeClaudeTextGeneration } from "../../textGeneration/ClaudeTextGenerat
 import * as ProviderLatestVersions from "@supaterm/provider-core/server/ProviderLatestVersions";
 import * as ProviderHost from "@supaterm/provider-core/server/ProviderHost";
 import * as ServerConfig from "../../config.ts";
+import * as ServerSettings from "../../serverSettings.ts";
 import { expandHomePath } from "@supaterm/provider-core/server/pathExpansion";
 import * as ProviderEventLoggers from "@supaterm/provider-core/server/ProviderEventLoggers";
 import {
@@ -174,6 +176,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
           models: filterClaudeFastModeModels(provider.models, blocked),
         })),
       );
+    const serverSettings = yield* Effect.serviceOption(ServerSettings.ServerSettingsService);
     const orchestrationAdapter = yield* createClaudeAdapterV2(
       {
         instanceId,
@@ -187,6 +190,14 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
         scopedLimitNames,
         onUsageLimits: (update) => snapshot.applyUsageLimits(update),
         fastModeBlocked: fastMode.isBlocked,
+        promptSuggestionsEnabled: Option.match(serverSettings, {
+          onNone: () => Effect.succeed(false),
+          onSome: (settings) =>
+            settings.getSettings.pipe(
+              Effect.map((current) => current.nextPromptSuggestionsEnabled),
+              Effect.orElseSucceed(() => false),
+            ),
+        }),
       },
     ).pipe(
       Effect.mapError(

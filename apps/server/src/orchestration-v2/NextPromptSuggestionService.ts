@@ -8,6 +8,7 @@ import type {
   ThreadId,
 } from "@supaterm/contracts";
 import { formatThreadTitleContext } from "@supaterm/provider-core/server/threadTitleContext";
+import { sanitizeNextPrompt } from "@supaterm/provider-core/server/textGenerationUtils";
 import * as Cache from "effect/Cache";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
@@ -23,6 +24,7 @@ import * as ServerSettings from "../serverSettings.ts";
 import * as TextGeneration from "../textGeneration/TextGeneration.ts";
 import type { OrchestratorV2Error } from "./Orchestrator.ts";
 import * as ProjectStore from "./ProjectStore.ts";
+import * as PromptSuggestionHub from "./PromptSuggestionHub.ts";
 import * as ThreadManagementService from "./ThreadManagementService.ts";
 
 const NO_SUGGESTION: OrchestrationV2SuggestNextPromptResult = { suggestion: null };
@@ -60,6 +62,7 @@ const make = Effect.gen(function* () {
   const projects = yield* ProjectStore.ProjectStoreV2;
   const serverSettings = yield* ServerSettings.ServerSettingsService;
   const textGeneration = yield* TextGeneration.TextGeneration;
+  const providerPredictions = yield* PromptSuggestionHub.PromptSuggestionHub;
 
   const isFreshCompletedRun = Effect.fn("NextPromptSuggestionService.isFreshCompletedRun")(
     function* (key: SuggestionKey) {
@@ -91,6 +94,13 @@ const make = Effect.gen(function* () {
     );
     const latest = messages.at(-1);
     if (latest?.role !== "assistant" || latest.runId !== key.runId) return NO_SUGGESTION;
+
+    // A provider that predicts for itself, like Claude, already saw the whole turn and reuses
+    // its prompt cache, so its answer stands, including a decision not to suggest anything.
+    const predicted = yield* providerPredictions.await(key);
+    if (Option.isSome(predicted)) {
+      return { suggestion: predicted.value === null ? null : sanitizeNextPrompt(predicted.value) };
+    }
 
     const project = yield* projects.get(projection.thread.projectId);
     if (Option.isNone(project)) return NO_SUGGESTION;

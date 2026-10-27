@@ -6,6 +6,7 @@ import {
   type OrchestrationV2RunStatus,
   type OrchestrationV2ThreadProjection,
   ProjectId,
+  ProviderDriverKind,
   ProviderInstanceId,
   RunId,
   TextGenerationError,
@@ -15,6 +16,7 @@ import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Fiber from "effect/Fiber";
 import { TestClock } from "effect/testing";
 
 import * as ServerSettings from "../serverSettings.ts";
@@ -22,6 +24,7 @@ import * as TextGeneration from "../textGeneration/TextGeneration.ts";
 import * as NextPromptSuggestion from "./NextPromptSuggestionService.ts";
 import type { ProjectionRecordFilter } from "./ProjectionStore.ts";
 import * as ProjectStore from "./ProjectStore.ts";
+import * as PromptSuggestionHub from "./PromptSuggestionHub.ts";
 import * as ThreadManagement from "./ThreadManagementService.ts";
 
 const NOW = "2026-10-27T12:00:00.000Z";
@@ -106,6 +109,7 @@ function makeLayer(options: {
     options.generate ?? (() => Effect.succeed({ suggestion: "yes, score rows on the same shots" })),
   );
   const layer = NextPromptSuggestion.layer.pipe(
+    Layer.provideMerge(PromptSuggestionHub.layer),
     Layer.provide(
       Layer.mergeAll(
         Layer.mock(ThreadManagement.ThreadManagementService)({
@@ -132,6 +136,12 @@ const suggest = (afterRunId: string) =>
     const service = yield* NextPromptSuggestion.NextPromptSuggestionService;
     return yield* service.suggest({ threadId, afterRunId: RunId.make(afterRunId) });
   });
+
+const claudeRun = {
+  driver: ProviderDriverKind.make("claudeAgent"),
+  threadId,
+  runId: RunId.make("run-2"),
+} as const;
 
 const answeredTurns: ReadonlyArray<Turn> = [
   { id: "run-1", user: "Compare the two pipelines.", assistant: "Ring + cues wins overall." },
@@ -225,6 +235,38 @@ describe("NextPromptSuggestionService", () => {
     });
     return Effect.gen(function* () {
       assert.deepStrictEqual(yield* suggest("run-2"), { suggestion: null });
+      assert.strictEqual(generateNextPrompt.mock.calls.length, 0);
+    }).pipe(Effect.provide(layer));
+  });
+
+  it.effect("uses the provider's own prediction instead of a model call", () => {
+    const { layer, generateNextPrompt } = makeLayer({ turns: answeredTurns });
+    return Effect.gen(function* () {
+      const predictions = yield* PromptSuggestionHub.PromptSuggestionHub;
+      yield* predictions.offer({ type: "prompt_suggestion.expected", ...claudeRun });
+      const pending = yield* Effect.forkChild(suggest("run-2"), { startImmediately: true });
+      yield* predictions.offer({
+        type: "prompt_suggestion.ready",
+        ...claudeRun,
+        suggestion: ' "score them on the same shots" ',
+      });
+
+      assert.deepStrictEqual(yield* Fiber.join(pending), {
+        suggestion: "score them on the same shots",
+      });
+      assert.strictEqual(generateNextPrompt.mock.calls.length, 0);
+    }).pipe(Effect.provide(layer));
+  });
+
+  it.effect("respects a provider that declines to predict", () => {
+    const { layer, generateNextPrompt } = makeLayer({ turns: answeredTurns });
+    return Effect.gen(function* () {
+      const predictions = yield* PromptSuggestionHub.PromptSuggestionHub;
+      yield* predictions.offer({ type: "prompt_suggestion.expected", ...claudeRun });
+      const pending = yield* Effect.forkChild(suggest("run-2"), { startImmediately: true });
+      yield* TestClock.adjust("21 seconds");
+
+      assert.deepStrictEqual(yield* Fiber.join(pending), { suggestion: null });
       assert.strictEqual(generateNextPrompt.mock.calls.length, 0);
     }).pipe(Effect.provide(layer));
   });

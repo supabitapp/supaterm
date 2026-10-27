@@ -133,6 +133,24 @@ export const ProviderAdapterV2Event = Schema.Union([
     itemId: TurnItemId,
     chunk: Schema.String,
   }),
+  /**
+   * The provider will predict the user's next prompt for this completed run. Never persisted:
+   * the session manager hands both of these to the prompt suggestion hub. Emitted before the
+   * run's `turn.terminal`, so a client that sees the run complete finds the prediction pending.
+   */
+  Schema.Struct({
+    type: Schema.Literal("prompt_suggestion.expected"),
+    driver: ProviderDriverKind,
+    threadId: ThreadId,
+    runId: RunId,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("prompt_suggestion.ready"),
+    driver: ProviderDriverKind,
+    threadId: ThreadId,
+    runId: RunId,
+    suggestion: Schema.String,
+  }),
   Schema.Struct({
     type: Schema.Literal("runtime_request.updated"),
     driver: ProviderDriverKind,
