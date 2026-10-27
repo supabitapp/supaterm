@@ -7,7 +7,26 @@ import * as NodePath from "node:path";
 export const REPO_ROOT = NodePath.resolve(import.meta.dirname, "../..");
 export const MOBILE_ROOT = NodePath.join(REPO_ROOT, "apps/mobile");
 
-export const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+let runSignal: AbortSignal | undefined;
+
+export function setRunSignal(signal: AbortSignal | undefined) {
+  runSignal = signal;
+}
+
+export const delay = (ms: number) =>
+  new Promise<void>((resolve, reject) => {
+    const signal = runSignal;
+    if (signal?.aborted) return reject(signal.reason);
+    const abort = () => {
+      clearTimeout(timeout);
+      reject(signal?.reason);
+    };
+    const timeout = setTimeout(() => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", abort, { once: true });
+  });
 
 export function run(
   command: string,
@@ -19,9 +38,12 @@ export function run(
     readonly timeoutMs?: number;
     readonly logPath?: string;
     readonly processGroup?: boolean;
+    readonly signal?: AbortSignal | null;
   } = {},
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
+    const signal = options.signal === undefined ? runSignal : options.signal;
+    if (signal?.aborted) return reject(signal.reason);
     const log = options.logPath ? NodeFS.createWriteStream(options.logPath, { flags: "a" }) : null;
     const grouped = options.processGroup === true && NodeProcess.platform !== "win32";
     const child = NodeChildProcess.spawn(command, args, {
@@ -32,6 +54,7 @@ export function run(
     });
     const timeoutMs = options.timeoutMs ?? 120_000;
     let timedOut = false;
+    let interrupted = false;
     let forceKill: ReturnType<typeof setTimeout> | undefined;
     const sendSignal = (value: NodeJS.Signals) => {
       try {
@@ -44,9 +67,18 @@ export function run(
       sendSignal("SIGTERM");
       forceKill = setTimeout(() => sendSignal("SIGKILL"), 5_000);
     }, timeoutMs);
+    const abort = () => {
+      interrupted = true;
+      clearTimeout(timeout);
+      if (forceKill) clearTimeout(forceKill);
+      sendSignal("SIGTERM");
+      forceKill = setTimeout(() => sendSignal("SIGKILL"), 5_000);
+    };
+    signal?.addEventListener("abort", abort, { once: true });
     const clearTimers = () => {
       clearTimeout(timeout);
       if (forceKill) clearTimeout(forceKill);
+      signal?.removeEventListener("abort", abort);
     };
     let stdout = "";
     let stderr = "";
@@ -63,14 +95,16 @@ export function run(
       log?.end();
       reject(error);
     });
-    child.once("close", (code, signal) => {
-      if (timedOut && grouped) sendSignal("SIGKILL");
+    child.once("close", (code, exitSignal) => {
+      if ((timedOut || interrupted) && grouped) sendSignal("SIGKILL");
       clearTimers();
       log?.end();
-      if (timedOut || (code !== 0 && !options.allowFailure)) {
+      if (interrupted) {
+        reject(signal?.reason);
+      } else if (timedOut || (code !== 0 && !options.allowFailure)) {
         reject(
           new Error(
-            `${NodePath.basename(command)} ${args.slice(0, 2).join(" ")} ${timedOut ? `timed out after ${timeoutMs}ms` : `failed (${code ?? signal})`}: ${(stderr || stdout).slice(-8_000)}`,
+            `${NodePath.basename(command)} ${args.slice(0, 2).join(" ")} ${timedOut ? `timed out after ${timeoutMs}ms` : `failed (${code ?? exitSignal})`}: ${(stderr || stdout).slice(-8_000)}`,
           ),
         );
       } else {

@@ -8,7 +8,6 @@ import * as NodePath from "node:path";
 
 import {
   androidSdkTool,
-  ensureIosFullScreenAppsMode,
   normalizeIosSimulator,
   resolveAndroidSdkRoot,
   stopProcess,
@@ -28,14 +27,18 @@ const AGENT_DEVICE_ENTRY = NodePath.join(
 );
 
 export async function stopDeviceDaemon(root: string) {
-  await run(NodeProcess.execPath, [
-    AGENT_DEVICE_ENTRY,
-    "daemon",
-    "stop",
-    "--clean",
-    "--state-dir",
-    NodePath.join(root, "agent-device"),
-  ]);
+  await run(
+    NodeProcess.execPath,
+    [
+      AGENT_DEVICE_ENTRY,
+      "daemon",
+      "stop",
+      "--clean",
+      "--state-dir",
+      NodePath.join(root, "agent-device"),
+    ],
+    { signal: null },
+  );
 }
 
 async function emulatorPort() {
@@ -128,8 +131,6 @@ export class Device {
       timeoutMs: 900_000,
       logPath: NodePath.join(this.directory, "simulator-boot.log"),
     });
-    if (this.pose.form === "tablet" && this.pose.landscape)
-      await ensureIosFullScreenAppsMode(this.id);
   }
 
   private async bootAndroid(profile: string) {
@@ -229,7 +230,7 @@ export class Device {
 
   async agent(
     args: ReadonlyArray<string>,
-    options: { readonly timeoutMs?: number } = {},
+    options: { readonly timeoutMs?: number; readonly signal?: AbortSignal | null } = {},
   ): Promise<Record<string, unknown>> {
     const target = this.pose.platform === "ios" ? ["--udid", this.id] : ["--serial", this.id];
     const { code, stdout, stderr } = await run(
@@ -249,6 +250,7 @@ export class Device {
         env: this.env,
         allowFailure: true,
         ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+        ...(options.signal === undefined ? {} : { signal: options.signal }),
       },
     );
     let result: {
@@ -484,7 +486,7 @@ export class Device {
   async release() {
     if (this.closed) return;
     if (!this.id) return;
-    await this.agent(["close"], { timeoutMs: 15_000 }).catch(() => undefined);
+    await this.agent(["close"], { timeoutMs: 15_000, signal: null }).catch(() => undefined);
     const errors: string[] = [];
     const attempt = async (action: () => Promise<unknown>) => {
       try {
@@ -494,10 +496,14 @@ export class Device {
       }
     };
     if (this.pose.platform === "ios") {
-      await attempt(() => run("xcrun", ["simctl", "shutdown", this.id], { allowFailure: true }));
-      await attempt(() => run("xcrun", ["simctl", "delete", this.id]));
+      await attempt(() =>
+        run("xcrun", ["simctl", "shutdown", this.id], { allowFailure: true, signal: null }),
+      );
+      await attempt(() => run("xcrun", ["simctl", "delete", this.id], { signal: null }));
       await attempt(async () => {
-        const { stdout } = await run("xcrun", ["simctl", "list", "devices", this.id, "--json"]);
+        const { stdout } = await run("xcrun", ["simctl", "list", "devices", this.id, "--json"], {
+          signal: null,
+        });
         const { devices } = JSON.parse(stdout) as {
           devices: Record<string, Array<{ udid: string }>>;
         };
@@ -513,6 +519,7 @@ export class Device {
         run(androidSdkTool("platform-tools/adb"), ["-s", this.id, "emu", "kill"], {
           allowFailure: true,
           timeoutMs: 10_000,
+          signal: null,
         }),
       );
       const emulator = this.emulator;
@@ -521,7 +528,7 @@ export class Device {
         run(
           NodePath.join(resolveAndroidSdkRoot(this.env), "cmdline-tools/latest/bin/avdmanager"),
           ["delete", "avd", "--name", this.session],
-          { env: this.env },
+          { env: this.env, signal: null },
         ),
       );
     }

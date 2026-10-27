@@ -12,7 +12,7 @@ import { Device, DeviceCleanupError, stopDeviceDaemon } from "./mobile-e2e/devic
 import { captureHostResources } from "./mobile-e2e/diagnostics.ts";
 import { runJourney, type StepResult } from "./mobile-e2e/journey.ts";
 import { POSES, type Pose } from "./mobile-e2e/poses.ts";
-import { MOBILE_ROOT, REPO_ROOT } from "./mobile-e2e/process.ts";
+import { MOBILE_ROOT, REPO_ROOT, setRunSignal } from "./mobile-e2e/process.ts";
 import {
   appendError,
   failedChecks,
@@ -153,10 +153,26 @@ async function main() {
   let metro: NodeChildProcess.ChildProcess | undefined;
   const results: PoseResult[] = [];
   const errors: string[] = [];
+  const interruption = new AbortController();
+  const interrupt = (signal: "SIGINT" | "SIGTERM") => {
+    interruption.abort(new Error(`Interrupted by ${signal}`));
+    if (metro?.pid) {
+      try {
+        NodeProcess.kill(-metro.pid, signal);
+      } catch {}
+    }
+    for (const server of servers) void stopProcess(server).catch(() => undefined);
+  };
+  const onSigint = () => interrupt("SIGINT");
+  const onSigterm = () => interrupt("SIGTERM");
+  NodeProcess.once("SIGINT", onSigint);
+  NodeProcess.once("SIGTERM", onSigterm);
+  setRunSignal(interruption.signal);
   try {
     await captureHostResources(output, "Before native build");
     log(`Preparing the ${platform} native client before starting devices.`);
     const client = await prepareClient(platform, output);
+    interruption.signal.throwIfAborted();
     await NodeFSP.writeFile(NodePath.join(output, "native-client.txt"), `${client}\n`);
     await captureHostResources(output, "After native build");
     const [environment] = await startShowcaseEnvironments(
@@ -165,6 +181,7 @@ async function main() {
       SHOWCASE_ENVIRONMENTS.slice(0, 1),
     );
     if (!environment) throw new Error("The fixture environment did not start.");
+    interruption.signal.throwIfAborted();
     const metroPort = await reserveAvailablePort();
     metro = NodeChildProcess.spawn(
       "vp",
@@ -196,6 +213,7 @@ async function main() {
         await issuePairingCredential(environment.baseDir),
       );
     for (const pose of poses) {
+      interruption.signal.throwIfAborted();
       const result = await runPose(pose, root, output, metroPort, pair, client);
       if (values.review) {
         try {
@@ -213,6 +231,7 @@ async function main() {
       log(
         `${pose.id}: ${result.error ?? (failedChecks(result).length ? "checks failed" : "passed")}`,
       );
+      interruption.signal.throwIfAborted();
       if (result.cleanupFailed) {
         const message = `Stopping after ${pose.id}: device cleanup failed`;
         errors.push(message);
@@ -226,6 +245,7 @@ async function main() {
       if (!results.some((result) => result.pose.id === pose.id))
         results.push({ pose, steps: [], error: message });
   } finally {
+    setRunSignal(undefined);
     try {
       await stopDeviceDaemon(root);
     } catch (error) {
@@ -253,6 +273,8 @@ async function main() {
       NodePath.join(output, "report.json"),
       JSON.stringify({ poses: results, errors }, null, 2),
     );
+    NodeProcess.removeListener("SIGINT", onSigint);
+    NodeProcess.removeListener("SIGTERM", onSigterm);
   }
   const failed = results.filter(poseFailed).length;
   NodeProcess.stdout.write(
