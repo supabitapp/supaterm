@@ -31,6 +31,14 @@ export class ResetCreditCoordinator extends Context.Service<
       consume: (idempotencyKey: string) => Effect.Effect<ProviderConsumeResetCreditOutcome, E, R>,
       isSettled?: (error: E) => boolean,
     ) => Effect.Effect<ProviderConsumeResetCreditOutcome, E | PlatformError.PlatformError, R>;
+    /**
+     * Runs `effect` alone on the account, for other changes to the same login
+     * such as a token refresh, which rotates the refresh token.
+     */
+    readonly withAccountLock: <A, E, R>(
+      accountKey: string,
+      effect: Effect.Effect<A, E, R>,
+    ) => Effect.Effect<A, E, R>;
   }
 >()("supaterm/provider/resetCreditCoordinator") {}
 
@@ -78,7 +86,12 @@ export const make = Effect.gen(function* () {
     );
   });
 
-  return { redeem } satisfies ResetCreditCoordinator["Service"];
+  const withAccountLock: ResetCreditCoordinator["Service"]["withAccountLock"] = (
+    accountKey,
+    effect,
+  ) => Effect.flatMap(stateFor(accountKey), (state) => state.lock.withPermits(1)(effect));
+
+  return { redeem, withAccountLock } satisfies ResetCreditCoordinator["Service"];
 });
 
 export const layer = Layer.effect(ResetCreditCoordinator, make);

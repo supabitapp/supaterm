@@ -212,7 +212,35 @@ describe("Transcription", () => {
     }),
   );
 
-  it.effect("returns a recorded failure on recovery and runs again only on retry", () =>
+  it.effect("returns a failed run on recovery and runs again only on retry", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness;
+      yield* Effect.gen(function* () {
+        const service = yield* Transcription.Transcription;
+        const audio = yield* upload(wav({ durationMs: 1_000 }));
+        const input = { providerInstanceId: INSTANCE, audioAttachmentId: audio.attachmentId };
+        yield* Queue.offer(
+          harness.responses,
+          Effect.fail(new TranscriptionError({ reason: "failed" })),
+        );
+        expect(yield* reason(service.transcribe(input))).toBe("failed");
+        expect(yield* reason(service.transcribe(input))).toBe("failed");
+        expect(
+          yield* reason(service.transcribe({ ...input, providerInstanceId: OTHER_INSTANCE })),
+        ).toBe("failed");
+        expect(yield* Ref.get(harness.calls)).toHaveLength(1);
+        expect(audio.exists()).toBe(true);
+
+        yield* Queue.offer(harness.responses, Effect.succeed({ text: "second try" }));
+        expect(yield* service.transcribe({ ...input, retry: true })).toEqual({
+          text: "second try",
+        });
+        expect(yield* Ref.get(harness.calls)).toHaveLength(2);
+      }).pipe(Effect.provide(harness.layer));
+    }),
+  );
+
+  it.effect("doesn't record a refusal that spent nothing, so a resubmission tries again", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness;
       yield* Effect.gen(function* () {
@@ -223,18 +251,9 @@ describe("Transcription", () => {
           harness.responses,
           Effect.fail(new TranscriptionError({ reason: "rateLimited", retryAfterMs: 5_000 })),
         );
+        yield* Queue.offer(harness.responses, Effect.succeed({ text: "later" }));
         expect(yield* reason(service.transcribe(input))).toBe("rateLimited");
-        expect(yield* reason(service.transcribe(input))).toBe("rateLimited");
-        expect(
-          yield* reason(service.transcribe({ ...input, providerInstanceId: OTHER_INSTANCE })),
-        ).toBe("rateLimited");
-        expect(yield* Ref.get(harness.calls)).toHaveLength(1);
-        expect(audio.exists()).toBe(true);
-
-        yield* Queue.offer(harness.responses, Effect.succeed({ text: "second try" }));
-        expect(yield* service.transcribe({ ...input, retry: true })).toEqual({
-          text: "second try",
-        });
+        expect(yield* service.transcribe(input)).toEqual({ text: "later" });
         expect(yield* Ref.get(harness.calls)).toHaveLength(2);
       }).pipe(Effect.provide(harness.layer));
     }),
@@ -295,6 +314,38 @@ describe("Transcription", () => {
         expect(yield* reason(service.transcribe(input))).toBe("audioMissing");
         expect(audio.exists()).toBe(false);
         expect(yield* Ref.get(harness.calls)).toHaveLength(1);
+      }).pipe(Effect.provide(harness.layer));
+    }),
+  );
+
+  it.effect("deletes an expired failure's upload even if nobody asks again", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness;
+      yield* Effect.gen(function* () {
+        const service = yield* Transcription.Transcription;
+        const audio = yield* upload(wav({ durationMs: 1_000 }));
+        yield* Queue.offer(
+          harness.responses,
+          Effect.fail(new TranscriptionError({ reason: "failed" })),
+        );
+        yield* Effect.flip(
+          service.transcribe({
+            providerInstanceId: INSTANCE,
+            audioAttachmentId: audio.attachmentId,
+          }),
+        );
+        // The prune runs every minute, and each run schedules the next.
+        const advanceMinutes = (minutes: number) =>
+          Effect.forEach(Array.from({ length: minutes }), () => TestClock.adjust("1 minute"), {
+            discard: true,
+          });
+        yield* advanceMinutes(9);
+        expect(audio.exists()).toBe(true);
+        yield* advanceMinutes(2);
+        // The prune deletes while holding the store lock; cancelling an unrelated
+        // upload waits for that lock, so it returns once the prune is done.
+        yield* service.cancel({ audioAttachmentId: createPendingAttachmentId(".wav") });
+        expect(audio.exists()).toBe(false);
       }).pipe(Effect.provide(harness.layer));
     }),
   );
@@ -459,37 +510,39 @@ describe("Transcription", () => {
     }),
   );
 
-  it.effect("refuses new work once 64 outcomes are live, until the oldest expires", () =>
+  it.effect("refuses new work once 64 vendor outcomes are live, until the oldest expires", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness;
       yield* Effect.gen(function* () {
         const service = yield* Transcription.Transcription;
-        for (let index = 0; index < 64; index++) {
-          yield* Effect.flip(
-            service.transcribe({
-              providerInstanceId: INSTANCE,
-              audioAttachmentId: createPendingAttachmentId(".wav"),
-            }),
-          );
-        }
-        const refused = yield* Effect.flip(
-          service.transcribe({
+        const transcribeNew = Effect.gen(function* () {
+          const audio = yield* upload(wav({ durationMs: 500 }));
+          return yield* service.transcribe({
             providerInstanceId: INSTANCE,
-            audioAttachmentId: createPendingAttachmentId(".wav"),
-          }),
-        );
+            audioAttachmentId: audio.attachmentId,
+          });
+        });
+        for (let index = 0; index < 3; index++) {
+          expect(
+            yield* reason(
+              service.transcribe({
+                providerInstanceId: INSTANCE,
+                audioAttachmentId: createPendingAttachmentId(".wav"),
+              }),
+            ),
+          ).toBe("audioMissing");
+        }
+        for (let index = 0; index < 64; index++) {
+          yield* Queue.offer(harness.responses, Effect.succeed({ text: `${index}` }));
+          yield* transcribeNew;
+        }
+        const refused = yield* Effect.flip(transcribeNew);
         expect(refused.reason).toBe("rateLimited");
         expect(refused.retryAfterMs).toBe(10 * 60_000);
 
         yield* TestClock.adjust(TEN_MINUTES);
-        expect(
-          yield* reason(
-            service.transcribe({
-              providerInstanceId: INSTANCE,
-              audioAttachmentId: createPendingAttachmentId(".wav"),
-            }),
-          ),
-        ).toBe("audioMissing");
+        yield* Queue.offer(harness.responses, Effect.succeed({ text: "room again" }));
+        expect(yield* transcribeNew).toEqual({ text: "room again" });
       }).pipe(Effect.provide(harness.layer));
     }),
   );

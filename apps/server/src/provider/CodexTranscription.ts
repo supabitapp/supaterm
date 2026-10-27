@@ -10,7 +10,6 @@ import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
-import * as Semaphore from "effect/Semaphore";
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 
 const TRANSCRIBE_URL = "https://chatgpt.com/backend-api/transcribe";
@@ -110,12 +109,19 @@ export const makeCodexTranscription = Effect.fn("makeCodexTranscription")(functi
   readonly authHomePath: string;
   /** Asks the CLI's app-server to refresh the ChatGPT login it owns. */
   readonly refreshLogin: Effect.Effect<void, TranscriptionError>;
+  /**
+   * Holds the login's lock, shared by every instance that reads this
+   * auth.json: refresh tokens rotate, so two refreshes at once could sign the
+   * user out.
+   */
+  readonly withLoginLock: <A>(
+    effect: Effect.Effect<A, TranscriptionError>,
+  ) => Effect.Effect<A, TranscriptionError>;
 }) {
   const httpClient = yield* HttpClient.HttpClient;
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const authFilePath = path.join(input.authHomePath, "auth.json");
-  const refreshLock = yield* Semaphore.make(1);
 
   const readLogin = Effect.gen(function* () {
     const contents = yield* fileSystem.readFileString(authFilePath).pipe(
@@ -151,11 +157,9 @@ export const makeCodexTranscription = Effect.fn("makeCodexTranscription")(functi
     } satisfies CodexLogin;
   });
 
-  // Refresh tokens rotate, so two refreshes at once could sign the user out.
-  // A caller that waited on the lock first checks whether the other already
-  // refreshed.
+  // A caller that waited on the lock first checks whether another already refreshed.
   const refreshFrom = (stale: CodexLogin) =>
-    refreshLock.withPermits(1)(
+    input.withLoginLock(
       Effect.gen(function* () {
         const current = yield* readLogin;
         if (current.accessToken !== stale.accessToken) return current;

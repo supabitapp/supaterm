@@ -8,6 +8,7 @@ import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Ref from "effect/Ref";
+import * as Semaphore from "effect/Semaphore";
 import { HttpClient, type HttpClientRequest, HttpClientResponse } from "effect/http";
 
 import { codexTranscriptionStatus, makeCodexTranscription } from "./CodexTranscription.ts";
@@ -86,8 +87,10 @@ const setup = (input: {
         );
       }),
     );
+    const lock = yield* Semaphore.make(1);
     const backend = yield* makeCodexTranscription({
       authHomePath,
+      withLoginLock: lock.withPermits(1),
       refreshLogin: Ref.update(refreshes, (count) => count + 1).pipe(
         Effect.andThen(input.refreshedToken ? writeToken(input.refreshedToken) : Effect.void),
         Effect.orDie,
@@ -178,23 +181,25 @@ describe("makeCodexTranscription", () => {
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
 
-  it.effect("skips its own refresh when another caller already rotated the token", () =>
+  it.effect("refreshes once when two instances share a login and both get a 401", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const authHomePath = yield* fs.makeTempDirectoryScoped();
-      const authFile = path.join(authHomePath, "auth.json");
       const write = (token: string) =>
         fs.writeFileString(
-          authFile,
+          path.join(authHomePath, "auth.json"),
           JSON.stringify({ tokens: { access_token: token, account_id: "a" } }),
         );
       yield* write(FRESH);
       const refreshes = yield* Ref.make(0);
       const firstRefreshStarted = yield* Deferred.make<void>();
       const releaseFirstRefresh = yield* Deferred.make<void>();
-      const backend = yield* makeCodexTranscription({
+      // The driver hands every instance on this auth home the same account lock.
+      const sharedLock = yield* Semaphore.make(1);
+      const makeInstance = makeCodexTranscription({
         authHomePath,
+        withLoginLock: sharedLock.withPermits(1),
         refreshLogin: Effect.gen(function* () {
           yield* Ref.update(refreshes, (count) => count + 1);
           yield* Deferred.succeed(firstRefreshStarted, undefined);
@@ -216,10 +221,11 @@ describe("makeCodexTranscription", () => {
           ),
         ),
       );
-      const call = backend.transcribe({ audio: AUDIO, language: undefined, keyterms: [] });
-      const first = yield* Effect.forkChild(call);
+      const [one, two] = [yield* makeInstance, yield* makeInstance];
+      const input = { audio: AUDIO, language: undefined, keyterms: [] };
+      const first = yield* Effect.forkChild(one.transcribe(input));
       yield* Deferred.await(firstRefreshStarted);
-      const second = yield* Effect.forkChild(call);
+      const second = yield* Effect.forkChild(two.transcribe(input));
       yield* Deferred.succeed(releaseFirstRefresh, undefined);
 
       expect(yield* Fiber.join(first)).toEqual({ text: "ok" });

@@ -1,5 +1,6 @@
 // @effect-diagnostics nodeBuiltinImport:off - the fixture is a loopback WebSocket server.
 import type * as NodeHttp from "node:http";
+import type * as NodeNet from "node:net";
 
 import { parseWav } from "@supaterm/provider-core/server/transcription";
 import { describe, expect, it } from "@effect/vitest";
@@ -77,18 +78,21 @@ describe("runVoiceStream", () => {
     }),
   );
 
-  it.effect("finishes two quiet seconds after an endpoint that follows CloseStream", () =>
+  it.effect("waits through long gaps between endpoints until the server closes", () =>
     Effect.gen(function* () {
       const { fiber, offer } = yield* session();
       yield* offer(
         { _tag: "CloseStreamSent" },
-        message("TranscriptText", "all of it"),
+        message("TranscriptText", "first part"),
         message("TranscriptEndpoint"),
       );
-      yield* TestClock.adjust("1999 millis");
+      yield* TestClock.adjust("10 seconds");
       expect(fiber.pollUnsafe()).toBeUndefined();
-      yield* TestClock.adjust("1 millis");
-      expect(yield* Fiber.join(fiber)).toBe("all of it");
+      yield* offer(message("TranscriptText", "second part"), message("TranscriptEndpoint"), {
+        _tag: "Closed",
+        code: 1000,
+      });
+      expect(yield* Fiber.join(fiber)).toBe("first part second part");
     }),
   );
 
@@ -135,6 +139,7 @@ describe("runVoiceStream", () => {
 const withServer = <E>(
   options: {
     readonly reject?: { readonly status: number; readonly headers?: Record<string, string> };
+    readonly sendInvalidFrame?: boolean;
   },
   use: (
     url: string,
@@ -162,7 +167,12 @@ const withServer = <E>(
         socket.on("message", (data, isBinary) => {
           const frame = isBinary ? Buffer.from(data as Buffer) : data.toString();
           received.frames.push(frame);
-          if (frame === '{"type":"CloseStream"}') {
+          if (frame === '{"type":"CloseStream"}' && options.sendInvalidFrame) {
+            // Reserved bits set: the client must treat this as a protocol error.
+            (socket as unknown as { _socket: NodeNet.Socket })._socket.write(
+              Buffer.from([0xf1, 0]),
+            );
+          } else if (frame === '{"type":"CloseStream"}') {
             socket.send(JSON.stringify({ type: "TranscriptText", data: "hello from the fixture" }));
             socket.send(JSON.stringify({ type: "TranscriptEndpoint" }));
             socket.close(1000);
@@ -194,6 +204,23 @@ describe("streamClaudeTranscription", () => {
         const binary = received.frames.filter((frame): frame is Buffer => Buffer.isBuffer(frame));
         expect(binary.every((frame) => frame.byteLength <= 32_000)).toBe(true);
         expect(Buffer.concat(binary).equals(Buffer.from(audio.pcm))).toBe(true);
+      }),
+    ),
+  );
+
+  it.live("fails promptly when the connection breaks after the clip is sent", () =>
+    withServer({ sendInvalidFrame: true }, (url) =>
+      Effect.gen(function* () {
+        // A 3-minute clip puts the session deadline past the test timeout, so only a
+        // prompt failure passes.
+        const error = yield* Effect.flip(
+          streamClaudeTranscription({
+            url,
+            headers: {},
+            audio: parseWav(wavBytes(16_000 * 180))!,
+          }),
+        );
+        expect(error.reason).toBe("failed");
       }),
     ),
   );

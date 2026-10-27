@@ -7,6 +7,36 @@ import * as Ref from "effect/Ref";
 import * as ResetCreditCoordinator from "./resetCreditCoordinator.ts";
 
 describe("ResetCreditCoordinator", () => {
+  it.effect("holds an account's lock against redemption and other locked work", () =>
+    Effect.gen(function* () {
+      const { redeem, withAccountLock } = yield* ResetCreditCoordinator.ResetCreditCoordinator;
+      const entered = yield* Deferred.make<void>();
+      const release = yield* Deferred.make<void>();
+      const order = yield* Ref.make<ReadonlyArray<string>>([]);
+      const holder = yield* Effect.forkChild(
+        withAccountLock(
+          "acct",
+          Deferred.succeed(entered, undefined).pipe(
+            Effect.andThen(Deferred.await(release)),
+            Effect.andThen(Ref.update(order, (seen) => [...seen, "refresh"])),
+          ),
+        ),
+      );
+      yield* Deferred.await(entered);
+      const redemption = yield* Effect.forkChild(
+        redeem("acct", () =>
+          Ref.update(order, (seen) => [...seen, "redeem"]).pipe(Effect.as("reset" as const)),
+        ),
+      );
+      const otherAccount = yield* withAccountLock("other", Effect.succeed("free"));
+      assert.strictEqual(otherAccount, "free");
+      yield* Deferred.succeed(release, undefined);
+      yield* Fiber.join(holder);
+      yield* Fiber.join(redemption);
+      assert.deepStrictEqual(yield* Ref.get(order), ["refresh", "redeem"]);
+    }).pipe(Effect.provide(ResetCreditCoordinator.layerTest)),
+  );
+
   it.effect("re-sends the same idempotency key after a failed attempt, then clears it", () =>
     Effect.gen(function* () {
       const { redeem } = yield* ResetCreditCoordinator.ResetCreditCoordinator;

@@ -22,10 +22,7 @@ const KEEP_ALIVE = '{"type":"KeepAlive"}';
 const CLOSE_STREAM = '{"type":"CloseStream"}';
 const KEEP_ALIVE_INTERVAL = "8 seconds";
 const CONNECT_TIMEOUT = "15 seconds";
-// The server sends one endpoint once the whole clip is transcribed and closes
-// about 5 s later; nothing arrives in between.
-const QUIET_AFTER_ENDPOINT_MS = 2_000;
-// A 278 s clip sent at once finished 55 s after CloseStream.
+// A 278 s clip sent at once closed 60 s after CloseStream.
 const MIN_DEADLINE_MS = 15_000;
 const MAX_KEYTERMS = 50;
 const MAX_KEYTERM_CHARS = 1_024;
@@ -81,14 +78,12 @@ export type VoiceStreamEvent =
   | { readonly _tag: "Message"; readonly data: string }
   | { readonly _tag: "CloseStreamSent" }
   | { readonly _tag: "Closed"; readonly code: number }
-  | { readonly _tag: "Quiet" }
   | { readonly _tag: "Deadline" };
 
 interface VoiceStreamState {
   readonly committed: ReadonlyArray<string>;
   readonly pending: string;
   readonly closeStreamSent: boolean;
-  readonly endpointSinceCloseStream: boolean;
 }
 
 type VoiceStreamStep =
@@ -100,7 +95,6 @@ const initialVoiceStreamState: VoiceStreamState = {
   committed: [],
   pending: "",
   closeStreamSent: false,
-  endpointSinceCloseStream: false,
 };
 
 const ServerFrame = Schema.fromJsonString(
@@ -121,8 +115,7 @@ const failed = (): VoiceStreamStep => ({
 /**
  * `TranscriptText` replaces the segment in progress and `TranscriptEndpoint`
  * commits it. The CLI stops at the first endpoint after CloseStream, which
- * cuts recordings short, so this finishes on the server's close, or after a
- * quiet spell once an endpoint has arrived.
+ * cuts recordings short, so this waits for the server to close the socket.
  */
 function stepVoiceStream(state: VoiceStreamState, event: VoiceStreamEvent): VoiceStreamStep {
   switch (event._tag) {
@@ -138,7 +131,6 @@ function stepVoiceStream(state: VoiceStreamState, event: VoiceStreamEvent): Voic
             ...state,
             committed: state.pending ? [...state.committed, state.pending] : state.committed,
             pending: "",
-            endpointSinceCloseStream: state.endpointSinceCloseStream || state.closeStreamSent,
           },
         };
       }
@@ -151,10 +143,6 @@ function stepVoiceStream(state: VoiceStreamState, event: VoiceStreamEvent): Voic
       return NORMAL_CLOSE_CODES.has(event.code) && state.closeStreamSent
         ? { _tag: "Done", text: transcriptOf(state) }
         : failed();
-    case "Quiet":
-      return state.endpointSinceCloseStream
-        ? { _tag: "Done", text: transcriptOf(state) }
-        : { _tag: "Continue", state };
     case "Deadline":
       return failed();
   }
@@ -169,18 +157,11 @@ export const runVoiceStream = Effect.fnUntraced(function* (input: {
   let deadlineAt: number | undefined;
   while (true) {
     const now = yield* Clock.currentTimeMillis;
-    const untilDeadline = deadlineAt === undefined ? undefined : Math.max(0, deadlineAt - now);
-    const untilQuiet = state.endpointSinceCloseStream ? QUIET_AFTER_ENDPOINT_MS : undefined;
-    const waits = [untilDeadline, untilQuiet].filter((wait) => wait !== undefined);
     const next =
-      waits.length === 0
+      deadlineAt === undefined
         ? Option.some(yield* Queue.take(input.events))
-        : yield* Queue.take(input.events).pipe(Effect.timeoutOption(Math.min(...waits)));
-    const event: VoiceStreamEvent = Option.getOrElse(next, () =>
-      untilQuiet !== undefined && (untilDeadline === undefined || untilQuiet <= untilDeadline)
-        ? { _tag: "Quiet" }
-        : { _tag: "Deadline" },
-    );
+        : yield* Queue.take(input.events).pipe(Effect.timeoutOption(Math.max(0, deadlineAt - now)));
+    const event: VoiceStreamEvent = Option.getOrElse(next, () => ({ _tag: "Deadline" }));
     if (event._tag === "CloseStreamSent") {
       deadlineAt = (yield* Clock.currentTimeMillis) + Math.max(MIN_DEADLINE_MS, input.audioMs);
     }
@@ -221,15 +202,22 @@ const connect = (url: string, headers: Record<string, string>) =>
       socket.terminate();
       resume(Effect.fail(error));
     };
-    socket.once("open", () => {
-      socket.removeAllListeners("unexpected-response");
-      resume(Effect.succeed(socket));
-    });
-    socket.once("unexpected-response", (_request, response) => {
+    const onUpgradeRefused = (
+      _request: NodeHttp.ClientRequest,
+      response: NodeHttp.IncomingMessage,
+    ) => {
       response.resume();
       fail(voiceStreamUpgradeError(response.statusCode, response.headers));
+    };
+    const onConnectError = (cause: Error) =>
+      fail(new TranscriptionError({ reason: "failed", cause }));
+    socket.once("unexpected-response", onUpgradeRefused);
+    socket.once("error", onConnectError);
+    socket.once("open", () => {
+      socket.off("unexpected-response", onUpgradeRefused);
+      socket.off("error", onConnectError);
+      resume(Effect.succeed(socket));
     });
-    socket.once("error", (cause) => fail(new TranscriptionError({ reason: "failed", cause })));
     return Effect.sync(() => socket.terminate());
   });
 
@@ -252,7 +240,8 @@ export const streamClaudeTranscription = Effect.fn("ClaudeTranscription.stream")
     if (!isBinary) Queue.offerUnsafe(events, { _tag: "Message", data: data.toString() });
   });
   socket.on("close", (code) => Queue.offerUnsafe(events, { _tag: "Closed", code }));
-  socket.on("error", () => {});
+  // `ws` reports protocol errors before closing; fail now rather than wait for the deadline.
+  socket.on("error", () => Queue.offerUnsafe(events, { _tag: "Closed", code: 1006 }));
   const send = (data: string | Uint8Array) =>
     Effect.callback<void, TranscriptionError>((resume) => {
       socket.send(data, (cause) =>

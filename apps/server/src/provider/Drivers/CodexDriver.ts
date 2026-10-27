@@ -362,6 +362,7 @@ export const CodexDriver: ProviderDriver<
 
     const transcription = yield* makeCodexTranscription({
       authHomePath,
+      withLoginLock: (effect) => resetCreditCoordinator.withAccountLock(authHomePath, effect),
       refreshLogin: Effect.gen(function* () {
         const { client } = yield* withCodexAppServerClient({
           binaryPath: effectiveConfig.binaryPath,

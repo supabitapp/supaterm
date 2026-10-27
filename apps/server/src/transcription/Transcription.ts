@@ -43,6 +43,7 @@ const MAX_ENTRIES = 64;
 const MIN_DURATION_MS = 300;
 const RUN_TIMEOUT_MS = (TRANSCRIPTION_MAX_SECONDS + 120) * 1000;
 const RUNS_PER_INSTANCE = 2;
+const PRUNE_INTERVAL = "1 minute";
 const UNUSABLE_AUDIO: ReadonlySet<TranscriptionErrorReason | undefined> = new Set([
   "invalidAudio",
   "audioTooShort",
@@ -219,6 +220,21 @@ const make = Effect.gen(function* () {
     );
   });
 
+  // An expired failure takes its upload with it, so a late recovery gets
+  // `audioMissing` instead of a second vendor run. Callers hold the store lock.
+  const pruneExpired = Effect.fnUntraced(function* (now: number) {
+    const entries = yield* Ref.get(entriesRef);
+    const expiredIds = [...entries].flatMap(([id, entry]) =>
+      entry._tag !== "Running" && expiresAt(entry) <= now ? [id] : [],
+    );
+    if (expiredIds.length === 0) return entries;
+    const live = new Map(entries);
+    for (const id of expiredIds) live.delete(id);
+    yield* Ref.set(entriesRef, live);
+    yield* Effect.forEach(expiredIds, deleteUpload, { discard: true });
+    return live;
+  });
+
   const settle = Effect.fnUntraced(function* (
     attachmentId: string,
     result: Deferred.Deferred<TranscriptionTranscribeResult, TranscriptionError>,
@@ -239,11 +255,17 @@ const make = Effect.gen(function* () {
     // Record the outcome before deleting the upload, so a failed delete can't
     // turn a finished vendor call into a second one. Callers hear last, once
     // the upload is already gone.
+    // Only `failed` can mean the vendor did work whose result never arrived. Any other
+    // refusal spent nothing, so a resubmission simply tries again.
+    const recorded = outcome._tag === "Succeeded" || outcome.error.reason === "failed";
     yield* storeLock.withPermits(1)(
       Ref.update(entriesRef, (entries) => {
         const current = entries.get(attachmentId);
         if (current?._tag !== "Running" || current.result !== result) return entries;
-        return new Map(entries).set(attachmentId, { ...outcome, inputs, settledAt });
+        const next = new Map(entries);
+        if (recorded) next.set(attachmentId, { ...outcome, inputs, settledAt });
+        else next.delete(attachmentId);
+        return next;
       }),
     );
     if (outcome._tag === "Succeeded" || UNUSABLE_AUDIO.has(outcome.error.reason)) {
@@ -261,18 +283,7 @@ const make = Effect.gen(function* () {
   ) {
     const attachmentId = input.audioAttachmentId;
     const now = yield* Clock.currentTimeMillis;
-    const entries = yield* Ref.get(entriesRef);
-    const expiredIds = [...entries].flatMap(([id, entry]) =>
-      entry._tag !== "Running" && expiresAt(entry) <= now ? [id] : [],
-    );
-    const live = new Map(entries);
-    for (const id of expiredIds) live.delete(id);
-    if (expiredIds.length > 0) {
-      yield* Ref.set(entriesRef, live);
-      // An expired failure takes its upload with it, so a late recovery gets
-      // `audioMissing` instead of a second vendor run.
-      yield* Effect.forEach(expiredIds, deleteUpload, { discard: true });
-    }
+    const live = yield* pruneExpired(now);
     const existing = live.get(attachmentId);
     if (existing !== undefined && existing._tag !== "Failed") {
       if (!sameInputs(existing.inputs, inputs)) {
@@ -328,23 +339,35 @@ const make = Effect.gen(function* () {
     },
   );
 
+  // Under the store lock throughout, so a reconnect can't start new work on the
+  // upload between dropping the entry and deleting the file.
   const cancel: Transcription["Service"]["cancel"] = Effect.fn("Transcription.cancel")(
     function* (input) {
-      const removed = yield* storeLock.withPermits(1)(
-        Ref.modify(entriesRef, (entries) => {
-          const entry = entries.get(input.audioAttachmentId);
-          if (!entry) return [undefined, entries] as const;
-          const remaining = new Map(entries);
-          remaining.delete(input.audioAttachmentId);
-          return [entry, remaining] as const;
+      yield* storeLock.withPermits(1)(
+        Effect.gen(function* () {
+          const entry = (yield* Ref.get(entriesRef)).get(input.audioAttachmentId);
+          if (entry) {
+            yield* Ref.update(entriesRef, (entries) => {
+              const remaining = new Map(entries);
+              remaining.delete(input.audioAttachmentId);
+              return remaining;
+            });
+          }
+          if (entry?._tag === "Running") {
+            yield* Fiber.interrupt(entry.fiber);
+            yield* Deferred.fail(entry.result, new TranscriptionError({ reason: "cancelled" }));
+          }
+          yield* deleteUpload(input.audioAttachmentId);
         }),
       );
-      if (removed?._tag === "Running") {
-        yield* Fiber.interrupt(removed.fiber);
-        yield* Deferred.fail(removed.result, new TranscriptionError({ reason: "cancelled" }));
-      }
-      yield* deleteUpload(input.audioAttachmentId);
     },
+  );
+
+  yield* Effect.sleep(PRUNE_INTERVAL).pipe(
+    Effect.andThen(Clock.currentTimeMillis),
+    Effect.flatMap((now) => storeLock.withPermits(1)(pruneExpired(now))),
+    Effect.forever,
+    Effect.forkIn(serviceScope),
   );
 
   return Transcription.of({ transcribe, cancel });
