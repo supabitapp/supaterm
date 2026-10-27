@@ -49,6 +49,14 @@ import { OverlayPortalHost } from "./components/ui/OverlayPortal";
 import { shouldHandleAppLink, restoreDraftLinkState } from "./lib/appLinking";
 import { disarmInlineConfirmsOnTouch } from "./lib/useInlineConfirm";
 import { takeScheduledTaskNewLink } from "./features/settings/scheduled-task-editor-state";
+import {
+  resolvePendingNewTaskPromptLink,
+  takeNewTaskPromptLink,
+} from "./features/prompt-links/newTaskPromptLink";
+import {
+  resolvePendingThreadPromptLink,
+  takeThreadPromptLink,
+} from "./features/prompt-links/threadPromptLink";
 import { useMobileNavigationTheme } from "./lib/useMobileNavigationTheme";
 import { installUiRuntimeMemoryWarningGc } from "./lib/useUiRuntimeMemoryWarningGc";
 import { SubscriptionUsageCoordinator } from "./widgets/SubscriptionUsageCoordinator";
@@ -77,7 +85,11 @@ const linkingConfig = {
 } as const;
 
 function getAppStateFromPath(path: string, options: Parameters<typeof getStateFromPath>[1]) {
-  return takeScheduledTaskNewLink(restoreDraftLinkState(getStateFromPath(path, options), path));
+  return takeScheduledTaskNewLink(
+    takeNewTaskPromptLink(
+      takeThreadPromptLink(restoreDraftLinkState(getStateFromPath(path, options), path)),
+    ),
+  );
 }
 
 const appLinking = {
@@ -101,6 +113,8 @@ const Navigation = createStaticNavigation(RootStack);
 
 function handleNavigationStateChange(state: NavigationState | undefined): void {
   presentPendingIncomingShare();
+  resolvePendingNewTaskPromptLink(state);
+  resolvePendingThreadPromptLink(state);
   if (!state) return;
   recordAppShortcutNavigationState(state);
   pruneNewTaskBranchCheckouts(state);
