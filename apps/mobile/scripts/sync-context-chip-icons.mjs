@@ -9,34 +9,19 @@ const repositoryRoot = NodePath.resolve(appDirectory, "../..");
 const outputDirectory = NodePath.join(appDirectory, "assets/context-chip-icons");
 const generatedModulePath = NodePath.join(appDirectory, "src/lib/contextChipIcons.generated.ts");
 
-const requireFromWeb = NodeModule.createRequire(
-  NodePath.join(repositoryRoot, "apps/web/package.json"),
-);
 const requireFromScripts = NodeModule.createRequire(
   NodePath.join(repositoryRoot, "scripts/package.json"),
 );
 const sharp = requireFromScripts("sharp");
-const lucideIconsDirectory = NodePath.join(
-  NodePath.dirname(requireFromWeb.resolve("lucide-react/package.json")),
-  "dist/esm/icons",
+const icons = await import(
+  NodeURL.pathToFileURL(NodePath.join(repositoryRoot, "packages/icons/src/nodes.ts")).href
 );
-const webChipSource = NodeFS.readFileSync(
-  NodePath.join(repositoryRoot, "apps/web/src/components/composerInlineChip.ts"),
-  "utf8",
-);
-const skillSvg = webChipSource.match(/SKILL_CHIP_ICON_SVG = `([\s\S]*?)`;/)?.[1];
 
-if (!skillSvg) {
-  throw new Error(
-    "Could not read SKILL_CHIP_ICON_SVG from apps/web/src/components/composerInlineChip.ts",
-  );
-}
-
-const lucideIcons = [
+const chipIcons = [
   "circle-dashed",
   "film",
   "git-merge",
-  "git-pull-request-arrow",
+  "git-pull-request",
   "git-pull-request-closed",
   "git-pull-request-draft",
   "image",
@@ -46,19 +31,15 @@ const lucideIcons = [
   "terminal",
 ];
 
-async function lucideSvg(name) {
-  const module = await import(
-    NodeURL.pathToFileURL(NodePath.join(lucideIconsDirectory, `${name}.js`)).href
-  );
-  const body = module.__iconNode
-    .map(([tag, { key: _key, ...attributes }]) => {
-      const attributeText = Object.entries(attributes)
-        .map(([attribute, value]) => `${attribute}="${value}"`)
-        .join(" ");
-      return `<${tag} ${attributeText}/>`;
-    })
+const exportName = (token) =>
+  token
+    .split("-")
+    .map((part) => part[0].toUpperCase() + part.slice(1))
     .join("");
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+
+// The skill chip draws the same glyph and stroke as SKILL_CHIP_ICON_SVG on web.
+function iconSvg(node, strokeWidth = 2) {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${icons.iconSvgElements(node)}</svg>`;
 }
 
 async function renderIcon(token, svg) {
@@ -78,12 +59,14 @@ async function renderIcon(token, svg) {
 NodeFS.rmSync(outputDirectory, { recursive: true, force: true });
 NodeFS.mkdirSync(outputDirectory, { recursive: true });
 
-for (const name of lucideIcons) {
-  await renderIcon(name, await lucideSvg(name));
+for (const token of chipIcons) {
+  const node = icons[exportName(token)];
+  if (!node) throw new Error(`@supaterm/icons has no ${exportName(token)} for the ${token} chip`);
+  await renderIcon(token, iconSvg(node));
 }
-await renderIcon("skill", skillSvg);
+await renderIcon("skill", iconSvg(icons.Box, 1.85));
 
-const tokens = [...lucideIcons, "skill"].sort();
+const tokens = [...chipIcons, "skill"].sort();
 const generatedSource = `import type { ImageSourcePropType } from "react-native";\n\nexport const CONTEXT_CHIP_ICON_SOURCES = {\n${tokens
   .map(
     (token) =>

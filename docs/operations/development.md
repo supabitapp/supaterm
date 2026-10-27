@@ -131,8 +131,10 @@ for the security model.
 
 ## Icons
 
-Web, desktop, mobile on Android, and the project icon picker draw icons from `@supaterm/icons`
-(`packages/icons`). iOS keeps SF Symbols. The glyphs are vendored from
+Web, desktop, Android, the marketing site, and the project icon picker draw icons from
+`@supaterm/icons` (`packages/icons`). iOS and macOS native menus use SF Symbols. Surfaces outside
+React (sprites, injected pages, canvas, rasterized assets) render the same glyphs with
+`iconSvgElements` from `@supaterm/icons/nodes`. The glyphs are vendored from
 [Central Icons](https://iconists.co/central) (`round-outlined-radius-2-stroke-2`), which is paid
 and licensed only for use in Supaterm; see `packages/icons/LICENSE.md`.
 

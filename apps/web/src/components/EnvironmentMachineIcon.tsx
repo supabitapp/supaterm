@@ -7,9 +7,9 @@ import { LinuxIcon } from "./Icons";
 const nativeMachineIcons =
   typeof window === "undefined" ? {} : (window.desktopBridge?.getEnvironmentMachineIcons?.() ?? {});
 
-// SVG fallbacks follow Lucide's 24 unit grid and prop surface so every client
+// SVG fallbacks follow the icon set's 24 unit grid and prop surface so every client
 // can draw Apple hardware even when native symbols are unavailable.
-function LucideLike(props: SVGProps<SVGSVGElement>) {
+function MachineGlyph(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -30,14 +30,14 @@ function LucideLike(props: SVGProps<SVGSVGElement>) {
 function NativeMachineIcon({ source, ...props }: SVGProps<SVGSVGElement> & { source: string }) {
   const maskId = useId();
   return (
-    <LucideLike {...props}>
+    <MachineGlyph {...props}>
       <defs>
         <mask id={maskId} style={{ maskType: "alpha" }}>
           <image href={source} width="24" height="24" />
         </mask>
       </defs>
       <rect width="24" height="24" fill="currentColor" stroke="none" mask={`url(#${maskId})`} />
-    </LucideLike>
+    </MachineGlyph>
   );
 }
 
@@ -46,10 +46,10 @@ function MacMiniIcon(props: SVGProps<SVGSVGElement>) {
     return <NativeMachineIcon source={nativeMachineIcons["mac-mini"]} {...props} />;
   }
   return (
-    <LucideLike {...props}>
+    <MachineGlyph {...props}>
       <rect width="20" height="8" x="2" y="8" rx="2" />
       <path d="M6 12h.01" />
-    </LucideLike>
+    </MachineGlyph>
   );
 }
 
@@ -58,10 +58,10 @@ function MacStudioIcon(props: SVGProps<SVGSVGElement>) {
     return <NativeMachineIcon source={nativeMachineIcons["mac-studio"]} {...props} />;
   }
   return (
-    <LucideLike {...props}>
+    <MachineGlyph {...props}>
       <rect width="18" height="14" x="3" y="5" rx="2" />
       <path d="M7 15h.01M11 15h.01M15 15h.01" />
-    </LucideLike>
+    </MachineGlyph>
   );
 }
 

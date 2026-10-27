@@ -1,3 +1,4 @@
+import { iconSvgElements, MousePointer } from "@supaterm/icons/nodes";
 import {
   createPreviewFramePainter,
   createPreviewStreamClient,
@@ -41,8 +42,7 @@ const PROBE_REUSE_MS = 10_000;
 // delete and fires `input`; Gboard's keydown carries keyCode 229 and no key.
 const SENTINEL = "\u200b";
 const AGENT_CURSOR_ACTIVE_MS = 700;
-const AGENT_CURSOR_SVG =
-  '<svg width="20" height="20" viewBox="0 0 24 24" fill="#fff" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></svg>';
+const AGENT_CURSOR_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="#fff" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconSvgElements(MousePointer)}</svg>`;
 
 interface Viewer {
   readonly stop: () => void;

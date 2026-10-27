@@ -1,4 +1,5 @@
 ---
+import { iconSvgElements, Terminal } from "@supaterm/icons/nodes";
 import type { ComponentProps } from "astro/types";
 import { Image } from "astro:assets";
 import iconStable from "../assets/icon.webp";
@@ -132,7 +133,7 @@ const imageProps = {
 
       <section class="platform-section platform-section--cli" data-rise style="--d:420ms">
         <div class="platform-header">
-          <svg class="platform-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7l5 5-5 5M12 17h7"/></svg>
+          <svg class="platform-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" set:html={iconSvgElements(Terminal)}></svg>
           <h2 class="platform-name">Terminal</h2>
         </div>
         <CommandLine class="stable-only" command="curl -fsSL https://supaterm.com/install.sh | sh" />

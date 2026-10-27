@@ -13,6 +13,12 @@ const ELEMENTS: Readonly<Record<IconNodeTag, ElementType>> = {
   polygon: Polygon,
 };
 
+export function NodeIconElements(props: { readonly node: IconNode }) {
+  return props.node.map(([tag, attrs], index) =>
+    createElement(ELEMENTS[tag], { key: index, ...attrs }),
+  );
+}
+
 export function NodeIcon(props: {
   readonly node: IconNode;
   readonly size?: number;
@@ -39,9 +45,7 @@ export function NodeIcon(props: {
       testID={props.testID}
       accessibilityLabel={props.accessibilityLabel}
     >
-      {props.node.map(([tag, attrs], index) =>
-        createElement(ELEMENTS[tag], { key: index, ...attrs }),
-      )}
+      <NodeIconElements node={props.node} />
     </Svg>
   );
 }

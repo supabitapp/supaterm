@@ -372,6 +372,9 @@ importers:
       '@supaterm/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@supaterm/icons':
+        specifier: workspace:*
+        version: link:../../packages/icons
       '@supaterm/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -427,6 +430,9 @@ importers:
 
   apps/marketing:
     dependencies:
+      '@supaterm/icons':
+        specifier: workspace:*
+        version: link:../../packages/icons
       '@supaterm/shared':
         specifier: workspace:*
         version: link:../../packages/shared
