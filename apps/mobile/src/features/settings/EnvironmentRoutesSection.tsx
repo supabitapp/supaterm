@@ -14,7 +14,7 @@ import {
 } from "@supaterm/client-runtime/connection";
 import { type EnvironmentId, sessionGrantsScope } from "@supaterm/contracts";
 import { AUTH_SCOPE_OPTIONS } from "@supaterm/shared/authScopeOptions";
-import { AsyncResult } from "effect/reactivity";
+import { AsyncResult, Atom } from "effect/reactivity";
 import * as Option from "effect/Option";
 import * as Haptics from "expo-haptics";
 import { useContext, useState } from "react";
@@ -33,7 +33,7 @@ import { SettingsActionRow } from "./components/SettingsActionRow";
 import { SettingsDragHandle } from "./components/SettingsDragHandle";
 import { SettingsSection } from "./components/SettingsSection";
 
-const TRANSPORT_LABELS = { direct: "Direct", relay: "Relay" };
+const NO_LATENCY = Atom.make("");
 
 const ICON_SIZE = Platform.OS === "android" ? 24 : 22;
 const REMOVE_SIZE = 20;
@@ -266,9 +266,12 @@ function RouteRow(props: {
   const { route, lifted, offset } = props;
   const label = connectionRouteLabel(route);
   const address = connectionRouteAddress(route);
-  const latency = useAtomValue(environmentSession.routeLatencyAtoms(route).labelAtom);
-  const transport = useAtomValue(environmentSession.relayRouteTransportAtom(route));
-  const transportLabel = transport === undefined ? null : TRANSPORT_LABELS[transport];
+  const used = props.unusedReason === null;
+  // A route a connect skips has no speed worth measuring.
+  const latency = useAtomValue(
+    used ? environmentSession.routeLatencyAtoms(route).labelAtom : NO_LATENCY,
+  );
+  const direct = useAtomValue(environmentSession.relayRouteTransportAtom(route)) === "direct";
   const style = useAnimatedStyle(() => ({
     transform: [
       {
@@ -308,11 +311,10 @@ function RouteRow(props: {
         accessibilityLabel={[
           label,
           address,
-          isLearned(route) ? "Found automatically" : null,
+          isLearned(route) && used ? "Found automatically" : null,
           props.inUse ? "In use" : null,
-          transportLabel,
-          props.unusedReason === null ? null : `Not used: ${props.unusedReason}`,
-          `Latency: ${latency}`,
+          direct ? "Direct, encrypted" : null,
+          used ? `Latency: ${latency}` : `Not used: ${props.unusedReason}`,
           `Route ${props.position} of ${props.count}`,
         ]
           .filter((part) => part !== null)
@@ -332,29 +334,35 @@ function RouteRow(props: {
         />
         <View className="min-w-0 flex-1 gap-0.5 android:gap-1">
           <View className="flex-row items-center gap-2">
-            <Text numberOfLines={1} className="shrink text-lg text-foreground android:text-base">
+            <Text
+              numberOfLines={1}
+              className={cn(
+                "shrink text-lg android:text-base",
+                used ? "text-foreground" : "text-foreground-muted",
+              )}
+            >
               {label}
             </Text>
             {props.inUse ? (
               <StatusPill {...connectionTone("connected")} label="In use" size="compact" />
             ) : null}
-            {transportLabel === null ? null : (
-              <Text className="shrink-0 text-sm text-foreground-muted">{transportLabel}</Text>
-            )}
-            {props.unusedReason === null ? null : (
+            {direct ? <Text className="shrink-0 text-sm text-foreground-muted">Direct</Text> : null}
+            {used ? null : (
               <StatusPill {...connectionTone("unsupported")} label="Not used" size="compact" />
             )}
           </View>
           {address !== null ? (
             <Text numberOfLines={1} className="text-sm text-foreground-muted">
-              {isLearned(route) ? `${address} · found automatically` : address}
+              {isLearned(route) && used ? `${address} · found automatically` : address}
             </Text>
           ) : null}
-          {props.unusedReason === null ? null : (
+          {used ? null : (
             <Text className="text-sm text-foreground-muted">{props.unusedReason}</Text>
           )}
         </View>
-        <Text className="shrink-0 text-sm tabular-nums text-foreground-muted">{latency}</Text>
+        {used ? (
+          <Text className="shrink-0 text-sm tabular-nums text-foreground-muted">{latency}</Text>
+        ) : null}
       </View>
       {props.editing ? (
         <SettingsDragHandle

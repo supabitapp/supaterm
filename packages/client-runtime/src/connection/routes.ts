@@ -583,13 +583,10 @@ export function unusedRouteReason(
   entry: ConnectionCatalogEntry,
   route: ConnectionRoute,
 ): string | null {
-  const routes = connectionRoutes(entry);
-  if (!sendsTokenInClear(routes, route)) return null;
-  if (routeHttpBaseUrl(route)?.startsWith("https:") === true) return "Unencrypted WebSocket";
-  const paired = credentialRoute(routes, credentialConnectionId(connectionRouteId(route.target)));
-  return paired !== undefined && connectionRouteKind(paired) === "relay"
-    ? "Relay pairings stay encrypted"
-    : "Would send the token unencrypted";
+  if (!sendsTokenInClear(connectionRoutes(entry), route)) return null;
+  return routeHttpBaseUrl(route)?.startsWith("https:") === true
+    ? "Would open an unencrypted WebSocket"
+    : "Would send its token unencrypted";
 }
 
 export interface ReportedEndpoint {

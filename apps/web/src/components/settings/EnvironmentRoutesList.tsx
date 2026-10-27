@@ -17,6 +17,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { RegistryContext, useAtomValue } from "@effect/atom-react";
+import { Atom } from "effect/reactivity";
 import {
   type ConnectionRoute,
   connectionRouteAddress,
@@ -154,10 +155,7 @@ export function EnvironmentRoutesList({
   );
 }
 
-const TRANSPORT_LABELS = {
-  direct: { label: "Direct", detail: "Encrypted tunnel straight to the host" },
-  relay: { label: "Relay", detail: "Encrypted tunnel through the relay server" },
-};
+const NO_LATENCY = Atom.make("");
 
 function SortableRouteRow({
   route,
@@ -177,7 +175,11 @@ function SortableRouteRow({
   const id = connectionRouteId(route.target);
   const label = connectionRouteLabel(route);
   const address = connectionRouteAddress(route);
-  const latency = useAtomValue(environmentSession.routeLatencyAtoms(route).labelAtom);
+  const used = unusedReason === null;
+  // A route a connect skips has no speed worth measuring.
+  const latency = useAtomValue(
+    used ? environmentSession.routeLatencyAtoms(route).labelAtom : NO_LATENCY,
+  );
   const transport = useAtomValue(environmentSession.relayRouteTransportAtom(route));
   const note = unusedReason ?? (isLearned(route) ? "Discovered" : null);
   const {
@@ -210,7 +212,12 @@ function SortableRouteRow({
         <GripVerticalIcon aria-hidden className="size-3.5" />
       </button>
       <div className="grid min-w-0 gap-y-0.5 sm:grid-cols-[9rem_minmax(0,1fr)] sm:items-baseline sm:gap-x-3">
-        <p className="flex flex-wrap items-center gap-x-1.5 text-xs font-medium text-foreground">
+        <p
+          className={cn(
+            "flex flex-wrap items-center gap-x-1.5 text-xs font-medium",
+            used ? "text-foreground" : "text-muted-foreground",
+          )}
+        >
           {connectionRouteKind(route) === "relay" ? (
             <LockIcon aria-hidden className="size-3 shrink-0" />
           ) : null}
@@ -221,19 +228,19 @@ function SortableRouteRow({
           {inUse ? (
             <span className="text-2xs font-normal text-success-foreground">In use</span>
           ) : null}
-          {transport === undefined ? null : (
+          {transport === "direct" ? (
             <Tooltip>
               <TooltipTrigger
                 render={<span className="text-2xs font-normal text-muted-foreground" />}
               >
-                {TRANSPORT_LABELS[transport].label}
+                Direct
               </TooltipTrigger>
-              <TooltipPopup side="top">{TRANSPORT_LABELS[transport].detail}</TooltipPopup>
+              <TooltipPopup side="top">
+                Encrypted connection straight to the host, skipping the relay server
+              </TooltipPopup>
             </Tooltip>
-          )}
-          {unusedReason === null ? null : (
-            <span className="text-2xs font-normal text-warning-foreground">Not used</span>
-          )}
+          ) : null}
+          {used ? null : <span className="text-2xs font-normal">Not used</span>}
         </p>
         {address !== null ? (
           <p className="flex min-w-0 items-baseline gap-2 text-2xs text-muted-foreground">
@@ -248,7 +255,7 @@ function SortableRouteRow({
         ) : null}
       </div>
       <span
-        aria-label={`${label} route latency: ${latency}`}
+        aria-label={used ? `${label} route latency: ${latency}` : undefined}
         className="w-20 text-right text-2xs tabular-nums text-muted-foreground"
       >
         {latency}

@@ -487,7 +487,7 @@ describe("plain HTTP learned routes", () => {
     expect(sendsTokenInClear(persisted, tailnetOverRelay)).toBe(true);
     expect(ids(usableRoutes(entryWithRoutes(base, persisted)))).toEqual(["relay"]);
     expect(unusedRouteReason(entryWithRoutes(base, persisted), overRelay)).toBe(
-      "Relay pairings stay encrypted",
+      "Would send its token unencrypted",
     );
   });
 
@@ -506,7 +506,7 @@ describe("plain HTTP learned routes", () => {
     expect(connectionRouteKind(labelled)).toBe("public");
     expect(sendsTokenInClear([labelled, PUBLIC], labelled)).toBe(true);
     expect(unusedRouteReason(entryWithRoutes(base, [labelled, PUBLIC]), labelled)).toBe(
-      "Would send the token unencrypted",
+      "Would send its token unencrypted",
     );
   });
 
@@ -522,7 +522,7 @@ describe("plain HTTP learned routes", () => {
     };
     const entry = entryWithRoutes(base, [downgraded, LAN]);
     expect(ids(usableRoutes(entry))).toEqual(["lan"]);
-    expect(unusedRouteReason(entry, downgraded)).toBe("Unencrypted WebSocket");
+    expect(unusedRouteReason(entry, downgraded)).toBe("Would open an unencrypted WebSocket");
     expect(unusedRouteReason(entry, LAN)).toBeNull();
   });
 
