@@ -2234,7 +2234,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const nextPrompt = useNextPromptSuggestion({
     environmentId,
     threadId: routeKind === "server" ? activeThreadId : null,
-    connected: environmentUnavailable === null,
     enabled: settings.nextPromptSuggestionsEnabled,
     latestRun: activeThreadShell?.latestRun,
   });

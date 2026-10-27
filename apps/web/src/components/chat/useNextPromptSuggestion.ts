@@ -4,6 +4,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { useEffect, useState } from "react";
 
 import { useStableCallback } from "~/hooks/useStableCallback";
+import { useEnvironment } from "~/state/environments";
 import { orchestrationEnvironment } from "~/state/orchestration";
 import { useAtomCommand } from "~/state/use-atom-command";
 
@@ -21,12 +22,12 @@ interface SuggestedRun {
 export function useNextPromptSuggestion(input: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId | null;
-  /** A request made before the environment connects fails, and nothing would retry it. */
-  readonly connected: boolean;
   readonly enabled: boolean;
   readonly latestRun: ThreadShell["latestRun"] | undefined;
 }) {
-  const { environmentId, threadId, connected, enabled, latestRun } = input;
+  const { environmentId, threadId, enabled, latestRun } = input;
+  // A request made before the environment connects fails, and nothing would retry it.
+  const connected = useEnvironment(environmentId)?.connection.phase === "connected";
   const canSuggest = useAtomValue(
     orchestrationEnvironment.suggestNextPrompt.permissionAtom(environmentId),
   );
