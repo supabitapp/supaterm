@@ -201,7 +201,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
           </Text>
         </View>
       ) : null}
-      {queuedRuns.map(({ run, text, attachments }) => {
+      {queuedRuns.map(({ run, text, attachments, message }) => {
         const controls = resolveThreadQueueRowControls({
           canOperate,
           busy: busyRunId !== null,
@@ -230,6 +230,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
                   <ThreadQueueMessage
                     environmentId={target.environmentId}
                     title={title}
+                    message={message}
                     attachments={attachments}
                     controls={controls}
                     canPromoteToSteer={workflow?.canPromoteToSteer ?? false}

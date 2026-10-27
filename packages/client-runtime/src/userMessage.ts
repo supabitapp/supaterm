@@ -10,7 +10,7 @@ export function resolveUserMessagePresentation(message: {
   readonly text: string;
   readonly createdBy?: OrchestrationV2Actor;
   readonly creationSource?: OrchestrationV2CreationSource;
-  readonly scheduledTaskId?: ScheduledTaskId;
+  readonly scheduledTaskId?: ScheduledTaskId | undefined;
 }): {
   readonly text: string;
   readonly attribution: "automation" | "agent" | "supaterm" | null;

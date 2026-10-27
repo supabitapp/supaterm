@@ -9,12 +9,22 @@ import type {
   RunId,
   ThreadId,
 } from "@supaterm/contracts";
-import { ArrowUpIcon, Clock3Icon, ListOrderedIcon, PencilIcon, XIcon } from "@supaterm/icons";
+import { resolveUserMessagePresentation } from "@supaterm/client-runtime/user-message";
+import {
+  ArrowUpIcon,
+  CalendarClockIcon,
+  Clock3Icon,
+  ListOrderedIcon,
+  MessagesSquareIcon,
+  PencilIcon,
+  XIcon,
+} from "@supaterm/icons";
+import { Link } from "@tanstack/react-router";
 import { useId, useImperativeHandle, useRef, useState, type Ref } from "react";
 
 import { useAssetUrls } from "../../assets/assetUrls";
 import { threadEnvironment } from "../../state/threads";
-import { useThreadProjection } from "../../state/entities";
+import { useQuietThreadShell, useThreadProjection } from "../../state/entities";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { isImageAttachment, type ChatMessage } from "../../types";
 import { cn } from "~/lib/utils";
@@ -24,6 +34,7 @@ import { Button } from "../ui/button";
 import { Collapsible, CollapsiblePanel } from "../ui/collapsible";
 import { Separator } from "../ui/separator";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { useScheduledTaskTitle } from "./TimelineUserMessageRow";
 
 export interface EditQueuedRunRequest {
   readonly runId: RunId;
@@ -73,6 +84,7 @@ export function QueuedRunsControl({
   readonly editBlockedReason: string | null;
   readonly onEditQueuedRun: (request: EditQueuedRunRequest) => void;
   readonly onCancelEdit: () => void;
+  readonly onOpenThread: (threadId: ThreadId) => void;
 }) {
   const projection = useThreadProjection(
     scopeThreadRef(props.environmentId, props.threadId),
@@ -107,8 +119,9 @@ export function QueuedRunsControl({
     (message) => message.inputIntent === "queued_turn" && !acknowledgedMessageIds.has(message.id),
   );
   const items = [
-    ...queued.map(({ run, text, attachments }, serverIndex) => ({
+    ...queued.map(({ run, text, attachments, message }, serverIndex) => ({
       key: run.id,
+      message,
       runId: run.id,
       messageId: run.userMessageId,
       serverIndex,
@@ -125,6 +138,7 @@ export function QueuedRunsControl({
     })),
     ...optimisticQueued.map((message) => ({
       key: message.id,
+      message: undefined,
       runId: null,
       messageId: null,
       serverIndex: null,
@@ -276,6 +290,13 @@ export function QueuedRunsControl({
                             ))}
                           </span>
                         ) : null}
+                        {item.message ? (
+                          <QueuedRunSender
+                            environmentId={props.environmentId}
+                            message={item.message}
+                            onOpenThread={props.onOpenThread}
+                          />
+                        ) : null}
                         <Tooltip>
                           <TooltipTrigger render={<span className="min-w-0 flex-1 truncate" />}>
                             {previewText}
@@ -389,5 +410,59 @@ export function QueuedRunsControl({
         </Collapsible>
       </ComposerBanner.Root>
     </ComposerBanner.Drawer>
+  );
+}
+
+type QueuedRunMessage = NonNullable<ThreadQueueProjection["messages"][number]>;
+
+const SENDER_CLASS_NAME = "flex max-w-40 shrink-0 items-center gap-1 text-muted-foreground";
+
+/** Who sent a queued message, as its sent form in the thread names it. */
+function QueuedRunSender(props: {
+  readonly environmentId: EnvironmentId;
+  readonly message: QueuedRunMessage;
+  readonly onOpenThread: (threadId: ThreadId) => void;
+}) {
+  const { attribution, scheduledTaskId } = resolveUserMessagePresentation(props.message);
+  const senderThreadId = attribution === "agent" ? props.message.senderThreadId : undefined;
+  const taskTitle = useScheduledTaskTitle(props.environmentId, scheduledTaskId);
+  const senderShell = useQuietThreadShell(
+    senderThreadId ? scopeThreadRef(props.environmentId, senderThreadId) : null,
+  );
+  if (attribution === "supaterm") {
+    return <span className={SENDER_CLASS_NAME}>Supaterm</span>;
+  }
+  if (attribution === "automation" && scheduledTaskId) {
+    return (
+      <Link
+        to="/automations"
+        search={{ environmentId: props.environmentId, taskId: scheduledTaskId }}
+        aria-label={`Open automation ${taskTitle ?? ""}`.trim()}
+        className={cn(SENDER_CLASS_NAME, "rounded-sm hover:text-foreground")}
+      >
+        <CalendarClockIcon aria-hidden className="size-3 shrink-0" />
+        <span className="truncate">{taskTitle ?? "Automation"}</span>
+      </Link>
+    );
+  }
+  if (attribution !== "agent") return null;
+  const label = senderShell?.title.trim() || "Agent";
+  const content = (
+    <>
+      <MessagesSquareIcon aria-hidden className="size-3 shrink-0" />
+      <span className="truncate">{label}</span>
+    </>
+  );
+  return senderThreadId ? (
+    <button
+      type="button"
+      aria-label={`Open thread ${label}`}
+      className={cn(SENDER_CLASS_NAME, "rounded-sm hover:text-foreground")}
+      onClick={() => props.onOpenThread(senderThreadId)}
+    >
+      {content}
+    </button>
+  ) : (
+    <span className={SENDER_CLASS_NAME}>{content}</span>
   );
 }

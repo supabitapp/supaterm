@@ -18,6 +18,15 @@ vi.mock(import("@supaterm/client-runtime/state/thread-workflows"), async (import
 vi.mock(import("../../state/entities"), async (importOriginal) => ({
   ...(await importOriginal()),
   useThreadProjection: (() => state.projection) as never,
+  useQuietThreadShell: ((target: unknown) =>
+    target === null ? null : { title: "Release lead" }) as never,
+}));
+
+vi.mock(import("../../state/query"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  useEnvironmentQuery: (() => ({
+    data: { tasks: [{ id: "task:webhook", title: "PR dispatcher" }] },
+  })) as never,
 }));
 
 vi.mock(import("../../state/use-atom-command"), async (importOriginal) => ({
@@ -51,6 +60,7 @@ const baseProps = {
   editBlockedReason: null,
   onEditQueuedRun: () => undefined,
   onCancelEdit: () => undefined,
+  onOpenThread: () => undefined,
 } satisfies ComponentProps<typeof QueuedRunsControl>;
 
 async function renderQueue(props: Partial<ComponentProps<typeof QueuedRunsControl>> = {}) {
@@ -320,4 +330,63 @@ it("previews assistant quotes as readable text and preserves the citation when e
   expect(onEditQueuedRun).toHaveBeenCalledExactlyOnceWith(
     expect.objectContaining({ text: quoteAndText }),
   );
+});
+
+it("names who sent each queued message and opens the sender", async () => {
+  setup();
+  const message = (id: string, fields: Record<string, unknown>) => ({
+    id,
+    role: "user",
+    ...fields,
+  });
+  state.projection = { projection: { messages: [] } };
+  state.workflow = {
+    activeRun: { id: "run:active" },
+    canPromoteToSteer: true,
+    queuedRuns: [
+      [
+        "run:automation",
+        "GitHub labeled a pull request.\nFollow the runbook.",
+        {
+          createdBy: "agent",
+          scheduledTaskId: "task:webhook",
+        },
+      ],
+      [
+        "run:agent",
+        "Review finished.",
+        {
+          createdBy: "agent",
+          creationSource: "provider",
+          senderThreadId: "thread:lead",
+        },
+      ],
+      [
+        "run:server",
+        "Continue where you left off.",
+        {
+          createdBy: "agent",
+          creationSource: "server",
+        },
+      ],
+    ].map(([runId, text, fields]) => ({
+      run: { id: runId, userMessageId: `${runId}:message` },
+      text,
+      attachments: [],
+      message: message(`${runId}:message`, { text, ...(fields as object) }),
+    })),
+  };
+  const onOpenThread = vi.fn();
+  await using _screen = await renderQueue({ onOpenThread });
+
+  await expect
+    .element(page.getByRole("link", { name: "Open automation PR dispatcher" }))
+    .toHaveAttribute("href", expect.stringContaining("taskId=task%3Awebhook"));
+  await expect.element(page.getByText(/Follow the runbook/)).toBeInTheDocument();
+
+  await page.getByRole("button", { name: "Open thread Release lead" }).click();
+  expect(onOpenThread).toHaveBeenCalledExactlyOnceWith("thread:lead");
+
+  await expect.element(page.getByText("Supaterm", { exact: true })).toBeVisible();
+  await expect.element(page.getByText("Continue where you left off.")).toBeVisible();
 });
