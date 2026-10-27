@@ -1104,8 +1104,6 @@ type ShellThreadRow = {
   readonly latest_user_message_at: string | null;
   readonly latest_user_authored_message_at: string | null;
   readonly has_actionable_proposed_plan: number;
-  readonly item_count: number;
-  readonly runless_item_count: number;
 };
 
 type ShellRunRow = {
@@ -1137,6 +1135,12 @@ type ShellRunItemCountRow = {
   readonly thread_id: string;
   readonly run_id: string;
   readonly item_count: number;
+};
+
+type ShellItemCountRow = {
+  readonly thread_id: string;
+  readonly item_count: number;
+  readonly runless_item_count: number;
 };
 
 const encodeTimelineSources = Schema.encodeEffect(
@@ -5841,27 +5845,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
                 WHERE plan.thread_id = t.thread_id
                   AND plan.kind = 'proposed_plan'
                   AND plan.status = 'active'
-              ) AS has_actionable_proposed_plan,
-              -- Count per run on the covering (thread_id, run_id) index, then
-              -- look up each run once, instead of one run lookup per item.
-              (
-                SELECT COALESCE(SUM(per_run.item_count), 0)
-                FROM (
-                  SELECT i.run_id, COUNT(*) AS item_count
-                  FROM orchestration_v2_projection_turn_items i
-                  WHERE i.thread_id = t.thread_id
-                  GROUP BY i.run_id
-                ) per_run
-                LEFT JOIN orchestration_v2_projection_runs r
-                  ON r.run_id = per_run.run_id
-                WHERE per_run.run_id IS NULL OR r.status <> 'rolled_back'
-              ) AS item_count,
-              (
-                SELECT COUNT(*)
-                FROM orchestration_v2_projection_turn_items i
-                WHERE i.thread_id = t.thread_id
-                  AND i.run_id IS NULL
-              ) AS runless_item_count
+              ) AS has_actionable_proposed_plan
             FROM orchestration_v2_projection_threads t
             LEFT JOIN orchestration_v2_projection_runs active ON active.run_id = (
               SELECT r.run_id
@@ -5958,21 +5942,31 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       return sessionsByThreadId;
     };
 
-    const selectShellRunItemCounts = (threadIds?: ReadonlyArray<ThreadId>) =>
-      threadIds === undefined
-        ? sql<ShellRunItemCountRow>`
-            SELECT thread_id, run_id, COUNT(*) AS item_count
-            FROM orchestration_v2_projection_turn_items
-            WHERE run_id IS NOT NULL
-            GROUP BY thread_id, run_id
-          `
-        : sql<ShellRunItemCountRow>`
-            SELECT thread_id, run_id, COUNT(*) AS item_count
-            FROM orchestration_v2_projection_turn_items
-            WHERE run_id IS NOT NULL
-              AND thread_id IN ${sql.in(threadIds)}
-            GROUP BY thread_id, run_id
-          `;
+    const selectShellRunItemCounts = (threadIds: ReadonlyArray<ThreadId>) =>
+      sql<ShellRunItemCountRow>`
+        SELECT thread_id, run_id, COUNT(*) AS item_count
+        FROM orchestration_v2_projection_turn_items
+        WHERE run_id IS NOT NULL AND thread_id IN ${sql.in(threadIds)}
+        GROUP BY thread_id, run_id
+      `;
+
+    // Count all selected threads in one index walk; fork sources still need per-run counts.
+    const selectShellItemCounts = (threadIds: ReadonlyArray<ThreadId>) =>
+      sql<ShellItemCountRow>`
+        SELECT counts.thread_id,
+          SUM(CASE WHEN counts.run_id IS NULL OR r.status <> 'rolled_back'
+            THEN counts.item_count ELSE 0 END) AS item_count,
+          SUM(CASE WHEN counts.run_id IS NULL THEN counts.item_count ELSE 0 END)
+            AS runless_item_count
+        FROM (
+          SELECT thread_id, run_id, COUNT(*) AS item_count
+          FROM orchestration_v2_projection_turn_items
+          WHERE thread_id IN ${sql.in(threadIds)}
+          GROUP BY thread_id, run_id
+        ) counts
+        LEFT JOIN orchestration_v2_projection_runs r ON r.run_id = counts.run_id
+        GROUP BY counts.thread_id
+      `;
 
     const selectShellProviderThreadRows = (threadIds?: ReadonlyArray<ThreadId>) =>
       threadIds === undefined
@@ -6038,6 +6032,17 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       }
       return { runOrdinalsByThreadId, itemCountsByThreadId };
     };
+
+    const shellItemCountMap = (rows: ReadonlyArray<ShellItemCountRow>) =>
+      new Map(
+        rows.map(
+          (row) =>
+            [
+              ThreadId.make(row.thread_id),
+              { itemCount: row.item_count, runlessItemCount: row.runless_item_count },
+            ] as const,
+        ),
+      );
 
     const pendingBackgroundDataByThreadId = Effect.fn(
       "ProjectionStore.pendingBackgroundDataByThreadId",
@@ -6271,6 +6276,10 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
         readonly row: ShellThreadRow;
         readonly runOrdinalsByThreadId: ReadonlyMap<ThreadId, Map<RunId, number>>;
         readonly itemCountsByThreadId: ReadonlyMap<ThreadId, Map<RunId, number>>;
+        readonly shellItemCountsByThreadId: ReadonlyMap<
+          ThreadId,
+          { readonly itemCount: number; readonly runlessItemCount: number }
+        >;
         readonly workSessionsByThreadId: ReadonlyMap<ThreadId, ReadonlyArray<ShellWorkSession>>;
         readonly providerThreadsByThreadId: ReadonlyMap<
           ThreadId,
@@ -6285,6 +6294,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
           row,
           runOrdinalsByThreadId,
           itemCountsByThreadId,
+          shellItemCountsByThreadId,
           workSessionsByThreadId,
           providerThreadsByThreadId,
           pendingTurnItemsByThreadId,
@@ -6416,8 +6426,8 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
             providerThreadsByThreadId.get(thread.id) ?? [],
             thread.activeProviderThreadId,
           ),
-          itemCount: row.item_count,
-          runlessItemCount: row.runless_item_count,
+          itemCount: shellItemCountsByThreadId.get(thread.id)?.itemCount ?? 0,
+          runlessItemCount: shellItemCountsByThreadId.get(thread.id)?.runlessItemCount ?? 0,
           updatedAt: thread.updatedAt,
           runOrdinalById: runOrdinalsByThreadId.get(ThreadId.make(row.thread_id)) ?? new Map(),
           itemCountByRunId: itemCountsByThreadId.get(ThreadId.make(row.thread_id)) ?? new Map(),
@@ -6460,6 +6470,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       const [
         runRows,
         itemCountRows,
+        shellItemCountRows,
         workSessionRows,
         sequenceRows,
         providerThreadRows,
@@ -6467,6 +6478,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       ] = yield* Effect.all([
         readForThreadIds(selectShellRunRows, forkSourceIds),
         readForThreadIds(selectShellRunItemCounts, forkSourceIds),
+        readForThreadIds(selectShellItemCounts),
         readForThreadIds(selectShellRunWorkSessionRows, [...targetThreadIds]),
         sql<{ readonly snapshot_sequence: number | null }>`
         SELECT MAX(sequence) AS snapshot_sequence
@@ -6491,6 +6503,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
         threadRows,
         runRows,
         itemCountRows,
+        shellItemCountRows,
         workSessionRows,
         sequenceRows,
         providerThreadRows,
@@ -6503,6 +6516,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       threadRows,
       runRows,
       itemCountRows,
+      shellItemCountRows,
       workSessionRows,
       sequenceRows,
       providerThreadRows,
@@ -6512,6 +6526,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
         runRows,
         itemCountRows,
       });
+      const shellItemCountsByThreadId = shellItemCountMap(shellItemCountRows);
       const workSessionsByThreadId = workSessionsByThreadIdFromRows(workSessionRows);
       const { providerThreadsByThreadId, pendingTurnItemsByThreadId } =
         yield* pendingBackgroundDataByThreadId({ providerThreadRows, pendingTurnItemRows });
@@ -6520,6 +6535,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
           row,
           runOrdinalsByThreadId,
           itemCountsByThreadId,
+          shellItemCountsByThreadId,
           workSessionsByThreadId,
           providerThreadsByThreadId,
           pendingTurnItemsByThreadId,
@@ -6602,6 +6618,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
             const [
               runRows,
               itemCountRows,
+              shellItemCountRows,
               workSessionRows,
               providerThreadRows,
               pendingTurnItemRows,
@@ -6612,6 +6629,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
               forkSourceIds.length === 0
                 ? Effect.succeed([] as ReadonlyArray<ShellRunItemCountRow>)
                 : selectShellRunItemCounts(forkSourceIds),
+              selectShellItemCounts(threadIds),
               selectShellRunWorkSessionRows([threadId]),
               selectShellProviderThreadRows(threadIds),
               selectShellPendingTurnItemRows(
@@ -6627,6 +6645,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
               runRows,
               itemCountRows,
             });
+            const shellItemCountsByThreadId = shellItemCountMap(shellItemCountRows);
             const workSessionsByThreadId = workSessionsByThreadIdFromRows(workSessionRows);
             const { providerThreadsByThreadId, pendingTurnItemsByThreadId } =
               yield* pendingBackgroundDataByThreadId({ providerThreadRows, pendingTurnItemRows });
@@ -6636,6 +6655,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
                 row,
                 runOrdinalsByThreadId,
                 itemCountsByThreadId,
+                shellItemCountsByThreadId,
                 workSessionsByThreadId,
                 providerThreadsByThreadId,
                 pendingTurnItemsByThreadId,
