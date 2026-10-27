@@ -3,7 +3,6 @@ import type { AuthSessionState } from "@supaterm/contracts";
 import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import React, { startTransition, useEffect, useEffectEvent, useRef, useState } from "react";
 
-import { APP_DISPLAY_NAME } from "../../branding";
 import { connectPairing } from "../../connection/onboarding";
 import {
   peekPairingTokenFromUrl,
@@ -18,9 +17,8 @@ import { useAtomCommand } from "../../state/use-atom-command";
 
 export function PairingPendingSurface() {
   return (
-    <StandalonePage tone="pairing">
+    <StandalonePage>
       <StandalonePageHeader
-        eyebrow={APP_DISPLAY_NAME}
         title="Pairing with this environment"
         description="Validating the pairing link and preparing your session."
       />
@@ -85,9 +83,8 @@ export function PairingRouteSurface({
   }, [autoPairToken, autoPairingUrl]);
 
   return (
-    <StandalonePage tone="pairing">
+    <StandalonePage>
       <StandalonePageHeader
-        eyebrow={APP_DISPLAY_NAME}
         title="Pair with this environment"
         description={describeAuthGate(auth.bootstrapMethods)}
       />
@@ -208,9 +205,8 @@ export function HostedPairingRouteSurface() {
   }, []);
 
   return (
-    <StandalonePage tone="pairing">
+    <StandalonePage>
       <StandalonePageHeader
-        eyebrow={APP_DISPLAY_NAME}
         title={
           status === "paired"
             ? "Backend paired"

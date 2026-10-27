@@ -22,7 +22,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { RadioGroup } from "../ui/radio-group";
 import { Spinner } from "../ui/spinner";
-import { StandalonePage } from "../ui/standalone-page";
+import { StandalonePage, StandalonePageHeader } from "../ui/standalone-page";
 
 const accessConfig: Record<
   AuthMcpClientAccess,
@@ -138,7 +138,7 @@ export function ConnectAgentSurface() {
 
   if (loaded.status === "loading") {
     return (
-      <StandalonePage tone="pairing">
+      <StandalonePage>
         <ConnectAgentHeading
           title="Checking the sign-in request"
           description="One moment while this environment verifies the agent's request."
@@ -150,7 +150,7 @@ export function ConnectAgentSurface() {
 
   if (loaded.status === "invalid") {
     return (
-      <StandalonePage tone="pairing">
+      <StandalonePage>
         <ConnectAgentHeading title="This sign-in cannot continue" description={loaded.message} />
         <p className="mt-4 text-sm text-muted-foreground">
           Close this page and start the sign-in again from your agent.
@@ -164,7 +164,7 @@ export function ConnectAgentSurface() {
   const canApprove = pending === null && (oneClick || pairingCode.trim().length > 0);
 
   return (
-    <StandalonePage tone="pairing">
+    <StandalonePage>
       <ConnectAgentHeading
         title={`Connect ${details.clientName}`}
         description={
@@ -270,13 +270,7 @@ function ConnectAgentHeading({
   readonly title: string;
   readonly description: ReactNode;
 }) {
-  return (
-    <>
-      <p className="text-3xs font-semibold tracking-widest text-primary uppercase">Agent sign-in</p>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
-      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{description}</p>
-    </>
-  );
+  return <StandalonePageHeader context="Agent sign-in" title={title} description={description} />;
 }
 
 function AccessOption({
