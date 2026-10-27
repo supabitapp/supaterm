@@ -19,6 +19,20 @@ describe("parseChangeRequestUrl", () => {
     });
   });
 
+  it("reads a GitCafe pull request at its canonical /pull/ path and the older /pulls/ path", () => {
+    for (const path of ["pull", "pulls"]) {
+      expect(
+        parseChangeRequestUrl(`https://git.cafe/SupabitApp/Supaterm/${path}/23897`),
+        path,
+      ).toEqual({ host: "git.cafe", repository: "supabitapp/supaterm", number: 23897 });
+    }
+    expect(parseChangeRequestUrl("https://staging.git.cafe/team/repo/pull/7/files")).toEqual({
+      host: "staging.git.cafe",
+      repository: "team/repo",
+      number: 7,
+    });
+  });
+
   it("reads Forgejo URLs even when the hostname contains github", () => {
     expect(parseChangeRequestUrl("https://github.internal/team/repo/pulls/7")).toEqual({
       host: "github.internal",
@@ -108,6 +122,9 @@ describe("parseChangeRequestUrl", () => {
   it("claims nothing it cannot be sure of", () => {
     for (const link of [
       "https://github.com/supabitapp/supaterm/issues/123",
+      "https://git.cafe/supabitapp/supaterm/issues/23897",
+      "https://git.cafe/supabitapp/supaterm/pull/abc",
+      "https://git.cafe/supabitapp/supaterm",
       "https://github.com/supabitapp/supaterm/commit/0a1b2c3",
       "https://github.com/supabitapp/supaterm",
       "https://github.com/supabitapp/supaterm/pull/abc",
