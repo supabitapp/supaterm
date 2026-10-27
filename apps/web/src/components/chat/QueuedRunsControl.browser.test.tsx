@@ -81,7 +81,6 @@ describe("QueuedRunsControl automatic completion delivery", () => {
     state.workflow = {
       activeRun: { id: "run:active" },
       canPromoteToSteer: true,
-      canReorder: true,
       queuedRuns: [],
     };
 
@@ -95,7 +94,6 @@ describe("QueuedRunsControl attachments and edit mode", () => {
   const workflowWithAttachment = () => ({
     activeRun: { id: "run:active" },
     canPromoteToSteer: true,
-    canReorder: true,
     queuedRuns: [
       {
         run: { id: "run:queued", userMessageId: "message:queued" },
@@ -125,7 +123,7 @@ describe("QueuedRunsControl attachments and edit mode", () => {
     );
     expect(screen.container.textContent).toContain("Queued with a screenshot");
     expect(labels(screen.container)).toContain("Edit queued message");
-    expect(labels(screen.container)).toContain(
+    expect(labels(screen.container)).not.toContain(
       "Reorder queued message (drag, or press the arrow keys)",
     );
     expect(labels(screen.container)).not.toContain("Move queued message up");
@@ -139,7 +137,6 @@ describe("QueuedRunsControl attachments and edit mode", () => {
     state.workflow = {
       activeRun: { id: "run:active" },
       canPromoteToSteer: true,
-      canReorder: true,
       queuedRuns: [],
     };
 
@@ -176,7 +173,6 @@ describe("QueuedRunsControl send", () => {
       activeRun: null,
       canSendNow: true,
       canPromoteToSteer: false,
-      canReorder: true,
       queuedRuns: [
         { run: { id: "run:held", userMessageId: "message:held" }, text: "Held", attachments: [] },
       ],
@@ -220,7 +216,6 @@ describe("QueuedRunsControl editLatest", () => {
     state.workflow = {
       activeRun: { id: "run:active" },
       canPromoteToSteer: true,
-      canReorder: true,
       queuedRuns: [queuedRun("first", "first"), queuedRun("second", "second")],
     };
     const ref = createRef<QueuedRunsControlHandle>();
@@ -246,7 +241,6 @@ describe("QueuedRunsControl editLatest", () => {
     state.workflow = {
       activeRun: { id: "run:active" },
       canPromoteToSteer: true,
-      canReorder: true,
       queuedRuns: [queuedRun("first", "first")],
     };
     const ref = createRef<QueuedRunsControlHandle>();
@@ -273,7 +267,6 @@ describe("QueuedRunsControl editLatest", () => {
     state.workflow = {
       activeRun: null,
       canPromoteToSteer: false,
-      canReorder: false,
       queuedRuns: [],
     };
     const ref = createRef<QueuedRunsControlHandle>();
@@ -303,7 +296,6 @@ it("previews assistant quotes as readable text and preserves the citation when e
   state.workflow = {
     activeRun: { id: "run:active" },
     canPromoteToSteer: true,
-    canReorder: true,
     queuedRuns: [
       {
         run: { id: "run:quote-only", userMessageId: "message:quote-only" },

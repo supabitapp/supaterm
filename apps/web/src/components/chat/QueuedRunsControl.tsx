@@ -9,14 +9,7 @@ import type {
   RunId,
   ThreadId,
 } from "@supaterm/contracts";
-import {
-  Clock3Icon,
-  CornerUpRightIcon,
-  GripVerticalIcon,
-  ListOrderedIcon,
-  PencilIcon,
-  XIcon,
-} from "@supaterm/icons";
+import { Clock3Icon, CornerUpRightIcon, ListOrderedIcon, PencilIcon, XIcon } from "@supaterm/icons";
 import { useId, useImperativeHandle, useRef, useState, type Ref } from "react";
 
 import { useAssetUrls } from "../../assets/assetUrls";
@@ -43,8 +36,6 @@ interface QueuedRowThumbnail {
   readonly name: string;
   readonly url: string | null;
 }
-
-const QUEUED_RUN_DRAG_TYPE = "application/x-supaterm-queued-run";
 
 export interface QueuedRunsControlHandle {
   steerNext: (repeat: boolean) => boolean;
@@ -83,20 +74,12 @@ export function QueuedRunsControl({
   const projection = useThreadProjection(
     scopeThreadRef(props.environmentId, props.threadId),
   )?.projection;
-  const reorder = useAtomCommand(threadEnvironment.reorderQueuedRun);
   const promote = useAtomCommand(threadEnvironment.promoteQueuedRun);
   const resume = useAtomCommand(threadEnvironment.resumeThreadQueue);
   const cancel = useAtomCommand(threadEnvironment.cancelQueuedRun);
   const [expanded, setExpanded] = useState(true);
   const queueListId = useId();
   const [busyRunId, setBusyRunId] = useState<RunId | null>(null);
-  const [dragState, setDragState] = useState<{
-    readonly runId: RunId;
-    readonly insertIndex: number | null;
-  } | null>(null);
-  // Drags must start from the grip, not from an accidental text-drag on the
-  // row. The grip arms its run id on pointerdown; dragstart verifies it.
-  const dragArmedRunIdRef = useRef<RunId | null>(null);
   const steerInFlightRef = useRef(false);
   // Once the projection holds the message the optimistic copy is stale no
   // matter what happened to its run — keying on still-queued runs alone would
@@ -110,7 +93,6 @@ export function QueuedRunsControl({
   const workflow = projection ? deriveThreadQueueWorkflowState(projection) : null;
   const queued = workflow?.queuedRuns ?? [];
   const activeRun = workflow?.activeRun ?? null;
-  const canReorder = workflow?.canReorder === true;
   const canSend = workflow?.canSendNow === true || workflow?.canPromoteToSteer === true;
   const queuedImageUrlById = new Map(
     queuedImageAttachmentUrls.flatMap((url, index) => {
@@ -155,25 +137,6 @@ export function QueuedRunsControl({
       pending: true,
     })),
   ];
-
-  const move = async (runId: RunId, beforeRunId: RunId | null) => {
-    setBusyRunId(runId);
-    await reorder({
-      environmentId: props.environmentId,
-      input: { threadId: props.threadId, runId, beforeRunId },
-    });
-    setBusyRunId(null);
-  };
-
-  const completeDrag = (runId: RunId, insertIndex: number | null) => {
-    setDragState(null);
-    dragArmedRunIdRef.current = null;
-    if (insertIndex === null || busyRunId !== null) return;
-    const draggedIndex = queued.findIndex(({ run }) => run.id === runId);
-    if (draggedIndex === -1) return;
-    if (insertIndex === draggedIndex || insertIndex === draggedIndex + 1) return;
-    void move(runId, queued[insertIndex]?.run.id ?? null);
-  };
 
   const sendQueuedMessage = async (queuedRunId: RunId) => {
     if (!canSend || steerInFlightRef.current) return;
@@ -266,13 +229,7 @@ export function QueuedRunsControl({
                     ),
                   ).trim();
                   const rowRunId = item.runId;
-                  const rowServerIndex = item.serverIndex;
                   const isEditing = rowRunId !== null && rowRunId === props.editingRunId;
-                  const rowDraggable =
-                    rowRunId !== null &&
-                    rowServerIndex !== null &&
-                    canReorder &&
-                    busyRunId === null;
                   return (
                     <ComposerBanner.Row
                       render={<li />}
@@ -281,81 +238,8 @@ export function QueuedRunsControl({
                       className={cn(
                         "relative rounded-sm",
                         isEditing && "bg-accent text-accent-foreground",
-                        dragState !== null && dragState.runId === item.runId && "opacity-50",
                       )}
-                      draggable={rowDraggable}
-                      onDragStart={(event) => {
-                        if (item.runId === null || dragArmedRunIdRef.current !== item.runId) {
-                          event.preventDefault();
-                          return;
-                        }
-                        event.dataTransfer.setData(QUEUED_RUN_DRAG_TYPE, item.runId);
-                        event.dataTransfer.effectAllowed = "move";
-                        setDragState({ runId: item.runId, insertIndex: null });
-                      }}
-                      onDragEnd={() => {
-                        dragArmedRunIdRef.current = null;
-                        setDragState(null);
-                      }}
-                      onDragOver={(event) => {
-                        if (dragState === null || item.serverIndex === null) return;
-                        event.preventDefault();
-                        event.dataTransfer.dropEffect = "move";
-                        const rect = event.currentTarget.getBoundingClientRect();
-                        const insertIndex =
-                          event.clientY < rect.top + rect.height / 2
-                            ? item.serverIndex
-                            : item.serverIndex + 1;
-                        if (dragState.insertIndex !== insertIndex) {
-                          setDragState({ runId: dragState.runId, insertIndex });
-                        }
-                      }}
-                      onDrop={(event) => {
-                        if (dragState === null) return;
-                        event.preventDefault();
-                        completeDrag(dragState.runId, dragState.insertIndex);
-                      }}
                     >
-                      {item.serverIndex !== null && dragState?.insertIndex === item.serverIndex ? (
-                        <span
-                          aria-hidden
-                          className="pointer-events-none absolute inset-x-0 top-0 h-0.5 rounded bg-primary/70"
-                        />
-                      ) : null}
-                      {item.serverIndex === queued.length - 1 &&
-                      dragState?.insertIndex === queued.length ? (
-                        <span
-                          aria-hidden
-                          className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 rounded bg-primary/70"
-                        />
-                      ) : null}
-                      <ComposerBanner.Icon aria-hidden={false}>
-                        {canReorder && rowRunId !== null && rowServerIndex !== null ? (
-                          <Button
-                            size="icon-xs"
-                            variant="ghost-muted"
-                            aria-label="Reorder queued message (drag, or press the arrow keys)"
-                            className="cursor-grab active:cursor-grabbing disabled:cursor-default"
-                            disabled={busyRunId !== null}
-                            onPointerDown={() => {
-                              dragArmedRunIdRef.current = rowRunId;
-                            }}
-                            onKeyDown={(event) => {
-                              if (busyRunId !== null) return;
-                              if (event.key === "ArrowUp" && rowServerIndex > 0) {
-                                event.preventDefault();
-                                void move(rowRunId, queued[rowServerIndex - 1]?.run.id ?? null);
-                              }
-                              if (event.key === "ArrowDown" && rowServerIndex < queued.length - 1) {
-                                event.preventDefault();
-                                void move(rowRunId, queued[rowServerIndex + 2]?.run.id ?? null);
-                              }
-                            }}
-                          >
-                            <GripVerticalIcon />
-                          </Button>
-                        ) : null}
-                      </ComposerBanner.Icon>
                       <ComposerBanner.Content className="text-foreground/80">
                         {isEditing ? (
                           <span className="sr-only">Editing queued message: </span>
@@ -411,6 +295,30 @@ export function QueuedRunsControl({
                         ) : (
                           <>
                             <Tooltip>
+                              <TooltipTrigger render={<span className="flex shrink-0" />}>
+                                <Button
+                                  size="xs"
+                                  variant="ghost-muted"
+                                  disabled={item.runId === null || busyRunId !== null || !canSend}
+                                  onClick={() => {
+                                    if (item.runId !== null) {
+                                      void sendQueuedMessage(item.runId);
+                                    }
+                                  }}
+                                >
+                                  <CornerUpRightIcon />
+                                  Send now
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipPopup
+                                shortcut={item.serverIndex === 0 ? props.steerShortcutLabel : null}
+                              >
+                                {workflow?.canSendNow
+                                  ? "Start a turn with this message"
+                                  : "Send as a steer instead"}
+                              </TooltipPopup>
+                            </Tooltip>
+                            <Tooltip>
                               <TooltipTrigger
                                 render={
                                   <Button
@@ -437,30 +345,6 @@ export function QueuedRunsControl({
                                 shortcut={item === items.at(-1) ? props.editShortcutLabel : null}
                               >
                                 Edit in the composer
-                              </TooltipPopup>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger render={<span className="flex shrink-0" />}>
-                                <Button
-                                  size="xs"
-                                  variant="ghost-muted"
-                                  disabled={item.runId === null || busyRunId !== null || !canSend}
-                                  onClick={() => {
-                                    if (item.runId !== null) {
-                                      void sendQueuedMessage(item.runId);
-                                    }
-                                  }}
-                                >
-                                  <CornerUpRightIcon />
-                                  {workflow?.canSendNow ? "Send now" : "Steer"}
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipPopup
-                                shortcut={item.serverIndex === 0 ? props.steerShortcutLabel : null}
-                              >
-                                {workflow?.canSendNow
-                                  ? "Start a turn with this message"
-                                  : "Send as a steer instead"}
                               </TooltipPopup>
                             </Tooltip>
                             <InlineConfirmButton
