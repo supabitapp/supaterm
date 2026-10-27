@@ -5,7 +5,7 @@ import * as NodeNet from "node:net";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { createTunnelConnector, TUNNEL_MAX_PLAIN_BYTES } from "@supaterm/shared/relay/tunnel";
-import { TunnelSocket } from "@supaterm/shared/relay/tunnelNode";
+import { openLoopbackRelay, TunnelSocket } from "@supaterm/shared/relay/tunnelNode";
 import { expect, it } from "@effect/vitest";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -282,6 +282,22 @@ const opened = (dialed: Dialed) => {
   return dialed;
 };
 
+const closedPortUrl = Effect.promise(
+  () =>
+    new Promise<string>((resolve, reject) => {
+      const server = NodeNet.createServer();
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", () => {
+        const address = server.address();
+        if (address === null || typeof address === "string") {
+          reject(new Error("No TCP listener"));
+          return;
+        }
+        server.close(() => resolve(`ws://127.0.0.1:${address.port}`));
+      });
+    }),
+);
+
 const connectUrl = (host: { readonly url: string }, endpointId: string) =>
   `${host.url}/v1/connect?endpointId=${endpointId}`;
 
@@ -312,6 +328,35 @@ it.layer(NodeServices.layer)("DirectTunnel", (it) => {
       const nested = `/v1/connect?endpointId=${identity.endpointId}`;
       expect((yield* tunneled(tunnel, nested, upgradeHeaders)).status).toBe(404);
       expect(tunnel.sockets).toHaveLength(1);
+    }).pipe(Effect.scoped),
+  );
+
+  it.effect("reaches the host directly through a client's race when the relay is down", () =>
+    Effect.gen(function* () {
+      const host = yield* startHost(roomy);
+      const identity = yield* host.identity.get;
+      const deadRelay = yield* closedPortUrl;
+      const relay = yield* Effect.acquireRelease(
+        Effect.promise(() =>
+          openLoopbackRelay(identity.address, {
+            relayUrl: deadRelay,
+            directUrls: () => [host.url],
+            randomBytes: NodeCrypto.randomBytes,
+            createSocket: (url) => new WebSocket(url),
+          }),
+        ),
+        (opened) => Effect.promise(opened.close),
+      );
+      const origin = new URL(relay.origin);
+
+      const peer = yield* Effect.promise(() =>
+        send({ host: origin.hostname, port: Number(origin.port), path: "/api/test/peer" }),
+      );
+      expect(JSON.parse(peer.body)).toEqual({
+        connectionMethod: "direct-tunnel",
+        remoteAddress: "127.0.0.1",
+      });
+      expect(relay.via()).toBe("direct");
     }).pipe(Effect.scoped),
   );
 
