@@ -76,6 +76,7 @@
     "@supaterm/provider-acp-registry": "workspace:*",
     "@supaterm/provider-core": "workspace:*",
     "@supaterm/provider-cursor": "workspace:*",
+    "@supaterm/provider-fx": "workspace:*",
     "@supaterm/provider-grok": "workspace:*",
     "@supaterm/provider-muse": "workspace:*",
     "@supaterm/provider-opencode": "workspace:*",
