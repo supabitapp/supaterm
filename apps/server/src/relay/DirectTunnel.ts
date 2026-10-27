@@ -7,6 +7,7 @@ import type { ServerTunnelEndpoints } from "@supaterm/contracts";
 import { acceptClientHandshake } from "@supaterm/shared/relay/protocol";
 import {
   createTunnelSession,
+  MAX_DIRECT_TUNNEL_URLS,
   TUNNEL_MAX_PLAIN_BYTES,
   type TunnelSession,
   type TunnelStream,
@@ -285,7 +286,9 @@ const make = Effect.fn("DirectTunnel.make")(function* (limits: DirectTunnelLimit
         host: config.host,
         port: config.port,
         interfaces: NodeOS.networkInterfaces(),
-      }).map((endpoint) => `ws://${new URL(endpoint.httpBaseUrl).host}`);
+      })
+        .map((endpoint) => `ws://${new URL(endpoint.httpBaseUrl).host}`)
+        .slice(0, MAX_DIRECT_TUNNEL_URLS);
       return urls.length === 0 ? Option.none() : Option.some({ address, urls });
     });
 
