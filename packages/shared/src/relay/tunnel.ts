@@ -1,6 +1,6 @@
 import type { WebSocketLike } from "effect/socket/Socket";
 import { after, every } from "./timer.ts";
-import { DEFAULT_PUBLIC_RELAY_URL } from "@supaterm/contracts";
+import { DEFAULT_PUBLIC_RELAY_URL, normalizeRelayServerUrl } from "@supaterm/contracts";
 import {
   createClientHandshake,
   parseRelayAddress,
@@ -427,51 +427,80 @@ export function createTunnelSession(input: {
   return session;
 }
 
+export type TunnelVia = "relay" | "direct";
+
+export const MAX_DIRECT_TUNNEL_URLS = 8;
+
+export function directTunnelUrls(urls: Iterable<string>, relayUrl?: string): string[] {
+  const selected = new Set<string>();
+  for (const raw of urls) {
+    if (selected.size >= MAX_DIRECT_TUNNEL_URLS) break;
+    const url = normalizeRelayServerUrl(raw);
+    if (url !== null && url !== relayUrl) selected.add(url);
+  }
+  return [...selected];
+}
+
 export interface TunnelClientOptions {
   readonly createSocket: (url: string) => WebSocketLike;
   readonly randomBytes: (size: number) => Uint8Array;
   readonly relayUrl?: string;
+  readonly directUrls?: () => ReadonlyArray<string>;
   readonly handshakeTimeoutMs?: number;
   readonly signal?: AbortSignal;
 }
 
-function connectTunnel(
-  address: string,
+interface EstablishedTunnel {
+  readonly session: TunnelSession;
+  readonly via: TunnelVia;
+}
+
+function dialCandidate(
+  url: string,
+  identity: Uint8Array,
   options: TunnelClientOptions,
+  signal: AbortSignal,
+  claim: () => boolean,
   onClose?: (error?: Error) => void,
 ): Promise<TunnelSession> {
-  const identity = parseRelayAddress(address);
-  if (!identity) return Promise.reject(new Error("Not a relay address"));
-  const handshake = createClientHandshake(identity, options.randomBytes, 2);
-  const socket = options.createSocket(
-    `${options.relayUrl ?? DEFAULT_PUBLIC_RELAY_URL}/v1/connect?endpointId=${relayEndpointId(identity)}`,
-  );
-  if ("binaryType" in socket) socket.binaryType = "arraybuffer";
   return new Promise((resolve, reject) => {
+    const handshake = createClientHandshake(identity, options.randomBytes, 2);
     let session: TunnelSession | undefined;
+    let socket: WebSocketLike | undefined;
+    let failed = false;
     const fail = (error: Error) => {
-      options.signal?.removeEventListener("abort", abort);
+      failed = true;
+      signal.removeEventListener("abort", abort);
       cancelTimeout();
       handshake.destroy();
       if (session) session.close(error);
       else reject(error);
-      socket.close();
+      socket?.close();
     };
     const abort = () => fail(new Error("Relay connection canceled"));
-    options.signal?.addEventListener("abort", abort, { once: true });
+    signal.addEventListener("abort", abort, { once: true });
     const cancelTimeout = after(options.handshakeTimeoutMs ?? 15_000, () =>
       fail(new Error("Relay handshake timed out")),
     );
-    if (options.signal?.aborted) {
+    if (signal.aborted) {
       abort();
       return;
     }
-    socket.addEventListener("open", () => socket.send(handshake.hello));
-    socket.addEventListener("close", (event) =>
+    let opened: WebSocketLike;
+    try {
+      opened = options.createSocket(`${url}/v1/connect?endpointId=${relayEndpointId(identity)}`);
+    } catch (error) {
+      fail(error instanceof Error ? error : new Error("Relay connection failed"));
+      return;
+    }
+    socket = opened;
+    if ("binaryType" in opened) opened.binaryType = "arraybuffer";
+    opened.addEventListener("open", () => opened.send(handshake.hello));
+    opened.addEventListener("close", (event) =>
       fail(new Error(event.reason || "Relay disconnected")),
     );
-    socket.addEventListener("error", () => fail(new Error("Relay connection failed")));
-    socket.addEventListener("message", (event) => {
+    opened.addEventListener("error", () => fail(new Error("Relay connection failed")));
+    opened.addEventListener("message", (event) => {
       if (session) {
         const data = event.data;
         if (data instanceof ArrayBuffer) session.receive(new Uint8Array(data));
@@ -479,18 +508,25 @@ function connectTunnel(
         else session.close(new Error("Unencrypted relay message"));
         return;
       }
+      if (failed) return;
       try {
         if (typeof event.data !== "string" || event.data.length > 4096)
           throw new Error("Invalid relay handshake");
         const cipher = handshake.finish(event.data);
         cancelTimeout();
-        options.signal?.removeEventListener("abort", abort);
+        signal.removeEventListener("abort", abort);
+        // A verified loser no longer hears the race's abort, so it must drop its own keys.
+        if (!claim()) {
+          cipher.destroy();
+          fail(new Error("Relay connection superseded"));
+          return;
+        }
         session = createTunnelSession({
           cipher,
           initiator: true,
-          send: (message) => socket.send(message),
+          send: (message) => opened.send(message),
           onClose: (error) => {
-            socket.close();
+            opened.close();
             onClose?.(error);
           },
         });
@@ -502,34 +538,90 @@ function connectTunnel(
   });
 }
 
+function connectTunnel(
+  address: string,
+  options: TunnelClientOptions,
+  onClose?: (error?: Error) => void,
+): Promise<EstablishedTunnel> {
+  const identity = parseRelayAddress(address);
+  if (!identity) return Promise.reject(new Error("Not a relay address"));
+  const relayUrl = options.relayUrl ?? DEFAULT_PUBLIC_RELAY_URL;
+  const candidates: Array<{ readonly url: string; readonly via: TunnelVia }> = [
+    { url: relayUrl, via: "relay" },
+    ...directTunnelUrls(options.directUrls?.() ?? [], relayUrl).map((url) => ({
+      url,
+      via: "direct" as const,
+    })),
+  ];
+  const race = new AbortController();
+  const cancel = () => race.abort();
+  options.signal?.addEventListener("abort", cancel, { once: true });
+  if (options.signal?.aborted) race.abort();
+  return new Promise((resolve, reject) => {
+    const failures: Error[] = [];
+    let pending = candidates.length;
+    let won = false;
+    const claim = () => {
+      if (won) return false;
+      won = true;
+      options.signal?.removeEventListener("abort", cancel);
+      race.abort();
+      return true;
+    };
+    candidates.forEach(({ url, via }, index) => {
+      dialCandidate(url, identity, options, race.signal, claim, onClose).then(
+        (session) => resolve({ session, via }),
+        (error: Error) => {
+          failures[index] = error;
+          if (--pending > 0) return;
+          options.signal?.removeEventListener("abort", cancel);
+          reject(failures[0] ?? error);
+        },
+      );
+    });
+  });
+}
+
 export function createTunnelConnector(address: string, options: TunnelClientOptions) {
   const controller = new AbortController();
-  let current: Promise<TunnelSession> | undefined;
+  let current: Promise<EstablishedTunnel> | undefined;
+  let live: EstablishedTunnel | undefined;
   let disposed = false;
+  const establish = () => {
+    if (disposed) return Promise.reject(new Error("Tunnel connector closed"));
+    if (!current) {
+      const attempt = connectTunnel(address, { ...options, signal: controller.signal }, () => {
+        if (current === attempt) current = undefined;
+      });
+      current = attempt;
+      attempt.then(
+        (established) => {
+          if (current === attempt) live = established;
+        },
+        () => {
+          if (current === attempt) current = undefined;
+        },
+      );
+    }
+    return current;
+  };
   return {
-    session(): Promise<TunnelSession> {
-      if (disposed) return Promise.reject(new Error("Tunnel connector closed"));
-      if (!current) {
-        const attempt = connectTunnel(address, { ...options, signal: controller.signal }, () => {
-          if (current === attempt) current = undefined;
-        });
-        current = attempt;
-        attempt.catch(() => {
-          if (current === attempt) current = undefined;
-        });
-      }
-      return current;
+    async session(): Promise<TunnelSession> {
+      return (await establish()).session;
     },
     async open(): Promise<TunnelStream> {
-      const session = await this.session();
-      return session.open();
+      return (await establish()).session.open();
+    },
+    via(): TunnelVia | undefined {
+      return live?.session.closed === false ? live.via : undefined;
     },
     close() {
       disposed = true;
       controller.abort();
       const attempt = current;
       current = undefined;
-      void attempt?.then((session) => session.close()).catch(() => {});
+      live = undefined;
+      void attempt?.then(({ session }) => session.close()).catch(() => {});
     },
   };
 }

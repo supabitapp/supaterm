@@ -155,10 +155,12 @@ it.effect("answers failed opens and drops a tab that sends malformed control mes
       session: Effect.gen(function* () {
         yield* Effect.addFinalizer(() => Deferred.succeed(released, undefined));
         return {
-          open: (address: string, relayUrl?: string) =>
+          open: (address: string, relayUrl?: string, directUrls?: ReadonlyArray<string>) =>
             address === failedIdentity
               ? Effect.fail(new RelayCompanionError({ operation: "open", cause: "Bind failed" }))
-              : Effect.succeed(`http://127.0.0.1:4321/${relayUrl ?? "default"}`),
+              : Effect.succeed(
+                  `http://127.0.0.1:4321/${relayUrl ?? "default"}${directUrls ? `#${directUrls}` : ""}`,
+                ),
           close: () => Effect.void,
         };
       }),
@@ -179,6 +181,17 @@ it.effect("answers failed opens and drops a tab that sends malformed control mes
     expect(
       yield* exchange({ id: "2", action: "open", address, relayUrl: "wss://relay.example" }),
     ).toEqual({ id: "2", origin: "http://127.0.0.1:4321/wss://relay.example" });
+    expect(
+      yield* exchange({
+        id: "3",
+        action: "open",
+        address,
+        directUrls: ["ws://192.168.1.20:3773", "ws://100.64.0.7:3773"],
+      }),
+    ).toEqual({
+      id: "3",
+      origin: "http://127.0.0.1:4321/default#ws://192.168.1.20:3773,ws://100.64.0.7:3773",
+    });
     const closed = NodeEvents.EventEmitter.once(socket, "close");
     socket.send("x".repeat(5000));
     yield* Effect.promise(() => closed);

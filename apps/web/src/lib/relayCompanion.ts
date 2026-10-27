@@ -28,6 +28,7 @@ export function createRelayCompanionControl() {
   let connected: Promise<WebSocket> | undefined;
   let disposed = false;
   const origins = new Map<string, string>();
+  const candidates = new Map<string, string>();
   const pending = new Map<string, Pending>();
   let sequence = 0;
 
@@ -46,6 +47,7 @@ export function createRelayCompanionControl() {
         socket = undefined;
         connected = undefined;
         origins.clear();
+        candidates.clear();
         for (const request of pending.values())
           request.settle?.(request.action === "close" ? undefined : error);
         pending.clear();
@@ -72,8 +74,10 @@ export function createRelayCompanionControl() {
           if (!request) return;
           pending.delete(reply.id);
           if (reply.error) return request.settle?.(new Error(reply.error));
-          if (request.action === "close") origins.delete(request.address);
-          else if (reply.origin) origins.set(request.address, reply.origin);
+          if (request.action === "close") {
+            origins.delete(request.address);
+            candidates.delete(request.address);
+          } else if (reply.origin) origins.set(request.address, reply.origin);
           request.settle?.(undefined, reply.origin);
         } catch {
           current.close();
@@ -84,12 +88,24 @@ export function createRelayCompanionControl() {
   };
 
   return {
-    async request(action: "open" | "close", input: string, relayUrl?: string) {
+    async request(
+      action: "open" | "close",
+      input: string,
+      relayUrl?: string,
+      directUrls?: ReadonlyArray<string>,
+    ) {
       if (disposed) throw new Error("The local relay companion is closed.");
       const address = canonicalRelayAddress(input);
       if (!address) throw new Error("Not a relay address");
       const queued = [...pending.values()].some((request) => request.address === address);
-      if (action === "open" && !queued && origins.has(address)) return origins.get(address);
+      const direct = JSON.stringify(directUrls ?? []);
+      if (
+        action === "open" &&
+        !queued &&
+        origins.has(address) &&
+        (directUrls === undefined || candidates.get(address) === direct)
+      )
+        return origins.get(address);
       if (action === "close" && !queued && !origins.has(address)) return undefined;
       const limit = RELAY_COMPANION_REQUEST_LIMIT * (action === "close" ? 2 : 1);
       if (pending.size >= limit) throw new Error("Too many companion requests.");
@@ -113,7 +129,8 @@ export function createRelayCompanionControl() {
         current.then(
           (opened) => {
             if (pending.get(id) !== request) return;
-            opened.send(JSON.stringify({ id, action, address, relayUrl }));
+            if (action === "open" && directUrls !== undefined) candidates.set(address, direct);
+            opened.send(JSON.stringify({ id, action, address, relayUrl, directUrls }));
           },
           () => {},
         );

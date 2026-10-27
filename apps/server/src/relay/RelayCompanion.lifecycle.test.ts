@@ -217,3 +217,24 @@ it.effect("a closed session releases every lease even when one listener fails to
     ]);
   }).pipe(Effect.provide(RelayCompanion.layer()), Effect.scoped),
 );
+
+it.effect("a later open refreshes direct candidates without reopening the shared tunnel", () =>
+  Effect.gen(function* () {
+    const close = vi.fn(async () => {});
+    openLoopbackRelay.mockResolvedValueOnce({ origin: "http://127.0.0.1:4321", close });
+    const companion = yield* RelayCompanion.RelayCompanion;
+    yield* Effect.scoped(
+      Effect.gen(function* () {
+        const session = yield* companion.session;
+        yield* session.open(address, "wss://relay.example", ["ws://192.168.1.20:3773"]);
+        yield* session.open(address, "wss://relay.example", ["ws://100.64.0.7:3773"]);
+        expect(openLoopbackRelay).toHaveBeenCalledTimes(1);
+        expect(openLoopbackRelay.mock.calls[0]![1].directUrls?.()).toEqual([
+          "ws://100.64.0.7:3773",
+        ]);
+        expect(close).not.toHaveBeenCalled();
+      }),
+    );
+    expect(close).toHaveBeenCalledTimes(1);
+  }).pipe(Effect.provide(RelayCompanion.layer()), Effect.scoped),
+);

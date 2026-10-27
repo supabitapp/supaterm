@@ -1,8 +1,10 @@
 import { canonicalRelayAddress } from "./protocol.ts";
+import type { TunnelVia } from "./tunnel.ts";
 
 export interface LoopbackRelay {
   readonly origin: string;
   readonly close: () => Promise<void>;
+  readonly via?: () => TunnelVia | undefined;
 }
 
 interface Lease {
@@ -14,11 +16,17 @@ interface Endpoint {
   readonly address: string;
   readonly resource: Promise<LoopbackRelay>;
   readonly owners: Map<string, Lease>;
+  directUrls: ReadonlyArray<string>;
+  opened?: LoopbackRelay;
   closing?: Promise<void>;
 }
 
 export function createLoopbackRelayPool(input: {
-  readonly open: (address: string, relayUrl: string) => Promise<LoopbackRelay>;
+  readonly open: (
+    address: string,
+    relayUrl: string,
+    directUrls: () => ReadonlyArray<string>,
+  ) => Promise<LoopbackRelay>;
   readonly limit: number;
 }) {
   const endpoints = new Map<string, Endpoint>();
@@ -58,6 +66,7 @@ export function createLoopbackRelayPool(input: {
     address: string,
     owner: string,
     relayUrl: string,
+    directUrls?: ReadonlyArray<string>,
     signal?: AbortSignal,
   ): Promise<string> => {
     const identity = canonical(address);
@@ -75,18 +84,26 @@ export function createLoopbackRelayPool(input: {
           .then(() => {
             if (disposed || created.closing || endpoints.get(key) !== created)
               throw new Error("Relay endpoint was closed before preparation");
-            return input.open(identity, relayUrl);
+            return input.open(identity, relayUrl, () => created.directUrls);
           })
-          .catch((error) => {
-            if (endpoints.get(key) === created) endpoints.delete(key);
-            throw error;
-          }),
+          .then(
+            (opened) => {
+              created.opened = opened;
+              return opened;
+            },
+            (error) => {
+              if (endpoints.get(key) === created) endpoints.delete(key);
+              throw error;
+            },
+          ),
         owners: new Map(),
+        directUrls: [],
       };
       endpoints.set(key, created);
       endpoint = created;
     }
     const selected = endpoint;
+    if (directUrls) selected.directUrls = directUrls;
     const lease = selected.owners.get(owner) ?? { pending: 0, retained: false };
     selected.owners.set(owner, lease);
     lease.pending++;
@@ -120,8 +137,18 @@ export function createLoopbackRelayPool(input: {
       finish();
     }
   };
+  const via = (address: string) => {
+    const identity = canonical(address);
+    for (const endpoint of endpoints.values()) {
+      if (endpoint.address !== identity || endpoint.closing) continue;
+      const current = endpoint.opened?.via?.();
+      if (current) return current;
+    }
+    return undefined;
+  };
   return {
     acquire,
+    via,
     release: (address: string, owner: string) => releaseOwned(owner, canonical(address)),
     releaseOwner: (owner: string) => releaseOwned(owner),
     dispose: async () => {

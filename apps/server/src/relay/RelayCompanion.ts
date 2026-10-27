@@ -18,7 +18,11 @@ export class RelayCompanionError extends Schema.TaggedError<RelayCompanionError>
 ) {}
 
 export interface RelayCompanionSession {
-  readonly open: (address: string, relayUrl?: string) => Effect.Effect<string, RelayCompanionError>;
+  readonly open: (
+    address: string,
+    relayUrl?: string,
+    directUrls?: ReadonlyArray<string>,
+  ) => Effect.Effect<string, RelayCompanionError>;
   readonly close: (address: string) => Effect.Effect<void, RelayCompanionError>;
 }
 
@@ -29,6 +33,7 @@ export class RelayCompanion extends Context.Service<
       address: string,
       owner: string,
       relayUrl?: string,
+      directUrls?: ReadonlyArray<string>,
     ) => Effect.Effect<string, RelayCompanionError>;
     readonly close: (address: string, owner: string) => Effect.Effect<void, RelayCompanionError>;
     readonly session: Effect.Effect<RelayCompanionSession, never, Scope.Scope>;
@@ -41,18 +46,20 @@ export function layer(defaultRelayUrl = DEFAULT_PUBLIC_RELAY_URL) {
     Effect.gen(function* () {
       const pool = createLoopbackRelayPool({
         limit: 64,
-        open: (address, relayUrl) =>
+        open: (address, relayUrl, directUrls) =>
           openLoopbackRelay(address, {
             relayUrl,
+            directUrls,
             randomBytes: NodeCrypto.randomBytes,
             createSocket: (url) => new WebSocket(url),
           }),
       });
       yield* Effect.addFinalizer(() => Effect.promise(pool.dispose));
       const open = Effect.fn("RelayCompanion.open")(
-        (address: string, owner: string, relayUrl?: string) =>
+        (address: string, owner: string, relayUrl?: string, directUrls?: ReadonlyArray<string>) =>
           Effect.tryPromise({
-            try: (signal) => pool.acquire(address, owner, relayUrl ?? defaultRelayUrl, signal),
+            try: (signal) =>
+              pool.acquire(address, owner, relayUrl ?? defaultRelayUrl, directUrls, signal),
             catch: (cause) => new RelayCompanionError({ operation: "open", cause }),
           }),
       );
@@ -68,7 +75,8 @@ export function layer(defaultRelayUrl = DEFAULT_PUBLIC_RELAY_URL) {
           Effect.promise(() => pool.releaseOwner(owner).catch(() => {})),
         );
         return {
-          open: (address: string, relayUrl?: string) => open(address, owner, relayUrl),
+          open: (address: string, relayUrl?: string, directUrls?: ReadonlyArray<string>) =>
+            open(address, owner, relayUrl, directUrls),
           close: (address: string) => close(address, owner),
         } satisfies RelayCompanionSession;
       });

@@ -3,6 +3,7 @@ import * as NodeNet from "node:net";
 import * as NodeStream from "node:stream";
 import { after } from "./timer.ts";
 import { HttpHostGuard } from "./httpHostGuard.ts";
+import type { LoopbackRelay } from "./loopbackPool.ts";
 import type { TunnelStream } from "./tunnel.ts";
 import { createTunnelConnector, type TunnelClientOptions } from "./tunnel.ts";
 
@@ -170,12 +171,16 @@ async function listenLoopbackTunnel(open: () => Promise<TunnelStream>) {
   };
 }
 
-export async function openLoopbackRelay(address: string, options: TunnelClientOptions) {
+export async function openLoopbackRelay(
+  address: string,
+  options: TunnelClientOptions,
+): Promise<LoopbackRelay> {
   const connector = createTunnelConnector(address, options);
   try {
     const listener = await listenLoopbackTunnel(() => connector.open());
     return {
       origin: listener.origin,
+      via: connector.via,
       close: async () => {
         connector.close();
         await listener.close();

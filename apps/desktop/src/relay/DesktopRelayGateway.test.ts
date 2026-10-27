@@ -147,3 +147,29 @@ it.effect("a failed close does not prevent reopening or disposal of other enviro
     expect(close).toHaveBeenCalledTimes(1);
   }),
 );
+
+it.effect("a repeated start updates direct candidates without reopening the tunnel", () =>
+  Effect.gen(function* () {
+    const LAN = "ws://192.168.1.20:3773";
+    const TAILNET = "ws://100.64.0.7:3773";
+    let via: "relay" | "direct" | undefined;
+    const close = vi.fn(async () => {});
+    openLoopbackRelay.mockResolvedValueOnce({
+      origin: "http://127.0.0.1:4321",
+      close,
+      via: () => via,
+    });
+    const gateway = yield* DesktopRelayGateway.DesktopRelayGateway;
+    expect(yield* gateway.start(address, RELAY_URL, [LAN])).toBe("http://127.0.0.1:4321");
+    expect(yield* gateway.via(address)).toBeNull();
+    expect(yield* gateway.start(address, RELAY_URL, [TAILNET])).toBe("http://127.0.0.1:4321");
+    via = "direct";
+    expect(yield* gateway.via(address)).toBe("direct");
+    expect(openLoopbackRelay).toHaveBeenCalledTimes(1);
+    expect(openLoopbackRelay.mock.calls[0]![1].directUrls?.()).toEqual([TAILNET]);
+    expect(close).not.toHaveBeenCalled();
+    yield* gateway.stop(address);
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(yield* gateway.via(address)).toBeNull();
+  }).pipe(Effect.provide(DesktopRelayGateway.layer), Effect.scoped),
+);

@@ -131,8 +131,13 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   setConnectionCatalog: (catalog) =>
     ipcRenderer.invoke(IpcChannels.SET_CONNECTION_CATALOG_CHANNEL, catalog),
   clearConnectionCatalog: () => ipcRenderer.invoke(IpcChannels.CLEAR_CONNECTION_CATALOG_CHANNEL),
-  startRelay: (address, relayUrl) =>
-    ipcRenderer.invoke(IpcChannels.START_RELAY_CHANNEL, { address, relayUrl }),
+  startRelay: (address, relayUrl, directUrls) =>
+    ipcRenderer.invoke(IpcChannels.START_RELAY_CHANNEL, {
+      address,
+      relayUrl,
+      ...(directUrls === undefined ? {} : { directUrls }),
+    }),
+  getRelayVia: (address) => ipcRenderer.invoke(IpcChannels.GET_RELAY_VIA_CHANNEL, address),
   stopRelay: (address) => ipcRenderer.invoke(IpcChannels.STOP_RELAY_CHANNEL, address),
   discoverSshHosts: () => ipcRenderer.invoke(IpcChannels.DISCOVER_SSH_HOSTS_CHANNEL),
   resolveSshHost: (alias) => ipcRenderer.invoke(IpcChannels.RESOLVE_SSH_HOST_CHANNEL, alias),

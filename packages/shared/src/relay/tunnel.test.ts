@@ -1,9 +1,11 @@
 // @effect-diagnostics nodeBuiltinImport:off - real endpoint crypto verifies interoperable encrypted records.
 import * as NodeCrypto from "node:crypto";
+import type { WebSocketEvent, WebSocketLike } from "effect/socket/Socket";
 import { describe, expect, it, vi } from "vite-plus/test";
 import {
   acceptClientHandshake,
   createClientHandshake,
+  relayEndpointId,
   relayPublicKey,
   relayHttpBaseUrl,
 } from "./protocol.ts";
@@ -78,28 +80,13 @@ describe("encrypted relay multiplexing", () => {
     p.host.close();
   });
 
-  it("cancels a pending handshake when its connector is disposed", async () => {
-    let closed = false;
-    const connector = createTunnelConnector(
-      relayHttpBaseUrl(relayPublicKey(NodeCrypto.randomBytes(32))),
-      {
-        randomBytes: NodeCrypto.randomBytes,
-        createSocket: () => ({
-          readyState: 0,
-          addEventListener: () => {},
-          removeEventListener: () => {},
-          send: () => {},
-          close: () => {
-            closed = true;
-          },
-        }),
-      },
-    );
-    const connecting = connector.session();
-    connector.close();
-    expect(closed).toBe(true);
+  it("cancels every pending candidate when its connector is disposed", async () => {
+    const host = tunnelHost(() => [LAN]);
+    const connecting = host.connector.session();
+    host.connector.close();
+    expect(host.sockets.map((socket) => socket.closed)).toEqual([true, true]);
     await expect(connecting).rejects.toThrow("canceled");
-    await expect(connector.session()).rejects.toThrow("closed");
+    await expect(host.connector.session()).rejects.toThrow("closed");
   });
   it("ends a full record without exceeding the wire limit", async () => {
     const received: Uint8Array[] = [];
@@ -352,5 +339,217 @@ describe("encrypted relay multiplexing", () => {
     expect(closed).toBe(true);
     expect(() => p.client.open()).toThrow("closed");
     p.host.close();
+  });
+});
+
+const RELAY = "wss://relay.example";
+const LAN = "ws://192.168.1.20:3773";
+const TAILNET = "ws://100.64.0.7:3773";
+
+type SocketEventType = "open" | "message" | "error" | "close";
+
+class FakeSocket implements WebSocketLike {
+  readyState = 0;
+  binaryType = "blob";
+  closed = false;
+  readonly sent: Array<string | Uint8Array> = [];
+  private readonly listeners = new Map<SocketEventType, Set<(event: WebSocketEvent) => void>>();
+  readonly url: string;
+  constructor(url: string) {
+    this.url = url;
+  }
+  addEventListener(type: SocketEventType, listener: (event: WebSocketEvent) => void) {
+    const listeners = this.listeners.get(type) ?? new Set();
+    listeners.add(listener);
+    this.listeners.set(type, listeners);
+  }
+  removeEventListener(type: SocketEventType, listener: (event: WebSocketEvent) => void) {
+    this.listeners.get(type)?.delete(listener);
+  }
+  emit(type: SocketEventType, event: WebSocketEvent = {}) {
+    for (const listener of this.listeners.get(type) ?? []) listener(event);
+  }
+  send(data: string | Uint8Array) {
+    this.sent.push(data);
+  }
+  close() {
+    if (this.closed) return;
+    this.closed = true;
+    this.readyState = 3;
+    this.emit("close", { code: 1000, reason: "" });
+  }
+  get records() {
+    return this.sent.filter((data) => typeof data !== "string");
+  }
+}
+
+// Plays the host behind every dialed URL, so each candidate verifies against the same identity.
+function tunnelHost(directUrls?: () => ReadonlyArray<string>, handshakeTimeoutMs?: number) {
+  const secret = NodeCrypto.randomBytes(32);
+  const sockets: FakeSocket[] = [];
+  const connector = createTunnelConnector(relayHttpBaseUrl(relayPublicKey(secret)), {
+    relayUrl: RELAY,
+    randomBytes: NodeCrypto.randomBytes,
+    createSocket: (url) => {
+      const socket = new FakeSocket(url);
+      sockets.push(socket);
+      return socket;
+    },
+    ...(directUrls ? { directUrls } : {}),
+    ...(handshakeTimeoutMs ? { handshakeTimeoutMs } : {}),
+  });
+  return {
+    connector,
+    sockets,
+    endpointId: relayEndpointId(relayPublicKey(secret)),
+    dialed: (base: string) =>
+      sockets.findLast((socket) => socket.url.startsWith(`${base}/v1/connect?`))!,
+    hello: (socket: FakeSocket) => socket.emit("open"),
+    welcome: (socket: FakeSocket) => {
+      const accepted = acceptClientHandshake(
+        String(socket.sent[0]),
+        secret,
+        NodeCrypto.randomBytes,
+      );
+      socket.emit("message", { data: accepted.welcome });
+      return accepted.cipher;
+    },
+    notFound: (socket: FakeSocket) => {
+      socket.emit("error");
+      socket.emit("close", { code: 1006, reason: "" });
+    },
+  };
+}
+
+describe("relay and direct candidate race", () => {
+  it("keeps the first verified candidate while others fail or stall", async () => {
+    const host = tunnelHost(() => [TAILNET, LAN]);
+    const connecting = host.connector.session();
+    expect(host.sockets.map((socket) => socket.url)).toEqual(
+      [RELAY, TAILNET, LAN].map((base) => `${base}/v1/connect?endpointId=${host.endpointId}`),
+    );
+    const [relay, tailnet, lan] = [host.dialed(RELAY), host.dialed(TAILNET), host.dialed(LAN)];
+    host.hello(relay);
+    host.notFound(tailnet);
+    host.hello(lan);
+    const cipher = host.welcome(lan);
+    const session = await connecting;
+    expect(host.connector.via()).toBe("direct");
+    expect(relay.closed).toBe(true);
+    expect(tailnet.closed).toBe(true);
+    expect(lan.closed).toBe(false);
+    session.open();
+    await Promise.resolve();
+    expect(relay.records).toHaveLength(0);
+    expect(lan.records).toHaveLength(1);
+    expect(cipher.open(lan.records[0]!, TUNNEL_MAX_PLAIN_BYTES)[0]).toBe(1);
+    host.connector.close();
+  });
+
+  it("keeps the relay when it verifies before a direct candidate", async () => {
+    const host = tunnelHost(() => [LAN]);
+    const connecting = host.connector.session();
+    const [relay, lan] = [host.dialed(RELAY), host.dialed(LAN)];
+    host.hello(relay);
+    host.hello(lan);
+    host.welcome(relay);
+    await connecting;
+    expect(host.connector.via()).toBe("relay");
+    expect(lan.closed).toBe(true);
+    host.connector.close();
+  });
+
+  it("drops a verified welcome that arrives after another candidate won", async () => {
+    const host = tunnelHost(() => [LAN]);
+    const connecting = host.connector.session();
+    const [relay, lan] = [host.dialed(RELAY), host.dialed(LAN)];
+    host.hello(relay);
+    host.hello(lan);
+    host.welcome(lan);
+    host.welcome(relay);
+    const session = await connecting;
+    session.open();
+    await Promise.resolve();
+    expect(relay.closed).toBe(true);
+    expect(relay.records).toHaveLength(0);
+    expect(lan.records).toHaveLength(1);
+    expect(host.connector.via()).toBe("direct");
+    host.connector.close();
+  });
+
+  it("waits for a direct candidate after the relay fails and reports the relay's error last", async () => {
+    const host = tunnelHost(() => [LAN, TAILNET]);
+    const connecting = host.connector.session();
+    host.dialed(RELAY).emit("close", { code: 4404, reason: "host-offline" });
+    host.notFound(host.dialed(TAILNET));
+    host.hello(host.dialed(LAN));
+    host.welcome(host.dialed(LAN));
+    await connecting;
+    expect(host.connector.via()).toBe("direct");
+    host.dialed(LAN).emit("close", { code: 1006, reason: "" });
+    expect(host.connector.via()).toBeUndefined();
+
+    const failing = host.connector.session();
+    host.notFound(host.dialed(LAN));
+    host.dialed(RELAY).emit("close", { code: 4404, reason: "host-offline" });
+    host.notFound(host.dialed(TAILNET));
+    await expect(failing).rejects.toThrow("host-offline");
+    host.connector.close();
+  });
+
+  it("does not open a session from a welcome that arrives after the race failed", async () => {
+    vi.useFakeTimers();
+    try {
+      const host = tunnelHost(() => [LAN], 1_000);
+      const connecting = expect(host.connector.session()).rejects.toThrow("timed out");
+      const relay = host.dialed(RELAY);
+      host.hello(relay);
+      host.notFound(host.dialed(LAN));
+      await vi.advanceTimersByTimeAsync(1_000);
+      await connecting;
+      host.welcome(relay);
+      await vi.advanceTimersByTimeAsync(TUNNEL_KEEPALIVE_MS);
+      expect(relay.closed).toBe(true);
+      expect(relay.records).toHaveLength(0);
+      expect(host.connector.via()).toBeUndefined();
+      host.connector.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reads direct candidates per dial and keeps a live session on its transport", async () => {
+    let direct: ReadonlyArray<string> = [
+      RELAY,
+      "http://10.0.0.1:3773",
+      "not a url",
+      ...Array.from({ length: 10 }, (_, index) => `ws://10.0.0.${index + 1}:3773/`),
+      "ws://10.0.0.1:3773",
+    ];
+    const host = tunnelHost(() => direct);
+    const connecting = host.connector.session();
+    expect(host.sockets.map((socket) => socket.url.split("/v1/")[0])).toEqual([
+      RELAY,
+      ...Array.from({ length: 8 }, (_, index) => `ws://10.0.0.${index + 1}:3773`),
+    ]);
+    host.hello(host.dialed(RELAY));
+    host.welcome(host.dialed(RELAY));
+    await connecting;
+    direct = [LAN];
+    await host.connector.open();
+    expect(host.sockets).toHaveLength(9);
+    expect(host.connector.via()).toBe("relay");
+
+    host.dialed(RELAY).emit("close", { code: 1001, reason: "" });
+    const reconnecting = host.connector.session();
+    expect(host.sockets.slice(9).map((socket) => socket.url.split("/v1/")[0])).toEqual([
+      RELAY,
+      LAN,
+    ]);
+    host.hello(host.dialed(LAN));
+    host.welcome(host.dialed(LAN));
+    await reconnecting;
+    expect(host.connector.via()).toBe("direct");
+    host.connector.close();
   });
 });

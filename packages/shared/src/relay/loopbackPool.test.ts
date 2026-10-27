@@ -79,7 +79,7 @@ it("closes a cancelled preparation without releasing another relay's lease", asy
   });
   const abort = new AbortController();
   try {
-    const preparing = pool.acquire(address, "tab-a", relayA, abort.signal);
+    const preparing = pool.acquire(address, "tab-a", relayA, undefined, abort.signal);
     const rejected = expect(preparing).rejects.toThrow();
     await opened.promise;
     const originB = await pool.acquire(address, "tab-b", relayB);
@@ -97,4 +97,37 @@ it("closes a cancelled preparation without releasing another relay's lease", asy
   }
   expect(closeA).toHaveBeenCalledOnce();
   expect(closeB).toHaveBeenCalledOnce();
+});
+
+it("updates direct candidates for the next dial without reopening the endpoint", async () => {
+  const direct: Array<() => ReadonlyArray<string>> = [];
+  const close = vi.fn(async () => {});
+  let via: "relay" | "direct" | undefined;
+  const pool = createLoopbackRelayPool({
+    limit: 2,
+    open: async (_address, _relayUrl, directUrls) => {
+      direct.push(directUrls);
+      return { origin: "http://127.0.0.1:40000", close, via: () => via };
+    },
+  });
+  try {
+    expect(await pool.acquire(address, "desktop", relayA, ["ws://10.0.0.2:3773"])).toBe(
+      "http://127.0.0.1:40000",
+    );
+    expect(pool.via(address)).toBeUndefined();
+    via = "direct";
+    expect(pool.via(address + "/")).toBe("direct");
+    expect(await pool.acquire(address, "desktop", relayA, ["ws://192.168.1.20:3773"])).toBe(
+      "http://127.0.0.1:40000",
+    );
+    expect(await pool.acquire(address, "desktop", relayA)).toBe("http://127.0.0.1:40000");
+    expect(direct).toHaveLength(1);
+    expect(direct[0]!()).toEqual(["ws://192.168.1.20:3773"]);
+    expect(close).not.toHaveBeenCalled();
+    await pool.release(address, "desktop");
+    expect(close).toHaveBeenCalledOnce();
+    expect(pool.via(address)).toBeUndefined();
+  } finally {
+    await pool.dispose();
+  }
 });

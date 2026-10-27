@@ -64,7 +64,7 @@ export function layer(staticDir: string) {
               const response = yield* (
                 input.action === "open"
                   ? session
-                      .open(input.address, input.relayUrl)
+                      .open(input.address, input.relayUrl, input.directUrls)
                       .pipe(Effect.map((origin) => ({ id: input.id, origin })))
                   : session.close(input.address).pipe(Effect.as({ id: input.id }))
               ).pipe(
