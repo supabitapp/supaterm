@@ -12,6 +12,7 @@ export async function captureHostResources(directory: string, phase: string) {
           ["sysctl", ["hw.memsize", "hw.ncpu"]],
           ["vm_stat", []],
           ["memory_pressure", ["-Q"]],
+          ["ps", ["-Ao", "pid,ppid,rss,pcpu,etime,comm", "-m"]],
         ]
       : [
           ["free", ["-m"]],
@@ -21,7 +22,8 @@ export async function captureHostResources(directory: string, phase: string) {
   const results = await Promise.all(
     commands.map(async ([command, args]) => {
       const output = await run(command, args, { allowFailure: true, timeoutMs: 10_000 }).then(
-        ({ stdout, stderr }) => stdout || stderr,
+        ({ stdout, stderr }) =>
+          command === "ps" ? stdout.split("\n").slice(0, 16).join("\n") : stdout || stderr,
         (error: unknown) => String(error),
       );
       return `${command} ${args.join(" ")}\n${output}`;

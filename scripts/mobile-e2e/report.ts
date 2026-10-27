@@ -12,6 +12,7 @@ export interface Finding {
 }
 
 export interface PoseResult {
+  readonly cleanupFailed?: boolean;
   readonly pose: Pose;
   readonly steps: ReadonlyArray<StepResult>;
   readonly error?: string;

@@ -8,7 +8,7 @@ import * as NodePath from "node:path";
 import * as NodeUtil from "node:util";
 
 import { BUILD_ENV, prepareClient } from "./mobile-e2e/build.ts";
-import { Device, stopDeviceDaemon } from "./mobile-e2e/device.ts";
+import { Device, DeviceCleanupError, stopDeviceDaemon } from "./mobile-e2e/device.ts";
 import { captureHostResources } from "./mobile-e2e/diagnostics.ts";
 import { runJourney, type StepResult } from "./mobile-e2e/journey.ts";
 import { POSES, type Pose } from "./mobile-e2e/poses.ts";
@@ -32,7 +32,8 @@ import {
   warmMetroBundle,
 } from "./mobile-showcase.ts";
 
-const log = (message: string) => NodeProcess.stderr.write(`[mobile-e2e] ${message}\n`);
+const log = (message: string) =>
+  NodeProcess.stderr.write(`[mobile-e2e] ${new Date().toISOString()} ${message}\n`);
 
 async function runPose(
   pose: Pose,
@@ -51,10 +52,14 @@ async function runPose(
     await captureHostResources(directory, "Before device startup");
     log(`${pose.id}: booting ${pose.device}`);
     device = await Device.create(pose, root, directory);
-    log(`${pose.id}: preparing native client`);
+    log(`${pose.id}: installing native client`);
     await device.install(client);
+    log(`${pose.id}: preparing device automation`);
     await device.prepare();
+    log(`${pose.id}: warming Metro before launch`);
+    await warmMetroBundle(pose.platform, "127.0.0.1", metroPort);
     const host = pose.platform === "ios" ? "127.0.0.1" : "10.0.2.2";
+    log(`${pose.id}: launching app`);
     await device.launch(metroPort);
     await runJourney(device, directory, () => pair(host), steps);
   } catch (error) {
@@ -69,24 +74,31 @@ async function runPose(
       pose,
       steps,
       error: error instanceof Error ? error.message : String(error),
+      ...(error instanceof DeviceCleanupError ? { cleanupFailed: true } : {}),
       ...(screenshot ? { stopped: screenshot } : {}),
     };
   } finally {
     try {
       await device?.release();
     } catch (error) {
-      result = appendError(
-        result,
-        `Device cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      result = {
+        ...appendError(
+          result,
+          `Device cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+        cleanupFailed: true,
+      };
     }
     try {
       await stopDeviceDaemon(root);
     } catch (error) {
-      result = appendError(
-        result,
-        `Device daemon cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      result = {
+        ...appendError(
+          result,
+          `Device daemon cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+        cleanupFailed: true,
+      };
     }
   }
   return result;
@@ -162,7 +174,7 @@ async function main() {
         "start",
         "--dev-client",
         "--max-workers",
-        "1",
+        "2",
         "--scheme",
         "supaterm-dev",
         "--port",
@@ -201,6 +213,11 @@ async function main() {
       log(
         `${pose.id}: ${result.error ?? (failedChecks(result).length ? "checks failed" : "passed")}`,
       );
+      if (result.cleanupFailed) {
+        const message = `Stopping after ${pose.id}: device cleanup failed`;
+        errors.push(message);
+        throw new Error(message);
+      }
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
