@@ -14,16 +14,7 @@ import {
   StackActions,
   useNavigation,
 } from "@react-navigation/native";
-import {
-  use,
-  useDeferredValue,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { use, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Platform, useWindowDimensions, View } from "react-native";
 import { KeyboardController, useKeyboardState } from "react-native-keyboard-controller";
 import Animated, {
@@ -50,6 +41,7 @@ import {
 } from "../../lib/adaptive-navigation";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import type { ThreadListFilters } from "../../persistence/mobile-preferences";
+import { useThreadCwd } from "../../state/use-selected-thread-worktree";
 import { mobilePreferencesAtom } from "../../state/preferences";
 import {
   DEFAULT_MOBILE_PROJECT_GROUPING_SETTINGS,
@@ -113,42 +105,11 @@ export function useRegisterWorkspaceInspector(render: (() => ReactNode) | undefi
     );
   })();
 
-  const wrappedRenderRef = useRef(wrappedRender);
-  useLayoutEffect(() => {
-    wrappedRenderRef.current = wrappedRender;
-  });
-  const focusedRef = useRef(false);
-  const deactivateRef = useRef<(() => void) | null>(null);
-
-  const syncRegistration = (inspectorRender: (() => ReactNode) | undefined) => {
-    if (!focusedRef.current || inspectorRender === undefined) {
-      deactivateRef.current?.();
-      return;
-    }
-    deactivateRef.current = registerWorkspaceInspector(inspectorRender);
-  };
-
-  useFocusEffect(() => {
-    focusedRef.current = true;
-    syncRegistration(wrappedRenderRef.current);
-    return () => {
-      focusedRef.current = false;
-      syncRegistration(wrappedRenderRef.current);
-    };
-  });
-
-  useEffect(() => {
-    if (focusedRef.current) {
-      syncRegistration(wrappedRender);
-    }
-  }, [syncRegistration, wrappedRender]);
-
-  useEffect(
-    () => () => {
-      deactivateRef.current?.();
-      deactivateRef.current = null;
-    },
-    [],
+  // useFocusEffect re-runs when the renderer changes while focused, so the
+  // pane always shows this render's content, and its cleanup deactivates on
+  // blur and unmount.
+  useFocusEffect(() =>
+    wrappedRender === undefined ? undefined : registerWorkspaceInspector(wrappedRender),
   );
 }
 
@@ -156,6 +117,8 @@ export function AdaptiveWorkspaceLayout(props: {
   readonly children: ReactNode;
   readonly pathname: string;
   readonly workspaceRouteKey: string | undefined;
+  readonly workspaceRouteName: string | undefined;
+  readonly workspaceRouteKeys: ReadonlyArray<string>;
   readonly selectedPullRequestKey?: string | null;
 }) {
   const preferencesResult = useAtomValue(mobilePreferencesAtom);
@@ -182,6 +145,8 @@ function AdaptiveWorkspaceLayoutContent(
     readonly children: ReactNode;
     readonly pathname: string;
     readonly workspaceRouteKey: string | undefined;
+    readonly workspaceRouteName: string | undefined;
+    readonly workspaceRouteKeys: ReadonlyArray<string>;
     readonly selectedPullRequestKey?: string | null;
   } & {
     readonly projectGroupingMode: SidebarProjectGroupingMode;
@@ -292,16 +257,52 @@ function AdaptiveWorkspaceLayoutContent(
   const activeThread = parseActiveThreadPath(pathname);
   const environmentId = activeThread?.environmentId ?? null;
   const threadId = activeThread?.threadId ?? null;
-  const selectedThreadKey = (() => {
+  const selectedThreadRef = (() => {
     if (environmentId === null || threadId === null) {
       return null;
     }
     try {
-      return scopedThreadKey(EnvironmentId.make(environmentId), ThreadId.make(threadId));
+      return {
+        environmentId: EnvironmentId.make(environmentId),
+        threadId: ThreadId.make(threadId),
+      };
     } catch {
       return null;
     }
   })();
+  const selectedThreadKey =
+    selectedThreadRef === null
+      ? null
+      : scopedThreadKey(selectedThreadRef.environmentId, selectedThreadRef.threadId);
+  const isFilesRoute = props.workspaceRouteName === "ThreadFiles";
+  // Same resolution the Files screen uses: without a cwd it shows "Files unavailable" and
+  // registers no inspector, so revealing would only hide the sidebar beside that screen.
+  const filesCwd = useThreadCwd(isFilesRoute && fileInspector.supported ? selectedThreadRef : null);
+  // Opening a review or the files route reveals its inspector once per route and thread.
+  // Routes still on the stack remember their reveal, so going back to one keeps the user's choice.
+  const revealsInspector =
+    props.workspaceRouteName === "ThreadReview" || (isFilesRoute && filesCwd !== null);
+  const [revealedInspectors, setRevealedInspectors] = useState<ReadonlyMap<string, string>>(
+    () => new Map(),
+  );
+  if (
+    revealsInspector &&
+    props.workspaceRouteKey !== undefined &&
+    selectedThreadKey !== null &&
+    revealedInspectors.get(props.workspaceRouteKey) !== selectedThreadKey
+  ) {
+    const next = new Map<string, string>();
+    for (const routeKey of props.workspaceRouteKeys) {
+      const revealedThreadKey = revealedInspectors.get(routeKey);
+      if (revealedThreadKey !== undefined) {
+        next.set(routeKey, revealedThreadKey);
+      }
+    }
+    next.set(props.workspaceRouteKey, selectedThreadKey);
+    setRevealedInspectors(next);
+    setFocusedAuxiliaryPaneRole("inspector");
+    setFileInspectorPreferredVisible(true);
+  }
   const [workspaceInspector, setWorkspaceInspector] = useState<{
     readonly render: () => ReactNode;
     readonly active: boolean;

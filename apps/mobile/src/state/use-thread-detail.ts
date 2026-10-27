@@ -3,7 +3,12 @@ import type { PendingThreadRequests } from "@supaterm/client-runtime/state/threa
 import { deriveReportedModelSelection } from "@supaterm/client-runtime/state/thread-execution";
 import type { ThreadTurnSubagents } from "@supaterm/client-runtime/state/thread-subagents";
 import type { EnvironmentThread } from "@supaterm/client-runtime/state/shell";
-import type { EnvironmentId, OrchestrationV2ThreadProjection, ThreadId } from "@supaterm/contracts";
+import type {
+  EnvironmentId,
+  OrchestrationV2ThreadProjection,
+  ScopedThreadRef,
+  ThreadId,
+} from "@supaterm/contracts";
 import { Atom } from "effect/reactivity";
 
 import { environmentThreadDetails, useEnvironmentThread } from "./threads";
@@ -102,13 +107,15 @@ export function useSelectedThreadVisibleTurnItems(): OrchestrationV2ThreadProjec
 const EMPTY_WORKTREE_PATH_ATOM = Atom.make<string | null>(null);
 const EMPTY_PENDING_REQUESTS_ATOM = Atom.make<PendingThreadRequests | null>(null);
 
+export function useThreadWorktreePath(ref: ScopedThreadRef | null) {
+  return useAtomValue(
+    ref === null ? EMPTY_WORKTREE_PATH_ATOM : environmentThreadDetails.worktreePathAtom(ref),
+  );
+}
+
 export function useSelectedThreadWorktreePath() {
   const { selectedThreadRef } = useThreadSelection();
-  return useAtomValue(
-    selectedThreadRef === null
-      ? EMPTY_WORKTREE_PATH_ATOM
-      : environmentThreadDetails.worktreePathAtom(selectedThreadRef),
-  );
+  return useThreadWorktreePath(selectedThreadRef);
 }
 
 export function useSelectedThreadPendingRequests() {
