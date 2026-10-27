@@ -6,26 +6,34 @@ import * as NodeFSP from "node:fs/promises";
 import { check, type Check, type Rect } from "./checks.ts";
 import { run } from "./process.ts";
 
-async function pixelWidth(path: string): Promise<number> {
+async function videoSize(path: string): Promise<{ width: number; height: number }> {
   const { stdout } = await run("ffprobe", [
     "-v",
     "error",
     "-select_streams",
     "v:0",
     "-show_entries",
-    "stream=width",
+    "stream=width,height",
     "-of",
-    "csv=p=0",
+    "json",
     path,
   ]);
-  return Number(stdout.trim());
+  const { streams } = JSON.parse(stdout) as { streams: Array<{ width: number; height: number }> };
+  const size = streams[0];
+  if (!size?.width || !size.height) throw new Error(`Could not read video dimensions: ${path}`);
+  return size;
 }
 
-async function grayFrames(input: string, region: Rect, scale: number): Promise<Uint8Array[]> {
+async function grayFrames(
+  input: string,
+  region: Rect,
+  scale: number,
+  offset: { x: number; y: number },
+): Promise<Uint8Array[]> {
   const even = (value: number) => Math.max(2, Math.floor(value / 2) * 2);
   const [x, y, width, height] = [
-    Math.round(region.x * scale),
-    Math.round(region.y * scale),
+    Math.round(region.x * scale + offset.x),
+    Math.round(region.y * scale + offset.y),
     even(region.width * scale),
     even(region.height * scale),
   ];
@@ -86,16 +94,21 @@ export async function lagCheck(
     readonly video: string;
     readonly nav: Rect;
     readonly chrome: Rect;
-    readonly viewportWidth: number;
+    readonly viewport: { readonly width: number; readonly height: number };
   },
   evidence: string,
 ): Promise<{ check: Check; frame?: string }> {
   if (!(await NodeFSP.stat(input.video).catch(() => null)))
     return { check: check(name, false, "the transition recording is missing") };
-  const scale = (await pixelWidth(input.video)) / input.viewportWidth;
+  const size = await videoSize(input.video);
+  const scale = Math.min(size.width / input.viewport.width, size.height / input.viewport.height);
+  const offset = {
+    x: (size.width - input.viewport.width * scale) / 2,
+    y: (size.height - input.viewport.height * scale) / 2,
+  };
   const [navFrames, chromeFrames] = await Promise.all([
-    grayFrames(input.video, input.nav, scale),
-    grayFrames(input.video, input.chrome, scale),
+    grayFrames(input.video, input.nav, scale, offset),
+    grayFrames(input.video, input.chrome, scale, offset),
   ]);
   const [navOrigin, navDestination] = [navFrames[0], navFrames.at(-1)];
   const [chromeOrigin, chromeDestination] = [chromeFrames[0], chromeFrames.at(-1)];

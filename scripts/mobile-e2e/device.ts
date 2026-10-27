@@ -321,15 +321,15 @@ export class Device {
   async orient(shape: "landscape" | "portrait"): Promise<Snapshot> {
     let snapshot = await this.snapshot();
     for (const name of ["landscape-left", "portrait", "landscape-right"]) {
-      if (snapshot.viewport.width > snapshot.viewport.height === (shape === "landscape"))
-        return snapshot;
+      if (snapshot.viewport.width > snapshot.viewport.height === (shape === "landscape")) break;
       await this.agent(["orientation", name]);
       await delay(1_000);
       snapshot = await this.snapshot();
     }
-    if (snapshot.viewport.width > snapshot.viewport.height === (shape === "landscape"))
-      return snapshot;
-    throw new Error(`Device did not rotate to ${shape}.`);
+    if (snapshot.viewport.width > snapshot.viewport.height !== (shape === "landscape"))
+      throw new Error(`Device did not rotate to ${shape}.`);
+    await this.agent(["wait", "stable", "1000", "30000"]);
+    return this.snapshot();
   }
 
   async snapshot(timeoutMs?: number): Promise<Snapshot> {
