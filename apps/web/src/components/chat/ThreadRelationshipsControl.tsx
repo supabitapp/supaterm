@@ -99,7 +99,7 @@ function ThreadLineageRowList(props: {
       */}
       <ul
         aria-label={props.label ?? "Related threads"}
-        className="m-0 max-h-[13.5rem] list-none overflow-y-auto overscroll-contain p-0 has-data-workflow-expanded:max-h-[min(28rem,55dvh)]"
+        className="m-0 max-h-[13.5rem] list-none overflow-y-auto overscroll-contain p-0 [scrollbar-width:none] has-data-workflow-expanded:max-h-[min(28rem,55dvh)] [&::-webkit-scrollbar]:hidden"
       >
         {props.children}
       </ul>
