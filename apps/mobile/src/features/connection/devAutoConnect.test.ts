@@ -1,5 +1,20 @@
+import * as NodeModule from "node:module";
 import type { NavigationState, PartialState } from "@react-navigation/native";
 import { expect, it, vi } from "vite-plus/test";
+
+const requireFromNative = NodeModule.createRequire(
+  NodeModule.createRequire(import.meta.url).resolve("@react-navigation/native/package.json"),
+);
+const requireFromCore = NodeModule.createRequire(
+  requireFromNative.resolve("@react-navigation/core/package.json"),
+);
+const { getActionFromState, getStateFromPath } = requireFromNative("@react-navigation/core") as {
+  readonly getActionFromState: typeof import("@react-navigation/native").getActionFromState;
+  readonly getStateFromPath: typeof import("@react-navigation/native").getStateFromPath;
+};
+const { StackRouter } = requireFromCore("@react-navigation/routers") as {
+  readonly StackRouter: typeof import("@react-navigation/native").StackRouter;
+};
 
 const harness = vi.hoisted(() => ({
   pair: vi.fn(),
@@ -19,7 +34,12 @@ const harness = vi.hoisted(() => ({
   deferred: null as Array<() => void> | null,
 }));
 
-vi.mock("@react-navigation/native", () => ({ StackActions: { replace: vi.fn() } }));
+vi.mock("@react-navigation/native", () => ({
+  StackActions: { replace: vi.fn() },
+  CommonActions: {
+    replaceParams: (params: object) => ({ type: "REPLACE_PARAMS", payload: { params } }),
+  },
+}));
 vi.mock("../../state/use-remote-environment-registry", () => ({
   pairEnvironment: harness.pair,
 }));
@@ -43,6 +63,7 @@ import { appAtomRegistry } from "../../state/atom-registry";
 import {
   autoConnectReport,
   devAutoConnectAttemptAtom,
+  pairingFormLinkAction,
   startDevAutoConnect,
 } from "./devAutoConnect";
 
@@ -163,4 +184,75 @@ it("a success that waited for navigation leaves a newer link's form open", async
   for (const navigate of deferred) navigate();
   expect(harness.goBack).not.toHaveBeenCalled();
   expect(harness.dispatch).not.toHaveBeenCalled();
+});
+
+it("a pairing link fills the pairing form already on screen instead of stacking a second one", () => {
+  const linking = {
+    initialRouteName: "Home",
+    screens: {
+      Home: "",
+      Settings: "settings",
+      SettingsEnvironmentNew: "settings/environment-new",
+      ConnectionsNew: "connections/new",
+    },
+  };
+  const router = StackRouter({});
+  const options = {
+    routeNames: Object.keys(linking.screens),
+    routeParamList: {},
+    routeGetIdList: {},
+  };
+  // Settings > Environments > Add environment, as the user opened it.
+  const open = router.getRehydratedState(
+    {
+      index: 2,
+      routes: [{ name: "Home" }, { name: "Settings" }, { name: "SettingsEnvironmentNew" }],
+    },
+    options,
+  );
+  const link = getStateFromPath(
+    `connections/new?pairingUrl=${encodeURIComponent(PAIRING_URL)}`,
+    linking,
+  )!;
+  const action = pairingFormLinkAction(link, open) ?? getActionFromState(link, linking)!;
+  const next = router.getStateForAction(open, { target: open.key, ...action }, options);
+
+  expect(next?.routes.map((route) => route.name)).toEqual([
+    "Home",
+    "Settings",
+    "SettingsEnvironmentNew",
+  ]);
+  expect(next?.routes.at(-1)).toMatchObject({
+    key: open.routes[2]!.key,
+    params: { pairingUrl: PAIRING_URL },
+  });
+});
+
+it("fills the Settings pairing form open inside the settings sheet's own stack", () => {
+  const link = { routes: [{ name: "ConnectionsNew", params: { pairingUrl: PAIRING_URL } }] };
+  const open = {
+    key: "root",
+    index: 1,
+    routes: [
+      { key: "home", name: "Home" },
+      {
+        key: "sheet",
+        name: "SettingsSheet",
+        state: {
+          key: "settings-stack",
+          index: 1,
+          routes: [
+            { key: "settings", name: "Settings" },
+            { key: "new", name: "SettingsEnvironmentNew" },
+          ],
+        },
+      },
+    ],
+  } as unknown as NavigationState;
+  expect(pairingFormLinkAction(link, open)).toEqual({
+    type: "REPLACE_PARAMS",
+    payload: { params: { pairingUrl: PAIRING_URL } },
+    source: "new",
+    target: "settings-stack",
+  });
 });

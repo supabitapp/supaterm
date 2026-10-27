@@ -49,7 +49,7 @@ import { OverlayPortalHost } from "./components/ui/OverlayPortal";
 import { shouldHandleAppLink, restoreDraftLinkState } from "./lib/appLinking";
 import { disarmInlineConfirmsOnTouch } from "./lib/useInlineConfirm";
 import { takeScheduledTaskNewLink } from "./features/settings/scheduled-task-editor-state";
-import { startDevAutoConnect } from "./features/connection/devAutoConnect";
+import { pairingFormLinkAction, startDevAutoConnect } from "./features/connection/devAutoConnect";
 import {
   resolvePendingNewTaskPromptLink,
   takeNewTaskPromptLink,
@@ -100,6 +100,14 @@ const appLinking = {
   prefixes: [Linking.createURL("/"), "supaterm://", "supaterm-dev://", "supaterm-preview://"],
   config: { initialRouteName: "Home" },
   filter: shouldHandleAppLink,
+  getActionFromState: (
+    state: Parameters<typeof getActionFromState>[0],
+    options: Parameters<typeof getActionFromState>[1],
+  ): ReturnType<typeof getActionFromState> =>
+    pairingFormLinkAction(
+      state,
+      rootNavigationRef.isReady() ? rootNavigationRef.getRootState() : undefined,
+    ) ?? getActionFromState(state, options),
   getStateFromPath: getAppStateFromPath,
 };
 
