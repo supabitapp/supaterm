@@ -1,8 +1,14 @@
 import { describe, expect, it } from "@effect/vitest";
 import { EnvironmentId, ProjectId } from "@supaterm/contracts";
 
-import type { ComposerDraft } from "./use-composer-drafts";
-import { applyHeldNewTaskDraft, buildPendingDraftTasks } from "./pending-new-tasks-model";
+import type { ComposerDraft, ComposerDraftWorkspaceSelection } from "./use-composer-drafts";
+import {
+  applyHeldNewTaskDraft,
+  buildPendingDraftTasks,
+  type PendingDraftProjectDefaults,
+  pendingDraftBranchNeedsRefs,
+  resolvePendingDraftBranch,
+} from "./pending-new-tasks-model";
 
 const environmentId = EnvironmentId.make("env-1");
 const projectId = ProjectId.make("project-1");
@@ -29,7 +35,9 @@ describe("buildPendingDraftTasks", () => {
       "new-task:draft-new": draft("second idea", "2026-09-05T11:00:00.000Z"),
     });
 
-    expect(tasks.map((task) => [task.title, task.branch])).toEqual([
+    expect(
+      tasks.map((task) => [task.title, task.draft.workspaceSelection?.branch ?? null]),
+    ).toEqual([
       ["second idea", null],
       ["first idea", "main"],
     ]);
@@ -102,5 +110,80 @@ describe("applyHeldNewTaskDraft", () => {
     const drafts = { "new-task:open": draft("idea", "2026-09-05T09:00:00.000Z") };
 
     expect(applyHeldNewTaskDraft(drafts, null)).toBe(drafts);
+  });
+});
+
+const projectCwd = "/repo";
+const localDefault: PendingDraftProjectDefaults = {
+  canChooseWorkspace: true,
+  defaultMode: "local",
+  defaultModeSettled: true,
+};
+const worktreeDefault: PendingDraftProjectDefaults = { ...localDefault, defaultMode: "worktree" };
+const resolve = (
+  input: Omit<Parameters<typeof resolvePendingDraftBranch>[0], "defaults" | "isGitRepo"> & {
+    readonly defaults?: PendingDraftProjectDefaults;
+  },
+) => resolvePendingDraftBranch({ defaults: localDefault, isGitRepo: true, ...input });
+const branches = [
+  { name: "feature", current: true, isDefault: false },
+  { name: "origin/main", current: false, isDefault: true, isRemote: true },
+];
+
+function draftWith(workspaceSelection?: ComposerDraftWorkspaceSelection): ComposerDraft {
+  return {
+    text: "unsent",
+    attachments: [],
+    project: {
+      environmentId: EnvironmentId.make("env-1"),
+      projectId: ProjectId.make("project-1"),
+      createdAt: "2026-10-26T00:00:00.000Z",
+    },
+    ...(workspaceSelection ? { workspaceSelection } : {}),
+  };
+}
+
+describe("resolvePendingDraftBranch", () => {
+  it("shows the project's default for a draft that never picked a mode", () => {
+    const untouched = draftWith();
+    expect(pendingDraftBranchNeedsRefs(untouched, worktreeDefault)).toBe(true);
+    expect(resolve({ draft: untouched, defaults: worktreeDefault, branches, projectCwd })).toBe(
+      "origin/main",
+    );
+    // Until supaterm.json settles, the environment default may still be replaced.
+    expect(
+      resolve({
+        draft: untouched,
+        defaults: { ...worktreeDefault, defaultModeSettled: false },
+        branches,
+        projectCwd,
+      }),
+    ).toBeNull();
+    // A local default starts on the checkout without naming a branch, as on main.
+    expect(pendingDraftBranchNeedsRefs(untouched, localDefault)).toBe(false);
+    expect(resolve({ draft: untouched, branches, projectCwd })).toBeNull();
+  });
+
+  it("shows the default base for a worktree draft that never picked one", () => {
+    const worktree = draftWith({ mode: "worktree", branch: null, worktreePath: null });
+    expect(pendingDraftBranchNeedsRefs(worktree, localDefault)).toBe(true);
+    expect(resolve({ draft: worktree, branches, projectCwd })).toBe("origin/main");
+  });
+
+  it("shows the current branch for a local draft that follows the checkout", () => {
+    const local = draftWith({
+      mode: "local",
+      branch: null,
+      worktreePath: null,
+      followsCurrentCheckout: true,
+    });
+    expect(resolve({ draft: local, branches, projectCwd })).toBe("feature");
+    expect(resolve({ draft: local, branches: [], projectCwd })).toBeNull();
+  });
+
+  it("keeps a chosen branch without loading refs", () => {
+    const chosen = draftWith({ mode: "local", branch: "release", worktreePath: null });
+    expect(pendingDraftBranchNeedsRefs(chosen, localDefault)).toBe(false);
+    expect(resolve({ draft: chosen, branches, projectCwd })).toBe("release");
   });
 });

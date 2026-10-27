@@ -1120,10 +1120,14 @@ function makeDraftTask(id: string): PendingNewTask {
     projectId: ProjectId.make("project-1"),
     projectTitle: undefined,
     projectCwd: undefined,
-    branch: null,
     title: id,
     createdAt: NOW,
     draftKey: `new-task:${id}`,
+    draft: {
+      text: id,
+      attachments: [],
+      project: { environmentId, projectId: ProjectId.make("project-1"), createdAt: NOW },
+    },
   };
 }
 
@@ -1223,10 +1227,14 @@ describe("buildThreadListV2ListItems", () => {
           projectId: ProjectId.make("project-1"),
           projectTitle: undefined,
           projectCwd: undefined,
-          branch: null,
           title: "unsent",
           createdAt: NOW,
           draftKey: "new-task:unsent",
+          draft: {
+            text: "unsent",
+            attachments: [],
+            project: { environmentId, projectId: ProjectId.make("project-1"), createdAt: NOW },
+          },
         },
         makePendingTask("queued-1"),
         makePendingTask("queued-2"),
