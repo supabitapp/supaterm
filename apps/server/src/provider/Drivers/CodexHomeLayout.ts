@@ -66,6 +66,21 @@ export const resolveCodexHomeLayout = Effect.fn("resolveCodexHomeLayout")(functi
   };
 });
 
+/**
+ * The directory whose `auth.json` holds this instance's login: an auth
+ * overlay's shadow home, a configured home, the instance's `CODEX_HOME`, or
+ * the shared default.
+ */
+export const resolveCodexAuthHomePath = Effect.fn("resolveCodexAuthHomePath")(function* (
+  layout: CodexHomeLayout,
+  environment: NodeJS.ProcessEnv,
+): Effect.fn.Return<string, never, Path.Path> {
+  if (layout.effectiveHomePath !== undefined) return layout.effectiveHomePath;
+  const override = environment.CODEX_HOME?.trim();
+  if (!override) return layout.sharedHomePath;
+  return resolveHomePath(yield* Path.Path, yield* HostProcess.HomeDirectory, override);
+});
+
 const CodexShadowHomeContext = {
   sharedHomePath: Schema.String,
   effectiveHomePath: Schema.String,

@@ -1,4 +1,4 @@
-import { CodexSettings, ProviderDriverKind } from "@supaterm/contracts";
+import { CodexSettings, ProviderDriverKind, TranscriptionError } from "@supaterm/contracts";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -28,6 +28,7 @@ import {
 } from "../CodexProvider.ts";
 import { resolveCodexLaunchArgs } from "../codexLaunchArgs.ts";
 import { makeManagedServerProvider } from "@supaterm/provider-core/server/managedProvider";
+import type { ServerProviderDraft } from "@supaterm/provider-core/server/snapshotProbe";
 import * as ModelCatalog from "@supaterm/provider-core/server/ModelCatalog";
 import { applyCodexModelCatalog } from "../codexModelCatalog.ts";
 import type { ProviderDriver, ProviderInstance } from "@supaterm/provider-core/server/driver";
@@ -48,10 +49,12 @@ import {
 import {
   codexContinuationIdentity,
   materializeCodexShadowHome,
+  resolveCodexAuthHomePath,
   resolveCodexHomeLayout,
 } from "./CodexHomeLayout.ts";
 import { makeManagedCodexProvider } from "./CodexManagedProvider.ts";
 import { codexUsageReader } from "./codexUsage.ts";
+import { codexTranscriptionStatus, makeCodexTranscription } from "../CodexTranscription.ts";
 import * as CodexInstallation from "../CodexInstallation.ts";
 import * as ServerSecretStore from "../../auth/ServerSecretStore.ts";
 import * as ServerEnvironment from "../../environment/ServerEnvironment.ts";
@@ -202,10 +205,21 @@ export const CodexDriver: ProviderDriver<
 
     // Kick the TTL-gated manifest refresh in the background and classify with the in-memory
     // manifest, so a slow or hung fetch never delays the provider check.
+    const authHomePath = yield* resolveCodexAuthHomePath(homeLayout, processEnv);
+    const withTranscriptionStatus = (draft: ServerProviderDraft) =>
+      fileSystem.exists(pathService.join(authHomePath, "auth.json")).pipe(
+        Effect.orElseSucceed(() => false),
+        Effect.map((authFileExists) => {
+          const transcription = codexTranscriptionStatus(draft.auth, authFileExists);
+          return transcription ? { ...draft, transcription } : draft;
+        }),
+      );
     const checkProvider = modelCatalog.refreshInBackground.pipe(
       Effect.andThen(
         Effect.zipWith(
-          checkCodexProviderStatus(effectiveConfig, undefined, processEnv),
+          checkCodexProviderStatus(effectiveConfig, undefined, processEnv).pipe(
+            Effect.flatMap(withTranscriptionStatus),
+          ),
           currentCatalog,
           (draft, catalog) => stampIdentity(applyCodexModelCatalog(draft, catalog)),
           { concurrent: true },
@@ -346,6 +360,29 @@ export const CodexDriver: ProviderDriver<
           ),
         );
 
+    const transcription = yield* makeCodexTranscription({
+      authHomePath,
+      refreshLogin: Effect.gen(function* () {
+        const { client } = yield* withCodexAppServerClient({
+          binaryPath: effectiveConfig.binaryPath,
+          homePath: effectiveConfig.homePath,
+          launchArgs: resolveCodexLaunchArgs(effectiveConfig.launchArgs, processEnv),
+          cwd: process.cwd(),
+          environment: processEnv,
+        });
+        yield* client.request("account/read", { refreshToken: true });
+      }).pipe(
+        Effect.scoped,
+        Effect.timeout("20 seconds"),
+        Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+        Effect.mapError((cause) => new TranscriptionError({ reason: "signedOut", cause })),
+      ),
+    }).pipe(
+      Effect.provideService(HttpClient.HttpClient, httpClient),
+      Effect.provideService(FileSystem.FileSystem, fileSystem),
+      Effect.provideService(Path.Path, pathService),
+    );
+
     return {
       skillInstallDirectory: pathService.join(
         homeLayout.effectiveHomePath === undefined
@@ -365,6 +402,7 @@ export const CodexDriver: ProviderDriver<
       snapshot,
       snapshotForCwd,
       consumeResetCredit,
+      transcription,
       orchestrationAdapter,
       textGeneration,
     } satisfies ProviderInstance;
