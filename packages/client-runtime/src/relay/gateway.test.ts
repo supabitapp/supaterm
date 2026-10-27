@@ -1,7 +1,7 @@
 import { expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import { relayHttpBaseUrl, relayPublicKey } from "@supaterm/shared/relay/protocol";
-import { layer, RelayGateway } from "./gateway.ts";
+import { layer, RelayGateway, type RelayTransport } from "./gateway.ts";
 
 const address = relayHttpBaseUrl(relayPublicKey(new Uint8Array(32).fill(19)));
 it.effect("reuses one endpoint, refreshes preparation and closes on runtime disposal", () =>
@@ -291,6 +291,54 @@ it.effect("does not open an abandoned lease waiting behind an old endpoint closi
                 await finishClose.promise;
               },
             };
+          },
+        }),
+      ),
+      Effect.scoped,
+    );
+  }),
+);
+
+it.effect("publishes each endpoint's reported transport and clears it on release", () =>
+  Effect.gen(function* () {
+    const reports: Array<(via: RelayTransport | undefined) => void> = [];
+    let notified = 0;
+    yield* Effect.gen(function* () {
+      const gateway = yield* RelayGateway;
+      const unsubscribe = gateway.subscribe(() => {
+        notified++;
+      });
+      yield* Effect.promise(() => gateway.resolve(address));
+      expect(gateway.via(address)).toBeUndefined();
+      const report = reports[0]!;
+      report("direct");
+      report("direct");
+      expect(gateway.via(address + "/")).toBe("direct");
+      expect(notified).toBe(1);
+      report("relay");
+      expect(gateway.via(address)).toBe("relay");
+      expect(notified).toBe(2);
+
+      yield* Effect.promise(() => gateway.release(address));
+      expect(gateway.via(address)).toBeUndefined();
+      expect(notified).toBe(3);
+      report("direct");
+      expect(gateway.via(address)).toBeUndefined();
+
+      yield* Effect.promise(() => gateway.resolve(address));
+      reports[1]!("direct");
+      expect(notified).toBe(4);
+      unsubscribe();
+      reports[1]!("relay");
+      expect(gateway.via(address)).toBe("relay");
+      expect(notified).toBe(4);
+    }).pipe(
+      Effect.provide(
+        layer({
+          fetch,
+          open: async (_address, _relayUrl, _directUrls, report) => {
+            reports.push(report);
+            return { prepare: async () => "http://127.0.0.1:3000", close: async () => {} };
           },
         }),
       ),

@@ -5,7 +5,7 @@ import { after } from "./timer.ts";
 import { HttpHostGuard } from "./httpHostGuard.ts";
 import type { LoopbackRelay } from "./loopbackPool.ts";
 import type { TunnelStream } from "./tunnel.ts";
-import { createTunnelConnector, type TunnelClientOptions } from "./tunnel.ts";
+import { createTunnelConnector, type TunnelConnectorOptions } from "./tunnel.ts";
 
 export type TunnelPeer =
   | { readonly transport: "relay" }
@@ -182,14 +182,13 @@ async function listenLoopbackTunnel(open: () => Promise<TunnelStream>) {
 
 export async function openLoopbackRelay(
   address: string,
-  options: TunnelClientOptions,
+  options: TunnelConnectorOptions,
 ): Promise<LoopbackRelay> {
   const connector = createTunnelConnector(address, options);
   try {
     const listener = await listenLoopbackTunnel(() => connector.open());
     return {
       origin: listener.origin,
-      via: connector.via,
       close: async () => {
         connector.close();
         await listener.close();

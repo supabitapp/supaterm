@@ -593,21 +593,32 @@ function connectTunnel(
   });
 }
 
-export function createTunnelConnector(address: string, options: TunnelClientOptions) {
+export interface TunnelConnectorOptions extends TunnelClientOptions {
+  readonly onVia?: (via: TunnelVia | undefined) => void;
+}
+
+export function createTunnelConnector(address: string, options: TunnelConnectorOptions) {
+  const { onVia, ...client } = options;
   const controller = new AbortController();
   let current: Promise<EstablishedTunnel> | undefined;
   let live: EstablishedTunnel | undefined;
   let disposed = false;
+  const settle = (next: EstablishedTunnel | undefined) => {
+    if (live === next) return;
+    live = next;
+    onVia?.(next?.via);
+  };
   const establish = () => {
     if (disposed) return Promise.reject(new Error("Tunnel connector closed"));
     if (!current) {
-      const attempt = connectTunnel(address, { ...options, signal: controller.signal }, () => {
+      const attempt = connectTunnel(address, { ...client, signal: controller.signal }, () => {
         if (current === attempt) current = undefined;
+        if (live?.session.closed) settle(undefined);
       });
       current = attempt;
       attempt.then(
         (established) => {
-          if (current === attempt) live = established;
+          if (current === attempt && !established.session.closed) settle(established);
         },
         () => {
           if (current === attempt) current = undefined;
@@ -623,15 +634,12 @@ export function createTunnelConnector(address: string, options: TunnelClientOpti
     async open(): Promise<TunnelStream> {
       return (await establish()).session.open();
     },
-    via(): TunnelVia | undefined {
-      return live?.session.closed === false ? live.via : undefined;
-    },
     close() {
       disposed = true;
       controller.abort();
       const attempt = current;
       current = undefined;
-      live = undefined;
+      settle(undefined);
       void attempt?.then(({ session }) => session.close()).catch(() => {});
     },
   };

@@ -16,9 +16,9 @@ import {
   measureConnectionRouteLatency,
   type ConnectionRouteLatency,
 } from "../connection/routeLatency.ts";
-import { connectionRouteId } from "../connection/routes.ts";
+import { connectionRouteId, relayRouteIdentity } from "../connection/routes.ts";
 import type { PreparedConnection } from "../connection/model.ts";
-import { RelayGateway } from "../relay/gateway.ts";
+import { RelayGateway, type RelayTransport } from "../relay/gateway.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import { safeErrorLogAttributes } from "../errors/safeLog.ts";
 import { executeAuthenticatedEnvironmentHttpRequest } from "./environmentHttpAuth.ts";
@@ -234,12 +234,24 @@ function makeEnvironmentSessionAtoms<R, E>(
     return { resultAtom, labelAtom };
   });
 
-  const relayGatewayResultAtom = runtime.atom(Effect.serviceOption(RelayGateway));
-  // The gateway, not what its tunnels report: a tunnel can move between relay
-  // and direct without notifying anyone, so rows ask it each time they render.
-  const relayGatewayAtom = Atom.make((get) =>
-    Option.getOrUndefined(Option.flatten(AsyncResult.value(get(relayGatewayResultAtom)))),
-  ).pipe(Atom.withLabel("relay-gateway"));
+  const relayGatewayAtom = runtime.atom(Effect.serviceOption(RelayGateway));
+  const relayTransportAtom = Atom.family((identity: string) =>
+    Atom.make((get): RelayTransport | undefined => {
+      const gateway = Option.getOrUndefined(
+        Option.flatten(AsyncResult.value(get(relayGatewayAtom))),
+      );
+      if (gateway === undefined) return undefined;
+      get.addFinalizer(gateway.subscribe(() => get.setSelf(gateway.via(identity))));
+      return gateway.via(identity);
+    }).pipe(Atom.withLabel(`relay-transport:${identity}`)),
+  );
+  const noRelayTransportAtom = Atom.make<RelayTransport | undefined>(undefined).pipe(
+    Atom.withLabel("relay-transport:none"),
+  );
+  const relayRouteTransportAtom = (route: ConnectionRoute) => {
+    const identity = relayRouteIdentity(route);
+    return identity === null ? noRelayTransportAtom : relayTransportAtom(identity);
+  };
 
   return {
     initialConfigAtom,
@@ -249,7 +261,7 @@ function makeEnvironmentSessionAtoms<R, E>(
     sessionStateAtom,
     sessionStateValueAtom,
     routeLatencyAtoms,
-    relayGatewayAtom,
+    relayRouteTransportAtom,
   };
 }
 

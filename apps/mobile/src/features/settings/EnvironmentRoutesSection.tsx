@@ -10,7 +10,6 @@ import {
   connectionRouteLabel,
   connectionRoutes,
   isLearned,
-  relayRouteTransport,
   unusedRouteReason,
 } from "@supaterm/client-runtime/connection";
 import { type EnvironmentId, sessionGrantsScope } from "@supaterm/contracts";
@@ -268,7 +267,7 @@ function RouteRow(props: {
   const label = connectionRouteLabel(route);
   const address = connectionRouteAddress(route);
   const latency = useAtomValue(environmentSession.routeLatencyAtoms(route).labelAtom);
-  const transport = relayRouteTransport(route, useAtomValue(environmentSession.relayGatewayAtom));
+  const transport = useAtomValue(environmentSession.relayRouteTransportAtom(route));
   const transportLabel = transport === undefined ? null : TRANSPORT_LABELS[transport];
   const style = useAnimatedStyle(() => ({
     transform: [

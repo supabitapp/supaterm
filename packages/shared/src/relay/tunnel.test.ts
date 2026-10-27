@@ -16,6 +16,7 @@ import {
   TUNNEL_MAX_PLAIN_BYTES,
   TUNNEL_STREAM_WINDOW,
   type TunnelStream,
+  type TunnelVia,
 } from "./tunnel.ts";
 
 function pair(onStream: (stream: TunnelStream) => void = () => {}, failSend = false) {
@@ -387,8 +388,10 @@ class FakeSocket implements WebSocketLike {
 function tunnelHost(directUrls?: () => ReadonlyArray<string>, handshakeTimeoutMs?: number) {
   const secret = NodeCrypto.randomBytes(32);
   const sockets: FakeSocket[] = [];
+  const reports: Array<TunnelVia | undefined> = [];
   const connector = createTunnelConnector(relayHttpBaseUrl(relayPublicKey(secret)), {
     relayUrl: RELAY,
+    onVia: (via) => reports.push(via),
     randomBytes: NodeCrypto.randomBytes,
     createSocket: (url) => {
       const socket = new FakeSocket(url);
@@ -401,6 +404,7 @@ function tunnelHost(directUrls?: () => ReadonlyArray<string>, handshakeTimeoutMs
   return {
     connector,
     sockets,
+    reports,
     endpointId: relayEndpointId(relayPublicKey(secret)),
     dialed: (base: string) =>
       sockets.findLast((socket) => socket.url.startsWith(`${base}/v1/connect?`))!,
@@ -434,7 +438,7 @@ describe("relay and direct candidate race", () => {
     host.hello(lan);
     const cipher = host.welcome(lan);
     const session = await connecting;
-    expect(host.connector.via()).toBe("direct");
+    expect(host.reports).toEqual(["direct"]);
     expect(relay.closed).toBe(true);
     expect(tailnet.closed).toBe(true);
     expect(lan.closed).toBe(false);
@@ -444,6 +448,7 @@ describe("relay and direct candidate race", () => {
     expect(lan.records).toHaveLength(1);
     expect(cipher.open(lan.records[0]!, TUNNEL_MAX_PLAIN_BYTES)[0]).toBe(1);
     host.connector.close();
+    expect(host.reports).toEqual(["direct", undefined]);
   });
 
   it("keeps the relay when it verifies before a direct candidate", async () => {
@@ -454,7 +459,7 @@ describe("relay and direct candidate race", () => {
     host.hello(lan);
     host.welcome(relay);
     await connecting;
-    expect(host.connector.via()).toBe("relay");
+    expect(host.reports).toEqual(["relay"]);
     expect(lan.closed).toBe(true);
     host.connector.close();
   });
@@ -473,7 +478,7 @@ describe("relay and direct candidate race", () => {
     expect(relay.closed).toBe(true);
     expect(relay.records).toHaveLength(0);
     expect(lan.records).toHaveLength(1);
-    expect(host.connector.via()).toBe("direct");
+    expect(host.reports).toEqual(["direct"]);
     host.connector.close();
   });
 
@@ -485,9 +490,9 @@ describe("relay and direct candidate race", () => {
     host.hello(host.dialed(LAN));
     host.welcome(host.dialed(LAN));
     await connecting;
-    expect(host.connector.via()).toBe("direct");
+    expect(host.reports).toEqual(["direct"]);
     host.dialed(LAN).emit("close", { code: 1006, reason: "" });
-    expect(host.connector.via()).toBeUndefined();
+    expect(host.reports).toEqual(["direct", undefined]);
 
     const failing = host.connector.session();
     host.notFound(host.dialed(LAN));
@@ -495,6 +500,7 @@ describe("relay and direct candidate race", () => {
     host.notFound(host.dialed(TAILNET));
     await expect(failing).rejects.toThrow("host-offline");
     host.connector.close();
+    expect(host.reports).toEqual(["direct", undefined]);
   });
 
   it("gives up on a silent direct candidate before the relay's handshake deadline", async () => {
@@ -532,8 +538,8 @@ describe("relay and direct candidate race", () => {
       await vi.advanceTimersByTimeAsync(TUNNEL_KEEPALIVE_MS);
       expect(relay.closed).toBe(true);
       expect(relay.records).toHaveLength(0);
-      expect(host.connector.via()).toBeUndefined();
       host.connector.close();
+      expect(host.reports).toEqual([]);
     } finally {
       vi.useRealTimers();
     }
@@ -559,7 +565,7 @@ describe("relay and direct candidate race", () => {
     direct = [LAN];
     await host.connector.open();
     expect(host.sockets).toHaveLength(9);
-    expect(host.connector.via()).toBe("relay");
+    expect(host.reports).toEqual(["relay"]);
 
     host.dialed(RELAY).emit("close", { code: 1001, reason: "" });
     const reconnecting = host.connector.session();
@@ -570,7 +576,8 @@ describe("relay and direct candidate race", () => {
     host.hello(host.dialed(LAN));
     host.welcome(host.dialed(LAN));
     await reconnecting;
-    expect(host.connector.via()).toBe("direct");
+    expect(host.reports).toEqual(["relay", undefined, "direct"]);
     host.connector.close();
+    expect(host.reports).toEqual(["relay", undefined, "direct", undefined]);
   });
 });

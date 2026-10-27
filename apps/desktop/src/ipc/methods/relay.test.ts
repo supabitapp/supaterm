@@ -2,7 +2,7 @@ import { expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { DesktopRelayGateway } from "../../relay/DesktopRelayGateway.ts";
-import { getRelayVia, startRelay } from "./relay.ts";
+import { startRelay } from "./relay.ts";
 
 const address = `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`;
 const relayUrl = "wss://relay.example";
@@ -16,7 +16,6 @@ it.effect("starts a relay only with at most eight well-formed direct candidates"
         started.push(directUrls);
         return "http://127.0.0.1:4321";
       }),
-    via: () => Effect.succeed("direct" as const),
   });
   return Effect.gen(function* () {
     expect(yield* startRelay.handler({ address, relayUrl, directUrls: direct })).toBe(
@@ -37,6 +36,5 @@ it.effect("starts a relay only with at most eight well-formed direct candidates"
       expect(result._tag).toBe("Failure");
     }
     expect(started).toEqual([direct, undefined]);
-    expect(yield* getRelayVia.handler(address)).toBe("direct");
   }).pipe(Effect.provide(gateway));
 });

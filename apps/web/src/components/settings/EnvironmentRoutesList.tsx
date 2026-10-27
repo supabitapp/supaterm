@@ -25,7 +25,6 @@ import {
   connectionRouteLabel,
   connectionRoutes,
   isLearned,
-  relayRouteTransport,
   unusedRouteReason,
 } from "@supaterm/client-runtime/connection";
 import { GripVerticalIcon, LockIcon, PlusIcon, RefreshCwIcon, XIcon } from "@supaterm/icons";
@@ -179,7 +178,7 @@ function SortableRouteRow({
   const label = connectionRouteLabel(route);
   const address = connectionRouteAddress(route);
   const latency = useAtomValue(environmentSession.routeLatencyAtoms(route).labelAtom);
-  const transport = relayRouteTransport(route, useAtomValue(environmentSession.relayGatewayAtom));
+  const transport = useAtomValue(environmentSession.relayRouteTransportAtom(route));
   const note = unusedReason ?? (isLearned(route) ? "Discovered" : null);
   const {
     attributes,

@@ -11,7 +11,6 @@ export type RelayTransport = "relay" | "direct";
 export interface RelayClientEndpoint {
   readonly prepare: () => Promise<string>;
   readonly close: () => Promise<void>;
-  readonly via?: () => RelayTransport | undefined;
 }
 
 export interface RelayOriginLease extends RelayClientEndpoint {
@@ -34,6 +33,7 @@ export class RelayGateway extends Context.Service<
     ) => Promise<string>;
     readonly release: (address: string) => Promise<void>;
     readonly via: (address: string) => RelayTransport | undefined;
+    readonly subscribe: (listener: () => void) => () => void;
     readonly fetch: typeof globalThis.fetch;
   }
 >()("@supaterm/client-runtime/relay/gateway/RelayGateway") {}
@@ -41,7 +41,6 @@ export class RelayGateway extends Context.Service<
 interface OwnedEndpoint {
   readonly relayUrl: string;
   readonly endpoint: Promise<RelayClientEndpoint>;
-  opened?: RelayClientEndpoint;
   retained: boolean;
   leases: number;
 }
@@ -52,6 +51,7 @@ export function layer(input: {
     address: string,
     relayUrl: string,
     directUrls: () => ReadonlyArray<string>,
+    report: (via: RelayTransport | undefined) => void,
   ) => Promise<RelayClientEndpoint>;
   readonly fetch: typeof globalThis.fetch;
 }) {
@@ -70,14 +70,27 @@ export function layer(input: {
         if (direct !== undefined) directUrls.set(identity, direct);
       };
       const closing = new Map<string, Promise<void>>();
+      const transports = new Map<string, RelayTransport>();
+      const listeners = new Set<() => void>();
       let disposed = false;
       const key = canonicalRelayAddress;
+      const setTransport = (identity: string, via: RelayTransport | undefined) => {
+        if (transports.get(identity) === via) return;
+        if (via === undefined) transports.delete(identity);
+        else transports.set(identity, via);
+        for (const listener of listeners) listener();
+      };
+      const forget = (identity: string, owned: OwnedEndpoint) => {
+        if (endpoints.get(identity) !== owned) return;
+        endpoints.delete(identity);
+        setTransport(identity, undefined);
+      };
       const release = async (address: string) => {
         const identity = key(address);
         if (!identity) return;
         const owned = endpoints.get(identity);
         if (!owned) return closing.get(identity);
-        endpoints.delete(identity);
+        forget(identity, owned);
         const stopped = owned.endpoint
           .then(
             (value) => value.close(),
@@ -99,21 +112,21 @@ export function layer(input: {
           relayUrl,
           retained: false,
           leases: 0,
-          endpoint: Promise.resolve(closing.get(identity))
-            .then(() => {
-              if (disposed || endpoints.get(identity) !== created)
-                throw new Error("Relay gateway closed");
-              return input.open(identity, relayUrl, () => directUrls.get(identity) ?? []);
-            })
-            .then((opened) => {
-              created.opened = opened;
-              return opened;
-            }),
+          endpoint: Promise.resolve(closing.get(identity)).then(() => {
+            if (disposed || endpoints.get(identity) !== created)
+              throw new Error("Relay gateway closed");
+            return input.open(
+              identity,
+              relayUrl,
+              () => directUrls.get(identity) ?? [],
+              (via) => {
+                if (endpoints.get(identity) === created) setTransport(identity, via);
+              },
+            );
+          }),
         };
         endpoints.set(identity, created);
-        void created.endpoint.catch(() => {
-          if (endpoints.get(identity) === created) endpoints.delete(identity);
-        });
+        void created.endpoint.catch(() => forget(identity, created));
         return created;
       };
       const prepare = async (identity: string) => {
@@ -156,6 +169,10 @@ export function layer(input: {
           disposed = true;
           const owned = [...endpoints.values()];
           endpoints.clear();
+          if (transports.size > 0) {
+            transports.clear();
+            for (const listener of listeners) listener();
+          }
           await Promise.allSettled([
             ...closing.values(),
             ...owned.map(async (value) => (await value.endpoint).close()),
@@ -174,7 +191,13 @@ export function layer(input: {
         release,
         via: (address) => {
           const identity = key(address);
-          return identity ? endpoints.get(identity)?.opened?.via?.() : undefined;
+          return identity ? transports.get(identity) : undefined;
+        },
+        subscribe: (listener) => {
+          listeners.add(listener);
+          return () => {
+            listeners.delete(listener);
+          };
         },
         fetch: async (request, init) => {
           const address = request instanceof Request ? request.url : String(request);

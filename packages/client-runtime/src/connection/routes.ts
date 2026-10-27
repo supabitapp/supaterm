@@ -23,7 +23,6 @@ import {
   type ConnectionRoute,
 } from "./catalog.ts";
 import { BearerConnectionTarget, type ConnectionTarget } from "./model.ts";
-import type { RelayGateway, RelayTransport } from "../relay/gateway.ts";
 
 export type ConnectionRouteKind =
   | "loopback"
@@ -573,15 +572,10 @@ export function usableRoutes(entry: ConnectionCatalogEntry): ReadonlyArray<Conne
   return routes.filter((route) => !sendsTokenInClear(routes, route));
 }
 
-/** Whether an open relay route's tunnel reaches the host directly or through the relay. */
-export function relayRouteTransport(
-  route: ConnectionRoute,
-  gateway: Pick<RelayGateway["Service"], "via"> | undefined,
-): RelayTransport | undefined {
+/** The relay host a relay route's tunnel reaches, or null for any other route. */
+export function relayRouteIdentity(route: ConnectionRoute): string | null {
   const address = routeHttpBaseUrl(route);
-  return gateway === undefined || address === null || connectionRouteKind(route) !== "relay"
-    ? undefined
-    : gateway.via(address);
+  return address === null || connectionRouteKind(route) !== "relay" ? null : relayIdentity(address);
 }
 
 /** Why a connect skips a saved route, or null when it may use it. */

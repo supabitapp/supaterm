@@ -395,6 +395,7 @@ describe("connection onboarding", () => {
           Effect.provideService(RelayGateway, {
             available: true,
             via: () => undefined,
+            subscribe: () => () => {},
             resolve: async (address) => address,
             lease: (address) => ({
               prepare: async () => {
@@ -492,6 +493,7 @@ describe("connection onboarding", () => {
         Effect.provideService(RelayGateway, {
           available: true,
           via: () => undefined,
+          subscribe: () => () => {},
           resolve: async (address) => address,
           lease: () => ({
             prepare: () => {

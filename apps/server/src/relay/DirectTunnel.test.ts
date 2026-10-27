@@ -4,7 +4,11 @@ import * as NodeHttp from "node:http";
 import * as NodeNet from "node:net";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { createTunnelConnector, TUNNEL_MAX_PLAIN_BYTES } from "@supaterm/shared/relay/tunnel";
+import {
+  createTunnelConnector,
+  TUNNEL_MAX_PLAIN_BYTES,
+  type TunnelVia,
+} from "@supaterm/shared/relay/tunnel";
 import { openLoopbackRelay, TunnelSocket } from "@supaterm/shared/relay/tunnelNode";
 import { expect, it } from "@effect/vitest";
 import * as Context from "effect/Context";
@@ -336,6 +340,7 @@ it.layer(NodeServices.layer)("DirectTunnel", (it) => {
       const host = yield* startHost(roomy);
       const identity = yield* host.identity.get;
       const deadRelay = yield* closedPortUrl;
+      const reports: Array<TunnelVia | undefined> = [];
       const relay = yield* Effect.acquireRelease(
         Effect.promise(() =>
           openLoopbackRelay(identity.address, {
@@ -343,6 +348,7 @@ it.layer(NodeServices.layer)("DirectTunnel", (it) => {
             directUrls: () => [host.url],
             randomBytes: NodeCrypto.randomBytes,
             createSocket: (url) => new WebSocket(url),
+            onVia: (via) => reports.push(via),
           }),
         ),
         (opened) => Effect.promise(opened.close),
@@ -356,7 +362,7 @@ it.layer(NodeServices.layer)("DirectTunnel", (it) => {
         connectionMethod: "direct-tunnel",
         remoteAddress: "127.0.0.1",
       });
-      expect(relay.via?.()).toBe("direct");
+      expect(reports).toEqual(["direct"]);
     }).pipe(Effect.scoped),
   );
 

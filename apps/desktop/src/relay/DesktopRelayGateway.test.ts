@@ -5,6 +5,7 @@ import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Scope from "effect/Scope";
+import type { DesktopRelayViaChange } from "@supaterm/contracts";
 import { beforeEach, vi } from "vite-plus/test";
 import * as DesktopRelayGateway from "./DesktopRelayGateway.ts";
 
@@ -152,24 +153,43 @@ it.effect("a repeated start updates direct candidates without reopening the tunn
   Effect.gen(function* () {
     const LAN = "ws://192.168.1.20:3773";
     const TAILNET = "ws://100.64.0.7:3773";
-    let via: "relay" | "direct" | undefined;
     const close = vi.fn(async () => {});
-    openLoopbackRelay.mockResolvedValueOnce({
-      origin: "http://127.0.0.1:4321",
-      close,
-      via: () => via,
-    });
+    openLoopbackRelay.mockResolvedValueOnce({ origin: "http://127.0.0.1:4321", close });
     const gateway = yield* DesktopRelayGateway.DesktopRelayGateway;
     expect(yield* gateway.start(address, RELAY_URL, [LAN])).toBe("http://127.0.0.1:4321");
-    expect(yield* gateway.via(address)).toBeNull();
     expect(yield* gateway.start(address, RELAY_URL, [TAILNET])).toBe("http://127.0.0.1:4321");
-    via = "direct";
-    expect(yield* gateway.via(address)).toBe("direct");
     expect(openLoopbackRelay).toHaveBeenCalledTimes(1);
     expect(openLoopbackRelay.mock.calls[0]![1].directUrls?.()).toEqual([TAILNET]);
     expect(close).not.toHaveBeenCalled();
     yield* gateway.stop(address);
     expect(close).toHaveBeenCalledTimes(1);
-    expect(yield* gateway.via(address)).toBeNull();
+  }).pipe(Effect.provide(DesktopRelayGateway.layer), Effect.scoped),
+);
+
+it.effect("pushes the tunnel's transport as it changes and on each start, until it stops", () =>
+  Effect.gen(function* () {
+    const identity = address.slice(0, -1);
+    openLoopbackRelay.mockResolvedValueOnce({
+      origin: "http://127.0.0.1:4321",
+      close: async () => {},
+    });
+    const gateway = yield* DesktopRelayGateway.DesktopRelayGateway;
+    const changes: Array<DesktopRelayViaChange> = [];
+    yield* gateway.subscribe((change) => Effect.sync(() => changes.push(change)));
+    yield* gateway.start(address, RELAY_URL);
+    const report = openLoopbackRelay.mock.calls[0]![1].onVia!;
+    report("direct");
+    report("direct");
+    report("relay");
+    yield* gateway.start(address, RELAY_URL);
+    yield* gateway.stop(address);
+    report("direct");
+    expect(changes).toEqual([
+      { address: identity, via: null },
+      { address: identity, via: "direct" },
+      { address: identity, via: "relay" },
+      { address: identity, via: "relay" },
+      { address: identity, via: null },
+    ]);
   }).pipe(Effect.provide(DesktopRelayGateway.layer), Effect.scoped),
 );

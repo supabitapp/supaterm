@@ -2,6 +2,7 @@ import { createRelayCompanionControl, isRelayCompanion } from "./relayCompanion"
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as RelayGateway from "@supaterm/client-runtime/relay";
+import { canonicalRelayAddress } from "@supaterm/shared/relay/protocol";
 import { directTunnelUrls } from "@supaterm/shared/relay/tunnel";
 
 export const layer = Layer.unwrap(
@@ -12,15 +13,17 @@ export const layer = Layer.unwrap(
     return RelayGateway.layer({
       available: Boolean(desktop?.startRelay && desktop.stopRelay) || isRelayCompanion(),
       fetch: (input, init) => globalThis.fetch(input, init),
-      open: async (address, relayUrl, directUrls) => {
+      open: async (address, relayUrl, directUrls, report) => {
         if (desktop?.startRelay && desktop.stopRelay) {
-          const { startRelay, stopRelay, getRelayVia } = desktop;
+          const { startRelay, stopRelay } = desktop;
+          const identity = canonicalRelayAddress(address);
+          const unsubscribe = desktop.onRelayViaChanged?.((change) => {
+            if (canonicalRelayAddress(change.address) === identity) report(change.via ?? undefined);
+          });
           let closed = false;
           let started:
             | { readonly candidates: string; readonly origin: Promise<string> }
             | undefined;
-          let via: RelayGateway.RelayTransport | undefined;
-          let refreshing = false;
           return {
             // Every remote HTTP request prepares its origin, so the desktop
             // tunnel is only restarted when its direct candidates change.
@@ -40,23 +43,8 @@ export const layer = Layer.unwrap(
             close: () => {
               closed = true;
               started = undefined;
+              unsubscribe?.();
               return stopRelay(address);
-            },
-            via: () => {
-              if (getRelayVia && !closed && !refreshing) {
-                refreshing = true;
-                void getRelayVia(address)
-                  .then(
-                    (current) => {
-                      via = current ?? undefined;
-                    },
-                    () => {},
-                  )
-                  .finally(() => {
-                    refreshing = false;
-                  });
-              }
-              return via;
             },
           };
         }

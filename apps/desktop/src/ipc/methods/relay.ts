@@ -1,6 +1,7 @@
 import { DirectTunnelUrls, RelayServerUrl } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
+import * as ElectronWindow from "../../electron/ElectronWindow.ts";
 import { DesktopRelayGateway } from "../../relay/DesktopRelayGateway.ts";
 import * as DesktopIpc from "../DesktopIpc.ts";
 import * as Channels from "../channels.ts";
@@ -17,14 +18,6 @@ export const startRelay = DesktopIpc.makeIpcMethod({
     return yield* (yield* DesktopRelayGateway).start(address, relayUrl, directUrls);
   }),
 });
-export const getRelayVia = DesktopIpc.makeIpcMethod({
-  channel: Channels.GET_RELAY_VIA_CHANNEL,
-  payload: Schema.String,
-  result: Schema.NullOr(Schema.Literals(["relay", "direct"])),
-  handler: Effect.fn("desktop.ipc.relay.via")(function* (address) {
-    return yield* (yield* DesktopRelayGateway).via(address);
-  }),
-});
 export const stopRelay = DesktopIpc.makeIpcMethod({
   channel: Channels.STOP_RELAY_CHANNEL,
   payload: Schema.String,
@@ -33,3 +26,12 @@ export const stopRelay = DesktopIpc.makeIpcMethod({
     yield* (yield* DesktopRelayGateway).stop(address);
   }),
 });
+
+export const installRelayViaForwarding = Effect.fn("desktop.ipc.relay.installViaForwarding")(
+  function* () {
+    const electronWindow = yield* ElectronWindow.ElectronWindow;
+    yield* (yield* DesktopRelayGateway).subscribe((change) =>
+      electronWindow.sendAll(Channels.RELAY_VIA_CHANGED_CHANNEL, change),
+    );
+  },
+);

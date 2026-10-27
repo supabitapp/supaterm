@@ -1253,6 +1253,7 @@ describe("EnvironmentRegistry", () => {
             RelayGateway.of({
               available: true,
               via: () => undefined,
+              subscribe: () => () => {},
               lease: () => {
                 throw new Error("Unexpected pairing lease");
               },
@@ -2206,6 +2207,7 @@ it.effect(
         Effect.provideService(RelayGateway, {
           available: true,
           via: () => undefined,
+          subscribe: () => () => {},
           lease: () => {
             throw new Error("Unexpected pairing lease");
           },
@@ -2266,6 +2268,7 @@ it.effect("keeps the relay route's direct tunnel candidates in step with the liv
       Effect.provideService(RelayGateway, {
         available: true,
         via: () => undefined,
+        subscribe: () => () => {},
         lease: () => {
           throw new Error("Unexpected pairing lease");
         },

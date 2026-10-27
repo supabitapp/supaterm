@@ -4,7 +4,6 @@ import type { TunnelVia } from "./tunnel.ts";
 export interface LoopbackRelay {
   readonly origin: string;
   readonly close: () => Promise<void>;
-  readonly via?: () => TunnelVia | undefined;
 }
 
 interface Lease {
@@ -17,7 +16,7 @@ interface Endpoint {
   readonly resource: Promise<LoopbackRelay>;
   readonly owners: Map<string, Lease>;
   directUrls: ReadonlyArray<string>;
-  opened?: LoopbackRelay;
+  via: TunnelVia | undefined;
   closing?: Promise<void>;
 }
 
@@ -26,16 +25,32 @@ export function createLoopbackRelayPool(input: {
     address: string,
     relayUrl: string,
     directUrls: () => ReadonlyArray<string>,
+    report: (via: TunnelVia | undefined) => void,
   ) => Promise<LoopbackRelay>;
   readonly limit: number;
+  readonly onVia?: (address: string, via: TunnelVia | undefined) => void;
 }) {
   const endpoints = new Map<string, Endpoint>();
   const closing = new Set<Promise<void>>();
+  const published = new Map<string, TunnelVia>();
   let disposed = false;
   const canonical = (address: string) => {
     const identity = canonicalRelayAddress(address);
     if (!identity) throw new Error("Not a relay address");
     return identity;
+  };
+  const via = (identity: string) => {
+    for (const endpoint of endpoints.values()) {
+      if (endpoint.address === identity && !endpoint.closing && endpoint.via) return endpoint.via;
+    }
+    return undefined;
+  };
+  const publish = (identity: string) => {
+    const current = via(identity);
+    if (published.get(identity) === current) return;
+    if (current === undefined) published.delete(identity);
+    else published.set(identity, current);
+    input.onVia?.(identity, current);
   };
   const closeResource = (key: string, endpoint: Endpoint) => {
     if (!endpoint.closing) {
@@ -50,6 +65,7 @@ export function createLoopbackRelayPool(input: {
         });
       endpoint.closing = closed;
       closing.add(closed);
+      publish(endpoint.address);
     }
     return endpoint.closing;
   };
@@ -84,20 +100,27 @@ export function createLoopbackRelayPool(input: {
           .then(() => {
             if (disposed || created.closing || endpoints.get(key) !== created)
               throw new Error("Relay endpoint was closed before preparation");
-            return input.open(identity, relayUrl, () => created.directUrls);
+            return input.open(
+              identity,
+              relayUrl,
+              () => created.directUrls,
+              (next) => {
+                if (created.closing || endpoints.get(key) !== created) return;
+                created.via = next;
+                publish(identity);
+              },
+            );
           })
-          .then(
-            (opened) => {
-              created.opened = opened;
-              return opened;
-            },
-            (error) => {
-              if (endpoints.get(key) === created) endpoints.delete(key);
-              throw error;
-            },
-          ),
+          .catch((error) => {
+            if (endpoints.get(key) === created) {
+              endpoints.delete(key);
+              publish(identity);
+            }
+            throw error;
+          }),
         owners: new Map(),
         directUrls: [],
+        via: undefined,
       };
       endpoints.set(key, created);
       endpoint = created;
@@ -137,18 +160,9 @@ export function createLoopbackRelayPool(input: {
       finish();
     }
   };
-  const via = (address: string) => {
-    const identity = canonical(address);
-    for (const endpoint of endpoints.values()) {
-      if (endpoint.address !== identity || endpoint.closing) continue;
-      const current = endpoint.opened?.via?.();
-      if (current) return current;
-    }
-    return undefined;
-  };
   return {
     acquire,
-    via,
+    via: (address: string) => via(canonical(address)),
     release: (address: string, owner: string) => releaseOwned(owner, canonical(address)),
     releaseOwner: (owner: string) => releaseOwned(owner),
     dispose: async () => {
