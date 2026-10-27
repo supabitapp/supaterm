@@ -392,17 +392,22 @@ export function markdownWithTableBreaks(markdown: string): string {
   return transformNativeMarkdown(markdown, undefined, true);
 }
 
+// HTML wrappers can expose Markdown that wasn't in the first AST, so normalize them first.
+export function markdownForNativeParsing(markdown: string): string {
+  return markdownWithAuthoredWindowsPaths(markdownWithHtml(markdown));
+}
+
 export function parseMarkdownDocument(markdown: string): Root {
-  return parser.parse(markdownWithHtml(markdown));
+  return parser.parse(markdownForNativeParsing(markdown));
+}
+
+/** For Markdown already normalized by `markdownForNativeParsing`, whose offsets must match. */
+export function parseNormalizedMarkdown(markdown: string): Root {
+  return parser.parse(markdown);
 }
 
 export function markdownForNativeRendering(markdown: string, fileLink: RegExp): string {
-  // HTML wrappers can expose Markdown that wasn't in the first AST, so normalize them first.
-  return transformNativeMarkdown(
-    markdownWithAuthoredWindowsPaths(markdownWithHtml(markdown)),
-    fileLink,
-    true,
-  );
+  return transformNativeMarkdown(markdownForNativeParsing(markdown), fileLink, true);
 }
 
 /** Native media slots only cover standalone images; nested file embeds must become links. */

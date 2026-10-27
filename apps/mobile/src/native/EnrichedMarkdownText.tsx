@@ -7,9 +7,8 @@ import {
 } from "@supaterm/shared/composerContextReferences";
 import {
   markdownForNativeRendering,
-  markdownWithAuthoredWindowsPaths,
   markdownWithFileEmbeds,
-  markdownWithHtml,
+  markdownForNativeParsing,
   markdownWithInlineFileLinks,
   markdownWithTableBreaks,
 } from "../lib/markdownDocument";
@@ -176,7 +175,7 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
       };
     }
     const content = markdownWithInlineFileLinks(
-      markdownWithAuthoredWindowsPaths(markdownWithHtml(props.markdown)),
+      markdownForNativeParsing(props.markdown),
       ENRICHED_INLINE_FILE_LINK_REGEX,
     );
     const files = markdownWithFileEmbeds(content, fileEmbedLabel);

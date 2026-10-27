@@ -1,4 +1,4 @@
-import { parseMarkdownDocument, type MarkdownNode } from "./markdownDocument";
+import { parseNormalizedMarkdown, type MarkdownNode } from "./markdownDocument";
 
 export function markdownMermaidMedia(markdown: string) {
   const sources = new Map<string, string>();
@@ -21,7 +21,7 @@ export function markdownMermaidMedia(markdown: string) {
       edits.push({ start, end, href });
     } else if ("children" in node) node.children.forEach(visit);
   };
-  visit(parseMarkdownDocument(markdown));
+  visit(parseNormalizedMarkdown(markdown));
   for (let index = edits.length - 1; index >= 0; index--) {
     const edit = edits[index]!;
     markdown =
