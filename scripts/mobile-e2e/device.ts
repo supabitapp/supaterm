@@ -35,12 +35,6 @@ export async function stopDeviceDaemon(root: string) {
   ]);
 }
 
-interface Runtime {
-  readonly identifier: string;
-  readonly version: string;
-  readonly isAvailable: boolean;
-}
-
 async function emulatorPort() {
   for (let port = 5554; port <= 5680; port += 2) {
     const sockets: NodeNet.Server[] = [];
@@ -109,28 +103,25 @@ export class Device {
 
   private async bootIos(deviceType: string) {
     if (NodeProcess.platform !== "darwin") throw new Error("iOS checks require a macOS runner.");
-    const { stdout } = await run("xcrun", ["simctl", "list", "runtimes", "--json"]);
-    const { runtimes } = JSON.parse(stdout) as { runtimes: Runtime[] };
     const selected = NodeProcess.env.SUPATERM_E2E_IOS_RUNTIME;
-    const runtime = runtimes
-      .filter(
-        (candidate) =>
-          candidate.isAvailable &&
-          candidate.identifier.includes(".iOS-") &&
-          (!selected || candidate.identifier === selected),
-      )
-      .sort((a, b) => b.version.localeCompare(a.version, "en", { numeric: true }))[0];
-    if (!runtime) throw new Error("No matching iOS simulator runtime is installed.");
     const created = await run("xcrun", [
       "simctl",
       "create",
       this.session,
       `com.apple.CoreSimulator.SimDeviceType.${deviceType}`,
-      runtime.identifier,
+      ...(selected ? [selected] : []),
     ]);
     this.id = created.stdout.trim();
     if (!/^[A-F0-9-]{36}$/i.test(this.id))
       throw new Error("simctl did not return a simulator UDID.");
+    const { stdout } = await run("xcrun", ["simctl", "list", "devices", this.id, "--json"]);
+    const { devices } = JSON.parse(stdout) as {
+      devices: Record<string, Array<{ udid: string }>>;
+    };
+    const runtime = Object.entries(devices).find(([, entries]) =>
+      entries.some((device) => device.udid === this.id),
+    )?.[0];
+    NodeProcess.stderr.write(`[mobile-e2e] ${this.pose.id}: runtime ${runtime ?? "unknown"}\n`);
     await suppressIosSystemFollowUps(this.id);
     await run("xcrun", ["simctl", "boot", this.id]);
     await run("xcrun", ["simctl", "bootstatus", this.id, "-b"], { timeoutMs: 240_000 });
