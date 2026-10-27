@@ -1,22 +1,46 @@
 // @effect-diagnostics nodeBuiltinImport:off - identifies the synthetic Node HTTP socket.
+import type * as NodeHttp from "node:http";
 import type { TunnelStream } from "@supaterm/shared/relay/tunnel";
-import { TunnelSocket } from "@supaterm/shared/relay/tunnelNode";
+import { type TunnelPeer, TunnelSocket } from "@supaterm/shared/relay/tunnelNode";
 import * as Context from "effect/Context";
 import * as Cookies from "effect/http/Cookies";
 import * as Effect from "effect/Effect";
+import * as Headers from "effect/http/Headers";
+import * as Layer from "effect/Layer";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 
 export class RelayIngress extends Context.Service<
   RelayIngress,
   {
-    readonly accept: (stream: TunnelStream) => void;
+    readonly accept: (stream: TunnelStream, peer: TunnelPeer) => void;
   }
 >()("supaterm/relay/RelayIngress") {}
 
-export const isRelayedRequest = (request: HttpServerRequest.HttpServerRequest) =>
+export const layerFromServer = (server: NodeHttp.Server) =>
+  Layer.succeed(
+    RelayIngress,
+    RelayIngress.of({
+      accept: (stream, peer) => {
+        server.emit("connection", new TunnelSocket(stream, peer));
+      },
+    }),
+  );
+
+const tunnelTransport = (request: HttpServerRequest.HttpServerRequest) =>
   request.source instanceof Object &&
   "socket" in request.source &&
-  request.source.socket instanceof TunnelSocket;
+  request.source.socket instanceof TunnelSocket
+    ? request.source.socket.transport
+    : undefined;
+
+export const tunnelConnectionMethod = (request: HttpServerRequest.HttpServerRequest) => {
+  const transport = tunnelTransport(request);
+  return transport === "relay"
+    ? ("relay" as const)
+    : transport === "direct"
+      ? ("direct-tunnel" as const)
+      : undefined;
+};
 
 export const isRelayPath = (pathname: string) =>
   pathname === "/ws" ||
@@ -24,14 +48,22 @@ export const isRelayPath = (pathname: string) =>
   pathname === "/oauth/token" ||
   pathname === "/.well-known/supaterm/environment";
 
+// Browsers attach cookies by host, not port, so a cookie inside a tunnel can
+// belong to any other local server. Tunneled requests carry their own Bearer
+// credentials, and cookies neither authenticate them nor come back.
 export const layerPathGuard = HttpRouter.middleware(
   (app) =>
     Effect.gen(function* () {
       const request = yield* HttpServerRequest.HttpServerRequest;
-      if (!isRelayedRequest(request)) return yield* app;
+      if (tunnelTransport(request) === undefined) return yield* app;
       if (!isRelayPath(new URL(request.url, "http://relay").pathname))
         return HttpServerResponse.empty({ status: 404 });
-      return (yield* app).pipe(
+      return (yield* app.pipe(
+        Effect.provideService(
+          HttpServerRequest.HttpServerRequest,
+          request.modify({ headers: Headers.remove(request.headers, "cookie") }),
+        ),
+      )).pipe(
         HttpServerResponse.removeHeader("set-cookie"),
         HttpServerResponse.updateCookies(() => Cookies.empty),
       );

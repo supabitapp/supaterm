@@ -7,17 +7,26 @@ import type { LoopbackRelay } from "./loopbackPool.ts";
 import type { TunnelStream } from "./tunnel.ts";
 import { createTunnelConnector, type TunnelClientOptions } from "./tunnel.ts";
 
+export type TunnelPeer =
+  | { readonly transport: "relay" }
+  | { readonly transport: "direct"; readonly remoteAddress: string };
+
 export class TunnelSocket extends NodeStream.Duplex {
-  readonly remoteAddress = "relay";
-  readonly remoteFamily = "relay";
+  readonly transport: TunnelPeer["transport"];
+  readonly remoteAddress: string;
+  readonly remoteFamily: string;
   readonly remotePort = 0;
   private owed = 0;
   private idleMs = 0;
   private cancelIdle: (() => void) | undefined;
   private readonly stream: TunnelStream;
 
-  constructor(stream: TunnelStream) {
+  constructor(stream: TunnelStream, peer: TunnelPeer = { transport: "relay" }) {
     super({ allowHalfOpen: true });
+    this.transport = peer.transport;
+    this.remoteAddress = peer.transport === "relay" ? "relay" : peer.remoteAddress;
+    this.remoteFamily =
+      peer.transport === "relay" ? "relay" : NodeNet.isIPv6(peer.remoteAddress) ? "IPv6" : "IPv4";
     this.stream = stream;
     stream.onData = (data) => {
       this.touch();

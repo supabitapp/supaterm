@@ -1,5 +1,6 @@
-import { isRelayedRequest } from "./relay/RelayIngress.ts";
+import { tunnelConnectionMethod } from "./relay/RelayIngress.ts";
 import * as RelayAccess from "./relay/RelayAccess.ts";
+import * as DirectTunnel from "./relay/DirectTunnel.ts";
 import * as OrchestrationSkills from "./provider/OrchestrationSkills.ts";
 import { OrchestrationDispatchCommandError } from "@supaterm/contracts";
 import * as Crypto from "effect/Crypto";
@@ -77,6 +78,7 @@ import {
   ProviderSetupError,
   type ServerConfig as ClientServerConfig,
   type ServerConfigStreamEvent,
+  type ServerTunnelEndpoints,
   type RelayConnectionInfo,
   relayAdvertisementFrom,
   withRelayAdvertisement,
@@ -306,10 +308,11 @@ export const relayAdvertisementUpdates = (
     })),
   );
 
-export const withLateEditorConfig = <E, R>(
+export const withLateConfig = <E, R>(
   config: ClientServerConfig,
   liveUpdates: Stream.Stream<ServerConfigStreamEvent, E, R>,
   launcher: EditorDiscovery,
+  tunnelEndpoints: Stream.Stream<Option.Option<ServerTunnelEndpoints>>,
 ) => {
   const lateEditorConfig = Stream.fromEffect(launcher.resolveAvailableEditors()).pipe(
     Stream.filter(
@@ -329,8 +332,13 @@ export const withLateEditorConfig = <E, R>(
     ),
     Stream.map((editorConfig) => ({ type: "editorsResolved" as const, editorConfig })),
   );
+  // No config event carries these, so a change (Encrypted Relay creating the
+  // identity) goes out as a fresh snapshot.
+  const lateTunnelEndpoints = tunnelEndpoints.pipe(
+    Stream.map((endpoints) => ({ type: "tunnelEndpointsResolved" as const, endpoints })),
+  );
 
-  return Stream.merge(liveUpdates, lateEditorConfig).pipe(
+  return Stream.merge(liveUpdates, Stream.merge(lateEditorConfig, lateTunnelEndpoints)).pipe(
     Stream.mapAccum(
       (): ClientServerConfig => config,
       (current, event): readonly [ClientServerConfig, ReadonlyArray<ServerConfigStreamEvent>] => {
@@ -343,6 +351,16 @@ export const withLateEditorConfig = <E, R>(
               ...rest
             } = current;
             const next = { ...rest, ...event.editorConfig };
+            return [next, [{ version: 1, type: "snapshot", config: next }]];
+          }
+          case "tunnelEndpointsResolved": {
+            const { tunnelEndpoints: previous, ...rest } = current;
+            if (Equal.equals(Option.fromUndefinedOr(previous), event.endpoints))
+              return [current, []];
+            const next = Option.match(event.endpoints, {
+              onNone: () => rest,
+              onSome: (tunnelEndpoints) => ({ ...rest, tunnelEndpoints }),
+            });
             return [next, [{ version: 1, type: "snapshot", config: next }]];
           }
           case "keybindingsUpdated":
@@ -655,6 +673,7 @@ function readClientAnalyticsProps(request: HttpServerRequest.HttpServerRequest) 
   const webDeployment = url.value.searchParams.get("clientWebDeployment");
   const browser = url.value.searchParams.get("clientBrowser")?.trim() ?? "";
   const connectionMethod = url.value.searchParams.get("connectionMethod");
+  const tunneled = tunnelConnectionMethod(request);
   const rawOsMajorVersion = url.value.searchParams.get("clientOsMajorVersion") ?? "";
   const osMajorVersion = Number(rawOsMajorVersion);
   const deviceModel = url.value.searchParams.get("clientDeviceModel")?.trim() ?? "";
@@ -682,8 +701,8 @@ function readClientAnalyticsProps(request: HttpServerRequest.HttpServerRequest) 
       : {}),
     ...(hasOsMajorVersion ? { osMajorVersion, clientOsMajorVersion: osMajorVersion } : {}),
     ...(hasDeviceModel ? { deviceModel, clientDeviceModel: deviceModel } : {}),
-    ...(isRelayedRequest(request)
-      ? { connectionMethod: "relay" as const }
+    ...(tunneled !== undefined
+      ? { connectionMethod: tunneled }
       : isClientConnectionMethod(connectionMethod)
         ? { connectionMethod }
         : {}),
@@ -1240,6 +1259,7 @@ export const layerWsRpc = (
       const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
       const backgroundPolicy = yield* BackgroundPolicy.BackgroundPolicy;
       const relayAccess = yield* RelayAccess.RelayAccess;
+      const directTunnel = yield* DirectTunnel.DirectTunnel;
       const rpcClientIds = yield* Ref.make(new Set<RpcClientId>());
       yield* Effect.addFinalizer(() =>
         Ref.get(rpcClientIds).pipe(
@@ -1642,6 +1662,10 @@ export const layerWsRpc = (
             remoteOpenTargets.resolveTargets(),
           ),
           directEndpoints: yield* resolveAvailableEditorsForConfig(directEndpoints.resolve()),
+          ...Option.match(yield* directTunnel.advertisement, {
+            onNone: () => ({}),
+            onSome: (tunnelEndpoints) => ({ tunnelEndpoints }),
+          }),
           observability: {
             logsDirectoryPath: config.logsDir,
             localTracingEnabled: true,
@@ -2940,7 +2964,7 @@ export const layerWsRpc = (
 
               return Stream.concat(
                 rpcInitialItems([{ version: 1 as const, type: "snapshot" as const, config }]),
-                withLateEditorConfig(config, liveUpdates, externalLauncher),
+                withLateConfig(config, liveUpdates, externalLauncher, directTunnel.advertisements),
               );
             }),
           ),
