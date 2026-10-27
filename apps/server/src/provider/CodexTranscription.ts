@@ -61,14 +61,12 @@ interface CodexLogin {
   readonly expiresAtMs: number | undefined;
 }
 
-const errorCode = (body: string) =>
-  Option.match(decodeErrorBody(body), {
-    onNone: () => undefined,
-    onSome: ({ detail, error }) =>
-      [detail, error]
-        .map((value) => (typeof value === "object" ? value.code : undefined))
-        .find(Boolean),
-  });
+const errorCode = (body: string) => {
+  const parsed = Option.getOrUndefined(decodeErrorBody(body));
+  return [parsed?.detail, parsed?.error]
+    .map((value) => (typeof value === "object" ? value.code : undefined))
+    .find(Boolean);
+};
 
 const retryAfterMs = (header: string | undefined) => {
   const seconds = Number(header);
@@ -137,18 +135,19 @@ export const makeCodexTranscription = Effect.fn("makeCodexTranscription")(functi
     const accessToken = auth.tokens?.access_token?.trim();
     if (!accessToken) return yield* new TranscriptionError({ reason: "signedOut" });
     const payload = accessToken.split(".")[1];
-    const claims = Option.flatMap(Option.fromNullishOr(payload), (encoded) =>
-      decodeJwtClaims(Buffer.from(encoded, "base64url").toString("utf8")),
+    const claims = Option.getOrUndefined(
+      Option.flatMap(Option.fromNullishOr(payload), (encoded) =>
+        decodeJwtClaims(Buffer.from(encoded, "base64url").toString("utf8")),
+      ),
     );
     const accountId =
       auth.tokens?.account_id?.trim() ||
-      Option.getOrUndefined(claims)?.["https://api.openai.com/auth"]?.chatgpt_account_id;
+      claims?.["https://api.openai.com/auth"]?.chatgpt_account_id;
     if (!accountId) return yield* new TranscriptionError({ reason: "signedOut" });
-    const exp = Option.getOrUndefined(claims)?.exp;
     return {
       accessToken,
       accountId,
-      expiresAtMs: exp === undefined ? undefined : exp * 1000,
+      expiresAtMs: claims?.exp === undefined ? undefined : claims.exp * 1000,
     } satisfies CodexLogin;
   });
 

@@ -191,7 +191,15 @@ const make = Effect.gen(function* () {
   ) {
     const instance = yield* providerInstances.getInstance(inputs.providerInstanceId);
     const backend = instance?.enabled ? instance.transcription : undefined;
-    if (!backend) return yield* new TranscriptionError({ reason: "sourceUnavailable" });
+    if (!instance || !backend) {
+      return yield* new TranscriptionError({ reason: "sourceUnavailable" });
+    }
+    // The backend reads whatever subscription login is on disk. When the check found that
+    // the CLI runs with a different login, using it would bill another account.
+    const checked = (yield* instance.snapshot.getSnapshot).transcription;
+    if (checked?.status === "unavailable") {
+      return yield* new TranscriptionError({ reason: checked.reason ?? "unsupportedLogin" });
+    }
     if (inputs.language !== undefined && !backend.supportsLanguage(inputs.language)) {
       return yield* new TranscriptionError({ reason: "unsupportedLanguage" });
     }
@@ -201,7 +209,7 @@ const make = Effect.gen(function* () {
       : [];
     yield* Effect.annotateCurrentSpan({
       instanceId: inputs.providerInstanceId,
-      driver: instance?.driverKind,
+      driver: instance.driverKind,
       audioSeconds: Math.round(audio.durationMs / 1000),
       keytermCount: keyterms.length,
     });
@@ -254,28 +262,25 @@ const make = Effect.gen(function* () {
     const attachmentId = input.audioAttachmentId;
     const now = yield* Clock.currentTimeMillis;
     const entries = yield* Ref.get(entriesRef);
-    const expired = [...entries].filter(
-      ([, entry]) => entry._tag !== "Running" && expiresAt(entry) <= now,
+    const expiredIds = [...entries].flatMap(([id, entry]) =>
+      entry._tag !== "Running" && expiresAt(entry) <= now ? [id] : [],
     );
-    if (expired.length > 0) {
-      const live = new Map(entries);
-      for (const [id] of expired) live.delete(id);
+    const live = new Map(entries);
+    for (const id of expiredIds) live.delete(id);
+    if (expiredIds.length > 0) {
       yield* Ref.set(entriesRef, live);
       // An expired failure takes its upload with it, so a late recovery gets
       // `audioMissing` instead of a second vendor run.
-      yield* Effect.forEach(expired, ([id]) => deleteUpload(id), { discard: true });
+      yield* Effect.forEach(expiredIds, deleteUpload, { discard: true });
     }
-    const live = yield* Ref.get(entriesRef);
     const existing = live.get(attachmentId);
-    if (existing?._tag === "Running") {
-      return sameInputs(existing.inputs, inputs)
+    if (existing !== undefined && existing._tag !== "Failed") {
+      if (!sameInputs(existing.inputs, inputs)) {
+        return Effect.fail(new TranscriptionError({ reason: "requestConflict" }));
+      }
+      return existing._tag === "Running"
         ? Deferred.await(existing.result)
-        : Effect.fail(new TranscriptionError({ reason: "requestConflict" }));
-    }
-    if (existing?._tag === "Succeeded") {
-      return sameInputs(existing.inputs, inputs)
-        ? Effect.succeed(existing.result)
-        : Effect.fail(new TranscriptionError({ reason: "requestConflict" }));
+        : Effect.succeed(existing.result);
     }
     if (existing?._tag === "Failed" && input.retry !== true) return Effect.fail(existing.error);
 

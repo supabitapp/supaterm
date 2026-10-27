@@ -92,11 +92,17 @@ const makeHarness = Effect.gen(function* () {
         Effect.flatten,
       ),
   };
+  const transcriptionStatus = yield* Ref.make<ServerProvider["transcription"]>({ status: "ready" });
   const instance = {
     instanceId: INSTANCE,
     driverKind: "claudeAgent",
     enabled: true,
     transcription: backend,
+    snapshot: {
+      getSnapshot: Ref.get(transcriptionStatus).pipe(
+        Effect.map((transcription) => ({ instanceId: INSTANCE, transcription })),
+      ),
+    },
     snapshotForCwd: () => Effect.die("transcription must not probe the workspace"),
   } as unknown as ProviderInstance;
   const provider = {
@@ -148,7 +154,7 @@ const makeHarness = Effect.gen(function* () {
     ),
     Layer.provideMerge(NodeServices.layer),
   );
-  return { calls, started, responses, layer };
+  return { calls, started, responses, transcriptionStatus, layer };
 });
 
 const upload = (bytes: Buffer) =>
@@ -373,6 +379,29 @@ describe("Transcription", () => {
           ),
         ).toBe("sourceUnavailable");
         expect(audio.exists()).toBe(true);
+      }).pipe(Effect.provide(harness.layer));
+    }),
+  );
+
+  it.effect("refuses a source whose checked login can't transcribe, before any vendor call", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness;
+      yield* Effect.gen(function* () {
+        const service = yield* Transcription.Transcription;
+        const audio = yield* upload(wav({ durationMs: 1_000 }));
+        const input = { providerInstanceId: INSTANCE, audioAttachmentId: audio.attachmentId };
+        yield* Ref.set(harness.transcriptionStatus, {
+          status: "unavailable",
+          reason: "unsupportedLogin",
+        });
+        expect(yield* reason(service.transcribe(input))).toBe("unsupportedLogin");
+
+        yield* Ref.set(harness.transcriptionStatus, undefined);
+        yield* Queue.offer(harness.responses, Effect.succeed({ text: "not checked yet" }));
+        expect(yield* service.transcribe({ ...input, retry: true })).toEqual({
+          text: "not checked yet",
+        });
+        expect(yield* Ref.get(harness.calls)).toHaveLength(1);
       }).pipe(Effect.provide(harness.layer));
     }),
   );
