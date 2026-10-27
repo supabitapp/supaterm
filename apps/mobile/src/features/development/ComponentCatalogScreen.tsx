@@ -102,6 +102,16 @@ export function ComponentCatalogScreen() {
             <View className="gap-3">
               <AppText className="text-lg font-supaterm-semibold">Lists and selection</AppText>
               <ListSection>
+                <View className="p-4">
+                  <SegmentedControl
+                    variant="card"
+                    options={CHOICES}
+                    selected={tab}
+                    onSelect={setTab}
+                    size="compact"
+                    role="tab"
+                  />
+                </View>
                 <ListRow icon="folder" label="Projects" detail="4" onPress={() => setSheet(true)} />
                 <ListToggleRow
                   icon="text.bubble"
