@@ -279,7 +279,7 @@ const make = Effect.gen(function* () {
     }
     if (existing?._tag === "Failed" && input.retry !== true) return Effect.fail(existing.error);
 
-    const others = [...live].filter(([id]) => id !== attachmentId).map(([, entry]) => entry);
+    const others = [...live].flatMap(([id, entry]) => (id === attachmentId ? [] : [entry]));
     if (others.length >= MAX_ENTRIES) {
       const soonest = Math.min(...others.map(expiresAt));
       return Effect.fail(

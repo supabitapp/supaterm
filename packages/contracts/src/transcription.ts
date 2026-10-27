@@ -80,5 +80,3 @@ export class TranscriptionError extends Schema.TaggedError<TranscriptionError>()
       : TRANSCRIPTION_ERROR_MESSAGES[this.reason];
   }
 }
-
-export const isTranscriptionError = Schema.is(TranscriptionError);

@@ -84,19 +84,19 @@ export type VoiceStreamEvent =
   | { readonly _tag: "Quiet" }
   | { readonly _tag: "Deadline" };
 
-export interface VoiceStreamState {
+interface VoiceStreamState {
   readonly committed: ReadonlyArray<string>;
   readonly pending: string;
   readonly closeStreamSent: boolean;
   readonly endpointSinceCloseStream: boolean;
 }
 
-export type VoiceStreamStep =
+type VoiceStreamStep =
   | { readonly _tag: "Continue"; readonly state: VoiceStreamState }
   | { readonly _tag: "Done"; readonly text: string }
   | { readonly _tag: "Failed"; readonly error: TranscriptionError };
 
-export const initialVoiceStreamState: VoiceStreamState = {
+const initialVoiceStreamState: VoiceStreamState = {
   committed: [],
   pending: "",
   closeStreamSent: false,
@@ -110,8 +110,7 @@ const decodeServerFrame = Schema.decodeUnknownOption(ServerFrame);
 
 const transcriptOf = (state: VoiceStreamState) =>
   [...state.committed, state.pending]
-    .map((segment) => segment.trim())
-    .filter(Boolean)
+    .flatMap((segment) => (segment.trim() ? [segment.trim()] : []))
     .join(" ");
 
 const failed = (): VoiceStreamStep => ({
@@ -125,7 +124,7 @@ const failed = (): VoiceStreamStep => ({
  * cuts recordings short, so this finishes on the server's close, or after a
  * quiet spell once an endpoint has arrived.
  */
-export function stepVoiceStream(state: VoiceStreamState, event: VoiceStreamEvent): VoiceStreamStep {
+function stepVoiceStream(state: VoiceStreamState, event: VoiceStreamEvent): VoiceStreamStep {
   switch (event._tag) {
     case "Message": {
       const frame = Option.getOrUndefined(decodeServerFrame(event.data));
@@ -192,7 +191,7 @@ export const runVoiceStream = Effect.fnUntraced(function* (input: {
   }
 });
 
-export function voiceStreamUpgradeError(
+function voiceStreamUpgradeError(
   status: number | undefined,
   headers: NodeHttp.IncomingHttpHeaders,
 ): TranscriptionError {

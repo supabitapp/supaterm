@@ -132,14 +132,14 @@ describe("runVoiceStream", () => {
   );
 });
 
-const withServer = (
+const withServer = <E>(
   options: {
     readonly reject?: { readonly status: number; readonly headers?: Record<string, string> };
   },
   use: (
     url: string,
     received: { headers?: NodeHttp.IncomingHttpHeaders; frames: Array<Buffer | string> },
-  ) => Effect.Effect<void, unknown>,
+  ) => Effect.Effect<void, E>,
 ) =>
   Effect.acquireUseRelease(
     Effect.callback<WebSocketServer>((resume) => {

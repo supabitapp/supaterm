@@ -29,7 +29,10 @@ const securityProcess = (result: {
     const spawner = ChildProcessSpawner.make((command) =>
       Ref.update(commands, (current) => [
         ...current,
-        [(command as { command: string }).command, ...(command as { args: string[] }).args],
+        [
+          (command as { command: string }).command,
+          ...(command as { args: ReadonlyArray<string> }).args,
+        ],
       ]).pipe(
         Effect.as(
           ChildProcessSpawner.makeHandle({
