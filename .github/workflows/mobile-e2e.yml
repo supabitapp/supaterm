@@ -1,0 +1,158 @@
+name: Mobile Layout E2E
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/mobile/**
+      - packages/client-runtime/**
+      - packages/contracts/**
+      - packages/shared/**
+      - scripts/mobile-e2e.ts
+      - scripts/mobile-e2e/**
+      - scripts/mobile-native-client.ts
+      - scripts/mobile-showcase.ts
+      - scripts/mobile-showcase-environment.ts
+      - scripts/package.json
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - .github/workflows/mobile-e2e.yml
+  pull_request:
+    paths:
+      - apps/mobile/**
+      - packages/client-runtime/**
+      - packages/contracts/**
+      - packages/shared/**
+      - scripts/mobile-e2e.ts
+      - scripts/mobile-e2e/**
+      - scripts/mobile-native-client.ts
+      - scripts/mobile-showcase.ts
+      - scripts/mobile-showcase-environment.ts
+      - scripts/package.json
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - .github/workflows/mobile-e2e.yml
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platforms to check
+        type: choice
+        options: [all, ios, android]
+        default: all
+      poses:
+        description: Space-separated pose IDs, empty runs every supported pose
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mobile-e2e:
+    name: Mobile layout (${{ matrix.platform }})
+    runs-on: ${{ matrix.platform == 'ios' && 'xcode-27' || 'ubuntu-24.04' }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJSON(inputs.platform == 'ios' && '["ios"]' || inputs.platform == 'android' && '["android"]' || '["ios","android"]') }}
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
+      APP_VARIANT: development
+      MOBILE_VERSION_POLICY: appVersion
+      SUPATERM_IOS_PERSONAL_TEAM: "0"
+      SUPATERM_E2E_ANDROID_IMAGE: system-images;android-36;google_apis;x86_64
+      ORG_GRADLE_PROJECT_reactNativeArchitectures: x86_64
+      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-mise
+      - name: Select Xcode
+        if: matrix.platform == 'ios'
+        run: |
+          echo "DEVELOPER_DIR=/Applications/Xcode_27.1.app/Contents/Developer" >> "$GITHUB_ENV"
+          /Applications/Xcode_27.1.app/Contents/Developer/usr/bin/xcodebuild -version
+          defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
+      - name: Install dependencies
+        run: |
+          mise exec -- pnpm config set virtualStoreType project --location project
+          mise exec -- vp install --filter=@supaterm/mobile... --filter=@supaterm/scripts... --filter=supaterm...
+      - uses: actions/setup-java@v6
+        if: matrix.platform == 'android'
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+        if: matrix.platform == 'android'
+      - name: Prepare Android emulators
+        if: matrix.platform == 'android'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "$SUPATERM_E2E_ANDROID_IMAGE" platform-tools emulator
+      - name: Install video tools
+        run: |
+          if ! command -v ffmpeg >/dev/null; then
+            if [ "$RUNNER_OS" = macOS ]; then
+              brew install ffmpeg
+            else
+              sudo apt-get update
+              sudo apt-get install -y ffmpeg
+            fi
+          fi
+      - name: Read native fingerprint
+        id: fingerprint
+        working-directory: apps/mobile
+        env:
+          MOBILE_PLATFORM: ${{ matrix.platform }}
+        run: |
+          node <<'JS'
+          const fs = require('node:fs');
+          require('expo/fingerprint').createFingerprintAsync(process.cwd(), {
+            platforms: [process.env.MOBILE_PLATFORM],
+            silent: true,
+          }).then(({ hash }) => {
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `hash=${hash}\n`);
+          }).catch(error => {
+            console.error(error);
+            process.exitCode = 1;
+          });
+          JS
+      - name: Restore native clients
+        id: native-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ~/.cache/supaterm/mobile-e2e
+          key: mobile-e2e-${{ runner.os }}-${{ runner.arch }}-${{ steps.fingerprint.outputs.hash }}-${{ hashFiles('scripts/mobile-e2e/build.ts', 'scripts/mobile-native-client.ts', '.github/workflows/mobile-e2e.yml') }}
+      - name: Run mobile checks
+        env:
+          MOBILE_PLATFORM: ${{ matrix.platform }}
+          E2E_POSES: ${{ inputs.poses }}
+        run: |
+          args=(--platform "$MOBILE_PLATFORM" --output "$RUNNER_TEMP/mobile-e2e")
+          read -r -a poses <<< "$E2E_POSES"
+          for pose in "${poses[@]}"; do args+=(--pose "$pose"); done
+          vp run mobile:e2e "${args[@]}"
+      - name: Save native clients
+        if: always() && steps.native-cache.outputs.cache-hit != 'true' && steps.native-cache.outputs.cache-primary-key != ''
+        uses: actions/cache/save@v5
+        with:
+          path: ~/.cache/supaterm/mobile-e2e
+          key: ${{ steps.native-cache.outputs.cache-primary-key }}
+      - name: Upload reports and recordings
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mobile-e2e-${{ matrix.platform }}
+          path: ${{ runner.temp }}/mobile-e2e/
+          if-no-files-found: warn
+          retention-days: 14
