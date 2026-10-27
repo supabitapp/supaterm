@@ -326,6 +326,12 @@ import {
   ProviderConsumeResetCreditInput,
   ProviderConsumeResetCreditResult,
 } from "./providerUsageLimits.ts";
+import {
+  TranscriptionCancelInput,
+  TranscriptionError,
+  TranscriptionTranscribeInput,
+  TranscriptionTranscribeResult,
+} from "./transcription.ts";
 import { UsagePricing, UsageReadError, UsageSummary, UsageSummaryInput } from "./usage.ts";
 import {
   StorageCleanupReport,
@@ -392,6 +398,8 @@ export const WS_METHODS = {
   assetsPersistChatAttachments: "assets.persistChatAttachments",
   attachmentsCreateUploadUrl: "attachments.createUploadUrl",
   attachmentsDelete: "attachments.delete",
+  transcriptionTranscribe: "transcription.transcribe",
+  transcriptionCancel: "transcription.cancel",
 
   mcpAppsCallTool: "mcpApps.callTool",
   mcpAppsToolInfo: "mcpApps.toolInfo",
@@ -1317,6 +1325,17 @@ const WsAttachmentsDeleteRpc = Rpc.make(WS_METHODS.attachmentsDelete, {
   error: EnvironmentAuthorizationError,
 });
 
+const WsTranscriptionTranscribeRpc = Rpc.make(WS_METHODS.transcriptionTranscribe, {
+  payload: TranscriptionTranscribeInput,
+  success: TranscriptionTranscribeResult,
+  error: Schema.Union([TranscriptionError, EnvironmentAuthorizationError]),
+});
+
+const WsTranscriptionCancelRpc = Rpc.make(WS_METHODS.transcriptionCancel, {
+  payload: TranscriptionCancelInput,
+  error: EnvironmentAuthorizationError,
+});
+
 const WsMcpAppsCallToolRpc = Rpc.make(WS_METHODS.mcpAppsCallTool, {
   payload: McpAppCallToolInput,
   success: McpAppCallToolResult,
@@ -1974,6 +1993,8 @@ export const WsRpcGroup = RpcGroup.make(
   WsAssetsPersistChatAttachmentsRpc,
   WsAttachmentsCreateUploadUrlRpc,
   WsAttachmentsDeleteRpc,
+  WsTranscriptionTranscribeRpc,
+  WsTranscriptionCancelRpc,
   WsMcpAppsCallToolRpc,
   WsMcpAppsToolInfoRpc,
   WsMcpAppsReadResourceRpc,

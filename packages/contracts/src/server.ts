@@ -10,6 +10,7 @@ import {
 import { ServerAuthDescriptor } from "./auth.ts";
 import {
   ForwardCompatibleArray,
+  ForwardCompatibleOptional,
   hasUnknownUnionTag,
   IsoDateTime,
   NonNegativeInt,
@@ -29,6 +30,7 @@ import { ModelCapabilities, ProviderOptionDescriptor } from "./model.ts";
 import { RuntimeMode } from "./providerPolicy.ts";
 import { ProviderDriverKind, ProviderInstanceId } from "./providerInstance.ts";
 import { ServerProviderUsageLimits } from "./providerUsageLimits.ts";
+import { ServerProviderTranscription } from "./transcription.ts";
 import { ServerSettings } from "./settings.ts";
 import { RelayConnectionInfo } from "./relay.ts";
 
@@ -236,6 +238,8 @@ export const ServerProvider = Schema.Struct({
   supportsConversationRollback: Schema.optional(Schema.Boolean),
   supportsTextGeneration: Schema.optional(Schema.Boolean),
   supportsReviewGuides: Schema.optional(Schema.Boolean),
+  // An unknown status from a newer server must not drop the whole provider.
+  transcription: ForwardCompatibleOptional(ServerProviderTranscription),
   setup: Schema.optional(
     Schema.Struct({
       canAuthenticate: Schema.Boolean,
