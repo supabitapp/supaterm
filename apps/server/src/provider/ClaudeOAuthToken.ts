@@ -12,6 +12,7 @@ import * as Path from "effect/Path";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import * as ChildProcess from "effect/process/ChildProcess";
+import type * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 
 const SECURITY = "/usr/bin/security";
 const SECURITY_TIMEOUT = "2 seconds";
@@ -57,8 +58,16 @@ export function claudeKeychainAccount(
   return ACCOUNT_PATTERN.test(account) ? account : "claude-code-user";
 }
 
-const readKeychain = Effect.fnUntraced(function* (environment: NodeJS.ProcessEnv) {
-  if ((yield* HostProcess.Platform) !== "darwin") return Option.none<string>();
+type KeychainRead =
+  | { readonly _tag: "Found"; readonly stored: string }
+  | { readonly _tag: "Missing" }
+  // `security` waits on an unlock prompt only someone at the Mac can answer.
+  | { readonly _tag: "NoAnswer" };
+
+const readKeychain = Effect.fnUntraced(function* (
+  environment: NodeJS.ProcessEnv,
+): Effect.fn.Return<KeychainRead, TranscriptionError, ChildProcessSpawner.ChildProcessSpawner> {
+  if ((yield* HostProcess.Platform) !== "darwin") return { _tag: "Missing" };
   const account = claudeKeychainAccount(environment, yield* HostProcess.Username);
   const result = yield* spawnAndCollect(
     SECURITY,
@@ -71,18 +80,19 @@ const readKeychain = Effect.fnUntraced(function* (environment: NodeJS.ProcessEnv
       claudeKeychainService(environment),
     ]),
   ).pipe(Effect.scoped, Effect.timeoutOption(SECURITY_TIMEOUT), Effect.result);
-  if (Result.isFailure(result)) return Option.none<string>();
-  if (Option.isNone(result.success) || result.success.value.code === KEYCHAIN_LOCKED) {
-    return yield* new TranscriptionError({ reason: "credentialsLocked" });
-  }
+  if (Result.isFailure(result)) return { _tag: "Missing" };
+  if (Option.isNone(result.success)) return { _tag: "NoAnswer" };
   const { code, stdout } = result.success.value;
-  if (code === 0) return Option.some(stdout);
+  if (code === 0) return { _tag: "Found", stored: stdout };
+  // The CLI skips its file fallback for a locked keychain too.
+  if (code === KEYCHAIN_LOCKED)
+    return yield* new TranscriptionError({ reason: "credentialsLocked" });
   if (code !== KEYCHAIN_ITEM_NOT_FOUND) {
     yield* Effect.logWarning("Reading the Claude login from the Keychain failed.", {
       exitCode: code,
     });
   }
-  return Option.none<string>();
+  return { _tag: "Missing" };
 });
 
 /**
@@ -102,17 +112,22 @@ export const readClaudeOAuthToken = Effect.fn("readClaudeOAuthToken")(function* 
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const keychain = yield* readKeychain(input.environment);
-  const stored = Option.isSome(keychain)
-    ? keychain
-    : yield* fileSystem
-        .readFileString(path.join(input.configDir, ".credentials.json"))
-        .pipe(Effect.option);
+  const stored =
+    keychain._tag === "Found"
+      ? Option.some(keychain.stored)
+      : yield* fileSystem
+          .readFileString(path.join(input.configDir, ".credentials.json"))
+          .pipe(Effect.option);
 
   const oauth = Option.getOrUndefined(
     Option.flatMap(stored, (value) => decodeCredentials(value.trim())),
   )?.claudeAiOauth;
   const accessToken = oauth?.accessToken?.trim();
-  if (!accessToken) return yield* new TranscriptionError({ reason: "signedOut" });
+  if (!accessToken) {
+    return yield* new TranscriptionError({
+      reason: keychain._tag === "NoAnswer" ? "credentialsLocked" : "signedOut",
+    });
+  }
   if (typeof oauth?.expiresAt === "number" && oauth.expiresAt <= (yield* Clock.currentTimeMillis)) {
     return yield* new TranscriptionError({ reason: "signedOut" });
   }

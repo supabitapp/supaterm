@@ -2,6 +2,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Ref from "effect/Ref";
@@ -157,6 +158,30 @@ describe("readClaudeOAuthToken", () => {
       const error = yield* Effect.flip(readOn("darwin", spawner, { environment: {}, configDir }));
       expect(error.reason).toBe("credentialsLocked");
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+  );
+
+  it.effect(
+    "tries the file when security doesn't answer, and reports a lock only without one",
+    () =>
+      Effect.gen(function* () {
+        const { spawner } = yield* securityProcess({ code: 0, exitCode: Effect.never });
+        const read = (contents: string | undefined) =>
+          Effect.gen(function* () {
+            const configDir = yield* configDirWith(contents);
+            const fiber = yield* Effect.forkChild(
+              Effect.result(readOn("darwin", spawner, { environment: {}, configDir })),
+            );
+            yield* TestClock.adjust("2 seconds");
+            return yield* Fiber.join(fiber);
+          });
+
+        const withFile = yield* read(credentials("from-file"));
+        expect(withFile._tag === "Success" && withFile.success).toBe("from-file");
+        const withoutFile = yield* read(undefined);
+        expect(withoutFile._tag === "Failure" && withoutFile.failure.reason).toBe(
+          "credentialsLocked",
+        );
+      }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
 
   it.effect("reads only the file on other platforms", () =>
