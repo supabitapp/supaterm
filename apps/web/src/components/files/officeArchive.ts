@@ -1,5 +1,5 @@
 import JSZip from "jszip";
-import { checkZipDirectory } from "./zipDirectory";
+import { checkZipDirectory } from "@supaterm/client-runtime/zip/directory";
 import { SaxesParser } from "saxes";
 import { externalUrl } from "./office/links";
 
