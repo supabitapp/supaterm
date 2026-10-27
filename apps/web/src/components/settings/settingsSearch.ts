@@ -416,6 +416,13 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["generated thread titles source control content default provider"],
   },
   {
+    id: "next-prompt-suggestions",
+    title: "Next prompt suggestions",
+    to: "/settings/general",
+    scope: "environment-defaults",
+    searchTerms: ["suggested reply ghost text composer predict tab autocomplete follow up"],
+  },
+  {
     id: "provider-update-checks",
     title: "Provider update checks",
     to: "/settings/general",

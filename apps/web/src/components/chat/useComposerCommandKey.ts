@@ -52,6 +52,8 @@ export function useComposerCommandKey(input: {
   readonly composerTerminalContextsRef: ChatComposerProps["composerTerminalContextsRef"];
   readonly composerPreviewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
   readonly composerReviewComments: ReadonlyArray<ReviewCommentContext>;
+  /** The predicted next prompt, offered only while it shows in the empty composer. */
+  readonly promptSuggestion: { readonly text: string; readonly dismiss: () => void } | null;
   readonly composerEditorRef: RefObject<ComposerPromptEditorHandle | null>;
   readonly composerMenuOpenRef: RefObject<boolean>;
   readonly composerMenuItemsRef: RefObject<ComposerCommandItem[]>;
@@ -102,6 +104,7 @@ export function useComposerCommandKey(input: {
     composerTerminalContextsRef,
     composerPreviewAnnotations,
     composerReviewComments,
+    promptSuggestion,
     composerEditorRef,
     composerMenuOpenRef,
     composerMenuItemsRef,
@@ -206,6 +209,26 @@ export function useComposerCommandKey(input: {
     const menuIsActive =
       !isLiteralPendingAnswer &&
       (composerMenuOpenRef.current || (trigger !== null && trigger.kind !== "slash-skill"));
+    if (
+      promptSuggestion !== null &&
+      !menuIsActive &&
+      !event.isComposing &&
+      !event.shiftKey &&
+      !event.altKey &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      promptRef.current === ""
+    ) {
+      // Accepting only fills the draft; the user still reads it and sends.
+      if (key === "Tab" || key === "ArrowRight") {
+        replacePromptFromHistory(promptSuggestion.text);
+        return true;
+      }
+      if (key === "Escape") {
+        promptSuggestion.dismiss();
+        return true;
+      }
+    }
     if (key === "Escape") {
       if (event.isComposing || event.keyCode === 229) return false;
       if (menuIsActive) {
@@ -278,5 +301,8 @@ export function useComposerCommandKey(input: {
 
   return {
     onComposerCommandKey,
+    acceptPromptSuggestion: () => {
+      if (promptSuggestion !== null) replacePromptFromHistory(promptSuggestion.text);
+    },
   };
 }

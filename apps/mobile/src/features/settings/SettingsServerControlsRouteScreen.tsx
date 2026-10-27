@@ -416,6 +416,20 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                       />
                     ))}
                   </SettingsSection>
+                  <SettingsSection title="Composer">
+                    <SettingsSwitchRow
+                      icon="text.bubble"
+                      label="Next prompt suggestions"
+                      subtitle={
+                        projectSelected
+                          ? "Environment-wide setting. Select All projects to change it."
+                          : "After the agent replies, suggest what you might send next with the text generation model."
+                      }
+                      value={uniform("nextPromptSuggestionsEnabled")}
+                      disabled={disabledFor("nextPromptSuggestionsEnabled")}
+                      onValueChange={(value) => write({ nextPromptSuggestionsEnabled: value })}
+                    />
+                  </SettingsSection>
                   <OrchestrationSkillsSection
                     key={selectedTargets
                       .map((target) => target.environmentId)

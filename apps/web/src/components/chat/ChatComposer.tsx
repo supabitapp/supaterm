@@ -115,6 +115,7 @@ import { useComposerContextImport } from "./useComposerContextImport";
 import { useComposerAttachmentIntake } from "./useComposerAttachmentIntake";
 import { ComposerControlsBar } from "./ComposerControlsBar";
 import { useComposerCommandKey } from "./useComposerCommandKey";
+import { useNextPromptSuggestion } from "./useNextPromptSuggestion";
 import { useInputsChanged, useInputsChangedWhileActive } from "./useInputsChanged";
 import { useComposerFocusState } from "./useComposerFocusState";
 import { useComposerMultilinePrompt } from "./useComposerMultilinePrompt";
@@ -2229,7 +2230,25 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   };
   const expandMobileComposerStable = useStableCallback(expandMobileComposer);
 
-  const { onComposerCommandKey } = useComposerCommandKey({
+  const nextPrompt = useNextPromptSuggestion({
+    environmentId,
+    threadId: routeKind === "server" ? activeThreadId : null,
+    enabled: settings.nextPromptSuggestionsEnabled,
+    phase,
+    messages: promptHistoryMessages,
+  });
+  const promptSuggestion =
+    nextPrompt.suggestion !== null &&
+    prompt === "" &&
+    !isComposerApprovalState &&
+    activePendingProgress === null &&
+    !projectSelectionRequired &&
+    !showProviderUnavailable &&
+    !isConnecting
+      ? { text: nextPrompt.suggestion, dismiss: nextPrompt.dismiss }
+      : null;
+
+  const { onComposerCommandKey, acceptPromptSuggestion } = useComposerCommandKey({
     keybindings,
     sendShortcut: settings.sendShortcut,
     routeKind,
@@ -2249,6 +2268,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     composerTerminalContextsRef,
     composerPreviewAnnotations,
     composerReviewComments,
+    promptSuggestion,
     composerEditorRef,
     composerMenuOpenRef,
     composerMenuItemsRef,
@@ -2766,6 +2786,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     });
 
   const onComposerCommandKeyStable = useStableCallback(onComposerCommandKey);
+  const acceptPromptSuggestionStable = useStableCallback(() => {
+    acceptPromptSuggestion();
+    focusComposer();
+  });
   const isPathQueryActiveStable = useStableCallback(
     () => resolveActiveComposerTrigger().trigger?.kind === "path",
   );
@@ -3890,20 +3914,31 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     onCitationSubmitAndSend={submitCitationAndSendStable}
                     onCitationDraftSave={saveCitationDraftToPromptStable}
                     onPaste={onComposerPasteStable}
+                    placeholderAction={
+                      promptSuggestion
+                        ? {
+                            label: "Use suggested prompt",
+                            shortcut: "Tab",
+                            onSelect: acceptPromptSuggestionStable,
+                          }
+                        : undefined
+                    }
                     placeholder={
-                      isComposerApprovalState
-                        ? "Send a message to decline and redirect the agent"
-                        : activePendingProgress
-                          ? isChoiceOnlyPendingQuestion
-                            ? "Choose an option above"
-                            : "Type your own answer, or leave this blank to use the selected option"
-                          : projectSelectionRequired
-                            ? "Choose a project above to start a thread"
-                            : showProviderUnavailable
-                              ? "Enable a provider in Settings to send a message"
-                              : phase === "disconnected"
-                                ? DISCONNECTED_COMPOSER_PLACEHOLDER
-                                : "Ask anything, @tag files/folders, $use skills, or / for commands"
+                      promptSuggestion
+                        ? promptSuggestion.text
+                        : isComposerApprovalState
+                          ? "Send a message to decline and redirect the agent"
+                          : activePendingProgress
+                            ? isChoiceOnlyPendingQuestion
+                              ? "Choose an option above"
+                              : "Type your own answer, or leave this blank to use the selected option"
+                            : projectSelectionRequired
+                              ? "Choose a project above to start a thread"
+                              : showProviderUnavailable
+                                ? "Enable a provider in Settings to send a message"
+                                : phase === "disconnected"
+                                  ? DISCONNECTED_COMPOSER_PLACEHOLDER
+                                  : "Ask anything, @tag files/folders, $use skills, or / for commands"
                     }
                     disabled={
                       isConnecting ||
