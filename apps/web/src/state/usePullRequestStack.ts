@@ -2,10 +2,13 @@ import { useAtomValue } from "@effect/atom-react";
 import {
   ThreadPullRequestLink,
   type EnvironmentId,
+  type PullRequestDetail,
   type PullRequestRef,
 } from "@supaterm/contracts";
+import { parseChangeRequestUrl } from "@supaterm/shared/changeRequestUrl";
 import { Atom } from "effect/reactivity";
 import * as Schema from "effect/Schema";
+import { allowsSinglePullRequestMerge } from "../components/pullRequest/pullRequestDetail.logic";
 import {
   savedPullRequestStack,
   pullRequestStackView,
@@ -40,4 +43,45 @@ export function usePullRequestStack(
     reference === null ? null : pullRequestStackAtom({ environmentId, input: reference }),
   );
   return { ...query, ...pullRequestStackView(query, saved) };
+}
+
+function pullRequestStackReference(
+  detail: Pick<PullRequestDetail, "url" | "capabilities"> | null,
+  reference: PullRequestRef | null,
+) {
+  return detail === null || reference === null || detail.capabilities.stacks !== true
+    ? null
+    : { ...reference, host: reference.host ?? parseChangeRequestUrl(detail.url)?.host };
+}
+
+/** A pull request in a native stack merges with its stack, never on its own. */
+export function usePullRequestStackGate({
+  environmentId,
+  reference,
+  detail,
+  environmentSupported,
+}: {
+  environmentId: EnvironmentId;
+  reference: PullRequestRef | null;
+  detail: Pick<PullRequestDetail, "url" | "capabilities"> | null;
+  environmentSupported: boolean;
+}) {
+  const stackQuery = usePullRequestStack(
+    environmentId,
+    pullRequestStackReference(detail, reference),
+  );
+  const supportsStackActions =
+    detail?.capabilities.stacks === true &&
+    detail.capabilities.stackActions === true &&
+    environmentSupported;
+  return {
+    stackQuery,
+    supportsStackActions,
+    canMergeSinglePullRequest: allowsSinglePullRequestMerge({
+      supportsStackActions,
+      hasStack: stackQuery.data !== null,
+      stackPending: !stackQuery.isFresh,
+      stackError: stackQuery.error,
+    }),
+  };
 }
