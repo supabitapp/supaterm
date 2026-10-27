@@ -113,15 +113,27 @@ export async function runJourney(
         node.identifier === "android:id/alertTitle" &&
         /^(System UI|Google Play services) isn't responding$/.test(node.label ?? ""),
     );
+  const launchFailure = (snapshot: Snapshot) =>
+    findLabel(snapshot, /^(There was a problem loading the project\.?|Failed to load app from)/i);
   for (let dialogs = 0; ; dialogs++) {
     const launch = await device.waitFor(
       (snapshot) =>
         loaded(snapshot) ||
         errorDialog(snapshot) !== undefined ||
+        launchFailure(snapshot) !== undefined ||
         systemDialog(snapshot) !== undefined,
       "the app to load",
       180_000,
     );
+    const failure = launchFailure(launch);
+    if (failure) {
+      const message = launch.nodes
+        .flatMap((node) => (node.label ? [node.label] : []))
+        .filter((label) => /problem loading|Failed to load app from/i.test(label))
+        .join("; ");
+      await capture("launch failure", launch, [check("app loaded", false, message)]);
+      throw new Error(message);
+    }
     const system = systemDialog(launch);
     if (system) {
       const evidence = NodePath.join(directory, `startup-dialog-${dialogs + 1}`);

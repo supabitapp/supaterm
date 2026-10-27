@@ -18,6 +18,9 @@ import { BUNDLE_ID } from "./build.ts";
 import type { Snapshot } from "./checks.ts";
 import type { Pose } from "./poses.ts";
 import { delay, REPO_ROOT, run } from "./process.ts";
+import { recordIos } from "./recording.ts";
+
+export class DeviceCleanupError extends Error {}
 
 const AGENT_DEVICE_ENTRY = NodePath.join(
   REPO_ROOT,
@@ -89,7 +92,7 @@ export class Device {
       try {
         await device.release();
       } catch (cleanupError) {
-        throw new Error(
+        throw new DeviceCleanupError(
           `${error instanceof Error ? error.message : String(error)}; device cleanup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`,
           { cause: cleanupError },
         );
@@ -125,7 +128,8 @@ export class Device {
       timeoutMs: 900_000,
       logPath: NodePath.join(this.directory, "simulator-boot.log"),
     });
-    if (this.pose.form === "tablet") await ensureIosFullScreenAppsMode(this.id);
+    if (this.pose.form === "tablet" && this.pose.landscape)
+      await ensureIosFullScreenAppsMode(this.id);
   }
 
   private async bootAndroid(profile: string) {
@@ -247,7 +251,11 @@ export class Device {
         ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
       },
     );
-    let result: { success: boolean; data?: Record<string, unknown>; error?: { message?: string } };
+    let result: {
+      success: boolean;
+      data?: Record<string, unknown>;
+      error?: { code?: string; message?: string; details?: Record<string, unknown> };
+    };
     try {
       result = JSON.parse(stdout);
     } catch {
@@ -255,8 +263,18 @@ export class Device {
         `agent-device ${args[0]} exited ${code}: ${(stderr || stdout).slice(-2_000)}`,
       );
     }
-    if (!result.success)
-      throw new Error(`agent-device ${args[0]}: ${result.error?.message ?? "unknown error"}`);
+    if (!result.success) {
+      const context = Object.fromEntries(
+        Object.entries(result.error?.details ?? {}).filter(
+          ([key, value]) =>
+            ["phase", "reason", "cmd", "timeoutMs", "elapsedMs", "remainingMs"].includes(key) &&
+            (typeof value === "string" || typeof value === "number"),
+        ),
+      );
+      throw new Error(
+        `agent-device ${args[0]}: ${result.error?.message ?? "unknown error"} ${JSON.stringify({ code: result.error?.code, ...context }).slice(0, 1_500)}`,
+      );
+    }
     return result.data ?? {};
   }
 
@@ -303,12 +321,22 @@ export class Device {
       ]);
     const metroUrl = `http://127.0.0.1:${metroPort}`;
     const result = await this.agent(
-      [
-        "open",
-        BUNDLE_ID,
-        `supaterm-dev://expo-development-client/?url=${encodeURIComponent(metroUrl)}&disableOnboarding=1&disableFab=1&disableAutoLaunch=1`,
-        ...(this.pose.platform === "android" ? ["--no-test-ime"] : []),
-      ],
+      this.pose.platform === "ios"
+        ? [
+            "open",
+            BUNDLE_ID,
+            "--launch-args=--initialUrl",
+            "--launch-args",
+            `${metroUrl}?disableOnboarding=1&disableFab=1&disableAutoLaunch=1`,
+            "--launch-console",
+            NodePath.join(this.directory, "app-launch.log"),
+          ]
+        : [
+            "open",
+            BUNDLE_ID,
+            `supaterm-dev://expo-development-client/?url=${encodeURIComponent(metroUrl)}&disableOnboarding=1&disableFab=1&disableAutoLaunch=1`,
+            "--no-test-ime",
+          ],
       { timeoutMs: 180_000 },
     );
     if (typeof result.runnerLogPath === "string") this.runnerLogPath = result.runnerLogPath;
@@ -361,19 +389,32 @@ export class Device {
   async waitFor(predicate: (snapshot: Snapshot) => boolean, label: string, timeoutMs = 60_000) {
     const deadline = Date.now() + timeoutMs;
     let lastError = "";
+    let lastLabels = "";
     while (Date.now() < deadline) {
       try {
-        const snapshot = await this.snapshot();
+        const snapshot = await this.snapshot(Math.min(30_000, Math.max(1, deadline - Date.now())));
+        lastError = "";
+        lastLabels = snapshot.nodes
+          .flatMap((node) => (node.label ? [node.label] : []))
+          .slice(0, 8)
+          .join(" | ")
+          .slice(0, 1_000);
         if (predicate(snapshot)) return snapshot;
       } catch (error) {
         lastError = error instanceof Error ? error.message : String(error);
       }
       await delay(750);
     }
-    throw new Error(`Timed out waiting for ${label}${lastError ? `: ${lastError}` : ""}`);
+    throw new Error(`Timed out waiting for ${label}: ${lastError || lastLabels || "no snapshot"}`);
   }
 
   async screenshot(path: string) {
+    if (this.pose.platform === "ios" && !this.pose.fold) {
+      await run("xcrun", ["simctl", "io", this.id, "screenshot", "--type=png", path], {
+        timeoutMs: 30_000,
+      });
+      return;
+    }
     await this.agent(
       ["screenshot", path, ...(this.pose.platform === "ios" ? ["--pixel-density", "2"] : [])],
       { timeoutMs: 180_000 },
@@ -419,6 +460,7 @@ export class Device {
 
   async recorded(directory: string, name: string, action: () => Promise<unknown>) {
     const path = NodePath.join(directory, `${name}.mp4`);
+    if (this.pose.platform === "ios" && !this.pose.fold) return recordIos(this.id, path, action);
     await this.agent(["record", "start", path, "--hide-touches"]);
     const stop = () => this.agent(["record", "stop"], { timeoutMs: 180_000 });
     try {
@@ -434,23 +476,49 @@ export class Device {
 
   async release() {
     if (this.closed) return;
-    this.closed = true;
     if (!this.id) return;
     await this.agent(["close"], { timeoutMs: 15_000 }).catch(() => undefined);
+    const errors: string[] = [];
+    const attempt = async (action: () => Promise<unknown>) => {
+      try {
+        await action();
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : String(error));
+      }
+    };
     if (this.pose.platform === "ios") {
-      await run("xcrun", ["simctl", "shutdown", this.id], { allowFailure: true });
-      await run("xcrun", ["simctl", "delete", this.id]);
-    } else if (this.emulator) {
-      await run(androidSdkTool("platform-tools/adb"), ["-s", this.id, "emu", "kill"], {
-        allowFailure: true,
-        timeoutMs: 10_000,
+      await attempt(() => run("xcrun", ["simctl", "shutdown", this.id], { allowFailure: true }));
+      await attempt(() => run("xcrun", ["simctl", "delete", this.id]));
+      await attempt(async () => {
+        const { stdout } = await run("xcrun", ["simctl", "list", "devices", this.id, "--json"]);
+        const { devices } = JSON.parse(stdout) as {
+          devices: Record<string, Array<{ udid: string }>>;
+        };
+        if (
+          Object.values(devices)
+            .flat()
+            .some((device) => device.udid === this.id)
+        )
+          throw new Error(`Simulator ${this.id} still exists after cleanup`);
       });
-      await stopProcess(this.emulator);
-      await run(
-        NodePath.join(resolveAndroidSdkRoot(this.env), "cmdline-tools/latest/bin/avdmanager"),
-        ["delete", "avd", "--name", this.session],
-        { env: this.env },
+    } else if (this.emulator) {
+      await attempt(() =>
+        run(androidSdkTool("platform-tools/adb"), ["-s", this.id, "emu", "kill"], {
+          allowFailure: true,
+          timeoutMs: 10_000,
+        }),
+      );
+      const emulator = this.emulator;
+      await attempt(() => stopProcess(emulator));
+      await attempt(() =>
+        run(
+          NodePath.join(resolveAndroidSdkRoot(this.env), "cmdline-tools/latest/bin/avdmanager"),
+          ["delete", "avd", "--name", this.session],
+          { env: this.env },
+        ),
       );
     }
+    if (errors.length) throw new DeviceCleanupError(errors.join("; "));
+    this.closed = true;
   }
 }
