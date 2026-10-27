@@ -1,5 +1,5 @@
 import * as Dialog from "../../components/ui/Dialog";
-import { useAtomValue } from "@effect/atom-react";
+import { useAtom, useAtomValue } from "@effect/atom-react";
 import { useNavigation, type StaticScreenProps } from "@react-navigation/native";
 import {
   AuthProvidersManageScope,
@@ -8,8 +8,10 @@ import {
   type ServerProvider,
 } from "@supaterm/contracts";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
+import * as Cause from "effect/Cause";
+import * as Exit from "effect/Exit";
 import { AsyncResult } from "effect/reactivity";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppText as Text } from "../../components/ui/AppText";
@@ -30,9 +32,10 @@ import { SettingsSection } from "./components/SettingsSection";
 import {
   canMaintainEnvironment,
   canUpdateEnvironmentProvider,
-  findEnvironmentUpdate,
   supportsEnvironmentUpdate,
 } from "./environment-maintenance";
+import { environmentReleaseCheckAtom, releaseCheckValue } from "./environmentUpdateCheck";
+
 export function SettingsEnvironmentDetailRouteScreen({
   route,
 }: StaticScreenProps<{
@@ -67,12 +70,11 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
   const pendingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [release, setRelease] = useState<{
-    fromVersion: string;
-    targetVersion: string | null;
-  } | null>(null);
-  const checkController = useRef<AbortController | null>(null);
-  useEffect(() => () => checkController.current?.abort(), []);
+  const [releaseCheck, checkRelease] = useAtom(environmentReleaseCheckAtom(environmentId), {
+    mode: "promiseExit",
+  });
+  const release = releaseCheckValue(releaseCheck);
+
   const connected = environment?.isEnabled === true && environment.connectionState === "connected";
   const allowed =
     !AsyncResult.isFailure(sessionResult) && canMaintainEnvironment(session, connected);
@@ -138,7 +140,6 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
                 },
               });
               if (AsyncResult.isFailure(result)) throw squashAtomCommandFailure(result);
-              setRelease(null);
               setNotice(
                 result.value.upToDate
                   ? `Already up to date on ${result.value.targetVersion}.`
@@ -272,22 +273,11 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
                     loading={pending === "check"}
                     onPress={() => {
                       if (disabled) return;
+                      const fromVersion = config.environment.serverVersion;
                       void run("check", async () => {
-                        const controller = new AbortController();
-                        checkController.current = controller;
-                        const timeout = setTimeout(() => controller.abort(), 20_000);
-                        const fromVersion = config.environment.serverVersion;
-                        const result = await settlePromise(() =>
-                          findEnvironmentUpdate(fromVersion, controller.signal),
-                        );
-                        clearTimeout(timeout);
-                        checkController.current = null;
-
-                        if (AsyncResult.isFailure(result)) throw squashAtomCommandFailure(result);
-                        setRelease({
-                          fromVersion,
-                          targetVersion: result.value,
-                        });
+                        const exit = await checkRelease(async () => fromVersion);
+                        // `run` owns the error message, so a failed lookup rethrows to it.
+                        if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
                       });
                     }}
                   />
