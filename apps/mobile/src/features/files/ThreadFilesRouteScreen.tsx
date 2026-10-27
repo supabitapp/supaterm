@@ -453,7 +453,7 @@ export function ThreadFilesTreeScreen(props: ThreadFilesRouteScreenProps) {
   const { canReadFiles } = fileAccess;
   const entriesQuery = useFileTreeEntries({
     environmentId,
-    cwd: !canReadFiles || hasFileInspector ? null : cwd,
+    cwd: canReadFiles && !hasFileInspector ? cwd : null,
     searchQuery,
   });
   const handleReturnToThread = () => {
@@ -569,6 +569,9 @@ export function ThreadFilesTreeScreen(props: ThreadFilesRouteScreenProps) {
       <ScreenContent insetHorizontal={layout.usesSplitView}>
         <FileTreeBrowser
           key={JSON.stringify([environmentId, cwd])}
+          revealSelection={entriesQuery.revealSelection}
+          expandedPaths={entriesQuery.expandedPaths}
+          setExpandedPaths={entriesQuery.setExpandedPaths}
           entries={entriesQuery.entries}
           loadingDirectories={entriesQuery.loadingDirectories}
           onLoadDirectory={entriesQuery.loadDirectory}
@@ -578,10 +581,13 @@ export function ThreadFilesTreeScreen(props: ThreadFilesRouteScreenProps) {
           searchQuery={searchQuery}
           searchResultPaths={entriesQuery.searchResultPaths}
           searchTruncated={entriesQuery.searchTruncated}
-          selectedPath={null}
+          selectedPath={entriesQuery.selectedPath}
           onPreviewFile={handlePreviewFile}
           onRefresh={entriesQuery.refresh}
-          onSelectFile={handleSelectFile}
+          onSelectFile={(path) => {
+            entriesQuery.selectPath(path);
+            handleSelectFile(path);
+          }}
         />
         <FilesToolbarBottomFade />
       </ScreenContent>
@@ -772,7 +778,10 @@ export function ThreadFileScreen(props: ThreadFileRouteScreenProps) {
         headerInset={headerInset}
         projectName={directoryPath ?? projectName}
         selectedPath={directoryPath === null ? relativePath : null}
-        onSelectFile={handleSelectFile}
+        onSelectFile={(path) => {
+          if (directoryPath !== null) entriesQuery.selectPath(path);
+          handleSelectFile(path);
+        }}
       />
     ) : undefined;
   const safeAreaInsets = useSafeAreaInsets();
@@ -952,6 +961,9 @@ export function ThreadFileScreen(props: ThreadFileRouteScreenProps) {
         <ScreenContent>
           <FileTreeBrowser
             key={JSON.stringify([environmentId, directoryPath])}
+            revealSelection={entriesQuery.revealSelection}
+            expandedPaths={entriesQuery.expandedPaths}
+            setExpandedPaths={entriesQuery.setExpandedPaths}
             entries={entriesQuery.entries}
             loadingDirectories={entriesQuery.loadingDirectories}
             onLoadDirectory={entriesQuery.loadDirectory}
@@ -961,9 +973,12 @@ export function ThreadFileScreen(props: ThreadFileRouteScreenProps) {
             searchQuery={searchQuery}
             searchResultPaths={entriesQuery.searchResultPaths}
             searchTruncated={entriesQuery.searchTruncated}
-            selectedPath={null}
+            selectedPath={entriesQuery.selectedPath}
             onRefresh={entriesQuery.refresh}
-            onSelectFile={handleSelectFile}
+            onSelectFile={(path) => {
+              entriesQuery.selectPath(path);
+              handleSelectFile(path);
+            }}
           />
           <FilesToolbarBottomFade />
         </ScreenContent>
