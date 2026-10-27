@@ -45,6 +45,8 @@ Claude can still ask in **Full access** when its settings disable bypass permiss
 matches the action, and for a few safety checks of its own that no setting skips. The approval
 shows Claude's reason when it gives one, and **Why am I being asked this?** explains which case
 applies.
+While a Claude approval is pending, type a text reply to decline that request and give feedback
+directly to the agent that asked, including a subagent. Other pending requests stay unanswered.
 
 Antigravity can still send native approval requests in **Full access**. It only offers remembered
 approvals for actions that support them.
