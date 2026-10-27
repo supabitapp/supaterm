@@ -578,17 +578,6 @@ export function relayRouteIdentity(route: ConnectionRoute): string | null {
   return address === null || connectionRouteKind(route) !== "relay" ? null : relayIdentity(address);
 }
 
-/** Why a connect skips a saved route, or null when it may use it. */
-export function unusedRouteReason(
-  entry: ConnectionCatalogEntry,
-  route: ConnectionRoute,
-): string | null {
-  if (!sendsTokenInClear(connectionRoutes(entry), route)) return null;
-  return routeHttpBaseUrl(route)?.startsWith("https:") === true
-    ? "Would open an unencrypted WebSocket"
-    : "Would send its token unencrypted";
-}
-
 export interface ReportedEndpoint {
   readonly httpBaseUrl: string;
   readonly kind?: string;

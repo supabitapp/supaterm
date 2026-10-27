@@ -29,7 +29,6 @@ import {
   routesAfterRemoving,
   routeHttpBaseUrl,
   sendsTokenInClear,
-  unusedRouteReason,
   usableRoutes,
 } from "./routes.ts";
 
@@ -486,9 +485,6 @@ describe("plain HTTP learned routes", () => {
     expect(sendsTokenInClear(persisted, overRelay)).toBe(true);
     expect(sendsTokenInClear(persisted, tailnetOverRelay)).toBe(true);
     expect(ids(usableRoutes(entryWithRoutes(base, persisted)))).toEqual(["relay"]);
-    expect(unusedRouteReason(entryWithRoutes(base, persisted), overRelay)).toBe(
-      "Would send its token unencrypted",
-    );
   });
 
   it("trusts a tailnet label only on a tailnet address", () => {
@@ -505,9 +501,7 @@ describe("plain HTTP learned routes", () => {
     );
     expect(connectionRouteKind(labelled)).toBe("public");
     expect(sendsTokenInClear([labelled, PUBLIC], labelled)).toBe(true);
-    expect(unusedRouteReason(entryWithRoutes(base, [labelled, PUBLIC]), labelled)).toBe(
-      "Would send its token unencrypted",
-    );
+    expect(ids(usableRoutes(entryWithRoutes(base, [labelled, PUBLIC])))).toEqual(["public"]);
   });
 
   it("refuses an HTTPS route whose WebSocket is unencrypted, even with its own token", () => {
@@ -522,8 +516,6 @@ describe("plain HTTP learned routes", () => {
     };
     const entry = entryWithRoutes(base, [downgraded, LAN]);
     expect(ids(usableRoutes(entry))).toEqual(["lan"]);
-    expect(unusedRouteReason(entry, downgraded)).toBe("Would open an unencrypted WebSocket");
-    expect(unusedRouteReason(entry, LAN)).toBeNull();
   });
 
   it("lets a moved route carry its token in the clear only where it was paired that way", () => {

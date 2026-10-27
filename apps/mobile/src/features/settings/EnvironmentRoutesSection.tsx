@@ -10,7 +10,7 @@ import {
   connectionRouteLabel,
   connectionRoutes,
   isLearned,
-  unusedRouteReason,
+  usableRoutes,
 } from "@supaterm/client-runtime/connection";
 import { type EnvironmentId, sessionGrantsScope } from "@supaterm/contracts";
 import { AUTH_SCOPE_OPTIONS } from "@supaterm/shared/authScopeOptions";
@@ -91,6 +91,7 @@ export function EnvironmentRoutesSection({
 
   const byId = new Map(saved.map((route) => [connectionRouteId(route.target), route]));
   const routes = order.flatMap((id) => byId.get(id) ?? []);
+  const usable = new Set(usableRoutes(entry));
   const activeRouteId =
     connected && Option.isSome(prepared) ? connectionRouteId(prepared.value.target) : null;
 
@@ -195,7 +196,7 @@ export function EnvironmentRoutesSection({
       ) : null}
       {routes.map((route, index) => {
         const id = connectionRouteId(route.target);
-        const unusedReason = unusedRouteReason(entry, route);
+        const unused = !usable.has(route);
         const lifted = drag === null ? 0 : (heights.get(drag.id) ?? 0);
         const shift =
           dragFrom === -1 || index === dragFrom
@@ -212,7 +213,7 @@ export function EnvironmentRoutesSection({
             position={index + 1}
             count={routes.length}
             inUse={id === activeRouteId}
-            unusedReason={unusedReason}
+            unused={unused}
             editing={editing}
             offset={index === dragFrom ? (drag?.translation ?? 0) : shift}
             lifted={index === dragFrom}
@@ -235,7 +236,7 @@ export function EnvironmentRoutesSection({
             // Learned routes are refreshed from the server unless a connect
             // skips them; paired routes can be removed.
             onRemove={
-              routes.length > 1 && (!isLearned(route) || unusedReason !== null)
+              routes.length > 1 && (!isLearned(route) || unused)
                 ? () => confirmRemove(route)
                 : undefined
             }
@@ -252,7 +253,7 @@ function RouteRow(props: {
   readonly position: number;
   readonly count: number;
   readonly inUse: boolean;
-  readonly unusedReason: string | null;
+  readonly unused: boolean;
   readonly editing: boolean;
   readonly offset: number;
   readonly lifted: boolean;
@@ -266,10 +267,9 @@ function RouteRow(props: {
   const { route, lifted, offset } = props;
   const label = connectionRouteLabel(route);
   const address = connectionRouteAddress(route);
-  const used = props.unusedReason === null;
   // A route a connect skips has no speed worth measuring.
   const latency = useAtomValue(
-    used ? environmentSession.routeLatencyAtoms(route).labelAtom : NO_LATENCY,
+    props.unused ? NO_LATENCY : environmentSession.routeLatencyAtoms(route).labelAtom,
   );
   const direct = useAtomValue(environmentSession.relayRouteTransportAtom(route)) === "direct";
   const style = useAnimatedStyle(() => ({
@@ -311,10 +311,10 @@ function RouteRow(props: {
         accessibilityLabel={[
           label,
           address,
-          isLearned(route) && used ? "Found automatically" : null,
+          isLearned(route) ? "Found automatically" : null,
           props.inUse ? "In use" : null,
           direct ? "Direct, encrypted" : null,
-          used ? `Latency: ${latency}` : `Not used: ${props.unusedReason}`,
+          props.unused ? "Not used" : `Latency: ${latency}`,
           `Route ${props.position} of ${props.count}`,
         ]
           .filter((part) => part !== null)
@@ -338,7 +338,7 @@ function RouteRow(props: {
               numberOfLines={1}
               className={cn(
                 "shrink text-lg android:text-base",
-                used ? "text-foreground" : "text-foreground-muted",
+                props.unused ? "text-foreground-muted" : "text-foreground",
               )}
             >
               {label}
@@ -347,22 +347,19 @@ function RouteRow(props: {
               <StatusPill {...connectionTone("connected")} label="In use" size="compact" />
             ) : null}
             {direct ? <Text className="shrink-0 text-sm text-foreground-muted">Direct</Text> : null}
-            {used ? null : (
+            {props.unused ? (
               <StatusPill {...connectionTone("unsupported")} label="Not used" size="compact" />
-            )}
+            ) : null}
           </View>
           {address !== null ? (
             <Text numberOfLines={1} className="text-sm text-foreground-muted">
-              {isLearned(route) && used ? `${address} · found automatically` : address}
+              {isLearned(route) ? `${address} · found automatically` : address}
             </Text>
           ) : null}
-          {used ? null : (
-            <Text className="text-sm text-foreground-muted">{props.unusedReason}</Text>
-          )}
         </View>
-        {used ? (
+        {props.unused ? null : (
           <Text className="shrink-0 text-sm tabular-nums text-foreground-muted">{latency}</Text>
-        ) : null}
+        )}
       </View>
       {props.editing ? (
         <SettingsDragHandle

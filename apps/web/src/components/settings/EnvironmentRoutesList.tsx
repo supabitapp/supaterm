@@ -26,7 +26,7 @@ import {
   connectionRouteLabel,
   connectionRoutes,
   isLearned,
-  unusedRouteReason,
+  usableRoutes,
 } from "@supaterm/client-runtime/connection";
 import { GripVerticalIcon, LockIcon, PlusIcon, RefreshCwIcon, XIcon } from "@supaterm/icons";
 import { useContext, useState } from "react";
@@ -63,6 +63,7 @@ export function EnvironmentRoutesList({
       : savedIds;
   const byId = new Map(saved.map((route) => [connectionRouteId(route.target), route]));
   const routes = order.flatMap((id) => byId.get(id) ?? []);
+  const usable = new Set(usableRoutes(environment.entry));
 
   const prepared = usePreparedConnection(environment.environmentId);
   const activeRouteId =
@@ -113,18 +114,18 @@ export function EnvironmentRoutesList({
         <SortableContext items={order} strategy={verticalListSortingStrategy}>
           <ol aria-label={`Routes to ${environment.label}, preferred first`}>
             {routes.map((route, index) => {
-              const unusedReason = unusedRouteReason(environment.entry, route);
+              const unused = !usable.has(route);
               return (
                 <SortableRouteRow
                   key={connectionRouteId(route.target)}
                   route={route}
                   position={index + 1}
                   inUse={connectionRouteId(route.target) === activeRouteId}
-                  unusedReason={unusedReason}
+                  unused={unused}
                   // Learned routes are refreshed from the server and are not
                   // removed manually unless a connect skips them; paired
                   // routes can be removed individually.
-                  removable={routes.length > 1 && (!isLearned(route) || unusedReason !== null)}
+                  removable={routes.length > 1 && (!isLearned(route) || unused)}
                   onRemove={() => void confirmRemove(route)}
                 />
               );
@@ -161,27 +162,25 @@ function SortableRouteRow({
   route,
   position,
   inUse,
-  unusedReason,
+  unused,
   removable,
   onRemove,
 }: {
   readonly route: ConnectionRoute;
   readonly position: number;
   readonly inUse: boolean;
-  readonly unusedReason: string | null;
+  readonly unused: boolean;
   readonly removable: boolean;
   readonly onRemove: () => void;
 }) {
   const id = connectionRouteId(route.target);
   const label = connectionRouteLabel(route);
   const address = connectionRouteAddress(route);
-  const used = unusedReason === null;
   // A route a connect skips has no speed worth measuring.
   const latency = useAtomValue(
-    used ? environmentSession.routeLatencyAtoms(route).labelAtom : NO_LATENCY,
+    unused ? NO_LATENCY : environmentSession.routeLatencyAtoms(route).labelAtom,
   );
   const transport = useAtomValue(environmentSession.relayRouteTransportAtom(route));
-  const note = unusedReason ?? (isLearned(route) ? "Discovered" : null);
   const {
     attributes,
     listeners,
@@ -215,7 +214,7 @@ function SortableRouteRow({
         <p
           className={cn(
             "flex flex-wrap items-center gap-x-1.5 text-xs font-medium",
-            used ? "text-foreground" : "text-muted-foreground",
+            unused ? "text-muted-foreground" : "text-foreground",
           )}
         >
           {connectionRouteKind(route) === "relay" ? (
@@ -240,7 +239,7 @@ function SortableRouteRow({
               </TooltipPopup>
             </Tooltip>
           ) : null}
-          {used ? null : <span className="text-2xs font-normal">Not used</span>}
+          {unused ? <span className="text-2xs font-normal">Not used</span> : null}
         </p>
         {address !== null ? (
           <p className="flex min-w-0 items-baseline gap-2 text-2xs text-muted-foreground">
@@ -250,12 +249,12 @@ function SortableRouteRow({
               </TooltipTrigger>
               <TooltipPopup side="top">{address}</TooltipPopup>
             </Tooltip>
-            {note === null ? null : <span className="shrink-0">{note}</span>}
+            {isLearned(route) ? <span className="shrink-0">Discovered</span> : null}
           </p>
         ) : null}
       </div>
       <span
-        aria-label={used ? `${label} route latency: ${latency}` : undefined}
+        aria-label={unused ? undefined : `${label} route latency: ${latency}`}
         className="w-20 text-right text-2xs tabular-nums text-muted-foreground"
       >
         {latency}
