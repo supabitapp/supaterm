@@ -19,7 +19,10 @@ import { startThreadNotifications } from "./components/ThreadNotificationCoordin
 import { APP_DISPLAY_NAME } from "./branding";
 import { startGuideRunNotifications } from "./components/pullRequest/guide/PullRequestGuideRunCoordinator";
 import { isElectron } from "./env";
-import { subscribeDraftThreadPromotion } from "./composerDraftStore";
+import {
+  subscribeComposerDraftModelReconciliation,
+  subscribeDraftThreadPromotion,
+} from "./composerDraftStore";
 import { startDefaultThemeAdoption } from "./hooks/useDefaultTheme";
 import { startEnvironmentThemeRepaint } from "./hooks/useEnvironmentTheme";
 import { getClientSettings, subscribeClientSettings } from "./hooks/useSettings";
@@ -32,6 +35,7 @@ import {
 import { startProviderAuthDelivery } from "./providerAuthDelivery";
 import { getRouter, type AppRouter } from "./router";
 import { appAtomRegistry } from "./rpc/atomRegistry";
+import { environmentShell } from "./state/shell";
 import { installCommandPaletteCommands } from "./shortcuts/commandPaletteCommands";
 import { registerOpenFavoriteEditorCommand } from "./components/chat/OpenInPickerShortcut";
 import { environmentThreadShells } from "./state/threads";
@@ -131,6 +135,12 @@ export function startAppServices(): AppRouter {
     registry: appAtomRegistry,
     threadShellAtom: environmentThreadShells.quietThreadShellAtom,
     threadRefsAtom: environmentThreadShells.threadRefsAtom,
+  });
+  subscribeComposerDraftModelReconciliation({
+    registry: appAtomRegistry,
+    threadShellAtom: environmentThreadShells.threadShellAtom,
+    threadRefsAtom: environmentThreadShells.threadRefsAtom,
+    shellStateAtom: environmentShell.stateAtom,
   });
   startMainAppLocationTracking(router);
   startBackgroundThreadAnnouncements(appAtomRegistry, router);
