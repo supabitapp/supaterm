@@ -19,6 +19,8 @@ import {
 import { VIDEO_FILE_EXTENSIONS } from "@supaterm/shared/video";
 import { fileIconPathForMimeType } from "@supaterm/shared/mediaPreview";
 
+import type { ContextChipAccentKind } from "~/lib/contextChipAccents";
+
 export interface PierreIconResolution {
   name: string;
   token?: string;
@@ -56,19 +58,19 @@ const SUPATERM_FILE_ICON_SPRITE = `
     <g style="color: light-dark(#d47628, #ffa359)" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(CodeXml)}</g>
   </symbol>
   <symbol id="supaterm-file-icon-pdf" viewBox="0 0 24 24">
-    <g style="color: ${DOCUMENT_ICON_COLORS["supaterm-file-icon-pdf"]}" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(FileGlyph)}</g>
+    <g style="color: var(--document-icon-stroke, ${DOCUMENT_ICON_COLORS["supaterm-file-icon-pdf"]})" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(FileGlyph)}</g>
   </symbol>
   <symbol id="supaterm-file-icon-word" viewBox="0 0 24 24">
-    <g style="color: ${DOCUMENT_ICON_COLORS["supaterm-file-icon-word"]}" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(FileText)}</g>
+    <g style="color: var(--document-icon-stroke, ${DOCUMENT_ICON_COLORS["supaterm-file-icon-word"]})" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(FileText)}</g>
   </symbol>
   <symbol id="supaterm-file-icon-spreadsheet" viewBox="0 0 24 24">
-    <g style="color: ${DOCUMENT_ICON_COLORS["supaterm-file-icon-spreadsheet"]}" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(Table)}</g>
+    <g style="color: var(--document-icon-stroke, ${DOCUMENT_ICON_COLORS["supaterm-file-icon-spreadsheet"]})" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(Table)}</g>
   </symbol>
   <symbol id="supaterm-file-icon-slides" viewBox="0 0 24 24">
-    <g style="color: ${DOCUMENT_ICON_COLORS["supaterm-file-icon-slides"]}" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(Presentation)}</g>
+    <g style="color: var(--document-icon-stroke, ${DOCUMENT_ICON_COLORS["supaterm-file-icon-slides"]})" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(Presentation)}</g>
   </symbol>
   <symbol id="supaterm-file-icon-epub" viewBox="0 0 24 24">
-    <g style="color: ${DOCUMENT_ICON_COLORS["supaterm-file-icon-epub"]}" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(BookOpen)}</g>
+    <g style="color: var(--document-icon-stroke, ${DOCUMENT_ICON_COLORS["supaterm-file-icon-epub"]})" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(BookOpen)}</g>
   </symbol>
   <!-- Language logos from Simple Icons, CC0. -->
   <symbol id="supaterm-file-icon-csharp" viewBox="0 0 24 24">
@@ -223,9 +225,17 @@ export function resolvePierreIconForEntry(
     : icon;
 }
 
-export function documentIconColorForFileName(fileName: string) {
+const DOCUMENT_CHIP_KINDS: Readonly<Record<string, ContextChipAccentKind>> = {
+  "supaterm-file-icon-pdf": "doc-pdf",
+  "supaterm-file-icon-word": "doc-word",
+  "supaterm-file-icon-spreadsheet": "doc-spreadsheet",
+  "supaterm-file-icon-slides": "doc-slides",
+  "supaterm-file-icon-epub": "doc-epub",
+};
+
+export function documentChipKindForFileName(fileName: string) {
   const icon = resolvePierreIconForEntry(fileName, "file");
-  return icon ? DOCUMENT_ICON_COLORS[icon.name] : undefined;
+  return icon ? DOCUMENT_CHIP_KINDS[icon.name] : undefined;
 }
 
 export function hasSpecificPierreIconForFileName(fileName: string): boolean {
