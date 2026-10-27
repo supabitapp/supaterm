@@ -101,7 +101,7 @@ index 6246f87..0995039 100644
 +  }
  }
 diff --git a/android/src/main/java/com/swmansion/enriched/markdown/MeasurementStore.kt b/android/src/main/java/com/swmansion/enriched/markdown/MeasurementStore.kt
-index 31ef1eb..6451a56 100644
+index fa757dc..52b6877 100644
 --- a/android/src/main/java/com/swmansion/enriched/markdown/MeasurementStore.kt
 +++ b/android/src/main/java/com/swmansion/enriched/markdown/MeasurementStore.kt
 @@ -90,8 +90,8 @@ object MeasurementStore {
@@ -133,7 +133,7 @@ index 31ef1eb..6451a56 100644
      data.remove(viewId)
    }
  
-@@ -507,13 +507,14 @@ object MeasurementStore {
+@@ -508,13 +508,14 @@ object MeasurementStore {
        } else {
          rawMarkdown
        }
@@ -152,7 +152,7 @@ index 31ef1eb..6451a56 100644
      // Density joins the key: an app that handles density changes itself keeps the view
      // alive while every px measurement below changes. So do the slot ids: a size
      // measured with React children in place must not serve the slot-free document.
-@@ -522,7 +523,7 @@ object MeasurementStore {
+@@ -523,7 +524,7 @@ object MeasurementStore {
        31 * (
          31 * (
            31 * computePropsHashForMarkdown(markdown, props, allowFontScaling, fontScale, maxFontSizeMultiplier) +
@@ -161,7 +161,7 @@ index 31ef1eb..6451a56 100644
          ) + density.hashCode()
        ) + blockSlotIds.hashCode()
  
-@@ -615,7 +616,7 @@ object MeasurementStore {
+@@ -617,7 +618,7 @@ object MeasurementStore {
            resolveBreakStrategy(id),
            allowTrailingMargin,
            mathHeightForIndex = { mathHeightByIndex[it] ?: 0f },
@@ -218,10 +218,10 @@ index 1d4df07..f3807fb 100644
  
  NS_ASSUME_NONNULL_END
 diff --git a/ios/EnrichedMarkdown.mm b/ios/EnrichedMarkdown.mm
-index 3f35e62..f87371f 100644
+index f69549c..99fb7a9 100644
 --- a/ios/EnrichedMarkdown.mm
 +++ b/ios/EnrichedMarkdown.mm
-@@ -1335,7 +1335,7 @@ static char kENRMSegmentFadeAnimatorKey;
+@@ -1336,7 +1336,7 @@ static char kENRMSegmentFadeAnimatorKey;
    return codeBlockView;
  }
  
@@ -231,10 +231,10 @@ index 3f35e62..f87371f 100644
    return _codeBlockWrapState.indices;
  }
 diff --git a/ios/internals/ENRMViewFreeMeasurement.h b/ios/internals/ENRMViewFreeMeasurement.h
-index 65281b1..286da77 100644
+index 2626b09..dd2f1a4 100644
 --- a/ios/internals/ENRMViewFreeMeasurement.h
 +++ b/ios/internals/ENRMViewFreeMeasurement.h
-@@ -239,10 +239,11 @@ static inline CGSize ENRMMeasureMarkdownViewFree(const PropsT &typedProps, CGFlo
+@@ -240,10 +240,11 @@ static inline CGSize ENRMMeasureMarkdownViewFree(const PropsT &typedProps, CGFlo
   * same condition, tables report full width. Finishes with `measureSize:`'s
   * pixel rounding (width capped at maxWidth) and its
   * (maxWidth × system-16 line height) fallback for empty/failed content.
@@ -250,7 +250,7 @@ index 65281b1..286da77 100644
   * whose React children are mounted (the parse stamps them), sizes each one and
   * records its frame in the content box for the shadow node to place it.
   */
-@@ -250,7 +251,7 @@ template <typename PropsT>
+@@ -251,7 +252,7 @@ template <typename PropsT>
  static inline CGSize ENRMMeasureSegmentedMarkdownViewFree(const PropsT &typedProps, CGFloat maxWidth, CGFloat fontScale,
                                                            CGFloat pointScaleFactor,
                                                            NSWritingDirection resolvedLayoutDirection,
@@ -259,7 +259,7 @@ index 65281b1..286da77 100644
                                                            ENRMBlockSlotMeasurer *slotMeasurer = nil)
  {
    @autoreleasepool {
-@@ -316,7 +317,7 @@ static inline CGSize ENRMMeasureSegmentedMarkdownViewFree(const PropsT &typedPro
+@@ -317,7 +318,7 @@ static inline CGSize ENRMMeasureSegmentedMarkdownViewFree(const PropsT &typedPro
      CGFloat yOffset = 0.0;
      CGFloat maxContentWidth = 0.0;
      const NSUInteger lastIndex = segments.count - 1;
@@ -342,10 +342,10 @@ index 99c5b37..5070de4 100644
  
  void EnrichedMarkdownShadowNode::layout(LayoutContext layoutContext)
 diff --git a/ios/internals/MeasurementCache.h b/ios/internals/MeasurementCache.h
-index ccdca25..7fb7806 100644
+index 2a9deb1..d48c861 100644
 --- a/ios/internals/MeasurementCache.h
 +++ b/ios/internals/MeasurementCache.h
-@@ -48,8 +48,8 @@ struct MeasurementCacheKey {
+@@ -49,8 +49,8 @@ struct MeasurementCacheKey {
    size_t linkPillContentFingerprint;
    // Overridden image sources change block image heights (maxHeight/aspectRatio sizing).
    size_t imageSourcesFingerprint;
@@ -356,25 +356,24 @@ index ccdca25..7fb7806 100644
    CGFloat fontScale;
    MarkdownFlavor flavor;
    std::string lineBreakStrategyIOS;
-@@ -64,7 +64,7 @@ struct MeasurementCacheKey {
-     return std::tie(markdown, maxWidth, allowTrailingMargin, allowFontScaling, maxFontSizeMultiplier,
+@@ -66,14 +66,14 @@ struct MeasurementCacheKey {
                      md4cFlagsUnderline, md4cFlagsSuperscript, md4cFlagsSubscript, md4cFlagsHighlight,
-                     md4cFlagsLatexMath, md4cFlagsHardSoftBreaks, md4cFlagsPreserveBlankLines, md4cFlagsAdmonitions,
--                    styleFingerprint, linkPillContentFingerprint, imageSourcesFingerprint, wrappedCodeBlocksFingerprint,
-+                    styleFingerprint, linkPillContentFingerprint, imageSourcesFingerprint, codeBlockWrapStateFingerprint,
-                     fontScale, flavor, lineBreakStrategyIOS, writingDirection, numberOfLines, ellipsizeMode,
-                     linkRegexKey, inlineCodeLinkRegexKey) ==
+                     md4cFlagsLatexMath, md4cFlagsHardSoftBreaks, md4cFlagsPreserveBlankLines,
+                     md4cFlagsPreserveWindowsPaths, md4cFlagsAdmonitions, styleFingerprint, linkPillContentFingerprint,
+-                    imageSourcesFingerprint, wrappedCodeBlocksFingerprint, fontScale, flavor, lineBreakStrategyIOS,
++                    imageSourcesFingerprint, codeBlockWrapStateFingerprint, fontScale, flavor, lineBreakStrategyIOS,
+                     writingDirection, numberOfLines, ellipsizeMode, linkRegexKey, inlineCodeLinkRegexKey) ==
             std::tie(other.markdown, other.maxWidth, other.allowTrailingMargin, other.allowFontScaling,
-@@ -72,7 +72,7 @@ struct MeasurementCacheKey {
+                     other.maxFontSizeMultiplier, other.md4cFlagsUnderline, other.md4cFlagsSuperscript,
                      other.md4cFlagsSubscript, other.md4cFlagsHighlight, other.md4cFlagsLatexMath,
-                     other.md4cFlagsHardSoftBreaks, other.md4cFlagsPreserveBlankLines, other.md4cFlagsAdmonitions,
-                     other.styleFingerprint, other.linkPillContentFingerprint, other.imageSourcesFingerprint,
--                    other.wrappedCodeBlocksFingerprint, other.fontScale, other.flavor, other.lineBreakStrategyIOS,
-+                    other.codeBlockWrapStateFingerprint, other.fontScale, other.flavor, other.lineBreakStrategyIOS,
-                     other.writingDirection, other.numberOfLines, other.ellipsizeMode, other.linkRegexKey,
-                     other.inlineCodeLinkRegexKey);
+                     other.md4cFlagsHardSoftBreaks, other.md4cFlagsPreserveBlankLines,
+                     other.md4cFlagsPreserveWindowsPaths, other.md4cFlagsAdmonitions, other.styleFingerprint,
+-                    other.linkPillContentFingerprint, other.imageSourcesFingerprint, other.wrappedCodeBlocksFingerprint,
++                    other.linkPillContentFingerprint, other.imageSourcesFingerprint, other.codeBlockWrapStateFingerprint,
+                     other.fontScale, other.flavor, other.lineBreakStrategyIOS, other.writingDirection,
+                     other.numberOfLines, other.ellipsizeMode, other.linkRegexKey, other.inlineCodeLinkRegexKey);
    }
-@@ -98,7 +98,7 @@ struct MeasurementCacheKeyHash {
+@@ -100,7 +100,7 @@ struct MeasurementCacheKeyHash {
      HashUtils::hash_one(h, key.styleFingerprint);
      HashUtils::hash_one(h, key.linkPillContentFingerprint);
      HashUtils::hash_one(h, key.imageSourcesFingerprint);
@@ -383,7 +382,7 @@ index ccdca25..7fb7806 100644
      HashUtils::hash_one(h, key.fontScale);
      HashUtils::hash_one(h, static_cast<uint8_t>(key.flavor));
      HashUtils::hash_one(h, key.lineBreakStrategyIOS);
-@@ -234,7 +234,7 @@ template <typename PropsType> inline size_t ENRMImageSourcesFingerprintForProps(
+@@ -236,7 +236,7 @@ template <typename PropsType> inline size_t ENRMImageSourcesFingerprintForProps(
  
  template <typename PropsType>
  inline MeasurementCacheKey buildMeasurementCacheKey(const PropsType &props, CGFloat maxWidth, CGFloat fontScale,
@@ -392,7 +391,7 @@ index ccdca25..7fb7806 100644
  {
    return MeasurementCacheKey{
        .markdown = props.markdown,
-@@ -253,7 +253,7 @@ inline MeasurementCacheKey buildMeasurementCacheKey(const PropsType &props, CGFl
+@@ -256,7 +256,7 @@ inline MeasurementCacheKey buildMeasurementCacheKey(const PropsType &props, CGFl
        .styleFingerprint = computeStyleFingerprint(props.markdownStyle),
        .linkPillContentFingerprint = computeLinkPillContentFingerprint(props.linkPillContent),
        .imageSourcesFingerprint = ENRMImageSourcesFingerprintForProps(props),
@@ -402,10 +401,10 @@ index ccdca25..7fb7806 100644
        .flavor = flavor,
        .lineBreakStrategyIOS = props.lineBreakStrategyIOS,
 diff --git a/ios/internals/ShadowMeasurementUtils.h b/ios/internals/ShadowMeasurementUtils.h
-index 6a30af0..732d8df 100644
+index b12de87..7fec859 100644
 --- a/ios/internals/ShadowMeasurementUtils.h
 +++ b/ios/internals/ShadowMeasurementUtils.h
-@@ -85,8 +85,8 @@ static inline bool ENRMPropsNeedExactStreamingMeasurement(const PropsT &oldProps
+@@ -86,8 +86,8 @@ static inline bool ENRMPropsNeedExactStreamingMeasurement(const PropsT &oldProps
   * `ENRMMeasureSegmentedMarkdownViewFree`); the resolved view is still handed
   * to the block for strategies that can use it. `fontScale` handed to the
   * block is the real multiplier even when streaming skips the cache —
@@ -416,7 +415,7 @@ index 6a30af0..732d8df 100644
   * into the cache key.
   */
  template <typename PropsT, typename ViewT>
-@@ -95,7 +95,7 @@ ENRMMeasureMarkdownContent(const PropsT &typedProps, const std::shared_ptr<void>
+@@ -96,7 +96,7 @@ ENRMMeasureMarkdownContent(const PropsT &typedProps, const std::shared_ptr<void>
                             int &lastExactMeasurementCounter, CGSize &lastExactMeasurementSize, MarkdownFlavor flavor,
                             const LayoutContext &layoutContext, const LayoutConstraints &layoutConstraints,
                             CGSize (^measureUncached)(ViewT *view, CGFloat maxWidth, CGFloat fontScale),
@@ -425,7 +424,7 @@ index 6a30af0..732d8df 100644
  {
    CGFloat maxWidth = layoutConstraints.maximumSize.width;
  
-@@ -120,7 +120,7 @@ ENRMMeasureMarkdownContent(const PropsT &typedProps, const std::shared_ptr<void>
+@@ -121,7 +121,7 @@ ENRMMeasureMarkdownContent(const PropsT &typedProps, const std::shared_ptr<void>
    CGFloat fontScale = ENRMFontScaleForMeasurement(typedProps.allowFontScaling, layoutContext);
  
    if (shouldUseMeasurementCache && !typedProps.markdown.empty()) {
@@ -434,7 +433,7 @@ index 6a30af0..732d8df 100644
      CachedSize cached;
      if (MeasurementCache::shared().get(cacheKey, cached)) {
        return ENRMClampMeasuredSize(CGSizeMake(cached.width, cached.height), layoutConstraints);
-@@ -130,7 +130,7 @@ ENRMMeasureMarkdownContent(const PropsT &typedProps, const std::shared_ptr<void>
+@@ -131,7 +131,7 @@ ENRMMeasureMarkdownContent(const PropsT &typedProps, const std::shared_ptr<void>
    CGSize size = measureUncached(view, maxWidth, fontScale);
  
    if (shouldUseMeasurementCache && !typedProps.markdown.empty()) {
@@ -614,10 +613,10 @@ index 451f273..b9f4dd3 100644
    _onHeightChanged();
  }
 diff --git a/lib/module/EnrichedMarkdownNativeComponent.ts b/lib/module/EnrichedMarkdownNativeComponent.ts
-index af6574c..b71ffd0 100644
+index 309c3f2..f834a03 100644
 --- a/lib/module/EnrichedMarkdownNativeComponent.ts
 +++ b/lib/module/EnrichedMarkdownNativeComponent.ts
-@@ -538,7 +538,7 @@ export interface NativeProps extends ViewProps {
+@@ -539,7 +539,7 @@ export interface NativeProps extends ViewProps {
    enableCodeBlockPress?: CodegenTypes.WithDefault<boolean, false>;
    /**
     * Shows a per-block line wrap toggle next to the copy button in fenced code
@@ -627,10 +626,10 @@ index af6574c..b71ffd0 100644
     */
    enableCodeBlockWrapToggle?: CodegenTypes.WithDefault<boolean, true>;
 diff --git a/lib/typescript/src/EnrichedMarkdownNativeComponent.d.ts b/lib/typescript/src/EnrichedMarkdownNativeComponent.d.ts
-index 360ae49..543749a 100644
+index 1b4170f..a425b41 100644
 --- a/lib/typescript/src/EnrichedMarkdownNativeComponent.d.ts
 +++ b/lib/typescript/src/EnrichedMarkdownNativeComponent.d.ts
-@@ -475,7 +475,7 @@ export interface NativeProps extends ViewProps {
+@@ -476,7 +476,7 @@ export interface NativeProps extends ViewProps {
      enableCodeBlockPress?: CodegenTypes.WithDefault<boolean, false>;
      /**
       * Shows a per-block line wrap toggle next to the copy button in fenced code
@@ -653,10 +652,10 @@ index b44bedb..7b2afb9 100644
       * streaming appends and resets when the markdown is replaced. Code blocks
       * inside blockquotes and admonitions get the toggle too. The toggle's spoken
 diff --git a/src/EnrichedMarkdownNativeComponent.ts b/src/EnrichedMarkdownNativeComponent.ts
-index af6574c..b71ffd0 100644
+index 309c3f2..f834a03 100644
 --- a/src/EnrichedMarkdownNativeComponent.ts
 +++ b/src/EnrichedMarkdownNativeComponent.ts
-@@ -538,7 +538,7 @@ export interface NativeProps extends ViewProps {
+@@ -539,7 +539,7 @@ export interface NativeProps extends ViewProps {
    enableCodeBlockPress?: CodegenTypes.WithDefault<boolean, false>;
    /**
     * Shows a per-block line wrap toggle next to the copy button in fenced code

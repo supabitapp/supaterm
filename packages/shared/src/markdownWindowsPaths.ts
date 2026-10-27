@@ -30,6 +30,23 @@ function keepWindowsPathEscape(this: EscapeCompileContext) {
   }
 }
 
+function keepWindowsProsePathEscape(this: EscapeCompileContext) {
+  // Destinations, titles, and labels are buffered in a fragment.
+  if (this.stack.at(-1)?.type !== "fragment") keepWindowsPathEscape.call(this);
+}
+
+/**
+ * Keeps escapes inside drive paths in prose only, for parsers that already escape Windows
+ * destinations themselves. Prose paths end at whitespace: past that, nothing tells a path
+ * from a sentence, and `C:\x and \*this\*` must still read `*this*`.
+ */
+export function remarkKeepWindowsProsePaths(this: Processor) {
+  // oxlint-disable-next-line no-this-in-exported-function -- unified binds the processor when installing plugins.
+  (this.data().fromMarkdownExtensions ??= []).push({
+    exit: { characterEscape: keepWindowsProsePathEscape },
+  });
+}
+
 export function remarkKeepWindowsPathDestinations(
   this: Processor,
   capture?: (
