@@ -266,6 +266,13 @@ jobs:
       - name: Test
         run: vp run --filter @supaterm/web test --shard ${{ matrix.shard }}/${{ strategy.job-total }} --maxWorkers 8
 
+      # Browser tests run source modules; this boots the production chunk graph, once per run.
+      - name: Boot the built web client
+        if: matrix.shard == 1
+        run: |
+          vp run --filter @supaterm/web build
+          node apps/web/scripts/verify-built-boot.ts
+
   test_server:
     name: Test Server ${{ matrix.shard }}
     runs-on: depot-ubuntu-24.04-8
