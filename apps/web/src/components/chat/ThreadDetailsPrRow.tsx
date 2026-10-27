@@ -33,7 +33,7 @@ import {
   EyeIcon,
   EyeOffIcon,
   GitBranchIcon,
-  MoreHorizontalIcon,
+  EllipsisIcon,
   TriangleAlertIcon,
 } from "@supaterm/icons";
 import { AsyncResult } from "effect/reactivity";
@@ -516,7 +516,7 @@ export function ThreadDetailsPrRow({
                     />
                   }
                 >
-                  <MoreHorizontalIcon aria-hidden className={THREAD_DETAILS_PANEL_CHEVRON_CLASS} />
+                  <EllipsisIcon aria-hidden className={THREAD_DETAILS_PANEL_CHEVRON_CLASS} />
                 </MenuTrigger>
               }
             />
