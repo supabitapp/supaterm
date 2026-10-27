@@ -23,3 +23,13 @@ CLOUDFLARE_API_TOKEN = { provider = "op", value = "7p7xugt7rb7bwia3gucpeqb7di/CL
 
 [profiles.mobile.secrets]
 EXPO_TOKEN = { provider = "op", value = "t2yimao5k2nhpryu5bc7omrqiq/EXPO_TOKEN" }
+
+# Maintainers resolve this one locally through 1Password, so pin the account that holds
+# the vault; `op` otherwise picks whichever account the user signed in to last.
+[profiles.central-icons.providers.op-maintainer]
+type = "1password"
+vault = "qrxswyobht724hlbc6fhnom4pe"
+account = "I7OKB4YQE5BOPG2WRQZXNH54NU"
+
+[profiles.central-icons.secrets]
+CENTRAL_LICENSE_KEY = { provider = "op-maintainer", value = "vwmikkjjvh4ji2grk75jkgflmu/CENTRAL_LICENSE_KEY" }

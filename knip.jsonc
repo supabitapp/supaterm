@@ -133,6 +133,11 @@
       "entry": ["test/fixtures/*.ts"],
       "ignoreIssues": { "src/_generated/**": ["exports", "types"] },
     },
+    "packages/icons": {
+      "includeEntryExports": true,
+      // The sync script runs behind `mise exec … fnox exec`, which hides it from knip's script parser.
+      "entry": ["scripts/sync-central-icons.ts"],
+    },
     "packages/source-control-github": {
       // graphqlgen reads its config; the generated operations export every selection's class.
       "entry": ["graphql.config.ts"],

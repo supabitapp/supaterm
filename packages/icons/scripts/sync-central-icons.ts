@@ -1,7 +1,7 @@
 // @effect-diagnostics nodeBuiltinImport:off globalConsole:off - runs as a plain Node maintainer script.
 // Regenerates src/generated/ from Central Icons. Installing Central Icons requires
-// CENTRAL_LICENSE_KEY, so only maintainers with a key run this; everyone else uses
-// the committed output. Edit icons.json, then run `vp run --filter @supaterm/icons sync`.
+// CENTRAL_LICENSE_KEY, which `vp run --filter @supaterm/icons sync` reads from 1Password
+// through fnox; everyone else uses the committed output.
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";
 import * as NodeModule from "node:module";
@@ -30,7 +30,9 @@ const manifest: Manifest = JSON.parse(
 );
 
 if (!process.env.CENTRAL_LICENSE_KEY) {
-  console.error("Set CENTRAL_LICENSE_KEY to the Central Icons license key and run again.");
+  console.error(
+    "CENTRAL_LICENSE_KEY is not set. Run `vp run --filter @supaterm/icons sync`, which reads it from 1Password through fnox.",
+  );
   process.exit(1);
 }
 

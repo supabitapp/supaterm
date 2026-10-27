@@ -137,15 +137,17 @@ Web, desktop, mobile on Android, and the project icon picker draw icons from `@s
 and licensed only for use in Supaterm; see `packages/icons/LICENSE.md`.
 
 Use an existing export when one fits. To add or swap a glyph, add the export name and its Central
-icon to `packages/icons/icons.json` (`project` lists the picker's icons), then regenerate with the
-license key:
+icon to `packages/icons/icons.json` (`project` lists the picker's icons), then regenerate:
 
 ```sh
-CENTRAL_LICENSE_KEY=... vp run --filter @supaterm/icons sync
+vp run --filter @supaterm/icons sync
 ```
 
-Commit `icons.json` with the regenerated `src/generated/` files. Contributors without the key can
-ask a maintainer to add the icon. Never commit the key.
+The sync needs the license key. fnox reads `CENTRAL_LICENSE_KEY` from the `Supacode Next Central
+Icons` item in the `Supacode Next CI` 1Password vault (the `central-icons` profile in
+[`.github/fnox.toml`](../../.github/fnox.toml)), so sign in to the 1Password CLI (`op`) with access
+to that vault first. Commit `icons.json` with the regenerated `src/generated/` files. Contributors
+without vault access can ask a maintainer to add the icon. Never commit the key.
 
 ## Checks
 

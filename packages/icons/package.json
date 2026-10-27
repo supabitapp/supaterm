@@ -19,7 +19,7 @@
     }
   },
   "scripts": {
-    "sync": "node scripts/sync-central-icons.ts",
+    "sync": "mise exec github:jdx/fnox@1.35.0 -- fnox --config ../../.github/fnox.toml --profile central-icons --no-defaults --if-missing error exec -- node scripts/sync-central-icons.ts",
     "typecheck": "tsc --noEmit",
     "test": "vp test run --config ../../vite.config.ts --dir ."
   },
