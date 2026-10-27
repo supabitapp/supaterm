@@ -1,4 +1,4 @@
-import { createDeferredNavigation } from "./deferred-navigation";
+import { threadSelectionDeferral } from "./deferred-navigation";
 import { uuidv4 } from "../../lib/uuid";
 import type {
   EnvironmentProject,
@@ -411,9 +411,8 @@ function AdaptiveWorkspaceLayoutContent(
   };
 
   const selectAndroidWorkspace = useAndroidWorkspaceSelection();
-  const deferredThreadSelection = useMemo(() => createDeferredNavigation(), []);
   function handleSelectThreadRoute(params: ReactNavigation.RootParamList["Thread"]) {
-    deferredThreadSelection.run(() => applyThreadRouteSelection(params));
+    threadSelectionDeferral.run(() => applyThreadRouteSelection(params));
   }
   function applyThreadRouteSelection(params: ReactNavigation.RootParamList["Thread"]) {
     if (Platform.OS === "android") {
@@ -659,7 +658,6 @@ function AdaptiveWorkspaceLayoutContent(
     fileInspector,
     primarySidebarSearchQuery,
     startNewTask: handleStartNewTask,
-    deferThreadSelectionUntil: deferredThreadSelection.waitFor,
     selectThread: handleSelectThread,
     selectThreadRoute: handleSelectThreadRoute,
     activateAuxiliaryPaneRole,

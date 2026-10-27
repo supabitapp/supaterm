@@ -19,7 +19,6 @@ export interface AdaptiveWorkspaceContextValue {
   readonly fileInspector: FileInspectorPaneLayout;
   readonly primarySidebarSearchQuery: string;
   readonly startNewTask: () => void;
-  readonly deferThreadSelectionUntil: (operation: Promise<unknown>) => void;
   readonly selectThread: (thread: EnvironmentThreadShell) => void;
   readonly selectThreadRoute: (params: ReactNavigation.RootParamList["Thread"]) => void;
   readonly activateAuxiliaryPaneRole: (role: WorkspaceAuxiliaryPaneRole) => () => void;
@@ -55,7 +54,6 @@ export const AdaptiveWorkspaceContext = createContext<AdaptiveWorkspaceContextVa
   fileInspector: compactFileInspector,
   primarySidebarSearchQuery: "",
   startNewTask: () => undefined,
-  deferThreadSelectionUntil: () => undefined,
   selectThread: () => undefined,
   selectThreadRoute: () => undefined,
   activateAuxiliaryPaneRole: () => () => undefined,

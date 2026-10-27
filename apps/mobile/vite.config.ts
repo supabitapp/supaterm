@@ -16,6 +16,7 @@ const reactTests = [
   "src/features/settings/components/BranchNamingSettings.test.tsx",
   "src/features/threads/ThreadMarkdownImage.test.tsx",
   "src/features/threads/UsageLimitRecoveryCard.test.tsx",
+  "src/features/threads/NewTaskDraftRouteScreen.test.tsx",
   "src/features/voice-input/useVoiceInputController.test.tsx",
   "src/native/NativeHeaderToolbar.test.tsx",
   "src/native/useRetryingImageSource.test.tsx",

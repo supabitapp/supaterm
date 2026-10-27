@@ -11,7 +11,11 @@ import { Platform, StatusBar } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { createStaticNavigation, getStateFromPath } from "@react-navigation/native";
+import {
+  createStaticNavigation,
+  getStateFromPath,
+  type NavigationState,
+} from "@react-navigation/native";
 
 import { RegistryContext } from "@effect/atom-react";
 import { ProjectChipIconRasterizer } from "./native/ProjectChipIconImages";
@@ -37,6 +41,8 @@ import { useUiRuntimeMemoryWarningGc } from "./lib/useUiRuntimeMemoryWarningGc";
 import { SubscriptionUsageCoordinator } from "./widgets/SubscriptionUsageCoordinator";
 import { GlobalVoiceInputControl } from "./features/voice-input/GlobalVoiceInputControl";
 import { NativeLayoutMetricsProvider } from "./native/native-layout-metrics";
+import { attachRootNavigation, rootNavigationRef } from "./lib/rootNavigation";
+import { pruneNewTaskBranchCheckouts } from "./features/threads/NewTaskDraftRouteScreen";
 
 import "../global.css";
 
@@ -55,6 +61,15 @@ const appLinking = {
 };
 
 const Navigation = createStaticNavigation(RootStack);
+
+function handleNavigationStateChange(state: NavigationState | undefined): void {
+  if (state) pruneNewTaskBranchCheckouts(state);
+}
+
+function handleNavigationReady(): void {
+  handleNavigationStateChange(rootNavigationRef.getRootState());
+}
+
 declare const module: { readonly hot?: FoundationHotModule } | undefined;
 
 const appServiceDisposers = [installThreadOutboxDelivery(), installComposerAttachmentUploads()];
@@ -114,7 +129,13 @@ function AppContent() {
             <GlobalVoiceInputControl>
               <NativeLayoutMetricsProvider>
                 <IncomingShareProvider>
-                  <Navigation linking={appLinking} theme={navigationTheme} />
+                  <Navigation
+                    ref={attachRootNavigation}
+                    linking={appLinking}
+                    onReady={handleNavigationReady}
+                    theme={navigationTheme}
+                    onStateChange={handleNavigationStateChange}
+                  />
                 </IncomingShareProvider>
                 <Dialog.Host />
                 <ThreadArrangementHost />
