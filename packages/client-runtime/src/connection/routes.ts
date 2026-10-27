@@ -148,6 +148,14 @@ function onlyEnvironmentAt(
   return others.length === 0 ? owner : undefined;
 }
 
+const isTailnetAddress = (hostname: string) =>
+  isTailnetHost(hostname) || isSharedAddressSpaceHost(hostname);
+
+function labelledTailscale(route: ConnectionRoute): boolean {
+  const profile = Option.getOrNull(route.profile);
+  return profile?._tag === "BearerConnectionProfile" && profile.network === "tailscale";
+}
+
 export function connectionRouteKind(route: ConnectionRoute): ConnectionRouteKind {
   switch (route.target._tag) {
     case "SshConnectionTarget":
@@ -163,10 +171,8 @@ export function connectionRouteKind(route: ConnectionRoute): ConnectionRouteKind
       }
       const hostname = url.hostname;
       if (isLocalLoopbackHost(hostname)) return "loopback";
-      const profile = Option.getOrNull(route.profile);
-      const tailscale =
-        profile?._tag === "BearerConnectionProfile" && profile.network === "tailscale";
-      if (tailscale || isTailnetHost(hostname)) return "tailnet";
+      if (isTailnetHost(hostname) || (labelledTailscale(route) && isTailnetAddress(hostname)))
+        return "tailnet";
       if (isSharedAddressSpaceHost(hostname)) return "vpn";
       return isPrivateNetworkHost(hostname) ? "lan" : "public";
     }
@@ -324,7 +330,8 @@ export function mergeLearnedRoutes(input: {
     if (url.protocol === "http:" && !input.allowInsecure) continue;
     if (isLocalLoopbackHost(url.hostname)) continue;
     reported.set(url.origin, { url });
-    if (endpoint.kind === "tailnet") tailscaleOrigins.add(url.origin);
+    if (endpoint.kind === "tailnet" && isTailnetAddress(url.hostname))
+      tailscaleOrigins.add(url.origin);
   }
   if (relay !== undefined && relay !== null) {
     reported.set(relay.relayEndpoint, {
@@ -380,8 +387,7 @@ export function mergeLearnedRoutes(input: {
     if (known.has(url.origin)) continue;
     if (
       url.protocol === "http:" &&
-      !tailscaleOrigins.has(url.origin) &&
-      !tokenAllowsPlainHttp(saved, sharedCredential)
+      !plainHttpAllowed(saved, sharedCredential, tailscaleOrigins.has(url.origin))
     ) {
       continue;
     }
@@ -414,29 +420,38 @@ export function mergeLearnedRoutes(input: {
   return Equal.equals(saved, next) ? null : next;
 }
 
-// A paired token goes to a plain HTTP address outside the tailnet only when
-// it was paired that way, so a token paired over HTTPS, loopback, or the
-// tailnet keeps to the transports it was issued for. A token paired over the
-// relay is exempt: it is the only credential a relay-paired phone holds, and
-// its direct LAN path reuses it.
-function tokenAllowsPlainHttp(
+function credentialRoute(
   routes: ReadonlyArray<ConnectionRoute>,
   credentialId: string,
+): ConnectionRoute | undefined {
+  return routes.find((route) => connectionRouteId(route.target) === credentialId);
+}
+
+// A paired token goes to a plain HTTP address outside the tailnet only when it
+// was paired that way, so a token paired over HTTPS, loopback, the tailnet, or
+// the relay keeps to the transports it was issued for. A relay-paired token
+// stays off plain HTTP tailnet addresses too: its direct path to the host is
+// the relay's own end-to-end encrypted tunnel, never a bare HTTP request.
+function plainHttpAllowed(
+  routes: ReadonlyArray<ConnectionRoute>,
+  credentialId: string,
+  tailnet: boolean,
 ): boolean {
-  const credentialRoute = routes.find((route) => connectionRouteId(route.target) === credentialId);
-  if (credentialRoute === undefined) return false;
-  const kind = connectionRouteKind(credentialRoute);
+  const paired = credentialRoute(routes, credentialId);
+  if (paired === undefined) return false;
+  const kind = connectionRouteKind(paired);
+  if (kind === "relay") return false;
   return (
-    kind === "relay" ||
-    (routeHttpBaseUrl(credentialRoute)?.startsWith("http:") === true &&
+    tailnet ||
+    (routeHttpBaseUrl(paired)?.startsWith("http:") === true &&
       (kind === "lan" || kind === "public"))
   );
 }
 
 /**
- * Whether connecting over `route` would send a paired token over plain HTTP
- * that it wasn't paired over. Checked against the token the route borrows,
- * so a route learned before this rule existed is refused too.
+ * Whether connecting over `route` would send a paired token unencrypted where
+ * it wasn't paired that way. Checked against the token the route borrows, so a
+ * route learned before this rule existed is refused too.
  */
 export function sendsTokenInClear(
   routes: ReadonlyArray<ConnectionRoute>,
@@ -445,19 +460,60 @@ export function sendsTokenInClear(
 ): boolean {
   const profile = Option.getOrNull(route.profile);
   if (profile?._tag !== "BearerConnectionProfile") return false;
-  if ((tailscale ?? profile.network === "tailscale") || !profile.httpBaseUrl.startsWith("http:")) {
+  if (profile.httpBaseUrl.startsWith("https:")) return profile.wsBaseUrl.startsWith("ws:");
+  if (!profile.httpBaseUrl.startsWith("http:")) return false;
+  const routeId = connectionRouteId(route.target);
+  const credentialId = credentialConnectionId(routeId);
+  if (credentialId === routeId) return false;
+  const tailnet = tailscale ?? (labelledTailscale(route) && isTailnetUrl(profile.httpBaseUrl));
+  return !plainHttpAllowed(routes, credentialId, tailnet);
+}
+
+function isTailnetUrl(httpBaseUrl: string): boolean {
+  try {
+    return isTailnetAddress(new URL(httpBaseUrl).hostname);
+  } catch {
     return false;
   }
-  const credentialId = credentialConnectionId(connectionRouteId(route.target));
-  return (
-    credentialId !== connectionRouteId(route.target) && !tokenAllowsPlainHttp(routes, credentialId)
+}
+
+/**
+ * Whether a token paired over `credential` may go to `httpBaseUrl`, where the
+ * user moves that route. Loopback stays open for SSH forwards.
+ */
+export function credentialAllowsAddress(credential: ConnectionRoute, httpBaseUrl: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(httpBaseUrl);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "http:" || isLocalLoopbackHost(url.hostname)) return true;
+  return plainHttpAllowed(
+    [credential],
+    connectionRouteId(credential.target),
+    isTailnetAddress(url.hostname),
   );
 }
 
-/** Routes a connect may use: none sends a paired token over plain HTTP it wasn't paired over. */
+/** Routes a connect may use: none sends a paired token unencrypted where it wasn't paired that way. */
 export function usableRoutes(entry: ConnectionCatalogEntry): ReadonlyArray<ConnectionRoute> {
   const routes = connectionRoutes(entry);
   return routes.filter((route) => !sendsTokenInClear(routes, route));
+}
+
+/** Why a connect skips a saved route, or null when it may use it. */
+export function unusedRouteReason(
+  entry: ConnectionCatalogEntry,
+  route: ConnectionRoute,
+): string | null {
+  const routes = connectionRoutes(entry);
+  if (!sendsTokenInClear(routes, route)) return null;
+  if (routeHttpBaseUrl(route)?.startsWith("https:") === true) return "Unencrypted WebSocket";
+  const paired = credentialRoute(routes, credentialConnectionId(connectionRouteId(route.target)));
+  return paired !== undefined && connectionRouteKind(paired) === "relay"
+    ? "Relay pairings stay encrypted"
+    : "Would send the token unencrypted";
 }
 
 export interface ReportedEndpoint {

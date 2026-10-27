@@ -14,6 +14,7 @@ import {
 } from "./index.ts";
 import {
   advertisedConnectionRoutes,
+  credentialAllowsAddress,
   credentialConnectionId,
   connectionRouteAddress,
   connectionRouteId,
@@ -27,6 +28,7 @@ import {
   routesAfterRemoving,
   routeHttpBaseUrl,
   sendsTokenInClear,
+  unusedRouteReason,
   usableRoutes,
 } from "./routes.ts";
 
@@ -406,6 +408,14 @@ describe("plain HTTP learned routes", () => {
       profile: Option.some(new BearerConnectionProfile({ ...profile, learned: true })),
     };
   };
+  const withTailscaleLabel = (learned: ConnectionRoute): ConnectionRoute => {
+    const profile = Option.getOrThrow(learned.profile);
+    if (profile._tag !== "BearerConnectionProfile") throw new Error("Expected bearer profile");
+    return {
+      target: learned.target,
+      profile: Option.some(new BearerConnectionProfile({ ...profile, network: "tailscale" })),
+    };
+  };
 
   it("keeps a token paired over HTTPS off plain HTTP addresses outside the tailnet", () => {
     const routes = mergeLearnedRoutes({
@@ -451,23 +461,77 @@ describe("plain HTTP learned routes", () => {
     ]);
   });
 
-  it("lets a token paired over the relay reach plain HTTP LAN addresses", () => {
+  it("keeps a token paired over the relay off plain HTTP LAN and tailnet addresses", () => {
     const lanOrigin = "http://10.0.0.42:3773";
+    const tailnetOrigin = "http://100.101.102.103:3773";
     const stale = learnedRoute(`learned:${environmentId}:${lanOrigin}@public`, `${lanOrigin}/`);
     const overRelay = learnedRoute(`learned:${environmentId}:${lanOrigin}@relay`, `${lanOrigin}/`);
+    const tailnetOverRelay = withTailscaleLabel(
+      learnedRoute(`learned:${environmentId}:${tailnetOrigin}@relay`, `${tailnetOrigin}/`),
+    );
     const entry = entryWithRoutes(base, [stale, PUBLIC, RELAY]);
     expect(ids(usableRoutes(entry))).toEqual(["public", "relay"]);
     const routes = mergeLearnedRoutes({
       entry,
       activeRoute: RELAY,
-      reported: [{ kind: "lan", httpBaseUrl: `${lanOrigin}/` }],
+      reported: [
+        { kind: "lan", httpBaseUrl: `${lanOrigin}/` },
+        { kind: "tailnet", httpBaseUrl: `${tailnetOrigin}/` },
+      ],
       allowInsecure: true,
     });
-    expect(ids(routes)).toEqual([`learned:${environmentId}:${lanOrigin}@relay`, "public", "relay"]);
-    expect(sendsTokenInClear([overRelay, RELAY], overRelay)).toBe(false);
-    expect(ids(usableRoutes(entryWithRoutes(base, [overRelay, RELAY])))).toEqual([
-      `learned:${environmentId}:${lanOrigin}@relay`,
-      "relay",
-    ]);
+    expect(ids(routes)).toEqual(["public", "relay"]);
+    const persisted = [overRelay, tailnetOverRelay, RELAY];
+    expect(sendsTokenInClear(persisted, overRelay)).toBe(true);
+    expect(sendsTokenInClear(persisted, tailnetOverRelay)).toBe(true);
+    expect(ids(usableRoutes(entryWithRoutes(base, persisted)))).toEqual(["relay"]);
+    expect(unusedRouteReason(entryWithRoutes(base, persisted), overRelay)).toBe(
+      "Relay pairings stay encrypted",
+    );
+  });
+
+  it("trusts a tailnet label only on a tailnet address", () => {
+    const publicOrigin = "http://203.0.113.7:3773";
+    const routes = mergeLearnedRoutes({
+      entry: entryWithRoutes(base, [PUBLIC]),
+      activeRoute: PUBLIC,
+      reported: [{ kind: "tailnet", httpBaseUrl: `${publicOrigin}/` }],
+      allowInsecure: true,
+    });
+    expect(routes).toBeNull();
+    const labelled = withTailscaleLabel(
+      learnedRoute(`learned:${environmentId}:${publicOrigin}@public`, `${publicOrigin}/`),
+    );
+    expect(connectionRouteKind(labelled)).toBe("public");
+    expect(sendsTokenInClear([labelled, PUBLIC], labelled)).toBe(true);
+    expect(unusedRouteReason(entryWithRoutes(base, [labelled, PUBLIC]), labelled)).toBe(
+      "Would send the token unencrypted",
+    );
+  });
+
+  it("refuses an HTTPS route whose WebSocket is unencrypted, even with its own token", () => {
+    const mixed = route("https://desk.example.com/", "mixed");
+    const profile = Option.getOrThrow(mixed.profile);
+    if (profile._tag !== "BearerConnectionProfile") throw new Error("Expected bearer profile");
+    const downgraded: ConnectionRoute = {
+      target: mixed.target,
+      profile: Option.some(
+        new BearerConnectionProfile({ ...profile, wsBaseUrl: "ws://desk.example.com/" }),
+      ),
+    };
+    const entry = entryWithRoutes(base, [downgraded, LAN]);
+    expect(ids(usableRoutes(entry))).toEqual(["lan"]);
+    expect(unusedRouteReason(entry, downgraded)).toBe("Unencrypted WebSocket");
+    expect(unusedRouteReason(entry, LAN)).toBeNull();
+  });
+
+  it("lets a moved route carry its token in the clear only where it was paired that way", () => {
+    expect(credentialAllowsAddress(LAN, "http://10.0.0.42:3773/")).toBe(true);
+    expect(credentialAllowsAddress(PUBLIC, "http://10.0.0.42:3773/")).toBe(false);
+    expect(credentialAllowsAddress(PUBLIC, "http://100.101.102.103:3773/")).toBe(true);
+    expect(credentialAllowsAddress(RELAY, "http://10.0.0.42:3773/")).toBe(false);
+    expect(credentialAllowsAddress(RELAY, "http://100.101.102.103:3773/")).toBe(false);
+    expect(credentialAllowsAddress(RELAY, "http://127.0.0.1:44000/")).toBe(true);
+    expect(credentialAllowsAddress(RELAY, "https://desk.example.com/")).toBe(true);
   });
 });

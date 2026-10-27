@@ -10,6 +10,7 @@ import {
   connectionRouteLabel,
   connectionRoutes,
   isLearned,
+  unusedRouteReason,
 } from "@supaterm/client-runtime/connection";
 import { type EnvironmentId, sessionGrantsScope } from "@supaterm/contracts";
 import { AUTH_SCOPE_OPTIONS } from "@supaterm/shared/authScopeOptions";
@@ -192,6 +193,7 @@ export function EnvironmentRoutesSection({
       ) : null}
       {routes.map((route, index) => {
         const id = connectionRouteId(route.target);
+        const unusedReason = unusedRouteReason(entry, route);
         const lifted = drag === null ? 0 : (heights.get(drag.id) ?? 0);
         const shift =
           dragFrom === -1 || index === dragFrom
@@ -208,6 +210,7 @@ export function EnvironmentRoutesSection({
             position={index + 1}
             count={routes.length}
             inUse={id === activeRouteId}
+            unusedReason={unusedReason}
             editing={editing}
             offset={index === dragFrom ? (drag?.translation ?? 0) : shift}
             lifted={index === dragFrom}
@@ -227,9 +230,12 @@ export function EnvironmentRoutesSection({
               if (!cancelled) move(index, dropIndex(index, translation));
             }}
             onStep={(direction) => move(index, direction === "up" ? index - 1 : index + 1)}
-            // Learned routes are refreshed from the server; paired routes can be removed.
+            // Learned routes are refreshed from the server unless a connect
+            // skips them; paired routes can be removed.
             onRemove={
-              routes.length > 1 && !isLearned(route) ? () => confirmRemove(route) : undefined
+              routes.length > 1 && (!isLearned(route) || unusedReason !== null)
+                ? () => confirmRemove(route)
+                : undefined
             }
           />
         );
@@ -244,6 +250,7 @@ function RouteRow(props: {
   readonly position: number;
   readonly count: number;
   readonly inUse: boolean;
+  readonly unusedReason: string | null;
   readonly editing: boolean;
   readonly offset: number;
   readonly lifted: boolean;
@@ -299,6 +306,7 @@ function RouteRow(props: {
           address,
           isLearned(route) ? "Found automatically" : null,
           props.inUse ? "In use" : null,
+          props.unusedReason === null ? null : `Not used: ${props.unusedReason}`,
           `Latency: ${latency}`,
           `Route ${props.position} of ${props.count}`,
         ]
@@ -325,12 +333,18 @@ function RouteRow(props: {
             {props.inUse ? (
               <StatusPill {...connectionTone("connected")} label="In use" size="compact" />
             ) : null}
+            {props.unusedReason === null ? null : (
+              <StatusPill {...connectionTone("unsupported")} label="Not used" size="compact" />
+            )}
           </View>
           {address !== null ? (
             <Text numberOfLines={1} className="text-sm text-foreground-muted">
               {isLearned(route) ? `${address} · found automatically` : address}
             </Text>
           ) : null}
+          {props.unusedReason === null ? null : (
+            <Text className="text-sm text-foreground-muted">{props.unusedReason}</Text>
+          )}
         </View>
         <Text className="shrink-0 text-sm tabular-nums text-foreground-muted">{latency}</Text>
       </View>

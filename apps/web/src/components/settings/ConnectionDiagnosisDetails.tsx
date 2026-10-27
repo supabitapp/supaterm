@@ -3,9 +3,9 @@ import {
   AVAILABLE_CONNECTION_STATE,
   type ConnectionDiagnosis,
   connectionDiagnosisText,
-  connectionRoutes,
   connectionRouteKind,
   presentConnectionDiagnosis,
+  usableRoutes,
 } from "@supaterm/client-runtime/connection";
 import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
@@ -31,7 +31,7 @@ export function useConnectionDiagnosis(environment: EnvironmentPresentation) {
     AsyncResult.value(useAtomValue(environmentCatalog.stateAtom(environmentId))),
     () => AVAILABLE_CONNECTION_STATE,
   );
-  const routes = connectionRoutes(environment.entry);
+  const routes = usableRoutes(environment.entry);
   const relayOnly =
     routes.length === 1 && routes.some((route) => connectionRouteKind(route) === "relay");
   const phase = environment.connection.phase;

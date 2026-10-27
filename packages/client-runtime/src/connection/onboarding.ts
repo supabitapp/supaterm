@@ -35,6 +35,7 @@ import { orchestrationProtocolCompatibilityError } from "./compatibility.ts";
 import {
   connectionRouteId,
   connectionRoutes,
+  credentialAllowsAddress,
   credentialConnectionId,
   isLearned,
   pairingFallbackRoutes,
@@ -320,6 +321,13 @@ export const prepareBearerConnectionUpdate = Effect.fn(
         detail: cause instanceof Error ? cause.message : "The environment URL is invalid.",
       }),
   });
+  if (!credentialAllowsAddress({ target: entry.target, profile: entry.profile }, httpBaseUrl)) {
+    return yield* new ConnectionBlockedError({
+      reason: "configuration",
+      detail:
+        "This route was paired over an encrypted connection, so its token can't be sent over plain HTTP. Pair again at the new address.",
+    });
+  }
   const connectionId = entry.target.connectionId;
   const { relayUrl } = entry.profile.value;
   return new BearerConnectionRegistration({

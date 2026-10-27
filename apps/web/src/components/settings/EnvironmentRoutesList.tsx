@@ -25,6 +25,7 @@ import {
   connectionRouteLabel,
   connectionRoutes,
   isLearned,
+  unusedRouteReason,
 } from "@supaterm/client-runtime/connection";
 import { GripVerticalIcon, LockIcon, PlusIcon, RefreshCwIcon, XIcon } from "@supaterm/icons";
 import { useContext, useState } from "react";
@@ -110,18 +111,23 @@ export function EnvironmentRoutesList({
       >
         <SortableContext items={order} strategy={verticalListSortingStrategy}>
           <ol aria-label={`Routes to ${environment.label}, preferred first`}>
-            {routes.map((route, index) => (
-              <SortableRouteRow
-                key={connectionRouteId(route.target)}
-                route={route}
-                position={index + 1}
-                inUse={connectionRouteId(route.target) === activeRouteId}
-                // Learned routes are refreshed from the server and are not
-                // removed manually; paired routes can be removed individually.
-                removable={routes.length > 1 && !isLearned(route)}
-                onRemove={() => void confirmRemove(route)}
-              />
-            ))}
+            {routes.map((route, index) => {
+              const unusedReason = unusedRouteReason(environment.entry, route);
+              return (
+                <SortableRouteRow
+                  key={connectionRouteId(route.target)}
+                  route={route}
+                  position={index + 1}
+                  inUse={connectionRouteId(route.target) === activeRouteId}
+                  unusedReason={unusedReason}
+                  // Learned routes are refreshed from the server and are not
+                  // removed manually unless a connect skips them; paired
+                  // routes can be removed individually.
+                  removable={routes.length > 1 && (!isLearned(route) || unusedReason !== null)}
+                  onRemove={() => void confirmRemove(route)}
+                />
+              );
+            })}
           </ol>
         </SortableContext>
       </DndContext>
@@ -152,12 +158,14 @@ function SortableRouteRow({
   route,
   position,
   inUse,
+  unusedReason,
   removable,
   onRemove,
 }: {
   readonly route: ConnectionRoute;
   readonly position: number;
   readonly inUse: boolean;
+  readonly unusedReason: string | null;
   readonly removable: boolean;
   readonly onRemove: () => void;
 }) {
@@ -206,6 +214,9 @@ function SortableRouteRow({
           {inUse ? (
             <span className="text-2xs font-normal text-success-foreground">In use</span>
           ) : null}
+          {unusedReason === null ? null : (
+            <span className="text-2xs font-normal text-warning-foreground">Not used</span>
+          )}
         </p>
         {address !== null ? (
           <p className="flex min-w-0 items-baseline gap-2 text-2xs text-muted-foreground">
@@ -215,7 +226,11 @@ function SortableRouteRow({
               </TooltipTrigger>
               <TooltipPopup side="top">{address}</TooltipPopup>
             </Tooltip>
-            {isLearned(route) ? <span className="shrink-0">Discovered</span> : null}
+            {unusedReason !== null ? (
+              <span className="shrink-0">{unusedReason}</span>
+            ) : isLearned(route) ? (
+              <span className="shrink-0">Discovered</span>
+            ) : null}
           </p>
         ) : null}
       </div>
