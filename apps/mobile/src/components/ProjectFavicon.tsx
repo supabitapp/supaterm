@@ -158,9 +158,10 @@ function ProjectFaviconImage(props: {
     () => createProjectFaviconRequest(props.cacheKey, props.faviconUrl),
     [props.cacheKey, props.faviconUrl],
   );
+  // Registers with the module-level loader before the Image's native onLoad/onError can fire,
+  // so stale loads for a superseded URL under the same cacheKey are ignored.
   useLayoutEffect(() => {
     if (faviconRequest === null) return;
-
     return beginProjectFaviconRequest(faviconRequest);
   }, [faviconRequest]);
 
@@ -195,7 +196,7 @@ function ProjectFaviconImage(props: {
         />
       )}
 
-      {requestIsActive ? (
+      {faviconRequest !== null ? (
         <Image
           key={faviconRequest.faviconUrl}
           source={
