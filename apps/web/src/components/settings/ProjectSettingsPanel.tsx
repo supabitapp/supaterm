@@ -12,7 +12,11 @@ import {
 import { scopeProjectRef, scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { planProjectRemoval } from "@supaterm/client-runtime/state/projects";
 import { AsyncResult } from "effect/reactivity";
-import { type EnvironmentId, type ProjectIconOverride } from "@supaterm/contracts";
+import {
+  isProjectSymbolIcon,
+  type EnvironmentId,
+  type ProjectIconOverride,
+} from "@supaterm/contracts";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import * as Cause from "effect/Cause";
 import { InfoIcon, TrashIcon } from "@supaterm/icons";
@@ -503,7 +507,7 @@ function ProjectDetail({
           <SettingsRow
             title="Project icon"
             description={
-              projectIcon?.kind === "icon" || projectIcon?.kind === "lucide"
+              projectIcon && isProjectSymbolIcon(projectIcon)
                 ? `${projectIcon.name} · ${projectIcon.color}`
                 : projectIcon?.kind === "monogram"
                   ? `${projectIcon.text} · ${projectIcon.color}`

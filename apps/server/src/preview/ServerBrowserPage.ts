@@ -18,7 +18,7 @@ import {
   type PreviewAutomationWaitForInput,
 } from "@supaterm/contracts";
 import { constVoid } from "effect/Function";
-import { MousePointer } from "@supaterm/icons/nodes";
+import { MousePointer, type IconNode } from "@supaterm/icons/nodes";
 import type { CDPSession, ConsoleMessage, Frame, Locator, Page } from "playwright-core";
 import * as NodeCrypto from "node:crypto";
 import { BrowserControlInterrupted } from "./SessionControl.ts";
@@ -916,7 +916,19 @@ export const parseNetError = (errorText: string) => {
   return { description, code: NET_ERROR_CODES[description] ?? -2 };
 };
 
-const AGENT_CURSOR_D = MousePointer[0]?.[1].d ?? "";
+// The recording canvas draws the cursor as one Path2D, so its glyph must be paths only.
+function canvasPathData(node: IconNode): string {
+  return node
+    .map(([tag, attrs]) => {
+      if (tag !== "path" || attrs.d === undefined) {
+        throw new Error(`The agent cursor glyph must be paths only, found <${tag}>`);
+      }
+      return attrs.d;
+    })
+    .join(" ");
+}
+
+const AGENT_CURSOR_D = canvasPathData(MousePointer);
 
 export const RECORDING_ENCODER_SCRIPT = `(() => {
   const canvas = document.createElement("canvas");

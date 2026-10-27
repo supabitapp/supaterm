@@ -4,15 +4,17 @@ import type { ProjectIcon } from "./projectIcon.ts";
 export { PROJECT_ICONS };
 export type { ProjectIcon };
 
-export const DEFAULT_PROJECT_ICON_NAME = "folder";
-
 const PROJECT_ICONS_BY_NAME: ReadonlyMap<string, ProjectIcon> = new Map(
   PROJECT_ICONS.map((icon) => [icon.name, icon]),
 );
 
-export function projectIconByName(name: string): ProjectIcon | undefined {
-  return PROJECT_ICONS_BY_NAME.get(name);
+function projectIconNamed(name: string): ProjectIcon {
+  const icon = PROJECT_ICONS_BY_NAME.get(name);
+  if (!icon) throw new Error(`icons.json does not offer the "${name}" project icon`);
+  return icon;
 }
+
+export const DEFAULT_PROJECT_ICON = projectIconNamed("folder");
 
 // Projects saved Lucide icon names before Supaterm switched icon sets. Names that
 // match a project icon resolve as-is; these are the ones that changed.
@@ -72,6 +74,15 @@ const LEGACY_LUCIDE_NAMES: Readonly<Record<string, string>> = {
   "wand-2": "wand-sparkles",
 };
 
-export function projectIconForLucideName(name: string): ProjectIcon | undefined {
-  return projectIconByName(LEGACY_LUCIDE_NAMES[name] ?? name);
+interface SavedProjectIcon {
+  readonly kind: "icon" | "lucide";
+  readonly name: string;
+}
+
+// A saved name this client does not offer, from a newer client or a retired Lucide
+// icon, draws the default icon in the saved color.
+export function resolveProjectIcon(saved: SavedProjectIcon): ProjectIcon {
+  const name =
+    saved.kind === "lucide" ? (LEGACY_LUCIDE_NAMES[saved.name] ?? saved.name) : saved.name;
+  return PROJECT_ICONS_BY_NAME.get(name) ?? DEFAULT_PROJECT_ICON;
 }

@@ -114,6 +114,13 @@ export const ProjectIconOverride = Schema.Union([
 ]);
 export type ProjectIconOverride = typeof ProjectIconOverride.Type;
 
+/** An override that names an icon from the project icon set, saved now or before the switch. */
+export type ProjectSymbolIconOverride = Extract<ProjectIconOverride, { kind: "icon" | "lucide" }>;
+
+export function isProjectSymbolIcon(icon: ProjectIconOverride): icon is ProjectSymbolIconOverride {
+  return icon.kind === "icon" || icon.kind === "lucide";
+}
+
 /** An icon the server stores. */
 export const StoredProjectIcon = ProjectIconOverride;
 

@@ -2,6 +2,7 @@ import * as Schema from "effect/Schema";
 import type { ProjectIdentity } from "../../projectIdentity";
 import { ProjectMonogram } from "../ProjectMonogram";
 import {
+  isProjectSymbolIcon,
   ProjectMonogramText,
   type ProjectIconColor,
   type ProjectIconOverride,
@@ -16,7 +17,7 @@ import {
 } from "../../projectIconOptions";
 import { cn } from "~/lib/utils";
 import { NodeIcon } from "@supaterm/icons";
-import { DEFAULT_PROJECT_ICON_NAME, projectIconForLucideName } from "@supaterm/icons/project";
+import { DEFAULT_PROJECT_ICON, resolveProjectIcon } from "@supaterm/icons/project";
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -41,11 +42,9 @@ function initialMode(current: ProjectIconOverride | null): PickerMode {
 }
 
 function initialIconName(current: ProjectIconOverride | null): string {
-  if (current?.kind === "icon") return current.name;
-  if (current?.kind === "lucide") {
-    return projectIconForLucideName(current.name)?.name ?? DEFAULT_PROJECT_ICON_NAME;
-  }
-  return DEFAULT_PROJECT_ICON_NAME;
+  return current && isProjectSymbolIcon(current)
+    ? resolveProjectIcon(current).name
+    : DEFAULT_PROJECT_ICON.name;
 }
 
 function iconLabel(name: string): string {

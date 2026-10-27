@@ -1,7 +1,6 @@
 import type { ProjectIconColor, ProjectIconOverride } from "@supaterm/contracts";
 import type { IconNode } from "@supaterm/icons/nodes";
-import { Folder } from "@supaterm/icons/nodes";
-import { projectIconByName, projectIconForLucideName } from "@supaterm/icons/project";
+import { resolveProjectIcon } from "@supaterm/icons/project";
 
 export type ProjectIconGlyph =
   | { readonly kind: "emoji"; readonly emoji: string }
@@ -25,13 +24,8 @@ export function resolveProjectIconGlyph(
     case "monogram":
       return { kind: "monogram", text: projectIcon.text, color: projectIcon.color };
     case "icon":
-    case "lucide": {
-      const icon =
-        projectIcon.kind === "icon"
-          ? projectIconByName(projectIcon.name)
-          : projectIconForLucideName(projectIcon.name);
-      return { kind: "icon", node: icon?.node ?? Folder, color: projectIcon.color };
-    }
+    case "lucide":
+      return { kind: "icon", node: resolveProjectIcon(projectIcon).node, color: projectIcon.color };
     case undefined:
       return null;
   }

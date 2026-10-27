@@ -4,7 +4,7 @@ import {
   isProjectFaviconFallbackUrl,
 } from "@supaterm/shared/projectFavicon";
 import { FolderIcon, NodeIcon } from "@supaterm/icons";
-import type { ProjectIconOverride } from "@supaterm/contracts";
+import { isProjectSymbolIcon, type ProjectSymbolIconOverride } from "@supaterm/contracts";
 import type { ComponentType } from "react";
 import { lazy, Suspense, useState } from "react";
 import { useAtomValue } from "@effect/atom-react";
@@ -14,21 +14,14 @@ import { projectIconColorClassName } from "../projectIconColors";
 import { ProjectMonogram } from "./ProjectMonogram";
 import { cn } from "~/lib/utils";
 
-type ProjectSymbolOverride = Extract<ProjectIconOverride, { kind: "icon" | "lucide" }>;
-
 // The project icon set loads as one chunk, only once a project picks an icon.
 const ProjectSymbolIcon = lazy(() =>
-  import("@supaterm/icons/project").then(({ projectIconByName, projectIconForLucideName }) => ({
-    default: function ProjectSymbolIcon(props: { icon: ProjectSymbolOverride; className: string }) {
-      const icon =
-        props.icon.kind === "icon"
-          ? projectIconByName(props.icon.name)
-          : projectIconForLucideName(props.icon.name);
-      return icon ? (
-        <NodeIcon node={icon.node} className={props.className} />
-      ) : (
-        <FolderIcon className={props.className} />
-      );
+  import("@supaterm/icons/project").then(({ resolveProjectIcon }) => ({
+    default: function ProjectSymbolIcon(props: {
+      icon: ProjectSymbolIconOverride;
+      className: string;
+    }) {
+      return <NodeIcon node={resolveProjectIcon(props.icon).node} className={props.className} />;
     },
   })),
 );
@@ -74,7 +67,7 @@ export function ProjectFavicon(input: {
       />
     );
   }
-  if (project.projectIcon?.kind === "icon" || project.projectIcon?.kind === "lucide") {
+  if (project.projectIcon && isProjectSymbolIcon(project.projectIcon)) {
     const colorClassName = projectIconColorClassName(project.projectIcon.color);
     const iconClassName = cn(
       "inline-flex size-3.5 shrink-0 items-center justify-center",
