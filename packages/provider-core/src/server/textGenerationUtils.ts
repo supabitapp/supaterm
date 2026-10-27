@@ -77,6 +77,19 @@ export function sanitizeThreadTitle(raw: string): string {
   return `${normalized.slice(0, MAX_THREAD_TITLE_CHARS - 3).trimEnd()}...`;
 }
 
+const MAX_NEXT_PROMPT_CHARS = 240;
+
+export function sanitizeNextPrompt(raw: string): string | null {
+  const normalized = raw
+    .trim()
+    .replace(/^['"`“]+|['"`”]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  // Accepting a suggestion puts it in the draft verbatim, so a clipped one would be wrong, not short.
+  if (normalized.length === 0 || normalized.length > MAX_NEXT_PROMPT_CHARS) return null;
+  return normalized;
+}
+
 function cliLabel(cliName: string): string {
   const capitalized = cliName.charAt(0).toUpperCase() + cliName.slice(1);
   return `${capitalized} CLI (\`${cliName}\`)`;

@@ -28,6 +28,7 @@ const SETTABLE_SETTINGS = {
   publicRelayUrl: { kind: "string", expected: "a ws:// or wss:// URL" },
   responseStreamingMode: { kind: "string", expected: ResponseStreamingMode.literals.join(" | ") },
   enableProviderUpdateChecks: BOOLEAN_SETTING,
+  nextPromptSuggestionsEnabled: BOOLEAN_SETTING,
   continueThreadsAfterServerUpdate: BOOLEAN_SETTING,
   enableAgentBrowserAccess: BOOLEAN_SETTING,
   defaultAutoPull: BOOLEAN_SETTING,

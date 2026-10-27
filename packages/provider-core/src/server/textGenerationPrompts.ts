@@ -463,3 +463,25 @@ export function buildThreadTitlePrompt(input: ThreadTitlePromptInput) {
 
   return { prompt, outputSchema };
 }
+
+const NEXT_PROMPT_PROMPT = `Predict the next message the user will send to their coding agent in this Supaterm thread.
+Return JSON with key suggestion.
+
+Write the message the user would most likely type right now, in reply to the assistant's last message:
+- If the assistant asked a question or offered to do something, answer it the way this user most likely would.
+- Otherwise, ask for the obvious next step toward the user's goal.
+- Return an empty suggestion when the work is finished with no clear next step, or when you would have to guess between very different directions.
+
+Style rules:
+- Write as the user, speaking to the agent. Never write as the assistant.
+- One short line, usually under 12 words.
+- Match the user's language, tone, and casing from their earlier messages.
+- Be specific: name the actual thing being discussed rather than "it" or "that" when the reference would be unclear.
+- No greetings, thanks, quotes, markdown, or explanations.`;
+
+export function buildNextPromptPrompt(input: { readonly conversation: string }) {
+  return {
+    prompt: `${NEXT_PROMPT_PROMPT}\n\nThread contents:\n${preserveMessageEnd(input.conversation)}`,
+    outputSchema: Schema.Struct({ suggestion: Schema.String }),
+  };
+}

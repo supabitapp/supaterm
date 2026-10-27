@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { sanitizeCommitSubject } from "./textGenerationUtils.ts";
+import { sanitizeCommitSubject, sanitizeNextPrompt } from "./textGenerationUtils.ts";
 
 describe("sanitizeCommitSubject", () => {
   it.each([
@@ -11,5 +11,21 @@ describe("sanitizeCommitSubject", () => {
     const prefix = "a".repeat(prefixLength);
 
     expect(sanitizeCommitSubject(`${prefix}${character} more`)).toBe(prefix);
+  });
+});
+
+describe("sanitizeNextPrompt", () => {
+  it("unwraps quotes and folds the reply onto one line", () => {
+    expect(sanitizeNextPrompt(' "yes,  score rows\non the same shots" ')).toBe(
+      "yes, score rows on the same shots",
+    );
+  });
+
+  it.each([
+    { name: "empty", raw: "  " },
+    { name: "only quotes", raw: '""' },
+    { name: "too long to accept verbatim", raw: "run it ".repeat(40) },
+  ])("offers nothing when the reply is $name", ({ raw }) => {
+    expect(sanitizeNextPrompt(raw)).toBeNull();
   });
 });
