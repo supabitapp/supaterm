@@ -42,6 +42,7 @@ async function runPose(
   metroPort: number,
   pair: (host: string) => Promise<string>,
   client: string,
+  saveReport: (result: PoseResult) => Promise<void>,
 ): Promise<PoseResult> {
   const directory = NodePath.join(output, pose.id);
   await NodeFSP.mkdir(directory, { recursive: true });
@@ -78,6 +79,9 @@ async function runPose(
       ...(screenshot ? { stopped: screenshot } : {}),
     };
   } finally {
+    await saveReport(result).catch((error: unknown) => {
+      result = appendError(result, `Report update failed: ${String(error)}`);
+    });
     try {
       await device?.release();
     } catch (error) {
@@ -153,6 +157,19 @@ async function main() {
   let metro: NodeChildProcess.ChildProcess | undefined;
   const results: PoseResult[] = [];
   const errors: string[] = [];
+  const saveReport = async (active?: PoseResult, complete = false) => {
+    const poses = active ? [...results, active] : results;
+    await Promise.all([
+      NodeFSP.writeFile(
+        NodePath.join(output, "index.html"),
+        renderReport(poses, output, errors, !complete),
+      ),
+      NodeFSP.writeFile(
+        NodePath.join(output, "report.json"),
+        JSON.stringify({ poses, errors, complete }, null, 2),
+      ),
+    ]);
+  };
   const interruption = new AbortController();
   const interrupt = (signal: "SIGINT" | "SIGTERM") => {
     interruption.abort(new Error(`Interrupted by ${signal}`));
@@ -169,6 +186,7 @@ async function main() {
   NodeProcess.once("SIGTERM", onSigterm);
   setRunSignal(interruption.signal);
   try {
+    await saveReport();
     await captureHostResources(output, "Before native build");
     log(`Preparing the ${platform} native client before starting devices.`);
     const client = await prepareClient(platform, output);
@@ -214,7 +232,7 @@ async function main() {
       );
     for (const pose of poses) {
       interruption.signal.throwIfAborted();
-      const result = await runPose(pose, root, output, metroPort, pair, client);
+      const result = await runPose(pose, root, output, metroPort, pair, client, saveReport);
       if (values.review) {
         try {
           const findings = await reviewPose(result, output);
@@ -231,6 +249,7 @@ async function main() {
       log(
         `${pose.id}: ${result.error ?? (failedChecks(result).length ? "checks failed" : "passed")}`,
       );
+      await saveReport();
       interruption.signal.throwIfAborted();
       if (result.cleanupFailed) {
         const message = `Stopping after ${pose.id}: device cleanup failed`;
@@ -246,6 +265,9 @@ async function main() {
         results.push({ pose, steps: [], error: message });
   } finally {
     setRunSignal(undefined);
+    await saveReport().catch((error: unknown) => {
+      errors.push(`Report update failed: ${String(error)}`);
+    });
     try {
       await stopDeviceDaemon(root);
     } catch (error) {
@@ -265,14 +287,7 @@ async function main() {
         `Temporary state cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     });
-    await NodeFSP.writeFile(
-      NodePath.join(output, "index.html"),
-      renderReport(results, output, errors),
-    );
-    await NodeFSP.writeFile(
-      NodePath.join(output, "report.json"),
-      JSON.stringify({ poses: results, errors }, null, 2),
-    );
+    await saveReport(undefined, true);
     NodeProcess.removeListener("SIGINT", onSigint);
     NodeProcess.removeListener("SIGTERM", onSigterm);
   }

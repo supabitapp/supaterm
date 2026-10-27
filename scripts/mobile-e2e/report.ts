@@ -56,6 +56,7 @@ export function renderReport(
   results: ReadonlyArray<PoseResult>,
   outputDirectory: string,
   errors: ReadonlyArray<string> = [],
+  running = false,
 ): string {
   const relative = (path: string | undefined) =>
     path ? escapeHtml(NodePath.relative(outputDirectory, path)) : "";
@@ -98,7 +99,7 @@ export function renderReport(
   const findings = results.reduce((count, result) => count + (result.findings?.length ?? 0), 0);
   return `<!doctype html><meta charset="utf-8"><title>Mobile E2E</title>
 <style>body{font:14px system-ui;margin:24px}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:8px;vertical-align:top;text-align:left}td{width:190px}td.bad{background:#fff5f4}h3{margin:0 0 6px;font-size:13px}img{width:180px;display:block;margin:0 0 6px}img.lag{outline:3px solid #b42318}.pass{color:#16794a}.fail{color:#b42318}.review{color:#7a4b00}.review.high{color:#b42318}ul{padding-left:16px;margin:4px 0}small{color:#666}</style>
-<h1>Mobile E2E · ${results.length} poses · ${failed === 0 && errors.length === 0 ? "all checks passed" : `${failed} with failing checks, ${errors.length} run errors`} · ${findings} review findings</h1>
+<h1>Mobile E2E · ${results.length} poses · ${running ? "in progress" : failed === 0 && errors.length === 0 ? "all checks passed" : `${failed} with failing checks, ${errors.length} run errors`} · ${findings} review findings</h1>
 ${errors.map((error) => `<p class="fail">${escapeHtml(error)}</p>`).join("")}
 <p><span class="fail">✗</span> failed check <span class="review">◆</span> agent review finding</p>
 <table>${rows}</table>`;

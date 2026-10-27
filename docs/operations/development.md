@@ -187,8 +187,9 @@ Windows investigation while that suite is not a required gate.
 ### Mobile layout checks
 
 The [Mobile Layout E2E workflow](../../.github/workflows/mobile-e2e.yml) checks the native app on
-hosted iOS simulators and Android emulators for mobile pull requests. Dispatch it manually to
-select a platform or specific device poses. Download the `mobile-e2e-ios` or `mobile-e2e-android`
+hosted iOS simulators and Android emulators for pull requests and main pushes that change mobile
+code, shared packages, dependency manifests, or the runner. Dispatch it manually to select a
+platform or specific device poses. Download the `mobile-e2e-ios` or `mobile-e2e-android`
 artifact and open `index.html` for the checks, screenshots, and transition recordings.
 
 For local reproduction on a prepared device host, run these commands from the repository root:
