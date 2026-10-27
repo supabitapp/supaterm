@@ -585,11 +585,8 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
   const suggestedPrompt = useNextPromptSuggestion({
     environmentId: props.environmentId,
     threadId: props.draftMode ? null : props.selectedThread.id,
-    settled:
-      !props.activeThreadBusy &&
-      props.activePendingApproval === null &&
-      props.activePendingUserInput === null,
-    feed: props.selectedThreadFeed,
+    connected: props.connectionStateLabel === "connected",
+    latestRun: props.selectedThread.latestRun,
   });
   const editingRunId = props.queuedRunEdit?.runId ?? null;
   useEffect(() => {

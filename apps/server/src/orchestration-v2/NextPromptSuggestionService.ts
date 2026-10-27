@@ -1,9 +1,9 @@
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 import type {
-  MessageId,
   OrchestrationV2RunStatus,
   OrchestrationV2SuggestNextPromptInput,
   OrchestrationV2SuggestNextPromptResult,
+  RunId,
   ServerSettingsError,
   ThreadId,
 } from "@supaterm/contracts";
@@ -40,7 +40,7 @@ const FRESHNESS = Duration.hours(6);
 
 class SuggestionKey extends Data.Class<{
   readonly threadId: ThreadId;
-  readonly afterMessageId: MessageId;
+  readonly runId: RunId;
 }> {}
 
 export class NextPromptSuggestionService extends Context.Service<
@@ -61,15 +61,10 @@ const make = Effect.gen(function* () {
   const serverSettings = yield* ServerSettings.ServerSettingsService;
   const textGeneration = yield* TextGeneration.TextGeneration;
 
-  const isFreshCompletedReply = Effect.fn("NextPromptSuggestionService.isFreshCompletedReply")(
+  const isFreshCompletedRun = Effect.fn("NextPromptSuggestionService.isFreshCompletedRun")(
     function* (key: SuggestionKey) {
-      const { messages } = yield* threads.getThreadRecords(key.threadId, ["messages"], {
-        messageIds: [key.afterMessageId],
-      });
-      const reply = messages[0];
-      if (reply?.role !== "assistant" || reply.streaming || reply.runId === null) return false;
       const { runs } = yield* threads.getThreadRecords(key.threadId, ["runs"], {
-        runIds: [reply.runId],
+        runIds: [key.runId],
       });
       const run = runs[0];
       if (run?.status !== "completed" || run.completedAt === null) return false;
@@ -81,8 +76,8 @@ const make = Effect.gen(function* () {
   const generate = Effect.fn("NextPromptSuggestionService.generate")(function* (
     key: SuggestionKey,
   ) {
-    // Checked on the one reply first, so opening an old thread never loads its whole history.
-    if (!(yield* isFreshCompletedReply(key))) return NO_SUGGESTION;
+    // Checked on the one run first, so opening an old thread never loads its whole history.
+    if (!(yield* isFreshCompletedRun(key))) return NO_SUGGESTION;
 
     const projection = yield* threads.getThreadRecords(key.threadId, ["messages", "runs"], {
       messageRoles: ["user", "assistant"],
@@ -94,7 +89,8 @@ const make = Effect.gen(function* () {
     const messages = projection.messages.filter(
       (message) => !message.streaming && (message.runId === null || !rolledBack.has(message.runId)),
     );
-    if (messages.at(-1)?.id !== key.afterMessageId) return NO_SUGGESTION;
+    const latest = messages.at(-1);
+    if (latest?.role !== "assistant" || latest.runId !== key.runId) return NO_SUGGESTION;
 
     const project = yield* projects.get(projection.thread.projectId);
     if (Option.isNone(project)) return NO_SUGGESTION;
@@ -122,7 +118,7 @@ const make = Effect.gen(function* () {
       );
   });
 
-  // Every client showing the thread asks for the same reply; they share one model call.
+  // Every client showing the thread asks about the same run; they share one model call.
   const suggestions = yield* Cache.makeWith(generate, {
     capacity: 256,
     timeToLive: (exit) => (Exit.isSuccess(exit) ? FRESHNESS : Duration.zero),
@@ -134,7 +130,7 @@ const make = Effect.gen(function* () {
     if (!(yield* serverSettings.getSettings).nextPromptSuggestionsEnabled) return NO_SUGGESTION;
     return yield* Cache.get(
       suggestions,
-      new SuggestionKey({ threadId: input.threadId, afterMessageId: input.afterMessageId }),
+      new SuggestionKey({ threadId: input.threadId, runId: input.afterRunId }),
     );
   });
 

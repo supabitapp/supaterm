@@ -1,5 +1,4 @@
-import type { EnvironmentId, MessageId, ThreadId } from "@supaterm/contracts";
-import { nextPromptSuggestionReplyId } from "@supaterm/client-runtime/state/orchestration";
+import type { EnvironmentId, RunId, ThreadId } from "@supaterm/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import { useEffect, useState } from "react";
 
@@ -7,25 +6,26 @@ import { useStableCallback } from "~/hooks/useStableCallback";
 import { orchestrationEnvironment } from "~/state/orchestration";
 import { useAtomCommand } from "~/state/use-atom-command";
 
-import type { ChatMessage, SessionPhase } from "../../types";
+import type { ThreadShell } from "../../types";
 
-interface SuggestedReply {
+interface SuggestedRun {
   readonly threadId: ThreadId;
-  readonly replyId: MessageId;
+  readonly runId: RunId;
 }
 
 /**
  * What the user is likely to send after the agent's latest reply. It lives in this component
- * only; the server decides whether the reply is recent enough to spend a model call on.
+ * only; the server decides whether the run is recent enough to spend a model call on.
  */
 export function useNextPromptSuggestion(input: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId | null;
+  /** A request made before the environment connects fails, and nothing would retry it. */
+  readonly connected: boolean;
   readonly enabled: boolean;
-  readonly phase: SessionPhase;
-  readonly messages: ReadonlyArray<ChatMessage>;
+  readonly latestRun: ThreadShell["latestRun"] | undefined;
 }) {
-  const { environmentId, threadId, enabled, phase, messages } = input;
+  const { environmentId, threadId, connected, enabled, latestRun } = input;
   const canSuggest = useAtomValue(
     orchestrationEnvironment.suggestNextPrompt.permissionAtom(environmentId),
   );
@@ -35,34 +35,33 @@ export function useNextPromptSuggestion(input: {
       reportDefect: false,
     }),
   );
-  const [result, setResult] = useState<(SuggestedReply & { readonly text: string }) | null>(null);
-  const [dismissed, setDismissed] = useState<SuggestedReply | null>(null);
-  const replyId =
-    phase === "ready" ? nextPromptSuggestionReplyId(messages, (message) => message) : null;
-  const active = enabled && canSuggest && threadId !== null && replyId !== null;
+  const [result, setResult] = useState<(SuggestedRun & { readonly text: string }) | null>(null);
+  const [dismissed, setDismissed] = useState<SuggestedRun | null>(null);
+  const runId = latestRun?.status === "completed" ? latestRun.runId : null;
+  const active = connected && enabled && canSuggest && threadId !== null && runId !== null;
 
   useEffect(() => {
     if (!active) return;
     let current = true;
-    void suggestNextPrompt({ environmentId, input: { threadId, afterMessageId: replyId } }).then(
+    void suggestNextPrompt({ environmentId, input: { threadId, afterRunId: runId } }).then(
       (answer) => {
         if (!current || answer._tag !== "Success" || answer.value.suggestion === null) return;
-        setResult({ threadId, replyId, text: answer.value.suggestion });
+        setResult({ threadId, runId, text: answer.value.suggestion });
       },
     );
     return () => {
       current = false;
     };
-  }, [active, environmentId, threadId, replyId, suggestNextPrompt]);
+  }, [active, environmentId, threadId, runId, suggestNextPrompt]);
 
-  const matches = (entry: SuggestedReply | null) =>
-    entry !== null && entry.threadId === threadId && entry.replyId === replyId;
-  const suggestion = active && result !== null && matches(result) && !matches(dismissed);
+  const matches = (entry: SuggestedRun | null) =>
+    entry !== null && entry.threadId === threadId && entry.runId === runId;
+  const visible = active && result !== null && matches(result) && !matches(dismissed);
 
   return {
-    suggestion: suggestion ? result.text : null,
+    suggestion: visible ? result.text : null,
     dismiss: () => {
-      if (threadId !== null && replyId !== null) setDismissed({ threadId, replyId });
+      if (threadId !== null && runId !== null) setDismissed({ threadId, runId });
     },
   };
 }

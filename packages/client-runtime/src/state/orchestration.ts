@@ -1,4 +1,4 @@
-import { type MessageId, ORCHESTRATION_V2_WS_METHODS, type ThreadId } from "@supaterm/contracts";
+import { ORCHESTRATION_V2_WS_METHODS, type ThreadId } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
@@ -127,26 +127,4 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
       tag: ORCHESTRATION_V2_WS_METHODS.getArchivedShellSnapshot,
     }),
   };
-}
-
-interface NextPromptSuggestionMessage {
-  readonly id: MessageId;
-  readonly role: "user" | "assistant" | "system";
-  readonly streaming: boolean;
-}
-
-/**
- * The assistant reply a next-prompt suggestion answers: the thread's last settled message, when
- * it is the assistant's. `messageOf` lets a feed mixing messages with other rows be read in place.
- */
-export function nextPromptSuggestionReplyId<Entry>(
-  entries: ReadonlyArray<Entry>,
-  messageOf: (entry: Entry) => NextPromptSuggestionMessage | null,
-): MessageId | null {
-  for (let index = entries.length - 1; index >= 0; index -= 1) {
-    const message = messageOf(entries[index]!);
-    if (message === null || message.role === "system") continue;
-    return message.role === "assistant" && !message.streaming ? message.id : null;
-  }
-  return null;
 }

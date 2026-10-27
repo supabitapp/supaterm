@@ -3534,8 +3534,8 @@ export class OrchestrationV2StopWorkflowError extends Schema.TaggedError<Orchest
 
 export const OrchestrationV2SuggestNextPromptInput = Schema.Struct({
   threadId: ThreadId,
-  /** The assistant reply the user is about to answer. A newer message makes the request stale. */
-  afterMessageId: MessageId,
+  /** The completed run whose reply the user is about to answer. Anything newer makes it stale. */
+  afterRunId: RunId,
 });
 export type OrchestrationV2SuggestNextPromptInput =
   typeof OrchestrationV2SuggestNextPromptInput.Type;

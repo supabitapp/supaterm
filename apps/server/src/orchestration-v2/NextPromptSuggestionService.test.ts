@@ -126,11 +126,11 @@ function makeLayer(options: {
   return { layer, generateNextPrompt };
 }
 
-const suggest = (afterMessageId: string) =>
+const suggest = (afterRunId: string) =>
   Effect.gen(function* () {
     yield* TestClock.setTime(Date.parse(NOW));
     const service = yield* NextPromptSuggestion.NextPromptSuggestionService;
-    return yield* service.suggest({ threadId, afterMessageId: MessageId.make(afterMessageId) });
+    return yield* service.suggest({ threadId, afterRunId: RunId.make(afterRunId) });
   });
 
 const answeredTurns: ReadonlyArray<Turn> = [
@@ -146,7 +146,7 @@ describe("NextPromptSuggestionService", () => {
   it.effect("predicts a reply to the assistant's latest message with the project's model", () => {
     const { layer, generateNextPrompt } = makeLayer({ turns: answeredTurns });
     return Effect.gen(function* () {
-      const result = yield* suggest("run-2:assistant");
+      const result = yield* suggest("run-2");
 
       assert.deepStrictEqual(result, { suggestion: "yes, score rows on the same shots" });
       assert.strictEqual(generateNextPrompt.mock.calls.length, 1);
@@ -164,10 +164,10 @@ describe("NextPromptSuggestionService", () => {
   it.effect("shares one model call between clients asking about the same reply", () => {
     const { layer, generateNextPrompt } = makeLayer({ turns: answeredTurns });
     return Effect.gen(function* () {
-      const results = yield* Effect.all([suggest("run-2:assistant"), suggest("run-2:assistant")], {
+      const results = yield* Effect.all([suggest("run-2"), suggest("run-2")], {
         concurrency: "unbounded",
       });
-      const again = yield* suggest("run-2:assistant");
+      const again = yield* suggest("run-2");
 
       assert.deepStrictEqual(
         [...results, again].map((result) => result.suggestion),
@@ -184,7 +184,7 @@ describe("NextPromptSuggestionService", () => {
   it.effect("does not call a model when suggestions are turned off", () => {
     const { layer, generateNextPrompt } = makeLayer({ turns: answeredTurns, enabled: false });
     return Effect.gen(function* () {
-      assert.deepStrictEqual(yield* suggest("run-2:assistant"), { suggestion: null });
+      assert.deepStrictEqual(yield* suggest("run-2"), { suggestion: null });
       assert.strictEqual(generateNextPrompt.mock.calls.length, 0);
     }).pipe(Effect.provide(layer));
   });
@@ -194,7 +194,7 @@ describe("NextPromptSuggestionService", () => {
       turns: [...answeredTurns, { id: "run-3", user: "Yes, do it.", assistant: "Done." }],
     });
     return Effect.gen(function* () {
-      assert.deepStrictEqual(yield* suggest("run-2:assistant"), { suggestion: null });
+      assert.deepStrictEqual(yield* suggest("run-2"), { suggestion: null });
       assert.strictEqual(generateNextPrompt.mock.calls.length, 0);
     }).pipe(Effect.provide(layer));
   });
@@ -204,7 +204,7 @@ describe("NextPromptSuggestionService", () => {
       turns: [...answeredTurns, { id: "run-3", user: "Yes, do it.", status: "running" }],
     });
     return Effect.gen(function* () {
-      assert.deepStrictEqual(yield* suggest("run-2:assistant"), { suggestion: null });
+      assert.deepStrictEqual(yield* suggest("run-2"), { suggestion: null });
       assert.strictEqual(generateNextPrompt.mock.calls.length, 0);
     }).pipe(Effect.provide(layer));
   });
@@ -214,7 +214,7 @@ describe("NextPromptSuggestionService", () => {
       turns: [answeredTurns[0]!, { ...answeredTurns[1]!, status: "interrupted" }],
     });
     return Effect.gen(function* () {
-      assert.deepStrictEqual(yield* suggest("run-2:assistant"), { suggestion: null });
+      assert.deepStrictEqual(yield* suggest("run-2"), { suggestion: null });
       assert.strictEqual(generateNextPrompt.mock.calls.length, 0);
     }).pipe(Effect.provide(layer));
   });
@@ -224,7 +224,7 @@ describe("NextPromptSuggestionService", () => {
       turns: [answeredTurns[0]!, { ...answeredTurns[1]!, completedAt: "2026-10-26T12:00:00.000Z" }],
     });
     return Effect.gen(function* () {
-      assert.deepStrictEqual(yield* suggest("run-2:assistant"), { suggestion: null });
+      assert.deepStrictEqual(yield* suggest("run-2"), { suggestion: null });
       assert.strictEqual(generateNextPrompt.mock.calls.length, 0);
     }).pipe(Effect.provide(layer));
   });
@@ -236,7 +236,7 @@ describe("NextPromptSuggestionService", () => {
         Effect.fail(new TextGenerationError({ operation: "generateNextPrompt", detail: "boom" })),
     });
     return Effect.gen(function* () {
-      assert.deepStrictEqual(yield* suggest("run-2:assistant"), { suggestion: null });
+      assert.deepStrictEqual(yield* suggest("run-2"), { suggestion: null });
     }).pipe(Effect.provide(layer));
   });
 });

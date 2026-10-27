@@ -554,6 +554,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     activeThreadId,
     activeThreadEnvironmentId: _activeThreadEnvironmentId,
     activeThread,
+    activeThreadShell,
     promptHistoryMessages,
     isServerThread: _isServerThread,
     isLocalDraftThread: _isLocalDraftThread,
@@ -2233,9 +2234,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const nextPrompt = useNextPromptSuggestion({
     environmentId,
     threadId: routeKind === "server" ? activeThreadId : null,
+    connected: environmentUnavailable === null,
     enabled: settings.nextPromptSuggestionsEnabled,
-    phase,
-    messages: promptHistoryMessages,
+    latestRun: activeThreadShell?.latestRun,
   });
   const promptSuggestion =
     nextPrompt.suggestion !== null &&
