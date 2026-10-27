@@ -13,7 +13,7 @@ import { AnimatedLegendList } from "@legendapp/list/reanimated";
 import Animated from "react-native-reanimated";
 import { useThreadListMotion } from "./use-thread-list-motion";
 import { useAtomValue } from "@effect/atom-react";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   LayoutChangeEvent,
   NativeScrollEvent,
@@ -36,6 +36,7 @@ import { scopedProjectKey, scopedThreadKey } from "../../lib/scopedEntities";
 import { useProjects, useNavigationThreadShells } from "../../state/entities";
 import { useThreadSearch } from "../../state/queries";
 import { useThreadListV2ShelfPreferences } from "./use-thread-list-v2-shelf-preferences";
+import { useThreadListNow } from "./use-thread-list-now";
 import { usePendingThreadOrder } from "../../state/thread-order";
 import { threadListEnvironmentsAtom } from "../../state/server";
 import { usePendingNewTasks, type PendingNewTask } from "../../state/use-pending-new-tasks";
@@ -91,28 +92,6 @@ import { NativeScrollView } from "../../native/NativeScrollViewMarker";
 type SidebarListItem = ThreadListV2ListItem;
 
 const SIDEBAR_STICKY_HEADER_HEIGHT = 106;
-
-function currentMinute() {
-  return new Date().toISOString().slice(0, 16);
-}
-
-function createMinuteClock() {
-  let minute = currentMinute();
-  return {
-    getSnapshot: () => minute,
-    subscribe: (onChange: () => void) => {
-      const refresh = () => {
-        const next = currentMinute();
-        if (next === minute) return;
-        minute = next;
-        onChange();
-      };
-      refresh();
-      const id = setInterval(refresh, 60_000);
-      return () => clearInterval(id);
-    },
-  };
-}
 
 interface ThreadNavigationSidebarProps {
   readonly width: number;
@@ -292,25 +271,13 @@ function ThreadNavigationSidebarPane(
     toggleWorkingShelf,
     toggleGroup,
   } = useThreadListV2ShelfPreferences();
-  const [minuteClock] = useState(createMinuteClock);
-  const nowMinute = useSyncExternalStore(minuteClock.subscribe, minuteClock.getSnapshot);
-  const [snoozeWakeTick, bumpSnoozeWakeTick] = useState(0);
-  const [listClock, setListClock] = useState(() => ({
-    nowMinute,
-    snoozeWakeTick,
-    now: new Date().toISOString(),
-  }));
-  if (listClock.nowMinute !== nowMinute || listClock.snoozeWakeTick !== snoozeWakeTick) {
-    // oxlint-disable-next-line react/purity -- Resamples the clock only when the minute or a snooze wake changes; the sample lives in state.
-    setListClock({ nowMinute, snoozeWakeTick, now: new Date().toISOString() });
-  }
+  const now = useThreadListNow(threads);
   const listEnvironments = useAtomValue(threadListEnvironmentsAtom);
   const { providersByEnvironmentId, machineByEnvironmentId, loadedEnvironmentIds } =
     listEnvironments;
   const resolveProviderInstance = useThreadRowProviderInstanceResolver(providersByEnvironmentId);
-  const pendingOrder = usePendingThreadOrder(nowMinute, snoozeWakeTick);
+  const pendingOrder = usePendingThreadOrder();
   const {
-    layout: threadListV2Layout,
     items: listItems,
     contentOnlyThreadKeys,
     olderDoneShelf,
@@ -331,7 +298,7 @@ function ThreadNavigationSidebarPane(
     queuedThreadKeys,
     loadedEnvironmentIds,
     doneLimit: doneVisibleCount,
-    now: listClock.now,
+    now,
     shelfPreferencesLoaded,
     pinnedShelfExpanded,
     activeShelfExpanded,
@@ -341,18 +308,6 @@ function ThreadNavigationSidebarPane(
     doneShelfExpanded,
     selectedThreadKey: props.selectedThreadKey ?? null,
   });
-  const nextSnoozeWakeAt = threadListV2Layout.nextSnoozeWakeAt;
-  useEffect(() => {
-    if (nextSnoozeWakeAt === null) return;
-    const wakeAtMs = Date.parse(nextSnoozeWakeAt);
-    if (Number.isNaN(wakeAtMs)) return;
-    const delayMs = Math.min(Math.max(0, wakeAtMs - Date.now()) + 50, 2_147_483_647);
-    const id = setTimeout(() => bumpSnoozeWakeTick(snoozeWakeTick + 1), delayMs);
-    return () => clearTimeout(id);
-    // snoozeWakeTick must re-arm the timer even when nextSnoozeWakeAt is
-    // unchanged: after a clamped fire (wake beyond the 32-bit setTimeout
-    // range) the boundary string is identical and the chain would die.
-  }, [nextSnoozeWakeAt, snoozeWakeTick]);
   const threadFilterMenu = useThreadListFilterMenu({
     environments,
     projects: projectFilterOptions,

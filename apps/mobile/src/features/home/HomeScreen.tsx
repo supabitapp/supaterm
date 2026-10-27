@@ -14,7 +14,6 @@ import {
 import { threadSearchMatchKey } from "@supaterm/client-runtime/state/thread-search";
 import { type EnvironmentId, type SidebarProjectGroupingMode } from "@supaterm/contracts";
 import { useAtomValue } from "@effect/atom-react";
-import { useFocusEffect } from "@react-navigation/native";
 import { use, useEffect, useRef, useState, type ComponentProps, type ReactElement } from "react";
 import {
   Platform,
@@ -55,6 +54,7 @@ import { useNativeWorkspaceColumnsSupported } from "../../native/NativeWorkspace
 import { useThreadSearch } from "../../state/queries";
 import { requestThreadMessageJump } from "../threads/threadMessageJump";
 import { useThreadListSearchMatches } from "../threads/useThreadListSearchMatches";
+import { useThreadListNow } from "../threads/use-thread-list-now";
 import { useThreadJumpShortcuts } from "../keyboard/threadKeyboardShortcuts";
 import { usePendingThreadOrder } from "../../state/thread-order";
 import { threadListEnvironmentsAtom } from "../../state/server";
@@ -457,27 +457,12 @@ export function HomeScreen(props: HomeScreenProps) {
     toggleWorkingShelf,
     toggleGroup,
   } = useThreadListV2ShelfPreferences();
-  const [nowMinute, setNowMinute] = useState(() => new Date().toISOString().slice(0, 16));
-  const [snoozeWakeTick, bumpSnoozeWakeTick] = useState(0);
-  const [listClock, setListClock] = useState(() => ({
-    nowMinute,
-    snoozeWakeTick,
-    now: new Date().toISOString(),
-  }));
-  if (listClock.nowMinute !== nowMinute || listClock.snoozeWakeTick !== snoozeWakeTick) {
-    // oxlint-disable-next-line react/purity -- Resamples the clock only when the minute or a snooze wake changes; the sample lives in state.
-    setListClock({ nowMinute, snoozeWakeTick, now: new Date().toISOString() });
-  }
-  useFocusEffect(() => {
-    setNowMinute(new Date().toISOString().slice(0, 16));
-    const id = setInterval(() => setNowMinute(new Date().toISOString().slice(0, 16)), 60_000);
-    return () => clearInterval(id);
-  });
+  const now = useThreadListNow(props.threads);
   const listEnvironments = useAtomValue(threadListEnvironmentsAtom);
   const { providersByEnvironmentId, machineByEnvironmentId, loadedEnvironmentIds } =
     listEnvironments;
   const resolveProviderInstance = useThreadRowProviderInstanceResolver(providersByEnvironmentId);
-  const pendingOrder = usePendingThreadOrder(nowMinute, snoozeWakeTick);
+  const pendingOrder = usePendingThreadOrder();
   const {
     layout: threadListV2Layout,
     items: threadListV2Items,
@@ -500,7 +485,7 @@ export function HomeScreen(props: HomeScreenProps) {
     queuedThreadKeys,
     loadedEnvironmentIds,
     doneLimit: doneVisibleCount,
-    now: listClock.now,
+    now,
     shelfPreferencesLoaded,
     pinnedShelfExpanded,
     activeShelfExpanded,
@@ -510,19 +495,6 @@ export function HomeScreen(props: HomeScreenProps) {
     doneShelfExpanded,
     selectedThreadKey,
   });
-  const nextSnoozeWakeAt = threadListV2Layout.nextSnoozeWakeAt;
-  useEffect(() => {
-    if (nextSnoozeWakeAt === null) return;
-    const wakeAtMs = Date.parse(nextSnoozeWakeAt);
-    if (Number.isNaN(wakeAtMs)) return;
-    const delayMs = Math.min(Math.max(0, wakeAtMs - Date.now()) + 50, 2_147_483_647);
-    const id = setTimeout(() => bumpSnoozeWakeTick(snoozeWakeTick + 1), delayMs);
-    return () => clearTimeout(id);
-    // snoozeWakeTick must re-arm the timer even when nextSnoozeWakeAt is
-    // unchanged: after a clamped fire (wake beyond the 32-bit setTimeout
-    // range) the boundary string is identical and the chain would die.
-  }, [nextSnoozeWakeAt, snoozeWakeTick]);
-
   // Called as `props.onSelectThread(...)`, the compiler would cache this handler on the whole
   // props object, which is new on every render of Home's parent.
   const { onSelectThread } = props;
