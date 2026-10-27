@@ -14,29 +14,50 @@ export const layer = Layer.unwrap(
       fetch: (input, init) => globalThis.fetch(input, init),
       open: async (address, relayUrl, directUrls) => {
         if (desktop?.startRelay && desktop.stopRelay) {
+          const { startRelay, stopRelay, getRelayVia } = desktop;
           let closed = false;
+          let started:
+            | { readonly candidates: string; readonly origin: Promise<string> }
+            | undefined;
           let via: RelayGateway.RelayTransport | undefined;
+          let refreshing = false;
           return {
-            prepare: async () => {
-              if (closed) throw new Error("Relay endpoint closed");
-              const origin = await desktop.startRelay!(
-                address,
-                relayUrl,
-                directTunnelUrls(directUrls(), relayUrl),
-              );
-              void desktop.getRelayVia?.(address).then(
-                (current) => {
-                  via = current ?? undefined;
-                },
-                () => {},
-              );
-              return origin;
+            // Every remote HTTP request prepares its origin, so the desktop
+            // tunnel is only restarted when its direct candidates change.
+            prepare: () => {
+              if (closed) return Promise.reject(new Error("Relay endpoint closed"));
+              const urls = directTunnelUrls(directUrls(), relayUrl);
+              const candidates = urls.join(" ");
+              if (started === undefined || started.candidates !== candidates) {
+                const current = { candidates, origin: startRelay(address, relayUrl, urls) };
+                started = current;
+                current.origin.catch(() => {
+                  if (started === current) started = undefined;
+                });
+              }
+              return started.origin;
             },
             close: () => {
               closed = true;
-              return desktop.stopRelay!(address);
+              started = undefined;
+              return stopRelay(address);
             },
-            via: () => via,
+            via: () => {
+              if (getRelayVia && !closed && !refreshing) {
+                refreshing = true;
+                void getRelayVia(address)
+                  .then(
+                    (current) => {
+                      via = current ?? undefined;
+                    },
+                    () => {},
+                  )
+                  .finally(() => {
+                    refreshing = false;
+                  });
+              }
+              return via;
+            },
           };
         }
         if (!isRelayCompanion())

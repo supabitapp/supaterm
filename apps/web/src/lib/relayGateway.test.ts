@@ -14,7 +14,7 @@ afterEach(() => {
 });
 
 it.effect(
-  "restarts the desktop relay with current direct candidates and reports its transport",
+  "restarts the desktop relay only when its direct candidates change and reports its transport",
   () => {
     let transport: "relay" | "direct" | null = null;
     const startRelay = vi.fn(
@@ -27,18 +27,21 @@ it.effect(
     return Effect.gen(function* () {
       const gateway = yield* RelayGateway;
       const resolve = (direct: ReadonlyArray<string>) =>
-        Effect.promise(async () => {
-          const origin = await gateway.resolve(address, relayUrl, direct);
-          await getRelayVia.mock.results.at(-1)?.value;
-          return origin;
-        });
+        Effect.promise(() => gateway.resolve(address, relayUrl, direct));
+      const refreshedVia = Effect.promise(async () => {
+        gateway.via(address);
+        await getRelayVia.mock.results.at(-1)?.value;
+        return gateway.via(address);
+      });
+
       expect(yield* resolve([LAN, `${LAN}/`, "http://10.0.0.1:3773", relayUrl])).toBe(
         "http://127.0.0.1:4321",
       );
-      expect(gateway.via(address)).toBeUndefined();
+      expect(yield* resolve([LAN])).toBe("http://127.0.0.1:4321");
+      expect(yield* refreshedVia).toBeUndefined();
       transport = "direct";
+      expect(yield* refreshedVia).toBe("direct");
       yield* resolve([TAILNET]);
-      expect(gateway.via(address)).toBe("direct");
       expect(startRelay.mock.calls).toEqual([
         [address, relayUrl, [LAN]],
         [address, relayUrl, [TAILNET]],
