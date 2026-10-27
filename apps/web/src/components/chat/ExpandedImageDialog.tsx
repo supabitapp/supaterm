@@ -82,20 +82,6 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
   const index =
     imageCount > 0 ? (((preview.index + imageOffset) % imageCount) + imageCount) % imageCount : 0;
   const item = preview.images[index];
-  // Galleries may list images that were never rendered on the page; resolve those here, like videos.
-  const imageAsset =
-    item !== undefined && item.type !== "video" && item.src === null
-      ? item.actionsSource?.asset
-      : undefined;
-  const imageAssetUrl = useAssetUrlState(
-    imageAsset?.environmentId ?? null,
-    imageAsset?.resource ?? null,
-  );
-  const imageSrc =
-    item?.src ??
-    (imageAsset && imageAssetUrl._tag === "Success"
-      ? imageAssetUrl.url + (item?.srcFragment ?? "")
-      : null);
   const source: MediaActionSource = item?.actionsSource ?? {
     kind: item?.type === "video" ? "video" : "image",
     name: item?.name ?? "Media",
@@ -232,13 +218,7 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
                   className="h-[min(var(--media-height),40rem)] w-[min(var(--media-width),42rem)] transition-opacity duration-140 ease-out starting:opacity-0 rounded-lg border border-border/70 bg-background p-4 text-xs leading-5 shadow-2xl motion-reduce:transition-none"
                 />
               ) : null
-            ) : imageAsset && imageAssetUrl._tag === "Loading" ? (
-              <div
-                role="status"
-                aria-label="Loading image"
-                className={EXPANDED_MEDIA_STATE_CLASS_NAME}
-              />
-            ) : imageSrc === null || failedImageSrc === imageSrc ? (
+            ) : item.src === null || failedImageSrc === item.src ? (
               <ExpandedMediaFailure>
                 <p>
                   {openOriginalLink
@@ -250,11 +230,11 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
             ) : (
               <ZoomableImage
                 ref={zoomableImageRef}
-                key={`${index}:${imageSrc}`}
-                src={imageSrc}
+                key={`${index}:${item.src}`}
+                src={item.src}
                 name={item.name}
                 mimeType={item.mimeType}
-                onError={() => setFailedImageSrc(imageSrc)}
+                onError={() => setFailedImageSrc(item.src)}
               />
             )}
             <div className="mt-2 flex max-w-[var(--media-width)] items-center justify-center gap-1.5 text-xs text-white/80 max-sm:px-10">

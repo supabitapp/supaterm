@@ -249,12 +249,6 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["notification toast popup completion input approval failure"],
   },
   {
-    id: "tool-images",
-    title: "Tool images",
-    to: "/settings/general",
-    searchTerms: ["screenshot thumbnail strip gallery tool call output picture"],
-  },
-  {
     id: "response-streaming",
     title: "Response streaming",
     to: "/settings/general",

@@ -37,7 +37,6 @@ import { MarkdownFindContext } from "./markdownFindContext";
 import { useChatCanvas } from "./ChatCanvasContext";
 import { ThreadTimelineLoading } from "./ThreadTimelineLoading";
 import { WorkLogBlock } from "./WorkLog";
-import { ToolGroupImageStrip } from "./ToolGroupImageStrip";
 import type {
   ServerProviderSkill,
   RunId,
@@ -51,7 +50,6 @@ import type {
 } from "@supaterm/contracts";
 import { deriveTimelineMinimapItems } from "./timelineMinimapItems";
 import { parseScopedThreadKey } from "@supaterm/client-runtime/environment";
-import type { ToolGroupImage } from "@supaterm/client-runtime/work-log/presentation";
 import { resolveWorkGroupScrollAnchor } from "@supaterm/client-runtime/work-log/scroll-anchor";
 import type { WorkflowOpening } from "@supaterm/client-runtime/state/subagentRuntime";
 import { observeResize } from "~/lib/observeResize";
@@ -1275,12 +1273,6 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
           {row.kind === "work-live" ? <LiveWorkEntryTimelineRow row={row} /> : null}
           {row.kind === "work-toggle" ? <WorkGroupToggleTimelineRow row={row} /> : null}
           {row.kind === "thinking" ? <ThinkingTimelineRow row={row} /> : null}
-          {row.kind === "work-toggle" ||
-          row.kind === "work-live" ||
-          row.kind === "thinking" ||
-          (row.kind === "work" && !row.isExpandedToolGroup) ? (
-            <TimelineToolGroupImages images={row.images} />
-          ) : null}
         </WorkLogBlock>
       ) : null}
       {row.kind === "turn-fold" ? <TurnFoldTimelineRow row={row} /> : null}
@@ -1365,29 +1357,20 @@ function TurnFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "turn-
   const ctx = use(TimelineRowCtx);
 
   return (
-    <div className="border-b border-border/60 pb-2 pt-1">
-      <div className="group/timeline-row relative flex items-center gap-1 pe-0.5">
-        <button
-          type="button"
-          aria-expanded={row.expanded}
-          onClick={() => ctx.onToggleTurnFold(row.runId)}
-          className="flex cursor-pointer select-none items-center gap-1 rounded-md px-1 text-sm leading-relaxed text-muted-foreground tabular-nums transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
-        >
-          <span>{row.label}</span>
-          <MorphIcon className="size-3.5" icon={row.expanded ? ChevronDown : ChevronRight} />
-        </button>
-        <TimelineRowTimestamp
-          createdAt={row.createdAt}
-          timestampFormat={ctx.timestampFormat}
-          className="ms-auto"
-        />
-      </div>
-      <ToolGroupImageStrip
-        images={row.expanded ? undefined : row.images}
-        inset={false}
-        environmentId={ctx.activeThreadEnvironmentId}
-        workspaceRoot={ctx.workspaceRoot}
-        onImageExpand={ctx.onImageExpand}
+    <div className="group/timeline-row relative flex items-center gap-1 border-b border-border/60 pb-2 pe-0.5 pt-1">
+      <button
+        type="button"
+        aria-expanded={row.expanded}
+        onClick={() => ctx.onToggleTurnFold(row.runId)}
+        className="flex cursor-pointer select-none items-center gap-1 rounded-md px-1 text-sm leading-relaxed text-muted-foreground tabular-nums transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
+      >
+        <span>{row.label}</span>
+        <MorphIcon className="size-3.5" icon={row.expanded ? ChevronDown : ChevronRight} />
+      </button>
+      <TimelineRowTimestamp
+        createdAt={row.createdAt}
+        timestampFormat={ctx.timestampFormat}
+        className="ms-auto"
       />
     </div>
   );
@@ -1418,20 +1401,4 @@ function TimelineRowPreviewHost({ rowId, children }: { rowId: string; children: 
   const { onAppFullscreenChange } = use(TimelineRowCtx);
   const reportOpen = (open: boolean) => onAppFullscreenChange(rowId, open);
   return <ExpandedPreviewHostContext value={reportOpen}>{children}</ExpandedPreviewHostContext>;
-}
-
-function TimelineToolGroupImages({
-  images,
-}: {
-  images: ReadonlyArray<ToolGroupImage> | undefined;
-}) {
-  const ctx = use(TimelineRowCtx);
-  return (
-    <ToolGroupImageStrip
-      images={images}
-      environmentId={ctx.activeThreadEnvironmentId}
-      workspaceRoot={ctx.workspaceRoot}
-      onImageExpand={ctx.onImageExpand}
-    />
-  );
 }

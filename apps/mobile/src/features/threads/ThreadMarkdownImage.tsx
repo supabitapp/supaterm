@@ -40,7 +40,6 @@ export function ThreadMarkdownImageView(props: {
   readonly knownSize?: { readonly width: number; readonly height: number } | undefined;
   readonly format?: "svg";
   readonly actionsSource?: MediaActionsSource;
-  readonly thumbnailHeight?: number;
   readonly onPressPreview: (source: FilePreviewSource) => void;
 }) {
   const withGallery = useFilePreviewGallery();
@@ -79,10 +78,7 @@ export function ThreadMarkdownImageView(props: {
   const failed = props.unavailable || (props.uri !== null && failedUri === props.uri);
   const placeholderWidth: ViewStyle["width"] =
     availableWidth > 0 ? Math.min(availableWidth, MARKDOWN_IMAGE_MAX_WIDTH) : "100%";
-  const frameStyle: ViewStyle =
-    props.thumbnailHeight === undefined
-      ? (displaySize ?? { width: placeholderWidth, aspectRatio: 16 / 9 })
-      : thumbnailFrameStyle(props.thumbnailHeight, sourceSize);
+  const frameStyle: ViewStyle = displaySize ?? { width: placeholderWidth, aspectRatio: 16 / 9 };
 
   return (
     <View
@@ -156,15 +152,6 @@ export function ThreadMarkdownImageView(props: {
       ) : null}
     </View>
   );
-}
-
-function thumbnailFrameStyle(
-  height: number,
-  sourceSize: { readonly width: number; readonly height: number } | null,
-): ViewStyle {
-  if (sourceSize === null) return { height, aspectRatio: 16 / 9 };
-  const width = (height * sourceSize.width) / sourceSize.height;
-  return { height, width: Math.min(width, MARKDOWN_IMAGE_MAX_WIDTH) };
 }
 
 function ThreadMarkdownImageRequest(props: {
@@ -264,7 +251,6 @@ export function ThreadMarkdownImage(props: {
   readonly showCaption?: boolean;
   readonly srcFragment?: string;
   readonly actionsSource?: MediaActionsSource;
-  readonly thumbnailHeight?: number;
   readonly onPressPreview: (source: FilePreviewSource) => void;
 }) {
   const withGallery = useFilePreviewGallery();
@@ -296,7 +282,6 @@ export function ThreadMarkdownImage(props: {
       alt={props.alt}
       showCaption={props.showCaption}
       actionsSource={props.actionsSource}
-      thumbnailHeight={props.thumbnailHeight}
       onPressPreview={(source) => {
         const { uri: _uri, ...rest } = source as FilePreviewSource & { uri?: string };
         props.onPressPreview(
