@@ -191,6 +191,7 @@ export const makeDeviceHubOperations = (options: {
               {
                 ios: available.has("ios") ? listIosSimulators(run) : Effect.succeed(empty),
                 android: available.has("android") ? listAndroidAvds(run) : Effect.succeed(empty),
+                androidAvailable: Effect.succeed(available.has("android")),
               },
               { concurrency: "unbounded" },
             );
@@ -209,6 +210,8 @@ export const makeDeviceHubOperations = (options: {
     }
     const warnings = hubList.errors?.filter(
       (error) =>
+        // The host summary already explains a missing Android SDK; the hub's failed probes are noise.
+        !(!supplemental.androidAvailable && error.message.startsWith("[android-utils] ")) &&
         // CoreSimulator can retain deleted devices; their optional usage timestamps are absent.
         !(
           error.message.startsWith("[apple-utils] Failed to read CoreSimulator plist at ") &&
