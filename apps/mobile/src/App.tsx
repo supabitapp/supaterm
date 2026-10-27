@@ -37,8 +37,9 @@ import { shouldHandleAppLink, restoreDraftLinkState } from "./lib/appLinking";
 import { disarmInlineConfirmsOnTouch } from "./lib/useInlineConfirm";
 import { takeScheduledTaskNewLink } from "./features/settings/scheduled-task-editor-state";
 import { useMobileNavigationTheme } from "./lib/useMobileNavigationTheme";
-import { useUiRuntimeMemoryWarningGc } from "./lib/useUiRuntimeMemoryWarningGc";
+import { installUiRuntimeMemoryWarningGc } from "./lib/useUiRuntimeMemoryWarningGc";
 import { SubscriptionUsageCoordinator } from "./widgets/SubscriptionUsageCoordinator";
+import { installSubscriptionUsageRefresh } from "./widgets/useSubscriptionUsage";
 import { GlobalVoiceInputControl } from "./features/voice-input/GlobalVoiceInputControl";
 import { NativeLayoutMetricsProvider } from "./native/native-layout-metrics";
 import { attachRootNavigation, rootNavigationRef } from "./lib/rootNavigation";
@@ -72,7 +73,18 @@ function handleNavigationReady(): void {
 
 declare const module: { readonly hot?: FoundationHotModule } | undefined;
 
-const appServiceDisposers = [installThreadOutboxDelivery(), installComposerAttachmentUploads()];
+const appServiceDisposers = [
+  installUiRuntimeMemoryWarningGc(),
+  subscribeComposerDraftModelReconciliation({
+    registry: appAtomRegistry,
+    threadShellAtom: environmentThreadShells.threadShellAtom,
+    threadRefsAtom: environmentThreadShells.threadRefsAtom,
+    shellStateAtom: environmentShell.stateAtom,
+  }),
+  installSubscriptionUsageRefresh(),
+  installThreadOutboxDelivery(),
+  installComposerAttachmentUploads(),
+];
 disposeOnFoundationReplace(typeof module === "undefined" ? undefined : module.hot, () => {
   for (const dispose of appServiceDisposers) dispose();
 });
@@ -88,18 +100,6 @@ function SplashScreenCoordinator() {
 }
 
 export default function App() {
-  useUiRuntimeMemoryWarningGc();
-  useEffect(
-    () =>
-      subscribeComposerDraftModelReconciliation({
-        registry: appAtomRegistry,
-        threadShellAtom: environmentThreadShells.threadShellAtom,
-        threadRefsAtom: environmentThreadShells.threadRefsAtom,
-        shellStateAtom: environmentShell.stateAtom,
-      }),
-    [],
-  );
-
   return (
     <RegistryContext.Provider value={appAtomRegistry}>
       <AppearancePreferencesProvider>
