@@ -320,6 +320,8 @@ export class Device {
         `tcp:${metroPort}`,
       ]);
     const metroUrl = `http://127.0.0.1:${metroPort}`;
+    const launchFlags =
+      "__expo_disable_onboarding=1&__expo_disable_fab=1&__expo_disable_auto_launch=1";
     const result = await this.agent(
       this.pose.platform === "ios"
         ? [
@@ -327,14 +329,14 @@ export class Device {
             BUNDLE_ID,
             "--launch-args=--initialUrl",
             "--launch-args",
-            `${metroUrl}?disableOnboarding=1&disableFab=1&disableAutoLaunch=1`,
+            `${metroUrl}?${launchFlags}`,
             "--launch-console",
             NodePath.join(this.directory, "app-launch.log"),
           ]
         : [
             "open",
             BUNDLE_ID,
-            `supaterm-dev://expo-development-client/?url=${encodeURIComponent(metroUrl)}&disableOnboarding=1&disableFab=1&disableAutoLaunch=1`,
+            `supaterm-dev://expo-development-client/?url=${encodeURIComponent(metroUrl)}&${launchFlags}`,
             "--no-test-ime",
           ],
       { timeoutMs: 180_000 },
@@ -391,8 +393,10 @@ export class Device {
     let lastError = "";
     let lastLabels = "";
     while (Date.now() < deadline) {
+      const remaining = deadline - Date.now();
+      if (remaining < 1_000) break;
       try {
-        const snapshot = await this.snapshot(Math.min(30_000, Math.max(1, deadline - Date.now())));
+        const snapshot = await this.snapshot(Math.min(30_000, remaining));
         lastError = "";
         lastLabels = snapshot.nodes
           .flatMap((node) => (node.label ? [node.label] : []))
@@ -405,7 +409,10 @@ export class Device {
       }
       await delay(750);
     }
-    throw new Error(`Timed out waiting for ${label}: ${lastError || lastLabels || "no snapshot"}`);
+    const detail = [lastError, lastLabels && `last snapshot: ${lastLabels}`]
+      .filter(Boolean)
+      .join("; ");
+    throw new Error(`Timed out waiting for ${label}: ${detail || "no snapshot"}`);
   }
 
   async screenshot(path: string) {
