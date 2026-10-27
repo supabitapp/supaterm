@@ -74,7 +74,11 @@ vi.mock(import("~/state/query"), async (importOriginal) => ({
 }));
 vi.mock(import("../pullRequest/usePullRequestActions"), async (importOriginal) => ({
   ...(await importOriginal()),
-  usePullRequestActionRunner: () => ({ actionPending: false, perform: state.perform }),
+  usePullRequestActionRunner: () => ({
+    actionPending: false,
+    pendingAction: null,
+    perform: state.perform,
+  }),
 }));
 
 import { clickAt } from "~/test/inlineConfirm";

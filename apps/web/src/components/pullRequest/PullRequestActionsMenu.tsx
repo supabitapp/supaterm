@@ -41,7 +41,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { ActOnEnvironmentPicker, type PerformPullRequestAction } from "./PullRequestDetailActions";
 import {
   PULL_REQUEST_MERGE_METHOD_LABELS,
-  pullRequestActionMenuHasGroup,
+  type PullRequestMenuActions,
 } from "./pullRequestDetail.logic";
 import { PullRequestGlyph } from "./pullRequestIcons";
 import type { PickableEnvironment } from "./pullRequestProjectAssignment.logic";
@@ -54,6 +54,98 @@ function deleteBranchHint(
   if (!connected) return "Reconnect to delete this branch";
   if (armed) return "Local branches and worktrees are not changed";
   return `${detail.headBranch} in ${detail.headRepositoryNameWithOwner ?? detail.repository}`;
+}
+
+/**
+ * The merge-area items both pull request menus offer. A conflicting branch cannot arm auto-merge
+ * because nothing the host waits for will clear the conflict.
+ */
+export function PullRequestMergeMenuItems({
+  isDraft,
+  actions,
+  allowedMergeMethods,
+  selectedMergeMethod,
+  onSelectMergeMethod,
+  actionPending,
+  perform,
+}: {
+  isDraft: boolean;
+  actions: PullRequestMenuActions;
+  allowedMergeMethods: ReadonlyArray<PullRequestMergeMethod>;
+  selectedMergeMethod: PullRequestMergeMethod;
+  onSelectMergeMethod: (method: PullRequestMergeMethod) => void;
+  actionPending: boolean;
+  perform: PerformPullRequestAction;
+}) {
+  const confirm = useInlineConfirm<"merge" | "enable-auto-merge">();
+  const hasActions =
+    actions.showsDraftToggle ||
+    actions.showsMergeNow ||
+    actions.showsAutoMerge ||
+    actions.showsDisableAutoMerge;
+  return (
+    <>
+      {actions.showsDraftToggle ? (
+        <MenuItem
+          disabled={actionPending}
+          onClick={() => void perform(isDraft ? "ready" : "draft")}
+        >
+          {isDraft ? (
+            <PullRequestGlyph.pullRequest className="size-3.5" />
+          ) : (
+            <PullRequestGlyph.draft className="size-3.5" />
+          )}
+          {isDraft ? "Ready for review" : "Convert to draft"}
+        </MenuItem>
+      ) : null}
+      {actions.showsMergeNow ? (
+        <MenuItem
+          {...confirm.bind("merge", () => void perform("merge", selectedMergeMethod))}
+          disabled={actionPending}
+        >
+          <PullRequestGlyph.merged className="size-3.5" />
+          {confirm.armed === "merge" ? "Confirm merge" : "Merge now"}
+        </MenuItem>
+      ) : null}
+      {actions.showsAutoMerge ? (
+        <MenuItem
+          {...confirm.bind(
+            "enable-auto-merge",
+            () => void perform("enable-auto-merge", selectedMergeMethod),
+          )}
+          disabled={actionPending}
+        >
+          <PullRequestGlyph.merged className="size-3.5" />
+          {confirm.armed === "enable-auto-merge" ? "Confirm auto-merge" : "Enable auto-merge"}
+        </MenuItem>
+      ) : null}
+      {actions.showsDisableAutoMerge ? (
+        <MenuItem disabled={actionPending} onClick={() => void perform("disable-auto-merge")}>
+          <PullRequestGlyph.merged className="size-3.5" />
+          Disable auto-merge
+        </MenuItem>
+      ) : null}
+      {actions.showsMergeMethods ? (
+        <>
+          {hasActions ? <MenuSeparator /> : null}
+          <MenuRadioGroup
+            value={selectedMergeMethod}
+            onValueChange={(method) => onSelectMergeMethod(method as PullRequestMergeMethod)}
+          >
+            {allowedMergeMethods.map((method) => (
+              <MenuRadioItem key={method} value={method} disabled={actionPending} closeOnClick>
+                <span className="flex min-w-0 items-center gap-2">
+                  <PullRequestGlyph.merged className="size-3.5" />
+                  <span>{PULL_REQUEST_MERGE_METHOD_LABELS[method]}</span>
+                </span>
+              </MenuRadioItem>
+            ))}
+          </MenuRadioGroup>
+        </>
+      ) : null}
+      {hasActions || actions.showsMergeMethods ? <MenuSeparator /> : null}
+    </>
+  );
 }
 
 /** Everything else the reader can do with the pull request, behind the header's overflow button. */
@@ -80,10 +172,7 @@ export function PullRequestActionsMenu({
   actingEnvironmentId,
   onActingEnvironmentChange,
   can,
-  showsDraftToggle,
-  showsMergeNow,
-  showsAutoMerge,
-  showsMergeMethods,
+  mergeMenuActions,
   allowedMergeMethods,
   selectedMergeMethod,
   onSelectMergeMethod,
@@ -119,10 +208,7 @@ export function PullRequestActionsMenu({
   actingEnvironmentId: EnvironmentId;
   onActingEnvironmentChange: (environmentId: EnvironmentId) => void;
   can: (action: PullRequestAction) => boolean;
-  showsDraftToggle: boolean;
-  showsMergeNow: boolean;
-  showsAutoMerge: boolean;
-  showsMergeMethods: boolean;
+  mergeMenuActions: PullRequestMenuActions;
   allowedMergeMethods: ReadonlyArray<PullRequestMergeMethod>;
   selectedMergeMethod: PullRequestMergeMethod;
   onSelectMergeMethod: (method: PullRequestMergeMethod) => void;
@@ -134,9 +220,7 @@ export function PullRequestActionsMenu({
   copyReference: (value: string, label: string) => void;
 }) {
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
-  const confirm = useInlineConfirm<
-    "menu-merge" | "menu-enable-auto-merge" | "close" | "revert" | "delete-branch"
-  >();
+  const confirm = useInlineConfirm<"close" | "revert" | "delete-branch">();
   const actionPending = pendingAction !== null;
   return (
     <Menu>
@@ -217,77 +301,15 @@ export function PullRequestActionsMenu({
         ) : null}
         <MenuSeparator />
         {detail.state === "open" ? (
-          <>
-            {showsDraftToggle ? (
-              <MenuItem
-                disabled={actionPending}
-                onClick={() => void perform(detail.isDraft ? "ready" : "draft")}
-              >
-                {detail.isDraft ? (
-                  <PullRequestGlyph.pullRequest className="size-3.5" />
-                ) : (
-                  <PullRequestGlyph.draft className="size-3.5" />
-                )}
-                {detail.isDraft ? "Ready for review" : "Convert to draft"}
-              </MenuItem>
-            ) : null}
-            {showsMergeNow ? (
-              <MenuItem
-                {...confirm.bind("menu-merge", () => void perform("merge", selectedMergeMethod))}
-                disabled={actionPending}
-              >
-                <PullRequestGlyph.merged className="size-3.5" />
-                {confirm.armed === "menu-merge" ? "Confirm merge" : "Merge now"}
-              </MenuItem>
-            ) : null}
-            {/* The same merge, left with the host to carry out once its requirements
-                pass. A conflicting branch cannot be armed because nothing the host
-                waits for will clear the conflict. Disarming is the header button. */}
-            {showsAutoMerge ? (
-              <MenuItem
-                {...confirm.bind(
-                  "menu-enable-auto-merge",
-                  () => void perform("enable-auto-merge", selectedMergeMethod),
-                )}
-                disabled={actionPending}
-              >
-                <PullRequestGlyph.merged className="size-3.5" />
-                {confirm.armed === "menu-enable-auto-merge"
-                  ? "Confirm auto-merge"
-                  : "Enable auto-merge"}
-              </MenuItem>
-            ) : null}
-            {showsMergeMethods ? (
-              <>
-                {showsDraftToggle || showsMergeNow || showsAutoMerge ? <MenuSeparator /> : null}
-                <MenuRadioGroup
-                  value={selectedMergeMethod}
-                  onValueChange={(method) => onSelectMergeMethod(method as PullRequestMergeMethod)}
-                >
-                  {allowedMergeMethods.map((method) => (
-                    <MenuRadioItem
-                      key={method}
-                      value={method}
-                      disabled={actionPending}
-                      closeOnClick
-                    >
-                      <span className="flex min-w-0 items-center gap-2">
-                        <PullRequestGlyph.merged className="size-3.5" />
-                        <span>{PULL_REQUEST_MERGE_METHOD_LABELS[method]}</span>
-                      </span>
-                    </MenuRadioItem>
-                  ))}
-                </MenuRadioGroup>
-              </>
-            ) : null}
-            {pullRequestActionMenuHasGroup(
-              showsDraftToggle,
-              showsAutoMerge || showsMergeNow,
-              showsMergeMethods,
-            ) ? (
-              <MenuSeparator />
-            ) : null}
-          </>
+          <PullRequestMergeMenuItems
+            isDraft={detail.isDraft}
+            actions={mergeMenuActions}
+            allowedMergeMethods={allowedMergeMethods}
+            selectedMergeMethod={selectedMergeMethod}
+            onSelectMergeMethod={onSelectMergeMethod}
+            actionPending={actionPending}
+            perform={perform}
+          />
         ) : null}
         <MenuItem onClick={() => void readLocalApi()?.shell.openExternal(detail.url)}>
           <ArrowUpRightIcon className="size-3.5" />

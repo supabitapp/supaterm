@@ -19,6 +19,7 @@ import { buildMessageContext, reviewCommentContextReference } from "~/lib/compos
 import {
   buildAddSelectionToAgentHandoff,
   resolveThreadPanelPullRequestAction,
+  resolvePullRequestMenuActions,
   buildPullRequestReferenceContext,
   buildFixFindingHandoff,
   canDeletePullRequestBranch,
@@ -1132,39 +1133,27 @@ describe("the compact row's single action slot", () => {
       checks: [check("success")],
       ...overrides,
     }) as NonNullable<Parameters<typeof resolveThreadPanelPullRequestAction>[0]>;
+  const rowAction = (detail: Parameters<typeof resolveThreadPanelPullRequestAction>[0]) =>
+    resolveThreadPanelPullRequestAction(detail, true);
 
   it("holds the slot while checks run rather than offering a merge that races them", () => {
-    expect(
-      resolveThreadPanelPullRequestAction(
-        openDetail({ checks: [check("success"), check("pending")] }),
-      ),
-    ).toBeNull();
-    expect(
-      resolveThreadPanelPullRequestAction(openDetail({ checks: [check("action-required")] })),
-    ).toBeNull();
+    expect(rowAction(openDetail({ checks: [check("success"), check("pending")] }))).toBeNull();
+    expect(rowAction(openDetail({ checks: [check("action-required")] }))).toBeNull();
   });
 
   it("ranks conflicts above everything, then draft, then failing checks", () => {
     expect(
-      resolveThreadPanelPullRequestAction(
+      rowAction(
         openDetail({ mergeability: "conflicting", isDraft: true, checks: [check("failure")] }),
       ),
     ).toBe("resolve");
-    expect(
-      resolveThreadPanelPullRequestAction(
-        openDetail({ isDraft: true, checks: [check("failure")] }),
-      ),
-    ).toBe("ready");
-    expect(
-      resolveThreadPanelPullRequestAction(
-        openDetail({ checks: [check("failure"), check("pending")] }),
-      ),
-    ).toBe("fix");
+    expect(rowAction(openDetail({ isDraft: true, checks: [check("failure")] }))).toBe("ready");
+    expect(rowAction(openDetail({ checks: [check("failure"), check("pending")] }))).toBe("fix");
   });
 
   it("offers nothing the viewer may not do, and nothing on settled pull requests", () => {
     expect(
-      resolveThreadPanelPullRequestAction(
+      rowAction(
         openDetail({
           viewerPermissions: {
             actions: [],
@@ -1172,8 +1161,140 @@ describe("the compact row's single action slot", () => {
         }),
       ),
     ).toBeNull();
-    expect(resolveThreadPanelPullRequestAction(openDetail({ state: "merged" }))).toBeNull();
-    expect(resolveThreadPanelPullRequestAction(null)).toBeNull();
+    expect(rowAction(openDetail({ state: "merged" }))).toBeNull();
+    expect(rowAction(null)).toBeNull();
+  });
+
+  const autoMergeActions = [
+    "merge",
+    "ready",
+    "draft",
+    "close",
+    "reopen",
+    "enable-auto-merge",
+    "disable-auto-merge",
+  ];
+  const autoMergeDetail = (
+    overrides: Partial<Parameters<typeof resolveThreadPanelPullRequestAction>[0] & object> = {},
+  ) =>
+    openDetail({
+      capabilities: {
+        actions: autoMergeActions,
+        mergeMethods: ["merge", "squash"],
+      } as unknown as PullRequestDetailView["capabilities"],
+      viewerPermissions: {
+        actions: autoMergeActions,
+      } as unknown as PullRequestDetailView["viewerPermissions"],
+      autoMergeEnabled: false,
+      ...overrides,
+    });
+  const running = [check("success"), check("pending")];
+
+  it("offers auto-merge while checks run, only where the host reports it", () => {
+    expect(rowAction(autoMergeDetail({ checks: running }))).toBe("enable-auto-merge");
+    expect(rowAction(autoMergeDetail({ checks: running, autoMergeEnabled: true }))).toBeNull();
+    expect(rowAction(autoMergeDetail({ checks: running, autoMergeEnabled: undefined }))).toBeNull();
+    expect(rowAction(autoMergeDetail())).toBe("merge");
+  });
+
+  it("offers no single merge for a pull request that merges with its stack", () => {
+    expect(resolveThreadPanelPullRequestAction(autoMergeDetail(), false)).toBeNull();
+    expect(
+      resolveThreadPanelPullRequestAction(autoMergeDetail({ checks: running }), false),
+    ).toBeNull();
+    expect(
+      resolvePullRequestMenuActions({
+        detail: autoMergeDetail({ checks: running }),
+        primaryAction: null,
+        canMergeSinglePullRequest: false,
+      }),
+    ).toMatchObject({ showsMergeNow: false, showsAutoMerge: false, showsMergeMethods: true });
+  });
+});
+
+describe("pull request menu actions", () => {
+  const check = (status: PullRequestCheck["status"]): PullRequestCheck => ({
+    name: "ci",
+    status,
+    description: null,
+    url: null,
+  });
+  const actions = [
+    "merge",
+    "ready",
+    "draft",
+    "close",
+    "reopen",
+    "enable-auto-merge",
+    "disable-auto-merge",
+  ];
+  const detail = (
+    overrides: Partial<Parameters<typeof resolveThreadPanelPullRequestAction>[0] & object> = {},
+  ) =>
+    ({
+      state: "open",
+      isDraft: false,
+      mergeability: "mergeable",
+      capabilities: {
+        actions,
+        mergeMethods: ["merge", "squash"],
+      } as unknown as PullRequestDetailView["capabilities"],
+      viewerPermissions: { actions } as unknown as PullRequestDetailView["viewerPermissions"],
+      mergeCapabilities: { merge: true, squash: true, rebase: false },
+      checks: [check("success")],
+      autoMergeEnabled: false,
+      ...overrides,
+    }) as NonNullable<Parameters<typeof resolveThreadPanelPullRequestAction>[0]>;
+  const menu = (
+    pullRequest: ReturnType<typeof detail> | null,
+    primaryAction: Parameters<typeof resolvePullRequestMenuActions>[0]["primaryAction"],
+  ) =>
+    resolvePullRequestMenuActions({
+      detail: pullRequest,
+      primaryAction,
+      canMergeSinglePullRequest: true,
+    });
+
+  it("never repeats the surface's primary action", () => {
+    expect(menu(detail(), "merge")).toMatchObject({
+      showsMergeNow: false,
+      showsAutoMerge: true,
+      showsMergeMethods: true,
+    });
+    expect(menu(detail({ checks: [check("pending")] }), "enable-auto-merge")).toMatchObject({
+      showsMergeNow: true,
+      showsAutoMerge: false,
+    });
+    expect(menu(detail({ isDraft: true }), "ready").showsDraftToggle).toBe(false);
+  });
+
+  it("turns an armed auto-merge off instead of arming it again", () => {
+    expect(menu(detail({ autoMergeEnabled: true }), null)).toMatchObject({
+      showsMergeNow: true,
+      showsAutoMerge: false,
+      showsDisableAutoMerge: true,
+    });
+  });
+
+  it("offers no merge on a conflicting draft, only the draft toggle", () => {
+    expect(menu(detail({ isDraft: true, mergeability: "conflicting" }), "resolve")).toEqual({
+      showsDraftToggle: true,
+      showsMergeNow: false,
+      showsAutoMerge: false,
+      showsDisableAutoMerge: false,
+      showsMergeMethods: false,
+    });
+  });
+
+  it("offers nothing on a settled pull request", () => {
+    expect(menu(detail({ state: "merged", autoMergeEnabled: true }), "merged")).toEqual({
+      showsDraftToggle: false,
+      showsMergeNow: false,
+      showsAutoMerge: false,
+      showsDisableAutoMerge: false,
+      showsMergeMethods: false,
+    });
+    expect(menu(null, null).showsDraftToggle).toBe(false);
   });
 });
 
