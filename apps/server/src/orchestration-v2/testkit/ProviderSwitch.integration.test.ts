@@ -34,6 +34,7 @@ import * as Schema from "effect/Schema";
 import * as SqlitePersistence from "../../persistence/Sqlite.ts";
 import { CommandPolicyCapabilityUnsupportedError } from "../CommandPolicy.ts";
 import {
+  ClaudeAgentSdkQueryRunnerError,
   ClaudeAppendSystemPromptFileError,
   ClaudeBackgroundWorkBlocksQueryReplacementError,
   ClaudeProviderCapabilitiesV2,
@@ -372,6 +373,12 @@ function makeTestAdapter(input: {
       }),
   };
 }
+
+// Same tag as the adapter's unexported error raised when Claude never answers setMcpServers.
+class ClaudeMcpRegistrationTimeoutError extends Schema.TaggedError<ClaudeMcpRegistrationTimeoutError>()(
+  "ClaudeMcpRegistrationTimeoutError",
+  {},
+) {}
 
 describe("orchestration v2 provider switching", () => {
   it.live.each([
@@ -1280,6 +1287,13 @@ describe("orchestration v2 provider switching", () => {
   it.live.each([
     ["background work", new ClaudeBackgroundWorkBlocksQueryReplacementError()],
     ["an unreadable append file", new ClaudeAppendSystemPromptFileError({ path: "missing.md" })],
+    [
+      "an MCP registration timeout",
+      new ClaudeAgentSdkQueryRunnerError({
+        method: "setMcpServers",
+        cause: new ClaudeMcpRegistrationTimeoutError(),
+      }),
+    ],
   ] as const)("keeps the native session after turns refused for %s", ([, refusalCause]) =>
     Effect.scoped(
       Effect.gen(function* () {

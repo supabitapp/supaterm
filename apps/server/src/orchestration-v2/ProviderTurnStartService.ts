@@ -95,6 +95,7 @@ const PROMPT_REFUSAL_TAGS = [
   "ClaudeBackgroundWorkBlocksQueryReplacementError",
   "ClaudeAppendSystemPromptFileError",
   "ClaudeAppendSystemPromptMissingValueError",
+  "ClaudeMcpRegistrationTimeoutError",
 ] as const;
 
 const refusedBeforePrompt = (error: unknown): boolean =>
