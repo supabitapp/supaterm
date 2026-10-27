@@ -17,6 +17,7 @@ import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } fro
 
 import { useAssetUrlRefresh } from "~/assets/assetUrls";
 import ChatMarkdown from "~/components/ChatMarkdown";
+import { maskMarkdownFrontmatter } from "@supaterm/shared/markdownFrontmatter";
 import { MorphIcon } from "~/components/MorphIcon";
 import { Button } from "~/components/ui/button";
 import { ScrollArea } from "~/components/ui/scroll-area";
@@ -362,7 +363,11 @@ export function AttachmentFilePreview(props: {
       </Suspense>
     ) : kind === "markdown" && rendered ? (
       <ScrollArea className="min-h-0 flex-1">
-        <ChatMarkdown text={content.text} cwd={undefined} className="mx-auto max-w-4xl px-6 py-5" />
+        <ChatMarkdown
+          text={maskMarkdownFrontmatter(content.text)}
+          cwd={undefined}
+          className="mx-auto max-w-4xl px-6 py-5"
+        />
       </ScrollArea>
     ) : (
       <ReadOnlySourcePreview name={props.name} text={content.text} />
