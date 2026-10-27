@@ -30,59 +30,21 @@ import {
   buildShowcasePendingTasks,
   SHOWCASE_PENDING_TASK_DEFINITIONS,
 } from "./showcasePendingTasks";
+import {
+  isShowcaseThemeApplied,
+  SHOWCASE_THREAD_ID,
+  showcaseReadinessKey,
+  showcaseSceneOnScreen,
+} from "./showcaseCaptureModel";
 import { retryShowcaseOperation } from "./showcaseRetry";
 import {
   clearShowcaseRenderSignal,
-  getShowcaseRenderSignal,
-  isShowcaseNativeContentReady,
-  type ShowcaseRenderSignal,
+  getShowcaseRenderSnapshot,
   subscribeToShowcaseRenderSignal,
 } from "./showcaseRenderSignal";
 
 const SHOWCASE_ENABLED = process.env.EXPO_PUBLIC_SHOWCASE === "1";
-const SHOWCASE_THREAD_ID = "offline-reason";
-
 type ShowcaseResetRoute = PartialState<NavigationState>["routes"][number];
-
-function sceneFromPathname(pathname: string): ShowcaseScene | null {
-  const routePath = pathname.split(/[?#]/u, 1)[0] ?? pathname;
-  if (routePath === "/settings" || routePath.endsWith("/settings/environments")) {
-    return "environments";
-  }
-  if (routePath.endsWith("/terminal")) return "terminal";
-  if (routePath.endsWith("/review")) return "review";
-  if (routePath.startsWith("/threads/")) return "thread";
-  if (routePath === "/") return "threads";
-  return null;
-}
-
-function settledShowcaseScene(input: {
-  readonly scene: ShowcaseScene | null;
-  readonly requestedScene: ShowcaseScene | null;
-  readonly hasFixture: boolean;
-  readonly orientationSettled: boolean;
-  readonly themeApplied: boolean;
-  readonly themeId: MobileThemeId;
-  readonly renderSignal: ShowcaseRenderSignal | null;
-}): ShowcaseScene | null {
-  if (
-    !SHOWCASE_ENABLED ||
-    input.scene === null ||
-    input.requestedScene === null ||
-    input.scene !== input.requestedScene ||
-    !input.hasFixture ||
-    !input.orientationSettled ||
-    !input.themeApplied ||
-    !isShowcaseNativeContentReady({
-      scene: input.scene,
-      themeId: input.themeId,
-      renderSignal: input.renderSignal,
-    })
-  ) {
-    return null;
-  }
-  return input.scene;
-}
 
 export function ShowcaseCaptureCoordinator(props: { readonly pathname: string }) {
   if (!SHOWCASE_ENABLED) return null;
@@ -127,10 +89,10 @@ function EnabledShowcaseCaptureCoordinator(props: { readonly pathname: string })
   );
   const [orientationSettled, setOrientationSettled] = useState(captureOrientation === null);
   const requestedSceneRef = useRef<ShowcaseScene | null>(null);
-  const renderSignal = useSyncExternalStore(
+  const { signal: renderSignal, reports: renderReports } = useSyncExternalStore(
     subscribeToShowcaseRenderSignal,
-    getShowcaseRenderSignal,
-    getShowcaseRenderSignal,
+    getShowcaseRenderSnapshot,
+    getShowcaseRenderSnapshot,
   );
 
   useEffect(() => {
@@ -177,10 +139,13 @@ function EnabledShowcaseCaptureCoordinator(props: { readonly pathname: string })
     return () => clearInterval(interval);
   }, []);
 
-  const themeApplied =
-    appearancePreferencesReady &&
-    themeMode === "system" &&
-    (requestedTheme === null ? themeRequestSettled : themeId === requestedTheme);
+  const themeApplied = isShowcaseThemeApplied({
+    preferencesReady: appearancePreferencesReady,
+    launchRequestRead: themeRequestSettled,
+    requestedTheme,
+    themeMode,
+    themeId,
+  });
 
   useEffect(() => {
     if (!themeRequestSettled || themeApplied || !appearancePreferencesReady) {
@@ -221,7 +186,7 @@ function EnabledShowcaseCaptureCoordinator(props: { readonly pathname: string })
     };
   }, [connectPairingUrl, pairingUrls]);
 
-  const scene = sceneFromPathname(props.pathname);
+  const scene = showcaseSceneOnScreen(props.pathname);
   const hasServerFixture =
     workspace.state.hasReadyEnvironment &&
     workspace.environments.length >= 3 &&
@@ -309,7 +274,7 @@ function EnabledShowcaseCaptureCoordinator(props: { readonly pathname: string })
     );
   }, [hasFixture, navigation, requestedScene, scene, showcaseThread]);
 
-  const settledScene = settledShowcaseScene({
+  const readinessKey = showcaseReadinessKey({
     scene,
     requestedScene,
     hasFixture,
@@ -317,19 +282,13 @@ function EnabledShowcaseCaptureCoordinator(props: { readonly pathname: string })
     themeApplied,
     themeId,
     renderSignal,
+    renderReports,
   });
-  if (settledScene === null && readyScene !== null) setReadyScene(null);
+  // Losing readiness hides the marker. A redraw or theme change while ready keeps it and re-settles.
+  if (readinessKey === null && readyScene !== null) setReadyScene(null);
 
   useEffect(() => {
-    const target = settledShowcaseScene({
-      scene,
-      requestedScene,
-      hasFixture,
-      orientationSettled,
-      themeApplied,
-      themeId,
-      renderSignal,
-    });
+    const target = readinessKey === null ? null : scene;
     if (target === null) return;
     if (target === "terminal") Keyboard.dismiss();
 
@@ -348,7 +307,7 @@ function EnabledShowcaseCaptureCoordinator(props: { readonly pathname: string })
       if (renderFrame !== null) cancelAnimationFrame(renderFrame);
       if (readyFrame !== null) cancelAnimationFrame(readyFrame);
     };
-  }, [hasFixture, orientationSettled, renderSignal, requestedScene, scene, themeApplied, themeId]);
+  }, [readinessKey, scene]);
 
   if (readyScene === null) return null;
 
