@@ -25,6 +25,11 @@ import { AppText as Text } from "./components/ui/AppText";
 import { androidWorkspaceDestinationAnimation } from "./lib/android-workspace-navigation";
 import { getCompactBrandHeaderOptions } from "./components/CompactBrandTitle";
 import { WorkspaceRootScreen } from "./features/workspace/WorkspaceRootScreen";
+import {
+  recordHomeFocus,
+  recordHomeTransitionEnd,
+  recordHomeTransitionStart,
+} from "./features/home/home-route-visibility";
 import { AndroidWorkspaceTabsProvider } from "./features/workspace/AndroidWorkspaceTabsProvider";
 import { PullRequestFileRouteScreen } from "./features/pull-requests/PullRequestDiffRouteScreen";
 import { PullRequestRouteScreen } from "./features/pull-requests/PullRequestRouteScreen";
@@ -128,7 +133,6 @@ import {
   SettingsLegalDocumentCloseHeaderButton,
   SettingsLegalDocumentExternalHeaderButton,
 } from "./features/settings/components/SettingsLegalDocumentRouteScreen";
-import { useAppShortcuts } from "./features/shortcuts/useAppShortcuts";
 import { NATIVE_LIQUID_GLASS_SUPPORTED } from "./native/native-glass";
 import { deriveLayout } from "./lib/layout";
 import { useNativeLayoutMetrics } from "./native/native-layout-metrics";
@@ -518,7 +522,6 @@ function RootStackLayout(props: {
   const routePendingTaskId = Array.isArray(draftParams?.pendingTaskId)
     ? draftParams.pendingTaskId[0]
     : draftParams?.pendingTaskId;
-  useAppShortcuts(props.state);
 
   return (
     <NewTaskFlowProvider
@@ -607,6 +610,11 @@ const RootStackConfig = createWorkspaceStackNavigator({
     Home: createNativeStackScreen({
       screen: WorkspaceRootScreen,
       linking: "",
+      listeners: {
+        transitionStart: ({ data }) => recordHomeTransitionStart(data.closing),
+        transitionEnd: ({ data }) => recordHomeTransitionEnd(data.closing),
+        focus: recordHomeFocus,
+      },
       options: {
         ...GLASS_HEADER_OPTIONS,
         ...FIXED_DUO_HEADER,

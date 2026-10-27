@@ -12,8 +12,12 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import {
+  CommonActions,
+  createPathConfigForStaticNavigation,
   createStaticNavigation,
+  getActionFromState,
   getStateFromPath,
+  type NavigationAction,
   type NavigationState,
 } from "@react-navigation/native";
 
@@ -26,6 +30,10 @@ import {
   presentPendingIncomingShare,
   startIncomingShareInbox,
 } from "./features/sharing/IncomingShareProvider";
+import {
+  installAppShortcuts,
+  recordAppShortcutNavigationState,
+} from "./features/shortcuts/appShortcutsRuntime";
 import {
   AppearancePreferencesProvider,
   installAppearanceRuntime,
@@ -46,7 +54,12 @@ import { SubscriptionUsageCoordinator } from "./widgets/SubscriptionUsageCoordin
 import { installSubscriptionUsageRefresh } from "./widgets/useSubscriptionUsage";
 import { GlobalVoiceInputControl } from "./features/voice-input/GlobalVoiceInputControl";
 import { NativeLayoutMetricsProvider } from "./native/native-layout-metrics";
-import { attachRootNavigation, rootNavigationRef } from "./lib/rootNavigation";
+import {
+  attachRootNavigation,
+  flushRootNavigationQueue,
+  linkToRootPath,
+  rootNavigationRef,
+} from "./lib/rootNavigation";
 import { pruneNewTaskBranchCheckouts } from "./features/threads/NewTaskDraftRouteScreen";
 
 import "../global.css";
@@ -57,23 +70,44 @@ if (process.env.EXPO_PUBLIC_SHOWCASE === "1") {
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
+const linkingConfig = {
+  initialRouteName: "Home",
+  screens: createPathConfigForStaticNavigation(RootStack, { initialRouteName: "Home" }) ?? {},
+} as const;
+
+function getAppStateFromPath(path: string, options: Parameters<typeof getStateFromPath>[1]) {
+  return takeScheduledTaskNewLink(restoreDraftLinkState(getStateFromPath(path, options), path));
+}
+
 const appLinking = {
   prefixes: [Linking.createURL("/"), "supaterm://", "supaterm-dev://", "supaterm-preview://"],
   config: { initialRouteName: "Home" },
   filter: shouldHandleAppLink,
-  getStateFromPath: (path: string, options: Parameters<typeof getStateFromPath>[1]) =>
-    takeScheduledTaskNewLink(restoreDraftLinkState(getStateFromPath(path, options), path)),
+  getStateFromPath: getAppStateFromPath,
 };
+
+function appLinkAction(href: string): NavigationAction {
+  const state = getAppStateFromPath(href, linkingConfig);
+  if (!state) throw new Error(`Failed to parse the href to a navigation state (${href}).`);
+  return getActionFromState(state, linkingConfig) ?? CommonActions.reset(state);
+}
+
+function linkToAppPath(href: string): void {
+  linkToRootPath(href, appLinkAction);
+}
 
 const Navigation = createStaticNavigation(RootStack);
 
 function handleNavigationStateChange(state: NavigationState | undefined): void {
-  if (state) pruneNewTaskBranchCheckouts(state);
   presentPendingIncomingShare();
+  if (!state) return;
+  recordAppShortcutNavigationState(state);
+  pruneNewTaskBranchCheckouts(state);
 }
 
 function handleNavigationReady(): void {
   handleNavigationStateChange(rootNavigationRef.getRootState());
+  flushRootNavigationQueue();
 }
 
 declare const module: { readonly hot?: FoundationHotModule } | undefined;
@@ -91,6 +125,7 @@ const appServiceDisposers = [
   installThreadOutboxDelivery(),
   installComposerAttachmentUploads(),
   startIncomingShareInbox(),
+  installAppShortcuts(linkToAppPath),
 ];
 disposeOnFoundationReplace(typeof module === "undefined" ? undefined : module.hot, () => {
   for (const dispose of appServiceDisposers) dispose();

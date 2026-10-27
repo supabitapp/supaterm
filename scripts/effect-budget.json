@@ -76,7 +76,6 @@
   "apps/mobile/src/features/settings/components/BranchNamingSettings.tsx": 1,
   "apps/mobile/src/features/settings/components/SettingsDragHandle.tsx": 1,
   "apps/mobile/src/features/sharing/IncomingShareProvider.tsx": 4,
-  "apps/mobile/src/features/shortcuts/useAppShortcuts.ts": 4,
   "apps/mobile/src/features/showcase/ShowcaseCaptureCoordinator.tsx": 9,
   "apps/mobile/src/features/terminal/NativeTerminalSurface.tsx": 4,
   "apps/mobile/src/features/terminal/ThreadTerminalRouteScreen.tsx": 10,
