@@ -74,6 +74,7 @@ export interface Preferences {
   readonly threadListPinnedShelfExpanded?: boolean;
   readonly threadListActiveShelfExpanded?: boolean;
   readonly threadListDoneShelfExpanded?: boolean;
+  readonly useLastProjectForNewThreads?: boolean;
   readonly threadListSnoozedShelfExpanded?: boolean;
   readonly threadListWorkingShelfExpanded?: boolean;
   readonly threadListCollapsedGroups?: readonly string[];
@@ -141,6 +142,7 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     threadListPinnedShelfExpanded?: boolean;
     threadListActiveShelfExpanded?: boolean;
     threadListDoneShelfExpanded?: boolean;
+    useLastProjectForNewThreads?: boolean;
     threadListSnoozedShelfExpanded?: boolean;
     threadListWorkingShelfExpanded?: boolean;
     threadListCollapsedGroups?: readonly string[];
@@ -229,6 +231,9 @@ function sanitizePreferences(parsed: Preferences): Preferences {
   }
   if (typeof parsed.threadListPinnedShelfExpanded === "boolean") {
     preferences.threadListPinnedShelfExpanded = parsed.threadListPinnedShelfExpanded;
+  }
+  if (typeof parsed.useLastProjectForNewThreads === "boolean") {
+    preferences.useLastProjectForNewThreads = parsed.useLastProjectForNewThreads;
   }
   if (typeof parsed.threadListActiveShelfExpanded === "boolean") {
     preferences.threadListActiveShelfExpanded = parsed.threadListActiveShelfExpanded;

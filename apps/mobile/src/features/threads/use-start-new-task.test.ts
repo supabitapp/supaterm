@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("../../state/atom-registry", () => ({}));
 vi.mock("../../state/projects", () => ({}));
+vi.mock("../../state/preferences", () => ({}));
 vi.mock("../../state/use-composer-drafts", () => ({}));
 
 import { resolveStartNewTaskDestination } from "./use-start-new-task";
@@ -25,6 +26,7 @@ describe("resolveStartNewTaskDestination", () => {
         stickyProject,
         projects: [first, remembered],
         requestId: "request-1",
+        useLastProject: undefined,
       }),
     ).toEqual({
       draft: { requestId: "request-1", environmentId: "environment-1", projectId: "remembered" },
@@ -32,23 +34,17 @@ describe("resolveStartNewTaskDestination", () => {
   });
 
   it.each([
-    ["the remembered project is no longer listed", stickyProject],
-    ["nothing is remembered", null],
-  ])("falls back to the first project when %s", (_case, sticky) => {
+    ["the remembered project is no longer listed", stickyProject, [first], undefined],
+    ["nothing is remembered", null, [first], undefined],
+    ["Use last project is off", stickyProject, [first, remembered], false],
+  ] as const)("asks for a project when %s", (_case, sticky, projects, useLastProject) => {
     expect(
       resolveStartNewTaskDestination({
         stickyProject: sticky,
-        projects: [first],
+        projects,
         requestId: "request-1",
+        useLastProject,
       }),
-    ).toEqual({
-      draft: { requestId: "request-1", environmentId: "environment-1", projectId: "first" },
-    });
-  });
-
-  it("opens a projectless draft when there are no projects", () => {
-    expect(
-      resolveStartNewTaskDestination({ stickyProject, projects: [], requestId: "request-1" }),
     ).toEqual({ draft: { requestId: "request-1" } });
   });
 });

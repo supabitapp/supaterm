@@ -1,11 +1,16 @@
 import { Button } from "../../components/ui/Button";
 import { AutoMarkDoneDaysField } from "./components/AutoMarkDoneDaysField";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import { AsyncResult } from "effect/reactivity";
 import { View } from "react-native";
 
 import { DEFAULT_SERVER_SETTINGS } from "@supaterm/contracts";
 import { AppText as Text } from "../../components/ui/AppText";
-import { showSkillsInSlashMenuAtom, updateMobilePreferencesAtom } from "../../state/preferences";
+import {
+  mobilePreferencesAtom,
+  showSkillsInSlashMenuAtom,
+  updateMobilePreferencesAtom,
+} from "../../state/preferences";
 import { SettingsSection } from "./components/SettingsSection";
 import { SettingsSwitchRow } from "./components/SettingsSwitchRow";
 import {
@@ -150,6 +155,25 @@ export function ComposerSettingsSection() {
         subtitle="Show skills when you type /. Skills always appear when you type $."
         value={showSkillsInSlashMenu}
         onValueChange={(value) => savePreferences({ showSkillsInSlashMenu: value })}
+      />
+    </SettingsSection>
+  );
+}
+
+export function NewThreadSettingsSection() {
+  const savePreferences = useAtomSet(updateMobilePreferencesAtom);
+  const preferences = useAtomValue(mobilePreferencesAtom);
+  const useLastProject =
+    AsyncResult.isSuccess(preferences) && preferences.value.useLastProjectForNewThreads !== false;
+
+  return (
+    <SettingsSection title="New threads">
+      <SettingsSwitchRow
+        icon="square.and.pencil"
+        label="Use last project"
+        subtitle="Start new threads in the last project you used on this device."
+        value={useLastProject}
+        onValueChange={(value) => savePreferences({ useLastProjectForNewThreads: value })}
       />
     </SettingsSection>
   );

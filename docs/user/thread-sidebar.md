@@ -9,8 +9,11 @@ On web and desktop, a new thread keeps the current project and carries your mode
 and mode selections, unless the destination project has its own model default.
 Its branch and workspace mode come from your configured defaults. To continue in
 an existing worktree, use **New thread in this worktree** from the branch toolbar.
-On mobile, a new task opens in the project you last chose, or your first project
-when that one is gone; tap the project in the draft to pick another.
+
+On mobile, **New thread** starts in the last project you opened or chose on that
+device. If it is not available, the project picker opens; tap the project in the
+draft to pick another. Turn off **Settings → General → Use last project** to choose
+a project every time.
 
 When you change a new thread's project, its branch, workspace mode, and machine
 choice reset to that project's defaults; the prompt and a model you picked stay.

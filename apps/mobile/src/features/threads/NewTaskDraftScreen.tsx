@@ -453,6 +453,7 @@ export function NewTaskDraftScreen(props: {
   }, [props.pendingTaskId, cancelEditingPendingTask]);
 
   const lastInitialProjectRefRef = useRef(props.initialProjectRef);
+  const initialPickerRef = useRef<"open" | "dismissed" | null>(null);
 
   useEffect(() => {
     if (props.pendingTaskId || props.draftId) {
@@ -515,22 +516,38 @@ export function NewTaskDraftScreen(props: {
       return;
     }
 
-    const selection = resolveDraftProjectSelection(selectedProjectKey, projects, projectScopes);
+    const selection = resolveDraftProjectSelection(selectedProjectKey, projects, projectScopes, {
+      incomingShareId: props.incomingShareId,
+      pickerClosed: initialPickerRef.current === "open" && focused,
+    });
     if (selection.kind === "preserve") {
+      initialPickerRef.current = null;
       return;
     }
     if (selection.kind === "select") {
       setProject(selection.project);
       return;
     }
-
+    if (selection.kind === "dismiss") {
+      initialPickerRef.current = "dismissed";
+      goBack();
+      return;
+    }
+    // Open the first picker once; catalog updates must not push it again over a cancelled draft.
+    if (initialPickerRef.current !== null) {
+      return;
+    }
+    initialPickerRef.current = "open";
     navigation.dispatch(CommonActions.navigate("NewTaskProject"));
   }, [
+    goBack,
+    focused,
     projectScopes,
     projects,
     flow.draftKey,
     props.initialProjectRef,
     props.pendingTaskId,
+    props.incomingShareId,
     props.draftId,
     navigation,
     selectedProject,
