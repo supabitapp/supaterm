@@ -207,7 +207,11 @@ export class Device {
   }
 
   async install(artifact: string) {
-    if (this.pose.platform === "ios") await run("xcrun", ["simctl", "install", this.id, artifact]);
+    if (this.pose.platform === "ios")
+      await run("xcrun", ["simctl", "install", this.id, artifact], {
+        timeoutMs: 300_000,
+        logPath: NodePath.join(this.directory, "simulator-install.log"),
+      });
     else
       await run(androidSdkTool("platform-tools/adb"), [
         "-s",
@@ -362,11 +366,10 @@ export class Device {
   }
 
   async screenshot(path: string) {
-    await this.agent([
-      "screenshot",
-      path,
-      ...(this.pose.platform === "ios" ? ["--pixel-density", "2"] : []),
-    ]);
+    await this.agent(
+      ["screenshot", path, ...(this.pose.platform === "ios" ? ["--pixel-density", "2"] : [])],
+      { timeoutMs: 180_000 },
+    );
   }
 
   async saveDiagnostics() {
