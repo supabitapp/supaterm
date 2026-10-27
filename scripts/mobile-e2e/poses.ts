@@ -82,8 +82,8 @@ export const POSES: ReadonlyArray<Pose> = [
   {
     id: "pixel-fold-folded-dark",
     platform: "android",
-    device: "Pixel Fold",
-    androidProfile: "pixel_fold",
+    device: "7.6-inch foldable",
+    androidProfile: "7.6in Foldable",
     form: "phone",
     appearance: "dark",
     fold: "closed",
@@ -91,8 +91,8 @@ export const POSES: ReadonlyArray<Pose> = [
   {
     id: "pixel-fold-unfolded",
     platform: "android",
-    device: "Pixel Fold",
-    androidProfile: "pixel_fold",
+    device: "7.6-inch foldable",
+    androidProfile: "7.6in Foldable",
     form: "tablet",
     appearance: "light",
     fold: "open",
@@ -100,8 +100,8 @@ export const POSES: ReadonlyArray<Pose> = [
   {
     id: "pixel-fold-unfolded-landscape",
     platform: "android",
-    device: "Pixel Fold",
-    androidProfile: "pixel_fold",
+    device: "7.6-inch foldable",
+    androidProfile: "7.6in Foldable",
     form: "tablet",
     appearance: "dark",
     fold: "open",

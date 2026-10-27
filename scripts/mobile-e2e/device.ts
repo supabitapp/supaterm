@@ -65,6 +65,7 @@ export class Device {
   private id = "";
   private emulator: NodeChildProcess.ChildProcess | null = null;
   private closed = false;
+  private runnerLogPath: string | undefined;
 
   get deviceId() {
     return this.id;
@@ -157,6 +158,10 @@ export class Device {
           "-no-audio",
           "-no-boot-anim",
           "-no-snapshot",
+          "-memory",
+          "2048",
+          "-cores",
+          "2",
           "-gpu",
           "swiftshader",
           "-camera-back",
@@ -221,7 +226,7 @@ export class Device {
     options: { readonly timeoutMs?: number } = {},
   ): Promise<Record<string, unknown>> {
     const target = this.pose.platform === "ios" ? ["--udid", this.id] : ["--serial", this.id];
-    const { stdout, stderr } = await run(
+    const { code, stdout, stderr } = await run(
       NodeProcess.execPath,
       [
         AGENT_DEVICE_ENTRY,
@@ -244,7 +249,9 @@ export class Device {
     try {
       result = JSON.parse(stdout);
     } catch {
-      throw new Error(`agent-device ${args[0]}: ${(stderr || stdout).slice(-2_000)}`);
+      throw new Error(
+        `agent-device ${args[0]} exited ${code}: ${(stderr || stdout).slice(-2_000)}`,
+      );
     }
     if (!result.success)
       throw new Error(`agent-device ${args[0]}: ${result.error?.message ?? "unknown error"}`);
@@ -284,7 +291,7 @@ export class Device {
   }
 
   async launch(metroUrl: string) {
-    await this.agent(
+    const result = await this.agent(
       [
         "open",
         BUNDLE_ID,
@@ -293,6 +300,7 @@ export class Device {
       ],
       { timeoutMs: 180_000 },
     );
+    if (typeof result.runnerLogPath === "string") this.runnerLogPath = result.runnerLogPath;
     await this.acceptOpenPrompt();
     if (this.pose.fold) await this.agent(["fold", this.pose.fold]);
   }
@@ -326,8 +334,8 @@ export class Device {
     throw new Error(`Device did not rotate to ${shape}.`);
   }
 
-  async snapshot(): Promise<Snapshot> {
-    const value = await this.agent(["snapshot"]);
+  async snapshot(timeoutMs?: number): Promise<Snapshot> {
+    const value = await this.agent(["snapshot"], timeoutMs === undefined ? {} : { timeoutMs });
     const snapshot = value as unknown as Snapshot;
     if (
       !Array.isArray(snapshot.nodes) ||
@@ -361,6 +369,20 @@ export class Device {
       path,
       ...(this.pose.platform === "ios" ? ["--pixel-density", "2"] : []),
     ]);
+  }
+
+  async saveDiagnostics() {
+    if (this.runnerLogPath)
+      await NodeFSP.copyFile(
+        this.runnerLogPath,
+        NodePath.join(this.directory, "device-runner.log"),
+      ).catch(() => undefined);
+    const snapshot = await this.snapshot(15_000).catch(() => undefined);
+    if (snapshot)
+      await NodeFSP.writeFile(
+        NodePath.join(this.directory, "stopped.json"),
+        JSON.stringify(snapshot, null, 2),
+      );
   }
 
   async recorded(directory: string, name: string, action: () => Promise<unknown>) {

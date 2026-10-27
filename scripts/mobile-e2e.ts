@@ -58,6 +58,7 @@ async function runPose(
     await device.launch(`http://${host}:${metroPort}`);
     await runJourney(device, directory, () => pair(host), steps);
   } catch (error) {
+    await device?.saveDiagnostics().catch(() => undefined);
     const stopped = NodePath.join(directory, "stopped.png");
     const screenshot = await device?.screenshot(stopped).then(
       () => stopped,
@@ -76,6 +77,14 @@ async function runPose(
       result = appendError(
         result,
         `Device cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    try {
+      await stopDeviceDaemon(root);
+    } catch (error) {
+      result = appendError(
+        result,
+        `Device daemon cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
