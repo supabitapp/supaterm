@@ -7,7 +7,7 @@ import {
   type TurnDiffTreeNode,
 } from "../../lib/turnDiffTree";
 import { DiffIcon } from "@supaterm/icons";
-import { ChevronsDownUp, ChevronsUpDown, Folder } from "@supaterm/icons/nodes";
+import { ChevronsDownUp, ChevronsUpDown, Folder, FolderOpen } from "@supaterm/icons/nodes";
 import { DiffStatLabel, hasNonZeroStat } from "./DiffStatLabel";
 import { PierreEntryIcon } from "./PierreEntryIcon";
 import { Button } from "../ui/button";
@@ -197,7 +197,7 @@ const ChangedFilesTree = memo(function ChangedFilesTree(props: {
           <DisclosureChevron open={isExpanded} size="sm" />
           <MorphIcon
             className="size-3.5 shrink-0 text-muted-foreground/75"
-            icon={isExpanded ? Folder : Folder}
+            icon={isExpanded ? FolderOpen : Folder}
           />
           <span className="truncate font-mono text-2xs text-muted-foreground/90 group-hover:text-foreground/90">
             {node.name}

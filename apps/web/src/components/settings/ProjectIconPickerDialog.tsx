@@ -47,6 +47,19 @@ function initialIconName(current: ProjectIconOverride | null): string {
     : DEFAULT_PROJECT_ICON.name;
 }
 
+// Saving without picking another icon keeps the saved name, so recoloring an icon the
+// picker no longer offers does not replace it with the default.
+function symbolIconToSave(
+  current: ProjectIconOverride | null,
+  iconName: string,
+  color: ProjectIconColor,
+): ProjectIconOverride {
+  if (current && isProjectSymbolIcon(current) && iconName === initialIconName(current)) {
+    return { ...current, color };
+  }
+  return { kind: "icon", name: iconName, color };
+}
+
 function iconLabel(name: string): string {
   return name
     .split("-")
@@ -103,7 +116,7 @@ export function ProjectIconPickerDialog({
       mode === "monogram"
         ? { kind: "monogram", text: monogram, color }
         : mode === "icon"
-          ? { kind: "icon", name: iconName, color }
+          ? symbolIconToSave(current, iconName, color)
           : { kind: "emoji", emoji },
     );
     onOpenChange(false);
