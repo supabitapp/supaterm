@@ -510,7 +510,7 @@ function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-async function stopProcess(child: NodeChildProcess.ChildProcess): Promise<void> {
+export async function stopProcess(child: NodeChildProcess.ChildProcess): Promise<void> {
   if (child.exitCode !== null || child.signalCode !== null) return;
 
   const exited = new Promise<void>((resolve) => {
@@ -524,7 +524,11 @@ async function stopProcess(child: NodeChildProcess.ChildProcess): Promise<void> 
   await Promise.race([exited, delay(1_000)]);
 }
 
-async function waitForPort(port: number, label = "Process", timeoutMs = 60_000): Promise<void> {
+export async function waitForPort(
+  port: number,
+  label = "Process",
+  timeoutMs = 60_000,
+): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const open = await new Promise<boolean>((resolve) => {
@@ -562,7 +566,7 @@ async function waitForFileContent(
   throw new Error(`${label} was not written to ${filePath} within ${timeoutMs}ms.`);
 }
 
-async function reserveAvailablePort(): Promise<number> {
+export async function reserveAvailablePort(): Promise<number> {
   return await new Promise<number>((resolve, reject) => {
     const server = NodeNet.createServer();
     server.once("error", reject);
@@ -667,6 +671,7 @@ function startShowcaseServer(
       workspaceRoot,
     ],
     {
+      stdio: ["ignore", "ignore", "inherit"],
       env: {
         ...NodeProcess.env,
         PATH: `${labelProbeDirectory}:${NodeProcess.env.PATH ?? ""}`,
@@ -674,6 +679,65 @@ function startShowcaseServer(
       },
     },
   );
+}
+
+export interface ShowcaseEnvironment {
+  readonly baseDir: string;
+  readonly environmentId: string;
+  readonly label: string;
+  readonly port: number;
+}
+
+export async function startShowcaseEnvironments(
+  rootDir: string,
+  track: (server: NodeChildProcess.ChildProcess) => void,
+  environments: ReadonlyArray<(typeof SHOWCASE_ENVIRONMENTS)[number]> = SHOWCASE_ENVIRONMENTS,
+): Promise<ShowcaseEnvironment[]> {
+  const started: ShowcaseEnvironment[] = [];
+  for (const environment of environments) {
+    const projectId = environment.projectIds[0];
+    const project = SHOWCASE_PROJECTS.find((candidate) => candidate.id === projectId);
+    if (!project) throw new Error(`Showcase environment '${environment.id}' has no project.`);
+
+    const baseDir = NodePath.join(rootDir, "environments", environment.id);
+    const workspaceRoot = NodePath.join(baseDir, "workspace", project.directory);
+    const port = await reserveAvailablePort();
+    await NodeFSP.mkdir(workspaceRoot, { recursive: true });
+    const shellPath = await createShowcaseShell(baseDir);
+    const labelProbeDirectory = await createShowcaseLabelProbe(baseDir, environment.label);
+    const server = startShowcaseServer(
+      baseDir,
+      workspaceRoot,
+      port,
+      shellPath,
+      labelProbeDirectory,
+    );
+    track(server);
+    await waitForPort(port, `${environment.label} server`);
+    const dbPath = NodePath.join(baseDir, "userdata", "statev2.sqlite");
+    await waitForSeedableSchema(dbPath);
+    await stopProcess(server);
+    await seedShowcaseEnvironment({ baseDir, projectIds: environment.projectIds });
+    const captureServer = startShowcaseServer(
+      baseDir,
+      workspaceRoot,
+      port,
+      shellPath,
+      labelProbeDirectory,
+    );
+    track(captureServer);
+    await waitForPort(port, `${environment.label} capture server`);
+    await waitForShowcaseThreads(dbPath, environment.projectIds);
+    // The server begins listening before the ServerEnvironment layer
+    // persists the environment id, so poll rather than read once.
+    const environmentId = await waitForFileContent(
+      NodePath.join(baseDir, "userdata", "environment-id"),
+      `${environment.label} environment id`,
+    );
+    started.push({ baseDir, environmentId, label: environment.label, port });
+  }
+
+  return started;
 }
 
 export function parsePairingCredentialOutput(output: string): string {
@@ -691,7 +755,7 @@ export function parsePairingCredentialOutput(output: string): string {
   return parsed.credential;
 }
 
-async function issuePairingCredential(baseDir: string): Promise<string> {
+export async function issuePairingCredential(baseDir: string): Promise<string> {
   const output = await commandOutput(
     "node",
     ["apps/server/src/bin.ts", "auth", "pairing", "create", "--base-dir", baseDir, "--json"],
@@ -700,7 +764,7 @@ async function issuePairingCredential(baseDir: string): Promise<string> {
   return parsePairingCredentialOutput(output);
 }
 
-function buildShowcasePairingUrl(host: string, port: number, credential: string): string {
+export function buildShowcasePairingUrl(host: string, port: number, credential: string): string {
   const url = new URL(`http://${host}:${port}/`);
   url.hash = new URLSearchParams([["token", credential]]).toString();
   return url.toString();
@@ -724,12 +788,12 @@ function startMetro(config: ShowcaseConfig): NodeChildProcess.ChildProcess {
   );
 }
 
-async function warmMetroBundle(
+export async function warmMetroBundle(
   platform: ShowcaseDevice["platform"],
   host: string,
-  config: ShowcaseConfig,
+  metroPort: number,
 ): Promise<void> {
-  const url = `http://${host}:${config.metroPort}/`;
+  const url = `http://${host}:${metroPort}/`;
   const curlOptions = ["--fail", "--silent", "--show-error", "--max-time", "300"];
   const manifest = JSON.parse(
     await commandOutput("curl", [
@@ -867,7 +931,7 @@ async function iosSimulatorDataPath(udid: string): Promise<string> {
 // every boot until the user dismisses it. Stamping the readiness marker before
 // boot makes the daemon skip the post, and dropping the CoreFollowUp store
 // clears a banner that a previous boot already queued.
-async function suppressIosSystemFollowUps(udid: string): Promise<void> {
+export async function suppressIosSystemFollowUps(udid: string): Promise<void> {
   const dataPath = await iosSimulatorDataPath(udid);
   const preferences = NodePath.join(dataPath, "Library/Preferences");
   await NodeFSP.mkdir(preferences, { recursive: true });
@@ -889,7 +953,10 @@ async function suppressIosSystemFollowUps(udid: string): Promise<void> {
   });
 }
 
-async function normalizeIosSimulator(appearance: ShowcaseAppearance, udid: string): Promise<void> {
+export async function normalizeIosSimulator(
+  appearance: ShowcaseAppearance,
+  udid: string,
+): Promise<void> {
   await runCommand("xcrun", ["simctl", "ui", udid, "appearance", appearance]);
   await runCommand("xcrun", [
     "simctl",
@@ -912,7 +979,7 @@ async function normalizeIosSimulator(appearance: ShowcaseAppearance, udid: strin
 // iPadOS 26 windowing ("Chamois") runs UIRequiresFullScreen apps in a fixed
 // portrait compatibility window, which defeats the in-app landscape rotation
 // the capture build relies on.
-async function ensureIosFullScreenAppsMode(udid: string): Promise<void> {
+export async function ensureIosFullScreenAppsMode(udid: string): Promise<void> {
   const current = await commandOutput("xcrun", [
     "simctl",
     "spawn",
@@ -1093,7 +1160,7 @@ async function captureIos(
   }
 }
 
-function androidSdkTool(relativePath: string): string {
+export function androidSdkTool(relativePath: string): string {
   return NodePath.join(ANDROID_SDK_ROOT, relativePath);
 }
 
@@ -1385,66 +1452,26 @@ async function main(): Promise<void> {
     NodePath.join(NodeOS.tmpdir(), "supaterm-mobile-showcase-"),
   );
   const showcaseServers: NodeChildProcess.ChildProcess[] = [];
-  const showcaseEnvironments: Array<{
-    readonly baseDir: string;
-    readonly environmentId: string;
-    readonly label: string;
-    readonly port: number;
-  }> = [];
+  const showcaseEnvironments: ShowcaseEnvironment[] = [];
   let metro: NodeChildProcess.ChildProcess | null = null;
   const iosCleanups: IosCaptureCleanup[] = [];
   const androidCleanups: AndroidCaptureCleanup[] = [];
 
   try {
-    for (const environment of SHOWCASE_ENVIRONMENTS) {
-      const projectId = environment.projectIds[0];
-      const project = SHOWCASE_PROJECTS.find((candidate) => candidate.id === projectId);
-      if (!project) throw new Error(`Showcase environment '${environment.id}' has no project.`);
-
-      const baseDir = NodePath.join(showcaseRootDir, "environments", environment.id);
-      const workspaceRoot = NodePath.join(baseDir, "workspace", project.directory);
-      const port = await reserveAvailablePort();
-      await NodeFSP.mkdir(workspaceRoot, { recursive: true });
-      const shellPath = await createShowcaseShell(baseDir);
-      const labelProbeDirectory = await createShowcaseLabelProbe(baseDir, environment.label);
-      const server = startShowcaseServer(
-        baseDir,
-        workspaceRoot,
-        port,
-        shellPath,
-        labelProbeDirectory,
-      );
-      showcaseServers.push(server);
-      await waitForPort(port, `${environment.label} server`);
-      const dbPath = NodePath.join(baseDir, "userdata", "statev2.sqlite");
-      await waitForSeedableSchema(dbPath);
-      await stopProcess(server);
-      await seedShowcaseEnvironment({ baseDir, projectIds: environment.projectIds });
-      const captureServer = startShowcaseServer(
-        baseDir,
-        workspaceRoot,
-        port,
-        shellPath,
-        labelProbeDirectory,
-      );
-      showcaseServers.push(captureServer);
-      await waitForPort(port, `${environment.label} capture server`);
-      await waitForShowcaseThreads(dbPath, environment.projectIds);
-      // The server begins listening before the ServerEnvironment layer
-      // persists the environment id, so poll rather than read once.
-      const environmentId = await waitForFileContent(
-        NodePath.join(baseDir, "userdata", "environment-id"),
-        `${environment.label} environment id`,
-      );
-      showcaseEnvironments.push({ baseDir, environmentId, label: environment.label, port });
-    }
+    showcaseEnvironments.push(
+      ...(await startShowcaseEnvironments(showcaseRootDir, (server) =>
+        showcaseServers.push(server),
+      )),
+    );
 
     if (!options.skipMetro) {
       metro = startMetro(showcaseConfig);
       await waitForPort(showcaseConfig.metroPort, "Metro");
       await Promise.all([
-        hasIos ? warmMetroBundle("ios", metroHost, showcaseConfig) : Promise.resolve(),
-        hasAndroid ? warmMetroBundle("android", "127.0.0.1", showcaseConfig) : Promise.resolve(),
+        hasIos ? warmMetroBundle("ios", metroHost, showcaseConfig.metroPort) : Promise.resolve(),
+        hasAndroid
+          ? warmMetroBundle("android", "127.0.0.1", showcaseConfig.metroPort)
+          : Promise.resolve(),
       ]);
     }
 

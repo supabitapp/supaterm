@@ -172,6 +172,7 @@ minimumReleaseAgeExclude:
   - "@pierre/diffs@1.6.1"
   - "@pierre/highlights@0.2.0"
   - "@pierre/theming@1.0.2"
+  - agent-device@0.21.32
 
 overrides:
   # Keep on the patched version. A fresh resolution would take a newer release and

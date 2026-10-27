@@ -184,6 +184,27 @@ Use `vp run lint:mobile` for native mobile changes. CI owns the full suite; see
 The [manual Windows lane](../../.github/workflows/windows-tests.yml) is available for focused
 Windows investigation while that suite is not a required gate.
 
+### Mobile layout checks
+
+The [Mobile Layout E2E workflow](../../.github/workflows/mobile-e2e.yml) checks the native app on
+hosted iOS simulators and Android emulators for mobile pull requests. Dispatch it manually to
+select a platform or specific device poses. Download the `mobile-e2e-ios` or `mobile-e2e-android`
+artifact and open `index.html` for the checks, screenshots, and transition recordings.
+
+For local reproduction on a prepared device host, run these commands from the repository root:
+
+```sh
+vp run mobile:e2e --list
+vp run mobile:e2e --platform ios --pose iphone-se
+vp run mobile:e2e --platform android --pose pixel-fold-unfolded
+```
+
+The host needs ffmpeg and the native build tools for its platform, including an installed iOS
+runtime or Android SDK system image. The runner creates its own devices and seeded backend,
+then removes them after the run. Local reports are written under `artifacts/mobile-e2e`.
+Add `--review` to request an advisory screenshot review through an installed, authenticated
+Claude CLI; ordinary CI checks do not need an AI account.
+
 ### Unused code
 
 `vp run knip:check` checks unused files and dependencies across the repo, then
