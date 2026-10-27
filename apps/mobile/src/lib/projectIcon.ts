@@ -1,4 +1,6 @@
-import type { ProjectIconColor, ProjectIconOverride } from "@supaterm/contracts";
+import { isScratchProject } from "@supaterm/client-runtime/state/projects";
+import { ProjectIconColor, type ProjectIconOverride } from "@supaterm/contracts";
+import { isProjectFaviconFallbackUrl } from "@supaterm/shared/projectFavicon";
 
 export type ProjectIconGlyph =
   | { readonly kind: "emoji"; readonly emoji: string }
@@ -30,6 +32,37 @@ export function projectMonogram(projectName: string): string {
   return Array.from(`${first}${second}`.toUpperCase()).slice(0, 2).join("");
 }
 
+// Mirrors the desktop's preferred project color (apps/web/src/projectIdentity.ts), so a
+// project without an icon gets the same tile color on every client.
+const AUTOMATIC_PROJECT_COLORS = [
+  "red",
+  "orange",
+  "amber",
+  "lime",
+  "emerald",
+  "cyan",
+  "blue",
+  "violet",
+  "pink",
+] as const satisfies ReadonlyArray<ProjectIconColor>;
+
+export function projectMonogramColor(projectName: string): ProjectIconColor {
+  let hash = 0x811c9dc5;
+  for (const glyph of projectName.normalize("NFKC").trim().toLocaleLowerCase("en-US")) {
+    hash = Math.imul(hash ^ (glyph.codePointAt(0) ?? 0), 0x01000193);
+  }
+  return AUTOMATIC_PROJECT_COLORS[(hash >>> 0) % AUTOMATIC_PROJECT_COLORS.length] ?? "blue";
+}
+
+export function projectAutoMonogram(projectTitle: string): ProjectIconGlyph | null {
+  if (!projectTitle.trim()) return null;
+  return {
+    kind: "monogram",
+    text: projectMonogram(projectTitle),
+    color: projectMonogramColor(projectTitle),
+  };
+}
+
 export function resolveProjectIconGlyph(
   projectIcon: ProjectIconOverride | null | undefined,
   projectTitle: string,
@@ -44,6 +77,25 @@ export function resolveProjectIconGlyph(
     case undefined:
       return null;
   }
+}
+
+export type ProjectChipIcon = { readonly kind: "favicon"; readonly uri: string } | ProjectIconGlyph;
+
+export function resolveProjectChipIcon(
+  project: {
+    readonly title: string;
+    readonly workspaceRoot: string;
+    readonly projectIcon?: ProjectIconOverride | null;
+  } | null,
+  scratchWorkspaceRoot: string | null | undefined,
+  faviconUrl: () => string | null,
+): ProjectChipIcon | null {
+  if (!project || isScratchProject(project, scratchWorkspaceRoot)) return null;
+  const glyph = resolveProjectIconGlyph(project.projectIcon, project.title);
+  if (glyph) return glyph;
+  const url = faviconUrl();
+  if (url && !isProjectFaviconFallbackUrl(url)) return { kind: "favicon", uri: url };
+  return projectAutoMonogram(project.title);
 }
 
 const PROJECT_ICON_COLOR_CLASSES: Record<
