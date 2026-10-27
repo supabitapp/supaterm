@@ -67,6 +67,7 @@ export interface ThreadTitleGenerationInput {
 
   previousTitle?: string | undefined;
   attachments?: ReadonlyArray<ChatAttachment> | undefined;
+  instructions?: string | undefined;
 
   modelSelection: ModelSelection;
 }
