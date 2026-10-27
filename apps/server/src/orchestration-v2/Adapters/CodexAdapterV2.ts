@@ -88,6 +88,7 @@ import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
+import * as Function from "effect/Function";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
@@ -154,6 +155,7 @@ import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
 import * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
 
 const CODEX_PROVIDER = ProviderDriverKind.make("codex");
+const CODEX_CAPACITY_MAX_RETRIES = 5;
 export const CODEX_DRIVER_KIND = CODEX_PROVIDER;
 export const CODEX_DEFAULT_INSTANCE_ID = defaultInstanceIdForDriver(CODEX_DRIVER_KIND);
 
@@ -1145,6 +1147,8 @@ function withCodexManagedFailure(
 }
 
 interface ActiveCodexTurnContext {
+  capacityRetryAttempt?: number;
+  capacityRetryPending?: Deferred.Deferred<ActiveCodexTurnContext | undefined>;
   closedCommandItemIds?: ReadonlySet<string>;
   latestProviderFailure?: {
     readonly nativeMessage: string;
@@ -1178,12 +1182,37 @@ interface ActiveCodexTurnContext {
 }
 
 interface ActiveCodexProviderRetry {
+  readonly context?: ActiveCodexTurnContext;
   readonly nativeMessage: string;
   readonly nativeCode: string | null;
   readonly retry: OrchestrationV2ProviderRetry;
   readonly failure: OrchestrationV2ProviderFailure;
   readonly startedAt: DateTime.Utc;
   readonly itemOrdinal: number;
+}
+
+function codexRetryTurnItem(
+  activeContext: ActiveCodexTurnContext,
+  state: ActiveCodexProviderRetry,
+  status: Parameters<typeof makeProviderRetryTurnItem>[0]["status"],
+  updatedAt: DateTime.Utc,
+) {
+  // A continuation keeps the retry row attached to the native turn that failed.
+  const context = state.context ?? activeContext;
+  return makeProviderRetryTurnItem({
+    driver: CODEX_PROVIDER,
+    threadId: context.projectionThreadId,
+    runId: context.projectionRunId,
+    nodeId: context.providerNodeId,
+    providerThreadId: context.providerThread.id,
+    providerTurnId: context.providerTurnId,
+    itemOrdinal: state.itemOrdinal,
+    failure: state.failure,
+    retry: state.retry,
+    status,
+    startedAt: state.startedAt,
+    updatedAt,
+  });
 }
 
 interface TrackedRunningCommandItem {
@@ -1880,13 +1909,24 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
         const goalsByNativeThread = new Map<string, OrchestrationV2ProviderGoal | null>();
         const rootProviderThreads = new Map<string, OrchestrationV2ProviderThread>();
         const goalHolds = new Map<string, CodexGoalHold>();
-        const goalRuns = new Map<ProviderTurnId, Array<ActiveCodexTurnContext>>();
+        const continuedRuns = new Map<ProviderTurnId, Array<ActiveCodexTurnContext>>();
+        const capacityContinuations = new Map<
+          string,
+          { readonly context: ActiveCodexTurnContext; readonly retry: ActiveCodexProviderRetry }
+        >();
         const goalActivations = new Map<string, { stopped: boolean }>();
         // Stops in progress by native thread. Until a Stop resolves its target,
         // a held run must not settle as completed.
         const goalStops = new Map<string, number>();
-        const latestGoalTurnId = (providerTurnId: ProviderTurnId) =>
-          goalRuns.get(providerTurnId)?.at(-1)?.providerTurnId ?? providerTurnId;
+        const latestRunTurnId = (providerTurnId: ProviderTurnId) =>
+          continuedRuns.get(providerTurnId)?.at(-1)?.providerTurnId ?? providerTurnId;
+        const isContinuedRunDescendant = (
+          candidate: ActiveCodexTurnContext,
+          context: ActiveCodexTurnContext,
+        ) =>
+          (continuedRuns.get(context.providerTurnId) ?? [context]).some((ancestor) =>
+            isDescendantCodexTurn(candidate, ancestor),
+          );
 
         const emitProviderEvent = (event: ProviderAdapter.ProviderAdapterV2Event) =>
           Queue.offer(events, event).pipe(Effect.asVoid);
@@ -1949,20 +1989,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           yield* emitProviderEvent({
             type: "turn_item.updated",
             driver: CODEX_PROVIDER,
-            turnItem: makeProviderRetryTurnItem({
-              driver: CODEX_PROVIDER,
-              threadId: context.projectionThreadId,
-              runId: context.projectionRunId,
-              nodeId: context.providerNodeId,
-              providerThreadId: context.providerThread.id,
-              providerTurnId: context.providerTurnId,
-              itemOrdinal: providerRetry.itemOrdinal,
-              failure: providerRetry.failure,
-              retry: providerRetry.retry,
-              status: "completed",
-              startedAt: providerRetry.startedAt,
-              updatedAt,
-            }),
+            turnItem: codexRetryTurnItem(context, providerRetry, "completed", updatedAt),
           });
         });
 
@@ -2002,6 +2029,24 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             fileChangeKindsByItem: new Map(),
             runningCompactionItemIds: new Set(),
           };
+          const nativeThreadId = input.turnInput.providerThread.nativeThreadRef?.nativeId;
+          const continuation =
+            nativeThreadId == null ? undefined : capacityContinuations.get(nativeThreadId);
+          if (continuation !== undefined) {
+            context.capacityRetryAttempt = continuation.context.capacityRetryAttempt ?? 0;
+            yield* Ref.update(providerRetries, (current) =>
+              new Map(current).set(providerTurnId, continuation.retry),
+            );
+            const turns = continuedRuns.get(continuation.context.providerTurnId) ?? [
+              continuation.context,
+            ];
+            turns.push(context);
+            continuedRuns.set(continuation.context.providerTurnId, turns);
+            continuedRuns.set(providerTurnId, turns);
+            if (continuation.context.capacityRetryPending !== undefined) {
+              yield* Deferred.succeed(continuation.context.capacityRetryPending, context);
+            }
+          }
           yield* Ref.update(limitedTurnItems, (current) => {
             const next = new Map(current);
             next.delete(context.providerThread.id);
@@ -2014,6 +2059,9 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             updated.set(input.nativeTurnId, context);
             return updated;
           });
+          if (continuation !== undefined && nativeThreadId != null) {
+            capacityContinuations.delete(nativeThreadId);
+          }
           yield* emitProviderEvent({
             type: "provider_turn.updated",
             driver: CODEX_PROVIDER,
@@ -4450,10 +4498,12 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                 nativeTurnId: payload.turn.id,
                 startedAt: codexTimestamp(payload.turn.startedAt),
               });
-              const goalRun = goalRuns.get(goalHold.context.providerTurnId) ?? [goalHold.context];
+              const goalRun = continuedRuns.get(goalHold.context.providerTurnId) ?? [
+                goalHold.context,
+              ];
               goalRun.push(next);
-              goalRuns.set(goalHold.context.providerTurnId, goalRun);
-              goalRuns.set(next.providerTurnId, goalRun);
+              continuedRuns.set(goalHold.context.providerTurnId, goalRun);
+              continuedRuns.set(next.providerTurnId, goalRun);
               yield* Deferred.succeed(goalHold.next, next);
               return;
             }
@@ -4565,6 +4615,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               previous?.itemOrdinal ??
               (yield* resolveItemOrdinal(context, `terminal-failure:${context.providerTurnId}`));
             const state: ActiveCodexProviderRetry = {
+              ...(previous?.context === undefined ? {} : { context: previous.context }),
               nativeMessage: payload.error.message,
               nativeCode: code,
               retry,
@@ -4580,20 +4631,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             yield* emitProviderEvent({
               type: "turn_item.updated",
               driver: CODEX_PROVIDER,
-              turnItem: makeProviderRetryTurnItem({
-                driver: CODEX_PROVIDER,
-                threadId: context.projectionThreadId,
-                runId: context.projectionRunId,
-                nodeId: context.providerNodeId,
-                providerThreadId: context.providerThread.id,
-                providerTurnId: context.providerTurnId,
-                itemOrdinal,
-                failure,
-                retry,
-                status: "running",
-                startedAt: state.startedAt,
-                updatedAt,
-              }),
+              turnItem: codexRetryTurnItem(context, state, "running", updatedAt),
             });
           }).pipe(Effect.orDie),
         );
@@ -5705,8 +5743,16 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                 }
               : event;
           yield* emitProviderEvent(current);
-          for (const turn of goalRuns.get(context.providerTurnId) ?? []) {
-            goalRuns.delete(turn.providerTurnId);
+          const continued = continuedRuns.get(context.providerTurnId) ?? [context];
+          if (current.status !== "completed") {
+            yield* Ref.update(
+              terminalizedNonCompletedNativeTurns,
+              (nativeTurns) =>
+                new Set([...nativeTurns, ...continued.map((turn) => turn.nativeTurnId)]),
+            );
+          }
+          for (const turn of continued) {
+            continuedRuns.delete(turn.providerTurnId);
           }
           const nativeThreadId = context.providerThread.nativeThreadRef?.nativeId;
           const rootProviderThread =
@@ -5744,7 +5790,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           }) {
             const event = yield* makeRootTerminalEvent(input);
             const hasActiveDescendants = Array.from((yield* Ref.get(activeTurns)).values()).some(
-              (candidate) => isDescendantCodexTurn(candidate, input.context),
+              (candidate) => isContinuedRunDescendant(candidate, input.context),
             );
 
             if (event.status === "failed" && hasActiveDescendants) {
@@ -5871,7 +5917,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               for (const [nativeTurnId, deferred] of current) {
                 if (
                   !activeTurnContexts.some((candidate) =>
-                    isDescendantCodexTurn(candidate, deferred.context),
+                    isContinuedRunDescendant(candidate, deferred.context),
                   )
                 ) {
                   updated.delete(nativeTurnId);
@@ -5922,8 +5968,10 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           readonly completedAt: DateTime.Utc;
           readonly failureMessage?: string;
           readonly failureErrorInfo?: CodexErrorInfo;
+          readonly continueRun?: boolean;
         }) =>
-          turnTerminalizationPermit.withPermits(1)(
+          // Capacity continuation already holds the permit across finalization and restart.
+          (input.continueRun ? Function.identity : turnTerminalizationPermit.withPermits(1))(
             Effect.gen(function* () {
               const current = (yield* Ref.get(activeTurns)).get(input.nativeTurnId);
               if (current !== input.context) {
@@ -5941,31 +5989,33 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               });
               if (
                 providerRetry !== undefined &&
-                (input.status !== "failed" || input.context.subagent !== null)
+                !input.continueRun &&
+                (providerRetry.context !== undefined ||
+                  input.status !== "failed" ||
+                  input.context.subagent !== null)
               ) {
                 yield* emitProviderEvent({
                   type: "turn_item.updated",
                   driver: CODEX_PROVIDER,
-                  turnItem: makeProviderRetryTurnItem({
-                    driver: CODEX_PROVIDER,
-                    threadId: input.context.projectionThreadId,
-                    runId: input.context.projectionRunId,
-                    nodeId: input.context.providerNodeId,
-                    providerThreadId: input.context.providerThread.id,
-                    providerTurnId: input.context.providerTurnId,
-                    itemOrdinal: providerRetry.itemOrdinal,
-                    failure: providerRetry.failure,
-                    retry: providerRetry.retry,
-                    status: providerTurnStatusToTerminal(input.status),
-                    startedAt: providerRetry.startedAt,
-                    updatedAt: input.completedAt,
-                  }),
+                  turnItem: codexRetryTurnItem(
+                    input.context,
+                    providerRetry,
+                    input.status === "failed" &&
+                      providerRetry.context !== input.context &&
+                      providerRetry.context !== undefined
+                      ? "interrupted"
+                      : providerTurnStatusToTerminal(input.status),
+                    input.completedAt,
+                  ),
                 });
               }
-              if (input.status !== "completed") {
+              if (input.status !== "completed" && !input.continueRun) {
                 yield* Ref.update(terminalizedNonCompletedNativeTurns, (current) => {
                   const updated = new Set(current);
-                  updated.add(input.nativeTurnId);
+                  for (const turn of continuedRuns.get(input.context.providerTurnId) ?? [
+                    input.context,
+                  ])
+                    updated.add(turn.nativeTurnId);
                   return updated;
                 });
               }
@@ -6087,11 +6137,14 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                 // children of a root turn wake it: a grandchild reports to its own parent,
                 // and a root turn already running receives the result natively.
                 const parent = input.context.subagent.parentContext;
+                const parentNativeThreadId = parent.providerThread.nativeThreadRef?.nativeId;
                 if (
                   continuationRequests !== undefined &&
                   parent.subagent === null &&
                   (input.status === "completed" || input.status === "failed") &&
                   !(yield* Ref.get(terminalizedNonCompletedNativeTurns)).has(parent.nativeTurnId) &&
+                  (parentNativeThreadId == null ||
+                    !capacityContinuations.has(parentNativeThreadId)) &&
                   ![...(yield* Ref.get(activeTurns)).values()].some(
                     (active) =>
                       active.subagent === null &&
@@ -6137,7 +6190,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                 input.completedAt,
                 input.status === "interrupted" || input.status === "failed",
               );
-              if (input.context.subagent === null) {
+              if (input.context.subagent === null && !input.continueRun) {
                 yield* emitOrDeferRootTerminal({
                   ...input,
                   ...(providerRetry === undefined ? {} : { providerRetry }),
@@ -6170,6 +6223,9 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               });
               if (input.context.nativeStartReady !== undefined) {
                 yield* Deferred.succeed(input.context.nativeStartReady, undefined);
+              }
+              if (!input.continueRun && input.context.capacityRetryPending !== undefined) {
+                yield* Deferred.succeed(input.context.capacityRetryPending, undefined);
               }
               yield* flushReadyRootTerminals();
               if (!retainSettledContext && !interruptInProgress) {
@@ -6212,6 +6268,141 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             }),
           );
 
+        // Codex can end an overloaded turn without retry advice. Continue its
+        // persisted history with empty input instead of resending the user message.
+        const retryCapacityFailure = Effect.fn("CodexAdapterV2.retryCapacityFailure")(function* (
+          terminal: Parameters<typeof finalizeCodexTurn>[0],
+        ) {
+          const context = terminal.context;
+          const code =
+            terminal.failureErrorInfo == null
+              ? context.latestProviderFailure?.nativeCode
+              : codexErrorInfoCode(terminal.failureErrorInfo);
+          if (
+            terminal.status !== "failed" ||
+            code !== "serverOverloaded" ||
+            context.subagent !== null ||
+            (context.input.message.attachments.length === 0 &&
+              context.input.message.text.trim().toLowerCase() === "/compact")
+          )
+            return false;
+
+          return yield* turnTerminalizationPermit.withPermits(1)(
+            Effect.gen(function* () {
+              if ((yield* Ref.get(activeTurns)).get(terminal.nativeTurnId) !== context) return true;
+              if (context.capacityRetryPending !== undefined) return true;
+              if (
+                (context.capacityRetryAttempt ?? 0) >= CODEX_CAPACITY_MAX_RETRIES ||
+                (yield* Ref.get(interruptingNativeTurns)).has(terminal.nativeTurnId)
+              )
+                return false;
+
+              const attempt = (context.capacityRetryAttempt ?? 0) + 1;
+              context.capacityRetryAttempt = attempt;
+              const pending = yield* Deferred.make<ActiveCodexTurnContext | undefined>();
+              context.capacityRetryPending = pending;
+              const retryDelayMs = Math.min(2_000 * 2 ** (attempt - 1), 30_000);
+              const now = yield* DateTime.now;
+              const previous = (yield* Ref.get(providerRetries)).get(context.providerTurnId);
+              const state: ActiveCodexProviderRetry = {
+                context: previous?.context ?? context,
+                nativeMessage:
+                  terminal.failureMessage ??
+                  context.latestProviderFailure?.nativeMessage ??
+                  "Selected model is at capacity.",
+                nativeCode: code,
+                failure: makeProviderFailure({
+                  message:
+                    context.latestProviderFailure?.failure.message ?? terminal.failureMessage,
+                  code,
+                  class: "provider_error",
+                  retryable: true,
+                }),
+                retry: { attempt, maxAttempts: CODEX_CAPACITY_MAX_RETRIES, retryDelayMs },
+                itemOrdinal:
+                  previous?.itemOrdinal ??
+                  (yield* resolveItemOrdinal(
+                    context,
+                    `terminal-failure:${context.providerTurnId}`,
+                  )),
+                startedAt: previous?.startedAt ?? now,
+              };
+              yield* Ref.update(providerRetries, (current) =>
+                new Map(current).set(context.providerTurnId, state),
+              );
+              yield* emitProviderEvent({
+                type: "turn_item.updated",
+                driver: CODEX_PROVIDER,
+                turnItem: codexRetryTurnItem(context, state, "running", now),
+              });
+              yield* Effect.sleep(retryDelayMs).pipe(
+                Effect.andThen(
+                  Effect.gen(function* () {
+                    const nativeThreadId = yield* getNativeThreadId(context.providerThread);
+                    const claimed = yield* turnTerminalizationPermit.withPermits(1)(
+                      Effect.gen(function* () {
+                        if (
+                          (yield* Ref.get(activeTurns)).get(terminal.nativeTurnId) !== context ||
+                          goalStops.has(nativeThreadId) ||
+                          (yield* Ref.get(interruptingNativeTurns)).has(terminal.nativeTurnId)
+                        )
+                          return false;
+                        capacityContinuations.set(nativeThreadId, { context, retry: state });
+                        yield* finalizeCodexTurn({ ...terminal, continueRun: true });
+                        return true;
+                      }),
+                    );
+                    if (!claimed) return;
+                    // Notifications before the RPC response also take the terminalization permit.
+                    yield* startNativeTurn(
+                      {
+                        ...context.input,
+                        providerTurnOrdinal: context.providerTurnOrdinal + 1,
+                      },
+                      [],
+                    ).pipe(
+                      Effect.catch((cause) =>
+                        Effect.gen(function* () {
+                          if (yield* Deferred.isDone(pending)) return;
+                          yield* Effect.logWarning(
+                            "orchestration-v2.codex-capacity-retry-start-failed",
+                            {
+                              providerTurnId: context.providerTurnId,
+                              cause,
+                            },
+                          );
+                          yield* emitProviderEvent({
+                            type: "turn_item.updated",
+                            driver: CODEX_PROVIDER,
+                            turnItem: codexRetryTurnItem(
+                              context,
+                              state,
+                              "failed",
+                              yield* DateTime.now,
+                            ),
+                          });
+                          yield* Deferred.succeed(pending, undefined);
+                          yield* turnTerminalizationPermit.withPermits(1)(
+                            emitOrDeferRootTerminal({ ...terminal, providerRetry: state }),
+                          );
+                        }),
+                      ),
+                      Effect.ensuring(
+                        Effect.sync(() => {
+                          if (capacityContinuations.get(nativeThreadId)?.context === context)
+                            capacityContinuations.delete(nativeThreadId);
+                        }),
+                      ),
+                    );
+                  }),
+                ),
+                Effect.forkIn(scope, { startImmediately: true }),
+              );
+              return true;
+            }),
+          );
+        });
+
         yield* client.handleServerNotification("turn/completed", (payload) =>
           Effect.gen(function* () {
             const context = (yield* Ref.get(activeTurns)).get(payload.turn.id);
@@ -6224,7 +6415,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               (yield* Ref.get(interruptingNativeTurns)).has(payload.turn.id)
                 ? "interrupted"
                 : nativeStatus;
-            yield* finalizeCodexTurn({
+            const terminal = {
               context,
               nativeTurnId: payload.turn.id,
               status,
@@ -6237,7 +6428,8 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                       ? {}
                       : { failureErrorInfo: payload.turn.error.codexErrorInfo }),
                   }),
-            });
+            };
+            if (!(yield* retryCapacityFailure(terminal))) yield* finalizeCodexTurn(terminal);
           }),
         );
 
@@ -6357,10 +6549,10 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           goalStops.set(goalThreadId, (goalStops.get(goalThreadId) ?? 0) + 1);
           return yield* Effect.gen(function* () {
             // The run can settle while the pause is in flight, which drops its record.
-            const requestedTurnId = latestGoalTurnId(turnInput.providerTurnId);
+            const requestedTurnId = latestRunTurnId(turnInput.providerTurnId);
             const heldBefore = goalHolds.get(goalThreadId)?.context;
             const turnsBefore = [
-              ...(goalRuns.get(requestedTurnId) ?? []),
+              ...(continuedRuns.get(requestedTurnId) ?? []),
               ...Array.from((yield* Ref.get(activeTurns)).values()).filter(
                 (context) => context.providerTurnId === requestedTurnId,
               ),
@@ -6384,13 +6576,13 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             }
             return yield* turnTerminalizationPermit.withPermits(1)(
               Effect.gen(function* () {
-                const providerTurnId = latestGoalTurnId(turnInput.providerTurnId);
+                const providerTurnId = latestRunTurnId(turnInput.providerTurnId);
                 const hold = goalHolds.get(goalThreadId);
                 const held = hold !== undefined && hold.context.providerTurnId === providerTurnId;
                 const goalTurns: ReadonlyArray<ActiveCodexTurnContext> = Array.from(
                   new Set([
                     ...turnsBefore,
-                    ...(goalRuns.get(providerTurnId) ?? []),
+                    ...(continuedRuns.get(providerTurnId) ?? []),
                     ...(held ? [hold.context] : []),
                   ]),
                 );
@@ -6445,6 +6637,8 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               return next;
             });
             const started = yield* client.request("turn/start", turnStartParams);
+            // A turn/started notification may have registered and completed this turn already.
+            if ((yield* Ref.get(pendingRootTurns)).get(threadId) !== turnInput) return;
             yield* registerRootTurn({
               turnInput,
               nativeTurnId: started.turn.id,
@@ -6457,6 +6651,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               Effect.ensuring(
                 Effect.flatMap(getNativeThreadId(turnInput.providerThread), (threadId) =>
                   Ref.update(pendingRootTurns, (current) => {
+                    if (current.get(threadId) !== turnInput) return current;
                     const updated = new Map(current);
                     updated.delete(threadId);
                     return updated;
@@ -6897,15 +7092,22 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           steerTurn: Effect.fn("CodexAdapterV2.steerTurn")(
             function* (turnInput) {
               const threadId = yield* getNativeThreadId(turnInput.providerThread);
-              const latestTurnId = latestGoalTurnId(turnInput.providerTurnId);
+              const latestTurnId = latestRunTurnId(turnInput.providerTurnId);
               const held = heldGoalTurn(turnInput.providerThread, latestTurnId);
               const providerTurnId =
                 held === undefined
                   ? latestTurnId
                   : ((yield* Deferred.await(held.hold.next))?.providerTurnId ?? latestTurnId);
-              const activeTurn = Array.from((yield* Ref.get(activeTurns)).values()).find(
+              let activeTurn = Array.from((yield* Ref.get(activeTurns)).values()).find(
                 (candidate) => candidate.providerTurnId === providerTurnId,
               );
+              const startingRetry = capacityContinuations.get(threadId)?.context;
+              if (activeTurn === undefined && startingRetry?.providerTurnId === providerTurnId) {
+                activeTurn = startingRetry;
+              }
+              while (activeTurn?.capacityRetryPending !== undefined) {
+                activeTurn = yield* Deferred.await(activeTurn.capacityRetryPending);
+              }
               if (activeTurn === undefined) {
                 return yield* toProtocolError(
                   `Provider turn ${turnInput.providerTurnId} is not active and cannot be steered.`,
@@ -6955,6 +7157,24 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           ),
           interruptTurn: Effect.fn("CodexAdapterV2.interruptTurn")(
             function* (requestedInput) {
+              const nativeThreadId = requestedInput.providerThread.nativeThreadRef?.nativeId;
+              const capacityRetry =
+                nativeThreadId == null
+                  ? undefined
+                  : capacityContinuations.get(nativeThreadId)?.context;
+              const startingRetry =
+                capacityRetry?.providerTurnId === latestRunTurnId(requestedInput.providerTurnId)
+                  ? capacityRetry
+                  : undefined;
+              if (startingRetry?.capacityRetryPending !== undefined) {
+                const started = yield* Deferred.await(startingRetry.capacityRetryPending).pipe(
+                  Effect.timeoutOption("10 seconds"),
+                );
+                if (Option.isNone(started))
+                  return yield* toProtocolError(
+                    "Codex did not start the capacity retry within 10 seconds; Stop could not be delivered.",
+                  );
+              }
               const { turnInput, goalTurns } = yield* resolveGoalStopTarget(requestedInput);
               const [activeTurnContexts, settledTurnContexts] =
                 yield* turnTerminalizationPermit.withPermits(1)(
@@ -6975,7 +7195,11 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                     )
                   : undefined);
               const lineageRoots = Array.from(
-                new Set([...(activeTurn === undefined ? [] : [activeTurn]), ...goalTurns]),
+                new Set([
+                  ...(activeTurn === undefined ? [] : [activeTurn]),
+                  ...(startingRetry === undefined ? [] : [startingRetry]),
+                  ...goalTurns,
+                ]),
               );
               const inLineage = (context: ActiveCodexTurnContext) =>
                 lineageRoots.some(
@@ -7186,6 +7410,15 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               yield* Effect.gen(function* () {
                 for (const target of interruptTargets) {
                   const context = target.context;
+                  if (context.capacityRetryPending !== undefined) {
+                    yield* finalizeCodexTurn({
+                      context,
+                      nativeTurnId: context.nativeTurnId,
+                      status: "interrupted",
+                      completedAt: yield* DateTime.now,
+                    });
+                    continue;
+                  }
                   // A null start timestamp acknowledges a queued turn; Codex cannot interrupt it
                   // until turn/started confirms that the native task exists.
                   if (context.nativeStartReady !== undefined) {
@@ -7327,7 +7560,22 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               );
             },
             (effect, requestedInput) =>
-              effect.pipe(
+              Effect.acquireUseRelease(
+                Effect.sync(() => {
+                  const nativeThreadId = requestedInput.providerThread.nativeThreadRef?.nativeId;
+                  if (nativeThreadId != null)
+                    goalStops.set(nativeThreadId, (goalStops.get(nativeThreadId) ?? 0) + 1);
+                  return nativeThreadId;
+                }),
+                () => effect,
+                (nativeThreadId) =>
+                  Effect.sync(() => {
+                    if (nativeThreadId == null) return;
+                    const stops = (goalStops.get(nativeThreadId) ?? 1) - 1;
+                    if (stops > 0) goalStops.set(nativeThreadId, stops);
+                    else goalStops.delete(nativeThreadId);
+                  }),
+              ).pipe(
                 Effect.mapError(
                   (cause) =>
                     new ProviderAdapter.ProviderAdapterInterruptError({
