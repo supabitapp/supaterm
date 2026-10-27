@@ -122,6 +122,7 @@ export function ThemeSearchSection({
     }
   }
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- aborts the in-flight Open VSX search request when the dialog closes or unmounts
   useEffect(() => {
     if (!open) return;
     return () => {
@@ -146,6 +147,7 @@ export function ThemeSearchSection({
     setHandledSearch(null);
   }
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- aborts the in-flight Open VSX search request once the query is cleared
   useEffect(() => {
     if (!queryCleared) return;
     requestRef.current?.abort();
@@ -208,6 +210,7 @@ export function ThemeSearchSection({
     fetchResults(searchText, startRequest());
   });
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts the Open VSX search for a settled query, or aborts the in-flight one when results are reused
   useEffect(() => {
     if (!handledSearch) return;
     if (handledSearch.fetch) {

@@ -62,6 +62,7 @@ export function useCodexMicroPressedInput(): CodexMicroPressedInput | null {
 
 export function useCodexMicroDeviceState(): CodexMicroDeviceState | null {
   const [state, setState] = useState<CodexMicroDeviceState | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to the Codex Micro bridge's device state and reads its current state once
   useEffect(() => {
     const bridge = getCodexMicroBridge();
     if (bridge === null) return;

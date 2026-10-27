@@ -251,6 +251,7 @@ export function UsageRouteScreen() {
     </Menu>
   ) : null;
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- puts the environment filter menu in the iOS native-stack header through navigation.setOptions
   useLayoutEffect(() => {
     if (Platform.OS === "ios") {
       navigation.setOptions({ headerRight: () => environmentFilter });

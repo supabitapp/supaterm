@@ -359,6 +359,7 @@ function useBrowsePathInput(environment: EnvironmentOption | null, pinnedDirecto
     return committed;
   };
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- invalidates the browse navigation coordinator on unmount so in-flight browses do not commit
   useEffect(
     () => () => {
       browseNavigation.invalidate();

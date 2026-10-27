@@ -73,6 +73,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
   const showResume = workflow?.isHeld === true && queuedRuns.length > 0;
   const sheetHeight = contentHeight + (showResume ? footerHeight : 0);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- sizes the iOS sheet detent to the measured queue content through navigation options before paint
   useLayoutEffect(() => {
     if (Platform.OS !== "ios" || contentHeight === 0) return;
     navigation.setOptions({
@@ -83,6 +84,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
   }, [contentHeight, insets.top, navigation, sheetHeight, windowHeight]);
 
   const hadQueuedRuns = useRef(queuedRuns.length > 0);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pops the navigator once the server-side queue empties after it had runs
   useEffect(() => {
     if (queuedRuns.length > 0) {
       hadQueuedRuns.current = true;
@@ -301,6 +303,7 @@ function QueueRowSwipeable(props: {
 }) {
   const swipeableRef = useRef<SwipeableMethods | null>(null);
   const [isOpen, setIsOpen] = useState(false);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- closes the open swipeable through its imperative handle when swiping becomes disabled
   useEffect(() => {
     if (!props.enabled) swipeableRef.current?.close();
   }, [props.enabled]);

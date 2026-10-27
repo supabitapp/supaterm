@@ -156,6 +156,7 @@ export function ProviderModelsSection({
       )
     : displayModels;
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- scrolls the pending model's DOM row into view once a later commit renders it
   useEffect(() => {
     const slug = scrollToSlugRef.current;
     if (slug === null || !displayModels.some((model) => model.slug === slug)) return;

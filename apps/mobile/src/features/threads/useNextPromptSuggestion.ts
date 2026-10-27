@@ -35,6 +35,7 @@ export function useNextPromptSuggestion(input: {
   const runId = nextPromptSuggestionRunId({ enabled, connected, canSuggest, latestRun });
   const active = threadId !== null && runId !== null;
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- requests a next-prompt suggestion from the server for the latest run and drops stale replies
   useEffect(() => {
     if (!active) return;
     let current = true;

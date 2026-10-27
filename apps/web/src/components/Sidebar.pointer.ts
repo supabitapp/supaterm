@@ -4,6 +4,7 @@ import { getOwnerDocument, getWindow } from "@dnd-kit/utilities";
 
 // Search unmounts the drag context while its owning Sidebar remains mounted.
 export function SidebarDragLifecycle({ onUnmount }: { onUnmount: () => void }) {
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the Sidebar's in-flight thread drag when search unmounts the drag context
   useLayoutEffect(() => onUnmount, [onUnmount]);
   return null;
 }

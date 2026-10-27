@@ -22,6 +22,7 @@ export function useAttachmentPreviewHandoff(input: AttachmentPreviewHandoffInput
   const { environmentId, serverVisibleTurnItems, optimisticUserMessages } = input;
 
   const optimisticUserMessagesRef = useRef(optimisticUserMessages);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the latest optimistic messages to a ref the unmount cleanup reads to revoke their blob URLs
   useLayoutEffect(() => {
     optimisticUserMessagesRef.current = optimisticUserMessages;
   });
@@ -30,6 +31,7 @@ export function useAttachmentPreviewHandoff(input: AttachmentPreviewHandoffInput
   >({});
   const attachmentPreviewHandoffByMessageIdRef = useRef<Record<string, string[]>>({});
   const attachmentPreviewPromotionInFlightByMessageIdRef = useRef<Record<string, true>>({});
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes committed handoff state to a ref read by the stable clear and handoff callbacks
   useEffect(() => {
     attachmentPreviewHandoffByMessageIdRef.current = attachmentPreviewHandoffByMessageId;
   }, [attachmentPreviewHandoffByMessageId]);
@@ -65,6 +67,7 @@ export function useAttachmentPreviewHandoff(input: AttachmentPreviewHandoffInput
     setAttachmentPreviewHandoffByMessageId({});
   };
   const clearAttachmentPreviewHandoffsStable = useStableCallback(clearAttachmentPreviewHandoffs);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- revokes every handoff and optimistic blob preview URL when the view unmounts
   useEffect(() => {
     return () => {
       clearAttachmentPreviewHandoffsStable();
@@ -110,6 +113,7 @@ export function useAttachmentPreviewHandoff(input: AttachmentPreviewHandoffInput
       return url ? [[resource.attachmentId, url] as const] : [];
     }),
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- preloads server image copies and ends each blob handoff once they load; cleanup aborts the loads
   useEffect(() => {
     if (typeof Image === "undefined" || serverVisibleTurnItems.length === 0) {
       return;

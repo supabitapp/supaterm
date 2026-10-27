@@ -208,6 +208,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
       advanceTimerRef.current = null;
     }
   }, []);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the pending auto-advance timer on unmount
   useEffect(() => cancelAutoAdvance, [cancelAutoAdvance]);
   const pushDirection = useSharedValue(1);
   const describeQuestion = (index: number) => {
@@ -240,6 +241,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
   // the latest render's advance instead of the one that scheduled it, and skips
   // a request that replaced the one tapped.
   const advanceRef = useRef(advance);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed advance to a ref read by the delayed auto-advance timer
   useLayoutEffect(() => {
     advanceRef.current = advance;
   });

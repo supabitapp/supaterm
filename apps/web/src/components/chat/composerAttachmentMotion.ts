@@ -51,6 +51,7 @@ export function useAttachmentTrayMotion(
   }
   const trayRef = useRef<HTMLDivElement>(null);
   const settledHeightRef = useRef<number | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- observes the tray's size to record its settled height while no animation runs
   useLayoutEffect(() => {
     const element = trayRef.current;
     if (!element) return;
@@ -59,6 +60,7 @@ export function useAttachmentTrayMotion(
       settledHeightRef.current = element.getBoundingClientRect().height;
     });
   }, []);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts a Web Animations height transition on the tray before paint when attachments arrive
   useLayoutEffect(() => {
     const element = trayRef.current;
     if (!element) return;
@@ -140,6 +142,7 @@ export function useAttachmentExits<T>(
     entries.length === 0 ? { shown: items, exiting: NO_IDS } : placeRetained(items, getId, entries);
 
   const { findAttachment, exitSettled } = tray;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- waits for each retained attachment's exit animation to settle before dropping it from the tray
   useEffect(() => {
     if (entries.length === 0) return;
     let cancelled = false;

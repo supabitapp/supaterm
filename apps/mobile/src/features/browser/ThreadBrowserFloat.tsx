@@ -25,6 +25,7 @@ export function ThreadBrowserFloat(props: {
 }) {
   const [tabId, setTabId] = useState<string | null>(null);
   const known = useRef<ReadonlyMap<string, string | undefined> | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- shows the float for a tab the server's preview snapshot newly reveals, diffed against the last loaded one
   useEffect(() => {
     if (!props.loaded) return;
     const previous = known.current;

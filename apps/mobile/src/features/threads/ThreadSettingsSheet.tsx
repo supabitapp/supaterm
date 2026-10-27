@@ -1530,6 +1530,7 @@ export function ExistingThreadSettingsRouteScreen() {
   const presentation = useExistingThreadSettingsRoutePresentation();
   const session = presentation.session;
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- writes the one-time legacy model favorites migration to server settings once per connection
   useEffect(() => {
     if (session) {
       return;

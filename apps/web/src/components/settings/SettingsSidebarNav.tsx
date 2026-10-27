@@ -121,6 +121,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
     setActiveResultIndex(maxResultIndex);
   }
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- scrolls the active search result's DOM node into view
   useEffect(() => {
     const result = results[activeResultIndex];
     if (!result) return;
@@ -129,6 +130,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
       ?.scrollIntoView({ block: "nearest" });
   }, [activeResultIndex, results]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- window keydown listener for the find and slash search shortcuts
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing) return;
@@ -164,6 +166,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- focuses the search input DOM node after the compact search opens
   useEffect(() => {
     if (compactSearchOpen) searchInputRef.current?.focus();
   }, [compactSearchOpen]);

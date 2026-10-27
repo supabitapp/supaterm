@@ -620,7 +620,7 @@ export default defineConfig({
       },
       {
         files: ["apps/web/src/**", "apps/mobile/src/**", "packages/*/src/**"],
-        rules: { "supaterm/react-effect-budget": "error" },
+        rules: { "supaterm/no-unreasoned-state-sync": "error" },
       },
       {
         files: ["apps/web/src/**/*.{ts,tsx}", "apps/mobile/src/**/*.{ts,tsx}"],

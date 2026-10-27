@@ -28,6 +28,7 @@ export function useSettingTextDrafts<Field extends TextSetting>(
     const fields = Object.keys(drafts.current) as Field[];
     send(Object.assign({}, ...fields.map(take)));
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- saves pending setting drafts on unmount, since leaving the screen does not end editing
   useEffect(() => () => saveDrafts(), []);
   return {
     edit: (field: Field, text: string) => {

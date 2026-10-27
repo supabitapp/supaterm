@@ -93,6 +93,7 @@ export function NewTaskDraftRouteScreen({ route }: StaticScreenProps<NewTaskDraf
   const params = route.params ?? {};
   const { reset } = useNewTaskFlow();
   const [initialized, setInitialized] = useState(false);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- resets the provider-owned new-task flow before this draft route paints, so it never shows the last draft
   useLayoutEffect(() => {
     reset();
     // oxlint-disable-next-line react/set-state-in-effect -- the shared flow must reset before this draft mounts
@@ -172,6 +173,7 @@ export function NewTaskDraftRouteScreen({ route }: StaticScreenProps<NewTaskDraf
   // Native-stack reads the provider's prevent state, which commits a render
   // after usePreventRemove updates its registry; the deferred thread selection
   // (and the failure goBack) must wait for that commit.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- releases the branch checkout to its route once native-stack has committed the prevent-remove state
   useEffect(() => {
     if (checkoutKey === null || checkoutPending || removalBlocked) return;
     branchCheckouts.release(checkoutKey);

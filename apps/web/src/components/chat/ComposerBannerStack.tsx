@@ -159,6 +159,7 @@ export function ComposerBannerStack({ className, items }: ComposerBannerStackPro
   const stackedNotices = stacked.filter((slot) => !staysVisible(slot.item));
   const hasStack = stackedNotices.length > 0;
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- waits for each exiting slot's DOM animations to settle before releasing it from the stack
   useEffect(() => {
     if (exitingKey === "") return;
     let cancelled = false;
@@ -357,6 +358,7 @@ function NoticeText({
   const detailsRef = useRef<HTMLButtonElement>(null);
   const [showDetails, setShowDetails] = useState(false);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- measures text overflow in the DOM via ResizeObserver and MutationObserver to show the details button
   useLayoutEffect(() => {
     const text = textRef.current;
     if (!text) return;

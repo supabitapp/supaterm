@@ -175,6 +175,7 @@ export function NativeStackScreenOptions(props: {
   const optionFunctionWrappersRef = useRef(new Map<string, (...args: unknown[]) => unknown>());
   const normalizedOptions = useMemo(() => normalizeScreenOptions(props.options), [props.options]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- writes stabilized header options to the navigator after commit so discarded renders leave no closures
   useLayoutEffect(() => {
     if (!tabActive) {
       lastAppliedOptionsSignatureRef.current = undefined;
@@ -208,6 +209,7 @@ export function NativeStackScreenOptions(props: {
     );
   }, [navigation, normalizedOptions, props.optionsVersion, tabActive]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes the given listeners to navigator events for the screen's lifetime
   useEffect(() => {
     if (!navigation || !props.listeners) {
       return;

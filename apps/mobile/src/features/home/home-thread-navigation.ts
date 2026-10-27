@@ -55,6 +55,7 @@ export function useHomeThreadRouteSelection() {
   const dismissingRouteKey = useRef<string | null>(null);
   const selectAndroidWorkspace = useAndroidWorkspaceSelection();
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- tracks a Thread route being swiped back through the native stack's transitionStart and focus events
   useEffect(() => {
     const clear = () => {
       dismissingRouteKey.current = null;

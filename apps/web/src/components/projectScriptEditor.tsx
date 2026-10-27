@@ -195,6 +195,7 @@ function ProjectScriptEditorForm({
   const pendingSubmissionRef = useRef<object | null>(null);
   // A save that settles after this form is replaced must not close or error
   // the request that replaced it.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- drops the pending save on unmount so a late result cannot close or fail the next request
   useEffect(
     () => () => {
       pendingSubmissionRef.current = null;

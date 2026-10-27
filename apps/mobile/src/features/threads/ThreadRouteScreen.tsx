@@ -233,7 +233,7 @@ function UnavailableThreadDraftRedirect(props: { readonly environmentId: Environ
       }),
     );
   });
-  // oxlint-disable-next-line supaterm/react-effect-budget -- replaces this route in the navigator
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- replaces this route with a new draft thread route for the environment's project on mount
   useEffect(() => {
     openDraft();
   }, []);
@@ -445,6 +445,7 @@ function ThreadRouteContent(
       fromSearch: true,
     }));
   }
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- consumes the adopted search jump from the module-level jump store, whose listeners must not fire in render
   useEffect(() => {
     if (appliedSearchJump !== null) finishThreadMessageJump(appliedSearchJump.threadKey);
   }, [appliedSearchJump]);
@@ -549,6 +550,7 @@ function ThreadRouteContent(
     }
     return null;
   })();
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- closes the workspace navigator's auxiliary pane when the thread has no cwd for the file inspector
   useEffect(() => {
     if (
       props.inspectorPresentation === undefined &&
@@ -594,6 +596,7 @@ function ThreadRouteContent(
   }
 
   const revealPreview = useEffectEvent(() => showAuxiliaryPane("inspector"));
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- opens the workspace navigator's inspector pane when route params bring a preview target
   useEffect(() => {
     if (previewTarget) revealPreview();
   }, [previewTarget]);

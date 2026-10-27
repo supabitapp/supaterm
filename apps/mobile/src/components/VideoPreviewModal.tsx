@@ -66,6 +66,7 @@ function useLocalPlayback(source: LocalVideoPreviewSource): PlaybackState {
     setUri(null);
     setError(null);
   }
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- leases the local video file for playback and disposes it on cleanup or abort
   useEffect(() => {
     const controller = new AbortController();
     const loading = loadLocalAttachmentPreview(leasedAttachment, controller.signal);
@@ -136,6 +137,7 @@ function OpenVideoPreviewModal(props: {
   const insets = useSafeAreaInsets();
   const mediaActions = useMediaActions(playback.actionsSource, props.onRequestClose);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- dismisses the native keyboard when the video modal opens
   useEffect(() => Keyboard.dismiss(), []);
   return (
     <Modal
@@ -210,6 +212,7 @@ export function VideoPreviewModal(props: {
   const isFocused = useIsFocused();
   const { source, onRequestClose } = props;
   const hasSource = source !== null;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- requests close when navigation blurs the screen so returning does not reopen the video modal
   useEffect(() => {
     if (!isFocused && hasSource) onRequestClose();
   }, [isFocused, hasSource, onRequestClose]);

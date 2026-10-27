@@ -670,6 +670,7 @@ function MessageAttachmentFile(props: {
     setOpening(false);
   }
   const abortedOpenTargetRef = useRef(openTarget);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- aborts the in-flight attachment open request when the attachment, environment or server URL changes
   useEffect(() => {
     if (abortedOpenTargetRef.current === openTarget) return;
     abortedOpenTargetRef.current = openTarget;
@@ -2245,7 +2246,7 @@ export const ThreadFeed = memo(function ThreadFeed({
     props.threadId,
     props.contentPresentation.kind,
   ]);
-  // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A scope change (thread or presentation) aborts the pending link lookup opened from the old scope.
+  // oxlint-disable-next-line react/exhaustive-effect-dependencies, supaterm/no-unreasoned-state-sync -- A scope change (thread or presentation) aborts the pending link lookup opened from the old scope.
   useLayoutEffect(() => () => markdownLinkRequest.current?.abort(), [markdownLinkScope]);
   const [preview, setPreview] = useState<{
     readonly scope: string;
@@ -2786,6 +2787,7 @@ export const ThreadFeed = memo(function ThreadFeed({
     if (props.freeze || feedLoading || state?.data !== presentedFeed) return;
     prefetchHistory(feedThreadKey, props.historyControls, state);
   };
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reads the native list's imperative state on the next frame after each commit to prefetch older history
   useEffect(() => {
     const frame = requestAnimationFrame(handleHistoryPrefetch);
     return () => cancelAnimationFrame(frame);
@@ -2806,6 +2808,7 @@ export const ThreadFeed = memo(function ThreadFeed({
     }
   };
   const reduceMotion = useReducedMotionPreference();
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- animates the feed's Reanimated reveal opacity when loading ends, before paint
   useLayoutEffect(() => {
     const opacity = feedLoading ? 0 : 1;
     feedOpacity.set(
@@ -2926,6 +2929,7 @@ export const ThreadFeed = memo(function ThreadFeed({
   }
 
   // Timers and frames the feed schedules die with it.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the feed's scroll, reflow and copy timers and disclosure animation frames on unmount
   useEffect(
     () => () => {
       if (userScrollSettleTimerRef.current !== null) clearTimeout(userScrollSettleTimerRef.current);
@@ -3061,6 +3065,7 @@ export const ThreadFeed = memo(function ThreadFeed({
 
   const [advanceMessageJump] = useState(createMessageJumpRunner);
   const { messageJump = null, onMessageJumpFailed } = props;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- drives the message jump on the native list: scrolls to it, unfolds its turn or loads history until it lands
   useEffect(() => {
     // A thread opened at a message waits for the list's own initial positioning.
     if (!messageJump || feedLoading) return;
@@ -3164,6 +3169,7 @@ export const ThreadFeed = memo(function ThreadFeed({
   const { textSizeKey } = workRowSizing;
   const hasHtmlRenders = presentedFeed.some((entry) => entry.type === "html-render");
   const previousRowGeometry = useRef({ textSizeKey, contentWidth });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears LegendList size caches and starts a reflow after the commit that brings new row geometry
   useLayoutEffect(() => {
     const previous = previousRowGeometry.current;
     if (previous.textSizeKey === textSizeKey && previous.contentWidth === contentWidth) return;

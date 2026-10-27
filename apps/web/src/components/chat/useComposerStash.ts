@@ -198,6 +198,7 @@ export function useComposerStash(input: {
   };
 
   const composerMountedRef = useRef(true);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- tracks the composer's mount in a ref so stash restores that resolve after unmount stay out of it
   useEffect(() => {
     composerMountedRef.current = true;
     return () => {
@@ -820,6 +821,7 @@ export function useComposerStash(input: {
   }
 
   const backgroundThread = use(BackgroundThreadContext);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- capture-phase window keydown listener for the stash shortcut while the composer owns pane input
   useEffect(() => {
     if (backgroundThread) return;
     const handler = (event: globalThis.KeyboardEvent) => {

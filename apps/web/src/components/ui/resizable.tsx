@@ -171,6 +171,7 @@ function useCollapsiblePanel(options: ResizablePanelWidthOptions) {
   const [defaultSize] = React.useState(defaultWidth);
 
   const latest = React.useRef({ ...options, width });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- mirrors the latest options into a ref read by deferred frame and group layout callbacks
   React.useLayoutEffect(() => {
     latest.current = { ...options, width };
   });
@@ -178,6 +179,7 @@ function useCollapsiblePanel(options: ResizablePanelWidthOptions) {
   const applied = React.useRef<{ open: boolean; width: number } | null>(null);
   const endToggle = React.useRef<(() => void) | null>(null);
   const mountFrame = React.useRef(0);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- drives the imperative panel handle's resize and collapse and the DOM width property before paint
   React.useLayoutEffect(() => {
     const element = elementRef.current;
     if (!panel || !element) return;
@@ -219,6 +221,7 @@ function useCollapsiblePanel(options: ResizablePanelWidthOptions) {
     if (open) panel.resize(width);
     else panel.collapse();
   }, [animateMount, open, panel, width]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the pending mount frame and toggle animation on unmount
   React.useEffect(
     () => () => {
       cancelAnimationFrame(mountFrame.current);
@@ -228,6 +231,7 @@ function useCollapsiblePanel(options: ResizablePanelWidthOptions) {
   );
 
   const subscribe = React.use(ResizablePanelGroupContext)?.subscribe;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to the panel group's layout changes to persist the dragged width
   React.useEffect(
     () =>
       subscribe?.(() => {

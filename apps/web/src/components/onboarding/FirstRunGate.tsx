@@ -147,6 +147,7 @@ export function FirstRunGate({
     if (nextGateState !== gateState) setGateState(nextGateState);
   }
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- persists onboarding completion to settings once the gate settles on skipping the wizard
   useEffect(() => {
     if (decision === "wizard" || !hydrated) return;
 
@@ -155,6 +156,7 @@ export function FirstRunGate({
     }
   }, [decision, hydrated, onboardingCompletedAt, persistCompletion]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- timer gives up on a pending first-run decision after the timeout
   useEffect(() => {
     if (!enabled || decision !== "pending" || !hydrated) return;
     const timer = window.setTimeout(
@@ -164,6 +166,7 @@ export function FirstRunGate({
     return () => window.clearTimeout(timer);
   }, [decision, enabled, hydrated]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- navigates to /welcome when the gate decides on the wizard
   useEffect(() => {
     if (decision === "wizard" && pathname !== "/welcome") {
       void navigate({ to: "/welcome", replace: true });

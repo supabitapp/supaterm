@@ -241,6 +241,7 @@ export function PullRequestsScreen(
     [selectPullRequest, selectedKey, actions, select, busyKey, sidebar],
   );
   const previousSearchMode = useRef(tab.searchMode);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- scrolls the list to the offset saved when search opened once the tab returns to resting
   useEffect(() => {
     const restoringSearch =
       previousSearchMode.current !== "resting" && tab.searchMode === "resting";

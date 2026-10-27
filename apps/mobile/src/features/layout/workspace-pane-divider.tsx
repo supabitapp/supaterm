@@ -42,6 +42,7 @@ function ResizeGestureDetector(props: {
 }
 export function WorkspacePaneDivider(props: WorkspacePaneDividerProps) {
   const latestProps = useRef(props);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed props to a ref read by the native pan gesture callbacks
   useLayoutEffect(() => {
     latestProps.current = props;
   });

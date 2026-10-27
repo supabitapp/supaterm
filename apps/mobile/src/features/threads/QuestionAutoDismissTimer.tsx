@@ -6,6 +6,7 @@ import { cn } from "../../lib/cn";
 
 function useUserInputCountdown(deadline: string | null) {
   const [now, setNow] = useState(Date.now);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- ticks the countdown clock each second until the deadline and on AppState resume, starting before paint
   useLayoutEffect(() => {
     if (deadline === null) return;
     const tick = () => {

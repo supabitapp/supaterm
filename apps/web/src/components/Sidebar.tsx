@@ -390,6 +390,7 @@ function useSidebarThreads(input: {
   // reads a clock earlier than the latest minute or wake tick.
   const [snoozeWakeTickAt, setSnoozeWakeTickAt] = useState(0);
   const [nextSnoozeWakeAt, setNextSnoozeWakeAt] = useState<string | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- timer ticks when the next snooze wake time passes so a woken thread leaves the snoozed shelf
   useEffect(
     () => scheduleSnoozeWake(nextSnoozeWakeAt, () => setSnoozeWakeTickAt(Date.now())),
     [nextSnoozeWakeAt],
@@ -1046,6 +1047,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       : (projectGroups.find((project) => project.projectKey === projectScopeKey) ?? null);
   const scopedProjectKeys =
     scopedProjectGroup === null ? null : projectGroupMemberKeys(scopedProjectGroup);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- writes the resolved project scope back to the persisted UI store and clears selection when it changes
   useEffect(() => {
     const nextKey = resolveSidebarProjectScopeKey({
       groups: projectGroups,
@@ -1205,6 +1207,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     mountRevealOwed.current = false;
     activeRow.scrollIntoView({ block: "nearest" });
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- scrolls the routed thread's row into view in the DOM once it renders, widening the project scope first
   useEffect(revealRouteRow, [revealRouteRow, routeRowThreadKey, threads, projectScopeKey]);
 
   const orderedThreadKeysRef = useRef(orderedThreadKeys);
@@ -1215,6 +1218,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const doneThreadKeysRef = useRef(doneThreadKeys);
   const snoozedThreadKeysRef = useRef(snoozedThreadKeys);
   const sectionByThreadKeyRef = useRef(sectionByThreadKey);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes committed list data to refs read by stable row handlers
   useLayoutEffect(() => {
     routeThreadKeyRef.current = routeThreadKey;
     projectGroupsRef.current = projectGroups;
@@ -1399,6 +1403,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       }
     })();
   };
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers this sidebar's settle handler in the module-level markDoneAndAdvance registry
   useEffect(() => registerMarkDoneAndAdvance(attemptMarkDone), [attemptMarkDone]);
   // Navigation skips threads marked done in this batch, since they all leave together. Pinned and
   // snoozed rows ARE included: marking done clears the pin and the snooze, so they park too.
@@ -1685,6 +1690,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     // done into the collapsed Done shelf.
     sidebarListItems = sidebarListItemsFresh;
   }
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the dnd-kit drag sensor when the dragged row leaves the list
   useEffect(() => {
     if (
       dragState !== null &&
@@ -1714,6 +1720,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   };
   const previousGroupingRef = useRef(threadGrouping);
   const previousShelfStateRef = useRef(listMotionPass.shelfState);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- tells the list motion controller to animate or not after each layout-affecting commit
   useLayoutEffect(() => {
     if (previousGroupingRef.current !== listMotionPass.grouping) listMotionRef.current?.suspend();
     previousGroupingRef.current = listMotionPass.grouping;
@@ -2575,6 +2582,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     },
   );
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to window keydown for thread navigation shortcuts using the current thread list
   useEffect(() => {
     const navigateToThreadKey = (targetThreadKey: string | null) => {
       if (!targetThreadKey) return false;
@@ -2647,6 +2655,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       },
     },
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- feeds held-modifier state into the jump-hint controller, which shows hints after its delay timer
   useEffect(() => {
     updateThreadJumpHintsVisibility(shouldShowJumpHintsNow);
   }, [shouldShowJumpHintsNow, updateThreadJumpHintsVisibility]);

@@ -70,6 +70,7 @@ function ChatRouteGlobalShortcuts() {
       ? selectActiveRightPanel(state.byThreadKey, routeThreadRef) === "preview"
       : false,
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to window keydown and the app command bus for new-thread, project picker and preview shortcuts
   useEffect(() => {
     const runCommand = (command: KeybindingCommand | null, repeat: boolean): boolean => {
       if (command === "chat.new" || command === "chat.newLocal") {

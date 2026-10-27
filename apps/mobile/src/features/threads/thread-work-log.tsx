@@ -217,6 +217,7 @@ export function ShimmeringWorkContent(props: {
     (props.showIcon ? SHIMMER_ICON_AND_GAP_WIDTH : 0) + Math.ceil(textWidth),
   );
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts the native-driver shimmer loop while visible and active, and stops it on cleanup
   useEffect(() => {
     progress.setValue(0);
     if (contentWidth <= 0 || !motionEnabled) return;
@@ -610,6 +611,7 @@ function ThreadWorkGroupList(props: {
   });
   // The native ScrollView reports content size a frame or more after LegendList lays rows out, so
   // read LegendList's JS-thread size instead; it settles in the same commit as the row measurement.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to LegendList's totalSize state to report content height in the same commit
   useLayoutEffect(() => {
     const list = listRef.current;
     if (!list) return;

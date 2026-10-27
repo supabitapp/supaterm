@@ -267,6 +267,7 @@ export function V5StackHeader(props: {
   const searchOptions = options.headerSearchBarOptions;
   const autofocusRef = searchOptions?.ref ?? searchRef;
   const searchHasFocus = useRef(false);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- schedules a frame to focus the native SearchBar once after the header mounts, since iOS ignores autoFocus
   useEffect(() => {
     searchHasFocus.current = false;
     if (!searchOptions?.autoFocus) return;

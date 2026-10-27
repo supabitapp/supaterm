@@ -27,11 +27,13 @@ export function useVoiceInputController(input: {
   const global = useGlobalVoiceInput();
   const { session } = global;
   const latestInput = useRef(input);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed composer input to a ref read by async voice session callbacks
   useLayoutEffect(() => {
     latestInput.current = input;
   });
   const mounted = useRef(true);
   const submission = useRef<{ ownerKey: string; text: string } | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- tracks mount so async transcription results skip a composer that has unmounted
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -77,6 +79,7 @@ export function useVoiceInputController(input: {
   }, [session]);
   const state = global.ownerKey === input.ownerKey ? global.state : IDLE_STATE;
   const isBusy = voiceInputBlocksSubmission(state);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- submits a stop-and-send transcript once the voice session leaves its busy phase and the draft still holds it
   useEffect(() => {
     if (isBusy) return;
     const pending = submission.current;

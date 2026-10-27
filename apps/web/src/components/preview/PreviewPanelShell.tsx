@@ -19,6 +19,7 @@ export function PreviewPanelShell(props: {
   const returnedFocus = useRef(false);
   const collapsible = props.mode === "inline" && props.open !== undefined;
   const open = props.open ?? true;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- on unmount, returns DOM focus to the panel toggle if removal dropped it on the body
   useLayoutEffect(() => {
     const host = hostRef.current;
     if (!host || !collapsible) return;
@@ -31,6 +32,7 @@ export function PreviewPanelShell(props: {
       });
     };
   }, [collapsible]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- moves focus to the toggle and sets inert on the host DOM node before a collapse paints
   useLayoutEffect(() => {
     const host = hostRef.current;
     if (!host) return;

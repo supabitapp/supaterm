@@ -118,6 +118,7 @@ export function useChatShortcuts(input: ChatShortcutsInput) {
     if (!run) return false;
     return run({ repeat: false, terminalFocusOwner: getTerminalFocusOwner() }) !== false;
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- attaches window keydown listeners for chat shortcuts and find dismissal for the component's lifetime
   useEffect(() => {
     const onKeyDownCapture = (event: KeyboardEvent) => handleShortcut(event);
     const onKeyDown = (event: KeyboardEvent) => dismissFind(event);

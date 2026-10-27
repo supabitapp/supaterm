@@ -628,6 +628,7 @@ export function useThreadJumpHintVisibility(): {
   const [showThreadJumpHints, setShowThreadJumpHints] = React.useState(false);
   const controllerRef = React.useRef<ThreadJumpHintVisibilityController | null>(null);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- owns the jump-hint show-delay timer controller and disposes its pending timer on unmount
   React.useEffect(() => {
     const controller = createThreadJumpHintVisibilityController({
       delayMs: THREAD_JUMP_HINT_SHOW_DELAY_MS,

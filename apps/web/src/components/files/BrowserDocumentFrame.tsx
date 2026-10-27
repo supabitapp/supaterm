@@ -158,6 +158,7 @@ export function HtmlRenderDocument(props: {
   const postTheme = () => {
     frameRef.current?.contentWindow?.postMessage(htmlRenderThemeMessage(theme), "*");
   };
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- posts the current theme to the sandboxed iframe's window
   useEffect(postTheme, [theme]);
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const environmentKeybindings = useAtomValue(
@@ -192,6 +193,7 @@ export function HtmlRenderDocument(props: {
       "*",
     );
   };
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- posts allowed and blocked shortcuts to the sandboxed iframe's window
   useEffect(postShortcuts, [blocked, shortcuts]);
   // Pages can forge key/code pairs; reject pairs matching other bindings and require named keys to match the
   // shortcut.
@@ -232,6 +234,7 @@ export function HtmlRenderDocument(props: {
     void openLink(url, { event: modifiers }).catch((cause: unknown) => console.error(cause));
   });
   const { onFullscreenChange } = props;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reports fullscreen to the parent while the image viewer is open, and clears it on unmount
   useEffect(() => {
     if (expandedImage === null) return;
     onFullscreenChange?.(true);
@@ -268,6 +271,7 @@ export function HtmlRenderDocument(props: {
     }
   });
   // Attach at commit because a fast page may post its initial height before passive effects run.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- attaches a window message listener for the iframe at commit, before its first height post
   useLayoutEffect(() => {
     const frame = frameRef.current;
     if (frame === null) return;

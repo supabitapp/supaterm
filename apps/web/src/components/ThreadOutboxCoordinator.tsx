@@ -21,12 +21,14 @@ const outboxReadyAtom = Atom.make((get) => {
 export function ThreadOutboxCoordinator() {
   const ready = useAtomValue(outboxReadyAtom);
   const entries = useThreadOutbox();
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- loads the IndexedDB outbox and reloads it on BroadcastChannel messages from other tabs
   useEffect(() => {
     void webThreadOutbox.load().catch(console.error);
     return subscribeThreadOutboxStorage(() => {
       void webThreadOutbox.reload().catch(console.error);
     });
   }, []);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- drains the outbox on timers while environments are ready and entries are pending; cancels the timer on cleanup
   useEffect(() => {
     if (!ready || entries.length === 0) return;
     let stopped = false;

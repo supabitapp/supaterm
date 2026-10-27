@@ -257,6 +257,7 @@ function WorkspaceColumns(
     if (transition.pop) props.navigation.dispatch(transition.pop);
   };
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- tells the native split host which column to show while collapsed
   useEffect(() => {
     // The initial column is a native prop applied before the host attaches; commands only
     // handle later navigation changes.

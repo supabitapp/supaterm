@@ -203,6 +203,7 @@ export function AttachmentFilePreview(props: {
       setError(null);
     }
   }
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- authorizes a remote attachment URL from the server and ignores the result after cleanup
   useEffect(() => {
     if (remoteUrlRequest.file) return;
     let cancelled = false;
@@ -258,6 +259,7 @@ export function AttachmentFilePreview(props: {
       setContentError(null);
     }
   }
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- fetches the file's text from its URL or Blob stream and aborts the request on cleanup
   useEffect(() => {
     if (!needsText || streamsText || !url) return;
     const controller = new AbortController();

@@ -77,6 +77,7 @@ export function usePickerShortcuts<T>({
     if (item !== undefined) onSelect(item);
   });
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes a capture-phase window keydown listener for picker shortcuts while the picker is open
   useEffect(() => {
     if (!open) return;
     window.addEventListener("keydown", handleKeyDown, true);

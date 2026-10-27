@@ -123,6 +123,7 @@ export function useThreadFindHighlights(input: {
   // The observer repaints with whichever match is selected when text changes.
   const readSelection = useEffectEvent(() => ({ activeRowId, activeOccurrence, onActiveRange }));
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- paints CSS Highlight ranges for the query, repainting on DOM mutations, and clears them on cleanup
   useEffect(() => {
     if (typeof CSS === "undefined" || !CSS.highlights || typeof Highlight === "undefined") {
       readSelection().onActiveRange(null);
@@ -208,6 +209,7 @@ export function useThreadFindHighlights(input: {
 
   // onActiveRange is read at paint time: its identity follows the caller's
   // layout inputs, and repainting the active highlight for those is wasted work.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- repaints the active CSS Highlight range when the selected match changes
   useEffect(() => {
     paintRef.current?.(rangesRef.current, {
       activeRowId,

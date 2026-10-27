@@ -54,6 +54,7 @@ export function useOpenFavoriteEditorShortcut({
   const remote = useRemoteOpenState(environmentId);
   const isPaneInputOwner = usePaneInputOwner();
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes a window keydown listener for the open-in-editor shortcut while enabled locally
   useEffect(() => {
     if (!enabled || remote.mode !== "local-exec") return;
     const handler = (event: globalThis.KeyboardEvent) => {

@@ -41,6 +41,7 @@ export function MotionPresence({
   const visibility = useSharedValue(visible && !appear ? 1 : 0);
   const visibleRef = useRef(visible);
   const onHiddenRef = useRef(onHidden);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed visibility and onHidden to refs read by the Reanimated completion callback
   useLayoutEffect(() => {
     visibleRef.current = visible;
     onHiddenRef.current = onHidden;
@@ -50,6 +51,7 @@ export function MotionPresence({
     setMounted(false);
     onHiddenRef.current?.();
   }, []);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts the Reanimated visibility timing before paint and unmounts once the exit animation finishes
   useLayoutEffect(() => {
     if (!mounted) return;
     if (reducedMotion) {

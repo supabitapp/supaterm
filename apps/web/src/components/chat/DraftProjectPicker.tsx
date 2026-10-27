@@ -182,6 +182,7 @@ export function DraftProjectPicker({
   // The draft can move elsewhere while the no-project home is still being
   // opened; a stale continuation must not retarget it again.
   const latestTargetRef = useRef({ draftId, activeProjectKey, scratchTargetEnvironmentId });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed draft target to a ref that async no-project continuations check for staleness
   useEffect(() => {
     latestTargetRef.current = { draftId, activeProjectKey, scratchTargetEnvironmentId };
   }, [activeProjectKey, scratchTargetEnvironmentId, draftId]);

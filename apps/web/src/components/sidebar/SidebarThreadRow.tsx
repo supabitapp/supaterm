@@ -634,6 +634,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const markDoneSupported = props.markDoneSupported && !isPendingCreation;
   const snoozeSupported = props.snoozeSupported && !isPendingCreation;
   const canOperateThread = useEnvironmentScope(thread.environmentId, AuthOrchestrationOperateScope);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- ends the parent-owned rename once the operate grant is revoked; the parent's state cannot change during this render
   useEffect(() => {
     if (!canOperateThread && isRenaming) onCancelRename();
   }, [canOperateThread, isRenaming, onCancelRename]);
@@ -878,6 +879,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         addFolders: () => {},
       })
     : null;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- window dragend listener that clears the row's file drag highlight
   useEffect(() => {
     if (!isFileDragOver) return;
     const clearFileDrag = () => setIsFileDragOver(false);
@@ -885,6 +887,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     return () => window.removeEventListener("dragend", clearFileDrag);
   }, [isFileDragOver]);
   const renameCommittedRef = useRef(false);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- re-arms the rename input's blur commit when a rename starts; the flag is a ref the blur handler reads
   useEffect(() => {
     if (isRenaming) renameCommittedRef.current = false;
   }, [isRenaming]);
@@ -947,6 +950,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const snoozeGateExpiryMs = hasQueuedTurnStart(thread, { now: snoozeGateNow })
     ? Date.parse(thread.latestUserMessageAt ?? "") + QUEUED_TURN_START_GRACE_MS
     : Number.NaN;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- re-reads the clock on a timer when the queued-turn snooze gate expires
   useEffect(() => {
     // A gate still closed past its expiry is held by runtime status, not time,
     // so no clock tick can open it.

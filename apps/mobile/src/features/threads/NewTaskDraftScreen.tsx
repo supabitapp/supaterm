@@ -163,6 +163,7 @@ export function NewTaskDraftScreen(props: {
   const focused = useIsFocused();
   const { panes } = useAdaptiveWorkspaceLayout();
   const heldDraftKey = focused && panes.primarySidebarVisible ? flow.draftKey : null;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- holds the draft's pending-task row in the app atom registry while the sidebar shows it, released on cleanup
   useEffect(
     () => (heldDraftKey === null ? undefined : holdNewTaskDraft(heldDraftKey)),
     [heldDraftKey],
@@ -225,6 +226,7 @@ export function NewTaskDraftScreen(props: {
   };
   const deleteProject = useAtomCommand(projectEnvironment.delete, { reportFailure: false });
   const selectedProjectRef = useRef(selectedProject);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed selected project to a ref the async project removal checks before navigating
   useEffect(() => {
     selectedProjectRef.current = selectedProject;
   }, [selectedProject]);
@@ -386,6 +388,7 @@ export function NewTaskDraftScreen(props: {
     (hasImportedIncomingShare && !incomingShare) ||
     isIncomingShareUnavailable;
   const appliedInitialProjectKeyRef = useRef<string | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- ends the picker return once the project arrives, else replaces the route with the picker next frame
   useEffect(() => {
     if (!isProjectPickerReturnActive) {
       return;
@@ -401,6 +404,7 @@ export function NewTaskDraftScreen(props: {
   const { beginEditingPendingTask, cancelEditingPendingTask, editingPendingTask, openDraft } = flow;
   // Cold launches load drafts and projects separately; wait for hydration and retry while shells load.
   const attemptedDraftIdRef = useRef<string | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- opens the route's draft once persisted drafts load, else navigates to the project picker
   useEffect(() => {
     if (!props.draftId || props.pendingTaskId) {
       return;
@@ -430,6 +434,7 @@ export function NewTaskDraftScreen(props: {
   }, [navigation, openDraft, projects, props.draftId, props.pendingTaskId]);
 
   const attemptedPendingTaskIdRef = useRef<string | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts editing the route's pending task once, or navigates to the project picker when it is gone
   useEffect(() => {
     if (!props.pendingTaskId || editingPendingTask?.messageId === props.pendingTaskId) {
       return;
@@ -443,6 +448,7 @@ export function NewTaskDraftScreen(props: {
     }
   }, [beginEditingPendingTask, editingPendingTask?.messageId, navigation, props.pendingTaskId]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the pending task edit in the new-task flow when the route's task changes or the screen unmounts
   useEffect(() => {
     if (!props.pendingTaskId) return;
     return () => {
@@ -454,6 +460,7 @@ export function NewTaskDraftScreen(props: {
   const lastInitialProjectRefRef = useRef(props.initialProjectRef);
   const initialPickerRef = useRef<"open" | "dismissed" | null>(null);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- applies the route or catalog project to the draft once projects load, or opens the picker in the navigator
   useEffect(() => {
     if (props.pendingTaskId || props.draftId) {
       return;
@@ -555,6 +562,7 @@ export function NewTaskDraftScreen(props: {
   ]);
 
   const { loadBranches } = flow;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- requests the selected project's branch list from the server once per project
   useEffect(() => {
     if (!selectedProject) {
       loadedBranchesProjectKeyRef.current = null;

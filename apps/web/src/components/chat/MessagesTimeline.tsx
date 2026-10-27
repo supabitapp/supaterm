@@ -452,11 +452,13 @@ const ConversationTimeline = memo(function ConversationTimeline({
     readonly cancel: () => void;
     readonly followingEnd: boolean;
   } | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the pending disclosure settle wait on unmount
   useEffect(() => () => disclosureSettleRef.current?.cancel(), []);
   const endFollowAllowedRef = useRef(false);
   const normalizedFindQuery = findQuery.trim();
   const findActive = findExpanded;
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the list identity settle flag two animation frames after the new list paints
   useEffect(() => {
     if (settlingListIdentity === null) return;
     let second: number | null = null;
@@ -555,6 +557,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   };
 
   const previousLatestRunRef = useRef({ identity: listIdentityKey, run: latestRun });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- folds the superseded run and opens an interrupted one when the server's latest run changes; the previous run is a ref
   useEffect(() => {
     const { identity, run: previous } = previousLatestRunRef.current;
     previousLatestRunRef.current = { identity: listIdentityKey, run: latestRun };
@@ -717,6 +720,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   // must land before paint, after LegendList's own layout effects applied the
   // new data. A citation request that arrives mid-restore takes over.
   const { findOpenAtOpening } = identityChanged ? { findOpenAtOpening: findOpen } : listState;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- restores LegendList's scroll position for the shown thread before paint, after the list's own layout
   useLayoutEffect(() => {
     const list = listRef.current;
     const viewport = viewportRef.current;
@@ -787,6 +791,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       return;
     prefetchHistory(listIdentityKey, historyControls, state);
   };
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- schedules a frame that prefetches older thread history from LegendList's rendered state
   useEffect(() => {
     const frame = requestAnimationFrame(handleHistoryPrefetch);
     return () => cancelAnimationFrame(frame);
@@ -878,7 +883,9 @@ const ConversationTimeline = memo(function ConversationTimeline({
       onContentOverflowChange(measureContentOverflow());
     });
   };
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the pending content overflow measurement frame on cleanup
   useEffect(() => cancelContentOverflowFrame, [cancelContentOverflowFrame]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- measures LegendList's content overflow before paint and reports it to the parent
   useLayoutEffect(() => {
     cancelContentOverflowFrame();
     onContentOverflowChange?.(measureContentOverflow());
@@ -980,6 +987,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     scheduleMinimapRefresh();
   };
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the pending minimap refresh frame on unmount
   useEffect(
     () => () => {
       if (minimapRefreshFrameRef.current !== null) {
@@ -990,18 +998,21 @@ const ConversationTimeline = memo(function ConversationTimeline({
     [],
   );
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- schedules a frame that reads LegendList's scroll state to save position, report the end and refresh the minimap
   useEffect(() => {
     const frame = requestAnimationFrame(handleScroll);
     return () => cancelAnimationFrame(frame);
   }, [handleScroll]);
 
   const savedLiveFollowEnabledRef = useRef(liveFollowEnabled);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- re-reads LegendList's scroll state before paint when live follow turns off
   useLayoutEffect(() => {
     const wasFollowing = savedLiveFollowEnabledRef.current;
     savedLiveFollowEnabledRef.current = liveFollowEnabled;
     if (wasFollowing && !liveFollowEnabled) handleScroll();
   }, [handleScroll, liveFollowEnabled]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- observes the timeline viewport with ResizeObserver to measure the minimap gutter and content overflow
   useEffect(() => {
     if (!timelineViewportElement) {
       return;
@@ -1158,6 +1169,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     anchoredEndSpace ||
     !liveFollowEnabled
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- mirrors end-follow permission into a ref read by the disclosure settle callback
   useLayoutEffect(() => {
     endFollowAllowedRef.current = endFollowAllowed;
   }, [endFollowAllowed]);

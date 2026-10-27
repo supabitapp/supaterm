@@ -93,6 +93,7 @@ const DIFF_PREVIEW_THEME_BRIDGE = `
 
 function StaticDiffHtml({ html }: { html: string }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- writes the rendered diff HTML and its theme bridge styles into the host element's shadow root
   useEffect(() => {
     const host = hostRef.current;
     if (host === null) return;
@@ -109,6 +110,7 @@ export function CodeFontPreview() {
   const resolvedTheme = useRenderedAppearance();
   const themeName = resolveDiffThemeName(resolvedTheme);
   const [htmlByFile, setHtmlByFile] = useState<readonly string[] | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- loads the highlighted diff preview HTML for the theme and ignores loads superseded by a theme change
   useEffect(() => {
     let cancelled = false;
     void loadDiffPreviewHtml(themeName).then((html) => {
@@ -156,6 +158,7 @@ export function TerminalFontPreview({ family, size }: { family: string; size: nu
   const { theme, resolvedTheme } = useTheme();
   const themeRef = useRef({ theme, resolvedTheme });
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- applies font family and size changes to the live Ghostty preview surface
   useEffect(() => {
     const current = fontRef.current;
     if (current.family === family && current.size === size) return;
@@ -164,6 +167,7 @@ export function TerminalFontPreview({ family, size }: { family: string; size: nu
   }, [family, size]);
 
   // Palette changes may preserve light/dark mode; re-read terminal tokens for every theme change.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pushes theme tokens read from the DOM's computed styles into the Ghostty preview surface
   useEffect(() => {
     const current = themeRef.current;
     if (current.theme === theme && current.resolvedTheme === resolvedTheme) return;
@@ -174,6 +178,7 @@ export function TerminalFontPreview({ family, size }: { family: string; size: nu
     surface.setTheme(terminalThemeFromApp(mount));
   }, [theme, resolvedTheme]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- creates the Ghostty preview terminal in the mount node with a local echo and disposes it on unmount
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;

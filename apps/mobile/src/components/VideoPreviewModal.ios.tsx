@@ -66,17 +66,21 @@ function NativeVideoPreview(props: {
 
   if (playbackUrl === null && resolvedUrl !== null) setPlaybackUrl(resolvedUrl);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- dismisses the native keyboard when the fullscreen video opens
   useEffect(() => Keyboard.dismiss(), []);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- counts this preview in the module-level fullscreen video store while it is mounted
   useEffect(() => {
     fullscreenVideoOpened();
     return () => fullscreenVideoClosed();
   }, []);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- shows the native load-error alert and closes the preview when the video URL cannot resolve
   useEffect(() => {
     if (!loadError) return;
     Dialog.alert("Could not open video", loadError);
     onRequestClose();
   }, [loadError]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- presents the native fullscreen video and owns its audio session and file lease until cleanup
   useEffect(() => {
     if (localAttachment === null && playbackUrl === null) return;
     const controller = new AbortController();
@@ -168,6 +172,7 @@ export function VideoPreviewModal(props: {
   const isFocused = useIsFocused();
   const hasSource = props.source !== null;
   const onRequestClose = useEffectEvent(props.onRequestClose);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- requests close when navigation blurs the screen so returning does not re-present the native video
   useEffect(() => {
     if (!isFocused && hasSource) onRequestClose();
   }, [isFocused, hasSource]);

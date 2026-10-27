@@ -226,6 +226,7 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
   });
   // Subscribed for the whole screen, so a pick made while the diff is still loading is kept for
   // the first draw.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to file jumps picked in the files sheet for this pull request's scope
   useEffect(() => subscribePullRequestFileJump(jumpScope, (path) => jumpToFile(path)), [jumpScope]);
   const { nativeReviewDiffStyle } = useAppearanceCodeSurface();
   const { themeAppearance, appearance, setCodeWordBreak } = useAppearancePreferences();
@@ -241,6 +242,7 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
   });
   const [NativeDiffView] = useState(() => resolveNativeReviewDiffView());
   // A file picked from a later page must be fetched before we can jump to its header.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- fetches the next diff page while the picked target file has not loaded yet
   useEffect(() => {
     if (!targetFile) loadMore();
   }, [targetFile, loadMore]);

@@ -32,6 +32,7 @@ export function useAttachmentDocument(input: {
   const kind = filePreviewKind(input, { richDocuments: false });
   const delimiter = filePreviewDelimiter(input);
   const shareController = useRef<AbortController | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- aborts the in-flight attachment share download when the component unmounts
   useEffect(() => () => shareController.current?.abort(), []);
   const resource = {
     _tag: "attachment" as const,
@@ -86,6 +87,7 @@ export function useAttachmentDocument(input: {
       setError(null);
     }
   }
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- fetches a fresh signed URL for the remote attachment and ignores the result after cleanup
   useEffect(() => {
     if (remoteSource.attachment) return;
     let cancelled = false;
@@ -127,6 +129,7 @@ export function useAttachmentDocument(input: {
       setContentError(null);
     }
   }
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- loads the local attachment preview file, aborting the load and releasing its lease on cleanup
   useEffect(() => {
     const localAttachment = localSource.attachment;
     if (!localAttachment) return;
@@ -177,6 +180,7 @@ export function useAttachmentDocument(input: {
       setContentError(null);
     }
   }
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reads the text preview from disk or a reauthorized signed URL, aborting the read on cleanup
   useEffect(() => {
     if (!uri || !needsText) return;
     const controller = new AbortController();

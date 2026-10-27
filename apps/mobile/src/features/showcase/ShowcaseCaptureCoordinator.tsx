@@ -53,6 +53,7 @@ export function ShowcaseCaptureCoordinator(props: { readonly pathname: string })
 
 function EnabledShowcaseCaptureCoordinator(props: { readonly pathname: string }) {
   const navigation = useNavigation();
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- keeps closing the Expo dev menu on an interval; it can open late and block orientation requests
   useEffect(() => {
     const menu = requireOptionalNativeModule<{
       closeMenu(): void;
@@ -95,6 +96,7 @@ function EnabledShowcaseCaptureCoordinator(props: { readonly pathname: string })
     getShowcaseRenderSnapshot,
   );
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- polls the native showcase module for the launch pairing URLs and theme until they arrive
   useEffect(() => {
     if (pairingUrls.length > 0) return;
 
@@ -110,6 +112,7 @@ function EnabledShowcaseCaptureCoordinator(props: { readonly pathname: string })
     return () => clearInterval(interval);
   }, [pairingUrls.length]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- retries the native capture orientation request until it applies, stopping on cleanup
   useEffect(() => {
     if (!SHOWCASE_ENABLED || orientationSettled || captureOrientation === null) return;
 
@@ -124,6 +127,7 @@ function EnabledShowcaseCaptureCoordinator(props: { readonly pathname: string })
     };
   }, [captureOrientation, orientationSettled]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- polls the native showcase module for the scene the capture harness requests
   useEffect(() => {
     const readRequestedScene = () => {
       const value = getNativeShowcaseScene();
@@ -147,6 +151,7 @@ function EnabledShowcaseCaptureCoordinator(props: { readonly pathname: string })
     themeId,
   });
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- applies the launch-requested theme to the appearance preferences once they have loaded
   useEffect(() => {
     if (!themeRequestSettled || themeApplied || !appearancePreferencesReady) {
       return;
@@ -166,6 +171,7 @@ function EnabledShowcaseCaptureCoordinator(props: { readonly pathname: string })
     themeRequestSettled,
   ]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pairs with each launch pairing URL's server, retrying until connected or cleaned up
   useEffect(() => {
     if (pairingUrls.length === 0) return;
     let cancelled = false;
@@ -195,6 +201,7 @@ function EnabledShowcaseCaptureCoordinator(props: { readonly pathname: string })
   const hasFixture = hasServerFixture && pendingTasksReady;
   const showcaseThread = threads.find((thread) => String(thread.id) === SHOWCASE_THREAD_ID);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- seeds the showcase pending tasks into the thread outbox once the server fixture is ready
   useEffect(() => {
     if (!hasServerFixture || pendingTasksReady) return;
 
@@ -226,6 +233,7 @@ function EnabledShowcaseCaptureCoordinator(props: { readonly pathname: string })
     };
   }, [hasServerFixture, pendingTasksReady, projects]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- navigates to the scene the capture harness requested once the fixture is ready
   useEffect(() => {
     if (requestedScene === null || !hasFixture || !showcaseThread) return;
     if (scene === requestedScene) return;
@@ -287,6 +295,7 @@ function EnabledShowcaseCaptureCoordinator(props: { readonly pathname: string })
   // Losing readiness hides the marker. A redraw or theme change while ready keeps it and re-settles.
   if (readinessKey === null && readyScene !== null) setReadyScene(null);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- marks the scene ready to the native capture harness after a settle delay and two animation frames
   useEffect(() => {
     const target = readinessKey === null ? null : scene;
     if (target === null) return;

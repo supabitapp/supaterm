@@ -15,6 +15,7 @@ export function usePresence<T>(value: T | null | undefined) {
   const exiting = live === null && retained !== null;
   const elementRef = useRef<HTMLElement | null>(null);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- waits for the exiting element's DOM animations to settle before dropping the retained value
   useEffect(() => {
     if (!exiting) return;
     let cancelled = false;

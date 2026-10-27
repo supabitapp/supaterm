@@ -61,6 +61,7 @@ export function ThreadInspectorContentStack(props: {
     setMountedModes(new Set([...mountedModes, props.mode]));
   }
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- keeps opened UIKit inspector views mounted and prewarms the alternate inspector after a timer
   useEffect(() => {
     if (props.mode === "route" || props.mode === "preview") {
       return;

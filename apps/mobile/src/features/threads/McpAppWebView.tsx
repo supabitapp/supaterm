@@ -161,9 +161,11 @@ export function ThreadMcpApp(props: {
   };
 
   const openNewDocument = useRef(setDocumentKey);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed document reset to a ref read by the focus listener and MCP host callbacks
   useEffect(() => {
     openNewDocument.current = setDocumentKey;
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- listens for navigation focus while the app is presented full screen to reopen the inline document
   useEffect(() => {
     if (!presentedFullscreen) return;
     return navigation.addListener("focus", () => {
@@ -215,9 +217,11 @@ export function ThreadMcpApp(props: {
     navigation,
   };
   const latest = useRef(live);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed props, theme and commands to a ref read by the MCP app host callbacks
   useEffect(() => {
     latest.current = live;
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- requests the tool definition from the server for the MCP host context and drops stale replies
   useEffect(() => {
     let cancelled = false;
     void latest.current
@@ -238,6 +242,7 @@ export function ThreadMcpApp(props: {
   const hostRef = useRef<McpAppHost | null>(null);
   const userActive = useRef(false);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- creates the MCP app host bridged to the WebView for each document and tears it down on cleanup
   useEffect(() => {
     if (uri === null) return;
 
@@ -383,11 +388,13 @@ export function ThreadMcpApp(props: {
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A restarted view needs a new host.
   }, [uri, app, generation, documentKey]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- resends host context to the MCP app host after commits that change theme, insets, tool or size
   useEffect(() => {
     hostRef.current?.updateHostContext();
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Context changes trigger a resend.
   }, [theme, props.width, props.height, insets, toolDefinition]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pushes the stored tool call to the MCP app host for each new call or document
   useEffect(() => {
     if (toolCall !== undefined) hostRef.current?.setToolCall(toolCall);
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Each new document needs the call.

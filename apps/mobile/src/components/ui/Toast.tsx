@@ -38,6 +38,7 @@ export function Toast(props: ToastProps) {
   // A capsule hugs its content and keeps the action's pill concentric with its
   // edge. When the action moves below, it falls back to the card.
   const capsule = props.variant === "capsule" && inlineAction;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- announces the toast message to VoiceOver through AccessibilityInfo
   useEffect(() => {
     if (Platform.OS === "ios") AccessibilityInfo.announceForAccessibility(props.message);
   }, [props.message]);

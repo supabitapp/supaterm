@@ -37,10 +37,12 @@ export function useThreadSettingsSheetPresentation(input: {
     }
   }, []);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed editor focus to a ref read by the focus-restore retry timer
   useEffect(() => {
     isEditorFocusedRef.current = input.isEditorFocused;
   }, [input.isEditorFocused]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- tracks mount; unmount invalidates pending open and focus-restore work and clears the dismissal timer
   useEffect(() => {
     isMountedRef.current = true;
     return () => {

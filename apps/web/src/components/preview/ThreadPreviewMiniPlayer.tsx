@@ -273,6 +273,7 @@ function BrowserMiniPlayer({ threadRef, tabId, miniPlayer }: Props & { readonly 
     previewMiniPlayerSourceKey(browserMiniPlayerSource(tabId)),
   );
   // Hiding the page unmounts its stream, so the next reveal waits for a fresh first frame.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears this stream's entry in the shared streamed-source store when the page hides or the source changes
   useEffect(() => {
     if (!pageVisible) return;
     return () => forgetStream(viewportKey);
@@ -490,6 +491,7 @@ function MiniPlayerShell({
   const [pillOpen, setPillOpen] = useState(false);
   const handleTappedRef = useRef(false);
   const handleRef = useRef<HTMLDivElement | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- document pointerdown listener closes the open pill on an outside press
   useEffect(() => {
     if (!pillOpen) return;
     const dismiss = (event: PointerEvent) => {

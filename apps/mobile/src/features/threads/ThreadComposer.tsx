@@ -294,6 +294,7 @@ export function ComposerSurface(props: {
     typeof props.style.borderRadius === "number" ? props.style.borderRadius : 0;
   const animatedBorderRadius = useSharedValue(targetBorderRadius);
   const shouldAnimate = props.animateLayout !== false && Platform.OS !== "android";
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- animates the Reanimated border radius value to the surface's new corner radius before paint
   useLayoutEffect(() => {
     animatedBorderRadius.set(
       shouldAnimate
@@ -551,9 +552,11 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     !modelUnavailable;
   const canSend = canSubmitDraft && hasContent && !isSubmissionLocked;
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reports the composer's expanded state to the host screen, which lays out its chrome around it
   useEffect(() => {
     onExpandedChange?.(isExpanded);
   }, [isExpanded, onExpandedChange]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the workspace layout's composer-editing flag when the composer unmounts
   useEffect(() => () => setComposerEditing(false), [setComposerEditing]);
 
   const commandMenuTrigger =
@@ -565,6 +568,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const isCommandMenuOpen = commandMenuTrigger !== null;
   const { onCommandMenuOpenChange } = props;
   // Report closed on unmount too, so the host never keeps its chrome hidden.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reports the command menu open to the host and closed again on close or unmount
   useEffect(() => {
     if (!isCommandMenuOpen) return;
     onCommandMenuOpenChange?.(true);
@@ -703,12 +707,14 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     openSettingsSheet();
   };
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- keeps the separate ThreadSettingsSheet route's session current while this composer's sheet is active
   useEffect(() => {
     if (settingsSheetPresentation.isActive) {
       presentSettingsRoute(settingsRouteSession);
     }
   }, [presentSettingsRoute, settingsRouteSession, settingsSheetPresentation.isActive]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pushes the ThreadSettingsSheet native-stack route once the sheet presentation turns visible
   useEffect(() => {
     if (!settingsSheetPresentation.isVisible || settingsRoutePresentedRef.current) {
       return;
@@ -728,6 +734,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     clearSettingsRoute(settingsOwnerId);
   });
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to the native stack's finishTransitioning event to restore the keyboard after a sheet dismisses
   useEffect(
     () =>
       // UIKit's completion callback for the sheet dismissal, surfaced by the

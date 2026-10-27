@@ -57,6 +57,7 @@ export function useOrchestrationSkills(
     setPending(null);
     if (outcome._tag === "Failure") throw squashAtomCommandFailure(outcome);
   };
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reads skill install status from each selected environment's server and drops results after unmount
   useEffect(() => {
     let active = true;
     busy.current = true;

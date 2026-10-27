@@ -12,6 +12,7 @@ export function useConnectionStatusVisibility(key: string, pending: boolean, imm
   const [delay] = useState(() => createConnectionStatusDelay(setShownKey));
   const currentKey = `${key}:${lifecycle.revision}`;
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to AppState changes and disposes the status delay timer on unmount
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (state) => {
       delay.pause();
@@ -23,6 +24,7 @@ export function useConnectionStatusVisibility(key: string, pending: boolean, imm
     };
   }, [delay]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- feeds the pending state into the delay timer that reveals the status after it stays pending
   useEffect(() => {
     delay.update({ key: currentKey, pending, active: lifecycle.active, immediate });
   }, [delay, currentKey, pending, lifecycle.active, immediate]);

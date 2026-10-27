@@ -40,6 +40,7 @@ function LoadedMediaVideo(props: {
     useMediaVideoPlayback(player, props, playback);
   const previousPlaybackRequested = useRef(false);
   const onPlaybackStart = useEffectEvent(() => props.onPlaybackStart?.());
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to native video player events to keep the shared audio session in step
   useEffect(() => {
     const subscription = player.addListener("playingChange", ({ isPlaying }) => {
       if (isPlaying && !active.current && !fullscreen.current) playback.pause();
@@ -83,6 +84,7 @@ function LoadedMediaVideo(props: {
     },
   );
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- loads the video source into the native player and aborts the load on cleanup
   useEffect(() => {
     const controller = new AbortController();
     // A renewed signature is used on Retry, not as a reason to reset the native player.

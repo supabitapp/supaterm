@@ -24,8 +24,10 @@ export function useInlineConfirm<Key extends string>() {
   const touched = useRef<{ readonly key: Key; readonly touch: Touch } | null>(null);
   const navigation = useContext(NavigationContext);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- disarms on unmount so the armed key's auto-disarm timer does not outlive the component
   useEffect(() => () => confirm.disarm(), [confirm]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- while armed, announces and buzzes, then disarms on outside touches, navigation blur or app backgrounding
   useEffect(() => {
     if (armed === null) return;
     AccessibilityInfo.announceForAccessibility(ARMED_HINT);

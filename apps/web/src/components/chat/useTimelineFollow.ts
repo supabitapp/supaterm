@@ -549,6 +549,7 @@ export function useTimelineFollow(input: TimelineFollowInput) {
   // the anchored end space; the trigger is streamed thread data. A
   // totalSize listener cannot replace it: the anchored end space can already
   // be 0, so dropping it changes no size and no list event fires.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- scrolls the timeline to the end after the commit that drops anchored end space
   useLayoutEffect(() => {
     if (timelineAnchorMessageId === null || !timelineLiveFollowEnabled) return;
     if (

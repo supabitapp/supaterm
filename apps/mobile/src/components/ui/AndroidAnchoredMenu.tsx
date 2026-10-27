@@ -88,6 +88,7 @@ export function AndroidAnchoredMenu(props: AndroidAnchoredMenuProps) {
   }, []);
 
   const submenuDepth = path.length;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to Android hardware back to pop a submenu or close a menu opened over the keyboard
   useEffect(() => {
     if (anchor === null || !anchor.keyboardWasVisible) {
       return;

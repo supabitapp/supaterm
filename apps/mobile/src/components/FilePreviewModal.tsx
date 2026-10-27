@@ -52,7 +52,9 @@ function PreviewItemResolver(props: {
   // Resolve once per presentation; background URL refreshes must not reopen the native viewer.
   const [uri, setUri] = useState<string | null>("uri" in source ? source.uri : null);
   const onResolutionError = useEffectEvent(props.onFailed);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- dismisses the software keyboard when the file preview opens
   useEffect(() => Keyboard.dismiss(), []);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- refreshes an expired asset URL before the native viewer retains it, ignoring the result after cleanup
   useEffect(() => {
     if (environmentId === null || uri !== null) return;
     let cancelled = false;
@@ -74,6 +76,7 @@ function PreviewItemResolver(props: {
       cancelled = true;
     };
   }, [environmentId, uri, refreshAssetUrl, source.srcFragment]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- loads the local attachment preview file, aborting the load and releasing its lease on cleanup
   useEffect(() => {
     if (!("attachment" in source)) return;
     const controller = new AbortController();
@@ -99,6 +102,7 @@ function PreviewItemResolver(props: {
   }, [source]);
 
   const onResolved = useEffectEvent(props.onResolved);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reports the preview URI to the gallery once the async resolution lands
   useEffect(() => {
     if (uri !== null) onResolved({ ...source, name: filePreviewName(source), uri });
   }, [uri, source]);
@@ -220,6 +224,7 @@ export function FilePreviewModal(props: {
   );
   const hasSource = props.source !== null;
   const onRequestClose = useEffectEvent(props.onRequestClose);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- closes the preview when the hosting navigation route loses focus
   useEffect(() => {
     if (!isFocused && hasSource) onRequestClose();
   }, [isFocused, hasSource]);

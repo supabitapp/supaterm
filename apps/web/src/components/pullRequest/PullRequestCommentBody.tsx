@@ -14,6 +14,7 @@ export function PullRequestCommentBody({
   const content = useRef<HTMLDivElement>(null);
   const id = useId();
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- observes the comment content's size with ResizeObserver to show the overflow fade
   useEffect(() => {
     const element = content.current;
     if (!element) return;

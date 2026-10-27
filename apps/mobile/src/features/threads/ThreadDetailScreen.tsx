@@ -314,6 +314,7 @@ function useThreadOutcomeHaptics(state: {
   const { threadKey, live, run, pendingRequestId, composerError } = state;
   const previousRef = useRef({ threadKey, hydrated: live, run, pendingRequestId, composerError });
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- plays haptics for send failures, input requests and turn outcomes that change while the thread is live
   useEffect(() => {
     const previous = previousRef.current;
     const sameThread = previous.threadKey === threadKey;
@@ -443,6 +444,7 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
   // keyboard and no event would lift the quarantine; so Back then Home mid-hide still strands it.
   const [keyboardStateSuspect, setKeyboardStateSuspect] = useState(false);
   const ownedInputFocusedRef = useRef(false);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to AppState on Android to mark keyboard state suspect when the app resumes
   useEffect(() => {
     if (Platform.OS !== "android") {
       return;
@@ -502,6 +504,7 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
     latestRun: props.selectedThread.latestRun,
   });
   const editingRunId = props.queuedRunEdit?.runId ?? null;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- focuses the composer editor on the next animation frame when a queued run edit starts
   useEffect(() => {
     if (editingRunId === null) return;
     const frame = requestAnimationFrame(() => composerEditorRef.current?.focus());
@@ -576,6 +579,7 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
   );
   const snoozed = effectiveSnoozed(props.selectedThread, { now: lifecycleNow });
   const snoozedUntil = props.selectedThread.snoozedUntil ?? null;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- arms a timer that refreshes the lifecycle clock when the thread's snooze expires
   useEffect(() => {
     if (!snoozed || snoozedUntil === null) return;
     const timer = setTimeout(
@@ -1017,6 +1021,7 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
     endFollowEnabledRef.current = enabled;
     setEndFollowEnabled(enabled);
   };
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- aborts the thread scope, clears its timers and ends a pending message jump when the thread changes
   useEffect(() => {
     if (threadScope.current.signal.aborted) threadScope.current = new AbortController();
     const scope = threadScope.current;

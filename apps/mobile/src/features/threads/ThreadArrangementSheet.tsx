@@ -131,6 +131,7 @@ function useDragHandlePan(latest: RefObject<DragHandleProps>, disabled: boolean)
 
 function DragHandle(props: DragHandleProps) {
   const latest = useRef(props);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes committed props to the ref the memoized pan gesture's JS callbacks read
   useLayoutEffect(() => {
     latest.current = props;
   });
@@ -255,6 +256,7 @@ export function ThreadArrangementSheet(props: { onClose: () => void }) {
   const [preview, setPreview] = useState<Drag | null>(null);
   const [translateY] = useState(() => new Animated.Value(0));
   const latest = useRef({ rows, pinnedPlanner, moveThread });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes committed rows and move handlers to the ref the drag gesture and frame callbacks read
   useLayoutEffect(() => {
     latest.current = { rows, pinnedPlanner, moveThread };
   });
@@ -271,12 +273,14 @@ export function ThreadArrangementSheet(props: { onClose: () => void }) {
     setStoppedOrderVersion(orderVersion);
     setPreview(null);
   }
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the in-progress drag gesture when the thread order changes underneath it
   useEffect(() => {
     if (drag.current?.orderVersion === orderVersion) return;
     if (frame.current !== null) cancelAnimationFrame(frame.current);
     frame.current = null;
     drag.current = null;
   }, [orderVersion]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the pending drag animation frame on unmount
   useEffect(
     () => () => {
       if (frame.current !== null) cancelAnimationFrame(frame.current);

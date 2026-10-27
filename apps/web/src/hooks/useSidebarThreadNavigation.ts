@@ -35,7 +35,9 @@ export function useSidebarThreadNavigation() {
       navigate: openThread,
     }),
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the pending thread navigation and its shell wait when the sidebar unmounts
   useEffect(() => () => navigation.cancel(), [navigation]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the pending thread navigation once the router location moves on without it
   useEffect(
     () => () => {
       if (router.state.location !== location) navigation.cancel();

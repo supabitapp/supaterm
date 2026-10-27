@@ -32,6 +32,7 @@ function useDragPan(latest: RefObject<SettingsDragHandleProps>) {
 
 export function SettingsDragHandle(props: SettingsDragHandleProps) {
   const latest = useRef(props);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes committed props to the ref the memoized pan gesture's JS callbacks read
   useLayoutEffect(() => {
     latest.current = props;
   });

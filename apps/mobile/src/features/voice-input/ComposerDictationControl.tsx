@@ -137,6 +137,7 @@ export function ComposerDictationDraftContent(props: {
   readonly hidden: boolean;
 }) {
   const rotation = useSharedValue(props.hidden ? 1 : 0);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- drives the Reanimated flip rotation value when the draft row hides or shows
   useLayoutEffect(() => {
     rotation.set(withTiming(props.hidden ? 1 : 0, TOOLBAR_FLIP_TIMING));
   }, [props.hidden, rotation]);
@@ -361,6 +362,7 @@ export function ComposerDictationStatus(props: {
   readonly onDismissError: () => void;
 }) {
   const recordingVisibility = useSharedValue(props.phase === "recording" ? 1 : 0);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- animates the Reanimated waveform/label crossfade value when recording starts or stops
   useLayoutEffect(() => {
     recordingVisibility.set(withTiming(props.phase === "recording" ? 1 : 0, DICTATION_TIMING));
   }, [props.phase, recordingVisibility]);

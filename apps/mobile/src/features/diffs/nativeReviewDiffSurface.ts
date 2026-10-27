@@ -200,6 +200,7 @@ function useNativeReviewDiffPayload(
   onFailure?: () => void,
   onDelivered?: (payload: string) => void,
 ) {
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- sends the payload to the native diff view's imperative method, retrying per frame until it mounts
   useEffect(() => {
     if (payload === undefined) {
       return;
@@ -331,10 +332,12 @@ function NativeReviewDiffContent(
   );
   useNativeReviewDiffPayload(nativeView, "setTokensJson", tokensJson);
   const onDebugRef = useRef(onDebug);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- keeps the latest onDebug for callbacks the native diff view fires outside render
   useEffect(() => {
     onDebugRef.current = onDebug;
   }, [onDebug]);
   const reportedMountRef = useRef(false);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reports the native surface mount to the debug callback once per mount
   useEffect(() => {
     // Effect replay keeps the same native content; only a new mount loses tokens.
     if (reportedMountRef.current) return;

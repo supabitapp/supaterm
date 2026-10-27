@@ -36,6 +36,7 @@ export function useOlderDoneShelf(input: {
   }));
   const shelfKey = JSON.stringify(shelfScopes);
   const shelf = useAtomValue(olderDoneThreads.shelfAtom(shelfScopes));
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- mounts the requested older done pages' rows in the atom registry and releases them on cleanup
   useEffect(() => {
     const releases = (JSON.parse(shelfKey) as typeof shelfScopes).flatMap(({ scope, pages }) =>
       pages === 0
@@ -89,6 +90,7 @@ export function useOlderDoneShelfGrowth(
     visibleCount: shelf.visibleCount,
   });
   const { grow, pages } = shelf;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- asks for the next older done pages once the server's loaded pages leave the shelf short of its visible rows
   useEffect(() => {
     if (wanted !== pages) grow(wanted);
   }, [wanted, pages, grow]);

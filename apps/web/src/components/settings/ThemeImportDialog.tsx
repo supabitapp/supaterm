@@ -198,6 +198,7 @@ export function ThemeImportDialog({
     }
   }
   const requestOpenRef = useRef(open);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- bumps the import request counter on open or close so in-flight theme file reads are discarded
   useLayoutEffect(() => {
     if (requestOpenRef.current === open) return;
     requestOpenRef.current = open;

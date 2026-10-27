@@ -71,6 +71,7 @@ export function ComposerEditor({
     });
   }
   const contextHistory = contextHistoryEntry.history;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- releases the attachment file leases held for native text undo when the history is replaced or unmounts
   useEffect(() => () => contextHistory.dispose(), [contextHistory]);
   const changeText = (text: string) => {
     const restored = contextHistory.restore(

@@ -120,7 +120,7 @@ export function ThreadRouteView({ target, paneId }: { target: ThreadRouteTarget;
   const environmentHasAnyThreads = environmentThreadRefs.length > 0 || environmentHasDraftThreads;
   const draftGone = target.kind === "draft" && draftSession === null && draftRedirect === null;
 
-  // oxlint-disable-next-line supaterm/react-effect-budget -- moves the URL or this pane's own target, outside React
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- moves the URL or this pane's own target, outside React
   useEffect(() => {
     if (background) return;
     if (draftGone) {
@@ -147,6 +147,7 @@ export function ThreadRouteView({ target, paneId }: { target: ThreadRouteTarget;
     };
   }, [background, draftGone, navigate, paneId, redirectTarget]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears pending file drops and navigates the router home once a server thread is confirmed missing
   useEffect(() => {
     if (target.kind !== "server" || !bootstrapComplete) {
       return;

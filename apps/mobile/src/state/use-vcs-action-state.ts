@@ -86,6 +86,7 @@ export function useGitActionProgress(target: VcsActionTarget): GitActionProgress
   const { result } = useGitActionResultNotification();
 
   const [nowMs, setNowMs] = useState(() => Date.now());
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- runs a one-second interval that refreshes the elapsed label while the git action runs
   useEffect(() => {
     if (!actionState.isRunning) return;
     const interval = setInterval(() => setNowMs(Date.now()), 1000);

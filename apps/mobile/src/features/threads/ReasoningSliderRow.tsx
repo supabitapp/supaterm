@@ -114,6 +114,7 @@ export function ReasoningSliderRow(props: ReasoningSliderRowProps) {
   }
   const previewIndex = draft.selectedIndex === selectedIndex ? draft.previewIndex : selectedIndex;
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- drives the Reanimated thumb to the committed choice unless a pan gesture is holding it
   useEffect(() => {
     if (!dragging.get()) {
       progress.set(withTiming(max > 0 ? selectedIndex / max : 0, SNAP_ANIMATION));

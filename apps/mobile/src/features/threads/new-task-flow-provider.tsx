@@ -447,6 +447,7 @@ export function NewTaskFlowProvider(
     : null;
   // A request belongs to the draft/project that started it, including when
   // catalog changes or unmounting replace that owner without a user action.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- abandons the in-flight environment switch when its owning draft or project changes or the provider unmounts
   useLayoutEffect(
     () => () => {
       const request = latestSwitchRef.current;
@@ -457,6 +458,7 @@ export function NewTaskFlowProvider(
     },
     [selectedProjectDraftKey, draftProjectKey],
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- creates the persistent draft in the new-task flow store once a project is selected
   useEffect(() => {
     if (
       props.active === false ||
@@ -978,6 +980,7 @@ export function NewTaskFlowProvider(
   const environmentPinned =
     editingPendingTask !== null &&
     hasQueuedFollowUps(queuedMessagesByThreadKey, editingPendingTask);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- ends the pending task edit once the thread outbox no longer holds the queued message
   useEffect(() => {
     const editing = editingPendingTaskRef.current;
     if (!editing) {
@@ -991,6 +994,7 @@ export function NewTaskFlowProvider(
     }
   }, [finishEditingPendingTask, queuedMessagesByThreadKey]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes a flush closure over the committed message builder to a ref read by cancel and unmount
   useEffect(() => {
     editingFlushRef.current = () => {
       const editing = editingPendingTaskRef.current;
@@ -1049,6 +1053,7 @@ export function NewTaskFlowProvider(
     cancelEnvironmentSwitch();
     editingFlushRef.current?.();
   };
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- flushes the in-progress pending task edit to the thread outbox when the provider unmounts
   useEffect(
     () => () => {
       editingFlushRef.current?.();

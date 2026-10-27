@@ -300,6 +300,7 @@ export function NewThreadLinkView({ link }: { readonly link: NewThreadLink }) {
   });
 
   const decided = serverPullRequestThread !== undefined;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- launches the link in a microtask once its lookups settle: navigates, clones, or opens a draft
   useEffect(() => {
     if (ready && decided && state.status === "opening") {
       let active = true;
@@ -378,6 +379,7 @@ function PullRequestLinkCheckout({
     },
   });
   const warnedRef = useRef(false);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- shows the hidden-characters warning toast once per linked prompt
   useEffect(() => {
     if (warnedRef.current || link.prompt === null) return;
     warnedRef.current = true;

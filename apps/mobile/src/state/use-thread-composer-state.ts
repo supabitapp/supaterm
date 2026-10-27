@@ -217,6 +217,7 @@ export function useThreadComposerState() {
     return nextName;
   };
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts the one-time load of persisted composer drafts from device storage into the app atom registry
   useEffect(() => {
     ensureComposerDraftsLoaded();
   }, []);

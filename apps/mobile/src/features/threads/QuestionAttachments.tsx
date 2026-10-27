@@ -57,11 +57,13 @@ export function QuestionAttachments(props: {
   const releaseFocus = useEffectEvent(() => {
     if (focusedRef.current) onInputFocusChange?.(false);
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- releases keyboard ownership on unmount, since an unmounted native input never emits blur
   useEffect(() => () => releaseFocus(), []);
   const pickerScope = useRef<{
     key: string;
     active: boolean;
   } | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- opens a scope that native picker and paste callbacks check, and closes it on unmount
   useEffect(() => {
     const scope = {
       key: scopeKey,
