@@ -1555,7 +1555,7 @@ export function GeneralSettingsPanel() {
           serverScoped
           settingKeys={["nextPromptSuggestionsEnabled"]}
           {...searchableSetting("next-prompt-suggestions")}
-          description="After the agent replies, suggests what you might send next with the text generation model. Press Tab to use it."
+          description="After the agent replies, suggests what you might send next. Press Tab to use it. Claude predicts its own; other providers use the text generation model."
           resetAction={
             settings.nextPromptSuggestionsEnabled !==
             DEFAULT_UNIFIED_SETTINGS.nextPromptSuggestionsEnabled ? (
