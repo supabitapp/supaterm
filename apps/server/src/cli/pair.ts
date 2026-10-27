@@ -15,6 +15,7 @@ import { buildPairingUrl } from "@supaterm/shared/remote";
 import { relayName } from "@supaterm/shared/relay/name";
 import * as NodeOS from "node:os";
 import { DEFAULT_SIGNAL_EXPORT } from "@supaterm/shared/observability";
+import { buildPairingAppLink } from "@supaterm/shared/remote";
 import * as OtelEnvironment from "@supaterm/shared/otelEnvironment";
 import {
   buildTailscaleHttpsBaseUrl,
@@ -206,6 +207,7 @@ const formatPairOutput = (input: {
     renderTerminalQrCode(input.pairingUrl),
     "",
     `Pairing URL: ${input.pairingUrl}`,
+    `App link: ${buildPairingAppLink(input.pairingUrl)}`,
     `Token: ${input.token}`,
     `Expires: ${DateTime.formatIso(input.expiresAt)}`,
     ...input.notes.flatMap((note) => ["", `Note: ${note}`]),
