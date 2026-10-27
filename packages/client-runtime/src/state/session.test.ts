@@ -75,6 +75,7 @@ const makeHarness = Effect.fn("RouteLatencyTest.makeHarness")(function* (options
     probe: Effect.sync(() => {
       probes += 1;
     }),
+    inboundFrames: Effect.succeed(0),
     closed: Effect.never,
   };
   let probes = 0;

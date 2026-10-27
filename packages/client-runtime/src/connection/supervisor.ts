@@ -34,6 +34,7 @@ import {
   connectionRouteId,
   connectionRouteKind,
   connectionRoutes,
+  type ConnectionRouteKind,
   entryWithRoutes,
 } from "./routes.ts";
 
@@ -45,6 +46,16 @@ const CONNECTION_ESTABLISHMENT_TIMEOUT = "15 seconds";
 const synchronizationTimeout = Duration.millis(ConnectionDriver.ROUTE_SNAPSHOT_TIMEOUT_MS);
 const CONNECTION_PROBE_TIMEOUT = "15 seconds";
 const QUICK_CONNECTION_PROBE_TIMEOUT = "3 seconds";
+// A probe still unanswered this long checks the host with a fresh request. If
+// the host answers while the socket stays silent, the socket is dead.
+const SILENT_SOCKET_CHECK_AFTER = "500 millis";
+const SILENT_SOCKET_RECHECK_EVERY = "1 second";
+// Off the LAN one lost packet can stall a live socket for a second, so a remote
+// socket must stay silent this long. It must end before
+// QUICK_CONNECTION_PROBE_TIMEOUT so a long resume replaces a silent socket.
+const REMOTE_SILENT_SOCKET_AFTER = "2500 millis";
+// A mobile resume after this long in the background shows stale data.
+const LONG_BACKGROUND_AFTER_MS = 10_000;
 const BACKOFF_RESET_AFTER_MS = 30_000;
 const BETTER_ROUTE_CHECK_INTERVAL = "60 seconds";
 const BETTER_ROUTE_COOLDOWN_MS = 300_000;
@@ -60,7 +71,11 @@ type SupervisorSignal =
   | { readonly _tag: "DisconnectRequested" }
   | { readonly _tag: "RetryRequested" }
   | { readonly _tag: "NetworkChanged"; readonly network: NetworkStatus }
-  | { readonly _tag: "Wakeup"; readonly reason: ConnectionWakeups.ConnectionWakeup }
+  | {
+      readonly _tag: "Wakeup";
+      readonly reason: ConnectionWakeups.ConnectionWakeup;
+      readonly afterLongBackground?: boolean;
+    }
   | { readonly _tag: "BetterRouteAvailable"; readonly preflight: ConnectionDriver.PreparedRoute };
 
 type AttemptOutcome =
@@ -235,6 +250,10 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
     backgrounded: yield* wakeups.isBackgrounded ?? Effect.succeed(false),
   };
   const intent = yield* Ref.make(initialIntent);
+  // Wall-clock time: a monotonic clock can pause while the OS suspends the app.
+  const backgroundedAt = yield* Ref.make(
+    initialIntent.backgrounded ? yield* Clock.currentTimeMillis : null,
+  );
   const signals = yield* Queue.unbounded<SupervisorSignal>();
   const resetRetryState = yield* Ref.make(false);
   const pendingProbe = yield* Ref.make<"idle" | "checking" | "mobile-resume">("idle");
@@ -447,7 +466,24 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
     return undefined;
   });
 
-  const probeTimeoutFor = (next: SupervisorSignal): Duration.Input | undefined => {
+  const leaseRouteKind = (lease: ConnectionDriver.EnvironmentConnectionLease) =>
+    currentRoutes.pipe(
+      Effect.map((routes) => {
+        const route = routes.find(
+          (candidate) =>
+            connectionRouteId(candidate.target) === connectionRouteId(lease.prepared.target),
+        );
+        return route === undefined ? undefined : connectionRouteKind(route);
+      }),
+    );
+
+  const answersQuickly = (routeKind: ConnectionRouteKind | undefined) =>
+    routeKind === "loopback" || routeKind === "lan";
+
+  const probeTimeoutFor = (
+    next: SupervisorSignal,
+    routeKind: ConnectionRouteKind | undefined,
+  ): Duration.Input | undefined => {
     switch (next._tag) {
       case "RetryRequested":
         return QUICK_CONNECTION_PROBE_TIMEOUT;
@@ -457,15 +493,56 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
         if (next.reason === "application-active") {
           return CONNECTION_PROBE_TIMEOUT;
         }
-        return next.reason === "application-resumed" || next.reason === "network-changed"
+        // After a long suspension the data on screen is stale, so a slow
+        // answer reconnects as quickly as a missing one, even on a remote
+        // route where a reconnect takes longer than the wait it replaces.
+        if (next.afterLongBackground === true) {
+          return QUICK_CONNECTION_PROBE_TIMEOUT;
+        }
+        if (next.reason !== "application-resumed" && next.reason !== "network-changed") {
+          return undefined;
+        }
+        // Only loopback and LAN answer within 3 seconds reliably. A tailnet
+        // over DERP, a VPN, or the relay can spike past it on a live socket;
+        // a dead one is still caught early by the silent socket check.
+        return answersQuickly(routeKind)
           ? QUICK_CONNECTION_PROBE_TIMEOUT
-          : undefined;
+          : CONNECTION_PROBE_TIMEOUT;
       case "ConnectRequested":
       case "DisconnectRequested":
       case "BetterRouteAvailable":
         return undefined;
     }
   };
+
+  // Ends "silent" when the host answers a fresh request while the socket
+  // delivers nothing, as when iOS kills a suspended socket without a close
+  // event, and "alive" once the socket delivers a frame. A slow or
+  // unreachable host never ends it.
+  const awaitSilentSocket = Effect.fn("EnvironmentSupervisor.awaitSilentSocket")(function* (
+    lease: ConnectionDriver.EnvironmentConnectionLease,
+    routeKind: ConnectionRouteKind | undefined,
+  ) {
+    const startedAt = yield* Clock.monotonicTimeNanos;
+    yield* Effect.sleep(SILENT_SOCKET_CHECK_AFTER);
+    // Frames that queued while the app was suspended have drained by now, so
+    // a later frame shows the path still works.
+    const framesBefore = yield* lease.session.inboundFrames;
+    const socketSilent = lease.session.inboundFrames.pipe(
+      Effect.map((frames) => frames === framesBefore),
+    );
+    // A radio still waking up or a stale pooled connection can fail one check.
+    while ((yield* driver.checkHost(lease.prepared)) !== "answered") {
+      if (!(yield* socketSilent)) return "alive" as const;
+      yield* Effect.sleep(SILENT_SOCKET_RECHECK_EVERY);
+    }
+    if (!answersQuickly(routeKind)) {
+      const silentFor = (yield* Clock.monotonicTimeNanos) - startedAt;
+      const remaining = Duration.toNanosUnsafe(REMOTE_SILENT_SOCKET_AFTER) - silentFor;
+      if (remaining > 0n) yield* Effect.sleep(Duration.nanos(remaining));
+    }
+    return (yield* socketSilent) ? ("silent" as const) : ("alive" as const);
+  });
 
   const monitorConnectedLease = Effect.fnUntraced(function* (
     lease: ConnectionDriver.EnvironmentConnectionLease,
@@ -482,6 +559,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
       Stream.runForEach(() => requestBetterRouteCheck(lease)),
       Effect.forkScoped,
     );
+    const routeKind = yield* leaseRouteKind(lease);
     for (;;) {
       const next = yield* takeSignal;
       const end = yield* connectedLeaseEnd(next, lease);
@@ -495,7 +573,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
         next._tag === "RetryRequested"
       )
         yield* requestBetterRouteCheck(lease);
-      const probeTimeout = probeTimeoutFor(next);
+      const probeTimeout = probeTimeoutFor(next, routeKind);
       if (probeTimeout === undefined) {
         continue;
       }
@@ -506,6 +584,31 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           : "checking",
       );
       const probe = yield* Effect.forkChild(lease.session.probe);
+      let silentSocket: Fiber.Fiber<"silent" | "alive"> | undefined;
+      // A signal during a running check, such as a network change that kills
+      // the socket, needs a fresh check only if the running one sees a frame.
+      let recheck = false;
+      const startSilentSocketCheck = Effect.gen(function* () {
+        silentSocket = yield* Effect.forkChild(awaitSilentSocket(lease, routeKind));
+        recheck = false;
+      });
+      // The web and desktop foreground probe allows a busy host 15 seconds,
+      // and a busy host can answer a fresh request before a queued probe.
+      const armSilentSocketCheck = Effect.fnUntraced(function* (signal: SupervisorSignal) {
+        if (signal._tag === "Wakeup" && signal.reason === "application-active") return;
+        if (silentSocket !== undefined) {
+          recheck = true;
+          return;
+        }
+        yield* startSilentSocketCheck;
+      });
+      yield* armSilentSocketCheck(next);
+      const stopProbe = Effect.suspend(() =>
+        Effect.all(
+          [Fiber.interrupt(probe), silentSocket ? Fiber.interrupt(silentSocket) : Effect.void],
+          { discard: true },
+        ),
+      );
       let deadline = (yield* Clock.monotonicTimeNanos) + Duration.toNanosUnsafe(probeTimeout);
       for (;;) {
         const remaining = deadline - (yield* Clock.monotonicTimeNanos);
@@ -517,15 +620,34 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           Effect.sleep(Duration.nanos(remaining > 0n ? remaining : 0n)).pipe(
             Effect.as({ _tag: "TimedOut" as const }),
           ),
+          (silentSocket ? Fiber.join(silentSocket) : Effect.never).pipe(
+            Effect.map((check) =>
+              check === "silent"
+                ? { _tag: "SocketSilent" as const }
+                : { _tag: "SocketAlive" as const },
+            ),
+          ),
         ]);
+        if (probeEvent._tag === "SocketAlive") {
+          silentSocket = undefined;
+          if (recheck) yield* startSilentSocketCheck;
+          continue;
+        }
+        if (probeEvent._tag === "SocketSilent") {
+          // The host is reachable, so replace the socket at once, even while
+          // the network reports offline.
+          yield* stopProbe;
+          return true;
+        }
         if (probeEvent._tag === "TimedOut") {
-          yield* Fiber.interrupt(probe);
+          yield* stopProbe;
           return yield* new ConnectionTransientError({
             reason: "timeout",
             detail: `${target.label} did not respond to a connection health check.`,
           });
         }
         if (probeEvent._tag === "ProbeCompleted") {
+          if (silentSocket) yield* Fiber.interrupt(silentSocket);
           if (Exit.isSuccess(probeEvent.exit)) {
             yield* Ref.set(pendingProbe, "idle");
           }
@@ -534,11 +656,11 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
         }
         const endDuringProbe = yield* connectedLeaseEnd(probeEvent.signal, lease);
         if (endDuringProbe !== undefined) {
-          yield* Fiber.interrupt(probe);
+          yield* stopProbe;
           return endDuringProbe === "reset";
         }
         if ((yield* Ref.get(intent)).backgrounded) {
-          yield* Fiber.interrupt(probe);
+          yield* stopProbe;
           yield* Ref.set(pendingProbe, "idle");
           break;
         }
@@ -547,8 +669,9 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           probeEvent.signal.reason === "application-resumed"
         )
           yield* Ref.set(pendingProbe, "mobile-resume");
-        const signalTimeout = probeTimeoutFor(probeEvent.signal);
+        const signalTimeout = probeTimeoutFor(probeEvent.signal, routeKind);
         if (signalTimeout !== undefined) {
+          yield* armSilentSocketCheck(probeEvent.signal);
           const signalDeadline =
             (yield* Clock.monotonicTimeNanos) + Duration.toNanosUnsafe(signalTimeout);
           if (signalDeadline < deadline) deadline = signalDeadline;
@@ -924,15 +1047,34 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
   );
   yield* wakeups.changes.pipe(
     Stream.runForEach((reason) =>
-      Ref.update(intent, (current) => ({
-        ...current,
-        backgrounded:
+      Effect.gen(function* () {
+        const now = yield* Clock.currentTimeMillis;
+        const since = yield* Ref.getAndUpdate(backgroundedAt, (current) =>
           reason === "application-background"
-            ? true
-            : ConnectionWakeups.shouldResubscribeAfterWakeup(reason)
-              ? false
-              : current.backgrounded,
-      })).pipe(Effect.andThen(signal({ _tag: "Wakeup", reason }))),
+            ? (current ?? now)
+            : reason === "application-resumed"
+              ? null
+              : current,
+        );
+        yield* Ref.update(intent, (current) => ({
+          ...current,
+          backgrounded:
+            reason === "application-background"
+              ? true
+              : ConnectionWakeups.shouldResubscribeAfterWakeup(reason)
+                ? false
+                : current.backgrounded,
+        }));
+        const afterLongBackground =
+          reason === "application-resumed" &&
+          since !== null &&
+          now - since >= LONG_BACKGROUND_AFTER_MS;
+        yield* signal({
+          _tag: "Wakeup",
+          reason,
+          ...(afterLongBackground ? { afterLongBackground } : {}),
+        });
+      }),
     ),
     Effect.forkScoped({ startImmediately: true }),
   );

@@ -7,6 +7,7 @@ import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Scope from "effect/Scope";
+import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as HttpClient from "effect/http/HttpClient";
 
 import type { ConnectionCatalogEntry, ConnectionRoute } from "./catalog.ts";
@@ -96,6 +97,8 @@ export class ConnectionDriver extends Context.Service<
       entry: ConnectionCatalogEntry,
       route: ConnectionRoute,
     ) => Effect.Effect<Option.Option<PreparedRoute>>;
+    /** Asks the host behind a live session to answer a fresh request on the session's own origin. */
+    readonly checkHost: (prepared: PreparedConnection) => Effect.Effect<RouteCheck>;
   }
 >()("@supaterm/client-runtime/connection/driver/ConnectionDriver") {}
 
@@ -255,29 +258,56 @@ export const make = Effect.gen(function* () {
   const sessions = yield* RpcSession.RpcSessionFactory;
   const httpClient = yield* HttpClient.HttpClient;
 
-  const checkRoute = (entry: ConnectionCatalogEntry, route: ConnectionRoute, timeoutMs: number) => {
-    const httpBaseUrl = routeHttpBaseUrl(route);
-    if (httpBaseUrl === null) return Effect.succeed<RouteCheck>("unchecked");
-    // The descriptor is public, so this sends no credential to whatever
-    // answers at a saved LAN address on a different network.
-    return leaseRouteOrigin(route, httpBaseUrl).pipe(
+  // The descriptor is public, so this sends no credential to whatever
+  // answers at a saved LAN address on a different network.
+  const checkDescriptor = <E, R>(
+    httpBaseUrl: Effect.Effect<string, E, R>,
+    environmentId: string,
+    timeoutMs: number,
+  ) =>
+    httpBaseUrl.pipe(
       Effect.flatMap((resolved) =>
         fetchRemoteEnvironmentDescriptor({ httpBaseUrl: resolved, timeoutMs }),
       ),
       Effect.map((descriptor): RouteCheck =>
-        descriptor.environmentId === entry.target.environmentId ? "answered" : "silent",
+        descriptor.environmentId === environmentId ? "answered" : "silent",
       ),
       Effect.timeoutOrElse({
         duration: timeoutMs,
         orElse: () => Effect.succeed<RouteCheck>("silent"),
       }),
       Effect.orElseSucceed((): RouteCheck => "silent"),
+      // A cached descriptor would answer for a host that cannot be reached.
+      Effect.provideService(FetchHttpClient.RequestInit, { cache: "no-store" }),
       Effect.provideService(HttpClient.HttpClient, httpClient),
+    );
+
+  const checkRoute = (entry: ConnectionCatalogEntry, route: ConnectionRoute, timeoutMs: number) => {
+    const httpBaseUrl = routeHttpBaseUrl(route);
+    if (httpBaseUrl === null) return Effect.succeed<RouteCheck>("unchecked");
+    return checkDescriptor(
+      leaseRouteOrigin(route, httpBaseUrl),
+      entry.target.environmentId,
+      timeoutMs,
+    ).pipe(
       Effect.withSpan("ConnectionDriver.checkRoute", {
         attributes: { "connection.target.kind": route.target._tag },
       }),
     );
   };
+
+  // A relay session's httpBaseUrl is already its tunnel's origin, so the request
+  // takes the session's own path to the host.
+  const checkHost = (prepared: PreparedConnection) =>
+    checkDescriptor(
+      Effect.succeed(prepared.httpBaseUrl),
+      prepared.environmentId,
+      ROUTE_CHECK_TIMEOUT_MS,
+    ).pipe(
+      Effect.withSpan("ConnectionDriver.checkHost", {
+        attributes: { "connection.target.kind": prepared.target._tag },
+      }),
+    );
 
   const connect = Effect.fn("ConnectionDriver.connect")(function* (
     entry: ConnectionCatalogEntry,
@@ -343,6 +373,7 @@ export const make = Effect.gen(function* () {
       return Effect.scoped(checkRoute(entry, route, ROUTE_CHECK_TIMEOUT_MS));
     }),
     preflight,
+    checkHost,
   });
 });
 
