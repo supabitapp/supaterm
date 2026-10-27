@@ -180,6 +180,8 @@ vp run mobile:e2e --platform android --pose pixel-fold-unfolded
 The host needs ffmpeg and the native build tools for its platform, including an installed iOS
 runtime or Android SDK system image. The runner creates its own devices and seeded backend,
 then removes them after the run. Local reports are written under `artifacts/mobile-e2e`.
+Native builds run before device startup. On a cache miss, use a clean worktree without existing
+`apps/mobile/ios` or `apps/mobile/android` directories; the runner refuses to overwrite them locally.
 Add `--review` to request an advisory screenshot review through an installed, authenticated
 Claude CLI; ordinary CI checks do not need an AI account.
 

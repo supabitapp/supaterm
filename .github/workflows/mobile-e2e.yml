@@ -57,7 +57,7 @@ jobs:
   mobile-e2e:
     name: Mobile layout (${{ matrix.platform }})
     runs-on: ${{ matrix.platform == 'ios' && 'xcode-27' || 'ubuntu-24.04' }}
-    timeout-minutes: 90
+    timeout-minutes: ${{ matrix.platform == 'ios' && 120 || 90 }}
     strategy:
       fail-fast: false
       matrix:
@@ -132,7 +132,7 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: ~/.cache/supaterm/mobile-e2e
-          key: mobile-e2e-${{ runner.os }}-${{ runner.arch }}-${{ steps.fingerprint.outputs.hash }}-v1
+          key: mobile-e2e-${{ runner.os }}-${{ runner.arch }}-${{ steps.fingerprint.outputs.hash }}-v2
           restore-keys: mobile-e2e-${{ runner.os }}-${{ runner.arch }}-${{ steps.fingerprint.outputs.hash }}-
       - name: Run mobile checks
         env:
@@ -143,8 +143,15 @@ jobs:
           read -r -a poses <<< "$E2E_POSES"
           for pose in "${poses[@]}"; do args+=(--pose "$pose"); done
           vp run mobile:e2e "${args[@]}"
+      - name: Check completed native client
+        id: native-client
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/mobile-e2e/native-client.txt" ]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          fi
       - name: Save native clients
-        if: always() && steps.native-cache.outputs.cache-hit != 'true' && steps.native-cache.outputs.cache-primary-key != ''
+        if: always() && steps.native-client.outputs.ready == 'true' && steps.native-cache.outputs.cache-hit != 'true' && steps.native-cache.outputs.cache-primary-key != ''
         uses: actions/cache/save@v5
         with:
           path: ~/.cache/supaterm/mobile-e2e
