@@ -112,7 +112,7 @@ function ProjectIconGlyphView(props: { readonly glyph: ProjectIconGlyph; readonl
   }
 
   if (glyph.kind === "icon") {
-    return <ProjectIconNodeView node={glyph.node} color={glyph.color} size={size} />;
+    return <ProjectIconNodeView glyph={glyph} size={size} />;
   }
 
   const colors = projectIconColorClassNames(glyph.color);
@@ -222,11 +222,10 @@ function ProjectFaviconImage(props: {
 }
 
 function ProjectIconNodeView(props: {
-  readonly node: Extract<ProjectIconGlyph, { kind: "icon" }>["node"];
-  readonly color: Extract<ProjectIconGlyph, { kind: "icon" }>["color"];
+  readonly glyph: Extract<ProjectIconGlyph, { kind: "icon" }>;
   readonly size: number;
 }) {
-  const { color } = useResolveClassNames(projectIconColorClassNames(props.color).text);
+  const { color } = useResolveClassNames(projectIconColorClassNames(props.glyph.color).text);
   return (
     <View
       style={{
@@ -236,7 +235,7 @@ function ProjectIconNodeView(props: {
         justifyContent: "center",
       }}
     >
-      <NodeIcon node={props.node} size={props.size * 0.8} color={color} />
+      <NodeIcon node={props.glyph.node} size={props.size * 0.8} color={color} />
     </View>
   );
 }

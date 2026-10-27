@@ -48,9 +48,12 @@ function normalizeAttrs(source: Attrs): Attrs {
     if ((key === "stroke-linecap" || key === "stroke-linejoin") && value === "round") continue;
     attrs[camel(key)] = value;
   }
-  if (!stroked) attrs.stroke = "none";
-  if (stroked && source["stroke-linecap"] === undefined) attrs.strokeLinecap = "butt";
-  if (stroked && source["stroke-linejoin"] === undefined) attrs.strokeLinejoin = "miter";
+  if (!stroked) {
+    attrs.stroke = "none";
+    return attrs;
+  }
+  if (source["stroke-linecap"] === undefined) attrs.strokeLinecap = "butt";
+  if (source["stroke-linejoin"] === undefined) attrs.strokeLinejoin = "miter";
   return attrs;
 }
 
