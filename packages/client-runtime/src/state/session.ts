@@ -18,6 +18,7 @@ import {
 } from "../connection/routeLatency.ts";
 import { connectionRouteId } from "../connection/routes.ts";
 import type { PreparedConnection } from "../connection/model.ts";
+import { RelayGateway } from "../relay/gateway.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import { safeErrorLogAttributes } from "../errors/safeLog.ts";
 import { executeAuthenticatedEnvironmentHttpRequest } from "./environmentHttpAuth.ts";
@@ -233,6 +234,13 @@ function makeEnvironmentSessionAtoms<R, E>(
     return { resultAtom, labelAtom };
   });
 
+  const relayGatewayResultAtom = runtime.atom(Effect.serviceOption(RelayGateway));
+  // The gateway, not what its tunnels report: a tunnel can move between relay
+  // and direct without notifying anyone, so rows ask it each time they render.
+  const relayGatewayAtom = Atom.make((get) =>
+    Option.getOrUndefined(Option.flatten(AsyncResult.value(get(relayGatewayResultAtom)))),
+  ).pipe(Atom.withLabel("relay-gateway"));
+
   return {
     initialConfigAtom,
     initialConfigValueAtom,
@@ -241,6 +249,7 @@ function makeEnvironmentSessionAtoms<R, E>(
     sessionStateAtom,
     sessionStateValueAtom,
     routeLatencyAtoms,
+    relayGatewayAtom,
   };
 }
 

@@ -45,7 +45,12 @@ itself paired over plain HTTP, so a token paired over HTTPS or the tailnet never
 starts travelling unencrypted. A tailnet label counts only on a tailnet address.
 
 A relay-paired token only travels inside the relay's end-to-end encrypted
-tunnel, so it never takes a plain HTTP route, tailnet included.
+tunnel: through the relay server, or straight to the host over the LAN or
+tailnet with the same handshake. It never takes a plain HTTP route, tailnet
+included. The direct tunnel pins the host identity from pairing, never one
+learned over plain HTTP, so its candidate addresses only need to be reachable.
+The host advertises them as `tunnelEndpoints`, apart from `directEndpoints`,
+because older clients turn every direct endpoint into a plain HTTP route.
 
 [GitHub routing trust](../../packages/client-runtime/src/connection/githubRoutingPermissions.ts)
 covers every user-saved route. Adding or changing an address revokes the grant;

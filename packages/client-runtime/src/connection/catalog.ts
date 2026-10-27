@@ -37,6 +37,8 @@ export class BearerConnectionProfile extends Schema.TaggedClass<BearerConnection
     learned: Schema.optionalKey(Schema.Literal(true)),
     network: Schema.optionalKey(Schema.Literal("tailscale")),
     relayUrl: Schema.optionalKey(Schema.String),
+    /** A relay route's direct tunnel candidates, from the host's `tunnelEndpoints`. */
+    directTunnelUrls: Schema.optionalKey(Schema.Array(Schema.String)),
   },
 ) {}
 

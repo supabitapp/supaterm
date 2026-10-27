@@ -10,6 +10,7 @@ import {
   connectionRouteLabel,
   connectionRoutes,
   isLearned,
+  relayRouteTransport,
   unusedRouteReason,
 } from "@supaterm/client-runtime/connection";
 import { type EnvironmentId, sessionGrantsScope } from "@supaterm/contracts";
@@ -32,6 +33,8 @@ import { connectionTone } from "../connection/connectionTone";
 import { SettingsActionRow } from "./components/SettingsActionRow";
 import { SettingsDragHandle } from "./components/SettingsDragHandle";
 import { SettingsSection } from "./components/SettingsSection";
+
+const TRANSPORT_LABELS = { direct: "Direct", relay: "Relay" };
 
 const ICON_SIZE = Platform.OS === "android" ? 24 : 22;
 const REMOVE_SIZE = 20;
@@ -265,6 +268,8 @@ function RouteRow(props: {
   const label = connectionRouteLabel(route);
   const address = connectionRouteAddress(route);
   const latency = useAtomValue(environmentSession.routeLatencyAtoms(route).labelAtom);
+  const transport = relayRouteTransport(route, useAtomValue(environmentSession.relayGatewayAtom));
+  const transportLabel = transport === undefined ? null : TRANSPORT_LABELS[transport];
   const style = useAnimatedStyle(() => ({
     transform: [
       {
@@ -306,6 +311,7 @@ function RouteRow(props: {
           address,
           isLearned(route) ? "Found automatically" : null,
           props.inUse ? "In use" : null,
+          transportLabel,
           props.unusedReason === null ? null : `Not used: ${props.unusedReason}`,
           `Latency: ${latency}`,
           `Route ${props.position} of ${props.count}`,
@@ -333,6 +339,9 @@ function RouteRow(props: {
             {props.inUse ? (
               <StatusPill {...connectionTone("connected")} label="In use" size="compact" />
             ) : null}
+            {transportLabel === null ? null : (
+              <Text className="shrink-0 text-sm text-foreground-muted">{transportLabel}</Text>
+            )}
             {props.unusedReason === null ? null : (
               <StatusPill {...connectionTone("unsupported")} label="Not used" size="compact" />
             )}

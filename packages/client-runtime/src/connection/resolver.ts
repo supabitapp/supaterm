@@ -156,7 +156,11 @@ const makeBearerBroker = Effect.fn("clientRuntime.connection.broker.makeBearer")
       return yield* credentialMissingError(target.connectionId);
     }
     const connectionMethod = parseRelayAddress(profile.httpBaseUrl) ? "relay" : "direct";
-    const httpBaseUrl = yield* resolveRelayOrigin(profile.httpBaseUrl, profile.relayUrl);
+    const httpBaseUrl = yield* resolveRelayOrigin(
+      profile.httpBaseUrl,
+      profile.relayUrl,
+      profile.directTunnelUrls ?? [],
+    );
     const authorized = yield* remote.authorizeBearer({
       expectedEnvironmentId: target.environmentId,
       httpBaseUrl,

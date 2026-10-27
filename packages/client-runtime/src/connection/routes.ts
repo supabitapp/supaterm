@@ -11,6 +11,7 @@ import {
   type EnvironmentId,
   type RelayConnectionInfo,
   type ServerConfig,
+  type ServerTunnelEndpoints,
 } from "@supaterm/contracts";
 import { canonicalRelayAddress } from "@supaterm/shared/relay/protocol";
 import * as Equal from "effect/Equal";
@@ -22,6 +23,7 @@ import {
   type ConnectionRoute,
 } from "./catalog.ts";
 import { BearerConnectionTarget, type ConnectionTarget } from "./model.ts";
+import type { RelayGateway, RelayTransport } from "../relay/gateway.ts";
 
 export type ConnectionRouteKind =
   | "loopback"
@@ -99,7 +101,11 @@ export function routesAt(
 
 export interface PairingFallback {
   readonly environmentId: EnvironmentId;
-  readonly routes: ReadonlyArray<{ readonly httpBaseUrl: string; readonly relayUrl?: string }>;
+  readonly routes: ReadonlyArray<{
+    readonly httpBaseUrl: string;
+    readonly relayUrl?: string;
+    readonly directTunnelUrls?: ReadonlyArray<string>;
+  }>;
 }
 
 /**
@@ -128,8 +134,13 @@ export function pairingFallbackRoutes(
     const profile = Option.getOrNull(route.profile);
     fallbacks.set(url.origin, {
       httpBaseUrl: url.href,
-      ...(profile?._tag === "BearerConnectionProfile" && profile.relayUrl !== undefined
-        ? { relayUrl: profile.relayUrl }
+      ...(profile?._tag === "BearerConnectionProfile"
+        ? {
+            ...(profile.relayUrl === undefined ? {} : { relayUrl: profile.relayUrl }),
+            ...(profile.directTunnelUrls === undefined
+              ? {}
+              : { directTunnelUrls: profile.directTunnelUrls }),
+          }
         : {}),
     });
   }
@@ -272,7 +283,7 @@ export const hasSavedBearerRoute = (entry: ConnectionCatalogEntry) =>
   connectionRoutes(entry).some((r) => !isLearned(r) && r.target._tag === "BearerConnectionTarget");
 
 export function advertisedConnectionRoutes(
-  config: Pick<ServerConfig, "environment" | "directEndpoints">,
+  config: Pick<ServerConfig, "environment" | "directEndpoints" | "tunnelEndpoints">,
 ) {
   const { relayEndpoint, relayUrl } = config.environment;
   let relayAdvertisement: RelayConnectionInfo | null | undefined;
@@ -281,7 +292,11 @@ export function advertisedConnectionRoutes(
   } else if (relayEndpoint === undefined && relayUrl === undefined) {
     relayAdvertisement = null;
   }
-  return { reported: config.directEndpoints, relayAdvertisement };
+  return {
+    reported: config.directEndpoints,
+    relayAdvertisement,
+    tunnelEndpoints: config.tunnelEndpoints ?? null,
+  };
 }
 
 export type ConnectionRouteAdvertisements = ReturnType<typeof advertisedConnectionRoutes>;
@@ -299,17 +314,40 @@ function validatedRelayAdvertisement(value: RelayConnectionInfo | null | undefin
 
 const advertisedRouteKey = (url: string) => canonicalRelayAddress(url) ?? url.replace(/\/+$/, "");
 
+function relayIdentity(address: string): string | null {
+  try {
+    return canonicalRelayAddress(address);
+  } catch {
+    return null;
+  }
+}
+
 export function mergeLearnedRoutes(input: {
   readonly entry: ConnectionCatalogEntry;
   readonly activeRoute: ConnectionRoute;
   readonly reported?: ReadonlyArray<ReportedEndpoint> | undefined;
   readonly relayAdvertisement?: RelayConnectionInfo | null | undefined;
+  /** `null` when the host advertises none, which clears the saved candidates. */
+  readonly tunnelEndpoints?: ServerTunnelEndpoints | null | undefined;
   readonly allowRelay?: boolean;
   readonly allowInsecure: boolean;
 }): ReadonlyArray<ConnectionRoute> | null {
+  const saved = connectionRoutes(input.entry);
+  const learned = learnAdvertisedRoutes(input, saved);
+  const { tunnelEndpoints } = input;
+  const next =
+    learned === null || tunnelEndpoints === undefined
+      ? learned
+      : learned.map((route) => withDirectTunnelUrls(route, tunnelEndpoints));
+  return next === null || Equal.equals(saved, next) ? null : next;
+}
+
+function learnAdvertisedRoutes(
+  input: Parameters<typeof mergeLearnedRoutes>[0],
+  saved: ReadonlyArray<ConnectionRoute>,
+): ReadonlyArray<ConnectionRoute> | null {
   const { entry } = input;
   const active = input.activeRoute.target;
-  const saved = connectionRoutes(entry);
   if (active._tag !== "BearerConnectionTarget") return null;
   const sharedCredential = credentialConnectionId(active.connectionId);
 
@@ -417,7 +455,35 @@ export function mergeLearnedRoutes(input: {
       ),
     });
   }
-  return Equal.equals(saved, next) ? null : next;
+  return next;
+}
+
+function withDirectTunnelUrls(
+  route: ConnectionRoute,
+  tunnelEndpoints: ServerTunnelEndpoints | null,
+): ConnectionRoute {
+  const profile = Option.getOrNull(route.profile);
+  if (profile?._tag !== "BearerConnectionProfile") return route;
+  const identity = relayIdentity(profile.httpBaseUrl);
+  if (identity === null) return route;
+  const urls =
+    tunnelEndpoints !== null && relayIdentity(tunnelEndpoints.address) === identity
+      ? tunnelEndpoints.urls
+      : [];
+  const saved = profile.directTunnelUrls ?? [];
+  if (saved.length === urls.length && saved.every((url, index) => url === urls[index])) {
+    return route;
+  }
+  const { directTunnelUrls: _previous, ...fields } = profile;
+  return {
+    target: route.target,
+    profile: Option.some(
+      new BearerConnectionProfile({
+        ...fields,
+        ...(urls.length === 0 ? {} : { directTunnelUrls: urls }),
+      }),
+    ),
+  };
 }
 
 function credentialRoute(
@@ -500,6 +566,17 @@ export function credentialAllowsAddress(credential: ConnectionRoute, httpBaseUrl
 export function usableRoutes(entry: ConnectionCatalogEntry): ReadonlyArray<ConnectionRoute> {
   const routes = connectionRoutes(entry);
   return routes.filter((route) => !sendsTokenInClear(routes, route));
+}
+
+/** Whether an open relay route's tunnel reaches the host directly or through the relay. */
+export function relayRouteTransport(
+  route: ConnectionRoute,
+  gateway: Pick<RelayGateway["Service"], "via"> | undefined,
+): RelayTransport | undefined {
+  const address = routeHttpBaseUrl(route);
+  return gateway === undefined || address === null || connectionRouteKind(route) !== "relay"
+    ? undefined
+    : gateway.via(address);
 }
 
 /** Why a connect skips a saved route, or null when it may use it. */

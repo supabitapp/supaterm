@@ -52,8 +52,11 @@ and WebSockets use the same encrypted tunnel. A relay address must be paired
 inside the app; opening it as a website does not load Supaterm.
 
 The host and client encrypt the connection end to end. The relay forwards
-encrypted bytes, including HTTP requests. A relay pairing never connects over
-plain HTTP; pair with `supaterm pair --no-relay` when you want that. If you paired a device through the relay before this
+encrypted bytes, including HTTP requests. When the host has **Network access**
+on and both devices share a network or tailnet, a relay pairing connects to the
+host directly over the same encrypted connection and skips the relay. A relay
+pairing never connects over plain HTTP; pair with `supaterm pair --no-relay`
+when you want that. If you paired a device through the relay before this
 update and used it on a network you don't trust, revoke it under **Settings →
 Connections → Authorized clients** on the host and pair it again.
 
@@ -131,8 +134,9 @@ and SSH. Pair it again using another address, or choose **Add route** from its
 route list. Both addresses belong to the same machine in your client.
 
 Supaterm also learns the LAN and Tailscale addresses reported by a paired
-machine. A relay pairing doesn't use plain HTTP addresses. The route list marks
-a saved route your client won't use as **Not used**, with the reason. Desktop, mobile,
+machine. A relay pairing doesn't use plain HTTP addresses; it reaches the host
+directly through its encrypted connection instead. The route list marks a saved
+route your client won't use as **Not used**, with the reason. Desktop, mobile,
 and browser clients using the local companion also learn its relay address once
 relay is activated, without rescanning. On a fresh
 host, create the first relay pairing link to activate it;

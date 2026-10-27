@@ -329,7 +329,8 @@ export const prepareBearerConnectionUpdate = Effect.fn(
     });
   }
   const connectionId = entry.target.connectionId;
-  const { relayUrl } = entry.profile.value;
+  const { relayUrl, directTunnelUrls } = entry.profile.value;
+  const sameAddress = httpBaseUrl === entry.profile.value.httpBaseUrl;
   return new BearerConnectionRegistration({
     target: new BearerConnectionTarget({
       environmentId: options.input.environmentId,
@@ -342,9 +343,8 @@ export const prepareBearerConnectionUpdate = Effect.fn(
       label,
       httpBaseUrl,
       wsBaseUrl: deriveWsBaseUrl(httpBaseUrl),
-      ...(relayUrl !== undefined && httpBaseUrl === entry.profile.value.httpBaseUrl
-        ? { relayUrl }
-        : {}),
+      ...(relayUrl !== undefined && sameAddress ? { relayUrl } : {}),
+      ...(directTunnelUrls !== undefined && sameAddress ? { directTunnelUrls } : {}),
     }),
     credential: credential.value,
   });

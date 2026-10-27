@@ -23,8 +23,9 @@ const reachDescriptor = Effect.fnUntraced(
     source: "linked" | "saved" | "hint",
     expectedEnvironmentId: EnvironmentId | undefined,
     relayUrl?: string,
+    directTunnelUrls?: ReadonlyArray<string>,
   ) {
-    const { origin, retain } = yield* leaseRelayOrigin(httpBaseUrl, relayUrl);
+    const { origin, retain } = yield* leaseRelayOrigin(httpBaseUrl, relayUrl, directTunnelUrls);
     const descriptor = yield* fetchRemoteEnvironmentDescriptor({ httpBaseUrl: origin }).pipe(
       Effect.mapError(mapRemoteEnvironmentError),
     );
@@ -90,12 +91,13 @@ export const reachPairingServer = Effect.fn("clientRuntime.connection.pairing.re
     if (Option.isSome(answered)) return answered.value;
     return yield* Effect.raceAll([
       Fiber.join(linked),
-      ...[...candidates.values()].map(({ httpBaseUrl, source, relayUrl }) =>
+      ...[...candidates.values()].map(({ httpBaseUrl, source, relayUrl, directTunnelUrls }) =>
         reachDescriptor(
           httpBaseUrl,
           source,
           input.expectedEnvironmentId ?? input.fallback?.environmentId,
           relayUrl,
+          directTunnelUrls,
         ),
       ),
     ]).pipe(Effect.catch(() => Fiber.join(linked)));

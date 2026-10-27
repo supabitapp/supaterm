@@ -567,8 +567,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
       Stream.changesWith<ConnectionRouteAdvertisements>(Equal.equals),
       Stream.runForEach((advertised) =>
         Effect.gen(function* () {
-          if (advertised.reported === undefined && advertised.relayAdvertisement === undefined)
-            return;
           const activeId = connectionRouteId(lease.prepared.target);
           const previousEntry = yield* Ref.get(currentEntry);
           const activeRoute = connectionRoutes(previousEntry).find(

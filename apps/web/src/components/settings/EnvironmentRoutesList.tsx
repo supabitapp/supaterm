@@ -25,6 +25,7 @@ import {
   connectionRouteLabel,
   connectionRoutes,
   isLearned,
+  relayRouteTransport,
   unusedRouteReason,
 } from "@supaterm/client-runtime/connection";
 import { GripVerticalIcon, LockIcon, PlusIcon, RefreshCwIcon, XIcon } from "@supaterm/icons";
@@ -154,6 +155,11 @@ export function EnvironmentRoutesList({
   );
 }
 
+const TRANSPORT_LABELS = {
+  direct: { label: "Direct", detail: "Encrypted tunnel straight to the host" },
+  relay: { label: "Relay", detail: "Encrypted tunnel through the relay server" },
+};
+
 function SortableRouteRow({
   route,
   position,
@@ -173,6 +179,7 @@ function SortableRouteRow({
   const label = connectionRouteLabel(route);
   const address = connectionRouteAddress(route);
   const latency = useAtomValue(environmentSession.routeLatencyAtoms(route).labelAtom);
+  const transport = relayRouteTransport(route, useAtomValue(environmentSession.relayGatewayAtom));
   const {
     attributes,
     listeners,
@@ -214,6 +221,16 @@ function SortableRouteRow({
           {inUse ? (
             <span className="text-2xs font-normal text-success-foreground">In use</span>
           ) : null}
+          {transport === undefined ? null : (
+            <Tooltip>
+              <TooltipTrigger
+                render={<span className="text-2xs font-normal text-muted-foreground" />}
+              >
+                {TRANSPORT_LABELS[transport].label}
+              </TooltipTrigger>
+              <TooltipPopup side="top">{TRANSPORT_LABELS[transport].detail}</TooltipPopup>
+            </Tooltip>
+          )}
           {unusedReason === null ? null : (
             <span className="text-2xs font-normal text-warning-foreground">Not used</span>
           )}

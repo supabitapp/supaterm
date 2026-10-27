@@ -947,6 +947,7 @@ export const make = Effect.gen(function* () {
           activeRoute: input.activeRoute,
           reported: input.reported,
           relayAdvertisement: input.relayAdvertisement,
+          tunnelEndpoints: input.tunnelEndpoints,
           allowRelay,
           allowInsecure:
             typeof globalThis.location === "undefined" || globalThis.location.protocol !== "https:",
