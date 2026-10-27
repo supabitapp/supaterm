@@ -398,12 +398,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const showResumeAction =
     !hasContent && !showStopAction && queuedEdit === null && onResumeQueue !== null;
   const suggestedPrompt = props.suggestedPrompt ?? null;
-  const showSuggestionAction =
-    !hasContent &&
-    !showStopAction &&
-    !showResumeAction &&
-    queuedEdit === null &&
-    suggestedPrompt !== null;
+  const showSuggestionAction = !hasContent && queuedEdit === null && suggestedPrompt !== null;
   const applySuggestedPrompt = () => {
     if (suggestedPrompt === null) return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
