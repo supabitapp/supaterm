@@ -51,14 +51,7 @@ import { usePasteToFocusComposer } from "./chat/usePasteToFocusComposer";
 import { useDraftHeroLayoutTransition } from "./chat/useDraftHeroLayoutTransition";
 import { useLocalDispatchState } from "./chat/useLocalDispatchState";
 import { draftFanoutSelectionsAtom, draftSendState } from "./chat/chatViewSend";
-import {
-  isPaintOnlyThreadTimeline,
-  peekHeldThreadTimeline,
-  peekRememberedThreadTimeline,
-  resolveThreadSwitchTimeline,
-  recallCheckoutIsRepo,
-  rememberCheckoutIsRepo,
-} from "./ChatView.logic";
+import { recallCheckoutIsRepo, rememberCheckoutIsRepo } from "./ChatView.logic";
 import { useAddProjectTargets } from "../hooks/useAddProjectTargets";
 import { useLogicalProjectEnvironments } from "../hooks/useLogicalProjectEnvironments";
 import { useStableCallback } from "../hooks/useStableCallback";
@@ -93,7 +86,6 @@ import {
   type ScopedThreadRef,
   type ThreadId,
   type ThreadPinnedMessage,
-  type RunId,
   ProviderInteractionMode,
   RuntimeMode,
 } from "@supaterm/contracts";
@@ -432,11 +424,6 @@ function isAnimatingSize(element: Element): boolean {
           .some((keyframe) => "height" in keyframe || "gridTemplateRows" in keyframe),
     );
 }
-
-const EMPTY_HELD_TURN_DIFF_SUMMARIES: readonly never[] = [];
-const noopHeldTurnDiff = (_turnId: RunId, _filePath?: string) => {};
-const noopHeldRevert = (_targetTurnCount: number) => {};
-const noopHeldAttachment = (_attachment: ChatFileAttachment) => {};
 
 function useChatComposerRef() {
   const localComposerRef = useRef<ChatComposerHandle | null>(null);
@@ -1590,18 +1577,7 @@ export default function ChatView(props: ChatViewProps) {
     entry.kind === "message" ? [entry.message] : [],
   );
   const timelineEmpty = timelineEntries.length === 0 && !hasStreamedTimelineRows;
-  const displayedTimeline = resolveThreadSwitchTimeline({
-    loading: timelineEmpty && threadSyncPhase !== null,
-    activeThreadKey,
-    nextEntries: timelineEntries,
-    rememberedForActive: peekRememberedThreadTimeline<typeof timelineEntries>(activeThreadKey),
-    scope: paneScope?.paneId,
-  });
-  const displayedTimelineKey = displayedTimeline.displayThreadKey ?? routeThreadKey;
-  const paintOnlyDisplayedTimeline = isPaintOnlyThreadTimeline(
-    displayedTimeline.displayThreadKey,
-    activeThreadKey,
-  );
+  const displayedTimelineKey = activeThreadKey ?? routeThreadKey;
   const displayedThreadRef = parseScopedThreadKey(displayedTimelineKey);
   const {
     worktreeSetup,
@@ -1725,9 +1701,6 @@ export default function ChatView(props: ChatViewProps) {
   const activeProjectCwd = activeProject?.workspaceRoot ?? null;
   const activeThreadWorktreePath = activeThread?.worktreePath ?? null;
   const activeWorkspaceRoot = activeThreadWorktreePath ?? activeProjectCwd ?? undefined;
-  const heldPaintContext = paintOnlyDisplayedTimeline
-    ? peekHeldThreadTimeline<typeof timelineEntries>(paneScope?.paneId)
-    : null;
   const activeTerminalLaunchContext =
     terminalUiLaunchContext?.threadId === activeThreadId ? terminalUiLaunchContext : null;
   const liveIsGitRepo = gitStatusQuery.data?.isRepo;
@@ -2855,8 +2828,7 @@ export default function ChatView(props: ChatViewProps) {
   const timelineSkills = activeProviderStatus
     ? resolveProviderSkillsForCwd(activeProviderStatus, gitCwd)
     : EMPTY_PROVIDER_SKILLS;
-  const threadFindEnabled =
-    isServerThread && serverConfig?.threadFind === true && !paintOnlyDisplayedTimeline;
+  const threadFindEnabled = isServerThread && serverConfig?.threadFind === true;
   const isThreadFindActive = useThreadFindOpen(activeThreadRef, threadFindEnabled);
 
   const respondToActiveApproval = (decision: "accept" | "decline", repeat: boolean) => {
@@ -3488,66 +3460,43 @@ export default function ChatView(props: ChatViewProps) {
                     activeThreadKey={activeThreadKey}
                     syncing={threadSyncPhase !== null}
                     detailLoading={threadDetailLoading}
-                    readyMarkdownCwd={gitCwd}
-                    readyWorkspaceRoot={activeWorkspaceRoot ?? null}
-                    timelineScope={paneScope?.paneId}
-                    citationRequest={paintOnlyDisplayedTimeline ? null : citationRequest}
+                    citationRequest={citationRequest}
                     citationHistory={citationHistory}
-                    {...(!paintOnlyDisplayedTimeline
-                      ? {
-                          onCiteAssistantText: citeAssistantTextStable,
-                          ...(activeProject ? { onRunShellCommand: runShellCommandStable } : {}),
-                        }
-                      : {})}
-                    isWorking={!paintOnlyDisplayedTimeline && isWorking}
+                    onCiteAssistantText={citeAssistantTextStable}
+                    {...(activeProject ? { onRunShellCommand: runShellCommandStable } : {})}
+                    isWorking={isWorking}
                     runlessWorkActive={runlessWorkStartedAt !== null}
-                    activeTurnInProgress={
-                      !paintOnlyDisplayedTimeline && (isWorking || !latestRunSettled)
-                    }
-                    isCompacting={!paintOnlyDisplayedTimeline && isCompacting}
+                    activeTurnInProgress={isWorking || !latestRunSettled}
+                    isCompacting={isCompacting}
                     awaitingUser={
-                      paintOnlyDisplayedTimeline
-                        ? null
-                        : activePendingApproval !== null
-                          ? "approval"
-                          : activePendingUserInput !== null ||
-                              activeThreadShell?.hasPendingUserInput === true
-                            ? "input"
-                            : null
+                      activePendingApproval !== null
+                        ? "approval"
+                        : activePendingUserInput !== null ||
+                            activeThreadShell?.hasPendingUserInput === true
+                          ? "input"
+                          : null
                     }
                     awaitingRequestId={
-                      paintOnlyDisplayedTimeline
-                        ? null
-                        : (activePendingApproval?.requestId ??
-                          activePendingUserInput?.requestId ??
-                          null)
+                      activePendingApproval?.requestId ?? activePendingUserInput?.requestId ?? null
                     }
-                    announcedRun={
-                      paintOnlyDisplayedTimeline
-                        ? null
-                        : announcedRun(activeActivityRun, serverProjection?.runs ?? [])
-                    }
-                    detailBehindShell={
-                      !paintOnlyDisplayedTimeline &&
-                      isDetailBehindShell(activeLatestRun, activeThreadShell?.latestRun ?? null)
-                    }
+                    announcedRun={announcedRun(activeActivityRun, serverProjection?.runs ?? [])}
+                    detailBehindShell={isDetailBehindShell(
+                      activeLatestRun,
+                      activeThreadShell?.latestRun ?? null,
+                    )}
                     announceTurnStatus={!isProviderSubagent}
-                    activeTurnStartedAt={paintOnlyDisplayedTimeline ? null : activeWorkStartedAt}
-                    worktreeSetup={paintOnlyDisplayedTimeline ? null : worktreeSetup}
+                    activeTurnStartedAt={activeWorkStartedAt}
+                    worktreeSetup={worktreeSetup}
                     onCancelWorktreeSetup={onCancelWorktreeSetupStable}
-                    {...(paintOnlyDisplayedTimeline
-                      ? {}
-                      : {
-                          retryableWorkspacePreparationRunIds,
-                          onRetryWorkspacePreparation: onRetryWorkspacePreparationStable,
-                        })}
+                    retryableWorkspacePreparationRunIds={retryableWorkspacePreparationRunIds}
+                    onRetryWorkspacePreparation={onRetryWorkspacePreparationStable}
                     {...(draftId
                       ? { onWorktreeSetupWorkLocally: onWorktreeSetupWorkLocallyStable }
                       : {})}
                     {...(onOpenWorktreeSetupTerminal ? { onOpenWorktreeSetupTerminal } : {})}
-                    isPreparingWorktree={!paintOnlyDisplayedTimeline && isPreparingWorktree}
+                    isPreparingWorktree={isPreparingWorktree}
                     footer={
-                      paintOnlyDisplayedTimeline ? null : pendingHandoff === null ? (
+                      pendingHandoff === null ? (
                         threadStatusLine
                       ) : (
                         <>
@@ -3564,70 +3513,41 @@ export default function ChatView(props: ChatViewProps) {
                       )
                     }
                     listRef={legendListRef}
-                    runs={paintOnlyDisplayedTimeline ? [] : (serverProjection?.runs ?? [])}
-                    latestRun={paintOnlyDisplayedTimeline ? null : activeActivityRun}
-                    runningRunId={paintOnlyDisplayedTimeline ? null : activeRunningTurnId}
-                    turnDiffSummaries={
-                      paintOnlyDisplayedTimeline
-                        ? EMPTY_HELD_TURN_DIFF_SUMMARIES
-                        : turnDiffSummaries
-                    }
+                    runs={serverProjection?.runs ?? []}
+                    latestRun={activeActivityRun}
+                    runningRunId={activeRunningTurnId}
+                    turnDiffSummaries={turnDiffSummaries}
                     activeThreadEnvironmentId={
                       displayedThreadRef?.environmentId ?? activeThread.environmentId
                     }
                     routeThreadKey={displayedTimelineKey}
                     displayThreadKey={displayedTimelineKey}
-                    paintOnly={paintOnlyDisplayedTimeline}
-                    onOpenTurnDiff={
-                      paintOnlyDisplayedTimeline ? noopHeldTurnDiff : onOpenTurnDiffStable
-                    }
+                    onOpenTurnDiff={onOpenTurnDiffStable}
                     onOpenThread={onOpenRelatedThreadStable}
-                    parentThreadLink={paintOnlyDisplayedTimeline ? null : parentThreadLink}
-                    workflowOpening={paintOnlyDisplayedTimeline ? null : workflowOpening}
-                    onForkFromRun={
-                      paintOnlyDisplayedTimeline ? async () => {} : onForkFromRunStable
-                    }
-                    supportsConversationRollback={
-                      !paintOnlyDisplayedTimeline && supportsConversationRollback
-                    }
+                    parentThreadLink={parentThreadLink}
+                    workflowOpening={workflowOpening}
+                    onForkFromRun={onForkFromRunStable}
+                    supportsConversationRollback={supportsConversationRollback}
                     threadStartCheckpointReady={threadStartCheckpointReady}
                     availableRevertTurnCounts={availableRevertTurnCounts}
-                    onRevertToTurnCount={
-                      paintOnlyDisplayedTimeline ? noopHeldRevert : onRevertTimelineTurnStable
-                    }
-                    {...(!paintOnlyDisplayedTimeline
-                      ? {
-                          onUseArtifactTemplate: insertArtifactTemplateStable,
-                          onSendAppMessage: sendAppMessageStable,
-                        }
-                      : {})}
+                    onRevertToTurnCount={onRevertTimelineTurnStable}
+                    onUseArtifactTemplate={insertArtifactTemplateStable}
+                    onSendAppMessage={sendAppMessageStable}
                     isRevertingCheckpoint={isRevertingCheckpoint}
                     onImageExpand={onExpandTimelineImageStable}
-                    onFileOpen={
-                      paintOnlyDisplayedTimeline ? noopHeldAttachment : openFileAttachmentStable
-                    }
-                    onFileDownload={
-                      paintOnlyDisplayedTimeline ? noopHeldAttachment : downloadFileAttachmentStable
-                    }
-                    markdownCwd={
-                      paintOnlyDisplayedTimeline
-                        ? (heldPaintContext?.markdownCwd ?? undefined)
-                        : (gitCwd ?? undefined)
-                    }
+                    onFileOpen={openFileAttachmentStable}
+                    onFileDownload={downloadFileAttachmentStable}
+                    markdownCwd={gitCwd ?? undefined}
                     resolvedTheme={resolvedTheme}
                     timestampFormat={timestampFormat}
-                    workspaceRoot={
-                      paintOnlyDisplayedTimeline
-                        ? (heldPaintContext?.workspaceRoot ?? undefined)
-                        : activeWorkspaceRoot
-                    }
+                    workspaceRoot={activeWorkspaceRoot}
                     skills={timelineSkills}
-                    anchorMessageId={paintOnlyDisplayedTimeline ? null : timelineAnchorMessageId}
+                    anchorMessageId={timelineAnchorMessageId}
                     onAnchorReady={onTimelineAnchorReadyStable}
                     onAnchorSizeChanged={onTimelineAnchorSizeChangedStable}
                     contentInsetEndAdjustment={composerTimelineInset}
                     emptyPlaceholderInset={composerReservedHeight}
-                    liveFollowEnabled={!paintOnlyDisplayedTimeline && timelineLiveFollowEnabled}
+                    liveFollowEnabled={timelineLiveFollowEnabled}
                     onIsAtEndChange={onIsAtEndChangeStable}
                     onContentOverflowChange={setTimelineOverflows}
                     onToolOutputCollapsedAtEnd={onToolOutputCollapsedAtEndStable}
@@ -3635,22 +3555,17 @@ export default function ChatView(props: ChatViewProps) {
                     hideEmptyPlaceholder={isDraftHeroState}
                     loading={!isDraftHeroState && threadDetailLoading}
                     topFadeEnabled={!hasTimelineTopBanner}
-                    {...(paintOnlyDisplayedTimeline || threadHistoryControls === undefined
+                    {...(threadHistoryControls === undefined
                       ? {}
                       : { historyControls: threadHistoryControls })}
-                    {...(paintOnlyDisplayedTimeline
-                      ? {}
-                      : {
-                          pinnedMessages,
-                          ...(canOperateThread
-                            ? { onTogglePinnedMessage: togglePinnedMessageStable }
-                            : {}),
-                          messageJump:
-                            pinnedMessageJump?.threadKey === routeThreadKey
-                              ? pinnedMessageJump
-                              : null,
-                          onMessageJumpFailed: reportPinnedMessageJumpFailureStable,
-                        })}
+                    pinnedMessages={pinnedMessages}
+                    {...(canOperateThread
+                      ? { onTogglePinnedMessage: togglePinnedMessageStable }
+                      : {})}
+                    messageJump={
+                      pinnedMessageJump?.threadKey === routeThreadKey ? pinnedMessageJump : null
+                    }
+                    onMessageJumpFailed={reportPinnedMessageJumpFailureStable}
                   />
 
                   <ScrollToEndPill

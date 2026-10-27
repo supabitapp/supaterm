@@ -26,9 +26,6 @@ export function ThreadTimeline({
   activeThreadKey,
   syncing,
   detailLoading,
-  readyMarkdownCwd,
-  readyWorkspaceRoot,
-  timelineScope,
   ...timelineProps
 }: Omit<ComponentProps<typeof MessagesTimeline>, "timelineEntries"> & {
   /** Null until the thread's detail may load; see resolveThreadDetailRef. */
@@ -39,10 +36,6 @@ export function ThreadTimeline({
   activeThreadKey: string | null;
   syncing: boolean;
   detailLoading: boolean;
-  readyMarkdownCwd: string | null;
-  readyWorkspaceRoot: string | null;
-  /** The chat pane whose last ready timeline this one becomes. */
-  timelineScope: string | undefined;
 }) {
   const visibleTurnItems = useThreadVisibleTurnItems(threadDetailRef);
   const [projectTimelineEntries] = useState(createTimelineEntriesProjector);
@@ -51,33 +44,17 @@ export function ThreadTimeline({
     activeThreadKey,
   );
   const entries = draftEntries ?? serverEntries;
-  const displayed = resolveThreadSwitchTimeline({
+  const displayedEntries = resolveThreadSwitchTimeline({
     loading: entries.length === 0 && syncing,
     activeThreadKey,
     nextEntries: entries,
     rememberedForActive: peekRememberedThreadTimeline<typeof entries>(activeThreadKey),
-    scope: timelineScope,
   });
   useLayoutEffect(() => {
     if (detailLoading || entries.length === 0 || timelineHasEphemeralPreviewUrls(entries)) {
       return;
     }
-    rememberReadyThreadTimeline(
-      {
-        threadKey: activeThreadKey,
-        entries,
-        markdownCwd: readyMarkdownCwd,
-        workspaceRoot: readyWorkspaceRoot,
-      },
-      timelineScope,
-    );
-  }, [
-    activeThreadKey,
-    detailLoading,
-    entries,
-    readyMarkdownCwd,
-    readyWorkspaceRoot,
-    timelineScope,
-  ]);
-  return <MessagesTimeline {...timelineProps} timelineEntries={displayed.entries} />;
+    rememberReadyThreadTimeline({ threadKey: activeThreadKey, entries });
+  }, [activeThreadKey, detailLoading, entries]);
+  return <MessagesTimeline {...timelineProps} timelineEntries={displayedEntries} />;
 }
