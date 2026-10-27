@@ -43,6 +43,19 @@ describe("findPromptLinkProjects", () => {
     expect(ids("me", "supacode-next")).toEqual(["fork"]);
     expect(ids("gitlab", "x")).toEqual([]);
   });
+
+  it("matches a checkout of the repository's GitCafe mirror", () => {
+    const projects = [
+      { id: "gitcafe", repositoryIdentity: identity("git.cafe/supabitapp/supaterm") },
+      { id: "staging", repositoryIdentity: identity("staging.git.cafe/supabitapp/supaterm") },
+      { id: "gitlab", repositoryIdentity: identity("gitlab.com/supabitapp/supaterm") },
+    ];
+    expect(
+      findPromptLinkProjects(projects, { owner: "supabitapp", name: "supaterm" }).map(
+        (project) => project.id,
+      ),
+    ).toEqual(["gitcafe", "staging"]);
+  });
 });
 
 describe("pickPromptLinkPullRequestThread", () => {
