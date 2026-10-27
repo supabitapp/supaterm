@@ -54,7 +54,7 @@ import {
 } from "../../onboarding/providerReadiness.logic";
 import { newProjectId, randomUUID } from "../../lib/utils";
 import { agentSessionImport } from "../../state/agentSessions";
-import { readProjects, useProjects } from "../../state/entities";
+import { readProjects, waitForProject } from "../../state/entities";
 import { useEnvironments, usePrimaryEnvironment } from "../../state/environments";
 import { resolveOnboardingSetup } from "../../onboarding/targetEnvironment.logic";
 import { useProjectScans } from "../../onboarding/useProjectScans";
@@ -1071,14 +1071,9 @@ function ImportStep({
   const writableEnvironments = useEnvironmentsWithScope(scans, AuthOrchestrationOperateScope);
   const createProject = useAtomCommand(projectEnvironment.create, { reportFailure: false });
   const importThreads = useAtomCommand(agentSessionImport, { reportFailure: false });
-  const projects = useProjects();
   const [selectedPaths, setSelectedPaths] = useState<ReadonlySet<string> | null>(null);
   const importWarningRef = useRef("");
   const importedThreadCountRef = useRef(0);
-  const [landingRequest, setLandingRequest] = useState<{
-    readonly projectRef: ScopedProjectRef;
-  } | null>(null);
-  const handledLandingRequestRef = useRef<typeof landingRequest>(null);
   const importedProjectsRef = useRef(new Map<string, ScopedProjectRef>());
   const projectsWithImportedHistoryRef = useRef(new Map<string, ScopedProjectRef>());
   const lastImportSelectionRef = useRef<ReadonlyArray<string>>([]);
@@ -1093,25 +1088,6 @@ function ImportStep({
       importGenerationRef.current += 1;
     };
   }, []);
-
-  useEffect(() => {
-    if (landingRequest === null || handledLandingRequestRef.current === landingRequest) return;
-    const landingProject = landingRequest.projectRef;
-    if (
-      projects.some(
-        (project) =>
-          project.id === landingProject.projectId &&
-          project.environmentId === landingProject.environmentId,
-      )
-    ) {
-      handledLandingRequestRef.current = landingRequest;
-      void onDone(landingProject, importWarningRef.current, importedThreadCountRef.current).then(
-        (completed) => {
-          if (!completed) setIsImporting(false);
-        },
-      );
-    }
-  }, [landingRequest, onDone, projects, setIsImporting]);
 
   const { available: candidates, recent } = partitionOnboardingProjects(
     scans.flatMap((scan) =>
@@ -1146,7 +1122,23 @@ function ImportStep({
       return;
     }
     setIsImporting(true);
-    setLandingRequest({ projectRef });
+    const importGeneration = importGenerationRef.current;
+    // waitForProject gives up after its timeout, so a project that never reaches the client
+    // still finishes setup, just without landing in it.
+    void waitForProject(projectRef)
+      .then(
+        () => projectRef,
+        () => undefined,
+      )
+      .then(async (landing) => {
+        if (importGeneration !== importGenerationRef.current) return;
+        const completed = await onDone(
+          landing,
+          importWarningRef.current,
+          importedThreadCountRef.current,
+        );
+        if (!completed) setIsImporting(false);
+      });
   };
 
   const runImport = async (selection: typeof candidates) => {
