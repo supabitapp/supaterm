@@ -1,11 +1,11 @@
 import {
   ArrowLeftIcon,
-  ChartNoAxesColumnIcon,
-  CircleQuestionMarkIcon,
+  ChartColumnIcon,
+  CircleHelpIcon,
   GlobeIcon,
   MessageSquareTextIcon,
   SettingsIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 import type { MouseEvent, ReactNode } from "react";
 import { memo } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
@@ -163,7 +163,7 @@ function SidebarHelpItem({ closeMobileSidebar }: { closeMobileSidebar: () => voi
           <TooltipTrigger
             render={<MenuTrigger render={<SidebarMenuButton aria-label="Help" size="icon" />} />}
           >
-            <CircleQuestionMarkIcon />
+            <CircleHelpIcon />
           </TooltipTrigger>
           <TooltipPopup side="top">Help</TooltipPopup>
         </Tooltip>
@@ -287,7 +287,7 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu({
             />
           ) : null}
           <SidebarUtilityItem
-            icon={<ChartNoAxesColumnIcon />}
+            icon={<ChartColumnIcon />}
             label="Usage"
             shortcut={usageShortcut}
             onClick={handleUsageClick}

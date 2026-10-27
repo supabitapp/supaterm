@@ -4,7 +4,7 @@ import {
 } from "@supaterm/client-runtime/operations/projects";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import type { SourceControlProviderKind } from "@supaterm/contracts";
-import { FolderGit2Icon, LinkIcon } from "lucide-react";
+import { FolderGitIcon, LinkIcon } from "@supaterm/icons";
 import { type ReactNode, useState } from "react";
 
 import { sourceControlIcon } from "~/sourceControlPresentation";
@@ -131,7 +131,7 @@ export function NewProjectSummary(props: {
     <div className="p-2 pb-0">
       <div className="flex min-h-8 items-center gap-2 rounded-sm px-2 py-1.5">
         <CommandPaletteTitleIcon>
-          <FolderGit2Icon className={ITEM_ICON_CLASS} />
+          <FolderGitIcon className={ITEM_ICON_CLASS} />
         </CommandPaletteTitleIcon>
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-foreground text-sm">

@@ -4,7 +4,7 @@ import type {
   PullRequestRef,
   PullRequestReviewerCandidate,
 } from "@supaterm/contracts";
-import { CheckIcon, UserPlusIcon } from "lucide-react";
+import { CheckIcon, UserPlusIcon } from "@supaterm/icons";
 import { useState } from "react";
 
 import { pullRequestEnvironment } from "~/state/pullRequests";

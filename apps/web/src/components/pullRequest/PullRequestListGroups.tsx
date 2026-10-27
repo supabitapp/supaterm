@@ -1,5 +1,5 @@
 import type { EnvironmentId, PullRequestAction } from "@supaterm/contracts";
-import { EyeIcon, LayersIcon, PenLineIcon, UsersIcon, type LucideIcon } from "lucide-react";
+import { EyeIcon, type IconComponent, LayersIcon, PenLineIcon, UsersIcon } from "@supaterm/icons";
 import type { RefCallback } from "react";
 
 import { cn } from "~/lib/utils";
@@ -16,7 +16,7 @@ import {
   type PullRequestSpeedActionResult,
 } from "./PullRequestSpeedActions";
 
-const GROUP_ICONS: Record<string, LucideIcon> = {
+const GROUP_ICONS: Record<string, IconComponent> = {
   authored: PenLineIcon,
   reviewRequested: EyeIcon,
   others: UsersIcon,

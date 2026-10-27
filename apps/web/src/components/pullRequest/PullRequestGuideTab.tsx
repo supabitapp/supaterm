@@ -3,7 +3,7 @@ import type {
   PullRequestRef,
   PullRequestReviewGuideStop,
 } from "@supaterm/contracts";
-import { SparklesIcon, TriangleAlertIcon } from "lucide-react";
+import { SparklesIcon, TriangleAlertIcon } from "@supaterm/icons";
 import { useEffect, useEffectEvent } from "react";
 
 import type { ReviewCommentContext } from "~/reviewCommentContext";

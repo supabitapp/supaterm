@@ -3,15 +3,15 @@ import { AuthEnvironmentMaintainScope } from "@supaterm/contracts";
 import { RefreshIcon } from "~/components/ui/refresh-icon";
 import {
   ActivityIcon,
-  AlertTriangleIcon,
   BatteryIcon,
   CpuIcon,
   DatabaseIcon,
   GaugeIcon,
   HardDriveIcon,
   MemoryStickIcon,
-} from "lucide-react";
-import { ChevronDown, ChevronRight } from "lucide";
+  TriangleAlertIcon,
+} from "@supaterm/icons";
+import { ChevronDown, ChevronRight } from "@supaterm/icons/nodes";
 import type {
   BackgroundBooleanState,
   EnvironmentId,
@@ -1022,7 +1022,7 @@ export function ResourceTelemetryDiagnostics({
           </div>
           {telemetry.error ? (
             <div className="flex items-start gap-2 border-t border-destructive/20 bg-destructive/5 px-4 py-3 text-xs text-destructive sm:px-5">
-              <AlertTriangleIcon className="size-3.5 h-lh shrink-0" />
+              <TriangleAlertIcon className="size-3.5 h-lh shrink-0" />
               <span>{telemetry.error}</span>
             </div>
           ) : null}
@@ -1200,7 +1200,7 @@ export function ResourceTelemetryDiagnostics({
         <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-xs/5">
           {history.error ? (
             <div className="flex items-start gap-2 border-b border-destructive/20 bg-destructive/5 px-4 py-3 text-xs text-destructive sm:px-5">
-              <AlertTriangleIcon className="size-3.5 h-lh shrink-0" />
+              <TriangleAlertIcon className="size-3.5 h-lh shrink-0" />
               <span>{history.error}</span>
             </div>
           ) : null}

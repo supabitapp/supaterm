@@ -12,8 +12,8 @@ import {
   MinusIcon,
   TerminalIcon,
   XIcon,
-} from "lucide-react";
-import { ChevronDown, ChevronRight } from "lucide";
+} from "@supaterm/icons";
+import { ChevronDown, ChevronRight } from "@supaterm/icons/nodes";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";

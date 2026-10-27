@@ -5,9 +5,9 @@ import {
   PaintbrushIcon,
   PenLineIcon,
   PlusIcon,
-  Trash2Icon,
+  TrashIcon,
   UploadIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 import { useId, useState } from "react";
 import { BUILT_IN_THEMES } from "@supaterm/shared/themePalettes";
 import { useEnvironmentThemeDefinitions } from "../../hooks/useEnvironmentTheme";
@@ -411,7 +411,7 @@ export function ThemeLibrary({
                 </MenuItem>
                 <MenuSeparator />
                 <MenuItem variant="destructive" onClick={() => openThemeRemoval(selected)}>
-                  <Trash2Icon />
+                  <TrashIcon />
                   Remove theme…
                 </MenuItem>
               </>

@@ -1,5 +1,5 @@
 import { RefreshIcon } from "~/components/ui/refresh-icon";
-import { ExternalLinkIcon, PackagePlusIcon, PaletteIcon, SearchIcon } from "lucide-react";
+import { ExternalLinkIcon, PackagePlusIcon, PaletteIcon, SearchIcon } from "@supaterm/icons";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   importOpenVsxThemeExtension,

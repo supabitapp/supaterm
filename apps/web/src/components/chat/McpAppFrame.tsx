@@ -17,7 +17,7 @@ import {
   mcpAppFileName,
   type McpAppReference,
 } from "@supaterm/shared/mcpApp";
-import { Minimize2Icon } from "lucide-react";
+import { ShrinkIcon } from "@supaterm/icons";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 
@@ -414,7 +414,7 @@ export function McpAppFrame(props: {
               variant="ghost"
               onClick={() => setDisplayMode("inline")}
             >
-              <Minimize2Icon className="size-4" />
+              <ShrinkIcon className="size-4" />
             </Button>
           </div>
         ) : null}

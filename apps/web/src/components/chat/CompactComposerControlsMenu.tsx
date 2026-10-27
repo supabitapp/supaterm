@@ -1,6 +1,6 @@
 import { RuntimeMode, type ResolvedKeybindingsConfig } from "@supaterm/contracts";
 import { memo, type ReactNode } from "react";
-import { EllipsisIcon } from "lucide-react";
+import { EllipsisIcon } from "@supaterm/icons";
 import {
   Menu,
   MenuPopup,

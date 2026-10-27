@@ -1,4 +1,4 @@
-import { ClockIcon } from "lucide-react";
+import { ClockIcon } from "@supaterm/icons";
 
 import { useClientSettings } from "~/hooks/useSettings";
 

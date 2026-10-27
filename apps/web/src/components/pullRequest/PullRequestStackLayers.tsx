@@ -1,5 +1,5 @@
 import type { PullRequestRef, PullRequestStack } from "@supaterm/contracts";
-import { CheckIcon } from "lucide-react";
+import { CheckIcon } from "@supaterm/icons";
 import { MenuItem, MenuGroupLabel } from "../ui/menu";
 import { PullRequestStackLayerContent } from "./PullRequestStackLayerContent";
 

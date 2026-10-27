@@ -4,7 +4,7 @@ import {
   serializeAssistantCitation,
 } from "@supaterm/shared/assistantCitations";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowUpRightIcon, PencilIcon, QuoteIcon } from "lucide-react";
+import { ArrowUpRightIcon, PencilIcon, QuoteIcon } from "@supaterm/icons";
 import {
   useEffect,
   useEffectEvent,

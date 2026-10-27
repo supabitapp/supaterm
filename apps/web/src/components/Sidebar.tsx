@@ -67,7 +67,7 @@ import {
   type ScopedThreadRef,
   type ThreadId,
 } from "@supaterm/contracts";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon } from "@supaterm/icons";
 import {
   useEffect,
   useLayoutEffect,

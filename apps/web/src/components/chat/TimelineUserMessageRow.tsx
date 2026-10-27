@@ -32,15 +32,15 @@ import {
 import ChatMarkdown, { type ChatMarkdownContextReference } from "../ChatMarkdown";
 import {
   CalendarClockIcon,
-  EyeIcon,
   DownloadIcon,
-  type LucideIcon,
+  EyeIcon,
+  type IconComponent,
   MessagesSquareIcon,
-  Redo2Icon,
-  Undo2Icon,
-} from "lucide-react";
+  RedoIcon,
+  UndoIcon,
+} from "@supaterm/icons";
+import { Link as LinkIconNode } from "@supaterm/icons/nodes";
 import { DisclosureChevron } from "../ui/disclosure-chevron";
-import { Link as LinkIconNode } from "lucide";
 import { InlineButton, Button } from "../ui/button";
 import { useAssetUrlState, useAssetUrlRefresh, useAssetUrls } from "../../assets/assetUrls";
 import { AttachmentImage } from "../media/AttachmentImage";
@@ -227,7 +227,7 @@ function AutomationMessageRow({ row }: { row: Extract<TimelineRow, { kind: "mess
 }
 
 function FoldedMessageHeader(props: {
-  icon: LucideIcon;
+  icon: IconComponent;
   label: string;
   summary: string;
   expanded: boolean;
@@ -643,7 +643,7 @@ function UserMessageIntentMarker({
           />
         }
       >
-        <Redo2Icon aria-hidden="true" className="size-3" />
+        <RedoIcon aria-hidden="true" className="size-3" />
         Steer
       </TooltipTrigger>
       <TooltipPopup side="top">
@@ -679,7 +679,7 @@ function RevertUserMessageButton({
           />
         }
       >
-        <Undo2Icon className="size-3" />
+        <UndoIcon className="size-3" />
       </TooltipTrigger>
       <TooltipPopup side="top">Edit from here</TooltipPopup>
     </Tooltip>

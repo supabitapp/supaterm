@@ -1,5 +1,5 @@
 import type { CodexMicroAction } from "@supaterm/contracts";
-import type { LucideIcon } from "lucide-react";
+import type { IconComponent } from "@supaterm/icons";
 import { useState, type ReactNode } from "react";
 
 import { cn } from "~/lib/utils";
@@ -18,7 +18,7 @@ import { CodexMicroActionPicker } from "./CodexMicroActionPicker";
 export interface CodexMicroInputRow<Value extends string> {
   readonly value: Value;
   readonly label: string;
-  readonly icon: LucideIcon;
+  readonly icon: IconComponent;
 }
 
 export function CodexMicroInputDialog<Value extends string>({

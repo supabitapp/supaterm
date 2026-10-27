@@ -17,7 +17,7 @@ import type {
 import { codexAuthHandoffUrl } from "@supaterm/shared/codexAuthHandoff";
 import { providerAuthReturnUrl } from "@supaterm/shared/providerAuthReturnUrl";
 import { isLoopbackHost } from "@supaterm/shared/preview";
-import { CheckIcon, ChevronRightIcon, ExternalLinkIcon } from "lucide-react";
+import { CheckIcon, ChevronRightIcon, ExternalLinkIcon } from "@supaterm/icons";
 import {
   Children,
   useEffect,

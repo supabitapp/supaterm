@@ -6,16 +6,16 @@ import {
   FolderIcon,
   GitBranchIcon,
   HashIcon,
-  MailOpenIcon,
+  type IconComponent,
+  MailUnreadIcon,
   MessageSquarePlusIcon,
   PencilIcon,
   PinIcon,
   PinOffIcon,
   RefreshCwIcon,
   TimerIcon,
-  Trash2Icon,
-  type LucideIcon,
-} from "lucide-react";
+  TrashIcon,
+} from "@supaterm/icons";
 
 import {
   ADDON_ICON_CLASS,
@@ -26,7 +26,7 @@ import {
 import type { ThreadActionMenuId } from "./threadActionMenu.logic";
 
 interface ThreadPaletteCommand {
-  readonly icon: LucideIcon;
+  readonly icon: IconComponent;
   readonly searchTerms: ReadonlyArray<string>;
   /** Replaces a menu label that only reads right inside the thread's own menu. */
   readonly title?: string;
@@ -90,7 +90,7 @@ const THREAD_PALETTE_COMMANDS: Record<
   },
   "mark-unread": {
     title: "Mark thread unread",
-    icon: MailOpenIcon,
+    icon: MailUnreadIcon,
     searchTerms: ["unread", "mark", "thread"],
   },
   "copy-path": {
@@ -111,7 +111,7 @@ const THREAD_PALETTE_COMMANDS: Record<
   archive: { icon: ArchiveIcon, searchTerms: ["archive", "hide", "thread"] },
   delete: {
     title: "Delete thread",
-    icon: Trash2Icon,
+    icon: TrashIcon,
     searchTerms: ["delete", "remove", "trash", "thread"],
   },
 };

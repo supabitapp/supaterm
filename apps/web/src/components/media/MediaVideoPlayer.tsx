@@ -1,6 +1,6 @@
 import { settlePromise } from "@supaterm/client-runtime/state/runtime";
 import { AsyncResult } from "effect/reactivity";
-import { PlayIcon, RotateCwIcon, TriangleAlertIcon } from "lucide-react";
+import { PlayIcon, RotateCwIcon, TriangleAlertIcon } from "@supaterm/icons";
 import { useEffect, useState, type CSSProperties } from "react";
 
 import { cn } from "../../lib/utils";

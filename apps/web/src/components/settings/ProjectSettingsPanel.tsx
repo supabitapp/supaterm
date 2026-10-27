@@ -15,7 +15,7 @@ import { AsyncResult } from "effect/reactivity";
 import { type EnvironmentId, type ProjectIconOverride } from "@supaterm/contracts";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import * as Cause from "effect/Cause";
-import { InfoIcon, Trash2Icon } from "lucide-react";
+import { InfoIcon, TrashIcon } from "@supaterm/icons";
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { useComposerDraftStore } from "../../composerDraftStore";
@@ -503,7 +503,7 @@ function ProjectDetail({
           <SettingsRow
             title="Project icon"
             description={
-              projectIcon?.kind === "lucide"
+              projectIcon?.kind === "icon" || projectIcon?.kind === "lucide"
                 ? `${projectIcon.name} · ${projectIcon.color}`
                 : projectIcon?.kind === "monogram"
                   ? `${projectIcon.text} · ${projectIcon.color}`
@@ -575,7 +575,7 @@ function ProjectDetail({
                 disabled={!canEditGroup}
                 onClick={() => void removeMembers(group.memberProjects)}
               >
-                <Trash2Icon />
+                <TrashIcon />
                 {hasOtherMembers
                   ? "Remove checkout"
                   : group.memberProjects.length > 1

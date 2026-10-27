@@ -1,4 +1,4 @@
-import { CheckIcon, CircleDotIcon, CircleIcon, ListTodoIcon } from "lucide-react";
+import { CheckIcon, CircleDotIcon, CircleIcon, ListChecksIcon } from "@supaterm/icons";
 import { memo, type ComponentProps } from "react";
 
 import { formatDuration } from "../../session-logic";
@@ -76,7 +76,7 @@ function TaskSummary({
   return (
     <>
       <ComposerBanner.Icon>
-        <ListTodoIcon />
+        <ListChecksIcon />
       </ComposerBanner.Icon>
       <ComposerBanner.Content>
         <span className="shrink-0 text-muted-foreground">Tasks</span>

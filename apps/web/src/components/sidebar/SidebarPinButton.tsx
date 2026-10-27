@@ -1,4 +1,4 @@
-import { PinIcon } from "lucide-react";
+import { PinIcon } from "@supaterm/icons";
 
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";
 import { useClientSettings } from "~/hooks/useSettings";

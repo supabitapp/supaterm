@@ -74,8 +74,8 @@ import {
 import type { TimelineEntry } from "../../session-logic";
 import type { CodexArtifactTemplate } from "@supaterm/shared/codexArtifactTemplates";
 import type { ChatFileAttachment, TurnDiffSummary } from "../../types";
-import { BotIcon, Minimize2Icon, ArrowRightIcon } from "lucide-react";
-import { ChevronDown, ChevronRight } from "lucide";
+import { ArrowRightIcon, BotIcon, ShrinkIcon } from "@supaterm/icons";
+import { ChevronDown, ChevronRight } from "@supaterm/icons/nodes";
 import { MorphIcon } from "~/components/MorphIcon";
 import type { ExpandedImagePreview } from "./ExpandedImagePreview";
 import { ExpandedPreviewHostContext } from "./ExpandedPreviewDialog";
@@ -1322,7 +1322,7 @@ function ContextCompactionTimelineRow({
 }) {
   const content = (
     <span className="flex items-center gap-1.5">
-      <Minimize2Icon aria-hidden="true" className="size-3" />
+      <ShrinkIcon aria-hidden="true" className="size-3" />
       {row.tokenCounts ? (
         <>
           Context compacted {row.tokenCounts.before}

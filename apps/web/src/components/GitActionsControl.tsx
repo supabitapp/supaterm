@@ -28,13 +28,13 @@ import {
   ChevronDownIcon,
   CloudDownloadIcon,
   CloudUploadIcon,
-  FileDiffIcon,
-  GitBranchPlusIcon,
+  DiffIcon,
+  GitBranchIcon,
   GitCommitIcon,
+  GlobeIcon,
   InfoIcon,
   LockIcon,
-  GlobeIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 import { Radio as RadioPrimitive } from "@base-ui/react/radio";
 import { RadioGroup } from "~/components/ui/radio-group";
 import { Spinner } from "~/components/ui/spinner";
@@ -1596,7 +1596,7 @@ export default function GitActionsControl({
             disabled={initAction.isPending}
             onClick={initializeGit}
           >
-            <GitBranchPlusIcon className="size-4" />
+            <GitBranchIcon className="size-4" />
             <MenuItemLabel>
               {initAction.isPending ? "Initializing..." : "Initialize Git"}
             </MenuItemLabel>
@@ -1643,7 +1643,7 @@ export default function GitActionsControl({
           disabled={!canWriteSourceControl || initAction.isPending}
           onClick={initializeGit}
         >
-          <GitBranchPlusIcon className="size-3.5" aria-hidden />
+          <GitBranchIcon className="size-3.5" aria-hidden />
           <span className="ml-0.5">
             {initAction.isPending ? "Initializing..." : "Initialize Git"}
           </span>
@@ -1809,7 +1809,7 @@ export default function GitActionsControl({
           disabled={!onOpenChanges}
           onClick={onOpenChanges}
         >
-          <FileDiffIcon className={THREAD_DETAILS_PANEL_ICON_CLASS} aria-hidden />
+          <DiffIcon className={THREAD_DETAILS_PANEL_ICON_CLASS} aria-hidden />
           <span className="flex-1 text-left">Changes</span>
           <span className="flex items-center gap-1 font-mono text-2xs tabular-nums">
             <span className="text-diff-addition">

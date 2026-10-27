@@ -29,11 +29,11 @@ import {
   ArrowDownUpIcon,
   ArrowLeftIcon,
   CircleDotIcon,
-  FileDiffIcon,
-  GitCommitHorizontalIcon,
+  DiffIcon,
+  GitCommitIcon,
   MessageSquareIcon,
   PanelRightIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 import {
   lazy,
   Suspense,
@@ -1431,7 +1431,7 @@ export function PullRequestDetailPanel({
                         detail.changedFiles === 1 ? "file" : "files"
                       }`}
                     >
-                      <FileDiffIcon aria-hidden className="size-3" />
+                      <DiffIcon aria-hidden className="size-3" />
                       {detail.changedFiles.toLocaleString()}
                     </span>
                     <PullRequestChangeBreakdownStat
@@ -1606,7 +1606,7 @@ export function PullRequestDetailPanel({
                           }`
                     }
                   >
-                    <GitCommitHorizontalIcon aria-hidden className="size-3" />
+                    <GitCommitIcon aria-hidden className="size-3" />
                     {activityError
                       ? "—"
                       : activityPending

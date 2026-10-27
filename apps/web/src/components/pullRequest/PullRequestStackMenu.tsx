@@ -6,7 +6,7 @@ import type {
   PullRequestMergeMethod,
 } from "@supaterm/contracts";
 import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
-import { RefreshCwIcon, TriangleAlertIcon } from "lucide-react";
+import { RefreshCwIcon, TriangleAlertIcon } from "@supaterm/icons";
 import { useState } from "react";
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";
 import { useAtomCommand } from "~/state/use-atom-command";

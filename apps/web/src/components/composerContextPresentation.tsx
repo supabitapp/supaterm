@@ -3,7 +3,7 @@ import { ReadOnlySourcePreview } from "./files/AttachmentFilePreview";
 import type { PreviewAnnotationPayload, ThreadContextRecord } from "@supaterm/contracts";
 import { formatAttachmentSize } from "@supaterm/client-runtime/state/attachments";
 import { videoMimeType } from "@supaterm/shared/video";
-import { MessageCircleIcon, MousePointerClickIcon } from "lucide-react";
+import { MessageCircleIcon, MousePointerClickIcon } from "@supaterm/icons";
 import { createContext, type MouseEvent, type ReactElement, type ReactNode, use } from "react";
 import type { EnvironmentId } from "@supaterm/contracts";
 

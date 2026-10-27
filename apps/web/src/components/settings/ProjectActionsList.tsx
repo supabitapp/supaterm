@@ -1,5 +1,5 @@
 import type { ProjectScript, ResolvedKeybindingsConfig } from "@supaterm/contracts";
-import { SettingsIcon } from "lucide-react";
+import { SettingsIcon } from "@supaterm/icons";
 import { shortcutLabelForCommand } from "../../keybindings";
 import { commandForProjectScript } from "../../projectScripts";
 import { ScriptIcon } from "../projectScriptEditor";

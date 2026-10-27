@@ -20,9 +20,9 @@ import {
   encodeComposerContextClipboardHtml,
 } from "@supaterm/shared/composerContextClipboard";
 import {
-  FileSpreadsheetIcon,
   FileTextIcon,
   GlobeIcon,
+  type IconComponent,
   ImageIcon,
   InfoIcon,
   LightbulbIcon,
@@ -32,9 +32,9 @@ import {
   OctagonAlertIcon,
   PresentationIcon,
   SparklesIcon,
+  TableIcon,
   TriangleAlertIcon,
-  type LucideIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 import {
   AssetWorkspaceAssetNotFoundError,
   AuthPreviewOperateScope,
@@ -258,15 +258,15 @@ const EMPTY_REMARK_PLUGINS: NonNullable<ReactMarkdownOptions["remarkPlugins"]> =
 const ARTIFACT_TEMPLATE_ICON_BY_KIND = {
   document: FileTextIcon,
   presentation: PresentationIcon,
-  spreadsheet: FileSpreadsheetIcon,
+  spreadsheet: TableIcon,
   site: GlobeIcon,
   "google-docs": FileTextIcon,
   "google-slides": PresentationIcon,
-  "google-sheets": FileSpreadsheetIcon,
+  "google-sheets": TableIcon,
   image: ImageIcon,
   email: MailIcon,
   slack: MessageSquareIcon,
-} satisfies Record<CodexArtifactTemplateKind, LucideIcon>;
+} satisfies Record<CodexArtifactTemplateKind, IconComponent>;
 
 function CodexArtifactTemplateCard(props: {
   readonly template: CodexArtifactTemplate;

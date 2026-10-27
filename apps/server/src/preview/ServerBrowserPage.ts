@@ -18,6 +18,7 @@ import {
   type PreviewAutomationWaitForInput,
 } from "@supaterm/contracts";
 import { constVoid } from "effect/Function";
+import { MousePointer } from "@supaterm/icons/nodes";
 import type { CDPSession, ConsoleMessage, Frame, Locator, Page } from "playwright-core";
 import * as NodeCrypto from "node:crypto";
 import { BrowserControlInterrupted } from "./SessionControl.ts";
@@ -915,6 +916,8 @@ export const parseNetError = (errorText: string) => {
   return { description, code: NET_ERROR_CODES[description] ?? -2 };
 };
 
+const AGENT_CURSOR_D = MousePointer[0]?.[1].d ?? "";
+
 export const RECORDING_ENCODER_SCRIPT = `(() => {
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
@@ -927,7 +930,7 @@ export const RECORDING_ENCODER_SCRIPT = `(() => {
   let frame = null;
   let cursor = null;
   let ring = null;
-  const AGENT_CURSOR_PATH = new Path2D("M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z");
+  const AGENT_CURSOR_PATH = new Path2D(${JSON.stringify(AGENT_CURSOR_D)});
   let ringTimer = null;
   let scale = 1;
   let offsetX = 0;
@@ -956,7 +959,7 @@ export const RECORDING_ENCODER_SCRIPT = `(() => {
       }
     }
     if (cursor) {
-      // The agent cursor (lucide MousePointer2, as in the live panel), never the human arrow.
+      // The agent cursor (MousePointerIcon, as in the live panel), never the human arrow.
       const s = 20 / 24 * scale;
       context.save();
       context.translate(offsetX + cursor.x * scale - 2 * scale, offsetY + cursor.y * scale - 2 * scale);

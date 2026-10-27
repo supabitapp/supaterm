@@ -12,7 +12,7 @@ import {
   FileIcon,
   MessageCircleQuestionIcon,
   MessageSquareIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 import type { ReactNode } from "react";
 
 import { getDiffLineStat } from "~/lib/diffRendering";

@@ -15,12 +15,12 @@ import {
 import {
   BlocksIcon,
   FolderIcon,
+  type IconComponent,
   MessagesSquareIcon,
   PackageIcon,
   SettingsIcon,
-  UserRoundIcon,
-  type LucideIcon,
-} from "lucide-react";
+  UserIcon,
+} from "@supaterm/icons";
 import { memo, useLayoutEffect, useRef } from "react";
 
 import type { ComposerSlashCommand, ComposerTriggerKind } from "@supaterm/shared/composerTrigger";
@@ -247,11 +247,11 @@ const LISTBOX_LABEL_BY_TRIGGER: Record<ComposerTriggerKind, string> = {
   "slash-skill": "Skills",
 };
 
-const SKILL_SOURCE_ICON_BY_KIND: Record<ProviderSkillSourceKind, LucideIcon> = {
+const SKILL_SOURCE_ICON_BY_KIND: Record<ProviderSkillSourceKind, IconComponent> = {
   app: BlocksIcon,
   repo: FolderIcon,
   project: FolderIcon,
-  personal: UserRoundIcon,
+  personal: UserIcon,
   system: SettingsIcon,
   other: PackageIcon,
 };

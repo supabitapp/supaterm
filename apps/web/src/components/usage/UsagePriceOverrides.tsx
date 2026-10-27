@@ -4,7 +4,7 @@ import {
   type EnvironmentId,
   sessionGrantsScope,
 } from "@supaterm/contracts";
-import { ChevronDownIcon, PlusIcon, RotateCcwIcon, XIcon } from "lucide-react";
+import { ChevronDownIcon, PlusIcon, RotateCcwIcon, XIcon } from "@supaterm/icons";
 import * as Option from "effect/Option";
 import { AsyncResult, Atom } from "effect/reactivity";
 import { useRef, useState } from "react";

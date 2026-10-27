@@ -11,14 +11,14 @@ import {
   ArrowUpRightIcon,
   BookOpenIcon,
   CopyIcon,
+  EllipsisIcon,
   HammerIcon,
   LinkIcon,
   MessageCircleQuestionIcon,
-  MoreHorizontalIcon,
   RotateCcwIcon,
   SparklesIcon,
-  Trash2Icon,
-} from "lucide-react";
+  TrashIcon,
+} from "@supaterm/icons";
 
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";
 import { shortcutLabelForCommand } from "~/keybindings";
@@ -155,7 +155,7 @@ export function PullRequestActionsMenu({
               {refreshing ? (
                 <RefreshIcon refreshing size="md" />
               ) : (
-                <MoreHorizontalIcon className="size-4" />
+                <EllipsisIcon className="size-4" />
               )}
             </MenuTrigger>
           }
@@ -349,7 +349,7 @@ export function PullRequestActionsMenu({
             >
               <span className="mt-1 inline-flex shrink-0 self-start">
                 <InlineConfirmIcon armed={confirm.armed === "delete-branch"}>
-                  <Trash2Icon className="size-3.5" />
+                  <TrashIcon className="size-3.5" />
                 </InlineConfirmIcon>
               </span>
               <span className="flex min-w-0 flex-col items-start">

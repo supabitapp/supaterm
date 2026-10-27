@@ -1,7 +1,7 @@
 import { MISSING_FILE_ACCESS_MESSAGE } from "@supaterm/client-runtime/state/assets";
 import { mediaFileReference, mediaUrlReference } from "@supaterm/client-runtime/media-reference";
 import type { AssetResource, EnvironmentId } from "@supaterm/contracts";
-import { TriangleAlertIcon } from "lucide-react";
+import { TriangleAlertIcon } from "@supaterm/icons";
 import {
   createContext,
   memo,

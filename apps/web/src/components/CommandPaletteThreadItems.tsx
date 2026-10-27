@@ -3,7 +3,7 @@ import { threadSearchMatchKey } from "@supaterm/client-runtime/state/thread-sear
 import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import { useNavigate } from "@tanstack/react-router";
-import { MessageSquareIcon } from "lucide-react";
+import { MessageSquareIcon } from "@supaterm/icons";
 
 import { useClientSettings } from "../hooks/useSettings";
 import {

@@ -1,5 +1,5 @@
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
-import { CheckIcon, CopyIcon } from "lucide-react";
+import { CheckIcon, CopyIcon } from "@supaterm/icons";
 import { Button } from "../ui/button";
 import {
   Dialog,

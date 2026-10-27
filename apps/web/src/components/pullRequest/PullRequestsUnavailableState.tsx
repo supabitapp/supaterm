@@ -1,5 +1,5 @@
 import { RefreshIcon } from "~/components/ui/refresh-icon";
-import { ExternalLinkIcon } from "lucide-react";
+import { ExternalLinkIcon } from "@supaterm/icons";
 
 import { Button } from "../ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "../ui/empty";

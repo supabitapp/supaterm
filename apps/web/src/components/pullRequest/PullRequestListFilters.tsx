@@ -13,13 +13,13 @@ import {
   CircleSlashIcon,
   CircleXIcon,
   EyeOffIcon,
-  FolderGit2Icon,
+  FolderGitIcon,
   LayersIcon,
   ListFilterIcon,
   SearchIcon,
   TagIcon,
-  UserRoundIcon,
-} from "lucide-react";
+  UserIcon,
+} from "@supaterm/icons";
 import { type ElementType, useState } from "react";
 
 import { getSourceControlPresentationForKind } from "~/sourceControlPresentation";
@@ -259,7 +259,7 @@ function PullRequestAuthorFilter({
   return (
     <MenuSub>
       <MenuSubTrigger>
-        <UserRoundIcon aria-hidden className="size-3.5" />
+        <UserIcon aria-hidden className="size-3.5" />
         <span className="flex-1">Author</span>
         <span className="min-w-0 max-w-32 truncate text-xs text-muted-foreground">
           {value ?? "Anyone"}
@@ -461,7 +461,7 @@ export function PullRequestFiltersMenu({
       .map((project) => ({
         value: pullRequestProjectKey(project),
         label: project.title,
-        Icon: FolderGit2Icon,
+        Icon: FolderGitIcon,
         project,
         ...(unavailable.has(pullRequestProjectKey(project))
           ? { unavailable: unavailable.get(pullRequestProjectKey(project)) }

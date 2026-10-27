@@ -1,4 +1,4 @@
-import { Check, Copy, Maximize2, Minimize2 } from "lucide";
+import { Check, Copy, Expand, Shrink } from "@supaterm/icons/nodes";
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentProps } from "react";
 
 import { getClientSettings } from "../../hooks/useSettings";
@@ -129,7 +129,7 @@ export function MarkdownTable({ children, ...props }: ComponentProps<"table">) {
                 />
               }
             >
-              <MorphIcon className="size-3" icon={expanded ? Minimize2 : Maximize2} />
+              <MorphIcon className="size-3" icon={expanded ? Shrink : Expand} />
             </TooltipTrigger>
             <TooltipPopup side="top">{expandLabel}</TooltipPopup>
           </Tooltip>

@@ -2,7 +2,7 @@ import { Spinner } from "~/components/ui/spinner";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "@effect/atom-react";
 import type { ServerProvider } from "@supaterm/contracts";
-import { CircleCheckIcon, DownloadIcon, TriangleAlertIcon, XIcon } from "lucide-react";
+import { CircleCheckIcon, DownloadIcon, TriangleAlertIcon, XIcon } from "@supaterm/icons";
 import { useEffect, useEffectEvent, useState, type CSSProperties } from "react";
 
 import { primaryServerProvidersAtom } from "../../state/server";

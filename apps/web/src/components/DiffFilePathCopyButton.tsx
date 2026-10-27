@@ -1,4 +1,4 @@
-import { Check, Copy } from "lucide";
+import { Check, Copy } from "@supaterm/icons/nodes";
 import { useRef } from "react";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 import { cn } from "../lib/utils";

@@ -7,7 +7,7 @@ import {
   type EasDeviceHostConfig,
   type EnvironmentId,
 } from "@supaterm/contracts";
-import { CloudIcon, PlusIcon, XIcon } from "lucide-react";
+import { CloudIcon, PlusIcon, XIcon } from "@supaterm/icons";
 
 import { randomUUID } from "../../lib/utils";
 import { deviceEnvironment } from "../../state/device";

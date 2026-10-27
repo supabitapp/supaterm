@@ -18,7 +18,7 @@ import {
 } from "../../proposedPlan";
 import ChatMarkdown from "../ChatMarkdown";
 import { useTimelineDisclosure } from "./timelineDisclosure";
-import { EllipsisIcon } from "lucide-react";
+import { EllipsisIcon } from "@supaterm/icons";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";

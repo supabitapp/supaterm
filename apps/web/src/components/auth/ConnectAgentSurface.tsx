@@ -7,7 +7,7 @@ import {
 } from "@supaterm/contracts";
 import { Radio as RadioPrimitive } from "@base-ui/react/radio";
 import { isLoopbackHost } from "@supaterm/shared/preview";
-import { EyeIcon, type LucideIcon } from "lucide-react";
+import { EyeIcon, type IconComponent } from "@supaterm/icons";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
@@ -26,7 +26,7 @@ import { StandalonePage } from "../ui/standalone-page";
 
 const accessConfig: Record<
   AuthMcpClientAccess,
-  { readonly label: string; readonly description: string; readonly icon: LucideIcon }
+  { readonly label: string; readonly description: string; readonly icon: IconComponent }
 > = {
   "read-only": {
     label: "Read only",

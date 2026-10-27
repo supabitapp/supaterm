@@ -9,7 +9,7 @@ import {
 } from "@supaterm/client-runtime/connection";
 import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon } from "@supaterm/icons";
 import { useEffect, useState } from "react";
 
 import { APP_VERSION } from "~/branding";

@@ -1,16 +1,16 @@
 import type { PullRequestInvolvement, PullRequestListState } from "@supaterm/contracts";
 import {
-  CalendarArrowDownIcon,
-  CalendarArrowUpIcon,
   ClockIcon,
+  ExpandIcon,
   EyeIcon,
   LayersIcon,
   ListChecksIcon,
-  Maximize2Icon,
-  Minimize2Icon,
   PenLineIcon,
+  ShrinkIcon,
+  SortAscendingIcon,
+  SortDescendingIcon,
   UserLockIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 
 import type { PullRequestFilterOption } from "./PullRequestListFilters";
 import type { PullRequestListSort } from "./pullRequestListPreferences";
@@ -33,8 +33,8 @@ export const SORT_OPTIONS = [
   { value: "ready", label: "Merge readiness", Icon: ListChecksIcon },
   { value: "blocked", label: "Blocked on me", Icon: UserLockIcon },
   { value: "updated", label: "Recently updated", Icon: ClockIcon },
-  { value: "newest", label: "Newest shown", Icon: CalendarArrowDownIcon },
-  { value: "oldest", label: "Oldest shown", Icon: CalendarArrowUpIcon },
-  { value: "largest", label: "Largest shown", Icon: Maximize2Icon },
-  { value: "smallest", label: "Smallest shown", Icon: Minimize2Icon },
+  { value: "newest", label: "Newest shown", Icon: SortDescendingIcon },
+  { value: "oldest", label: "Oldest shown", Icon: SortAscendingIcon },
+  { value: "largest", label: "Largest shown", Icon: ExpandIcon },
+  { value: "smallest", label: "Smallest shown", Icon: ShrinkIcon },
 ] as const satisfies ReadonlyArray<PullRequestFilterOption<PullRequestListSort>>;

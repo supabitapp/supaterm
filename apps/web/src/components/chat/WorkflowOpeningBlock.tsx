@@ -11,7 +11,7 @@ import type {
   ProviderInstanceId,
   ServerProvider,
 } from "@supaterm/contracts";
-import { ChevronRightIcon, WorkflowIcon } from "lucide-react";
+import { ChevronRightIcon, WorkflowIcon } from "@supaterm/icons";
 import { useState } from "react";
 
 import { cn } from "../../lib/utils";

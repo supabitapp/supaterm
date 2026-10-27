@@ -1,5 +1,5 @@
-import { Check, Copy } from "lucide";
-import { PlayIcon, WrapTextIcon } from "lucide-react";
+import { PlayIcon, WrapTextIcon } from "@supaterm/icons";
+import { Check, Copy } from "@supaterm/icons/nodes";
 import { toHtml } from "hast-util-to-html";
 import React, { use, useEffect, useState, type ReactNode } from "react";
 

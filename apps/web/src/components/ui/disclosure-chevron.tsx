@@ -1,4 +1,4 @@
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon } from "@supaterm/icons";
 import { cn } from "~/lib/utils";
 
 const sizes = { xs: "size-3", sm: "size-3.5" } as const;

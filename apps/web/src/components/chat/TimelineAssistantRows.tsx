@@ -7,7 +7,7 @@ import { canForkProjectedAssistantItem } from "@supaterm/client-runtime/state/th
 import { use, useState, memo } from "react";
 import type { ChatMessage, TurnDiffSummary } from "../../types";
 import ChatMarkdown from "../ChatMarkdown";
-import { GitForkIcon } from "lucide-react";
+import { GitForkIcon } from "@supaterm/icons";
 import { Button } from "../ui/button";
 import { ProposedPlanCard } from "./ProposedPlanCard";
 import { HtmlRenderFrame } from "./HtmlRenderFrame";

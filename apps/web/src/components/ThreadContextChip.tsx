@@ -1,7 +1,7 @@
 import { scopeProjectRef } from "@supaterm/client-runtime/environment";
 import type { ThreadContextRecord } from "@supaterm/contracts";
 import { Link } from "@tanstack/react-router";
-import { MessagesSquareIcon } from "lucide-react";
+import { MessagesSquareIcon } from "@supaterm/icons";
 
 import { useProject, useThreadShell } from "~/state/entities";
 import { ContextChip, ContextChipLabel } from "./ContextChip";

@@ -1,4 +1,4 @@
-import { ExternalLinkIcon, PaperclipIcon } from "lucide-react";
+import { ExternalLinkIcon, PaperclipIcon } from "@supaterm/icons";
 import { markdownImageSourceFragment } from "@supaterm/client-runtime/markdown-images";
 import { githubMediaFetchUrl } from "@supaterm/shared/githubMedia";
 import type { AssetResource, EnvironmentId, ScopedThreadRef } from "@supaterm/contracts";

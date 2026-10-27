@@ -1,4 +1,4 @@
-import { PlusIcon, XIcon } from "lucide-react";
+import { PlusIcon, XIcon } from "@supaterm/icons";
 import { useState } from "react";
 import type { ProviderDriverKind, ServerProviderModel } from "@supaterm/contracts";
 import type { CustomModelDefinition } from "@supaterm/shared/model";

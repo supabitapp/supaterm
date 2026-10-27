@@ -12,7 +12,7 @@ import {
   type ServerProvider,
 } from "@supaterm/contracts";
 import { useRef, useState } from "react";
-import { Trash2Icon } from "lucide-react";
+import { TrashIcon } from "@supaterm/icons";
 
 import { useInlineConfirm } from "../../hooks/useInlineConfirm";
 import { useEnvironmentQuery } from "../../state/query";
@@ -335,7 +335,7 @@ function RemoveRuntimeButton({
         }
       >
         <InlineConfirmIcon armed={armed}>
-          <Trash2Icon className="size-3.5" />
+          <TrashIcon className="size-3.5" />
         </InlineConfirmIcon>
       </TooltipTrigger>
       <TooltipPopup>

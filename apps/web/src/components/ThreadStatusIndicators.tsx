@@ -12,7 +12,7 @@ import {
 import { Atom } from "effect/reactivity";
 import { useAtomValue } from "@effect/atom-react";
 import { isEnvironmentConnected } from "@supaterm/client-runtime/connection";
-import { FolderGit2Icon, TerminalIcon } from "lucide-react";
+import { FolderGitIcon, TerminalIcon } from "@supaterm/icons";
 import { useStableCallback } from "~/hooks/useStableCallback";
 import { useEnvironment, usePrimaryEnvironmentId } from "../state/environments";
 import { EnvironmentMachineIcon } from "./EnvironmentMachineIcon";
@@ -821,7 +821,7 @@ export function ThreadWorktreeIndicator({
           />
         }
       >
-        <FolderGit2Icon className="size-3 text-muted-foreground/40" />
+        <FolderGitIcon className="size-3 text-muted-foreground/40" />
       </TooltipTrigger>
       <TooltipPopup side="top">{tooltip}</TooltipPopup>
     </Tooltip>

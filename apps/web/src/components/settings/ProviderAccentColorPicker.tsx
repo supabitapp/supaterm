@@ -1,4 +1,4 @@
-import { PlusIcon, XIcon } from "lucide-react";
+import { PlusIcon, XIcon } from "@supaterm/icons";
 import { useEffect, useRef, useState } from "react";
 
 import { hexToHsv, hsvToHex, type HsvColor } from "../../lib/color";

@@ -10,8 +10,8 @@ import {
   FILE_TEXT_PREVIEW_MAX_BYTES,
   type FilePreviewKind,
 } from "@supaterm/shared/filePreview";
-import { ChevronRightIcon, DownloadIcon, Trash2Icon, WrapTextIcon, XIcon } from "lucide-react";
-import { Check, Code2, Copy, Eye, Table2 } from "lucide";
+import { ChevronRightIcon, DownloadIcon, TrashIcon, WrapTextIcon, XIcon } from "@supaterm/icons";
+import { Check, CodeXml, Copy, Eye, Table } from "@supaterm/icons/nodes";
 import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { useAssetUrlRefresh } from "~/assets/assetUrls";
@@ -379,7 +379,7 @@ export function AttachmentFilePreview(props: {
           >
             <MorphIcon
               className="size-3.5"
-              icon={rendered ? Code2 : renderedMode === "table" ? Table2 : Eye}
+              icon={rendered ? CodeXml : renderedMode === "table" ? Table : Eye}
             />
           </FileSurfaceAction>
         ) : null}
@@ -411,7 +411,7 @@ export function AttachmentFilePreview(props: {
         ) : null}
         {props.onRemove ? (
           <FileSurfaceAction label="Remove from draft" onPress={props.onRemove}>
-            <Trash2Icon className="size-3.5" />
+            <TrashIcon className="size-3.5" />
           </FileSurfaceAction>
         ) : null}
         {props.onClose ? (

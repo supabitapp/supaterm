@@ -45,7 +45,7 @@ import {
   LoaderCircleIcon,
   PlusIcon,
   SquareIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 import { useId, useState, type ReactNode } from "react";
 
 import { useArchivedThreadSnapshots } from "../../lib/archivedThreadsState";

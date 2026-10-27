@@ -17,9 +17,9 @@ import {
   CircleSlashIcon,
   CircleXIcon,
   UserCheckIcon,
-  UserRoundIcon,
-  UserRoundXIcon,
-} from "lucide-react";
+  UserIcon,
+  UserXIcon,
+} from "@supaterm/icons";
 import { Children, type CSSProperties, isValidElement, type ReactNode, useState } from "react";
 
 import { cn } from "~/lib/utils";
@@ -71,13 +71,13 @@ function reviewDecisionPresentation(decision: PullRequestReviewDecision) {
       };
     case "changes-requested":
       return {
-        Icon: UserRoundXIcon,
+        Icon: UserXIcon,
         label: "Changes requested",
         toneClassName: "text-amber-600/90 dark:text-amber-400/80",
       };
     case "review-required":
       return {
-        Icon: UserRoundIcon,
+        Icon: UserIcon,
         label: "Awaiting review",
         toneClassName: "text-muted-foreground/60",
       };

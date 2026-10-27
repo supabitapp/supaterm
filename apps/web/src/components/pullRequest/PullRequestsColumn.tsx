@@ -1,5 +1,5 @@
 import type { PullRequestInvolvement, PullRequestListState } from "@supaterm/contracts";
-import { Plug2Icon, SearchIcon } from "lucide-react";
+import { PlugIcon, SearchIcon } from "@supaterm/icons";
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 
 import { isElectron } from "~/env";
@@ -243,7 +243,7 @@ export function PullRequestsColumn({
                 label="Filter by provider"
                 outlined
                 iconOnly={host !== undefined}
-                triggerIcon={<Plug2Icon aria-hidden className="size-4" />}
+                triggerIcon={<PlugIcon aria-hidden className="size-4" />}
                 triggerLabel="All"
                 value={host ?? ""}
                 options={hostMenuOptions}

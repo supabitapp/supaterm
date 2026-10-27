@@ -1,5 +1,5 @@
 import type { EnvironmentId, ScopedThreadRef } from "@supaterm/contracts";
-import { Globe, History, RadioTower } from "lucide-react";
+import { GlobeIcon, HistoryIcon, RadioTowerIcon } from "@supaterm/icons";
 
 import type { BrowserHistoryEntry } from "~/browserHistoryStore";
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "~/components/ui/empty";
@@ -36,7 +36,7 @@ export function PreviewEmptyState({
     return (
       <Empty>
         <EmptyMedia variant="icon">
-          <Globe className="size-4.5 text-muted-foreground" />
+          <GlobeIcon className="size-4.5 text-muted-foreground" />
         </EmptyMedia>
         <EmptyTitle>No preview yet</EmptyTitle>
         <EmptyDescription>
@@ -53,7 +53,7 @@ export function PreviewEmptyState({
         {recents.length > 0 ? (
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <History className="size-4 shrink-0" />
+              <HistoryIcon className="size-4 shrink-0" />
               <h2 className="font-medium">Recently used</h2>
             </div>
             <DiscoveryList>
@@ -72,7 +72,7 @@ export function PreviewEmptyState({
         {servers.length > 0 ? (
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <RadioTower className="size-4 shrink-0" />
+              <RadioTowerIcon className="size-4 shrink-0" />
               <h2 className="font-medium">Local servers</h2>
             </div>
             <DiscoveryList>

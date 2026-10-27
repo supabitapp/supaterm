@@ -1,4 +1,4 @@
-import { ChevronsLeftRightEllipsisIcon, PlusIcon, TerminalIcon } from "lucide-react";
+import { ChevronsLeftRightIcon, PlusIcon, TerminalIcon } from "@supaterm/icons";
 import { useAtomValue } from "@effect/atom-react";
 import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import {
@@ -563,7 +563,7 @@ export function AddEnvironmentDialog({
                 mode: "remote",
                 title: "Remote link",
                 description: "Enter a backend host and pairing code.",
-                icon: <ChevronsLeftRightEllipsisIcon aria-hidden className="size-4" />,
+                icon: <ChevronsLeftRightIcon aria-hidden className="size-4" />,
               })}
               {desktopBridge
                 ? renderConnectionModeCard({

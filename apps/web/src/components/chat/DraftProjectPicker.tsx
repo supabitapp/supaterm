@@ -7,7 +7,12 @@ import {
 import { resolveEnvironmentMachineKind, type ScopedProjectRef } from "@supaterm/contracts";
 import { scopedProjectKey, scopeProjectRef } from "@supaterm/client-runtime/environment";
 import { isScratchProject } from "@supaterm/client-runtime/state/projects";
-import { ChevronDownIcon, FolderIcon, FolderPlusIcon, MessageSquareDashedIcon } from "lucide-react";
+import {
+  ChevronDownIcon,
+  FolderIcon,
+  FolderPlusIcon,
+  MessageSquareMoreIcon,
+} from "@supaterm/icons";
 import { useAtomValue } from "@effect/atom-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -364,7 +369,7 @@ export function DraftProjectPicker({
             }
           >
             {isScratchDraft ? (
-              <MessageSquareDashedIcon className="size-3 shrink-0" />
+              <MessageSquareMoreIcon className="size-3 shrink-0" />
             ) : activeProjectGroup ? (
               <ProjectFavicon project={activeProjectGroup} className="size-3 shrink-0" />
             ) : (
@@ -394,7 +399,7 @@ export function DraftProjectPicker({
                   {entry ? (
                     <ProjectFavicon project={entry.group} className="size-4 shrink-0" />
                   ) : item.value === NO_PROJECT_VALUE ? (
-                    <MessageSquareDashedIcon className="size-4 shrink-0" />
+                    <MessageSquareMoreIcon className="size-4 shrink-0" />
                   ) : (
                     <FolderPlusIcon className="size-4 shrink-0" />
                   )}

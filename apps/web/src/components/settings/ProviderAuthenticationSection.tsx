@@ -11,7 +11,7 @@ import type {
   ServerProvider,
 } from "@supaterm/contracts";
 import { lazy, Suspense, useRef, useState } from "react";
-import { CopyIcon } from "lucide-react";
+import { CopyIcon } from "@supaterm/icons";
 
 import { writeTextToClipboard } from "../../hooks/useCopyToClipboard";
 import { ensureLocalApi } from "../../localApi";

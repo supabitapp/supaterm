@@ -26,7 +26,7 @@ import {
   connectionRoutes,
   isLearned,
 } from "@supaterm/client-runtime/connection";
-import { GripVerticalIcon, LockIcon, PlusIcon, RefreshCwIcon, XIcon } from "lucide-react";
+import { GripVerticalIcon, LockIcon, PlusIcon, RefreshCwIcon, XIcon } from "@supaterm/icons";
 import { useContext, useState } from "react";
 
 import { requestConfirmDialog } from "~/confirmDialog";

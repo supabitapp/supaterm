@@ -1,7 +1,7 @@
 import { DeviceHostUpdates } from "./DeviceHostUpdates";
 import type { DevicePlatform, DeviceServiceState, EnvironmentId } from "@supaterm/contracts";
-import { Check } from "lucide-react";
-import { Check as CheckGlyph, CircleAlert } from "lucide";
+import { CheckIcon } from "@supaterm/icons";
+import { Check as CheckGlyph, CircleAlert } from "@supaterm/icons/nodes";
 import { AuthSettingsWriteScope } from "@supaterm/contracts";
 import { useEffect, useState } from "react";
 
@@ -282,7 +282,7 @@ export function DeviceHubSetupStatus({
   if (!pending && !deviceHubReadiness(state).ready) return null;
   return (
     <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
-      {pending ? <Spinner size="xs" /> : <Check className="size-3 text-success" />}
+      {pending ? <Spinner size="xs" /> : <CheckIcon className="size-3 text-success" />}
       {pending
         ? state.hostStatus === "installing"
           ? compact
@@ -354,7 +354,7 @@ export function AgentDeviceSetupStatus(props: {
   ) {
     return (
       <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Check className="size-3 text-success" />
+        <CheckIcon className="size-3 text-success" />
         Agent tools are ready.
       </p>
     );

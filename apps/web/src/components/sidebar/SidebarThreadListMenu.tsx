@@ -1,5 +1,5 @@
 import { THREAD_GROUPING_OPTIONS } from "@supaterm/client-runtime/state/thread-grouping";
-import { Settings2Icon } from "lucide-react";
+import { SlidersHorizontalIcon } from "@supaterm/icons";
 import type { ReactNode } from "react";
 import { cn } from "~/lib/utils";
 import { updateClientSettings, useClientSettings } from "../../hooks/useSettings";
@@ -29,7 +29,7 @@ export function SidebarThreadListMenu({
   return (
     <Menu open={open} onOpenChange={onOpenChange}>
       <MenuTrigger render={<SidebarHeaderIconButton label="Thread list options" />}>
-        <Settings2Icon />
+        <SlidersHorizontalIcon />
       </MenuTrigger>
       <MenuPopup align="end">
         {projectFilter}

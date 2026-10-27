@@ -30,7 +30,7 @@ import {
   LinkIcon,
   MonitorIcon,
   TerminalIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 import { useEffect, useRef, useState } from "react";
 
 import { TYPOGRAPHY_ADVANCED_STORAGE_KEY } from "../../appearanceFonts";

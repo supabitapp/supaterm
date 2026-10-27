@@ -9,7 +9,7 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon } from "@supaterm/icons";
 import {
   memo,
   useEffect,

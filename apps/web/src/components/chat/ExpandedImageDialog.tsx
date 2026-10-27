@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, useState, type ReactNode, type KeyboardEvent } from "react";
-import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "lucide-react";
-import { Image as ImageGlyph, Text as TextGlyph } from "lucide";
+import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "@supaterm/icons";
+import { Image as ImageGlyph, Text as TextGlyph } from "@supaterm/icons/nodes";
 import { Button } from "../ui/button";
 import { MorphIcon } from "~/components/MorphIcon";
 import { Dialog, DialogPopup, DialogTitle } from "../ui/dialog";

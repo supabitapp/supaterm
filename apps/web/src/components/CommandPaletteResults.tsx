@@ -1,6 +1,6 @@
 import { type ResolvedKeybindingsConfig } from "@supaterm/contracts";
 import { LegendList, type LegendListRef } from "@legendapp/list/react";
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon } from "@supaterm/icons";
 import { type ReactNode, type RefObject, useState } from "react";
 import { cn } from "~/lib/utils";
 import { textDirection } from "~/textDirection";

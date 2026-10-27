@@ -11,12 +11,12 @@ import {
 } from "@supaterm/shared/threadPullRequests";
 import {
   ArrowUpRightIcon,
+  EllipsisIcon,
   EyeIcon,
   EyeOffIcon,
   LinkIcon,
-  MoreHorizontalIcon,
   PlusIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 import { LegendList } from "@legendapp/list/react";
 import { memo, useState } from "react";
 
@@ -309,7 +309,7 @@ function LinkRowImpl({
                 aria-label={`Actions for #${link.number}`}
                 className="relative"
               >
-                <MoreHorizontalIcon className="size-3.5" />
+                <EllipsisIcon className="size-3.5" />
               </Button>
             }
           />

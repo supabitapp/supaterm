@@ -1,15 +1,15 @@
 import type { OrchestrationV2TurnItem } from "@supaterm/contracts";
 import { providerErrorPresentation } from "../../session-logic";
 import {
-  type LucideIcon,
+  CheckIcon,
   CircleAlertIcon,
+  GitForkIcon,
+  type IconComponent,
+  MinusIcon,
+  WrenchIcon,
   XIcon,
   ZapIcon,
-  GitForkIcon,
-  MinusIcon,
-  CheckIcon,
-  WrenchIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 import * as DateTime from "effect/DateTime";
 
 type V2EventTone = "muted" | "warning" | "danger" | "success";
@@ -18,7 +18,7 @@ export function v2EventPresentation(item: OrchestrationV2TurnItem): {
   readonly label: string;
   readonly detail: string | null;
   readonly tone: V2EventTone;
-  readonly icon: LucideIcon;
+  readonly icon: IconComponent;
 } {
   switch (item.type) {
     case "error": {

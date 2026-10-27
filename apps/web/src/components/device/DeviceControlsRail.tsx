@@ -1,22 +1,22 @@
 import type { DevicePlatform } from "@supaterm/contracts";
 import {
-  Camera,
-  ChevronLeft,
-  Home,
-  Keyboard,
-  Box,
-  Maximize,
-  MoreHorizontal,
-  PictureInPicture2,
-  Power,
-  RotateCcw,
-  SlidersHorizontal,
-  Smartphone,
-  Square,
-  Type,
-  X,
-} from "lucide-react";
-import { Moon, Sun } from "lucide";
+  BoxIcon,
+  CameraIcon,
+  ChevronLeftIcon,
+  EllipsisIcon,
+  HouseIcon,
+  KeyboardIcon,
+  MaximizeIcon,
+  PictureInPictureIcon,
+  PowerIcon,
+  RotateCcwIcon,
+  SlidersHorizontalIcon,
+  SmartphoneIcon,
+  SquareIcon,
+  TypeIcon,
+  XIcon,
+} from "@supaterm/icons";
+import { Moon, Sun } from "@supaterm/icons/nodes";
 import type { ReactNode } from "react";
 import { Button } from "~/components/ui/button";
 import { MorphIcon } from "~/components/MorphIcon";
@@ -67,7 +67,7 @@ export function DeviceControlsRail(props: {
           disabled={inputDisabled}
           onClick={() => handle?.pressButton("home")}
         >
-          <Home />
+          <HouseIcon />
         </RailButton>
         {props.platform === "android" ? (
           <>
@@ -77,7 +77,7 @@ export function DeviceControlsRail(props: {
               disabled={inputDisabled}
               onClick={() => handle?.pressButton("back")}
             >
-              <ChevronLeft />
+              <ChevronLeftIcon />
             </RailButton>
             <RailButton
               tooltipSide={popupSide}
@@ -85,7 +85,7 @@ export function DeviceControlsRail(props: {
               disabled={inputDisabled}
               onClick={() => handle?.pressButton("recents")}
             >
-              <Square />
+              <SquareIcon />
             </RailButton>
             <Menu>
               <MenuTrigger
@@ -98,7 +98,7 @@ export function DeviceControlsRail(props: {
                   />
                 }
               >
-                <RotateCcw />
+                <RotateCcwIcon />
               </MenuTrigger>
               <MenuPopup side={popupSide}>
                 <MenuItem
@@ -123,7 +123,7 @@ export function DeviceControlsRail(props: {
             disabled={inputDisabled || !!view.keyboard?.attached}
             onClick={() => handle?.rotate()}
           >
-            <RotateCcw />
+            <RotateCcwIcon />
           </RailButton>
         )}
         <RailDivider />
@@ -147,7 +147,7 @@ export function DeviceControlsRail(props: {
               />
             }
           >
-            <Type />
+            <TypeIcon />
           </MenuTrigger>
           <MenuPopup side={popupSide} className="min-w-40">
             <MenuRadioGroup
@@ -186,7 +186,7 @@ export function DeviceControlsRail(props: {
           pressed={props.toolsOpen}
           onClick={props.onTools}
         >
-          <SlidersHorizontal />
+          <SlidersHorizontalIcon />
         </RailButton>
         <RailButton
           tooltipSide={popupSide}
@@ -194,7 +194,7 @@ export function DeviceControlsRail(props: {
           disabled={!view.streaming || props.screenshotPending}
           onClick={props.onScreenshot}
         >
-          <Camera />
+          <CameraIcon />
         </RailButton>
         <Menu>
           <MenuTrigger
@@ -207,20 +207,20 @@ export function DeviceControlsRail(props: {
               />
             }
           >
-            <MoreHorizontal />
+            <EllipsisIcon />
           </MenuTrigger>
           <MenuPopup side={popupSide} align="end">
             <MenuItem onClick={props.onFloat}>
-              <PictureInPicture2 />
+              <PictureInPictureIcon />
               Float device over chat
             </MenuItem>
             <MenuItem onClick={props.onClose}>
-              <X />
+              <XIcon />
               Close device panel
             </MenuItem>
             <MenuSeparator />
             <MenuItem variant="destructive" {...confirm.bind("power-off", props.onPowerOff)}>
-              <Power />
+              <PowerIcon />
               {confirm.armed === "power-off" ? "Confirm power off" : "Power off device"}
             </MenuItem>
           </MenuPopup>
@@ -234,7 +234,7 @@ export function DeviceControlsRail(props: {
           description={view.phoneUnavailableReason ?? undefined}
           onClick={view.showPhone}
         >
-          <Box />
+          <BoxIcon />
         </RailButton>
         <RailButton
           tooltipSide={popupSide}
@@ -243,7 +243,7 @@ export function DeviceControlsRail(props: {
           disabled={!view.streaming}
           onClick={view.showFlat}
         >
-          <Smartphone />
+          <SmartphoneIcon />
         </RailButton>
         {view.keyboard ? (
           <RailButton
@@ -252,12 +252,12 @@ export function DeviceControlsRail(props: {
             pressed={view.keyboard.attached}
             onClick={view.keyboard.toggle}
           >
-            <Keyboard />
+            <KeyboardIcon />
           </RailButton>
         ) : null}
         {view.phone ? (
           <RailButton tooltipSide={popupSide} label="Restore 3D view" onClick={view.resetView}>
-            <Maximize />
+            <MaximizeIcon />
           </RailButton>
         ) : null}
       </div>

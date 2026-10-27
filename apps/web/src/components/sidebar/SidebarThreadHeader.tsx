@@ -4,7 +4,7 @@
  * The heading names the selected project while the list is filtered to one,
  * so the list still says what it shows once the options menu closes.
  */
-import { FolderPlusIcon } from "lucide-react";
+import { FolderPlusIcon } from "@supaterm/icons";
 import { type ComponentProps, type ReactNode } from "react";
 
 import { cn } from "~/lib/utils";

@@ -1,5 +1,5 @@
 import type { SnapShotSource } from "@supaterm/contracts";
-import { ImageIcon, TextIcon } from "lucide-react";
+import { ImageIcon, TextIcon } from "@supaterm/icons";
 import { Suspense } from "react";
 
 import { useRenderedAppearance } from "../../hooks/useTheme";

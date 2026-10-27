@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { CircleAlertIcon, CircleCheckIcon } from "lucide-react";
+import { CircleAlertIcon, CircleCheckIcon } from "@supaterm/icons";
 import { useEffect, useRef } from "react";
 
 import { getClientSettings } from "~/hooks/useSettings";

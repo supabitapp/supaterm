@@ -1,5 +1,5 @@
 import { Dialog as CommandDialogPrimitive } from "@base-ui/react/dialog";
-import { SearchIcon } from "lucide-react";
+import { SearchIcon } from "@supaterm/icons";
 import type * as React from "react";
 import { cn } from "~/lib/utils";
 import {

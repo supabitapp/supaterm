@@ -5,7 +5,6 @@ const STARTUP_LAZY_ENTRIES = [
   "src/routes/_chat.tsx",
   "src/routes/_chat.index.tsx",
   "src/routes/_chat.$environmentId.$threadId.tsx",
-  "src/lib/lucideIconByName.ts",
 ];
 
 const WARMUP_CLIENT_ID = "supaterm-startup-warmup";

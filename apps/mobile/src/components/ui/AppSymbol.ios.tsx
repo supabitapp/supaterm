@@ -1,39 +1,34 @@
-import IconGitBranch from "@tabler/icons-react-native/IconGitBranch";
-import IconGitMerge from "@tabler/icons-react-native/IconGitMerge";
-import IconGitCommit from "@tabler/icons-react-native/IconGitCommit";
-import IconGitPullRequestClosed from "@tabler/icons-react-native/IconGitPullRequestClosed";
-import IconGitPullRequestDraft from "@tabler/icons-react-native/IconGitPullRequestDraft";
+import * as IconNodes from "@supaterm/icons/nodes";
 import type { SFSymbol } from "expo-symbols";
-import IconGitPullRequest from "@tabler/icons-react-native/IconGitPullRequest";
-import IconFileDiff from "@tabler/icons-react-native/IconFileDiff";
 import { SymbolView as ExpoSymbolView } from "expo-symbols";
 import { withUniwind } from "uniwind";
+import { NodeIcon } from "./NodeIcon";
 import type { AppSymbolViewProps } from "./AppSymbol";
 
 export type { SFSymbol } from "expo-symbols";
 export type { AppSymbolName } from "./AppSymbol";
 
 const CUSTOM_ICONS = {
-  "file.diff": IconFileDiff,
-  "arrow.triangle.pull": IconGitPullRequest,
-  "arrow.triangle.merge": IconGitMerge,
-  "arrow.triangle.branch": IconGitBranch,
-  "arrow.branch": IconGitBranch,
-  "git.pull-request.closed": IconGitPullRequestClosed,
-  "git.pull-request.draft": IconGitPullRequestDraft,
-  "git.commit": IconGitCommit,
+  "file.diff": IconNodes.Diff,
+  "arrow.triangle.pull": IconNodes.GitPullRequest,
+  "arrow.triangle.merge": IconNodes.GitMerge,
+  "arrow.triangle.branch": IconNodes.GitBranch,
+  "arrow.branch": IconNodes.GitBranch,
+  "git.pull-request.closed": IconNodes.GitPullRequestClosed,
+  "git.pull-request.draft": IconNodes.GitPullRequestDraft,
+  "git.commit": IconNodes.GitCommit,
 };
 
 function AppSymbolView(props: AppSymbolViewProps) {
   const name = typeof props.name === "string" ? props.name : props.name.ios;
-  const CustomIcon = CUSTOM_ICONS[name as keyof typeof CUSTOM_ICONS];
-  if (CustomIcon) {
+  const customNode = CUSTOM_ICONS[name as keyof typeof CUSTOM_ICONS];
+  if (customNode) {
     return (
-      <CustomIcon
+      <NodeIcon
+        node={customNode}
         accessibilityLabel={props.accessibilityLabel}
         color={props.tintColor}
         size={props.size}
-        strokeWidth={2}
         style={props.style}
         testID={props.testID}
       />

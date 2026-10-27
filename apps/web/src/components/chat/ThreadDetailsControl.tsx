@@ -19,7 +19,7 @@ import {
   THREAD_DETAILS_PANEL_SELECT_LABEL_CLASS,
   THREAD_DETAILS_PANEL_SELECT_ICON_CLASS,
 } from "./threadDetailsPanelStyles";
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon } from "@supaterm/icons";
 
 const parts = {
   "group-row": `${THREAD_DETAILS_PANEL_ROW_CLASS} hover:!bg-transparent dark:hover:!bg-transparent`,

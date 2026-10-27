@@ -1,4 +1,4 @@
-import { CodeIcon, WorkflowIcon } from "lucide-react";
+import { CodeIcon, WorkflowIcon } from "@supaterm/icons";
 import { Suspense, use, useState, type ReactNode } from "react";
 
 import { RenderErrorBoundary } from "../RenderErrorBoundary";

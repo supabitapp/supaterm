@@ -1,6 +1,6 @@
 import { type ProviderInstanceId, type ServerProvider } from "@supaterm/contracts";
 import { memo } from "react";
-import { InfoIcon, XIcon } from "lucide-react";
+import { InfoIcon, XIcon } from "@supaterm/icons";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "../ui/alert";
 import { Button, InlineButton } from "../ui/button";
 import { formatProviderDriverKindLabel } from "../../providerModels";

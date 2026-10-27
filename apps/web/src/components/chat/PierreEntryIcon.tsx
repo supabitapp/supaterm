@@ -1,4 +1,4 @@
-import { FileIcon, FolderIcon } from "lucide-react";
+import { FileIcon, FolderIcon } from "@supaterm/icons";
 import { memo, useInsertionEffect } from "react";
 
 import { ensurePierreIconSprite, resolvePierreIconForEntry } from "../../pierre-icons";

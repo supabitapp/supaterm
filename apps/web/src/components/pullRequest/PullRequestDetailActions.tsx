@@ -4,7 +4,7 @@ import type {
   PullRequestMergeMethod,
   PullRequestUpdateMethod,
 } from "@supaterm/contracts";
-import { ChevronDownIcon, FolderGit2Icon, GitBranchIcon, PlayIcon } from "lucide-react";
+import { ChevronDownIcon, FolderGitIcon, GitBranchIcon, PlayIcon } from "@supaterm/icons";
 import type { ReactNode } from "react";
 
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";
@@ -127,7 +127,7 @@ export function PullRequestCheckoutMenu({
           </span>
         </MenuItem>
         <MenuItem disabled={!canCheckoutHere} onClick={() => onCheckout("local")}>
-          <FolderGit2Icon className="mt-1 size-3.5 shrink-0 self-start" />
+          <FolderGitIcon className="mt-1 size-3.5 shrink-0 self-start" />
           <span className="flex min-w-0 flex-col">
             <span>In this repository</span>
             <span className="text-xs text-muted-foreground">

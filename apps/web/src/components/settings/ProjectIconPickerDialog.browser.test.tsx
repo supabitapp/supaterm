@@ -51,7 +51,7 @@ describe("ProjectIconPickerDialog", () => {
     await click("Save icon");
 
     expect(onSelect).toHaveBeenCalledExactlyOnceWith({
-      kind: "lucide",
+      kind: "icon",
       name: "rocket",
       color: automatic.color,
     });
@@ -83,5 +83,5 @@ describe("ProjectIconPickerDialog", () => {
 });
 
 function searchBox() {
-  return document.querySelector<HTMLInputElement>('input[aria-label="Search Lucide icons"]')!;
+  return document.querySelector<HTMLInputElement>('input[aria-label="Search icons"]')!;
 }

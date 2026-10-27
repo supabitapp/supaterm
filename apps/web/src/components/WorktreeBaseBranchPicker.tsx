@@ -1,5 +1,5 @@
 import type { EnvironmentId } from "@supaterm/contracts";
-import { ChevronDownIcon, GitBranchIcon } from "lucide-react";
+import { ChevronDownIcon, GitBranchIcon } from "@supaterm/icons";
 import { useDeferredValue, useState } from "react";
 
 import { usePaginatedBranches } from "../state/queries";

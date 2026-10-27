@@ -5,7 +5,13 @@ import type {
   DeviceSummary,
   ScopedThreadRef,
 } from "@supaterm/contracts";
-import { ArrowUpRight, CircleAlert, Play, Smartphone, X } from "lucide-react";
+import {
+  ArrowUpRightIcon,
+  CircleAlertIcon,
+  PlayIcon,
+  SmartphoneIcon,
+  XIcon,
+} from "@supaterm/icons";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { usePreviewMiniPlayerStore } from "~/previewMiniPlayerStore";
@@ -254,7 +260,7 @@ export function DevicePanel(props: {
               >
                 {grouped.length === 0 ? (
                   <>
-                    <Smartphone className="size-6 opacity-60" />
+                    <SmartphoneIcon className="size-6 opacity-60" />
                     <p
                       className="max-h-32 w-full max-w-sm overflow-y-auto whitespace-pre-line break-words"
                       tabIndex={state.hostStatus === "failed" ? 0 : undefined}
@@ -270,7 +276,7 @@ export function DevicePanel(props: {
                     {grouped.map((group) => (
                       <section key={group.platform} className="space-y-3">
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Smartphone className="size-4 shrink-0" />
+                          <SmartphoneIcon className="size-4 shrink-0" />
                           <h3 className="font-medium">{platformLabel(group.platform)}</h3>
                         </div>
                         <DiscoveryList>
@@ -280,7 +286,7 @@ export function DevicePanel(props: {
                               className="flex items-center gap-3 px-3 py-3"
                             >
                               <span className="grid size-8 shrink-0 place-items-center rounded-md border border-border/60">
-                                <Smartphone className="size-4" />
+                                <SmartphoneIcon className="size-4" />
                               </span>
                               <div className="flex min-w-0 flex-1 flex-col">
                                 <span className="truncate text-sm font-medium text-foreground">
@@ -300,9 +306,9 @@ export function DevicePanel(props: {
                                 {pendingDeviceKey === deviceKey(device) ? (
                                   <Spinner size="xs" />
                                 ) : device.booted ? (
-                                  <ArrowUpRight />
+                                  <ArrowUpRightIcon />
                                 ) : (
-                                  <Play />
+                                  <PlayIcon />
                                 )}
                                 {device.booted ? "Open" : "Start"}
                               </Button>
@@ -356,7 +362,7 @@ function DeviceNotice(props: {
           : "bg-destructive/5 text-destructive",
       )}
     >
-      <CircleAlert className="mt-1 size-3.5 shrink-0" />
+      <CircleAlertIcon className="mt-1 size-3.5 shrink-0" />
       <div
         className="max-h-32 min-w-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words"
         tabIndex={0}
@@ -369,7 +375,7 @@ function DeviceNotice(props: {
         aria-label={props.tone === "warning" ? "Dismiss device warning" : "Dismiss device error"}
         onClick={props.onDismiss}
       >
-        <X />
+        <XIcon />
       </Button>
     </div>
   );

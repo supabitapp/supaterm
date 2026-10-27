@@ -1,4 +1,4 @@
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon } from "@supaterm/icons";
 import type { ReactNode } from "react";
 
 import { cn } from "~/lib/utils";

@@ -11,14 +11,14 @@ import {
   ArrowRightIcon,
   CheckIcon,
   ChevronDownIcon,
-  Columns2Icon,
+  ColumnsIcon,
   FileSymlinkIcon,
   FolderTreeIcon,
   PilcrowIcon,
-  Rows3Icon,
-  TextWrapIcon,
-} from "lucide-react";
-import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucide";
+  RowsIcon,
+  WrapTextIcon,
+} from "@supaterm/icons";
+import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from "@supaterm/icons/nodes";
 import * as Schema from "effect/Schema";
 import * as DateTime from "effect/DateTime";
 import { useEffect, useRef, useState } from "react";
@@ -950,10 +950,10 @@ export default function DiffPanel({
           }}
         >
           <Toggle aria-label="Stacked diff view" value="stacked">
-            <Rows3Icon className="size-3.5" />
+            <RowsIcon className="size-3.5" />
           </Toggle>
           <Toggle aria-label="Split diff view" value="split">
-            <Columns2Icon className="size-3.5" />
+            <ColumnsIcon className="size-3.5" />
           </Toggle>
         </ToggleGroup>
         <Tooltip>
@@ -970,7 +970,7 @@ export default function DiffPanel({
               />
             }
           >
-            <TextWrapIcon className="size-3.5" />
+            <WrapTextIcon className="size-3.5" />
           </TooltipTrigger>
           <TooltipPopup side="top">
             {wordWrap ? "Disable line wrapping" : "Enable line wrapping"}

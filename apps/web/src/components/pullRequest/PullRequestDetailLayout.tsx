@@ -1,4 +1,4 @@
-import { ArrowLeftIcon, FileDiffIcon } from "lucide-react";
+import { ArrowLeftIcon, DiffIcon } from "@supaterm/icons";
 import type { ComponentProps, ReactNode } from "react";
 
 import { cn } from "~/lib/utils";
@@ -46,7 +46,7 @@ export function PullRequestDetailHeaderBody({
         </span>
         <span className="ml-auto inline-flex shrink-0 items-center justify-end gap-2">
           <span className="inline-flex min-w-16 items-center justify-end gap-1.5 tabular-nums">
-            <FileDiffIcon aria-hidden className="size-3.5" />
+            <DiffIcon aria-hidden className="size-3.5" />
             {files}
           </span>
           {diffStat}

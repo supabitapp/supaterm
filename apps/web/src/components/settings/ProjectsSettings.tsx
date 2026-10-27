@@ -1,5 +1,5 @@
 import { EnvironmentId } from "@supaterm/contracts";
-import { LayersIcon } from "lucide-react";
+import { LayersIcon } from "@supaterm/icons";
 
 import { Button } from "../ui/button";
 import { ProjectSettingsPanel } from "./ProjectSettingsPanel";

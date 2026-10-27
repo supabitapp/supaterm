@@ -1,4 +1,4 @@
-import { Minimize2Icon } from "lucide-react";
+import { ShrinkIcon } from "@supaterm/icons";
 
 import {
   type ContextWindowSnapshot,
@@ -93,7 +93,7 @@ export function ContextWindowDetails(props: {
             disabled={compactDisabled}
             onClick={onCompact}
           >
-            <Minimize2Icon aria-hidden="true" />
+            <ShrinkIcon aria-hidden="true" />
             Compact context
           </Button>
           {compactDisabled && compactDisabledReason ? (

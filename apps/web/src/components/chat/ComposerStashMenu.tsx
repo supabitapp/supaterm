@@ -1,4 +1,4 @@
-import { ArrowUpIcon, BookmarkIcon, FileIcon, FileTextIcon, XIcon } from "lucide-react";
+import { ArrowUpIcon, BookmarkIcon, FileIcon, FileTextIcon, XIcon } from "@supaterm/icons";
 import { memo, useEffect, useRef, useState, type RefObject } from "react";
 import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
 

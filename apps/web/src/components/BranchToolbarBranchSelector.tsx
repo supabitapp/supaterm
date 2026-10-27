@@ -15,7 +15,7 @@ import {
   type VcsRef,
   type ThreadId,
 } from "@supaterm/contracts";
-import { ChevronDownIcon, GitBranchIcon } from "lucide-react";
+import { ChevronDownIcon, GitBranchIcon } from "@supaterm/icons";
 import {
   useDeferredValue,
   useImperativeHandle,

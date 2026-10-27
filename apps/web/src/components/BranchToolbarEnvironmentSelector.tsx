@@ -2,7 +2,7 @@ import { ThreadDetailsComboboxControl } from "./chat/ThreadDetailsControl";
 import { ComposerContextLabel } from "./ComposerContextLabel";
 import { Tooltip, TooltipTrigger, TooltipPopup } from "./ui/tooltip";
 import type { EnvironmentId } from "@supaterm/contracts";
-import { PlusIcon, ScaleIcon } from "lucide-react";
+import { PlusIcon, ScaleIcon } from "@supaterm/icons";
 import { useAtomValue } from "@effect/atom-react";
 import { memo, useState } from "react";
 

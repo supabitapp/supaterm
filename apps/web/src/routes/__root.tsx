@@ -9,7 +9,7 @@ import {
   useNavigate,
   useRouter,
 } from "@tanstack/react-router";
-import { Check, Copy } from "lucide";
+import { Check, Copy } from "@supaterm/icons/nodes";
 import { lazy, Suspense, useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { APP_DISPLAY_NAME, APP_VERSION } from "../branding";

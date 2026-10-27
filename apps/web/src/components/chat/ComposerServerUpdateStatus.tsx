@@ -1,6 +1,6 @@
 import { Spinner } from "~/components/ui/spinner";
 import type { ServerUpdateState } from "@supaterm/client-runtime/state/server";
-import { CircleAlertIcon, DownloadIcon } from "lucide-react";
+import { CircleAlertIcon, DownloadIcon } from "@supaterm/icons";
 
 export function ComposerServerUpdateIcon({
   status,

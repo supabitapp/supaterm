@@ -1,25 +1,25 @@
 import {
   GitMergeIcon,
-  GitPullRequestArrowIcon,
   GitPullRequestClosedIcon,
   GitPullRequestDraftIcon,
+  GitPullRequestIcon,
   LayersIcon,
-  Link2Icon,
-  Unlink2Icon,
+  LinkHorizontalIcon,
   TriangleAlertIcon,
-} from "lucide-react";
+  UnlinkIcon,
+} from "@supaterm/icons";
 import type { PullRequestState } from "@supaterm/contracts";
 
 export const PullRequestGlyph = {
-  pullRequest: GitPullRequestArrowIcon,
-  reopen: GitPullRequestArrowIcon,
+  pullRequest: GitPullRequestIcon,
+  reopen: GitPullRequestIcon,
   draft: GitPullRequestDraftIcon,
   closed: GitPullRequestClosedIcon,
   merged: GitMergeIcon,
   conflicting: TriangleAlertIcon,
   stack: LayersIcon,
-  link: Link2Icon,
-  unlink: Unlink2Icon,
+  link: LinkHorizontalIcon,
+  unlink: UnlinkIcon,
 } as const;
 
 export type PullRequestGlyphIcon = (typeof PullRequestGlyph)[keyof typeof PullRequestGlyph];

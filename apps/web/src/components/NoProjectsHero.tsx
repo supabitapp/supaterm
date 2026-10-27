@@ -1,4 +1,4 @@
-import { MessageSquareDashedIcon, PlusIcon } from "lucide-react";
+import { MessageSquareMoreIcon, PlusIcon } from "@supaterm/icons";
 
 import { openCommandPalette } from "../commandPaletteBus";
 import { isElectron } from "../env";
@@ -47,7 +47,7 @@ export function NoProjectsHero() {
                         />
                       }
                     >
-                      <MessageSquareDashedIcon className="size-4" />
+                      <MessageSquareMoreIcon className="size-4" />
                       Start without a project
                     </TooltipTrigger>
                     {noProjectShortcut ? (

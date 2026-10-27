@@ -2,14 +2,14 @@ import {
   CheckIcon,
   CircleAlertIcon,
   Clock3Icon,
+  EllipsisIcon,
   FolderIcon,
   MessageSquareIcon,
-  MoreHorizontalIcon,
   PencilIcon,
   PlayIcon,
   SendIcon,
-  Trash2Icon,
-} from "lucide-react";
+  TrashIcon,
+} from "@supaterm/icons";
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { EnvironmentId, ScheduledTask } from "@supaterm/contracts";
@@ -131,7 +131,7 @@ export function AutomationRow({
                 />
               }
             >
-              <MoreHorizontalIcon className="size-4" />
+              <EllipsisIcon className="size-4" />
             </MenuTrigger>
             <MenuPopup align="end">
               <MenuItem disabled={!canOperate} onClick={edit}>
@@ -164,7 +164,7 @@ export function AutomationRow({
                 {...confirm.bind("delete", () => void act("delete"))}
                 variant="destructive"
               >
-                <Trash2Icon />
+                <TrashIcon />
                 {confirm.armed === "delete" ? "Confirm delete" : "Delete"}
               </MenuItem>
             </MenuPopup>

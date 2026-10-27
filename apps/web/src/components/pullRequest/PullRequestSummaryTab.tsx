@@ -16,7 +16,7 @@ import {
   ListFilterIcon,
   TagIcon,
   UsersIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 import * as Schema from "effect/Schema";
 import { useRef, useState, type ReactNode } from "react";
 import { withOccurrenceKeys } from "@supaterm/shared/occurrenceKeys";

@@ -12,13 +12,13 @@ import {
   type TerminalSessionState,
 } from "@supaterm/client-runtime/state/terminal";
 import {
-  Plus,
-  Square,
-  SquareSplitHorizontal,
-  SquareSplitVertical,
-  TerminalSquare,
-  Trash2,
-} from "lucide-react";
+  ColumnsIcon,
+  PlusIcon,
+  RowsIcon,
+  SquareIcon,
+  SquareTerminalIcon,
+  TrashIcon,
+} from "@supaterm/icons";
 import {
   AuthPreviewOperateScope,
   AuthOrchestrationOperateScope,
@@ -1253,10 +1253,10 @@ function TerminalSidebarGroup({
       ? "Stacked"
       : "Side by side";
   const GroupIcon = !isSplitGroup
-    ? Square
+    ? SquareIcon
     : terminalGroup.splitDirection === "vertical"
-      ? SquareSplitVertical
-      : SquareSplitHorizontal;
+      ? RowsIcon
+      : ColumnsIcon;
 
   return (
     <div className="pb-0.5">
@@ -1308,10 +1308,10 @@ function TerminalSidebarGroup({
                   tooltip={closeTerminalLabel}
                   shortcut={isActive ? closeShortcutLabel : null}
                 >
-                  <TerminalSquare className="size-3 shrink-0" />
+                  <SquareTerminalIcon className="size-3 shrink-0" />
                 </PanelTabCloseButton>
               ) : (
-                <TerminalSquare className="size-3 shrink-0" />
+                <SquareTerminalIcon className="size-3 shrink-0" />
               )}
               <button
                 type="button"
@@ -1785,7 +1785,7 @@ export default function ThreadTerminalDrawer({
               label={splitTerminalActionLabel}
               shortcut={splitTerminalShortcut}
             >
-              <SquareSplitHorizontal className="size-3.25" />
+              <ColumnsIcon className="size-3.25" />
             </TerminalActionButton>
             <div className="h-4 w-px bg-border/80" />
             <TerminalActionButton
@@ -1799,7 +1799,7 @@ export default function ThreadTerminalDrawer({
               label={splitTerminalVerticalActionLabel}
               shortcut={splitTerminalVerticalShortcut}
             >
-              <SquareSplitVertical className="size-3.25" />
+              <RowsIcon className="size-3.25" />
             </TerminalActionButton>
             <div className="h-4 w-px bg-border/80" />
             <TerminalActionButton
@@ -1809,7 +1809,7 @@ export default function ThreadTerminalDrawer({
               label="New terminal"
               shortcut={newShortcutLabel}
             >
-              <Plus className="size-3.25" />
+              <PlusIcon className="size-3.25" />
             </TerminalActionButton>
             <div className="h-4 w-px bg-border/80" />
             <TerminalActionButton
@@ -1819,7 +1819,7 @@ export default function ThreadTerminalDrawer({
               label="Close terminal"
               shortcut={closeShortcutLabel}
             >
-              <Trash2 className="size-3.25" />
+              <TrashIcon className="size-3.25" />
             </TerminalActionButton>
           </div>
         </div>
@@ -1864,7 +1864,7 @@ export default function ThreadTerminalDrawer({
                     label={splitTerminalActionLabel}
                     shortcut={splitTerminalShortcut}
                   >
-                    <SquareSplitHorizontal className="size-3.25" />
+                    <ColumnsIcon className="size-3.25" />
                   </TerminalActionButton>
                   <TerminalActionButton
                     disabled={!canOperateTerminal}
@@ -1877,7 +1877,7 @@ export default function ThreadTerminalDrawer({
                     label={splitTerminalVerticalActionLabel}
                     shortcut={splitTerminalVerticalShortcut}
                   >
-                    <SquareSplitVertical className="size-3.25" />
+                    <RowsIcon className="size-3.25" />
                   </TerminalActionButton>
                   <TerminalActionButton
                     disabled={!canOperateTerminal}
@@ -1886,7 +1886,7 @@ export default function ThreadTerminalDrawer({
                     label="New terminal"
                     shortcut={newShortcutLabel}
                   >
-                    <Plus className="size-3.25" />
+                    <PlusIcon className="size-3.25" />
                   </TerminalActionButton>
                   <TerminalActionButton
                     disabled={!canOperateTerminal}
@@ -1895,7 +1895,7 @@ export default function ThreadTerminalDrawer({
                     label="Close terminal"
                     shortcut={closeShortcutLabel}
                   >
-                    <Trash2 className="size-3.25" />
+                    <TrashIcon className="size-3.25" />
                   </TerminalActionButton>
                 </div>
               </div>

@@ -10,8 +10,14 @@ import {
   type ReactNode,
 } from "react";
 import { type ScopedThreadRef, type ThreadId } from "@supaterm/contracts";
-import { CircleAlertIcon, CircleCheckIcon, InfoIcon, TriangleAlertIcon, XIcon } from "lucide-react";
-import { Check, ChevronDown, ChevronUp, Copy } from "lucide";
+import {
+  CircleAlertIcon,
+  CircleCheckIcon,
+  InfoIcon,
+  TriangleAlertIcon,
+  XIcon,
+} from "@supaterm/icons";
+import { Check, ChevronDown, ChevronUp, Copy } from "@supaterm/icons/nodes";
 
 import { cn } from "~/lib/utils";
 import { POPUP_MOTION_CLASS } from "~/components/ui/popup-styles";

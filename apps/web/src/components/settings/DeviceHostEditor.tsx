@@ -1,7 +1,7 @@
 import { useState } from "react";
 import * as Option from "effect/Option";
 import type { SshDeviceHostConfig } from "@supaterm/contracts";
-import { CheckIcon, ChevronDownIcon, MonitorIcon, XIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, MonitorIcon, XIcon } from "@supaterm/icons";
 import { Button, InlineButton } from "../ui/button";
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "../ui/collapsible";
 import { Input } from "../ui/input";

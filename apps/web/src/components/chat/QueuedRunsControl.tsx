@@ -16,7 +16,7 @@ import {
   ListOrderedIcon,
   PencilIcon,
   XIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 import { useId, useImperativeHandle, useRef, useState, type Ref } from "react";
 
 import { useAssetUrls } from "../../assets/assetUrls";

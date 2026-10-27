@@ -2,11 +2,11 @@ import { usePreparedConnection } from "../../state/session";
 import { SessionPermissions } from "./SessionPermissions";
 import {
   ChevronRightIcon,
-  ChevronsLeftRightEllipsisIcon,
+  ChevronsLeftRightIcon,
   EllipsisIcon,
   PencilIcon,
   RouteIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 import { useAtomValue } from "@effect/atom-react";
 import { useState } from "react";
 import { type EnvironmentId, resolveEnvironmentMachineKind } from "@supaterm/contracts";
@@ -408,7 +408,7 @@ export function EmptyRemoteEnvironments() {
   return (
     <Empty className="min-h-52">
       <EmptyMedia variant="icon">
-        <ChevronsLeftRightEllipsisIcon />
+        <ChevronsLeftRightIcon />
       </EmptyMedia>
       <EmptyHeader>
         <EmptyTitle>No saved remote environments</EmptyTitle>

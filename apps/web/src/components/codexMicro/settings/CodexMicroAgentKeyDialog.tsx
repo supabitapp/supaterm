@@ -1,6 +1,6 @@
 import type { CodexMicroAgentAssignment, CodexMicroAgentKey } from "@supaterm/contracts";
 import { scopedProjectKey, scopedThreadKey } from "@supaterm/client-runtime/environment";
-import { CheckIcon, MessageSquareIcon } from "lucide-react";
+import { CheckIcon, MessageSquareIcon } from "@supaterm/icons";
 import { useState } from "react";
 
 import { useProjects, useThreadShells } from "../../../state/entities";

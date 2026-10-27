@@ -9,7 +9,7 @@ import { settlePromise } from "@supaterm/client-runtime/state/runtime";
 import { serializeComposerFileLink } from "@supaterm/shared/composerTrigger";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import * as Cause from "effect/Cause";
-import { ChevronsDownUp, ChevronsUpDown } from "lucide";
+import { ChevronsDownUp, ChevronsUpDown } from "@supaterm/icons/nodes";
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "~/components/ui/button";

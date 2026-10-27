@@ -8,7 +8,7 @@ import {
 } from "./MessagesTimeline.logic";
 import { type TimelineMinimapItem, resolveTimelineMinimapPreview } from "./timelineMinimapItems";
 import { useState, useRef, useEffect, type MouseEvent } from "react";
-import { ChevronUpIcon, ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon, ChevronUpIcon } from "@supaterm/icons";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipTrigger, TooltipPopup } from "../ui/tooltip";
 import { cn } from "~/lib/utils";

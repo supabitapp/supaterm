@@ -1,5 +1,5 @@
 import { SessionPermissions } from "./SessionPermissions";
-import { ChevronRightIcon, EllipsisIcon, PencilIcon } from "lucide-react";
+import { ChevronRightIcon, EllipsisIcon, PencilIcon } from "@supaterm/icons";
 import { useAtomValue } from "@effect/atom-react";
 import { useRef, useState } from "react";
 import {

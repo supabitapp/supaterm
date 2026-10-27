@@ -6,7 +6,7 @@ import {
   threadPullRequestKeyOf,
   visibleThreadPullRequests,
 } from "@supaterm/shared/threadPullRequests";
-import { Minus, Plus } from "lucide";
+import { Minus, Plus } from "@supaterm/icons/nodes";
 import { useState, type ComponentProps, type MouseEvent as ReactMouseEvent } from "react";
 
 import { findProjectOnChangeRequestHost, parseChangeRequestUrl } from "~/lib/openPullRequestLink";

@@ -1,4 +1,4 @@
-import { CircleGaugeIcon, DollarSignIcon } from "lucide-react";
+import { CircleGaugeIcon, DollarSignIcon } from "@supaterm/icons";
 import type { ComponentProps, ReactNode } from "react";
 
 import { formatContextWindowPercentage, formatContextWindowTokens } from "~/lib/contextWindow";

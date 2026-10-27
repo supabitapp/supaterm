@@ -6,7 +6,7 @@ import {
   type ServerSettings,
   type WorktreeSubmodules,
 } from "@supaterm/contracts";
-import { CheckIcon, ChevronRightIcon, LayersIcon } from "lucide-react";
+import { CheckIcon, ChevronRightIcon, LayersIcon } from "@supaterm/icons";
 import * as Equal from "effect/Equal";
 
 import { cn } from "../../lib/utils";

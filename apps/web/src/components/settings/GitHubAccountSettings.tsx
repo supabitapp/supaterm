@@ -3,7 +3,7 @@ import {
   type EnvironmentId,
   type SourceControlProviderAuth,
 } from "@supaterm/contracts";
-import { EyeIcon, EyeOffIcon } from "lucide-react";
+import { EyeIcon, EyeOffIcon } from "@supaterm/icons";
 import { useState } from "react";
 import * as Option from "effect/Option";
 

@@ -9,8 +9,8 @@ import {
   type KeybindingCommand,
 } from "@supaterm/contracts";
 import {
+  AiBotIcon,
   AsteriskIcon,
-  BotMessageSquareIcon,
   BrainCircuitIcon,
   BrainIcon,
   BugIcon,
@@ -21,25 +21,25 @@ import {
   CloudUploadIcon,
   DiffIcon,
   DownloadIcon,
-  FlaskConicalIcon,
+  FlaskIcon,
   FolderPlusIcon,
   GitBranchIcon,
-  GitCommitHorizontalIcon,
+  GitCommitIcon,
   GitForkIcon,
+  type IconComponent,
   LayoutGridIcon,
-  type LucideIcon,
   MicIcon,
   NavigationIcon,
   PaintbrushIcon,
   PartyPopperIcon,
   PlayIcon,
-  Settings2Icon,
+  SlidersHorizontalIcon,
   SquarePenIcon,
   SquareTerminalIcon,
   StarIcon,
-  Trash2Icon,
+  TrashIcon,
   ZapIcon,
-} from "lucide-react";
+} from "@supaterm/icons";
 
 import { PullRequestGlyph } from "../pullRequest/pullRequestIcons";
 
@@ -47,7 +47,7 @@ export interface CodexMicroKeycap {
   readonly id: CodexMicroKeycapId;
   /** The text printed on the physical keycap. */
   readonly label: string;
-  readonly icon: LucideIcon | null;
+  readonly icon: IconComponent | null;
   /** Text keycaps print their text instead of an icon. */
   readonly glyph?: string;
   readonly size: "single" | "double";
@@ -95,7 +95,7 @@ export const CODEX_MICRO_KEYCAPS: ReadonlyArray<CodexMicroKeycap> = [
   {
     id: "CODEX",
     label: "CODEX",
-    icon: BotMessageSquareIcon,
+    icon: AiBotIcon,
     size: "single",
     defaultAction: command("composer.submit"),
   },
@@ -112,7 +112,7 @@ export const CODEX_MICRO_KEYCAPS: ReadonlyArray<CodexMicroKeycap> = [
   {
     id: "DEL",
     label: "DEL",
-    icon: Trash2Icon,
+    icon: TrashIcon,
     size: "single",
     defaultAction: command("thread.mark-done"),
   },
@@ -145,7 +145,7 @@ export const CODEX_MICRO_KEYCAPS: ReadonlyArray<CodexMicroKeycap> = [
     defaultAction: command("diff.toggle"),
   },
   { id: "PLAY", label: "PLAY", icon: PlayIcon, size: "single", defaultAction: null },
-  { id: "GIT", label: "GIT", icon: GitCommitHorizontalIcon, size: "single", defaultAction: null },
+  { id: "GIT", label: "GIT", icon: GitCommitIcon, size: "single", defaultAction: null },
   {
     id: "BRCH",
     label: "DRAFT",
@@ -166,7 +166,7 @@ export const CODEX_MICRO_KEYCAPS: ReadonlyArray<CodexMicroKeycap> = [
   {
     id: "LAB",
     label: "LAB",
-    icon: FlaskConicalIcon,
+    icon: FlaskIcon,
     size: "single",
     defaultAction: { type: "open-settings" },
   },
@@ -199,7 +199,7 @@ export const CODEX_MICRO_KEYCAPS: ReadonlyArray<CodexMicroKeycap> = [
   {
     id: "SETUP",
     label: "SETUP",
-    icon: Settings2Icon,
+    icon: SlidersHorizontalIcon,
     size: "single",
     defaultAction: { type: "open-settings" },
   },

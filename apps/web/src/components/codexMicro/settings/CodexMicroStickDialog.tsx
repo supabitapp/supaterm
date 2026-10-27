@@ -1,5 +1,5 @@
 import type { CodexMicroJoystickDirection, CodexMicroLayout } from "@supaterm/contracts";
-import { ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon } from "lucide-react";
+import { ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon } from "@supaterm/icons";
 
 import { codexMicroActionLabel } from "../codexMicroCatalog";
 import { CodexMicroInputDialog, type CodexMicroInputRow } from "./CodexMicroInputDialog";
