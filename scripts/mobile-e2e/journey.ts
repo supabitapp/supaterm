@@ -52,10 +52,10 @@ const inside = (rect: Rect | undefined, snapshot: Snapshot) =>
   rect.y + rect.height <= snapshot.viewport.height + 1;
 
 const topBand = (snapshot: Snapshot): Rect => ({
-  x: 0,
-  y: 0,
-  width: snapshot.viewport.width,
-  height: snapshot.viewport.height * 0.12,
+  x: snapshot.viewport.width * 0.25,
+  y: snapshot.viewport.height * 0.03,
+  width: snapshot.viewport.width * 0.5,
+  height: snapshot.viewport.height * 0.09,
 });
 
 export async function runJourney(
@@ -131,7 +131,6 @@ export async function runJourney(
   await delay(1_000);
   threads = await device.orient(device.pose.landscape ? "landscape" : "portrait");
   const tabs = tabBarRect(threads);
-  const bottomTabs = phone && tabs && tabs.width > tabs.height ? tabs : undefined;
   const wide = threads.viewport.width > threads.viewport.height;
   await capture("threads", threads, [
     check(
@@ -143,13 +142,15 @@ export async function runJourney(
     ...(phone ? [check("tab bar visible", inside(tabs, threads), describeRect(tabs))] : []),
   ]);
 
-  const opening = await device.recorded(directory, "open-thread", () =>
-    tap(threadRow(threads!), "thread row"),
+  const opening = await device.recorded(directory, "open-thread", async () =>
+    tap(threadRow(await device.snapshot()), "thread row"),
   );
   const thread = await device.waitFor(
     (snapshot) => composer(snapshot) !== undefined && threadRow(snapshot) !== undefined,
     "the thread screen",
   );
+  const pushed = phone || backButton(thread) !== undefined;
+  const bottomTabs = pushed && tabs && tabs.width > tabs.height ? tabs : undefined;
   const openLag = bottomTabs
     ? await lagCheck(
         "no tabs over the entering thread (video)",
@@ -157,7 +158,7 @@ export async function runJourney(
           video: opening,
           nav: topBand(threads),
           chrome: bottomTabs,
-          viewportWidth: threads.viewport.width,
+          viewport: threads.viewport,
         },
         NodePath.join(directory, "open-thread-lag.png"),
       )
@@ -236,7 +237,7 @@ export async function runJourney(
   await device.agent(["keyboard", "dismiss"]).catch(() => undefined);
   await delay(800);
 
-  if (phone) {
+  if (pushed) {
     const back = await device.recorded(directory, "back", async () => {
       const current = await device.snapshot();
       const button = backButton(current);
@@ -254,7 +255,7 @@ export async function runJourney(
             video: back,
             nav: topBand(list),
             chrome: bottomTabs,
-            viewportWidth: list.viewport.width,
+            viewport: list.viewport,
           },
           NodePath.join(directory, "back-lag.png"),
         )
