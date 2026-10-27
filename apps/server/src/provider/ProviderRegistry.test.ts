@@ -2290,6 +2290,94 @@ it.layer(
       ),
     );
 
+    it.effect.each([
+      {
+        login: "a claude.ai subscription",
+        capabilities: {
+          tokenSource: "claude.ai",
+          subscriptionType: "max",
+          apiProvider: "firstParty",
+        },
+        expected: { status: "ready" },
+      },
+      {
+        login: "the CLI's OAuth token variable",
+        capabilities: { tokenSource: "CLAUDE_CODE_OAUTH_TOKEN" },
+        expected: { status: "ready" },
+      },
+      {
+        login: "an API key",
+        capabilities: { tokenSource: "none", apiKeySource: "ANTHROPIC_API_KEY" },
+        expected: { status: "unavailable", reason: "unsupportedLogin" },
+      },
+      {
+        login: "an auth token",
+        capabilities: { tokenSource: "ANTHROPIC_AUTH_TOKEN" },
+        expected: { status: "unavailable", reason: "unsupportedLogin" },
+      },
+      {
+        login: "an API key helper",
+        capabilities: { tokenSource: "apiKeyHelper" },
+        expected: { status: "unavailable", reason: "unsupportedLogin" },
+      },
+      {
+        login: "Amazon Bedrock",
+        capabilities: { apiProvider: "bedrock" },
+        expected: { status: "unavailable", reason: "unsupportedLogin" },
+      },
+      {
+        login: "a CLI that says nothing about its account",
+        capabilities: {},
+        expected: { status: "unavailable", reason: "unsupportedLogin" },
+      },
+      {
+        login: "a logged-out CLI",
+        capabilities: { tokenSource: "none", apiKeySource: "none", apiProvider: "firstParty" },
+        expected: { status: "unavailable", reason: "signedOut" },
+      },
+    ] as const)(
+      "offers transcription only to subscription logins: $login",
+      ({ capabilities, expected }) =>
+        Effect.gen(function* () {
+          const status = yield* checkClaudeProviderStatus(
+            defaultClaudeSettings,
+            claudeCapabilities(capabilities),
+            { ANTHROPIC_BASE_URL: "" },
+          );
+          assert.deepStrictEqual(status.transcription, expected);
+        }).pipe(
+          Effect.provide(
+            layerMockSpawner((args) => {
+              const joined = args.join(" ");
+              if (joined === "--version") return { stdout: "1.0.0\n", stderr: "", code: 0 };
+              throw new Error(`Unexpected args: ${joined}`);
+            }),
+          ),
+        ),
+    );
+
+    it.effect("doesn't offer transcription to a subscription behind a custom endpoint", () =>
+      Effect.gen(function* () {
+        const status = yield* checkClaudeProviderStatus(
+          defaultClaudeSettings,
+          claudeCapabilities({ tokenSource: "claude.ai", subscriptionType: "max" }),
+          { ANTHROPIC_BASE_URL: "https://proxy.example/api" },
+        );
+        assert.deepStrictEqual(status.transcription, {
+          status: "unavailable",
+          reason: "unsupportedLogin",
+        });
+      }).pipe(
+        Effect.provide(
+          layerMockSpawner((args) => {
+            const joined = args.join(" ");
+            if (joined === "--version") return { stdout: "1.0.0\n", stderr: "", code: 0 };
+            throw new Error(`Unexpected args: ${joined}`);
+          }),
+        ),
+      ),
+    );
+
     it.effect("keeps a CLI that says nothing about its account authenticated", () =>
       Effect.gen(function* () {
         const status = yield* checkClaudeProviderStatus(
