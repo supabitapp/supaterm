@@ -12,7 +12,7 @@ import type { ThreadQueueRowControls } from "./threadQueueControlPresentation";
 const THUMBNAIL_LIMIT = 3;
 const TOUCH_SLOP = 10;
 
-export type QueueMessageAction = "steer" | "edit" | "up" | "down" | "remove";
+export type QueueMessageAction = "steer" | "edit" | "remove";
 
 export function ThreadQueueMessage(props: {
   readonly environmentId: EnvironmentId;
@@ -29,9 +29,9 @@ export function ThreadQueueMessage(props: {
       ? [
           {
             id: "steer",
-            title: props.canSendNow ? "Send now" : "Steer now",
+            title: "Send now",
             attributes: { disabled: !props.controls.canSend },
-            image: Platform.OS === "ios" ? "arrow.turn.left.up" : "arrow_upward",
+            image: Platform.OS === "ios" ? "arrow.up" : "arrow_upward",
           },
         ]
       : []),
@@ -41,8 +41,6 @@ export function ThreadQueueMessage(props: {
       attributes: { disabled: !props.controls.canEdit },
       image: Platform.OS === "ios" ? "pencil" : "edit",
     },
-    { id: "up", title: "Move up", attributes: { disabled: !props.controls.canMoveUp } },
-    { id: "down", title: "Move down", attributes: { disabled: !props.controls.canMoveDown } },
     {
       id: "remove",
       title: "Remove",

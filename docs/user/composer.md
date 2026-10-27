@@ -55,7 +55,7 @@ See [images and videos](#images-and-videos-in-messages) for previewing and savin
 On web and desktop, choose **Settings → Chat → Follow-up behavior** to queue
 new messages for a later turn or steer the running turn immediately. The setting
 applies to this client; already queued messages keep their place. Queued messages
-are saved on the server and can be edited, reordered, or removed above the composer.
+are saved on the server and can be edited or removed above the composer.
 When Enter sends, `Cmd+Enter` on macOS or `Ctrl+Enter` on Windows and Linux uses
 the opposite action: it steers when your default is Queue and queues when your
 default is Steer.
@@ -249,15 +249,15 @@ Windows and Linux to switch the button to the opposite action, then click, or us
 shortcut described above.
 
 Queued messages appear above the composer. Rows show a thumbnail of any attached image alongside
-the text. Drag a row by its handle to reorder it, use the handle's arrow keys, promote the message
-to a steer, or remove it. On web and desktop, removing takes two presses of the row's **X**
-because the message is discarded, not returned to the composer.
+the text. **Send now** sends a message right away, into the running turn if there is one. You can
+also edit or remove it. On web and desktop, removing takes two presses of the row's **X** because
+the message is discarded, not returned to the composer.
 
 If you stop the agent or the server restarts, queued messages keep their order and are held.
 Press **Resume** in an empty composer on web and desktop, or **Resume queue** on mobile, to
 continue. Sending a new message also resumes the queue, unless it steers a turn that is already
-running. You can edit, reorder, or remove held messages without starting them. **Send now** on a
-held row starts a turn with that message ahead of the others.
+running. You can edit or remove held messages without starting them. **Send now** on a held row
+starts a turn with that message ahead of the others.
 
 The pencil on a queued row opens that message in the composer for editing. The original message
 stays in the queue until you save, and its row is highlighted while you edit. The message's

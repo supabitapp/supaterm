@@ -120,7 +120,7 @@ describe("thread workflows", () => {
     ).toBe(false);
   });
 
-  it("sorts queued messages and gates reorder and promotion from capabilities", () => {
+  it("sorts queued messages and gates promotion from capabilities", () => {
     const state = deriveThreadQueueWorkflowState({
       thread: { id: "thread", activeProviderThreadId: "provider-thread" },
       runs: [
@@ -188,7 +188,6 @@ describe("thread workflows", () => {
       [],
     ]);
     expect(state.activeRun?.id).toBe("active");
-    expect(state.canReorder).toBe(true);
     expect(state.canPromoteToSteer).toBe(true);
     expect(state.canSendNow).toBe(false);
   });
@@ -442,7 +441,6 @@ describe("thread workflows", () => {
       item: { type: "assistant_message", runId: "run", status: "completed" },
     } as never;
 
-    expect(queue.canReorder).toBe(false);
     expect(queue.canPromoteToSteer).toBe(false);
     expect(canForkProjectedAssistantItem({ projectedItem, capabilities: capabilities() })).toBe(
       false,

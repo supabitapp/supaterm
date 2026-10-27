@@ -226,11 +226,6 @@ export interface ResumeThreadQueueInput extends ThreadCommandInput {
   readonly runId?: RunId;
 }
 
-export interface ReorderQueuedRunInput extends ThreadCommandInput {
-  readonly runId: RunId;
-  readonly beforeRunId: RunId | null;
-}
-
 export interface PromoteQueuedRunInput extends ThreadCommandInput {
   readonly queuedRunId: RunId;
   readonly targetRunId: RunId;
@@ -992,18 +987,6 @@ export const resumeThreadQueue = Effect.fn("EnvironmentCommands.resumeThreadQueu
     type: "queue.resume",
     commandId: yield* allocateCommandId(input),
     threadId: input.threadId,
-  });
-});
-
-export const reorderQueuedRun = Effect.fn("EnvironmentCommands.reorderQueuedRun")(function* (
-  input: ReorderQueuedRunInput,
-) {
-  return yield* dispatch({
-    type: "queued-run.reorder",
-    commandId: yield* allocateCommandId(input),
-    threadId: input.threadId,
-    runId: input.runId,
-    beforeRunId: input.beforeRunId,
   });
 });
 
