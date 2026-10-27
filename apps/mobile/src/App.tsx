@@ -22,7 +22,10 @@ import { ProjectChipIconRasterizer } from "./native/ProjectChipIconImages";
 import { ThreadArrangementHost } from "./features/threads/ThreadArrangementSheet";
 import * as Dialog from "./components/ui/Dialog";
 import { prepareNativeShowcaseCapture } from "./features/showcase/nativeShowcaseScene";
-import { IncomingShareProvider } from "./features/sharing/IncomingShareProvider";
+import {
+  presentPendingIncomingShare,
+  startIncomingShareInbox,
+} from "./features/sharing/IncomingShareProvider";
 import {
   AppearancePreferencesProvider,
   installAppearanceRuntime,
@@ -66,6 +69,7 @@ const Navigation = createStaticNavigation(RootStack);
 
 function handleNavigationStateChange(state: NavigationState | undefined): void {
   if (state) pruneNewTaskBranchCheckouts(state);
+  presentPendingIncomingShare();
 }
 
 function handleNavigationReady(): void {
@@ -86,6 +90,7 @@ const appServiceDisposers = [
   installSubscriptionUsageRefresh(),
   installThreadOutboxDelivery(),
   installComposerAttachmentUploads(),
+  startIncomingShareInbox(),
 ];
 disposeOnFoundationReplace(typeof module === "undefined" ? undefined : module.hot, () => {
   for (const dispose of appServiceDisposers) dispose();
@@ -130,15 +135,13 @@ function AppContent() {
                 even in system dark mode. */}
             <GlobalVoiceInputControl>
               <NativeLayoutMetricsProvider>
-                <IncomingShareProvider>
-                  <Navigation
-                    ref={attachRootNavigation}
-                    linking={appLinking}
-                    onReady={handleNavigationReady}
-                    theme={navigationTheme}
-                    onStateChange={handleNavigationStateChange}
-                  />
-                </IncomingShareProvider>
+                <Navigation
+                  ref={attachRootNavigation}
+                  linking={appLinking}
+                  onReady={handleNavigationReady}
+                  theme={navigationTheme}
+                  onStateChange={handleNavigationStateChange}
+                />
                 <Dialog.Host />
                 <ThreadArrangementHost />
                 <ProjectChipIconRasterizer />

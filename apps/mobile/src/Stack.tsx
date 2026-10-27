@@ -17,7 +17,7 @@ import {
   createNativeStackScreen,
   type NativeStackNavigationOptions,
 } from "@react-navigation/native-stack";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions } from "react-native";
 import { useResolveClassNames } from "uniwind";
 
@@ -129,11 +129,6 @@ import {
   SettingsLegalDocumentExternalHeaderButton,
 } from "./features/settings/components/SettingsLegalDocumentRouteScreen";
 import { useAppShortcuts } from "./features/shortcuts/useAppShortcuts";
-import { useIncomingShare } from "./features/sharing/IncomingShareProvider";
-import {
-  EMPTY_INCOMING_SHARE_PRESENTATION_STATE,
-  transitionIncomingSharePresentation,
-} from "./features/sharing/incoming-share-presentation";
 import { NATIVE_LIQUID_GLASS_SUPPORTED } from "./native/native-glass";
 import { deriveLayout } from "./lib/layout";
 import { useNativeLayoutMetrics } from "./native/native-layout-metrics";
@@ -506,9 +501,6 @@ function RootStackLayout(props: {
   readonly children: React.ReactNode;
   readonly state: NavigationState;
 }) {
-  const navigation = useNavigation();
-  const { pendingShare } = useIncomingShare();
-  const sharePresentationRef = useRef(EMPTY_INCOMING_SHARE_PRESENTATION_STATE);
   // Keyboard commands follow the top route; the workspace layout follows the
   // thread beneath overlay sheets.
   const path = getPathFromState(props.state, navigationPathConfig);
@@ -527,17 +519,6 @@ function RootStackLayout(props: {
     ? draftParams.pendingTaskId[0]
     : draftParams?.pendingTaskId;
   useAppShortcuts(props.state);
-  useEffect(() => {
-    const transition = transitionIncomingSharePresentation(sharePresentationRef.current, {
-      isShareSheetPresented: isDraftThreadRoute(props.state.routes[props.state.index]),
-      pendingShareId: pendingShare?.id ?? null,
-    });
-    sharePresentationRef.current = transition.state;
-    if (!transition.shareIdToPresent) {
-      return;
-    }
-    navigation.navigate("Thread", { draft: { incomingShareId: transition.shareIdToPresent } });
-  }, [navigation, pendingShare, props.state]);
 
   return (
     <NewTaskFlowProvider
