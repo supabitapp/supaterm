@@ -320,7 +320,12 @@ function PullRequestCodeTab({
   }>({ key: "", cursor: null, slices: NO_SLICES });
 
   const referenceKey = pullRequestReviewKey(reference);
-  const commit = selectedCommitOid;
+  // A commit opened from the timeline or left selected across a force-push may no longer be
+  // part of the pull request; read it as "All commits" instead of requesting its diff.
+  const commit =
+    selectedCommitOid !== null && detail.commits.some((entry) => entry.oid === selectedCommitOid)
+      ? selectedCommitOid
+      : null;
   const scopeKey = JSON.stringify([environmentId, referenceKey, commit]);
   // The panel keeps this mounted across pull requests, so an open composer would otherwise
   // survive the switch and attach its comment to whichever one is on screen when it is sent.
@@ -1004,9 +1009,6 @@ function PullRequestCodeTab({
     </div>
   );
 
-  // A rebase or force-push can take the scoped commit out of the change, so the scope goes back to
-  // the whole change. That includes a change with no commits: the scope dropdown is not drawn then,
-  // so a stale scope would leave the tab on an obsolete commit with no way back.
   const selectedCommit = orderedCommits.find((entry) => entry.oid === commit);
   const scopeLabel = selectedCommit ? selectedCommit.messageHeadline : "All commits";
   const changeIgnoreWhitespace = (next: boolean) => {
@@ -1320,11 +1322,6 @@ function PullRequestCodeTab({
     answerReveal();
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Re-checked as pages load until the requested file arrives.
   }, [canLoadNextSlice, items, revealRequest]);
-  useEffect(() => {
-    if (commit !== null && selectedCommit === undefined) {
-      onSelectedCommitChange(null);
-    }
-  }, [commit, onSelectedCommitChange, selectedCommit]);
   const withToolbar = (body: ReactNode) => (
     <div className="flex h-full min-h-0 flex-col">
       {toolbar}
