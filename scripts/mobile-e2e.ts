@@ -161,6 +161,8 @@ async function main() {
         "expo",
         "start",
         "--dev-client",
+        "--max-workers",
+        "1",
         "--scheme",
         "supaterm-dev",
         "--port",
@@ -168,7 +170,7 @@ async function main() {
       ],
       {
         cwd: MOBILE_ROOT,
-        env: BUILD_ENV,
+        env: { ...BUILD_ENV, NODE_OPTIONS: "--max-old-space-size=3072" },
         stdio: "inherit",
         detached: true,
       },
