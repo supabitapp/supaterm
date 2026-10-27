@@ -47,6 +47,8 @@ If approval is still needed, ask whether to approve the proposed scope or revise
 
 Implement the approved scope and resolve routine adaptation choices autonomously. Seek another decision only for a material expansion or a newly discovered conflict that the existing authorization does not settle. Preserve deliberate fork behavior, add focused tests, update docs when needed, and run targeted checks.
 
+Keep upstream authorship. A commit that ports an upstream commit keeps that commit's author, and we stay the committer. Cherry-pick without `--no-commit` and finish conflicts with `git cherry-pick --continue`, or commit with `--author="$(git log -1 --format='%an <%ae>' <sha>)"` when building the change by hand. When one commit combines several upstream commits, author it as the first and add a `Co-authored-by:` trailer for each other author. Fork-only fixes and cleanups keep our name. Put this rule in the brief of every agent you delegate commits to.
+
 Update each CSV row as work completes. Mark a `Bring` row `Done` only after its complete behavior, including removals, is verified in the integrated tree; compiling is not enough. Never swap in a nearby identifier to make a partial apply compile. Split excluded parts into `Skip` rows with evidence and leave unfinished parts `Pending`. Mark `Skip` rows `Done` once their reasons are supported by evidence. Keep `Decide` rows `Pending` until resolved to `Bring` or `Skip`.
 
 Trace architectural changes through fork-only consumers and check their behavior and performance assumptions. Focus cleanup on adaptation code and avoid unrelated rewrites of upstream-equivalent code.
