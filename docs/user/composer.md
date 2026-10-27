@@ -75,7 +75,7 @@ including one still waiting to send. When the composer has text, press `Option+U
 on macOS or `Alt+Up` on Windows and Linux with the cursor at the start instead. Change
 `thread.editQueuedMessage` to use another shortcut for the latter.
 
-Mobile has the same choice under **Settings → Follow-ups**. While a turn is
+Mobile has the same choice under **Settings → Chat**. While a turn is
 running the send button shows which action it will take. Long-press it to use the
 other action for a single message, or hold `Cmd` while sending from a hardware
 keyboard. The button only offers Steer when the running agent supports it.
@@ -178,7 +178,7 @@ after an error, or when the next step is not obvious, and only replies from the 
 one. Threads on other providers never show a suggestion.
 
 They are on by default. Turn them off with **Claude prompt suggestions** in **Settings > Threads**,
-or **Next prompt suggestions** in **Settings > Agent behavior** on mobile.
+or **Next prompt suggestions** in **Settings > Threads** on mobile.
 
 ## Edit an earlier prompt
 
@@ -280,12 +280,11 @@ highlighted. On mobile,
 
 The slash menu also includes skills unless you turn off **Show skills in slash
 menu**, which also stops `/` from suggesting skills later in a message. It is in
-**Settings → Chat** on web and desktop, and **Settings → Thread behavior** on
-mobile. Only skills enabled for the provider are listed.
+**Settings → Chat** on web and desktop, and on mobile. Only skills enabled for the provider are listed.
 
 To install Supaterm's optional `supaterm-advisor` and `supaterm-commitee` skills,
 choose **Install** in **Settings → Threads → Orchestration skills**
-on web and desktop, or **Settings → Agent behavior** on mobile. Nothing installs
+on web and desktop, or **Settings → Threads** on mobile. Nothing installs
 automatically. Installation applies to all projects on the selected connected
 environments and links the providers' native skill folders to Supaterm's bundled skills.
 With **All environments** selected, offline environments are skipped; reconnect

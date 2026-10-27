@@ -101,8 +101,10 @@ function SettingsIndexSections() {
       : (selectedProject?.label ?? "Unavailable project");
   return (
     <>
-      <SettingsSection title="Interface">
+      <SettingsSection>
+        <SettingsRow icon="gearshape" label="General" target="SettingsOrganization" />
         <SettingsRow icon="paintbrush" label="Appearance" target="SettingsAppearance" />
+        <SettingsRow icon="bubble.left.and.bubble.right" label="Chat" target="SettingsFollowUp" />
         {Platform.OS === "ios" ? (
           <>
             <SettingsRow icon="keyboard" label="Keyboard" target="SettingsKeyboard" />
@@ -111,35 +113,28 @@ function SettingsIndexSections() {
         ) : null}
       </SettingsSection>
 
-      <SettingsSection title="Automations">
-        <SettingsRow icon="clock" label="Scheduled tasks" target="SettingsScheduledTasks" />
-      </SettingsSection>
-
-      <SettingsSection title="Projects & threads">
-        <SettingsRow
-          icon="folder"
-          label="Overview"
-          value={selectedProjectKey === null ? "Choose a project" : projectLabel}
-          target="SettingsProjectOverview"
-        />
-        <SettingsRow icon="folder" label="Organization" target="SettingsOrganization" />
-        <SettingsRow icon="text.bubble" label="Thread behavior" target="SettingsThreads" />
-        <SettingsRow icon="arrow.turn.left.up" label="Follow-ups" target="SettingsFollowUp" />
-        <SettingsRow icon="archivebox" label="Archived Threads" target="SettingsArchive" />
-      </SettingsSection>
-
-      <SettingsSection title="Server settings">
+      <SettingsSection title="Agents">
         <SettingsRow
           icon="person.crop.circle"
-          label="Provider accounts"
+          label="Providers"
           target="SettingsProviderAccounts"
           disabled={noServerTargets}
         />
         <SettingsRow
           icon="text.bubble"
-          label="New threads"
-          target="SettingsEnvironmentNewThreads"
+          label="Threads"
+          target="SettingsThreads"
           disabled={noServerTargets}
+        />
+        <SettingsRow icon="clock" label="Scheduled tasks" target="SettingsScheduledTasks" />
+      </SettingsSection>
+
+      <SettingsSection title="Code">
+        <SettingsRow
+          icon="folder"
+          label="Projects"
+          value={selectedProjectKey === null ? "Choose a project" : projectLabel}
+          target="SettingsProjectOverview"
         />
         <SettingsRow
           icon="arrow.triangle.branch"
@@ -148,22 +143,23 @@ function SettingsIndexSections() {
           disabled={noServerTargets}
         />
         <SettingsRow
-          icon="text.alignleft"
-          label="Agent behavior"
-          target="SettingsEnvironmentAgentBehavior"
+          icon="square.on.square"
+          label="Worktrees"
+          target="SettingsWorktrees"
           disabled={noServerTargets}
         />
+      </SettingsSection>
+
+      <SettingsSection>
         <SettingsRow
           icon="arrow.clockwise"
           label="Maintenance"
           target="SettingsEnvironmentMaintenance"
           disabled={noServerTargets}
         />
-      </SettingsSection>
-
-      <SettingsSection title="App">
         <SettingsRow icon="chart.bar.xaxis" label="Usage" target="SettingsUsage" />
-        <SettingsRow icon="info.circle" label="About Supaterm" target="SettingsAbout" />
+        <SettingsRow icon="info.circle" label="About" target="SettingsAbout" />
+        <SettingsRow icon="archivebox" label="Archive" target="SettingsArchive" />
       </SettingsSection>
     </>
   );

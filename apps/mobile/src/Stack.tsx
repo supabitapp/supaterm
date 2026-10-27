@@ -94,9 +94,9 @@ import { SettingsEnvironmentDetailRouteScreen } from "./features/settings/Settin
 import { SettingsEnvironmentsRouteScreen } from "./features/settings/SettingsEnvironmentsRouteScreen";
 import { SettingsFollowUpRouteScreen } from "./features/settings/SettingsFollowUpRouteScreen";
 import {
-  SettingsEnvironmentAgentBehaviorRouteScreen,
   SettingsEnvironmentMaintenanceRouteScreen,
-  SettingsEnvironmentNewThreadsRouteScreen,
+  SettingsThreadsRouteScreen,
+  SettingsWorktreesRouteScreen,
   SettingsEnvironmentSourceControlRouteScreen,
 } from "./features/settings/SettingsServerControlsRouteScreen";
 import {
@@ -122,7 +122,6 @@ import { UsageLimitAccountScreen } from "./features/usage/UsageLimitsPooled";
 import { UsageRouteScreen } from "./features/usage/UsageRouteScreen";
 import { SettingsAboutRouteScreen } from "./features/settings/SettingsAboutRouteScreen";
 import { SettingsRouteScreen } from "./features/settings/SettingsRouteScreen";
-import { SettingsThreadsRouteScreen } from "./features/settings/SettingsThreadsRouteScreen";
 import { SettingsEnvironmentFilterProvider } from "./features/settings/settings-environment-filter";
 import { ShowcaseCaptureCoordinator } from "./features/showcase/ShowcaseCaptureCoordinator";
 import {
@@ -246,10 +245,11 @@ const SettingsContentStack = createV5SheetStackNavigator({
       linking: "environments/:environmentId",
       options: { title: "Environment" },
     }),
+    // Old links to New threads and Agent behavior open Threads, which absorbed them.
     SettingsEnvironmentNewThreads: createNativeStackScreen({
-      screen: SettingsEnvironmentNewThreadsRouteScreen,
+      screen: SettingsThreadsRouteScreen,
       linking: "new-threads",
-      options: { title: "New threads" },
+      options: { title: "Threads" },
     }),
     SettingsEnvironmentSourceControl: createNativeStackScreen({
       screen: SettingsEnvironmentSourceControlRouteScreen,
@@ -257,14 +257,19 @@ const SettingsContentStack = createV5SheetStackNavigator({
       options: { title: "Source control" },
     }),
     SettingsEnvironmentAgentBehavior: createNativeStackScreen({
-      screen: SettingsEnvironmentAgentBehaviorRouteScreen,
+      screen: SettingsThreadsRouteScreen,
       linking: "agent-behavior",
-      options: { title: "Agent behavior" },
+      options: { title: "Threads" },
+    }),
+    SettingsWorktrees: createNativeStackScreen({
+      screen: SettingsWorktreesRouteScreen,
+      linking: "worktrees",
+      options: { title: "Worktrees" },
     }),
     SettingsProviderAccounts: createNativeStackScreen({
       screen: SettingsProviderAccountsRouteScreen,
       linking: "provider-accounts",
-      options: { title: "Provider accounts" },
+      options: { title: "Providers" },
     }),
     SettingsEnvironmentMaintenance: createNativeStackScreen({
       screen: SettingsEnvironmentMaintenanceRouteScreen,
@@ -274,12 +279,12 @@ const SettingsContentStack = createV5SheetStackNavigator({
     SettingsThreads: createNativeStackScreen({
       screen: SettingsThreadsRouteScreen,
       linking: "thread-preferences",
-      options: { title: "Thread behavior" },
+      options: { title: "Threads" },
     }),
     SettingsAbout: createNativeStackScreen({
       screen: SettingsAboutRouteScreen,
       linking: "about",
-      options: { title: "About Supaterm" },
+      options: { title: "About" },
     }),
     SettingsEnvironmentNew: createNativeStackScreen({
       screen: ConnectionsNewRouteScreen,
@@ -292,7 +297,7 @@ const SettingsContentStack = createV5SheetStackNavigator({
       screen: ArchivedThreadsRouteScreen,
       linking: "archive",
       options: {
-        title: "Archived Threads",
+        title: "Archive",
       },
     }),
     SettingsAppearance: createNativeStackScreen({
@@ -306,20 +311,20 @@ const SettingsContentStack = createV5SheetStackNavigator({
       screen: SettingsProjectGroupingRouteScreen,
       linking: "project-grouping",
       options: {
-        title: "Organization",
+        title: "General",
       },
     }),
     SettingsOrganization: createNativeStackScreen({
       screen: SettingsProjectGroupingRouteScreen,
       linking: "organization",
       options: {
-        title: "Organization",
+        title: "General",
       },
     }),
     SettingsProjectOverview: createNativeStackScreen({
       screen: SettingsProjectOverviewRouteScreen,
       linking: "project",
-      options: { title: "Project overview" },
+      options: { title: "Projects" },
     }),
     SettingsKeyboard: createNativeStackScreen({
       screen: SettingsKeyboardRouteScreen,
@@ -339,14 +344,14 @@ const SettingsContentStack = createV5SheetStackNavigator({
       screen: SettingsFollowUpRouteScreen,
       linking: "follow-ups",
       options: {
-        title: "Follow-ups",
+        title: "Chat",
       },
     }),
     SettingsScheduledTasks: createNativeStackScreen({
       screen: SettingsScheduledTasksRouteScreen,
       linking: "scheduled-tasks",
       options: {
-        title: "Scheduled Tasks",
+        title: "Scheduled tasks",
         headerTitleStyle: { fontSize: 16, fontWeight: "800" },
       },
     }),

@@ -37,7 +37,7 @@ directory itself sits inside a Git checkout.
 ### Send feedback
 
 Choose **Help > Send feedback** at the bottom of the sidebar, or **Send feedback** in
-the command palette. On mobile, open **Settings > About Supaterm**, or use the command
+the command palette. On mobile, open **Settings > About**, or use the command
 palette with a hardware keyboard. Supaterm opens a new thread under **No project**
 with the triage playbook linked in the message. Choose any provider, describe what
 happened after the link, and send. Supaterm gets the source for the server's version
@@ -153,7 +153,7 @@ Pinned, Snoozed, and Done remain shared shelves in every mode. Select a group's 
 it; the thread you have open stays visible. On web and desktop, drag a project's header to reorder
 projects; this sets **Settings → General → Project order** to **Manual**, which the project pickers
 also follow. The grouping, collapsed groups, and project order are saved on this device.
-You can also change it in Settings → General on web and desktop, or Settings → Organization on mobile.
+You can also change it in Settings → General on web and desktop, or Settings → General on mobile.
 
 ### Working threads
 
@@ -203,7 +203,7 @@ choose **Automatic completion**, and pick **Disabled**. The current option is ch
 **Enabled** to return to the usual rules. The **Mark as Done**, **Snooze**, and **Archive** actions still work while it
 is disabled.
 
-Change these rules in **Settings → Threads** on web and desktop, or **Settings → Thread behavior** on mobile.
+Change these rules in **Settings → Threads**.
 They continue to run when your apps are closed. On web and desktop, choose an environment at the
 top to change only its rules, or **All environments** to update connected environments together.
 Mixed values show where the selected environments disagree. Mobile applies these
@@ -266,8 +266,7 @@ the continuation finishes. If the queue was held by a restart, resume it then.
 
 When the provider reports a reset time, choose **Resume at reset** to schedule a
 continuation. You can cancel it from the thread. Enable **Auto-resume limited
-threads** in **Settings → Threads** on web and desktop, or **Settings → Thread
-behavior** on mobile, to schedule limit stops by default.
+threads** in **Settings → Threads** to schedule limit stops by default.
 The environment must be running when the reset arrives; it resumes overdue
 continuations after a restart. Stopping the thread, sending a new message,
 archiving, or marking it as Done prevents a pending continuation from starting.

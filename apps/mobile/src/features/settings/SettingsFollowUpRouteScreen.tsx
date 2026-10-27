@@ -12,6 +12,7 @@ import { DEFAULT_FOLLOW_UP_BEHAVIOR, type FollowUpBehavior } from "../../lib/fol
 import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
 import { SettingsChoiceRow } from "./components/SettingsChoiceRow";
 import { SettingsSection } from "./components/SettingsSection";
+import { ComposerSettingsSection } from "./ThreadSettingsSections";
 
 const FOLLOW_UP_OPTIONS: ReadonlyArray<{
   readonly behavior: FollowUpBehavior;
@@ -45,7 +46,7 @@ export function SettingsFollowUpRouteScreen() {
       {Platform.OS === "android" ? (
         <>
           <NativeStackScreenOptions options={{ headerShown: false }} />
-          <AndroidScreenHeader title="Follow-ups" onBack={() => navigation.goBack()} />
+          <AndroidScreenHeader title="Chat" onBack={() => navigation.goBack()} />
         </>
       ) : null}
       <ScrollView
@@ -72,6 +73,7 @@ export function SettingsFollowUpRouteScreen() {
           Long-press the send button to use the other option for a single message. With a hardware
           keyboard, hold Command while sending.
         </Text>
+        <ComposerSettingsSection />
       </ScrollView>
     </View>
   );

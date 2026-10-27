@@ -8,6 +8,7 @@ export type SettingsSheetTarget =
   | "SettingsProjectOverview"
   | "SettingsEnvironmentNewThreads"
   | "SettingsEnvironmentSourceControl"
+  | "SettingsWorktrees"
   | "SettingsEnvironmentAgentBehavior"
   | "SettingsEnvironmentMaintenance"
   | "SettingsProviderAccounts"

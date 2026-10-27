@@ -77,7 +77,7 @@ export function SettingsProjectOverviewRouteScreen() {
   return (
     <>
       <SettingsEnvironmentFilterHeader />
-      <SettingsScreen title="Project overview" trailing={<AndroidSettingsEnvironmentFilter />}>
+      <SettingsScreen title="Projects" trailing={<AndroidSettingsEnvironmentFilter />}>
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
           showsVerticalScrollIndicator={false}
@@ -87,7 +87,11 @@ export function SettingsProjectOverviewRouteScreen() {
             paddingBottom: Math.max(insets.bottom, 18) + 18,
           }}
         >
-          {members.length === 0 ? (
+          {selectedProjectKey === null ? (
+            <Text className="px-2 text-base text-foreground-muted">
+              Choose a project with the filter above to manage its name, checkouts and removal.
+            </Text>
+          ) : members.length === 0 ? (
             <Text className="px-2 text-base text-foreground-muted">
               {selectedProjectKey === null
                 ? "Choose a project in the filter above to manage its name and checkouts."
