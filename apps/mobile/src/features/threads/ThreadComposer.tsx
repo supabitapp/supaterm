@@ -524,9 +524,10 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const isVoiceInputPresented = voicePresentation.statusLabel !== null;
   const isExpanded =
     !voiceInput.isBusy && (isFocused || settingsSheetPresentation.keepsComposerExpanded);
-  // The iPad sidebar's native tab bar is taller, so the collapsed row's controls grow to match.
-  const rowControlSize =
-    useSidebarWorkspaceTabs() === "picker" && !isExpanded ? "large" : "regular";
+  // iPad workspace navigation is taller, so the collapsed row's controls grow to match.
+  const usesLargeControls =
+    useSidebarWorkspaceTabs() === "picker" || (Platform.OS === "ios" && Platform.isPad);
+  const rowControlSize = usesLargeControls && !isExpanded ? "large" : "regular";
   const { setComposerEditing } = useAdaptiveWorkspaceLayout();
   const showsCompactDictation = isVoiceInputPresented && !isExpanded;
   const isToolbarVisible = isExpanded || isVoiceInputPresented;

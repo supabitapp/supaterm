@@ -398,7 +398,7 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
     : { environmentId: props.environmentId, threadId: props.selectedThread.id };
   const usesNativeWorkspaceColumns = useNativeWorkspaceColumnsSupported();
   const navigation = useNavigation();
-  const { selectThreadRoute } = useAdaptiveWorkspaceLayout();
+  const { layout, selectThreadRoute } = useAdaptiveWorkspaceLayout();
   const openLinkedThread = useOpenLinkedThread();
   const openInspector = useOpenThreadInspector();
   const { session: voiceInputSession } = useGlobalVoiceInput();
@@ -531,7 +531,7 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
   const alignedBottomInset =
     bottomBarInset ??
     (Platform.OS === "ios" && Platform.isPad
-      ? Math.max(bottomSafeArea, 12) - (hasSidebarTabBar ? 5 : 0)
+      ? Math.max(bottomSafeArea, 12) - (layout.usesSplitView ? 5 : 0)
       : undefined);
   const composerBottomInset =
     alignedBottomInset !== undefined
@@ -781,7 +781,10 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
       props.selectedThread.latestUserMessageAt !== null);
   const composerChrome = composerExpanded
     ? COMPOSER_EXPANDED_CHROME
-    : COMPOSER_COLLAPSED_CHROME + (hasSidebarTabBar ? 14 : 0);
+    : COMPOSER_COLLAPSED_CHROME +
+      (!isProviderSubagent && ((Platform.OS === "ios" && Platform.isPad) || hasSidebarTabBar)
+        ? 14
+        : 0);
   const composerOverlapHeight = composerHeight ?? composerChrome + composerBottomInset;
   // The last collapse toggle; it only applies to the request it was made on.
   const [userInputToggle, setUserInputToggle] = useState<{
