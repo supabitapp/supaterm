@@ -1,6 +1,10 @@
 import type { WebSocketLike } from "effect/socket/Socket";
 import { after, every } from "./timer.ts";
-import { DEFAULT_PUBLIC_RELAY_URL, normalizeRelayServerUrl } from "@supaterm/contracts";
+import {
+  DEFAULT_PUBLIC_RELAY_URL,
+  MAX_DIRECT_TUNNEL_URLS,
+  normalizeRelayServerUrl,
+} from "@supaterm/contracts";
 import {
   createClientHandshake,
   parseRelayAddress,
@@ -428,8 +432,6 @@ export function createTunnelSession(input: {
 }
 
 export type TunnelVia = "relay" | "direct";
-
-export const MAX_DIRECT_TUNNEL_URLS = 8;
 
 export function directTunnelUrls(urls: Iterable<string>, relayUrl?: string): string[] {
   const selected = new Set<string>();

@@ -1,5 +1,6 @@
 import * as RelayGateway from "@supaterm/client-runtime/relay";
 import { canonicalRelayAddress } from "@supaterm/shared/relay/protocol";
+import { directTunnelUrls } from "@supaterm/shared/relay/tunnel";
 
 export const layer = RelayGateway.layer({
   fetch: (input, init) => globalThis.fetch(input, init),
@@ -16,7 +17,7 @@ export const layer = RelayGateway.layer({
           await NativeRelay.start({
             hostAddress: address,
             relayUrl,
-            directUrls: [...directUrls()],
+            directUrls: directTunnelUrls(directUrls(), relayUrl),
           })
         ).origin,
       via: () => via,

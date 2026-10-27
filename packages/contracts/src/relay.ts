@@ -84,12 +84,18 @@ export class RelayPreparationError extends Schema.TaggedError<RelayPreparationEr
   }
 }
 
+export const MAX_DIRECT_TUNNEL_URLS = 8;
+
+export const DirectTunnelUrls = Schema.Array(RelayServerUrl).check(
+  Schema.isMaxLength(MAX_DIRECT_TUNNEL_URLS),
+);
+
 export const RelayCompanionRequest = Schema.Struct({
   id: Schema.String.check(Schema.isMaxLength(64)),
   action: Schema.Literals(["open", "close"]),
   address: Schema.String.check(Schema.isMaxLength(256)),
   relayUrl: Schema.optionalKey(RelayServerUrl),
-  directUrls: Schema.optionalKey(Schema.Array(RelayServerUrl).check(Schema.isMaxLength(8))),
+  directUrls: Schema.optionalKey(DirectTunnelUrls),
 });
 
 export const RelayCompanionReply = Schema.Struct({

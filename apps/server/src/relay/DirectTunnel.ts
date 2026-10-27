@@ -3,11 +3,10 @@ import * as NodeCrypto from "node:crypto";
 import type * as NodeHttp from "node:http";
 import * as NodeOS from "node:os";
 import WebSocket, { WebSocketServer } from "ws";
-import type { ServerTunnelEndpoints } from "@supaterm/contracts";
+import { MAX_DIRECT_TUNNEL_URLS, type ServerTunnelEndpoints } from "@supaterm/contracts";
 import { acceptClientHandshake } from "@supaterm/shared/relay/protocol";
 import {
   createTunnelSession,
-  MAX_DIRECT_TUNNEL_URLS,
   TUNNEL_MAX_PLAIN_BYTES,
   type TunnelSession,
   type TunnelStream,
