@@ -1202,7 +1202,7 @@ export const ServerSettings = Schema.Struct({
     ),
   ),
   nextPromptSuggestionsEnabled: Schema.Boolean.pipe(
-    Schema.withDecodingDefault(Effect.succeed(true)),
+    Schema.withDecodingDefault(Effect.succeed(false)),
   ),
   branchNamingMode: BranchNamingMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("static" as const)),

@@ -174,8 +174,9 @@ composer. A suggestion is never sent for you: it only fills the draft, and typin
 
 Suggestions work with every provider. They are written by the text generation model in
 **Settings > General**, so each one is a small request to that provider. Only replies from the last
-few hours get one, so opening an older thread costs nothing. Turn them off with **Next prompt
-suggestions** in **Settings > General**, or **Settings > Agent behavior** on mobile.
+few hours get one, so opening an older thread costs nothing. They are off by default. Turn them on
+with **Next prompt suggestions** in **Settings > General**, or **Settings > Agent behavior** on
+mobile.
 
 ## Edit an earlier prompt
 
