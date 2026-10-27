@@ -432,6 +432,7 @@ export interface ProviderAdapterV2EnsureThreadInput {
   readonly runtimePolicy: ProviderAdapterV2RuntimePolicy;
   readonly providerSessionId?: ProviderSessionId;
   readonly existingProviderThread?: OrchestrationV2ProviderThread;
+  readonly forceNewNativeThread?: boolean;
 }
 
 export interface ProviderAdapterV2TurnInput {
@@ -578,13 +579,10 @@ export interface ProviderAdapterV2SessionRuntime {
    */
   readonly subscribeEvents?: Effect.Effect<ProviderAdapterV2EventSubscription>;
   readonly hasPendingBackgroundWork?: Effect.Effect<boolean>;
-  /**
-   * When present, RunExecutionService uses only this probe (never the
-   * session-wide hasPendingBackgroundWork) so sibling native threads cannot pin
-   * an unrelated root subscription open.
-   */
+  /** Root-subscription probe; replacement checks opt in to subagents owned by the live process. */
   readonly hasPendingBackgroundWorkForThread?: (
     providerThread: OrchestrationV2ProviderThread,
+    options?: { readonly includeSubagents?: boolean },
   ) => Effect.Effect<boolean>;
   /**
    * Set when every background task this session lists on its provider threads

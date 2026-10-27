@@ -9803,12 +9803,11 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             return existing;
           }
 
-          // Background agents and shells run inside the CLI process, so a new selection would
-          // kill them and lose their results. Refuse until they finish or the user presses Stop,
-          // which closes the process.
+          // Replacing this thread's process kills its background work, even with a new native identity.
           if (
             existing !== null &&
-            existing.nativeThreadId === nativeThreadId &&
+            (existing.nativeThreadId === nativeThreadId ||
+              existing.lastTurn?.input.threadId === turnInput.threadId) &&
             !existing.stopping &&
             (yield* liveProcessRunsBackgroundWork(existing))
           ) {
@@ -10700,10 +10699,19 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           }),
           hasPendingBackgroundWorkForThread: Effect.fn(
             "ClaudeAdapterV2.hasPendingBackgroundWorkForThread",
-          )(function* (providerThread) {
+          )(function* (providerThread, options) {
             const nativeThreadId = providerThread.nativeThreadRef?.nativeId;
             if (nativeThreadId === undefined || nativeThreadId === null) {
               return false;
+            }
+            if (options?.includeSubagents) {
+              const live = yield* Ref.get(queryContext);
+              if (
+                live?.nativeThreadId === nativeThreadId &&
+                !live.stopping &&
+                (yield* liveProcessRunsBackgroundWork(live))
+              )
+                return true;
             }
             return (
               rosterForNativeThread(
