@@ -292,7 +292,16 @@ export class Device {
     }
   }
 
-  async launch(metroUrl: string) {
+  async launch(metroPort: number) {
+    if (this.pose.platform === "android")
+      await run(androidSdkTool("platform-tools/adb"), [
+        "-s",
+        this.id,
+        "reverse",
+        `tcp:${metroPort}`,
+        `tcp:${metroPort}`,
+      ]);
+    const metroUrl = `http://127.0.0.1:${metroPort}`;
     const result = await this.agent(
       [
         "open",
@@ -304,7 +313,6 @@ export class Device {
     );
     if (typeof result.runnerLogPath === "string") this.runnerLogPath = result.runnerLogPath;
     await this.acceptOpenPrompt();
-    if (this.pose.fold) await this.agent(["fold", this.pose.fold]);
   }
 
   async openUrl(url: string) {
