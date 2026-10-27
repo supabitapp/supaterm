@@ -1,11 +1,18 @@
+import { useAtomMount, useAtomSubscribe } from "@effect/atom-react";
 import { executeAtomQuery } from "@supaterm/client-runtime/state/runtime";
 import type { EnvironmentId, ProjectEntry } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
+import { Atom } from "effect/reactivity";
 import { useEffect, useReducer, useRef, useState } from "react";
+
+import { environmentCatalog } from "../../connection/catalog";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { projectEnvironment } from "../../state/projects";
 import { useDebouncedValue } from "../../state/queries";
 import { useEnvironmentQuery } from "../../state/query";
+
+const noSessionGeneration = Atom.make(0);
+
 export function useFileTreeEntries(input: {
   readonly cwd: string | null;
   readonly environmentId: EnvironmentId | null;
@@ -108,6 +115,17 @@ export function useFileTreeEntries(input: {
       render();
     });
   };
+  // A folder read fails at once while its environment is unreachable; read it again once a new
+  // session is up rather than leaving the error until someone refreshes.
+  const sessionGeneration =
+    environmentId === null
+      ? noSessionGeneration
+      : environmentCatalog.sessionGenerationAtom(environmentId);
+  // A listener alone does not compute the atom, so nothing would follow the connection.
+  useAtomMount(sessionGeneration);
+  useAtomSubscribe(sessionGeneration, () => {
+    for (const path of directories.errors.keys()) void loadDirectory(path);
+  });
   const { refresh: refreshRoot, data: rootData } = root;
   const { refresh: refreshSearch, data: searchData } = search;
   const snapshot = (() => {
