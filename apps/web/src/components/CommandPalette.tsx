@@ -19,7 +19,6 @@ import {
   addProjectRemoteSourceLabel,
   addProjectRemoteSourcePathHint,
   addProjectRemoteSourceProvider,
-  buildAddProjectRemoteSourceReadiness,
   sortAddProjectProviderSources,
   type AddProjectRemoteSource,
   type AddProjectRemoteSourceReadiness,
@@ -46,7 +45,6 @@ import {
   type DesktopWslState,
   type EnvironmentId,
   type FilesystemBrowseResult,
-  type KeybindingCommand,
   SourceControlProviderKind,
   PRIMARY_LOCAL_ENVIRONMENT_ID,
   resolveEnvironmentMachineKind,
@@ -85,7 +83,6 @@ import { buildThreadPaletteItems } from "./CommandPaletteThreadActions";
 import {
   useDeferredValue,
   useEffect,
-  useLayoutEffect,
   useReducer,
   useRef,
   useState,
@@ -110,7 +107,6 @@ import {
 } from "./promptLinks/copyPromptLink";
 import { useClientSettings } from "../hooks/useSettings";
 import { useStableCallback } from "../hooks/useStableCallback";
-import { useTheme } from "../hooks/useTheme";
 import { readLocalApi } from "../localApi";
 import { desktopLocalBackendId } from "../connection/desktopLocal";
 import { filesystemEnvironment, useFilesystemReadAccess } from "../state/filesystem";
@@ -150,16 +146,13 @@ import {
   isUnsupportedWindowsProjectPath,
   resolveProjectPathForDispatch,
 } from "../lib/projectPaths";
-import { registerAppCommandHandler } from "../appCommandBus";
-import { onOpenCommandPalette } from "../commandPaletteBus";
 import { useComposerDraftStore } from "../composerDraftStore";
-import { isPreviewFocused } from "../lib/previewFocus";
-import { isTerminalFocused } from "../lib/terminalFocus";
 import {
-  PULL_REQUESTS_PANEL_REF,
-  selectActiveRightPanel,
-  useRightPanelStore,
-} from "../rightPanelStore";
+  dispatchCommandPalette,
+  useCommandPaletteMount,
+  useCommandPaletteStore,
+} from "../commandPaletteStore";
+import { PULL_REQUESTS_PANEL_REF, useRightPanelStore } from "../rightPanelStore";
 import { getLatestThreadForProject, sortThreads } from "../lib/threadSort";
 import {
   cn,
@@ -168,7 +161,6 @@ import {
   isWindowsPlatform,
   newProjectId,
 } from "../lib/utils";
-import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { buildThreadRouteParams } from "../threadRoutes";
 import { useAvailableSettingsSearchItems } from "./settings/useAvailableSettingsSearchItems";
 import {
@@ -199,14 +191,14 @@ import {
   getCommandPaletteMode,
   ITEM_ICON_CLASS,
   RECENT_THREAD_LIMIT,
-  reduceCommandPaletteUiState,
   createCommandPaletteSearchState,
+  type CommandPaletteGroup,
+  resolveAddProjectEntry,
   type AddProjectCloneFlow,
   type AddProjectEnvironmentOption,
   buildPaletteRemoteSourceReadiness,
   errorMessage,
   getEnvironmentBrowsePlatform,
-  overlayModeForCommand,
   remoteProjectInputPlaceholder,
   reduceCommandPaletteSearchState,
   type SearchOverlayMode,
@@ -232,11 +224,7 @@ import {
   sourceControlHostIcon,
 } from "./CommandPaletteAddProject";
 import { useCommandPaletteThreadItems } from "./CommandPaletteThreadItems";
-import {
-  APPEARANCE_OPTIONS,
-  notifyThemeSaveFailure,
-  useCommandPaletteThemeItems,
-} from "./CommandPaletteThemeItems";
+import { useCommandPaletteThemeItems } from "./CommandPaletteThemeItems";
 import {
   CommandPaletteVirtualizedResults,
   scrollCommandPaletteRowIntoView,
@@ -246,7 +234,6 @@ import { Checkbox } from "./ui/checkbox";
 import { ProjectFilePicker } from "./files/ProjectFilePicker";
 import { openLinkPullRequestDialog } from "./pullRequest/LinkPullRequestDialog";
 import { ProjectContentSearchDialog } from "./search/ProjectContentSearchDialog";
-import { toggleThemeEditorForTheme } from "./settings/themeEditorStore";
 import { settingsForThisPlatform, SETTINGS_SECTION_LABELS } from "./settings/settingsSearch";
 import { primaryServerKeybindingsAtom } from "../state/server";
 import { resolveShortcutCommand, threadJumpIndexFromCommand } from "../keybindings";
@@ -265,165 +252,40 @@ import { focusAdjacentPaneFromKeyboard } from "../chatPanes/actions";
 import { threadRecentUse } from "@supaterm/shared/paletteSearch";
 
 const EMPTY_BROWSE_ENTRIES: FilesystemBrowseResult["entries"] = [];
+const ADD_PROJECT_ENTRY_GROUP = "add-project";
+const NEW_THREAD_IN_GROUP = "projects";
 
-type AddProjectIntentPlan =
-  | { readonly kind: "connect" }
-  | { readonly kind: "environments" }
-  | { readonly kind: "sources"; readonly environmentId: EnvironmentId }
-  | { readonly kind: "unavailable"; readonly label: string | undefined };
-
-// Shortcuts that open a page work from anywhere, so the palette, which is
-// mounted over every route, handles them.
-const PAGE_BY_COMMAND = {
-  "usage.open": "/usage",
-  "automations.open": "/automations",
-} as const;
-
-function pageForCommand(command: string | null) {
-  return command !== null && command in PAGE_BY_COMMAND
-    ? PAGE_BY_COMMAND[command as keyof typeof PAGE_BY_COMMAND]
-    : null;
+/** The submenu an open intent starts in; its groups resolve while rendering. */
+function openIntentView(intent: CommandPaletteOpenIntent | null): CommandPaletteView | null {
+  switch (intent?.kind) {
+    case "add-project":
+      return {
+        addonIcon: <FolderPlusIcon className={ADDON_ICON_CLASS} />,
+        groups: [{ value: ADD_PROJECT_ENTRY_GROUP, label: "", items: [] }],
+      };
+    case "new-thread-in":
+      return {
+        addonIcon: <SquarePenIcon className={ADDON_ICON_CLASS} />,
+        groups: [{ value: NEW_THREAD_IN_GROUP, label: "Projects", items: [] }],
+      };
+    case "change-theme":
+      return {
+        addonIcon: <PaletteIcon className={ADDON_ICON_CLASS} />,
+        groups: [{ value: "themes", label: "Change theme", items: [] }],
+      };
+    case "search":
+    case undefined:
+      return null;
+  }
 }
 
 export function CommandPalette({ children }: { children: ReactNode }) {
-  const navigate = useNavigate();
-  const usagePageOpen = useLocation({ select: (location) => location.pathname === "/usage" });
-  const [state, dispatch] = useReducer(reduceCommandPaletteUiState, {
-    open: false,
-    mode: "command",
-    openIntent: null,
-  });
-  const setOpen = (open: boolean) => dispatch({ _tag: "SetOpen", open });
-  const toggleMode = (mode: SearchOverlayMode) => dispatch({ _tag: "ToggleMode", mode });
-  const openAddProject = () => dispatch({ _tag: "OpenAddProject" });
-  const openNewThreadIn = () => dispatch({ _tag: "OpenNewThreadIn" });
-  const clearOpenIntent = () => dispatch({ _tag: "ClearOpenIntent" });
+  useCommandPaletteMount();
+  const state = useCommandPaletteStore();
+  const setOpen = (open: boolean) => dispatchCommandPalette({ _tag: "SetOpen", open });
   const openChildSearch = (mode: "files" | "content", context: CommandPaletteReturnContext) =>
-    dispatch({ _tag: "OpenChildSearch", mode, context });
-  const keybindings = useAtomValue(primaryServerKeybindingsAtom);
-  const { theme, themeHalves, resolvedTheme, appearanceMode, setAppearanceMode } = useTheme();
+    dispatchCommandPalette({ _tag: "OpenChildSearch", mode, context });
   const [composerHandleRef] = useState(createFocusedComposerRef);
-  const routeTarget = useThreadRouteTarget();
-  const routeThreadRef = routeTarget?.kind === "server" ? routeTarget.threadRef : null;
-  const terminalOpen = useTerminalUiStateStore((state) =>
-    routeThreadRef
-      ? selectThreadTerminalUiState(state.terminalUiStateByThreadKey, routeThreadRef).terminalOpen
-      : false,
-  );
-  const previewOpen = useRightPanelStore((state) =>
-    routeThreadRef
-      ? selectActiveRightPanel(state.byThreadKey, routeThreadRef) === "preview"
-      : false,
-  );
-
-  useEffect(() => {
-    if (!state.open || state.mode === "command") return;
-    const onEscapeKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.isComposing || event.key !== "Escape") return;
-      event.preventDefault();
-      event.stopPropagation();
-      dispatch({ _tag: "BackToCommand" });
-    };
-    window.addEventListener("keydown", onEscapeKeyDown, true);
-    return () => window.removeEventListener("keydown", onEscapeKeyDown, true);
-  }, [state.mode, state.open]);
-
-  useEffect(() => {
-    const runCommand = (command: KeybindingCommand | null, repeat: boolean): boolean => {
-      if (command === "appearance.cycle") {
-        if (repeat) return true;
-        const nextMode =
-          appearanceMode === "system" ? "light" : appearanceMode === "light" ? "dark" : "system";
-        if (!setAppearanceMode(nextMode)) {
-          notifyThemeSaveFailure();
-        } else {
-          toastManager.add({
-            id: "appearance-cycle",
-            title: `Appearance: ${APPEARANCE_OPTIONS.find((option) => option.mode === nextMode)?.label}`,
-            timeout: 1500,
-          });
-        }
-        return true;
-      }
-      if (command === "theme.select") {
-        if (!repeat) dispatch({ _tag: "OpenChangeTheme" });
-        return true;
-      }
-      if (command === "themeEditor.toggle") {
-        toggleThemeEditorForTheme({
-          theme,
-          themeHalves,
-          initialAppearance: resolvedTheme,
-        });
-        return true;
-      }
-      const page = pageForCommand(command);
-      if (page !== null) {
-        setOpen(false);
-        void navigate({ to: page });
-        return true;
-      }
-      const mode = overlayModeForCommand(command);
-      if (mode === null) return false;
-      toggleMode(mode);
-      return true;
-    };
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.defaultPrevented) return;
-      const command = resolveShortcutCommand(event, keybindings, {
-        context: {
-          terminalFocus: isTerminalFocused(),
-          terminalOpen,
-          previewFocus: isPreviewFocused(),
-          previewOpen,
-          modelPickerOpen: composerHandleRef.current?.isModelPickerOpen() ?? false,
-          usagePageOpen,
-        },
-      });
-      if (!runCommand(command, event.repeat)) return;
-      event.preventDefault();
-      event.stopPropagation();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    const unregister = registerAppCommandHandler((command) => runCommand(command, false));
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      unregister();
-    };
-  }, [
-    appearanceMode,
-    keybindings,
-    navigate,
-    previewOpen,
-    resolvedTheme,
-    setAppearanceMode,
-    setOpen,
-    terminalOpen,
-    theme,
-    themeHalves,
-    toggleMode,
-    usagePageOpen,
-  ]);
-
-  useEffect(
-    () =>
-      onOpenCommandPalette((detail) => {
-        if (detail.open === "new-thread-in") {
-          openNewThreadIn();
-        } else if (detail.open === "add-project") {
-          openAddProject();
-        } else if (detail.query !== undefined) {
-          dispatch({
-            _tag: "OpenSearch",
-            query: detail.query,
-            ...(detail.linkedThreads ? { linkedThreads: detail.linkedThreads } : {}),
-          });
-        } else {
-          setOpen(true);
-        }
-      }),
-    [openAddProject, openNewThreadIn, setOpen],
-  );
 
   return (
     <ComposerHandleContext value={composerHandleRef}>
@@ -432,7 +294,7 @@ export function CommandPalette({ children }: { children: ReactNode }) {
         onOpenChange={(open, eventDetails) => {
           if (!open && eventDetails.reason === "escape-key" && state.mode !== "command") {
             eventDetails.cancel();
-            dispatch({ _tag: "BackToCommand" });
+            dispatchCommandPalette({ _tag: "BackToCommand" });
             return;
           }
           // Dismissed without picking anything: a pending "open beside" request lapses too.
@@ -445,11 +307,11 @@ export function CommandPalette({ children }: { children: ReactNode }) {
         </div>
         <CommandPaletteDialog
           mode={state.mode}
+          session={state.session}
           openIntent={state.openIntent}
           setOpen={setOpen}
           openChildSearch={openChildSearch}
           initialContext={state.restoredSearch}
-          clearOpenIntent={clearOpenIntent}
         />
       </CommandDialog>
     </ComposerHandleContext>
@@ -458,6 +320,7 @@ export function CommandPalette({ children }: { children: ReactNode }) {
 
 function CommandPaletteDialog(props: {
   readonly mode: SearchOverlayMode;
+  readonly session: number;
   readonly openIntent: CommandPaletteOpenIntent | null;
   readonly setOpen: (open: boolean) => void;
   readonly openChildSearch: (
@@ -465,7 +328,6 @@ function CommandPaletteDialog(props: {
     context: CommandPaletteReturnContext,
   ) => void;
   readonly initialContext: CommandPaletteReturnContext | undefined;
-  readonly clearOpenIntent: () => void;
 }) {
   const composerHandleRef = useComposerHandleContext();
 
@@ -499,11 +361,11 @@ function CommandPaletteDialog(props: {
         <ProjectContentSearchDialog onOpenChange={props.setOpen} />
       ) : (
         <OpenCommandPaletteDialog
+          key={props.session}
           openIntent={props.openIntent}
           setOpen={props.setOpen}
           openChildSearch={props.openChildSearch}
           initialContext={props.initialContext}
-          clearOpenIntent={props.clearOpenIntent}
         />
       )}
     </CommandDialogPopup>
@@ -518,28 +380,34 @@ function OpenCommandPaletteDialog(props: {
     context: CommandPaletteReturnContext,
   ) => void;
   readonly initialContext: CommandPaletteReturnContext | undefined;
-  readonly clearOpenIntent: () => void;
 }) {
   const navigate = useNavigate();
   const pathname = useLocation({ select: (location) => location.pathname });
-  const { clearOpenIntent, openIntent, openChildSearch, setOpen } = props;
-  const initialSearch = props.initialContext ?? {
-    query: openIntent?.kind === "search" ? openIntent.query : "",
-    linkedThreadSearch: openIntent?.kind === "search" ? openIntent : null,
-  };
-  const [searchState, dispatchSearch] = useReducer(
-    reduceCommandPaletteSearchState,
-    initialSearch.query,
-    createCommandPaletteSearchState,
+  const { openChildSearch, setOpen } = props;
+  // Keyed by palette session: the intent and restored search only seed this
+  // mount, and closing must not change what the closing palette shows.
+  const [initialSearch] = useState(
+    () =>
+      props.initialContext ?? {
+        query: props.openIntent?.kind === "search" ? props.openIntent.query : "",
+        linkedThreadSearch: props.openIntent?.kind === "search" ? props.openIntent : null,
+      },
   );
+  const linkedThreadSearch = initialSearch.linkedThreadSearch;
+  const [searchState, dispatchSearch] = useReducer(reduceCommandPaletteSearchState, null, () => {
+    const view = props.initialContext ? null : openIntentView(props.openIntent);
+    return view
+      ? { query: "", views: [{ view, parentQuery: "" }] }
+      : createCommandPaletteSearchState(initialSearch.query);
+  });
   const { query, views: viewStack } = searchState;
   const setQuery = (query: string) => dispatchSearch({ type: "query", query });
-  const [linkedThreadSearch, setLinkedThreadSearch] = useState(initialSearch.linkedThreadSearch);
   const deferredQuery = useDeferredValue(query);
   const isActionsOnly = deferredQuery.startsWith(">");
   const [highlightedItemValue, setHighlightedItemValue] = useState<string | null>(null);
   const resultListRef = useRef<LegendListRef | null>(null);
-  const highlightClearedRef = useRef(false);
+  // A pushed view drops the typed highlight until the user moves it again.
+  const highlightClearedRef = useRef(viewStack.length > 0);
   function clearTypedHighlight(): void {
     highlightClearedRef.current = true;
     setHighlightedItemValue(null);
@@ -873,6 +741,8 @@ function OpenCommandPaletteDialog(props: {
   useEffect(
     () => () => {
       browseNavigation.invalidate();
+      // A replaced or closed session must not report its in-flight lookup.
+      cloneLookupGeneration.current += 1;
     },
     [browseNavigation],
   );
@@ -1245,143 +1115,75 @@ function OpenCommandPaletteDialog(props: {
     },
   ];
 
+  const openConnectionSettings = () => {
+    setOpen(false);
+    void navigate({ to: "/settings/connections" });
+  };
+  const addProjectEntry = resolveAddProjectEntry(
+    addProjectEnvironmentOptions,
+    defaultAddProjectEnvironmentId,
+  );
+
   const openAddProjectFlow = () => {
-    if (addProjectEnvironmentOptions.length === 0) {
-      setOpen(false);
-      void navigate({ to: "/settings/connections" });
-      return;
+    switch (addProjectEntry.kind) {
+      case "connect-environment":
+        openConnectionSettings();
+        return;
+      case "choose-environment":
+        pushPaletteView({
+          addonIcon: <FolderPlusIcon className={ADDON_ICON_CLASS} />,
+          groups: addProjectEnvironmentGroups,
+        });
+        return;
+      case "choose-source":
+        startAddProjectSourceSelection(addProjectEntry.environmentId);
+        return;
     }
+  };
 
-    if (addProjectEnvironmentOptions.length > 1 || defaultAddProjectEnvironmentId === null) {
-      pushPaletteView({
-        addonIcon: <FolderPlusIcon className={ADDON_ICON_CLASS} />,
-        groups: addProjectEnvironmentGroups,
-      });
-      return;
+  // The view an "Add project" intent opens to follows the environments as they
+  // connect, so it resolves here instead of being fixed when the palette opened.
+  const addProjectEntryGroups = (): ReadonlyArray<CommandPaletteGroup> => {
+    switch (addProjectEntry.kind) {
+      case "connect-environment":
+        return [
+          {
+            value: ADD_PROJECT_ENTRY_GROUP,
+            label: "",
+            items: [
+              {
+                kind: "action",
+                value: "action:add-project:connect-environment",
+                searchTerms: ["connect", "environment", "connection", "settings"],
+                title: "Connect an environment",
+                description: "No connected environment can add a project",
+                icon: <SettingsIcon className={ITEM_ICON_CLASS} />,
+                keepOpen: true,
+                run: async () => {
+                  openConnectionSettings();
+                },
+              },
+            ],
+          },
+        ];
+      case "choose-environment":
+        return addProjectEnvironmentGroups;
+      case "choose-source":
+        return buildAddProjectSourceGroups(
+          addProjectEntry.environmentId,
+          buildPaletteRemoteSourceReadiness(
+            browseEnvironmentId === addProjectEntry.environmentId
+              ? sourceControlDiscovery.data
+              : null,
+          ),
+        );
     }
-
-    void startAddProjectSourceSelection(defaultAddProjectEnvironmentId);
   };
 
   const openNewProjectFlow = () => {
     const firstOption = newProjectEnvironmentOptions[0];
     if (firstOption) startNewProject(firstOption.environmentId, null);
   };
-
-  const [appliedOpenIntent, setAppliedOpenIntent] = useState<{
-    readonly intent: CommandPaletteOpenIntent;
-    readonly addProject: AddProjectIntentPlan | null;
-  } | null>(null);
-  if (
-    openIntent !== null &&
-    appliedOpenIntent?.intent !== openIntent &&
-    (openIntent.kind !== "new-thread-in" || projectThreadItems.length > 0)
-  ) {
-    let addProject: AddProjectIntentPlan | null = null;
-    if (openIntent.kind === "search") {
-      setIsRemoteProjectLookingUp(false);
-      setAddProjectCloneFlow(null);
-      setNewProjectFlow(null);
-      dispatchSearch({ type: "reset" });
-      setLinkedThreadSearch(openIntent);
-      setQuery(openIntent.query);
-    } else if (openIntent.kind === "add-project") {
-      if (addProjectEnvironmentOptions.length === 0) {
-        addProject = { kind: "connect" };
-      } else if (
-        addProjectEnvironmentOptions.length > 1 ||
-        defaultAddProjectEnvironmentId === null
-      ) {
-        addProject = { kind: "environments" };
-        pushPaletteViewState({
-          addonIcon: <FolderPlusIcon className={ADDON_ICON_CLASS} />,
-          groups: addProjectEnvironmentGroups,
-        });
-      } else {
-        const environment = environments.find(
-          (candidate) => candidate.environmentId === defaultAddProjectEnvironmentId,
-        );
-        if (canCreateProjectInEnvironment(environment?.connection.phase)) {
-          addProject = { kind: "sources", environmentId: defaultAddProjectEnvironmentId };
-          setAddProjectEnvironmentId(defaultAddProjectEnvironmentId);
-          setAddProjectCloneFlow(null);
-          pushPaletteViewState({
-            addonIcon: <FolderPlusIcon className={ADDON_ICON_CLASS} />,
-            groups: buildAddProjectSourceGroups(
-              defaultAddProjectEnvironmentId,
-              buildAddProjectRemoteSourceReadiness(
-                browseEnvironmentId === defaultAddProjectEnvironmentId
-                  ? sourceControlDiscovery.data
-                  : null,
-              ),
-            ),
-          });
-        } else {
-          addProject = { kind: "unavailable", label: environment?.label };
-        }
-      }
-    } else if (openIntent.kind === "new-thread-in") {
-      setAddProjectCloneFlow(null);
-      setNewProjectFlow(null);
-      dispatchSearch({ type: "reset" });
-      setQuery("");
-      const currentPrefix =
-        currentProjectEnvironmentId && currentProjectId
-          ? `new-thread-in:${currentProjectEnvironmentId}:${currentProjectId}`
-          : null;
-      const prioritized = currentPrefix
-        ? [
-            ...projectThreadItems.filter((item) => item.value === currentPrefix),
-            ...projectThreadItems.filter((item) => item.value !== currentPrefix),
-          ]
-        : projectThreadItems;
-      pushPaletteViewState({
-        addonIcon: <SquarePenIcon className={ADDON_ICON_CLASS} />,
-        groups: [
-          {
-            value: "projects",
-            label: "Projects",
-            items: enumerateCommandPaletteItems(prioritized),
-          },
-        ],
-      });
-    } else {
-      setIsRemoteProjectLookingUp(false);
-      setAddProjectCloneFlow(null);
-      setNewProjectFlow(null);
-      dispatchSearch({ type: "reset" });
-      pushPaletteViewState({
-        addonIcon: <PaletteIcon className={ADDON_ICON_CLASS} />,
-        groups: [{ value: "themes", label: "Change theme", items: [] }],
-      });
-    }
-    setAppliedOpenIntent({ intent: openIntent, addProject });
-  }
-
-  useLayoutEffect(() => {
-    if (openIntent === null || appliedOpenIntent?.intent !== openIntent) return;
-    clearOpenIntent();
-    if (openIntent.kind === "search" || openIntent.kind === "change-theme") {
-      cloneLookupGeneration.current += 1;
-    }
-    const addProject = appliedOpenIntent.addProject;
-    if (addProject?.kind === "connect") {
-      setOpen(false);
-      void navigate({ to: "/settings/connections" });
-      return;
-    }
-    if (addProject?.kind === "unavailable") {
-      toastManager.add(
-        stackedThreadToast({
-          type: "error",
-          title: "Environment unavailable",
-          description: `${addProject.label ?? "The selected environment"} is not connected.`,
-        }),
-      );
-      return;
-    }
-    browseNavigation.invalidate();
-  }, [appliedOpenIntent, browseNavigation, clearOpenIntent, navigate, openIntent, setOpen]);
 
   const actionItems: Array<CommandPaletteActionItem | CommandPaletteSubmenuItem> = [];
 
@@ -1422,7 +1224,7 @@ function OpenCommandPaletteDialog(props: {
       icon: <SquarePenIcon className={ITEM_ICON_CLASS} />,
       addonIcon: <SquarePenIcon className={ADDON_ICON_CLASS} />,
       shortcutCommand: "projectPicker.toggle",
-      groups: [{ value: "projects", label: "Projects", items: projectThreadItems }],
+      groups: [{ value: NEW_THREAD_IN_GROUP, label: "Projects", items: projectThreadItems }],
     });
   }
 
@@ -1931,6 +1733,16 @@ function OpenCommandPaletteDialog(props: {
   }));
   const sourceSelectionViewValue =
     addProjectEnvironmentId === null ? null : `sources:${addProjectEnvironmentId}`;
+  // The current project leads "New thread in", so its jump shortcut is the first.
+  const currentProjectThreadItem = projectThreadItems.find(
+    (item) => item.value === `new-thread-in:${currentProjectEnvironmentId}:${currentProjectId}`,
+  );
+  const newThreadInItems = currentProjectThreadItem
+    ? enumerateCommandPaletteItems([
+        currentProjectThreadItem,
+        ...projectThreadItems.filter((item) => item !== currentProjectThreadItem),
+      ])
+    : projectThreadItems;
   const activeGroups =
     addProjectEnvironmentId !== null &&
     currentView !== null &&
@@ -1939,11 +1751,15 @@ function OpenCommandPaletteDialog(props: {
           addProjectEnvironmentId,
           buildPaletteRemoteSourceReadiness(sourceControlDiscovery.data),
         )
-      : currentView?.groups[0]?.value === "themes"
-        ? changeThemeItem.groups
-        : currentView?.groups[0]?.value === "appearance"
-          ? changeAppearanceItem.groups
-          : (currentView?.groups ?? rootGroups);
+      : currentView?.groups[0]?.value === ADD_PROJECT_ENTRY_GROUP
+        ? addProjectEntryGroups()
+        : currentView?.groups[0]?.value === NEW_THREAD_IN_GROUP
+          ? [{ value: NEW_THREAD_IN_GROUP, label: "Projects", items: newThreadInItems }]
+          : currentView?.groups[0]?.value === "themes"
+            ? changeThemeItem.groups
+            : currentView?.groups[0]?.value === "appearance"
+              ? changeAppearanceItem.groups
+              : (currentView?.groups ?? rootGroups);
 
   const isLinkedThreadSearch =
     linkedThreadSearch?.linkedThreads !== undefined && deferredQuery === linkedThreadSearch.query;
