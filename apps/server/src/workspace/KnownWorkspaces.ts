@@ -8,6 +8,7 @@
  * @module KnownWorkspaces
  */
 import * as HostProcess from "@supaterm/shared/HostProcess";
+import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -105,7 +106,10 @@ export const make = Effect.gen(function* () {
           project_id AS "projectId"
         FROM orchestration_v2_projection_threads
         WHERE deleted_at IS NULL AND json_extract(payload_json, '$.worktreePath') IS NOT NULL
-      `.pipe(Effect.orElseSucceed(() => []));
+      `.pipe(
+        NodeSqliteClient.readOnly,
+        Effect.orElseSucceed(() => []),
+      );
       const projectWorktrees = new Map<string, ReadonlyArray<string>>();
       const isProjectWorktree = Effect.fnUntraced(function* (
         projectId: string,
