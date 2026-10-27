@@ -187,6 +187,9 @@ Press **Escape** before releasing to cancel. Failed closes stay in the list so y
 
 GitHub, GitLab, and Azure DevOps support auto-merge while checks are outstanding. GitHub also
 supports approving waiting fork workflows and opening a revert pull request for a merged change.
+In the thread details card, the pull request row offers **Auto-merge** while checks run, and its
+**⋯** menu merges, turns auto-merge on or off, picks the merge method, toggles draft, and closes or
+reopens the pull request.
 
 In the web and desktop apps, merging, closing (with or without a comment), reverting, updating a
 branch with a rebase, enabling auto-merge, approving workflows, merging or rebasing a stack, and

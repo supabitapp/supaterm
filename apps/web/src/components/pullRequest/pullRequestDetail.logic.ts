@@ -261,14 +261,6 @@ export function pullRequestHandoffLabels(inThisThread: boolean) {
       };
 }
 
-export function pullRequestActionMenuHasGroup(
-  showsDraftToggle: boolean,
-  showsAutoMerge: boolean,
-  showsMergeMethods: boolean,
-): boolean {
-  return showsDraftToggle || showsAutoMerge || showsMergeMethods;
-}
-
 export function isStackedPullRequestBase(
   baseBranch: string,
   refs: ReadonlyArray<Pick<VcsRef, "name" | "isDefault" | "isRemote" | "remoteName">>,
@@ -296,7 +288,7 @@ export function allowedPullRequestMergeMethods(
     : detail.capabilities.mergeMethods.filter((method) => detail.mergeCapabilities[method]);
 }
 
-function canPerformPullRequestAction(
+export function canPerformPullRequestAction(
   detail: Pick<PullRequestActionableDetail, "capabilities" | "viewerPermissions"> | null,
   action: PullRequestAction,
 ): boolean {
@@ -358,10 +350,19 @@ export function groupPullRequestChecks(checks: ReadonlyArray<PullRequestCheck>) 
   };
 }
 
-export type ThreadPanelPullRequestAction = "resolve" | "ready" | "fix" | "merge";
+export type ThreadPanelPullRequestAction =
+  | "resolve"
+  | "ready"
+  | "fix"
+  | "merge"
+  | "enable-auto-merge";
+
+type MenuActionableDetail = PullRequestActionableDetail &
+  Pick<PullRequestDetail, "autoMergeEnabled">;
 
 export function resolveThreadPanelPullRequestAction(
-  detail: (PullRequestActionableDetail & Pick<PullRequestDetail, "checks">) | null,
+  detail: (MenuActionableDetail & Pick<PullRequestDetail, "checks">) | null,
+  canMergeSinglePullRequest: boolean,
 ): ThreadPanelPullRequestAction | null {
   if (detail === null || detail.state !== "open") return null;
   if (isPullRequestConflicting(detail)) return "resolve";
@@ -370,11 +371,64 @@ export function resolveThreadPanelPullRequestAction(
   }
   const checks = classifyPullRequestChecks(detail.checks);
   if (checks === "failing") return "fix";
-  if (checks === "pending") return null;
-  return canPerformPullRequestAction(detail, "merge") &&
-    allowedPullRequestMergeMethods(detail).length > 0
-    ? "merge"
-    : null;
+  if (!canMergeSinglePullRequest || allowedPullRequestMergeMethods(detail).length === 0) {
+    return null;
+  }
+  // A merge offered mid-run would race the very runs that gate it; auto-merge waits for them.
+  // An undefined flag means the host does not report auto-merge, so it cannot be offered.
+  if (checks === "pending") {
+    return detail.autoMergeEnabled === false &&
+      canPerformPullRequestAction(detail, "enable-auto-merge")
+      ? "enable-auto-merge"
+      : null;
+  }
+  return canPerformPullRequestAction(detail, "merge") ? "merge" : null;
+}
+
+export interface PullRequestMenuActions {
+  readonly showsDraftToggle: boolean;
+  readonly showsMergeNow: boolean;
+  readonly showsAutoMerge: boolean;
+  readonly showsDisableAutoMerge: boolean;
+  readonly showsMergeMethods: boolean;
+}
+
+/**
+ * The merge-area items an overflow menu offers beside its surface's primary control, which it
+ * never repeats. Single merges wait on `canMergeSinglePullRequest`: a native stack merges whole.
+ */
+export function resolvePullRequestMenuActions(input: {
+  readonly detail: MenuActionableDetail | null;
+  readonly primaryAction: PullRequestPrimaryControl | ThreadPanelPullRequestAction | null;
+  readonly canMergeSinglePullRequest: boolean;
+}): PullRequestMenuActions {
+  const { detail, primaryAction } = input;
+  if (detail === null || detail.state !== "open") {
+    return {
+      showsDraftToggle: false,
+      showsMergeNow: false,
+      showsAutoMerge: false,
+      showsDisableAutoMerge: false,
+      showsMergeMethods: false,
+    };
+  }
+  const can = (action: PullRequestAction) => canPerformPullRequestAction(detail, action);
+  const mergeMethods = allowedPullRequestMergeMethods(detail);
+  const mergeable = !detail.isDraft && !isPullRequestConflicting(detail) && mergeMethods.length > 0;
+  const singleMergeable = mergeable && input.canMergeSinglePullRequest;
+  const armed = detail.autoMergeEnabled === true;
+  const draftToggle = detail.isDraft ? "ready" : "draft";
+  return {
+    showsDraftToggle: primaryAction !== draftToggle && can(draftToggle),
+    showsMergeNow: singleMergeable && primaryAction !== "merge" && can("merge"),
+    showsAutoMerge:
+      singleMergeable &&
+      !armed &&
+      primaryAction !== "enable-auto-merge" &&
+      can("enable-auto-merge"),
+    showsDisableAutoMerge: armed && can("disable-auto-merge"),
+    showsMergeMethods: mergeable && can("merge") && mergeMethods.length > 1,
+  };
 }
 
 export function orderPullRequestComments<T extends { readonly createdAt: string }>(

@@ -1,6 +1,5 @@
-import { parseChangeRequestUrl } from "@supaterm/shared/changeRequestUrl";
 import { useAtomValue } from "@effect/atom-react";
-import { usePullRequestStack } from "~/state/usePullRequestStack";
+import { usePullRequestStackGate } from "~/state/usePullRequestStack";
 import {
   scopedThreadKey,
   scopeProjectRef,
@@ -15,7 +14,6 @@ import {
   AuthSourceControlWriteScope,
   type EnvironmentId,
   type PullRequestAction,
-  type PullRequestDetail,
   type PullRequestMergeMethod,
   type PullRequestListEntry,
   type PullRequestUpdateMethod,
@@ -126,8 +124,8 @@ import {
   checkoutFailureDescription,
   readableFailure,
   resolvePullRequestReferenceHost,
+  resolvePullRequestMenuActions,
   resolvePullRequestPrimaryControl,
-  allowsSinglePullRequestMerge,
   canDeletePullRequestBranch,
   resolveBaseFreshness,
   resolvePullRequestMergeMethod,
@@ -247,15 +245,6 @@ function pullRequestMarkdownContext(
       repositoryUrl === null ? null : hostClient.referenceAutolinkRepositoryUrl(repositoryUrl),
     threadRef,
   };
-}
-
-function pullRequestStackReference(
-  detail: Pick<PullRequestDetail, "url" | "capabilities"> | null,
-  reference: PullRequestRef,
-) {
-  return detail === null || detail.capabilities.stacks !== true
-    ? null
-    : { ...reference, host: reference.host ?? parseChangeRequestUrl(detail.url)?.host };
 }
 
 export function PullRequestDetailPanel({
@@ -502,19 +491,17 @@ export function PullRequestDetailPanel({
   const isStackedPullRequest =
     detail !== null &&
     isStackedPullRequestBase(detail.baseBranch, branchRefsQuery.data?.refs ?? []);
-  const stackReference = pullRequestStackReference(detail, reference);
-  const nativeStackQuery = usePullRequestStack(environmentId, stackReference);
-  const nativeStack = nativeStackQuery.data;
-  const supportsStackActions =
-    detail?.capabilities.stacks === true &&
-    detail.capabilities.stackActions === true &&
-    environmentConfigs.has(environmentId);
-  const canMergeSinglePullRequest = allowsSinglePullRequestMerge({
+  const {
+    stackQuery: nativeStackQuery,
     supportsStackActions,
-    hasStack: nativeStack !== null,
-    stackPending: !nativeStackQuery.isFresh,
-    stackError: nativeStackQuery.error,
+    canMergeSinglePullRequest,
+  } = usePullRequestStackGate({
+    environmentId,
+    reference,
+    detail,
+    environmentSupported: environmentConfigs.has(environmentId),
   });
+  const nativeStack = nativeStackQuery.data;
   const activityPending = activityQuery.isPending && activity === null;
   const activityError = activity === null ? activityQuery.error : null;
   const refreshDetail = () => {
@@ -1077,7 +1064,6 @@ export function PullRequestDetailPanel({
   );
   const selectedMergeMethodLabel = PULL_REQUEST_MERGE_METHOD_LABELS[selectedMergeMethod];
   const pendingAutoMergeLabel = `Auto-merge (${selectedMergeMethodLabel.toLowerCase()})`;
-  const conflicting = detail?.state === "open" && detail.mergeability === "conflicting";
   const autoMergeArmed = detail?.state === "open" && detail.autoMergeEnabled === true;
   const armedMergeMethod = detail?.autoMergeMethod;
   const armedAutoMergeLabel = armedMergeMethod
@@ -1126,33 +1112,11 @@ export function PullRequestDetailPanel({
         canEnableAutoMerge: canMergeSinglePullRequest && can("enable-auto-merge"),
       })
     : null;
-  const showsDraftToggle =
-    detail?.state === "open" &&
-    can(detail.isDraft ? "ready" : "draft") &&
-    !(detail.isDraft && primaryAction === "ready");
-  const showsAutoMerge =
-    canMergeSinglePullRequest &&
-    detail?.state === "open" &&
-    !autoMergeArmed &&
-    primaryAction !== "enable-auto-merge" &&
-    !detail.isDraft &&
-    !conflicting &&
-    can("enable-auto-merge") &&
-    allowedMergeMethods.length > 0;
-  const showsMergeNow =
-    canMergeSinglePullRequest &&
-    detail?.state === "open" &&
-    (primaryAction === "enable-auto-merge" || autoMergeArmed) &&
-    can("merge") &&
-    !detail.isDraft &&
-    !conflicting &&
-    allowedMergeMethods.length > 0;
-  const showsMergeMethods =
-    detail?.state === "open" &&
-    can("merge") &&
-    !detail.isDraft &&
-    !conflicting &&
-    allowedMergeMethods.length > 1;
+  const mergeMenuActions = {
+    ...resolvePullRequestMenuActions({ detail, primaryAction, canMergeSinglePullRequest }),
+    // The armed control beside the primary action is the off switch here.
+    showsDisableAutoMerge: false,
+  };
   const statePresentation = detail
     ? resolvePullRequestState({ state: detail.state, isDraft: detail.isDraft })
     : null;
@@ -1339,10 +1303,7 @@ export function PullRequestDetailPanel({
                 actingEnvironmentId={actingEnvironmentId}
                 onActingEnvironmentChange={selectActingEnvironment}
                 can={can}
-                showsDraftToggle={showsDraftToggle}
-                showsMergeNow={showsMergeNow}
-                showsAutoMerge={showsAutoMerge}
-                showsMergeMethods={showsMergeMethods}
+                mergeMenuActions={mergeMenuActions}
                 allowedMergeMethods={allowedMergeMethods}
                 selectedMergeMethod={selectedMergeMethod}
                 onSelectMergeMethod={selectMergeMethod}

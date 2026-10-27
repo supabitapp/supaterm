@@ -8,17 +8,24 @@ import { PullRequestGlyph } from "../pullRequest/pullRequestIcons";
  * The row itself opens the pull request in the right panel, exactly as it always has. Around
  * that, the host's richer answer collapses into a single trailing slot, ranked by what unblocks
  * the merge next: "Resolve" on conflicts, "Ready" on a draft, "Fix" under failing checks, and
- * "Merge" only once the branch is clean and its checks pass. While checks run the slot reports
- * that instead — a merge offered mid-run would race the very runs that gate it. Everything else
- * the host knows (title, state, checks tally, diff size) lives in the row's tooltip, so a hover
- * answers what previously took opening the panel.
+ * "Merge" only once the branch is clean and its checks pass. While checks run the slot offers
+ * "Auto-merge" instead — a merge offered mid-run would race the very runs that gate it. The rest
+ * of the pull request's actions sit in the trailing overflow menu. Everything else the host knows
+ * (title, state, checks tally, diff size) lives in the row's tooltip, so a hover answers what
+ * previously took opening the panel.
  *
  * Until the detail arrives — or where pull requests are not supported at all — the row renders
  * from the linked snapshot or branch summary, or just the link when status is unavailable.
  */
 import { selectEnvironmentQueryData } from "@supaterm/client-runtime/state/runtime";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
-import type { EnvironmentId, ProjectId, PullRequestRef } from "@supaterm/contracts";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
+import type {
+  EnvironmentId,
+  ProjectId,
+  PullRequestMergeMethod,
+  PullRequestRef,
+} from "@supaterm/contracts";
 import { sourceControlRepositorySelector } from "@supaterm/shared/sourceControl";
 import {
   ArrowUpRightIcon,
@@ -26,17 +33,20 @@ import {
   EyeOffIcon,
   FileDiffIcon,
   GitBranchIcon,
+  MoreHorizontalIcon,
   TriangleAlertIcon,
 } from "lucide-react";
 import { AsyncResult } from "effect/reactivity";
-import type { MouseEvent as ReactMouseEvent } from "react";
+import { useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";
 import { useLiveRefresh } from "~/hooks/useLiveRefresh";
+import { readLocalApi } from "~/localApi";
 import { usePullRequestChecksRefresh } from "~/hooks/usePullRequestChecksRefresh";
 import { cn } from "~/lib/utils";
 import { useServerConfigs } from "~/state/entities";
 import { pullRequestEnvironment } from "~/state/pullRequests";
+import { usePullRequestStackGate } from "~/state/usePullRequestStack";
 import { useUiStateStore } from "~/uiStateStore";
 import {
   useEnvironmentQueryIsNewer,
@@ -52,8 +62,13 @@ import {
   isPullRequestConflicting,
   resolvePullRequestMergeMethod,
   allowedPullRequestMergeMethods,
+  canPerformPullRequestAction,
+  PULL_REQUEST_MERGE_METHOD_LABELS,
+  resolvePullRequestMenuActions,
   resolveThreadPanelPullRequestAction,
 } from "../pullRequest/pullRequestDetail.logic";
+import { PullRequestMergeMenuItems } from "../pullRequest/PullRequestActionsMenu";
+import { openOnHostLabel } from "../pullRequest/pullRequestLinkContextMenu";
 import { PullRequestChecksPopover } from "../pullRequest/PullRequestChecksPopover";
 import {
   pullRequestChecksState,
@@ -72,8 +87,10 @@ import {
   type ThreadPr,
 } from "../ThreadStatusIndicators";
 import { InlineConfirmLabel } from "../InlineConfirm";
+import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "../ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
+  THREAD_DETAILS_PANEL_CHEVRON_CLASS,
   THREAD_DETAILS_PANEL_ICON_CLASS,
   THREAD_DETAILS_PANEL_LINK_SPLIT_GROUP_CLASS,
   THREAD_DETAILS_PANEL_SPLIT_SEPARATOR_CLASS,
@@ -162,7 +179,7 @@ export function ThreadDetailsPrRow({
     checks: detail?.checks ?? [],
   });
 
-  const { actionPending, perform } = usePullRequestActionRunner({
+  const { actionPending, pendingAction, perform } = usePullRequestActionRunner({
     environmentId,
     reference,
     onSuccess: () => {
@@ -173,24 +190,52 @@ export function ThreadDetailsPrRow({
   });
   const { handoff, startHandoff } = usePullRequestHandoffs({ environmentId, detail });
   const lastSelectedMergeMethod = useUiStateStore((state) => state.pullRequestMergeMethod);
+  const setLastSelectedMergeMethod = useUiStateStore((state) => state.setPullRequestMergeMethod);
+  const [mergeMethodSelection, setMergeMethodSelection] = useState<{
+    key: string;
+    method: PullRequestMergeMethod;
+  } | null>(null);
   const projectDefaultMergeMethod = usePullRequestDefaultMergeMethod(
     environmentId,
     (project?.id as ProjectId | undefined) ?? null,
   );
-  const confirm = useInlineConfirm<"merge">();
+  const confirm = useInlineConfirm<"merge" | "enable-auto-merge" | "close">();
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const { canMergeSinglePullRequest } = usePullRequestStackGate({
+    environmentId,
+    reference,
+    detail,
+    environmentSupported: supportsPullRequests,
+  });
 
-  const rowAction = resolveThreadPanelPullRequestAction(detail);
+  const rowAction = resolveThreadPanelPullRequestAction(detail, canMergeSinglePullRequest);
+  const menuActions = resolvePullRequestMenuActions({
+    detail,
+    primaryAction: rowAction,
+    canMergeSinglePullRequest,
+  });
   const conflicting = isPullRequestConflicting(detail);
   const checksState = detail === null ? "none" : classifyPullRequestChecks(detail.checks);
   // Checks stop refreshing once the pull request is no longer open, so jobs that start on merge or
   // close would otherwise show as pending forever.
   const checksRollup = detail?.state === "open" ? pullRequestChecksState(detail.checks) : null;
+  const allowedMergeMethods = allowedPullRequestMergeMethods(detail);
   const selectedMergeMethod = resolvePullRequestMergeMethod(
-    allowedPullRequestMergeMethods(detail),
-    null,
+    allowedMergeMethods,
+    mergeMethodSelection?.key === refreshKey
+      ? mergeMethodSelection.method
+      : (detail?.autoMergeMethod ?? null),
     projectDefaultMergeMethod,
     lastSelectedMergeMethod,
   );
+  const selectMergeMethod = (method: PullRequestMergeMethod) => {
+    setMergeMethodSelection({ key: refreshKey, method });
+    setLastSelectedMergeMethod(method);
+  };
+  const autoMergeArmed = detail?.state === "open" && detail.autoMergeEnabled === true;
+  const armedAutoMergeLabel = detail?.autoMergeMethod
+    ? `Auto-merge (${PULL_REQUEST_MERGE_METHOD_LABELS[detail.autoMergeMethod].toLowerCase()})`
+    : "Auto-merge";
 
   const startResolveConflicts = () => {
     if (detail === null) return;
@@ -292,6 +337,14 @@ export function ThreadDetailsPrRow({
                 </div>
               </div>
             ) : null}
+            {autoMergeArmed ? (
+              <div className="flex min-w-0 items-center gap-2">
+                <PullRequestGlyph.merged aria-hidden className="size-3 shrink-0 text-info" />
+                <div className="min-w-0 truncate text-foreground/75">
+                  {armedAutoMergeLabel} enabled
+                </div>
+              </div>
+            ) : null}
             {detail.isDraft && conflicting ? (
               <div className="flex min-w-0 items-start gap-2 text-destructive">
                 <TriangleAlertIcon aria-hidden className="mt-0.5 size-3 shrink-0 stroke-current" />
@@ -335,7 +388,7 @@ export function ThreadDetailsPrRow({
         ? {
             label: "Ready",
             pendingLabel: "Marking...",
-            pending: actionPending,
+            pending: pendingAction === "ready",
             destructive: false,
             suffix: null,
             tooltip: "Mark this pull request as ready for review",
@@ -361,7 +414,7 @@ export function ThreadDetailsPrRow({
                   />
                 ),
                 pendingLabel: "Merging...",
-                pending: actionPending,
+                pending: pendingAction === "merge",
                 destructive: false,
                 suffix: null,
                 tooltip:
@@ -373,20 +426,46 @@ export function ThreadDetailsPrRow({
                   () => void perform("merge", selectedMergeMethod),
                 ),
               }
-            : null;
+            : rowAction === "enable-auto-merge"
+              ? {
+                  label: (
+                    <InlineConfirmLabel
+                      armed={confirm.armed === "enable-auto-merge"}
+                      idle="Auto-merge"
+                      confirm="Confirm"
+                    />
+                  ),
+                  pendingLabel: "Enabling...",
+                  pending: pendingAction === "enable-auto-merge",
+                  destructive: false,
+                  suffix: null,
+                  tooltip:
+                    confirm.armed === "enable-auto-merge"
+                      ? `Click again to enable auto-merge. The host may merge #${number} right away.`
+                      : `Merge into ${detail?.baseBranch} (${selectedMergeMethod}) once its checks pass`,
+                  controlProps: confirm.bind(
+                    "enable-auto-merge",
+                    () => void perform("enable-auto-merge", selectedMergeMethod),
+                  ),
+                }
+              : null;
 
   const rowContent = (
     <>
       {icon}
       <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+      {autoMergeArmed ? (
+        <PullRequestGlyph.merged
+          role="img"
+          aria-label={`${armedAutoMergeLabel} enabled`}
+          className="size-3.5 shrink-0 text-info"
+        />
+      ) : null}
     </>
   );
 
   // The server ends a watch when the pull request closes, so only an open one shows the eye.
-  // It takes the row's rounded end when nothing follows it.
-  const watchIsLast =
-    detail === null ||
-    ((checksRollup === null || conflicting || detail.isDraft) && trailingAction === null);
+  // It takes the row's rounded end unless the detail's actions menu follows it.
   const watchSegment =
     onStopWatching && (detail?.state ?? pr?.state ?? "open") === "open" ? (
       <>
@@ -398,7 +477,7 @@ export function ThreadDetailsPrRow({
                 type="button"
                 variant="ghost"
                 size="sm"
-                part={watchIsLast ? "secondary" : "checks"}
+                part={detail === null ? "secondary" : "checks"}
                 className="group/watch"
                 aria-label={`Stop watching #${number}`}
                 onClick={onStopWatching}
@@ -416,10 +495,77 @@ export function ThreadDetailsPrRow({
       </>
     ) : null;
 
+  const canClose = detail?.state === "open" && canPerformPullRequestAction(detail, "close");
+  const canReopen = detail?.state === "closed" && canPerformPullRequestAction(detail, "reopen");
+  const actionsMenu =
+    detail === null ? null : (
+      <>
+        <span aria-hidden="true" className={THREAD_DETAILS_PANEL_SPLIT_SEPARATOR_CLASS} />
+        <Menu>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <MenuTrigger
+                  render={
+                    <ThreadDetailsControl
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      part="secondary"
+                      aria-label="More pull request actions"
+                    />
+                  }
+                >
+                  <MoreHorizontalIcon aria-hidden className={THREAD_DETAILS_PANEL_CHEVRON_CLASS} />
+                </MenuTrigger>
+              }
+            />
+            <TooltipPopup side="top">More pull request actions</TooltipPopup>
+          </Tooltip>
+          <MenuPopup align="end" anchor={rowRef} className="w-(--anchor-width)">
+            <PullRequestMergeMenuItems
+              isDraft={detail.isDraft}
+              actions={menuActions}
+              allowedMergeMethods={allowedMergeMethods}
+              selectedMergeMethod={selectedMergeMethod}
+              onSelectMergeMethod={selectMergeMethod}
+              actionPending={actionPending}
+              perform={perform}
+            />
+            <MenuItem onClick={() => void readLocalApi()?.shell.openExternal(detail.url)}>
+              <ArrowUpRightIcon className="size-3.5" />
+              {openOnHostLabel(sourceControlClients.get(detail.provider))}
+            </MenuItem>
+            {canClose ? (
+              <>
+                <MenuSeparator />
+                <MenuItem
+                  {...confirm.bind("close", () => void perform("close"))}
+                  variant="destructive"
+                  disabled={actionPending}
+                >
+                  <PullRequestGlyph.closed className="size-3.5" />
+                  {confirm.armed === "close" ? "Confirm close" : "Close pull request"}
+                </MenuItem>
+              </>
+            ) : canReopen ? (
+              <>
+                <MenuSeparator />
+                <MenuItem disabled={actionPending} onClick={() => void perform("reopen")}>
+                  <PullRequestGlyph.reopen className="size-3.5" />
+                  Reopen pull request
+                </MenuItem>
+              </>
+            ) : null}
+          </MenuPopup>
+        </Menu>
+      </>
+    );
+
   return (
     <>
       {detail ? (
-        <div className={THREAD_DETAILS_PANEL_LINK_SPLIT_GROUP_CLASS}>
+        <div ref={rowRef} className={THREAD_DETAILS_PANEL_LINK_SPLIT_GROUP_CLASS}>
           <Tooltip>
             <TooltipTrigger
               render={
@@ -474,6 +620,7 @@ export function ThreadDetailsPrRow({
               </Tooltip>
             </>
           ) : null}
+          {actionsMenu}
         </div>
       ) : watchSegment ? (
         <div className={THREAD_DETAILS_PANEL_LINK_SPLIT_GROUP_CLASS}>

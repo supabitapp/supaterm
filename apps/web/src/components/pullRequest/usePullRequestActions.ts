@@ -108,13 +108,13 @@ export function usePullRequestActionRunner({
   const runAction = useAtomCommand(pullRequestEnvironment.runAction, {
     reportFailure: false,
   });
-  const [actionPending, setActionPending] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PullRequestAction | null>(null);
   const pendingRef = useRef(false);
 
   const perform = async (action: PullRequestAction, method?: PullRequestMergeMethod) => {
-    if (pendingRef.current || reference === null) return;
+    if (pendingRef.current || reference === null) return false;
     pendingRef.current = true;
-    setActionPending(true);
+    setPendingAction(action);
     const result = await runAction({
       environmentId,
       input: {
@@ -124,7 +124,7 @@ export function usePullRequestActionRunner({
       },
     });
     pendingRef.current = false;
-    setActionPending(false);
+    setPendingAction(null);
     if (result._tag === "Failure") {
       toastManager.add({
         type: "error",
@@ -134,13 +134,14 @@ export function usePullRequestActionRunner({
           ACTION_FAILURE_HINTS[action],
         ),
       });
-      return;
+      return false;
     }
     toastManager.add({ type: "success", title: ACTION_SUCCESS_LABELS[action] });
     onSuccess?.(action);
+    return true;
   };
 
-  return { actionPending, perform };
+  return { actionPending: pendingAction !== null, pendingAction, perform };
 }
 
 export function usePullRequestCloseBatch(onClosed: (entry: EnvironmentPullRequestEntry) => void) {
