@@ -136,8 +136,10 @@ another link to share.
 ### Reach one machine several ways
 
 A saved machine can keep several routes, including LAN, Tailscale, a public URL,
-and SSH. Pair it again using another address, or choose **Add route** from its
-route list. Both addresses belong to the same machine in your client.
+and SSH. To add one, choose **Add route** from its route list. A pairing link for
+a saved machine is refused when it comes from an address that machine does not
+have yet, unless one of its saved routes confirms the machine during pairing.
+Pairing again over an address the machine already has still works.
 
 Supaterm also learns the LAN and Tailscale addresses reported by a paired
 machine. A relay pairing doesn't use plain HTTP addresses; it reaches the host

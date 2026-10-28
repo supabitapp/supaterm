@@ -148,16 +148,6 @@ export const preparePairingRegistration = Effect.fn(
       routes: target.routes ?? [],
     });
     const { descriptor } = reached;
-    const compatibilityError = orchestrationProtocolCompatibilityError(descriptor);
-    // An outdated server is still saved so it can be updated from this client.
-    if (compatibilityError !== null && compatibilityError.serverUpdateRequired !== true) {
-      return yield* compatibilityError;
-    }
-    const access = yield* bootstrapRemoteBearerSession({
-      httpBaseUrl: reached.httpBaseUrl,
-      credential: target.credential,
-      clientMetadata: presentation.metadata,
-    }).pipe(Effect.mapError(mapRemoteEnvironmentError));
     const registrationHttpBaseUrl =
       reached.source === "hint" ? reached.httpBaseUrl : target.httpBaseUrl;
     const connectionId = pairingConnectionId(
@@ -165,8 +155,7 @@ export const preparePairingRegistration = Effect.fn(
       descriptor.environmentId,
       registrationHttpBaseUrl,
     );
-
-    const registration = new BearerConnectionRegistration({
+    const route = {
       target: new BearerConnectionTarget({
         environmentId: descriptor.environmentId,
         label: descriptor.label,
@@ -182,11 +171,34 @@ export const preparePairingRegistration = Effect.fn(
           ? { relayUrl: target.relayUrl }
           : {}),
       }),
+    };
+    // A link may claim any saved environment's id. Only a saved route proves the identity, so
+    // any other address must already be known; adding one goes through Add route instead.
+    const knownAddressOnly =
+      input.expectedEnvironmentId === undefined && reached.source !== "saved";
+    // The registry checks again under its lease; this early check keeps a refused code unspent.
+    const registry = yield* Effect.serviceOption(EnvironmentRegistry.EnvironmentRegistry);
+    if (knownAddressOnly && Option.isSome(registry)) {
+      yield* registry.value.assertKnownAddress({ ...route, profile: Option.some(route.profile) });
+    }
+    const compatibilityError = orchestrationProtocolCompatibilityError(descriptor);
+    // An outdated server is still saved so it can be updated from this client.
+    if (compatibilityError !== null && compatibilityError.serverUpdateRequired !== true) {
+      return yield* compatibilityError;
+    }
+    const access = yield* bootstrapRemoteBearerSession({
+      httpBaseUrl: reached.httpBaseUrl,
+      credential: target.credential,
+      clientMetadata: presentation.metadata,
+    }).pipe(Effect.mapError(mapRemoteEnvironmentError));
+
+    const registration = new BearerConnectionRegistration({
+      ...route,
       credential: new BearerConnectionCredential({
         token: access.access_token,
       }),
     });
-    return { registration, reachedHttpBaseUrl: reached.httpBaseUrl };
+    return { registration, reachedHttpBaseUrl: reached.httpBaseUrl, knownAddressOnly };
   },
   Effect.provideService(FetchHttpClient.RequestInit, { redirect: "error" }),
 );
@@ -238,12 +250,14 @@ const registerPairingConnection = Effect.fn(
   "clientRuntime.connection.onboarding.registerPairingConnection",
 )(function* (input: PairingConnectionInput) {
   const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
-  const { registration, reachedHttpBaseUrl } = yield* preparePairingRegistration(
+  const { registration, reachedHttpBaseUrl, knownAddressOnly } = yield* preparePairingRegistration(
     input,
     yield* SubscriptionRef.get(registry.entries),
   );
   yield* refreshReachedRouteCredential(registration, reachedHttpBaseUrl);
-  if (!(yield* registry.register(registration))) return registration.target.environmentId;
+  if (!(yield* registry.register(registration, { knownAddressOnly }))) {
+    return registration.target.environmentId;
+  }
   yield* registry.setCompatibility(registration.target.environmentId, null);
   yield* registry
     .setEnabled(registration.target.environmentId, true)

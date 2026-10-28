@@ -48,7 +48,7 @@ import {
 import * as EnvironmentRegistry from "./registry.ts";
 import { ROUTE_CHECK_TIMEOUT_MS } from "./driver.ts";
 import * as ConnectionProfileStore from "./profileStore.ts";
-import { entryWithRoutes } from "./routes.ts";
+import { connectionRoutes, entryWithRoutes, routeHttpBaseUrl } from "./routes.ts";
 import * as ConnectionWakeups from "./wakeups.ts";
 
 const layerClientPresentation = Layer.succeed(
@@ -63,7 +63,7 @@ const layerClientPresentation = Layer.succeed(
 );
 
 type Call = { readonly url: string; readonly init: RequestInit };
-type Server = (path: string, init: RequestInit) => Response;
+type Server = (path: string, init: RequestInit) => Response | Promise<Response>;
 
 /**
  * Answers the origins a test lists. A silent origin never answers, like a LAN
@@ -184,6 +184,7 @@ function bearerToken(init: RequestInit): string | undefined {
 }
 
 const REMOTE = "https://remote.example.test";
+const ATTACKER = "https://attacker.example.test";
 const RELAY_ADDRESS = `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`;
 const NO_SAVED_ENVIRONMENTS = new Map<EnvironmentId, ConnectionCatalogEntry>();
 const SAVED_ENVIRONMENT_ID = EnvironmentId.make("environment-paired");
@@ -235,6 +236,7 @@ const urls = (calls: ReadonlyArray<Call>) => calls.map((call) => call.url);
 /** Runs `registerPairing` against a registry holding `entries`, recording what it persists. */
 const registerPairing = Effect.fnUntraced(function* (options: {
   readonly pairingUrl: string;
+  readonly expectedEnvironmentId?: EnvironmentId;
   readonly entries: ReadonlyMap<EnvironmentId, ConnectionCatalogEntry>;
   readonly credentials: ReadonlyArray<readonly [string, string]>;
   readonly servers: Record<string, Server | "silent">;
@@ -255,6 +257,7 @@ const registerPairing = Effect.fnUntraced(function* (options: {
         events.push(`register:${registration.target.connectionId}`);
         return true;
       }),
+    assertKnownAddress: () => Effect.void,
     setCompatibility: () => Effect.void,
     setEnabled: () => Effect.void,
   } as unknown as EnvironmentRegistry.EnvironmentRegistry["Service"]);
@@ -285,14 +288,23 @@ const registerPairing = Effect.fnUntraced(function* (options: {
       ),
     ),
   );
-  yield* onboarding.registerPairing({ pairingUrl: options.pairingUrl });
+  yield* onboarding.registerPairing({
+    pairingUrl: options.pairingUrl,
+    ...(options.expectedEnvironmentId === undefined
+      ? {}
+      : { expectedEnvironmentId: options.expectedEnvironmentId }),
+  });
   return { calls, events, token: (connectionId: string) => stored.get(connectionId)?.token };
 });
 
-function layerPairingOnboarding(options?: Parameters<typeof pairingServer>[0]) {
+function layerPairingOnboarding(
+  options?: Parameters<typeof pairingServer>[0],
+  calls: Array<Call> = [],
+  servers: Record<string, Server> = { [REMOTE]: pairingServer(options) },
+) {
   const dependencies = Layer.mergeAll(
     layerClientPresentation,
-    layerRoutedHttp([], { [REMOTE]: pairingServer(options) }),
+    layerRoutedHttp(calls, servers),
     Layer.mock(Persistence.ConnectionTargetStore)({
       list: Effect.succeed([]),
       listDisabled: Effect.succeed([]),
@@ -771,6 +783,7 @@ describe("connection onboarding", () => {
     Effect.gen(function* () {
       const { calls, token, events } = yield* registerPairing({
         pairingUrl: ROUTED_PAIRING_LINK,
+        expectedEnvironmentId: SAVED_ENVIRONMENT_ID,
         entries: savedEnvironment(savedRoute(REMOTE, "existing")),
         credentials: [["existing", "saved-admin-token"]],
         servers: { [TAILNET]: pairingServer() },
@@ -928,6 +941,155 @@ describe("connection onboarding", () => {
       const after = yield* SubscriptionRef.get(registry.entries);
       expect(after).toEqual(before);
       expect(after.get(PAIRED_ENVIRONMENT_ID)?.unsupportedReason).toBe(UNSUPPORTED_ERROR.message);
+    }).pipe(Effect.provide(layerPairingOnboarding())),
+  );
+
+  it.effect("leaves a platform-managed WSL environment untouched when its id is paired", () =>
+    Effect.gen(function* () {
+      const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
+      const onboarding = yield* ConnectionOnboarding;
+      yield* registry.reconcilePlatform([
+        new BearerConnectionRegistration({
+          target: new BearerConnectionTarget({
+            environmentId: PAIRED_ENVIRONMENT_ID,
+            connectionId: "platform:wsl",
+            label: "WSL",
+          }),
+          profile: new BearerConnectionProfile({
+            ...PAIRED_PROFILE,
+            connectionId: "platform:wsl",
+            label: "WSL",
+            httpBaseUrl: "http://127.0.0.1:4000/",
+            wsBaseUrl: "ws://127.0.0.1:4000/",
+          }),
+          credential: new BearerConnectionCredential({ token: "platform-token" }),
+        }),
+      ]);
+      const before = yield* SubscriptionRef.get(registry.entries);
+
+      const environmentId = yield* onboarding.registerPairing(PAIRING_INPUT);
+
+      expect(environmentId).toBe(PAIRED_ENVIRONMENT_ID);
+      expect(yield* SubscriptionRef.get(registry.entries)).toEqual(before);
+    }).pipe(Effect.provide(layerPairingOnboarding())),
+  );
+
+  it.effect("refuses a pairing link that claims a saved environment from a new address", () => {
+    const calls: Array<Call> = [];
+    return Effect.gen(function* () {
+      const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
+      const onboarding = yield* ConnectionOnboarding;
+      const before = yield* registerSwitchedOffEnvironment;
+
+      const error = yield* onboarding
+        .registerPairing({ host: "attacker.example.test", pairingCode: "pairing-token" })
+        .pipe(Effect.flip);
+
+      expect(error).toMatchObject({ _tag: "ConnectionBlockedError", reason: "configuration" });
+      expect(yield* SubscriptionRef.get(registry.entries)).toEqual(before);
+      expect(urls(calls)).toEqual([
+        "https://attacker.example.test/.well-known/supaterm/environment",
+      ]);
+    }).pipe(
+      Effect.provide(layerPairingOnboarding(undefined, calls, { [ATTACKER]: pairingServer() })),
+    );
+  });
+
+  it.effect("refuses a link's hinted address that claims a saved environment", () => {
+    const calls: Array<Call> = [];
+    return Effect.gen(function* () {
+      const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
+      const onboarding = yield* ConnectionOnboarding;
+      const before = yield* registerSwitchedOffEnvironment;
+
+      const error = yield* onboarding
+        .registerPairing({
+          pairingUrl: buildPairingUrl(LAN, "pairing-token", {
+            environmentId: PAIRED_ENVIRONMENT_ID,
+            routes: [ATTACKER],
+          }),
+        })
+        .pipe(Effect.flip);
+
+      expect(error).toMatchObject({ _tag: "ConnectionBlockedError", reason: "configuration" });
+      expect(yield* SubscriptionRef.get(registry.entries)).toEqual(before);
+      expect(urls(calls).filter((url) => url.endsWith("/oauth/token"))).toEqual([]);
+    }).pipe(
+      Effect.provide(layerPairingOnboarding(undefined, calls, { [ATTACKER]: pairingServer() })),
+    );
+  });
+
+  it.effect("refuses a new address when the environment is saved during the exchange", () => {
+    const exchangeReached = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const server = pairingServer();
+    const gated: Server = (path, init) => {
+      if (path !== "/oauth/token") return server(path, init);
+      exchangeReached.resolve();
+      return release.promise.then(() => server(path, init));
+    };
+    return Effect.gen(function* () {
+      const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
+      const onboarding = yield* ConnectionOnboarding;
+      const pairing = yield* onboarding
+        .registerPairing({ host: "attacker.example.test", pairingCode: "pairing-token" })
+        .pipe(Effect.result, Effect.forkChild);
+      yield* Effect.promise(() => exchangeReached.promise);
+      const before = yield* registerSwitchedOffEnvironment;
+      release.resolve();
+
+      const outcome = yield* Fiber.join(pairing);
+
+      expect(outcome).toMatchObject({
+        _tag: "Failure",
+        failure: { _tag: "ConnectionBlockedError", reason: "configuration" },
+      });
+      expect(yield* SubscriptionRef.get(registry.entries)).toEqual(before);
+    }).pipe(Effect.provide(layerPairingOnboarding(undefined, [], { [ATTACKER]: gated })));
+  });
+
+  it.effect("adds a new address as a route when pairing targets that environment", () =>
+    Effect.gen(function* () {
+      const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
+      const onboarding = yield* ConnectionOnboarding;
+      yield* registerSwitchedOffEnvironment;
+
+      yield* onboarding.registerPairing({
+        host: "attacker.example.test",
+        pairingCode: "pairing-token",
+        expectedEnvironmentId: PAIRED_ENVIRONMENT_ID,
+      });
+
+      const entry = (yield* SubscriptionRef.get(registry.entries)).get(PAIRED_ENVIRONMENT_ID);
+      expect(entry === undefined ? [] : connectionRoutes(entry).map(routeHttpBaseUrl)).toEqual(
+        expect.arrayContaining([`${REMOTE}/`, `${ATTACKER}/`]),
+      );
+    }).pipe(
+      Effect.provide(
+        layerPairingOnboarding(undefined, [], {
+          [REMOTE]: pairingServer(),
+          [ATTACKER]: pairingServer(),
+        }),
+      ),
+    ),
+  );
+
+  it.effect("adds a link's address when only a saved route answers as that environment", () =>
+    Effect.gen(function* () {
+      const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
+      const onboarding = yield* ConnectionOnboarding;
+      yield* registerSwitchedOffEnvironment;
+
+      yield* onboarding.registerPairing({
+        pairingUrl: buildPairingUrl(ATTACKER, "pairing-token", {
+          environmentId: PAIRED_ENVIRONMENT_ID,
+        }),
+      });
+
+      const entry = (yield* SubscriptionRef.get(registry.entries)).get(PAIRED_ENVIRONMENT_ID);
+      expect(entry === undefined ? [] : connectionRoutes(entry).map(routeHttpBaseUrl)).toEqual(
+        expect.arrayContaining([`${REMOTE}/`, `${ATTACKER}/`]),
+      );
     }).pipe(Effect.provide(layerPairingOnboarding())),
   );
 
