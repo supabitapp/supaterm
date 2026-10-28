@@ -10,9 +10,7 @@ import {
   OrchestrationMessageContext,
   type PullRequestContextMetadata,
   type ReviewCommentContextRecord,
-  type ScopedThreadRef,
   type ServerProviderSkill,
-  type ThreadContextRecord,
 } from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
 import {
@@ -22,7 +20,6 @@ import {
   isImageReferencesOnly,
   replaceComposerContextReferences,
   sanitizeComposerContextLabel,
-  toKindScopedComposerContextId,
 } from "@supaterm/shared/composerContextReferences";
 import {
   collectComposerInlineTokens,
@@ -97,20 +94,6 @@ export function createComposerContextHistory() {
       records.delete(oldest);
     }
     return referencedComposerContext(text, { version: 1, records: [...records.values()] });
-  };
-}
-
-/** Same identity as web: one record per thread, so re-attaching reuses the chip. */
-export function threadComposerContext(ref: ScopedThreadRef, title: string): ThreadContextRecord {
-  const label = sanitizeComposerContextLabel(title, "thread");
-  return {
-    version: 1,
-    kind: "thread",
-    contextId: toKindScopedComposerContextId("thread", ref.threadId),
-    label,
-    environmentId: ref.environmentId,
-    threadId: ref.threadId,
-    title: label,
   };
 }
 

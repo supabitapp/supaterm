@@ -8,6 +8,7 @@ import {
   HashIcon,
   type IconComponent,
   MailUnreadIcon,
+  MessageSquareIcon,
   MessageSquarePlusIcon,
   PencilIcon,
   PinIcon,
@@ -102,6 +103,11 @@ const THREAD_PALETTE_COMMANDS: Record<
     title: "Copy branch name",
     icon: GitBranchIcon,
     searchTerms: ["copy", "branch", "git"],
+  },
+  "copy-thread": {
+    title: "Copy thread",
+    icon: MessageSquareIcon,
+    searchTerms: ["copy", "thread", "chip", "reference", "context"],
   },
   "copy-thread-id": {
     title: "Copy thread ID",

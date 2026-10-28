@@ -17,7 +17,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { tryCopyTextWithHaptic } from "../../lib/copyTextWithHaptic";
+import { copyThreadReference } from "../../lib/copyThreadReference";
 import { suppressKeyboardMotion } from "../../lib/motionInput";
 import { SupatermKeyboardCommands } from "../../native/SupatermKeyboardCommands";
 import { useThreadShell } from "../../state/entities";
@@ -91,7 +91,8 @@ export function HardwareKeyboardCommandProvider({
       activeThreadRef === null
         ? null
         : resolveThreadReferenceCopyTarget({
-            threadId: activeThread?.id ?? activeThreadRef.threadId,
+            threadRef: activeThreadRef,
+            title: activeThread?.title ?? "",
             pullRequests: activeThread?.pullRequests,
             linkedPullRequestUrl:
               (activeThread?.linkedPullRequest ?? activeThread?.branchPullRequest)?.url ?? null,
@@ -207,16 +208,14 @@ export function HardwareKeyboardCommandProvider({
       if (command === "copyThreadReference") {
         if (copyTarget === null) return;
         const requestId = ++copyRequestIdRef.current;
-        void tryCopyTextWithHaptic(copyTarget.value, {
-          target: copyTarget.clipboardTarget,
-        }).then((didCopy) => {
+        void copyThreadReference(copyTarget).then((didCopy) => {
           if (requestId !== copyRequestIdRef.current) return;
           showCopyFeedback(
             didCopy
               ? {
                   phase: "success",
                   label: copyTarget.successTitle,
-                  description: copyTarget.value,
+                  description: copyTarget.description,
                 }
               : {
                   phase: "error",
