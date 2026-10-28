@@ -509,6 +509,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
                           ctx.onImageExpand(preview);
                         }}
                       >
+                        {/* Isolate the thumbnail raster from nearby activity repaints in Chromium. */}
                         <AttachmentImage
                           name={image.name}
                           mimeType={image.mimeType}
@@ -516,7 +517,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
                           alt={image.name}
                           decoding="async"
                           loading="lazy"
-                          className="block size-full object-cover"
+                          className="block size-full transform-gpu object-cover"
                         />
                       </button>
                     ) : (
