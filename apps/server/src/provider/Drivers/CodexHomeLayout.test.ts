@@ -10,9 +10,11 @@ import {
   CodexShadowHomeEntryConflictError,
   CodexShadowHomePathConflictError,
   materializeCodexShadowHome,
+  resolveCodexAuthHomePath,
   resolveCodexHomeLayout,
 } from "./CodexHomeLayout.ts";
 import { symlinksSupported } from "@supaterm/shared/testing/symlinks";
+import * as HostProcess from "@supaterm/shared/HostProcess";
 const decodeCodexSettingsValue = Schema.decodeSync(CodexSettings);
 
 const decodeCodexSettings = (input: {
@@ -39,6 +41,34 @@ const writeTextFile = Effect.fn("CodexHomeLayout.test.writeTextFile")(function* 
 });
 
 it.layer(NodeServices.layer)("CodexHomeLayout", (it) => {
+  describe("resolveCodexAuthHomePath", () => {
+    it.effect("finds the auth.json that each kind of instance launches with", () =>
+      Effect.gen(function* () {
+        const path = yield* Path.Path;
+        const home = yield* HostProcess.HomeDirectory;
+        const resolve = (settings: Parameters<typeof decodeCodexSettings>[0], env = {}) =>
+          resolveCodexHomeLayout(decodeCodexSettings(settings)).pipe(
+            Effect.flatMap((layout) => resolveCodexAuthHomePath(layout, env)),
+          );
+
+        expect(yield* resolve({})).toBe(path.join(home, ".codex"));
+        expect(yield* resolve({}, { CODEX_HOME: "~/.codex_work" })).toBe(
+          path.join(home, ".codex_work"),
+        );
+        expect(yield* resolve({}, { HOME: "/home/agent" })).toBe("/home/agent/.codex");
+        expect(yield* resolve({}, { HOME: "/home/agent", CODEX_HOME: "~/work" })).toBe(
+          "/home/agent/work",
+        );
+        expect(yield* resolve({ homePath: "/srv/codex" }, { CODEX_HOME: "/elsewhere" })).toBe(
+          "/srv/codex",
+        );
+        expect(yield* resolve({ homePath: "/srv/codex", shadowHomePath: "/srv/shadow" })).toBe(
+          "/srv/shadow",
+        );
+      }),
+    );
+  });
+
   describe("resolveCodexHomeLayout", () => {
     it.effect("uses the shared home for continuation and the shadow home for runtime", () =>
       Effect.gen(function* () {

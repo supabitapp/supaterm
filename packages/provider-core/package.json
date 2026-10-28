@@ -175,6 +175,10 @@
       "types": "./src/server/threadTitleContext.ts",
       "import": "./src/server/threadTitleContext.ts"
     },
+    "./server/transcription": {
+      "types": "./src/server/transcription.ts",
+      "import": "./src/server/transcription.ts"
+    },
     "./server/usage": {
       "types": "./src/server/usage.ts",
       "import": "./src/server/usage.ts"

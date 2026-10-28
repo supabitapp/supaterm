@@ -93,6 +93,14 @@ it.layer(NodeServices.layer)("providerStatusCache", (it) => {
     );
   });
 
+  it("doesn't restore a cached transcription readiness before the instance is checked", () => {
+    const hydrated = hydrateCachedProvider({
+      cachedProvider: makeProvider(CODEX_DRIVER, { transcription: { status: "ready" } }),
+      fallbackProvider: makeProvider(CODEX_DRIVER, { status: "warning" }),
+    });
+    assert.strictEqual(hydrated.transcription, undefined);
+  });
+
   it("does not resurrect cached custom models that settings no longer declare", () => {
     const builtIn = {
       slug: "gpt-5.4",

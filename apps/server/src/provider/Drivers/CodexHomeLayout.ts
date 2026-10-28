@@ -66,6 +66,21 @@ export const resolveCodexHomeLayout = Effect.fn("resolveCodexHomeLayout")(functi
   };
 });
 
+/**
+ * The directory whose `auth.json` holds this instance's login, as its CLI
+ * resolves it: an auth overlay's shadow home, a configured home, the
+ * instance's `CODEX_HOME`, or `.codex` under the home the CLI runs with.
+ */
+export const resolveCodexAuthHomePath = Effect.fn("resolveCodexAuthHomePath")(function* (
+  layout: CodexHomeLayout,
+  environment: NodeJS.ProcessEnv,
+): Effect.fn.Return<string, never, Path.Path> {
+  if (layout.effectiveHomePath !== undefined) return layout.effectiveHomePath;
+  const path = yield* Path.Path;
+  const home = environment.HOME || environment.USERPROFILE || (yield* HostProcess.HomeDirectory);
+  return resolveHomePath(path, home, environment.CODEX_HOME);
+});
+
 const CodexShadowHomeContext = {
   sharedHomePath: Schema.String,
   effectiveHomePath: Schema.String,

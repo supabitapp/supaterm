@@ -19,6 +19,7 @@ import type { ProviderAuthController } from "./auth.ts";
 import type { ProviderDriverError } from "./errors.ts";
 import type { ManagedServerProvider } from "./snapshot.ts";
 import type { ProviderTextGeneration } from "./textGeneration.ts";
+import type { ProviderTranscription } from "./transcription.ts";
 import type { ProviderUsageReader } from "./usage.ts";
 
 export interface ProviderDriverMetadata {
@@ -55,6 +56,7 @@ export interface ProviderInstance {
     ProviderConsumeResetCreditOutcome,
     ProviderDriverError
   >;
+  readonly transcription?: ProviderTranscription;
   readonly orchestrationAdapter: ProviderAdapter.ProviderAdapterV2["Service"];
   readonly textGeneration: ProviderTextGeneration;
   readonly auth?: ProviderAuthController;
