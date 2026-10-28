@@ -71,7 +71,7 @@ export class Device {
   private id = "";
   private emulator: NodeChildProcess.ChildProcess | null = null;
   private closed = false;
-  private runnerLogPath: string | undefined;
+  private runnerLogPath: string;
 
   private constructor(pose: Pose, root: string, directory: string) {
     this.pose = pose;
@@ -81,8 +81,17 @@ export class Device {
       ...NodeProcess.env,
       AGENT_DEVICE_STATE_DIR: NodePath.join(root, "agent-device"),
       AGENT_DEVICE_IOS_RUNNER_DERIVED_PATH: NodePath.join(root, "ios-runner"),
+      AGENT_DEVICE_IOS_RUNNER_IDLE_STOP_MS: "1800000",
+      AGENT_DEVICE_DAEMON_IDLE_TIMEOUT_MS: "1800000",
       ANDROID_AVD_HOME: NodePath.join(root, "avds"),
     };
+    this.runnerLogPath = NodePath.join(
+      root,
+      "agent-device",
+      "sessions",
+      this.session,
+      "runner.log",
+    );
   }
 
   static async create(pose: Pose, root: string, directory: string) {
@@ -475,11 +484,10 @@ export class Device {
           state.stdout,
         );
     }
-    if (this.runnerLogPath)
-      await NodeFSP.copyFile(
-        this.runnerLogPath,
-        NodePath.join(this.directory, "device-runner.log"),
-      ).catch(() => undefined);
+    await NodeFSP.copyFile(
+      this.runnerLogPath,
+      NodePath.join(this.directory, "device-runner.log"),
+    ).catch(() => undefined);
     const snapshot = await this.snapshot(15_000).catch(() => undefined);
     if (snapshot)
       await NodeFSP.writeFile(

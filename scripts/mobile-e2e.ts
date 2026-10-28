@@ -35,12 +35,16 @@ import {
 const log = (message: string) =>
   NodeProcess.stderr.write(`[mobile-e2e] ${new Date().toISOString()} ${message}\n`);
 
+interface PoseServices {
+  readonly metroPort: number;
+  readonly pair: (host: string) => Promise<string>;
+}
+
 async function runPose(
   pose: Pose,
   root: string,
   output: string,
-  metroPort: number,
-  pair: (host: string) => Promise<string>,
+  prepareServices: () => Promise<PoseServices>,
   client: string,
   saveReport: (result: PoseResult) => Promise<void>,
 ): Promise<PoseResult> {
@@ -57,8 +61,8 @@ async function runPose(
     await device.install(client);
     log(`${pose.id}: preparing device automation`);
     await device.prepare();
-    log(`${pose.id}: warming Metro before launch`);
-    await warmMetroBundle(pose.platform, "127.0.0.1", metroPort);
+    log(`${pose.id}: starting fixture services`);
+    const { metroPort, pair } = await prepareServices();
     const host = pose.platform === "ios" ? "127.0.0.1" : "10.0.2.2";
     log(`${pose.id}: launching app`);
     await device.launch(metroPort);
@@ -187,46 +191,60 @@ async function main() {
     interruption.signal.throwIfAborted();
     await NodeFSP.writeFile(NodePath.join(output, "native-client.txt"), `${client}\n`);
     await captureHostResources(output, "After native build");
-    const [environment] = await startShowcaseEnvironments(
-      root,
-      (server) => servers.push(server),
-      SHOWCASE_ENVIRONMENTS.slice(0, 1),
-    );
-    if (!environment) throw new Error("The fixture environment did not start.");
-    interruption.signal.throwIfAborted();
-    const metroPort = await reserveAvailablePort();
-    metro = NodeChildProcess.spawn(
-      "vp",
-      [
-        "exec",
-        "expo",
-        "start",
-        "--dev-client",
-        "--max-workers",
-        "2",
-        "--scheme",
-        "supaterm-dev",
-        "--port",
-        String(metroPort),
-      ],
-      {
-        cwd: MOBILE_ROOT,
-        env: { ...BUILD_ENV, NODE_OPTIONS: "--max-old-space-size=3072" },
-        stdio: "inherit",
-        detached: true,
-      },
-    );
-    await waitForPort(metroPort, "Metro", 120_000);
-    await warmMetroBundle(platform, "127.0.0.1", metroPort);
-    const pair = async (host: string) =>
-      buildShowcasePairingUrl(
-        host,
-        environment.port,
-        await issuePairingCredential(environment.baseDir),
-      );
+    let services: Promise<PoseServices> | undefined;
+    const prepareServices = () => {
+      services ??= (async () => {
+        const [environment] = await startShowcaseEnvironments(
+          root,
+          (server) => servers.push(server),
+          SHOWCASE_ENVIRONMENTS.slice(0, 1),
+        );
+        if (!environment) throw new Error("The fixture environment did not start.");
+        interruption.signal.throwIfAborted();
+        const metroPort = await reserveAvailablePort();
+        metro = NodeChildProcess.spawn(
+          "vp",
+          [
+            "exec",
+            "expo",
+            "start",
+            "--dev-client",
+            "--max-workers",
+            "2",
+            "--scheme",
+            "supaterm-dev",
+            "--port",
+            String(metroPort),
+          ],
+          {
+            cwd: MOBILE_ROOT,
+            env: { ...BUILD_ENV, NODE_OPTIONS: "--max-old-space-size=3072" },
+            stdio: "inherit",
+            detached: true,
+          },
+        );
+        await waitForPort(metroPort, "Metro", 120_000);
+        return {
+          metroPort,
+          pair: async (host: string) =>
+            buildShowcasePairingUrl(
+              host,
+              environment.port,
+              await issuePairingCredential(environment.baseDir),
+            ),
+        };
+      })();
+      services = services.then(async (current) => {
+        log("Warming Metro before launch");
+        await warmMetroBundle(platform, "127.0.0.1", current.metroPort);
+        return current;
+      });
+      return services;
+    };
+    if (platform === "android") await prepareServices();
     for (const pose of poses) {
       interruption.signal.throwIfAborted();
-      const result = await runPose(pose, root, output, metroPort, pair, client, saveReport);
+      const result = await runPose(pose, root, output, prepareServices, client, saveReport);
       if (values.review) {
         try {
           const findings = await reviewPose(result, output);
@@ -250,6 +268,7 @@ async function main() {
         errors.push(message);
         throw new Error(message);
       }
+      if (services) await services;
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

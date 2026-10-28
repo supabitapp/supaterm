@@ -82,10 +82,11 @@ export async function recordIos<T>(udid: string, path: string, action: () => Pro
     "-show_entries",
     "stream=nb_read_frames",
     "-of",
-    "csv=p=0",
+    "json",
     path,
   ]);
-  if (!(Number(stdout.trim()) >= 2))
+  const { streams } = JSON.parse(stdout) as { streams?: Array<{ nb_read_frames?: string }> };
+  if (!(Number(streams?.[0]?.nb_read_frames) >= 2))
     throw new Error(`Recording has fewer than two frames: ${path}`);
   return { path, result };
 }
