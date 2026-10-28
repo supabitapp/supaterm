@@ -150,7 +150,8 @@ open.
 
 Use **Thread list options → Grouping**, or the **Group:** menu on iPhone, to choose
 **Default** or **Project**. On web and desktop, **Thread list options → Project** shows a single
-project's threads; right-click a project there to open its settings.
+project's threads; Shift-click or Shift+Enter adds or removes a project to show several at once.
+Right-click a project there to open its settings.
 Project groups active and working threads by project, most recent activity first. Activity means
 sending a message, a run being requested or completing, or reopening a thread; streamed output
 does not reorder it.

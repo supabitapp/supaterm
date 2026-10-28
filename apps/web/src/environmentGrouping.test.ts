@@ -6,6 +6,7 @@ import {
   buildSidebarProjectPickerEntries,
   buildSidebarProjectSnapshots,
   resolveSidebarProjectScopeKey,
+  resolveSidebarProjectScopeKeys,
   getSidebarProjectSettingsKey,
 } from "./sidebarProjectGrouping";
 import type { Project } from "./types";
@@ -120,6 +121,35 @@ describe("environment grouping", () => {
     });
     const key = deriveLogicalProjectKeyFromSettings(ordinary, defaultGroupingSettings);
     expect(resolveSidebarProjectScopeKey({ groups, key, canClearMissingScope: true })).toBe(key);
+  });
+
+  it("keeps each chosen project once and drops projects that are gone", () => {
+    const first = makeProject({ id: ProjectId.make("first"), workspaceRoot: "/first" });
+    const second = makeProject({ id: ProjectId.make("second"), workspaceRoot: "/second" });
+    const groups = buildSidebarProjectSnapshots({
+      projects: [first, second],
+      groupScratchProjects: true,
+      settings: defaultGroupingSettings,
+      primaryEnvironmentId,
+      resolveEnvironmentLabel: () => null,
+    });
+    const keys = groups.map((group) => group.projectKey);
+    expect(keys).toHaveLength(2);
+
+    expect(
+      resolveSidebarProjectScopeKeys({
+        groups,
+        keys: [keys[1]!, keys[0]!, keys[1]!, "gone"],
+        canClearMissingScope: true,
+      }),
+    ).toEqual([keys[1], keys[0]]);
+    expect(
+      resolveSidebarProjectScopeKeys({
+        groups,
+        keys: [keys[0]!, "gone"],
+        canClearMissingScope: false,
+      }),
+    ).toEqual([keys[0], "gone"]);
   });
 
   it("dedupes stale project rows with the same environment and workspace path", () => {

@@ -1,19 +1,12 @@
 import type { EnvironmentId, EnvironmentMachineKind } from "@supaterm/contracts";
-import { FolderIcon, SettingsIcon } from "@supaterm/icons";
-import type { MouseEvent } from "react";
+import { CheckIcon, FolderIcon, SettingsIcon } from "@supaterm/icons";
+import type { KeyboardEvent, MouseEvent } from "react";
 import type { SidebarProjectSnapshot } from "~/sidebarProjectGrouping";
 import { ProjectEnvironmentBadge } from "../ProjectEnvironmentBadge";
 import { ProjectFavicon } from "../ProjectFavicon";
 import { Button } from "../ui/button";
 import { Kbd } from "../ui/kbd";
-import {
-  MenuRadioGroup,
-  MenuRadioItem,
-  MenuRadioItemIndicator,
-  MenuSub,
-  MenuSubPopup,
-  MenuSubTrigger,
-} from "../ui/menu";
+import { MenuRadioGroup, MenuRadioItem, MenuSub, MenuSubPopup, MenuSubTrigger } from "../ui/menu";
 
 interface ProjectFilterItem {
   readonly value: string;
@@ -22,18 +15,19 @@ interface ProjectFilterItem {
 
 export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
   items,
-  value,
+  values,
   open,
   onOpenChange,
   projects,
   environments,
   shortcutLabels,
   onSelect,
+  onToggle,
   onProjectSettings,
 }: {
   items: readonly TItem[];
-  /** "all" or the selected project's key. */
-  value: string;
+  /** The selected projects' keys; empty means all projects. */
+  values: readonly string[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projects: ReadonlyMap<string, SidebarProjectSnapshot>;
@@ -44,14 +38,34 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
   } | null;
   shortcutLabels: ReadonlyMap<TItem, string>;
   onSelect: (value: string) => void;
+  /** Adds or removes one project while keeping the others, from Shift+click or Shift+Enter. */
+  onToggle: (value: string) => void;
   onProjectSettings: (event: MouseEvent<HTMLElement>, project: SidebarProjectSnapshot) => void;
 }) {
-  const selected = items.find((item) => item.value === value) ?? items[0];
+  // With several projects chosen no radio is checked; each chosen row shows its own check.
+  const value = values.length === 0 ? "all" : values.length === 1 ? values[0]! : "";
+  const summary =
+    values.length > 1
+      ? `${values.length} projects`
+      : (items.find((item) => item.value === value) ?? items[0])?.label;
+  const toggleWithShift = (
+    event: (MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>) & {
+      preventBaseUIHandler?: () => void;
+    },
+    project: SidebarProjectSnapshot | null,
+    itemValue: string,
+  ) => {
+    if (!project || !event.shiftKey) return;
+    if ("key" in event && event.key !== "Enter") return;
+    event.preventDefault();
+    event.preventBaseUIHandler?.();
+    onToggle(itemValue);
+  };
   return (
     <MenuSub open={open} onOpenChange={onOpenChange}>
       <MenuSubTrigger>
         <span className="flex-1">Project</span>
-        <span className="ml-6 max-w-32 truncate text-muted-foreground">{selected?.label}</span>
+        <span className="ml-6 max-w-32 truncate text-muted-foreground">{summary}</span>
       </MenuSubTrigger>
       <MenuSubPopup className="max-w-[min(18rem,var(--available-width))]">
         <MenuRadioGroup
@@ -63,13 +77,15 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
           {items.map((item) => {
             const project = projects.get(item.value) ?? null;
             const shortcut = shortcutLabels.get(item);
-            const checked = item.value === value;
+            const checked = project ? values.includes(item.value) : values.length === 0;
             return (
               <MenuRadioItem
                 key={item.value}
                 value={item.value}
                 label={item.label}
                 closeOnClick
+                onClick={(event) => toggleWithShift(event, project, item.value)}
+                onKeyDown={(event) => toggleWithShift(event, project, item.value)}
                 onContextMenu={(event) => {
                   if (project) onProjectSettings(event, project);
                 }}
@@ -99,7 +115,7 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
                           : "flex"
                       }
                     >
-                      <MenuRadioItemIndicator />
+                      {checked ? <CheckIcon aria-hidden className="size-3.5" /> : null}
                     </span>
                     {project ? (
                       <span

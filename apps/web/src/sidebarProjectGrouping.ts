@@ -92,6 +92,39 @@ export function resolveSidebarProjectScopeKey(input: {
   return group?.projectKey ?? (input.canClearMissingScope ? null : input.key);
 }
 
+export function resolveSidebarProjectScopeKeys(input: {
+  readonly groups: ReadonlyArray<SidebarProjectSnapshot>;
+  readonly keys: ReadonlyArray<string>;
+  readonly settings?: ProjectGroupingSettings;
+  readonly canClearMissingScope?: boolean;
+}): string[] {
+  return [
+    ...new Set(input.keys.flatMap((key) => resolveSidebarProjectScopeKey({ ...input, key }) ?? [])),
+  ];
+}
+
+/** A multi-project scope's keys, the groups it shows, and every checkout they own. */
+export function resolveSidebarProjectScope(input: {
+  readonly groups: ReadonlyArray<SidebarProjectSnapshot>;
+  readonly keys: ReadonlyArray<string>;
+  readonly settings?: ProjectGroupingSettings;
+}): {
+  readonly keys: ReadonlyArray<string>;
+  readonly groups: ReadonlyArray<SidebarProjectSnapshot>;
+  readonly memberKeys: ReadonlySet<string> | null;
+} {
+  const keys = resolveSidebarProjectScopeKeys(input);
+  const groups = input.groups.filter((group) => keys.includes(group.projectKey));
+  return {
+    keys,
+    groups,
+    memberKeys:
+      groups.length === 0
+        ? null
+        : new Set(groups.flatMap((group) => group.memberProjectRefs.map(scopedProjectKey))),
+  };
+}
+
 export function buildPhysicalToLogicalProjectKeyMap(input: {
   projects: ReadonlyArray<Project>;
   settings: ProjectGroupingSettings;
