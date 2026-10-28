@@ -66,7 +66,15 @@ class SupatermTerminalModule : Module() {
       Prop("captureRequest") { view: SupatermTerminalView, request: Double ->
         view.captureRequest = request
       }
+
+      Prop("sharedGrid") { view: SupatermTerminalView, sharedGrid: List<Int> ->
+        view.sharedGrid = sharedGrid
+      }
       Events("onInput", "onResize", "onCapture")
+
+      OnViewDidUpdateProps { view: SupatermTerminalView ->
+        view.applyPendingBuffer()
+      }
 
       OnViewDestroys { view: SupatermTerminalView ->
         view.cleanup()

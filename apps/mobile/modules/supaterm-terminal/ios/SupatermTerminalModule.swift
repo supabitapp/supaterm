@@ -63,7 +63,15 @@ public class SupatermTerminalModule: Module {
       Prop("captureRequest") { (view: SupatermTerminalView, request: Double) in
         view.captureRequest = request
       }
+
+      Prop("sharedGrid") { (view: SupatermTerminalView, sharedGrid: [Int]) in
+        view.sharedGrid = sharedGrid
+      }
       Events("onInput", "onResize", "onCapture")
+
+      OnViewDidUpdateProps { (view: SupatermTerminalView) in
+        view.applyPendingBuffer()
+      }
     }
   }
 }
