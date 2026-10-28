@@ -35,7 +35,7 @@ jobs:
         run: node scripts/mobile-e2e/matrix.ts
   mobile-e2e:
     needs: prepare
-    name: Mobile layout (${{ matrix.name }})
+    name: Mobile layout (${{ matrix.pose }})
     runs-on: ${{ matrix.platform == 'ios' && 'xcode-27' || 'ubuntu-24.04' }}
     timeout-minutes: ${{ matrix.platform == 'ios' && 120 || 90 }}
     strategy:
@@ -119,12 +119,9 @@ jobs:
       - name: Run mobile checks
         env:
           MOBILE_PLATFORM: ${{ matrix.platform }}
-          E2E_POSES: ${{ matrix.poses }}
+          E2E_POSE: ${{ matrix.pose }}
         run: |
-          args=(--platform "$MOBILE_PLATFORM" --output "$RUNNER_TEMP/mobile-e2e")
-          read -r -a poses <<< "$E2E_POSES"
-          for pose in "${poses[@]}"; do args+=(--pose "$pose"); done
-          vp run mobile:e2e "${args[@]}"
+          vp run mobile:e2e --platform "$MOBILE_PLATFORM" --pose "$E2E_POSE" --output "$RUNNER_TEMP/mobile-e2e"
       - name: Check completed native client
         id: native-client
         if: always()
@@ -142,7 +139,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: mobile-e2e-${{ matrix.name }}
+          name: mobile-e2e-${{ matrix.pose }}
           path: ${{ runner.temp }}/mobile-e2e/
           if-no-files-found: warn
           retention-days: 14

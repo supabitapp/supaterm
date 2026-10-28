@@ -188,9 +188,9 @@ Windows investigation while that suite is not a required gate.
 
 The [Mobile Layout E2E workflow](../../.github/workflows/mobile-e2e.yml) runs manually on free
 hosted iOS simulators and Android emulators. Select a platform or specific device poses when
-dispatching it. Each iOS pose runs on a separate host. Download the `mobile-e2e-<pose>` or
-`mobile-e2e-android` artifact and open `index.html` for the checks, screenshots, and transition
-recordings.
+dispatching it. Each pose runs on a separate host, so new poses join the parallel matrix
+automatically. Download its `mobile-e2e-<pose>` artifact and open `index.html` for the checks,
+screenshots, and transition recordings.
 
 For local reproduction on a prepared device host, run these commands from the repository root:
 
