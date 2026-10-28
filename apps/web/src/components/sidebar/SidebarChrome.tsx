@@ -56,7 +56,7 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
       <div className="relative top-[calc(var(--workspace-controls-top)-env(safe-area-inset-top))] ml-[calc(var(--workspace-controls-left)+1px-env(safe-area-inset-left))] flex shrink-0 items-center md:hidden">
         <SidebarTrigger aria-label="Toggle main sidebar" />
       </div>
-      <div className="flex h-8 min-w-0 flex-1 flex-wrap content-start items-center gap-x-2 overflow-hidden py-0.5">
+      <div className="flex h-8 min-w-0 flex-1 items-center overflow-hidden py-0.5">
         <SidebarBrand />
       </div>
     </div>
