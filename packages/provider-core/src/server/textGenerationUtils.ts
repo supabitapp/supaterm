@@ -77,17 +77,56 @@ export function sanitizeThreadTitle(raw: string): string {
   return `${normalized.slice(0, MAX_THREAD_TITLE_CHARS - 3).trimEnd()}...`;
 }
 
-const MAX_NEXT_PROMPT_CHARS = 240;
+const NEXT_PROMPT_MAX_WORDS = 12;
+const NEXT_PROMPT_WRAPPER = /^<(suggestion|response|output|answer|result)>([\s\S]*)<\/\1>$/i;
+const NEXT_PROMPT_LABEL =
+  /^\s*(suggested\s+(response|reply|input|prompt)|suggestion|response|reply|answer|output|result)\s*[:：]\s*/i;
+const ONE_WORD_NEXT_PROMPTS: ReadonlySet<string> = new Set([
+  "yes",
+  "yeah",
+  "yep",
+  "yup",
+  "sure",
+  "ok",
+  "okay",
+]);
+
+// Each names a kind of text that is not a message the user would type next.
+const NOT_A_NEXT_PROMPT: Record<string, (text: string, words: ReadonlyArray<string>) => boolean> = {
+  declined: (text) =>
+    /^(done|nothing found|nothing to suggest|no suggestion)\W*$/i.test(text) ||
+    /\bstay(s|ing)? silent\b|^\W*silence\W*$/i.test(text),
+  bracketed: (text) => /^(\(.*\)|\[.*\])$/.test(text),
+  labelOrError: (text) => /^\w+:\s/.test(text) || /^(api )?error\b/i.test(text),
+  tooFewWords: (_, words) =>
+    words.length < 2 && !ONE_WORD_NEXT_PROMPTS.has(words.join("").toLowerCase().replace(/\W/g, "")),
+  tooManyWords: (_, words) => words.length > NEXT_PROMPT_MAX_WORDS,
+  severalSentences: (text) => /[.!?]\s+\p{Lu}/u.test(text),
+  formatted: (text) => /[*`#]/.test(text),
+  question: (text) => text.endsWith("?"),
+  evaluative: (text) =>
+    /\b(thanks|thank you|looks good|sounds good|that works|that worked|that's all|nice|great|perfect|makes sense|awesome|excellent)\b/i.test(
+      text,
+    ),
+  agentVoice: (text) =>
+    /^(let me|i'll|i've|i'm|i can|i would|i think|i notice|here's|here is|here are|that's|this is|this will|you can|you should|you could|sure,|of course|certainly)\b/i.test(
+      text,
+    ),
+};
 
 export function sanitizeNextPrompt(raw: string): string | null {
-  const normalized = raw
+  const unwrapped = raw
+    .trim()
+    .replace(NEXT_PROMPT_WRAPPER, "$2")
     .trim()
     .replace(/^['"`“]+|['"`”]+$/g, "")
-    .replace(/\s+/g, " ")
+    .replace(NEXT_PROMPT_LABEL, "")
     .trim();
-  // Accepting a suggestion puts it in the draft verbatim, so a clipped one would be wrong, not short.
-  if (normalized.length === 0 || normalized.length > MAX_NEXT_PROMPT_CHARS) return null;
-  return normalized;
+  if (unwrapped.includes("\n")) return null;
+  const text = unwrapped.replace(/\s+/g, " ");
+  const words = text.split(" ").filter(Boolean);
+  if (words.length === 0) return null;
+  return Object.values(NOT_A_NEXT_PROMPT).some((rejects) => rejects(text, words)) ? null : text;
 }
 
 function cliLabel(cliName: string): string {

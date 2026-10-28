@@ -15,17 +15,31 @@ describe("sanitizeCommitSubject", () => {
 });
 
 describe("sanitizeNextPrompt", () => {
-  it("unwraps quotes and folds the reply onto one line", () => {
-    expect(sanitizeNextPrompt(' "yes,  score rows\non the same shots" ')).toBe(
-      "yes, score rows on the same shots",
-    );
+  it.each([
+    { raw: "run the tests", expected: "run the tests" },
+    { raw: ' "switch it to the test clock" ', expected: "switch it to the test clock" },
+    { raw: "<suggestion>commit this</suggestion>", expected: "commit this" },
+    { raw: "Suggestion: push it", expected: "push it" },
+    { raw: "yes", expected: "yes" },
+    { raw: "yes,  score rows on the same shots", expected: "yes, score rows on the same shots" },
+  ])("keeps what a user would type: $raw", ({ raw, expected }) => {
+    expect(sanitizeNextPrompt(raw)).toBe(expected);
   });
 
   it.each([
     { name: "empty", raw: "  " },
-    { name: "only quotes", raw: '""' },
-    { name: "too long to accept verbatim", raw: "run it ".repeat(40) },
-  ])("offers nothing when the reply is $name", ({ raw }) => {
+    { name: "a refusal to suggest", raw: "Nothing to suggest." },
+    { name: "staying silent", raw: "(stay silent)" },
+    { name: "one word that is not a yes", raw: "continue" },
+    { name: "more than twelve words", raw: "run it ".repeat(13) },
+    { name: "several sentences", raw: "Fix it. Then run the tests" },
+    { name: "several lines", raw: "fix it\nthen run the tests" },
+    { name: "markdown", raw: "run **all** the tests" },
+    { name: "a question", raw: "what about mobile?" },
+    { name: "praise", raw: "looks good, thanks" },
+    { name: "the agent's voice", raw: "I'll run the tests now" },
+    { name: "an error", raw: "API Error: overloaded" },
+  ])("offers nothing for $name", ({ raw }) => {
     expect(sanitizeNextPrompt(raw)).toBeNull();
   });
 });

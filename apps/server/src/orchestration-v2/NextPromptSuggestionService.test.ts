@@ -52,7 +52,7 @@ interface Turn {
   readonly completedAt?: string;
 }
 
-function threadRecords(turns: ReadonlyArray<Turn>) {
+function threadRecords(turns: ReadonlyArray<Turn>, interactionMode = "default") {
   const runs = turns.map(
     (turn) =>
       ({
@@ -86,7 +86,12 @@ function threadRecords(turns: ReadonlyArray<Turn>) {
     ];
   });
   return {
-    thread: { id: threadId, projectId, worktreePath: "/repo/.worktrees/next-prompt" },
+    thread: {
+      id: threadId,
+      projectId,
+      worktreePath: "/repo/.worktrees/next-prompt",
+      interactionMode,
+    },
     messages,
     runs,
   } as unknown as OrchestrationV2ThreadProjection;
@@ -95,6 +100,7 @@ function threadRecords(turns: ReadonlyArray<Turn>) {
 function makeLayer(options: {
   readonly turns: ReadonlyArray<Turn>;
   readonly enabled?: boolean;
+  readonly interactionMode?: "default" | "plan";
   readonly generate?: TextGeneration.TextGeneration["Service"]["generateNextPrompt"];
 }) {
   let turns = options.turns;
@@ -112,7 +118,7 @@ function makeLayer(options: {
     _fields: unknown,
     filter?: ProjectionRecordFilter,
   ) => {
-    const projection = threadRecords(turns);
+    const projection = threadRecords(turns, options.interactionMode);
     return Effect.succeed({
       ...projection,
       messages: projection.messages.filter(
@@ -329,6 +335,25 @@ describe("NextPromptSuggestionService", () => {
       assert.deepStrictEqual(yield* suggest("run-2"), {
         suggestion: "yes, score rows on the same shots",
       });
+    }).pipe(Effect.provide(layer));
+  });
+
+  it.effect("does not call a model before the conversation has two replies", () => {
+    const { layer, generateNextPrompt } = makeLayer({ turns: [answeredTurns[0]!] });
+    return Effect.gen(function* () {
+      assert.deepStrictEqual(yield* suggest("run-1"), { suggestion: null });
+      assert.strictEqual(generateNextPrompt.mock.calls.length, 0);
+    }).pipe(Effect.provide(layer));
+  });
+
+  it.effect("does not call a model in plan mode", () => {
+    const { layer, generateNextPrompt } = makeLayer({
+      turns: answeredTurns,
+      interactionMode: "plan",
+    });
+    return Effect.gen(function* () {
+      assert.deepStrictEqual(yield* suggest("run-2"), { suggestion: null });
+      assert.strictEqual(generateNextPrompt.mock.calls.length, 0);
     }).pipe(Effect.provide(layer));
   });
 

@@ -92,6 +92,10 @@ const make = Effect.gen(function* () {
     );
     const latest = messages.at(-1);
     if (latest?.role !== "assistant" || latest.runId !== key.runId) return null;
+    // As Claude does for itself: too little conversation to read the user's intent, and in plan
+    // mode the next step is the plan decision, not a typed message.
+    const replies = messages.filter((message) => message.role === "assistant").length;
+    if (replies < 2 || projection.thread.interactionMode === "plan") return null;
 
     const project = yield* projects.get(projection.thread.projectId);
     if (Option.isNone(project)) return null;

@@ -173,12 +173,12 @@ composer, or `Escape` to hide it. On iPhone and Android, tap the suggestion butt
 composer. A suggestion is never sent for you: it only fills the draft, and typing replaces it.
 
 Suggestions work with every provider. Claude threads use Claude's own prediction, which reuses the
-turn's prompt cache, so it costs almost nothing. Claude skips the first reply in a thread, plan
-mode, and replies close to a usage limit. Other providers use the text generation model in
-**Settings > General**, so each suggestion is a small request to that provider. Only replies from
-the last few hours get one, so opening an older thread costs nothing. They are off by default. Turn
-them on with **Next prompt suggestions** in **Settings > General**, or **Settings > Agent behavior**
-on mobile.
+turn's prompt cache, so it costs almost nothing. Other providers use the text generation model in
+**Settings > General**, so each suggestion is a small request to that provider. Either way, nothing
+is suggested at the start of a thread, in plan mode, after an error, or when the next step is not
+obvious. Only replies from the last few hours get one, so opening an older thread costs nothing.
+They are off by default. Turn them on with **Next prompt suggestions** in **Settings > General**, or
+**Settings > Agent behavior** on mobile.
 
 ## Edit an earlier prompt
 
