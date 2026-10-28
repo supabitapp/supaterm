@@ -12,6 +12,7 @@ import type {
 import {
   composerPullRequestsFromLinks,
   filterComposerPullRequestMatches,
+  withLinkedComposerPullRequestsFirst,
 } from "@supaterm/shared/composerPullRequestMatches";
 import type { ComposerTrigger } from "@supaterm/shared/composerTrigger";
 import { formatProviderSkillDisplayName } from "@supaterm/shared/inlineSkills";
@@ -254,24 +255,30 @@ export function useComposerMenuItems({
             query: composerTrigger.query,
             limit: COMPOSER_PULL_REQUEST_RESULT_LIMIT,
           })
-        : rankPullRequestMatches(
-            (pullRequestLookup.data?.entries ?? []).filter((entry) => {
-              if (
-                entry.projectId !== pullRequestProjectId ||
-                entry.repository.trim().toLowerCase() !== pullRequestRepository.trim().toLowerCase()
-              ) {
-                return false;
-              }
-              const provider = pullRequestLookup.data?.providers.find(
-                (candidate) => candidate.host === entry.host,
-              );
-              return (
-                provider?.searchesOnHost === true ||
-                matchesPullRequestQuery(entry, composerTrigger.query)
-              );
-            }),
-            composerTrigger.query,
-          ).slice(0, COMPOSER_PULL_REQUEST_RESULT_LIMIT);
+        : withLinkedComposerPullRequestsFirst({
+            matches: rankPullRequestMatches(
+              (pullRequestLookup.data?.entries ?? []).filter((entry) => {
+                if (
+                  entry.projectId !== pullRequestProjectId ||
+                  entry.repository.trim().toLowerCase() !==
+                    pullRequestRepository.trim().toLowerCase()
+                ) {
+                  return false;
+                }
+                const provider = pullRequestLookup.data?.providers.find(
+                  (candidate) => candidate.host === entry.host,
+                );
+                return (
+                  provider?.searchesOnHost === true ||
+                  matchesPullRequestQuery(entry, composerTrigger.query)
+                );
+              }),
+              composerTrigger.query,
+            ),
+            linked: linkedPullRequests,
+            query: composerTrigger.query,
+            limit: COMPOSER_PULL_REQUEST_RESULT_LIMIT,
+          });
       return matches.map((pullRequest) => ({
         id: `pull-request:${pullRequest.projectId}:${pullRequest.repository}:${pullRequest.number}`,
         type: "pull-request",
