@@ -1422,7 +1422,7 @@ function OpenCommandPaletteDialog(props: {
       kind: "action",
       value: "action:send-feedback",
       searchTerms: [
-        "feedback",
+        "send feedback",
         "report",
         "bug",
         "issue",
