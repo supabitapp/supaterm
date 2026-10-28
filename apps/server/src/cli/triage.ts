@@ -13,35 +13,29 @@
  */
 // @effect-diagnostics nodeBuiltinImport:off
 import * as NodeChildProcess from "node:child_process";
-import * as NodeOS from "node:os";
 import * as NodeReadlinePromises from "node:readline/promises";
 
-import * as HostProcess from "@supaterm/shared/HostProcess";
 import { isCommandAvailable, resolveSpawnCommand } from "@supaterm/shared/shell";
 import * as Config from "effect/Config";
 import * as Console from "effect/Console";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
-import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
-import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import { Command, Flag } from "effect/cli";
 
 import packageJson from "../../package.json" with { type: "json" };
-import * as BootService from "../service/bootService.ts";
 import * as ServerConfig from "../config.ts";
 import { resolveBaseDir } from "../os-jank.ts";
-import { isProcessAlive, readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
+import { buildTriageLaunchPrompt, buildTriagePrintedPrompt } from "../triage/triagePrompt.ts";
+import {
+  describeServerProcess,
+  describeTriageContext,
+  writeTriageSession,
+} from "../triage/triageSession.ts";
 import { baseDirFlag } from "./config.ts";
 import { interactiveStdin } from "./consoleStdin.ts";
 import { resolveCliCommand } from "./invocation.ts";
-import {
-  buildTriageContext,
-  buildTriageLaunchPrompt,
-  buildTriagePrintedPrompt,
-  buildTriageSeedPrompt,
-} from "./triagePrompt.ts";
 
 interface TriageAgent {
   readonly id: "claude" | "codex";
@@ -80,23 +74,6 @@ export class TriageAgentSpawnError extends Schema.TaggedError<TriageAgentSpawnEr
     return `Could not start \`${this.command}\`.`;
   }
 }
-
-export const describeServerProcess = Effect.fn("triage.describeServerProcess")(function* (
-  serverRuntimeStatePath: string,
-) {
-  const state = yield* readPersistedServerRuntimeState(serverRuntimeStatePath);
-  if (Option.isNone(state)) {
-    return "not running (no server-runtime.json; the server may never have started here)";
-  }
-  const version =
-    state.value.serverVersion === undefined
-      ? "version not recorded"
-      : `version ${state.value.serverVersion}`;
-  if (!isProcessAlive(state.value.pid)) {
-    return `not running (state file is stale: pid ${String(state.value.pid)} is dead; last origin ${state.value.origin}, ${version})`;
-  }
-  return `running (pid ${String(state.value.pid)}, ${state.value.origin}, ${version})`;
-});
 
 const pickAgent = (agents: ReadonlyArray<TriageAgent>) =>
   Effect.promise(async () => {
@@ -173,55 +150,37 @@ export const triageCommand = Command.make("triage", {
   ),
   Command.withHandler((flags) =>
     Effect.gen(function* () {
-      const fs = yield* FileSystem.FileSystem;
-      const path = yield* Path.Path;
-
       // Triage is a user-facing feature: always the userdata state, never dev.
       const explicitBaseDir = Option.getOrUndefined(flags.baseDir);
       const envHome = yield* Config.String("SUPATERM_HOME").pipe(Config.option);
       const baseDir = yield* resolveBaseDir(explicitBaseDir ?? Option.getOrUndefined(envHome));
       const paths = yield* ServerConfig.deriveServerPaths(baseDir, undefined, {});
 
-      const now = yield* DateTime.now;
       const cliCommand = yield* resolveCliCommand("triage");
-      const context = buildTriageContext({
-        generatedAt: DateTime.formatIso(now),
-        cliVersion: packageJson.version,
-        os: `${yield* HostProcess.Platform} ${yield* HostProcess.Architecture} (${NodeOS.release()})`,
-        nodeVersion: process.version,
-        launchedAs: flags.print
-          ? `${cliCommand} --print, run by an agent; ask the user how they installed Supaterm`
-          : cliCommand,
-        server: yield* describeServerProcess(paths.serverRuntimeStatePath),
-        paths: {
-          stateDir: paths.stateDir,
-          dbPath: paths.dbPath,
-          settingsPath: paths.settingsPath,
-          logsDir: paths.logsDir,
-          serviceLogPath: path.join(paths.logsDir, BootService.BOOT_SERVICE_LOG_FILE),
-          desktopBackendLogGlob: path.join(paths.logsDir, "server-child*.log*"),
-          serverTracePath: paths.serverTracePath,
-          providerEventLogPath: paths.providerEventLogPath,
-          terminalLogsDir: paths.terminalLogsDir,
-          providerStatusCacheDir: paths.providerStatusCacheDir,
-          secretsDir: paths.secretsDir,
-          sourceCacheDir: path.join(baseDir, "source"),
-        },
-      });
+      const server = yield* describeServerProcess(paths.serverRuntimeStatePath);
 
       if (flags.print) {
+        const context = yield* describeTriageContext({
+          baseDir,
+          paths,
+          entry: {
+            kind: "cli",
+            cliVersion: packageJson.version,
+            launchedAs: `${cliCommand} --print, run by an agent; ask the user how they installed Supaterm`,
+          },
+          server,
+          now: yield* DateTime.now,
+        });
         yield* Console.log(buildTriagePrintedPrompt(context));
         return;
       }
 
-      const scratchDir = path.join(
-        paths.stateDir,
-        "triage",
-        DateTime.formatIso(now).replaceAll(":", "-").replace(".", "-"),
-      );
-      yield* fs.makeDirectory(scratchDir, { recursive: true });
-      const contextFilePath = path.join(scratchDir, "context.md");
-      yield* fs.writeFileString(contextFilePath, context);
+      const session = yield* writeTriageSession({
+        baseDir,
+        paths,
+        entry: { kind: "cli", cliVersion: packageJson.version, launchedAs: cliCommand },
+        server,
+      });
 
       const installed: Array<TriageAgent> = [];
       for (const agent of TRIAGE_AGENTS) {
@@ -252,8 +211,7 @@ export const triageCommand = Command.make("triage", {
       // shims run through cmd.exe, which cannot carry the multiline playbook as
       // an argv string, and with no agent installed the same file is the
       // paste-anywhere fallback.
-      const promptFilePath = path.join(scratchDir, "prompt.md");
-      yield* fs.writeFileString(promptFilePath, buildTriageSeedPrompt(contextFilePath));
+      const { sessionDir, promptFilePath, contextFilePath } = session;
 
       if (selected === undefined) {
         yield* Console.log(
@@ -276,7 +234,7 @@ export const triageCommand = Command.make("triage", {
         buildTriageLaunchPrompt(promptFilePath),
       ]);
       yield* Console.log(`Starting ${selected.label}. It will ask what went wrong.\n`);
-      const exitCode = yield* runInteractiveSession({ ...spawnSpec, cwd: scratchDir });
+      const exitCode = yield* runInteractiveSession({ ...spawnSpec, cwd: sessionDir });
       if (exitCode !== 0) {
         process.exitCode = exitCode;
       }

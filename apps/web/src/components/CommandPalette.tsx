@@ -55,6 +55,7 @@ import { useLocation, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
+  BugIcon,
   CalendarClockIcon,
   ChartColumnIcon,
   CheckIcon,
@@ -124,6 +125,7 @@ import { useAtomCommand } from "../state/use-atom-command";
 import { useAtomQueryRunner } from "../state/use-atom-query-runner";
 import { useScratchProject } from "../hooks/useScratchProject";
 import { useSendFeedback } from "../hooks/useSendFeedback";
+import { useStartTriage, useTriageEnvironmentId } from "../hooks/useStartTriage";
 import { useNewProject } from "../hooks/useNewProject";
 import { isScratchProject } from "@supaterm/client-runtime/state/projects";
 import {
@@ -548,6 +550,8 @@ function OpenCommandPaletteDialog(props: {
   });
   const { scratchEnvironmentId, scratchWorkspaceRootFor, startScratchThread } = useScratchProject();
   const sendFeedback = useSendFeedback();
+  const startTriage = useStartTriage();
+  const triageEnvironmentId = useTriageEnvironmentId();
   const lookupRepository = useAtomQueryRunner(sourceControlEnvironment.repository, {
     reportFailure: false,
   });
@@ -1424,6 +1428,18 @@ function OpenCommandPaletteDialog(props: {
       title: "Send feedback",
       icon: <MessageSquareTextIcon className={ITEM_ICON_CLASS} />,
       run: sendFeedback,
+    });
+  }
+
+  if (triageEnvironmentId !== null) {
+    actionItems.push({
+      kind: "action",
+      value: "action:triage",
+      searchTerms: ["triage", "bug", "issue", "report", "broken", "debug", "help", "support"],
+      title: "Triage an issue",
+      description: "An agent investigates a Supaterm problem and helps file an issue",
+      icon: <BugIcon className={ITEM_ICON_CLASS} />,
+      run: () => startTriage(triageEnvironmentId),
     });
   }
 

@@ -113,6 +113,7 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   safari: IconNodes.ExternalLink,
   "server.rack": IconNodes.Server,
   stethoscope: IconNodes.Stethoscope,
+  ladybug: IconNodes.Bug,
   "sidebar.left": IconNodes.PanelLeft,
   "sidebar.right": IconNodes.PanelRight,
   "slider.horizontal.3": IconNodes.SlidersHorizontal,

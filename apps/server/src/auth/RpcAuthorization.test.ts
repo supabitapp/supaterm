@@ -36,6 +36,12 @@ describe("RPC authorization scopes", () => {
     expect(new Set(Object.keys(RPC_REQUIRED_SCOPES))).toEqual(new Set(WsRpcGroup.requests.keys()));
   });
 
+  it("keeps triage, which seeds an agent that reads logs and the database, behind operate scope", () => {
+    expect(requiredScopeForRpcMethod(WS_METHODS.serverPrepareTriage)).toBe(
+      AuthOrchestrationOperateScope,
+    );
+  });
+
   it("separates passive terminal observation from operations that can change a shell", () => {
     for (const method of [
       WS_METHODS.terminalObserve,

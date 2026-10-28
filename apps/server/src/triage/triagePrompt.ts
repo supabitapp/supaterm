@@ -1,7 +1,6 @@
-/**
- * `TRIAGE_PLAYBOOK` must stay byte-identical to `.github/triage/PLAYBOOK.md`
- * (only backticks and backslashes are escaped here).
- */
+import { serializeComposerFileLink } from "@supaterm/shared/composerTrigger";
+
+/** Keep TRIAGE_PLAYBOOK byte-identical to .github/triage/PLAYBOOK.md after unescaping backticks and backslashes. */
 
 export const TRIAGE_PLAYBOOK = `# Supaterm triage playbook
 
@@ -16,8 +15,8 @@ provided alongside this playbook. Everything machine-specific lives there, not h
 
 ## 1. Ask what went wrong
 
-Your first message to the user: ask them to describe what went wrong, in their own
-words. Ask them to paste screenshots directly into this session if they have any.
+Unless the user already described it, your first message asks what went wrong, in
+their own words. Ask them to paste screenshots directly into this session if they have any.
 Ask follow-up questions when the description is vague. Good repro steps are the most
 valuable thing you can extract from this conversation.
 
@@ -150,17 +149,50 @@ user's environment and evidence instead of filing a new issue. A confirmed
 duplicate with fresh evidence is more useful than a second thread.
 `;
 
-/**
- * The one-line argument the agent session is launched with. The real
- * instructions live in `prompt.md` on disk: Windows `.cmd` shims run through
- * cmd.exe, which cannot carry a multiline, multi-kilobyte argv string.
- */
+/** Where the session started: the `supaterm triage` CLI, or "Triage an issue" in a client. */
+export type TriageEntry =
+  | { readonly kind: "cli"; readonly cliVersion: string; readonly launchedAs: string }
+  | { readonly kind: "app"; readonly client: string };
+
+/** Windows .cmd shims cannot carry a multiline playbook in argv; point to the file instead. */
 export const buildTriageLaunchPrompt = (promptFilePath: string) =>
   `Read the file "${promptFilePath}" and follow its instructions exactly: it is your Supaterm triage playbook, and it starts with asking the user what went wrong.`;
 
-const buildSeedPrompt = (opening: string, machineFacts: string) => `${opening}
+/**
+ * The composer text an in-app session opens with. The file link renders as a
+ * chip, and the user writes what went wrong after it, so the first turn
+ * already carries the description.
+ */
+export const buildTriageAppPrompt = (promptFilePath: string) =>
+  `Read ${serializeComposerFileLink(promptFilePath)} and follow it. `;
 
-${machineFacts}
+export const buildTriageSeedPrompt = (input: {
+  readonly contextFilePath: string;
+  readonly entry: TriageEntry;
+}) => `A Supaterm user is having a problem with their install and started this \
+session ${input.entry.kind === "cli" ? "with `supaterm triage`" : "from the Supaterm app"}.
+
+Machine facts (versions, OS, paths, server liveness) are in the triage context file:
+
+    ${input.contextFilePath}
+
+${
+  input.entry.kind === "cli"
+    ? "Follow the playbook below, starting by asking the user what went wrong."
+    : "Follow the playbook below. The message that sent you here may already describe what went wrong; if it does not, start by asking."
+}
+
+---
+
+${TRIAGE_PLAYBOOK}`;
+
+/** `supaterm triage --print`: the seed prompt with the context inline, for an agent already running here. */
+export const buildTriagePrintedPrompt = (context: string) => `A Supaterm user wants to report a \
+problem or share feedback, and you ran \`supaterm triage --print\` for them.
+
+Machine facts (versions, OS, paths, server liveness) are in the triage context below.
+
+${context}
 
 Follow the playbook below, starting by asking the user what went wrong.
 
@@ -168,29 +200,24 @@ Follow the playbook below, starting by asking the user what went wrong.
 
 ${TRIAGE_PLAYBOOK}`;
 
-export const buildTriageSeedPrompt = (contextFilePath: string) =>
-  buildSeedPrompt(
-    "A Supaterm user is having a problem with their install and started this session with `supaterm triage`.",
-    `Machine facts (versions, OS, paths, server liveness) are in the triage context file:
-
-    ${contextFilePath}`,
-  );
-
-export const buildTriagePrintedPrompt = (context: string) =>
-  buildSeedPrompt(
-    "A Supaterm user wants to report a problem or share feedback, and you ran `supaterm triage --print` for them.",
-    `Machine facts (versions, OS, paths, server liveness) are in the triage context below.
-
-${context}`,
-  );
+/** A clone the server made before the session started, or why it could not. */
+export type TriageSourceClone =
+  | {
+      readonly _tag: "cloned" | "cloning";
+      readonly directory: string;
+      readonly ref: string;
+      readonly commit: string;
+      readonly serverVersion: string;
+    }
+  | { readonly _tag: "failed"; readonly serverVersion: string; readonly reason: string };
 
 export interface TriageContextInput {
   readonly generatedAt: string;
-  readonly cliVersion: string;
+  readonly entry: TriageEntry;
   readonly os: string;
   readonly nodeVersion: string;
-  readonly launchedAs: string;
   readonly server: string;
+  readonly sourceClone?: TriageSourceClone | undefined;
   readonly paths: {
     readonly stateDir: string;
     readonly dbPath: string;
@@ -207,17 +234,74 @@ export interface TriageContextInput {
   };
 }
 
-export const buildTriageContext = (input: TriageContextInput) => `# Supaterm triage context
+const entryLines = (entry: TriageEntry) =>
+  entry.kind === "cli"
+    ? {
+        generatedBy: "`supaterm triage`",
+        before: `- Triage CLI version: ${entry.cliVersion} (the \`supaterm\` that ran this command; the bug may have happened on another build)`,
+        after: `- CLI launched as: ${entry.launchedAs}`,
+      }
+    : {
+        generatedBy: "the Supaterm app",
+        before: `- Started from: ${entry.client} (the client the user pressed "Triage an issue" in; the bug may have happened on another device)`,
+        after: undefined,
+      };
 
-Generated by \`supaterm triage\` at ${input.generatedAt}.
+const sourceSection = (clone: TriageSourceClone) => {
+  if (clone._tag === "failed") {
+    return `
+## Source
 
-- Triage CLI version: ${input.cliVersion} (the \`supaterm\` that ran this command; the bug may have happened on another build)
+The server could not clone the source for its version (${clone.serverVersion}): ${clone.reason}
+Clone it as step 4 describes.
+`;
+  }
+  const verb = clone._tag === "cloned" ? "The server cloned" : "The server is cloning";
+  const what =
+    clone.ref === "main"
+      ? `main, since its version (${clone.serverVersion}) has no release tag`
+      : `the source for its own version (${clone.serverVersion})`;
+  const wait =
+    clone._tag === "cloned"
+      ? ""
+      : `
+The folder appears only when the clone is complete. Wait for it instead of
+cloning again. If it has not appeared after a few minutes, clone as step 4
+describes.
+`;
+  return `
+## Source
+
+${verb} ${what}:
+
+    ${clone.directory}  (${clone.ref}, commit ${clone.commit})
+${wait}
+Use it when the bug happened on this server's build. When it happened on another
+build, clone that version as step 4 describes.
+`;
+};
+
+const IN_APP_SECTION = `
+## This session runs inside Supaterm
+
+You are a thread inside the Supaterm server described above. Stopping,
+restarting, or killing that server, its service, or the desktop app ends this
+session. When a fix needs one of those, give the user the exact steps and let
+them do it. The database is in use by that server: read it, never lock it.
+`;
+
+export const buildTriageContext = (input: TriageContextInput) => {
+  const entry = entryLines(input.entry);
+  return `# Supaterm triage context
+
+Generated by ${entry.generatedBy} at ${input.generatedAt}.
+
+${entry.before}
 - OS: ${input.os}
 - Node: ${input.nodeVersion}
-- CLI launched as: ${input.launchedAs}
-- Server process: ${input.server}
+${entry.after === undefined ? "" : `${entry.after}\n`}- Server process: ${input.server}
 - Repo: https://github.com/supabitapp/supaterm
-
+${input.entry.kind === "app" ? IN_APP_SECTION : ""}${input.sourceClone === undefined ? "" : sourceSection(input.sourceClone)}
 ## Paths
 
 - State dir: ${input.paths.stateDir}
@@ -233,3 +317,4 @@ Generated by \`supaterm triage\` at ${input.generatedAt}.
 - Secrets dir (NEVER read this): ${input.paths.secretsDir}
 - Source cache dir (clone the repo here): ${input.paths.sourceCacheDir}
 `;
+};

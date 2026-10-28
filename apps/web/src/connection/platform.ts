@@ -148,7 +148,7 @@ const layerWakeups = Wakeups.layer({
   ),
 });
 
-function clientMetadata() {
+export function currentClientMetadata() {
   return clientPresentationMetadata({
     appVersion: APP_VERSION,
     hosted: isHostedStaticApp(),
@@ -351,7 +351,7 @@ const analyticsDevice = {
 const layerCapabilities = Layer.effectContext(
   Effect.sync(() => {
     const presentation = ClientCapabilities.ClientPresentation.of({
-      metadata: clientMetadata(),
+      metadata: currentClientMetadata(),
     });
     const primaryAuth = ClientCapabilities.PrimaryEnvironmentAuth.of({
       bearerToken: Effect.tryPromise({
@@ -444,7 +444,7 @@ const loadSecondaryConnectionRegistration = Effect.fn(
     httpBaseUrl,
     credential: entry.bootstrapToken,
     scopes: AuthStandardClientScopes,
-    clientMetadata: clientMetadata(),
+    clientMetadata: currentClientMetadata(),
   }).pipe(Effect.mapError(mapRemoteEnvironmentError));
   // Keep the desktop pool's stable backend id in the connection id. The
   // descriptor environment id still scopes projects and RPC state, while the
