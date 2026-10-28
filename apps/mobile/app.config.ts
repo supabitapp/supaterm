@@ -398,7 +398,7 @@ const config: ExpoConfig = {
     // pedometer so iOS needs no motion purpose string.
     ["expo-sensors", { motionPermission: false }],
     ...(!isIosPersonalTeamBuild ? [widgetsPlugin] : []),
-    "./plugins/withAndroidCleartextTraffic.cjs",
+    "./plugins/withAndroidNetworkSecurityConfig.cjs",
     "./plugins/withAndroidGradleHeap.cjs",
     "./plugins/withAndroidInputBackground.cjs",
     "./plugins/withAndroidModernPopupMenu.cjs",

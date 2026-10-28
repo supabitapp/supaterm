@@ -114,6 +114,10 @@ On a computer with the desktop app, you can open the printed `supaterm://pair`
 app link instead. The desktop app asks you to confirm the server address, then
 adds it.
 
+If your HTTPS endpoint uses a certificate from your own certificate authority,
+install that CA on Android as a **CA certificate** in its security settings; the
+Android app then trusts it.
+
 Pairing links include alternative host addresses when available. The in-app
 scanner and **Add environment** can use a reachable alternative when the main
 address is unavailable, including when pairing a new device away from the LAN.
