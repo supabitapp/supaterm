@@ -950,7 +950,10 @@ export const makeOpenCodeAdapterV2 = Effect.fn("makeOpenCodeAdapterV2")(function
 
         const mcpSession = yield* mcpSessions.read(input.threadId);
         const hasSupatermMcp = mcpSession !== undefined && !connection.external;
-        const orchestrationSystemPrompt = supatermOrchestrationSystemPrompt(hasSupatermMcp);
+        const orchestrationSystemPrompt = supatermOrchestrationSystemPrompt(
+          hasSupatermMcp,
+          mcpSession?.capabilities?.has("device") === true,
+        );
         if (hasSupatermMcp) {
           yield* OpenCodeRuntime.runOpenCodeSdk("mcp.add", () =>
             client.mcp.add({

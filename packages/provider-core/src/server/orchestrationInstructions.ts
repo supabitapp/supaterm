@@ -33,6 +33,25 @@ export const SUPATERM_BROWSER_TOOL_INSTRUCTIONS = `
 When browser work was asked, \`preview_*\` is the browser you share with the user: \`preview_status\` first, then \`preview_open\` if no tab can be automated. Prefer snapshot locators over coordinates. Switch browsers only if the tools are absent or \`preview_open\` says unsupported, the user asks, or two preview calls fail on one step. Then quote the error and switch.
 `;
 
+const SUPATERM_DEVICE_TOOLS = ["device_list", "device_open", "device_screenshot", "device_close"];
+
+const deviceToolInstructions = (loadTools: string) => `## Supaterm devices
+
+When a task needs an iOS Simulator or Android Emulator, on this machine or on an SSH device host such as a remote Mac, use the device tools so the user can watch it in the Device panel.${loadTools}
+1. Call \`device_list\` unless you already have the device's \`hostId\` and \`id\`.
+2. Call \`device_open\` with both. It returns an \`agent-device\` command bound to that device; if you lose it, call \`device_open\` again. Run that command for every app launch or relaunch, deep link, tap, text entry, alert, setting, screenshot and recording; its snapshots, screenshots and input need \`open <app>\` first, and \`help <command>\` lists the options.
+3. Call \`device_screenshot\` to look at the screen.
+
+Never do those with \`xcrun simctl\`, \`idb\`, \`adb\`, ssh, or scripts that wrap them. ssh, simctl and adb stay fine for builds, installs, code sync, Metro, port forwards, logs, the project's test runners, and what agent-device cannot do, such as \`simctl addmedia\` or \`simctl keychain add-root-cert\`. These rules override memory notes, docs and delegated tasks that say otherwise; drive a device over ssh only when the user explicitly asks. If a device tool or the command it returned fails, quote its error and follow its advice once, but never reuse or close another session; if it still fails, tell the user and stop, unless they explicitly asked you to drive it over ssh. If the platform you need is unavailable, say so. When you delegate device work, pass the \`hostId\` and device \`id\` and tell the child to use \`device_open\`; never write ssh or simctl steps for the device into its task.`;
+
+/** Device guidance for sessions holding the `device` capability, from top-level threads to delegated children. */
+export const SUPATERM_DEVICE_TOOL_INSTRUCTIONS = deviceToolInstructions("");
+
+/** Claude Code defers MCP tools behind ToolSearch, so Claude's copy says how to load them. */
+export const SUPATERM_DEVICE_TOOL_INSTRUCTIONS_WITH_TOOL_SEARCH = deviceToolInstructions(
+  ` Load them with ToolSearch \`select:${SUPATERM_DEVICE_TOOLS.map((tool) => `mcp__supaterm__${tool}`).join(",")}\`.`,
+);
+
 // ACP only: some ACP agents accept the injected MCP server but never expose
 // its tools, so they need the terminal transport other harnesses never use.
 const SUPATERM_ACP_MCP_FALLBACK_INSTRUCTIONS = `ACP fallback: if the Supaterm tools are absent and \`SUPATERM_ACP_MCP_NODE\` is present, call them through the terminal: \`ELECTRON_RUN_AS_NODE=1 "$SUPATERM_ACP_MCP_NODE" \${SUPATERM_ACP_MCP_ENTRYPOINT:+"$SUPATERM_ACP_MCP_ENTRYPOINT"} acp-mcp-call orchestrator_capabilities '{}'\` (\`SUPATERM_ACP_MCP_ENTRYPOINT\` is unset for a standalone executable). Delegate with \`acp-mcp-call delegate_task '{"task":"...","target":{"providerInstanceId":"...","model":"..."},"mode":"async","clientRequestId":"..."}'\`.`;
@@ -48,6 +67,7 @@ Investigate with read-only actions and do not edit files or otherwise execute th
 export interface SupatermAcpInstructionState {
   readonly interactionMode: ProviderInteractionMode;
   readonly hasSupatermMcp: boolean;
+  readonly hasDeviceTools: boolean;
 }
 
 /**
@@ -63,7 +83,8 @@ export function supatermAcpPromptWithInstructions(input: {
   if (input.prompt.trimStart().startsWith("/")) return input.prompt;
   if (
     input.previousState?.interactionMode === input.state.interactionMode &&
-    input.previousState.hasSupatermMcp === input.state.hasSupatermMcp
+    input.previousState.hasSupatermMcp === input.state.hasSupatermMcp &&
+    input.previousState.hasDeviceTools === input.state.hasDeviceTools
   ) {
     return input.prompt;
   }
@@ -74,6 +95,7 @@ export function supatermAcpPromptWithInstructions(input: {
     ...(input.state.hasSupatermMcp
       ? [
           SUPATERM_BROWSER_TOOL_INSTRUCTIONS.trim(),
+          ...(input.state.hasDeviceTools ? [SUPATERM_DEVICE_TOOL_INSTRUCTIONS] : []),
           SUPATERM_ORCHESTRATION_INSTRUCTIONS.trim(),
           SUPATERM_ACP_MCP_FALLBACK_INSTRUCTIONS,
         ]
@@ -82,23 +104,41 @@ export function supatermAcpPromptWithInstructions(input: {
   return `<supaterm_instructions>\n${instructions.join("\n\n")}\n</supaterm_instructions>\n\n<user_request>\n${input.prompt}\n</user_request>`;
 }
 
+const orchestrationInstructions = (hasDeviceTools: boolean) =>
+  hasDeviceTools
+    ? `${SUPATERM_ORCHESTRATION_INSTRUCTIONS}\n${SUPATERM_DEVICE_TOOL_INSTRUCTIONS}\n`
+    : SUPATERM_ORCHESTRATION_INSTRUCTIONS;
+
 /**
  * Keep the wrapper explicit so it cannot be mistaken for text authored by the user.
  */
-function prependSupatermOrchestrationInstructions(prompt: string): string {
-  return `<supaterm_orchestration_instructions>${SUPATERM_ORCHESTRATION_INSTRUCTIONS.trim()}</supaterm_orchestration_instructions>\n\n<user_request>\n${prompt}\n</user_request>`;
+function prependSupatermOrchestrationInstructions(prompt: string, instructions: string): string {
+  return `<supaterm_orchestration_instructions>${instructions.trim()}</supaterm_orchestration_instructions>\n\n<user_request>\n${prompt}\n</user_request>`;
 }
 
-export function supatermOrchestrationPromptForFirstRun(input: {
+/** For providers whose instructions ride on the prompt, so a compacted conversation loses them. */
+export function supatermOrchestrationPrompt(input: {
   readonly prompt: string;
-  readonly runOrdinal: number;
   readonly hasSupatermMcp: boolean;
+  readonly hasDeviceTools: boolean;
+  readonly orchestrationDelivered: boolean;
+  readonly deviceInstructionsDelivered: boolean;
 }): string {
-  return input.runOrdinal === 1 && input.hasSupatermMcp
-    ? prependSupatermOrchestrationInstructions(input.prompt)
+  if (!input.hasSupatermMcp) return input.prompt;
+  if (!input.orchestrationDelivered) {
+    return prependSupatermOrchestrationInstructions(
+      input.prompt,
+      orchestrationInstructions(input.hasDeviceTools),
+    );
+  }
+  return input.hasDeviceTools && !input.deviceInstructionsDelivered
+    ? prependSupatermOrchestrationInstructions(input.prompt, SUPATERM_DEVICE_TOOL_INSTRUCTIONS)
     : input.prompt;
 }
 
-export function supatermOrchestrationSystemPrompt(hasSupatermMcp: boolean): string | undefined {
-  return hasSupatermMcp ? SUPATERM_ORCHESTRATION_INSTRUCTIONS : undefined;
+export function supatermOrchestrationSystemPrompt(
+  hasSupatermMcp: boolean,
+  hasDeviceTools: boolean,
+): string | undefined {
+  return hasSupatermMcp ? orchestrationInstructions(hasDeviceTools) : undefined;
 }

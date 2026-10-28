@@ -3,14 +3,11 @@ import { buildRuntimeInstructions } from "@supaterm/provider-core/server/runtime
 
 import {
   SUPATERM_BROWSER_TOOL_INSTRUCTIONS,
+  SUPATERM_DEVICE_TOOL_INSTRUCTIONS,
   SUPATERM_ORCHESTRATION_SECTIONS,
 } from "@supaterm/provider-core/server/orchestrationInstructions";
 
 export const CODEX_ADDITIONAL_CONTEXT_VALUE_MAX_BYTES = 4_000;
-
-const SUPATERM_DEVICE_TOOL_INSTRUCTIONS = `## Supaterm devices
-
-For iOS Simulators and Android Emulators here, call \`device_list\`, then \`device_open\`. Drive the device with the exact \`agent-device\` launcher and flags it returns, on every command. Prefer \`agent-device snapshot -i\` refs over coordinates. Use \`device_screenshot\` to see the screen. Use \`xcrun simctl\` or \`adb\` only for builds, logs, and ports. If a platform is unavailable, say so.`;
 
 export interface SupatermToolAvailability {
   readonly browser: boolean;
