@@ -25,6 +25,7 @@ const colourControls = [
 }>;
 
 const toggles = [
+  { key: "controls", label: "Knob & slider" },
   { key: "interactive", label: "Follow pointer" },
   { key: "floorShadow", label: "Floor shadow" },
 ] as const satisfies ReadonlyArray<{ readonly key: ControlKey; readonly label: string }>;
@@ -306,6 +307,12 @@ const toggles = [
   .swatch[aria-pressed="true"],
   .swatch-custom[data-active="true"] {
     box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--fg);
+  }
+
+  .swatch:disabled,
+  .swatch-custom:has(input:disabled) {
+    opacity: 0.3;
+    pointer-events: none;
   }
 
   .swatch-custom {

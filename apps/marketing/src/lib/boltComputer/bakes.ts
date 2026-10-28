@@ -133,19 +133,20 @@ const shadowOf = (fn: Distance, u: number, v: number, height: number) =>
 const controlShadow = (u: number, v: number) =>
   0.42 * Math.max(shadowOf(knob, u, v, 0.014), shadowOf(handle, u, v, 0.016));
 
-function bakeFront(unit: number) {
+function bakeFront(unit: number, controls: boolean) {
   const lip = 0.03;
   const controlLip = 0.01;
+  const cutouts = controls ? [knob, slot] : [];
+  const shadow = controls ? controlShadow : () => 0;
   return bakeRelief(unit, (u, v, grain) => {
-    for (const control of [knob, slot]) {
+    for (const control of cutouts) {
       const d = control(u, v);
       if (d < 0) return 0;
-      if (d < controlLip)
-        return rollInto(control, u, v, d, controlLip) + grain - controlShadow(u, v);
+      if (d < controlLip) return rollInto(control, u, v, d, controlLip) + grain - shadow(u, v);
     }
     const dh = hole(u, v);
     if (dh >= 0) {
-      return (dh < lip ? rollInto(hole, u, v, dh, lip) + grain : grain) - controlShadow(u, v);
+      return (dh < lip ? rollInto(hole, u, v, dh, lip) + grain : grain) - shadow(u, v);
     }
     const dg = glass(u, v);
     if (dg >= 0) {
@@ -376,14 +377,18 @@ export function bakeControls(unit: number, knobs: V3) {
 }
 
 export interface Bakes {
-  readonly front: HTMLCanvasElement;
+  /** The bezel's relief, with or without the knob and the slider's slot cut into it. */
+  readonly front: (controls: boolean) => HTMLCanvasElement;
   readonly back: HTMLCanvasElement;
   readonly glass: HTMLCanvasElement;
 }
 
 export function bakeTextures(unit: number): Bakes {
+  let withControls: HTMLCanvasElement | undefined;
+  let plain: HTMLCanvasElement | undefined;
   return {
-    front: bakeFront(unit),
+    front: (controls) =>
+      controls ? (withControls ??= bakeFront(unit, true)) : (plain ??= bakeFront(unit, false)),
     back: bakeBack(unit),
     glass: bakeGlass(SCREEN.hx * 2 * unit, SCREEN.hy * 2 * unit),
   };
