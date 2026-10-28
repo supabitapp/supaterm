@@ -1456,6 +1456,25 @@ describe("connection onboarding", () => {
     }),
   );
 
+  it.effect("re-pairing over plain HTTP never checks a relay credential at that address", () =>
+    Effect.gen(function* () {
+      const relayConnection = "bearer:environment-paired:relay";
+      const { calls, events, token } = yield* registerPairing({
+        pairingUrl: PAIRING_LINK,
+        entries: savedEnvironment(
+          savedRoute(RELAY_ADDRESS.slice(0, -1), relayConnection),
+          savedRoute(LAN, `learned:environment-paired:${LAN}@${relayConnection}`, true),
+        ),
+        credentials: [[relayConnection, "relay-token"]],
+        servers: { [LAN]: pairingServer({ acceptedTokens: ["bearer-token"] }) },
+      });
+
+      expect(calls.map((call) => bearerToken(call.init))).not.toContain("relay-token");
+      expect(events).not.toContain(`put:${relayConnection}`);
+      expect(token(relayConnection)).toBe("relay-token");
+    }),
+  );
+
   it.effect("never sends saved credentials to a link address that is not a saved route", () =>
     Effect.gen(function* () {
       const impostor = "http://203.0.113.9:3773";

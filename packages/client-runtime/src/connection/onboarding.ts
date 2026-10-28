@@ -41,6 +41,7 @@ import {
   pairingFallbackRoutes,
   routeEntry,
   routesAt,
+  sendsTokenInClear,
   sshTargetKey,
 } from "./routes.ts";
 import { reachPairingServer } from "./pairing.ts";
@@ -213,7 +214,10 @@ const refreshReachedRouteCredential = Effect.fn(
     const reachedRoute = routesAt(entry, reachedHttpBaseUrl).find(
       (route) => route.target._tag === "BearerConnectionTarget",
     );
-    if (reachedRoute === undefined) return;
+    // The route borrows another route's credential; checking it here must not
+    // carry that credential somewhere a connect would refuse to send it.
+    if (reachedRoute === undefined || sendsTokenInClear(connectionRoutes(entry), reachedRoute))
+      return;
     const connectionId = credentialConnectionId(connectionRouteId(reachedRoute.target));
     if (connectionId === registration.target.connectionId) return;
     const current = Option.getOrUndefined(yield* credentials.get(connectionId));
