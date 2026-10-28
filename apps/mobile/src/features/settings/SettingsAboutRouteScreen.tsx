@@ -152,6 +152,16 @@ function AppSettingsSection() {
   );
 }
 
+// Keyed by the JSON list of candidate environments, so each list keeps one atom across renders.
+const triagePermittedEnvironmentsAtom = Atom.family((environmentIdsJson: string) =>
+  Atom.make((get) => {
+    const environmentIds: ReadonlyArray<EnvironmentId> = JSON.parse(environmentIdsJson);
+    return new Set(
+      environmentIds.filter((id) => get(serverEnvironment.prepareTriage.permissionAtom(id))),
+    );
+  }),
+);
+
 function FeedbackSettingsAction() {
   const projects = useProjects();
   const { environments } = useEnvironments();
@@ -167,14 +177,11 @@ function FeedbackSettingsAction() {
         projects,
       }) !== null,
   );
-  const permissionKey = JSON.stringify(capableTargets.map((target) => target.environmentId));
-  const permittedAtom = (() => {
-    const ids: readonly EnvironmentId[] = JSON.parse(permissionKey);
-    return Atom.make(
-      (get) => new Set(ids.filter((id) => get(serverEnvironment.prepareTriage.permissionAtom(id)))),
-    );
-  })();
-  const permitted = useAtomValue(permittedAtom);
+  const permitted = useAtomValue(
+    triagePermittedEnvironmentsAtom(
+      JSON.stringify(capableTargets.map((target) => target.environmentId)),
+    ),
+  );
   const eligibleTargets = capableTargets.filter((target) => permitted.has(target.environmentId));
   const sendTo = (target: (typeof eligibleTargets)[number]) =>
     void startTriage(target.environmentId);
