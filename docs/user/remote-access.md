@@ -13,7 +13,7 @@ the app waits until it is ready before making the link available. Paste that lin
 **Add environment** on another desktop or mobile client, or scan it with the
 mobile app. The host can keep **Network access** off. Clients show a relay
 connection by a three-word name, such as `amber-falcon-river`, and the host's
-Connections settings show the same name once it connects.
+**Sharing & access** settings show the same name once it connects.
 
 On a host you reach only over SSH, print a relay pairing link there:
 
@@ -66,7 +66,7 @@ automatically when Supaterm starts while **Encrypted Relay** is enabled.
 
 New pairing links carry the configured relay server to the clients that pair
 with them. Automatically learned relay routes follow a server change through a
-working connection; routes paired explicitly through relay need a new link. If Connections reports that
+working connection; routes paired explicitly through relay need a new link. If **Sharing & access** reports that
 another host is using the relay identity, the same Supaterm data is running on a
 second machine. Turn **Encrypted Relay** off and on to bring the relay back to this
 host.
@@ -130,7 +130,7 @@ the link instead.
 Pairing authorizes that device for future connections. Use a fresh one-time link
 for each new device; you do not need the original token to reconnect. Links
 created in Settings can only be copied from the client that created them while
-its Connections page stays open. If you leave or reload that page, create
+its **Sharing & access** page stays open. If you leave or reload that page, create
 another link to share.
 
 ### Reach one machine several ways
@@ -265,7 +265,7 @@ running is left alone.
 
 Each desktop app keeps one session on the host for its SSH connection and reuses
 it when it reconnects. Revoke sessions you no longer use in **Settings →
-Connections** on the host, or on a headless host with `supaterm auth session list` and
+Sharing & access** on the host, or on a headless host with `supaterm auth session list` and
 `supaterm auth session revoke <id>`. A desktop that can still sign in over SSH pairs
 again on its next connect.
 

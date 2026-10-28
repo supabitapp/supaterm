@@ -190,7 +190,7 @@ PR builds produce static assets without hosting credentials. A separate workflow
 branch checks author trust again, validates the artifact, and deploys to
 `preview-<number>.supaterm.com`. The `web-preview` GitHub environment supplies
 `OP_SERVICE_ACCOUNT_TOKEN` only to that deployment job. Open the URL posted on the pull request
-and pair a reachable server under Settings → Connections.
+and pair a reachable server under Settings → Environments.
 
 ## Nightly builds
 
