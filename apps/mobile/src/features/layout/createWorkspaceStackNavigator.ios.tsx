@@ -373,6 +373,12 @@ function WorkspaceStackView(props: ViewProps & { readonly nativeColumns: boolean
     const presentation = props.descriptors[route.key]?.options.presentation;
     return presentation !== undefined && presentation !== "card";
   });
+  const topDetailKey = projection.detail.at(-1)?.key;
+  const [pushedDetailKey, setPushedDetailKey] = useState(topDetailKey);
+  if (pushedDetailKey !== topDetailKey) {
+    setPushedDetailKey(topDetailKey);
+    if (topDetailKey !== undefined && primaryVisible) setPrimaryVisible(false);
+  }
 
   const primaryRoute = projection.primary;
   if (!primaryRoute) return <V5StackView {...props} />;
