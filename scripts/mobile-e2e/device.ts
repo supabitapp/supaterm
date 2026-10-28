@@ -9,6 +9,7 @@ import type { SnapshotState } from "agent-device";
 
 import {
   androidSdkTool,
+  lanIpv4Address,
   normalizeIosSimulator,
   resolveAndroidSdkRoot,
   stopProcess,
@@ -333,7 +334,9 @@ export class Device {
         `tcp:${metroPort}`,
         `tcp:${metroPort}`,
       ]);
-    const metroUrl = `http://127.0.0.1:${metroPort}`;
+    const metroHost = this.pose.platform === "ios" ? lanIpv4Address() : "127.0.0.1";
+    const metroUrl = `http://${metroHost}:${metroPort}`;
+    NodeProcess.stderr.write(`[mobile-e2e] ${this.pose.id}: opening Metro at ${metroUrl}\n`);
     const launchFlags =
       "__expo_disable_onboarding=1&__expo_disable_fab=1&__expo_disable_auto_launch=1";
     const result = await this.agent(

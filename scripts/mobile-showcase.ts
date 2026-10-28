@@ -127,7 +127,7 @@ export function selectLanIpv4Address(addresses: ReadonlyArray<NetworkAddress>): 
   );
 }
 
-function lanIpv4Address(): string {
+export function lanIpv4Address(): string {
   const address = selectLanIpv4Address(
     Object.values(NodeOS.networkInterfaces()).flatMap((addresses) => addresses ?? []),
   );
