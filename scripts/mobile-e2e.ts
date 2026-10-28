@@ -11,7 +11,7 @@ import { BUILD_ENV, prepareClient } from "./mobile-e2e/build.ts";
 import { Device, DeviceCleanupError, stopDeviceDaemon } from "./mobile-e2e/device.ts";
 import { captureHostResources } from "./mobile-e2e/diagnostics.ts";
 import { runJourney, type StepResult } from "./mobile-e2e/journey.ts";
-import { POSES, type Pose } from "./mobile-e2e/poses.ts";
+import { POSES, type Pose, selectPoses } from "./mobile-e2e/poses.ts";
 import { MOBILE_ROOT, REPO_ROOT, setRunSignal } from "./mobile-e2e/process.ts";
 import {
   appendError,
@@ -135,13 +135,7 @@ async function main() {
   const platform = values.platform ?? (NodeProcess.platform === "darwin" ? "ios" : "android");
   if (platform !== "ios" && platform !== "android")
     throw new Error("--platform must be ios or android.");
-  const selected = values.pose ?? [];
-  const unknown = selected.filter((id) => !POSES.some((pose) => pose.id === id));
-  if (unknown.length) throw new Error(`Unknown pose: ${unknown.join(", ")}. Use --list.`);
-  const poses = POSES.filter(
-    (pose) =>
-      pose.platform === platform && (selected.length ? selected.includes(pose.id) : !pose.pending),
-  );
+  const poses = selectPoses(platform, values.pose ?? []);
   if (!poses.length) {
     log(`No ${platform} poses selected; skipping this platform.`);
     return;

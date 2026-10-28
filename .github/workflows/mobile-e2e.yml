@@ -54,14 +54,30 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  prepare:
+    name: Select mobile poses
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.matrix.outputs.value }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-mise
+      - id: matrix
+        env:
+          MOBILE_PLATFORM: ${{ inputs.platform || 'all' }}
+          E2E_POSES: ${{ inputs.poses }}
+        run: node scripts/mobile-e2e/matrix.ts
   mobile-e2e:
-    name: Mobile layout (${{ matrix.platform }})
+    needs: prepare
+    name: Mobile layout (${{ matrix.name }})
     runs-on: ${{ matrix.platform == 'ios' && 'xcode-27' || 'ubuntu-24.04' }}
     timeout-minutes: ${{ matrix.platform == 'ios' && 120 || 90 }}
     strategy:
       fail-fast: false
-      matrix:
-        platform: ${{ fromJSON(inputs.platform == 'ios' && '["ios"]' || inputs.platform == 'android' && '["android"]' || '["ios","android"]') }}
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     env:
       NODE_OPTIONS: --max-old-space-size=6144
       APP_VARIANT: development
@@ -98,7 +114,11 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "$SUPATERM_E2E_ANDROID_IMAGE" platform-tools emulator
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "cmdline-tools;23.0"
+          tools="$ANDROID_HOME/cmdline-tools/23.0/bin"
+          "$tools/sdkmanager" "$SUPATERM_E2E_ANDROID_IMAGE" platform-tools emulator
+          "$tools/avdmanager" list device -c | grep -qx pixel_fold
+          echo "SUPATERM_E2E_AVDMANAGER=$tools/avdmanager" >> "$GITHUB_ENV"
       - name: Install video tools
         run: |
           if ! command -v ffmpeg >/dev/null; then
@@ -137,7 +157,7 @@ jobs:
       - name: Run mobile checks
         env:
           MOBILE_PLATFORM: ${{ matrix.platform }}
-          E2E_POSES: ${{ inputs.poses }}
+          E2E_POSES: ${{ matrix.poses }}
         run: |
           args=(--platform "$MOBILE_PLATFORM" --output "$RUNNER_TEMP/mobile-e2e")
           read -r -a poses <<< "$E2E_POSES"
@@ -160,7 +180,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: mobile-e2e-${{ matrix.platform }}
+          name: mobile-e2e-${{ matrix.name }}
           path: ${{ runner.temp }}/mobile-e2e/
           if-no-files-found: warn
           retention-days: 14

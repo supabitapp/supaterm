@@ -138,13 +138,9 @@ export class Device {
     const image =
       NodeProcess.env.SUPATERM_E2E_ANDROID_IMAGE ??
       `system-images;android-36;google_apis;${NodeProcess.arch === "arm64" ? "arm64-v8a" : "x86_64"}`;
-    const manager = NodePath.join(
-      resolveAndroidSdkRoot(this.env),
-      "cmdline-tools/latest/bin/avdmanager",
-    );
     await NodeFSP.mkdir(this.env.ANDROID_AVD_HOME!, { recursive: true });
     await run(
-      manager,
+      this.avdmanager,
       ["create", "avd", "--force", "--name", this.session, "--package", image, "--device", profile],
       { env: this.env },
     );
@@ -165,6 +161,8 @@ export class Device {
           "-no-snapshot",
           "-cores",
           "2",
+          "-memory",
+          "4096",
           "-gpu",
           "swiftshader",
           "-camera-back",
@@ -357,6 +355,29 @@ export class Device {
     await this.acceptOpenPrompt();
   }
 
+  async tapSystemDialogWait(snapshot: Snapshot) {
+    const button = snapshot.nodes.find(
+      (node) => node.bundleId === "android" && node.identifier === "android:id/aerr_wait",
+    );
+    if (!button?.rect) throw new Error("The Android system dialog has no Wait button.");
+    await run(androidSdkTool("platform-tools/adb"), [
+      "-s",
+      this.id,
+      "shell",
+      "input",
+      "tap",
+      String(Math.round(button.rect.x + button.rect.width / 2)),
+      String(Math.round(button.rect.y + button.rect.height / 2)),
+    ]);
+  }
+
+  private get avdmanager() {
+    return (
+      this.env.SUPATERM_E2E_AVDMANAGER ??
+      NodePath.join(resolveAndroidSdkRoot(this.env), "cmdline-tools/latest/bin/avdmanager")
+    );
+  }
+
   private async acceptOpenPrompt() {
     if (this.pose.platform !== "ios") return;
     await this.agent(["alert", "accept"]).catch(() => undefined);
@@ -467,20 +488,21 @@ export class Device {
       );
   }
 
-  async recorded(directory: string, name: string, action: () => Promise<unknown>) {
+  async recorded<T>(directory: string, name: string, action: () => Promise<T>) {
     const path = NodePath.join(directory, `${name}.mp4`);
     if (this.pose.platform === "ios" && !this.pose.fold) return recordIos(this.id, path, action);
     await this.agent(["record", "start", path, "--hide-touches"]);
     const stop = () => this.agent(["record", "stop"], { timeoutMs: 180_000 });
+    let result: T;
     try {
-      await action();
+      result = await action();
       await delay(2_000);
     } catch (error) {
       await stop().catch(() => undefined);
       throw error;
     }
     await stop();
-    return path;
+    return { path, result };
   }
 
   async release() {
@@ -525,11 +547,10 @@ export class Device {
       const emulator = this.emulator;
       await attempt(() => stopProcess(emulator));
       await attempt(() =>
-        run(
-          NodePath.join(resolveAndroidSdkRoot(this.env), "cmdline-tools/latest/bin/avdmanager"),
-          ["delete", "avd", "--name", this.session],
-          { env: this.env, signal: null },
-        ),
+        run(this.avdmanager, ["delete", "avd", "--name", this.session], {
+          env: this.env,
+          signal: null,
+        }),
       );
     }
     if (errors.length) throw new DeviceCleanupError(errors.join("; "));

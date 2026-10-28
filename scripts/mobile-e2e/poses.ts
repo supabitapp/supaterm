@@ -82,8 +82,8 @@ export const POSES: ReadonlyArray<Pose> = [
   {
     id: "pixel-fold-folded-dark",
     platform: "android",
-    device: "7.6-inch foldable",
-    androidProfile: "7.6in Foldable",
+    device: "Pixel Fold",
+    androidProfile: "pixel_fold",
     form: "phone",
     appearance: "dark",
     fold: "closed",
@@ -91,8 +91,8 @@ export const POSES: ReadonlyArray<Pose> = [
   {
     id: "pixel-fold-unfolded",
     platform: "android",
-    device: "7.6-inch foldable",
-    androidProfile: "7.6in Foldable",
+    device: "Pixel Fold",
+    androidProfile: "pixel_fold",
     form: "tablet",
     appearance: "light",
     fold: "open",
@@ -100,8 +100,8 @@ export const POSES: ReadonlyArray<Pose> = [
   {
     id: "pixel-fold-unfolded-landscape",
     platform: "android",
-    device: "7.6-inch foldable",
-    androidProfile: "7.6in Foldable",
+    device: "Pixel Fold",
+    androidProfile: "pixel_fold",
     form: "tablet",
     appearance: "dark",
     fold: "open",
@@ -125,3 +125,13 @@ export const POSES: ReadonlyArray<Pose> = [
     landscape: true,
   },
 ];
+
+export function selectPoses(platform: Pose["platform"] | "all", selected: ReadonlyArray<string>) {
+  const unknown = selected.filter((id) => !POSES.some((pose) => pose.id === id));
+  if (unknown.length) throw new Error(`Unknown pose: ${unknown.join(", ")}. Use --list.`);
+  return POSES.filter(
+    (pose) =>
+      (platform === "all" || pose.platform === platform) &&
+      (selected.length ? selected.includes(pose.id) : !pose.pending),
+  );
+}

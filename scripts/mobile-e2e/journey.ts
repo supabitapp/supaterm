@@ -141,12 +141,7 @@ export async function runJourney(
       await NodeFSP.writeFile(`${evidence}.json`, JSON.stringify(launch, null, 2));
       if (dialogs >= 2) throw new Error(`${system.label} during device startup`);
       NodeProcess.stderr.write(`[mobile-e2e] ${device.pose.id}: waiting for ${system.label}\n`);
-      await tap(
-        launch.nodes.find(
-          (node) => node.bundleId === "android" && node.identifier === "android:id/aerr_wait",
-        ),
-        "system dialog Wait button",
-      );
+      await device.tapSystemDialogWait(launch);
       continue;
     }
     const dialog = errorDialog(launch);
@@ -181,12 +176,16 @@ export async function runJourney(
     ...(phone ? [check("tab bar visible", inside(tabs, threads), describeRect(tabs))] : []),
   ]);
 
-  const opening = await device.recorded(directory, "open-thread", async () =>
-    tap(threadRow(await device.snapshot()), "thread row"),
-  );
-  const thread = await device.waitFor(
-    (snapshot) => composer(snapshot) !== undefined && threadRow(snapshot) !== undefined,
-    "the thread screen",
+  const { path: opening, result: thread } = await device.recorded(
+    directory,
+    "open-thread",
+    async () => {
+      await tap(threadRow(await device.snapshot()), "thread row");
+      return device.waitFor(
+        (snapshot) => composer(snapshot) !== undefined && threadRow(snapshot) !== undefined,
+        "the thread screen",
+      );
+    },
   );
   const pushed = phone || backButton(thread) !== undefined;
   const bottomTabs = pushed && tabs && tabs.width > tabs.height ? tabs : undefined;
@@ -277,16 +276,16 @@ export async function runJourney(
   await delay(800);
 
   if (pushed) {
-    const back = await device.recorded(directory, "back", async () => {
+    const { path: back, result: list } = await device.recorded(directory, "back", async () => {
       const current = await device.snapshot();
       const button = backButton(current);
       if (button) await tap(button, "back button");
       else await device.agent(["back"]);
+      return device.waitFor(
+        (snapshot) => backButton(snapshot) === undefined && threadRow(snapshot) !== undefined,
+        "the thread list",
+      );
     });
-    const list = await device.waitFor(
-      (snapshot) => backButton(snapshot) === undefined && threadRow(snapshot) !== undefined,
-      "the thread list",
-    );
     const backLag = bottomTabs
       ? await lagCheck(
           "tabs return with the list (video)",
@@ -323,8 +322,16 @@ export async function runJourney(
     await capture("rotated", await device.orient(device.pose.landscape ? "portrait" : "landscape"));
   }
   if (device.pose.fold) {
+    const before = await device.snapshot();
     await device.agent(["fold", device.pose.fold === "open" ? "closed" : "open"]);
-    await delay(2_500);
+    await device.waitFor(
+      (snapshot) =>
+        snapshot.viewport.width * snapshot.viewport.height !==
+        before.viewport.width * before.viewport.height,
+      "the app window to resize after folding",
+      30_000,
+    );
+    await device.agent(["wait", "stable", "1000", "30000"]);
     await capture(device.pose.fold === "open" ? "folded" : "unfolded", await device.snapshot());
   }
 }

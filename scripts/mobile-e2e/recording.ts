@@ -4,7 +4,7 @@ import * as NodeFS from "node:fs";
 
 import { delay, run } from "./process.ts";
 
-export async function recordIos(udid: string, path: string, action: () => Promise<unknown>) {
+export async function recordIos<T>(udid: string, path: string, action: () => Promise<T>) {
   const log = NodeFS.openSync(`${path}.log`, "w");
   const child = NodeChildProcess.spawn(
     "xcrun",
@@ -63,9 +63,10 @@ export async function recordIos(udid: string, path: string, action: () => Promis
       clearTimeout(timeout);
     }
   };
+  let result: T;
   try {
     await ready;
-    await action();
+    result = await action();
     await delay(2_000);
   } catch (error) {
     await stop().catch(() => undefined);
@@ -86,5 +87,5 @@ export async function recordIos(udid: string, path: string, action: () => Promis
   ]);
   if (!(Number(stdout.trim()) >= 2))
     throw new Error(`Recording has fewer than two frames: ${path}`);
-  return path;
+  return { path, result };
 }
