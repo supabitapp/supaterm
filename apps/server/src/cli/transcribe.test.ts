@@ -6,14 +6,16 @@ import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import { HttpClient, HttpClientResponse } from "effect/http";
 
-import { CliToolFailedError, type ServerTools } from "./serverTools.ts";
+import { CliServerUnreachableError, CliToolFailedError, type ServerTools } from "./serverTools.ts";
 import { transcribeRecording } from "./transcribe.ts";
 
 const recording = new Uint8Array([1, 2, 3]);
 const audioAttachmentId = "pending-recording.wav";
 const input = { providerInstanceId: ProviderInstanceId.make("claudeAgent") };
 
-const serverTools = (transcribe: Effect.Effect<unknown, CliToolFailedError>) => {
+const serverTools = (
+  transcribe: Effect.Effect<unknown, CliToolFailedError | CliServerUnreachableError>,
+) => {
   const calls: Array<{ readonly tool: string; readonly args: unknown }> = [];
   const call = ((tool: string, args: unknown) =>
     Effect.suspend(() => {
@@ -55,6 +57,38 @@ it.effect("a refused transcription deletes its upload", () =>
       tool: "supaterm_transcription_cancel",
       args: { audioAttachmentId },
     });
+  }).pipe(Effect.provide(acceptingUploads)),
+);
+
+// Cancelling drops the recorded outcome, so a lost response must not cancel a
+// run the account already paid for.
+it.effect("a lost response picks up the same run instead of cancelling it", () =>
+  Effect.gen(function* () {
+    let attempts = 0;
+    const { tools, calls } = serverTools(
+      Effect.suspend(() =>
+        attempts++ === 0
+          ? Effect.fail(
+              new CliServerUnreachableError({
+                origin: "http://127.0.0.1:1",
+                cause: new Error("socket hang up"),
+              }),
+            )
+          : Effect.succeed({ text: "already transcribed" }),
+      ),
+    );
+
+    const result = yield* transcribeRecording(tools, recording, input);
+
+    assert.deepStrictEqual(result, { text: "already transcribed" });
+    assert.deepStrictEqual(
+      calls.map((entry) => entry.tool),
+      [
+        "supaterm_attachment_prepare_upload",
+        "supaterm_transcription_transcribe",
+        "supaterm_transcription_transcribe",
+      ],
+    );
   }).pipe(Effect.provide(acceptingUploads)),
 );
 

@@ -42,6 +42,7 @@ const reportTranscribeErrors = reportExpectedErrors(
 
 const decodeThreadId = Schema.decodeUnknownEffect(ThreadId);
 const decodeProviderInstanceId = Schema.decodeUnknownEffect(ProviderInstanceId);
+const isServerUnreachable = Schema.is(CliServerUnreachableError);
 
 /**
  * A refused or interrupted run leaves the upload behind and may still be
@@ -78,11 +79,15 @@ export const transcribeRecording = Effect.fn("cli.transcribe.recording")(functio
             (cause) => new CliServerUnreachableError({ origin: tools.origin, cause }),
           ),
         );
-      return yield* tools.call(
-        "supaterm_transcription_transcribe",
-        { ...input, audioAttachmentId: upload.attachmentId },
-        TranscriptionTranscribeResult,
-      );
+      // A lost response doesn't mean lost work: asking again with the same
+      // upload joins the run or returns its outcome instead of paying twice.
+      return yield* tools
+        .call(
+          "supaterm_transcription_transcribe",
+          { ...input, audioAttachmentId: upload.attachmentId },
+          TranscriptionTranscribeResult,
+        )
+        .pipe(Effect.retry({ times: 1, while: isServerUnreachable }));
     }),
     (upload, exit) =>
       Exit.isSuccess(exit)
