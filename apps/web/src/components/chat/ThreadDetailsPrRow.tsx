@@ -108,6 +108,8 @@ import {
 const isSettledWithoutChecks = (result: AsyncResult.AsyncResult<unknown, unknown>) =>
   result._tag === "Success" && result.value === null;
 
+type HandoffKind = "conflicts" | "findings";
+
 export function ThreadDetailsPrRow({
   environmentId,
   pr,
@@ -247,7 +249,7 @@ export function ThreadDetailsPrRow({
     ? `Auto-merge (${PULL_REQUEST_MERGE_METHOD_LABELS[detail.autoMergeMethod].toLowerCase()})`
     : "Auto-merge";
 
-  const handoffTask = (pr: NonNullable<typeof detail>, kind: "conflicts" | "findings") =>
+  const handoffTask = (pr: NonNullable<typeof detail>, kind: HandoffKind) =>
     kind === "conflicts"
       ? {
           prompt: buildResolveConflictsPrompt({
@@ -269,12 +271,12 @@ export function ThreadDetailsPrRow({
           commentsTruncated: false,
         });
 
-  const startInNewThread = (kind: "conflicts" | "findings") => {
+  const startInNewThread = (kind: HandoffKind) => {
     if (detail === null) return;
     void startHandoff(kind, handoffTask(detail, kind));
   };
 
-  const draftSubagentHandoff = (kind: "conflicts" | "findings") => {
+  const draftSubagentHandoff = (kind: HandoffKind) => {
     if (detail === null) return;
     const task = handoffTask(detail, kind);
     writePullRequestTaskToComposer(composerTarget, {

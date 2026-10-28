@@ -47,6 +47,7 @@ import { isCommandPaletteOpen } from "~/commandPaletteBus";
 import { resolveShortcutCommand, type ShortcutMatchContext } from "~/keybindings";
 import { primaryServerKeybindingsAtom } from "~/state/server";
 import {
+  type PullRequestThreadTask,
   usePullRequestDefaultMergeMethod,
   writePullRequestTaskToComposer,
 } from "./usePullRequestActions";
@@ -54,7 +55,6 @@ import { OFF_HEAD_PULL_REQUEST_CHECKOUT_TOAST } from "./pullRequestCheckoutToast
 import { changeRequestRepositoryUrl, gitHubPullRequestBrowserUrl } from "~/lib/openPullRequestLink";
 import { usePreparePullRequestThreadAction } from "~/lib/sourceControlActions";
 import { cn } from "~/lib/utils";
-import type { ReviewCommentContext } from "~/reviewCommentContext";
 import { useProjects, useServerConfigs } from "~/state/entities";
 import { useEnvironments } from "~/state/environments";
 import { useEnvironmentQuery } from "~/state/query";
@@ -656,11 +656,6 @@ export function PullRequestDetailPanel({
     return { commentPosted: true };
   };
 
-  type ThreadTask = {
-    prompt: string;
-    reviewComments?: ReadonlyArray<ReviewCommentContext>;
-  };
-
   const attachTarget = composerDraftTarget ?? null;
   const canPrepareWorktree = prepareThread.isAllowed && canOperateThread;
   const canFixFindings = attachTarget !== null || canPrepareWorktree;
@@ -677,7 +672,7 @@ export function PullRequestDetailPanel({
 
   const openThreadWithTask = async (
     projectRef: ReturnType<typeof scopeProjectRef>,
-    task: ThreadTask | null,
+    task: PullRequestThreadTask | null,
     opened?: { draftId: DraftId },
   ): Promise<{ draftId: DraftId } | null> => {
     const session =
@@ -694,7 +689,7 @@ export function PullRequestDetailPanel({
 
   const startAsk = async (
     kind: string,
-    task: ThreadTask,
+    task: PullRequestThreadTask,
     options?: { readonly keepGuide?: boolean },
   ) => {
     if (!detail || handoff !== null) return;
@@ -750,7 +745,7 @@ export function PullRequestDetailPanel({
 
   const startHandoff = async (
     kind: string,
-    task: { prompt: string; reviewComments?: ReadonlyArray<ReviewCommentContext> } | null,
+    task: PullRequestThreadTask | null,
     mode: "worktree" | "local" = "worktree",
   ) => {
     if (!handoffSummary || handoff !== null) return;
