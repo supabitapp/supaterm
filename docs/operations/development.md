@@ -186,12 +186,14 @@ Windows investigation while that suite is not a required gate.
 
 ### Mobile layout checks
 
-The [Mobile Layout E2E workflow](../../.github/workflows/mobile-e2e.yml) checks the native app on
-hosted iOS simulators and Android emulators for pull requests and main pushes that change mobile
-code, shared packages, dependency manifests, or the runner. Dispatch it manually to select a
-platform or specific device poses. Each iOS pose runs on a separate host. Download the
-`mobile-e2e-<pose>` or `mobile-e2e-android` artifact and open `index.html` for the checks,
-screenshots, and transition recordings.
+The [Mobile Layout E2E workflow](../../.github/workflows/mobile-e2e.yml) runs manually on free
+hosted iOS simulators and Android emulators. Select a platform or specific device poses when
+dispatching it. Each iOS pose runs on a separate host. Download the `mobile-e2e-<pose>` or
+`mobile-e2e-android` artifact and open `index.html` for the checks, screenshots, and transition
+recordings.
+
+For the iPadOS 26.5 comparison, select `ios_runner=macos-26` and explicit iPad poses. It uses
+Xcode 26.6, with `ios-26-5` in the artifact name. The default runner uses Xcode 27.
 
 For local reproduction on a prepared device host, run these commands from the repository root:
 
