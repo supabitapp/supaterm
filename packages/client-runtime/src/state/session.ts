@@ -1,3 +1,4 @@
+import { pipe } from "effect/Function";
 import type { AuthSessionState, EnvironmentId, ServerConfig } from "@supaterm/contracts";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
@@ -109,10 +110,11 @@ function makeEnvironmentSessionAtoms<R, E>(
   // createServerEnvironmentAtoms(...).configValueAtom instead.
   const initialConfigValueAtom = Atom.family((environmentId: EnvironmentId) =>
     Atom.make((get): ServerConfig | null =>
-      Option.getOrNull(
-        Option.getOrElse(AsyncResult.value(get(initialConfigAtom(environmentId))), () =>
-          Option.none(),
-        ),
+      pipe(
+        get(initialConfigAtom(environmentId)),
+        AsyncResult.value,
+        Option.flatten,
+        Option.getOrNull,
       ),
     ).pipe(Atom.withLabel(`environment-config-value:${environmentId}`)),
   );
@@ -133,7 +135,7 @@ function makeEnvironmentSessionAtoms<R, E>(
 
   const preparedConnectionValueAtom = Atom.family((environmentId: EnvironmentId) =>
     Atom.make((get) =>
-      Option.getOrElse(AsyncResult.value(get(preparedConnectionAtom(environmentId))), () =>
+      AsyncResult.getOrElse(get(preparedConnectionAtom(environmentId)), () =>
         Option.none<PreparedConnection>(),
       ),
     ).pipe(Atom.withLabel(`environment-prepared-connection:${environmentId}`)),
@@ -175,7 +177,7 @@ function makeEnvironmentSessionAtoms<R, E>(
   const sessionStateValueAtom = Atom.family((environmentId: EnvironmentId) =>
     Atom.make(
       (get): AuthSessionState | null =>
-        Option.getOrNull(AsyncResult.value(get(sessionStateAtom(environmentId)))) ?? null,
+        AsyncResult.getOrElse(get(sessionStateAtom(environmentId)), () => null) ?? null,
     ).pipe(Atom.withLabel(`environment-session-state-value:${environmentId}`)),
   );
 
@@ -240,7 +242,7 @@ function makeEnvironmentSessionAtoms<R, E>(
       return connectionRouteLatencyLabel(
         result.waiting || result._tag === "Initial"
           ? null
-          : Option.getOrElse(AsyncResult.value(result), (): ConnectionRouteLatency => ({
+          : AsyncResult.getOrElse(result, (): ConnectionRouteLatency => ({
               status: "unreachable",
             })),
       );

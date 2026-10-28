@@ -1,6 +1,5 @@
 import type { DevicePlatform, EnvironmentId } from "@supaterm/contracts";
 import { useAtomValue } from "@effect/atom-react";
-import * as Option from "effect/Option";
 import { AsyncResult, Atom } from "effect/reactivity";
 import { useId, useRef, useState, type ReactNode } from "react";
 
@@ -200,7 +199,7 @@ export function DeviceStreamView(props: {
       ? deviceAxElementsAtom({ access, platform: props.platform, deviceId: props.deviceId })
       : NO_AX_ATOM,
   );
-  const axElements = Option.getOrElse(AsyncResult.value(axResult), () => NO_AX_ELEMENTS);
+  const axElements = AsyncResult.getOrElse(axResult, () => NO_AX_ELEMENTS);
 
   const pointerActive = useRef(false);
   const normalizedPoint = (event: React.PointerEvent<HTMLElement>) => {

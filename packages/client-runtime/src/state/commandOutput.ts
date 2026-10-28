@@ -1,5 +1,4 @@
 import type { OrchestrationV2CommandOutputFrame } from "@supaterm/contracts";
-import * as Option from "effect/Option";
 import { AsyncResult, Atom } from "effect/reactivity";
 import {
   appendTerminalOutput,
@@ -51,6 +50,6 @@ export function commandOutputUnavailable(
 ): boolean {
   return (
     result._tag === "Failure" &&
-    (Option.getOrUndefined(AsyncResult.value(result))?.output.text ?? "") === ""
+    (AsyncResult.getOrElse(result, () => undefined)?.output.text ?? "") === ""
   );
 }

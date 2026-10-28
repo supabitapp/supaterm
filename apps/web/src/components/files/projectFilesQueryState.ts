@@ -7,7 +7,6 @@ import {
   SUPATERM_PROJECT_FILE_NAME,
 } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
-import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { AsyncResult, Atom } from "effect/reactivity";
 
@@ -118,7 +117,7 @@ export function getProjectFileContents(
   const optimistic = getOptimisticProjectFileQueryData(environmentId, cwd, relativePath);
   if (optimistic) return optimistic.contents;
   const result = appAtomRegistry.get(getProjectFileQueryAtom(environmentId, cwd, relativePath));
-  const data = Option.getOrUndefined(AsyncResult.value(result));
+  const data = AsyncResult.getOrElse(result, () => undefined);
   return data?.exists === false ? undefined : data?.contents;
 }
 
@@ -207,7 +206,7 @@ export function useProjectEntriesQuery(
   const refreshAtom = useAtomRefresh(atom);
   const refresh = () => refreshAtom();
   return {
-    data: Option.getOrNull(AsyncResult.value(result)),
+    data: AsyncResult.getOrElse(result, () => null),
     error: fileAccess.isPending
       ? null
       : canReadFiles
@@ -263,7 +262,7 @@ export function useProjectFileQuery(
   const result = useAtomValue(atom);
   const refreshAtom = useAtomRefresh(atom);
   const refresh = () => refreshAtom();
-  const readData = Option.getOrNull(AsyncResult.value(result));
+  const readData = AsyncResult.getOrElse(result, () => null);
   const isMissing = readData?.exists === false;
   const optimisticResult = useAtomValue(
     optimisticFileAtom(environmentId, cwd, relativePath ?? EMPTY_PROJECT_FILE_PATH),

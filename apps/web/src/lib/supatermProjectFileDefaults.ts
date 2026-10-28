@@ -6,7 +6,6 @@ import {
 import { parseSupatermProjectFile } from "@supaterm/shared/supatermProjectFile";
 import { executeAtomQuery } from "@supaterm/client-runtime/state/runtime";
 import { AsyncResult } from "effect/reactivity";
-import * as Option from "effect/Option";
 
 import {
   getProjectFileQueryAtom,
@@ -37,7 +36,7 @@ export async function readSupatermProjectFile(
     environmentId,
     workspaceRoot,
     SUPATERM_PROJECT_FILE_NAME,
-    Option.getOrNull(AsyncResult.value(result)),
+    AsyncResult.getOrElse(result, () => null),
   );
   if (data === null || data.exists === false || data.truncated) return null;
   return parseSupatermProjectFile(data.contents);

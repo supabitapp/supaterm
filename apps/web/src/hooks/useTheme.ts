@@ -1,3 +1,4 @@
+import { pipe } from "effect/Function";
 import type { DesktopBridge } from "@supaterm/contracts";
 import { safeErrorLogAttributes } from "@supaterm/client-runtime/errors";
 import * as Schema from "effect/Schema";
@@ -503,7 +504,7 @@ export function setTheme(next: Theme): boolean {
   if (typeof window === "undefined") return false;
   try {
     // Save the current mode first; inferring it from the new theme can switch dark to light.
-    writeAppearanceModePreference(readAppearanceModePreference(getStored()));
+    pipe(getStored(), readAppearanceModePreference, writeAppearanceModePreference);
     // A whole theme replaces the mix; retain it to restore on a failed preference write.
     const previousHalvesRaw = window.localStorage.getItem(THEME_HALVES_STORAGE_KEY);
     window.localStorage.removeItem(THEME_HALVES_STORAGE_KEY);

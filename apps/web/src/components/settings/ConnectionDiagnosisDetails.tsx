@@ -7,7 +7,6 @@ import {
   presentConnectionDiagnosis,
   usableRoutes,
 } from "@supaterm/client-runtime/connection";
-import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
 import { ChevronRightIcon } from "@supaterm/icons";
 
@@ -28,8 +27,8 @@ import { stackedThreadToast, toastManager } from "../ui/toast";
  */
 export function useConnectionDiagnosis(environment: EnvironmentPresentation) {
   const environmentId = environment.environmentId;
-  const state = Option.getOrElse(
-    AsyncResult.value(useAtomValue(environmentCatalog.stateAtom(environmentId))),
+  const state = AsyncResult.getOrElse(
+    useAtomValue(environmentCatalog.stateAtom(environmentId)),
     () => AVAILABLE_CONNECTION_STATE,
   );
   const routes = usableRoutes(environment.entry);

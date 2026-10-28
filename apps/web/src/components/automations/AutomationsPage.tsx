@@ -1,6 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
 import { connectionStatusTitle } from "@supaterm/client-runtime/connection";
-import * as Option from "effect/Option";
 import { AsyncResult, Atom } from "effect/reactivity";
 import { CircleAlertIcon, Clock3Icon, PlusIcon } from "@supaterm/icons";
 import { type ReactNode, useState } from "react";
@@ -218,7 +217,7 @@ function useAutomationEnvironmentStates(
               }),
             )
           : null;
-        const data = query === null ? null : Option.getOrNull(AsyncResult.value(query));
+        const data = query === null ? null : AsyncResult.getOrElse(query, () => null);
         return {
           environment,
           connected,

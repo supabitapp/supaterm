@@ -3,7 +3,6 @@ import { executeAtomQuery, squashAtomCommandFailure } from "@supaterm/client-run
 import type { EnvironmentId, PullRequestDiffStat, PullRequestListInput } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
-import * as Option from "effect/Option";
 import { AsyncResult, Atom, type AtomRegistry } from "effect/reactivity";
 import { use, useCallback, useMemo, useState } from "react";
 import { environmentCatalog } from "../../connection/catalog";
@@ -32,7 +31,7 @@ type Read = <A>(atom: Atom.Atom<A>) => A;
 
 /** The head the list query holds now, cached or answered. */
 function currentHead(read: Read, target: ListTarget) {
-  return Option.getOrNull(AsyncResult.value(read(composerPullRequests.list(target))));
+  return AsyncResult.getOrElse(read(composerPullRequests.list(target)), () => null);
 }
 
 function currentPages(read: Read, target: ListTarget): PullRequestListPages | null {

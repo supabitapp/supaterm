@@ -65,10 +65,11 @@ const primaryServerStateAtom = Atom.make((get): PrimaryServerState => {
   }
 
   const target = { environmentId, input: {} };
-  const configProjection = Option.getOrNull(
-    AsyncResult.value(get(serverEnvironment.configProjection(target))),
+  const configProjection = AsyncResult.getOrElse(
+    get(serverEnvironment.configProjection(target)),
+    () => null,
   );
-  const welcome = Option.getOrNull(AsyncResult.value(get(serverEnvironment.welcome(target))));
+  const welcome = AsyncResult.getOrElse(get(serverEnvironment.welcome(target)), () => null);
 
   return {
     config: get(serverEnvironment.configValueAtom(environmentId)),
@@ -123,8 +124,8 @@ const environmentConnectionsAtom = Atom.make((get) => {
     Pick<EnvironmentPresentation, "connection" | "serverConfig">
   >();
   for (const [environmentId, entry] of get(environmentCatalog.catalogValueAtom).entries) {
-    const state = Option.getOrElse(
-      AsyncResult.value(get(environmentCatalog.stateAtom(environmentId))),
+    const state = AsyncResult.getOrElse(
+      get(environmentCatalog.stateAtom(environmentId)),
       () => AVAILABLE_CONNECTION_STATE,
     );
     environments.set(environmentId, {

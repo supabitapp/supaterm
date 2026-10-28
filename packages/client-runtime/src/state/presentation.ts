@@ -76,8 +76,8 @@ export function createEnvironmentPresentationAtoms<E>(input: {
       if (entry === undefined) {
         return null;
       }
-      const state = Option.getOrElse(
-        AsyncResult.value(get(input.stateAtom(environmentId))),
+      const state = AsyncResult.getOrElse(
+        get(input.stateAtom(environmentId)),
         () => AVAILABLE_CONNECTION_STATE,
       );
       const previous = Option.getOrNull(get.self<EnvironmentPresentation | null>());

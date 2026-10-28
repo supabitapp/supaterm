@@ -30,7 +30,6 @@ import type {
   VcsRef,
 } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
-import * as Option from "effect/Option";
 import { AsyncResult, Atom } from "effect/reactivity";
 import { useEffect, useState } from "react";
 
@@ -221,7 +220,7 @@ export function usePaginatedBranches(target: VcsRefTarget) {
       : vcsRefsLiveRevisionAtom({ environmentId, cwd }),
   );
   const values = results.flatMap((result) => {
-    const value = Option.getOrNull(AsyncResult.value(result));
+    const value = AsyncResult.getOrElse(result, () => null);
     return value === null ? [] : [value];
   });
   const refs = new Map<string, VcsRef>();

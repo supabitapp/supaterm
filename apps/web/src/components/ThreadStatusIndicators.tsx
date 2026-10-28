@@ -1,3 +1,4 @@
+import { pipe } from "effect/Function";
 import { scopeProjectRef } from "@supaterm/client-runtime/environment";
 
 import { pullRequestDetailToVcsStatus } from "@supaterm/client-runtime/state/pull-requests";
@@ -352,8 +353,10 @@ export function ThreadPullRequestsMiniList({
   pullRequests: ReadonlyArray<ThreadPullRequestLink>;
   onOpenPullRequest?: (event: MouseEvent<HTMLAnchorElement>, url: string) => void;
 }) {
-  const lines = pullRequestListLines(
-    resolveThreadPullRequestChains(visibleThreadPullRequests(pullRequests)),
+  const lines = pipe(
+    visibleThreadPullRequests(pullRequests),
+    resolveThreadPullRequestChains,
+    pullRequestListLines,
   );
   if (lines.length === 0) return null;
   return (
