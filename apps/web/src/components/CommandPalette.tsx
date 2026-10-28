@@ -123,7 +123,7 @@ import { sourceControlEnvironment } from "../state/sourceControl";
 import { useAtomCommand } from "../state/use-atom-command";
 import { useAtomQueryRunner } from "../state/use-atom-query-runner";
 import { useScratchProject } from "../hooks/useScratchProject";
-import { useSendFeedback } from "../hooks/useSendFeedback";
+import { useStartTriage, useTriageEnvironmentId } from "../hooks/useStartTriage";
 import { useNewProject } from "../hooks/useNewProject";
 import { isScratchProject } from "@supaterm/client-runtime/state/projects";
 import {
@@ -547,7 +547,8 @@ function OpenCommandPaletteDialog(props: {
     reportFailure: false,
   });
   const { scratchEnvironmentId, scratchWorkspaceRootFor, startScratchThread } = useScratchProject();
-  const sendFeedback = useSendFeedback();
+  const startTriage = useStartTriage();
+  const triageEnvironmentId = useTriageEnvironmentId();
   const lookupRepository = useAtomQueryRunner(sourceControlEnvironment.repository, {
     reportFailure: false,
   });
@@ -1416,14 +1417,24 @@ function OpenCommandPaletteDialog(props: {
     });
   }
 
-  if (sendFeedback) {
+  if (triageEnvironmentId !== null) {
     actionItems.push({
       kind: "action",
       value: "action:send-feedback",
-      searchTerms: ["feedback", "report", "bug", "support", "triage", "help"],
+      searchTerms: [
+        "send feedback",
+        "report",
+        "bug",
+        "issue",
+        "broken",
+        "debug",
+        "support",
+        "triage",
+        "help",
+      ],
       title: "Send feedback",
       icon: <MessageSquareTextIcon className={ITEM_ICON_CLASS} />,
-      run: sendFeedback,
+      run: () => startTriage(triageEnvironmentId),
     });
   }
 

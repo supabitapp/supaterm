@@ -47,10 +47,6 @@
       "types": "./src/handoff.ts",
       "default": "./src/handoff.ts"
     },
-    "./feedback-prompt": {
-      "types": "./src/feedbackPrompt.ts",
-      "default": "./src/feedbackPrompt.ts"
-    },
     "./device/stream": {
       "types": "./src/device/stream.ts",
       "default": "./src/device/stream.ts"

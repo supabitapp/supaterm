@@ -1,3 +1,4 @@
+import { useAtomValue } from "@effect/atom-react";
 import { uuidv4 } from "../../lib/uuid";
 import { useNavigation } from "@react-navigation/native";
 import type { EnvironmentThreadSearchMatch } from "@supaterm/client-runtime/state/thread-search";
@@ -31,15 +32,25 @@ import { deriveBottomControlInsets } from "../../lib/reserved-regions";
 import { scopedProjectKey, scopedThreadKey } from "../../lib/scopedEntities";
 import { useNativeLayoutMetrics } from "../../native/native-layout-metrics";
 import { SupatermKeyboardCommands } from "../../native/SupatermKeyboardCommands";
-import { useProjects, useThreadShell, useThreadShells } from "../../state/entities";
+import { useActiveNewTask } from "../../state/active-new-task";
+import {
+  useProjects,
+  useServerConfigs,
+  useThreadShell,
+  useThreadShells,
+} from "../../state/entities";
 import { useThreadSearch } from "../../state/queries";
+import { serverEnvironment } from "../../state/server";
 import { useThreadProjection } from "../../state/use-thread-detail";
 import { useEnvironmentScope } from "../../state/session";
 import { useWorkspaceEnvironments } from "../../state/workspace";
 import { useSavedRemoteConnections } from "../../state/use-remote-environment-registry";
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
+import { useNewTaskFlow } from "../threads/new-task-flow-provider";
 import { ThreadSearchMatchExcerpt } from "../threads/thread-search-match";
+import { pickTriageEnvironment } from "../triage/triageTarget";
+import { useStartTriage } from "../triage/useStartTriage";
 import {
   filterCommandPaletteItems,
   nextPaletteIndex,
@@ -72,6 +83,7 @@ const ACTION_ICONS: Record<string, AppSymbolName> = {
   review: PullRequestGlyph.pullRequest,
   copyThreadReference: "link",
   forkThread: "arrow.triangle.branch",
+  sendFeedback: "text.bubble",
 };
 
 function itemIcon(item: CommandPaletteItem): AppSymbolName {
@@ -187,6 +199,22 @@ export function CommandPalette(props: {
     [environments],
   );
   const search = useThreadSearch(searchEnvironmentIds, query.startsWith(">") ? "" : query);
+  const serverConfigs = useServerConfigs();
+  const { startTriage } = useStartTriage();
+  const newTaskFlow = useNewTaskFlow();
+  const draftEnvironmentId =
+    useActiveNewTask() === null ? null : (newTaskFlow.selectedProject?.environmentId ?? null);
+  const triageEnvironmentId = pickTriageEnvironment({
+    // The route names the machine even before the thread shell loads.
+    onScreen: activeThreadRef?.environmentId ?? draftEnvironmentId,
+    connected: searchEnvironmentIds,
+    supportsTriage: (environmentId) =>
+      serverConfigs.get(environmentId)?.environment.capabilities.triage === true,
+  });
+  const canTriage =
+    useAtomValue(serverEnvironment.prepareTriage.permissionAtom(triageEnvironmentId)) &&
+    triageEnvironmentId !== null &&
+    serverConfigs.get(triageEnvironmentId)?.environment.capabilities.triage === true;
   const matchedThreadKeys = useMemo(
     () =>
       new Set(search.matches.map((match) => scopedThreadKey(match.environmentId, match.threadId))),
@@ -284,6 +312,17 @@ export function CommandPalette(props: {
           }),
       },
     ];
+    if (canTriage) {
+      actions.push({
+        key: "sendFeedback",
+        kind: "action",
+        title: "Send feedback",
+        // Mobile has no triage hero, so name the machine before it starts.
+        detail: `On ${savedConnectionsById[triageEnvironmentId]?.environmentLabel ?? "this machine"}`,
+        searchTerms: ["feedback", "report", "bug", "issue", "triage", "debug", "help", "support"],
+        run: () => void startTriage(triageEnvironmentId),
+      });
+    }
     const projectByKey = new Map(
       projects.map((project) => [scopedProjectKey(project.environmentId, project.id), project]),
     );
@@ -379,13 +418,16 @@ export function CommandPalette(props: {
     activeThread,
     activeThreadRef,
     canFork,
+    canTriage,
     navigation,
     projects,
     runCommand,
     savedConnectionsById,
     selectThread,
     selectThreadRoute,
+    startTriage,
     threads,
+    triageEnvironmentId,
   ]);
   const results = useMemo(
     () => filterCommandPaletteItems(items, query, matchedThreadKeys),

@@ -74,6 +74,8 @@ export function useNewThreadHandler() {
       envMode?: DraftThreadEnvMode;
       startFromOrigin?: boolean;
       replace?: boolean;
+      /** Composer text for the draft, set before it shows. A draft with user text keeps it. */
+      prompt?: string;
     },
   ): Promise<{ draftId: DraftId; threadId: ThreadId } | null> => {
     const projects = readProjects();
@@ -91,7 +93,14 @@ export function useNewThreadHandler() {
       setDraftThreadContext,
       setLogicalProjectDraftThreadId,
       setModelSelection,
+      setPrompt,
     } = useComposerDraftStore.getState();
+    // Never over text the user wrote: a draft can gain some while this awaits.
+    const seedPrompt = (draftId: DraftId) => {
+      if (options?.prompt === undefined) return;
+      if (composerDraftHasUserContent(getComposerDraft(draftId))) return;
+      setPrompt(draftId, options.prompt);
+    };
     const requestingRouteHref = router.state.location.href;
     const routeChangedSinceRequest = () => router.state.location.href !== requestingRouteHref;
     const currentRouteTarget = getCurrentRouteTarget();
@@ -240,6 +249,7 @@ export function useNewThreadHandler() {
           draftId: emptyStoredDraftThread.draftId,
           threadId: emptyStoredDraftThread.threadId,
         };
+        seedPrompt(emptyStoredDraftThread.draftId);
         const routeTargetAfterWrites = getCurrentRouteTarget();
         if (
           routeTargetAfterWrites?.kind === "draft" &&
@@ -277,6 +287,7 @@ export function useNewThreadHandler() {
         runtimeMode: latestActiveDraftThread.runtimeMode,
         ...pickExplicitWorkspaceOptions(options),
       });
+      seedPrompt(currentRouteTarget.draftId);
       return Promise.resolve({
         draftId: currentRouteTarget.draftId,
         threadId: latestActiveDraftThread.threadId,
@@ -316,6 +327,7 @@ export function useNewThreadHandler() {
           runtimeMode: racedDraft.runtimeMode,
           ...pickExplicitWorkspaceOptions(options),
         });
+        seedPrompt(racedDraft.draftId);
         await router.navigate({
           to: "/draft/$draftId",
           params: { draftId: racedDraft.draftId },
@@ -337,6 +349,7 @@ export function useNewThreadHandler() {
       if (modelSelectionOverride) {
         setModelSelection(draftId, modelSelectionOverride, { replaceOptions: true });
       }
+      seedPrompt(draftId);
       await router.navigate({
         to: "/draft/$draftId",
         params: { draftId },

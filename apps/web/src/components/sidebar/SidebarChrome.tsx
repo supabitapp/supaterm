@@ -13,7 +13,7 @@ import { parseKeybindingShortcut } from "@supaterm/shared/keybindings";
 
 import { APP_BASE_NAME, SOURCE_CODE_URL, WEBSITE_URL } from "../../branding";
 import { isElectron } from "../../env";
-import { useSendFeedback } from "../../hooks/useSendFeedback";
+import { useStartTriage, useTriageEnvironmentId } from "../../hooks/useStartTriage";
 import { useShortcutLabel } from "../../hooks/useShortcutLabel";
 import { formatShortcutLabel } from "../../keybindings";
 import { cn } from "../../lib/utils";
@@ -151,7 +151,8 @@ function openExternalLink(url: string) {
 }
 
 function SidebarHelpItem({ closeMobileSidebar }: { closeMobileSidebar: () => void }) {
-  const sendFeedback = useSendFeedback();
+  const startTriage = useStartTriage();
+  const triageEnvironmentId = useTriageEnvironmentId();
 
   return (
     <SidebarMenuItem className="ml-auto shrink-0">
@@ -166,11 +167,11 @@ function SidebarHelpItem({ closeMobileSidebar }: { closeMobileSidebar: () => voi
         </Tooltip>
         <MenuPopup side="top" align="end">
           <MenuItem
-            disabled={sendFeedback === null}
+            disabled={triageEnvironmentId === null}
             onClick={() => {
-              if (!sendFeedback) return;
+              if (triageEnvironmentId === null) return;
               closeMobileSidebar();
-              void sendFeedback();
+              void startTriage(triageEnvironmentId);
             }}
           >
             <MessageSquareTextIcon />

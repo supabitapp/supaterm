@@ -37,11 +37,20 @@ directory itself sits inside a Git checkout.
 ### Send feedback
 
 Choose **Help > Send feedback** at the bottom of the sidebar, or **Send feedback** in
-the command palette. On mobile, open **Settings > About Supaterm**. Supaterm opens a
-new thread under **No project** with a prepared message in the prompt, using your
-usual model and settings. Add anything you like and send it. The agent runs
-`supaterm triage --print`, asks what happened, and investigates on that machine.
-Review the report before the agent posts it to GitHub.
+the command palette. On mobile, open **Settings > About Supaterm**, or use the command
+palette with a hardware keyboard. Supaterm opens a new thread under **No project**
+with the triage playbook linked in the message. Choose any provider, describe what
+happened after the link, and send. Supaterm gets the source for the server's version
+while you write.
+
+The agent reads that machine's logs and state, checks the source, looks for known
+issues, and can help you write a GitHub issue. It asks before it applies a fix or
+posts anything. It runs inside that Supaterm server, so it gives you any restart
+steps and does not do them itself.
+
+Feedback goes to the machine of the thread or draft you have open. With nothing
+open, it uses your primary machine if that supports it, or else the first connected
+machine that does. On mobile, Settings asks which machine when more than one can.
 
 If the app cannot open, run `supaterm triage` in a terminal on the affected machine
 instead.

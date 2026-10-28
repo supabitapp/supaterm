@@ -1,6 +1,9 @@
 import * as Dialog from "../../components/ui/Dialog";
+import { useAtomValue } from "@effect/atom-react";
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
 import { availableScratchWorkspaceRoot } from "@supaterm/client-runtime/operations/projects";
+import type { EnvironmentId } from "@supaterm/contracts";
+import { Atom } from "effect/reactivity";
 import Constants from "expo-constants";
 import { settlePromise } from "@supaterm/client-runtime/state/runtime";
 import { useEffect, useRef, useState } from "react";
@@ -20,10 +23,11 @@ import { SettingsSection } from "./components/SettingsSection";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { SettingsActionRow } from "./components/SettingsActionRow";
 import type { SettingsTarget } from "./settings-environment-filter";
-import { useSendFeedback } from "./use-send-feedback";
+import { useStartTriage } from "../triage/useStartTriage";
 import { Menu } from "../../components/ui/Menu";
 import { useProjects } from "../../state/entities";
 import { useEnvironments } from "../../state/environments";
+import { serverEnvironment } from "../../state/server";
 
 export function SettingsAboutRouteScreen() {
   const insets = useSafeAreaInsets();
@@ -148,13 +152,24 @@ function AppSettingsSection() {
   );
 }
 
+// Keyed by the JSON list of candidate environments, so each list keeps one atom across renders.
+const triagePermittedEnvironmentsAtom = Atom.family((environmentIdsJson: string) =>
+  Atom.make((get) => {
+    const environmentIds: ReadonlyArray<EnvironmentId> = JSON.parse(environmentIdsJson);
+    return new Set(
+      environmentIds.filter((id) => get(serverEnvironment.prepareTriage.permissionAtom(id))),
+    );
+  }),
+);
+
 function FeedbackSettingsAction() {
   const projects = useProjects();
   const { environments } = useEnvironments();
-  const { sendFeedback, isPending } = useSendFeedback();
-  const eligibleTargets = environments.filter(
+  const { startTriage, isPending } = useStartTriage();
+  const capableTargets = environments.filter(
     (target): target is SettingsTarget =>
       target.serverConfig !== null &&
+      target.serverConfig.environment.capabilities.triage === true &&
       availableScratchWorkspaceRoot({
         environmentId: target.environmentId,
         connectionPhase: target.connection.phase,
@@ -162,7 +177,14 @@ function FeedbackSettingsAction() {
         projects,
       }) !== null,
   );
-  const sendTo = (target: (typeof eligibleTargets)[number]) => void sendFeedback(target);
+  const permitted = useAtomValue(
+    triagePermittedEnvironmentsAtom(
+      JSON.stringify(capableTargets.map((target) => target.environmentId)),
+    ),
+  );
+  const eligibleTargets = capableTargets.filter((target) => permitted.has(target.environmentId));
+  const sendTo = (target: (typeof eligibleTargets)[number]) =>
+    void startTriage(target.environmentId);
   const row = (
     <SettingsActionRow
       icon="text.bubble"

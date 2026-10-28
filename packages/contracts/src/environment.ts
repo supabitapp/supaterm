@@ -98,6 +98,8 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
       servers the desktop app does not supervise, where clients tell the user
       to update the app on that machine. */
   desktopAppUpdate: Schema.optionalKey(Schema.Boolean),
+  /** Server answers server.prepareTriage. */
+  triage: Schema.optionalKey(Schema.Boolean),
 });
 export type ExecutionEnvironmentCapabilities = typeof ExecutionEnvironmentCapabilities.Type;
 
