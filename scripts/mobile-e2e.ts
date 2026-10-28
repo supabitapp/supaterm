@@ -61,7 +61,7 @@ async function runPose(
     await device.install(client);
     log(`${pose.id}: preparing device automation`);
     await device.prepare();
-    log(`${pose.id}: starting fixture services`);
+    log(`${pose.id}: preparing Metro`);
     const { metroPort, pair } = await prepareServices();
     const host = pose.platform === "ios" ? "127.0.0.1" : "10.0.2.2";
     log(`${pose.id}: launching app`);
@@ -191,16 +191,17 @@ async function main() {
     interruption.signal.throwIfAborted();
     await NodeFSP.writeFile(NodePath.join(output, "native-client.txt"), `${client}\n`);
     await captureHostResources(output, "After native build");
+    log("Starting the fixture server before devices");
+    const [environment] = await startShowcaseEnvironments(
+      root,
+      (server) => servers.push(server),
+      SHOWCASE_ENVIRONMENTS.slice(0, 1),
+    );
+    if (!environment) throw new Error("The fixture environment did not start.");
+    interruption.signal.throwIfAborted();
     let services: Promise<PoseServices> | undefined;
     const prepareServices = () => {
       services ??= (async () => {
-        const [environment] = await startShowcaseEnvironments(
-          root,
-          (server) => servers.push(server),
-          SHOWCASE_ENVIRONMENTS.slice(0, 1),
-        );
-        if (!environment) throw new Error("The fixture environment did not start.");
-        interruption.signal.throwIfAborted();
         const metroPort = await reserveAvailablePort();
         metro = NodeChildProcess.spawn(
           "vp",

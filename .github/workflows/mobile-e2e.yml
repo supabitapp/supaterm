@@ -45,6 +45,10 @@ on:
         description: Space-separated pose IDs, empty runs every supported pose
         type: string
         default: ""
+      diagnose_ios_install:
+        description: Capture install diagnostics with a 15-minute probe deadline
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -86,6 +90,7 @@ jobs:
       SUPATERM_E2E_ANDROID_IMAGE: system-images;android-36;google_apis;x86_64
       ORG_GRADLE_PROJECT_reactNativeArchitectures: x86_64
       GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2
+      SUPATERM_E2E_IOS_INSTALL_PROBE: ${{ github.event_name == 'workflow_dispatch' && inputs.diagnose_ios_install && matrix.platform == 'ios' && '1' || '0' }}
     steps:
       - uses: actions/checkout@v7
         with:

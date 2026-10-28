@@ -1,4 +1,4 @@
-// @effect-diagnostics nodeBuiltinImport:off globalTimers:off - Host-side device automation uses Node subprocesses.
+// @effect-diagnostics nodeBuiltinImport:off globalTimers:off globalDate:off - Host-side device automation uses Node subprocesses.
 import * as NodeProcess from "node:process";
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";
@@ -39,12 +39,17 @@ export function run(
     readonly logPath?: string;
     readonly processGroup?: boolean;
     readonly signal?: AbortSignal | null;
+    readonly onSpawn?: (pid: number) => void;
   } = {},
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const signal = options.signal === undefined ? runSignal : options.signal;
     if (signal?.aborted) return reject(signal.reason);
     const log = options.logPath ? NodeFS.createWriteStream(options.logPath, { flags: "a" }) : null;
+    const lifecycle = (event: string, details: Record<string, unknown> = {}) => {
+      if (log?.writable && !log.writableEnded)
+        log.write(`${JSON.stringify({ time: new Date().toISOString(), event, ...details })}\n`);
+    };
     const grouped = options.processGroup === true && NodeProcess.platform !== "win32";
     const child = NodeChildProcess.spawn(command, args, {
       cwd: options.cwd ?? REPO_ROOT,
@@ -52,6 +57,15 @@ export function run(
       stdio: ["ignore", "pipe", "pipe"],
       detached: grouped,
     });
+    child.once("spawn", () => {
+      lifecycle("spawn", { pid: child.pid });
+      if (child.pid) {
+        try {
+          options.onSpawn?.(child.pid);
+        } catch {}
+      }
+    });
+    child.once("exit", (code, signal) => lifecycle("exit", { code, signal }));
     const timeoutMs = options.timeoutMs ?? 120_000;
     let timedOut = false;
     let interrupted = false;
@@ -64,11 +78,13 @@ export function run(
     };
     const timeout = setTimeout(() => {
       timedOut = true;
+      lifecycle("timeout", { timeoutMs });
       sendSignal("SIGTERM");
       forceKill = setTimeout(() => sendSignal("SIGKILL"), 5_000);
     }, timeoutMs);
     const abort = () => {
       interrupted = true;
+      lifecycle("abort");
       clearTimeout(timeout);
       if (forceKill) clearTimeout(forceKill);
       sendSignal("SIGTERM");
@@ -96,6 +112,7 @@ export function run(
       reject(error);
     });
     child.once("close", (code, exitSignal) => {
+      lifecycle("close", { code, signal: exitSignal });
       if ((timedOut || interrupted) && grouped) sendSignal("SIGKILL");
       clearTimers();
       log?.end();
