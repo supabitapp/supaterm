@@ -51,10 +51,15 @@ describe("Enriched link presentation", () => {
   });
 
   it("presents thread links as thread chips and leaves other links alone", () => {
-    expect(enrichedThreadLinkPresentation("supaterm-thread://v1/thread%3Aproject%3A1")).toEqual({
-      accent: "#009c96",
-      icon: { kind: "chip", name: "messages-square" },
-    });
+    for (const href of [
+      "supaterm-thread://v1/thread%3Aproject%3A1",
+      "supaterm-thread://v2/env/thread_1",
+    ]) {
+      expect(enrichedThreadLinkPresentation(href), href).toEqual({
+        accent: "#009c96",
+        icon: { kind: "chip", name: "messages-square" },
+      });
+    }
     for (const href of [
       "https://github.com/example/repo/pull/7",
       "https://example.com",
@@ -70,7 +75,7 @@ describe("Enriched link presentation", () => {
     expect(
       threadChipTargets(
         here,
-        "See [A](supaterm-thread://v1/thread_a), [A again](supaterm-thread://v1/thread_a) and [B](supaterm-thread://v1/thread_b).",
+        "See [A](supaterm-thread://v1/thread_a), [A again](supaterm-thread://v1/thread_a), [B](supaterm-thread://v1/thread_b) and [D](supaterm-thread://v2/env-there/thread_d).",
         [
           {
             version: 1,
@@ -94,6 +99,12 @@ describe("Enriched link presentation", () => {
         href: "supaterm-thread://v1/thread_b",
         environmentId: here,
         threadId: "thread_b",
+        link: true,
+      },
+      {
+        href: "supaterm-thread://v2/env-there/thread_d",
+        environmentId: there,
+        threadId: "thread_d",
         link: true,
       },
       {

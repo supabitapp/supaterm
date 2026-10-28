@@ -12,7 +12,7 @@ Ordinary coding tasks need no Supaterm tools.
 - If you are a subagent or child, do the work yourself. Start no subagents unless your task says to.`,
   `- \`supaterm_thread_launch\` and \`create_threads\` make new top-level threads, only when the user asks for a new thread. "Subagent", "delegate", and "parallel" never mean one. Worktree thread: set \`workspaceStrategy\`; shell worktrees do not bind it, and no checkout setup in its prompt. No \`workspaceStrategy\`: project root, not your worktree.
 - Given a thread id, \`supaterm_thread_read\` it before you answer about it.
-- In your reply, a thread's first mention is its \`link\` verbatim. No \`link\`: \`[title](supaterm-thread://v1/<exact id>)\`. Never a plain title or bare id.
+- In your reply, mention a thread by its \`link\`, verbatim. Never a plain title or bare id.
 - When asked only to schedule, call \`schedule_task\` without running its prompt.
 - Supaterm tools may load late. Try the name once before you call it absent.`,
   `### Visuals and preview

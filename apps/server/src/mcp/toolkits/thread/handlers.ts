@@ -11,6 +11,7 @@ import * as Effect from "effect/Effect";
 import { modelSelectionCommandType } from "@supaterm/shared/model";
 import { formatThreadLink } from "@supaterm/shared/threadLinks";
 
+import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
 import {
   dispatchFailure,
@@ -93,9 +94,11 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
       const { task, threadId } = yield* scheduler
         .runNow({ id: input.taskId })
         .pipe(Effect.mapError(unavailable));
+      const { environmentId } = yield* McpInvocationContext.McpInvocationContext;
       return {
         taskId: task.id,
         threadId,
+        ...(threadId === null ? {} : { link: formatThreadLink({ environmentId, threadId }) }),
         lastRunStatus: task.lastRunStatus,
         runCount: task.runCount,
         nextRunAt: task.nextRunAt,
@@ -105,6 +108,7 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
   supaterm_thread_search: McpToolAccess.reads((input) =>
     Effect.gen(function* () {
       const { caller } = yield* readCaller();
+      const { environmentId } = yield* McpInvocationContext.McpInvocationContext;
       const threadSearch = yield* ThreadSearch.ThreadSearch;
       const { matches } = yield* threadSearch
         .searchThreads({ ...input, projectId: input.projectId ?? caller?.projectId })
@@ -112,7 +116,7 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
       return {
         matches: matches.map((match) => ({
           ...match,
-          link: formatThreadLink(match.threadId, match.title),
+          link: formatThreadLink({ environmentId, threadId: match.threadId }),
         })),
       };
     }),

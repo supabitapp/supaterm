@@ -1,7 +1,7 @@
 import { Button } from "../../components/ui/Button";
 import { QuestionAttachments } from "./QuestionAttachments";
 import * as Haptics from "expo-haptics";
-import type { RuntimeRequestId } from "@supaterm/contracts";
+import type { EnvironmentId, RuntimeRequestId } from "@supaterm/contracts";
 import type { ThreadUserInputQuestion } from "@supaterm/client-runtime/state/thread-requests";
 import {
   useCallback,
@@ -51,6 +51,7 @@ import { SYSTEM_FONT_FAMILY } from "../../lib/fonts";
 import { SelectableMarkdownText } from "../../native/SelectableMarkdownText";
 import { useOpenPullRequest } from "../../native/useOpenPullRequest";
 import { useMarkdownPreviewStyles } from "../files/FileMarkdownPreview";
+import { useLiveThreadLinkLabels } from "../../state/entities";
 import {
   isPendingUserInputOptionSelected,
   isPendingUserInputQuestionAnswered,
@@ -60,6 +61,7 @@ import {
 } from "../../lib/threadActivity";
 
 export interface PendingUserInputCardProps {
+  readonly environmentId: EnvironmentId;
   readonly canOperateThread: boolean;
   readonly pendingUserInput: PendingUserInput;
   readonly maxHeight: DerivedValue<number>;
@@ -160,8 +162,9 @@ function QuestionPage(props: {
   );
 }
 
-function QuestionText(props: { readonly markdown: string }) {
+function QuestionText(props: { readonly markdown: string; readonly environmentId: EnvironmentId }) {
   const styles = useMarkdownPreviewStyles();
+  const markdown = useLiveThreadLinkLabels(props.markdown, props.environmentId);
   const openLink = useOpenPullRequest();
   const textStyle = useMemo(
     () => ({ ...styles.nativeTextStyle, fontFamily: SYSTEM_FONT_FAMILY, fontWeight: "500" }),
@@ -169,7 +172,7 @@ function QuestionText(props: { readonly markdown: string }) {
   );
   return (
     <SelectableMarkdownText
-      markdown={props.markdown}
+      markdown={markdown}
       textStyle={textStyle}
       onLinkPress={(href) => void openLink(href)}
     />
@@ -438,7 +441,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
           ) : null}
           {question ? (
             <>
-              <QuestionText markdown={question.question} />
+              <QuestionText markdown={question.question} environmentId={props.environmentId} />
               {question.multiSelect ? (
                 <Text className="font-sans text-xs text-foreground-muted">
                   Select one or more options.
