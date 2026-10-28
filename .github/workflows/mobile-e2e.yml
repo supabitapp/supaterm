@@ -43,6 +43,7 @@ jobs:
       matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     env:
       NODE_OPTIONS: --max-old-space-size=6144
+      VP_DOWNLOAD_TIMEOUT: "120"
       APP_VARIANT: development
       MOBILE_VERSION_POLICY: appVersion
       SUPATERM_IOS_PERSONAL_TEAM: "0"
@@ -60,10 +61,30 @@ jobs:
           echo "DEVELOPER_DIR=/Applications/Xcode_27.1.app/Contents/Developer" >> "$GITHUB_ENV"
           /Applications/Xcode_27.1.app/Contents/Developer/usr/bin/xcodebuild -version
           defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
+      - name: Configure Vite+ runtime
+        id: vp
+        run: |
+          node_version="$(mise current node)"
+          vp_version="$(mise current github:voidzero-dev/vite-plus)"
+          package_manager="$(jq -r .packageManager package.json)"
+          echo "VP_HOME=$RUNNER_TEMP/mobile-e2e-vite-plus" >> "$GITHUB_ENV"
+          echo "key=mobile-e2e-vp-v1-$RUNNER_OS-$RUNNER_ARCH-$vp_version-node$node_version-$package_manager" >> "$GITHUB_OUTPUT"
+      - name: Restore Vite+ runtime
+        id: vp-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.VP_HOME }}
+          key: ${{ steps.vp.outputs.key }}
       - name: Install dependencies
         run: |
           mise exec -- pnpm config set virtualStoreType project --location project
           mise exec -- vp install --filter=@supaterm/mobile... --filter=@supaterm/scripts... --filter=supaterm...
+      - name: Save Vite+ runtime
+        if: steps.vp-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ env.VP_HOME }}
+          key: ${{ steps.vp-cache.outputs.cache-primary-key }}
       - uses: actions/setup-java@v6
         if: matrix.platform == 'android'
         with:
