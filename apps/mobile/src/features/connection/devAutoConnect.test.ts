@@ -59,12 +59,14 @@ vi.mock("../../lib/rootNavigation", () => ({
   },
 }));
 
+import { findLinkedRoute } from "../../lib/appLinking";
 import { appAtomRegistry } from "../../state/atom-registry";
 import {
   autoConnectReport,
   devAutoConnectAttemptAtom,
   pairingFormLinkAction,
   startDevAutoConnect,
+  withoutPairingTarget,
 } from "./devAutoConnect";
 
 const PAIRING_URL = "http://192.168.1.10:3773/pair#token=abc";
@@ -85,7 +87,7 @@ it("pairs from a nested settings link once, reports failure, and closes the form
 
   const state = settingsLink({ pairingUrl: ` ${PAIRING_URL} `, autoConnect: "1" });
   expect(startDevAutoConnect(state)).toBe(state);
-  expect(harness.pair).toHaveBeenCalledExactlyOnceWith(PAIRING_URL, undefined);
+  expect(harness.pair).toHaveBeenCalledExactlyOnceWith(PAIRING_URL);
   expect(appAtomRegistry.get(devAutoConnectAttemptAtom)).toEqual({
     pairingUrl: PAIRING_URL,
     status: "connecting",
@@ -255,4 +257,33 @@ it("fills the Settings pairing form open inside the settings sheet's own stack",
     source: "new",
     target: "settings-stack",
   });
+});
+
+it("a link cannot aim a pairing at a saved environment", () => {
+  vi.stubGlobal("__DEV__", true);
+  harness.pair.mockClear();
+  harness.pair.mockResolvedValue({ ok: false, error: null });
+  const linking = {
+    initialRouteName: "Home",
+    screens: {
+      Home: "",
+      Settings: { path: "settings", screens: { SettingsEnvironmentNew: "environment-new" } },
+      ConnectionsNew: "connections/new",
+    },
+  };
+  for (const path of ["connections/new", "settings/environment-new"]) {
+    const link = withoutPairingTarget(
+      getStateFromPath(
+        `${path}?routeFor=victim&pairingUrl=${encodeURIComponent(PAIRING_URL)}&autoConnect=1`,
+        linking,
+      ),
+    );
+    expect(findLinkedRoute(link, ["ConnectionsNew", "SettingsEnvironmentNew"])?.params).toEqual({
+      pairingUrl: PAIRING_URL,
+      autoConnect: "1",
+    });
+
+    startDevAutoConnect(link);
+    expect(harness.pair).toHaveBeenLastCalledWith(PAIRING_URL);
+  }
 });

@@ -49,7 +49,11 @@ import { OverlayPortalHost } from "./components/ui/OverlayPortal";
 import { shouldHandleAppLink, restoreDraftLinkState } from "./lib/appLinking";
 import { disarmInlineConfirmsOnTouch } from "./lib/useInlineConfirm";
 import { takeScheduledTaskNewLink } from "./features/settings/scheduled-task-editor-state";
-import { pairingFormLinkAction, startDevAutoConnect } from "./features/connection/devAutoConnect";
+import {
+  pairingFormLinkAction,
+  startDevAutoConnect,
+  withoutPairingTarget,
+} from "./features/connection/devAutoConnect";
 import {
   resolvePendingNewTaskPromptLink,
   takeNewTaskPromptLink,
@@ -89,8 +93,10 @@ const linkingConfig = {
 function getAppStateFromPath(path: string, options: Parameters<typeof getStateFromPath>[1]) {
   return takeScheduledTaskNewLink(
     startDevAutoConnect(
-      takeNewTaskPromptLink(
-        takeThreadPromptLink(restoreDraftLinkState(getStateFromPath(path, options), path)),
+      withoutPairingTarget(
+        takeNewTaskPromptLink(
+          takeThreadPromptLink(restoreDraftLinkState(getStateFromPath(path, options), path)),
+        ),
       ),
     ),
   );
