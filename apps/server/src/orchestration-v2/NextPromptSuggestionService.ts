@@ -93,10 +93,17 @@ const make = Effect.gen(function* () {
     );
     const latest = messages.at(-1);
     if (latest?.role !== "assistant" || latest.runId !== key.runId) return null;
-    // As Claude does for itself: too little conversation to read the user's intent, and in plan
-    // mode the next step is the plan decision, not a typed message.
+    const { turnItems } = yield* threads.getThreadRecords(key.threadId, ["turnItems"], {
+      turnItemRunIds: [key.runId],
+      turnItemTypes: NEXT_PROMPT_ACTIVITY_TYPES,
+    });
+    // As Claude does for itself: a lone first answer says too little about the user's intent,
+    // and in plan mode the next step is the plan decision. Claude counts every model response,
+    // tool calls included, so a first turn that did work still qualifies.
     const replies = messages.filter((message) => message.role === "assistant").length;
-    if (replies < 2 || projection.thread.interactionMode === "plan") return null;
+    if ((replies < 2 && turnItems.length === 0) || projection.thread.interactionMode === "plan") {
+      return null;
+    }
 
     const project = yield* projects.get(projection.thread.projectId);
     if (Option.isNone(project)) return null;
@@ -104,10 +111,6 @@ const make = Effect.gen(function* () {
       yield* serverSettings.getSettings,
       projection.thread.projectId,
     ).settings;
-    const { turnItems } = yield* threads.getThreadRecords(key.threadId, ["turnItems"], {
-      turnItemRunIds: [key.runId],
-      turnItemTypes: NEXT_PROMPT_ACTIVITY_TYPES,
-    });
     const generated = yield* textGeneration.generateNextPrompt({
       cwd: projection.thread.worktreePath ?? project.value.workspaceRoot,
       conversation: formatThreadTitleContext(messages).message,

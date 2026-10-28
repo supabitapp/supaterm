@@ -384,11 +384,28 @@ describe("NextPromptSuggestionService", () => {
     }).pipe(Effect.provide(layer));
   });
 
-  it.effect("does not call a model before the conversation has two replies", () => {
+  it.effect("does not call a model for a lone first answer", () => {
     const { layer, generateNextPrompt } = makeLayer({ turns: [answeredTurns[0]!] });
     return Effect.gen(function* () {
       assert.deepStrictEqual(yield* suggest("run-1"), { suggestion: null });
       assert.strictEqual(generateNextPrompt.mock.calls.length, 0);
+    }).pipe(Effect.provide(layer));
+  });
+
+  it.effect("suggests after a first turn in which the agent did work", () => {
+    const { layer, generateNextPrompt } = makeLayer({
+      turns: [
+        {
+          ...answeredTurns[0]!,
+          commands: [{ input: "vp test run", output: "2 failed", exitCode: 1 }],
+        },
+      ],
+    });
+    return Effect.gen(function* () {
+      assert.deepStrictEqual(yield* suggest("run-1"), {
+        suggestion: "yes, score rows on the same shots",
+      });
+      assert.strictEqual(generateNextPrompt.mock.calls.length, 1);
     }).pipe(Effect.provide(layer));
   });
 
