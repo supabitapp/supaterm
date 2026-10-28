@@ -31,7 +31,7 @@ const copyTriageCliCommand = () =>
     }),
   );
 
-/** The machine "Triage an issue" runs on, or null when no machine offers it to this client. */
+/** The machine Send feedback triages, or null when no machine offers triage to this client. */
 export function useTriageEnvironmentId(): EnvironmentId | null {
   const target = resolveThreadRouteTarget(useParams({ strict: false }));
   const draftEnvironmentId = useComposerDraftStore((store) =>
@@ -59,8 +59,7 @@ export function useTriageEnvironmentId(): EnvironmentId | null {
 /**
  * In-app `supaterm triage`: the server writes the session files and starts cloning
  * the matching source, then a No project draft opens with the playbook linked.
- * The draft hero explains the rest; the user picks a provider and describes
- * the problem.
+ * The user picks a provider and describes the problem after the link.
  */
 export function useStartTriage() {
   const router = useRouter();

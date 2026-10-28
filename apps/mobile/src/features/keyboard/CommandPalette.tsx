@@ -83,7 +83,7 @@ const ACTION_ICONS: Record<string, AppSymbolName> = {
   review: PullRequestGlyph.pullRequest,
   copyThreadReference: "link",
   forkThread: "arrow.triangle.branch",
-  triage: "ladybug",
+  sendFeedback: "text.bubble",
 };
 
 function itemIcon(item: CommandPaletteItem): AppSymbolName {
@@ -314,22 +314,12 @@ export function CommandPalette(props: {
     ];
     if (canTriage) {
       actions.push({
-        key: "triage",
+        key: "sendFeedback",
         kind: "action",
-        title: "Triage an issue",
+        title: "Send feedback",
         // Mobile has no triage hero, so name the machine before it starts.
         detail: `On ${savedConnectionsById[triageEnvironmentId]?.environmentLabel ?? "this machine"}`,
-        searchTerms: [
-          "triage",
-          "bug",
-          "issue",
-          "report",
-          "broken",
-          "debug",
-          "feedback",
-          "help",
-          "support",
-        ],
+        searchTerms: ["feedback", "report", "bug", "issue", "triage", "debug", "help", "support"],
         run: () => void startTriage(triageEnvironmentId),
       });
     }

@@ -149,7 +149,7 @@ user's environment and evidence instead of filing a new issue. A confirmed
 duplicate with fresh evidence is more useful than a second thread.
 `;
 
-/** Where the session started: the `supaterm triage` CLI, or "Triage an issue" in a client. */
+/** Where the session started: the `supaterm triage` CLI, or "Send feedback" in a client. */
 export type TriageEntry =
   | { readonly kind: "cli"; readonly cliVersion: string; readonly launchedAs: string }
   | { readonly kind: "app"; readonly client: string };
@@ -243,7 +243,7 @@ const entryLines = (entry: TriageEntry) =>
       }
     : {
         generatedBy: "the Supaterm app",
-        before: `- Started from: ${entry.client} (the client the user pressed "Triage an issue" in; the bug may have happened on another device)`,
+        before: `- Started from: ${entry.client} (the client the user pressed "Send feedback" in; the bug may have happened on another device)`,
         after: undefined,
       };
 
