@@ -39,7 +39,6 @@ export function run(
     readonly logPath?: string;
     readonly processGroup?: boolean;
     readonly signal?: AbortSignal | null;
-    readonly onSpawn?: (pid: number) => void;
   } = {},
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
@@ -59,11 +58,6 @@ export function run(
     });
     child.once("spawn", () => {
       lifecycle("spawn", { pid: child.pid });
-      if (child.pid) {
-        try {
-          options.onSpawn?.(child.pid);
-        } catch {}
-      }
     });
     child.once("exit", (code, signal) => lifecycle("exit", { code, signal }));
     const timeoutMs = options.timeoutMs ?? 120_000;

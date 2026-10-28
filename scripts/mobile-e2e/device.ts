@@ -19,7 +19,6 @@ import type { Snapshot } from "./checks.ts";
 import type { Pose } from "./poses.ts";
 import { delay, REPO_ROOT, run } from "./process.ts";
 import { recordIos } from "./recording.ts";
-import { installIos, installProbeEnabled } from "./ios-install.ts";
 
 export class DeviceCleanupError extends Error {}
 
@@ -221,7 +220,11 @@ export class Device {
   }
 
   async install(artifact: string) {
-    if (this.pose.platform === "ios") await installIos(this.id, artifact, this.directory);
+    if (this.pose.platform === "ios")
+      await run("xcrun", ["simctl", "install", this.id, artifact], {
+        timeoutMs: 300_000,
+        logPath: NodePath.join(this.directory, "simulator-install.log"),
+      });
     else
       await run(androidSdkTool("platform-tools/adb"), [
         "-s",
@@ -290,11 +293,10 @@ export class Device {
       const prepared = await this.agent(["prepare", "ios-runner", "--timeout", "300000"], {
         timeoutMs: 360_000,
       });
-      if (installProbeEnabled())
-        await NodeFSP.writeFile(
-          NodePath.join(this.directory, "automation-prepare.json"),
-          JSON.stringify(prepared, null, 2),
-        ).catch(() => undefined);
+      await NodeFSP.writeFile(
+        NodePath.join(this.directory, "automation-prepare.json"),
+        JSON.stringify(prepared, null, 2),
+      ).catch(() => undefined);
       await normalizeIosSimulator(this.pose.appearance, this.id);
       if (this.pose.textSize)
         await run("xcrun", ["simctl", "ui", this.id, "content_size", "accessibility-large"]);

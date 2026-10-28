@@ -192,9 +192,6 @@ dispatching it. Each iOS pose runs on a separate host. Download the `mobile-e2e-
 `mobile-e2e-android` artifact and open `index.html` for the checks, screenshots, and transition
 recordings.
 
-For the iPadOS 26.5 comparison, select `ios_runner=macos-26` and explicit iPad poses. It uses
-Xcode 26.6, with `ios-26-5` in the artifact name. The default runner uses Xcode 27.
-
 For local reproduction on a prepared device host, run these commands from the repository root:
 
 ```sh
