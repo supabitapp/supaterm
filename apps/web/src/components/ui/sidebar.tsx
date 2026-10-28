@@ -25,6 +25,7 @@ import {
 } from "~/components/ui/resizable";
 import { useMediaQuery } from "~/hooks/useMediaQuery";
 import { resolveSidebarState, type ResponsiveSidebarState } from "./sidebarState";
+import { announceSidebarVisibility } from "~/lib/accessibilityAnnouncements";
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
@@ -108,7 +109,10 @@ function createSidebarOpenStore(defaultOpen: boolean) {
   };
   const setOpen = (open: boolean) => {
     if (!open && state.open) moveFocusOutOfCollapsingSidebar();
-    if (open !== state.open) publish({ ...state, open });
+    if (open !== state.open) {
+      if (!isMobileViewport()) announceSidebarVisibility(open);
+      publish({ ...state, open });
+    }
     void persistSidebarOpen(open);
   };
   const setOpenMobile = (openMobile: boolean) => {
@@ -233,7 +237,7 @@ function Sidebar({
           }
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>Sidebar</SheetTitle>
+            <SheetTitle>{props["aria-label"] ?? "Sidebar"}</SheetTitle>
             <SheetDescription>Displays the mobile sidebar.</SheetDescription>
           </SheetHeader>
           <div

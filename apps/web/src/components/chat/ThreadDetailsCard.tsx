@@ -1,3 +1,4 @@
+import { requestWorkspaceFocus, workspaceAreaProps } from "../../lib/workspaceFocus";
 import {
   useLayoutEffect,
   useState,
@@ -35,6 +36,8 @@ export function ThreadDetailsCard({
   const preferredPlacement = canvas?.preferredDetailsCard ?? null;
   const placement = canvas?.detailsCardPlacement ?? null;
   const mode = placement ? "inline" : "popover";
+  const detailsArea = workspaceAreaProps("details", 3, "Thread details");
+  const detailsFocusKey = `details:${threadRef.environmentId}:${threadRef.threadId}`;
   const topInset = canvas?.detailsCardTopInset ?? 0;
   const inlineOpen = useRightPanelStore((state) =>
     selectThreadPanelOpen(state.threadPanelVisibilityByThreadKey, threadRef, "inline"),
@@ -164,6 +167,7 @@ export function ThreadDetailsCard({
       {placement ? (
         <InlineThreadDetails
           key={threadKey}
+          areaProps={{ ...detailsArea, "data-workspace-focus-key": detailsFocusKey }}
           open={inlineOpen}
           density={density}
           style={{
@@ -180,6 +184,13 @@ export function ThreadDetailsCard({
           mounted, because its exit animation never finishes. Staying in the tree
           lets it close cleanly when the card switches inline. */}
       <PopoverPopup
+        {...(mode === "popover" ? detailsArea : {})}
+        role="dialog"
+        data-workspace-focus-key={detailsFocusKey}
+        initialFocus={() => {
+          requestWorkspaceFocus({ area: "details" });
+          return false;
+        }}
         anchor={anchor}
         align="end"
         // Lines the card up with the find bar: the panel pads its card by 8px.
@@ -204,11 +215,13 @@ type PresenceProps = ReturnType<typeof usePresence>["props"];
 
 /** Keyed by thread, so switching threads shows or removes the card without an entrance. */
 function InlineThreadDetails({
+  areaProps,
   open,
   density,
   style,
   children,
 }: {
+  areaProps: ReturnType<typeof workspaceAreaProps> & { "data-workspace-focus-key": string };
   open: boolean;
   density: "full" | "compact" | "essential";
   style: CSSProperties;
@@ -218,7 +231,7 @@ function InlineThreadDetails({
   if (!presence.value) return null;
   return (
     <aside
-      aria-label="Thread details"
+      {...areaProps}
       inert={presence.exiting}
       className="absolute z-20"
       style={style}

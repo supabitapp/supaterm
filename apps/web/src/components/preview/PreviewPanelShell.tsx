@@ -1,5 +1,6 @@
 import { use, useLayoutEffect, useRef, type ReactNode } from "react";
 import { MaximizedContext } from "./PreviewPanelLayout";
+import { workspaceAreaProps } from "../../lib/workspaceFocus";
 
 import { cn } from "~/lib/utils";
 
@@ -10,11 +11,15 @@ export type PreviewPanelMode = "inline" | "sheet" | "sidebar" | "embedded";
  * in inline mode, the sheet or sidebar otherwise.
  */
 export function PreviewPanelShell(props: {
+  workspaceArea?: boolean;
+  workspaceFocusKey?: string;
+  workspaceLabel?: string;
   mode: PreviewPanelMode;
   open?: boolean;
   children: ReactNode;
 }) {
   const maximized = use(MaximizedContext);
+  const panelArea = workspaceAreaProps("panel", 4, props.workspaceLabel ?? "Workspace panel");
   const hostRef = useRef<HTMLDivElement>(null);
   const returnedFocus = useRef(false);
   const collapsible = props.mode === "inline" && props.open !== undefined;
@@ -50,6 +55,9 @@ export function PreviewPanelShell(props: {
   return (
     <div
       ref={hostRef}
+      {...(props.workspaceArea ? panelArea : {})}
+      data-workspace-focus-key={props.workspaceFocusKey}
+      data-workspace-unavailable={collapsible && !open ? "true" : undefined}
       className={cn(
         "relative flex h-full min-h-0 w-full min-w-0 max-w-full flex-col self-stretch bg-background",
         props.mode === "inline" && !maximized && "border-l border-border",

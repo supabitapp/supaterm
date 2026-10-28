@@ -47,6 +47,8 @@ import { isChatPaneWorkspaceMounted } from "../chatPanes/actions";
 import { focusedPane } from "../chatPanes/layout";
 
 const PREVIEW_FORWARDED_LAYOUT_COMMANDS = [
+  "workspace.focusNext",
+  "workspace.focusPrevious",
   "sidebar.toggle",
   "rightPanel.toggle",
   "rightPanel.toggleMaximized",

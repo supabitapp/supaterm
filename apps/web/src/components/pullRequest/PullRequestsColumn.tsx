@@ -13,6 +13,7 @@ import {
 } from "../WorkspaceBreadcrumb";
 import { WorkspacePageContainer } from "../WorkspacePageContainer";
 import { WorkspacePageHeader } from "../WorkspacePageHeader";
+import { workspaceAreaProps } from "../../lib/workspaceFocus";
 import { PullRequestCompactFilterMenu } from "./PullRequestCompactFilterMenu";
 import type { PullRequestFilterOption } from "./PullRequestListFilters";
 import { INVOLVEMENT_TABS, STATE_TABS } from "./pullRequestListOptions";
@@ -106,6 +107,7 @@ export function PullRequestsColumn({
   listBody: ReactNode;
   scrollRef: RefObject<HTMLDivElement | null>;
 }) {
+  const contentArea = workspaceAreaProps("pull-requests", 1, "Pull requests");
   const markerRef = useRef<HTMLDivElement | null>(null);
   const [condensed, setCondensed] = useState(false);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- IntersectionObserver on the scroll marker condenses the topbar
@@ -155,7 +157,10 @@ export function PullRequestsColumn({
   }, [condensed]);
 
   return (
-    <div className="@container/pr-list flex h-full min-h-0 min-w-0 flex-col overflow-x-hidden bg-background">
+    <div
+      {...contentArea}
+      className="@container/pr-list flex h-full min-h-0 min-w-0 flex-col overflow-x-hidden bg-background"
+    >
       <WorkspacePageHeader
         electron={isElectron}
         reserveNativeControls={!rightPanelOpen}

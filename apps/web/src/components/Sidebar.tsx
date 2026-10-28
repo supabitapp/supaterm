@@ -1,3 +1,4 @@
+import { attachSidebarTree, SIDEBAR_TREE_PROPS } from "../lib/sidebarTree";
 import {
   SidebarDragBoundary,
   SidebarSectionHeader,
@@ -1474,6 +1475,14 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     listMotionRef.current?.update(false);
   };
   const prepareShelfMotion = () => listMotionRef.current?.prepare();
+  const attachTreeRef = (node: HTMLUListElement) => {
+    attachListMotionRef(node);
+    const detachTree = attachSidebarTree(node);
+    return () => {
+      detachTree?.();
+      attachListMotionRef(null);
+    };
+  };
 
   // Working rows can supply chat context, but never preview sidebar movement.
   const isContextDrag = dragState?.contextDrag === true || dragState?.activeSection === "working";
@@ -2761,12 +2770,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               <SidebarDragLifecycle onUnmount={cancelThreadDrag} />
               <SortableContext items={sortableIds} strategy={sidebarSortingStrategy}>
                 <ul
-                  ref={attachListMotionRef}
-                  // VoiceOver treats an exposed list as an interaction boundary,
-                  // which hides its rows from ordinary linear navigation. A
-                  // presentational list also makes its implicit listitems
-                  // presentational while preserving every descendant control.
-                  role="presentation"
+                  {...SIDEBAR_TREE_PROPS}
+                  ref={attachTreeRef}
                   className={cn(
                     // The last shelf is bottom-pinned; let it use the group's
                     // bottom inset once instead of adding a second gap above
@@ -2798,6 +2803,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             optimisticDrop !== null
                           }
                           thread={thread}
+                          navigationParent={
+                            section === "working" || section === "snoozed" || section === "done"
+                              ? `shelf:${section}`
+                              : undefined
+                          }
                           // Snoozed rows wake, done rows reopen, and active rows become done.
                           variantAction={
                             section === "snoozed"
@@ -3082,6 +3092,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                     <li className="list-none">
                       <button
                         type="button"
+                        role="treeitem"
+                        tabIndex={-1}
+                        data-sidebar-row="done:more"
+                        data-sidebar-parent="shelf:done"
                         disabled={olderDoneShelf.loading}
                         onClick={() => {
                           olderDoneShelf.retry();

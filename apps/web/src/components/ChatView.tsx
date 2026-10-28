@@ -1,3 +1,4 @@
+import { workspaceAreaProps } from "../lib/workspaceFocus";
 import { canQueueComposerMessageAtom } from "../state/composerQueue";
 import {
   pendingThreadCreationMessage,
@@ -443,6 +444,8 @@ export default function ChatView(props: ChatViewProps) {
   const canOperateThread = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
   const isPaneInputOwner = usePaneInputOwner();
   const paneScope = usePaneScope();
+  const conversationArea = workspaceAreaProps("conversation", 1, "Conversation");
+  const composerArea = workspaceAreaProps("composer", 2, "Message input");
   const paneSplit = useChatPaneStore((state) => (state.layout?.cells.length ?? 1) > 1);
   const ownsPaneInput = useIsPaneInputOwner();
   const canQueueMessage = useAtomValue(canQueueComposerMessageAtom(environmentId));
@@ -3463,7 +3466,10 @@ export default function ChatView(props: ChatViewProps) {
                   setThreadError={setThreadError}
                   setThreadErrorBannerDismissTick={setThreadErrorBannerDismissTick}
                 />
-                <div className="relative flex min-h-0 flex-1 flex-col bg-background">
+                <div
+                  {...conversationArea}
+                  className="relative flex min-h-0 flex-1 flex-col bg-background"
+                >
                   <ThreadTimeline
                     threadDetailRef={routeThreadDetailRef}
                     entriesInput={timelineEntriesInput}
@@ -3591,6 +3597,7 @@ export default function ChatView(props: ChatViewProps) {
                 </div>
 
                 <div
+                  {...composerArea}
                   ref={attachComposerOverlayElement}
                   inert={isRevertingCheckpoint}
                   data-chat-composer-overlay="true"
