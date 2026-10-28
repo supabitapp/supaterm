@@ -68,6 +68,7 @@ export function SidebarBrandWidthProbe({
 }: {
   onWidthChange: (width: number) => void;
 }) {
+  const title = useSidebarBrandTitle();
   const observeWidth = (probe: HTMLDivElement) => {
     return observeResize(probe, ([entry]) => {
       if (entry) onWidthChange(entry.borderBoxSize[0]?.inlineSize ?? probe.offsetWidth);
@@ -81,31 +82,32 @@ export function SidebarBrandWidthProbe({
       ref={observeWidth}
     >
       <div className="ml-[var(--workspace-titlebar-content-left)] flex">
-        <SidebarBrandMark />
+        <SidebarBrandMark title={title} />
       </div>
     </div>
   );
 }
 
 function SidebarBrand() {
+  const title = useSidebarBrandTitle();
   return (
     <Link
-      aria-label="Go to threads"
+      aria-label={`${title}, go to threads`}
       className="flex h-7 w-fit min-w-0 shrink-0 items-center overflow-hidden rounded-md text-foreground outline-hidden ring-ring focus-visible:ring-2 focus-visible:ring-inset md:ml-[var(--workspace-titlebar-content-left)]"
       to="/"
     >
-      <SidebarBrandMark />
+      <SidebarBrandMark title={title} />
     </Link>
   );
 }
 
-function SidebarBrandMark() {
+function useSidebarBrandTitle() {
   const stageLabel = useEnvironmentStageLabel();
-  return (
-    <span className="truncate text-sm font-semibold">
-      {stageLabel ? `${APP_BASE_NAME} (${stageLabel})` : APP_BASE_NAME}
-    </span>
-  );
+  return stageLabel ? `${APP_BASE_NAME} (${stageLabel})` : APP_BASE_NAME;
+}
+
+function SidebarBrandMark({ title }: { title: string }) {
+  return <span className="truncate text-sm font-semibold">{title}</span>;
 }
 
 // The desktop app's Settings menu item owns Mod+, so it is not in the keybinding registry.
