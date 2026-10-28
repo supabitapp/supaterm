@@ -7,6 +7,7 @@ import { SafeAreaInsetsContext, useSafeAreaInsets } from "react-native-safe-area
 import { CompactBrandTitle } from "../../components/CompactBrandTitle";
 import { isDuoDevice } from "../../lib/device-type";
 import { AndroidScreenHeader } from "../../components/ui/AndroidScreenHeader";
+import { HeaderItemsWidthContext } from "../../native/header-items-width";
 import { NativeStackScreenOptions } from "../../native/StackHeader";
 import { NativePrimaryColumnContext } from "../../native/v5-workspace-context";
 import {
@@ -35,17 +36,18 @@ const TAB_TITLES = {
 };
 
 function WorkspaceRootTitle(props: {
-  readonly maxWidth: number;
+  readonly columnWidth: number;
   readonly onOpenEnvironments: () => void;
 }) {
   const { state } = useWorkspaceTabs()!;
+  const maxWidth = Math.max(0, props.columnWidth - (use(HeaderItemsWidthContext) ?? 160));
   return (
-    <View style={{ width: props.maxWidth, minHeight: 32, justifyContent: "center" }}>
+    <View style={{ width: maxWidth, minHeight: 32, justifyContent: "center" }}>
       <WorkspaceConnectionTitle
         brand={
           <CompactBrandTitle accessibilityLabel={`Supaterm, ${TAB_TITLES[state.selectedTab]}`} />
         }
-        maxWidth={props.maxWidth}
+        maxWidth={maxWidth}
         onPress={props.onOpenEnvironments}
       />
     </View>
@@ -75,7 +77,7 @@ function WorkspaceRootContent() {
   const renderHeaderTitle = useCallback(
     () => (
       <WorkspaceRootTitle
-        maxWidth={Math.max(0, width - 160)}
+        columnWidth={width}
         onOpenEnvironments={() =>
           navigation.navigate("SettingsSheet", {
             screen: "SettingsContent",
