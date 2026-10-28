@@ -50,6 +50,11 @@ interface Turn {
   readonly assistant?: string;
   readonly status?: OrchestrationV2RunStatus;
   readonly completedAt?: string;
+  readonly commands?: ReadonlyArray<{
+    readonly input: string;
+    readonly output: string;
+    readonly exitCode: number;
+  }>;
 }
 
 function threadRecords(turns: ReadonlyArray<Turn>, interactionMode = "default") {
@@ -94,6 +99,14 @@ function threadRecords(turns: ReadonlyArray<Turn>, interactionMode = "default") 
     },
     messages,
     runs,
+    turnItems: turns.flatMap((turn) =>
+      (turn.commands ?? []).map((command) => ({
+        type: "command_execution",
+        runId: RunId.make(turn.id),
+        status: "completed",
+        ...command,
+      })),
+    ),
   } as unknown as OrchestrationV2ThreadProjection;
 }
 
@@ -128,6 +141,11 @@ function makeLayer(options: {
       ),
       runs: projection.runs.filter(
         (run) => filter?.runIds === undefined || filter.runIds.includes(run.id),
+      ),
+      turnItems: projection.turnItems.filter(
+        (item) =>
+          (filter?.turnItemRunIds === undefined || filter.turnItemRunIds.includes(item.runId)) &&
+          (filter?.turnItemTypes === undefined || filter.turnItemTypes.includes(item.type)),
       ),
     });
   };
@@ -201,6 +219,34 @@ describe("NextPromptSuggestionService", () => {
         input.conversation.trimEnd().endsWith("Should I score them on the same shots?"),
         input.conversation,
       );
+    }).pipe(Effect.provide(layer));
+  });
+
+  it.effect("shows the model what the agent ran in the reply's turn", () => {
+    const { layer, generateNextPrompt } = makeLayer({
+      turns: [
+        {
+          ...answeredTurns[0]!,
+          commands: [{ input: "pnpm lint", output: "old run", exitCode: 1 }],
+        },
+        {
+          ...answeredTurns[1]!,
+          commands: [
+            {
+              input: "vp test run src/dates",
+              output: "✗ handles DST in Sydney\n1 failed, 40 passed",
+              exitCode: 1,
+            },
+          ],
+        },
+      ],
+    });
+    return Effect.gen(function* () {
+      yield* suggest("run-2");
+
+      const activity = generateNextPrompt.mock.calls[0]![0].activity ?? "";
+      assert.include(activity, "✗ handles DST in Sydney");
+      assert.notInclude(activity, "pnpm lint");
     }).pipe(Effect.provide(layer));
   });
 

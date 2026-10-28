@@ -80,6 +80,8 @@ export interface NextPromptGenerationInput {
   cwd: string;
   /** The thread so far, ending on the assistant reply the user is about to answer. */
   conversation: string;
+  /** What the agent did in its latest turn: commands and their results, edits, its todo list. */
+  activity?: string | undefined;
 
   modelSelection: ModelSelection;
 }

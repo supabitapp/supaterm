@@ -25,6 +25,7 @@ import type { OrchestratorV2Error } from "./Orchestrator.ts";
 import * as ProjectStore from "./ProjectStore.ts";
 import * as PromptSuggestionHub from "./PromptSuggestionHub.ts";
 import * as ThreadManagementService from "./ThreadManagementService.ts";
+import { formatNextPromptActivity, NEXT_PROMPT_ACTIVITY_TYPES } from "./nextPromptActivity.ts";
 
 const NO_SUGGESTION: OrchestrationV2SuggestNextPromptResult = { suggestion: null };
 
@@ -103,9 +104,14 @@ const make = Effect.gen(function* () {
       yield* serverSettings.getSettings,
       projection.thread.projectId,
     ).settings;
+    const { turnItems } = yield* threads.getThreadRecords(key.threadId, ["turnItems"], {
+      turnItemRunIds: [key.runId],
+      turnItemTypes: NEXT_PROMPT_ACTIVITY_TYPES,
+    });
     const generated = yield* textGeneration.generateNextPrompt({
       cwd: projection.thread.worktreePath ?? project.value.workspaceRoot,
       conversation: formatThreadTitleContext(messages).message,
+      activity: formatNextPromptActivity(turnItems),
       modelSelection: settings.textGenerationModelSelection,
     });
     return generated.suggestion;

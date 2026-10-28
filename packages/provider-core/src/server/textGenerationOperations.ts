@@ -176,7 +176,7 @@ export function fromRunner(
       operation: "generateNextPrompt",
       cwd: input.cwd,
       modelSelection: input.modelSelection,
-      ...buildNextPromptPrompt({ conversation: input.conversation }),
+      ...buildNextPromptPrompt({ conversation: input.conversation, activity: input.activity }),
     });
     return { suggestion: sanitizeNextPrompt(generated.suggestion) };
   });
