@@ -2805,7 +2805,7 @@ it.each(["2>&1", "2>&1 | cat", "2>/dev/null"])(
 it.effect("fleet case worlds survive decoding and reach the product-backed runner", () =>
   Effect.gen(function* () {
     const base = buildBase(template, { model: "claude-sonnet-5-5", keepUserInstructions: false });
-    for (const id of ["DISC-01", "SESS-01", "ACC-01", "CAP-01", "OWN-01"]) {
+    for (const id of ["DISC-01", "SESS-01", "ACC-01", "CAP-01", "OWN-01", "OWN-02", "OWN-03"]) {
       const c = deviceCases().find((c) => c.id === id)!;
       const sample = makeSample(c, base);
       yield* withDevices(sample);
@@ -2834,15 +2834,35 @@ it.effect("fleet case worlds survive decoding and reach the product-backed runne
         continue;
       }
       const agent = JSON.parse(opened.text).agentDevice;
+      const ownership = id.startsWith("OWN-");
       const command = [
         agent.command,
-        id === "OWN-01" ? "open com.acme.app" : "screenshot /tmp/acme.png",
+        ownership ? "open com.acme.app" : "screenshot /tmp/acme.png",
         ...(agent.targetArgs ?? []),
       ].join(" ");
       const error = tools.sessionError(sample.shell, command) ?? "";
-      assert.include(error, id === "OWN-01" ? "DEVICE_IN_USE" : "SESSION_NOT_FOUND");
-      if (id === "OWN-01")
-        assert.equal(tools.owners[0]!.session, "supaterm-a062c547ef0b6bf8ee839b67");
+      assert.include(error, ownership ? "DEVICE_IN_USE" : "SESSION_NOT_FOUND");
+      if (ownership) {
+        const owner = tools.owners[0]!.session;
+        for (const action of ["open com.acme.app", "screenshot /tmp/a.png", "close"]) {
+          const checks = gradeSample(c.expect, {
+            calls: [
+              {
+                step: 0,
+                tool: "Bash",
+                input: { command: `${agent.command} ${action} --session ${owner}` },
+                failed: false,
+              },
+            ],
+            text: "",
+            stopReason: "end_turn",
+          });
+          assert.isTrue(
+            checks.some((check) => check.check.startsWith("shellMustNot /") && !check.pass),
+            `${id}: ${action}`,
+          );
+        }
+      }
     }
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
