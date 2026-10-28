@@ -173,15 +173,6 @@ export class PublicRelayOffError extends Schema.TaggedError<PublicRelayOffError>
   }
 }
 
-export class PairRouteConflictError extends Schema.TaggedError<PairRouteConflictError>()(
-  "PairRouteConflictError",
-  {},
-) {
-  override get message(): string {
-    return "Choose either --relay or --tailscale.";
-  }
-}
-
 /**
  * Dev servers are single-origin, so the web dev server's port is the one to publish; the
  * backend rides along behind Vite's proxy. Serve targets are always plain HTTP, so an HTTPS dev
@@ -523,11 +514,11 @@ const tailscaleFlag = Flag.Boolean("tailscale").pipe(
   Flag.withDefault(false),
 );
 
-const relayFlag = Flag.Boolean("relay").pipe(
+const noRelayFlag = Flag.Boolean("no-relay").pipe(
   Flag.withDescription(
-    "Activate and pair through Encrypted Relay by default, unless --tailscale is selected. Use --no-relay for direct pairing. Encrypted Relay must be enabled in server settings.",
+    "Pair directly instead of through Encrypted Relay; --tailscale takes precedence. Without either flag, pairing activates Encrypted Relay, which must be enabled in server settings.",
   ),
-  Flag.optional,
+  Flag.withDefault(false),
 );
 
 const tailscaleServePortFlag = Flag.Int("tailscale-serve-port").pipe(
@@ -543,7 +534,7 @@ export const pairCommand = Command.make("pair", {
   label: labelFlag,
   tailscale: tailscaleFlag,
   tailscaleServePort: tailscaleServePortFlag,
-  relay: relayFlag,
+  noRelay: noRelayFlag,
 }).pipe(
   Command.withDescription(
     "Mint a pairing token for a running Supaterm server and print it as a QR code.",
@@ -553,8 +544,7 @@ export const pairCommand = Command.make("pair", {
       const cliLogLevel = yield* GlobalFlag.LogLevel;
       const logLevel = Option.getOrElse(cliLogLevel, () => "Warn" as const);
 
-      const useRelay = Option.getOrElse(flags.relay, () => !flags.tailscale);
-      if (useRelay && flags.tailscale) return yield* new PairRouteConflictError();
+      const useRelay = !flags.noRelay && !flags.tailscale;
       const target = yield* discoverPairTarget(Option.getOrUndefined(flags.baseDir));
       yield* requireMatchingServerVersion(target.state);
       const config = yield* makePairServerConfig({ target, logLevel });
