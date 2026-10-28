@@ -551,6 +551,58 @@ final class RelaySessionTests: XCTestCase {
     await tunnel.stop()
   }
 
+  func testNetworkChangeCancelsADirectDialStillRacing() async throws {
+    let key = Curve25519.Signing.PrivateKey()
+    let relay = try FakeRelay(signing: key, holdsWelcome: true)
+    let direct = try FakeRelay(signing: key, holdsWelcome: true)
+    defer { relay.stop(); direct.stop() }
+    let connected = expectation(description: "relay session up")
+    var vias: [String?] = []
+    let tunnel = try RelayTunnel(relayURL: try await relay.start(), hostAddress: relay.address,
+                                 directURLs: [try await direct.start()]) { status in
+      guard status.state == "up" else { return }
+      vias.append(status.via); connected.fulfill()
+    }
+    let client = try openStream(try await tunnel.start(port: 0))
+    defer { client.cancel() }
+    for await _ in direct.hellos { break }
+    tunnel.networkChanged()
+    direct.releaseWelcome()
+    await direct.awaitDiscarded()
+    relay.releaseWelcome()
+    await fulfillment(of: [connected], timeout: 5)
+    XCTAssertEqual(tunnel.queue.sync { vias }, ["relay"])
+    XCTAssertEqual(direct.dials, 1)
+    await tunnel.stop()
+  }
+
+  func testNetworkChangeAfterTheRelayFailedAnswersWithTheRelayReason() async throws {
+    let relay = try FakeRelay()
+    let direct = try FakeRelay(holdsWelcome: true)
+    defer { relay.stop(); direct.stop() }
+    let (statuses, status) = AsyncStream.makeStream(of: RelayTunnelStatus.self)
+    let tunnel = try RelayTunnel(relayURL: try await relay.start(), hostAddress: direct.address,
+                                 directURLs: [try await direct.start()]) { status.yield($0) }
+    let session = localSession()
+    defer { session.invalidateAndCancel() }
+    let origin = try await tunnel.start(port: 0)
+    let request = Task { try await fetchDescriptor(session, origin) }
+    await relay.awaitDiscarded()
+    for await _ in direct.hellos { break }
+    tunnel.networkChanged()
+    direct.releaseWelcome()
+    await direct.awaitDiscarded()
+    let response = try await request.value
+    XCTAssertEqual(response.statusCode, 502)
+    XCTAssertEqual(response.value(forHTTPHeaderField: relayErrorHeader), "relay-unreachable")
+    var reason: String?
+    for await update in statuses where update.reason != nil {
+      reason = update.reason; break
+    }
+    XCTAssertEqual(reason, "Relay host identity mismatch: relay-unreachable")
+    await tunnel.stop()
+  }
+
   func testNetworkChangeKeepsARelaySession() async throws {
     let relay = try FakeRelay()
     defer { relay.stop() }

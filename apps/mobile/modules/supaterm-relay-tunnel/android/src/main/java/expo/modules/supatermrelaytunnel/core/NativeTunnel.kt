@@ -519,10 +519,13 @@ class NativeTunnel(
     post { directCandidates = validated }
   }
 
-  // Drops only direct sessions: the relay is reachable from any network, a LAN address is not.
+  // Direct sessions and dials only: the relay is reachable from any network, a LAN address is not.
   fun networkChanged() = post {
-    val current = attempt
-    if (current != null && mux != null && route == TunnelRoute.DIRECT) {
+    val current = attempt ?: return@post
+    if (mux == null) {
+      candidates.values.filter { it.route == TunnelRoute.DIRECT }
+        .forEach { lose(current, it, IllegalStateException("Network changed")) }
+    } else if (route == TunnelRoute.DIRECT) {
       fail(current, IllegalStateException("Network changed"))
     }
   }

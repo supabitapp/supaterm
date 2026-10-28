@@ -110,8 +110,10 @@ public final class RelayTunnel: @unchecked Sendable {
 
   public func networkChanged() {
     queue.async {
-      guard self.route == .direct else { return }
-      self.drop("Network changed")
+      if self.route == .direct { self.drop("Network changed"); return }
+      for dial in self.dials.values.sorted(by: { $0.id < $1.id }) where dial.route == .direct {
+        self.lose(dial, "Network changed", .unreachable)
+      }
     }
   }
 

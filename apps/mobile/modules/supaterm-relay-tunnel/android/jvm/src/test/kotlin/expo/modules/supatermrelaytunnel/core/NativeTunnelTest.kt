@@ -553,6 +553,51 @@ class NativeTunnelTest {
     }
 
   @Test
+  fun networkChangeCancelsADirectDialStillRacing() = withServers(2) { (relay, direct) ->
+    val relayWelcome = CompletableFuture<Unit>()
+    val directWelcome = CompletableFuture<Unit>()
+    relay.enqueue(host(welcome = relayWelcome))
+    direct.enqueue(host(welcome = directWelcome))
+    val statuses = LinkedBlockingQueue<Map<String, Any>>()
+    val logs = LinkedBlockingQueue<String>()
+    raceTunnel(relay, listOf(direct), statuses, logs).use { tunnel ->
+      openStream(tunnel.origin).use {
+        checkNotNull(direct.takeRequest(10, TimeUnit.SECONDS))
+        tunnel.networkChanged()
+        directWelcome.complete(Unit)
+        val settled = logs.await { "direct candidate failed" in it || " up via=" in it }
+        assertTrue("Network changed" in settled, settled)
+        relayWelcome.complete(Unit)
+        assertEquals("relay", statuses.await { it["state"] == "up" }["via"])
+        assertEquals(1, direct.requestCount)
+      }
+    }
+  }
+
+  @Test
+  fun networkChangeAfterTheRelayFailedAnswersWithTheRelayReason() =
+    withServers(2) { (relay, direct) ->
+      relay.enqueue(MockResponse().setResponseCode(404))
+      val welcome = CompletableFuture<Unit>()
+      direct.enqueue(host(welcome = welcome))
+      val logs = LinkedBlockingQueue<String>()
+      raceTunnel(relay, listOf(direct), logs = logs).use { tunnel ->
+        val response = inBackground { request(tunnel.origin) }
+        logs.await { "relay candidate failed" in it }
+        checkNotNull(direct.takeRequest(10, TimeUnit.SECONDS))
+        tunnel.networkChanged()
+        welcome.complete(Unit)
+        val answer = response.get(10, TimeUnit.SECONDS)
+        assertTrue(
+          answer.startsWith(
+            "HTTP/1.1 503 Service Unavailable\r\nX-Supaterm-Relay-Error: host-offline\r\n"
+          ),
+          answer,
+        )
+      }
+    }
+
+  @Test
   fun networkChangeKeepsARelaySession() = withServers(1) { (relay) ->
     val host = SilentHost(unhex(vector.getString("identity")))
     relay.enqueue(MockResponse().withWebSocketUpgrade(host))
