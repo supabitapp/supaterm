@@ -89,7 +89,7 @@ const make = Effect.gen(function* () {
         stop: startRelayTransport({
           secret,
           relayUrl,
-          acceptStream: ingress.accept,
+          acceptStream: (stream) => ingress.accept(stream, { transport: "relay" }),
           onStatus: (state) => report(state, address, relayUrl, generation),
         }),
       };

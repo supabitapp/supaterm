@@ -10,11 +10,14 @@ import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import okio.ByteString
 import okio.ByteString.Companion.toByteString
 import org.json.JSONObject
@@ -35,7 +38,9 @@ class NativeTunnelTest {
 
   private class SilentHost(
     private val identity: ByteArray,
-    private val replyToPings: Boolean = false
+    private val replyToPings: Boolean = false,
+    private val seed: ByteArray = ByteArray(32) { it.toByte() },
+    private val welcome: CompletableFuture<Unit> = CompletableFuture.completedFuture(Unit)
   ) : WebSocketListener() {
     private val secret = ByteArray(32) { (it + 64).toByte() }
     private var cipher: RelayCipher? = null
@@ -55,15 +60,17 @@ class NativeTunnelTest {
       val info = "supaterm-tunnel-traffic-v1".toByteArray()
       val clientKey = hmac(prk, info + byteArrayOf(1))
       cipher = RelayCipher(hmac(prk, clientKey + info + byteArrayOf(2)), clientKey)
-      val signature = Ed25519Sign(ByteArray(32) { it.toByte() }).sign(transcript)
-      webSocket.send(
-        JSONObject()
-          .put("type", "welcome")
-          .put("version", 2)
-          .put("key", b64(key))
-          .put("signature", b64(signature))
-          .toString()
-      )
+      val signature = Ed25519Sign(seed).sign(transcript)
+      welcome.thenRun {
+        webSocket.send(
+          JSONObject()
+            .put("type", "welcome")
+            .put("version", 2)
+            .put("key", b64(key))
+            .put("signature", b64(signature))
+            .toString()
+        )
+      }
     }
 
     override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
@@ -92,15 +99,6 @@ class NativeTunnelTest {
       socket.getInputStream().readBytes().toString(Charsets.ISO_8859_1)
     }
 
-  private fun LinkedBlockingQueue<ByteArray>.awaitPing() {
-    val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
-    while (true) {
-      val record = poll(deadline - System.nanoTime(), TimeUnit.NANOSECONDS)
-      checkNotNull(record) { "Timed out waiting for a ping" }
-      if (6 in record.frameTypes()) return
-    }
-  }
-
   private fun inBackground(block: () -> String) =
     java.util.concurrent.FutureTask(block).also { Thread(it).start() }
 
@@ -122,6 +120,87 @@ class NativeTunnelTest {
   private val silentUpgrade get() = MockResponse().withWebSocketUpgrade(
     object : WebSocketListener() {}
   )
+
+  private class HungUpWatcher : WebSocketListener() {
+    val opened = CompletableFuture<Unit>()
+    val ended = CompletableFuture<Unit>()
+
+    override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {
+      opened.complete(Unit)
+    }
+
+    override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+      ended.complete(Unit)
+    }
+
+    override fun onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response?) {
+      ended.complete(Unit)
+    }
+  }
+
+  private val MockWebServer.wsUrl get() = url("/").toString().replaceFirst("http", "ws")
+
+  private fun withServers(count: Int, block: (List<MockWebServer>) -> Unit) {
+    val servers = List(count) { MockWebServer() }
+    try {
+      block(servers)
+    } finally {
+      servers.forEach { it.close() }
+    }
+  }
+
+  private fun host(
+    seed: ByteArray = ByteArray(32) { it.toByte() },
+    welcome: CompletableFuture<Unit> = CompletableFuture.completedFuture(Unit)
+  ) =
+    MockResponse().withWebSocketUpgrade(
+      SilentHost(unhex(vector.getString("identity")), seed = seed, welcome = welcome)
+    )
+
+  private fun MockWebServer.answerOnceReleased(
+    release: CompletableFuture<Unit>,
+    response: MockResponse
+  ) {
+    dispatcher = object : Dispatcher() {
+      override fun dispatch(request: RecordedRequest): MockResponse {
+        release.get(10, TimeUnit.SECONDS)
+        return response
+      }
+    }
+  }
+
+  private fun <T> LinkedBlockingQueue<T>.await(predicate: (T) -> Boolean): T {
+    val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+    while (true) {
+      val value = poll(deadline - System.nanoTime(), TimeUnit.NANOSECONDS)
+      checkNotNull(value) { "Timed out waiting for a matching event" }
+      if (predicate(value)) return value
+    }
+  }
+
+  private fun LinkedBlockingQueue<ByteArray>.awaitFrames(type: Int, count: Int = 1) {
+    var seen = 0
+    await { record ->
+      seen += record.frameTypes().count { it == type }
+      seen >= count
+    }
+  }
+
+  private fun raceTunnel(
+    relay: MockWebServer,
+    direct: List<MockWebServer>,
+    statuses: LinkedBlockingQueue<Map<String, Any>> = LinkedBlockingQueue(),
+    logs: LinkedBlockingQueue<String> = LinkedBlockingQueue(),
+    timing: NativeTunnel.Timing = NativeTunnel.Timing()
+  ) =
+    NativeTunnel(
+      relay.wsUrl,
+      vector.getString("address"),
+      onStatus = { statuses.add(it) },
+      log = { logs.add(it) },
+      timing = timing,
+      directUrls = direct.map { it.wsUrl },
+    )
 
   @Test
   fun offlineHostAnswersEveryWaitingRequestFromOneDial() {
@@ -251,7 +330,7 @@ class NativeTunnelTest {
           connected.get(10, TimeUnit.SECONDS)
           tunnel.background(100)
           tunnel.resume(300)
-          host.records.awaitPing()
+          host.records.awaitFrames(6)
           assertFailsWith<java.util.concurrent.TimeoutException> {
             down.get(600, TimeUnit.MILLISECONDS)
           }
@@ -361,8 +440,176 @@ class NativeTunnelTest {
         timing = NativeTunnel.Timing(keepaliveMillis = 50),
       ).use { tunnel ->
         openStream(tunnel.origin).use {
-          host.records.awaitPing()
+          host.records.awaitFrames(6)
           assertEquals("down", down.get(10, TimeUnit.SECONDS)["state"])
+        }
+      }
+    }
+  }
+
+  @Test
+  fun directCandidateWinsAndTheSilentRelayDialIsCancelled() = withServers(2) { (relay, direct) ->
+    val watcher = HungUpWatcher()
+    relay.enqueue(MockResponse().withWebSocketUpgrade(watcher))
+    direct.enqueue(host(welcome = watcher.opened))
+    val statuses = LinkedBlockingQueue<Map<String, Any>>()
+    raceTunnel(relay, listOf(direct), statuses).use { tunnel ->
+      openStream(tunnel.origin).use {
+        assertEquals("direct", statuses.await { it["state"] == "up" }["via"])
+        watcher.ended.get(10, TimeUnit.SECONDS)
+        assertEquals(1, relay.requestCount)
+      }
+    }
+  }
+
+  @Test
+  fun relayFailureWaitsForAPendingDirectCandidate() = withServers(2) { (relay, direct) ->
+    relay.enqueue(MockResponse().setResponseCode(404))
+    val welcome = CompletableFuture<Unit>()
+    direct.enqueue(host(welcome = welcome))
+    val statuses = LinkedBlockingQueue<Map<String, Any>>()
+    val logs = LinkedBlockingQueue<String>()
+    raceTunnel(relay, listOf(direct), statuses, logs).use { tunnel ->
+      openStream(tunnel.origin).use {
+        logs.await { "relay candidate failed" in it }
+        welcome.complete(Unit)
+        val settled = statuses.await { it["state"] != "connecting" }
+        assertEquals("up", settled["state"])
+        assertEquals("direct", settled["via"])
+      }
+    }
+  }
+
+  @Test
+  fun impostorAtADirectAddressLosesToTheRelay() = withServers(2) { (relay, impostor) ->
+    val welcome = CompletableFuture<Unit>()
+    relay.enqueue(host(welcome = welcome))
+    impostor.enqueue(host(seed = ByteArray(32) { (it + 1).toByte() }))
+    val statuses = LinkedBlockingQueue<Map<String, Any>>()
+    val logs = LinkedBlockingQueue<String>()
+    raceTunnel(relay, listOf(impostor), statuses, logs).use { tunnel ->
+      openStream(tunnel.origin).use {
+        logs.await { "direct candidate failed" in it }
+        welcome.complete(Unit)
+        assertEquals("relay", statuses.await { it["state"] == "up" }["via"])
+        assertEquals(1, impostor.requestCount)
+      }
+    }
+  }
+
+  @Test
+  fun answerWaitsForEveryCandidateAndKeepsTheRelayReason() = withServers(2) { (relay, direct) ->
+    val reject = CompletableFuture<Unit>()
+    relay.answerOnceReleased(reject, MockResponse().setResponseCode(404))
+    direct.enqueue(silentUpgrade)
+    val logs = LinkedBlockingQueue<String>()
+    val timing = NativeTunnel.Timing(directTimeoutMillis = 200)
+    raceTunnel(relay, listOf(direct), logs = logs, timing = timing).use { tunnel ->
+      val response = inBackground { request(tunnel.origin) }
+      val timedOut = logs.await { "direct candidate failed" in it }
+      assertTrue("Relay handshake timed out" in timedOut, timedOut)
+      reject.complete(Unit)
+      val answer = response.get(10, TimeUnit.SECONDS)
+      assertTrue(
+        answer.startsWith(
+          "HTTP/1.1 503 Service Unavailable\r\nX-Supaterm-Relay-Error: host-offline\r\n"
+        ),
+        answer,
+      )
+      assertEquals(1, direct.requestCount)
+    }
+  }
+
+  @Test
+  fun newCandidatesApplyToTheNextDialWithoutTearingDownTheSession() =
+    withServers(3) { (relay, first, second) ->
+      repeat(2) { relay.enqueue(silentUpgrade) }
+      val firstWelcome = CompletableFuture<Unit>()
+      val secondWelcome = CompletableFuture<Unit>()
+      first.enqueue(host(welcome = firstWelcome))
+      second.enqueue(host(welcome = secondWelcome))
+      val statuses = LinkedBlockingQueue<Map<String, Any>>()
+      raceTunnel(relay, listOf(first), statuses).use { tunnel ->
+        openStream(tunnel.origin).use {
+          checkNotNull(relay.takeRequest(10, TimeUnit.SECONDS))
+          firstWelcome.complete(Unit)
+          assertEquals("direct", statuses.await { it["state"] == "up" }["via"])
+          tunnel.setDirectUrls(listOf(second.wsUrl))
+          tunnel.networkChanged()
+          val dropped = statuses.await { it["state"] != "up" }
+          assertEquals("down", dropped["state"])
+          assertEquals("Network changed", dropped["reason"])
+          assertNull(dropped["via"])
+        }
+        openStream(tunnel.origin).use {
+          checkNotNull(relay.takeRequest(10, TimeUnit.SECONDS))
+          secondWelcome.complete(Unit)
+          val redialed = statuses.await { it["state"] == "up" }
+          assertEquals("direct", redialed["via"])
+          assertEquals(2, redialed["sessionCount"])
+          assertEquals(listOf(2, 1, 1), listOf(relay, first, second).map { it.requestCount })
+        }
+      }
+    }
+
+  @Test
+  fun networkChangeCancelsADirectDialStillRacing() = withServers(2) { (relay, direct) ->
+    val relayWelcome = CompletableFuture<Unit>()
+    val directWelcome = CompletableFuture<Unit>()
+    relay.enqueue(host(welcome = relayWelcome))
+    direct.enqueue(host(welcome = directWelcome))
+    val statuses = LinkedBlockingQueue<Map<String, Any>>()
+    val logs = LinkedBlockingQueue<String>()
+    raceTunnel(relay, listOf(direct), statuses, logs).use { tunnel ->
+      openStream(tunnel.origin).use {
+        checkNotNull(direct.takeRequest(10, TimeUnit.SECONDS))
+        tunnel.networkChanged()
+        directWelcome.complete(Unit)
+        val settled = logs.await { "direct candidate failed" in it || " up via=" in it }
+        assertTrue("Network changed" in settled, settled)
+        relayWelcome.complete(Unit)
+        assertEquals("relay", statuses.await { it["state"] == "up" }["via"])
+        assertEquals(1, direct.requestCount)
+      }
+    }
+  }
+
+  @Test
+  fun networkChangeAfterTheRelayFailedAnswersWithTheRelayReason() =
+    withServers(2) { (relay, direct) ->
+      relay.enqueue(MockResponse().setResponseCode(404))
+      val welcome = CompletableFuture<Unit>()
+      direct.enqueue(host(welcome = welcome))
+      val logs = LinkedBlockingQueue<String>()
+      raceTunnel(relay, listOf(direct), logs = logs).use { tunnel ->
+        val response = inBackground { request(tunnel.origin) }
+        logs.await { "relay candidate failed" in it }
+        checkNotNull(direct.takeRequest(10, TimeUnit.SECONDS))
+        tunnel.networkChanged()
+        welcome.complete(Unit)
+        val answer = response.get(10, TimeUnit.SECONDS)
+        assertTrue(
+          answer.startsWith(
+            "HTTP/1.1 503 Service Unavailable\r\nX-Supaterm-Relay-Error: host-offline\r\n"
+          ),
+          answer,
+        )
+      }
+    }
+
+  @Test
+  fun networkChangeKeepsARelaySession() = withServers(1) { (relay) ->
+    val host = SilentHost(unhex(vector.getString("identity")))
+    relay.enqueue(MockResponse().withWebSocketUpgrade(host))
+    val statuses = LinkedBlockingQueue<Map<String, Any>>()
+    raceTunnel(relay, emptyList(), statuses).use { tunnel ->
+      openStream(tunnel.origin).use {
+        assertEquals("relay", statuses.await { it["state"] == "up" }["via"])
+        tunnel.networkChanged()
+        openStream(tunnel.origin).use {
+          host.records.awaitFrames(1, count = 2)
+          assertEquals(1, relay.requestCount)
+          assertTrue(statuses.none { it["state"] == "down" }, statuses.toString())
         }
       }
     }

@@ -11,6 +11,7 @@ import {
   type EnvironmentId,
   type RelayConnectionInfo,
   type ServerConfig,
+  type ServerTunnelEndpoints,
 } from "@supaterm/contracts";
 import { canonicalRelayAddress } from "@supaterm/shared/relay/protocol";
 import * as Equal from "effect/Equal";
@@ -99,7 +100,11 @@ export function routesAt(
 
 export interface PairingFallback {
   readonly environmentId: EnvironmentId;
-  readonly routes: ReadonlyArray<{ readonly httpBaseUrl: string; readonly relayUrl?: string }>;
+  readonly routes: ReadonlyArray<{
+    readonly httpBaseUrl: string;
+    readonly relayUrl?: string;
+    readonly directTunnelUrls?: ReadonlyArray<string>;
+  }>;
 }
 
 /**
@@ -128,8 +133,13 @@ export function pairingFallbackRoutes(
     const profile = Option.getOrNull(route.profile);
     fallbacks.set(url.origin, {
       httpBaseUrl: url.href,
-      ...(profile?._tag === "BearerConnectionProfile" && profile.relayUrl !== undefined
-        ? { relayUrl: profile.relayUrl }
+      ...(profile?._tag === "BearerConnectionProfile"
+        ? {
+            ...(profile.relayUrl === undefined ? {} : { relayUrl: profile.relayUrl }),
+            ...(profile.directTunnelUrls === undefined
+              ? {}
+              : { directTunnelUrls: profile.directTunnelUrls }),
+          }
         : {}),
     });
   }
@@ -148,6 +158,14 @@ function onlyEnvironmentAt(
   return others.length === 0 ? owner : undefined;
 }
 
+const isTailnetAddress = (hostname: string) =>
+  isTailnetHost(hostname) || isSharedAddressSpaceHost(hostname);
+
+function labelledTailscale(route: ConnectionRoute): boolean {
+  const profile = Option.getOrNull(route.profile);
+  return profile?._tag === "BearerConnectionProfile" && profile.network === "tailscale";
+}
+
 export function connectionRouteKind(route: ConnectionRoute): ConnectionRouteKind {
   switch (route.target._tag) {
     case "SshConnectionTarget":
@@ -163,10 +181,8 @@ export function connectionRouteKind(route: ConnectionRoute): ConnectionRouteKind
       }
       const hostname = url.hostname;
       if (isLocalLoopbackHost(hostname)) return "loopback";
-      const profile = Option.getOrNull(route.profile);
-      const tailscale =
-        profile?._tag === "BearerConnectionProfile" && profile.network === "tailscale";
-      if (tailscale || isTailnetHost(hostname)) return "tailnet";
+      if (isTailnetHost(hostname) || (labelledTailscale(route) && isTailnetAddress(hostname)))
+        return "tailnet";
       if (isSharedAddressSpaceHost(hostname)) return "vpn";
       return isPrivateNetworkHost(hostname) ? "lan" : "public";
     }
@@ -266,7 +282,7 @@ export const hasSavedBearerRoute = (entry: ConnectionCatalogEntry) =>
   connectionRoutes(entry).some((r) => !isLearned(r) && r.target._tag === "BearerConnectionTarget");
 
 export function advertisedConnectionRoutes(
-  config: Pick<ServerConfig, "environment" | "directEndpoints">,
+  config: Pick<ServerConfig, "environment" | "directEndpoints" | "tunnelEndpoints">,
 ) {
   const { relayEndpoint, relayUrl } = config.environment;
   let relayAdvertisement: RelayConnectionInfo | null | undefined;
@@ -275,7 +291,11 @@ export function advertisedConnectionRoutes(
   } else if (relayEndpoint === undefined && relayUrl === undefined) {
     relayAdvertisement = null;
   }
-  return { reported: config.directEndpoints, relayAdvertisement };
+  return {
+    reported: config.directEndpoints,
+    relayAdvertisement,
+    tunnelEndpoints: config.tunnelEndpoints ?? null,
+  };
 }
 
 export type ConnectionRouteAdvertisements = ReturnType<typeof advertisedConnectionRoutes>;
@@ -293,17 +313,40 @@ function validatedRelayAdvertisement(value: RelayConnectionInfo | null | undefin
 
 const advertisedRouteKey = (url: string) => canonicalRelayAddress(url) ?? url.replace(/\/+$/, "");
 
+function relayIdentity(address: string): string | null {
+  try {
+    return canonicalRelayAddress(address);
+  } catch {
+    return null;
+  }
+}
+
 export function mergeLearnedRoutes(input: {
   readonly entry: ConnectionCatalogEntry;
   readonly activeRoute: ConnectionRoute;
   readonly reported?: ReadonlyArray<ReportedEndpoint> | undefined;
   readonly relayAdvertisement?: RelayConnectionInfo | null | undefined;
+  /** `null` when the host advertises none, which clears the saved candidates. */
+  readonly tunnelEndpoints?: ServerTunnelEndpoints | null | undefined;
   readonly allowRelay?: boolean;
   readonly allowInsecure: boolean;
 }): ReadonlyArray<ConnectionRoute> | null {
+  const saved = connectionRoutes(input.entry);
+  const learned = learnAdvertisedRoutes(input, saved);
+  const { tunnelEndpoints } = input;
+  const next =
+    learned === null || tunnelEndpoints === undefined
+      ? learned
+      : learned.map((route) => withDirectTunnelUrls(route, tunnelEndpoints));
+  return next === null || Equal.equals(saved, next) ? null : next;
+}
+
+function learnAdvertisedRoutes(
+  input: Parameters<typeof mergeLearnedRoutes>[0],
+  saved: ReadonlyArray<ConnectionRoute>,
+): ReadonlyArray<ConnectionRoute> | null {
   const { entry } = input;
   const active = input.activeRoute.target;
-  const saved = connectionRoutes(entry);
   if (active._tag !== "BearerConnectionTarget") return null;
   const sharedCredential = credentialConnectionId(active.connectionId);
 
@@ -324,7 +367,8 @@ export function mergeLearnedRoutes(input: {
     if (url.protocol === "http:" && !input.allowInsecure) continue;
     if (isLocalLoopbackHost(url.hostname)) continue;
     reported.set(url.origin, { url });
-    if (endpoint.kind === "tailnet") tailscaleOrigins.add(url.origin);
+    if (endpoint.kind === "tailnet" && isTailnetAddress(url.hostname))
+      tailscaleOrigins.add(url.origin);
   }
   if (relay !== undefined && relay !== null) {
     reported.set(relay.relayEndpoint, {
@@ -380,8 +424,7 @@ export function mergeLearnedRoutes(input: {
     if (known.has(url.origin)) continue;
     if (
       url.protocol === "http:" &&
-      !tailscaleOrigins.has(url.origin) &&
-      !tokenAllowsPlainHttp(saved, sharedCredential)
+      !plainHttpAllowed(saved, sharedCredential, tailscaleOrigins.has(url.origin))
     ) {
       continue;
     }
@@ -411,32 +454,69 @@ export function mergeLearnedRoutes(input: {
       ),
     });
   }
-  return Equal.equals(saved, next) ? null : next;
+  return next;
 }
 
-// A paired token goes to a plain HTTP address outside the tailnet only when
-// it was paired that way, so a token paired over HTTPS, loopback, or the
-// tailnet keeps to the transports it was issued for. A token paired over the
-// relay is exempt: it is the only credential a relay-paired phone holds, and
-// its direct LAN path reuses it.
-function tokenAllowsPlainHttp(
+function withDirectTunnelUrls(
+  route: ConnectionRoute,
+  tunnelEndpoints: ServerTunnelEndpoints | null,
+): ConnectionRoute {
+  const profile = Option.getOrNull(route.profile);
+  if (profile?._tag !== "BearerConnectionProfile") return route;
+  const identity = relayIdentity(profile.httpBaseUrl);
+  if (identity === null) return route;
+  const urls =
+    tunnelEndpoints !== null && relayIdentity(tunnelEndpoints.address) === identity
+      ? tunnelEndpoints.urls
+      : [];
+  const saved = profile.directTunnelUrls ?? [];
+  if (saved.length === urls.length && saved.every((url, index) => url === urls[index])) {
+    return route;
+  }
+  const { directTunnelUrls: _previous, ...fields } = profile;
+  return {
+    target: route.target,
+    profile: Option.some(
+      new BearerConnectionProfile({
+        ...fields,
+        ...(urls.length === 0 ? {} : { directTunnelUrls: urls }),
+      }),
+    ),
+  };
+}
+
+function credentialRoute(
   routes: ReadonlyArray<ConnectionRoute>,
   credentialId: string,
+): ConnectionRoute | undefined {
+  return routes.find((route) => connectionRouteId(route.target) === credentialId);
+}
+
+// A paired token goes to a plain HTTP address outside the tailnet only when it
+// was paired that way, so a token paired over HTTPS, loopback, the tailnet, or
+// the relay keeps to the transports it was issued for. A relay-paired token
+// stays off plain HTTP tailnet addresses too: its direct path to the host is
+// the relay's own end-to-end encrypted tunnel, never a bare HTTP request.
+function plainHttpAllowed(
+  routes: ReadonlyArray<ConnectionRoute>,
+  credentialId: string,
+  tailnet: boolean,
 ): boolean {
-  const credentialRoute = routes.find((route) => connectionRouteId(route.target) === credentialId);
-  if (credentialRoute === undefined) return false;
-  const kind = connectionRouteKind(credentialRoute);
+  const paired = credentialRoute(routes, credentialId);
+  if (paired === undefined) return false;
+  const kind = connectionRouteKind(paired);
+  if (kind === "relay") return false;
   return (
-    kind === "relay" ||
-    (routeHttpBaseUrl(credentialRoute)?.startsWith("http:") === true &&
+    tailnet ||
+    (routeHttpBaseUrl(paired)?.startsWith("http:") === true &&
       (kind === "lan" || kind === "public"))
   );
 }
 
 /**
- * Whether connecting over `route` would send a paired token over plain HTTP
- * that it wasn't paired over. Checked against the token the route borrows,
- * so a route learned before this rule existed is refused too.
+ * Whether connecting over `route` would send a paired token unencrypted where
+ * it wasn't paired that way. Checked against the token the route borrows, so a
+ * route learned before this rule existed is refused too.
  */
 export function sendsTokenInClear(
   routes: ReadonlyArray<ConnectionRoute>,
@@ -445,19 +525,57 @@ export function sendsTokenInClear(
 ): boolean {
   const profile = Option.getOrNull(route.profile);
   if (profile?._tag !== "BearerConnectionProfile") return false;
-  if ((tailscale ?? profile.network === "tailscale") || !profile.httpBaseUrl.startsWith("http:")) {
+  if (profile.httpBaseUrl.startsWith("https:")) return profile.wsBaseUrl.startsWith("ws:");
+  if (!profile.httpBaseUrl.startsWith("http:")) return false;
+  const routeId = connectionRouteId(route.target);
+  const credentialId = credentialConnectionId(routeId);
+  if (credentialId === routeId) return false;
+  const tailnet = tailscale ?? (labelledTailscale(route) && isTailnetUrl(profile.httpBaseUrl));
+  return !plainHttpAllowed(routes, credentialId, tailnet);
+}
+
+function isTailnetUrl(httpBaseUrl: string): boolean {
+  try {
+    return isTailnetAddress(new URL(httpBaseUrl).hostname);
+  } catch {
     return false;
   }
-  const credentialId = credentialConnectionId(connectionRouteId(route.target));
-  return (
-    credentialId !== connectionRouteId(route.target) && !tokenAllowsPlainHttp(routes, credentialId)
+}
+
+/**
+ * Whether a token paired over `credential` may go to `httpBaseUrl`, where the
+ * user moves that route. Loopback stays open for SSH forwards. A moved route
+ * owns its token and the catalog keeps no record of how it was paired, so a
+ * relay-paired route stays on relay addresses: moving it to HTTPS first would
+ * let a later edit take the token to plain HTTP.
+ */
+export function credentialAllowsAddress(credential: ConnectionRoute, httpBaseUrl: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(httpBaseUrl);
+  } catch {
+    return false;
+  }
+  if (isLocalLoopbackHost(url.hostname)) return true;
+  if (connectionRouteKind(credential) === "relay") return relayIdentity(url.href) !== null;
+  if (url.protocol !== "http:") return true;
+  return plainHttpAllowed(
+    [credential],
+    connectionRouteId(credential.target),
+    isTailnetAddress(url.hostname),
   );
 }
 
-/** Routes a connect may use: none sends a paired token over plain HTTP it wasn't paired over. */
+/** Routes a connect may use: none sends a paired token unencrypted where it wasn't paired that way. */
 export function usableRoutes(entry: ConnectionCatalogEntry): ReadonlyArray<ConnectionRoute> {
   const routes = connectionRoutes(entry);
   return routes.filter((route) => !sendsTokenInClear(routes, route));
+}
+
+/** The relay host a relay route's tunnel reaches, or null for any other route. */
+export function relayRouteIdentity(route: ConnectionRoute): string | null {
+  const address = routeHttpBaseUrl(route);
+  return address === null || connectionRouteKind(route) !== "relay" ? null : relayIdentity(address);
 }
 
 export interface ReportedEndpoint {

@@ -10,10 +10,11 @@ import {
   connectionRouteLabel,
   connectionRoutes,
   isLearned,
+  usableRoutes,
 } from "@supaterm/client-runtime/connection";
 import { type EnvironmentId, sessionGrantsScope } from "@supaterm/contracts";
 import { AUTH_SCOPE_OPTIONS } from "@supaterm/shared/authScopeOptions";
-import { AsyncResult } from "effect/reactivity";
+import { AsyncResult, Atom } from "effect/reactivity";
 import * as Option from "effect/Option";
 import * as Haptics from "expo-haptics";
 import { useContext, useState } from "react";
@@ -31,6 +32,8 @@ import { connectionTone } from "../connection/connectionTone";
 import { SettingsActionRow } from "./components/SettingsActionRow";
 import { SettingsDragHandle } from "./components/SettingsDragHandle";
 import { SettingsSection } from "./components/SettingsSection";
+
+const NO_LATENCY = Atom.make("");
 
 const ICON_SIZE = Platform.OS === "android" ? 24 : 22;
 const REMOVE_SIZE = 20;
@@ -88,6 +91,7 @@ export function EnvironmentRoutesSection({
 
   const byId = new Map(saved.map((route) => [connectionRouteId(route.target), route]));
   const routes = order.flatMap((id) => byId.get(id) ?? []);
+  const usable = new Set(usableRoutes(entry).map((route) => connectionRouteId(route.target)));
   const activeRouteId =
     connected && Option.isSome(prepared) ? connectionRouteId(prepared.value.target) : null;
 
@@ -192,6 +196,7 @@ export function EnvironmentRoutesSection({
       ) : null}
       {routes.map((route, index) => {
         const id = connectionRouteId(route.target);
+        const unused = !usable.has(connectionRouteId(route.target));
         const lifted = drag === null ? 0 : (heights.get(drag.id) ?? 0);
         const shift =
           dragFrom === -1 || index === dragFrom
@@ -208,6 +213,7 @@ export function EnvironmentRoutesSection({
             position={index + 1}
             count={routes.length}
             inUse={id === activeRouteId}
+            unused={unused}
             editing={editing}
             offset={index === dragFrom ? (drag?.translation ?? 0) : shift}
             lifted={index === dragFrom}
@@ -227,9 +233,12 @@ export function EnvironmentRoutesSection({
               if (!cancelled) move(index, dropIndex(index, translation));
             }}
             onStep={(direction) => move(index, direction === "up" ? index - 1 : index + 1)}
-            // Learned routes are refreshed from the server; paired routes can be removed.
+            // Learned routes are refreshed from the server unless a connect
+            // skips them; paired routes can be removed.
             onRemove={
-              routes.length > 1 && !isLearned(route) ? () => confirmRemove(route) : undefined
+              routes.length > 1 && (!isLearned(route) || unused)
+                ? () => confirmRemove(route)
+                : undefined
             }
           />
         );
@@ -244,6 +253,7 @@ function RouteRow(props: {
   readonly position: number;
   readonly count: number;
   readonly inUse: boolean;
+  readonly unused: boolean;
   readonly editing: boolean;
   readonly offset: number;
   readonly lifted: boolean;
@@ -257,7 +267,11 @@ function RouteRow(props: {
   const { route, lifted, offset } = props;
   const label = connectionRouteLabel(route);
   const address = connectionRouteAddress(route);
-  const latency = useAtomValue(environmentSession.routeLatencyAtoms(route).labelAtom);
+  // A route a connect skips has no speed worth measuring.
+  const latency = useAtomValue(
+    props.unused ? NO_LATENCY : environmentSession.routeLatencyAtoms(route).labelAtom,
+  );
+  const direct = useAtomValue(environmentSession.relayRouteTransportAtom(route)) === "direct";
   const style = useAnimatedStyle(() => ({
     transform: [
       {
@@ -299,7 +313,8 @@ function RouteRow(props: {
           address,
           isLearned(route) ? "Found automatically" : null,
           props.inUse ? "In use" : null,
-          `Latency: ${latency}`,
+          direct ? "Direct, encrypted" : null,
+          props.unused ? "Not used" : `Latency: ${latency}`,
           `Route ${props.position} of ${props.count}`,
         ]
           .filter((part) => part !== null)
@@ -319,11 +334,21 @@ function RouteRow(props: {
         />
         <View className="min-w-0 flex-1 gap-0.5 android:gap-1">
           <View className="flex-row items-center gap-2">
-            <Text numberOfLines={1} className="shrink text-lg text-foreground android:text-base">
+            <Text
+              numberOfLines={1}
+              className={cn(
+                "shrink text-lg android:text-base",
+                props.unused ? "text-foreground-muted" : "text-foreground",
+              )}
+            >
               {label}
             </Text>
             {props.inUse ? (
               <StatusPill {...connectionTone("connected")} label="In use" size="compact" />
+            ) : null}
+            {direct ? <Text className="shrink-0 text-sm text-foreground-muted">Direct</Text> : null}
+            {props.unused ? (
+              <StatusPill {...connectionTone("unsupported")} label="Not used" size="compact" />
             ) : null}
           </View>
           {address !== null ? (
@@ -332,7 +357,9 @@ function RouteRow(props: {
             </Text>
           ) : null}
         </View>
-        <Text className="shrink-0 text-sm tabular-nums text-foreground-muted">{latency}</Text>
+        {props.unused ? null : (
+          <Text className="shrink-0 text-sm tabular-nums text-foreground-muted">{latency}</Text>
+        )}
       </View>
       {props.editing ? (
         <SettingsDragHandle

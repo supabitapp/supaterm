@@ -35,11 +35,13 @@ import { orchestrationProtocolCompatibilityError } from "./compatibility.ts";
 import {
   connectionRouteId,
   connectionRoutes,
+  credentialAllowsAddress,
   credentialConnectionId,
   isLearned,
   pairingFallbackRoutes,
   routeEntry,
   routesAt,
+  sendsTokenInClear,
   sshTargetKey,
 } from "./routes.ts";
 import { reachPairingServer } from "./pairing.ts";
@@ -212,7 +214,10 @@ const refreshReachedRouteCredential = Effect.fn(
     const reachedRoute = routesAt(entry, reachedHttpBaseUrl).find(
       (route) => route.target._tag === "BearerConnectionTarget",
     );
-    if (reachedRoute === undefined) return;
+    // The route borrows another route's credential; checking it here must not
+    // carry that credential somewhere a connect would refuse to send it.
+    if (reachedRoute === undefined || sendsTokenInClear(connectionRoutes(entry), reachedRoute))
+      return;
     const connectionId = credentialConnectionId(connectionRouteId(reachedRoute.target));
     if (connectionId === registration.target.connectionId) return;
     const current = Option.getOrUndefined(yield* credentials.get(connectionId));
@@ -320,8 +325,16 @@ export const prepareBearerConnectionUpdate = Effect.fn(
         detail: cause instanceof Error ? cause.message : "The environment URL is invalid.",
       }),
   });
+  if (!credentialAllowsAddress({ target: entry.target, profile: entry.profile }, httpBaseUrl)) {
+    return yield* new ConnectionBlockedError({
+      reason: "configuration",
+      detail:
+        "This route's token was paired over an encrypted connection and can't move to this address. Pair again at the new address.",
+    });
+  }
   const connectionId = entry.target.connectionId;
-  const { relayUrl } = entry.profile.value;
+  const { relayUrl, directTunnelUrls } = entry.profile.value;
+  const sameAddress = httpBaseUrl === entry.profile.value.httpBaseUrl;
   return new BearerConnectionRegistration({
     target: new BearerConnectionTarget({
       environmentId: options.input.environmentId,
@@ -334,9 +347,8 @@ export const prepareBearerConnectionUpdate = Effect.fn(
       label,
       httpBaseUrl,
       wsBaseUrl: deriveWsBaseUrl(httpBaseUrl),
-      ...(relayUrl !== undefined && httpBaseUrl === entry.profile.value.httpBaseUrl
-        ? { relayUrl }
-        : {}),
+      ...(relayUrl !== undefined && sameAddress ? { relayUrl } : {}),
+      ...(directTunnelUrls !== undefined && sameAddress ? { directTunnelUrls } : {}),
     }),
     credential: credential.value,
   });

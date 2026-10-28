@@ -14,7 +14,13 @@ class ControlSocket extends EventTarget {
   static instances: ControlSocket[] = [];
   static created = deferred<ControlSocket>();
   readyState = 0;
-  readonly sent: Array<{ id: string; action: string; address: string; relayUrl?: string }> = [];
+  readonly sent: Array<{
+    id: string;
+    action: string;
+    address: string;
+    relayUrl?: string;
+    directUrls?: string[];
+  }> = [];
   readonly close = vi.fn(() => {
     this.readyState = 3;
     this.dispatchEvent(new Event("close"));
@@ -204,4 +210,25 @@ it("orders open, close, and reopen while the control socket is connecting", asyn
   await close;
   socket.reply(socket.sent[2]!.id, "http://127.0.0.1:40100");
   expect(await reopened).toBe("http://127.0.0.1:40100");
+});
+
+it("forwards direct candidates and reopens a prepared environment only when they change", async () => {
+  const { control, socket } = await connectedControl();
+  const lan = ["ws://192.168.1.20:3773"];
+  const first = socket.nextRequest();
+  const opening = control.request("open", identity(1), undefined, lan);
+  const request = await first;
+  expect(request).toMatchObject({ action: "open", directUrls: lan });
+  socket.reply(request.id, "http://127.0.0.1:40000");
+  expect(await opening).toBe("http://127.0.0.1:40000");
+  expect(await control.request("open", identity(1), undefined, [...lan])).toBe(
+    "http://127.0.0.1:40000",
+  );
+  expect(socket.sent).toHaveLength(2);
+  const second = socket.nextRequest();
+  const refreshed = control.request("open", identity(1), undefined, ["ws://100.64.0.7:3773"]);
+  const update = await second;
+  expect(update).toMatchObject({ action: "open", directUrls: ["ws://100.64.0.7:3773"] });
+  socket.reply(update.id, "http://127.0.0.1:40000");
+  expect(await refreshed).toBe("http://127.0.0.1:40000");
 });

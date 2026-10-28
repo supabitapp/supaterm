@@ -1,4 +1,5 @@
 import * as RelayAccess from "./relay/RelayAccess.ts";
+import * as DirectTunnel from "./relay/DirectTunnel.ts";
 import * as OrchestrationSkills from "./provider/OrchestrationSkills.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
@@ -20,6 +21,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
+import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
 import { Headers } from "effect/http";
 import { RpcGroup, RpcMessage, RpcServer } from "effect/rpc";
@@ -114,7 +116,7 @@ import {
   subscribeOrchestrationV2Shell,
   subscribeOrchestrationV2Thread,
   WS_RPC_SERVER_OPTIONS,
-  withLateEditorConfig,
+  withLateConfig,
   relayAdvertisementUpdates,
 } from "./ws.ts";
 
@@ -130,7 +132,7 @@ const settingsUpdated = (settings: object): ServerConfigStreamEvent => ({
 it.effect("resends late editors without rolling back updates already sent", () =>
   Effect.gen(function* () {
     const settingsSent = yield* Deferred.make<void>();
-    const events = yield* withLateEditorConfig(
+    const events = yield* withLateConfig(
       snapshotConfig({ settings: { enableProviderUpdateChecks: true } as never }),
       Stream.make(settingsUpdated({ enableProviderUpdateChecks: false })),
       {
@@ -138,6 +140,7 @@ it.effect("resends late editors without rolling back updates already sent", () =
         resolveFileManagerRevealKind: () =>
           Deferred.await(settingsSent).pipe(Effect.as("file-explorer" as const)),
       },
+      Stream.empty,
     ).pipe(
       Stream.tap((event) =>
         event.type === "settingsUpdated" ? Deferred.succeed(settingsSent, undefined) : Effect.void,
@@ -159,13 +162,14 @@ it.effect("resends late editors without rolling back updates already sent", () =
 
 it.effect("resends a file manager reveal kind that missed the snapshot", () =>
   Effect.gen(function* () {
-    const events = yield* withLateEditorConfig(
+    const events = yield* withLateConfig(
       snapshotConfig({ availableEditors: ["file-manager"] }),
       Stream.empty,
       {
         resolveAvailableEditors: () => Effect.succeed(["file-manager"]),
         resolveFileManagerRevealKind: () => Effect.succeed("file-explorer"),
       },
+      Stream.empty,
     ).pipe(Stream.runCollect);
 
     const [late] = Array.from(events);
@@ -215,12 +219,36 @@ it.effect("sends relay changes without a duplicate initial advertisement", () =>
   }),
 );
 
+it.effect("resends the snapshot only when the tunnel endpoints change", () =>
+  Effect.gen(function* () {
+    const endpoints = {
+      address: relayAdvertisement.relayEndpoint,
+      urls: ["ws://192.168.1.20:3773"],
+    };
+    const events = yield* withLateConfig(
+      snapshotConfig({}),
+      Stream.empty,
+      {
+        resolveAvailableEditors: () => Effect.succeed([]),
+        resolveFileManagerRevealKind: () => Effect.succeed(undefined),
+      },
+      Stream.make(Option.none(), Option.some(endpoints), Option.some(endpoints), Option.none()),
+    ).pipe(Stream.runCollect);
+    assert.deepEqual(
+      Array.from(events).map((event) =>
+        event.type === "snapshot" ? event.config.tunnelEndpoints : event.type,
+      ),
+      [endpoints, undefined],
+    );
+  }),
+);
+
 it.effect.each([relayAdvertisement, null])(
   "keeps relay advertisement %j in late editor snapshots",
   (payload) =>
     Effect.gen(function* () {
       const sent = yield* Deferred.make<void>();
-      const events = yield* withLateEditorConfig(
+      const events = yield* withLateConfig(
         snapshotConfig({
           environment: { ...relayEnvironment, ...relayAdvertisement },
         }),
@@ -229,6 +257,7 @@ it.effect.each([relayAdvertisement, null])(
           resolveAvailableEditors: () => Deferred.await(sent).pipe(Effect.as(["file-manager"])),
           resolveFileManagerRevealKind: () => Effect.succeed(undefined),
         },
+        Stream.empty,
       ).pipe(
         Stream.tap((event) =>
           event.type === "relayAdvertisementUpdated"
@@ -416,6 +445,10 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(OrchestrationSkills.OrchestrationSkills)({}),
   Layer.mock(RelayAccess.RelayAccess)({
     advertisement: Effect.succeed({}),
+    advertisements: Stream.empty,
+  }),
+  Layer.mock(DirectTunnel.DirectTunnel)({
+    advertisement: Effect.succeedNone,
     advertisements: Stream.empty,
   }),
   Layer.mock(ServerLifecycleEvents.ServerLifecycleEvents)({}),

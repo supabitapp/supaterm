@@ -184,6 +184,7 @@ function bearerToken(init: RequestInit): string | undefined {
 }
 
 const REMOTE = "https://remote.example.test";
+const RELAY_ADDRESS = `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`;
 const NO_SAVED_ENVIRONMENTS = new Map<EnvironmentId, ConnectionCatalogEntry>();
 const SAVED_ENVIRONMENT_ID = EnvironmentId.make("environment-paired");
 const LAN = "http://192.168.1.10:3773";
@@ -393,6 +394,8 @@ describe("connection onboarding", () => {
           ),
           Effect.provideService(RelayGateway, {
             available: true,
+            via: () => undefined,
+            subscribe: () => () => {},
             resolve: async (address) => address,
             lease: (address) => ({
               prepare: async () => {
@@ -489,6 +492,8 @@ describe("connection onboarding", () => {
         Effect.provide(Layer.mergeAll(layerClientPresentation, layerRoutedHttp(calls, {}))),
         Effect.provideService(RelayGateway, {
           available: true,
+          via: () => undefined,
+          subscribe: () => () => {},
           resolve: async (address) => address,
           lease: () => ({
             prepare: () => {
@@ -511,6 +516,60 @@ describe("connection onboarding", () => {
         failure: { reason: "timeout" },
       });
       expect(calls).toEqual([]);
+    }),
+  );
+
+  it.effect.each([
+    { kind: "relay", link: RELAY_ADDRESS },
+    { kind: "HTTPS", link: REMOTE },
+  ])("never sends a $kind link's credential to a plain HTTP route or hint", ({ link }) =>
+    Effect.gen(function* () {
+      const calls: Array<Call> = [];
+      const savedLan = "http://192.168.1.11:3773";
+      const pairingUrl = buildPairingUrl(link, "pairing-token", {
+        environmentId: SAVED_ENVIRONMENT_ID,
+        routes: [LAN],
+      });
+      const result = yield* preparePairingRegistration(
+        { pairingUrl },
+        savedEnvironment(savedRoute(savedLan, "saved-lan")),
+      ).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            layerClientPresentation,
+            layerRoutedHttp(calls, { [LAN]: pairingServer(), [savedLan]: pairingServer() }),
+          ),
+        ),
+        Effect.result,
+      );
+      expect(result._tag).toBe("Failure");
+      expect(urls(calls).filter((url) => url.startsWith("http:"))).toEqual([]);
+    }),
+  );
+
+  it.effect("pairs a relay link through a saved loopback route, as over an SSH forward", () =>
+    Effect.gen(function* () {
+      const calls: Array<Call> = [];
+      const forward = "http://127.0.0.1:44000";
+      const { registration } = yield* preparePairingRegistration(
+        {
+          pairingUrl: buildPairingUrl(RELAY_ADDRESS, "pairing-token", {
+            environmentId: SAVED_ENVIRONMENT_ID,
+          }),
+        },
+        savedEnvironment(savedRoute(forward, "forward")),
+      ).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            layerClientPresentation,
+            layerRoutedHttp(calls, { [forward]: pairingServer() }),
+          ),
+        ),
+      );
+      expect(registration.profile.httpBaseUrl).toBe(RELAY_ADDRESS);
+      expect(urls(calls).filter((url) => url.endsWith("/oauth/token"))).toEqual([
+        `${forward}/oauth/token`,
+      ]);
     }),
   );
 
@@ -1130,6 +1189,46 @@ describe("connection onboarding", () => {
     }),
   );
 
+  it.effect.each([
+    { paired: "relay", from: RELAY_ADDRESS, to: "http://192.168.1.20:3773/", moves: false },
+    { paired: "HTTPS", from: `${REMOTE}/`, to: "http://192.168.1.20:3773/", moves: false },
+    { paired: "plain HTTP", from: `${LAN}/`, to: "http://192.168.1.20:3773/", moves: true },
+    { paired: "relay", from: RELAY_ADDRESS, to: "http://127.0.0.1:44000/", moves: true },
+  ])("moving a route paired over $paired to $to keeps its token: $moves", ({ from, to, moves }) =>
+    Effect.gen(function* () {
+      const environmentId = EnvironmentId.make("environment-edit");
+      const connectionId = "bearer:environment-edit";
+      const result = yield* prepareBearerConnectionUpdate({
+        input: { environmentId, label: "Edited", httpBaseUrl: to },
+        entry: Option.some({
+          target: new BearerConnectionTarget({ environmentId, label: "Edited", connectionId }),
+          profile: Option.some(
+            new BearerConnectionProfile({
+              connectionId,
+              environmentId,
+              label: "Edited",
+              httpBaseUrl: from,
+              wsBaseUrl: from.replace(/^http/, "ws"),
+            }),
+          ),
+          enabled: true,
+        }),
+        credential: Option.some(new BearerConnectionCredential({ token: "bearer-token" })),
+      }).pipe(Effect.result);
+      if (moves) {
+        expect(result).toMatchObject({
+          _tag: "Success",
+          success: { profile: { httpBaseUrl: to } },
+        });
+      } else {
+        expect(result).toMatchObject({
+          _tag: "Failure",
+          failure: { _tag: "ConnectionBlockedError", reason: "configuration" },
+        });
+      }
+    }),
+  );
+
   it.effect("prepares an SSH registration from the provisioned platform environment", () =>
     Effect.gen(function* () {
       const target = {
@@ -1354,6 +1453,25 @@ describe("connection onboarding", () => {
       });
 
       expect(token(TAILNET_CONNECTION)).toBe("bearer-token");
+    }),
+  );
+
+  it.effect("re-pairing over plain HTTP never checks a relay credential at that address", () =>
+    Effect.gen(function* () {
+      const relayConnection = "bearer:environment-paired:relay";
+      const { calls, events, token } = yield* registerPairing({
+        pairingUrl: PAIRING_LINK,
+        entries: savedEnvironment(
+          savedRoute(RELAY_ADDRESS.slice(0, -1), relayConnection),
+          savedRoute(LAN, `learned:environment-paired:${LAN}@${relayConnection}`, true),
+        ),
+        credentials: [[relayConnection, "relay-token"]],
+        servers: { [LAN]: pairingServer({ acceptedTokens: ["bearer-token"] }) },
+      });
+
+      expect(calls.map((call) => bearerToken(call.init))).not.toContain("relay-token");
+      expect(events).not.toContain(`put:${relayConnection}`);
+      expect(token(relayConnection)).toBe("relay-token");
     }),
   );
 

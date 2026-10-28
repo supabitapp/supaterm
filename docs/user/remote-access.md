@@ -52,12 +52,17 @@ and WebSockets use the same encrypted tunnel. A relay address must be paired
 inside the app; opening it as a website does not load Supaterm.
 
 The host and client encrypt the connection end to end. The relay forwards
-encrypted bytes, including HTTP requests. Pairing permissions and authorized
-client revocation work as they do for direct connections. Turning off **Encrypted Relay**
-closes relay connections; turning it back on lets already authorized
-clients reconnect. The host must stay running and have internet access.
-After the first activation, the host reconnects automatically when Supaterm starts
-while **Encrypted Relay** is enabled.
+encrypted bytes, including HTTP requests. When the host has **Network access**
+on and both devices share a network or tailnet, a relay pairing connects to the
+host directly over the same encrypted connection and skips the relay. A relay
+pairing never connects over plain HTTP; pair with `supaterm pair --no-relay`
+when you want that.
+
+Pairing permissions and authorized client revocation work as they do for direct
+connections. Turning off **Encrypted Relay** closes relay connections; turning it
+back on lets already authorized clients reconnect. The host must stay running
+and have internet access. After the first activation, the host reconnects
+automatically when Supaterm starts while **Encrypted Relay** is enabled.
 
 New pairing links carry the configured relay server to the clients that pair
 with them. Automatically learned relay routes follow a server change through a
@@ -127,8 +132,11 @@ and SSH. Pair it again using another address, or choose **Add route** from its
 route list. Both addresses belong to the same machine in your client.
 
 Supaterm also learns the LAN and Tailscale addresses reported by a paired
-machine. Desktop, mobile, and browser clients using the local companion also
-learn its relay address once relay is activated, without rescanning. On a fresh
+machine. A relay pairing doesn't use plain HTTP addresses; it reaches the host
+directly through its encrypted connection instead. The route list marks a saved
+route your client won't use as **Not used**, with the reason. Desktop, mobile,
+and browser clients using the local companion also learn its relay address once
+relay is activated, without rescanning. On a fresh
 host, create the first relay pairing link to activate it;
 clients already connected directly do not need to scan that link.
 Enable **Network access** on the host to make its LAN address available.

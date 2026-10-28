@@ -114,9 +114,11 @@ const failureRank = (failure: ConnectionAttemptError) =>
 /** The origin that reaches a route's address from here, through a leased relay tunnel if it has one. */
 export const leaseRouteOrigin = (route: ConnectionRoute, httpBaseUrl: string) => {
   const profile = Option.getOrNull(route.profile);
+  const bearer = profile?._tag === "BearerConnectionProfile" ? profile : undefined;
   return leaseRelayOrigin(
     httpBaseUrl,
-    profile?._tag === "BearerConnectionProfile" ? profile.relayUrl : undefined,
+    bearer?.relayUrl,
+    bearer === undefined ? undefined : (bearer.directTunnelUrls ?? []),
   ).pipe(Effect.map(({ origin }) => origin));
 };
 

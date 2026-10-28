@@ -17,6 +17,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { RegistryContext, useAtomValue } from "@effect/atom-react";
+import { Atom } from "effect/reactivity";
 import {
   type ConnectionRoute,
   connectionRouteAddress,
@@ -25,6 +26,7 @@ import {
   connectionRouteLabel,
   connectionRoutes,
   isLearned,
+  usableRoutes,
 } from "@supaterm/client-runtime/connection";
 import { GripVerticalIcon, LockIcon, PlusIcon, RefreshCwIcon, XIcon } from "@supaterm/icons";
 import { useContext, useState } from "react";
@@ -61,6 +63,9 @@ export function EnvironmentRoutesList({
       : savedIds;
   const byId = new Map(saved.map((route) => [connectionRouteId(route.target), route]));
   const routes = order.flatMap((id) => byId.get(id) ?? []);
+  const usable = new Set(
+    usableRoutes(environment.entry).map((route) => connectionRouteId(route.target)),
+  );
 
   const prepared = usePreparedConnection(environment.environmentId);
   const activeRouteId =
@@ -110,18 +115,23 @@ export function EnvironmentRoutesList({
       >
         <SortableContext items={order} strategy={verticalListSortingStrategy}>
           <ol aria-label={`Routes to ${environment.label}, preferred first`}>
-            {routes.map((route, index) => (
-              <SortableRouteRow
-                key={connectionRouteId(route.target)}
-                route={route}
-                position={index + 1}
-                inUse={connectionRouteId(route.target) === activeRouteId}
-                // Learned routes are refreshed from the server and are not
-                // removed manually; paired routes can be removed individually.
-                removable={routes.length > 1 && !isLearned(route)}
-                onRemove={() => void confirmRemove(route)}
-              />
-            ))}
+            {routes.map((route, index) => {
+              const unused = !usable.has(connectionRouteId(route.target));
+              return (
+                <SortableRouteRow
+                  key={connectionRouteId(route.target)}
+                  route={route}
+                  position={index + 1}
+                  inUse={connectionRouteId(route.target) === activeRouteId}
+                  unused={unused}
+                  // Learned routes are refreshed from the server and are not
+                  // removed manually unless a connect skips them; paired
+                  // routes can be removed individually.
+                  removable={routes.length > 1 && (!isLearned(route) || unused)}
+                  onRemove={() => void confirmRemove(route)}
+                />
+              );
+            })}
           </ol>
         </SortableContext>
       </DndContext>
@@ -148,23 +158,31 @@ export function EnvironmentRoutesList({
   );
 }
 
+const NO_LATENCY = Atom.make("");
+
 function SortableRouteRow({
   route,
   position,
   inUse,
+  unused,
   removable,
   onRemove,
 }: {
   readonly route: ConnectionRoute;
   readonly position: number;
   readonly inUse: boolean;
+  readonly unused: boolean;
   readonly removable: boolean;
   readonly onRemove: () => void;
 }) {
   const id = connectionRouteId(route.target);
   const label = connectionRouteLabel(route);
   const address = connectionRouteAddress(route);
-  const latency = useAtomValue(environmentSession.routeLatencyAtoms(route).labelAtom);
+  // A route a connect skips has no speed worth measuring.
+  const latency = useAtomValue(
+    unused ? NO_LATENCY : environmentSession.routeLatencyAtoms(route).labelAtom,
+  );
+  const transport = useAtomValue(environmentSession.relayRouteTransportAtom(route));
   const {
     attributes,
     listeners,
@@ -195,7 +213,12 @@ function SortableRouteRow({
         <GripVerticalIcon aria-hidden className="size-3.5" />
       </button>
       <div className="grid min-w-0 gap-y-0.5 sm:grid-cols-[9rem_minmax(0,1fr)] sm:items-baseline sm:gap-x-3">
-        <p className="flex flex-wrap items-center gap-x-1.5 text-xs font-medium text-foreground">
+        <p
+          className={cn(
+            "flex flex-wrap items-center gap-x-1.5 text-xs font-medium",
+            unused ? "text-muted-foreground" : "text-foreground",
+          )}
+        >
           {connectionRouteKind(route) === "relay" ? (
             <LockIcon aria-hidden className="size-3 shrink-0" />
           ) : null}
@@ -206,6 +229,19 @@ function SortableRouteRow({
           {inUse ? (
             <span className="text-2xs font-normal text-success-foreground">In use</span>
           ) : null}
+          {transport === "direct" ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={<span className="text-2xs font-normal text-muted-foreground" />}
+              >
+                Direct
+              </TooltipTrigger>
+              <TooltipPopup side="top">
+                Encrypted connection straight to the host, skipping the relay server
+              </TooltipPopup>
+            </Tooltip>
+          ) : null}
+          {unused ? <span className="text-2xs font-normal">Not used</span> : null}
         </p>
         {address !== null ? (
           <p className="flex min-w-0 items-baseline gap-2 text-2xs text-muted-foreground">
@@ -220,7 +256,7 @@ function SortableRouteRow({
         ) : null}
       </div>
       <span
-        aria-label={`${label} route latency: ${latency}`}
+        aria-label={unused ? undefined : `${label} route latency: ${latency}`}
         className="w-20 text-right text-2xs tabular-nums text-muted-foreground"
       >
         {latency}

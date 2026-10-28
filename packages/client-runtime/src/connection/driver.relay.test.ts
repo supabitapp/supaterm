@@ -13,7 +13,6 @@ import * as RpcSession from "../rpc/session.ts";
 import {
   BearerConnectionCredential,
   BearerConnectionProfile,
-  type ConnectionCatalogEntry,
   type ConnectionRoute,
 } from "./catalog.ts";
 import * as ConnectionCredentialStore from "./credentialStore.ts";
@@ -43,12 +42,21 @@ function bearerRoute(connectionId: string, httpBaseUrl: string): ConnectionRoute
 }
 const lan = bearerRoute("lan", "http://192.168.1.2:4389/");
 const relay = bearerRoute("relay", relayAddress);
-const entry: ConnectionCatalogEntry = { ...lan, enabled: true, alternateRoutes: [relay] };
 
 const connectWithRealResolver = Effect.fnUntraced(function* (
   lanAnswers: (relayOpened: Promise<void>) => Promise<boolean>,
+  directTunnelUrls?: ReadonlyArray<string>,
 ) {
   let opens = 0;
+  const offered: Array<ReadonlyArray<string>> = [];
+  const relayProfile = Option.getOrThrow(relay.profile);
+  const relayRoute: ConnectionRoute =
+    directTunnelUrls === undefined || relayProfile._tag !== "BearerConnectionProfile"
+      ? relay
+      : {
+          target: relay.target,
+          profile: Option.some(new BearerConnectionProfile({ ...relayProfile, directTunnelUrls })),
+        };
   const relayOpened = Promise.withResolvers<void>();
   const lanAnswered = lanAnswers(relayOpened.promise);
   const descriptor = {
@@ -67,8 +75,9 @@ const connectWithRealResolver = Effect.fnUntraced(function* (
     }),
     RelayGateway.layer({
       fetch,
-      open: async () => {
+      open: async (_address, _relayUrl, directUrls) => {
         opens++;
+        offered.push(directUrls());
         relayOpened.resolve();
         return {
           prepare: async () => tunnelOrigin,
@@ -141,11 +150,14 @@ const connectWithRealResolver = Effect.fnUntraced(function* (
   );
   return yield* Effect.gen(function* () {
     const driver = yield* ConnectionDriver.make;
-    const lease = yield* driver.connect(entry, () => Effect.void);
+    const lease = yield* driver.connect(
+      { ...lan, enabled: true, alternateRoutes: [relayRoute] },
+      () => Effect.void,
+    );
     const gateway = yield* RelayGateway.RelayGateway;
     // A tunnel released when selection ended has to be opened again.
     yield* Effect.promise(() => gateway.resolve(relayAddress));
-    return { target: lease.prepared.target, opens };
+    return { target: lease.prepared.target, opens, offered };
   }).pipe(
     Effect.provide(ConnectionResolver.layer.pipe(Layer.provideMerge(dependencies))),
     Effect.scoped,
@@ -166,6 +178,15 @@ describe("relay route checks with the real resolver and gateway", () => {
       const result = yield* connectWithRealResolver((relayOpened) => relayOpened.then(() => true));
       expect(result.target).toEqual(lan.target);
       expect(result.opens).toBe(2);
+    }),
+  );
+
+  it.effect("offers the gateway the relay route's direct tunnel candidates", () =>
+    Effect.gen(function* () {
+      const urls = ["ws://192.168.1.2:4390", "ws://100.101.102.103:4390"];
+      const result = yield* connectWithRealResolver(async () => false, urls);
+      expect(result.target).toEqual(relay.target);
+      expect(result.offered).toEqual([urls]);
     }),
   );
 });

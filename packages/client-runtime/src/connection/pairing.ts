@@ -1,4 +1,5 @@
 import type { EnvironmentId } from "@supaterm/contracts";
+import { isLocalLoopbackHost } from "@supaterm/shared/hostClassification";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Option from "effect/Option";
@@ -22,8 +23,9 @@ const reachDescriptor = Effect.fnUntraced(
     source: "linked" | "saved" | "hint",
     expectedEnvironmentId: EnvironmentId | undefined,
     relayUrl?: string,
+    directTunnelUrls?: ReadonlyArray<string>,
   ) {
-    const { origin, retain } = yield* leaseRelayOrigin(httpBaseUrl, relayUrl);
+    const { origin, retain } = yield* leaseRelayOrigin(httpBaseUrl, relayUrl, directTunnelUrls);
     const descriptor = yield* fetchRemoteEnvironmentDescriptor({ httpBaseUrl: origin }).pipe(
       Effect.mapError(mapRemoteEnvironmentError),
     );
@@ -54,22 +56,23 @@ export const reachPairingServer = Effect.fn("clientRuntime.connection.pairing.re
   }) {
     const candidates = new Map<
       string,
-      { httpBaseUrl: string; relayUrl?: string; source: "saved" | "hint" }
+      PairingFallback["routes"][number] & { readonly source: "saved" | "hint" }
     >();
-    const linkedOrigin = new URL(input.httpBaseUrl).origin;
+    const link = new URL(input.httpBaseUrl);
+    const securePage =
+      typeof globalThis.location !== "undefined" && globalThis.location.protocol === "https:";
+    // A relay or HTTPS link's credential stays off plain HTTP like the token it
+    // mints; relay addresses are always https. Loopback stays open for SSH forwards.
+    const plainHttpAllowed = (url: URL) =>
+      !securePage && (link.protocol !== "https:" || isLocalLoopbackHost(url.hostname));
     for (const [source, urls] of [
       ["saved", input.fallback?.routes ?? []],
       ["hint", input.routes.map((httpBaseUrl) => ({ httpBaseUrl }))],
     ] as const) {
       for (const route of urls) {
         const url = new URL(route.httpBaseUrl);
-        if (url.origin === linkedOrigin || candidates.has(url.origin)) continue;
-        if (
-          url.protocol === "http:" &&
-          typeof globalThis.location !== "undefined" &&
-          globalThis.location.protocol === "https:"
-        )
-          continue;
+        if (url.origin === link.origin || candidates.has(url.origin)) continue;
+        if (url.protocol === "http:" && !plainHttpAllowed(url)) continue;
         candidates.set(url.origin, { ...route, source });
       }
     }
@@ -88,12 +91,13 @@ export const reachPairingServer = Effect.fn("clientRuntime.connection.pairing.re
     if (Option.isSome(answered)) return answered.value;
     return yield* Effect.raceAll([
       Fiber.join(linked),
-      ...[...candidates.values()].map(({ httpBaseUrl, source, relayUrl }) =>
+      ...[...candidates.values()].map(({ httpBaseUrl, source, relayUrl, directTunnelUrls }) =>
         reachDescriptor(
           httpBaseUrl,
           source,
           input.expectedEnvironmentId ?? input.fallback?.environmentId,
           relayUrl,
+          directTunnelUrls,
         ),
       ),
     ]).pipe(Effect.catch(() => Fiber.join(linked)));

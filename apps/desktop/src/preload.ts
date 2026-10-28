@@ -5,6 +5,7 @@ import type {
   DesktopPreviewRecordingInputEvent,
   DesktopPreviewRecordingFrame,
   DesktopPreviewTabState,
+  DesktopRelayViaChange,
   DesktopSnapShotEvent,
 } from "@supaterm/contracts";
 import { contextBridge, ipcRenderer, webFrame, webUtils } from "electron";
@@ -43,6 +44,12 @@ if (clientPlatform === "darwin") {
   };
   window.addEventListener("DOMContentLoaded", syncWindowControlInset, { once: true });
   window.addEventListener("resize", syncWindowControlInset);
+}
+
+function isRelayViaChange(value: unknown): value is DesktopRelayViaChange {
+  if (typeof value !== "object" || value === null) return false;
+  const { address, via } = value as { address?: unknown; via?: unknown };
+  return typeof address === "string" && (via === null || via === "relay" || via === "direct");
 }
 
 function unwrapEnsureSshEnvironmentResult(result: unknown) {
@@ -131,8 +138,23 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   setConnectionCatalog: (catalog) =>
     ipcRenderer.invoke(IpcChannels.SET_CONNECTION_CATALOG_CHANNEL, catalog),
   clearConnectionCatalog: () => ipcRenderer.invoke(IpcChannels.CLEAR_CONNECTION_CATALOG_CHANNEL),
-  startRelay: (address, relayUrl) =>
-    ipcRenderer.invoke(IpcChannels.START_RELAY_CHANNEL, { address, relayUrl }),
+  startRelay: (address, relayUrl, directUrls) =>
+    ipcRenderer.invoke(IpcChannels.START_RELAY_CHANNEL, {
+      address,
+      relayUrl,
+      ...(directUrls === undefined ? {} : { directUrls }),
+    }),
+  onRelayViaChanged: (listener) => {
+    const wrappedListener = (_event: Electron.IpcRendererEvent, change: unknown) => {
+      if (!isRelayViaChange(change)) return;
+      listener(change);
+    };
+
+    ipcRenderer.on(IpcChannels.RELAY_VIA_CHANGED_CHANNEL, wrappedListener);
+    return () => {
+      ipcRenderer.removeListener(IpcChannels.RELAY_VIA_CHANGED_CHANNEL, wrappedListener);
+    };
+  },
   stopRelay: (address) => ipcRenderer.invoke(IpcChannels.STOP_RELAY_CHANNEL, address),
   discoverSshHosts: () => ipcRenderer.invoke(IpcChannels.DISCOVER_SSH_HOSTS_CHANNEL),
   resolveSshHost: (alias) => ipcRenderer.invoke(IpcChannels.RESOLVE_SSH_HOST_CHANNEL, alias),

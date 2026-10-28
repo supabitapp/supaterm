@@ -41,9 +41,16 @@ Learned routes reuse their saved pairing's bearer credential. Removing that
 pairing removes its learned routes; an updated advertisement removes addresses
 the server no longer reports. User-saved routes survive advertisement changes.
 A paired token only goes to a plain HTTP address off the tailnet when it was
-itself paired over plain HTTP or over the relay, so a token paired over HTTPS or
-the tailnet never starts travelling unencrypted. Relay pairings are exempt
-because a relay-paired phone holds no other credential for its LAN fast path.
+itself paired over plain HTTP, so a token paired over HTTPS or the tailnet never
+starts travelling unencrypted. A tailnet label counts only on a tailnet address.
+
+A relay-paired token only travels inside the relay's end-to-end encrypted
+tunnel: through the relay server, or straight to the host over the LAN or
+tailnet with the same handshake. It never takes a plain HTTP route, tailnet
+included. The direct tunnel pins the host identity from pairing, never one
+learned over plain HTTP, so its candidate addresses only need to be reachable.
+The host advertises them as `tunnelEndpoints`, apart from `directEndpoints`,
+because older clients turn every direct endpoint into a plain HTTP route.
 
 [GitHub routing trust](../../packages/client-runtime/src/connection/githubRoutingPermissions.ts)
 covers every user-saved route. Adding or changing an address revokes the grant;

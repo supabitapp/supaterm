@@ -9,11 +9,13 @@ import * as Option from "effect/Option";
 import {
   BearerConnectionProfile,
   BearerConnectionTarget,
+  type ConnectionCatalogEntry,
   type ConnectionRoute,
   SshConnectionTarget,
 } from "./index.ts";
 import {
   advertisedConnectionRoutes,
+  credentialAllowsAddress,
   credentialConnectionId,
   connectionRouteAddress,
   connectionRouteId,
@@ -406,6 +408,14 @@ describe("plain HTTP learned routes", () => {
       profile: Option.some(new BearerConnectionProfile({ ...profile, learned: true })),
     };
   };
+  const withTailscaleLabel = (learned: ConnectionRoute): ConnectionRoute => {
+    const profile = Option.getOrThrow(learned.profile);
+    if (profile._tag !== "BearerConnectionProfile") throw new Error("Expected bearer profile");
+    return {
+      target: learned.target,
+      profile: Option.some(new BearerConnectionProfile({ ...profile, network: "tailscale" })),
+    };
+  };
 
   it("keeps a token paired over HTTPS off plain HTTP addresses outside the tailnet", () => {
     const routes = mergeLearnedRoutes({
@@ -451,23 +461,146 @@ describe("plain HTTP learned routes", () => {
     ]);
   });
 
-  it("lets a token paired over the relay reach plain HTTP LAN addresses", () => {
+  it("keeps a token paired over the relay off plain HTTP LAN and tailnet addresses", () => {
     const lanOrigin = "http://10.0.0.42:3773";
+    const tailnetOrigin = "http://100.101.102.103:3773";
     const stale = learnedRoute(`learned:${environmentId}:${lanOrigin}@public`, `${lanOrigin}/`);
     const overRelay = learnedRoute(`learned:${environmentId}:${lanOrigin}@relay`, `${lanOrigin}/`);
+    const tailnetOverRelay = withTailscaleLabel(
+      learnedRoute(`learned:${environmentId}:${tailnetOrigin}@relay`, `${tailnetOrigin}/`),
+    );
     const entry = entryWithRoutes(base, [stale, PUBLIC, RELAY]);
     expect(ids(usableRoutes(entry))).toEqual(["public", "relay"]);
     const routes = mergeLearnedRoutes({
       entry,
       activeRoute: RELAY,
-      reported: [{ kind: "lan", httpBaseUrl: `${lanOrigin}/` }],
+      reported: [
+        { kind: "lan", httpBaseUrl: `${lanOrigin}/` },
+        { kind: "tailnet", httpBaseUrl: `${tailnetOrigin}/` },
+      ],
       allowInsecure: true,
     });
-    expect(ids(routes)).toEqual([`learned:${environmentId}:${lanOrigin}@relay`, "public", "relay"]);
-    expect(sendsTokenInClear([overRelay, RELAY], overRelay)).toBe(false);
-    expect(ids(usableRoutes(entryWithRoutes(base, [overRelay, RELAY])))).toEqual([
-      `learned:${environmentId}:${lanOrigin}@relay`,
-      "relay",
-    ]);
+    expect(ids(routes)).toEqual(["public", "relay"]);
+    const persisted = [overRelay, tailnetOverRelay, RELAY];
+    expect(sendsTokenInClear(persisted, overRelay)).toBe(true);
+    expect(sendsTokenInClear(persisted, tailnetOverRelay)).toBe(true);
+    expect(ids(usableRoutes(entryWithRoutes(base, persisted)))).toEqual(["relay"]);
+  });
+
+  it("trusts a tailnet label only on a tailnet address", () => {
+    const publicOrigin = "http://203.0.113.7:3773";
+    const routes = mergeLearnedRoutes({
+      entry: entryWithRoutes(base, [PUBLIC]),
+      activeRoute: PUBLIC,
+      reported: [{ kind: "tailnet", httpBaseUrl: `${publicOrigin}/` }],
+      allowInsecure: true,
+    });
+    expect(routes).toBeNull();
+    const labelled = withTailscaleLabel(
+      learnedRoute(`learned:${environmentId}:${publicOrigin}@public`, `${publicOrigin}/`),
+    );
+    expect(connectionRouteKind(labelled)).toBe("public");
+    expect(sendsTokenInClear([labelled, PUBLIC], labelled)).toBe(true);
+    expect(ids(usableRoutes(entryWithRoutes(base, [labelled, PUBLIC])))).toEqual(["public"]);
+  });
+
+  it("refuses an HTTPS route whose WebSocket is unencrypted, even with its own token", () => {
+    const mixed = route("https://desk.example.com/", "mixed");
+    const profile = Option.getOrThrow(mixed.profile);
+    if (profile._tag !== "BearerConnectionProfile") throw new Error("Expected bearer profile");
+    const downgraded: ConnectionRoute = {
+      target: mixed.target,
+      profile: Option.some(
+        new BearerConnectionProfile({ ...profile, wsBaseUrl: "ws://desk.example.com/" }),
+      ),
+    };
+    const entry = entryWithRoutes(base, [downgraded, LAN]);
+    expect(ids(usableRoutes(entry))).toEqual(["lan"]);
+  });
+
+  it("lets a moved route carry its token in the clear only where it was paired that way", () => {
+    expect(credentialAllowsAddress(LAN, "http://10.0.0.42:3773/")).toBe(true);
+    expect(credentialAllowsAddress(PUBLIC, "http://10.0.0.42:3773/")).toBe(false);
+    expect(credentialAllowsAddress(PUBLIC, "http://100.101.102.103:3773/")).toBe(true);
+    expect(credentialAllowsAddress(RELAY, "http://10.0.0.42:3773/")).toBe(false);
+    expect(credentialAllowsAddress(RELAY, "http://100.101.102.103:3773/")).toBe(false);
+    expect(credentialAllowsAddress(RELAY, "http://127.0.0.1:44000/")).toBe(true);
+  });
+
+  it("keeps a relay-paired route on relay addresses so a second edit can't reach plain HTTP", () => {
+    expect(credentialAllowsAddress(RELAY, "https://desk.example.com/")).toBe(false);
+    expect(credentialAllowsAddress(RELAY, routeHttpBaseUrl(RELAY)!)).toBe(true);
+    expect(credentialAllowsAddress(PUBLIC, "https://desk.example.com/")).toBe(true);
+  });
+});
+
+describe("direct tunnel candidates", () => {
+  const RELAY = route(relayEndpoint, "relay");
+  const entry = { target: RELAY.target, profile: RELAY.profile, enabled: true };
+  const urls = ["ws://192.168.1.10:3773", "ws://100.101.102.103:3773"];
+  const tunnelUrls = (routes: ReadonlyArray<ConnectionRoute> | null) =>
+    routes?.map((item) => {
+      const profile = Option.getOrThrow(item.profile);
+      return profile._tag === "BearerConnectionProfile" ? profile.directTunnelUrls : undefined;
+    }) ?? null;
+  const merge = (
+    saved: ConnectionCatalogEntry,
+    tunnelEndpoints: Parameters<typeof mergeLearnedRoutes>[0]["tunnelEndpoints"],
+  ) =>
+    mergeLearnedRoutes({
+      entry: saved,
+      activeRoute: RELAY,
+      allowInsecure: true,
+      allowRelay: true,
+      tunnelEndpoints,
+    });
+
+  it("saves the host's tunnel candidates on the relay route it advertises them for", () => {
+    const routes = merge(entry, { address: relayEndpoint.replace(/\/$/, ""), urls });
+    expect(routes?.map((item) => item.target)).toEqual([RELAY.target]);
+    expect(tunnelUrls(routes)).toEqual([urls]);
+    expect(merge(entryWithRoutes(entry, routes!), { address: relayEndpoint, urls })).toBeNull();
+  });
+
+  it("ignores candidates advertised for another relay address", () => {
+    const other = `https://${"33".repeat(16)}.${"44".repeat(16)}.relay.supaterm.alt/`;
+    expect(merge(entry, { address: other, urls })).toBeNull();
+    expect(merge(entry, { address: "https://desk.example.com", urls })).toBeNull();
+  });
+
+  it("clears saved candidates when the host stops advertising them", () => {
+    const saved = entryWithRoutes(entry, merge(entry, { address: relayEndpoint, urls })!);
+    expect(merge(saved, undefined)).toBeNull();
+    expect(tunnelUrls(merge(saved, null))).toEqual([undefined]);
+  });
+
+  it("reads an omitted tunnel advertisement as none", () => {
+    const environment = {
+      environmentId,
+      label: "Test",
+      platform: { os: "linux", arch: "x64" } as const,
+      serverVersion: "test",
+      orchestrationProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION,
+      capabilities: {},
+    };
+    expect(advertisedConnectionRoutes({ environment }).tunnelEndpoints).toBeNull();
+    expect(
+      advertisedConnectionRoutes({ environment, tunnelEndpoints: { address: relayEndpoint, urls } })
+        .tunnelEndpoints,
+    ).toEqual({ address: relayEndpoint, urls });
+  });
+
+  it("offers the candidates when pairing falls back to the relay route", () => {
+    const saved = entryWithRoutes(entry, merge(entry, { address: relayEndpoint, urls })!);
+    expect(
+      pairingFallbackRoutes(
+        new Map([[environmentId, saved]]),
+        "http://10.0.0.9:3773/",
+        environmentId,
+      ),
+    ).toEqual({
+      environmentId,
+      routes: [{ httpBaseUrl: relayEndpoint, directTunnelUrls: urls }],
+    });
   });
 });

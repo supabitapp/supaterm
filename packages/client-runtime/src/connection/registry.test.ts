@@ -1252,6 +1252,8 @@ describe("EnvironmentRegistry", () => {
             RelayGateway,
             RelayGateway.of({
               available: true,
+              via: () => undefined,
+              subscribe: () => () => {},
               lease: () => {
                 throw new Error("Unexpected pairing lease");
               },
@@ -2088,40 +2090,42 @@ describe("EnvironmentRegistry", () => {
   );
 });
 
+const LIVE_CONFIG: ServerConfig = {
+  environment: {
+    environmentId: BEARER_TARGET.environmentId,
+    label: "Test",
+    platform: { os: "linux", arch: "x64" },
+    serverVersion: "test",
+    orchestrationProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION,
+    capabilities: {},
+  },
+  auth: {
+    policy: "loopback-browser",
+    bootstrapMethods: ["one-time-token"],
+    sessionMethods: ["bearer-access-token"],
+    sessionCookieName: "supaterm_session",
+  },
+  cwd: "/tmp",
+  keybindingsConfigPath: "/tmp/keybindings.json",
+  keybindings: [],
+  issues: [],
+  providers: [],
+  availableEditors: [],
+  observability: {
+    logsDirectoryPath: "/tmp/logs",
+    localTracingEnabled: false,
+    otlpTracesEnabled: false,
+    otlpMetricsEnabled: false,
+    otlpLogsEnabled: false,
+  },
+  settings: DEFAULT_SERVER_SETTINGS,
+};
+
 it.effect(
   "learns, updates, and withdraws relay on a live connection without replacing its session or credential",
   () =>
     Effect.gen(function* () {
-      const config: ServerConfig = {
-        environment: {
-          environmentId: BEARER_TARGET.environmentId,
-          label: "Test",
-          platform: { os: "linux", arch: "x64" },
-          serverVersion: "test",
-          orchestrationProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION,
-          capabilities: {},
-        },
-        auth: {
-          policy: "loopback-browser",
-          bootstrapMethods: ["one-time-token"],
-          sessionMethods: ["bearer-access-token"],
-          sessionCookieName: "supaterm_session",
-        },
-        cwd: "/tmp",
-        keybindingsConfigPath: "/tmp/keybindings.json",
-        keybindings: [],
-        issues: [],
-        providers: [],
-        availableEditors: [],
-        observability: {
-          logsDirectoryPath: "/tmp/logs",
-          localTracingEnabled: false,
-          otlpTracesEnabled: false,
-          otlpMetricsEnabled: false,
-          otlpLogsEnabled: false,
-        },
-        settings: DEFAULT_SERVER_SETTINGS,
-      };
+      const config = LIVE_CONFIG;
       const configs = yield* SubscriptionRef.make(config);
       const writes = yield* Queue.unbounded<{
         routes: ReadonlyArray<ConnectionTarget>;
@@ -2202,6 +2206,8 @@ it.effect(
         Effect.provide(harness.layer),
         Effect.provideService(RelayGateway, {
           available: true,
+          via: () => undefined,
+          subscribe: () => () => {},
           lease: () => {
             throw new Error("Unexpected pairing lease");
           },
@@ -2214,4 +2220,63 @@ it.effect(
         Effect.scoped,
       );
     }),
+);
+
+it.effect("keeps the relay route's direct tunnel candidates in step with the live host", () =>
+  Effect.gen(function* () {
+    const relayEndpoint = `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`;
+    const urls = ["ws://192.168.1.10:3773"];
+    const advertised: ServerConfig = {
+      ...LIVE_CONFIG,
+      environment: { ...LIVE_CONFIG.environment, relayEndpoint, relayUrl: "wss://relay.test" },
+      tunnelEndpoints: { address: relayEndpoint, urls },
+    };
+    const configs = yield* SubscriptionRef.make(advertised);
+    const harness = yield* makeHarness(
+      [BEARER_TARGET],
+      [BEARER_PROFILE],
+      [[BEARER_TARGET.connectionId, BEARER_CREDENTIAL]],
+      { configChanges: SubscriptionRef.changes(configs) },
+    );
+    yield* Effect.gen(function* () {
+      const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
+      yield* registry.start;
+      const relayTunnelUrls = SubscriptionRef.changes(registry.entries).pipe(
+        Stream.map((entries) =>
+          connectionRoutes(entries.get(BEARER_TARGET.environmentId)!).flatMap((route) => {
+            const profile = Option.getOrNull(route.profile);
+            return profile?._tag === "BearerConnectionProfile" &&
+              profile.httpBaseUrl === relayEndpoint
+              ? [profile.directTunnelUrls]
+              : [];
+          }),
+        ),
+      );
+      const awaitTunnelUrls = (expected: ReadonlyArray<string> | undefined) =>
+        relayTunnelUrls.pipe(
+          Stream.filter(
+            (found) => found.length === 1 && JSON.stringify(found[0]) === JSON.stringify(expected),
+          ),
+          Stream.runHead,
+        );
+      expect(Option.isSome(yield* awaitTunnelUrls(urls))).toBe(true);
+      const { tunnelEndpoints: _omitted, ...withdrawn } = advertised;
+      yield* SubscriptionRef.set(configs, withdrawn);
+      expect(Option.isSome(yield* awaitTunnelUrls(undefined))).toBe(true);
+    }).pipe(
+      Effect.provide(harness.layer),
+      Effect.provideService(RelayGateway, {
+        available: true,
+        via: () => undefined,
+        subscribe: () => () => {},
+        lease: () => {
+          throw new Error("Unexpected pairing lease");
+        },
+        resolve: async (address) => address,
+        release: async () => {},
+        fetch: globalThis.fetch,
+      }),
+      Effect.scoped,
+    );
+  }),
 );

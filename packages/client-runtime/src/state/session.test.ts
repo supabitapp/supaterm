@@ -5,7 +5,9 @@ import {
   ORCHESTRATION_PROTOCOL_VERSION,
 } from "@supaterm/contracts";
 import { describe, expect, it } from "@effect/vitest";
+import { relayHttpBaseUrl, relayPublicKey } from "@supaterm/shared/relay/protocol";
 import * as Clock from "effect/Clock";
+import * as Context from "effect/Context";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -26,6 +28,7 @@ import {
 } from "../connection/model.ts";
 import * as EnvironmentRegistry from "../connection/registry.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
+import { layer as layerRelayGateway, RelayGateway, type RelayTransport } from "../relay/gateway.ts";
 import type { WsRpcProtocolClient } from "../rpc/protocol.ts";
 import type { RpcSession } from "../rpc/session.ts";
 import { createEnvironmentSessionAtoms } from "./session.ts";
@@ -40,7 +43,7 @@ const descriptor = {
   capabilities: {},
 };
 
-function directRoute(id: string): ConnectionRoute {
+function routeTo(id: string, httpBaseUrl: string): ConnectionRoute {
   return {
     target: new BearerConnectionTarget({ environmentId, connectionId: id, label: "Test" }),
     profile: Option.some(
@@ -48,11 +51,15 @@ function directRoute(id: string): ConnectionRoute {
         environmentId,
         connectionId: id,
         label: "Test",
-        httpBaseUrl: `https://${id}.example.test/`,
-        wsBaseUrl: `wss://${id}.example.test/`,
+        httpBaseUrl,
+        wsBaseUrl: httpBaseUrl.replace(/^http/, "ws"),
       }),
     ),
   };
+}
+
+function directRoute(id: string): ConnectionRoute {
+  return routeTo(id, `https://${id}.example.test/`);
 }
 
 const makeHarness = Effect.fn("RouteLatencyTest.makeHarness")(function* (options?: {
@@ -287,6 +294,77 @@ describe("session state", () => {
       );
       expect(result).toMatchObject({ _tag: "RemoteEnvironmentAuthFetchError" });
       expect(yield* Queue.size(failures)).toBe(1);
+    }),
+  );
+});
+
+describe("relay transport", () => {
+  it.effect("follows the gateway's reports for a relay route until unmounted", () =>
+    Effect.gen(function* () {
+      const reports: Array<(via: RelayTransport | undefined) => void> = [];
+      const gateway = Context.get(
+        yield* Layer.build(
+          layerRelayGateway({
+            fetch,
+            open: async (_address, _relayUrl, _directUrls, report) => {
+              reports.push(report);
+              return { prepare: async () => "http://127.0.0.1:3000", close: async () => {} };
+            },
+          }),
+        ),
+        RelayGateway,
+      );
+      let subscriptions = 0;
+      const runtime = Atom.runtime(
+        Layer.mergeAll(
+          Layer.succeed(
+            EnvironmentRegistry.EnvironmentRegistry,
+            {} as EnvironmentRegistry.EnvironmentRegistry["Service"],
+          ),
+          Layer.succeed(RelayGateway, {
+            ...gateway,
+            subscribe: (listener) => {
+              subscriptions++;
+              const unsubscribe = gateway.subscribe(listener);
+              return () => {
+                subscriptions--;
+                unsubscribe();
+              };
+            },
+          }),
+        ),
+      );
+      const atoms = createEnvironmentSessionAtoms(runtime);
+      const tasks: Array<() => void> = [];
+      const registry = yield* Effect.acquireRelease(
+        Effect.sync(() =>
+          AtomRegistry.make({
+            scheduleTask: (task) => {
+              tasks.push(task);
+              return () => {};
+            },
+          }),
+        ),
+        (registry) => Effect.sync(() => registry.dispose()),
+      );
+      const relayAddress = relayHttpBaseUrl(relayPublicKey(new Uint8Array(32).fill(7)));
+      const transport = atoms.relayRouteTransportAtom(routeTo("relay", relayAddress));
+      const seen: Array<RelayTransport | undefined> = [];
+      const unmount = registry.subscribe(transport, (value) => seen.push(value), {
+        immediate: true,
+      });
+      registry.mount(atoms.relayRouteTransportAtom(directRoute("lan")));
+      expect(subscriptions).toBe(1);
+
+      yield* Effect.promise(() => gateway.resolve(relayAddress));
+      reports[0]!("direct");
+      reports[0]!("relay");
+      yield* Effect.promise(() => gateway.release(relayAddress));
+      expect(seen).toEqual([undefined, "direct", "relay", undefined]);
+
+      unmount();
+      for (let task = tasks.shift(); task !== undefined; task = tasks.shift()) task();
+      expect(subscriptions).toBe(0);
     }),
   );
 });

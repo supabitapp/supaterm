@@ -26,13 +26,15 @@ import okio.ByteString.Companion.toByteString
 private class RelayAttemptException(val failure: RelayFailure, message: String, cause: Throwable?) :
   IllegalStateException("$message: ${failure.code}", cause)
 
+@Suppress("LongParameterList")
 class NativeTunnel(
   private val relayUrl: String,
   hostAddress: String,
   port: Int = 0,
   private val onStatus: (Map<String, Any>) -> Unit = {},
   private val log: (String) -> Unit = {},
-  private val timing: Timing = Timing()
+  private val timing: Timing = Timing(),
+  directUrls: List<String> = emptyList()
 ) : AutoCloseable {
   companion object {
     const val BACKGROUND_GRACE_MILLIS = 5 * 60_000L
@@ -42,8 +44,21 @@ class NativeTunnel(
   data class Timing(
     val keepaliveMillis: Long = 15_000,
     val handshakeTimeoutMillis: Long = 15_000,
+    val directTimeoutMillis: Long = 5_000,
     val failureCooldownMillis: Long = 2_000
   )
+
+  private class Candidate(val id: Int, val route: TunnelRoute, identity: ByteArray) {
+    val handshake = ClientHandshake(identity)
+    var socket: WebSocket? = null
+    var deadline: ScheduledFuture<*>? = null
+
+    fun close() {
+      deadline?.cancel(false)
+      socket?.cancel()
+      handshake.destroy()
+    }
+  }
 
   private val identity = parseRelayIdentity(hostAddress)
   private val hostAddress =
@@ -64,6 +79,10 @@ class NativeTunnel(
   private val stopped = AtomicBoolean(false)
   private val slots = Semaphore(256)
   private val sockets = java.util.concurrent.ConcurrentHashMap.newKeySet<Socket>()
+  private var directCandidates = directTunnelUrls(directUrls)
+  private val candidates = HashMap<Int, Candidate>()
+  private var race: TunnelRace<RelayAttemptException>? = null
+  private var route: TunnelRoute? = null
   private var attempt: CompletableFuture<TunnelMux>? = null
   private var mux: TunnelMux? = null
   private var webSocket: WebSocket? = null
@@ -83,14 +102,7 @@ class NativeTunnel(
 
   init {
     require(port in 0..65535)
-    val uri = java.net.URI(relayUrl)
-    require(
-      uri.scheme in listOf("ws", "wss") &&
-        uri.host != null &&
-        uri.userInfo == null &&
-        uri.query == null &&
-        uri.fragment == null
-    )
+    require(isTunnelBaseUrl(relayUrl))
     listener.reuseAddress = true
     try {
       listener.bind(InetSocketAddress(InetAddress.getByName("127.0.0.1"), port))
@@ -134,11 +146,12 @@ class NativeTunnel(
         "activeStreams" to (mux?.streamCount ?: 0),
         "sessionCount" to sessions,
       )
+    route?.let { value["via"] = it.code }
     if (error != null) value["reason"] = error
     if (value == lastStatus) return
     lastStatus = value
     log(
-      "[relay-android] $state origin=$origin sessions=$sessions " +
+      "[relay-android] $state origin=$origin sessions=$sessions via=${route?.code} " +
         "streams=${mux?.streamCount ?: 0} up=$sentBytes down=$receivedBytes"
     )
     onStatus(value)
@@ -172,68 +185,63 @@ class NativeTunnel(
   }
 
   private fun dial(future: CompletableFuture<TunnelMux>) = failOnError(future) {
-    val handshake = ClientHandshake(identity)
-    future.whenComplete { _, _ -> handshake.destroy() }
-    val timeout = actor.schedule(
+    val bases =
+      listOf(relayUrl to TunnelRoute.RELAY) + directCandidates.map { it to TunnelRoute.DIRECT }
+    bases.forEachIndexed { id, (_, route) -> candidates[id] = Candidate(id, route, identity) }
+    race = TunnelRace(candidates.mapValues { it.value.route })
+    bases.forEachIndexed { id, (base, _) -> start(future, candidates.getValue(id), base) }
+  }
+
+  private fun start(future: CompletableFuture<TunnelMux>, candidate: Candidate, base: String) {
+    val timeout =
+      if (candidate.route == TunnelRoute.RELAY) {
+        timing.handshakeTimeoutMillis
+      } else {
+        minOf(timing.directTimeoutMillis, timing.handshakeTimeoutMillis)
+      }
+    candidate.deadline = actor.schedule(
       {
-        fail(future, RelayAttemptException(RelayFailure.TIMEOUT, "Relay handshake timed out", null))
+        lose(
+          future,
+          candidate,
+          RelayAttemptException(RelayFailure.TIMEOUT, "Relay handshake timed out", null),
+        )
       },
-      timing.handshakeTimeoutMillis,
+      timeout,
       TimeUnit.MILLISECONDS,
     )
-    future.whenComplete { _, _ ->
-      timeout.cancel(false)
-    }
-    webSocket = http.newWebSocket(
+    candidate.socket = http.newWebSocket(
       Request.Builder()
-        .url(relayUrl.trimEnd('/') + "/v1/connect?endpointId=" + sha256(identity).hex())
+        .url(base.trimEnd('/') + "/v1/connect?endpointId=" + sha256(identity).hex())
         .build(),
       object : WebSocketListener() {
         override fun onOpen(socket: WebSocket, response: Response) {
           post {
-            if (attempt === future && !socket.send(handshake.hello)) {
-              fail(future, IllegalStateException("Relay send failed"))
+            if (candidates[candidate.id] === candidate && !socket.send(candidate.handshake.hello)) {
+              lose(future, candidate, IllegalStateException("Relay send failed"))
             }
           }
         }
 
         override fun onMessage(socket: WebSocket, text: String) {
           post {
-            if (attempt !== future) return@post
-            failOnError(future) {
-              check(mux == null) { "Unencrypted relay message" }
-              val session = TunnelMux(
-                handshake.finish(text),
-                { record -> check(socket.send(record.toByteString())) { "Relay queue full" } },
-                ::schedulePump,
-                { sentBytes += it },
-                {
-                  probeDeadline?.cancel(false)
-                  probeDeadline = null
-                },
+            when {
+              candidates[candidate.id] === candidate -> win(future, candidate, text)
+              webSocket === socket -> fail(
+                future,
+                IllegalStateException("Unencrypted relay message")
               )
-              mux = session
-              cooldownFailure = null
-              keepalive = actor.scheduleWithFixedDelay(
-                { failOnError(future) { session.tick() } },
-                timing.keepaliveMillis,
-                timing.keepaliveMillis,
-                TimeUnit.MILLISECONDS,
-              )
-              sessions++
-              state = "up"
-              emit()
-              log("[relay-android] session $sessions up")
-              future.complete(session)
+              else -> socket.cancel()
             }
           }
         }
 
         override fun onMessage(socket: WebSocket, bytes: ByteString) {
           post {
-            if (attempt !== future) return@post
-            failOnError(future) {
-              (mux ?: error("Binary handshake")).receive(bytes.toByteArray())
+            when {
+              webSocket === socket -> failOnError(future) { mux?.receive(bytes.toByteArray()) }
+              candidates[candidate.id] === candidate ->
+                lose(future, candidate, IllegalStateException("Binary handshake"))
             }
           }
         }
@@ -241,21 +249,116 @@ class NativeTunnel(
         override fun onClosing(socket: WebSocket, code: Int, reason: String) {
           socket.close(1000, null)
           post {
-            fail(future, IllegalStateException("Relay disconnected ($code)"), SWITCHING_PROTOCOLS)
+            end(
+              future,
+              candidate,
+              socket,
+              IllegalStateException("Relay disconnected ($code)"),
+              SWITCHING_PROTOCOLS,
+            )
           }
         }
 
         override fun onClosed(socket: WebSocket, code: Int, reason: String) {
           post {
-            fail(future, IllegalStateException("Relay disconnected ($code)"), SWITCHING_PROTOCOLS)
+            end(
+              future,
+              candidate,
+              socket,
+              IllegalStateException("Relay disconnected ($code)"),
+              SWITCHING_PROTOCOLS,
+            )
           }
         }
 
         override fun onFailure(socket: WebSocket, error: Throwable, response: Response?) {
-          post { fail(future, error, response?.code) }
+          post { end(future, candidate, socket, error, response?.code) }
         }
       },
     )
+  }
+
+  @Suppress("TooGenericExceptionCaught")
+  private fun win(future: CompletableFuture<TunnelMux>, candidate: Candidate, welcome: String) {
+    val cipher =
+      try {
+        candidate.handshake.finish(welcome)
+      } catch (error: Exception) {
+        lose(future, candidate, error)
+        return
+      }
+    val losers = race?.welcome(candidate.id)
+    if (attempt !== future || losers == null) {
+      cipher.destroy()
+      candidate.close()
+      return
+    }
+    race = null
+    candidate.deadline?.cancel(false)
+    losers.forEach { candidates[it]?.close() }
+    candidates.clear()
+    val socket = checkNotNull(candidate.socket)
+    webSocket = socket
+    route = candidate.route
+    failOnError(future) {
+      val session = TunnelMux(
+        cipher,
+        { record -> check(socket.send(record.toByteString())) { "Relay queue full" } },
+        ::schedulePump,
+        { sentBytes += it },
+        {
+          probeDeadline?.cancel(false)
+          probeDeadline = null
+        },
+      )
+      mux = session
+      cooldownFailure = null
+      keepalive = actor.scheduleWithFixedDelay(
+        { failOnError(future) { session.tick() } },
+        timing.keepaliveMillis,
+        timing.keepaliveMillis,
+        TimeUnit.MILLISECONDS,
+      )
+      sessions++
+      state = "up"
+      emit()
+      log("[relay-android] session $sessions up via=${candidate.route.code}")
+      future.complete(session)
+    }
+  }
+
+  private fun lose(
+    future: CompletableFuture<TunnelMux>,
+    candidate: Candidate,
+    cause: Throwable,
+    relayStatus: Int? = null
+  ) {
+    if (attempt !== future || candidates[candidate.id] !== candidate) return
+    candidates.remove(candidate.id)
+    candidate.close()
+    val error =
+      cause as? RelayAttemptException
+        ?: RelayAttemptException(
+          RelayFailure.from(relayStatus),
+          cause.message ?: "Relay disconnected",
+          cause,
+        )
+    log("[relay-android] ${candidate.route.code} candidate failed: ${error.message}")
+    race?.fail(candidate.id, error)?.let { fail(future, it) }
+  }
+
+  private fun end(
+    future: CompletableFuture<TunnelMux>,
+    candidate: Candidate,
+    socket: WebSocket,
+    cause: Throwable,
+    relayStatus: Int?
+  ) {
+    if (candidates[candidate.id] === candidate) {
+      lose(future, candidate, cause, relayStatus)
+    } else if (webSocket === socket) {
+      fail(future, cause, relayStatus)
+    }
   }
 
   private fun post(block: () -> Unit): Boolean {
@@ -291,6 +394,10 @@ class NativeTunnel(
         System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timing.failureCooldownMillis)
     }
     attempt = null
+    candidates.values.forEach { it.close() }
+    candidates.clear()
+    race = null
+    route = null
     keepalive?.cancel(false)
     keepalive = null
     probeDeadline?.cancel(false)
@@ -404,6 +511,22 @@ class NativeTunnel(
       val rejected = (error as? ExecutionException)?.cause as? RelayAttemptException
       if (selected == null && rejected != null) LoopbackHttp.answer(socket, rejected.failure)
       finishSocket()
+    }
+  }
+
+  fun setDirectUrls(urls: List<String>) {
+    val validated = directTunnelUrls(urls)
+    post { directCandidates = validated }
+  }
+
+  // Direct sessions and dials only: the relay is reachable from any network, a LAN address is not.
+  fun networkChanged() = post {
+    val current = attempt ?: return@post
+    if (mux == null) {
+      candidates.values.filter { it.route == TunnelRoute.DIRECT }
+        .forEach { lose(current, it, IllegalStateException("Network changed")) }
+    } else if (route == TunnelRoute.DIRECT) {
+      fail(current, IllegalStateException("Network changed"))
     }
   }
 

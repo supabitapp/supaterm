@@ -1022,6 +1022,11 @@ export const DesktopPreviewRecordingSaveInputSchema = Schema.Struct({
 export const SystemSettingsPaneSchema = Schema.Literals(["full-disk-access", "input-monitoring"]);
 export type SystemSettingsPane = typeof SystemSettingsPaneSchema.Type;
 
+export interface DesktopRelayViaChange {
+  readonly address: string;
+  readonly via: "relay" | "direct" | null;
+}
+
 export interface DesktopBridge {
   webLinks?: {
     setReady: (ready: boolean) => Promise<void>;
@@ -1056,7 +1061,12 @@ export interface DesktopBridge {
   getConnectionCatalog?: () => Promise<string | null>;
   setConnectionCatalog?: (catalog: string) => Promise<boolean>;
   clearConnectionCatalog?: () => Promise<void>;
-  startRelay?: (address: string, relayUrl: string) => Promise<string>;
+  startRelay?: (
+    address: string,
+    relayUrl: string,
+    directUrls?: ReadonlyArray<string>,
+  ) => Promise<string>;
+  onRelayViaChanged?: (listener: (change: DesktopRelayViaChange) => void) => () => void;
   stopRelay?: (address: string) => Promise<void>;
   discoverSshHosts: () => Promise<readonly DesktopDiscoveredSshHost[]>;
   resolveSshHost: (alias: string) => Promise<DesktopSshEnvironmentTarget>;

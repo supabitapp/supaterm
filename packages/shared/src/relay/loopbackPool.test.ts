@@ -1,5 +1,6 @@
 import { expect, it, vi } from "vite-plus/test";
 import { createLoopbackRelayPool, type LoopbackRelay } from "./loopbackPool.ts";
+import type { TunnelVia } from "./tunnel.ts";
 
 const address = `https://${"a".repeat(32)}.${"b".repeat(32)}.relay.supaterm.alt`;
 const otherAddress = `https://${"c".repeat(32)}.${"d".repeat(32)}.relay.supaterm.alt`;
@@ -79,7 +80,7 @@ it("closes a cancelled preparation without releasing another relay's lease", asy
   });
   const abort = new AbortController();
   try {
-    const preparing = pool.acquire(address, "tab-a", relayA, abort.signal);
+    const preparing = pool.acquire(address, "tab-a", relayA, undefined, abort.signal);
     const rejected = expect(preparing).rejects.toThrow();
     await opened.promise;
     const originB = await pool.acquire(address, "tab-b", relayB);
@@ -97,4 +98,70 @@ it("closes a cancelled preparation without releasing another relay's lease", asy
   }
   expect(closeA).toHaveBeenCalledOnce();
   expect(closeB).toHaveBeenCalledOnce();
+});
+
+it("updates direct candidates for the next dial without reopening the endpoint", async () => {
+  const direct: Array<() => ReadonlyArray<string>> = [];
+  const close = vi.fn(async () => {});
+  const pool = createLoopbackRelayPool({
+    limit: 2,
+    open: async (_address, _relayUrl, directUrls) => {
+      direct.push(directUrls);
+      return { origin: "http://127.0.0.1:40000", close };
+    },
+  });
+  try {
+    expect(await pool.acquire(address, "desktop", relayA, ["ws://10.0.0.2:3773"])).toBe(
+      "http://127.0.0.1:40000",
+    );
+    expect(await pool.acquire(address, "desktop", relayA, ["ws://192.168.1.20:3773"])).toBe(
+      "http://127.0.0.1:40000",
+    );
+    expect(await pool.acquire(address, "desktop", relayA)).toBe("http://127.0.0.1:40000");
+    expect(direct).toHaveLength(1);
+    expect(direct[0]!()).toEqual(["ws://192.168.1.20:3773"]);
+    expect(close).not.toHaveBeenCalled();
+    await pool.release(address, "desktop");
+    expect(close).toHaveBeenCalledOnce();
+  } finally {
+    await pool.dispose();
+  }
+});
+
+it("publishes each address's transport until its endpoint closes", async () => {
+  const reports = new Map<string, (via: TunnelVia | undefined) => void>();
+  const published: Array<[string, TunnelVia | undefined]> = [];
+  const pool = createLoopbackRelayPool({
+    limit: 4,
+    open: async (identity, _relayUrl, _directUrls, report) => {
+      reports.set(identity, report);
+      return { origin: "http://127.0.0.1:40000", close: async () => {} };
+    },
+    onVia: (identity, via) => published.push([identity, via]),
+  });
+  try {
+    await pool.acquire(address, "desktop", relayA);
+    await pool.acquire(otherAddress, "desktop", relayA);
+    const report = reports.get(address)!;
+    report("direct");
+    report("direct");
+    reports.get(otherAddress)!("relay");
+    expect(pool.via(address + "/")).toBe("direct");
+    report(undefined);
+    report("relay");
+    await pool.release(address, "desktop");
+    report("direct");
+    expect(published).toEqual([
+      [address, "direct"],
+      [otherAddress, "relay"],
+      [address, undefined],
+      [address, "relay"],
+      [address, undefined],
+    ]);
+    expect(pool.via(address)).toBeUndefined();
+    expect(pool.via(otherAddress)).toBe("relay");
+  } finally {
+    await pool.dispose();
+  }
+  expect(published.at(-1)).toEqual([otherAddress, undefined]);
 });

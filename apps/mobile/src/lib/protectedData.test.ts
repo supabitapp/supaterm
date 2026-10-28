@@ -50,6 +50,8 @@ vi.mock("./relayGateway", async () => {
   return {
     layer: Layer.succeed(RelayGateway, {
       available: false,
+      via: () => undefined,
+      subscribe: () => () => {},
       lease: vi.fn(),
       resolve: vi.fn(),
       release: vi.fn(),

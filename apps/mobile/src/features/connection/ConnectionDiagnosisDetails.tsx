@@ -3,10 +3,10 @@ import {
   AVAILABLE_CONNECTION_STATE,
   type ConnectionDiagnosis,
   connectionDiagnosisText,
-  connectionRoutes,
   connectionRouteKind,
   presentConnectionDiagnosis,
   type EnvironmentPresentation,
+  usableRoutes,
 } from "@supaterm/client-runtime/connection";
 import type { EnvironmentId } from "@supaterm/contracts";
 import Constants from "expo-constants";
@@ -35,9 +35,9 @@ export function useConnectionDiagnosis(
   if (presentation === null || !presentation.entry.enabled) return { diagnosis: null, state };
   const phase = presentation.connection.phase;
   if (phase === "connected" || phase === "unsupported") return { diagnosis: null, state };
+  const routes = usableRoutes(presentation.entry);
   const relayOnly =
-    connectionRoutes(presentation.entry).length === 1 &&
-    connectionRoutes(presentation.entry).some((route) => connectionRouteKind(route) === "relay");
+    routes.length === 1 && routes.some((route) => connectionRouteKind(route) === "relay");
   const diagnosis = presentConnectionDiagnosis({
     hostLabel: presentation.entry.target.label,
     state,

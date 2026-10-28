@@ -123,6 +123,7 @@ export const RECEIVE_PROVIDER_AUTH_CALLBACK_CHANNEL = "desktop:receive-provider-
 export const CANCEL_PROVIDER_AUTH_CALLBACK_CHANNEL = "desktop:cancel-provider-auth-callback";
 
 export const START_RELAY_CHANNEL = "relay:start";
+export const RELAY_VIA_CHANGED_CHANNEL = "relay:via-changed";
 export const STOP_RELAY_CHANNEL = "relay:stop";
 
 export const WEB_LINK_OPEN_CHANNEL = "desktop:web-link-open";

@@ -115,10 +115,11 @@ import * as EventLoopMonitor from "./observability/EventLoopMonitor.ts";
 import * as ServerEnvironment from "./environment/ServerEnvironment.ts";
 import * as DirectEndpoints from "./environment/DirectEndpoints.ts";
 import * as RelayAccess from "./relay/RelayAccess.ts";
+import * as DirectTunnel from "./relay/DirectTunnel.ts";
+import * as DirectTunnelHttp from "./relay/DirectTunnelHttp.ts";
 import * as RelayHttp from "./relay/RelayHttp.ts";
 import * as RelayIdentity from "./relay/RelayIdentity.ts";
 import * as RelayIngress from "./relay/RelayIngress.ts";
-import { TunnelSocket } from "@supaterm/shared/relay/tunnelNode";
 import * as RemoteOpenTargets from "./environment/RemoteOpenTargets.ts";
 import * as AuthHttp from "./auth/http.ts";
 import * as ServerSecretStore from "./auth/ServerSecretStore.ts";
@@ -268,15 +269,7 @@ const layerHttpServer = Layer.unwrap(
       // to compress, so no size threshold is set (ws only honors
       // `threshold` when context takeover is disabled).
       websocket: { perMessageDeflate: true },
-    }).pipe(
-      Layer.provideMerge(
-        Layer.succeed(RelayIngress.RelayIngress, {
-          accept: (stream) => {
-            server.emit("connection", new TunnelSocket(stream));
-          },
-        }),
-      ),
-    );
+    }).pipe(Layer.provideMerge(RelayIngress.layerFromServer(server)));
   }),
 );
 
@@ -425,8 +418,10 @@ const layerProjectFaviconResolver = ProjectFaviconResolver.layer.pipe(
   Layer.provide(SupatermProjectFileLoader.layer),
 );
 
-const layerRelayAccess = RelayAccess.layer.pipe(
-  Layer.provide(RelayIdentity.layer.pipe(Layer.provide(ServerSecretStore.layer))),
+// One identity instance, so a direct tunnel advertisement sees the identity that
+// Encrypted Relay creates when it is first turned on.
+const layerRelayAccess = Layer.merge(RelayAccess.layer, DirectTunnel.layer).pipe(
+  Layer.provideMerge(RelayIdentity.layer.pipe(Layer.provide(ServerSecretStore.layer))),
   Layer.provide(layerServerSettings),
 );
 const layerServerEnvironment = Layer.effect(
@@ -657,6 +652,7 @@ const layerMakeRoutes = Layer.mergeAll(
     ServerHttp.layerAssetRoute,
     ServerHttp.layerAttachmentUploadRoute,
     DeviceHubProxy.layer,
+    DirectTunnelHttp.layer,
     ServerBrowserStream.routeLayer,
     ServerHttp.layerStaticAndDevRoute,
     Ws.layer,
