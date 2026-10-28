@@ -2,7 +2,7 @@ import { useNavigation } from "@react-navigation/native";
 import { use, useCallback, useMemo } from "react";
 import { Platform, View, useWindowDimensions } from "react-native";
 import { useKeyboardState } from "react-native-keyboard-controller";
-import { SafeAreaInsetsContext, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CompactBrandTitle } from "../../components/CompactBrandTitle";
 import { isDuoDevice } from "../../lib/device-type";
@@ -102,10 +102,7 @@ function WorkspaceRootContent() {
 
   return (
     <WorkspaceTabsContext value={context}>
-      <View
-        className={sidebarPicker ? "flex-1 bg-drawer" : "flex-1 bg-screen"}
-        style={sidebarPicker ? { paddingTop: insets.top } : undefined}
-      >
+      <View className={sidebarPicker ? "flex-1 bg-drawer" : "flex-1 bg-screen"}>
         {Platform.OS === "ios" ? (
           <NativeStackScreenOptions
             optionsVersion={[state.selectedTab, state.selectionRevision, width, sidebarNavigation]}
@@ -141,13 +138,11 @@ function WorkspaceRootContent() {
             ]}
           />
         )}
-        <SafeAreaInsetsContext value={sidebarPicker ? { ...insets, top: 0 } : insets}>
-          {state.selectedTab === "threads" ? (
-            <HomeRouteScreen />
-          ) : (
-            <PullRequestsScreen sidebar={sidebarTabs !== null} />
-          )}
-        </SafeAreaInsetsContext>
+        {state.selectedTab === "threads" ? (
+          <HomeRouteScreen />
+        ) : (
+          <PullRequestsScreen sidebar={sidebarTabs !== null} />
+        )}
         {sidebarPicker ? <WorkspaceSidebarTabs /> : null}
         <WorkspaceToolbar sidebar={sidebarNavigation} onNewTask={startNewTask} />
       </View>
