@@ -1099,6 +1099,18 @@ export function buildResolveConflictsPrompt(input: {
   ].join("\n");
 }
 
+export function buildSubagentHandoffPrompt(
+  input: { readonly headBranch: string },
+  brief: string,
+): string {
+  return [
+    "Hand the task below to a subagent instead of doing it yourself, then report what it changed.",
+    `First confirm this thread's checkout is on \`${boundedField(input.headBranch)}\`; if it isn't, have the subagent prepare the pull request in its own worktree.`,
+    "",
+    brief,
+  ].join("\n");
+}
+
 function pullRequestContextComment(
   input: {
     readonly number: number;

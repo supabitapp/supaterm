@@ -742,6 +742,7 @@ export function BranchToolbarBranchSelector({
             project={activeProject}
             label={panelPrLabel}
             openAriaLabel={prUrl ?? "Open pull request"}
+            composerTarget={draftId ?? threadRef}
             onOpen={(event) => openPrLink(event, prUrl)}
             onActed={() => branchStatusQuery.refresh()}
           />

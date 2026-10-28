@@ -11,12 +11,13 @@ import type {
   PullRequestDetail,
   PullRequestMergeMethod,
   PullRequestRef,
+  ScopedThreadRef,
 } from "@supaterm/contracts";
 import { useRef, useState } from "react";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 import { useEnvironmentSettings } from "~/hooks/useSettings";
 
-import { type DraftId, useComposerDraftStore } from "~/composerDraftStore";
+import { composerTargetKey, type DraftId, useComposerDraftStore } from "~/composerDraftStore";
 import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { usePreparePullRequestThreadAction } from "~/lib/sourceControlActions";
 import type { ReviewCommentContext } from "~/reviewCommentContext";
@@ -29,6 +30,7 @@ import {
   handoffPrompt,
   handoffReviewComments,
   readableFailure,
+  stripPullRequestHandoffReferences,
 } from "./pullRequestDetail.logic";
 import { pullRequestEntryKey, type EnvironmentPullRequestEntry } from "./pullRequestList.logic";
 
@@ -205,7 +207,53 @@ export type PullRequestHandoffDetail = Pick<
   "projectId" | "workspaceRoot" | "url"
 >;
 
-const lastHandoffPromptByDraft = new Map<DraftId, string>();
+/**
+ * What the last hand-off wrote into each draft, kept outside React because the surface that wrote
+ * it may be gone by the time the next one arrives. It is how a prompt the reader has since edited
+ * is told apart from the one they were handed: only the sentence still exactly as written may be
+ * replaced.
+ */
+const lastHandoffPromptByDraft = new Map<string, string>();
+
+export function writePullRequestTaskToComposer(
+  target: ScopedThreadRef | DraftId,
+  task: PullRequestThreadTask,
+) {
+  const store = useComposerDraftStore.getState();
+  const draft = store.getComposerDraft(target);
+  const key = composerTargetKey(target);
+  const previousCommentIds = new Set((draft?.reviewComments ?? []).map((comment) => comment.id));
+  const repeatedCommentIds = new Set(
+    (task.reviewComments ?? [])
+      .filter((comment) => previousCommentIds.has(comment.id))
+      .map((comment) => comment.id),
+  );
+  const promptWithoutPreviousHandoff = stripPullRequestHandoffReferences(
+    draft?.prompt ?? "",
+    draft?.reviewComments ?? [],
+    repeatedCommentIds,
+  );
+  const prompt = handoffPrompt(
+    {
+      prompt: promptWithoutPreviousHandoff,
+      lastHandoffPrompt: lastHandoffPromptByDraft.get(key),
+    },
+    task.prompt,
+  );
+  lastHandoffPromptByDraft.set(key, task.prompt);
+  store.setPrompt(target, prompt);
+  store.setReviewComments(
+    target,
+    handoffReviewComments(draft?.reviewComments ?? [], task.reviewComments ?? []),
+  );
+  for (const comment of task.reviewComments ?? []) {
+    if (!repeatedCommentIds.has(comment.id)) continue;
+    store.addReviewComment(target, comment, {
+      allowDuplicateReference: true,
+      insertAtCaret: false,
+    });
+  }
+}
 
 export function usePullRequestHandoffs({
   environmentId,
@@ -238,25 +286,7 @@ export function usePullRequestHandoffs({
         () => null,
       ));
     if (session === null) return null;
-    const store = useComposerDraftStore.getState();
-    if (task === null) return session;
-    const draft = store.getComposerDraft(session.draftId);
-    const existingComments = draft?.reviewComments ?? [];
-    const prompt = handoffPrompt(
-      {
-        prompt: draft?.prompt ?? "",
-        lastHandoffPrompt: lastHandoffPromptByDraft.get(session.draftId),
-      },
-      task.prompt,
-    );
-    // Remember the hand-off's own contribution, not the merged prompt: only that sentence is
-    // this session's to take back next time, and the reader's text around it is not.
-    lastHandoffPromptByDraft.set(session.draftId, task.prompt);
-    store.setPrompt(session.draftId, prompt);
-    store.setReviewComments(
-      session.draftId,
-      handoffReviewComments(existingComments, task.reviewComments ?? []),
-    );
+    if (task !== null) writePullRequestTaskToComposer(session.draftId, task);
     return session;
   };
 
