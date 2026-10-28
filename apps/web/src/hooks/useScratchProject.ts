@@ -9,7 +9,7 @@ import type { EnvironmentId } from "@supaterm/contracts";
 
 import { stackedThreadToast, toastManager } from "~/components/ui/toast";
 import { useComposerDraftStore } from "~/composerDraftStore";
-import { useEnvironments } from "~/state/environments";
+import { useEnvironments, usePrimaryEnvironmentId } from "~/state/environments";
 import { useProjects } from "~/state/entities";
 import { projectEnvironment } from "~/state/projects";
 import { useAtomCommand } from "~/state/use-atom-command";
@@ -25,8 +25,23 @@ function reportScratchFailure(title: string, error: unknown) {
   );
 }
 
+/** The primary (local) environment wins; `fallback` only applies when it offers no scratch root. */
+export function pickScratchEnvironmentId(input: {
+  readonly primary: EnvironmentId | null;
+  readonly fallback: EnvironmentId | null;
+  readonly environmentIds: ReadonlyArray<EnvironmentId>;
+  readonly scratchWorkspaceRootFor: (environmentId: EnvironmentId) => string | null;
+}): EnvironmentId | null {
+  const { primary, fallback, scratchWorkspaceRootFor } = input;
+  if (primary !== null && scratchWorkspaceRootFor(primary) !== null) return primary;
+  if (fallback !== null && scratchWorkspaceRootFor(fallback) !== null) return fallback;
+  const offering = input.environmentIds.filter((id) => scratchWorkspaceRootFor(id) !== null);
+  return offering.length === 1 ? (offering[0] ?? null) : null;
+}
+
 export function useScratchProject() {
   const { environments } = useEnvironments();
+  const primaryEnvironmentId = usePrimaryEnvironmentId();
   const projects = useProjects();
   const openScratch = useAtomCommand(projectEnvironment.openScratch, { reportFailure: false });
   const handleNewThread = useNewThreadHandler();
@@ -45,13 +60,13 @@ export function useScratchProject() {
   const scratchWorkspaceRootFor = (environmentId: EnvironmentId | null): string | null =>
     environmentId === null ? null : (scratchWorkspaceRoots.get(environmentId) ?? null);
 
-  const scratchEnvironmentId = (current: EnvironmentId | null): EnvironmentId | null => {
-    if (current !== null) return scratchWorkspaceRootFor(current) !== null ? current : null;
-    const offering = environments.filter(
-      (entry) => scratchWorkspaceRootFor(entry.environmentId) !== null,
-    );
-    return offering.length === 1 ? (offering[0]?.environmentId ?? null) : null;
-  };
+  const scratchEnvironmentId = (fallback: EnvironmentId | null): EnvironmentId | null =>
+    pickScratchEnvironmentId({
+      primary: primaryEnvironmentId,
+      fallback,
+      environmentIds: environments.map((environment) => environment.environmentId),
+      scratchWorkspaceRootFor,
+    });
 
   const openScratchProject = async (
     environmentId: EnvironmentId,
