@@ -15,7 +15,7 @@ import {
 import { markdownMermaidMedia } from "../lib/markdownMermaidMedia";
 import { NativeMermaidBlock } from "./NativeMermaidBlock";
 import { isValidElement, useCallback, useMemo, useState, type ReactNode } from "react";
-import { Platform, Share, StyleSheet, View } from "react-native";
+import { Platform, Share, StyleSheet, useWindowDimensions, View } from "react-native";
 import {
   EnrichedMarkdownText,
   type MarkdownImageBlock,
@@ -39,6 +39,7 @@ import {
 function enrichedStyle(
   style: SelectableMarkdownTextProps["textStyle"],
   dark: boolean,
+  fontScale: number,
 ): MarkdownStyle {
   // Keep the radius modest: iOS clips square table-cell borders without stroking the corner arcs.
   const block = {
@@ -137,7 +138,13 @@ function enrichedStyle(
       borderWidth: 2,
       gapWidth: 12,
     },
-    list: { ...body, bulletColor: style.mutedColor, markerColor: style.mutedColor, gapWidth: 6 },
+    list: {
+      ...body,
+      bulletColor: style.mutedColor,
+      markerColor: style.mutedColor,
+      // The bullet is centred on the gap's edge and scales with the system text size; the gap must too.
+      gapWidth: 12 * fontScale,
+    },
     thematicBreak: { color: style.dividerColor, height: 1, marginTop: 8, marginBottom: 8 },
     table: {
       ...body,
@@ -282,9 +289,13 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
       mimeTypes: { "app.supaterm.context-fragment": props.contextClipboardFragment! },
     };
   }, [props.contextClipboardFragment, props.markdown]);
+  const { fontScale } = useWindowDimensions();
   const markdownStyle = useMemo(
-    () => ({ ...enrichedStyle(props.textStyle, themeAppearance === "dark"), linkVariants }),
-    [props.textStyle, themeAppearance, linkVariants],
+    () => ({
+      ...enrichedStyle(props.textStyle, themeAppearance === "dark", fontScale),
+      linkVariants,
+    }),
+    [props.textStyle, themeAppearance, fontScale, linkVariants],
   );
   const renderDiagram = props.isStreaming ? null : (props.renderDiagram ?? null);
   const renderImageBlock = useCallback(
