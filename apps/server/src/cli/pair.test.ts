@@ -35,11 +35,7 @@ import {
   persistServerRuntimeState,
   type PersistedServerRuntimeState,
 } from "../serverRuntimeState.ts";
-import {
-  DevServerNotProxiableError,
-  PairRouteConflictError,
-  resolveTailscaleLocalTarget,
-} from "./pair.ts";
+import { DevServerNotProxiableError, resolveTailscaleLocalTarget } from "./pair.ts";
 import { CliServerVersionMismatchError } from "./config.ts";
 
 import packageJson from "../../package.json" with { type: "json" };
@@ -213,10 +209,7 @@ describe("supaterm pair", () => {
     ).pipe(Effect.provide(NodeServices.layer)),
   );
 
-  it.effect.each([
-    { label: "by default", flags: [] },
-    { label: "with --relay", flags: ["--relay"] },
-  ])("activates an idle relay $label before printing its first pairing URL", ({ flags }) => {
+  it.effect("activates an idle relay by default before printing its first pairing URL", () => {
     const relay = {
       relayEndpoint: `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`,
       relayUrl: "wss://custom-relay.invalid",
@@ -234,7 +227,7 @@ describe("supaterm pair", () => {
               port: Number(new URL(origin).port),
             }),
           });
-          const output = yield* captureStdout(runCli(["pair", ...flags, "--base-dir", baseDir]));
+          const output = yield* captureStdout(runCli(["pair", "--base-dir", baseDir]));
           assert.include(output, `Pairing URL: ${relay.relayEndpoint}pair#token=`);
           assert.include(output, `relay=${encodeURIComponent(relay.relayUrl)}`);
           const sessions = yield* captureStdout(
@@ -422,13 +415,20 @@ describe("supaterm pair", () => {
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 
-  it.effect("rejects explicitly selecting both relay and Tailscale before discovery", () =>
+  it.effect("rejects --relay because relay is already the default", () =>
     Effect.gen(function* () {
-      const error = yield* provideCliTestLayers(
-        runCli(["pair", "--relay", "--tailscale"]).pipe(Effect.flip),
+      const baseDir = NodeFS.mkdtempSync(
+        NodePath.join(NodeOS.tmpdir(), "supaterm-pair-relay-flag-test-"),
+      );
+      const error = yield* runCli(["pair", "--relay", "--base-dir", baseDir]).pipe(
+        Effect.provide(layerCliRuntime),
+        Effect.flip,
       );
 
-      assert.instanceOf(error, PairRouteConflictError);
+      if (!CliError.isCliError(error) || error._tag !== "ShowHelp") {
+        assert.fail(`Expected ShowHelp, got ${String(error)}`);
+      }
+      expect(error.errors[0]).toMatchObject({ _tag: "UnrecognizedOption", option: "--relay" });
     }),
   );
 
