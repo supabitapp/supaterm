@@ -25,6 +25,7 @@ import { AuthOrchestrationOperateScope, type EnvironmentMachineKind } from "@sup
 import { resolveThreadListDurationStartedAt } from "@supaterm/client-runtime/state/thread-timing";
 import { canSnooze, resolveSnoozePresets } from "@supaterm/client-runtime/state/thread-snooze";
 import { withOccurrenceKeys } from "@supaterm/shared/occurrenceKeys";
+import type { SnoozePresetSetting } from "@supaterm/contracts/settings";
 import { threadChipCopyTarget } from "@supaterm/client-runtime/thread-reference";
 import type { MenuAction } from "@react-native-menu/menu";
 import { memo, useCallback, useMemo, useState, type ComponentProps, type ReactNode } from "react";
@@ -675,6 +676,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
       swipe + menu fall back to Archive instead of failing on use. */
   readonly markDoneSupported: boolean;
   readonly snoozeSupported: boolean;
+  readonly snoozePresets: ReadonlyArray<SnoozePresetSetting> | undefined;
   readonly pinningSupported: boolean;
   /** False on servers that predate thread.auto-mark-done.set. */
   readonly autoMarkDoneOptOutSupported: boolean;
@@ -872,9 +874,12 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   const snoozePresets = useMemo(
     () =>
       swipeActions.secondary === "snooze"
-        ? resolveSnoozePresets(snoozePresetClock.now)
+        ? resolveSnoozePresets(
+            snoozePresetClock.now,
+            props.snoozePresets ? { presets: props.snoozePresets } : {},
+          )
         : ([] as const),
-    [snoozePresetClock.now, swipeActions.secondary],
+    [props.snoozePresets, snoozePresetClock.now, swipeActions.secondary],
   );
   const snoozePresetActions = useMemo<MenuAction[]>(
     () => [
@@ -1033,6 +1038,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         event: nativeEvent.event,
         displayedPresets: snoozePresets,
         now: new Date(),
+        presets: props.snoozePresets,
       });
       if (snoozeSelection._tag === "selected") {
         handleSnooze(snoozeSelection.preset.snoozedUntil);
@@ -1059,6 +1065,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
       handleUnsnooze,
       setCustomSnoozeOpen,
       snoozePresets,
+      props.snoozePresets,
     ],
   );
   const primaryAction = useMemo(() => {

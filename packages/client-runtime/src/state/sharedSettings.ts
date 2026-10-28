@@ -17,6 +17,7 @@ const SHARED_SERVER_SETTING_KEYS = [
   "sidebarAutoMarkDoneKeepPullRequests",
   "autoResumeLimitedThreads",
   "snoozeLimitedThreads",
+  "snoozePresets",
   "newWorktreesStartFromOrigin",
   "sourceControlWritingStyle",
   "textGenerationModelSelection",

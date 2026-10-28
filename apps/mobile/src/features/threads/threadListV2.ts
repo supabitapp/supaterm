@@ -4,12 +4,13 @@ import {
   type ThreadGroupingProject,
 } from "@supaterm/client-runtime/state/thread-grouping";
 import type { SidebarThreadGrouping } from "@supaterm/contracts";
+import type { SnoozePresetSetting } from "@supaterm/contracts/settings";
 import {
   canSnooze,
   effectiveSnoozed,
   hasQueuedTurnStart,
+  pickSnoozePreset,
   QUEUED_TURN_START_GRACE_MS,
-  resolveSnoozePresets,
   snoozeWakeLabel,
   threadWokeAt,
 } from "@supaterm/client-runtime/state/thread-snooze";
@@ -92,24 +93,19 @@ export function resolveThreadListV2SnoozeMenuSelection(input: {
   readonly event: string;
   readonly displayedPresets: ReadonlyArray<SnoozePreset>;
   readonly now: Date;
+  readonly presets: ReadonlyArray<SnoozePresetSetting> | undefined;
 }):
   | { readonly _tag: "selected"; readonly preset: SnoozePreset }
   | { readonly _tag: "expired" }
   | { readonly _tag: "not-snooze" } {
   if (!input.event.startsWith("snooze:")) return { _tag: "not-snooze" };
-
-  const currentPreset = resolveSnoozePresets(input.now).find(
-    (candidate) => input.event === `snooze:${candidate.id}`,
-  );
-  if (currentPreset) return { _tag: "selected", preset: currentPreset };
-
-  const displayedPreset = input.displayedPresets.find(
-    (candidate) => input.event === `snooze:${candidate.id}`,
-  );
-  if (displayedPreset && Date.parse(displayedPreset.snoozedUntil) > input.now.getTime()) {
-    return { _tag: "selected", preset: displayedPreset };
-  }
-  return { _tag: "expired" };
+  const preset = pickSnoozePreset({
+    shown: input.displayedPresets,
+    id: input.event.slice("snooze:".length),
+    now: input.now,
+    ...(input.presets ? { presets: input.presets } : {}),
+  });
+  return preset ? { _tag: "selected", preset } : { _tag: "expired" };
 }
 
 export function resolveThreadListV2SwipeActions(input: {

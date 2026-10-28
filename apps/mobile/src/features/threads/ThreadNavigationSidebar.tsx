@@ -269,8 +269,12 @@ function ThreadNavigationSidebarPane(
   } = useThreadListV2ShelfPreferences();
   const now = useThreadListNow(threads);
   const listEnvironments = useAtomValue(threadListEnvironmentsAtom);
-  const { providersByEnvironmentId, machineByEnvironmentId, loadedEnvironmentIds } =
-    listEnvironments;
+  const {
+    providersByEnvironmentId,
+    machineByEnvironmentId,
+    loadedEnvironmentIds,
+    snoozePresetsByEnvironmentId,
+  } = listEnvironments;
   const resolveProviderInstance = useThreadRowProviderInstanceResolver(providersByEnvironmentId);
   const pendingOrder = usePendingThreadOrder();
   const {
@@ -511,6 +515,7 @@ function ThreadNavigationSidebarPane(
             markDoneSupported={loadedEnvironmentIds.has(thread.environmentId)}
             onMarkThreadDone={markThreadDone}
             snoozeSupported={loadedEnvironmentIds.has(thread.environmentId)}
+            snoozePresets={snoozePresetsByEnvironmentId.get(thread.environmentId)}
             pinningSupported={loadedEnvironmentIds.has(thread.environmentId)}
             autoMarkDoneOptOutSupported={loadedEnvironmentIds.has(thread.environmentId)}
             arrangeSupported={loadedEnvironmentIds.has(thread.environmentId)}

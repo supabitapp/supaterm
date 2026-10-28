@@ -1481,6 +1481,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                       open={snoozeMenuOpen}
                       onOpenChange={setSnoozeMenuOpen}
                       onSnooze={handleSnoozePreset}
+                      environmentId={thread.environmentId}
                     />
                   ) : null}
                   {markDoneSupported ? (

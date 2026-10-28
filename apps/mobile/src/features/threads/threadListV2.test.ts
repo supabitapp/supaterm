@@ -68,9 +68,10 @@ describe("resolveThreadListV2SnoozeMenuSelection", () => {
     const displayedPresets = resolveSnoozePresets(new Date(2026, 4, 8, 10));
     const selectedAt = new Date(2026, 4, 8, 10, 30);
     const selection = resolveThreadListV2SnoozeMenuSelection({
-      event: "snooze:hour",
+      event: "snooze:after:60",
       displayedPresets,
       now: selectedAt,
+      presets: undefined,
     });
 
     expect(selection._tag).toBe("selected");
@@ -79,6 +80,25 @@ describe("resolveThreadListV2SnoozeMenuSelection", () => {
         new Date(selectedAt.getTime() + 60 * 60 * 1_000).toISOString(),
       );
     }
+  });
+
+  it("resolves a duration from the environment's own snooze options", () => {
+    const presets = [{ kind: "after", minutes: 45 }] as const;
+    const shownAt = new Date(2026, 4, 8, 10);
+    const selectedAt = new Date(2026, 4, 8, 10, 5);
+    const selection = resolveThreadListV2SnoozeMenuSelection({
+      event: "snooze:after:45",
+      displayedPresets: resolveSnoozePresets(shownAt, { presets }),
+      now: selectedAt,
+      presets,
+    });
+
+    expect(selection).toEqual({
+      _tag: "selected",
+      preset: expect.objectContaining({
+        snoozedUntil: new Date(selectedAt.getTime() + 45 * 60 * 1_000).toISOString(),
+      }),
+    });
   });
 });
 

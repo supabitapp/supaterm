@@ -19,7 +19,7 @@ import {
 } from "@supaterm/contracts";
 import { useRouter } from "@tanstack/react-router";
 
-import { resolveSnoozePresets } from "../components/Sidebar.snooze";
+import { pickSnoozePreset, resolveSnoozePresets } from "../components/Sidebar.snooze";
 import {
   buildThreadActionMenuItems,
   threadActionRequiresOperate,
@@ -140,7 +140,12 @@ export function useThreadActionMenu(input: {
       const preset =
         action === "snooze:custom"
           ? await requestCustomSnooze()
-          : snoozePresets.find((candidate) => `snooze:${candidate.id}` === action);
+          : pickSnoozePreset(
+              snoozePresets,
+              action.slice("snooze:".length),
+              timestampFormat,
+              threadRef.environmentId,
+            );
       if (!preset) return;
       const result = await snoozeThread(threadRef, preset.snoozedUntil);
       if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
@@ -300,7 +305,7 @@ export function useThreadActionMenu(input: {
 
   const threadActions = (thread: EnvironmentThreadShell) => {
     const now = new Date();
-    const snoozePresets = resolveSnoozePresets(now, timestampFormat);
+    const snoozePresets = resolveSnoozePresets(now, timestampFormat, thread.environmentId);
     const isSnoozed = effectiveSnoozed(thread, { now: now.toISOString() });
     return {
       items: buildThreadActionMenuItems({

@@ -461,8 +461,12 @@ export function HomeScreen(props: HomeScreenProps) {
   } = useThreadListV2ShelfPreferences();
   const now = useThreadListNow(props.threads);
   const listEnvironments = useAtomValue(threadListEnvironmentsAtom);
-  const { providersByEnvironmentId, machineByEnvironmentId, loadedEnvironmentIds } =
-    listEnvironments;
+  const {
+    providersByEnvironmentId,
+    machineByEnvironmentId,
+    loadedEnvironmentIds,
+    snoozePresetsByEnvironmentId,
+  } = listEnvironments;
   const resolveProviderInstance = useThreadRowProviderInstanceResolver(providersByEnvironmentId);
   const pendingOrder = usePendingThreadOrder();
   const {
@@ -688,6 +692,7 @@ export function HomeScreen(props: HomeScreenProps) {
         markDoneSupported={loadedEnvironmentIds.has(thread.environmentId)}
         onMarkThreadDone={handleMarkThreadDone}
         snoozeSupported={loadedEnvironmentIds.has(thread.environmentId)}
+        snoozePresets={snoozePresetsByEnvironmentId.get(thread.environmentId)}
         pinningSupported={loadedEnvironmentIds.has(thread.environmentId)}
         autoMarkDoneOptOutSupported={loadedEnvironmentIds.has(thread.environmentId)}
         arrangeSupported={loadedEnvironmentIds.has(thread.environmentId)}
