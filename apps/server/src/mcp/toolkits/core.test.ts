@@ -46,6 +46,7 @@ import * as ScheduledTaskService from "../../scheduledTasks/ScheduledTaskService
 import * as ServerSettings from "../../serverSettings.ts";
 import * as McpHttpServer from "../McpHttpServer.ts";
 import * as McpInvocationContext from "../McpInvocationContext.ts";
+import * as McpPendingUploads from "../McpPendingUploads.ts";
 import * as McpToolAccessTestkit from "../McpToolAccess.testkit.ts";
 import { dispatchFailure } from "../threadAccess.ts";
 import * as EnvironmentHandlers from "./environment/handlers.ts";
@@ -830,6 +831,7 @@ it.effect("only the caller that prepared a pending upload can discard it", () =>
     Effect.provide(
       McpHttpServer.layerAttachmentToolkit.pipe(
         Layer.provideMerge(McpServer.McpServer.layer),
+        Layer.provide(McpPendingUploads.layer),
         Layer.provide(McpToolAccessTestkit.liveThreadsLayer),
         Layer.provide(ServerSecretStore.layer),
         Layer.provide(

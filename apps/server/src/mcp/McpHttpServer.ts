@@ -36,6 +36,7 @@ import {
   toolOutcome,
 } from "../telemetry/ProviderDimensions.ts";
 import * as McpInvocationContext from "./McpInvocationContext.ts";
+import * as McpPendingUploads from "./McpPendingUploads.ts";
 import * as McpToolAccess from "./McpToolAccess.ts";
 import * as OrchestratorMcpService from "./OrchestratorMcpService.ts";
 import { PreviewControlsToolkit } from "./toolkits/previewControls/tools.ts";
@@ -1050,4 +1051,9 @@ export const layer = Layer.mergeAll(
   layerPullRequestsToolkit,
   layerDeviceToolkit,
   layerHtmlToolkit,
-).pipe(Layer.provideMerge(layerMcpTransport));
+).pipe(
+  // One instance, so an upload prepared through the attachment tools is the
+  // same caller's upload the transcription tools check.
+  Layer.provide(McpPendingUploads.layer),
+  Layer.provideMerge(layerMcpTransport),
+);

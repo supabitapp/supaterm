@@ -8,6 +8,7 @@ import {
 import { parseWav } from "@supaterm/provider-core/server/transcription";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
 import * as Runtime from "effect/Runtime";
@@ -51,42 +52,49 @@ export const transcribeRecording = Effect.fn("cli.transcribe.recording")(functio
   audio: Uint8Array,
   input: Omit<TranscriptionTranscribeInput, "audioAttachmentId" | "retry">,
 ) {
-  const upload = yield* tools.call(
-    "supaterm_attachment_prepare_upload",
-    {
-      upload: {
-        type: "file",
-        name: "recording.wav",
-        mimeType: "audio/wav",
-        sizeBytes: audio.byteLength,
-      },
-    },
-    AttachmentCreateUploadUrlResult,
-  );
   const client = (yield* HttpClient.HttpClient).pipe(HttpClient.filterStatusOk);
-  const cancel = tools
-    .call(
-      "supaterm_transcription_cancel",
-      { audioAttachmentId: upload.attachmentId },
-      Schema.Struct({}),
-    )
-    .pipe(Effect.ignore);
-  return yield* Effect.gen(function* () {
-    yield* client
-      .execute(
-        HttpClientRequest.post(new URL(upload.relativeUrl, tools.origin).href).pipe(
-          HttpClientRequest.bodyUint8Array(audio, "audio/wav"),
-        ),
-      )
-      .pipe(
-        Effect.mapError((cause) => new CliServerUnreachableError({ origin: tools.origin, cause })),
+  return yield* Effect.acquireUseRelease(
+    tools.call(
+      "supaterm_attachment_prepare_upload",
+      {
+        upload: {
+          type: "file",
+          name: "recording.wav",
+          mimeType: "audio/wav",
+          sizeBytes: audio.byteLength,
+        },
+      },
+      AttachmentCreateUploadUrlResult,
+    ),
+    Effect.fnUntraced(function* (upload) {
+      yield* client
+        .execute(
+          HttpClientRequest.post(new URL(upload.relativeUrl, tools.origin).href).pipe(
+            HttpClientRequest.bodyUint8Array(audio, "audio/wav"),
+          ),
+        )
+        .pipe(
+          Effect.mapError(
+            (cause) => new CliServerUnreachableError({ origin: tools.origin, cause }),
+          ),
+        );
+      return yield* tools.call(
+        "supaterm_transcription_transcribe",
+        { ...input, audioAttachmentId: upload.attachmentId },
+        TranscriptionTranscribeResult,
       );
-    return yield* tools.call(
-      "supaterm_transcription_transcribe",
-      { ...input, audioAttachmentId: upload.attachmentId },
-      TranscriptionTranscribeResult,
-    );
-  }).pipe(Effect.onError(() => cancel));
+    }),
+    (upload, exit) =>
+      Exit.isSuccess(exit)
+        ? Effect.void
+        : tools
+            .call(
+              "supaterm_transcription_cancel",
+              { audioAttachmentId: upload.attachmentId },
+              Schema.Struct({}),
+            )
+            .pipe(Effect.ignore),
+  );
 });
 
 export const transcribeCommand = Command.make("transcribe", {

@@ -6,6 +6,7 @@ import {
 import * as Effect from "effect/Effect";
 import * as Transcription from "../../../transcription/Transcription.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
+import * as McpPendingUploads from "../../McpPendingUploads.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
 import { TranscriptionToolkit } from "./tools.ts";
 
@@ -35,21 +36,30 @@ const transcriptionFailure = (error: TranscriptionError) =>
         : `${error.message} Retry after ${Math.ceil(error.retryAfterMs / 1000)} s.`,
   });
 
-export const layer = McpToolAccess.toLayer(TranscriptionToolkit, {
-  supaterm_transcription_transcribe: McpToolAccess.writes((input) =>
-    Effect.gen(function* () {
-      const transcription = yield* Transcription.Transcription;
-      const { thread } = yield* McpInvocationContext.McpInvocationContext;
-      const context = input.context ?? (thread && { threadId: thread.threadId });
-      return yield* transcription
-        .transcribe({ ...input, ...(context && { context }) })
-        .pipe(Effect.mapError(transcriptionFailure));
-    }),
-  ),
-  supaterm_transcription_cancel: McpToolAccess.writes((input) =>
-    Transcription.Transcription.pipe(
-      Effect.flatMap((transcription) => transcription.cancel(input)),
-      Effect.as({}),
-    ),
-  ),
-});
+export const layer = McpToolAccess.toLayer(
+  TranscriptionToolkit,
+  Effect.gen(function* () {
+    const transcription = yield* Transcription.Transcription;
+    const pendingUploads = yield* McpPendingUploads.McpPendingUploads;
+    return {
+      supaterm_transcription_transcribe: McpToolAccess.writes((input) =>
+        Effect.gen(function* () {
+          yield* pendingUploads.requireOwner(input.audioAttachmentId);
+          const { thread } = yield* McpInvocationContext.McpInvocationContext;
+          const context = input.context ?? (thread && { threadId: thread.threadId });
+          return yield* transcription
+            .transcribe({ ...input, ...(context && { context }) })
+            .pipe(Effect.mapError(transcriptionFailure));
+        }),
+      ),
+      supaterm_transcription_cancel: McpToolAccess.writes((input) =>
+        Effect.gen(function* () {
+          yield* pendingUploads.requireOwner(input.audioAttachmentId);
+          yield* transcription.cancel(input);
+          yield* pendingUploads.forget(input.audioAttachmentId);
+          return {};
+        }),
+      ),
+    };
+  }),
+);
