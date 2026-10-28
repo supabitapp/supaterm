@@ -15,17 +15,18 @@ const input = { providerInstanceId: ProviderInstanceId.make("claudeAgent") };
 
 const serverTools = (transcribe: Effect.Effect<unknown, CliToolFailedError>) => {
   const calls: Array<{ readonly tool: string; readonly args: unknown }> = [];
-  const call = ((tool: string, args: unknown) => {
-    calls.push({ tool, args });
-    if (tool === "supaterm_attachment_prepare_upload") {
-      return Effect.succeed({
-        attachmentId: audioAttachmentId,
-        relativeUrl: "/upload",
-        expiresAt: 0,
-      });
-    }
-    return tool === "supaterm_transcription_transcribe" ? transcribe : Effect.succeed({});
-  }) as ServerTools["call"];
+  const call = ((tool: string, args: unknown) =>
+    Effect.suspend(() => {
+      calls.push({ tool, args });
+      if (tool === "supaterm_attachment_prepare_upload") {
+        return Effect.succeed({
+          attachmentId: audioAttachmentId,
+          relativeUrl: "/upload",
+          expiresAt: 0,
+        });
+      }
+      return tool === "supaterm_transcription_transcribe" ? transcribe : Effect.succeed({});
+    })) as ServerTools["call"];
   return { tools: { origin: "http://127.0.0.1:1", call } satisfies ServerTools, calls };
 };
 

@@ -64,31 +64,29 @@ export const transcribeRecording = Effect.fn("cli.transcribe.recording")(functio
     AttachmentCreateUploadUrlResult,
   );
   const client = (yield* HttpClient.HttpClient).pipe(HttpClient.filterStatusOk);
-  return yield* client
-    .execute(
-      HttpClientRequest.post(new URL(upload.relativeUrl, tools.origin).href).pipe(
-        HttpClientRequest.bodyUint8Array(audio, "audio/wav"),
-      ),
+  const cancel = tools
+    .call(
+      "supaterm_transcription_cancel",
+      { audioAttachmentId: upload.attachmentId },
+      Schema.Struct({}),
     )
-    .pipe(
-      Effect.mapError((cause) => new CliServerUnreachableError({ origin: tools.origin, cause })),
-      Effect.andThen(
-        tools.call(
-          "supaterm_transcription_transcribe",
-          { ...input, audioAttachmentId: upload.attachmentId },
-          TranscriptionTranscribeResult,
+    .pipe(Effect.ignore);
+  return yield* Effect.gen(function* () {
+    yield* client
+      .execute(
+        HttpClientRequest.post(new URL(upload.relativeUrl, tools.origin).href).pipe(
+          HttpClientRequest.bodyUint8Array(audio, "audio/wav"),
         ),
-      ),
-      Effect.onError(() =>
-        tools
-          .call(
-            "supaterm_transcription_cancel",
-            { audioAttachmentId: upload.attachmentId },
-            Schema.Struct({}),
-          )
-          .pipe(Effect.ignore),
-      ),
+      )
+      .pipe(
+        Effect.mapError((cause) => new CliServerUnreachableError({ origin: tools.origin, cause })),
+      );
+    return yield* tools.call(
+      "supaterm_transcription_transcribe",
+      { ...input, audioAttachmentId: upload.attachmentId },
+      TranscriptionTranscribeResult,
     );
+  }).pipe(Effect.onError(() => cancel));
 });
 
 export const transcribeCommand = Command.make("transcribe", {
@@ -147,19 +145,19 @@ export const transcribeCommand = Command.make("transcribe", {
                 () => new TranscribeUsageError({ detail: `'${thread}' is not a thread id.` }),
               ),
             );
+      const language = Option.getOrUndefined(flags.language);
+      const projectIdentifier = Option.getOrUndefined(flags.project);
       yield* withServerTools(
         flags,
         { label: "supaterm transcribe cli", name: "supaterm-transcribe-cli" },
         Effect.fn("cli.transcribe")(function* (tools) {
-          const project = Option.isSome(flags.project)
-            ? yield* resolveProject(tools, flags.project.value)
-            : undefined;
+          const project =
+            projectIdentifier === undefined
+              ? undefined
+              : yield* resolveProject(tools, projectIdentifier);
           const { text } = yield* transcribeRecording(tools, audio, {
             providerInstanceId,
-            ...Option.match(flags.language, {
-              onNone: () => ({}),
-              onSome: (language) => ({ language }),
-            }),
+            ...(language && { language }),
             context: {
               ...(project && { projectId: project.id }),
               ...(threadId && { threadId }),
