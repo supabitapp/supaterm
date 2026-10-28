@@ -811,6 +811,8 @@ export const OrchestrationV2WorkflowAgent = Schema.Struct({
   phaseIndex: Schema.optional(NonNegativeInt),
   phaseTitle: Schema.optional(WorkflowText),
   model: Schema.optional(WorkflowText),
+  effort: Schema.optional(WorkflowText),
+  speed: Schema.optional(WorkflowText),
   attempt: Schema.optional(NonNegativeInt),
   totalTokens: Schema.optional(NonNegativeInt),
   toolCalls: Schema.optional(NonNegativeInt),
