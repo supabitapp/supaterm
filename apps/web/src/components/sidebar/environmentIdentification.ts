@@ -4,21 +4,19 @@ import { APP_STAGE_LABEL } from "../../branding";
 import { resolveServerBackedAppStageLabel } from "../../branding.logic";
 import { primaryServerConfigAtom } from "../../state/server";
 
-type EnvironmentIdentificationPillLabel = "Dev" | "Nightly";
+type EnvironmentStageLabel = "Dev" | "Nightly";
 
-function resolveEnvironmentIdentificationPillLabel(
-  stageLabel: string | null,
-): EnvironmentIdentificationPillLabel | null {
+function resolveEnvironmentStageLabel(stageLabel: string | null): EnvironmentStageLabel | null {
   const normalized = stageLabel?.trim().toLowerCase();
   if (normalized === "dev") return "Dev";
   if (normalized === "nightly") return "Nightly";
   return null;
 }
 
-export function useEnvironmentIdentificationPillLabel(): EnvironmentIdentificationPillLabel | null {
+export function useEnvironmentStageLabel(): EnvironmentStageLabel | null {
   const primaryServerVersion =
     useAtomValue(primaryServerConfigAtom)?.environment.serverVersion ?? null;
-  return resolveEnvironmentIdentificationPillLabel(
+  return resolveEnvironmentStageLabel(
     resolveServerBackedAppStageLabel({
       primaryServerVersion,
       fallbackStageLabel: APP_STAGE_LABEL,

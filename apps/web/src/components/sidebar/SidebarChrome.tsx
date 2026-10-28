@@ -20,7 +20,6 @@ import { cn } from "../../lib/utils";
 import { readLocalApi } from "../../localApi";
 import { usePullRequestsSupported } from "../../state/environments";
 import { GitHubIcon } from "../Icons";
-import { Badge } from "../ui/badge";
 import { Kbd } from "../ui/kbd";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import {
@@ -34,7 +33,7 @@ import {
 import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { readPullRequestListPreferences } from "../pullRequest/pullRequestListPreferences";
-import { useEnvironmentIdentificationPillLabel } from "./environmentIdentification";
+import { useEnvironmentStageLabel } from "./environmentIdentification";
 import { isSidebarUtilityPage, useNavigateToMainApp } from "./mainAppLocation";
 import { SidebarThreadUndoNotice } from "./SidebarThreadUndoNotice";
 import { SidebarProviderUpdatePill } from "./SidebarProviderUpdatePill";
@@ -47,8 +46,6 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
 }: {
   isElectron: boolean;
 }) {
-  const pillLabel = useEnvironmentIdentificationPillLabel();
-
   return (
     <div
       className={cn(
@@ -61,13 +58,6 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
       </div>
       <div className="flex h-8 min-w-0 flex-1 flex-wrap content-start items-center gap-x-2 overflow-hidden py-0.5">
         <SidebarBrand />
-        {pillLabel ? (
-          <div className="ml-1 flex h-7 items-center">
-            <Badge data-environment-identification="pill" size="sm" variant="secondary">
-              {pillLabel}
-            </Badge>
-          </div>
-        ) : null}
       </div>
     </div>
   );
@@ -110,7 +100,12 @@ function SidebarBrand() {
 }
 
 function SidebarBrandMark() {
-  return <span className="truncate text-sm font-semibold">{APP_BASE_NAME}</span>;
+  const stageLabel = useEnvironmentStageLabel();
+  return (
+    <span className="truncate text-sm font-semibold">
+      {stageLabel ? `${APP_BASE_NAME} (${stageLabel})` : APP_BASE_NAME}
+    </span>
+  );
 }
 
 // The desktop app's Settings menu item owns Mod+, so it is not in the keybinding registry.
