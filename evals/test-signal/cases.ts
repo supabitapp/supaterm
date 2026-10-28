@@ -1,34 +1,42 @@
+// @effect-diagnostics nodeBuiltinImport:off
+import * as NodeFS from "node:fs";
+import * as Schema from "effect/Schema";
+import { testRange } from "./grade.ts";
+
 export type Case = {
   readonly id: string;
   readonly kind: "bad" | "guard";
   readonly source: string;
-  readonly rev: string;
-
   readonly targets: ReadonlyArray<{ readonly path: string; readonly title: string }>;
-} & (
-  | { readonly type: "real"; readonly paths: ReadonlyArray<string> }
-  | {
-      readonly type: "synthetic";
-      readonly path: string;
-      readonly after: string;
-      readonly insert: string;
-    }
+};
+
+const decodeWorld = Schema.decodeSync(
+  Schema.fromJsonString(
+    Schema.Struct({
+      diff: Schema.NonEmptyString,
+      files: Schema.Record(Schema.String, Schema.String),
+    }),
+  ),
 );
 
-const base = "cb7e3814d71c8fcdc5b803c660c29b7d7e39be96";
+export function caseWorld(entry: Case) {
+  const snapshot = decodeWorld(
+    NodeFS.readFileSync(new URL(`./fixtures/${entry.id}.json`, import.meta.url), "utf8"),
+  );
+  const files = new Map(Object.entries(snapshot.files));
+  const targets = entry.targets.map((target) => {
+    const range = testRange(files.get(target.path) ?? "", target.title);
+    if (!range) throw new Error(`${entry.id}: target "${target.title}" not found.`);
+    return { path: target.path, ...range };
+  });
+  return { diff: snapshot.diff, files, targets };
+}
 
 export const cases: ReadonlyArray<Case> = [
   {
     id: "copy-text-at-every-call-site",
     kind: "bad",
     source: "#23999 checks the PR or MR label in 11 files",
-    type: "real",
-    rev: "218e5c09df",
-    paths: [
-      "packages/client-runtime/src/state/gitActions.test.ts",
-      "apps/web/src/lib/composerContextRecords.test.ts",
-      "apps/mobile/src/lib/composerContext.test.ts",
-    ],
     targets: [
       {
         path: "packages/client-runtime/src/state/gitActions.test.ts",
@@ -56,13 +64,6 @@ export const cases: ReadonlyArray<Case> = [
     id: "same-case-in-wrapper-test",
     kind: "bad",
     source: "#22452 added the same two cases to threadAccess and OrchestratorMcpService",
-    type: "real",
-    rev: "b260a7cf69",
-    paths: [
-      "apps/server/src/mcp/threadAccess.test.ts",
-      "apps/server/src/mcp/OrchestratorMcpService.test.ts",
-    ],
-
     targets: [
       {
         path: "apps/server/src/mcp/threadAccess.test.ts",
@@ -86,12 +87,6 @@ export const cases: ReadonlyArray<Case> = [
     id: "new-it-for-a-table-row",
     kind: "bad",
     source: "Synthetic: a new `it` next to the table that already covers it",
-    type: "synthetic",
-    rev: base,
-    path: "packages/shared/src/markdownLinks.test.ts",
-    after: "    expect(parseMarkdownFileLink(href)?.path).toBe(path);\n  });\n",
-    insert:
-      '\n  it("recognizes a Windows path with forward slashes as a file", () => {\n    expect(parseMarkdownFileLink("C:/repo/src/app.ts")?.path).toBe("C:/repo/src/app.ts");\n  });\n',
     targets: [
       {
         path: "packages/shared/src/markdownLinks.test.ts",
@@ -103,12 +98,6 @@ export const cases: ReadonlyArray<Case> = [
     id: "mock-call-mirror",
     kind: "bad",
     source: "Synthetic: asserts the mock call the code makes, already covered above it",
-    type: "synthetic",
-    rev: base,
-    path: "packages/client-runtime/src/state/threadRequests.test.ts",
-    after: "    expect(send).toHaveBeenCalledOnce();\n  });\n",
-    insert:
-      '\n  it("calls respond with decline", async () => {\n    const respond = vi.fn<ApprovalResponder>(async () => AsyncResult.success(undefined));\n    await declinePendingApprovals([approval], respond);\n    expect(respond).toHaveBeenCalledWith(requestId, "decline");\n    expect(respond).toHaveBeenCalledTimes(1);\n  });\n',
     targets: [
       {
         path: "packages/client-runtime/src/state/threadRequests.test.ts",
@@ -120,53 +109,35 @@ export const cases: ReadonlyArray<Case> = [
     id: "type-guaranteed",
     kind: "bad",
     source: "Synthetic: checks a return type the signature already declares",
-    type: "synthetic",
-    rev: base,
-    path: "packages/shared/src/markdownLinks.test.ts",
-    after: "    expect(isMarkdownFileLinkLabel(label, href)).toBe(expected);\n  });\n",
-    insert:
-      '\n  it("returns a boolean", () => {\n    expect(typeof isMarkdownFileLinkLabel("a.ts", "/repo/a.ts")).toBe("boolean");\n  });\n',
-    targets: [{ path: "packages/shared/src/markdownLinks.test.ts", title: "returns a boolean" }],
+    targets: [
+      {
+        path: "packages/shared/src/markdownLinks.test.ts",
+        title: "returns a boolean",
+      },
+    ],
   },
   {
     id: "deadlock-race-fix",
     kind: "guard",
     source: "#22094 run metrics read lineage inside the transaction so a writer cannot deadlock",
-    type: "real",
-    rev: "f8e4834861",
-    paths: ["apps/server/src/orchestration-v2/RunMetrics.test.ts"],
     targets: [],
   },
   {
     id: "clone-retry-fix",
     kind: "guard",
     source: "#23170 clones retry over HTTPS when the SSH key is refused",
-    type: "real",
-    rev: "a49d18cf3b",
-    paths: ["apps/server/src/sourceControl/SourceControlRepositoryService.test.ts"],
     targets: [],
   },
   {
     id: "deleted-tests",
     kind: "guard",
     source: "#22592 pruned low-value tests",
-    type: "real",
-    rev: "a2f4df0412",
-    paths: [
-      "apps/server/src/workspace/WorkspaceEntries.test.ts",
-      "apps/server/src/workspace/WorkspacePaths.test.ts",
-    ],
     targets: [],
   },
   {
     id: "new-table-row",
     kind: "guard",
     source: "Synthetic: the right way to add the Windows path case",
-    type: "synthetic",
-    rev: base,
-    path: "packages/shared/src/markdownLinks.test.ts",
-    after: '    ["file://localhost/home/me/notes.md", "/home/me/notes.md"],\n',
-    insert: '    ["C:/repo/src/app.ts", "C:/repo/src/app.ts"],\n',
     targets: [],
   },
 ];

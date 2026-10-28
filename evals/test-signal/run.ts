@@ -4,7 +4,6 @@
 import * as NodeChildProcess from "node:child_process";
 import * as NodeCrypto from "node:crypto";
 import * as NodeFS from "node:fs";
-import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import * as NodeUtil from "node:util";
 import * as Effect from "effect/Effect";
@@ -12,12 +11,13 @@ import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http";
 import { proxyConfig } from "../shared/proxy.ts";
-import { cases, type Case } from "./cases.ts";
-import { grade, testRange, type Comment } from "./grade.ts";
+import { cases, caseWorld, type Case } from "./cases.ts";
+import { grade, type Comment } from "./grade.ts";
 
 const { values } = NodeUtil.parseArgs({
   options: {
     out: { type: "string" },
+    "dry-run": { type: "boolean", default: false },
     model: { type: "string", multiple: true },
     prompt: { type: "string" },
     case: { type: "string", multiple: true },
@@ -26,8 +26,8 @@ const { values } = NodeUtil.parseArgs({
     reasoning: { type: "string", default: "low" },
   },
 });
-if (!values.out) throw new Error("Use --out <directory> [--model <id>] [--prompt <file>].");
-const outDirectory = values.out;
+if (!values.out && !values["dry-run"]) throw new Error("Use --out <directory> or --dry-run.");
+const outDirectory = values.out ?? "";
 const models = values.model ?? ["gpt-6.1-terra", "gpt-6-luna"];
 const repo = NodePath.resolve(import.meta.dirname, "../..");
 const checkFile =
@@ -39,85 +39,64 @@ const instructions = NodeFS.readFileSync(checkFile, "utf8")
 const words = instructions.split(/\s+/).length;
 const promptHash = NodeCrypto.createHash("sha256").update(instructions).digest("hex").slice(0, 12);
 const selected = values.case ? cases.filter((entry) => values.case!.includes(entry.id)) : cases;
+if (values["dry-run"]) {
+  const worlds = selected.map((entry) => {
+    const { diff, files, targets } = caseWorld(entry);
+    return {
+      id: entry.id,
+      kind: entry.kind,
+      diffBytes: Buffer.byteLength(diff),
+      files: files.size,
+      targets,
+    };
+  });
+  process.stdout.write(JSON.stringify(worlds, null, 2) + "\n");
+  process.exit(0);
+}
 const proxy = proxyConfig();
 
-const git = (args: ReadonlyArray<string>) => {
-  const result = NodeChildProcess.spawnSync("git", args, {
-    cwd: repo,
-    encoding: "utf8",
-    maxBuffer: 1 << 26,
-  });
-  return result.status === 0 ? result.stdout : undefined;
-};
-
-const world = (entry: Case) => {
-  const files = new Map<string, string>();
-  if (entry.type === "real") {
-    const diff = git(["diff", `${entry.rev}~1`, entry.rev, "--", ...entry.paths]);
-
-    if (!diff) throw new Error(`${entry.id}: no diff at ${entry.rev}.`);
-    return { diff, files };
-  }
-  const before = git(["show", `${entry.rev}:${entry.path}`]);
-  if (!before?.includes(entry.after)) throw new Error(`${entry.id}: anchor not found.`);
-  const after = before.replace(entry.after, entry.after + entry.insert);
-  files.set(entry.path, after);
-  const directory = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-test-signal-"));
-  NodeFS.writeFileSync(NodePath.join(directory, "before"), before);
-  NodeFS.writeFileSync(NodePath.join(directory, "after"), after);
-  const raw = NodeChildProcess.spawnSync("git", ["diff", "--no-index", "before", "after"], {
-    cwd: directory,
-    encoding: "utf8",
-  }).stdout;
-  NodeFS.rmSync(directory, { recursive: true });
-  const diff = raw
-    .replace("diff --git a/before b/after", `diff --git a/${entry.path} b/${entry.path}`)
-    .replace("--- a/before", `--- a/${entry.path}`)
-    .replace("+++ b/after", `+++ b/${entry.path}`);
-  return { diff, files };
-};
-
 const ruleFiles = new Set(["docs/internals/testing.md", "AGENTS.md"]);
-const readAt = (entry: Case, files: Map<string, string>, path: string) =>
-  ruleFiles.has(path)
-    ? NodeFS.readFileSync(NodePath.join(repo, path), "utf8")
-    : (files.get(path) ?? git(["show", `${entry.rev}:${path}`]));
+const readAt = (files: Map<string, string>, path: string) =>
+  ruleFiles.has(path) ? NodeFS.readFileSync(NodePath.join(repo, path), "utf8") : files.get(path);
 
-const grepAt = (entry: Case, files: Map<string, string>, pattern: string, scope: string) => {
+const grepAt = (files: Map<string, string>, pattern: string, scope: string) => {
   const check = NodeChildProcess.spawnSync("grep", ["-E", "--", pattern], {
     input: "",
     encoding: "utf8",
   });
   if (check.status !== 0 && check.status !== 1) return check.stderr.trim() || "grep failed.";
   const served = new Map(files);
-  for (const path of ruleFiles) served.set(path, readAt(entry, files, path) ?? "");
-
-  const matched = new Set((git(["ls-files", "--", scope || "."]) ?? "").split("\n"));
-  const inScope = (path: string) => matched.has(path);
-  const fromRev = (git(["grep", "-n", "-E", "-e", pattern, entry.rev, "--", scope || "."]) ?? "")
-    .split("\n")
-    .filter((line) => line !== "")
-    .map((line) => line.replace(`${entry.rev}:`, ""))
-    .filter((line) => !served.has(line.slice(0, line.indexOf(":"))));
-  const fromServed = [...served]
-    .filter(([path]) => inScope(path))
-    .flatMap(([path, text]) =>
-      NodeChildProcess.spawnSync("grep", ["-n", "-E", "--", pattern], {
-        input: text,
-        encoding: "utf8",
-      })
-        .stdout.split("\n")
-        .filter((line) => line !== "")
-        .map((line) => `${path}:${line}`),
-    );
-  return [...fromServed, ...fromRev].slice(0, 80).join("\n") || "No matches.";
+  for (const path of ruleFiles) served.set(path, readAt(files, path) ?? "");
+  const directory = scope.replace(/\/$/, "");
+  return (
+    [...served]
+      .filter(
+        ([path]) =>
+          !scope ||
+          scope === "." ||
+          path === scope ||
+          path.startsWith(`${directory}/`) ||
+          NodePath.matchesGlob(path, scope),
+      )
+      .flatMap(([path, text]) =>
+        NodeChildProcess.spawnSync("grep", ["-n", "-E", "--", pattern], {
+          input: text,
+          encoding: "utf8",
+        })
+          .stdout.split("\n")
+          .filter((line) => line !== "")
+          .map((line) => `${path}:${line}`),
+      )
+      .slice(0, 80)
+      .join("\n") || "No matches."
+  );
 };
 
 const tools = [
   {
     type: "function",
     name: "read_file",
-    description: "Read a file at the pull request head, with line numbers.",
+    description: "Read a captured pull request source file or repository test guidance, with line numbers.",
     parameters: {
       type: "object",
       properties: {
@@ -132,7 +111,7 @@ const tools = [
     type: "function",
     name: "grep",
     description:
-      "Search the repository at the pull request head with an extended regular expression.",
+      "Search captured pull request source files and repository test guidance with an extended regular expression.",
     parameters: {
       type: "object",
       properties: { pattern: { type: "string" }, path: { type: "string" } },
@@ -154,7 +133,7 @@ const tools = [
 const system = (body: string) =>
   [
     "You are a Macroscope Check Run Agent reviewing a GitHub pull request.",
-    "Follow the check instructions below. Read the repository at the pull request head with read_file and grep.",
+    "Follow the check instructions below. Read the captured pull request source and repository test guidance with read_file and grep.",
     "Leave inline review comments with post_comment. Then give your final response.",
     "",
     "<check_instructions>",
@@ -195,7 +174,7 @@ const post = Effect.fn("evaluateTestSignal.post")(function* (body: unknown) {
 });
 
 const runSample = Effect.fn("evaluateTestSignal.sample")(function* (entry: Case, model: string) {
-  const { diff, files } = world(entry);
+  const { diff, files, targets } = caseWorld(entry);
   const comments: Array<Comment> = [];
   const input: Array<unknown> = [
     {
@@ -234,7 +213,7 @@ const runSample = Effect.fn("evaluateTestSignal.sample")(function* (entry: Case,
         });
         output = "Posted.";
       } else if (call.name === "read_file") {
-        const text = readAt(entry, files, String(args.path));
+        const text = readAt(files, String(args.path));
         const lines = text?.split("\n") ?? [];
         const start = Math.max(1, Number(args.start_line ?? 1));
         const end = Math.min(lines.length, Number(args.end_line ?? start + 399));
@@ -246,16 +225,11 @@ const runSample = Effect.fn("evaluateTestSignal.sample")(function* (entry: Case,
                 .map((line, index) => `${start + index}: ${line}`)
                 .join("\n");
       } else {
-        output = grepAt(entry, files, String(args.pattern), String(args.path ?? ""));
+        output = grepAt(files, String(args.pattern), String(args.path ?? ""));
       }
       input.push({ type: "function_call_output", call_id: call.call_id, output });
     }
   }
-  const targets = entry.targets.flatMap((target) => {
-    const range = testRange(readAt(entry, files, target.path) ?? "", target.title);
-    if (!range) throw new Error(`${entry.id}: target "${target.title}" not found.`);
-    return [{ path: target.path, ...range }];
-  });
   return { ...grade({ kind: entry.kind, targets, comments, final }), comments, final, tokens };
 });
 
