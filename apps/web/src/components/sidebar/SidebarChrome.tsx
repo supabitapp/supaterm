@@ -20,7 +20,6 @@ import { cn } from "../../lib/utils";
 import { readLocalApi } from "../../localApi";
 import { usePullRequestsSupported } from "../../state/environments";
 import { GitHubIcon } from "../Icons";
-import { Badge } from "../ui/badge";
 import { Kbd } from "../ui/kbd";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import {
@@ -34,7 +33,7 @@ import {
 import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { readPullRequestListPreferences } from "../pullRequest/pullRequestListPreferences";
-import { useEnvironmentIdentificationPillLabel } from "./environmentIdentification";
+import { useEnvironmentStageLabel } from "./environmentIdentification";
 import { isSidebarUtilityPage, useNavigateToMainApp } from "./mainAppLocation";
 import { SidebarThreadUndoNotice } from "./SidebarThreadUndoNotice";
 import { SidebarProviderUpdatePill } from "./SidebarProviderUpdatePill";
@@ -47,8 +46,6 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
 }: {
   isElectron: boolean;
 }) {
-  const pillLabel = useEnvironmentIdentificationPillLabel();
-
   return (
     <div
       className={cn(
@@ -59,15 +56,8 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
       <div className="relative top-[calc(var(--workspace-controls-top)-env(safe-area-inset-top))] ml-[calc(var(--workspace-controls-left)+1px-env(safe-area-inset-left))] flex shrink-0 items-center md:hidden">
         <SidebarTrigger aria-label="Toggle main sidebar" />
       </div>
-      <div className="flex h-8 min-w-0 flex-1 flex-wrap content-start items-center gap-x-2 overflow-hidden py-0.5">
+      <div className="flex h-8 min-w-0 flex-1 items-center overflow-hidden py-0.5">
         <SidebarBrand />
-        {pillLabel ? (
-          <div className="ml-1 flex h-7 items-center">
-            <Badge data-environment-identification="pill" size="sm" variant="secondary">
-              {pillLabel}
-            </Badge>
-          </div>
-        ) : null}
       </div>
     </div>
   );
@@ -78,6 +68,7 @@ export function SidebarBrandWidthProbe({
 }: {
   onWidthChange: (width: number) => void;
 }) {
+  const title = useSidebarBrandTitle();
   const observeWidth = (probe: HTMLDivElement) => {
     return observeResize(probe, ([entry]) => {
       if (entry) onWidthChange(entry.borderBoxSize[0]?.inlineSize ?? probe.offsetWidth);
@@ -91,26 +82,32 @@ export function SidebarBrandWidthProbe({
       ref={observeWidth}
     >
       <div className="ml-[var(--workspace-titlebar-content-left)] flex">
-        <SidebarBrandMark />
+        <SidebarBrandMark title={title} />
       </div>
     </div>
   );
 }
 
 function SidebarBrand() {
+  const title = useSidebarBrandTitle();
   return (
     <Link
-      aria-label="Go to threads"
-      className="ml-[var(--workspace-titlebar-content-left)] hidden h-7 w-fit min-w-0 shrink-0 items-center overflow-hidden rounded-md text-foreground outline-hidden ring-ring focus-visible:ring-2 focus-visible:ring-inset md:flex"
+      aria-label={`${title}, go to threads`}
+      className="flex h-7 w-fit min-w-0 shrink-0 items-center overflow-hidden rounded-md text-foreground outline-hidden ring-ring focus-visible:ring-2 focus-visible:ring-inset md:ml-[var(--workspace-titlebar-content-left)]"
       to="/"
     >
-      <SidebarBrandMark />
+      <SidebarBrandMark title={title} />
     </Link>
   );
 }
 
-function SidebarBrandMark() {
-  return <span className="truncate text-sm font-semibold">{APP_BASE_NAME}</span>;
+function useSidebarBrandTitle() {
+  const stageLabel = useEnvironmentStageLabel();
+  return stageLabel ? `${APP_BASE_NAME} (${stageLabel})` : APP_BASE_NAME;
+}
+
+function SidebarBrandMark({ title }: { title: string }) {
+  return <span className="truncate text-sm font-semibold">{title}</span>;
 }
 
 // The desktop app's Settings menu item owns Mod+, so it is not in the keybinding registry.
