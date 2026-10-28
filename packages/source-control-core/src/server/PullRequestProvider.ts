@@ -183,6 +183,7 @@ export interface ProviderChangeRequestStat {
 }
 
 export interface ProviderChangeRequestDetail extends ProviderChangeRequest {
+  readonly maintainerCanModify?: boolean;
   readonly headSha?: string | null;
   readonly body: string;
   readonly changedFiles: number;
@@ -476,6 +477,7 @@ export interface PullRequestProviderApi {
   /** Requires edit capability and at least one field. */
   readonly updateChangeRequest?: (
     input: ProviderRepositoryRef & {
+      readonly maintainerCanModify?: boolean | undefined;
       readonly number: number;
       readonly title?: string | undefined;
       readonly body?: string | undefined;

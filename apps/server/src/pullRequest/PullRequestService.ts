@@ -1820,6 +1820,9 @@ export const make = Effect.gen(function* () {
             ...(changeRequest.autoMergeMethod === undefined
               ? {}
               : { autoMergeMethod: changeRequest.autoMergeMethod }),
+            ...(changeRequest.maintainerCanModify === undefined
+              ? {}
+              : { maintainerCanModify: changeRequest.maintainerCanModify }),
             ...(changeRequest.workflowApprovalsRequired === undefined
               ? {}
               : { workflowApprovalsRequired: changeRequest.workflowApprovalsRequired }),
@@ -2214,7 +2217,22 @@ export const make = Effect.gen(function* () {
             }),
           );
         }
-        if (input.title === undefined && input.body === undefined) {
+        if (
+          input.maintainerCanModify !== undefined &&
+          project.api.capabilities.edit?.maintainerEdits !== true
+        ) {
+          return Effect.fail(
+            new PullRequestOperationError({
+              operation: "update",
+              detail: "This host does not support maintainer edits.",
+            }),
+          );
+        }
+        if (
+          input.title === undefined &&
+          input.body === undefined &&
+          input.maintainerCanModify === undefined
+        ) {
           return Effect.fail(
             new PullRequestOperationError({
               operation: "update",
@@ -2227,6 +2245,9 @@ export const make = Effect.gen(function* () {
           repository: project.repository,
           host: project.host,
           number: input.number,
+          ...(input.maintainerCanModify === undefined
+            ? {}
+            : { maintainerCanModify: input.maintainerCanModify }),
           ...(input.title === undefined ? {} : { title: input.title }),
           ...(input.body === undefined ? {} : { body: input.body }),
         }).pipe(Effect.mapError(toPullRequestError("update")));
