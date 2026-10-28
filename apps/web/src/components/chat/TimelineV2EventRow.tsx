@@ -111,7 +111,7 @@ export function V2EventTimelineRow({ row }: { row: Extract<TimelineRow, { kind: 
               cwd={ctx.markdownCwd}
               workspaceRoot={ctx.workspaceRoot}
               onOpenThread={ctx.onOpenThread}
-              onOpenTurnDiff={ctx.onOpenTurnDiff}
+              onOpenToolDiff={ctx.onOpenToolDiff}
               onImageExpand={ctx.onImageExpand}
             />
           </div>
@@ -212,7 +212,7 @@ function V2ErrorEventRow({
                 cwd={ctx.markdownCwd}
                 workspaceRoot={ctx.workspaceRoot}
                 onOpenThread={ctx.onOpenThread}
-                onOpenTurnDiff={ctx.onOpenTurnDiff}
+                onOpenToolDiff={ctx.onOpenToolDiff}
                 onImageExpand={ctx.onImageExpand}
               />
             </div>
