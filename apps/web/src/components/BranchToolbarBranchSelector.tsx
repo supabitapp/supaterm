@@ -13,6 +13,7 @@ import {
   type ContextMenuItem,
   type EnvironmentId,
   type VcsRef,
+  type ScopedThreadRef,
   type ThreadId,
 } from "@supaterm/contracts";
 import { ChevronDownIcon, GitBranchIcon } from "@supaterm/icons";
@@ -84,6 +85,7 @@ interface BranchToolbarBranchSelectorProps {
   environmentId: EnvironmentId;
   threadId: ThreadId;
   draftId?: DraftId;
+  composerDraftTarget?: ScopedThreadRef | DraftId;
   envLocked: boolean;
   effectiveEnvModeOverride?: "local" | "worktree";
   activeThreadBranchOverride?: string | null;
@@ -105,6 +107,7 @@ export function BranchToolbarBranchSelector({
   environmentId,
   threadId,
   draftId,
+  composerDraftTarget,
   envLocked,
   effectiveEnvModeOverride,
   activeThreadBranchOverride,
@@ -742,7 +745,7 @@ export function BranchToolbarBranchSelector({
             project={activeProject}
             label={panelPrLabel}
             openAriaLabel={prUrl ?? "Open pull request"}
-            composerTarget={draftId ?? threadRef}
+            composerTarget={composerDraftTarget ?? draftId ?? threadRef}
             onOpen={(event) => openPrLink(event, prUrl)}
             onActed={() => branchStatusQuery.refresh()}
           />
