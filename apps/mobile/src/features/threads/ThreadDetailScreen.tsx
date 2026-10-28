@@ -170,6 +170,7 @@ import {
   ThreadComposer,
 } from "./ThreadComposer";
 import { ComposerPopoverHost } from "./ComposerPopoverHost";
+import { useNextPromptSuggestion } from "./useNextPromptSuggestion";
 import { ThreadFeed, type ThreadFeedHistoryControls } from "./ThreadFeed";
 import { ComposerQueuedEditBanner } from "./ComposerQueuedEdit";
 import type { ThreadContentPresentation } from "./threadContentPresentation";
@@ -581,6 +582,13 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
   const defaultComposerEditorRef = useRef<ComposerEditorHandle>(null);
   const composerEditorRef = props.draftMode?.editorRef ?? defaultComposerEditorRef;
   const isProviderSubagent = isProviderNativeSubagentThread(props.selectedThread.source);
+  const suggestedPrompt = useNextPromptSuggestion({
+    environmentId: props.environmentId,
+    threadId: props.draftMode ? null : props.selectedThread.id,
+    connected: props.connectionStateLabel === "connected",
+    enabled: props.serverConfig?.settings.nextPromptSuggestionsEnabled === true,
+    latestRun: props.selectedThread.latestRun,
+  });
   const editingRunId = props.queuedRunEdit?.runId ?? null;
   useEffect(() => {
     if (editingRunId === null) return;
@@ -1728,8 +1736,9 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
                         placeholder={
                           props.activePendingApproval
                             ? "Send a message to decline and redirect the agent"
-                            : "Ask the repo agent, or run a command…"
+                            : (suggestedPrompt ?? "Ask the repo agent, or run a command…")
                         }
+                        suggestedPrompt={suggestedPrompt}
                         contentMaxWidth={contentMaxWidth}
                         connectionState={props.connectionStateLabel}
                         environmentLabel={props.environmentLabel}

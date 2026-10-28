@@ -150,6 +150,8 @@ const COMPACT_SURFACE_INSET = 2;
 export interface ThreadComposerProps {
   readonly canOperateThread: boolean;
   readonly placeholder: string;
+  /** The predicted next prompt, shown as the placeholder; the trailing action fills it in. */
+  readonly suggestedPrompt?: string | null;
   readonly contentMaxWidth?: number;
   readonly bottomInset?: number;
   readonly connectionState: RemoteClientConnectionState;
@@ -395,6 +397,20 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const [resumingQueue, setResumingQueue] = useState(false);
   const showResumeAction =
     !hasContent && !showStopAction && queuedEdit === null && onResumeQueue !== null;
+  const suggestedPrompt = props.suggestedPrompt ?? null;
+  const showSuggestionAction = !hasContent && queuedEdit === null && suggestedPrompt !== null;
+  const applySuggestedPrompt = () => {
+    if (suggestedPrompt === null) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    props.onChangeDraftMessage(suggestedPrompt);
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelection({
+        start: suggestedPrompt.length,
+        end: suggestedPrompt.length,
+      });
+    });
+  };
   const handleResumeQueue = async () => {
     if (resumingQueue || onResumeQueue === null) return;
     setResumingQueue(true);
@@ -758,6 +774,15 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
           onPress={() => {
             void handleResumeQueue();
           }}
+        />
+      ) : showSuggestionAction ? (
+        <ComposerActionButton
+          size={rowControlSize}
+          accessibilityLabel="Use suggested prompt"
+          disabled={isSubmissionLocked}
+          icon="text.bubble"
+          variant="primary"
+          onPress={applySuggestedPrompt}
         />
       ) : hasContent || !voiceInput.isAvailable ? (
         <SendActionButton

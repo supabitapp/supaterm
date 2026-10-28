@@ -1276,6 +1276,7 @@ export function makeClaudeQueryOptions(input: {
   readonly supportedDialogKinds?: ClaudeQueryOptions["supportedDialogKinds"];
   readonly allowDangerouslySkipPermissions?: boolean;
   readonly appendSystemPromptFileText?: string;
+  readonly promptSuggestions?: boolean;
 }): ClaudeAgentSdkQueryOptions {
   const compiledSelection =
     input.compiledSelection ??
@@ -1327,6 +1328,7 @@ export function makeClaudeQueryOptions(input: {
         ? "bypassPermissions"
         : (input.permissionMode ?? "default")),
     includePartialMessages: true,
+    ...(input.promptSuggestions === true ? { promptSuggestions: true } : {}),
     ...(compiledSelection.effort === undefined
       ? {}
       : {
@@ -3448,6 +3450,9 @@ interface ClaudeLiveQueryContext {
   readonly queryPolicyKey: string;
   selection: CompiledClaudeModelSelection;
   readonly closed: Deferred.Deferred<void, never>;
+  // Claude reads this only when the process starts; changing its flag later has no effect, so a
+  // setting change applies to the next process. Until then the server ignores or replaces it.
+  readonly promptSuggestions: boolean;
   lastTurn: ActiveClaudeTurnContext | null;
   // Whether this CLI process echoes a prompt's uuid on the first frame of the turn answering it
   // ("early") or only on its result. "acknowledged": the CLI confirmed it took a prompt's uuid
@@ -3850,6 +3855,8 @@ export interface ClaudeAdapterV2Options {
   readonly scopedLimitNames?: Ref.Ref<ClaudeScopedLimitNames>;
   readonly onUsageLimits?: ManagedServerProvider["applyUsageLimits"];
   readonly fastModeBlocked?: Effect.Effect<boolean>;
+  /** Read when a CLI process starts; the SDK cannot turn suggestions on or off mid-process. */
+  readonly promptSuggestionsEnabled?: Effect.Effect<boolean>;
   readonly continuationRequests?: {
     readonly offer: (
       request: ProviderContinuationRequests.ProviderContinuationRequest,
@@ -6712,6 +6719,19 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             });
           }
 
+          const promptSuggestionQuery = yield* Ref.get(queryContext);
+          if (
+            input.status === "completed" &&
+            promptSuggestionQuery?.promptSuggestions === true &&
+            promptSuggestionQuery.nativeThreadId === input.context.nativeThreadId
+          ) {
+            yield* emitProviderEvent({
+              type: "prompt_suggestion.expected",
+              driver: CLAUDE_PROVIDER,
+              threadId: input.context.input.threadId,
+              runId: input.context.input.runId,
+            });
+          }
           const threadDisposition = input.threadDisposition ?? "reusable";
           const terminalEvent: ProviderAdapter.ProviderAdapterV2Event =
             input.status === "failed"
@@ -7400,6 +7420,19 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             yield* Ref.update(nestedSubagentTaskIds, (current) =>
               current.has(message.task_id) ? current : new Set(current).add(message.task_id),
             );
+          }
+          if (message.type === "prompt_suggestion") {
+            // It follows the turn's result; once the next turn starts, the user has moved on.
+            const settled = settledTurnByNativeThread.get(liveQuery.nativeThreadId);
+            if (settled === undefined || (yield* Ref.get(activeTurn)) !== null) return;
+            yield* emitProviderEvent({
+              type: "prompt_suggestion.ready",
+              driver: CLAUDE_PROVIDER,
+              threadId: settled.input.threadId,
+              runId: settled.input.runId,
+              suggestion: message.suggestion,
+            });
+            return;
           }
           if (message.type === "rate_limit_event") {
             const rateLimitInfo = message.rate_limit_info;
@@ -9278,6 +9311,9 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             onUserDialog,
             supportedDialogKinds: ["resume_return"],
             ...(appendSystemPromptFileText === undefined ? {} : { appendSystemPromptFileText }),
+            promptSuggestions: yield* (
+              adapterOptions.promptSuggestionsEnabled ?? Effect.succeed(false)
+            ),
           });
           const querySession = yield* queryRunner
             .open({
@@ -9319,6 +9355,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             queryPolicyKey,
             selection: compiledSelection,
             closed,
+            promptSuggestions: queryOptions.promptSuggestions === true,
             lastTurn: null,
             promptEchoMode: "unknown",
             openedPermissionMode: queryOptions.permissionMode,
@@ -10432,7 +10469,7 @@ export const createClaudeAdapterV2 = Effect.fn("ClaudeAdapterV2Driver.create")(
     input: ProviderAdapterDriverCreateInput<ClaudeSettings>,
     hooks: Pick<
       ClaudeAdapterV2Options,
-      "scopedLimitNames" | "onUsageLimits" | "fastModeBlocked"
+      "scopedLimitNames" | "onUsageLimits" | "fastModeBlocked" | "promptSuggestionsEnabled"
     > = {},
   ) {
     const { instanceId, environment, enabled, config } = input;

@@ -52,6 +52,7 @@ import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as ThreadCommandExecutor from "./ThreadCommandExecutor.ts";
 import * as ProviderSessionManager from "./ProviderSessionManager.ts";
 import * as CommandOutputHub from "./CommandOutputHub.ts";
+import * as PromptSuggestionHub from "./PromptSuggestionHub.ts";
 import * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
 
 const layerTestDatabase = SqlitePersistence.layerMemory;
@@ -571,6 +572,7 @@ function layerTest(input: {
           CommandOutputHub.layer.pipe(
             Layer.provide(Layer.merge(layerConfiguredEventSink, layerTestStores)),
           ),
+          PromptSuggestionHub.layer,
           layerConfiguredEventSink,
           IdAllocator.layer,
           layerProviderEventIngestorTest,

@@ -3220,6 +3220,7 @@ export const ORCHESTRATION_V2_WS_METHODS = {
   getThreadProjection: "orchestration.getThreadProjection",
   getWorkflowScript: "orchestration.getWorkflowScript",
   stopWorkflow: "orchestration.stopWorkflow",
+  suggestNextPrompt: "orchestration.suggestNextPrompt",
   getTurnItem: "orchestration.getTurnItem",
   launchThread: "orchestration.launchThread",
   subscribeArchivedShell: "orchestration.subscribeArchivedShell",
@@ -3531,12 +3532,36 @@ export class OrchestrationV2StopWorkflowError extends Schema.TaggedError<Orchest
   }
 }
 
+export const OrchestrationV2SuggestNextPromptInput = Schema.Struct({
+  threadId: ThreadId,
+  /** The completed run whose reply the user is about to answer. Anything newer makes it stale. */
+  afterRunId: RunId,
+});
+export type OrchestrationV2SuggestNextPromptInput =
+  typeof OrchestrationV2SuggestNextPromptInput.Type;
+
+export const OrchestrationV2SuggestNextPromptResult = Schema.Struct({
+  suggestion: Schema.NullOr(Schema.String),
+});
+export type OrchestrationV2SuggestNextPromptResult =
+  typeof OrchestrationV2SuggestNextPromptResult.Type;
+
+export class OrchestrationV2SuggestNextPromptError extends Schema.TaggedError<OrchestrationV2SuggestNextPromptError>()(
+  "OrchestrationV2SuggestNextPromptError",
+  {
+    threadId: ThreadId,
+    message: Schema.String,
+    cause: Schema.optional(Schema.Defect()),
+  },
+) {}
+
 export const OrchestrationV2RpcError = Schema.Union([
   OrchestrationV2DispatchCommandError,
   OrchestrationV2GetThreadProjectionError,
   OrchestrationV2GetShellSnapshotError,
   OrchestrationV2ThreadLaunchError,
   OrchestrationV2StopWorkflowError,
+  OrchestrationV2SuggestNextPromptError,
 ]);
 export type OrchestrationV2RpcError = typeof OrchestrationV2RpcError.Type;
 
@@ -3716,6 +3741,10 @@ export const OrchestrationV2RpcSchemas = {
   stopWorkflow: {
     input: OrchestrationV2StopWorkflowInput,
     output: Schema.Void,
+  },
+  suggestNextPrompt: {
+    input: OrchestrationV2SuggestNextPromptInput,
+    output: OrchestrationV2SuggestNextPromptResult,
   },
   getWorkflowScript: {
     input: OrchestrationV2GetWorkflowScriptInput,

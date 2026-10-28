@@ -209,6 +209,7 @@ import {
   ORCHESTRATION_V2_WS_METHODS,
   OrchestrationGetWorkflowScriptError,
   OrchestrationV2StopWorkflowError,
+  OrchestrationV2SuggestNextPromptError,
   OrchestrationV2DispatchCommandError,
   OrchestrationV2GetShellSnapshotError,
   OrchestrationV2CommandOutputError,
@@ -1708,6 +1709,15 @@ const WsOrchestrationV2StopWorkflowRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.st
   error: Schema.Union([OrchestrationV2StopWorkflowError, EnvironmentAuthorizationError]),
 });
 
+const WsOrchestrationV2SuggestNextPromptRpc = Rpc.make(
+  ORCHESTRATION_V2_WS_METHODS.suggestNextPrompt,
+  {
+    payload: OrchestrationV2RpcSchemas.suggestNextPrompt.input,
+    success: OrchestrationV2RpcSchemas.suggestNextPrompt.output,
+    error: Schema.Union([OrchestrationV2SuggestNextPromptError, EnvironmentAuthorizationError]),
+  },
+);
+
 const WsOrchestrationV2GetWorkflowScriptRpc = Rpc.make(
   ORCHESTRATION_V2_WS_METHODS.getWorkflowScript,
   {
@@ -2057,6 +2067,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsSubscribeResourceTelemetryRpc,
   WsOrchestrationV2DispatchCommandRpc,
   WsOrchestrationV2GetWorkflowScriptRpc,
+  WsOrchestrationV2SuggestNextPromptRpc,
   WsOrchestrationV2StopWorkflowRpc,
   WsOrchestrationV2GetTurnItemRpc,
   WsOrchestrationV2GetTurnDiffRpc,

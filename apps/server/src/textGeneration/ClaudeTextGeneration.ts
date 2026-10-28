@@ -185,7 +185,7 @@ export const makeClaudeTextGeneration = Effect.fn("makeClaudeTextGeneration")(fu
 
     const runClaudeCommand = Effect.fn("runClaudeJson.runClaudeCommand")(function* () {
       const workingDirectory =
-        operation === "generateThreadTitle"
+        operation === "generateThreadTitle" || operation === "generateNextPrompt"
           ? yield* fileSystem
               .makeTempDirectoryScoped({ prefix: "supaterm-claude-title-" })
               .pipe(

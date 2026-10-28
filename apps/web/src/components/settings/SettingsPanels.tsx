@@ -1553,6 +1553,36 @@ export function GeneralSettingsPanel() {
         />
         <SettingsRow
           serverScoped
+          settingKeys={["nextPromptSuggestionsEnabled"]}
+          {...searchableSetting("next-prompt-suggestions")}
+          description="After the agent replies, suggests what you might send next. Press Tab to use it. Claude predicts its own; other providers use the text generation model."
+          resetAction={
+            settings.nextPromptSuggestionsEnabled !==
+            DEFAULT_UNIFIED_SETTINGS.nextPromptSuggestionsEnabled ? (
+              <SettingResetButton
+                label="next prompt suggestions"
+                onClick={() =>
+                  updateSettings({
+                    nextPromptSuggestionsEnabled:
+                      DEFAULT_UNIFIED_SETTINGS.nextPromptSuggestionsEnabled,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <ScopedSwitch
+              settingKeys={["nextPromptSuggestionsEnabled"]}
+              checked={settings.nextPromptSuggestionsEnabled}
+              onCheckedChange={(checked) =>
+                updateSettings({ nextPromptSuggestionsEnabled: Boolean(checked) })
+              }
+              aria-label="Next prompt suggestions"
+            />
+          }
+        />
+        <SettingsRow
+          serverScoped
           settingKeys={["enableProviderUpdateChecks"]}
           {...searchableSetting("provider-update-checks")}
           resetAction={

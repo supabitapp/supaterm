@@ -109,6 +109,7 @@ import { AssistantCitationChip } from "./chat/AssistantCitationChip";
 import { getTimelinePageScrollKey } from "./chat/pageScrollController";
 import { ContextChipPopover } from "./contextChipParts";
 import { Button } from "./ui/button";
+import { Kbd } from "./ui/kbd";
 import { ContextChip } from "./ContextChip";
 import {
   ComposerContextActionsContext,
@@ -156,6 +157,10 @@ export interface ComposerPromptEditorProps {
   skills: ReadonlyArray<ServerProviderSkill>;
   disabled: boolean;
   placeholder: string;
+  /** Acts on the placeholder text, shown as its key after it. */
+  placeholderAction?:
+    | { readonly label: string; readonly shortcut: string; readonly onSelect: () => void }
+    | undefined;
   ariaLabel?: string | undefined;
   suggestionListId?: string | undefined;
   activeSuggestionId?: string | undefined;
@@ -948,6 +953,7 @@ function ComposerPromptEditorTiptapInner(
     skills,
     disabled,
     placeholder,
+    placeholderAction,
     ariaLabel,
     suggestionListId,
     activeSuggestionId,
@@ -1857,6 +1863,17 @@ function ComposerPromptEditorTiptapInner(
                 )}
               >
                 {placeholder}
+                {placeholderAction ? (
+                  <button
+                    type="button"
+                    aria-label={placeholderAction.label}
+                    className="pointer-events-auto ms-2 inline-flex cursor-pointer align-middle"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={placeholderAction.onSelect}
+                  >
+                    <Kbd>{placeholderAction.shortcut}</Kbd>
+                  </button>
+                ) : null}
               </div>
             ) : null}
           </div>

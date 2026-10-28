@@ -165,6 +165,21 @@ the text is an unedited recalled prompt, with the caret on the first visual line
 the last visual line for `ArrowDown`, counting wrapped lines. Editing a recalled prompt turns it
 into a normal draft.
 
+## Suggested next prompt
+
+After the agent replies, the empty composer can show the message you are likely to send next, such
+as an answer to the question the agent just asked. Press `Tab` or `ArrowRight` to put it in the
+composer, or `Escape` to hide it. On iPhone and Android, tap the suggestion button beside the
+composer. A suggestion is never sent for you: it only fills the draft, and typing replaces it.
+
+Suggestions work with every provider. Claude threads use Claude's own prediction, which reuses the
+turn's prompt cache, so it costs almost nothing. Other providers use the text generation model in
+**Settings > General**, so each suggestion is a small request to that provider. Either way, nothing
+is suggested at the start of a thread, in plan mode, after an error, or when the next step is not
+obvious. Only replies from the last few hours get one, so opening an older thread costs nothing.
+They are off by default. Turn them on with **Next prompt suggestions** in **Settings > General**, or
+**Settings > Agent behavior** on mobile.
+
 ## Edit an earlier prompt
 
 On web and desktop, choose **Edit from here** beneath a sent message to rewind

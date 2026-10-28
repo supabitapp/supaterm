@@ -1,4 +1,9 @@
-import { ORCHESTRATION_V2_WS_METHODS, type ThreadId } from "@supaterm/contracts";
+import {
+  ORCHESTRATION_V2_WS_METHODS,
+  type OrchestrationV2RunStatus,
+  type RunId,
+  type ThreadId,
+} from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
@@ -90,6 +95,10 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
       label: "environment-data:orchestration:stop-workflow",
       tag: ORCHESTRATION_V2_WS_METHODS.stopWorkflow,
     }),
+    suggestNextPrompt: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:orchestration:suggest-next-prompt",
+      tag: ORCHESTRATION_V2_WS_METHODS.suggestNextPrompt,
+    }),
     turnItem: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:orchestration:turn-item",
       tag: ORCHESTRATION_V2_WS_METHODS.getTurnItem,
@@ -123,4 +132,20 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
       tag: ORCHESTRATION_V2_WS_METHODS.getArchivedShellSnapshot,
     }),
   };
+}
+
+/** The completed run a client asks for a next prompt suggestion about, or null when it should not ask. */
+export function nextPromptSuggestionRunId(input: {
+  readonly enabled: boolean;
+  readonly connected: boolean;
+  readonly canSuggest: boolean;
+  readonly latestRun:
+    | { readonly runId: RunId; readonly status: OrchestrationV2RunStatus }
+    | null
+    | undefined;
+}): RunId | null {
+  const { enabled, connected, canSuggest, latestRun } = input;
+  return enabled && connected && canSuggest && latestRun?.status === "completed"
+    ? latestRun.runId
+    : null;
 }
