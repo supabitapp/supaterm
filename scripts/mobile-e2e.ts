@@ -203,27 +203,36 @@ async function main() {
     const prepareServices = () => {
       services ??= (async () => {
         const metroPort = await reserveAvailablePort();
-        metro = NodeChildProcess.spawn(
-          "vp",
-          [
-            "exec",
-            "expo",
-            "start",
-            "--dev-client",
-            "--max-workers",
-            "2",
-            "--scheme",
-            "supaterm-dev",
-            "--port",
-            String(metroPort),
-          ],
-          {
-            cwd: MOBILE_ROOT,
-            env: { ...BUILD_ENV, NODE_OPTIONS: "--max-old-space-size=3072" },
-            stdio: "inherit",
-            detached: true,
-          },
-        );
+        const metroLog = await NodeFSP.open(NodePath.join(output, "metro.log"), "w");
+        try {
+          metro = NodeChildProcess.spawn(
+            "vp",
+            [
+              "exec",
+              "expo",
+              "start",
+              "--dev-client",
+              "--max-workers",
+              "2",
+              "--scheme",
+              "supaterm-dev",
+              "--port",
+              String(metroPort),
+            ],
+            {
+              cwd: MOBILE_ROOT,
+              env: {
+                ...BUILD_ENV,
+                NODE_OPTIONS: "--max-old-space-size=3072",
+                EXPO_NO_METRO_LAZY: "1",
+              },
+              stdio: ["ignore", metroLog.fd, "inherit"],
+              detached: true,
+            },
+          );
+        } finally {
+          await metroLog.close();
+        }
         await waitForPort(metroPort, "Metro", 120_000);
         return {
           metroPort,

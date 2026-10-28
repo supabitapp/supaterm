@@ -5,6 +5,7 @@ import * as NodeFS from "node:fs";
 import * as NodeFSP from "node:fs/promises";
 import * as NodeNet from "node:net";
 import * as NodePath from "node:path";
+import type { SnapshotState } from "agent-device";
 
 import {
   androidSdkTool,
@@ -410,7 +411,9 @@ export class Device {
 
   async snapshot(timeoutMs?: number): Promise<Snapshot> {
     const value = await this.agent(["snapshot"], timeoutMs === undefined ? {} : { timeoutMs });
-    const snapshot = value as unknown as Snapshot;
+    const snapshot = value as unknown as Omit<Snapshot, "keyboard"> & {
+      readonly keyboard?: SnapshotState["keyboard"];
+    };
     if (
       !Array.isArray(snapshot.nodes) ||
       !snapshot.nodes.length ||
@@ -419,7 +422,14 @@ export class Device {
     ) {
       throw new Error("agent-device returned an empty or invalid accessibility snapshot.");
     }
-    return snapshot;
+    const { keyboard, ...state } = snapshot;
+    if (!keyboard) return state;
+    const rect =
+      keyboard.kind === "visible" || keyboard.kind === "derived" ? keyboard.frame : undefined;
+    return {
+      ...state,
+      keyboard: { ...keyboard, ...(rect ? { rect } : {}) },
+    };
   }
 
   async waitFor(predicate: (snapshot: Snapshot) => boolean, label: string, timeoutMs = 60_000) {

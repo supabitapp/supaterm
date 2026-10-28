@@ -1,5 +1,3 @@
-import type { SnapshotState } from "agent-device";
-
 export interface Rect {
   readonly x: number;
   readonly y: number;
@@ -26,7 +24,7 @@ export interface Snapshot {
   readonly nodes: ReadonlyArray<SnapshotNode>;
   readonly viewport: { readonly width: number; readonly height: number };
   readonly appBundleId?: string;
-  readonly keyboard?: SnapshotState["keyboard"];
+  readonly keyboard?: { readonly kind?: string; readonly rect?: Rect };
 }
 
 export interface Check {
@@ -91,8 +89,7 @@ function ancestors(node: SnapshotNode, snapshot: Snapshot): SnapshotNode[] {
 const viewportRect = (snapshot: Snapshot): Rect => ({ x: 0, y: 0, ...snapshot.viewport });
 
 export function keyboardRect(snapshot: Snapshot): Rect | undefined {
-  const keyboard = snapshot.keyboard;
-  if (keyboard?.kind === "visible" || keyboard?.kind === "derived") return keyboard.frame;
+  if (snapshot.keyboard?.rect) return snapshot.keyboard.rect;
   return snapshot.nodes.find((node) => node.type === "Keyboard" || node.kind === "keyboard")?.rect;
 }
 

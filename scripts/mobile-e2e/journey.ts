@@ -115,50 +115,65 @@ export async function runJourney(
     );
   const launchFailure = (snapshot: Snapshot) =>
     findLabel(snapshot, /^(There was a problem loading the project\.?|Failed to load app from)/i);
-  for (let dialogs = 0; ; dialogs++) {
-    const launch = await device.waitFor(
-      (snapshot) =>
-        loaded(snapshot) ||
-        errorDialog(snapshot) !== undefined ||
-        launchFailure(snapshot) !== undefined ||
-        systemDialog(snapshot) !== undefined,
-      "the app to load",
-      180_000,
-    );
-    const failure = launchFailure(launch);
-    if (failure) {
-      const message = launch.nodes
-        .flatMap((node) => (node.label ? [node.label] : []))
-        .filter((label) => /problem loading|Failed to load app from/i.test(label))
-        .join("; ");
-      await capture("launch failure", launch, [check("app loaded", false, message)]);
-      throw new Error(message);
+  let dialogs = 0;
+  let systemDialogs = 0;
+  const settle = async (
+    ready: (snapshot: Snapshot) => boolean,
+    label: string,
+    timeoutMs: number,
+  ) => {
+    for (;;) {
+      const launch = await device.waitFor(
+        (snapshot) =>
+          ready(snapshot) ||
+          errorDialog(snapshot) !== undefined ||
+          launchFailure(snapshot) !== undefined ||
+          systemDialog(snapshot) !== undefined,
+        label,
+        timeoutMs,
+      );
+      const failure = launchFailure(launch);
+      if (failure) {
+        const message = launch.nodes
+          .flatMap((node) => (node.label ? [node.label] : []))
+          .filter((label) => /problem loading|Failed to load app from/i.test(label))
+          .join("; ");
+        await capture("launch failure", launch, [check("app loaded", false, message)]);
+        throw new Error(message);
+      }
+      const system = systemDialog(launch);
+      if (system) {
+        const evidence = NodePath.join(directory, `startup-dialog-${systemDialogs + 1}`);
+        await device.screenshot(`${evidence}.png`);
+        await NodeFSP.writeFile(`${evidence}.json`, JSON.stringify(launch, null, 2));
+        if (systemDialogs >= 2) throw new Error(`${system.label} during device startup`);
+        NodeProcess.stderr.write(`[mobile-e2e] ${device.pose.id}: waiting for ${system.label}\n`);
+        systemDialogs++;
+        await device.tapSystemDialogWait(launch);
+        continue;
+      }
+      const dialog = errorDialog(launch);
+      if (!dialog || dialogs >= 3) return launch;
+      dialogs++;
+      await capture("launch error", launch, [
+        check("no error dialog on launch", false, dialog.label ?? "error dialog"),
+      ]);
+      await device.agent(["press", `label="${findLabel(launch, /^(Dismiss|OK|Close)$/)!.label}"`]);
+      await delay(1_000);
     }
-    const system = systemDialog(launch);
-    if (system) {
-      const evidence = NodePath.join(directory, `startup-dialog-${dialogs + 1}`);
-      await device.screenshot(`${evidence}.png`);
-      await NodeFSP.writeFile(`${evidence}.json`, JSON.stringify(launch, null, 2));
-      if (dialogs >= 2) throw new Error(`${system.label} during device startup`);
-      NodeProcess.stderr.write(`[mobile-e2e] ${device.pose.id}: waiting for ${system.label}\n`);
-      await device.tapSystemDialogWait(launch);
-      continue;
-    }
-    const dialog = errorDialog(launch);
-    if (!dialog || dialogs >= 3) break;
-    await capture("launch error", launch, [
-      check("no error dialog on launch", false, dialog.label ?? "error dialog"),
-    ]);
-    await device.agent(["press", `label="${findLabel(launch, /^(Dismiss|OK|Close)$/)!.label}"`]);
-    await delay(1_000);
-  }
+  };
+  await settle(loaded, "the app to load", 180_000);
   if (device.pose.fold) await device.agent(["fold", device.pose.fold]);
   let threads: Snapshot | null = null;
   for (let attempt = 1; attempt <= 2 && !threads; attempt++) {
     const pairing = new URLSearchParams({ pairingUrl: await pair(), autoConnect: "1" });
     await device.openUrl(`supaterm-dev://connections/new?${pairing}`);
-    threads = await device
-      .waitFor((snapshot) => threadRow(snapshot) !== undefined, "the paired thread list", 60_000)
+    threads = await settle(
+      (snapshot) => threadRow(snapshot) !== undefined,
+      "the paired thread list",
+      60_000,
+    )
+      .then((snapshot) => (threadRow(snapshot) ? snapshot : null))
       .catch(() => null);
   }
   if (!threads) throw new Error("the app did not show the fixture threads after pairing");
