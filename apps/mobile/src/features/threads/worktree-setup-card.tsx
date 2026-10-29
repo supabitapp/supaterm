@@ -44,7 +44,7 @@ export function WorktreeSetupCard(props: WorktreeSetupCardProps) {
   const backgroundSetup = handedOff && running;
   const scriptName = snapshot.setupScript?.name ?? "Setup script";
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const now = useVisibleSecondClock(running);
+  const now = useVisibleSecondClock(running && (!handedOff || detailsOpen));
   const failed =
     snapshot.phase === "failed" || snapshot.stages.some((stage) => stage.status === "failed");
   const label = running
