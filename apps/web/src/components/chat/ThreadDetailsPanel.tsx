@@ -31,6 +31,7 @@ import { ThreadRelationshipsPanel } from "./ThreadRelationshipsControl";
 import { ThreadDetailsUsage } from "./ThreadDetailsUsage";
 import { ThreadDetailsForkControl } from "./ThreadDetailsForkControl";
 import { ThreadServersPanel } from "./ThreadServersPanel";
+import { ThreadDetailsLimits, type ThreadDetailsLimitsInput } from "./ThreadDetailsLimits";
 
 const GitActionsControl = memo(BaseGitActionsControl);
 
@@ -79,6 +80,7 @@ export interface ThreadDetailsPanelProps extends Pick<
   forkSource?: ComponentProps<typeof ThreadDetailsForkControl>["source"] | null;
   forkDisabled?: boolean;
   onForkFromRun?: ComponentProps<typeof ThreadDetailsForkControl>["onForkFromRun"];
+  usage?: ThreadDetailsLimitsInput | undefined;
 }
 
 export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
@@ -227,6 +229,8 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
               threadId={props.threadId}
             />
           ) : null}
+
+          {props.usage ? <ThreadDetailsLimits {...props.usage} /> : null}
         </>
       )}
     </ThreadDetailsCard>
