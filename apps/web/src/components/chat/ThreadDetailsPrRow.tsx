@@ -62,7 +62,8 @@ import {
 import {
   buildFixFindingsHandoff,
   buildResolveConflictsPrompt,
-  buildSubagentHandoffPrompt,
+  buildSubagentFixChecksPrompt,
+  buildSubagentResolveConflictsPrompt,
   classifyPullRequestChecks,
   describePullRequestChecks,
   isPullRequestConflicting,
@@ -249,39 +250,40 @@ export function ThreadDetailsPrRow({
     ? `Auto-merge (${PULL_REQUEST_MERGE_METHOD_LABELS[detail.autoMergeMethod].toLowerCase()})`
     : "Auto-merge";
 
-  const handoffTask = (pr: NonNullable<typeof detail>, kind: HandoffKind) =>
-    kind === "conflicts"
-      ? {
-          prompt: buildResolveConflictsPrompt({
-            number: pr.number,
-            url: pr.url,
-            headBranch: pr.headBranch,
-            baseBranch: pr.baseBranch,
-          }),
-        }
-      : buildFixFindingsHandoff({
-          number: pr.number,
-          title: pr.title,
-          url: pr.url,
-          headBranch: pr.headBranch,
-          baseBranch: pr.baseBranch,
-          reviewThreads: [],
-          comments: [],
-          checks: pr.checks,
-          commentsTruncated: false,
-        });
-
   const startInNewThread = (kind: HandoffKind) => {
     if (detail === null) return;
-    void startHandoff(kind, handoffTask(detail, kind));
+    void startHandoff(
+      kind,
+      kind === "conflicts"
+        ? {
+            prompt: buildResolveConflictsPrompt({
+              number: detail.number,
+              url: detail.url,
+              headBranch: detail.headBranch,
+              baseBranch: detail.baseBranch,
+            }),
+          }
+        : buildFixFindingsHandoff({
+            number: detail.number,
+            title: detail.title,
+            url: detail.url,
+            headBranch: detail.headBranch,
+            baseBranch: detail.baseBranch,
+            reviewThreads: [],
+            comments: [],
+            checks: detail.checks,
+            commentsTruncated: false,
+          }),
+    );
   };
 
   const draftSubagentHandoff = (kind: HandoffKind) => {
     if (detail === null) return;
-    const task = handoffTask(detail, kind);
     writePullRequestTaskToComposer(composerTarget, {
-      ...task,
-      prompt: buildSubagentHandoffPrompt(detail, task.prompt),
+      prompt:
+        kind === "conflicts"
+          ? buildSubagentResolveConflictsPrompt(detail)
+          : buildSubagentFixChecksPrompt(detail),
     });
     toastManager.add({
       type: "success",

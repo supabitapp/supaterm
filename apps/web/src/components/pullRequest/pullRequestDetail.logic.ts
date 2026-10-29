@@ -1099,16 +1099,24 @@ export function buildResolveConflictsPrompt(input: {
   ].join("\n");
 }
 
-export function buildSubagentHandoffPrompt(
-  input: { readonly headBranch: string },
-  brief: string,
-): string {
+export function buildSubagentFixChecksPrompt(input: {
+  readonly url: string;
+  readonly checks: ReadonlyArray<PullRequestCheck>;
+}): string {
+  const failingChecks = input.checks
+    .filter((check) => check.status === "failure" || check.status === "cancelled")
+    .map((check) => `> ${boundedField(check.name)}${check.url ? ` - ${check.url}` : ""}`);
   return [
-    "Hand the task below to a subagent instead of doing it yourself, then report what it changed.",
-    `First confirm this thread's checkout is on \`${boundedField(input.headBranch)}\`; if it isn't, have the subagent prepare the pull request in its own worktree.`,
-    "",
-    brief,
+    `Spawn a subagent to fix the CI failures on ${input.url}`,
+    ...(failingChecks.length > 0 ? ["", "Failing checks:", ...failingChecks] : []),
   ].join("\n");
+}
+
+export function buildSubagentResolveConflictsPrompt(input: {
+  readonly url: string;
+  readonly baseBranch: string;
+}): string {
+  return `Spawn a subagent to resolve the merge conflicts between ${input.url} and \`${boundedField(input.baseBranch)}\``;
 }
 
 function pullRequestContextComment(
