@@ -12,7 +12,7 @@ Before editing:
 - Populate the full inventory before detailed review or implementation, with `status` set to `Pending` and decisions initially blank. Cover every commit in the range.
 - Read each merged PR's description and actual diff, and inspect commits outside PRs in the range.
 - When upstream reverts or follows up on a change an earlier port brought, compare upstream's before and after with what that port left in our tree, including fork-only consumers, not with upstream's patch. Earlier ports adapt code, so a revert can apply cleanly in one file and conflict in another.
-- Default to bringing compatible upstream work, including new capabilities and architectural changes. 
+- Default to bringing compatible upstream work, including new capabilities and architectural changes.
 - Fill each row's `decision` and `notes` from the review, splitting a commit into rows when its changes need different decisions:
   - **Bring:** compatible with Supaterm's goals, including changes that need adaptation, migrations, or additional tests.
   - **Skip:** already present, tied to an intentionally absent subsystem, outside the requested range, or contrary to a deliberate fork decision. Name the evidence for the exclusion.

@@ -53,6 +53,8 @@ export type SupatermMcpToolSummaryAction =
   | "attachment-prepare"
   | "attachment-discard"
   | "attachment-send"
+  | "transcription-transcribe"
+  | "transcription-cancel"
   | "link-pr"
   | "unlink-pr"
   | "list-prs"
@@ -381,6 +383,14 @@ const SUPATERM_MCP_TOOLS: Readonly<Record<string, SupatermMcpToolDefinition>> = 
   supaterm_thread_send_attachments: tool(
     ["Send", "Sending", "Sent", "attachments"],
     "attachment-send",
+  ),
+  supaterm_transcription_transcribe: tool(
+    ["Transcribe", "Transcribing", "Transcribed", "a recording"],
+    "transcription-transcribe",
+  ),
+  supaterm_transcription_cancel: tool(
+    ["Cancel", "Cancelling", "Cancelled", "a transcription"],
+    "transcription-cancel",
   ),
   html_preview: tool(["Preview", "Previewing", "Previewed", "an HTML page"], "html-preview"),
   html_render: tool(["Render", "Rendering", "Rendered", "an HTML page"], "html-render"),

@@ -4,8 +4,9 @@ Transcription edits a composer draft. Audio is temporary client input. When the
 user chooses to transcribe and send, the mobile composer waits for a successful
 draft insertion before invoking normal message submission with its current guards.
 Navigation cancels that send intent without discarding the transcript. Clients
-transcribe locally on supported iOS devices. No client uses environment-backed
-transcription yet, but the server supports it.
+transcribe locally on supported iOS devices. The app clients don't use
+environment-backed transcription yet; `supaterm transcribe` and agents reach it
+through the `supaterm_transcription_*` MCP tools.
 
 The server's [`Transcription`](../../apps/server/src/transcription/Transcription.ts)
 service transcribes an uploaded recording with the login of the provider instance the

@@ -103,6 +103,7 @@ import {
   useRef,
   useState,
   useId,
+  type ComponentPropsWithRef,
   type ReactNode,
   type RefObject,
 } from "react";
@@ -128,6 +129,7 @@ import { FilePreviewModal, type FilePreviewSource } from "../../components/FileP
 import { isPdfFile } from "../../lib/filePreview";
 import { flattenThemeColor } from "../../lib/mobileTheme";
 import { PresentationSource } from "../../components/ui/NativePresentation";
+import { NativeScrollViewMarker } from "../../native/NativeScrollViewMarker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   Easing,
@@ -760,6 +762,16 @@ function MessageAttachmentUnknown(props: { readonly name: string }) {
 
 // LegendList only computes hook visibility when the list has a viewability config.
 const THREAD_MEDIA_VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 0 };
+
+// UIKit does not find a feed that mounts after the screen appears, as on a draft's first send.
+// Unregistered, the header loses its scroll-edge blur and the title draws over the feed.
+function ThreadFeedScrollView(props: ComponentPropsWithRef<typeof Animated.ScrollView>) {
+  return (
+    <NativeScrollViewMarker style={{ flex: 1 }}>
+      <Animated.ScrollView {...props} />
+    </NativeScrollViewMarker>
+  );
+}
 
 function ThreadMediaVisibility(props: { readonly children: ReactNode }) {
   const [visible, setVisible] = useState(false);
@@ -3081,6 +3093,9 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
             // (facebook/react-native#54123); the anchored end space after a send
             // is pure inset, so without this the blank region can't be scrolled.
             applyWorkaroundForContentInsetHitTestBug
+            // Spread because the keyboard list's types omit ScrollViewComponent, though it
+            // forwards the prop to KeyboardChatScrollView at runtime.
+            {...(Platform.OS === "ios" ? { ScrollViewComponent: ThreadFeedScrollView } : {})}
             // Horizontal Duo reservations are already included in the row padding.
             contentInsetAdjustmentBehavior={
               usesNativeAutomaticInsets

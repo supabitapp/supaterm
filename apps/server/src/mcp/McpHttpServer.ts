@@ -36,6 +36,7 @@ import {
   toolOutcome,
 } from "../telemetry/ProviderDimensions.ts";
 import * as McpInvocationContext from "./McpInvocationContext.ts";
+import * as McpPendingUploads from "./McpPendingUploads.ts";
 import * as McpToolAccess from "./McpToolAccess.ts";
 import * as OrchestratorMcpService from "./OrchestratorMcpService.ts";
 import { PreviewControlsToolkit } from "./toolkits/previewControls/tools.ts";
@@ -48,6 +49,8 @@ import { AttachmentToolkit } from "./toolkits/attachment/tools.ts";
 import * as AttachmentHandlers from "./toolkits/attachment/handlers.ts";
 import { ThreadToolkit } from "./toolkits/thread/tools.ts";
 import * as ThreadHandlers from "./toolkits/thread/handlers.ts";
+import { TranscriptionToolkit } from "./toolkits/transcription/tools.ts";
+import * as TranscriptionHandlers from "./toolkits/transcription/handlers.ts";
 import * as ThreadMetadataMcpService from "./ThreadMetadataMcpService.ts";
 import * as McpSessionRegistry from "./McpSessionRegistry.ts";
 import * as PreviewAutomationBroker from "./PreviewAutomationBroker.ts";
@@ -1002,6 +1005,11 @@ export const layerAttachmentToolkit = toolkitRegistration(
   AttachmentHandlers.layer,
 );
 
+export const layerTranscriptionToolkit = toolkitRegistration(
+  TranscriptionToolkit,
+  TranscriptionHandlers.layer,
+);
+
 export const layerPullRequestsToolkit = toolkitRegistration(
   PullRequestsToolkit,
   PullRequestsHandlers.layer,
@@ -1035,6 +1043,7 @@ export const layer = Layer.mergeAll(
   layerOrchestratorToolkit,
   layerThreadToolkit,
   layerAttachmentToolkit,
+  layerTranscriptionToolkit,
   layerProjectRegistration,
   layerEnvironmentToolkit,
   layerPreviewControlsRegistration,
@@ -1042,4 +1051,9 @@ export const layer = Layer.mergeAll(
   layerPullRequestsToolkit,
   layerDeviceToolkit,
   layerHtmlToolkit,
-).pipe(Layer.provideMerge(layerMcpTransport));
+).pipe(
+  // One instance, so an upload prepared through the attachment tools is the
+  // same caller's upload the transcription tools check.
+  Layer.provide(McpPendingUploads.layer),
+  Layer.provideMerge(layerMcpTransport),
+);
