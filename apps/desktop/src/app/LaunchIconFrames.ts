@@ -42,7 +42,12 @@ export interface LaunchIconFrames {
  * Frames between two renders of the same icon, one with the bolt lit and one
  * with it switched off, each a `size` square of BGRA pixels as macOS bitmaps are.
  */
-export function makeLaunchIconFrames(lit: Buffer, unlit: Buffer, size: number): LaunchIconFrames {
+export function makeLaunchIconFrames(
+  lit: Buffer,
+  unlit: Buffer,
+  size: number,
+  icon = lit,
+): LaunchIconFrames {
   const cellIndex = new Map(BOLT_CELLS.map(([c, r], index) => [`${c},${r}`, index]));
   const pixels: number[] = [];
   const offsets: number[] = [0];
@@ -78,7 +83,7 @@ export function makeLaunchIconFrames(lit: Buffer, unlit: Buffer, size: number): 
     }
   }
 
-  const output = new Uint8ClampedArray(lit);
+  const output = new Uint8ClampedArray(icon);
   const frame = Buffer.from(output.buffer, output.byteOffset, output.byteLength);
   // Each LED's brightness, and that brightness carried on cos θ and sin θ of its
   // hue turn, so a pixel blends its LEDs' rotations by blending three sums.
@@ -129,10 +134,11 @@ export function makeLaunchIconFrames(lit: Buffer, unlit: Buffer, size: number): 
         const red = (lit[o + 2] ?? 0) - (unlit[o + 2] ?? 0);
         const green = (lit[o + 1] ?? 0) - (unlit[o + 1] ?? 0);
         const blue = (lit[o] ?? 0) - (unlit[o] ?? 0);
-        output[o + 2] = (unlit[o + 2] ?? 0) + rotated(0, red, green, blue);
-        output[o + 1] = (unlit[o + 1] ?? 0) + rotated(1, red, green, blue);
-        output[o] = (unlit[o] ?? 0) + rotated(2, red, green, blue);
-        output[o + 3] = (unlit[o + 3] ?? 0) + ((lit[o + 3] ?? 0) - (unlit[o + 3] ?? 0)) * level;
+        output[o + 2] = (icon[o + 2] ?? 0) - red + rotated(0, red, green, blue);
+        output[o + 1] = (icon[o + 1] ?? 0) - green + rotated(1, red, green, blue);
+        output[o] = (icon[o] ?? 0) - blue + rotated(2, red, green, blue);
+        output[o + 3] =
+          (icon[o + 3] ?? 0) - ((lit[o + 3] ?? 0) - (unlit[o + 3] ?? 0)) * (1 - level);
       }
       return frame;
     },

@@ -10,12 +10,11 @@ import * as Electron from "electron";
 
 import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as ElectronTheme from "../electron/ElectronTheme.ts";
+import { loadMacApplicationIcon } from "../electron/MacApplicationIcon.ts";
 import * as DesktopAssets from "./DesktopAssets.ts";
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
 import { makeLaunchIconFrames, type LaunchIconFrames } from "./LaunchIconFrames.ts";
 
-// The Dock's largest tile, 128pt at 2x.
-const TILE_PIXELS = 256;
 const FRAME_MILLIS = 66;
 const FADE_SECONDS = 0.6;
 // A quick launch still shows the rainbow run its whole course down the bolt.
@@ -36,15 +35,6 @@ export class DesktopLaunchIcon extends Context.Service<
 const ease = (x: number) => {
   const t = Math.min(1, Math.max(0, x));
   return t * t * (3 - 2 * t);
-};
-
-const loadBitmap = (path: string) => {
-  const image = Electron.nativeImage.createFromPath(path);
-  return image.isEmpty()
-    ? Option.none<Buffer>()
-    : Option.some(
-        image.resize({ width: TILE_PIXELS, height: TILE_PIXELS, quality: "best" }).toBitmap(),
-      );
 };
 
 /**
@@ -88,19 +78,27 @@ export const make = Effect.gen(function* () {
     );
   });
 
-  const animate = Effect.fnUntraced(function* (frames: LaunchIconFrames) {
+  const animate = Effect.fnUntraced(function* (
+    renditions: ReadonlyArray<{
+      readonly size: number;
+      readonly scaleFactor: number;
+      readonly frames: LaunchIconFrames;
+    }>,
+  ) {
     const startedAt = yield* Clock.currentTimeMillis;
     const elapsed = Clock.currentTimeMillis.pipe(Effect.map((now) => (now - startedAt) / 1000));
-    const show = (t: number, glow: number) =>
-      electronApp
-        .setDockIcon(
-          Electron.nativeImage.createFromBitmap(frames.render(t, glow), {
-            width: TILE_PIXELS,
-            height: TILE_PIXELS,
-            scaleFactor: 2,
-          }),
-        )
-        .pipe(Effect.andThen(Effect.sleep(FRAME_MILLIS)));
+    const show = (t: number, glow: number) => {
+      const image = Electron.nativeImage.createEmpty();
+      for (const { size, scaleFactor, frames } of renditions) {
+        image.addRepresentation({
+          width: size,
+          height: size,
+          scaleFactor,
+          buffer: frames.render(t, glow),
+        });
+      }
+      return electronApp.setDockIcon(image).pipe(Effect.andThen(Effect.sleep(FRAME_MILLIS)));
+    };
 
     const thinking = (seconds: number) =>
       Deferred.isDone(settleRequested).pipe(
@@ -133,12 +131,31 @@ export const make = Effect.gen(function* () {
     if (Option.isNone(appearance)) return;
     const paths = yield* assets.launchIconPaths(appearance.value);
     if (Option.isNone(paths)) return;
-    const lit = loadBitmap(paths.value.lit);
-    const unlit = loadBitmap(paths.value.unlit);
-    if (Option.isNone(lit) || Option.isNone(unlit)) return;
-    yield* animate(makeLaunchIconFrames(lit.value, unlit.value, TILE_PIXELS)).pipe(
-      Effect.ensuring(electronApp.setDockIcon(null)),
+    const lit = Electron.nativeImage.createFromPath(paths.value.lit);
+    const unlit = Electron.nativeImage.createFromPath(paths.value.unlit);
+    if (lit.isEmpty() || unlit.isEmpty()) return;
+    const icon = yield* Effect.tryPromise(loadMacApplicationIcon).pipe(
+      Effect.tapError((error) =>
+        Effect.logWarning("Native Dock icon is unavailable", { cause: error.cause }),
+      ),
+      Effect.option,
     );
+    if (Option.isNone(icon) || icon.value.isEmpty()) return;
+    const renditions = [];
+    for (const scaleFactor of icon.value.getScaleFactors()) {
+      const size = icon.value.getSize(scaleFactor).width * scaleFactor;
+      renditions.push({
+        size,
+        scaleFactor,
+        frames: makeLaunchIconFrames(
+          lit.resize({ width: size, height: size, quality: "best" }).toBitmap(),
+          unlit.resize({ width: size, height: size, quality: "best" }).toBitmap(),
+          size,
+          icon.value.toBitmap({ scaleFactor }),
+        ),
+      });
+    }
+    yield* animate(renditions).pipe(Effect.ensuring(electronApp.setDockIcon(null)));
   }).pipe(
     Effect.catch((error) =>
       Effect.logWarning("Dock launch icon assets are unavailable", { message: error.message }),
