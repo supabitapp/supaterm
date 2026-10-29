@@ -338,7 +338,7 @@ import { QueuedRunsControl, type QueuedRunsControlHandle } from "./chat/QueuedRu
 import { useThreadLinkedPullRequest } from "./pullRequest/useThreadLinkedPullRequest";
 import { useProactivePanels } from "../hooks/useProactivePanels";
 import { useRightPanelSurfaceClose } from "../hooks/useRightPanelSurfaceClose";
-import type { ComposerBannerStackItem } from "./chat/ComposerBannerStack";
+import { type ComposerBannerStackItem, DetachedComposerBanners } from "./chat/ComposerBannerStack";
 import { modelFallbackBannerItem } from "./chat/ComposerUsageLimits";
 import { ComposerSurface } from "./chat/ComposerSurface";
 import { resolveThreadSyncPhase } from "../threadSync";
@@ -3807,7 +3807,7 @@ export default function ChatView(props: ChatViewProps) {
                                       : null
                                   }
                                   queuedRunsControl={queuedRunsControl}
-                                  bannerItems={composerBannerItems}
+                                  bannerItems={isDraftHeroState ? [] : composerBannerItems}
                                   onUsageLimitsCommand={
                                     usageLimitsOffered &&
                                     usageLimitsKey !== null &&
@@ -3955,6 +3955,12 @@ export default function ChatView(props: ChatViewProps) {
                           aria-hidden
                           className="h-[calc(env(safe-area-inset-bottom)+1rem)] sm:h-[calc(env(safe-area-inset-bottom)+1.25rem)]"
                         />
+                        {isDraftHeroState && composerBannerItems.length > 0 ? (
+                          // Out of flow, like the headline, so a notice never moves the centered composer.
+                          <div className="absolute inset-x-0 top-full flex flex-col gap-1">
+                            <DetachedComposerBanners items={composerBannerItems} />
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   </div>

@@ -421,6 +421,24 @@ function NoticeText({
   );
 }
 
+/** Notices as standalone cards, for layouts where the composer must not move when one appears. */
+export function DetachedComposerBanners({
+  items,
+}: {
+  readonly items: ReadonlyArray<ComposerBannerStackItem>;
+}) {
+  return items
+    .toSorted((a, b) => bannerPriority(a) - bannerPriority(b))
+    .map((item) => (
+      <ComposerBannerStackAlert
+        key={item.id}
+        slot={{ item, exiting: false, wasFront: false, entering: true }}
+        attached={false}
+        onDismissRequest={() => item.onDismiss?.()}
+      />
+    ));
+}
+
 function ComposerBannerStackAlert({
   slot: { item, entering, exiting },
   attached,
