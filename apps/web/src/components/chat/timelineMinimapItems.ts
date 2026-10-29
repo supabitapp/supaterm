@@ -1,3 +1,4 @@
+import type { TurnItemId } from "@supaterm/contracts";
 import type { Nodes } from "mdast";
 import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
@@ -10,10 +11,13 @@ export interface TimelineMinimapItem {
   readonly rowIndex: number;
   readonly userText: string | null;
   readonly assistantText: string | null;
+  /** The prompt or a message answering it is pinned. */
+  readonly pinned: boolean;
 }
 
 export function deriveTimelineMinimapItems(
   rows: ReadonlyArray<MessagesTimelineRow>,
+  pinnedItemIds: ReadonlySet<TurnItemId>,
 ): TimelineMinimapItem[] {
   const items: TimelineMinimapItem[] = [];
   for (let index = 0; index < rows.length; index += 1) {
@@ -27,9 +31,24 @@ export function deriveTimelineMinimapItems(
       rowIndex: index,
       userText: row.message.text,
       assistantText: resolveFinalAssistantTextForTurn(rows, index),
+      pinned: pinnedItemIds.size > 0 && turnHasPinnedMessage(rows, index, pinnedItemIds),
     });
   }
   return items;
+}
+
+function turnHasPinnedMessage(
+  rows: ReadonlyArray<MessagesTimelineRow>,
+  userRowIndex: number,
+  pinnedItemIds: ReadonlySet<TurnItemId>,
+) {
+  for (let index = userRowIndex; index < rows.length; index += 1) {
+    const row = rows[index];
+    if (row?.kind !== "message") continue;
+    if (index > userRowIndex && row.message.role === "user") return false;
+    if (row.projectedItem && pinnedItemIds.has(row.projectedItem.sourceItemId)) return true;
+  }
+  return false;
 }
 
 function resolveFinalAssistantTextForTurn(

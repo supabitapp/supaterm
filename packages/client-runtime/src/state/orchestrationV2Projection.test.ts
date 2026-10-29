@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
+  type ThreadPinnedMessage,
   type ThreadPullRequestLink,
   type OrchestrationV2DomainEvent,
   type OrchestrationV2Run,
@@ -186,6 +187,30 @@ describe("applyOrchestrationV2ProjectionEvent", () => {
     const next = applyOrchestrationV2ProjectionEvent(emptyProjection, event);
     expect(next?.thread.archivedAt).toEqual(archivedAt);
     expect(next?.updatedAt).toEqual(archivedAt);
+  });
+
+  it("applies message pins without counting them as thread activity", () => {
+    const pinnedMessages: ReadonlyArray<ThreadPinnedMessage> = [
+      {
+        itemId: TurnItemId.make("item-pinned"),
+        messageId: MessageId.make("message-pinned"),
+        sourceThreadId: threadId,
+        role: "assistant",
+        preview: "The plan",
+        sentAt: "2026-06-20T00:30:00.000Z",
+      },
+    ];
+    const event = {
+      id: "event-pin",
+      type: "thread.pinned-messages-updated",
+      threadId,
+      occurredAt: DateTime.makeUnsafe("2026-06-20T02:00:00.000Z"),
+      payload: { ...emptyProjection.thread, pinnedMessages },
+    } as OrchestrationV2DomainEvent;
+
+    const next = applyOrchestrationV2ProjectionEvent(emptyProjection, event);
+    expect(next?.thread.pinnedMessages).toEqual(pinnedMessages);
+    expect(next?.updatedAt).toEqual(emptyProjection.updatedAt);
   });
 
   it("preserves visible row identity when run updates do not change membership", () => {

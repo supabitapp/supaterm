@@ -102,6 +102,7 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   "person.badge.plus": IconNodes.UserPlus,
   photo: IconNodes.Image,
   pin: IconNodes.Pin,
+  "pin.fill": IconNodes.Pin,
   "pin.slash": IconNodes.PinOff,
   play: IconNodes.Play,
   plus: IconNodes.Plus,
@@ -198,6 +199,9 @@ export type AppSymbolName =
 
 export type AppSymbolViewProps = Omit<SymbolViewProps, "name"> & { name: AppSymbolName };
 
+// The icon set has no solid variant of these, so the outline is filled to tell the states apart.
+const FILLED_OUTLINE_SF_SYMBOLS: ReadonlySet<string> = new Set(["pin.fill"]);
+
 export function isAppSymbolName(name: string): name is Extract<AppSymbolName, string> {
   return Object.prototype.hasOwnProperty.call(ANDROID_ICON_BY_SF_SYMBOL, name);
 }
@@ -218,6 +222,7 @@ function AppSymbolView(props: AppSymbolViewProps) {
       node={node}
       accessibilityLabel={props.accessibilityLabel}
       color={props.tintColor}
+      {...(sfSymbol && FILLED_OUTLINE_SF_SYMBOLS.has(sfSymbol) ? { fill: props.tintColor } : {})}
       size={props.size}
       style={props.style}
       testID={props.testID}

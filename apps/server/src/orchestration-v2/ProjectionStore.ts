@@ -831,6 +831,7 @@ export function applyToProjection(
       };
     case "thread.visited":
     case "thread.marked-unread":
+    case "thread.pinned-messages-updated":
       return {
         ...projection,
         thread: event.payload,
@@ -1993,6 +1994,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
             case "thread.unpinned":
             case "thread.pin-reordered":
             case "thread.active-reordered":
+            case "thread.pinned-messages-updated":
             case "thread.visited":
             case "thread.marked-unread":
             case "thread.metadata-updated":
@@ -2826,6 +2828,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
             event.type !== "thread.unpinned" &&
             event.type !== "thread.pin-reordered" &&
             event.type !== "thread.active-reordered" &&
+            event.type !== "thread.pinned-messages-updated" &&
             event.type !== "thread.visited" &&
             event.type !== "thread.marked-unread" &&
             event.type !== "thread.metadata-updated" &&

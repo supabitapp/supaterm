@@ -319,6 +319,20 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
         case "mark_unread":
           command = { ...common, type: "thread.mark-unread" };
           break;
+        case "pin_message":
+        case "unpin_message":
+          if (input.itemId === undefined) {
+            return yield* new OrchestratorMcpFailure({
+              code: "invalid_request",
+              message: `${input.action} requires itemId.`,
+            });
+          }
+          command = {
+            ...common,
+            type: input.action === "pin_message" ? "thread.message.pin" : "thread.message.unpin",
+            itemId: input.itemId,
+          };
+          break;
         default:
           command = { ...common, type: `thread.${input.action}` };
       }

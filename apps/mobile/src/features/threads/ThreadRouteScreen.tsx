@@ -22,7 +22,9 @@ import {
   EnvironmentId,
   ThreadId,
   type ProjectScript,
+  type ThreadPinnedMessage,
 } from "@supaterm/contracts";
+import type { MessageJump, MessageJumpHandlers } from "@supaterm/client-runtime/message-jump";
 import {
   projectScriptCwd,
   projectScriptRuntimeEnv,
@@ -94,6 +96,7 @@ import {
 import { threadRouteIsHydrating } from "./thread-route-hydration";
 import { useThreadPromptLink } from "../prompt-links/useThreadPromptLink";
 import { ThreadHeader } from "./ThreadHeader";
+import type { ThreadFeedPins } from "./ThreadFeed";
 import {
   useAndroidWorkspaceBack,
   useWorkspaceBackNavigation,
@@ -103,6 +106,8 @@ interface ThreadInspectorSelection {
   readonly routeThreadIdentity: string | null;
   readonly mode: ThreadInspectorMode;
 }
+
+const EMPTY_PINNED_MESSAGES: ReadonlyArray<ThreadPinnedMessage> = [];
 
 function InspectorPaneRoleActivation() {
   useAdaptiveWorkspacePaneRole("inspector");
@@ -328,14 +333,75 @@ function ThreadRouteContent(
       hasMoreHistory: history.hasMoreHistory,
       loading: history.loading,
       error: history.error,
-      onLoadEarlier: () => {
+      onLoadEarlier: (throughEntryId?: string) => {
         void loadEarlierHistory({
           environmentId: selectedThread.environmentId,
-          input: { threadId: selectedThread.id },
+          input: {
+            threadId: selectedThread.id,
+            ...(throughEntryId === undefined ? {} : { throughEntryId }),
+          },
         });
       },
     };
   })();
+  const pinnedMessages = selectedThreadDetail?.thread.pinnedMessages ?? EMPTY_PINNED_MESSAGES;
+  const pinThreadMessage = useAtomCommand(threadEnvironment.pinMessage, "pin message");
+  const unpinThreadMessage = useAtomCommand(threadEnvironment.unpinMessage, "unpin message");
+  const selectedThreadKey = selectedThread
+    ? `${selectedThread.environmentId}:${selectedThread.id}`
+    : null;
+  const [messageJump, setMessageJump] = useState<
+    (MessageJump & { readonly threadKey: string }) | null
+  >(null);
+  const unpinMessage = (pin: ThreadPinnedMessage) => {
+    if (!selectedThread) return;
+    void unpinThreadMessage({
+      environmentId: selectedThread.environmentId,
+      input: { threadId: selectedThread.id, itemId: pin.itemId },
+    });
+  };
+  const jumpToPinnedMessage = (pin: ThreadPinnedMessage) => {
+    if (selectedThreadKey === null) return;
+    setMessageJump((previous) => ({
+      threadKey: selectedThreadKey,
+      key: (previous?.key ?? 0) + 1,
+      messageId: pin.messageId,
+    }));
+  };
+  const feedPins: ThreadFeedPins | undefined = selectedThread
+    ? {
+        itemIds: new Set(pinnedMessages.map((pin) => pin.itemId)),
+        onToggle: canOperateThread
+          ? (projectedItem, pinned) => {
+              const command = pinned ? unpinThreadMessage : pinThreadMessage;
+              void command({
+                environmentId: selectedThread.environmentId,
+                input: { threadId: selectedThread.id, itemId: projectedItem.sourceItemId },
+              });
+            }
+          : null,
+      }
+    : undefined;
+  const reportMessageJumpFailure: MessageJumpHandlers["fail"] = (jump, failure) => {
+    if (failure === "history-error") {
+      Dialog.alert(
+        "Could not load the pinned message",
+        "Check the connection, then select the pin again.",
+      );
+      return;
+    }
+    const pin = pinnedMessages.find((candidate) => candidate.messageId === jump.messageId);
+    Dialog.alert(
+      "Pinned message not found",
+      "It may have been reverted.",
+      pin && canOperateThread
+        ? [
+            { text: "Keep", style: "cancel" },
+            { text: "Unpin", style: "destructive", onPress: () => unpinMessage(pin) },
+          ]
+        : undefined,
+    );
+  };
   const navigation = useNavigation();
   const openPullRequest = useOpenPullRequest();
   const mergeBack = useAtomCommand(threadEnvironment.mergeBack, "merge thread back");
@@ -928,6 +994,8 @@ function ThreadRouteContent(
               onOpenGitInspector={handleOpenGitInspector}
               onOpenFilesInspector={handleOpenFilesInspector}
               onReturnToThread={props.onReturnToThread}
+              pinnedMessages={pinnedMessages}
+              onJumpToPinnedMessage={jumpToPinnedMessage}
             />
           }
           canOperateThread={canOperateThread}
@@ -982,6 +1050,9 @@ function ThreadRouteContent(
           connectionStateLabel={routeConnectionState}
           threadSyncStatus={selectedThreadDetailState.status}
           historyControls={historyControls}
+          {...(feedPins ? { pins: feedPins } : {})}
+          messageJump={messageJump?.threadKey === selectedThreadKey ? messageJump : null}
+          onMessageJumpFailed={reportMessageJumpFailure}
           activeThreadBusy={composer.activeThreadBusy}
           canStopThread={awaitingBootstrapTurn || composer.interruptibleRunId !== null}
           queuedRunEdit={composer.queuedRunEdit}

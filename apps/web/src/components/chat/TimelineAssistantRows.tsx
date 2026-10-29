@@ -22,6 +22,7 @@ import { cn } from "~/lib/utils";
 import { useUiStateStore } from "~/uiStateStore";
 import { formatDayAwareTimestamp, formatChatTimestampTooltip } from "../../timestampFormat";
 import { useV2ItemSupport } from "../../state/v2ItemSupport";
+import { isPinnableProjectedItem, MessagePinButton, useMessagePinned } from "./PinnedMessages";
 
 export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" }> }) {
   const ctx = use(TimelineRowCtx);
@@ -154,12 +155,13 @@ function AssistantMessageMeta({
   alwaysVisible?: boolean;
 }) {
   const ctx = use(TimelineRowCtx);
+  const pinned = useMessagePinned(projectedItem);
 
   return (
     <div
       className={cn(
         "flex items-center gap-2 text-xs tabular-nums transition-opacity duration-150",
-        alwaysVisible
+        alwaysVisible || pinned
           ? "opacity-100"
           : "opacity-0 pointer-coarse:opacity-100 focus-within:opacity-100 group-hover/assistant:opacity-100",
         className,
@@ -177,6 +179,9 @@ function AssistantMessageMeta({
       />
       {projectedItem?.item.type === "assistant_message" ? (
         <AssistantForkButton projectedItem={projectedItem} />
+      ) : null}
+      {isPinnableProjectedItem(projectedItem) && !message.streaming ? (
+        <MessagePinButton projectedItem={projectedItem} />
       ) : null}
       {!message.streaming && (
         <Tooltip>

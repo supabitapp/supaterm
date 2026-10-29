@@ -32,6 +32,7 @@ import {
   type OrchestrationV2InternalCommand,
   type OrchestrationV2LimitRecoveryUpdate,
   type OrchestrationV2ServerCommand,
+  type ThreadPinnedMessage,
   type ThreadPullRequestLink,
   type OrchestrationV2AppThread,
   type OrchestrationV2ContextHandoff,
@@ -65,6 +66,7 @@ import {
   ThreadLinkedPullRequest,
   ThreadId,
   type TurnItemId,
+  MAX_THREAD_PINNED_MESSAGES,
 } from "@supaterm/contracts";
 import { modelSelectionsEqual } from "@supaterm/shared/model";
 import {
@@ -134,6 +136,7 @@ import * as RunExecutionService from "./RunExecutionService.ts";
 import { ProviderSessionManagerV2 } from "./ProviderSessionManager.ts";
 import { ProviderSwitchServiceV2 } from "./ProviderSwitchService.ts";
 import { isAutomaticCompletionRun, queuedRunsInDeliveryOrder } from "./QueuedRunOrder.ts";
+import { isPinnableMessageItem, pinnedMessageOf, withPinnedMessage } from "./PinnedMessages.ts";
 import { RuntimePolicyV2 } from "./RuntimePolicy.ts";
 import {
   endOrphanedNativeSubagent,
@@ -482,6 +485,8 @@ function commandThreadId(command: OrchestrationV2ServerCommand): ThreadId {
     case "thread.unpin":
     case "thread.pin.reorder":
     case "thread.active.reorder":
+    case "thread.message.pin":
+    case "thread.message.unpin":
     case "thread.visit":
     case "thread.mark-unread":
     case "thread.metadata.update":
@@ -2654,6 +2659,8 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           | "thread.unpin"
           | "thread.pin.reorder"
           | "thread.active.reorder"
+          | "thread.message.pin"
+          | "thread.message.unpin"
           | "thread.mark-unread"
           | "thread.metadata.update"
           | "thread.pull-request.link"
@@ -3072,6 +3079,33 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       }
       markUnreadVisitedAt = DateTime.subtract(latestRunCompletedAt, { milliseconds: 1 });
     }
+    let pinnedMessage: ThreadPinnedMessage | null = null;
+    if (command.type === "thread.message.pin") {
+      // The visible timeline includes items a fork inherited, so the pin can only name a
+      // message this thread shows.
+      const [visible] = (yield* projectionStore
+        .getTimelinePage(command.threadId, { itemId: command.itemId, limit: 1 })
+        .pipe(mapDispatchError(command))).items;
+      if (visible === undefined || !isPinnableMessageItem(visible.item)) {
+        return yield* new OrchestratorDispatchError({
+          commandId: command.commandId,
+          commandType: command.type,
+          cause: `Item ${command.itemId} is not a message in thread ${command.threadId}.`,
+        });
+      }
+      const pins = thread.pinnedMessages ?? [];
+      if (
+        pins.length >= MAX_THREAD_PINNED_MESSAGES &&
+        !pins.some((pin) => pin.itemId === command.itemId)
+      ) {
+        return yield* new OrchestratorDispatchError({
+          commandId: command.commandId,
+          commandType: command.type,
+          cause: `Thread ${command.threadId} already has ${MAX_THREAD_PINNED_MESSAGES} pinned messages. Unpin one first.`,
+        });
+      }
+      pinnedMessage = pinnedMessageOf(visible.item, visible.sourceThreadId);
+    }
     const updatedThread: OrchestrationV2AppThread = (() => {
       switch (command.type) {
         case "thread.archive":
@@ -3188,6 +3222,21 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             updatedAt: thread.updatedAt,
           };
         }
+        // Pins are bookmarks, not activity: keep updatedAt so the thread holds its sidebar place.
+        case "thread.message.pin":
+          return pinnedMessage === null
+            ? thread
+            : {
+                ...thread,
+                pinnedMessages: withPinnedMessage(thread.pinnedMessages ?? [], pinnedMessage),
+              };
+        case "thread.message.unpin":
+          return {
+            ...thread,
+            pinnedMessages: (thread.pinnedMessages ?? []).filter(
+              (pin) => pin.itemId !== command.itemId,
+            ),
+          };
         case "thread.mark-unread":
           return { ...thread, lastVisitedAt: markUnreadVisitedAt };
         case "thread.metadata.update": {
@@ -3578,6 +3627,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           return "thread.pin-reordered" as const;
         case "thread.active.reorder":
           return "thread.active-reordered" as const;
+        case "thread.message.pin":
+        case "thread.message.unpin":
+          return "thread.pinned-messages-updated" as const;
         case "thread.mark-unread":
           return "thread.marked-unread" as const;
         case "thread.metadata.update":
@@ -11392,6 +11444,8 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       case "thread.unpin":
       case "thread.pin.reorder":
       case "thread.active.reorder":
+      case "thread.message.pin":
+      case "thread.message.unpin":
       case "thread.mark-unread":
       case "thread.metadata.update":
       case "thread.pull-request.link":

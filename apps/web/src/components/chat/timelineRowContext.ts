@@ -8,6 +8,7 @@ import type {
   OrchestrationV2TurnItem,
   ThreadId,
   RunAttemptId,
+  TurnItemId,
   WorktreeSetupSnapshot,
 } from "@supaterm/contracts";
 import type { WorkflowOpening } from "@supaterm/client-runtime/state/subagentRuntime";
@@ -19,6 +20,7 @@ import type { ExpandedImagePreview } from "./ExpandedImagePreview";
 import type { AssistantCitationTarget } from "./AssistantCitationSource";
 import type { TimestampFormat } from "@supaterm/contracts/settings";
 import type { HandoffTimelineRun } from "./V2LifecycleRow";
+import type { PinnableProjectedItem } from "./PinnedMessages";
 
 export interface TimelineRowSharedState {
   citationRequest: AssistantCitationTarget | null;
@@ -49,6 +51,8 @@ export interface TimelineRowSharedState {
     readonly sourceThreadId: ThreadId;
     readonly runId: RunId;
   }) => Promise<void>;
+  pinnedItemIds: ReadonlySet<TurnItemId>;
+  onTogglePinnedMessage: ((projectedItem: PinnableProjectedItem, pinned: boolean) => void) | null;
   onToggleTurnFold: (runId: RunId) => void;
   onToggleAttemptFold: (attemptId: RunAttemptId) => void;
   onFileOpen: (attachment: ChatFileAttachment) => void;

@@ -74,6 +74,7 @@ import { formatDayAwareTimestamp, formatChatTimestampTooltip } from "../../times
 import { AnimatedHeight } from "../AnimatedHeight";
 import { useTimelineDisclosure } from "./timelineDisclosure";
 import { WorkflowOpeningBlock } from "./WorkflowOpeningBlock";
+import { isPinnableProjectedItem, MessagePinButton, useMessagePinned } from "./PinnedMessages";
 
 function UserVideoAttachment({ file }: { readonly file: ChatFileAttachment }) {
   const ctx = use(TimelineRowCtx);
@@ -305,6 +306,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
   const resolvedContext = resolveUserMessageContext(row.message);
   const previewImages = userImages.filter((image) => image.name.startsWith("preview-annotation-"));
   const revertTurnCount = row.revertTurnCount;
+  const pinned = useMessagePinned(row.projectedItem);
   const chippedAttachmentIds = new Set(
     collectComposerContextReferences(resolvedContext.text).flatMap((occurrence) => {
       const record = asKnownContextRecord(resolvedContext.recordsById.get(occurrence.contextId));
@@ -580,7 +582,14 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
       </div>
       <UserMessageProjectedStatus row={row} />
       {!folded || expanded ? (
-        <div className="flex w-full max-w-[80%] items-center justify-end pe-1 text-xs tabular-nums opacity-0 transition-opacity duration-150 pointer-coarse:opacity-100 focus-within:opacity-100 group-hover:opacity-100">
+        <div
+          className={cn(
+            "flex w-full max-w-[80%] items-center justify-end pe-1 text-xs tabular-nums transition-opacity duration-150",
+            pinned
+              ? "opacity-100"
+              : "opacity-0 pointer-coarse:opacity-100 focus-within:opacity-100 group-hover:opacity-100",
+          )}
+        >
           <div className="flex shrink-0 items-center gap-2">
             {folded && senderThreadId ? (
               <InlineButton onClick={() => ctx.onOpenThread(senderThreadId)} tone="muted">
@@ -619,6 +628,9 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
                   icon={LinkIconNode}
                   variant="ghost"
                 />
+              )}
+              {isPinnableProjectedItem(row.projectedItem) && (
+                <MessagePinButton projectedItem={row.projectedItem} />
               )}
             </div>
           </div>

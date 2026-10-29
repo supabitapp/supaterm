@@ -47,6 +47,7 @@ import type {
   MessageId,
   EnvironmentId,
   RunAttemptId,
+  ThreadPinnedMessage,
 } from "@supaterm/contracts";
 import { deriveTimelineMinimapItems } from "./timelineMinimapItems";
 import { parseScopedThreadKey } from "@supaterm/client-runtime/environment";
@@ -104,6 +105,9 @@ import {
 } from "./MessagesTimeline.logic";
 import type { ThreadFindPositionReader, ThreadFindMatch } from "./threadFind";
 import { useThreadFindNavigation } from "./useThreadFindNavigation";
+import { useTimelineMessageJump } from "./useTimelineMessageJump";
+import type { MessageJump, MessageJumpHandlers } from "@supaterm/client-runtime/message-jump";
+import type { PinnableProjectedItem } from "./PinnedMessages";
 import { TooltipScrollDismissArea } from "../ui/tooltip";
 import { WorktreeSetupCard } from "./WorktreeSetupCard";
 import { useOpenPrLink } from "~/lib/openPullRequestLink";
@@ -171,6 +175,8 @@ const TIMELINE_MAINTAIN_SCROLL_AT_END = {
 } as const satisfies MaintainScrollAtEndOptions;
 
 const EMPTY_RUN_IDS: ReadonlySet<RunId> = new Set();
+const EMPTY_PINNED_MESSAGES: ReadonlyArray<ThreadPinnedMessage> = [];
+const NOOP_MESSAGE_JUMP_FAILED = () => {};
 const TIMELINE_MAINTAIN_SCROLL_AT_END_SMOOTH = {
   ...TIMELINE_MAINTAIN_SCROLL_AT_END,
   animated: true,
@@ -262,6 +268,10 @@ interface MessagesTimelineProps {
   topFadeEnabled?: boolean;
   historyControls?: MessagesTimelineHistoryControls | undefined;
   loadEarlier?: CitationHistoryPage | null;
+  pinnedMessages?: ReadonlyArray<ThreadPinnedMessage>;
+  onTogglePinnedMessage?: (projectedItem: PinnableProjectedItem, pinned: boolean) => void;
+  messageJump?: MessageJump | null;
+  onMessageJumpFailed?: MessageJumpHandlers["fail"];
   findPositionReaderRef?: React.RefObject<ThreadFindPositionReader | null>;
   findExpanded?: boolean;
   findQuery?: string;
@@ -355,6 +365,10 @@ const ConversationTimeline = memo(function ConversationTimeline({
   topFadeEnabled = false,
   historyControls,
   loadEarlier = null,
+  pinnedMessages = EMPTY_PINNED_MESSAGES,
+  onTogglePinnedMessage,
+  messageJump = null,
+  onMessageJumpFailed = NOOP_MESSAGE_JUMP_FAILED,
 }: MessagesTimelineProps) {
   const listIdentityKey = displayThreadKey ?? routeThreadKey;
   // The remembered position is a snapshot taken when the list identity changes;
@@ -596,7 +610,8 @@ const ConversationTimeline = memo(function ConversationTimeline({
   // Run status/timestamps churn on every stream event; the shared row context
   // must not change with them or every timeline row re-renders per event.
   const runs = useStableHandoffRuns(runsProp);
-  const minimapItems = deriveTimelineMinimapItems(rows);
+  const pinnedItemIds = new Set(pinnedMessages.map((pin) => pin.itemId));
+  const minimapItems = deriveTimelineMinimapItems(rows, pinnedItemIds);
   const minimapRowIndices = minimapItems.map((item) => item.rowIndex);
 
   const restoreRowIndex =
@@ -621,6 +636,17 @@ const ConversationTimeline = memo(function ConversationTimeline({
     null,
   );
   const chatWidth = useClientSettings((settings) => settings.chatWidth);
+  const turnFoldRunIdOf = (entryId: string) =>
+    (
+      findFoldRunIds ??
+      timelineTurnFoldRunIdsByEntryId({
+        timelineEntries,
+        latestRun,
+        runningRunId,
+        isWorking,
+        runlessWorkActive,
+      })
+    ).get(entryId);
   const {
     target: readyCitationRequest,
     positioning: citationPositioning,
@@ -634,17 +660,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     viewport: timelineViewportElement,
     historyLoading: citationHistoryLoading,
     loadEarlier,
-    getTurnFoldRunId: (entryId) =>
-      (
-        findFoldRunIds ??
-        timelineTurnFoldRunIdsByEntryId({
-          timelineEntries,
-          latestRun,
-          runningRunId,
-          isWorking,
-          runlessWorkActive,
-        })
-      ).get(entryId),
+    getTurnFoldRunId: turnFoldRunIdOf,
     onExpandTurn: expandCitedRun,
     onManualNavigation,
   });
@@ -927,6 +943,8 @@ const ConversationTimeline = memo(function ConversationTimeline({
     onOpenThread,
     workflowOpening,
     onForkFromRun,
+    pinnedItemIds,
+    onTogglePinnedMessage: onTogglePinnedMessage ?? null,
     onToggleTurnFold,
     onToggleAttemptFold,
     onToggleWorkGroup,
@@ -1012,6 +1030,40 @@ const ConversationTimeline = memo(function ConversationTimeline({
     runlessWorkActive,
     rows,
     contentInsetEndAdjustment,
+  });
+
+  useTimelineMessageJump({
+    jump: messageJump,
+    entries: timelineEntries,
+    rows,
+    listReady: findListReady,
+    historyControls,
+    handlers: {
+      start: onManualNavigation,
+      scroll: (index) => {
+        void listRef.current?.scrollToIndex({
+          index,
+          animated: !prefersReducedMotion,
+          viewOffset: 24,
+        });
+      },
+      unfold: (messageId) => {
+        const entry = timelineEntries.find(
+          (candidate) => candidate.kind === "message" && candidate.message.id === messageId,
+        );
+        if (!entry) return;
+        const runId = turnFoldRunIdOf(entry.id);
+        if (runId) expandCitedRun(runId);
+        const attemptId = entry.attempt?.id;
+        if (attemptId) {
+          setExpandedAttemptIds((previous) =>
+            previous.has(attemptId) ? previous : new Set(previous).add(attemptId),
+          );
+        }
+      },
+      loadEarlier: (messageId) => historyControls?.onLoadEarlier(messageId),
+      fail: onMessageJumpFailed,
+    },
   });
 
   useThreadFindNavigation({

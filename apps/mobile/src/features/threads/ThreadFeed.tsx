@@ -46,7 +46,13 @@ import {
   type OrchestrationV2ProjectedTurnItem,
   type RunId,
   type ScheduledTaskId,
+  type TurnItemId,
 } from "@supaterm/contracts";
+import {
+  createMessageJumpRunner,
+  type MessageJump,
+  type MessageJumpHandlers,
+} from "@supaterm/client-runtime/message-jump";
 import { renderAssistantCitationsAsText } from "@supaterm/shared/assistantCitations";
 import { encodeComposerContextFragment } from "@supaterm/shared/composerContextClipboard";
 import { parseThreadLinkHref, resolveThreadLinkRef } from "@supaterm/shared/threadLinks";
@@ -321,6 +327,13 @@ function isFreshTimestamp(input: string): boolean {
 
 export type ThreadFeedHistoryControls = ThreadHistoryControls;
 
+export interface ThreadFeedPins {
+  readonly itemIds: ReadonlySet<TurnItemId>;
+  readonly onToggle:
+    | ((projectedItem: OrchestrationV2ProjectedTurnItem, pinned: boolean) => void)
+    | null;
+}
+
 export interface ThreadFeedProps {
   readonly worktreeSetup?: WorktreeSetupCardProps | null;
   readonly setupWorkingStartedAt?: string | null;
@@ -349,6 +362,9 @@ export interface ThreadFeedProps {
   readonly contentTopInset?: number;
   readonly contentBottomInset?: number;
   readonly historyControls?: ThreadFeedHistoryControls;
+  readonly pins?: ThreadFeedPins;
+  readonly messageJump?: MessageJump | null;
+  readonly onMessageJumpFailed?: MessageJumpHandlers["fail"];
   readonly contentMaxWidth?: number;
   readonly contentSideInsets?: { readonly left: number; readonly right: number };
   readonly layoutVariant?: LayoutVariant;
@@ -369,14 +385,60 @@ async function waitForThreadShell(
   });
 }
 
-const USER_MESSAGE_COPY_MENU_ACTIONS = [
-  { id: "copy-prompt-link", title: "Copy prompt link", image: "link" },
-];
+const COPY_PROMPT_LINK_MENU_ACTION = {
+  id: "copy-prompt-link",
+  title: "Copy prompt link",
+  image: "link",
+};
+const PIN_MESSAGE_MENU_ACTION = { id: "toggle-pin", title: "Pin message", image: "pin" };
+const UNPIN_MESSAGE_MENU_ACTION = { id: "toggle-pin", title: "Unpin message", image: "pin.slash" };
+
+interface MessagePinToggle {
+  readonly pinned: boolean;
+  readonly toggle: () => void;
+}
+
+function pinToggleOf(
+  pins: ThreadFeedPins | undefined,
+  projectedItem: OrchestrationV2ProjectedTurnItem | undefined,
+): MessagePinToggle | null {
+  const onToggle = pins?.onToggle;
+  if (!pins || !onToggle || !projectedItem) return null;
+  const pinned = pins.itemIds.has(projectedItem.sourceItemId);
+  return { pinned, toggle: () => onToggle(projectedItem, pinned) };
+}
+
+function MessagePinButton(props: {
+  readonly pinned: boolean;
+  readonly iconColor: ColorValue;
+  readonly onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={props.pinned ? "Unpin message" : "Pin message"}
+      accessibilityState={{ selected: props.pinned }}
+      onPress={() => {
+        void Haptics.selectionAsync();
+        props.onPress();
+      }}
+      className="h-7 w-7 items-center justify-center"
+    >
+      <SymbolView
+        name={props.pinned ? "pin.fill" : "pin"}
+        size={13}
+        tintColor={props.iconColor}
+        type="monochrome"
+      />
+    </Pressable>
+  );
+}
 
 function UserMessageCopyButton(props: {
   readonly text: string;
   readonly onCopy: (() => Promise<void>) | undefined;
   readonly tintColor: ColorValue;
+  readonly pin?: MessagePinToggle | null;
 }) {
   const button = (
     <CopyTextButton
@@ -389,12 +451,18 @@ function UserMessageCopyButton(props: {
     />
   );
   const linkText = replaceComposerContextReferences(props.text, (reference) => reference.label);
-  if (linkText.length > PROMPT_LINK_MAX_PROMPT_LENGTH) return button;
+  const pin = props.pin;
+  const actions = [
+    ...(linkText.length > PROMPT_LINK_MAX_PROMPT_LENGTH ? [] : [COPY_PROMPT_LINK_MENU_ACTION]),
+    ...(pin ? [pin.pinned ? UNPIN_MESSAGE_MENU_ACTION : PIN_MESSAGE_MENU_ACTION] : []),
+  ];
+  if (actions.length === 0) return button;
   return (
     <Menu
-      actions={USER_MESSAGE_COPY_MENU_ACTIONS}
+      actions={actions}
       onPressAction={({ nativeEvent }) => {
         if (nativeEvent.event === "copy-prompt-link") void copyPromptLink(linkText);
+        if (nativeEvent.event === "toggle-pin") pin?.toggle();
       }}
       shouldOpenOnLongPress
     >
@@ -1220,6 +1288,7 @@ function renderFeedEntry(
     readonly contentWidth: number;
     readonly threadTitle: string;
     readonly workflowOpening: WorkflowOpening | null;
+    readonly pins: ThreadFeedPins | undefined;
   },
 ) {
   const entry = info.item;
@@ -1356,6 +1425,8 @@ function renderFeedEntry(
     const renderedText = renderAssistantCitationsAsText(presentation.text);
     const styles = isUser ? markdownStyles.user : markdownStyles.assistant;
     const timestampLabel = formatMessageTime(isUser ? message.createdAt : message.updatedAt);
+    const messagePin = pinToggleOf(props.pins, message.projectedItem);
+    const hasCopyText = presentation.text.trim().length > 0;
     const attachments = message.attachments ?? [];
     const hasReviewCommentContext = presentation.text.includes("<review_comment");
     // A bubble that sizes itself from its content cannot lay out a block whose
@@ -1603,8 +1674,24 @@ function renderFeedEntry(
                   <SymbolView name="pencil" size={14} tintColor={iconSubtleColor} />
                 </Pressable>
               ) : null}
-              {presentation.text.trim().length > 0 ? (
+              {messagePin?.pinned && hasCopyText ? (
+                <SymbolView
+                  name="pin.fill"
+                  size={11}
+                  tintColor={iconSubtleColor}
+                  type="monochrome"
+                />
+              ) : null}
+              {messagePin && !hasCopyText ? (
+                <MessagePinButton
+                  pinned={messagePin.pinned}
+                  iconColor={iconSubtleColor}
+                  onPress={messagePin.toggle}
+                />
+              ) : null}
+              {hasCopyText ? (
                 <UserMessageCopyButton
+                  pin={messagePin}
                   text={presentation.text}
                   onCopy={
                     message.context
@@ -1698,6 +1785,13 @@ function renderFeedEntry(
                 iconColor={iconSubtleColor}
                 projectedItem={message.projectedItem}
                 sourceTitle={props.threadTitle}
+              />
+            ) : null}
+            {messagePin && !message.streaming ? (
+              <MessagePinButton
+                pinned={messagePin.pinned}
+                iconColor={iconSubtleColor}
+                onPress={messagePin.toggle}
               />
             ) : null}
             <Text className="font-supaterm-medium text-xs tabular-nums text-foreground-secondary">
@@ -2513,6 +2607,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     contentWidth,
     skills: props.skills,
     workflowOpening,
+    pins: props.pins,
   };
   const reportHeaderMaterialVisibility = (visible: boolean) => {
     if (headerMaterialVisibleRef.current === visible) {
@@ -2922,6 +3017,56 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     });
   };
 
+  const [advanceMessageJump] = useState(createMessageJumpRunner);
+  const { messageJump = null, onMessageJumpFailed } = props;
+  useEffect(() => {
+    if (!messageJump) return;
+    const isTarget = (entry: ThreadFeedEntry) =>
+      entry.type === "message" && entry.message.id === messageJump.messageId;
+    advanceMessageJump(
+      messageJump,
+      {
+        rowIndex: presentedFeed.findIndex(isTarget),
+        loaded: props.feed.some(isTarget),
+        cursor: props.feed[0]?.id ?? "first",
+        history: props.historyControls,
+      },
+      {
+        start: () => setEndFollow(false),
+        scroll: (index) => {
+          void listRef.current?.scrollToIndex({
+            index,
+            animated: !reduceMotion,
+            viewPosition: 0,
+            viewOffset: anchorTopInset + 8,
+          });
+        },
+        unfold: () => {
+          const source = props.feed.find(isTarget);
+          const runId = source?.type === "message" ? source.message.runId : null;
+          if (!runId) return;
+          setInteractionState((current) => ({
+            ...current,
+            expandedTurnIds: new Set(current.expandedTurnIds).add(runId),
+          }));
+        },
+        loadEarlier: (messageId) => props.historyControls?.onLoadEarlier(messageId),
+        fail: (jump, failure) => onMessageJumpFailed?.(jump, failure),
+      },
+    );
+  }, [
+    advanceMessageJump,
+    anchorTopInset,
+    listRef,
+    messageJump,
+    onMessageJumpFailed,
+    presentedFeed,
+    props.feed,
+    props.historyControls,
+    reduceMotion,
+    setEndFollow,
+  ]);
+
   const onPressPreview = (source: FilePreviewSource) => {
     markdownLinkRequest.current?.abort();
     setExpandedFile((current) => current ?? source);
@@ -3042,6 +3187,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
             skills: props.skills,
             workspaceRoot: props.workspaceRoot,
             workflowOpening,
+            pins: props.pins,
           })}
           {props.worktreeSetup && info.index === setupAnchorIndex ? (
             <WorktreeSetupCard key={props.threadId} {...props.worktreeSetup} />

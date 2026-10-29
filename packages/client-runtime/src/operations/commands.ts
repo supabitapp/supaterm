@@ -23,6 +23,7 @@ import {
   type RuntimeRequestId,
   type ThreadId,
   type ThreadEnvMode,
+  type TurnItemId,
   type UploadChatAttachment,
 } from "@supaterm/contracts";
 import { derivePendingBackgroundWork } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
@@ -93,6 +94,10 @@ export interface PinThreadInput extends ThreadCommandInput {
   readonly orderKey?: string;
 }
 export type UnpinThreadInput = ThreadCommandInput;
+
+export interface ThreadMessagePinInput extends ThreadCommandInput {
+  readonly itemId: TurnItemId;
+}
 
 export interface ReorderPinnedThreadInput extends ThreadCommandInput {
   readonly orderKey: string;
@@ -485,6 +490,29 @@ export const unpinThread = Effect.fn("EnvironmentCommands.unpinThread")(function
   input: UnpinThreadInput,
 ) {
   return yield* simpleThreadCommand("thread.unpin", input);
+});
+
+function threadMessagePinCommand(
+  type: "thread.message.pin" | "thread.message.unpin",
+  input: ThreadMessagePinInput,
+) {
+  return allocateCommandId(input).pipe(
+    Effect.flatMap((commandId) =>
+      dispatch({ type, commandId, threadId: input.threadId, itemId: input.itemId }),
+    ),
+  );
+}
+
+export const pinThreadMessage = Effect.fn("EnvironmentCommands.pinThreadMessage")(function* (
+  input: ThreadMessagePinInput,
+) {
+  return yield* threadMessagePinCommand("thread.message.pin", input);
+});
+
+export const unpinThreadMessage = Effect.fn("EnvironmentCommands.unpinThreadMessage")(function* (
+  input: ThreadMessagePinInput,
+) {
+  return yield* threadMessagePinCommand("thread.message.unpin", input);
 });
 
 export const reopenThread = Effect.fn("EnvironmentCommands.reopenThread")(function* (

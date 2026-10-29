@@ -5405,6 +5405,160 @@ it.layer(layerSharedApplicationDataPlaneTest)("visited projection", (it) => {
   );
 });
 
+it.layer(layerSharedApplicationDataPlaneTest)("pinned messages", (it) => {
+  it.effect("pins messages in conversation order without counting as thread activity", () =>
+    Effect.gen(function* () {
+      const projects = yield* ProjectService.ProjectService;
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const sql = yield* SqlClient.SqlClient;
+      const projectId = ProjectId.make("runtime-layer-pinned-messages-project");
+      const threadId = ThreadId.make("runtime-layer-pinned-messages-thread");
+
+      yield* projects.create({
+        commandId: CommandId.make("runtime-layer-pinned-messages-project-create"),
+        projectId,
+        title: "Pinned messages",
+        workspaceRoot: "/tmp/runtime-layer-pinned-messages-project",
+      });
+      yield* orchestrator.dispatch({
+        type: "thread.create",
+        createdBy: "user",
+        creationSource: "web",
+        commandId: CommandId.make("runtime-layer-pinned-messages-thread-create"),
+        threadId,
+        projectId,
+        title: "Pinned messages thread",
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: null,
+        worktreePath: null,
+      });
+      const itemBase = {
+        threadId,
+        runId: null,
+        nodeId: null,
+        providerThreadId: null,
+        providerTurnId: null,
+        nativeItemRef: null,
+        parentItemId: null,
+        status: "completed",
+        title: null,
+        attachments: [],
+      };
+      const items = [
+        {
+          ...itemBase,
+          id: "item:pin:user",
+          ordinal: 1,
+          type: "user_message",
+          createdBy: "user",
+          creationSource: "web",
+          messageId: "message:pin:user",
+          inputIntent: "turn_start",
+          text: "## Plan\n\nShip pins",
+          startedAt: "2026-07-24T01:00:00.000Z",
+          completedAt: "2026-07-24T01:00:00.000Z",
+          updatedAt: "2026-07-24T01:00:00.000Z",
+        },
+        {
+          ...itemBase,
+          id: "item:pin:assistant",
+          ordinal: 2,
+          type: "assistant_message",
+          messageId: "message:pin:assistant",
+          text: "\n\n- **Root cause:**   [the cache key](https://example.com) drops the `host`.\nMore",
+          streaming: false,
+          startedAt: "2026-07-24T01:01:00.000Z",
+          completedAt: "2026-07-24T01:02:00.000Z",
+          updatedAt: "2026-07-24T01:02:00.000Z",
+        },
+        {
+          ...itemBase,
+          id: "item:pin:reasoning",
+          ordinal: 3,
+          type: "reasoning",
+          text: "Thinking",
+          streaming: false,
+          startedAt: "2026-07-24T01:03:00.000Z",
+          completedAt: "2026-07-24T01:03:00.000Z",
+          updatedAt: "2026-07-24T01:03:00.000Z",
+        },
+      ];
+      const otherThreadId = ThreadId.make("runtime-layer-pinned-messages-other-thread");
+      const otherThreadItem = {
+        ...items[0]!,
+        id: "item:pin:other-thread",
+        threadId: otherThreadId,
+        messageId: "message:pin:other-thread",
+      };
+      for (const [rowThreadId, item] of [
+        ...items.map((item) => [threadId, item] as const),
+        [otherThreadId, otherThreadItem] as const,
+      ]) {
+        yield* sql`INSERT INTO orchestration_v2_projection_turn_items (
+          turn_item_id, thread_id, ordinal, type, status, updated_at, payload_json
+        ) VALUES (
+          ${item.id}, ${rowThreadId}, ${item.ordinal}, ${item.type}, 'completed',
+          ${item.updatedAt}, ${JSON.stringify(item)}
+        )`;
+      }
+      const createdUpdatedAt = (yield* orchestrator.getThreadProjection(threadId)).thread.updatedAt;
+
+      yield* TestClock.adjust("1 second");
+      let pinCount = 0;
+      const pin = (itemId: string) =>
+        orchestrator.dispatch({
+          type: "thread.message.pin",
+          commandId: CommandId.make(`runtime-layer-pin:${(pinCount += 1)}`),
+          threadId,
+          itemId: TurnItemId.make(itemId),
+        });
+      yield* pin("item:pin:assistant");
+      yield* pin("item:pin:user");
+      yield* pin("item:pin:user");
+
+      const pinned = (yield* orchestrator.getThreadProjection(threadId)).thread;
+      assert.deepEqual(pinned.pinnedMessages, [
+        {
+          itemId: TurnItemId.make("item:pin:user"),
+          messageId: MessageId.make("message:pin:user"),
+          sourceThreadId: threadId,
+          role: "user",
+          preview: "Plan",
+          sentAt: "2026-07-24T01:00:00.000Z",
+        },
+        {
+          itemId: TurnItemId.make("item:pin:assistant"),
+          messageId: MessageId.make("message:pin:assistant"),
+          sourceThreadId: threadId,
+          role: "assistant",
+          preview: "Root cause: the cache key drops the host.",
+          sentAt: "2026-07-24T01:01:00.000Z",
+        },
+      ]);
+      assert.deepEqual(pinned.updatedAt, createdUpdatedAt);
+
+      const notAMessage = yield* pin("item:pin:reasoning").pipe(Effect.flip);
+      assert.instanceOf(notAMessage, Orchestrator.OrchestratorDispatchError);
+      const notInThisThread = yield* pin("item:pin:other-thread").pipe(Effect.flip);
+      assert.instanceOf(notInThisThread, Orchestrator.OrchestratorDispatchError);
+
+      yield* orchestrator.dispatch({
+        type: "thread.message.unpin",
+        commandId: CommandId.make("runtime-layer-unpin-user"),
+        threadId,
+        itemId: TurnItemId.make("item:pin:user"),
+      });
+      const unpinned = (yield* orchestrator.getThreadProjection(threadId)).thread;
+      assert.deepEqual(
+        unpinned.pinnedMessages?.map((pinnedMessage) => pinnedMessage.itemId),
+        [TurnItemId.make("item:pin:assistant")],
+      );
+    }),
+  );
+});
+
 it.layer(Layer.fresh(layerSharedApplicationDataPlaneTest))("compact PR events", (it) => {
   it.effect("persists only the changed PR link and replays it without losing other links", () =>
     Effect.gen(function* () {
