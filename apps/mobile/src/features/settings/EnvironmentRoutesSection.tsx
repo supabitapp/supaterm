@@ -13,7 +13,10 @@ import {
   usableRoutes,
 } from "@supaterm/client-runtime/connection";
 import { type EnvironmentId, sessionGrantsScope } from "@supaterm/contracts";
-import { AUTH_SCOPE_OPTIONS } from "@supaterm/shared/authScopeOptions";
+import {
+  AUTH_SCOPE_OPTIONS,
+  sessionPermissionsUnavailableMessage,
+} from "@supaterm/shared/authScopeOptions";
 import { AsyncResult, Atom } from "effect/reactivity";
 import * as Option from "effect/Option";
 import * as Haptics from "expo-haptics";
@@ -186,8 +189,14 @@ export function EnvironmentRoutesSection({
             </>
           ) : (
             <Text className="text-sm text-foreground-muted">
-              Permissions not checked. Connect to this environment to view this session’s
-              permissions.
+              {sessionPermissionsUnavailableMessage({
+                connected: activeRouteId !== null,
+                failed: sessionResult._tag === "Failure",
+                rejected:
+                  sessionResult._tag !== "Failure" &&
+                  !sessionResult.waiting &&
+                  session?.authenticated === false,
+              })}
             </Text>
           )}
         </View>

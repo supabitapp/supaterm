@@ -22,6 +22,7 @@ import type { PreparedConnection } from "../connection/model.ts";
 import { RelayGateway, type RelayTransport } from "../relay/gateway.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import type { RemoteEnvironmentRequestError } from "../rpc/http.ts";
+import type { RpcSession } from "../rpc/session.ts";
 import { safeErrorLogAttributes } from "../errors/safeLog.ts";
 import { executeAuthenticatedEnvironmentHttpRequest } from "./environmentHttpAuth.ts";
 import { followStreamInEnvironment } from "./environmentStreams.ts";
@@ -50,6 +51,9 @@ function initialConfigOption<E>(
 // no grants, and a wedged one still settles within about two and a half minutes.
 const DEFAULT_SESSION_STATE_TIMEOUT_MS = 6_000;
 const MAX_SESSION_STATE_TIMEOUT_MS = 60_000;
+
+const SESSION_STATE_RETRY_BASE_MS = 2_000;
+const SESSION_STATE_RETRY_MAX_MS = 60_000;
 
 /**
  * Read the granted scopes of this client's session on one environment via its
@@ -141,15 +145,39 @@ function makeEnvironmentSessionAtoms<R, E>(
     ).pipe(Atom.withLabel(`environment-prepared-connection:${environmentId}`)),
   );
 
-  // Keyed on the prepared connection, so a reconnect re-runs the fetch and picks up
-  // re-pairing scopes. Nothing else re-reads it while connected and a failed read means
-  // missing grants, so a transient failure retries before it settles.
-  const sessionStateAtom = Atom.family((environmentId: EnvironmentId) =>
-    runtime
+  const transportSessionAtom = Atom.family((environmentId: EnvironmentId) =>
+    runtime.atom(
+      followStreamInEnvironment(
+        environmentId,
+        Stream.unwrap(
+          EnvironmentSupervisor.EnvironmentSupervisor.pipe(
+            Effect.map((supervisor) => SubscriptionRef.changes(supervisor.session)),
+          ),
+        ),
+      ),
+      { initialValue: Option.none() },
+    ),
+  );
+
+  // Keyed on the transport session, so each reconnect re-runs the fetch and picks up re-pairing
+  // scopes. A transient failure retries quickly before it settles; a settled failure retries with
+  // a backoff that restarts per connection, since a failed read shows as missing grants.
+  const sessionStateAtom = Atom.family((environmentId: EnvironmentId) => {
+    let consecutiveFailures = 0;
+    let backoffConnection: RpcSession | null = null;
+    return runtime
       .atom((get) => {
         const prepared = Option.getOrNull(get(preparedConnectionValueAtom(environmentId)));
-        if (prepared === null) {
+        // A fetch that failed mid-reconnect cannot outlive the socket that recovered.
+        const connection = AsyncResult.getOrElse(get(transportSessionAtom(environmentId)), () =>
+          Option.none(),
+        );
+        if (prepared === null || Option.isNone(connection)) {
           return Effect.never;
+        }
+        if (connection.value !== backoffConnection) {
+          backoffConnection = connection.value;
+          consecutiveFailures = 0;
         }
         return Effect.gen(function* () {
           const client = yield* Effect.serviceOption(HttpClient.HttpClient);
@@ -165,14 +193,31 @@ function makeEnvironmentSessionAtoms<R, E>(
             }),
             Effect.provideService(HttpClient.HttpClient, client.value),
           );
-        });
+        }).pipe(
+          Effect.tap(() =>
+            Effect.sync(() => {
+              consecutiveFailures = 0;
+            }),
+          ),
+          Effect.tapError(() => {
+            const delayMs = Math.min(
+              SESSION_STATE_RETRY_BASE_MS * 2 ** consecutiveFailures,
+              SESSION_STATE_RETRY_MAX_MS,
+            );
+            consecutiveFailures += 1;
+            return Effect.sleep(delayMs).pipe(
+              Effect.andThen(Effect.sync(() => get.refreshSelf())),
+              Effect.forkScoped,
+            );
+          }),
+        );
       })
       .pipe(
         Atom.swr({ staleTime: 30_000, revalidateOnMount: true }),
         Atom.setIdleTTL(5 * 60_000),
         Atom.withLabel(`environment-session-state:${environmentId}`),
-      ),
-  );
+      );
+  });
 
   const sessionStateValueAtom = Atom.family((environmentId: EnvironmentId) =>
     Atom.make(
