@@ -49,9 +49,9 @@ import {
   type TurnItemId,
 } from "@supaterm/contracts";
 import {
+  createMessageJumpRunner,
   type MessageJump,
-  type MessageJumpProgress,
-  nextMessageJumpStep,
+  type MessageJumpHandlers,
 } from "@supaterm/client-runtime/message-jump";
 import { renderAssistantCitationsAsText } from "@supaterm/shared/assistantCitations";
 import { encodeComposerContextFragment } from "@supaterm/shared/composerContextClipboard";
@@ -332,8 +332,6 @@ export interface ThreadFeedPins {
   readonly onToggle:
     | ((projectedItem: OrchestrationV2ProjectedTurnItem, pinned: boolean) => void)
     | null;
-  readonly jump: MessageJump | null;
-  readonly onJumpMissing: (jump: MessageJump) => void;
 }
 
 export interface ThreadFeedProps {
@@ -365,6 +363,8 @@ export interface ThreadFeedProps {
   readonly contentBottomInset?: number;
   readonly historyControls?: ThreadFeedHistoryControls;
   readonly pins?: ThreadFeedPins;
+  readonly messageJump?: MessageJump | null;
+  readonly onMessageJumpFailed?: MessageJumpHandlers["fail"];
   readonly contentMaxWidth?: number;
   readonly contentSideInsets?: { readonly left: number; readonly right: number };
   readonly layoutVariant?: LayoutVariant;
@@ -1426,6 +1426,7 @@ function renderFeedEntry(
     const styles = isUser ? markdownStyles.user : markdownStyles.assistant;
     const timestampLabel = formatMessageTime(isUser ? message.createdAt : message.updatedAt);
     const messagePin = pinToggleOf(props.pins, message.projectedItem);
+    const hasCopyText = presentation.text.trim().length > 0;
     const attachments = message.attachments ?? [];
     const hasReviewCommentContext = presentation.text.includes("<review_comment");
     // A bubble that sizes itself from its content cannot lay out a block whose
@@ -1673,7 +1674,7 @@ function renderFeedEntry(
                   <SymbolView name="pencil" size={14} tintColor={iconSubtleColor} />
                 </Pressable>
               ) : null}
-              {messagePin?.pinned ? (
+              {messagePin?.pinned && hasCopyText ? (
                 <SymbolView
                   name="pin.fill"
                   size={11}
@@ -1681,7 +1682,14 @@ function renderFeedEntry(
                   type="monochrome"
                 />
               ) : null}
-              {presentation.text.trim().length > 0 ? (
+              {messagePin && !hasCopyText ? (
+                <MessagePinButton
+                  pinned={messagePin.pinned}
+                  iconColor={iconSubtleColor}
+                  onPress={messagePin.toggle}
+                />
+              ) : null}
+              {hasCopyText ? (
                 <UserMessageCopyButton
                   pin={messagePin}
                   text={presentation.text}
@@ -3009,71 +3017,49 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     });
   };
 
-  const messageJump = props.pins?.jump ?? null;
-  const onMessageJumpMissing = props.pins?.onJumpMissing;
-  const messageJumpRef = useRef<{
-    key: number;
-    progress: MessageJumpProgress;
-    done: boolean;
-  } | null>(null);
+  const [advanceMessageJump] = useState(createMessageJumpRunner);
+  const { messageJump = null, onMessageJumpFailed } = props;
   useEffect(() => {
     if (!messageJump) return;
-    if (messageJumpRef.current?.key !== messageJump.key) {
-      messageJumpRef.current = {
-        key: messageJump.key,
-        progress: { requestedCursors: new Set(), expandedRunId: null },
-        done: false,
-      };
-      setEndFollow(false);
-    }
-    const navigation = messageJumpRef.current;
-    if (navigation.done) return;
     const isTarget = (entry: ThreadFeedEntry) =>
       entry.type === "message" && entry.message.id === messageJump.messageId;
-    const source = props.feed.find(isTarget);
-    const step = nextMessageJumpStep({
-      rowIndex: presentedFeed.findIndex(isTarget),
-      loaded: source !== undefined,
-      foldRunId: source?.type === "message" ? source.message.runId : null,
-      cursor: props.feed[0]?.id ?? "first",
-      history: props.historyControls,
-      progress: navigation.progress,
-    });
-    switch (step.type) {
-      case "scroll":
-        navigation.done = true;
-        void listRef.current?.scrollToIndex({
-          index: step.index,
-          animated: !reduceMotion,
-          viewPosition: 0,
-          viewOffset: anchorTopInset + 8,
-        });
-        return;
-      case "expand":
-        navigation.progress = { ...navigation.progress, expandedRunId: step.runId };
-        setInteractionState((current) => ({
-          ...current,
-          expandedTurnIds: new Set(current.expandedTurnIds).add(step.runId),
-        }));
-        return;
-      case "load-earlier":
-        navigation.progress = {
-          ...navigation.progress,
-          requestedCursors: new Set(navigation.progress.requestedCursors).add(step.cursor),
-        };
-        props.historyControls?.onLoadEarlier(messageJump.messageId);
-        return;
-      case "wait":
-        return;
-      case "missing":
-        navigation.done = true;
-        onMessageJumpMissing?.(messageJump);
-    }
+    advanceMessageJump(
+      messageJump,
+      {
+        rowIndex: presentedFeed.findIndex(isTarget),
+        loaded: props.feed.some(isTarget),
+        cursor: props.feed[0]?.id ?? "first",
+        history: props.historyControls,
+      },
+      {
+        start: () => setEndFollow(false),
+        scroll: (index) => {
+          void listRef.current?.scrollToIndex({
+            index,
+            animated: !reduceMotion,
+            viewPosition: 0,
+            viewOffset: anchorTopInset + 8,
+          });
+        },
+        unfold: () => {
+          const source = props.feed.find(isTarget);
+          const runId = source?.type === "message" ? source.message.runId : null;
+          if (!runId) return;
+          setInteractionState((current) => ({
+            ...current,
+            expandedTurnIds: new Set(current.expandedTurnIds).add(runId),
+          }));
+        },
+        loadEarlier: (messageId) => props.historyControls?.onLoadEarlier(messageId),
+        fail: (jump, failure) => onMessageJumpFailed?.(jump, failure),
+      },
+    );
   }, [
+    advanceMessageJump,
     anchorTopInset,
     listRef,
     messageJump,
-    onMessageJumpMissing,
+    onMessageJumpFailed,
     presentedFeed,
     props.feed,
     props.historyControls,

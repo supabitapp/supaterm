@@ -95,11 +95,7 @@ export interface PinThreadInput extends ThreadCommandInput {
 }
 export type UnpinThreadInput = ThreadCommandInput;
 
-export interface PinThreadMessageInput extends ThreadCommandInput {
-  readonly itemId: TurnItemId;
-  readonly sourceThreadId: ThreadId;
-}
-export interface UnpinThreadMessageInput extends ThreadCommandInput {
+export interface ThreadMessagePinInput extends ThreadCommandInput {
   readonly itemId: TurnItemId;
 }
 
@@ -496,27 +492,27 @@ export const unpinThread = Effect.fn("EnvironmentCommands.unpinThread")(function
   return yield* simpleThreadCommand("thread.unpin", input);
 });
 
-export const pinThreadMessage = Effect.fn("EnvironmentCommands.pinThreadMessage")(function* (
-  input: PinThreadMessageInput,
+function threadMessagePinCommand(
+  type: "thread.message.pin" | "thread.message.unpin",
+  input: ThreadMessagePinInput,
 ) {
-  return yield* dispatch({
-    type: "thread.message.pin",
-    commandId: yield* allocateCommandId(input),
-    threadId: input.threadId,
-    itemId: input.itemId,
-    sourceThreadId: input.sourceThreadId,
-  });
+  return allocateCommandId(input).pipe(
+    Effect.flatMap((commandId) =>
+      dispatch({ type, commandId, threadId: input.threadId, itemId: input.itemId }),
+    ),
+  );
+}
+
+export const pinThreadMessage = Effect.fn("EnvironmentCommands.pinThreadMessage")(function* (
+  input: ThreadMessagePinInput,
+) {
+  return yield* threadMessagePinCommand("thread.message.pin", input);
 });
 
 export const unpinThreadMessage = Effect.fn("EnvironmentCommands.unpinThreadMessage")(function* (
-  input: UnpinThreadMessageInput,
+  input: ThreadMessagePinInput,
 ) {
-  return yield* dispatch({
-    type: "thread.message.unpin",
-    commandId: yield* allocateCommandId(input),
-    threadId: input.threadId,
-    itemId: input.itemId,
-  });
+  return yield* threadMessagePinCommand("thread.message.unpin", input);
 });
 
 export const reopenThread = Effect.fn("EnvironmentCommands.reopenThread")(function* (

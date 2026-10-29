@@ -2775,8 +2775,6 @@ export const OrchestrationV2Command = Schema.Union([
     commandId: CommandId,
     threadId: ThreadId,
     itemId: TurnItemId,
-    /** The thread that owns the item; a fork shows items it inherited from its source. */
-    sourceThreadId: Schema.optional(ThreadId),
   }),
   Schema.Struct({
     type: Schema.Literal("thread.message.unpin"),

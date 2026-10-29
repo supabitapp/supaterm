@@ -12,10 +12,8 @@ type PinnableMessageItem = Extract<
   { readonly type: "user_message" | "assistant_message" }
 >;
 
-export function isPinnableMessageItem(
-  item: OrchestrationV2TurnItem | null,
-): item is PinnableMessageItem {
-  return item?.type === "user_message" || item?.type === "assistant_message";
+export function isPinnableMessageItem(item: OrchestrationV2TurnItem): item is PinnableMessageItem {
+  return item.type === "user_message" || item.type === "assistant_message";
 }
 
 function pinnedMessagePreview(text: string): string {

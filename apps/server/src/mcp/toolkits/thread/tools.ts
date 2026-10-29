@@ -31,7 +31,7 @@ import * as McpInvocationContext from "../../McpInvocationContext.ts";
 
 const ThreadOrganizeTool = Tool.make("supaterm_thread_organize", {
   description:
-    "Pin, snooze, mark as done, reopen, archive, or mark a thread unread, or pin a message in it. Omit threadId for this thread. snooze requires snoozedUntil. pin_message and unpin_message take an itemId from supaterm_thread_read; pin_message also takes that item's sourceThreadId when it differs from the thread. supaterm_thread_read lists the thread's pinnedMessages. Existing thread lifecycle rules apply. Marking this thread as done takes effect when your turn completes, returning marksDoneWhenTurnEnds=true; a turn that fails or is interrupted, or a queued message, leaves it active.",
+    "Pin, snooze, mark as done, reopen, archive, or mark a thread unread, or pin a message in it. Omit threadId for this thread. snooze requires snoozedUntil. pin_message and unpin_message take a message's itemId from supaterm_thread_read, which also lists the thread's pinnedMessages. Existing thread lifecycle rules apply. Marking this thread as done takes effect when your turn completes, returning marksDoneWhenTurnEnds=true; a turn that fails or is interrupted, or a queued message, leaves it active.",
   parameters: Schema.Struct({
     threadId: Schema.optional(ThreadId),
     action: Schema.Literals([
@@ -49,7 +49,6 @@ const ThreadOrganizeTool = Tool.make("supaterm_thread_organize", {
     ]),
     snoozedUntil: Schema.optional(IsoDateTime),
     itemId: Schema.optional(TurnItemId),
-    sourceThreadId: Schema.optional(ThreadId),
   }),
   success: Schema.Union([
     OrchestrationV2DispatchCommandResult,

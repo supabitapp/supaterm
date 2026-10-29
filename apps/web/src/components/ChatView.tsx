@@ -290,7 +290,7 @@ import {
 import type { AssistantCitationRequest } from "./chat/AssistantCitationSource";
 import type { MessagesTimelineHistoryControls } from "./chat/MessagesTimeline";
 import type { PinnableProjectedItem } from "./chat/PinnedMessages";
-import type { MessageJump } from "@supaterm/client-runtime/message-jump";
+import type { MessageJump, MessageJumpFailure } from "@supaterm/client-runtime/message-jump";
 import { ThreadTimeline } from "./chat/ThreadTimeline";
 import { ProviderSubagentBar } from "./chat/ProviderSubagentBar";
 import { getTriggerDisplayModelName } from "./chat/providerIconUtils";
@@ -518,37 +518,42 @@ export default function ChatView(props: ChatViewProps) {
   >(null);
   const togglePinnedMessageStable = useStableCallback(
     (projectedItem: PinnableProjectedItem, pinned: boolean) => {
-      const input = { threadId, itemId: projectedItem.sourceItemId };
-      void (pinned
-        ? unpinThreadMessage({ environmentId, input })
-        : pinThreadMessage({
-            environmentId,
-            input: { ...input, sourceThreadId: projectedItem.sourceThreadId },
-          }));
+      const command = pinned ? unpinThreadMessage : pinThreadMessage;
+      void command({ environmentId, input: { threadId, itemId: projectedItem.sourceItemId } });
     },
   );
   const unpinMessageStable = useStableCallback((pin: ThreadPinnedMessage) => {
     void unpinThreadMessage({ environmentId, input: { threadId, itemId: pin.itemId } });
   });
-  const reportMissingPinnedMessageStable = useStableCallback((jump: MessageJump) => {
-    const pin = pinnedMessages.find((candidate) => candidate.messageId === jump.messageId);
-    const id = toastManager.add({
-      type: "warning",
-      title: "Pinned message not found",
-      description: "It may have been reverted.",
-      ...(pin && canOperateThread
-        ? {
-            actionProps: {
-              children: "Unpin",
-              onClick: () => {
-                toastManager.close(id);
-                unpinMessageStable(pin);
+  const reportPinnedMessageJumpFailureStable = useStableCallback(
+    (jump: MessageJump, failure: MessageJumpFailure) => {
+      if (failure === "history-error") {
+        toastManager.add({
+          type: "error",
+          title: "Could not load the pinned message",
+          description: "Check the connection, then select the pin again.",
+        });
+        return;
+      }
+      const pin = pinnedMessages.find((candidate) => candidate.messageId === jump.messageId);
+      const id = toastManager.add({
+        type: "warning",
+        title: "Pinned message not found",
+        description: "It may have been reverted.",
+        ...(pin && canOperateThread
+          ? {
+              actionProps: {
+                children: "Unpin",
+                onClick: () => {
+                  toastManager.close(id);
+                  unpinMessageStable(pin);
+                },
               },
-            },
-          }
-        : {}),
-    });
-  });
+            }
+          : {}),
+      });
+    },
+  );
   const jumpToPinnedMessageStable = useStableCallback((pin: ThreadPinnedMessage) => {
     setPinnedMessageJump((previous) => ({
       threadKey: routeThreadKey,
@@ -3646,7 +3651,7 @@ export default function ChatView(props: ChatViewProps) {
                             pinnedMessageJump?.threadKey === routeThreadKey
                               ? pinnedMessageJump
                               : null,
-                          onMessageJumpMissing: reportMissingPinnedMessageStable,
+                          onMessageJumpFailed: reportPinnedMessageJumpFailureStable,
                         })}
                   />
 

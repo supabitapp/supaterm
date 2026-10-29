@@ -106,7 +106,7 @@ import {
 import type { ThreadFindPositionReader, ThreadFindMatch } from "./threadFind";
 import { useThreadFindNavigation } from "./useThreadFindNavigation";
 import { useTimelineMessageJump } from "./useTimelineMessageJump";
-import type { MessageJump } from "@supaterm/client-runtime/message-jump";
+import type { MessageJump, MessageJumpHandlers } from "@supaterm/client-runtime/message-jump";
 import type { PinnableProjectedItem } from "./PinnedMessages";
 import { TooltipScrollDismissArea } from "../ui/tooltip";
 import { WorktreeSetupCard } from "./WorktreeSetupCard";
@@ -176,7 +176,7 @@ const TIMELINE_MAINTAIN_SCROLL_AT_END = {
 
 const EMPTY_RUN_IDS: ReadonlySet<RunId> = new Set();
 const EMPTY_PINNED_MESSAGES: ReadonlyArray<ThreadPinnedMessage> = [];
-const NOOP_MESSAGE_JUMP_MISSING = () => {};
+const NOOP_MESSAGE_JUMP_FAILED = () => {};
 const TIMELINE_MAINTAIN_SCROLL_AT_END_SMOOTH = {
   ...TIMELINE_MAINTAIN_SCROLL_AT_END,
   animated: true,
@@ -271,7 +271,7 @@ interface MessagesTimelineProps {
   pinnedMessages?: ReadonlyArray<ThreadPinnedMessage>;
   onTogglePinnedMessage?: (projectedItem: PinnableProjectedItem, pinned: boolean) => void;
   messageJump?: MessageJump | null;
-  onMessageJumpMissing?: (jump: MessageJump) => void;
+  onMessageJumpFailed?: MessageJumpHandlers["fail"];
   findPositionReaderRef?: React.RefObject<ThreadFindPositionReader | null>;
   findExpanded?: boolean;
   findQuery?: string;
@@ -368,7 +368,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   pinnedMessages = EMPTY_PINNED_MESSAGES,
   onTogglePinnedMessage,
   messageJump = null,
-  onMessageJumpMissing = NOOP_MESSAGE_JUMP_MISSING,
+  onMessageJumpFailed = NOOP_MESSAGE_JUMP_FAILED,
 }: MessagesTimelineProps) {
   const listIdentityKey = displayThreadKey ?? routeThreadKey;
   // The remembered position is a snapshot taken when the list identity changes;
@@ -1035,14 +1035,34 @@ const ConversationTimeline = memo(function ConversationTimeline({
     jump: messageJump,
     entries: timelineEntries,
     rows,
-    listRef,
     listReady: findListReady,
-    animated: !prefersReducedMotion,
     historyControls,
-    getTurnFoldRunId: turnFoldRunIdOf,
-    onExpandTurn: expandCitedRun,
-    onManualNavigation,
-    onMissing: onMessageJumpMissing,
+    handlers: {
+      start: onManualNavigation,
+      scroll: (index) => {
+        void listRef.current?.scrollToIndex({
+          index,
+          animated: !prefersReducedMotion,
+          viewOffset: 24,
+        });
+      },
+      unfold: (messageId) => {
+        const entry = timelineEntries.find(
+          (candidate) => candidate.kind === "message" && candidate.message.id === messageId,
+        );
+        if (!entry) return;
+        const runId = turnFoldRunIdOf(entry.id);
+        if (runId) expandCitedRun(runId);
+        const attemptId = entry.attempt?.id;
+        if (attemptId) {
+          setExpandedAttemptIds((previous) =>
+            previous.has(attemptId) ? previous : new Set(previous).add(attemptId),
+          );
+        }
+      },
+      loadEarlier: (messageId) => historyControls?.onLoadEarlier(messageId),
+      fail: onMessageJumpFailed,
+    },
   });
 
   useThreadFindNavigation({

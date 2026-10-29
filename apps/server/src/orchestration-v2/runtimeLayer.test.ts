@@ -5485,11 +5485,21 @@ it.layer(layerSharedApplicationDataPlaneTest)("pinned messages", (it) => {
           updatedAt: "2026-07-24T01:03:00.000Z",
         },
       ];
-      for (const item of items) {
+      const otherThreadId = ThreadId.make("runtime-layer-pinned-messages-other-thread");
+      const otherThreadItem = {
+        ...items[0]!,
+        id: "item:pin:other-thread",
+        threadId: otherThreadId,
+        messageId: "message:pin:other-thread",
+      };
+      for (const [rowThreadId, item] of [
+        ...items.map((item) => [threadId, item] as const),
+        [otherThreadId, otherThreadItem] as const,
+      ]) {
         yield* sql`INSERT INTO orchestration_v2_projection_turn_items (
           turn_item_id, thread_id, ordinal, type, status, updated_at, payload_json
         ) VALUES (
-          ${item.id}, ${threadId}, ${item.ordinal}, ${item.type}, 'completed',
+          ${item.id}, ${rowThreadId}, ${item.ordinal}, ${item.type}, 'completed',
           ${item.updatedAt}, ${JSON.stringify(item)}
         )`;
       }
@@ -5531,6 +5541,8 @@ it.layer(layerSharedApplicationDataPlaneTest)("pinned messages", (it) => {
 
       const notAMessage = yield* pin("item:pin:reasoning").pipe(Effect.flip);
       assert.instanceOf(notAMessage, Orchestrator.OrchestratorDispatchError);
+      const notInThisThread = yield* pin("item:pin:other-thread").pipe(Effect.flip);
+      assert.instanceOf(notInThisThread, Orchestrator.OrchestratorDispatchError);
 
       yield* orchestrator.dispatch({
         type: "thread.message.unpin",

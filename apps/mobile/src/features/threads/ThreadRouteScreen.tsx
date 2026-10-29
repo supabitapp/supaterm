@@ -24,7 +24,7 @@ import {
   type ProjectScript,
   type ThreadPinnedMessage,
 } from "@supaterm/contracts";
-import type { MessageJump } from "@supaterm/client-runtime/message-jump";
+import type { MessageJump, MessageJumpHandlers } from "@supaterm/client-runtime/message-jump";
 import {
   projectScriptCwd,
   projectScriptRuntimeEnv,
@@ -373,31 +373,35 @@ function ThreadRouteContent(
         itemIds: new Set(pinnedMessages.map((pin) => pin.itemId)),
         onToggle: canOperateThread
           ? (projectedItem, pinned) => {
-              const input = { threadId: selectedThread.id, itemId: projectedItem.sourceItemId };
-              void (pinned
-                ? unpinThreadMessage({ environmentId: selectedThread.environmentId, input })
-                : pinThreadMessage({
-                    environmentId: selectedThread.environmentId,
-                    input: { ...input, sourceThreadId: projectedItem.sourceThreadId },
-                  }));
+              const command = pinned ? unpinThreadMessage : pinThreadMessage;
+              void command({
+                environmentId: selectedThread.environmentId,
+                input: { threadId: selectedThread.id, itemId: projectedItem.sourceItemId },
+              });
             }
           : null,
-        jump: messageJump?.threadKey === selectedThreadKey ? messageJump : null,
-        onJumpMissing: (jump) => {
-          const pin = pinnedMessages.find((candidate) => candidate.messageId === jump.messageId);
-          Dialog.alert(
-            "Pinned message not found",
-            "It may have been reverted.",
-            pin && canOperateThread
-              ? [
-                  { text: "Keep", style: "cancel" },
-                  { text: "Unpin", style: "destructive", onPress: () => unpinMessage(pin) },
-                ]
-              : undefined,
-          );
-        },
       }
     : undefined;
+  const reportMessageJumpFailure: MessageJumpHandlers["fail"] = (jump, failure) => {
+    if (failure === "history-error") {
+      Dialog.alert(
+        "Could not load the pinned message",
+        "Check the connection, then select the pin again.",
+      );
+      return;
+    }
+    const pin = pinnedMessages.find((candidate) => candidate.messageId === jump.messageId);
+    Dialog.alert(
+      "Pinned message not found",
+      "It may have been reverted.",
+      pin && canOperateThread
+        ? [
+            { text: "Keep", style: "cancel" },
+            { text: "Unpin", style: "destructive", onPress: () => unpinMessage(pin) },
+          ]
+        : undefined,
+    );
+  };
   const navigation = useNavigation();
   const openPullRequest = useOpenPullRequest();
   const mergeBack = useAtomCommand(threadEnvironment.mergeBack, "merge thread back");
@@ -1047,6 +1051,8 @@ function ThreadRouteContent(
           threadSyncStatus={selectedThreadDetailState.status}
           historyControls={historyControls}
           {...(feedPins ? { pins: feedPins } : {})}
+          messageJump={messageJump?.threadKey === selectedThreadKey ? messageJump : null}
+          onMessageJumpFailed={reportMessageJumpFailure}
           activeThreadBusy={composer.activeThreadBusy}
           canStopThread={awaitingBootstrapTurn || composer.interruptibleRunId !== null}
           queuedRunEdit={composer.queuedRunEdit}

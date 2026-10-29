@@ -3081,15 +3081,16 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     }
     let pinnedMessage: ThreadPinnedMessage | null = null;
     if (command.type === "thread.message.pin") {
-      const sourceThreadId = command.sourceThreadId ?? command.threadId;
-      const item = yield* projectionStore
-        .getTurnItem({ threadId: sourceThreadId, itemId: command.itemId })
-        .pipe(mapDispatchError(command));
-      if (!isPinnableMessageItem(item)) {
+      // The visible timeline includes items a fork inherited, so the pin can only name a
+      // message this thread shows.
+      const [visible] = (yield* projectionStore
+        .getTimelinePage(command.threadId, { itemId: command.itemId, limit: 1 })
+        .pipe(mapDispatchError(command))).items;
+      if (visible === undefined || !isPinnableMessageItem(visible.item)) {
         return yield* new OrchestratorDispatchError({
           commandId: command.commandId,
           commandType: command.type,
-          cause: `Item ${command.itemId} is not a message in thread ${sourceThreadId}.`,
+          cause: `Item ${command.itemId} is not a message in thread ${command.threadId}.`,
         });
       }
       const pins = thread.pinnedMessages ?? [];
@@ -3103,7 +3104,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           cause: `Thread ${command.threadId} already has ${MAX_THREAD_PINNED_MESSAGES} pinned messages. Unpin one first.`,
         });
       }
-      pinnedMessage = pinnedMessageOf(item, sourceThreadId);
+      pinnedMessage = pinnedMessageOf(visible.item, visible.sourceThreadId);
     }
     const updatedThread: OrchestrationV2AppThread = (() => {
       switch (command.type) {

@@ -327,17 +327,11 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
               message: `${input.action} requires itemId.`,
             });
           }
-          command =
-            input.action === "pin_message"
-              ? {
-                  ...common,
-                  type: "thread.message.pin",
-                  itemId: input.itemId,
-                  ...(input.sourceThreadId === undefined
-                    ? {}
-                    : { sourceThreadId: input.sourceThreadId }),
-                }
-              : { ...common, type: "thread.message.unpin", itemId: input.itemId };
+          command = {
+            ...common,
+            type: input.action === "pin_message" ? "thread.message.pin" : "thread.message.unpin",
+            itemId: input.itemId,
+          };
           break;
         default:
           command = { ...common, type: `thread.${input.action}` };

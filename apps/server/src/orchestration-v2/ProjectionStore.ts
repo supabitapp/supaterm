@@ -823,7 +823,6 @@ export function applyToProjection(
       };
 
     case "thread.active-reordered":
-    case "thread.pinned-messages-updated":
     case "thread.pull-request-synced":
       return {
         ...base,
@@ -832,6 +831,7 @@ export function applyToProjection(
       };
     case "thread.visited":
     case "thread.marked-unread":
+    case "thread.pinned-messages-updated":
       return {
         ...projection,
         thread: event.payload,

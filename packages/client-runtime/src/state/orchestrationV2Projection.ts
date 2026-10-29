@@ -239,7 +239,6 @@ export function applyOrchestrationV2ProjectionEvent(
     case "thread.unpinned":
     case "thread.pin-reordered":
     case "thread.active-reordered":
-    case "thread.pinned-messages-updated":
     case "thread.metadata-updated":
     case "thread.pull-request-synced":
     case "thread.workflow-run-watch-synced":
@@ -248,9 +247,10 @@ export function applyOrchestrationV2ProjectionEvent(
     case "thread.model-selection-updated":
     case "thread.provider-switched":
       return { ...base, thread: event.payload };
-    // Visited tracking is read state, not activity: skip the updatedAt bump.
+    // Read state and message pins are not activity: skip the updatedAt bump.
     case "thread.visited":
     case "thread.marked-unread":
+    case "thread.pinned-messages-updated":
       return { ...projection, thread: event.payload };
     case "run.created":
     case "run.updated": {
