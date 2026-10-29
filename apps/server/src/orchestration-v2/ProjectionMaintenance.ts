@@ -210,6 +210,7 @@ export const layer: Layer.Layer<
       "thread.unpinned",
       "thread.pin-reordered",
       "thread.active-reordered",
+      "thread.pinned-messages-updated",
       "thread.metadata-updated",
       "thread.pull-request-synced",
       "thread.workflow-run-watch-synced",

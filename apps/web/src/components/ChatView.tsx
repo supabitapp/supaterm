@@ -87,6 +87,7 @@ import {
   type ServerProvider,
   type ScopedThreadRef,
   type ThreadId,
+  type ThreadPinnedMessage,
   type RunId,
   ProviderInteractionMode,
   RuntimeMode,
@@ -288,6 +289,8 @@ import {
 } from "./chat/ChatOverlayHosts";
 import type { AssistantCitationRequest } from "./chat/AssistantCitationSource";
 import type { MessagesTimelineHistoryControls } from "./chat/MessagesTimeline";
+import type { PinnableProjectedItem } from "./chat/PinnedMessages";
+import type { TimelineMessageJump } from "./chat/useTimelineMessageJump";
 import { ThreadTimeline } from "./chat/ThreadTimeline";
 import { ProviderSubagentBar } from "./chat/ProviderSubagentBar";
 import { getTriggerDisplayModelName } from "./chat/providerIconUtils";
@@ -387,6 +390,7 @@ const EMPTY_FEEDBACK_SUBMISSIONS: ReadonlyArray<CodexFeedbackSubmission> = [];
 const EMPTY_PROVIDER_SKILLS: ServerProvider["skills"] = [];
 
 const EMPTY_PENDING_FILE_SURFACE_IDS: ReadonlySet<string> = new Set();
+const EMPTY_PINNED_MESSAGES: ReadonlyArray<ThreadPinnedMessage> = [];
 
 type ChatViewProps =
   | {
@@ -480,6 +484,8 @@ export default function ChatView(props: ChatViewProps) {
   const interruptThreadTurn = useOrchestrationCommand(threadEnvironment.interruptTurn, {
     reportFailure: false,
   });
+  const pinThreadMessage = useOrchestrationCommand(threadEnvironment.pinMessage);
+  const unpinThreadMessage = useOrchestrationCommand(threadEnvironment.unpinMessage);
   const loadEarlierThreadHistory = useAtomCommand(threadEnvironment.loadEarlierHistory, {
     label: "load earlier thread history",
     reportFailure: false,
@@ -506,6 +512,31 @@ export default function ChatView(props: ChatViewProps) {
   });
   const serverThreadProjection = useQuietThreadProjection(routeThreadDetailRef);
   const serverProjection = serverThreadProjection?.projection ?? null;
+  const pinnedMessages = serverProjection?.thread.pinnedMessages ?? EMPTY_PINNED_MESSAGES;
+  const [pinnedMessageJump, setPinnedMessageJump] = useState<
+    (TimelineMessageJump & { readonly threadKey: string }) | null
+  >(null);
+  const togglePinnedMessageStable = useStableCallback(
+    (projectedItem: PinnableProjectedItem, pinned: boolean) => {
+      const input = { threadId, itemId: projectedItem.sourceItemId };
+      void (pinned
+        ? unpinThreadMessage({ environmentId, input })
+        : pinThreadMessage({
+            environmentId,
+            input: { ...input, sourceThreadId: projectedItem.sourceThreadId },
+          }));
+    },
+  );
+  const unpinMessageStable = useStableCallback((pin: ThreadPinnedMessage) => {
+    void unpinThreadMessage({ environmentId, input: { threadId, itemId: pin.itemId } });
+  });
+  const jumpToPinnedMessageStable = useStableCallback((pin: ThreadPinnedMessage) => {
+    setPinnedMessageJump((previous) => ({
+      threadKey: routeThreadKey,
+      key: (previous?.key ?? 0) + 1,
+      messageId: pin.messageId,
+    }));
+  });
   // Only the shell-less fallback needs these; with a shell, the shell carries them.
   const fallbackDetailRef = serverThreadShell === null ? routeThreadDetailRef : null;
   const fallbackUpdatedAt = useThreadUpdatedAt(fallbackDetailRef);
@@ -3387,6 +3418,9 @@ export default function ChatView(props: ChatViewProps) {
                   parentThreadLink={parentThreadLink}
                   onOpenThread={onOpenRelatedThreadStable}
                   rightPanelOpen={inlineRightPanelOwnsTitleBar}
+                  pinnedMessages={pinnedMessages}
+                  onJumpToPinnedMessage={jumpToPinnedMessageStable}
+                  {...(canOperateThread ? { onUnpinMessage: unpinMessageStable } : {})}
                   onNewThreadInProject={handleNewThreadInActiveProjectStable}
                   {...(activeDraftLogicalProjectKey
                     ? { onOpenProjectSettings: handleOpenDraftProjectSettingsStable }
@@ -3582,6 +3616,18 @@ export default function ChatView(props: ChatViewProps) {
                     {...(paintOnlyDisplayedTimeline || threadHistoryControls === undefined
                       ? {}
                       : { historyControls: threadHistoryControls })}
+                    {...(paintOnlyDisplayedTimeline
+                      ? {}
+                      : {
+                          pinnedMessages,
+                          ...(canOperateThread
+                            ? { onTogglePinnedMessage: togglePinnedMessageStable }
+                            : {}),
+                          messageJump:
+                            pinnedMessageJump?.threadKey === routeThreadKey
+                              ? pinnedMessageJump
+                              : null,
+                        })}
                   />
 
                   <ScrollToEndPill

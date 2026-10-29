@@ -911,6 +911,7 @@ function threadDetail(
     ...threadDone(projection.thread),
 
     ...threadSnooze(shell, nowMs),
+    pinnedMessages: projection.thread.pinnedMessages ?? [],
     createdAt: DateTime.formatIso(projection.thread.createdAt),
     updatedAt: DateTime.formatIso(projection.thread.updatedAt),
   };

@@ -2,6 +2,7 @@ import {
   AuthOrchestrationOperateScope,
   type EnvironmentId,
   type ThreadId,
+  type ThreadPinnedMessage,
 } from "@supaterm/contracts";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
@@ -40,6 +41,7 @@ import { observeResize } from "~/lib/observeResize";
 import { cn } from "~/lib/utils";
 import { textDirection } from "~/textDirection";
 import { subscribeThreadRename } from "./threadRenameActionBus";
+import { PinnedMessagesMenu } from "./PinnedMessages";
 import { useClientSettings } from "../../hooks/useSettings";
 
 interface ChatHeaderProps {
@@ -51,6 +53,9 @@ interface ChatHeaderProps {
   parentThreadLink: { threadId: ThreadId; title: string } | null;
   onOpenThread: (threadId: ThreadId) => void;
   rightPanelOpen: boolean;
+  pinnedMessages: ReadonlyArray<ThreadPinnedMessage>;
+  onJumpToPinnedMessage: (pin: ThreadPinnedMessage) => void;
+  onUnpinMessage?: ((pin: ThreadPinnedMessage) => void) | undefined;
   onNewThreadInProject: () => void;
   onOpenProjectSettings?: (() => void) | undefined;
 }
@@ -79,9 +84,13 @@ export const ChatHeader = memo(function ChatHeader({
   parentThreadLink,
   onOpenThread,
   rightPanelOpen,
+  pinnedMessages,
+  onJumpToPinnedMessage,
+  onUnpinMessage,
   onNewThreadInProject,
   onOpenProjectSettings,
 }: ChatHeaderProps) {
+  const timestampFormat = useClientSettings((settings) => settings.timestampFormat);
   const activeProjectName = activeProject?.isScratch ? "No project" : activeProject?.title;
   const newThreadShortcut = useShortcutLabel("chat.newLocal");
   const interfaceFont = useClientSettings((settings) => settings.fontFamilySans);
@@ -431,6 +440,12 @@ export const ChatHeader = memo(function ChatHeader({
           )}
         </WorkspaceBreadcrumbItem>
       </WorkspaceBreadcrumb>
+      <PinnedMessagesMenu
+        pins={pinnedMessages}
+        timestampFormat={timestampFormat}
+        onJump={onJumpToPinnedMessage}
+        onUnpin={onUnpinMessage}
+      />
     </div>
   );
 });

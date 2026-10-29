@@ -388,6 +388,23 @@ export const ThreadWorkflowRunWatch = Schema.Struct({
 });
 export type ThreadWorkflowRunWatch = typeof ThreadWorkflowRunWatch.Type;
 
+export const MAX_THREAD_PINNED_MESSAGES = 50;
+
+/**
+ * A message the user pinned to return to. The preview and send time are copied when it is pinned,
+ * so the pin list renders without loading a message that sits outside the loaded history window.
+ * Kept in conversation order.
+ */
+export const ThreadPinnedMessage = Schema.Struct({
+  itemId: TurnItemId,
+  messageId: MessageId,
+  sourceThreadId: ThreadId,
+  role: Schema.Literals(["user", "assistant"]),
+  preview: Schema.String,
+  sentAt: IsoDateTime,
+});
+export type ThreadPinnedMessage = typeof ThreadPinnedMessage.Type;
+
 export const OrchestrationV2AppThread = Schema.Struct({
   ...OrchestrationV2CreationFields,
   id: ThreadId,
@@ -433,6 +450,7 @@ export const OrchestrationV2AppThread = Schema.Struct({
   autoMarkDoneDisabledAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
   pinOrderKey: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   activeOrderKey: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
+  pinnedMessages: Schema.optional(Schema.Array(ThreadPinnedMessage)),
   lastVisitedAt: Schema.NullOr(Schema.DateTimeUtc).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
@@ -1660,6 +1678,7 @@ export const OrchestrationV2DomainEvent = Schema.Union([
       "thread.unpinned",
       "thread.pin-reordered",
       "thread.active-reordered",
+      "thread.pinned-messages-updated",
       "thread.visited",
       "thread.marked-unread",
       "thread.metadata-updated",
@@ -2513,6 +2532,7 @@ export const OrchestrationV2DomainEventJson = Schema.Union([
       "thread.unpinned",
       "thread.pin-reordered",
       "thread.active-reordered",
+      "thread.pinned-messages-updated",
       "thread.visited",
       "thread.marked-unread",
       "thread.pull-request-synced",
@@ -2749,6 +2769,20 @@ export const OrchestrationV2Command = Schema.Union([
     commandId: CommandId,
     threadId: ThreadId,
     orderKey: TrimmedNonEmptyString,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("thread.message.pin"),
+    commandId: CommandId,
+    threadId: ThreadId,
+    itemId: TurnItemId,
+    /** The thread that owns the item; a fork shows items it inherited from its source. */
+    sourceThreadId: Schema.optional(ThreadId),
+  }),
+  Schema.Struct({
+    type: Schema.Literal("thread.message.unpin"),
+    commandId: CommandId,
+    threadId: ThreadId,
+    itemId: TurnItemId,
   }),
   Schema.Struct({
     type: Schema.Literal("thread.active.reorder"),

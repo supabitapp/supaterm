@@ -30,6 +30,7 @@ const COMMAND_FEATURES: Partial<
   "thread.archive": () => ({ feature: "thread.archive" }),
   "thread.snooze": () => ({ feature: "thread.snooze" }),
   "thread.pin": () => ({ feature: "thread.pin" }),
+  "thread.message.pin": () => ({ feature: "thread.message.pin" }),
   "thread.mark-done": () => ({ feature: "thread.mark-done" }),
   "thread.pull-request.link": () => ({ feature: "thread.pull_request.link" }),
   "thread.pull-request.watch": () => ({ feature: "thread.pull_request.watch" }),

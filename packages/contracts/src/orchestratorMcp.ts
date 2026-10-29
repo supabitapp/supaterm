@@ -31,6 +31,7 @@ import {
   OrchestrationV2CreationSource,
   OrchestrationV2RunStatus,
   OrchestrationV2TurnItemStatus,
+  ThreadPinnedMessage,
 } from "./orchestrationV2.ts";
 import { ProviderOptionSelection, ProviderOptionSelectionValue } from "./model.ts";
 import { ProviderDriverKind, ProviderInstanceId } from "./providerInstance.ts";
@@ -422,6 +423,7 @@ export const OrchestratorMcpThreadDetail = Schema.Struct({
   snoozed: Schema.Boolean,
 
   snoozedUntil: Schema.NullOr(IsoDateTime),
+  pinnedMessages: Schema.Array(ThreadPinnedMessage),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
 });

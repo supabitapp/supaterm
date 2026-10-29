@@ -47,6 +47,7 @@ import type {
   MessageId,
   EnvironmentId,
   RunAttemptId,
+  ThreadPinnedMessage,
 } from "@supaterm/contracts";
 import { deriveTimelineMinimapItems } from "./timelineMinimapItems";
 import { parseScopedThreadKey } from "@supaterm/client-runtime/environment";
@@ -104,6 +105,8 @@ import {
 } from "./MessagesTimeline.logic";
 import type { ThreadFindPositionReader, ThreadFindMatch } from "./threadFind";
 import { useThreadFindNavigation } from "./useThreadFindNavigation";
+import { type TimelineMessageJump, useTimelineMessageJump } from "./useTimelineMessageJump";
+import type { PinnableProjectedItem } from "./PinnedMessages";
 import { TooltipScrollDismissArea } from "../ui/tooltip";
 import { WorktreeSetupCard } from "./WorktreeSetupCard";
 import { useOpenPrLink } from "~/lib/openPullRequestLink";
@@ -171,6 +174,7 @@ const TIMELINE_MAINTAIN_SCROLL_AT_END = {
 } as const satisfies MaintainScrollAtEndOptions;
 
 const EMPTY_RUN_IDS: ReadonlySet<RunId> = new Set();
+const EMPTY_PINNED_MESSAGES: ReadonlyArray<ThreadPinnedMessage> = [];
 const TIMELINE_MAINTAIN_SCROLL_AT_END_SMOOTH = {
   ...TIMELINE_MAINTAIN_SCROLL_AT_END,
   animated: true,
@@ -262,6 +266,9 @@ interface MessagesTimelineProps {
   topFadeEnabled?: boolean;
   historyControls?: MessagesTimelineHistoryControls | undefined;
   loadEarlier?: CitationHistoryPage | null;
+  pinnedMessages?: ReadonlyArray<ThreadPinnedMessage>;
+  onTogglePinnedMessage?: (projectedItem: PinnableProjectedItem, pinned: boolean) => void;
+  messageJump?: TimelineMessageJump | null;
   findPositionReaderRef?: React.RefObject<ThreadFindPositionReader | null>;
   findExpanded?: boolean;
   findQuery?: string;
@@ -355,6 +362,9 @@ const ConversationTimeline = memo(function ConversationTimeline({
   topFadeEnabled = false,
   historyControls,
   loadEarlier = null,
+  pinnedMessages = EMPTY_PINNED_MESSAGES,
+  onTogglePinnedMessage,
+  messageJump = null,
 }: MessagesTimelineProps) {
   const listIdentityKey = displayThreadKey ?? routeThreadKey;
   // The remembered position is a snapshot taken when the list identity changes;
@@ -621,6 +631,17 @@ const ConversationTimeline = memo(function ConversationTimeline({
     null,
   );
   const chatWidth = useClientSettings((settings) => settings.chatWidth);
+  const turnFoldRunIdOf = (entryId: string) =>
+    (
+      findFoldRunIds ??
+      timelineTurnFoldRunIdsByEntryId({
+        timelineEntries,
+        latestRun,
+        runningRunId,
+        isWorking,
+        runlessWorkActive,
+      })
+    ).get(entryId);
   const {
     target: readyCitationRequest,
     positioning: citationPositioning,
@@ -634,17 +655,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     viewport: timelineViewportElement,
     historyLoading: citationHistoryLoading,
     loadEarlier,
-    getTurnFoldRunId: (entryId) =>
-      (
-        findFoldRunIds ??
-        timelineTurnFoldRunIdsByEntryId({
-          timelineEntries,
-          latestRun,
-          runningRunId,
-          isWorking,
-          runlessWorkActive,
-        })
-      ).get(entryId),
+    getTurnFoldRunId: turnFoldRunIdOf,
     onExpandTurn: expandCitedRun,
     onManualNavigation,
   });
@@ -927,6 +938,8 @@ const ConversationTimeline = memo(function ConversationTimeline({
     onOpenThread,
     workflowOpening,
     onForkFromRun,
+    pinnedItemIds: new Set(pinnedMessages.map((pin) => pin.itemId)),
+    onTogglePinnedMessage: onTogglePinnedMessage ?? null,
     onToggleTurnFold,
     onToggleAttemptFold,
     onToggleWorkGroup,
@@ -1012,6 +1025,19 @@ const ConversationTimeline = memo(function ConversationTimeline({
     runlessWorkActive,
     rows,
     contentInsetEndAdjustment,
+  });
+
+  useTimelineMessageJump({
+    jump: messageJump,
+    entries: timelineEntries,
+    rows,
+    listRef,
+    listReady: findListReady,
+    animated: !prefersReducedMotion,
+    historyControls,
+    getTurnFoldRunId: turnFoldRunIdOf,
+    onExpandTurn: expandCitedRun,
+    onManualNavigation,
   });
 
   useThreadFindNavigation({
