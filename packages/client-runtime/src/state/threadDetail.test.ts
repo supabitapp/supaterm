@@ -37,7 +37,7 @@ function threadState(
   partial: Pick<EnvironmentThreadState, "data" | "status" | "error"> &
     Partial<Pick<EnvironmentThreadState, "history">>,
 ): EnvironmentThreadState {
-  return { ...partial, history: partial.history ?? EMPTY_THREAD_HISTORY_META };
+  return { ...partial, history: partial.history ?? EMPTY_THREAD_HISTORY_META, sequence: 0 };
 }
 
 describe("createEnvironmentThreadDetailAtoms", () => {

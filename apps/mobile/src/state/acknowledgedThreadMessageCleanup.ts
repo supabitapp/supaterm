@@ -12,6 +12,7 @@ export function startAcknowledgedThreadMessageCleanup(): () => void {
   const echoesAtom = createAcknowledgedThreadMessageEchoesAtom({
     messagesAtom: acknowledgedThreadMessagesAtom,
     threadAtom: environmentThreadDetails.threadAtom,
+    sequenceAtom: environmentThreadDetails.sequenceAtom,
   });
   return appAtomRegistry.subscribe(
     echoesAtom,

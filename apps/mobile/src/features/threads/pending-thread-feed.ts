@@ -1,7 +1,11 @@
 import { isCompactionCommandMessage } from "@supaterm/contracts";
+import { threadHasCaughtUpTo } from "@supaterm/client-runtime/state/threads";
 import type { DraftComposerAttachment } from "../../lib/composerImages";
 import { finalizeThreadFeedPresentation, type ThreadFeedEntry } from "../../lib/threadActivity";
-import type { QueuedThreadMessage } from "../../state/thread-outbox-model";
+import type {
+  AcknowledgedThreadMessage,
+  QueuedThreadMessage,
+} from "../../state/thread-outbox-model";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 
 export type PendingThreadFeedEntry = ThreadFeedEntry & {
@@ -10,21 +14,25 @@ export type PendingThreadFeedEntry = ThreadFeedEntry & {
   readonly draftAttachments?: ReadonlyArray<DraftComposerAttachment>;
 };
 
-// An acknowledged row stops being pending once the projection holds its message,
+// An acknowledged row stops being pending once the thread catches up to it,
 // even when the feed hides that message (a rolled-back or cancelled run).
 export function selectPendingAcknowledgedMessages(
-  acknowledged: ReadonlyArray<QueuedThreadMessage>,
+  acknowledged: ReadonlyArray<AcknowledgedThreadMessage>,
   thread: {
     readonly threadKey: string | null;
     readonly queuedMessages: ReadonlyArray<QueuedThreadMessage>;
+    readonly sequence: number;
     readonly projectedMessages: ReadonlyArray<{ readonly id: string }> | undefined;
   },
-): ReadonlyArray<QueuedThreadMessage> {
+): ReadonlyArray<AcknowledgedThreadMessage> {
   return acknowledged.filter(
     (message) =>
       scopedThreadKey(message.environmentId, message.threadId) === thread.threadKey &&
       !thread.queuedMessages.some((queued) => queued.messageId === message.messageId) &&
-      !thread.projectedMessages?.some((projected) => projected.id === message.messageId),
+      !threadHasCaughtUpTo(message, {
+        sequence: thread.sequence,
+        messages: thread.projectedMessages,
+      }),
   );
 }
 
