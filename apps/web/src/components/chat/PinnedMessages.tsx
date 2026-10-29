@@ -47,7 +47,7 @@ export function MessagePinButton({ projectedItem }: { projectedItem: PinnablePro
           />
         }
       >
-        <PinIcon className={cn("size-3", pinned && "fill-current text-foreground")} />
+        <PinIcon className={cn("size-3", pinned && "fill-current text-info")} />
       </TooltipTrigger>
       <TooltipPopup side="top">{label}</TooltipPopup>
     </Tooltip>

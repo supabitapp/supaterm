@@ -610,7 +610,8 @@ const ConversationTimeline = memo(function ConversationTimeline({
   // Run status/timestamps churn on every stream event; the shared row context
   // must not change with them or every timeline row re-renders per event.
   const runs = useStableHandoffRuns(runsProp);
-  const minimapItems = deriveTimelineMinimapItems(rows);
+  const pinnedItemIds = new Set(pinnedMessages.map((pin) => pin.itemId));
+  const minimapItems = deriveTimelineMinimapItems(rows, pinnedItemIds);
   const minimapRowIndices = minimapItems.map((item) => item.rowIndex);
 
   const restoreRowIndex =
@@ -942,7 +943,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     onOpenThread,
     workflowOpening,
     onForkFromRun,
-    pinnedItemIds: new Set(pinnedMessages.map((pin) => pin.itemId)),
+    pinnedItemIds,
     onTogglePinnedMessage: onTogglePinnedMessage ?? null,
     onToggleTurnFold,
     onToggleAttemptFold,
