@@ -55,6 +55,7 @@ import {
   recallCheckoutIsRepo,
   rememberCheckoutIsRepo,
 } from "./ChatView.logic";
+import { useAddProjectTargets } from "../hooks/useAddProjectTargets";
 import { useLogicalProjectEnvironments } from "../hooks/useLogicalProjectEnvironments";
 import { useStableCallback } from "../hooks/useStableCallback";
 import { useProjectScriptEditing } from "./chat/useProjectScriptEditing";
@@ -1266,13 +1267,15 @@ export default function ChatView(props: ChatViewProps) {
   );
   const hasMultipleEnvironments = logicalProjectEnvironments.length > 1;
   const canAutoBalanceEnvironments = hasMultipleEnvironments && !activeProjectIsScratch;
+  const canAddProjectToMachine =
+    useAddProjectTargets(activeProject, logicalProjectEnvironments).length > 0;
   const activeEnvironmentOption =
     logicalProjectEnvironments.find(
       (environment) => environment.environmentId === activeThread?.environmentId,
     ) ?? null;
   const showComposerEnvironmentIndicator = shouldShowEnvironmentIndicator({
     activeEnvironment: activeEnvironmentOption,
-    canPickEnvironment: hasMultipleEnvironments,
+    canPickEnvironment: hasMultipleEnvironments || canAddProjectToMachine,
   });
 
   const { handlePreparedPullRequestThreadStable, openPullRequestDialogStable } =
@@ -3302,6 +3305,7 @@ export default function ChatView(props: ChatViewProps) {
       threadId={activeThread.id}
       showGitControls={isGitRepo && showDraftProjectPicker}
       showEnvironmentIndicator={showComposerEnvironmentIndicator && showDraftProjectPicker}
+      canAddToMachine={canAddProjectToMachine}
       {...(routeKind === "draft" && draftId ? { draftId } : {})}
       onEnvModeChange={onEnvModeChangeStable}
       startFromOrigin={startFromOrigin}

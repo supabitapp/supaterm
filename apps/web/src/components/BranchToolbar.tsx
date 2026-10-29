@@ -30,7 +30,6 @@ import {
 } from "./BranchToolbarBranchSelector";
 import { BranchToolbarEnvironmentSelector } from "./BranchToolbarEnvironmentSelector";
 import { openAddProjectToMachine } from "./AddProjectToMachineDialog";
-import { useAddProjectTargets } from "../hooks/useAddProjectTargets";
 import { BranchToolbarEnvModeSelector } from "./BranchToolbarEnvModeSelector";
 import { ComposerSurface } from "./chat/ComposerSurface";
 import { measureRestingComposerControls } from "./chat/restingComposerControlsMeasurement";
@@ -72,6 +71,7 @@ interface BranchToolbarProps {
   composerControlsHostRef?: (element: HTMLDivElement | null) => void;
   contextStripVisible?: boolean;
   showEnvironmentIndicator?: boolean;
+  canAddToMachine?: boolean;
   /**
    * Leads the composer strip, ahead of the branch and host controls. A draft
    * without a project yet still gets a strip holding just this control.
@@ -279,6 +279,7 @@ export const BranchToolbar = memo(function BranchToolbar({
   composerControlsHostRef,
   contextStripVisible = true,
   showEnvironmentIndicator = false,
+  canAddToMachine = false,
   projectPicker,
   contextStripPlacement = "bottom",
   usageMeter,
@@ -353,12 +354,8 @@ export const BranchToolbar = memo(function BranchToolbar({
     ],
   );
 
-  const addTargets = useAddProjectTargets(activeProject, availableEnvironments);
-  const onAddToMachine = (targetEnvironmentId: EnvironmentId | null) =>
-    openAddProjectToMachine({ projectRef: activeProjectRef, targetEnvironmentId });
-  // A project on one machine still gets the picker when it can be added to another.
-  const hasMultipleEnvironments = (availableEnvironments?.length ?? 0) > 1 || addTargets.length > 0;
-  const showEnvironmentPicker = hasMultipleEnvironments && onEnvironmentChange !== undefined;
+  const onAddToMachine = () =>
+    openAddProjectToMachine({ projectRef: activeProjectRef, targetEnvironmentId: null });
   const [stripElement, setStripElement] = useState<HTMLDivElement | null>(null);
   const labelsOverflow = useLabelsOverflow(stripElement);
 
@@ -432,8 +429,8 @@ export const BranchToolbar = memo(function BranchToolbar({
           envLocked={envLocked}
           environmentId={environmentId}
           availableEnvironments={availableEnvironments}
-          {...(showEnvironmentPicker ? { onEnvironmentChange } : {})}
-          {...(addTargets.length > 0 ? { onAddToMachine: () => onAddToMachine(null) } : {})}
+          {...(onEnvironmentChange ? { onEnvironmentChange } : {})}
+          {...(canAddToMachine ? { onAddToMachine } : {})}
         />
       ) : null}
       {showGitControls ? (
