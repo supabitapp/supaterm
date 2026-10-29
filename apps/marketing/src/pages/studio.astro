@@ -160,8 +160,9 @@ import { STATE_COPY } from "../lib/studio";
   }
 
   /* DialKit's copy button writes an agent prompt for editing its config, which a visitor has no use
-     for. Copy link is how a look is shared. */
-  .controls :global(.dialkit-toolbar-primary) {
+     for; Copy link is how a look is shared. The bolt computer is opaque, so opacity would do nothing. */
+  .controls :global(.dialkit-toolbar-primary),
+  .controls :global(.dialkit-color-track-row:has(.dialkit-color-opacity)) {
     display: none;
   }
 

@@ -56,16 +56,29 @@ const colour = (value: string | null, fallback: string) => {
   return hex ? `#${hex.toLowerCase()}` : fallback;
 };
 
+/**
+ * `css` without its alpha, as DialKit's picker writes it (`#rrggbbaa`, `oklch(… / a)`,
+ * `color(display-p3 … / a)`) or as typed (`rgba(r, g, b, a)`). The bolt computer's materials are
+ * opaque, and a transparent pixel keeps no colour to read back.
+ */
+export const withoutAlpha = (css: string) =>
+  css
+    .trim()
+    .replace(/^#([0-9a-f]{3})[0-9a-f]$|^#([0-9a-f]{6})[0-9a-f]{2}$/i, "#$1$2")
+    .replace(/\s*\/[^)]*\)$/, ")")
+    .replace(/^(rgb|hsl)a?\(([^,]*,[^,]*,[^,]*),[^)]*\)$/i, "$1($2)");
+
 let probe: CanvasRenderingContext2D | null | undefined;
 
-/** Any CSS colour the panel's picker emits (OKLCH, P3, alpha), as the `#rrggbb` the renderer reads. */
+/** Any CSS colour the panel's picker emits, as the opaque `#rrggbb` the renderer reads. */
 function opaqueHex(css: string, fallback: string) {
-  if (HEX.test(css)) return colour(css, fallback);
+  const solid = withoutAlpha(css);
+  if (HEX.test(solid)) return colour(solid, fallback);
   probe ??= document.createElement("canvas").getContext("2d", { willReadFrequently: true });
   if (!probe) return fallback;
   probe.clearRect(0, 0, 1, 1);
   probe.fillStyle = fallback;
-  probe.fillStyle = css;
+  probe.fillStyle = solid;
   probe.fillRect(0, 0, 1, 1);
   const [r = 0, g = 0, b = 0] = probe.getImageData(0, 0, 1, 1).data;
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
@@ -119,14 +132,11 @@ const panelValuesOf = (settings: BoltComputerSettings) =>
     floorShadow: settings.floorShadow,
   }) satisfies DialKitValueUpdates<typeof PANEL>;
 
-const settingsOfPanel = (
-  values: PanelValues,
-  previous: BoltComputerSettings,
-): BoltComputerSettings => ({
-  state: isState(values.screen) ? values.screen : previous.state,
-  shell: opaqueHex(values.shell, previous.shell),
-  phosphor: opaqueHex(values.phosphor, previous.phosphor),
-  knobs: opaqueHex(values.knobs.color, previous.knobs),
+const settingsOfPanel = (values: PanelValues): BoltComputerSettings => ({
+  state: isState(values.screen) ? values.screen : DEFAULT_SETTINGS.state,
+  shell: opaqueHex(values.shell, DEFAULT_SETTINGS.shell),
+  phosphor: opaqueHex(values.phosphor, DEFAULT_SETTINGS.phosphor),
+  knobs: opaqueHex(values.knobs.color, DEFAULT_SETTINGS.knobs),
   controls: values.knobs.visible,
   speed: values.speed,
   paused: values.paused,
@@ -211,7 +221,7 @@ export function startStudio(root: HTMLElement) {
   const kit = createDialKit("Bolt computer", PANEL);
   kit.setValues(panelValuesOf(settings));
   kit.subscribe((values) => {
-    settings = settingsOfPanel(values, settings);
+    settings = settingsOfPanel(values);
     render();
   });
 
@@ -224,15 +234,16 @@ export function startStudio(root: HTMLElement) {
 
   root.addEventListener("click", (event) => {
     const target = event.target instanceof Element ? event.target : null;
-    const screen = target?.closest<HTMLButtonElement>("button[data-screen]")?.dataset.screen;
-    if (screen !== undefined) {
+    const screen =
+      target?.closest<HTMLButtonElement>("button[data-screen]")?.dataset.screen ?? null;
+    if (isState(screen)) {
       kit.setValue("screen", screen);
       return;
     }
     const action = target?.closest<HTMLButtonElement>("[data-action]");
     switch (action?.dataset.action) {
       case "reset":
-        kit.resetValues();
+        kit.setValues(panelValuesOf(DEFAULT_SETTINGS));
         break;
       case "copy":
         void navigator.clipboard.writeText(new URL(query(), location.origin).href).then(
