@@ -15,7 +15,6 @@ import type { ReactNode } from "react";
 
 import { usePrimarySettings } from "../../hooks/useSettings";
 import { useNowMinute } from "../../hooks/useNowMinute";
-import { type ContextWindowSnapshot, formatContextWindowTokens } from "../../lib/contextWindow";
 import { cn } from "../../lib/utils";
 import { formatUpcomingTimestamp } from "../../timestampFormat";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -30,18 +29,13 @@ const PACE_LABEL: Record<LimitPace, string> = {
 export interface ThreadDetailsLimitsInput {
   readonly providerInstanceId: ProviderInstanceId | null;
   readonly providers: readonly ServerProvider[];
-  readonly contextWindow: ContextWindowSnapshot | null;
 }
 
 /**
- * The selected provider's limit windows and the thread's context window.
+ * The selected provider's limit windows; the context window has its own row in the card.
  * Every row reads as room left, so a longer bar always means more headroom.
  */
-export function ThreadDetailsLimits({
-  providerInstanceId,
-  providers,
-  contextWindow,
-}: ThreadDetailsLimitsInput) {
+export function ThreadDetailsLimits({ providerInstanceId, providers }: ThreadDetailsLimitsInput) {
   const nowMinute = useNowMinute();
   const now = Date.parse(`${nowMinute}:00Z`);
   const report =
@@ -54,7 +48,7 @@ export function ThreadDetailsLimits({
     report?.accounts.find((entry) => entry.instanceId === providerInstanceId)?.limits ??
     providers.find((provider) => provider.instanceId === providerInstanceId)?.usageLimits;
   const notice = limits ? limitsNotice(limits) : null;
-  if (!limits && !contextWindow) return null;
+  if (!limits) return null;
 
   return (
     <ThreadDetailsSection
@@ -74,7 +68,6 @@ export function ThreadDetailsLimits({
         {limits && !notice
           ? limits.windows.map((window) => <LimitRow key={window.id} window={window} now={now} />)
           : null}
-        {contextWindow ? <ContextRow usage={contextWindow} spaced={limits !== undefined} /> : null}
       </div>
     </ThreadDetailsSection>
   );
@@ -113,56 +106,18 @@ function LimitRow({
   );
 }
 
-function ContextRow({
-  usage,
-  spaced,
-}: {
-  readonly usage: ContextWindowSnapshot;
-  readonly spaced: boolean;
-}) {
-  const maxTokens = usage.maxTokens ?? null;
-  const left =
-    maxTokens !== null && usage.usedPercentage !== null
-      ? Math.round(100 - Math.max(0, Math.min(100, usage.usedPercentage)))
-      : null;
-  const used = formatContextWindowTokens(usage.usedTokens);
-  return (
-    <UsageRow
-      label="Context"
-      left={left}
-      muted
-      className={cn(spaced && "mt-2")}
-      tooltip={
-        <>
-          {left !== null ? <span className="text-foreground">Context: {left}% left</span> : null}
-          <span className={left !== null ? "text-muted-foreground" : "text-foreground"}>
-            {maxTokens !== null
-              ? `${used} of ${formatContextWindowTokens(maxTokens)} tokens used`
-              : `${used} tokens used`}
-          </span>
-        </>
-      }
-      value={left === null ? used : undefined}
-    />
-  );
-}
-
 /** One label, hairline, and value row; the whole row opens the details tooltip. */
 function UsageRow({
   label,
   left,
   tooltip,
   value,
-  muted = false,
-  className,
 }: {
   readonly label: string;
   readonly left: number | null;
   readonly tooltip: ReactNode;
   /** Replaces the percentage when there is none. */
   readonly value?: string | undefined;
-  readonly muted?: boolean;
-  readonly className?: string | undefined;
 }) {
   const tone = left === null ? null : left <= 10 ? "error" : left <= 20 ? "warning" : null;
   return (
@@ -172,10 +127,7 @@ function UsageRow({
           <div
             tabIndex={0}
             aria-label={`${label}: ${value ?? `${left}% left`}`}
-            className={cn(
-              "col-span-3 grid h-6 cursor-default grid-cols-subgrid items-center rounded-lg px-2.5 outline-none hover:bg-black/[0.035] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-popup-open:bg-black/[0.035] dark:hover:bg-white/[0.08] dark:data-popup-open:bg-white/[0.08]",
-              className,
-            )}
+            className="col-span-3 grid h-6 cursor-default grid-cols-subgrid items-center rounded-lg px-2.5 outline-none hover:bg-black/[0.035] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-popup-open:bg-black/[0.035] dark:hover:bg-white/[0.08] dark:data-popup-open:bg-white/[0.08]"
           />
         }
       >
@@ -190,9 +142,7 @@ function UsageRow({
                     ? "bg-error"
                     : tone === "warning"
                       ? "bg-warning"
-                      : muted
-                        ? "bg-muted-foreground"
-                        : "bg-foreground/80",
+                      : "bg-foreground/80",
                 )}
                 style={{ width: `max(${left}%, 6px)` }}
               />

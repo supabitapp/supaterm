@@ -119,6 +119,11 @@ limits is left, taking the busiest window of each length. After a thread starts,
 below the composer only when **Usage limits** is enabled in Settings → Appearance. It reads the same
 snapshot and hides while the composer is collapsed.
 
+To keep them in view in the thread details card on web and desktop, turn on **Usage limits** in
+**Settings → Appearance → Thread details**, or right-click the card. The card then shows how much
+is left in each limit window of the current provider account. Some windows, such as a weekly Opus
+limit, count only one model. Hover a row to see when it resets or your pace.
+
 OpenCode Go reports its session, weekly, and monthly allowance when OpenCode runs locally in
 the environment. Supaterm cannot report limits for external OpenCode servers because their credentials
 belong to the remote server. Limits need an OpenCode Go API key, or an OpenCode Console connected

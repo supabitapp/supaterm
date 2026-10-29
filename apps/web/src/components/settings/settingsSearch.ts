@@ -614,6 +614,14 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["wide full width column layout messages composer monitor"],
   },
   {
+    id: "thread-details-items",
+    title: "Thread details",
+    to: "/settings/appearance",
+    searchTerms: [
+      "customize show hide panel card environment editor scripts branch pull request git changes context fork servers automations lineage usage limits 5 hour weekly quota",
+    ],
+  },
+  {
     id: "interface-font",
     title: "Interface font",
     to: "/settings/appearance",

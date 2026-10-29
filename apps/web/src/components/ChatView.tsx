@@ -4048,6 +4048,10 @@ export default function ChatView(props: ChatViewProps) {
                     forkSource={forkSource}
                     forkDisabled={forkDisabled}
                     onForkFromRun={onForkFromRunStable}
+                    usage={{
+                      providerInstanceId: activeProviderInstanceId,
+                      providers: providerStatuses,
+                    }}
                   />
                 ) : null}
 

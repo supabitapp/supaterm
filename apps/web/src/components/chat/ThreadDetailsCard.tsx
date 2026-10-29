@@ -3,6 +3,7 @@ import {
   useLayoutEffect,
   useState,
   type CSSProperties,
+  type MouseEventHandler,
   type ReactNode,
   type RefObject,
 } from "react";
@@ -25,11 +26,16 @@ export function ThreadDetailsCard({
   threadRef,
   anchor,
   handle,
+  contentKey,
+  onContextMenu,
   children,
 }: {
   threadRef: ScopedThreadRef;
   anchor: RefObject<Element | null>;
   handle: ReturnType<typeof PopoverCreateHandle>;
+  /** Changes when the set of rendered items changes, so cached heights are measured again. */
+  contentKey: string;
+  onContextMenu?: MouseEventHandler<HTMLDivElement>;
   children: (density: "full" | "compact" | "essential") => ReactNode;
 }) {
   const canvas = useChatCanvas();
@@ -46,7 +52,7 @@ export function ThreadDetailsCard({
     selectThreadPanelOpen(state.threadPanelVisibilityByThreadKey, threadRef, "popover"),
   );
   const threadKey = `${threadRef.environmentId}:${threadRef.threadId}`;
-  const measurementKey = `${threadKey}:${preferredPlacement?.width ?? "popup"}`;
+  const measurementKey = `${threadKey}:${preferredPlacement?.width ?? "popup"}:${contentKey}`;
   const [measurements, setMeasurements] = useState({
     key: measurementKey,
     heights: { full: 0, compact: 0 },
@@ -137,6 +143,7 @@ export function ThreadDetailsCard({
           "transition-[opacity,translate] duration-200 ease-drawer data-enter:starting:translate-x-2 data-enter:starting:opacity-0 data-ending-style:translate-x-2 data-ending-style:opacity-0 data-ending-style:duration-150 data-ending-style:ease-in motion-reduce:transition-none",
       )}
       style={placement ? { maxHeight: height } : undefined}
+      onContextMenu={onContextMenu}
       data-thread-details-card
     >
       <TooltipProvider>
