@@ -2520,7 +2520,9 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
                                 ? makeProviderFailure({
                                     cause: result.error,
                                     message: result.error?.message,
-                                    class: "provider_error",
+                                    class: CursorAgentSdk.isCursorUsageLimitError(result.error)
+                                      ? "usage_limit"
+                                      : "provider_error",
                                   })
                                 : makeProviderFailure({
                                     cause: transportFailure,
@@ -2546,7 +2548,9 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
                               message: CursorAgentSdk.isCursorAgentSdkRunnerError(cause)
                                 ? CursorAgentSdk.cursorSdkFailureMessage(cause)
                                 : undefined,
-                              class: "transport_error",
+                              class: CursorAgentSdk.isCursorUsageLimitError(cause)
+                                ? "usage_limit"
+                                : "transport_error",
                             }),
                           }),
                     });
