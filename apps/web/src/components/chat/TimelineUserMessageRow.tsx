@@ -44,8 +44,8 @@ import {
   EyeIcon,
   type IconComponent,
   MessagesSquareIcon,
+  PencilIcon,
   RedoIcon,
-  UndoIcon,
 } from "@supaterm/icons";
 import { Link as LinkIconNode } from "@supaterm/icons/nodes";
 import { DisclosureChevron } from "../ui/disclosure-chevron";
@@ -739,7 +739,7 @@ function RevertUserMessageButton({
           />
         }
       >
-        <UndoIcon className="size-3" />
+        <PencilIcon className="size-3" />
       </TooltipTrigger>
       <TooltipPopup side="top">Edit from here</TooltipPopup>
     </Tooltip>
