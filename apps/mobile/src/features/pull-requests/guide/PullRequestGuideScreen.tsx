@@ -45,9 +45,16 @@ const attentionLabels = {
   risk: "A risk to judge",
   accessibility: "An accessibility call",
 };
-export function PullRequestGuideContent({ params }: { readonly params: PullRequestParams }) {
+
+export function PullRequestGuideContent({
+  params,
+  visible = true,
+}: {
+  readonly params: PullRequestParams;
+  readonly visible?: boolean;
+}) {
   const navigation = useNavigation();
-  const state = useReviewGuide(params);
+  const state = useReviewGuide(params, visible);
   const { guide, stale } = reviewGuideState(state.data);
   return (
     <Animated.View layout={PR_ROW_LAYOUT} className="w-full max-w-[760px] self-center">
