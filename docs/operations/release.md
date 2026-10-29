@@ -220,7 +220,9 @@ release archives, and then its npm launcher, available before users can receive 
 The workflow enforces this ordering:
 
 1. `release` publishes the GitHub Release with the CLI archives and `SHA256SUMS`, once
-   `check_cli_publish` has run the npm publish as a dry run.
+   `check_cli_publish` has run the npm publish as a dry run. Every channel uploads to a draft and
+   publishes only after all assets are attached, so a version in the desktop update feed always
+   has its archives.
 2. `publish_cli` publishes the `supaterm@<version>` launcher, which downloads from that release, on
    every channel.
 3. `deploy_web` depends on both before moving the hosted channel to the new client.
