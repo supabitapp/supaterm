@@ -32,13 +32,12 @@ vi.mock("electron", () => {
 });
 
 vi.mock("../electron/MacApplicationIcon.ts", () => ({
-  loadMacApplicationIcon: async () => ({
-    isEmpty: () => false,
-    getScaleFactors: () => [1, 2],
-    getSize: () => ({ width: 128, height: 128 }),
-    toBitmap: ({ scaleFactor }: { scaleFactor: number }) =>
-      Buffer.alloc((128 * scaleFactor) ** 2 * 4, 255),
-  }),
+  loadMacApplicationIcon: async () =>
+    [1, 2].map((scaleFactor) => ({
+      size: 128 * scaleFactor,
+      scaleFactor,
+      bitmap: Buffer.alloc((128 * scaleFactor) ** 2 * 4, 255),
+    })),
 }));
 
 const run = (input: {

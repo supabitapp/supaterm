@@ -140,21 +140,17 @@ export const make = Effect.gen(function* () {
       ),
       Effect.option,
     );
-    if (Option.isNone(icon) || icon.value.isEmpty()) return;
-    const renditions = [];
-    for (const scaleFactor of icon.value.getScaleFactors()) {
-      const size = icon.value.getSize(scaleFactor).width * scaleFactor;
-      renditions.push({
+    if (Option.isNone(icon)) return;
+    const renditions = icon.value.map(({ size, scaleFactor, bitmap }) => ({
+      size,
+      scaleFactor,
+      frames: makeLaunchIconFrames(
+        lit.resize({ width: size, height: size, quality: "best" }).toBitmap(),
+        unlit.resize({ width: size, height: size, quality: "best" }).toBitmap(),
         size,
-        scaleFactor,
-        frames: makeLaunchIconFrames(
-          lit.resize({ width: size, height: size, quality: "best" }).toBitmap(),
-          unlit.resize({ width: size, height: size, quality: "best" }).toBitmap(),
-          size,
-          icon.value.toBitmap({ scaleFactor }),
-        ),
-      });
-    }
+        bitmap,
+      ),
+    }));
     yield* animate(renditions).pipe(Effect.ensuring(electronApp.setDockIcon(null)));
   }).pipe(
     Effect.catch((error) =>

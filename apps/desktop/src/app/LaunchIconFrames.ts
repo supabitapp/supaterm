@@ -46,7 +46,7 @@ export function makeLaunchIconFrames(
   lit: Buffer,
   unlit: Buffer,
   size: number,
-  icon = lit,
+  icon: Buffer,
 ): LaunchIconFrames {
   const cellIndex = new Map(BOLT_CELLS.map(([c, r], index) => [`${c},${r}`, index]));
   const pixels: number[] = [];
