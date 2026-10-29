@@ -19,8 +19,6 @@ import { useVisibleSecondClock } from "./use-visible-second-clock";
 export interface WorktreeSetupCardProps {
   snapshot: WorktreeSetupSnapshot;
   turnStarted: boolean;
-  turnStartedAt: string | null;
-  working: boolean;
   onCancel: () => void;
   onWorkLocally: (() => void) | null;
 }
@@ -40,38 +38,31 @@ const icons: Record<WorktreeSetupStage["status"], AppSymbolName> = {
 };
 
 export function WorktreeSetupCard(props: WorktreeSetupCardProps) {
-  const { snapshot, turnStarted, turnStartedAt, working } = props;
+  const { snapshot, turnStarted } = props;
   const handedOff = turnStarted && worktreeSetupAgentStarted(snapshot);
   const running = snapshot.phase === "running";
   const backgroundSetup = handedOff && running;
   const scriptName = snapshot.setupScript?.name ?? "Setup script";
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const now = useVisibleSecondClock(running || working);
+  const now = useVisibleSecondClock(running);
   const failed =
     snapshot.phase === "failed" || snapshot.stages.some((stage) => stage.status === "failed");
-  const label =
-    handedOff && working
-      ? `Working for ${elapsed(turnStartedAt, null, now) ?? "0s"}`
-      : running
-        ? handedOff
-          ? "Setup continues…"
-          : "Setting up worktree…"
-        : snapshot.phase === "cancelled"
-          ? "Worktree setup cancelled"
-          : snapshot.phase === "failed"
-            ? "Worktree setup failed"
-            : failed
-              ? "Setup script failed"
-              : "Worktree ready";
+  const label = running
+    ? handedOff
+      ? "Setup continues…"
+      : "Setting up worktree…"
+    : snapshot.phase === "cancelled"
+      ? "Worktree setup cancelled"
+      : snapshot.phase === "failed"
+        ? "Worktree setup failed"
+        : failed
+          ? "Setup script failed"
+          : "Worktree ready";
 
   return (
     <View accessibilityLabel="Worktree setup" className="py-1">
       <View className="min-h-11 flex-row items-center gap-2 border-b border-border px-1">
-        <HeaderLabel
-          label={label}
-          active={(running || working) && !detailsOpen}
-          failed={failed && !working}
-        />
+        <HeaderLabel label={label} active={running && !detailsOpen} failed={failed} />
         {!handedOff ? (
           <Text
             className="text-2xs text-foreground-secondary"
@@ -143,17 +134,6 @@ export function WorktreeSetupCard(props: WorktreeSetupCardProps) {
       {detailsOpen ? (
         <SetupDetailsSheet {...props} now={now} onClose={() => setDetailsOpen(false)} />
       ) : null}
-    </View>
-  );
-}
-
-export function WorktreeWorkingHeader({ startedAt }: { startedAt: string }) {
-  const now = useVisibleSecondClock(true);
-  return (
-    <View className="py-1">
-      <View className="min-h-11 flex-row items-center border-b border-border px-1">
-        <HeaderLabel label={`Working for ${elapsed(startedAt, null, now) ?? "0s"}`} active />
-      </View>
     </View>
   );
 }
