@@ -129,7 +129,7 @@ describe("runMigrations", () => {
 
   it.effect("refuses a history that would skip one of this build's migrations", () =>
     Effect.gen(function* () {
-      yield* createLedger([[3, "SomeOtherBuild"]]);
+      yield* createLedger([[4, "SomeOtherBuild"]]);
 
       const exit = yield* Effect.exit(runMigrations());
 
@@ -143,8 +143,8 @@ describe("runMigrations", () => {
       const sql = yield* SqlClient.SqlClient;
       yield* runMigrations();
       const newer = [
-        [3, "ThreadFailureLookupIndex"],
-        [4, "FromANewerBuild"],
+        [4, "ThreadFailureLookupIndex"],
+        [5, "FromANewerBuild"],
       ] as const;
       for (const [id, name] of newer) {
         yield* sql`INSERT INTO effect_sql_migrations (migration_id, name) VALUES (${id}, ${name})`;

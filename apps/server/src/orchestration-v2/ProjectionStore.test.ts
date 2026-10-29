@@ -4044,8 +4044,21 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       assert.include(recoveryThreadIds, childThreadId);
       assert.notInclude(recoveryThreadIds, doneThreadId);
       assert.notInclude(recoveryThreadIds, rolledBackThreadId);
-      const memberRecovery = yield* projectionStore.getRuntimeRecoveryProjection(memberThreadId);
+      const { statements, tracer } = traceSqlStatements();
+      const memberRecovery = yield* projectionStore
+        .getRuntimeRecoveryProjection(memberThreadId)
+        .pipe(Effect.withTracer(tracer));
       const childRecovery = yield* projectionStore.getRuntimeRecoveryProjection(childThreadId);
+      // Live-item filters must hit the active partial indexes, not walk the thread's history.
+      const sql = yield* SqlClient.SqlClient;
+      for (const statement of statements.filter((query) => query.includes("turn_items"))) {
+        const plan = (yield* sql.unsafe<{ readonly detail: string }>(
+          `EXPLAIN QUERY PLAN ${statement}`,
+        )).map((row) => row.detail);
+        for (const detail of plan) {
+          assert.notMatch(detail, /turn_items_(thread_ordinal|thread_run)_idx \(thread_id=\?\)$/);
+        }
+      }
       assert.deepEqual(
         memberRecovery.subagents.map((subagent) => subagent.id),
         [memberId],
