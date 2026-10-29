@@ -13,6 +13,7 @@ export function pinnedMessageTitle(pin: ThreadPinnedMessage): string {
 
 export function pinnedMessageCaption(pin: ThreadPinnedMessage): string {
   const sentAt = Date.parse(pin.sentAt);
-  const author = pin.role === "user" ? "You" : "Agent";
-  return Number.isNaN(sentAt) ? author : `${author} · ${PIN_TIME_FORMATTER.format(sentAt)}`;
+  const time = Number.isNaN(sentAt) ? "" : PIN_TIME_FORMATTER.format(sentAt);
+  if (pin.role !== "user") return time;
+  return time === "" ? "You" : `You · ${time}`;
 }
