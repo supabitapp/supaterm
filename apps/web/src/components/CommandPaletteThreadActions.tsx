@@ -4,6 +4,7 @@ import {
   CircleCheckIcon,
   ClockIcon,
   FolderIcon,
+  FolderPlusIcon,
   GitBranchIcon,
   HashIcon,
   type IconComponent,
@@ -55,6 +56,10 @@ const THREAD_PALETTE_COMMANDS: Record<
   "new-thread-on-branch": {
     icon: MessageSquarePlusIcon,
     searchTerms: ["new thread", "branch", "worktree", "same"],
+  },
+  "turn-into-project": {
+    icon: FolderPlusIcon,
+    searchTerms: ["turn into project", "promote", "no project", "scratch", "folder"],
   },
   pin: { icon: PinIcon, searchTerms: ["pin", "thread"], shortcutCommand: "thread.pin" },
   unpin: { icon: PinOffIcon, searchTerms: ["unpin", "thread"], shortcutCommand: "thread.pin" },
