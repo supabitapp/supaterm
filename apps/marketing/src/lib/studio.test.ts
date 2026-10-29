@@ -15,6 +15,7 @@ describe("studio links", () => {
       shell: "#3a3d44",
       phosphor: "#da6aff",
       knobs: "#b8913f",
+      controls: false,
       speed: 1.5,
       paused: true,
       interactive: false,

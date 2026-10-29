@@ -12,6 +12,8 @@ export interface BoltComputerSettings {
   readonly phosphor: string;
   /** `#rrggbb`, the round knob and the slider's handle. */
   readonly knobs: string;
+  /** Show the round knob and the slider. */
+  readonly controls: boolean;
   /** Multiplier on every animation. */
   readonly speed: number;
   /** Hold the state's still pose. */
@@ -26,6 +28,7 @@ export const DEFAULT_SETTINGS: BoltComputerSettings = {
   shell: "#e2dbca",
   phosphor: "#fff06a",
   knobs: "#686c3a",
+  controls: true,
   speed: 1,
   paused: false,
   interactive: true,
@@ -47,6 +50,7 @@ export const lookOf = (settings: BoltComputerSettings): Look => ({
   shell: shellMaterial(hexToRgb(settings.shell)),
   phosphor: hexToRgb(settings.phosphor),
   knobs: hexToRgb(settings.knobs),
+  controls: settings.controls,
   floorShadow: settings.floorShadow,
 });
 

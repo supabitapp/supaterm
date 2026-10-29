@@ -40,6 +40,7 @@ export interface Look {
   readonly shell: Material;
   readonly phosphor: RGB;
   readonly knobs: RGB;
+  readonly controls: boolean;
   readonly floorShadow: boolean;
 }
 
@@ -324,7 +325,7 @@ export class BoltComputerRenderer {
     return {
       housing: layer((ctx) => this.drawHousing(ctx, view, 1, look.shell)),
       screen: layer((ctx) => drawGlass(ctx, view, FRONT_POSE, sized)),
-      bezel: layer((ctx) => drawBezel(ctx, view, sized, this.controlsFor(sized.unit, look.knobs))),
+      bezel: layer((ctx) => this.drawBezel(ctx, view, sized, look)),
     };
   }
 
@@ -375,6 +376,16 @@ export class BoltComputerRenderer {
     const canvas = bakeControls(unit, knobs);
     this.controls = { unit, knobs, canvas };
     return canvas;
+  }
+
+  /** The bezel's relief, with the shadow it casts on the glass, and the controls. */
+  private drawBezel(ctx: CanvasRenderingContext2D, view: View, sized: Sized, look: Look) {
+    view.plane(ctx, FRONT_Z, false);
+    const front = sized.bakes.front(look.controls);
+    ctx.drawImage(front, -PLATE.hx, -PLATE.hy, PLATE.hx * 2, PLATE.hy * 2);
+    if (!look.controls) return;
+    const controls = this.controlsFor(sized.unit, look.knobs);
+    ctx.drawImage(controls, -PLATE.hx, -PLATE.hy, PLATE.hx * 2, PLATE.hy * 2);
   }
 
   private prepare(unit: number): Sized {
@@ -466,7 +477,7 @@ export class BoltComputerRenderer {
     if (facing > 0) {
       this.drawScreen(sized, this.compose(sim, look.state), ledColor(sim, look));
       drawGlass(ctx, view, pose, sized);
-      drawBezel(ctx, view, sized, this.controlsFor(sized.unit, look.knobs));
+      this.drawBezel(ctx, view, sized, look);
     } else if (facing < 0) {
       view.plane(ctx, -FRONT_Z, true);
       ctx.drawImage(sized.bakes.back, -PLATE.hx, -PLATE.hy, PLATE.hx * 2, PLATE.hy * 2);
@@ -558,16 +569,4 @@ function drawGlass(ctx: CanvasRenderingContext2D, view: View, pose: Pose, sized:
   view.plane(ctx, FRONT_Z, false);
   drawSheen(ctx, pose);
   ctx.restore();
-}
-
-/** The bezel's relief, with the shadow it casts on the glass, and the controls. */
-function drawBezel(
-  ctx: CanvasRenderingContext2D,
-  view: View,
-  sized: Sized,
-  controls: HTMLCanvasElement,
-) {
-  view.plane(ctx, FRONT_Z, false);
-  ctx.drawImage(sized.bakes.front, -PLATE.hx, -PLATE.hy, PLATE.hx * 2, PLATE.hy * 2);
-  ctx.drawImage(controls, -PLATE.hx, -PLATE.hy, PLATE.hx * 2, PLATE.hy * 2);
 }

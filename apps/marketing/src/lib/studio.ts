@@ -52,6 +52,7 @@ export type ControlKey =
   | "shell"
   | "phosphor"
   | "knobs"
+  | "controls"
   | "speed"
   | "interactive"
   | "floorShadow";
@@ -62,6 +63,7 @@ const CONTROL_KEYS: readonly ControlKey[] = [
   "shell",
   "phosphor",
   "knobs",
+  "controls",
   "speed",
   "interactive",
   "floorShadow",
@@ -93,6 +95,7 @@ export function settingsFromSearch(search: string): BoltComputerSettings {
     shell: colour(query.get("shell"), DEFAULT_SETTINGS.shell),
     phosphor: colour(query.get("phosphor"), DEFAULT_SETTINGS.phosphor),
     knobs: colour(query.get("knobs"), DEFAULT_SETTINGS.knobs),
+    controls: query.get("controls") !== "0",
     speed: SPEEDS.some((s) => s === speed) ? speed : DEFAULT_SETTINGS.speed,
     paused: query.get("paused") === "1",
     interactive: query.get("follow") !== "0",
@@ -109,6 +112,7 @@ export function searchFromSettings(settings: BoltComputerSettings): string {
     query.set("phosphor", settings.phosphor.slice(1));
   }
   if (settings.knobs !== DEFAULT_SETTINGS.knobs) query.set("knobs", settings.knobs.slice(1));
+  if (!settings.controls) query.set("controls", "0");
   if (settings.speed !== DEFAULT_SETTINGS.speed) query.set("speed", String(settings.speed));
   if (settings.paused) query.set("paused", "1");
   if (!settings.interactive) query.set("follow", "0");
@@ -134,6 +138,8 @@ function withSetting(
       return { ...settings, phosphor: raw };
     case "knobs":
       return { ...settings, knobs: raw };
+    case "controls":
+      return { ...settings, controls: raw === "true" };
     case "speed":
       return { ...settings, speed: Number(raw) };
     case "interactive":
@@ -225,6 +231,11 @@ export function startStudio(root: HTMLElement) {
     text('[data-value-of="shell"]', nameOf(SHELLS, settings.shell));
     text('[data-value-of="phosphor"]', nameOf(PHOSPHORS, settings.phosphor));
     text('[data-value-of="knobs"]', nameOf(KNOBS, settings.knobs));
+    for (const el of root.querySelectorAll<HTMLButtonElement | HTMLInputElement>(
+      '[data-setting="knobs"]',
+    )) {
+      el.disabled = !settings.controls;
+    }
     text('[data-action="pause"]', settings.paused ? "Play" : "Pause");
     root.querySelector('[data-action="reset"]')?.toggleAttribute("hidden", isDefault(settings));
     stage.classList.toggle("is-interactive", settings.interactive && !settings.paused);
