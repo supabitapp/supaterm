@@ -28,20 +28,21 @@ export interface MessageJumpHandlers {
 
 /**
  * Moves one jump at a time toward its message as the list re-renders: scroll to its row, unfold
- * what hides it, or page earlier history through it. Unfolding and each history page are tried
- * once, so a reverted message ends as missing instead of looping.
+ * what hides it, or page earlier history through it. Unfolding is tried once, and a page request
+ * is judged only after it visibly finishes, so a reverted message ends as missing instead of
+ * looping, and a re-render that lands before the request starts loading is not mistaken for one.
  */
 export function createMessageJumpRunner() {
   let current: {
     readonly key: number;
-    readonly requestedCursors: Set<string>;
+    request: { readonly cursor: string; sawLoading: boolean } | null;
     unfolded: boolean;
     done: boolean;
   } | null = null;
   return (jump: MessageJump | null, view: MessageJumpView, handlers: MessageJumpHandlers) => {
     if (jump === null) return;
     if (current?.key !== jump.key) {
-      current = { key: jump.key, requestedCursors: new Set(), unfolded: false, done: false };
+      current = { key: jump.key, request: null, unfolded: false, done: false };
       handlers.start();
     }
     const navigation = current;
@@ -61,12 +62,17 @@ export function createMessageJumpRunner() {
       handlers.unfold(jump.messageId);
       return;
     }
-    if (view.history?.loading) return;
-    if (navigation.requestedCursors.has(view.cursor)) {
+    const request = navigation.request;
+    if (view.history?.loading) {
+      if (request) request.sawLoading = true;
+      return;
+    }
+    if (request?.cursor === view.cursor) {
+      if (!request.sawLoading) return;
       return fail(view.history?.error ? "history-error" : "missing");
     }
     if (!view.history?.hasMoreHistory) return fail("missing");
-    navigation.requestedCursors.add(view.cursor);
+    navigation.request = { cursor: view.cursor, sawLoading: false };
     handlers.loadEarlier(jump.messageId);
   };
 }

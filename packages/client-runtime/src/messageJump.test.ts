@@ -43,6 +43,18 @@ describe("createMessageJumpRunner", () => {
     expect(on.fail).not.toHaveBeenCalled();
   });
 
+  it("waits for a requested page through rerenders that come before loading starts", () => {
+    const advance = createMessageJumpRunner();
+    const on = handlers();
+    advance(jump, unloaded, on);
+    advance(jump, unloaded, on);
+    advance(jump, { ...unloaded, history: { ...unloaded.history!, loading: true } }, on);
+    advance(jump, { ...unloaded, cursor: "message-1", rowIndex: 0, loaded: true }, on);
+    expect(on.fail).not.toHaveBeenCalled();
+    expect(on.loadEarlier).toHaveBeenCalledOnce();
+    expect(on.scroll).toHaveBeenCalledExactlyOnceWith(0);
+  });
+
   it("reports a message that stays hidden after unfolding as missing", () => {
     const advance = createMessageJumpRunner();
     const on = handlers();
@@ -55,8 +67,16 @@ describe("createMessageJumpRunner", () => {
     const advance = createMessageJumpRunner();
     const on = handlers();
     advance(jump, unloaded, on);
-    advance(jump, unloaded, on);
-    advance(jump, { ...unloaded, history: { ...unloaded.history!, hasMoreHistory: false } }, on);
+    advance(jump, { ...unloaded, history: { ...unloaded.history!, loading: true } }, on);
+    advance(
+      jump,
+      {
+        ...unloaded,
+        cursor: "message-1",
+        history: { ...unloaded.history!, hasMoreHistory: false },
+      },
+      on,
+    );
     expect(on.loadEarlier).toHaveBeenCalledOnce();
     expect(on.fail).toHaveBeenCalledExactlyOnceWith(jump, "missing");
   });
@@ -66,6 +86,7 @@ describe("createMessageJumpRunner", () => {
     const on = handlers();
     const failed = { ...unloaded, history: { ...unloaded.history!, error: "offline" } };
     advance(jump, failed, on);
+    advance(jump, { ...unloaded, history: { ...unloaded.history!, loading: true } }, on);
     advance(jump, failed, on);
     expect(on.loadEarlier).toHaveBeenCalledOnce();
     expect(on.fail).toHaveBeenCalledExactlyOnceWith(jump, "history-error");
