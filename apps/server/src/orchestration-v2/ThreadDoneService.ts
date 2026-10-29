@@ -333,8 +333,10 @@ export const make = Effect.gen(function* () {
     // sweep on a possibly stale cached answer.
     const candidates = threads.filter((thread) => isAutoMarkDoneCandidate(thread, nowMs));
 
-    const markThreadDone = Effect.fn("ThreadDoneServiceV2.markThreadDone")(
+    // Runs per candidate thread, thousands per sweep on busy servers; the sweep owns the span.
+    const markThreadDone = Effect.fnUntraced(
       function* (thread: (typeof candidates)[number], pullRequest: DonePullRequest | null) {
+        // thread.auto-mark-done does not recheck settings, so read them per decision; reads are cached.
         const currentSettings = resolveProjectSettings(
           yield* settingsService.getSettings,
           thread.projectId,
@@ -428,7 +430,8 @@ export const make = Effect.gen(function* () {
     };
     const groups = Map.groupBy(lookupCandidates, lookupKey);
 
-    const wouldMarkDone = Effect.fn("ThreadDoneServiceV2.wouldMarkDone")(function* (
+    // wouldMarkDone and pullRequestFor run per lookup group; the git and pull request reads they make carry the spans.
+    const wouldMarkDone = Effect.fnUntraced(function* (
       group: ReadonlyArray<(typeof lookupCandidates)[number]>,
       pullRequest: DonePullRequest,
     ) {
@@ -449,7 +452,7 @@ export const make = Effect.gen(function* () {
       });
     });
 
-    const pullRequestFor = Effect.fn("ThreadDoneServiceV2.pullRequestFor")(function* (
+    const pullRequestFor = Effect.fnUntraced(function* (
       group: ReadonlyArray<(typeof lookupCandidates)[number]>,
     ) {
       const thread = group[0]!;

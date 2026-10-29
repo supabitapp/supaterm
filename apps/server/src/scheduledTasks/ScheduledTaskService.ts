@@ -212,6 +212,35 @@ export const listDueTasks = Effect.fn("ScheduledTaskService.listDueTasks")(funct
   return tasks;
 });
 
+// Backstop for a write path that forgets to invalidate; the tick still runs every few seconds.
+const DUE_HINT_MAX_AGE_MS = 10 * 60 * 1_000;
+
+/**
+ * Remembers when a poller next has work so idle scheduler ticks skip SQL.
+ * `invalidate` after every write that can move work earlier; a tick records
+ * only if no write happened since it read `version`.
+ */
+const makeDueHint = () => {
+  let version = 0;
+  let hint: { readonly dueAtMs: number; readonly checkedAtMs: number } | null = null;
+  return {
+    invalidate: Effect.sync(() => {
+      version++;
+      hint = null;
+    }),
+    version: Effect.sync(() => version),
+    isIdle: (nowMs: number) =>
+      Effect.sync(
+        () =>
+          hint !== null && hint.dueAtMs > nowMs && nowMs - hint.checkedAtMs < DUE_HINT_MAX_AGE_MS,
+      ),
+    record: (readVersion: number, dueAtMs: number, nowMs: number) =>
+      Effect.sync(() => {
+        if (readVersion === version) hint = { dueAtMs, checkedAtMs: nowMs };
+      }),
+  };
+};
+
 export const layer = Layer.effect(
   ScheduledTaskService,
   Effect.gen(function* () {
@@ -226,7 +255,12 @@ export const layer = Layer.effect(
     // full list() re-emit anyway, so a slow subscriber only ever needs the
     // latest signal — an unbounded backlog would just grow memory.
     const changesPubSub = yield* PubSub.sliding<void>(1);
-    const notifyChanged = PubSub.publish(changesPubSub, undefined).pipe(Effect.asVoid);
+    const dueTasks = makeDueHint();
+    // Every scheduled_tasks write that can change next_run_at, enabled or run state notifies.
+    const notifyChanged = dueTasks.invalidate.pipe(
+      Effect.andThen(PubSub.publish(changesPubSub, undefined)),
+      Effect.asVoid,
+    );
 
     const selectAllRows = () =>
       sql<ScheduledTaskRow>`
@@ -649,6 +683,28 @@ export const layer = Layer.effect(
 
     const runDueTasks = Effect.fn("ScheduledTaskService.runDueTasks")(function* () {
       const now = yield* localNow;
+      const nowMs = DateTime.toEpochMillis(now);
+      if (yield* dueTasks.isIdle(nowMs)) return;
+      const readVersion = yield* dueTasks.version;
+      const [next] = yield* sql<{ next_run_at: string | null }>`
+        SELECT MIN(next_run_at) AS next_run_at FROM scheduled_tasks
+        WHERE enabled = 1 AND next_run_at IS NOT NULL AND last_run_status <> 'running'
+      `.pipe(
+        NodeSqliteClient.readOnly,
+        Effect.mapError((cause) => taskError("Could not list schedule tasks.", { cause })),
+      );
+      // Compare as text like listDueTasks: expanded years (`+011533-…`) sort first but parse far ahead.
+      const nextRunAt = next?.next_run_at ?? null;
+      if (nextRunAt === null || nextRunAt > iso(now)) {
+        const nextDueAt =
+          nextRunAt === null
+            ? Option.some(Infinity)
+            : DateTime.make(nextRunAt).pipe(Option.map(DateTime.toEpochMillis));
+        if (Option.isSome(nextDueAt) && nextDueAt.value > nowMs) {
+          yield* dueTasks.record(readVersion, nextDueAt.value, nowMs);
+        }
+        return;
+      }
       const tasks = yield* listDueTasks(now).pipe(
         Effect.mapError((cause) => taskError("Could not list schedule tasks.", { cause })),
       );
