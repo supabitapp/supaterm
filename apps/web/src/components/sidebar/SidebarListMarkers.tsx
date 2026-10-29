@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { ReactNode } from "react";
+import { type ReactNode, useLayoutEffect } from "react";
 import { cn } from "~/lib/utils";
 import {
   animateSidebarLayoutChanges,
@@ -16,14 +16,21 @@ export function SortableSidebarMarker(
   props: ({ marker: SidebarListMarker; id?: never } | { id: string; marker?: never }) & {
     className?: string;
     children?: ReactNode;
+    revealOverflow?: boolean;
     "data-testid"?: string;
   },
 ) {
-  const { setNodeRef, transform, transition } = useSortable({
+  const { node, setNodeRef, transform, transition } = useSortable({
     id: props.id ?? sidebarMarkerId(props.marker),
     disabled: SIDEBAR_SORTABLE_DRAG_DISABLED,
     animateLayoutChanges: animateSidebarLayoutChanges,
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- keeps the projected drop box inside the scroll viewport as drag transforms move it
+  useLayoutEffect(() => {
+    if (props.revealOverflow && transform?.y !== undefined) {
+      node.current?.firstElementChild?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+  }, [node, props.revealOverflow, transform?.y]);
   return (
     <li
       ref={setNodeRef}
@@ -52,6 +59,7 @@ export function SidebarSectionPlaceholder(props: {
       marker={props.marker}
       data-testid={`sidebar-${props.marker}`}
       className="relative mx-0.5 -mb-px h-0"
+      revealOverflow={props.marker === "done-placeholder" && props.showHint}
     >
       {props.showHint ? (
         <div
