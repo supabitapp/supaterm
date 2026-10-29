@@ -116,7 +116,7 @@ export function PinnedMessagesMenu({
                   </span>
                 </button>
                 {onUnpin ? (
-                  <span className="absolute end-1 top-1 opacity-0 transition-opacity duration-150 pointer-coarse:opacity-100 group-focus-within/pin:opacity-100 group-hover/pin:opacity-100">
+                  <span className="absolute end-1 top-1 opacity-0 transition-opacity duration-150 pointer-coarse:opacity-100 group-has-[:focus-visible]/pin:opacity-100 group-hover/pin:opacity-100">
                     <Tooltip>
                       <TooltipTrigger
                         render={
