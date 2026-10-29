@@ -26,10 +26,19 @@ vi.mock("electron", () => {
   return {
     nativeImage: {
       createFromPath: (path: string) => image(path.includes("unlit") ? 0 : 255),
-      createFromBitmap: () => ({}),
+      createEmpty: () => ({ addRepresentation: () => undefined }),
     },
   };
 });
+
+vi.mock("../electron/MacApplicationIcon.ts", () => ({
+  loadMacApplicationIcon: async () =>
+    [1, 2].map((scaleFactor) => ({
+      size: 128 * scaleFactor,
+      scaleFactor,
+      bitmap: Buffer.alloc((128 * scaleFactor) ** 2 * 4, 255),
+    })),
+}));
 
 const run = (input: {
   readonly platform?: NodeJS.Platform;

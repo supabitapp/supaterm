@@ -37,16 +37,18 @@ const pixelAt = (frame: Buffer, [u, v]: readonly [number, number]) => {
 describe("LaunchIconFrames", () => {
   it("lands on the exact icon once the glow is back, so the Dock's handoff does not jump", () => {
     const { lit, unlit } = iconPair(YELLOW);
-    const frames = makeLaunchIconFrames(lit, unlit, SIZE);
+    const icon = Buffer.from(lit);
+    for (let i = 0; i < icon.length; i += 4) icon[i] = (icon[i] ?? 0) - 10;
+    const frames = makeLaunchIconFrames(lit, unlit, SIZE, icon);
 
     frames.render(1.3, 0);
 
-    assert.isTrue(frames.render(1.3, 1).equals(lit));
+    assert.isTrue(frames.render(1.3, 1).equals(icon));
   });
 
   it("lights each LED at its own thinking level and leaves the rest of the icon alone", () => {
     const { lit, unlit } = iconPair(GREY);
-    const frames = makeLaunchIconFrames(lit, unlit, SIZE);
+    const frames = makeLaunchIconFrames(lit, unlit, SIZE, lit);
     const t = 2.4;
     const byLevel = [...BOLT_CELLS].sort(
       ([ac, ar], [bc, br]) => thinkingLevel(bc, br, t) - thinkingLevel(ac, ar, t),
@@ -63,7 +65,7 @@ describe("LaunchIconFrames", () => {
 
   it("runs colour through the bolt while thinking and settles on the build's own", () => {
     const { lit, unlit } = iconPair(YELLOW);
-    const frames = makeLaunchIconFrames(lit, unlit, SIZE);
+    const frames = makeLaunchIconFrames(lit, unlit, SIZE, lit);
     const colours = (glow: number) => {
       const frame = frames.render(2.4, glow);
       return BOLT_CELLS.map(([c, r]) => pixelAt(frame, ledCenter(c, r)));
