@@ -3,7 +3,7 @@ import type {
   RuntimeSubagent,
 } from "@supaterm/client-runtime/state/subagentRuntime";
 import type { ProviderDriverKind, ProviderInstanceId, ServerProvider } from "@supaterm/contracts";
-import { LoaderCircleIcon, SquareIcon } from "@supaterm/icons";
+import { SquareIcon } from "@supaterm/icons";
 import { useState, type ReactNode } from "react";
 
 import { AgentElapsed } from "./AgentElapsed";
@@ -16,6 +16,7 @@ import { Collapsible, CollapsiblePanel } from "../ui/collapsible";
 import { CollapsibleSectionHeader, SectionHeaderStatus } from "../ui/collapsible-section-header";
 import { DisclosureChevron } from "../ui/disclosure-chevron";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { Spinner } from "../ui/spinner";
 import {
   THREAD_DETAILS_PANEL_ROW_HEIGHT_CLASS,
   THREAD_DETAILS_PANEL_SPLIT_GROUP_CLASS,
@@ -167,7 +168,7 @@ export function ThreadLineageWorkflowRow({
                 }
               >
                 {stopping ? (
-                  <LoaderCircleIcon aria-hidden className="size-3" />
+                  <Spinner aria-hidden size="xs" />
                 ) : (
                   <SquareIcon aria-hidden className="size-3 fill-current" />
                 )}

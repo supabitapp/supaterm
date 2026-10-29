@@ -38,14 +38,7 @@ import {
 import { groupBy } from "effect/Array";
 import * as DateTime from "effect/DateTime";
 import { useNavigate } from "@tanstack/react-router";
-import {
-  BotIcon,
-  CornerLeftUpIcon,
-  GitForkIcon,
-  LoaderCircleIcon,
-  PlusIcon,
-  SquareIcon,
-} from "@supaterm/icons";
+import { BotIcon, CornerLeftUpIcon, GitForkIcon, PlusIcon, SquareIcon } from "@supaterm/icons";
 import { useId, useState, type ReactNode } from "react";
 
 import { useArchivedThreadSnapshots } from "../../lib/archivedThreadsState";
@@ -67,6 +60,7 @@ import { ThreadLineageWorkflowRow } from "./ThreadLineageWorkflowRow";
 
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { toastManager } from "../ui/toast";
+import { Spinner } from "../ui/spinner";
 import {
   THREAD_DETAILS_PANEL_SPLIT_GROUP_CLASS,
   THREAD_DETAILS_PANEL_SPLIT_SEPARATOR_CLASS,
@@ -605,7 +599,7 @@ export function ThreadRelationshipsPanel(props: {
                               onClick={() => void merge()}
                             >
                               {isMerging ? (
-                                <LoaderCircleIcon className="size-3" />
+                                <Spinner size="xs" />
                               ) : (
                                 <PullRequestGlyph.merged className="size-3" />
                               )}
@@ -644,7 +638,7 @@ export function ThreadRelationshipsPanel(props: {
                           }
                         >
                           {stoppingId === threadId ? (
-                            <LoaderCircleIcon aria-hidden className="size-3" />
+                            <Spinner aria-hidden size="xs" />
                           ) : (
                             <SquareIcon aria-hidden className="size-3 fill-current" />
                           )}
