@@ -1,6 +1,6 @@
 import type { DesktopUpdateChannel, DesktopUpdateReleaseNote } from "@supaterm/contracts";
 
-import { resolveDefaultDesktopUpdateChannel } from "./updateChannels.ts";
+import { desktopUpdateChannelOf } from "@supaterm/shared/cliRelease";
 
 interface ElectronReleaseNoteInfo {
   readonly version: string;
@@ -134,7 +134,7 @@ export function normalizeDesktopUpdateReleaseNotes(
       : Array.isArray(releaseNotes)
         ? releaseNotes.filter(isElectronReleaseNoteInfo)
         : []
-  ).filter((entry) => resolveDefaultDesktopUpdateChannel(entry.version) === channel);
+  ).filter((entry) => desktopUpdateChannelOf(entry.version) === channel);
 
   const normalizedNotes = rawNotes.flatMap((entry) => {
     const { items, totalItems } = extractReleaseNoteItems(entry.note);

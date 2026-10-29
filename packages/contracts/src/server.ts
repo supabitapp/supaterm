@@ -33,6 +33,7 @@ import { ServerProviderUsageLimits } from "./providerUsageLimits.ts";
 import { ServerProviderTranscription } from "./transcription.ts";
 import { ServerSettings } from "./settings.ts";
 import { RelayConnectionInfo, RelayServerUrl } from "./relay.ts";
+import { DesktopUpdateChannelSchema } from "./ipc.ts";
 
 const KeybindingsMalformedConfigIssue = Schema.Struct({
   kind: Schema.Literal("keybindings.malformed-config"),
@@ -958,6 +959,10 @@ export const ServerSelfUpdateInput = Schema.Struct({
   /** Exact npm version of the `supaterm` package to install (never a dist-tag, so
       the server and the acknowledging client agree on what was requested). */
   targetVersion: TrimmedNonEmptyString,
+  /** Desktop-managed hosts move their app to this update track first. Sent only for a track switch. */
+  channel: Schema.optionalKey(DesktopUpdateChannelSchema),
+  /** The target release's highest migration; the host refuses to leave Nightly without it. */
+  targetDatabaseMigration: Schema.optionalKey(Schema.Int),
 });
 export type ServerSelfUpdateInput = typeof ServerSelfUpdateInput.Type;
 

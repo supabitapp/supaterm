@@ -13,6 +13,8 @@ import * as NodeCrypto from "node:crypto";
 import * as NodeEvents from "node:events";
 import * as NodeHttp from "node:http";
 
+import { npmReleaseDatabaseMigration } from "@supaterm/shared/cliRelease";
+
 import { buildNpmLauncher } from "./build-npm-launcher.ts";
 
 const VERSION = "26.10.1";
@@ -122,6 +124,7 @@ it.layer(NodeServices.layer)("build-npm-launcher", (it) => {
         // Nothing for npm to resolve, so nothing that can lag behind the launcher.
         assert.isUndefined(manifest.dependencies);
         assert.isUndefined(manifest.optionalDependencies);
+        assert.isAbove(npmReleaseDatabaseMigration(manifest) ?? 0, 0);
 
         // Run what npm would install: the published tarball, unpacked.
         const installed = path.join(root, "installed");

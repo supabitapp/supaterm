@@ -44,6 +44,7 @@ export class DesktopAppUpdate extends Context.Service<
       reportProgress: (
         stage: ServerSelfUpdateProgressStage,
       ) => Effect.Effect<void, ServerSelfUpdateError>,
+      trackSwitch?: DesktopTelemetryReceiver.DesktopTrackSwitch,
     ) => Effect.Effect<ServerSelfUpdateResult, ServerSelfUpdateError>;
     /** Success stops the server; returns only on installation failure or timeout. */
     readonly commit: (
@@ -135,7 +136,7 @@ export const make = Effect.fn("desktopUpdate.desktopAppUpdate.make")(function* (
   });
 
   const run: DesktopAppUpdate["Service"]["run"] = Effect.fn("desktopUpdate.desktopAppUpdate.run")(
-    function* (reportProgress) {
+    function* (reportProgress, trackSwitch) {
       if (!available) {
         return yield* failWith(
           "This server was not started by the Supaterm desktop app, so it cannot drive a desktop update.",
@@ -157,7 +158,7 @@ export const make = Effect.fn("desktopUpdate.desktopAppUpdate.make")(function* (
           // Subscribe before requesting to catch fast reports.
           const { changes } = yield* receiver.desktopUpdates;
           yield* receiver
-            .requestDesktopUpdate(requestId)
+            .requestDesktopUpdate(requestId, trackSwitch)
             .pipe(
               Effect.mapError((error) =>
                 failWith("Could not reach the Supaterm desktop app on this machine.", error),
