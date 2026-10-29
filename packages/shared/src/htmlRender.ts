@@ -158,20 +158,25 @@ export interface HtmlRenderTheme {
   readonly variables: Readonly<Record<string, string>>;
 }
 
+// Chart series stay fixed rather than following the theme: an accent can be
+// gray, as the default themes' is, or sit on top of another series. The order
+// keeps neighbors apart under simulated protanopia and deuteranopia (OKLab
+// ΔE×100 ≥ 8, ≥ 15 with full color vision), keeps the first three apart
+// pairwise, and every series clears 3:1 on the default canvas.
 const FIXED_COLORS = {
   light: {
     success: "#10b981",
     successForeground: "#047857",
     info: "#3b82f6",
     infoForeground: "#1d4ed8",
-    chart: ["#0d9488", "#d97706", "#9333ea", "#e11d48", "#65a30d"],
+    chart: ["#155dfc", "#f54900", "#0092b8", "#5ea500", "#ad46ff", "#e60076"],
   },
   dark: {
     success: "#10b981",
     successForeground: "#34d399",
     info: "#3b82f6",
     infoForeground: "#60a5fa",
-    chart: ["#2dd4bf", "#fbbf24", "#c084fc", "#fb7185", "#a3e635"],
+    chart: ["#155dfc", "#f54900", "#0092b8", "#5ea500", "#ad46ff", "#f6339a"],
   },
 } as const;
 
@@ -219,8 +224,10 @@ export function htmlRenderTheme(
       "--info-foreground": fixed.infoForeground,
       "--code-background": colors.codeBackground,
       "--code-foreground": colors.codeForeground,
-      "--chart-1": colors.accent,
-      ...Object.fromEntries(fixed.chart.map((color, index) => [`--chart-${index + 2}`, color])),
+      "--link": "var(--info-foreground)",
+      "--grid": "color-mix(in oklab, var(--foreground) 8%, transparent)",
+      "--chart-context": "color-mix(in oklab, var(--muted-foreground) 65%, var(--background))",
+      ...Object.fromEntries(fixed.chart.map((color, index) => [`--chart-${index + 1}`, color])),
       "--radius": "0.625rem",
       "--font-sans": fonts.sans,
       "--font-mono": fonts.mono,
@@ -234,8 +241,9 @@ export const HTML_RENDER_THEME_GUIDE = [
   "--card, --card-foreground, --popover, --popover-foreground, --secondary, --secondary-foreground, --border, --input, --ring,",
   "--primary, --primary-foreground (solid buttons), --accent, --accent-foreground (brand accent), --accent-surface, --accent-surface-foreground,",
   "--destructive, --destructive-foreground, --destructive-surface, --warning, --warning-foreground, --warning-surface,",
-  "--success, --success-foreground, --info, --info-foreground, --code-background, --code-foreground,",
-  "--chart-1 … --chart-6 (categorical series for charts), --radius, --font-sans, --font-mono.",
+  "--success, --success-foreground, --info, --info-foreground, --code-background, --code-foreground, --link,",
+  "--chart-1 … --chart-6 (categorical series, assigned in order; neighbors stay distinguishable for colorblind readers), --chart-context (gray for series that are context, not the point), --grid (gridlines, fainter than --border),",
+  "--radius, --font-sans, --font-mono.",
   "The base stylesheet sets html background/color/font from these, body margin to 0, and hides the page's scrollbar; your own CSS overrides it.",
 ].join(" ");
 
