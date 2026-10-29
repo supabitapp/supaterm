@@ -92,6 +92,8 @@
       "ignoreIssues": { "src/components/ui/*.tsx": ["exports", "nsExports", "duplicates"] },
     },
     "apps/marketing": {
+      // scripts/lib/studio-icon-render.ts bundles the app icon from this module by path.
+      "entry": ["src/lib/boltComputer/icon.ts"],
       // `astro check` runs from the typecheck task in vite.config.ts, which knip does not read.
       "ignoreDependencies": ["@astrojs/check"],
     },

@@ -107,7 +107,7 @@ export function searchFromSettings(settings: BoltComputerSettings): string {
   return text ? `?${text}` : "";
 }
 
-export const panelValuesOf = (settings: BoltComputerSettings) =>
+const panelValuesOf = (settings: BoltComputerSettings) =>
   ({
     screen: settings.state,
     shell: settings.shell,
@@ -119,7 +119,7 @@ export const panelValuesOf = (settings: BoltComputerSettings) =>
     floorShadow: settings.floorShadow,
   }) satisfies DialKitValueUpdates<typeof PANEL>;
 
-export const settingsOfPanel = (
+const settingsOfPanel = (
   values: PanelValues,
   previous: BoltComputerSettings,
 ): BoltComputerSettings => ({
