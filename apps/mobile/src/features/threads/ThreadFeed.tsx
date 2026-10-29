@@ -3093,6 +3093,8 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
             // (facebook/react-native#54123); the anchored end space after a send
             // is pure inset, so without this the blank region can't be scrolled.
             applyWorkaroundForContentInsetHitTestBug
+            // Spread because the keyboard list's types omit ScrollViewComponent, though it
+            // forwards the prop to KeyboardChatScrollView at runtime.
             {...(Platform.OS === "ios" ? { ScrollViewComponent: ThreadFeedScrollView } : {})}
             // Horizontal Duo reservations are already included in the row padding.
             contentInsetAdjustmentBehavior={
