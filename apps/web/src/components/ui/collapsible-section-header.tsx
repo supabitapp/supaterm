@@ -43,7 +43,10 @@ export function CollapsibleSectionHeader({
     >
       {icon}
       <span className="min-w-0 truncate">{children}</span>
-      <span aria-hidden className={cn("h-px min-w-2 flex-1", tones[tone].line)} />
+      <span
+        aria-hidden
+        className={cn("h-px min-w-2 flex-1", variant === "default" && tones[tone].line)}
+      />
       {accessory}
       <DisclosureChevron open={expanded} />
     </button>
