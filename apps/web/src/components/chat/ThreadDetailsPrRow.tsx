@@ -442,10 +442,8 @@ export function ThreadDetailsPrRow({
                 pending: pendingAction === "merge",
                 destructive: false,
                 suffix: null,
-                tooltip:
-                  confirm.armed === "merge"
-                    ? `Click again to merge #${number} into ${detail?.baseBranch} (${selectedMergeMethod})`
-                    : `Merge this pull request (${selectedMergeMethod})`,
+                tooltip: `Merge this pull request (${selectedMergeMethod})`,
+                armedTooltip: `Click again to merge #${number} into ${detail?.baseBranch} (${selectedMergeMethod})`,
                 controlProps: confirm.bind(
                   "merge",
                   () => void perform("merge", selectedMergeMethod),
@@ -464,10 +462,8 @@ export function ThreadDetailsPrRow({
                   pending: pendingAction === "enable-auto-merge",
                   destructive: false,
                   suffix: null,
-                  tooltip:
-                    confirm.armed === "enable-auto-merge"
-                      ? `Click again to enable auto-merge. The host may merge #${number} right away.`
-                      : `Merge into ${detail?.baseBranch} (${selectedMergeMethod}) once its checks pass`,
+                  tooltip: `Merge into ${detail?.baseBranch} (${selectedMergeMethod}) once its checks pass`,
+                  armedTooltip: `Click again to enable auto-merge. The host may merge #${number} right away.`,
                   controlProps: confirm.bind(
                     "enable-auto-merge",
                     () => void perform("enable-auto-merge", selectedMergeMethod),
@@ -637,10 +633,10 @@ export function ThreadDetailsPrRow({
             <>
               <span aria-hidden="true" className={THREAD_DETAILS_PANEL_SPLIT_SEPARATOR_CLASS} />
               <InlineConfirmTooltip
-                armed={confirm.armed !== null && confirm.armed === rowAction}
+                armed={confirm.armed === rowAction}
                 required={rowAction === "merge" || rowAction === "enable-auto-merge"}
                 tip={trailingAction.tooltip}
-                armedTip={trailingAction.tooltip}
+                armedTip={trailingAction.armedTooltip}
                 render={
                   <ThreadDetailsControl
                     type="button"
