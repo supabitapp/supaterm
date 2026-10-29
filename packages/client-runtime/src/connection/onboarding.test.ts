@@ -331,7 +331,7 @@ function layerPairingOnboarding(
     ),
     Layer.mock(ConnectionDriver.ConnectionDriver)({
       checkRoute: () => Effect.succeed("unchecked"),
-      preflight: () => Effect.succeedNone,
+      preflight: () => Effect.succeed("unchecked" as const),
       connect: () => Effect.never,
     }),
     Layer.succeed(

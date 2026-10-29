@@ -55,6 +55,8 @@ export interface PreparedRoute {
  * cheap check, so they are "unchecked".
  */
 export type RouteCheck = "answered" | "silent" | "unchecked";
+/** A prepared route, or why there is none: "unprepared" answered its check but failed to prepare. */
+export type RoutePreflight = PreparedRoute | "unprepared" | "silent" | "unchecked";
 
 /** How long a route has to answer before it counts as unreachable from here. */
 export const ROUTE_CHECK_TIMEOUT_MS = 2_500;
@@ -96,7 +98,7 @@ export class ConnectionDriver extends Context.Service<
     readonly preflight: (
       entry: ConnectionCatalogEntry,
       route: ConnectionRoute,
-    ) => Effect.Effect<Option.Option<PreparedRoute>>;
+    ) => Effect.Effect<RoutePreflight>;
     /** Asks the host behind a live session to answer a fresh request on the session's own origin. */
     readonly checkHost: (prepared: PreparedConnection) => Effect.Effect<RouteCheck>;
   }
@@ -354,14 +356,14 @@ export const make = Effect.gen(function* () {
       ? Effect.succeed("silent" as const)
       : checkRoute(entry, route, ROUTE_CHECK_TIMEOUT_MS)
     ).pipe(
-      Effect.flatMap((check) =>
-        check === "answered"
-          ? Effect.gen(function* () {
-              const expiresAtNanos = (yield* Clock.monotonicTimeNanos) + PREFLIGHT_VALIDITY_NANOS;
-              const prepared = yield* resolver.prepare(routeEntry(entry, route));
-              return Option.some({ route, prepared, expiresAtNanos });
-            }).pipe(Effect.orElseSucceed(() => Option.none<PreparedRoute>()))
-          : Effect.succeedNone,
+      Effect.filterOrElse(
+        (check): check is Exclude<RouteCheck, "answered"> => check !== "answered",
+        () =>
+          Effect.gen(function* () {
+            const expiresAtNanos = (yield* Clock.monotonicTimeNanos) + PREFLIGHT_VALIDITY_NANOS;
+            const prepared = yield* resolver.prepare(routeEntry(entry, route));
+            return { route, prepared, expiresAtNanos } satisfies PreparedRoute;
+          }).pipe(Effect.orElseSucceed((): RoutePreflight => "unprepared")),
       ),
       Effect.scoped,
       Effect.withSpan("ConnectionDriver.preflight"),

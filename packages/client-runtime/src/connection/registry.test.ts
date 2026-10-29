@@ -369,7 +369,7 @@ const makeHarness = Effect.fn("TestEnvironmentRegistry.makeHarness")(function* (
   });
   const driver = ConnectionDriver.ConnectionDriver.of({
     checkRoute: () => Effect.succeed("unchecked"),
-    preflight: () => Effect.succeedNone,
+    preflight: () => Effect.succeed("unchecked" as const),
     checkHost: () => Effect.succeed("unchecked"),
     connect: (entry, reportProgress) =>
       Effect.gen(function* () {

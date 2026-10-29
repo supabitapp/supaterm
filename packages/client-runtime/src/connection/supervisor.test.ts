@@ -152,6 +152,7 @@ const makeHarness = Effect.fn("TestConnectionHarness.make")(function* (options?:
   readonly probe?: (attempt: number) => Effect.Effect<void, ConnectionAttemptError>;
   readonly checkRoute?: (route: ConnectionRoute) => Effect.Effect<ConnectionDriver.RouteCheck>;
   readonly checkHost?: (prepared: PreparedConnection) => Effect.Effect<ConnectionDriver.RouteCheck>;
+  readonly preflight?: (route: ConnectionRoute) => Effect.Effect<ConnectionDriver.RoutePreflight>;
   readonly inboundFrames?: Effect.Effect<number>;
 }) {
   const networkStatus = yield* SubscriptionRef.make<NetworkStatus>(
@@ -243,21 +244,21 @@ const makeHarness = Effect.fn("TestConnectionHarness.make")(function* (options?:
         checkRoute: (_entry, route) =>
           options?.checkRoute?.(route) ?? Effect.succeed<ConnectionDriver.RouteCheck>("unchecked"),
         preflight: (_entry, route) =>
+          options?.preflight?.(route) ??
           (
             options?.checkRoute?.(route) ?? Effect.succeed<ConnectionDriver.RouteCheck>("unchecked")
           ).pipe(
-            Effect.flatMap((check) =>
-              check === "answered"
-                ? Clock.monotonicTimeNanos.pipe(
-                    Effect.map((now) =>
-                      Option.some({
-                        route,
-                        prepared: { ...PREPARED_CONNECTION, target: route.target },
-                        expiresAtNanos: now + 10_000_000_000n,
-                      }),
-                    ),
-                  )
-                : Effect.succeedNone,
+            Effect.filterOrElse(
+              (check): check is Exclude<ConnectionDriver.RouteCheck, "answered"> =>
+                check !== "answered",
+              () =>
+                Clock.monotonicTimeNanos.pipe(
+                  Effect.map((now): ConnectionDriver.RoutePreflight => ({
+                    route,
+                    prepared: { ...PREPARED_CONNECTION, target: route.target },
+                    expiresAtNanos: now + 10_000_000_000n,
+                  })),
+                ),
             ),
           ),
         checkHost: (prepared) =>
@@ -1678,6 +1679,144 @@ describe("EnvironmentSupervisor", () => {
       yield* awaitState(supervisor.state, (state) => state.phase === "connected");
       expect(Option.getOrThrow(yield* SubscriptionRef.get(supervisor.prepared)).target).toEqual(
         TAILNET_TARGET,
+      );
+    }),
+  );
+
+  it.effect("checks a dead LAN route less often until the network changes", () =>
+    Effect.gen(function* () {
+      const lanReachable = yield* Ref.make(false);
+      const lanChecks = yield* Ref.make(0);
+      const harness = yield* makeHarness({
+        checkRoute: (route) =>
+          route.target === LAN_TARGET
+            ? Ref.update(lanChecks, (count) => count + 1).pipe(
+                Effect.andThen(Ref.get(lanReachable)),
+                Effect.map((reachable) => (reachable ? "answered" : "silent")),
+              )
+            : Effect.succeed("answered"),
+      });
+      const entry: ConnectionCatalogEntry = {
+        ...LAN_ROUTE,
+        alternateRoutes: [TAILNET_ROUTE],
+        enabled: true,
+      };
+      const supervisor = yield* EnvironmentSupervisor.make(entry, { initiallyDesired: true }).pipe(
+        Effect.provide(harness.dependencies),
+      );
+      yield* awaitState(
+        supervisor.state,
+        (state) => state.phase === "connected" && state.generation === 1,
+      );
+      expect(Option.getOrThrow(yield* SubscriptionRef.get(supervisor.prepared)).target).toEqual(
+        TAILNET_TARGET,
+      );
+      yield* Ref.set(lanChecks, 0);
+
+      // Checked at 1, 3 and 7 minutes instead of every minute.
+      for (let minute = 0; minute < 10; minute += 1) {
+        yield* TestClock.adjust("60 seconds");
+      }
+      expect(yield* Ref.get(lanChecks)).toBe(3);
+
+      yield* Ref.set(lanReachable, true);
+      yield* harness.wake("network-changed");
+      yield* awaitState(
+        supervisor.state,
+        (state) => state.phase === "connected" && state.generation === 2,
+      );
+      expect(Option.getOrThrow(yield* SubscriptionRef.get(supervisor.prepared)).target).toEqual(
+        LAN_TARGET,
+      );
+    }),
+  );
+
+  it.effect("keeps checking a LAN route every minute when it answers but cannot be prepared", () =>
+    Effect.gen(function* () {
+      const lanPreflights = yield* Ref.make(0);
+      const harness = yield* makeHarness({
+        checkRoute: (route) => Effect.succeed(route.target === LAN_TARGET ? "silent" : "answered"),
+        preflight: (route) =>
+          route.target === LAN_TARGET
+            ? Ref.update(lanPreflights, (count) => count + 1).pipe(Effect.as("unprepared" as const))
+            : Effect.succeed("unchecked"),
+      });
+      const entry: ConnectionCatalogEntry = {
+        ...LAN_ROUTE,
+        alternateRoutes: [TAILNET_ROUTE],
+        enabled: true,
+      };
+      const supervisor = yield* EnvironmentSupervisor.make(entry, { initiallyDesired: true }).pipe(
+        Effect.provide(harness.dependencies),
+      );
+      yield* awaitState(
+        supervisor.state,
+        (state) => state.phase === "connected" && state.generation === 1,
+      );
+      for (let minute = 0; minute < 10; minute += 1) {
+        yield* TestClock.adjust("60 seconds");
+      }
+      expect(yield* Ref.get(lanPreflights)).toBe(10);
+    }),
+  );
+
+  it.effect("ignores a dead LAN check that was running when the network changed", () =>
+    Effect.gen(function* () {
+      const lanChecks = yield* Ref.make(0);
+      const checkStarted = yield* Deferred.make<void>();
+      const finishCheck = yield* Deferred.make<void>();
+      const woke = yield* Ref.make(false);
+      const wakeupHandled = yield* Deferred.make<void>();
+      const harness = yield* makeHarness({
+        checkRoute: (route) =>
+          route.target === LAN_TARGET
+            ? Ref.updateAndGet(lanChecks, (count) => count + 1).pipe(
+                Effect.flatMap((check) =>
+                  check === 1
+                    ? Effect.succeed("silent" as const)
+                    : check === 2
+                      ? Deferred.succeed(checkStarted, undefined).pipe(
+                          Effect.andThen(Deferred.await(finishCheck)),
+                          Effect.as("silent" as const),
+                        )
+                      : Effect.succeed("answered" as const),
+                ),
+              )
+            : Effect.succeed("answered"),
+        // The wakeup probes the session only after it forgets the silent routes.
+        probe: () =>
+          Ref.get(woke).pipe(
+            Effect.flatMap((afterWake) =>
+              afterWake ? Deferred.succeed(wakeupHandled, undefined) : Effect.void,
+            ),
+            Effect.asVoid,
+          ),
+      });
+      const entry: ConnectionCatalogEntry = {
+        ...LAN_ROUTE,
+        alternateRoutes: [TAILNET_ROUTE],
+        enabled: true,
+      };
+      const supervisor = yield* EnvironmentSupervisor.make(entry, { initiallyDesired: true }).pipe(
+        Effect.provide(harness.dependencies),
+      );
+      yield* awaitState(
+        supervisor.state,
+        (state) => state.phase === "connected" && state.generation === 1,
+      );
+      yield* TestClock.adjust("60 seconds");
+      yield* Deferred.await(checkStarted);
+      yield* Ref.set(woke, true);
+      yield* harness.wake("network-changed");
+      yield* Deferred.await(wakeupHandled);
+      yield* Deferred.succeed(finishCheck, undefined);
+
+      yield* awaitState(
+        supervisor.state,
+        (state) => state.phase === "connected" && state.generation === 2,
+      );
+      expect(Option.getOrThrow(yield* SubscriptionRef.get(supervisor.prepared)).target).toEqual(
+        LAN_TARGET,
       );
     }),
   );
