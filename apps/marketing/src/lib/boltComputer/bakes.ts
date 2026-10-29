@@ -384,11 +384,13 @@ export interface Bakes {
 }
 
 export function bakeTextures(unit: number): Bakes {
-  let withControls: HTMLCanvasElement | undefined;
-  let plain: HTMLCanvasElement | undefined;
+  const fronts = new Map<boolean, HTMLCanvasElement>();
   return {
-    front: (controls) =>
-      controls ? (withControls ??= bakeFront(unit, true)) : (plain ??= bakeFront(unit, false)),
+    front: (controls) => {
+      const front = fronts.get(controls) ?? bakeFront(unit, controls);
+      fronts.set(controls, front);
+      return front;
+    },
     back: bakeBack(unit),
     glass: bakeGlass(SCREEN.hx * 2 * unit, SCREEN.hy * 2 * unit),
   };
