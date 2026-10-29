@@ -1099,6 +1099,29 @@ export function buildResolveConflictsPrompt(input: {
   ].join("\n");
 }
 
+export function buildSubagentFixChecksPrompt(input: {
+  readonly url: string;
+  readonly checks: ReadonlyArray<PullRequestCheck>;
+}): string {
+  const failingChecks = input.checks
+    .filter((check) => check.status === "failure" || check.status === "cancelled")
+    .map((check) => {
+      const name = boundedField(check.name);
+      return check.url ? `> [${name.replace(/[[\]]/gu, "\\$&")}](${check.url})` : `> ${name}`;
+    });
+  return [
+    `Spawn a subagent to fix the CI failures on ${input.url}`,
+    ...(failingChecks.length > 0 ? ["", "Failing checks:", ...failingChecks] : []),
+  ].join("\n");
+}
+
+export function buildSubagentResolveConflictsPrompt(input: {
+  readonly url: string;
+  readonly baseBranch: string;
+}): string {
+  return `Spawn a subagent to resolve the merge conflicts between ${input.url} and \`${boundedField(input.baseBranch)}\``;
+}
+
 function pullRequestContextComment(
   input: {
     readonly number: number;

@@ -24,12 +24,14 @@ import { ThreadDetailsPrRow } from "./ThreadDetailsPrRow";
 function ThreadDetailsPrLinkRow({
   environmentId,
   link,
+  composerTarget,
   onOpen,
   onActed,
   onStopWatching,
 }: {
   environmentId: EnvironmentId;
   link: ThreadPullRequestLink;
+  composerTarget: ComponentProps<typeof ThreadDetailsPrRow>["composerTarget"];
   onOpen: (event: ReactMouseEvent<HTMLElement>) => void;
   onActed?: (() => void) | undefined;
   onStopWatching?: (() => void) | undefined;
@@ -55,6 +57,7 @@ function ThreadDetailsPrLinkRow({
       project={project}
       label={`#${link.number}${link.snapshot === null ? "" : `: ${link.snapshot.title}`}`}
       openAriaLabel={link.url}
+      composerTarget={composerTarget}
       onOpen={onOpen}
       onStopWatching={onStopWatching}
       {...(onActed ? { onActed } : {})}
@@ -110,6 +113,7 @@ export function ThreadDetailsPrRows({
                 key={threadPullRequestKeyOf(link)}
                 environmentId={row.environmentId}
                 link={link}
+                composerTarget={row.composerTarget}
                 onOpen={(event) => onOpenLink(event, link.url)}
                 onActed={row.onActed}
                 onStopWatching={stopWatching(link)}

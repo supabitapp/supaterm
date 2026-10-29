@@ -24,6 +24,7 @@ import {
   buildFixFindingHandoff,
   canDeletePullRequestBranch,
   buildFixFindingsHandoff,
+  buildSubagentFixChecksPrompt,
   groupPullRequestTimelineConversations,
   filterPullRequestConversationItems,
   pagePullRequestConversationItems,
@@ -656,6 +657,30 @@ describe("fix findings handoff", () => {
     expect(texts).not.toContain("reviewer: finding 0");
     expect(handoff.prompt).toContain("typecheck");
     expect(handoff.prompt).toContain("6 further findings were omitted");
+  });
+});
+
+describe("subagent fix for failing checks", () => {
+  it("lists only failing checks, each linked to its run when the host gave one", () => {
+    expect(
+      buildSubagentFixChecksPrompt({
+        url: "https://github.com/owner/repo/pull/7",
+        checks: [
+          { name: "Lint [web]", status: "failure", description: null, url: "https://ci/lint" },
+          { name: "Check", status: "cancelled", description: null, url: null },
+          { name: "Test", status: "success", description: null, url: "https://ci/test" },
+          { name: "Build", status: "pending", description: null, url: null },
+        ],
+      }),
+    ).toBe(
+      [
+        "Spawn a subagent to fix the CI failures on https://github.com/owner/repo/pull/7",
+        "",
+        "Failing checks:",
+        "> [Lint \\[web\\]](https://ci/lint)",
+        "> Check",
+      ].join("\n"),
+    );
   });
 });
 

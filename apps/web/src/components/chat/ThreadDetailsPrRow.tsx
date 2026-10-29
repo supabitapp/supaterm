@@ -9,8 +9,10 @@ import { PullRequestGlyph } from "../pullRequest/pullRequestIcons";
  * that, the host's richer answer collapses into a single trailing slot, ranked by what unblocks
  * the merge next: "Resolve" on conflicts, "Ready" on a draft, "Fix" under failing checks, and
  * "Merge" only once the branch is clean and its checks pass. While checks run the slot offers
- * "Auto-merge" instead — a merge offered mid-run would race the very runs that gate it. The rest
- * of the pull request's actions sit in the trailing overflow menu. Everything else the host knows
+ * "Auto-merge" instead — a merge offered mid-run would race the very runs that gate it. "Fix" and
+ * "Resolve" only fill this thread's composer with a subagent hand-off, since this thread already
+ * holds the pull request's context; their new-thread variants and the rest of the pull request's
+ * actions sit in the trailing overflow menu. Everything else the host knows
  * (title, state, checks tally, diff size) lives in the row's tooltip, so a hover answers what
  * previously took opening the panel.
  *
@@ -25,6 +27,7 @@ import type {
   ProjectId,
   PullRequestMergeMethod,
   PullRequestRef,
+  ScopedThreadRef,
 } from "@supaterm/contracts";
 import { sourceControlRepositorySelector } from "@supaterm/shared/sourceControl";
 import {
@@ -34,11 +37,13 @@ import {
   EyeOffIcon,
   GitBranchIcon,
   EllipsisIcon,
+  SquarePenIcon,
   TriangleAlertIcon,
 } from "@supaterm/icons";
 import { AsyncResult } from "effect/reactivity";
 import { useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 
+import type { DraftId } from "~/composerDraftStore";
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";
 import { useLiveRefresh } from "~/hooks/useLiveRefresh";
 import { readLocalApi } from "~/localApi";
@@ -57,6 +62,8 @@ import {
 import {
   buildFixFindingsHandoff,
   buildResolveConflictsPrompt,
+  buildSubagentFixChecksPrompt,
+  buildSubagentResolveConflictsPrompt,
   classifyPullRequestChecks,
   describePullRequestChecks,
   isPullRequestConflicting,
@@ -80,6 +87,7 @@ import {
   usePullRequestActionRunner,
   usePullRequestDefaultMergeMethod,
   usePullRequestHandoffs,
+  writePullRequestTaskToComposer,
 } from "../pullRequest/usePullRequestActions";
 import {
   ChangeRequestStatusIcon,
@@ -88,6 +96,7 @@ import {
 } from "../ThreadStatusIndicators";
 import { InlineConfirmLabel } from "../InlineConfirm";
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "../ui/menu";
+import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
   THREAD_DETAILS_PANEL_CHEVRON_CLASS,
@@ -100,6 +109,8 @@ import {
 const isSettledWithoutChecks = (result: AsyncResult.AsyncResult<unknown, unknown>) =>
   result._tag === "Success" && result.value === null;
 
+type HandoffKind = "conflicts" | "findings";
+
 export function ThreadDetailsPrRow({
   environmentId,
   pr,
@@ -109,6 +120,7 @@ export function ThreadDetailsPrRow({
   project,
   label,
   openAriaLabel,
+  composerTarget,
   onOpen,
   onActed,
   onStopWatching,
@@ -121,6 +133,7 @@ export function ThreadDetailsPrRow({
   project: EnvironmentProject | null;
   label: string;
   openAriaLabel: string;
+  composerTarget: ScopedThreadRef | DraftId;
   onOpen: (event: ReactMouseEvent<HTMLElement>) => void;
   onActed?: () => void;
   onStopWatching?: (() => void) | undefined;
@@ -237,34 +250,46 @@ export function ThreadDetailsPrRow({
     ? `Auto-merge (${PULL_REQUEST_MERGE_METHOD_LABELS[detail.autoMergeMethod].toLowerCase()})`
     : "Auto-merge";
 
-  const startResolveConflicts = () => {
-    if (detail === null) return;
-    void startHandoff("conflicts", {
-      prompt: buildResolveConflictsPrompt({
-        number: detail.number,
-        url: detail.url,
-        headBranch: detail.headBranch,
-        baseBranch: detail.baseBranch,
-      }),
-    });
-  };
-
-  const startFixChecks = () => {
+  const startInNewThread = (kind: HandoffKind) => {
     if (detail === null) return;
     void startHandoff(
-      "findings",
-      buildFixFindingsHandoff({
-        number: detail.number,
-        title: detail.title,
-        url: detail.url,
-        headBranch: detail.headBranch,
-        baseBranch: detail.baseBranch,
-        reviewThreads: [],
-        comments: [],
-        checks: detail.checks,
-        commentsTruncated: false,
-      }),
+      kind,
+      kind === "conflicts"
+        ? {
+            prompt: buildResolveConflictsPrompt({
+              number: detail.number,
+              url: detail.url,
+              headBranch: detail.headBranch,
+              baseBranch: detail.baseBranch,
+            }),
+          }
+        : buildFixFindingsHandoff({
+            number: detail.number,
+            title: detail.title,
+            url: detail.url,
+            headBranch: detail.headBranch,
+            baseBranch: detail.baseBranch,
+            reviewThreads: [],
+            comments: [],
+            checks: detail.checks,
+            commentsTruncated: false,
+          }),
     );
+  };
+
+  const draftSubagentHandoff = (kind: HandoffKind) => {
+    if (detail === null) return;
+    writePullRequestTaskToComposer(composerTarget, {
+      prompt:
+        kind === "conflicts"
+          ? buildSubagentResolveConflictsPrompt(detail)
+          : buildSubagentFixChecksPrompt(detail),
+    });
+    toastManager.add({
+      type: "success",
+      title: "Added to the composer",
+      description: "The task is in the composer — read it over, then send.",
+    });
   };
 
   const statePresentation =
@@ -380,9 +405,9 @@ export function ThreadDetailsPrRow({
           pendingLabel: "Preparing...",
           pending: handoff === "conflicts",
           destructive: true,
-          suffix: <ArrowUpRightIcon aria-hidden className="size-3 shrink-0" />,
-          tooltip: "Check the branch out and resolve the conflicts in a new thread",
-          controlProps: { onClick: startResolveConflicts },
+          suffix: null,
+          tooltip: "Draft a prompt in this thread for a subagent to resolve the conflicts",
+          controlProps: { onClick: () => draftSubagentHandoff("conflicts") },
         }
       : rowAction === "ready"
         ? {
@@ -400,9 +425,9 @@ export function ThreadDetailsPrRow({
               pendingLabel: "Preparing...",
               pending: handoff === "findings",
               destructive: true,
-              suffix: <ArrowUpRightIcon aria-hidden className="size-3 shrink-0" />,
-              tooltip: "Fix the failing checks in a new thread",
-              controlProps: { onClick: startFixChecks },
+              suffix: null,
+              tooltip: "Draft a prompt in this thread for a subagent to fix the failing checks",
+              controlProps: { onClick: () => draftSubagentHandoff("findings") },
             }
           : rowAction === "merge"
             ? {
@@ -523,6 +548,18 @@ export function ThreadDetailsPrRow({
             <TooltipPopup side="top">More pull request actions</TooltipPopup>
           </Tooltip>
           <MenuPopup align="end" anchor={rowRef} className="w-(--anchor-width)">
+            {rowAction === "fix" || rowAction === "resolve" ? (
+              <>
+                <MenuItem
+                  disabled={actionPending || handoff !== null}
+                  onClick={() => startInNewThread(rowAction === "fix" ? "findings" : "conflicts")}
+                >
+                  <SquarePenIcon className="size-3.5" />
+                  {rowAction === "fix" ? "Fix in a new thread" : "Resolve in a new thread"}
+                </MenuItem>
+                <MenuSeparator />
+              </>
+            ) : null}
             <PullRequestMergeMenuItems
               isDraft={detail.isDraft}
               actions={menuActions}

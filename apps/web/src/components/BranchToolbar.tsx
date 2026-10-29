@@ -1,5 +1,5 @@
 import { scopeProjectRef, scopeThreadRef } from "@supaterm/client-runtime/environment";
-import type { EnvironmentId, ProjectId, ThreadId } from "@supaterm/contracts";
+import type { EnvironmentId, ProjectId, ScopedThreadRef, ThreadId } from "@supaterm/contracts";
 import {
   type ReactNode,
   type Ref,
@@ -56,6 +56,7 @@ interface BranchToolbarProps {
   isServerThread: boolean;
   showGitControls: boolean;
   draftId?: DraftId;
+  composerDraftTarget?: ScopedThreadRef | DraftId;
   onEnvModeChange: (mode: EnvMode) => void;
   envMode: EnvMode;
   activeThreadBranchOverride?: string | null;
@@ -262,6 +263,7 @@ export const BranchToolbar = memo(function BranchToolbar({
   isServerThread,
   showGitControls,
   draftId,
+  composerDraftTarget,
   onEnvModeChange,
   envMode,
   activeThreadBranchOverride,
@@ -395,6 +397,7 @@ export const BranchToolbar = memo(function BranchToolbar({
             environmentId={environmentId}
             threadId={threadId}
             {...(draftId ? { draftId } : {})}
+            {...(composerDraftTarget ? { composerDraftTarget } : {})}
             envLocked={envLocked}
             effectiveEnvModeOverride={effectiveEnvMode}
             {...(activeThreadBranchOverride !== undefined ? { activeThreadBranchOverride } : {})}
