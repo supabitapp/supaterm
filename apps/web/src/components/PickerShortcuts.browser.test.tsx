@@ -195,6 +195,22 @@ describe.each(["toolbar", "panel"] as const)("host picker in %s", (displayMode) 
   });
 });
 
+it("numbers the add action when the project is on one host", async () => {
+  await using _test = await setupTest();
+  const onAddToMachine = vi.fn();
+  await screen.rerender(
+    <BranchToolbarEnvironmentSelector
+      envLocked={false}
+      environmentId={environments[0]!.environmentId}
+      availableEnvironments={[environments[0]!]}
+      onAddToMachine={onAddToMachine}
+    />,
+  );
+  await openPicker("Run on");
+  expect((await pressNumber("2")).defaultPrevented).toBe(true);
+  expect(onAddToMachine).toHaveBeenCalledOnce();
+});
+
 it("numbers enabled refs, skips actions, and follows the filtered branch list", async () => {
   await using _test = await setupTest();
   await screen.rerender(<RefPicker />);
