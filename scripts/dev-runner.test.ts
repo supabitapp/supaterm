@@ -439,6 +439,43 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
       }),
     );
 
+    it.effect("expands a home-relative Supaterm home the way the server does", () =>
+      Effect.gen(function* () {
+        const path = yield* Path.Path;
+        const homeFor = (supatermHome: string) =>
+          createDevRunnerEnv({
+            mode: "dev",
+            baseEnv: {},
+            serverOffset: 0,
+            webOffset: 0,
+            supatermHome,
+            browser: undefined,
+            autoBootstrapProjectFromCwd: undefined,
+            logWebSocketEvents: undefined,
+            host: undefined,
+            port: undefined,
+            devUrl: undefined,
+          }).pipe(
+            Effect.provideService(HostProcess.HomeDirectory, "/home/dev"),
+            Effect.map((env) => env.SUPATERM_HOME),
+          );
+
+        assert.equal(yield* homeFor("~/supaterm-dev"), path.join("/home/dev", "supaterm-dev"));
+        assert.equal(yield* homeFor("~"), "/home/dev");
+        assert.equal(yield* homeFor("~\\supaterm-dev"), path.join("/home/dev", "supaterm-dev"));
+        assert.equal(yield* homeFor("  ~/supaterm-dev  "), path.join("/home/dev", "supaterm-dev"));
+        assert.equal(
+          yield* homeFor("~someone/supaterm-dev"),
+          path.resolve("~someone/supaterm-dev"),
+        );
+        assert.equal(
+          yield* homeFor("relative/supaterm-dev"),
+          path.resolve("relative/supaterm-dev"),
+        );
+        assert.equal(yield* homeFor("/tmp/supaterm-dev"), path.resolve("/tmp/supaterm-dev"));
+      }),
+    );
+
     it.effect("declines to share for dev:desktop and still starts the stack", () => {
       let spawnCount = 0;
       const spawnerLayer = Layer.succeed(
