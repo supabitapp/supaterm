@@ -20,7 +20,8 @@ import {
   persistServerRuntimeState,
 } from "../serverRuntimeState.ts";
 import { CliServerVersionMismatchError } from "./config.ts";
-import { ThreadServerNotRunningError, type ThreadTools, waitForRun } from "./thread.ts";
+import { CliServerNotRunningError, type ServerTools } from "./serverTools.ts";
+import { waitForRun } from "./thread.ts";
 
 const threadId = ThreadId.make("thread-1");
 const runId = RunId.make("run-1");
@@ -32,8 +33,8 @@ const scriptedTools = (script: Record<string, Array<unknown>>) => {
     calls.push({ tool, args });
     const next = script[tool]?.shift();
     return next === undefined ? Effect.die(`unscripted ${tool} call`) : Effect.succeed(next);
-  }) as ThreadTools["call"];
-  return { tools: { call } satisfies ThreadTools, calls };
+  }) as ServerTools["call"];
+  return { tools: { origin: "http://127.0.0.1:1", call } satisfies ServerTools, calls };
 };
 
 it.effect("--wait follows the sent run to its continuation's terminal status", () =>
@@ -128,7 +129,7 @@ it.effect("a linked worktree only looks for a server in its own home", () =>
       Effect.flip,
     );
 
-    assert.instanceOf(error, ThreadServerNotRunningError);
+    assert.instanceOf(error, CliServerNotRunningError);
     assert.deepEqual(
       { baseDir: error.baseDir, inLinkedWorktree: error.inLinkedWorktree },
       { baseDir: NodePath.join(worktree, ".supaterm"), inLinkedWorktree: true },
@@ -165,7 +166,7 @@ it.effect("an installed CLI in a project's linked worktree uses the normal home"
       Effect.flip,
     );
 
-    assert.instanceOf(error, ThreadServerNotRunningError);
+    assert.instanceOf(error, CliServerNotRunningError);
     assert.deepEqual(
       { baseDir: error.baseDir, inLinkedWorktree: error.inLinkedWorktree },
       { baseDir: sharedHome, inLinkedWorktree: false },

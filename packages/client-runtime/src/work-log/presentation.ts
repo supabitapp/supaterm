@@ -641,6 +641,7 @@ function summaryActionPriority(action: ToolGroupAction | SupatermMcpToolSummaryA
     case "attachment-prepare":
     case "attachment-discard":
     case "attachment-send":
+    case "transcription-cancel":
       return 0;
     case "other":
     case "update":
