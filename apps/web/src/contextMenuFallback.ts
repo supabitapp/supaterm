@@ -24,6 +24,7 @@ import {
   PinOff,
   RefreshCw,
   Settings,
+  TextSearch,
   Timer,
   Trash,
 } from "@supaterm/icons/nodes";
@@ -56,6 +57,7 @@ const ICONS: Readonly<Record<string, IconNode>> = {
   "refresh-cw": RefreshCw,
   settings: Settings,
   "folder-tree": FolderTree,
+  "text-search": TextSearch,
   trash: Trash,
 };
 

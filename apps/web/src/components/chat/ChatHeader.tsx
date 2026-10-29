@@ -1,6 +1,7 @@
 import {
   AuthOrchestrationOperateScope,
   type EnvironmentId,
+  type ScopedThreadRef,
   type ThreadId,
   type ThreadPinnedMessage,
 } from "@supaterm/contracts";
@@ -58,6 +59,7 @@ interface ChatHeaderProps {
   onUnpinMessage?: ((pin: ThreadPinnedMessage) => void) | undefined;
   onNewThreadInProject: () => void;
   onOpenProjectSettings?: (() => void) | undefined;
+  onFindInThread?: ((threadRef: ScopedThreadRef) => void) | undefined;
 }
 
 function resolveRenameCommit(input: {
@@ -86,6 +88,7 @@ export const ChatHeader = memo(function ChatHeader({
   onUnpinMessage,
   onNewThreadInProject,
   onOpenProjectSettings,
+  onFindInThread,
 }: ChatHeaderProps) {
   const timestampFormat = useClientSettings((settings) => settings.timestampFormat);
   const activeProjectName = activeProject?.isScratch ? "No project" : activeProject?.title;
@@ -216,6 +219,7 @@ export const ChatHeader = memo(function ChatHeader({
   const { openMenu, closeMenu } = useThreadActionMenu({
     threadRef: isServerThread ? activeThreadRef : null,
     onStartRename: startRename,
+    onFind: onFindInThread,
   });
   const titleButtonRef = useRef<HTMLButtonElement | null>(null);
   const titleMenuTimerRef = useRef<{

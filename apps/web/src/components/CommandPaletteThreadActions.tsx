@@ -48,6 +48,7 @@ const THREAD_PALETTE_COMMANDS: Record<
   Exclude<ThreadActionMenuId, SnoozePresetAction>,
   ThreadPaletteCommand | null
 > = {
+  find: null,
   "open-beside": null,
   "filter-by-project": null,
   "project-settings": null,

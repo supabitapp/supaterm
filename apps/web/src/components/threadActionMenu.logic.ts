@@ -2,6 +2,7 @@ import type { ContextMenuItem } from "@supaterm/contracts";
 import type { SnoozePreset } from "@supaterm/client-runtime/state/thread-snooze";
 
 export type ThreadActionMenuId =
+  | "find"
   | "open-beside"
   | "new-thread-on-branch"
   | "filter-by-project"
@@ -68,6 +69,7 @@ export function buildDraftActionMenuItems(options: {
 
 export interface ThreadActionMenuState {
   readonly canOperate: boolean;
+  readonly canFind?: boolean;
   readonly branch: string | null;
   readonly projectFilter: {
     readonly label: string;
@@ -91,6 +93,7 @@ export interface ThreadActionMenuState {
 /** Local navigation, read markers, and copying remain available to read-only clients. */
 export function threadActionRequiresOperate(action: ThreadActionMenuId): boolean {
   return ![
+    "find",
     "open-beside",
     "new-thread-on-branch",
     "project-settings",
@@ -112,6 +115,9 @@ export function buildThreadActionMenuItems(
   state: ThreadActionMenuState,
 ): ReadonlyArray<ContextMenuItem<ThreadActionMenuId>> {
   const items: ReadonlyArray<ContextMenuItem<ThreadActionMenuId>> = [
+    ...(state.canFind
+      ? [{ id: "find" as const, label: "Find in thread", icon: "text-search" }]
+      : []),
     ...(state.canOpenBeside
       ? [{ id: "open-beside" as const, label: "Open to the side", icon: "columns-2" }]
       : []),

@@ -64,8 +64,9 @@ function failureToast(title: string, error: unknown) {
 export function useThreadActionMenu(input: {
   readonly threadRef: ScopedThreadRef | null;
   readonly onStartRename: (threadRef: ScopedThreadRef) => void;
+  readonly onFind?: ((threadRef: ScopedThreadRef) => void) | undefined;
 }) {
-  const { threadRef, onStartRename } = input;
+  const { threadRef, onStartRename, onFind } = input;
   const router = useRouter();
   const projects = useProjects();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
@@ -164,6 +165,9 @@ export function useThreadActionMenu(input: {
       }
     };
     switch (action) {
+      case "find":
+        onFind?.(threadRef);
+        return;
       case "project-settings": {
         if (!project) return;
         const projectKey =
@@ -324,6 +328,7 @@ export function useThreadActionMenu(input: {
     return {
       items: buildThreadActionMenuItems({
         canOperate: readEnvironmentScope(thread.environmentId, AuthOrchestrationOperateScope),
+        canFind: onFind !== undefined,
         branch: thread.branch ?? null,
         projectFilter: null,
         isPinned: thread.pinnedAt != null,
