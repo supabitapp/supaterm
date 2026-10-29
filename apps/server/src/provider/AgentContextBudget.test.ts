@@ -119,7 +119,7 @@ it.effect("agent context matches the committed budget", () =>
       ),
     };
 
-    expect(measured).toEqual(budget);
+    expect(measured, "Set agentContextBudget.json to the measured values.").toEqual(budget);
   }).pipe(
     Effect.provide(
       McpHttpServer.layerTools.pipe(

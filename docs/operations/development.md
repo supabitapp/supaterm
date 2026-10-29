@@ -168,11 +168,13 @@ without vault access can ask a maintainer to add the icon. Never commit the key.
 
 `vp run check:changed` runs CI's fast checks for your branch's changes: format and lint of the
 changed files, `knip:check` when code or a manifest changes, the generated GraphQL checks, typecheck
-of the affected packages and their dependents, and the test files beside the changed files. It maps
-files to packages with [changed-packages.ts](../../scripts/lib/changed-packages.ts) and compares
-against the merge base with `origin/main`, or with a ref you pass. A changed `package.json` or a path
-the mapping does not recognize affects every package. CI still runs the full test suites and the
-jobs the summary lists, so a local pass does not promise a green CI run.
+of the affected packages and their dependents, and the test files beside the changed files. It also
+runs the checks that read other files: the agent context budget when the server is affected, and
+React Compiler coverage for only the changed web and mobile files. It maps files to packages with
+[changed-packages.ts](../../scripts/lib/changed-packages.ts) and compares against the merge base
+with `origin/main`, or with a ref you pass. A changed `package.json` or a path the mapping does not
+recognize affects every package. CI still runs the full test suites and the jobs the summary lists,
+so a local pass does not promise a green CI run.
 
 The steps run side by side, so a run takes about as long as its slowest step, usually knip's
 exports pass at about 10 s. When the files are exactly those of the last passing run, it prints that
