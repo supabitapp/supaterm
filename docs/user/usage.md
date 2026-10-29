@@ -41,6 +41,10 @@ Use absolute paths or `~/` paths in the account's environment settings; relative
 depend on each project's working directory and cannot be reliably discovered by Usage. Accounts
 sharing a history directory count once.
 
+The server saves its first hostname in `<Supaterm home>/usage-host-id`, so a recreated container keeps
+its usage identity when Supaterm home is persisted. Set `SUPATERM_HOST_ID` to choose the identity
+explicitly.
+
 When your app and server support different providers, usage totals may cover only the providers
 your app understands. Update the app to include newly supported providers.
 
