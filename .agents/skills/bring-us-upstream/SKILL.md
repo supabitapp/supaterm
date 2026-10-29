@@ -11,6 +11,7 @@ Before editing:
 - Create a unique temporary CSV outside the worktree with columns `upstream_ref,change,decision,notes,status`.
 - Populate the full inventory before detailed review or implementation, with `status` set to `Pending` and decisions initially blank. Cover every commit in the range.
 - Read each merged PR's description and actual diff, and inspect commits outside PRs in the range.
+- If upstream has a implementation, bug fixes of the same thing, prefer bring in upstream implementation instead so we can sync later easier.
 - When upstream reverts or follows up on a change an earlier port brought, compare upstream's before and after with what that port left in our tree, including fork-only consumers, not with upstream's patch. Earlier ports adapt code, so a revert can apply cleanly in one file and conflict in another.
 - Default to bringing compatible upstream work, including new capabilities and architectural changes.
 - Fill each row's `decision` and `notes` from the review, splitting a commit into rows when its changes need different decisions:
