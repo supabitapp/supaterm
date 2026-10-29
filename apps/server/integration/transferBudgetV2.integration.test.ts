@@ -71,7 +71,7 @@ import {
   LONG_TURN_THREAD_ID,
   longTurnThreadBatches,
   SHELL_IDLE_SUBAGENTS,
-  SHELL_SETTLED_THREADS,
+  SHELL_DONE_THREADS,
   shellFleetEvents,
   THREAD_ID,
   threadCreated,
@@ -419,7 +419,7 @@ it.live("reports V2 thread HTTP and WebSocket transfer budgets", () =>
           const fleetShell = yield* readShell(CLIENT_SHELL_QUERY);
           assert.equal(
             fleetShellLegacy.rows,
-            earlierThreads + SHELL_SETTLED_THREADS + SHELL_IDLE_SUBAGENTS,
+            earlierThreads + SHELL_DONE_THREADS + SHELL_IDLE_SUBAGENTS,
           );
           return {
             provider,

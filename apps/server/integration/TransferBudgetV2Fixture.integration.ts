@@ -444,28 +444,28 @@ export function longTurnThreadBatches(
   ];
 }
 
-export const SHELL_SETTLED_THREADS = 100;
+export const SHELL_DONE_THREADS = 100;
 export const SHELL_IDLE_SUBAGENTS = 40;
 
 export function shellFleetEvents(
   provider: ProviderDriverKind,
 ): ReadonlyArray<OrchestrationV2DomainEvent> {
-  return Array.from({ length: SHELL_SETTLED_THREADS }, (_, index) => {
-    const threadId = ThreadId.make(`transfer-budget-settled-${index}`);
+  return Array.from({ length: SHELL_DONE_THREADS }, (_, index) => {
+    const threadId = ThreadId.make(`transfer-budget-done-${index}`);
     const doneAt = DateTime.makeUnsafe(Date.UTC(2026, 5, 3, 0, index));
-    const settled = threadCreated(provider, threadId, {
-      title: `Settled transfer thread ${index}`,
-      branch: `feature/settled-${index}`,
-      doneOverride: "settled",
+    const done = threadCreated(provider, threadId, {
+      title: `Done transfer thread ${index}`,
+      branch: `feature/done-${index}`,
+      doneOverride: "done",
       doneAt,
       updatedAt: doneAt,
     });
-    if (index < SHELL_SETTLED_THREADS - SHELL_IDLE_SUBAGENTS) return [settled];
-    const childId = ThreadId.make(`transfer-budget-settled-${index}-subagent`);
+    if (index < SHELL_DONE_THREADS - SHELL_IDLE_SUBAGENTS) return [done];
+    const childId = ThreadId.make(`transfer-budget-done-${index}-subagent`);
     return [
-      settled,
+      done,
       threadCreated(provider, childId, {
-        title: `Subagent of settled thread ${index}`,
+        title: `Subagent of Done thread ${index}`,
         createdBy: "agent",
         lineage: {
           parentThreadId: threadId,

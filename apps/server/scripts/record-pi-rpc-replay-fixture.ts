@@ -9,6 +9,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
+import * as Scope from "effect/Scope";
 import { TestClock } from "effect/testing";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
@@ -235,6 +236,7 @@ const record = Effect.gen(function* () {
     variant.runContinuationWorker === true ? { runContinuationWorker: true } : {};
 
   yield* Effect.gen(function* () {
+    const recordingScope = yield* Scope.Scope;
     yield* followWallClock.pipe(Effect.forkScoped);
     const materialized = yield* materializeInput;
     yield* runOrchestratorV2ProviderReplayScenario(
@@ -259,7 +261,7 @@ const record = Effect.gen(function* () {
               { name: "PI_SKIP_VERSION_CHECK", value: "1", sensitive: false },
             ],
             spawner: layerRecordingSpawner,
-          }),
+          }).pipe(Layer.provide(Layer.succeed(Scope.Scope, recordingScope))),
       },
       continuationOptions,
     );

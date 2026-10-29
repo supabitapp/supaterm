@@ -1,16 +1,8 @@
-export type ClaudeRecordingQueryMode =
-  | "streaming"
-  | "restart"
-  | "resume_at_cursor"
-  | "fork_session"
-  | "fork_session_prior_turn"
-  | "fork_session_continue"
-  | "fork_session_siblings"
-  | "fork_session_merge_back"
-  | "fork_session_merge_back_siblings"
-  | "active_steering"
-  | "interrupt"
-  | "interrupt_restart";
+import type { recordClaudeAgentSdkReplayTranscript } from "../src/orchestration-v2/Adapters/ClaudeAdapterV2.testkit.ts";
+
+export type ClaudeRecordingQueryMode = NonNullable<
+  Parameters<typeof recordClaudeAgentSdkReplayTranscript>[0]["queryMode"]
+>;
 
 export function validateClaudeReplayRecordingSelection(input: {
   readonly scenario: string;

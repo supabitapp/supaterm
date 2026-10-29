@@ -14,7 +14,7 @@ import {
 import {
   LONG_TURN_WORK_ROWS,
   SHELL_IDLE_SUBAGENTS,
-  SHELL_SETTLED_THREADS,
+  SHELL_DONE_THREADS,
 } from "./TransferBudgetV2Fixture.integration.ts";
 
 export interface WebSocketCatchUpMeasurement extends WebSocketTransferTotals {
@@ -117,7 +117,7 @@ export function formatTransferBudgetResult(runs: ReadonlyArray<TransferBudgetRun
         id: "thread-transfer-v2",
         longTurnWorkRows: LONG_TURN_WORK_ROWS,
         shellIdleSubagents: SHELL_IDLE_SUBAGENTS,
-        shellDoneThreads: SHELL_SETTLED_THREADS,
+        shellDoneThreads: SHELL_DONE_THREADS,
         historyTurns: TRANSFER_HISTORY_TURN_COUNT,
         historyCommandToolsPerTurn: TRANSFER_HISTORY_TOOLS_PER_TURN,
         historyMcpResultBytes: TRANSFER_HISTORY_MCP_RESULT_BYTES,
