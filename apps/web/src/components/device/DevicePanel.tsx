@@ -241,6 +241,7 @@ export function DevicePanel(props: {
               hostLabel={
                 state.hosts.find((host) => host.id === activeDevice.hostId)?.label ?? "Device host"
               }
+              hostKind={state.hosts.find((host) => host.id === activeDevice.hostId)?.kind}
               hostDiagnostics={
                 diagnostics.find(({ hostId }) => hostId === activeDevice.hostId)?.detail
               }
