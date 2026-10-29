@@ -82,6 +82,8 @@ export function makeSubagentChildThread(input: {
     doneAt: null,
     snoozedUntil: null,
     snoozedAt: null,
+    pinnedAt: null,
+    pinOrderKey: null,
     lastVisitedAt: null,
     deletedAt: null,
   };
