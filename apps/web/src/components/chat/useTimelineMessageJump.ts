@@ -1,15 +1,14 @@
 import type { LegendListRef } from "@legendapp/list/react";
+import {
+  type MessageJump,
+  type MessageJumpProgress,
+  nextMessageJumpStep,
+} from "@supaterm/client-runtime/message-jump";
 import type { ThreadHistoryControls } from "@supaterm/client-runtime/thread-history-prefetch";
-import type { MessageId, RunId } from "@supaterm/contracts";
+import type { RunId } from "@supaterm/contracts";
 import { useEffect, useRef, type RefObject } from "react";
 import type { TimelineEntry } from "../../session-logic";
 import type { MessagesTimelineRow } from "./MessagesTimeline.logic";
-import { toastManager } from "../ui/toast";
-
-export interface TimelineMessageJump {
-  readonly key: number;
-  readonly messageId: MessageId;
-}
 
 export function useTimelineMessageJump({
   jump,
@@ -22,8 +21,9 @@ export function useTimelineMessageJump({
   getTurnFoldRunId,
   onExpandTurn,
   onManualNavigation,
+  onMissing,
 }: {
-  jump: TimelineMessageJump | null;
+  jump: MessageJump | null;
   entries: ReadonlyArray<TimelineEntry>;
   rows: ReadonlyArray<MessagesTimelineRow>;
   listRef: RefObject<LegendListRef | null>;
@@ -33,11 +33,11 @@ export function useTimelineMessageJump({
   getTurnFoldRunId: (entryId: string) => RunId | undefined;
   onExpandTurn: (runId: RunId) => void;
   onManualNavigation: () => void;
+  onMissing: (jump: MessageJump) => void;
 }) {
   const navigationRef = useRef<{
     key: number;
-    requestedPages: Set<string>;
-    expandedRunId: RunId | null;
+    progress: MessageJumpProgress;
     done: boolean;
   } | null>(null);
 
@@ -46,55 +46,48 @@ export function useTimelineMessageJump({
     if (navigationRef.current?.key !== jump.key) {
       navigationRef.current = {
         key: jump.key,
-        requestedPages: new Set(),
-        expandedRunId: null,
+        progress: { requestedCursors: new Set(), expandedRunId: null },
         done: false,
       };
       onManualNavigation();
     }
     const navigation = navigationRef.current;
     if (navigation.done || !listReady) return;
-    const fail = () => {
-      navigation.done = true;
-      toastManager.add({
-        type: "warning",
-        title: "Pinned message not found",
-        description: "It may have been reverted. Unpin it from the pinned messages list.",
-      });
-    };
     const entry = entries.find(
       (candidate) => candidate.kind === "message" && candidate.message.id === jump.messageId,
     );
-    if (!entry) {
-      if (historyControls?.loading) return;
-      const cursor = entries[0]?.id ?? "first";
-      if (
-        !historyControls?.hasMoreHistory ||
-        historyControls.error !== null ||
-        navigation.requestedPages.has(cursor)
-      ) {
-        fail();
+    const step = nextMessageJumpStep({
+      rowIndex: rows.findIndex(
+        (row) => row.kind === "message" && row.message.id === jump.messageId,
+      ),
+      loaded: entry !== undefined,
+      foldRunId: entry === undefined ? null : getTurnFoldRunId(entry.id),
+      cursor: entries[0]?.id ?? "first",
+      history: historyControls,
+      progress: navigation.progress,
+    });
+    switch (step.type) {
+      case "scroll":
+        navigation.done = true;
+        void listRef.current?.scrollToIndex({ index: step.index, animated, viewOffset: 24 });
         return;
-      }
-      navigation.requestedPages.add(cursor);
-      historyControls.onLoadEarlier(jump.messageId);
-      return;
-    }
-    const index = rows.findIndex(
-      (row) => row.kind === "message" && row.message.id === jump.messageId,
-    );
-    if (index < 0) {
-      const foldRunId = getTurnFoldRunId(entry.id);
-      if (foldRunId === undefined || navigation.expandedRunId === foldRunId) {
-        fail();
+      case "expand":
+        navigation.progress = { ...navigation.progress, expandedRunId: step.runId };
+        onExpandTurn(step.runId);
         return;
-      }
-      navigation.expandedRunId = foldRunId;
-      onExpandTurn(foldRunId);
-      return;
+      case "load-earlier":
+        navigation.progress = {
+          ...navigation.progress,
+          requestedCursors: new Set(navigation.progress.requestedCursors).add(step.cursor),
+        };
+        historyControls?.onLoadEarlier(jump.messageId);
+        return;
+      case "wait":
+        return;
+      case "missing":
+        navigation.done = true;
+        onMissing(jump);
     }
-    navigation.done = true;
-    void listRef.current?.scrollToIndex({ index, animated, viewOffset: 24 });
   }, [
     animated,
     entries,
@@ -105,6 +98,7 @@ export function useTimelineMessageJump({
     listRef,
     onExpandTurn,
     onManualNavigation,
+    onMissing,
     rows,
   ]);
 }

@@ -7,6 +7,10 @@
       "types": "./src/threadHistoryPrefetch.ts",
       "default": "./src/threadHistoryPrefetch.ts"
     },
+    "./message-jump": {
+      "types": "./src/messageJump.ts",
+      "default": "./src/messageJump.ts"
+    },
     "./user-input-auto-dismiss-pause": {
       "types": "./src/userInputAutoDismissPause.ts",
       "default": "./src/userInputAutoDismissPause.ts"

@@ -171,7 +171,7 @@ import {
 } from "./ThreadComposer";
 import { ComposerPopoverHost } from "./ComposerPopoverHost";
 import { useNextPromptSuggestion } from "./useNextPromptSuggestion";
-import { ThreadFeed, type ThreadFeedHistoryControls } from "./ThreadFeed";
+import { ThreadFeed, type ThreadFeedHistoryControls, type ThreadFeedPins } from "./ThreadFeed";
 import { ComposerQueuedEditBanner } from "./ComposerQueuedEdit";
 import type { ThreadContentPresentation } from "./threadContentPresentation";
 import { resolveThreadFeedSubmissionAnchor } from "./thread-feed-live-follow";
@@ -225,6 +225,7 @@ export interface ThreadDetailScreenProps {
   readonly connectionStateLabel: EnvironmentConnectionPhase;
   readonly threadSyncStatus?: EnvironmentThreadStatus;
   readonly historyControls?: ThreadFeedHistoryControls;
+  readonly pins?: ThreadFeedPins;
   readonly activeThreadBusy: boolean;
   readonly canStopThread: boolean;
   readonly queuedRunEdit: QueuedRunEdit | null;
@@ -1478,6 +1479,7 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
               }
               contentMaxWidth={contentMaxWidth}
               historyControls={props.historyControls}
+              {...(props.pins ? { pins: props.pins } : {})}
               contentSideInsets={nativeMetrics?.safeArea}
               layoutVariant={layoutVariant}
               usesAutomaticContentInsets={props.usesAutomaticContentInsets}

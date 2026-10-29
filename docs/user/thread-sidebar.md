@@ -227,6 +227,20 @@ and copying a thread reference. A copied reference uses the thread's pull reques
 link when available, otherwise its thread ID. See [keybindings](./keybindings.md)
 for custom configuration.
 
+## Pin messages
+
+Pin the messages you want to return to, such as an agreed plan or a root-cause
+explanation. On web and desktop, hover a message and select the pin button. On
+mobile, long-press the copy button under your message, or tap the pin under an
+agent response. Pinned messages keep their actions visible.
+
+The pin button in the thread header lists the thread's pins in conversation
+order. Select one to jump to it; earlier history loads and folded turns open as
+needed. Pins are saved with the thread, so every client connected to the
+environment sees them. A thread holds up to 50 pins. If a pinned message was
+reverted, Supaterm offers to unpin it. Agents can also read a thread's pins and
+pin messages for you.
+
 ## Inspect agent work
 
 **Limited** means the provider stopped on a usage or rate limit. The conversation

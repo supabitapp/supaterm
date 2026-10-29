@@ -7,6 +7,7 @@ import type { ThreadInspectorMode } from "./thread-inspector-content-stack";
 import { useThreadHeaderOptions } from "./useThreadHeaderOptions";
 import { useWorkspaceBackNavigation } from "../workspace/useAndroidWorkspaceNavigation";
 import { PullRequestGlyph } from "../pull-requests/pullRequestGlyphs";
+import { pinnedMessageCaption, pinnedMessageTitle } from "./pinnedMessageLabels";
 
 export function ThreadHeader(
   props: Parameters<typeof useThreadHeaderOptions>[0] & {
@@ -24,6 +25,25 @@ export function ThreadHeader(
     useAdaptiveWorkspaceLayout();
   const { onOpenTerminal, onMergeBack } = props.gitControls;
   const native = useThreadHeaderOptions(props);
+  const { pinnedMessages, onJumpToPinnedMessage } = props;
+  const pinsMenu = useMemo(
+    () =>
+      !pinnedMessages?.length || !onJumpToPinnedMessage
+        ? undefined
+        : [
+            {
+              title: "Pinned messages",
+              icon: "pin" as const,
+              items: pinnedMessages.map((pin) => ({
+                id: pin.itemId,
+                title: pinnedMessageTitle(pin),
+                subtitle: pinnedMessageCaption(pin),
+                onPress: () => onJumpToPinnedMessage(pin),
+              })),
+            },
+          ],
+    [pinnedMessages, onJumpToPinnedMessage],
+  );
   const androidHeaderActions = useMemo<ReadonlyArray<AppBarAction>>(() => {
     const actions: AppBarAction[] = [];
     if (props.onReturnToThread) {
@@ -100,6 +120,7 @@ export function ThreadHeader(
         }
         onBack={layout.usesSplitView ? undefined : goBack}
         actions={androidHeaderActions}
+        {...(pinsMenu ? { menus: pinsMenu } : {})}
         hideBottomBorder
         compact={composerKeyboardActive}
       />

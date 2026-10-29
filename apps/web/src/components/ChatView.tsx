@@ -290,7 +290,7 @@ import {
 import type { AssistantCitationRequest } from "./chat/AssistantCitationSource";
 import type { MessagesTimelineHistoryControls } from "./chat/MessagesTimeline";
 import type { PinnableProjectedItem } from "./chat/PinnedMessages";
-import type { TimelineMessageJump } from "./chat/useTimelineMessageJump";
+import type { MessageJump } from "@supaterm/client-runtime/message-jump";
 import { ThreadTimeline } from "./chat/ThreadTimeline";
 import { ProviderSubagentBar } from "./chat/ProviderSubagentBar";
 import { getTriggerDisplayModelName } from "./chat/providerIconUtils";
@@ -514,7 +514,7 @@ export default function ChatView(props: ChatViewProps) {
   const serverProjection = serverThreadProjection?.projection ?? null;
   const pinnedMessages = serverProjection?.thread.pinnedMessages ?? EMPTY_PINNED_MESSAGES;
   const [pinnedMessageJump, setPinnedMessageJump] = useState<
-    (TimelineMessageJump & { readonly threadKey: string }) | null
+    (MessageJump & { readonly threadKey: string }) | null
   >(null);
   const togglePinnedMessageStable = useStableCallback(
     (projectedItem: PinnableProjectedItem, pinned: boolean) => {
@@ -529,6 +529,25 @@ export default function ChatView(props: ChatViewProps) {
   );
   const unpinMessageStable = useStableCallback((pin: ThreadPinnedMessage) => {
     void unpinThreadMessage({ environmentId, input: { threadId, itemId: pin.itemId } });
+  });
+  const reportMissingPinnedMessageStable = useStableCallback((jump: MessageJump) => {
+    const pin = pinnedMessages.find((candidate) => candidate.messageId === jump.messageId);
+    const id = toastManager.add({
+      type: "warning",
+      title: "Pinned message not found",
+      description: "It may have been reverted.",
+      ...(pin && canOperateThread
+        ? {
+            actionProps: {
+              children: "Unpin",
+              onClick: () => {
+                toastManager.close(id);
+                unpinMessageStable(pin);
+              },
+            },
+          }
+        : {}),
+    });
   });
   const jumpToPinnedMessageStable = useStableCallback((pin: ThreadPinnedMessage) => {
     setPinnedMessageJump((previous) => ({
@@ -3627,6 +3646,7 @@ export default function ChatView(props: ChatViewProps) {
                             pinnedMessageJump?.threadKey === routeThreadKey
                               ? pinnedMessageJump
                               : null,
+                          onMessageJumpMissing: reportMissingPinnedMessageStable,
                         })}
                   />
 

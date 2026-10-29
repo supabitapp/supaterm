@@ -105,7 +105,8 @@ import {
 } from "./MessagesTimeline.logic";
 import type { ThreadFindPositionReader, ThreadFindMatch } from "./threadFind";
 import { useThreadFindNavigation } from "./useThreadFindNavigation";
-import { type TimelineMessageJump, useTimelineMessageJump } from "./useTimelineMessageJump";
+import { useTimelineMessageJump } from "./useTimelineMessageJump";
+import type { MessageJump } from "@supaterm/client-runtime/message-jump";
 import type { PinnableProjectedItem } from "./PinnedMessages";
 import { TooltipScrollDismissArea } from "../ui/tooltip";
 import { WorktreeSetupCard } from "./WorktreeSetupCard";
@@ -175,6 +176,7 @@ const TIMELINE_MAINTAIN_SCROLL_AT_END = {
 
 const EMPTY_RUN_IDS: ReadonlySet<RunId> = new Set();
 const EMPTY_PINNED_MESSAGES: ReadonlyArray<ThreadPinnedMessage> = [];
+const NOOP_MESSAGE_JUMP_MISSING = () => {};
 const TIMELINE_MAINTAIN_SCROLL_AT_END_SMOOTH = {
   ...TIMELINE_MAINTAIN_SCROLL_AT_END,
   animated: true,
@@ -268,7 +270,8 @@ interface MessagesTimelineProps {
   loadEarlier?: CitationHistoryPage | null;
   pinnedMessages?: ReadonlyArray<ThreadPinnedMessage>;
   onTogglePinnedMessage?: (projectedItem: PinnableProjectedItem, pinned: boolean) => void;
-  messageJump?: TimelineMessageJump | null;
+  messageJump?: MessageJump | null;
+  onMessageJumpMissing?: (jump: MessageJump) => void;
   findPositionReaderRef?: React.RefObject<ThreadFindPositionReader | null>;
   findExpanded?: boolean;
   findQuery?: string;
@@ -365,6 +368,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   pinnedMessages = EMPTY_PINNED_MESSAGES,
   onTogglePinnedMessage,
   messageJump = null,
+  onMessageJumpMissing = NOOP_MESSAGE_JUMP_MISSING,
 }: MessagesTimelineProps) {
   const listIdentityKey = displayThreadKey ?? routeThreadKey;
   // The remembered position is a snapshot taken when the list identity changes;
@@ -1038,6 +1042,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     getTurnFoldRunId: turnFoldRunIdOf,
     onExpandTurn: expandCitedRun,
     onManualNavigation,
+    onMissing: onMessageJumpMissing,
   });
 
   useThreadFindNavigation({

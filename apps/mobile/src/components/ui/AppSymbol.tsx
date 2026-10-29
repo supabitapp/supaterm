@@ -102,6 +102,7 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   "person.badge.plus": IconNodes.UserPlus,
   photo: IconNodes.Image,
   pin: IconNodes.Pin,
+  "pin.fill": IconNodes.Pin,
   "pin.slash": IconNodes.PinOff,
   play: IconNodes.Play,
   plus: IconNodes.Plus,
