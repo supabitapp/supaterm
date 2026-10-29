@@ -62,6 +62,8 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
   const hostFilter = useComboboxFilter();
   const activeEnvironment =
     availableEnvironments.find((env) => env.environmentId === environmentId) ?? null;
+  const interactive =
+    !envLocked && (onEnvironmentChange !== undefined || onAddToMachine !== undefined);
 
   const environmentItems = [
     ...(onAutoEnvironment
@@ -92,7 +94,7 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
   };
   const hostJumpLabels = usePickerShortcuts({
     picker: "host",
-    open: open && !envLocked && onEnvironmentChange !== undefined,
+    open: open && interactive,
     items: filteredEnvironmentItems,
     keybindings,
     onSelect: (item) => {
@@ -106,7 +108,7 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
   // the glass seam joining it to the composer assumes a fixed strip height, so
   // a shorter label would drag the seam out of line whenever this label is the
   // only thing in the strip.
-  if (envLocked || (onEnvironmentChange === undefined && onAddToMachine === undefined)) {
+  if (!interactive) {
     const lockedRow = (
       <span
         className={cn(
