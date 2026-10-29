@@ -540,6 +540,7 @@ export const layerMcpClientAuthenticator = Layer.effect(
                     sessionId: client.sessionId,
                     label: client.label,
                     access: client.access,
+                    webOrigin: requestUrls(request).issuer,
                   },
                   capabilities: new Set<McpInvocationContext.McpCapability>([
                     "orchestration",

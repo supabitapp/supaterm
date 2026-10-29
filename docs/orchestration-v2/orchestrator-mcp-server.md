@@ -398,7 +398,9 @@ environment that owns the thread builds the link. Clients open only that
 environment's thread and show its current title; a link to a thread they do not
 know renders as a label that opens nothing. Older `supaterm-thread://v1/<threadId>`
 links name no environment: clients resolve them in the message's environment,
-then by a unique match in another enabled environment.
+then by a unique match in another enabled environment. An outside OAuth client
+cannot render `supaterm-thread://` links, so it gets a web URL on the origin it
+reached, `<origin>/<environmentId>/<threadId>`, for threads in this environment.
 
 List and read results report `snoozed` and `snoozedUntil`, and
 `supaterm_thread_list` filters on `snoozed`. The server's `isSnoozed` follows the
