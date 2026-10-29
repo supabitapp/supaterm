@@ -94,7 +94,7 @@ import {
   type PrStatusIndicator,
   type ThreadPr,
 } from "../ThreadStatusIndicators";
-import { InlineConfirmLabel } from "../InlineConfirm";
+import { InlineConfirmLabel, InlineConfirmTooltip } from "../InlineConfirm";
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "../ui/menu";
 import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -442,10 +442,8 @@ export function ThreadDetailsPrRow({
                 pending: pendingAction === "merge",
                 destructive: false,
                 suffix: null,
-                tooltip:
-                  confirm.armed === "merge"
-                    ? `Click again to merge #${number} into ${detail?.baseBranch} (${selectedMergeMethod})`
-                    : `Merge this pull request (${selectedMergeMethod})`,
+                tooltip: `Merge this pull request (${selectedMergeMethod})`,
+                armedTooltip: `Click again to merge #${number} into ${detail?.baseBranch} (${selectedMergeMethod})`,
                 controlProps: confirm.bind(
                   "merge",
                   () => void perform("merge", selectedMergeMethod),
@@ -464,10 +462,8 @@ export function ThreadDetailsPrRow({
                   pending: pendingAction === "enable-auto-merge",
                   destructive: false,
                   suffix: null,
-                  tooltip:
-                    confirm.armed === "enable-auto-merge"
-                      ? `Click again to enable auto-merge. The host may merge #${number} right away.`
-                      : `Merge into ${detail?.baseBranch} (${selectedMergeMethod}) once its checks pass`,
+                  tooltip: `Merge into ${detail?.baseBranch} (${selectedMergeMethod}) once its checks pass`,
+                  armedTooltip: `Click again to enable auto-merge. The host may merge #${number} right away.`,
                   controlProps: confirm.bind(
                     "enable-auto-merge",
                     () => void perform("enable-auto-merge", selectedMergeMethod),
@@ -636,25 +632,26 @@ export function ThreadDetailsPrRow({
           {trailingAction ? (
             <>
               <span aria-hidden="true" className={THREAD_DETAILS_PANEL_SPLIT_SEPARATOR_CLASS} />
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <ThreadDetailsControl
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      part="action"
-                      tone={trailingAction.destructive ? "destructive" : "default"}
-                      disabled={actionPending || handoff !== null}
-                      {...trailingAction.controlProps}
-                    />
-                  }
-                >
-                  {trailingAction.pending ? trailingAction.pendingLabel : trailingAction.label}
-                  {trailingAction.suffix}
-                </TooltipTrigger>
-                <TooltipPopup side="top">{trailingAction.tooltip}</TooltipPopup>
-              </Tooltip>
+              <InlineConfirmTooltip
+                armed={confirm.armed === rowAction}
+                required={rowAction === "merge" || rowAction === "enable-auto-merge"}
+                tip={trailingAction.tooltip}
+                armedTip={trailingAction.armedTooltip}
+                render={
+                  <ThreadDetailsControl
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    part="action"
+                    tone={trailingAction.destructive ? "destructive" : "default"}
+                    disabled={actionPending || handoff !== null}
+                    {...trailingAction.controlProps}
+                  />
+                }
+              >
+                {trailingAction.pending ? trailingAction.pendingLabel : trailingAction.label}
+                {trailingAction.suffix}
+              </InlineConfirmTooltip>
             </>
           ) : null}
           {actionsMenu}

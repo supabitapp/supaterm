@@ -10,7 +10,7 @@ import type { ReactNode } from "react";
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";
 import { cn } from "~/lib/utils";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
-import { InlineConfirmIcon, InlineConfirmLabel } from "../InlineConfirm";
+import { InlineConfirmIcon, InlineConfirmLabel, InlineConfirmTooltip } from "../InlineConfirm";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import {
@@ -287,92 +287,72 @@ export function PullRequestPrimaryAction({
           <TooltipPopup side="top">Ready for review</TooltipPopup>
         </Tooltip>
       ) : primaryAction === "enable-auto-merge" ? (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <span className="inline-flex shrink-0">
-                <Button
-                  size="xs"
-                  variant="default"
-                  disabled={actionPending}
-                  {...confirm.bind(
-                    "enable-auto-merge",
-                    () => void perform("enable-auto-merge", selectedMergeMethod),
-                  )}
-                  aria-label={
-                    pendingAction === "enable-auto-merge"
-                      ? "Enabling..."
-                      : confirm.armed === "enable-auto-merge"
-                        ? "Confirm auto-merge"
-                        : pendingAutoMergeLabel
-                  }
-                >
-                  <InlineConfirmIcon armed={confirm.armed === "enable-auto-merge"}>
-                    <PullRequestGlyph.merged aria-hidden className="size-3.5" />
-                  </InlineConfirmIcon>
-                  <span className="@max-[30rem]/pr-header:hidden">
-                    <InlineConfirmLabel
-                      armed={confirm.armed === "enable-auto-merge"}
-                      idle={
-                        pendingAction === "enable-auto-merge"
-                          ? "Enabling..."
-                          : pendingAutoMergeLabel
-                      }
-                      confirm="Confirm auto-merge"
-                    />
-                  </span>
-                </Button>
-              </span>
+        <InlineConfirmTooltip
+          armed={confirm.armed === "enable-auto-merge"}
+          render={<span className="inline-flex shrink-0" />}
+          tip={pendingAction === "enable-auto-merge" ? "Enabling..." : pendingAutoMergeLabel}
+          armedTip={`Click again to enable auto-merge. The host may merge #${pullRequestNumber} right away.`}
+        >
+          <Button
+            size="xs"
+            variant="default"
+            disabled={actionPending}
+            {...confirm.bind(
+              "enable-auto-merge",
+              () => void perform("enable-auto-merge", selectedMergeMethod),
+            )}
+            aria-label={
+              pendingAction === "enable-auto-merge"
+                ? "Enabling..."
+                : confirm.armed === "enable-auto-merge"
+                  ? "Confirm auto-merge"
+                  : pendingAutoMergeLabel
             }
-          />
-          <TooltipPopup side="top">
-            {pendingAction === "enable-auto-merge"
-              ? "Enabling..."
-              : confirm.armed === "enable-auto-merge"
-                ? `Click again to enable auto-merge. The host may merge #${pullRequestNumber} right away.`
-                : pendingAutoMergeLabel}
-          </TooltipPopup>
-        </Tooltip>
+          >
+            <InlineConfirmIcon armed={confirm.armed === "enable-auto-merge"}>
+              <PullRequestGlyph.merged aria-hidden className="size-3.5" />
+            </InlineConfirmIcon>
+            <span className="@max-[30rem]/pr-header:hidden">
+              <InlineConfirmLabel
+                armed={confirm.armed === "enable-auto-merge"}
+                idle={pendingAction === "enable-auto-merge" ? "Enabling..." : pendingAutoMergeLabel}
+                confirm="Confirm auto-merge"
+              />
+            </span>
+          </Button>
+        </InlineConfirmTooltip>
       ) : primaryAction === "merge" ? (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <span className="inline-flex shrink-0">
-                <Button
-                  size="xs"
-                  variant="default"
-                  disabled={actionPending}
-                  {...confirm.bind("merge", () => void perform("merge", selectedMergeMethod))}
-                  aria-label={
-                    pendingAction === "merge"
-                      ? "Merging..."
-                      : confirm.armed === "merge"
-                        ? "Confirm merge"
-                        : selectedMergeMethodLabel
-                  }
-                >
-                  <InlineConfirmIcon armed={confirm.armed === "merge"}>
-                    <PullRequestGlyph.merged aria-hidden className="size-3.5" />
-                  </InlineConfirmIcon>
-                  <span className="@max-[30rem]/pr-header:hidden">
-                    <InlineConfirmLabel
-                      armed={confirm.armed === "merge"}
-                      idle={pendingAction === "merge" ? "Merging..." : selectedMergeMethodLabel}
-                      confirm="Confirm merge"
-                    />
-                  </span>
-                </Button>
-              </span>
+        <InlineConfirmTooltip
+          armed={confirm.armed === "merge"}
+          render={<span className="inline-flex shrink-0" />}
+          tip={pendingAction === "merge" ? "Merging..." : selectedMergeMethodLabel}
+          armedTip={`Click again to ${selectedMergeMethodLabel.toLowerCase()} #${pullRequestNumber} into ${baseBranch}`}
+        >
+          <Button
+            size="xs"
+            variant="default"
+            disabled={actionPending}
+            {...confirm.bind("merge", () => void perform("merge", selectedMergeMethod))}
+            aria-label={
+              pendingAction === "merge"
+                ? "Merging..."
+                : confirm.armed === "merge"
+                  ? "Confirm merge"
+                  : selectedMergeMethodLabel
             }
-          />
-          <TooltipPopup side="top">
-            {pendingAction === "merge"
-              ? "Merging..."
-              : confirm.armed === "merge"
-                ? `Click again to ${selectedMergeMethodLabel.toLowerCase()} #${pullRequestNumber} into ${baseBranch}`
-                : selectedMergeMethodLabel}
-          </TooltipPopup>
-        </Tooltip>
+          >
+            <InlineConfirmIcon armed={confirm.armed === "merge"}>
+              <PullRequestGlyph.merged aria-hidden className="size-3.5" />
+            </InlineConfirmIcon>
+            <span className="@max-[30rem]/pr-header:hidden">
+              <InlineConfirmLabel
+                armed={confirm.armed === "merge"}
+                idle={pendingAction === "merge" ? "Merging..." : selectedMergeMethodLabel}
+                confirm="Confirm merge"
+              />
+            </span>
+          </Button>
+        </InlineConfirmTooltip>
       ) : (primaryAction === "merged" || primaryAction === "closed") &&
         statePresentation !== null ? (
         <Badge size="control" variant="outline">
@@ -401,46 +381,34 @@ export function PullRequestApproveWorkflowsButton({
   const actionPending = pendingAction !== null;
   const armed = confirm.armed === "approve-workflows";
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <span className="ml-auto inline-flex shrink-0">
-            <Button
-              size="xs"
-              variant="warning-outline"
-              disabled={actionPending}
-              {...confirm.bind("approve-workflows", () => void perform("approve-workflows"))}
-              aria-label={
-                pendingAction === "approve-workflows"
-                  ? "Approving..."
-                  : armed
-                    ? "Confirm approval"
-                    : "Approve workflows to run"
-              }
-            >
-              <InlineConfirmIcon armed={armed}>
-                <PlayIcon aria-hidden className="size-3.5" />
-              </InlineConfirmIcon>
-              <InlineConfirmLabel
-                armed={armed}
-                idle={
-                  pendingAction === "approve-workflows"
-                    ? "Approving..."
-                    : "Approve workflows to run"
-                }
-                confirm="Confirm approval"
-              />
-            </Button>
-          </span>
+    <InlineConfirmTooltip
+      armed={armed}
+      render={<span className="ml-auto inline-flex shrink-0" />}
+      tip={pendingAction === "approve-workflows" ? "Approving..." : "Approve workflows to run"}
+      armedTip={`Click again to let ${workflowApprovalsRequired} ${workflowApprovalsRequired === 1 ? "workflow" : "workflows"} from #${pullRequestNumber} run. Review the code and workflow changes first.`}
+    >
+      <Button
+        size="xs"
+        variant="warning-outline"
+        disabled={actionPending}
+        {...confirm.bind("approve-workflows", () => void perform("approve-workflows"))}
+        aria-label={
+          pendingAction === "approve-workflows"
+            ? "Approving..."
+            : armed
+              ? "Confirm approval"
+              : "Approve workflows to run"
         }
-      />
-      <TooltipPopup side="top">
-        {pendingAction === "approve-workflows"
-          ? "Approving..."
-          : armed
-            ? `Click again to let ${workflowApprovalsRequired} ${workflowApprovalsRequired === 1 ? "workflow" : "workflows"} from #${pullRequestNumber} run. Review the code and workflow changes first.`
-            : "Approve workflows to run"}
-      </TooltipPopup>
-    </Tooltip>
+      >
+        <InlineConfirmIcon armed={armed}>
+          <PlayIcon aria-hidden className="size-3.5" />
+        </InlineConfirmIcon>
+        <InlineConfirmLabel
+          armed={armed}
+          idle={pendingAction === "approve-workflows" ? "Approving..." : "Approve workflows to run"}
+          confirm="Confirm approval"
+        />
+      </Button>
+    </InlineConfirmTooltip>
   );
 }

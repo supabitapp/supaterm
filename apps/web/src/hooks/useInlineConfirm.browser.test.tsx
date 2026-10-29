@@ -52,7 +52,7 @@ async function setupTest() {
 }
 
 describe("useInlineConfirm", () => {
-  it("runs only on a second press at least 400ms after arming", async () => {
+  it("runs only on a second press at least 250ms after arming", async () => {
     await using _test = await setupTest();
     await render();
     await press();
