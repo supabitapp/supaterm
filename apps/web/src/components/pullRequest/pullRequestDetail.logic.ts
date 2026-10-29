@@ -1105,7 +1105,10 @@ export function buildSubagentFixChecksPrompt(input: {
 }): string {
   const failingChecks = input.checks
     .filter((check) => check.status === "failure" || check.status === "cancelled")
-    .map((check) => `> ${boundedField(check.name)}${check.url ? ` - ${check.url}` : ""}`);
+    .map((check) => {
+      const name = boundedField(check.name);
+      return check.url ? `> [${name.replace(/[[\]]/gu, "\\$&")}](${check.url})` : `> ${name}`;
+    });
   return [
     `Spawn a subagent to fix the CI failures on ${input.url}`,
     ...(failingChecks.length > 0 ? ["", "Failing checks:", ...failingChecks] : []),
