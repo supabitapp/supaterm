@@ -6,6 +6,7 @@ import {
   ProviderInstanceId,
   ServerSettingsPatch,
   WorktreeCleanupRules,
+  ServerSettings,
   type ServerProvider,
 } from "@supaterm/contracts";
 import * as Duration from "effect/Duration";
@@ -23,6 +24,7 @@ import {
   resolveReviewGuideModelSelection,
 } from "./serverSettings.ts";
 
+const decodeServerSettings = Schema.decodeUnknownSync(ServerSettings);
 const decodeServerSettingsPatch = Schema.decodeUnknownSync(ServerSettingsPatch);
 
 const FOLDED_SERVER_SETTINGS = { ...DEFAULT_SERVER_SETTINGS, projectSettingsFolded: true };
@@ -516,6 +518,37 @@ describe("serverSettings helpers", () => {
       newWorktreesStartFromOrigin: false,
       providerInstances: { [instanceId]: { enabled: false } },
     });
+  });
+
+  // A newer client must still see this server drop a key it does not know.
+  it("drops an override key this server does not know from a patch and keeps one it stored", () => {
+    const projectId = ProjectId.make("project-a");
+    const current = decodeServerSettings({
+      projectSettingsFolded: true,
+      projectSettingsOverrides: {
+        [projectId]: { defaultAutoPull: true, addedByNewerServer: 3 },
+      },
+    });
+    const patch = decodeServerSettingsPatch({
+      projectSettingsOverrides: {
+        [projectId]: { defaultAutoPull: false, addedByNewerServer: 4, addedByNewerClient: "x" },
+      },
+    });
+
+    const updated = applyServerSettingsPatch(current, patch);
+    expect(updated.projectSettingsOverrides[projectId]).toEqual({
+      defaultAutoPull: false,
+      addedByNewerServer: 3,
+    });
+    const reset = applyServerSettingsPatch(updated, {
+      projectSettingsOverrides: { [projectId]: {} },
+    });
+    expect(reset.projectSettingsOverrides[projectId]).toEqual({ addedByNewerServer: 3 });
+    expect(
+      applyServerSettingsPatch(reset, {
+        projectSettingsOverrides: { [projectId]: null },
+      }).projectSettingsOverrides[projectId],
+    ).toBeUndefined();
   });
 
   it("clears a project's providerInstances override when a patch entry sends an empty map", () => {

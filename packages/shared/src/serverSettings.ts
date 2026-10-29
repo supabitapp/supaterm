@@ -13,7 +13,7 @@ import {
   type ModelSelection,
   type ProjectId,
   type ProjectScopedServerSettingKey,
-  type ProjectSettingsOverrides,
+  ProjectSettingsOverrides,
   type ProjectSettingsOverridesPatchEntry,
   ProviderDriverKind,
   ProviderInstanceId,
@@ -243,6 +243,14 @@ function mergeSettingsEntries<Value>(
   return Object.fromEntries(next);
 }
 
+const knownProjectOverrideKeys = new Set(Object.keys(ProjectSettingsOverrides.fields));
+
+function pickOverrideKeys(entry: Readonly<Record<string, unknown>> | undefined, known: boolean) {
+  return Object.fromEntries(
+    Object.entries(entry ?? {}).filter(([key]) => knownProjectOverrideKeys.has(key) === known),
+  );
+}
+
 /** Override keys added after clients already round-tripped a project's whole entry. */
 const OVERRIDE_KEYS_OLDER_CLIENTS_OMIT = [
   "providerInstances",
@@ -287,8 +295,10 @@ function mergeProjectSettingsOverridesPatch(
     const stored = current[projectId];
     const { worktreeCleanup, ...rest } = entry;
     next.set(projectId, {
+      // Preserve downgraded storage, but reject new unknown writes so clients can detect unsupported settings.
+      ...pickOverrideKeys(stored, false),
       ...(stored === undefined ? {} : Struct.pick(stored, OVERRIDE_KEYS_OLDER_CLIENTS_OMIT)),
-      ...rest,
+      ...pickOverrideKeys(rest, true),
       ...(worktreeCleanup === undefined
         ? {}
         : {
