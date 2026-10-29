@@ -1,6 +1,9 @@
 import { parsePatchFiles } from "@pierre/diffs/utils/parsePatchFiles";
 import type { ChangeTypes, FileDiffMetadata } from "@pierre/diffs/types";
-import type { ThreadCheckpointSummary } from "@supaterm/client-runtime/state/thread-checkpoints";
+import {
+  checkpointFileTotals,
+  type ThreadCheckpointSummary,
+} from "@supaterm/client-runtime/state/thread-checkpoints";
 import type { ReviewDiffPreviewSource } from "@supaterm/contracts";
 import { quoteGitPatchPath } from "@supaterm/shared/gitPatchPath";
 import * as Arr from "effect/Array";
@@ -107,7 +110,7 @@ function checkpointTitle(checkpoint: ThreadCheckpointSummary): string {
 }
 
 function checkpointSubtitle(checkpoint: ThreadCheckpointSummary): string {
-  const fileCount = checkpoint.files.length;
+  const fileCount = checkpointFileTotals(checkpoint).count;
   if (checkpoint.status !== "ready") {
     return `Diff ${checkpoint.status}`;
   }
