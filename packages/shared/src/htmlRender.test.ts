@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  htmlRenderTheme,
   injectHtmlRenderBootstrap,
   readHtmlRenderImageRequest,
   readHtmlRenderLinkRequest,
 } from "./htmlRender.ts";
+import { SUPATERM_DARK_THEME_COLORS, SUPATERM_LIGHT_THEME_COLORS } from "./themePalettes.ts";
 import { htmlRenderFromToolItem } from "./toolOutput.ts";
 
 const reference = { attachmentId: "thread-abc-123.html", title: "Chart", height: 420 };
@@ -64,6 +66,21 @@ describe("injectHtmlRenderBootstrap", () => {
       injected.indexOf("<html><head>"),
     );
     expect(injected).toContain('<meta name="viewport" content="width=device-width');
+  });
+});
+
+describe("htmlRenderTheme", () => {
+  it.each([
+    ["light", SUPATERM_LIGHT_THEME_COLORS],
+    ["dark", SUPATERM_DARK_THEME_COLORS],
+  ] as const)("keeps chart series off the %s theme's accent", (appearance, colors) => {
+    const series = (theme: ReturnType<typeof htmlRenderTheme>) =>
+      [1, 2, 3, 4, 5, 6].map((n) => theme.variables[`--chart-${n}`]);
+    const theme = htmlRenderTheme(colors, appearance);
+    expect(series(theme)).not.toContain(theme.variables["--foreground"]);
+    expect(series(htmlRenderTheme({ ...colors, accent: "#ff0000" }, appearance))).toEqual(
+      series(theme),
+    );
   });
 });
 
