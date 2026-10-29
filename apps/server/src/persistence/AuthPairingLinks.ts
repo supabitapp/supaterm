@@ -45,6 +45,7 @@ export type CreateAuthPairingLinkInput = typeof CreateAuthPairingLinkInput.Type;
 export const ConsumeAuthPairingLinkInput = Schema.Struct({
   credential: Schema.String,
   requestedScopes: Schema.optionalKey(AuthEnvironmentScopes),
+  requiredScopes: Schema.optionalKey(AuthEnvironmentScopes),
   consumedAt: Schema.DateTimeUtcFromString,
   now: Schema.DateTimeUtcFromString,
 });
@@ -155,7 +156,7 @@ export const make = Effect.gen(function* () {
   const consumeAvailablePairingLinkRow = SqlSchema.findOneOption({
     Request: ConsumeAuthPairingLinkInput,
     Result: AuthPairingLinkRawDbRow,
-    execute: ({ credential, requestedScopes, consumedAt, now }) =>
+    execute: ({ credential, requestedScopes, requiredScopes, consumedAt, now }) =>
       sql`
         UPDATE auth_pairing_links
         SET consumed_at = ${consumedAt}
@@ -170,6 +171,13 @@ export const make = Effect.gen(function* () {
               SELECT value FROM json_each(auth_pairing_links.scopes)
             )
           ))
+          AND NOT EXISTS (
+            SELECT 1
+            FROM json_each(${JSON.stringify(requiredScopes ?? [])}) AS required
+            WHERE required.value NOT IN (
+              SELECT value FROM json_each(auth_pairing_links.scopes)
+            )
+          )
         RETURNING
           id AS "id",
           credential AS "credential",
