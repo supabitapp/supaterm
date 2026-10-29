@@ -45,6 +45,7 @@ import {
   scopedPullRequestListKey as pullRequestKey,
   type EnvironmentPullRequestListEntry,
   withoutScratchProjectScope,
+  pullRequestProjectChoices,
 } from "./pullRequestList";
 import { useDebouncedValue } from "../../state/queries";
 import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
@@ -217,14 +218,16 @@ export function PullRequestsScreen(
   const projects = useMemo(
     () =>
       sortProjectsByGroupOrder(
-        allProjects.filter(
-          (project) =>
-            !project.isScratch &&
-            (environmentId === null || project.environmentId === environmentId),
-        ),
+        pullRequestProjectChoices(allProjects, {
+          environmentId,
+          controls,
+          environmentLabels: new Map(
+            environments.map((item) => [item.environmentId, item.environmentLabel]),
+          ),
+        }),
         projectOrder,
       ),
-    [allProjects, environmentId, projectOrder],
+    [allProjects, environmentId, controls, environments, projectOrder],
   );
   const renderPullRequest = useCallback(
     ({ item }: { readonly item: EnvironmentPullRequestListEntry }) => (

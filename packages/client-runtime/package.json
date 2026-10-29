@@ -423,6 +423,10 @@
       "types": "./src/threadReference.ts",
       "default": "./src/threadReference.ts"
     },
+    "./pull-request-project-filter": {
+      "types": "./src/pullRequestProjectFilter.ts",
+      "default": "./src/pullRequestProjectFilter.ts"
+    },
     "./file-preview": {
       "types": "./src/filePreview.ts",
       "default": "./src/filePreview.ts"

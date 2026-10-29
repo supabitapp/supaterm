@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
   EnvironmentId,
+  ProjectId,
   SourceControlProviderKind,
   type PullRequestListEntry,
   type PullRequestListResult,
@@ -26,6 +27,7 @@ import {
   withListedPullRequests,
   withShownPullRequestStats,
   withoutScratchProjectScope,
+  pullRequestProjectChoices,
 } from "./pullRequestList";
 
 function entry(number: number, patch: Partial<PullRequestListEntry> = {}): PullRequestListEntry {
@@ -399,6 +401,42 @@ describe("pullRequestFilterChoices", () => {
     });
     expect(rows).toHaveLength(100);
     expect(rows[50]).toBe("label-from-host");
+  });
+});
+
+describe("pullRequestProjectChoices", () => {
+  const laptop = EnvironmentId.make("env-laptop");
+  const desktop = EnvironmentId.make("env-desktop");
+  const project = (id: string, environmentId: EnvironmentId) => ({
+    id: ProjectId.make(id),
+    environmentId,
+    title: "supaterm",
+    workspaceRoot: `/work/${id}`,
+    repositoryIdentity: { canonicalKey: "github.com/supabitapp/supaterm" },
+  });
+  const projects = [project("main", laptop), project("worktree", laptop), project("main", desktop)];
+  const choices = (scope: { projectId?: string; projectEnvironmentId?: string } = {}) =>
+    pullRequestProjectChoices(projects, {
+      environmentId: null,
+      controls: { ...DEFAULT_PR_LIST_CONTROLS, ...scope },
+      environmentLabels: new Map([
+        [laptop, "laptop"],
+        [desktop, "desktop"],
+      ]),
+    }).map(({ id, environmentId, title }) => ({ id, environmentId, title }));
+
+  it("lists each repository once per environment", () => {
+    expect(choices()).toEqual([
+      { id: "main", environmentId: desktop, title: "supaterm · desktop" },
+      { id: "main", environmentId: laptop, title: "supaterm · laptop" },
+    ]);
+  });
+
+  it("keeps the saved scope as its repository's choice", () => {
+    expect(choices({ projectId: "worktree", projectEnvironmentId: laptop })).toEqual([
+      { id: "main", environmentId: desktop, title: "supaterm · desktop" },
+      { id: "worktree", environmentId: laptop, title: "supaterm · laptop" },
+    ]);
   });
 });
 
