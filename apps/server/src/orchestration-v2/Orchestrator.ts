@@ -3223,10 +3223,12 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         }
         // Pins are bookmarks, not activity: keep updatedAt so the thread holds its sidebar place.
         case "thread.message.pin":
-          return {
-            ...thread,
-            pinnedMessages: withPinnedMessage(thread.pinnedMessages ?? [], pinnedMessage!),
-          };
+          return pinnedMessage === null
+            ? thread
+            : {
+                ...thread,
+                pinnedMessages: withPinnedMessage(thread.pinnedMessages ?? [], pinnedMessage),
+              };
         case "thread.message.unpin":
           return {
             ...thread,

@@ -390,17 +390,18 @@ const COPY_PROMPT_LINK_MENU_ACTION = {
   title: "Copy prompt link",
   image: "link",
 };
-const PIN_MESSAGE_MENU_ACTION = { id: "pin-message", title: "Pin message", image: "pin" };
-const UNPIN_MESSAGE_MENU_ACTION = {
-  id: "pin-message",
-  title: "Unpin message",
-  image: "pin.slash",
-};
+const PIN_MESSAGE_MENU_ACTION = { id: "toggle-pin", title: "Pin message", image: "pin" };
+const UNPIN_MESSAGE_MENU_ACTION = { id: "toggle-pin", title: "Unpin message", image: "pin.slash" };
+
+interface MessagePinToggle {
+  readonly pinned: boolean;
+  readonly toggle: () => void;
+}
 
 function pinToggleOf(
   pins: ThreadFeedPins | undefined,
   projectedItem: OrchestrationV2ProjectedTurnItem | undefined,
-): { readonly pinned: boolean; readonly toggle: () => void } | null {
+): MessagePinToggle | null {
   const onToggle = pins?.onToggle;
   if (!pins || !onToggle || !projectedItem) return null;
   const pinned = pins.itemIds.has(projectedItem.sourceItemId);
@@ -437,7 +438,7 @@ function UserMessageCopyButton(props: {
   readonly text: string;
   readonly onCopy: (() => Promise<void>) | undefined;
   readonly tintColor: ColorValue;
-  readonly pin?: { readonly pinned: boolean; readonly toggle: () => void } | null;
+  readonly pin?: MessagePinToggle | null;
 }) {
   const button = (
     <CopyTextButton
@@ -461,7 +462,7 @@ function UserMessageCopyButton(props: {
       actions={actions}
       onPressAction={({ nativeEvent }) => {
         if (nativeEvent.event === "copy-prompt-link") void copyPromptLink(linkText);
-        if (nativeEvent.event === "pin-message") pin?.toggle();
+        if (nativeEvent.event === "toggle-pin") pin?.toggle();
       }}
       shouldOpenOnLongPress
     >
