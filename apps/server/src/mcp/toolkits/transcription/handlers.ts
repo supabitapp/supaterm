@@ -56,7 +56,6 @@ export const layer = McpToolAccess.toLayer(
         Effect.gen(function* () {
           yield* pendingUploads.requireOwner(input.audioAttachmentId);
           yield* transcription.cancel(input);
-          yield* pendingUploads.forget(input.audioAttachmentId);
           return {};
         }),
       ),

@@ -105,7 +105,7 @@ const toolFailureDetail = (result: typeof ToolResult.Type) => {
   });
 };
 
-const makeServerTools = (session: McpToolSession, origin: string) => {
+export const makeServerTools = (session: McpToolSession, origin: string) => {
   const unexpected = (tool: string) =>
     new CliToolFailedError({
       tool,
