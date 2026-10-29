@@ -1,40 +1,17 @@
+import {
+  createDialKit,
+  createDialRoot,
+  type DialConfig,
+  type DialKitValueUpdates,
+  type ResolvedValues,
+} from "dialkit/vanilla";
+
 import { BOLT_COMPUTER_STATES, type BoltComputerState } from "./boltComputer/faces";
-import { ICON_PHOSPHORS } from "./boltComputer/icon";
 import {
   DEFAULT_SETTINGS,
   mountBoltComputer,
   type BoltComputerSettings,
 } from "./boltComputer/mount";
-
-export const SHELLS = [
-  ["Cream", "#e2dbca"],
-  ["Sage", "#8fa58a"],
-  ["Teal", "#1f8189"],
-  ["Tangerine", "#e2762a"],
-  ["Rose", "#d98c9a"],
-  ["Graphite", "#3a3d44"],
-] as const;
-
-export const PHOSPHORS = [
-  ["Latest", ICON_PHOSPHORS.prod],
-  ["Nightly", ICON_PHOSPHORS.nightly],
-  ["Dev", ICON_PHOSPHORS.dev],
-  ["Green", "#7dff9a"],
-  ["Amber", "#ffb347"],
-  ["White", "#eef2ff"],
-] as const;
-
-// The first is the olive of the app icon's knob and slider.
-export const KNOBS = [
-  ["Olive", "#686c3a"],
-  ["Brass", "#b8913f"],
-  ["Red", "#c8412e"],
-  ["Cream", "#e2dbca"],
-  ["Graphite", "#3a3d44"],
-  ["Teal", "#1f8189"],
-] as const;
-
-export const SPEEDS = [0.5, 1, 1.5, 2] as const;
 
 export const STATE_COPY: Record<
   BoltComputerState,
@@ -46,44 +23,53 @@ export const STATE_COPY: Record<
   error: { name: "Error", hint: "Red phosphor, a torn screen and a shake of the head." },
 };
 
-/** The settings the page's controls set, named by their `data-setting` attributes. */
-export type ControlKey =
-  | "state"
-  | "shell"
-  | "phosphor"
-  | "knobs"
-  | "controls"
-  | "speed"
-  | "interactive"
-  | "floorShadow";
-export type ColourKey = "shell" | "phosphor" | "knobs";
+const MIN_SPEED = 0.25;
+const MAX_SPEED = 2;
 
-const CONTROL_KEYS: readonly ControlKey[] = [
-  "state",
-  "shell",
-  "phosphor",
-  "knobs",
-  "controls",
-  "speed",
-  "interactive",
-  "floorShadow",
-];
+const PANEL = {
+  screen: {
+    type: "select",
+    options: BOLT_COMPUTER_STATES.map((state) => ({ value: state, label: STATE_COPY[state].name })),
+    default: DEFAULT_SETTINGS.state,
+  },
+  shell: { type: "color", default: DEFAULT_SETTINGS.shell },
+  phosphor: { type: "color", default: DEFAULT_SETTINGS.phosphor },
+  knobs: {
+    visible: DEFAULT_SETTINGS.controls,
+    color: { type: "color", default: DEFAULT_SETTINGS.knobs },
+  },
+  speed: [DEFAULT_SETTINGS.speed, MIN_SPEED, MAX_SPEED, 0.25],
+  paused: DEFAULT_SETTINGS.paused,
+  followPointer: DEFAULT_SETTINGS.interactive,
+  floorShadow: DEFAULT_SETTINGS.floorShadow,
+} satisfies DialConfig;
 
-const isControlKey = (value: string | undefined): value is ControlKey =>
-  CONTROL_KEYS.some((key) => key === value);
+type PanelValues = ResolvedValues<typeof PANEL>;
 
-const COLOUR_KEYS: readonly ColourKey[] = ["shell", "phosphor", "knobs"];
-
-const isColourKey = (value: string | undefined): value is ColourKey =>
-  COLOUR_KEYS.some((key) => key === value);
-
-const HEX = /^[0-9a-f]{6}$/i;
+const HEX = /^#?([0-9a-f]{6})$/i;
 
 const isState = (value: string | null): value is BoltComputerState =>
   BOLT_COMPUTER_STATES.some((state) => state === value);
 
-const colour = (value: string | null, fallback: string) =>
-  value !== null && HEX.test(value) ? `#${value.toLowerCase()}` : fallback;
+const colour = (value: string | null, fallback: string) => {
+  const hex = value?.match(HEX)?.[1];
+  return hex ? `#${hex.toLowerCase()}` : fallback;
+};
+
+let probe: CanvasRenderingContext2D | null | undefined;
+
+/** Any CSS colour the panel's picker emits (OKLCH, P3, alpha), as the `#rrggbb` the renderer reads. */
+function opaqueHex(css: string, fallback: string) {
+  if (HEX.test(css)) return colour(css, fallback);
+  probe ??= document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+  if (!probe) return fallback;
+  probe.clearRect(0, 0, 1, 1);
+  probe.fillStyle = fallback;
+  probe.fillStyle = css;
+  probe.fillRect(0, 0, 1, 1);
+  const [r = 0, g = 0, b = 0] = probe.getImageData(0, 0, 1, 1).data;
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
+}
 
 /** Settings from a studio URL's query, defaulting anything missing or malformed. */
 export function settingsFromSearch(search: string): BoltComputerSettings {
@@ -96,7 +82,7 @@ export function settingsFromSearch(search: string): BoltComputerSettings {
     phosphor: colour(query.get("phosphor"), DEFAULT_SETTINGS.phosphor),
     knobs: colour(query.get("knobs"), DEFAULT_SETTINGS.knobs),
     controls: query.get("controls") !== "0",
-    speed: SPEEDS.some((s) => s === speed) ? speed : DEFAULT_SETTINGS.speed,
+    speed: speed >= MIN_SPEED && speed <= MAX_SPEED ? speed : DEFAULT_SETTINGS.speed,
     paused: query.get("paused") === "1",
     interactive: query.get("follow") !== "0",
     floorShadow: query.get("shadow") !== "0",
@@ -121,36 +107,32 @@ export function searchFromSettings(settings: BoltComputerSettings): string {
   return text ? `?${text}` : "";
 }
 
-const isDefault = (settings: BoltComputerSettings) => searchFromSettings(settings) === "";
+export const panelValuesOf = (settings: BoltComputerSettings) =>
+  ({
+    screen: settings.state,
+    shell: settings.shell,
+    phosphor: settings.phosphor,
+    knobs: { visible: settings.controls, color: settings.knobs },
+    speed: settings.speed,
+    paused: settings.paused,
+    followPointer: settings.interactive,
+    floorShadow: settings.floorShadow,
+  }) satisfies DialKitValueUpdates<typeof PANEL>;
 
-/** `settings` with one control's value applied, as written in the page's markup. */
-function withSetting(
-  settings: BoltComputerSettings,
-  key: ControlKey,
-  raw: string,
-): BoltComputerSettings {
-  switch (key) {
-    case "state":
-      return isState(raw) ? { ...settings, state: raw } : settings;
-    case "shell":
-      return { ...settings, shell: raw };
-    case "phosphor":
-      return { ...settings, phosphor: raw };
-    case "knobs":
-      return { ...settings, knobs: raw };
-    case "controls":
-      return { ...settings, controls: raw === "true" };
-    case "speed":
-      return { ...settings, speed: Number(raw) };
-    case "interactive":
-      return { ...settings, interactive: raw === "true" };
-    case "floorShadow":
-      return { ...settings, floorShadow: raw === "true" };
-  }
-}
-
-const nameOf = (swatches: ReadonlyArray<readonly [string, string]>, hex: string) =>
-  swatches.find(([, value]) => value === hex)?.[0] ?? hex;
+export const settingsOfPanel = (
+  values: PanelValues,
+  previous: BoltComputerSettings,
+): BoltComputerSettings => ({
+  state: isState(values.screen) ? values.screen : previous.state,
+  shell: opaqueHex(values.shell, previous.shell),
+  phosphor: opaqueHex(values.phosphor, previous.phosphor),
+  knobs: opaqueHex(values.knobs.color, previous.knobs),
+  controls: values.knobs.visible,
+  speed: values.speed,
+  paused: values.paused,
+  interactive: values.followPointer,
+  floorShadow: values.floorShadow,
+});
 
 /** `canvas` cropped to what is drawn on it, with a little room round it, as a PNG. */
 function croppedPng(canvas: HTMLCanvasElement, callback: (blob: Blob | null) => void) {
@@ -176,10 +158,11 @@ function croppedPng(canvas: HTMLCanvasElement, callback: (blob: Blob | null) => 
   out.toBlob(callback, "image/png");
 }
 
-/** Wires the studio page under `root`: the stage, the state picker and the controls. */
+/** Wires the studio page under `root`: the stage, the state picker and the DialKit panel. */
 export function startStudio(root: HTMLElement) {
   const stage = root.querySelector<HTMLElement>("[data-stage]");
-  if (!stage) return;
+  const panel = root.querySelector<HTMLElement>("[data-panel]");
+  if (!stage || !panel) return;
   let settings = settingsFromSearch(location.search);
   const computer = mountBoltComputer(stage, settings);
   const thumbSettings = (state: BoltComputerState): BoltComputerSettings => ({
@@ -212,35 +195,25 @@ export function startStudio(root: HTMLElement) {
   const render = () => {
     computer?.update(settings);
     for (const { state, thumb } of thumbs) thumb.update(thumbSettings(state));
-    for (const button of root.querySelectorAll<HTMLButtonElement>("button[data-setting]")) {
-      const key = button.dataset.setting;
-      if (!isControlKey(key)) continue;
-      button.setAttribute("aria-pressed", String(String(settings[key]) === button.dataset.value));
-    }
-    for (const input of root.querySelectorAll<HTMLInputElement>("input[data-setting]")) {
-      const key = input.dataset.setting;
-      if (!isColourKey(key)) continue;
-      const custom =
-        root.querySelector(`button[data-setting="${key}"][aria-pressed="true"]`) === null;
-      input.value = settings[key];
-      input.parentElement?.setAttribute("data-active", String(custom));
-      input.parentElement?.style.setProperty("--custom", custom ? settings[key] : "");
+    for (const button of root.querySelectorAll<HTMLButtonElement>("button[data-screen]")) {
+      button.setAttribute("aria-pressed", String(button.dataset.screen === settings.state));
     }
     text("[data-caption-name]", STATE_COPY[settings.state].name);
     text("[data-caption-hint]", STATE_COPY[settings.state].hint);
-    text('[data-value-of="shell"]', nameOf(SHELLS, settings.shell));
-    text('[data-value-of="phosphor"]', nameOf(PHOSPHORS, settings.phosphor));
-    text('[data-value-of="knobs"]', nameOf(KNOBS, settings.knobs));
-    for (const el of root.querySelectorAll<HTMLButtonElement | HTMLInputElement>(
-      '[data-setting="knobs"]',
-    )) {
-      el.disabled = !settings.controls;
-    }
-    text('[data-action="pause"]', settings.paused ? "Play" : "Pause");
-    root.querySelector('[data-action="reset"]')?.toggleAttribute("hidden", isDefault(settings));
+    root
+      .querySelector('[data-action="reset"]')
+      ?.toggleAttribute("hidden", searchFromSettings(settings) === "");
     stage.classList.toggle("is-interactive", settings.interactive && !settings.paused);
     writeUrl();
   };
+
+  createDialRoot({ mode: "inline", target: panel, theme: "dark", versions: "menu" });
+  const kit = createDialKit("Bolt computer", PANEL);
+  kit.setValues(panelValuesOf(settings));
+  kit.subscribe((values) => {
+    settings = settingsOfPanel(values, settings);
+    render();
+  });
 
   const flash = (button: HTMLElement, label: string) => {
     button.dataset.label ??= button.textContent ?? "";
@@ -251,22 +224,15 @@ export function startStudio(root: HTMLElement) {
 
   root.addEventListener("click", (event) => {
     const target = event.target instanceof Element ? event.target : null;
-    const option = target?.closest<HTMLButtonElement>("button[data-setting]");
-    const key = option?.dataset.setting;
-    if (isControlKey(key) && option?.dataset.value !== undefined) {
-      settings = withSetting(settings, key, option.dataset.value);
-      render();
+    const screen = target?.closest<HTMLButtonElement>("button[data-screen]")?.dataset.screen;
+    if (screen !== undefined) {
+      kit.setValue("screen", screen);
       return;
     }
     const action = target?.closest<HTMLButtonElement>("[data-action]");
     switch (action?.dataset.action) {
-      case "pause":
-        settings = { ...settings, paused: !settings.paused };
-        render();
-        break;
       case "reset":
-        settings = DEFAULT_SETTINGS;
-        render();
+        kit.resetValues();
         break;
       case "copy":
         void navigator.clipboard.writeText(new URL(query(), location.origin).href).then(
@@ -287,14 +253,4 @@ export function startStudio(root: HTMLElement) {
         break;
     }
   });
-
-  root.addEventListener("input", (event) => {
-    const input = event.target instanceof HTMLInputElement ? event.target : null;
-    const key = input?.dataset.setting;
-    if (!input || !isColourKey(key)) return;
-    settings = withSetting(settings, key, input.value);
-    render();
-  });
-
-  render();
 }

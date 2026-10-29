@@ -24,6 +24,11 @@ describe("studio links", () => {
     expect(settingsFromSearch(searchFromSettings(settings))).toEqual(settings);
   });
 
+  it("keep any speed the slider reaches", () => {
+    expect(settingsFromSearch("?speed=0.25").speed).toBe(0.25);
+    expect(settingsFromSearch("?speed=0.1").speed).toBe(DEFAULT_SETTINGS.speed);
+  });
+
   it("fall back to the defaults for values the studio cannot show", () => {
     expect(
       settingsFromSearch("?state=dancing&shell=red&phosphor=12345&knobs=olive&speed=3&paused=yes"),

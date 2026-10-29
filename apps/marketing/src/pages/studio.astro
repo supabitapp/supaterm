@@ -2,33 +2,10 @@
 import { Image } from "astro:assets";
 import appIcon from "../assets/icon.webp";
 import Layout from "../layouts/Layout.astro";
+import "dialkit/vanilla/styles.css";
 import "../styles/boltComputer.css";
 import { BOLT_COMPUTER_STATES } from "../lib/boltComputer/faces";
-import {
-  KNOBS,
-  PHOSPHORS,
-  SHELLS,
-  SPEEDS,
-  STATE_COPY,
-  type ColourKey,
-  type ControlKey,
-} from "../lib/studio";
-
-const colourControls = [
-  { key: "shell", label: "Shell", swatches: SHELLS },
-  { key: "phosphor", label: "Phosphor", swatches: PHOSPHORS },
-  { key: "knobs", label: "Knobs", swatches: KNOBS },
-] as const satisfies ReadonlyArray<{
-  readonly key: ColourKey;
-  readonly label: string;
-  readonly swatches: ReadonlyArray<readonly [string, string]>;
-}>;
-
-const toggles = [
-  { key: "controls", label: "Knob & slider" },
-  { key: "interactive", label: "Follow pointer" },
-  { key: "floorShadow", label: "Floor shadow" },
-] as const satisfies ReadonlyArray<{ readonly key: ControlKey; readonly label: string }>;
+import { STATE_COPY } from "../lib/studio";
 ---
 
 <Layout
@@ -61,8 +38,7 @@ const toggles = [
                 <button
                   type="button"
                   class="screen"
-                  data-setting="state"
-                  data-value={state}
+                  data-screen={state}
                   aria-pressed={state === "idle" ? "true" : "false"}
                 >
                   <span class="screen-thumb bolt-computer" data-thumb={state} />
@@ -74,87 +50,7 @@ const toggles = [
         </div>
 
         <aside class="controls" aria-label="Controls">
-          {
-            colourControls.map(({ key, label, swatches }) => (
-              <div class="control">
-                <div class="control-head">
-                  <span class="control-label">{label}</span>
-                  <span class="control-value" data-value-of={key}>
-                    {swatches[0][0]}
-                  </span>
-                </div>
-                <div class="swatches" role="group" aria-label={label}>
-                  {swatches.map(([name, hex]) => (
-                    <button
-                      type="button"
-                      class="swatch"
-                      style={`--swatch:${hex}`}
-                      data-setting={key}
-                      data-value={hex}
-                      aria-label={`${label}: ${name}`}
-                      aria-pressed="false"
-                    />
-                  ))}
-                  <label class="swatch swatch-custom">
-                    <input type="color" data-setting={key} aria-label={`${label}: custom colour`} />
-                  </label>
-                </div>
-              </div>
-            ))
-          }
-
-          <div class="control">
-            <div class="control-head">
-              <span class="control-label">Speed</span>
-              <button type="button" class="text-button" data-action="pause">Pause</button>
-            </div>
-            <div class="segments" role="group" aria-label="Speed">
-              {
-                SPEEDS.map((speed) => (
-                  <button
-                    type="button"
-                    class="segment"
-                    data-setting="speed"
-                    data-value={String(speed)}
-                    aria-pressed="false"
-                  >
-                    {speed}×
-                  </button>
-                ))
-              }
-            </div>
-          </div>
-
-          {
-            toggles.map(({ key, label }) => (
-              <div class="control">
-                <div class="control-head">
-                  <span class="control-label">{label}</span>
-                </div>
-                <div class="segments" role="group" aria-label={label}>
-                  <button
-                    type="button"
-                    class="segment"
-                    data-setting={key}
-                    data-value="true"
-                    aria-pressed="true"
-                  >
-                    On
-                  </button>
-                  <button
-                    type="button"
-                    class="segment"
-                    data-setting={key}
-                    data-value="false"
-                    aria-pressed="false"
-                  >
-                    Off
-                  </button>
-                </div>
-              </div>
-            ))
-          }
-
+          <div class="panel" data-panel></div>
           <div class="actions">
             <button type="button" class="btn btn-primary" data-action="download">Download PNG</button>
             <button type="button" class="btn btn-ghost" data-action="copy">Copy link</button>
@@ -258,110 +154,15 @@ const toggles = [
   .controls {
     position: sticky;
     top: 88px;
-    display: flex;
-    flex-direction: column;
-    gap: 22px;
-    padding: 24px;
+    overflow: clip;
     border: 1px solid var(--border);
     border-radius: 20px;
   }
 
-  .control-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    margin-bottom: 10px;
-  }
-
-  .control-label {
-    color: var(--fg-dim);
-    font-family: var(--font-mono);
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-  }
-
-  .control-value {
-    color: var(--fg-muted);
-    font-family: var(--font-mono);
-    font-size: 12px;
-  }
-
-  .swatches {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-  }
-
-  .swatch {
-    position: relative;
-    width: 28px;
-    height: 28px;
-    border-radius: 999px;
-    background: var(--swatch);
-    box-shadow: inset 0 0 0 1px var(--border-strong);
-    transition: box-shadow 0.15s ease;
-  }
-
-  .swatch[aria-pressed="true"],
-  .swatch-custom[data-active="true"] {
-    box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--fg);
-  }
-
-  .swatch:disabled,
-  .swatch-custom:has(input:disabled) {
-    opacity: 0.3;
-    pointer-events: none;
-  }
-
-  .swatch-custom {
-    overflow: hidden;
-    background: var(
-      --custom,
-      conic-gradient(from 90deg, #ff6a6a, #ffd36a, #7dff9a, #6adaff, #da6aff, #ff6a6a)
-    );
-    cursor: pointer;
-  }
-
-  .swatch-custom input {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    border: 0;
-    opacity: 0;
-    cursor: pointer;
-  }
-
-  .swatch-custom:focus-within {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-
-  .segments {
-    display: grid;
-    grid-auto-columns: 1fr;
-    grid-auto-flow: column;
-    padding: 3px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.03);
-  }
-
-  .segment {
-    padding: 7px 0;
-    border-radius: 7px;
-    color: var(--fg-muted);
-    font-size: 13px;
-    transition: background 0.15s ease, color 0.15s ease;
-  }
-
-  .segment:hover { color: var(--fg); }
-
-  .segment[aria-pressed="true"] {
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--fg);
+  /* DialKit's copy button writes an agent prompt for editing its config, which a visitor has no use
+     for. Copy link is how a look is shared. */
+  .controls :global(.dialkit-toolbar-primary) {
+    display: none;
   }
 
   .text-button {
@@ -376,7 +177,7 @@ const toggles = [
     flex-wrap: wrap;
     align-items: center;
     gap: 8px;
-    padding-top: 20px;
+    padding: 16px;
     border-top: 1px solid var(--border);
   }
 
