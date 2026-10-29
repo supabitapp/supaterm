@@ -77,6 +77,10 @@ describe("htmlRenderTheme", () => {
     const series = (theme: ReturnType<typeof htmlRenderTheme>) =>
       [1, 2, 3, 4, 5, 6].map((n) => theme.variables[`--chart-${n}`]);
     const theme = htmlRenderTheme(colors, appearance);
+    expect(series(theme)).toEqual(
+      Array.from({ length: 6 }, () => expect.stringMatching(/^#[0-9a-f]{6}$/)),
+    );
+    expect(new Set(series(theme)).size).toBe(6);
     expect(series(theme)).not.toContain(theme.variables["--foreground"]);
     expect(series(htmlRenderTheme({ ...colors, accent: "#ff0000" }, appearance))).toEqual(
       series(theme),
