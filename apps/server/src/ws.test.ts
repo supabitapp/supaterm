@@ -509,12 +509,23 @@ it.effect("shell snapshots omit idle children and older done threads only on req
         Effect.flatMap((stream) => stream.pipe(Stream.take(1), Stream.runCollect)),
         Effect.map(([item]) => (item?.kind === "snapshot" ? item.snapshot : null)),
         Effect.provideService(ThreadManagement.ThreadManagementService, {
-          readShellSnapshot: () =>
+          listActiveShellIndex: () =>
+            Effect.succeed(
+              threads.map((thread) => ({
+                ...thread,
+                pinnedAt: null,
+                snoozedUntil: null,
+                mayBeLive: thread.activityRunStatus !== null,
+              })),
+            ),
+          readShellSnapshot: (options?: { readonly threadIds?: ReadonlyArray<string> }) =>
             Effect.succeed(
               Effect.succeed({
                 schemaVersion: 1,
                 snapshotSequence: 0,
-                threads,
+                threads: threads.filter(
+                  (thread) => options?.threadIds?.includes(thread.id) ?? true,
+                ),
                 archivedThreads: [],
               }),
             ),
