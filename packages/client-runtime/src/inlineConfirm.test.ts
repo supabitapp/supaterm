@@ -38,6 +38,13 @@ describe("createInlineConfirm", () => {
     expect(changes.at(-1)).toBe("remove");
   });
 
+  it("confirms a prompt deliberate press but not the second click of a double-click", () => {
+    const { confirm } = track();
+    confirm.press("remove", 1_000);
+    expect(confirm.press("remove", 1_150)).toBe(false);
+    expect(confirm.press("remove", 1_300)).toBe(true);
+  });
+
   it("moves the arming to another key instead of confirming it", () => {
     const { changes, confirm } = track();
     confirm.press("remove", 0);

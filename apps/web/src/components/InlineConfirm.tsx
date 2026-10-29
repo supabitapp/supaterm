@@ -9,9 +9,10 @@ import { Button, type ButtonSize, type ButtonVariant } from "./ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 
 const ICON_SWAP_CLASS =
-  "col-start-1 row-start-1 transition-[opacity,scale,filter] duration-300 ease-drawer motion-reduce:transition-none";
+  "col-start-1 row-start-1 transition-[opacity,scale,filter] duration-200 ease-drawer motion-reduce:transition-none";
 const ICON_HIDDEN_CLASS = "scale-30 opacity-0 blur-xs";
-const LABEL_SHOWN_CLASS = "transition-opacity duration-150 ease-out motion-reduce:transition-none";
+const LABEL_SHOWN_CLASS =
+  "transition-opacity duration-200 ease-drawer motion-reduce:transition-none";
 const LABEL_HIDDEN_CLASS = "opacity-0 transition-none";
 
 export function InlineConfirmIcon({ armed, children }: { armed: boolean; children: ReactNode }) {
@@ -59,7 +60,7 @@ export function InlineConfirmLabel({
 
   return (
     <span
-      className="inline-grid grid-cols-1 overflow-hidden transition-[width] duration-200 ease-in-out motion-reduce:transition-none"
+      className="inline-grid grid-cols-1 overflow-hidden transition-[width] duration-200 ease-drawer motion-reduce:transition-none"
       style={
         widths === null
           ? undefined

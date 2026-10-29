@@ -94,7 +94,7 @@ import {
   type PrStatusIndicator,
   type ThreadPr,
 } from "../ThreadStatusIndicators";
-import { InlineConfirmLabel } from "../InlineConfirm";
+import { InlineConfirmLabel, InlineConfirmTooltip } from "../InlineConfirm";
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "../ui/menu";
 import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -636,25 +636,26 @@ export function ThreadDetailsPrRow({
           {trailingAction ? (
             <>
               <span aria-hidden="true" className={THREAD_DETAILS_PANEL_SPLIT_SEPARATOR_CLASS} />
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <ThreadDetailsControl
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      part="action"
-                      tone={trailingAction.destructive ? "destructive" : "default"}
-                      disabled={actionPending || handoff !== null}
-                      {...trailingAction.controlProps}
-                    />
-                  }
-                >
-                  {trailingAction.pending ? trailingAction.pendingLabel : trailingAction.label}
-                  {trailingAction.suffix}
-                </TooltipTrigger>
-                <TooltipPopup side="top">{trailingAction.tooltip}</TooltipPopup>
-              </Tooltip>
+              <InlineConfirmTooltip
+                armed={confirm.armed !== null && confirm.armed === rowAction}
+                required={rowAction === "merge" || rowAction === "enable-auto-merge"}
+                tip={trailingAction.tooltip}
+                armedTip={trailingAction.tooltip}
+                render={
+                  <ThreadDetailsControl
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    part="action"
+                    tone={trailingAction.destructive ? "destructive" : "default"}
+                    disabled={actionPending || handoff !== null}
+                    {...trailingAction.controlProps}
+                  />
+                }
+              >
+                {trailingAction.pending ? trailingAction.pendingLabel : trailingAction.label}
+                {trailingAction.suffix}
+              </InlineConfirmTooltip>
             </>
           ) : null}
           {actionsMenu}

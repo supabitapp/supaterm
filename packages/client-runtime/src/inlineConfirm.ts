@@ -1,4 +1,4 @@
-export const INLINE_CONFIRM_GUARD_MS = 400;
+export const INLINE_CONFIRM_GUARD_MS = 250;
 export const INLINE_CONFIRM_TIMEOUT_MS = 5000;
 
 export type InlineConfirmSchedule = (ms: number, run: () => void) => () => void;

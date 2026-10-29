@@ -14,7 +14,7 @@ import { pullRequestEnvironment } from "~/state/pullRequests";
 import { Button } from "../ui/button";
 import { Menu, MenuPopup, MenuTrigger, MenuItem, MenuGroup, MenuSeparator } from "../ui/menu";
 import { toastManager } from "../ui/toast";
-import { InlineConfirmIcon, InlineConfirmLabel } from "../InlineConfirm";
+import { InlineConfirmIcon, InlineConfirmLabel, InlineConfirmTooltip } from "../InlineConfirm";
 import { PullRequestStackLayers } from "./PullRequestStackLayers";
 import { PullRequestStackHeader } from "./PullRequestStackHeader";
 import { PullRequestGlyph } from "./pullRequestIcons";
@@ -195,34 +195,28 @@ export function PullRequestStackMenu({
         </MenuPopup>
       </Menu>
       {canMerge && selectedLayer?.state === "open" ? (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <span className="inline-flex">
-                <Button
-                  {...confirm.bind("merge", () => void run("merge"))}
-                  variant="default"
-                  size="xs"
-                  disabled={mergeDisabled}
-                >
-                  <InlineConfirmIcon armed={confirm.armed === "merge"}>
-                    <PullRequestGlyph.merged aria-hidden className="size-3.5" />
-                  </InlineConfirmIcon>
-                  <InlineConfirmLabel
-                    armed={confirm.armed === "merge"}
-                    idle={pending ? "Working…" : "Merge stack"}
-                    confirm="Confirm merge"
-                  />
-                </Button>
-              </span>
-            }
-          />
-          <TooltipPopup>
-            {confirm.armed === "merge"
-              ? `Click again to merge ${mergeCountLabel} into ${stack.base} using ${mergeMethod}`
-              : `Merge stack through #${reference.number} into ${stack.base} (${mergeCountLabel})`}
-          </TooltipPopup>
-        </Tooltip>
+        <InlineConfirmTooltip
+          armed={confirm.armed === "merge"}
+          render={<span className="inline-flex" />}
+          tip={`Merge stack through #${reference.number} into ${stack.base} (${mergeCountLabel})`}
+          armedTip={`Click again to merge ${mergeCountLabel} into ${stack.base} using ${mergeMethod}`}
+        >
+          <Button
+            {...confirm.bind("merge", () => void run("merge"))}
+            variant="default"
+            size="xs"
+            disabled={mergeDisabled}
+          >
+            <InlineConfirmIcon armed={confirm.armed === "merge"}>
+              <PullRequestGlyph.merged aria-hidden className="size-3.5" />
+            </InlineConfirmIcon>
+            <InlineConfirmLabel
+              armed={confirm.armed === "merge"}
+              idle={pending ? "Working…" : "Merge stack"}
+              confirm="Confirm merge"
+            />
+          </Button>
+        </InlineConfirmTooltip>
       ) : null}
     </>
   );

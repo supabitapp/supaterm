@@ -201,10 +201,9 @@ it("merges only on a deliberate second click", async () => {
   await screen.rerender(renderRow());
   await clickMerge(start);
   await clickMerge(start + 150);
-  await clickMerge(start + 300);
   expect(state.perform).not.toHaveBeenCalled();
   expect(armed()).toBe(true);
-  await clickMerge(start + 900);
+  await clickMerge(start + 300);
   expect(state.perform).toHaveBeenCalledExactlyOnceWith("merge", "merge");
   expect(armed()).toBe(false);
 });
