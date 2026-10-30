@@ -633,6 +633,9 @@ export const make = Effect.gen(function* () {
 
   return SourceControlProvider.SourceControlProvider.of({
     kind: SourceControlProviderKind.make("github"),
+    resolveRemoteWebHost: Effect.fn("GitHubSourceControlProvider.resolveRemoteWebHost")(
+      ({ context }) => Effect.succeed(gitHubApiHostForRemote(context.remoteUrl)),
+    ),
     // `gh pr list --head` matches the ref name alone, so an `owner:branch` selector silently
     // lists nothing while spending a GraphQL call. A bare branch also lists same-named branches
     // on other forks, so read a full page and let the owner check pick the right head.
