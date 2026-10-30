@@ -83,7 +83,6 @@ import {
   NewTaskEnvironmentPickerRouteScreen,
 } from "./features/threads/NewTaskContextPickerScreens";
 import {
-  ExistingThreadSettingsRouteProvider,
   ExistingThreadSettingsRouteScreen,
   NewTaskThreadSettingsRouteScreen,
 } from "./features/threads/ThreadSettingsSheet";
@@ -479,7 +478,9 @@ function RootStackLayout(props: {
     draftRoute !== undefined &&
     props.state.routes.findLast((route) => route.name === "Thread") === draftRoute;
   const draftParams = (
-    draftRoute?.params as { draft?: { draftId?: string | string[] } } | undefined
+    draftRoute?.params as
+      | { draft?: { draftId?: string | string[]; pendingTaskId?: string } }
+      | undefined
   )?.draft;
   const routeDraftId = Array.isArray(draftParams?.draftId)
     ? draftParams.draftId[0]
@@ -490,27 +491,26 @@ function RootStackLayout(props: {
       active={draftRouteOnTop}
       flowKey={draftRoute === undefined ? undefined : newTaskFlowKey(draftRoute)}
       routeDraftId={routeDraftId}
+      routePendingTaskId={draftParams?.pendingTaskId}
     >
       <HardwareKeyboardCommandProvider pathname={pathname}>
         <ShowcaseReadyMarker />
-        <ExistingThreadSettingsRouteProvider>
-          <SettingsEnvironmentFilterProvider open={settingsOpen}>
-            <WorkspaceConnectionStatusProvider>
-              <AndroidWorkspaceTabsProvider state={props.state}>
-                <AdaptiveWorkspaceLayout
-                  pathname={workspaceLocation.pathname}
-                  workspaceRouteKey={workspaceLocation.routeKey}
-                  workspaceRouteName={workspaceLocation.routeName}
-                  workspaceRouteKeys={workspaceLocation.routeKeys}
-                  selectedPullRequestKey={selectedPullRequestKey(props.state)}
-                >
-                  {props.children}
-                  <HardwareKeyboardCommandOverlay />
-                </AdaptiveWorkspaceLayout>
-              </AndroidWorkspaceTabsProvider>
-            </WorkspaceConnectionStatusProvider>
-          </SettingsEnvironmentFilterProvider>
-        </ExistingThreadSettingsRouteProvider>
+        <SettingsEnvironmentFilterProvider open={settingsOpen}>
+          <WorkspaceConnectionStatusProvider>
+            <AndroidWorkspaceTabsProvider state={props.state}>
+              <AdaptiveWorkspaceLayout
+                pathname={workspaceLocation.pathname}
+                workspaceRouteKey={workspaceLocation.routeKey}
+                workspaceRouteName={workspaceLocation.routeName}
+                workspaceRouteKeys={workspaceLocation.routeKeys}
+                selectedPullRequestKey={selectedPullRequestKey(props.state)}
+              >
+                {props.children}
+                <HardwareKeyboardCommandOverlay />
+              </AdaptiveWorkspaceLayout>
+            </AndroidWorkspaceTabsProvider>
+          </WorkspaceConnectionStatusProvider>
+        </SettingsEnvironmentFilterProvider>
       </HardwareKeyboardCommandProvider>
     </NewTaskFlowProvider>
   );

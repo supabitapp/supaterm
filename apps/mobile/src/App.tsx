@@ -57,7 +57,6 @@ import { useMobileNavigationTheme } from "./lib/useMobileNavigationTheme";
 import { installUiRuntimeMemoryWarningGc } from "./lib/useUiRuntimeMemoryWarningGc";
 import { SubscriptionUsageCoordinator } from "./widgets/SubscriptionUsageCoordinator";
 import { installSubscriptionUsageRefresh } from "./widgets/useSubscriptionUsage";
-import { VoiceInputProvider } from "./features/voice-input/VoiceInputProvider";
 import { disarmInlineConfirmsOnTouch } from "./lib/useInlineConfirm";
 import { GlobalVoiceInputControl } from "./features/voice-input/GlobalVoiceInputControl";
 import {
@@ -196,22 +195,20 @@ function AppContent() {
           <SafeAreaProvider>
             <StatusBar barStyle={themeAppearance === "dark" ? "light-content" : "dark-content"} />
             {}
-            <VoiceInputProvider>
-              <GlobalVoiceInputControl>
-                <NativeLayoutMetricsProvider>
-                  <Navigation
-                    ref={attachRootNavigation}
-                    linking={appLinking}
-                    onReady={handleNavigationReady}
-                    theme={navigationTheme}
-                    onStateChange={handleNavigationStateChange}
-                  />
-                  <Dialog.Host />
-                  <ThreadArrangementHost />
-                  <ProjectChipIconRasterizer />
-                </NativeLayoutMetricsProvider>
-              </GlobalVoiceInputControl>
-            </VoiceInputProvider>
+            <GlobalVoiceInputControl>
+              <NativeLayoutMetricsProvider>
+                <Navigation
+                  ref={attachRootNavigation}
+                  linking={appLinking}
+                  onReady={handleNavigationReady}
+                  theme={navigationTheme}
+                  onStateChange={handleNavigationStateChange}
+                />
+                <Dialog.Host />
+                <ThreadArrangementHost />
+                <ProjectChipIconRasterizer />
+              </NativeLayoutMetricsProvider>
+            </GlobalVoiceInputControl>
             <OverlayPortalHost />
           </SafeAreaProvider>
         </KeyboardProvider>
