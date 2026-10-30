@@ -194,24 +194,27 @@ describe("verifyDpopProof", () => {
       code: "invalid_signature",
       reason: "Invalid DPoP signature.",
     },
-  ])("rejects invalid public key coordinates without throwing", ({ jwk, code, reason }) => {
-    const invalidProof = signDpopProof({
-      method: "POST",
-      url: "https://example.com/oauth/token",
-      iat: 100,
-      privateKey,
-      publicJwk: jwk,
-    });
-    assert.deepEqual(
-      verifyDpopProof({
-        proof: invalidProof,
+  ] as const)(
+    "rejects invalid public key coordinates without throwing",
+    ({ jwk, code, reason }) => {
+      const invalidProof = signDpopProof({
         method: "POST",
         url: "https://example.com/oauth/token",
-        nowEpochSeconds: 101,
-      }),
-      { ok: false, code, reason },
-    );
-  });
+        iat: 100,
+        privateKey,
+        publicJwk: jwk,
+      });
+      assert.deepEqual(
+        verifyDpopProof({
+          proof: invalidProof,
+          method: "POST",
+          url: "https://example.com/oauth/token",
+          nowEpochSeconds: 101,
+        }),
+        { ok: false, code, reason },
+      );
+    },
+  );
 
   it("verifies an ES256 DPoP proof and returns the RFC 7638 thumbprint", () => {
     const thumbprint = computeDpopJwkThumbprint(publicJwk);
