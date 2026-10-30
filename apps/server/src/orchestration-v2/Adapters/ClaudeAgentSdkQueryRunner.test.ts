@@ -8,9 +8,11 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
 import { ProviderSessionId, ThreadId } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
+import * as TestClock from "effect/testing/TestClock";
 import { vi } from "vite-plus/test";
 
 import * as HostProcess from "@supaterm/shared/HostProcess";
@@ -109,6 +111,76 @@ const realQueryRunner = layerQueryRunner.pipe(
     }),
   ),
   Layer.provide(NodeServices.layer),
+);
+
+it.effect.each([
+  ["bypassPermissions", true, "accept"],
+  ["bypassPermissions", true, "reject"],
+  ["default", true, "accept"],
+  ["bypassPermissions", false, "accept"],
+  ["bypassPermissions", true, "stall"],
+] as const)("initializes permission mode before prompts: %o", ([mode, eligible, response]) =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const restoring = Promise.withResolvers<void>();
+      const acknowledge = Promise.withResolvers<void>();
+      const setPermissionMode = vi.fn(async (_mode: ClaudeSdk.PermissionMode) => {
+        restoring.resolve();
+        await acknowledge.promise;
+        if (response === "reject") throw new Error("Bypass disabled by managed policy");
+      });
+      let prompts: AsyncIterable<ClaudeSdk.SDKUserMessage> | undefined;
+      const querySpy = vi.spyOn(ClaudeSdk, "query").mockImplementation(({ prompt }) => {
+        if (typeof prompt === "string") throw new Error("Expected streaming input");
+        prompts = prompt;
+        return {
+          setPermissionMode,
+          close: vi.fn(),
+          [Symbol.asyncDispose]: async () => {},
+        } as unknown as ClaudeSdk.Query;
+      });
+      yield* Effect.addFinalizer(() => Effect.sync(() => querySpy.mockRestore()));
+      const runner = yield* ClaudeAgentSdkQueryRunner;
+      const opening = yield* runner
+        .open({
+          threadId: ThreadId.make("thread-permission-init"),
+          providerSessionId: ProviderSessionId.make("session-permission-init"),
+          options: {
+            model: "claude-sonnet-4-6",
+            tools: [],
+            resume: FORK_SESSION_ID,
+            permissionMode: mode,
+            allowDangerouslySkipPermissions: eligible,
+          },
+        })
+        .pipe(Effect.forkChild);
+      const first = yield* Effect.raceFirst(
+        Effect.promise(() => restoring.promise).pipe(Effect.as("restore")),
+        Fiber.join(opening).pipe(Effect.as("open")),
+      );
+      const bypass = mode === "bypassPermissions" && eligible;
+      assert.equal(first, bypass ? "restore" : "open");
+      if (bypass) assert.isUndefined(opening.pollUnsafe());
+      if (response === "stall") {
+        yield* TestClock.adjust("10 seconds");
+        assert.isDefined(opening.pollUnsafe(), "A stalled control request must not block startup");
+      }
+      acknowledge.resolve();
+      const session = yield* Fiber.join(opening);
+      yield* Effect.addFinalizer(() => session.close.pipe(Effect.orDie));
+      assert.deepEqual(setPermissionMode.mock.calls, bypass ? [["bypassPermissions"]] : []);
+      const message = {
+        type: "user",
+        message: { role: "user", content: "Run git status." },
+        parent_tool_use_id: null,
+        session_id: FORK_SESSION_ID,
+      } satisfies ClaudeSdk.SDKUserMessage;
+      yield* session.offer(message);
+      const delivered = yield* Effect.promise(() => prompts![Symbol.asyncIterator]().next());
+      assert.deepEqual(delivered.value, message);
+      assert.equal(setPermissionMode.mock.calls.length, bypass ? 1 : 0);
+    }).pipe(Effect.provide(realQueryRunner)),
+  ),
 );
 
 function fakeClaudeCli(script: string): string {
