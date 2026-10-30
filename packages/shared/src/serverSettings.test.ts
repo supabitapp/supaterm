@@ -532,6 +532,7 @@ describe("serverSettings helpers", () => {
       "gpt-5.4",
     );
     const addedSinceV26_10_1 = {
+      threadTitleInstructions: "Name the feature first.",
       sidebarAutoMarkDoneKeepPullRequests: true,
     } satisfies ProjectSettingsOverrides;
     const rulesAddedSinceV26_10_1 = {

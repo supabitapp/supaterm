@@ -248,6 +248,7 @@ const OVERRIDE_KEYS_OLDER_CLIENTS_OMIT = [
   "providerInstances",
   "reviewGuideModelSelection",
   "reviewGuideInstructions",
+  "threadTitleInstructions",
   "sidebarAutoMarkDoneKeepPullRequests",
 ] as const;
 
