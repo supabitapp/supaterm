@@ -30,6 +30,8 @@ function rowsOf(threads: readonly ThreadIdentity[], section: SidebarSection): Si
 
 interface SidebarInboxInput {
   readonly mode: SidebarThreadGrouping;
+  readonly folderMode?: boolean;
+  readonly selectedProjectGroupKeys?: ReadonlySet<string>;
   readonly active: readonly EnvironmentThreadShell[];
   readonly working: readonly EnvironmentThreadShell[];
   readonly visibleWorking: readonly EnvironmentThreadShell[];
@@ -51,10 +53,30 @@ export function buildSidebarInboxItems(input: SidebarInboxInput): SidebarListIte
     ];
   }
   const workingKeys = new Set(input.working.map(threadShellKey));
-  const groups = groupInboxThreadsByProject({
+  let groups = groupInboxThreadsByProject({
     threads: [...input.active, ...input.working],
     projects: input.projects,
   });
+  if (input.folderMode) {
+    const grouped = new Map(groups.map((group) => [group.projectKey, group]));
+    groups = input.projects.flatMap((project) => {
+      const group = grouped.get(project.key);
+      if (group) return [{ ...group, threads: sortWorkingThreadsBySend(group.threads) }];
+      return input.selectedProjectGroupKeys?.has(project.key)
+        ? [
+            {
+              key: `project:${project.key}`,
+              label: project.label,
+              projectKey: project.key,
+              threads: [],
+            },
+          ]
+        : [];
+    });
+    const unavailable = grouped.get(null);
+    if (unavailable)
+      groups.push({ ...unavailable, threads: sortWorkingThreadsBySend(unavailable.threads) });
+  }
   return collapseThreadGroups(
     groups,
     input.collapsedGroups,

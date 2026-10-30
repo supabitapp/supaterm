@@ -3,7 +3,7 @@ import { connectionStatusTitle } from "@supaterm/client-runtime/connection";
 import * as Option from "effect/Option";
 import { AsyncResult, Atom } from "effect/reactivity";
 import { CircleAlertIcon, Clock3Icon, PlusIcon } from "@supaterm/icons";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { getRouteApi } from "@tanstack/react-router";
 import type { EnvironmentId, ScheduledTask } from "@supaterm/contracts";
 import { AuthOrchestrationOperateScope, resolveEnvironmentMachineKind } from "@supaterm/contracts";
@@ -105,15 +105,17 @@ export function AutomationsPage() {
     linkedState.error === null &&
     linkedTask === undefined;
   const link = search.taskId === undefined ? null : `${linkEnvironmentId ?? ""}:${search.taskId}`;
-  const openedLink = useRef<string | null>(null);
-  useEffect(() => {
-    if (link === null) {
-      openedLink.current = null;
-    } else if (linkedState && linkedTask && openedLink.current !== link) {
-      openedLink.current = link;
-      openForEdit(linkedState.environment.environmentId, linkedTask);
+  const [openedLink, setOpenedLink] = useState<string | null>(null);
+  if (link === null && openedLink !== null) setOpenedLink(null);
+  if (linkedState && linkedTask && link !== null && openedLink !== link) {
+    setOpenedLink(link);
+    if (
+      editor === null &&
+      readEnvironmentScope(linkedState.environment.environmentId, AuthOrchestrationOperateScope)
+    ) {
+      setEditor({ environmentId: linkedState.environment.environmentId, task: linkedTask });
     }
-  }, [link, linkedState, linkedTask, openForEdit]);
+  }
 
   return (
     <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none isolate">

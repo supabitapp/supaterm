@@ -1,3 +1,4 @@
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { useAtomCommand } from "~/state/use-atom-command";
 import type { EnvironmentId, PullRequestDetailView, PullRequestRef } from "@supaterm/contracts";
 import { SendIcon } from "@supaterm/icons";
@@ -93,7 +94,7 @@ export function PullRequestCommentForm({
         value={body}
         rows={3}
         placeholder="Leave a comment"
-        aria-label="Comment on this pull request"
+        aria-label={`Comment on this ${sourceControlClients.get(detail.provider).changeRequest.singular}`}
         onChange={(event) => setBody(event.target.value)}
         onKeyDown={(event) => {
           if (event.nativeEvent.isComposing || event.keyCode === 229) return;

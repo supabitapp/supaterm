@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useId, useState } from "react";
 import { create } from "zustand";
 import {
@@ -55,6 +56,7 @@ export function CustomSnoozeDialogHost() {
 }
 
 function CustomSnoozeDialog() {
+  const navigate = useNavigate();
   const id = useId();
   const [initial] = useState(() => new Date(Date.now() + 3_600_000));
   const [mode, setMode] = useState<CustomSnoozeInput["mode"]>("date");
@@ -219,6 +221,16 @@ function CustomSnoozeDialog() {
             )}
           </DialogPanel>
           <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost-muted"
+              onClick={() => {
+                finish(null);
+                void navigate({ to: "/settings/threads", hash: "snooze-options" });
+              }}
+            >
+              Edit snooze options
+            </Button>
             <Button type="button" variant="outline" onClick={() => finish(null)}>
               Cancel
             </Button>

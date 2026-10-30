@@ -1,3 +1,4 @@
+import { LinkedEnvironmentsSettings } from "./LinkedEnvironmentsSettings";
 import { SessionPermissions } from "./SessionPermissions";
 import { ChevronRightIcon, EllipsisIcon, PencilIcon } from "@supaterm/icons";
 import { useAtomValue } from "@effect/atom-react";
@@ -51,7 +52,7 @@ import { EnvironmentIconMenu } from "./EnvironmentIconPicker";
 import { RenameEnvironmentDialog } from "./RenameEnvironmentDialog";
 import { FoldedSettingsSection } from "./FoldedSettingsSection";
 import { LoadBalancingSettings } from "./LoadBalancingSettings";
-import { GitHubRoutingSettings } from "./GitHubRoutingSettings";
+import { PullRequestRoutingSettings } from "./PullRequestRoutingSettings";
 import { Input } from "../ui/input";
 import {
   Dialog,
@@ -152,7 +153,11 @@ function LocalVersionStatusLabel() {
   );
 }
 
-export function ConnectionsSettings() {
+export function ConnectionsSettings({
+  view = "environments",
+}: {
+  view?: "environments" | "access";
+}) {
   const desktopBridge = window.desktopBridge;
   const { environments } = useEnvironments();
   const primaryEnvironment = usePrimaryEnvironment();
@@ -1138,8 +1143,8 @@ export function ConnectionsSettings() {
                 onClose={() => setRenamePrimaryOpen(false)}
               />
             )}
-            <LocalEnvironmentSetting />
-            {canManageLocalBackend ? (
+            {view === "environments" ? <LocalEnvironmentSetting /> : null}
+            {view === "access" && canManageLocalBackend ? (
               <PublicRelaySettings
                 status={relayStatus}
                 settings={primaryServerConfig?.settings}
@@ -1147,17 +1152,19 @@ export function ConnectionsSettings() {
                 update={updatePrimarySettings}
               />
             ) : null}
-            {canManageLocalBackend && desktopBridge ? (
+            {view === "access" && canManageLocalBackend && desktopBridge ? (
               <>
                 {renderNetworkAccessRow()}
                 {renderEndpointRows("endpoint-rail")}
                 {renderTailscaleRow()}
-                {renderWslRow()}
               </>
-            ) : canManageLocalBackend ? (
+            ) : view === "access" && canManageLocalBackend ? (
               renderDisabledNetworkAccessRow()
             ) : null}
-            {primaryEnvironment ? (
+            {view === "environments" && canManageLocalBackend && desktopBridge
+              ? renderWslRow()
+              : null}
+            {view === "access" && primaryEnvironment ? (
               <details className="group px-3 sm:px-4">
                 <summary className="-mx-2 flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md px-2 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
                   Permissions
@@ -1172,7 +1179,7 @@ export function ConnectionsSettings() {
                 />
               </details>
             ) : null}
-            {canManageLocalBackend ? (
+            {view === "environments" && canManageLocalBackend ? (
               <SettingsRow
                 title="Version"
                 description={
@@ -1217,7 +1224,7 @@ export function ConnectionsSettings() {
             ) : null}
           </SettingsSection>
 
-          {canReadAccess || canWriteAccess ? (
+          {view === "access" && (canReadAccess || canWriteAccess) ? (
             <FoldedSettingsSection
               id="authorized-clients"
               title="Authorized clients"
@@ -1560,43 +1567,63 @@ export function ConnectionsSettings() {
   return (
     <SettingsPageContainer>
       {primarySettings}
-      <SettingsSection
-        {...searchableSetting("remote-environments")}
-        title="Environments"
-        headerAction={
-          <div className="flex items-center gap-1">
-            {savedServerUpdateTargets.length > 0 ? (
-              <ServerUpdatesAction targets={savedServerUpdateTargets} variant="ghost-muted" />
-            ) : null}
-            <AddEnvironmentDialog
-              open={addBackendDialogOpen}
-              routeTarget={routeTarget}
-              error={savedBackendError}
-              savedEnvironments={savedEnvironments}
-              onOpenChange={handleAddBackendDialogOpenChange}
-              onErrorChange={setSavedBackendError}
-            />
-          </div>
-        }
-      >
-        {listedEnvironments.map((environment) => (
-          <SavedBackendListRow
-            key={environment.environmentId}
-            environment={environment}
-            removingEnvironmentId={removingSavedEnvironmentId}
-            onSetEnabled={handleSetSavedBackendEnabled}
-            onRemove={handleRemoveSavedBackend}
-            onAddRoute={(target) => {
-              setRouteTarget(target);
-              setSavedBackendError(null);
-              setAddBackendDialogOpen(true);
-            }}
-          />
-        ))}
-        {savedEnvironments.length === 0 ? <EmptyRemoteEnvironments /> : null}
-      </SettingsSection>
-      <LoadBalancingSettings environments={loadBalancingEnvironments} />
-      <GitHubRoutingSettings environments={loadBalancingEnvironments} />
+      {view === "environments" ? (
+        <>
+          <SettingsSection
+            {...searchableSetting("remote-environments")}
+            title="Environments"
+            headerAction={
+              <div className="flex items-center gap-1">
+                {savedServerUpdateTargets.length > 0 ? (
+                  <ServerUpdatesAction targets={savedServerUpdateTargets} variant="ghost-muted" />
+                ) : null}
+                <AddEnvironmentDialog
+                  open={addBackendDialogOpen}
+                  routeTarget={routeTarget}
+                  error={savedBackendError}
+                  savedEnvironments={savedEnvironments}
+                  onOpenChange={handleAddBackendDialogOpenChange}
+                  onErrorChange={setSavedBackendError}
+                />
+              </div>
+            }
+          >
+            {listedEnvironments.map((environment) => (
+              <SavedBackendListRow
+                key={environment.environmentId}
+                environment={environment}
+                removingEnvironmentId={removingSavedEnvironmentId}
+                onSetEnabled={handleSetSavedBackendEnabled}
+                onRemove={handleRemoveSavedBackend}
+                onAddRoute={(target) => {
+                  setRouteTarget(target);
+                  setSavedBackendError(null);
+                  setAddBackendDialogOpen(true);
+                }}
+              />
+            ))}
+            {savedEnvironments.length === 0 ? <EmptyRemoteEnvironments /> : null}
+          </SettingsSection>
+          {loadBalancingEnvironments
+            .values()
+            .filter(
+              (environment) =>
+                environment.connection.phase === "connected" &&
+                environment.serverConfig?.settings.linkedEnvironmentsEnabled,
+            )
+            .map((environment, index) => (
+              <LinkedEnvironmentsSettings
+                key={environment.environmentId}
+                environmentId={environment.environmentId}
+                environmentLabel={environment.label}
+                isSearchTarget={index === 0}
+              />
+            ))
+            .toArray()}
+          <LoadBalancingSettings environments={loadBalancingEnvironments} />
+          <PullRequestRoutingSettings environments={loadBalancingEnvironments} />
+        </>
+      ) : null}
     </SettingsPageContainer>
   );
 }

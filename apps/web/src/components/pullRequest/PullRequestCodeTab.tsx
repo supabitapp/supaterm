@@ -1,9 +1,14 @@
+import {
+  capitalizeTerm,
+  sourceControlClients,
+} from "@supaterm/client-runtime/source-control-clients";
 import type { CodeViewItem, DiffLineAnnotation, SelectedLineRange } from "@pierre/diffs";
-import type { CodeViewDiffItem, CodeViewHandle } from "@pierre/diffs/react";
+import type { CodeViewDiffItem } from "@pierre/diffs/react";
 import type {
   EnvironmentId,
   PullRequestDetailView,
   PullRequestDiffSide,
+  PullRequestDiffResult,
   PullRequestOmittedFileStat,
   PullRequestRef,
   PullRequestReviewPosition,
@@ -14,6 +19,7 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   ColumnsIcon,
+  FlaskIcon,
   FolderTreeIcon,
   InfoIcon,
   MessageSquareOffIcon,
@@ -36,12 +42,17 @@ import {
   type ReactNode,
 } from "react";
 
+import { observeIntersection } from "~/lib/observeIntersection";
 import { useLocalStorage } from "~/hooks/useLocalStorage";
 import { useClientSettings, updateClientSettings } from "~/hooks/useSettings";
 import { useRenderedAppearance } from "~/hooks/useTheme";
 import { areAllDiffFilesCollapsed } from "~/lib/diffCollapse";
 import { pullRequestFindingKey, type PullRequestFinding } from "./pullRequestDetail.logic";
-import { canEditPullRequestComment, canResolvePullRequestThread } from "./pullRequestEditing.logic";
+import {
+  canEditPullRequestComment,
+  canResolvePullRequestThread,
+} from "@supaterm/client-runtime/pull-request-editing";
+import { isTestChangedFile } from "@supaterm/shared/changedFileKind";
 import { orderDiffFiles } from "./pullRequestFileOrder.logic";
 import {
   buildFileDiffRenderKey,
@@ -59,7 +70,7 @@ import { cn } from "~/lib/utils";
 import { createPullRequestDiffFileContentsLoader } from "~/lib/diffFileContents";
 import {
   buildDiffReviewComment,
-  resolveDiffReviewPosition,
+  resolveDiffReviewAnchor,
   type ReviewCommentContext,
 } from "~/reviewCommentContext";
 import { pullRequestEnvironment } from "~/state/pullRequests";
@@ -67,10 +78,11 @@ import { useEnvironmentQuery } from "~/state/query";
 import { useAtomCommand } from "~/state/use-atom-command";
 
 import { DiffPanelLoadingState } from "../DiffPanelShell";
+import { useDiffWorkerPool } from "../DiffWorkerPoolProvider";
 import { DiffCommentAnnotation } from "../diffs/DiffCommentAnnotation";
 import { DiffFileTree } from "../diffs/DiffFileTree";
-import { useCodeViewFileReveal } from "../diffs/useCodeViewFileReveal";
-import { diffFileTreeEntries } from "../diffs/diffFileTree.logic";
+import { useHideTestFiles } from "../diffs/useHideTestFiles";
+import { diffFileTreeEntries, orderDiffFilesLikeTree } from "../diffs/diffFileTree.logic";
 import { StyledDiffCodeView } from "../diffs/StyledDiffCodeView";
 import { Button } from "../ui/button";
 import { MorphIcon } from "~/components/MorphIcon";
@@ -96,6 +108,7 @@ import {
   toViewerSide,
 } from "./PullRequestReviewAnnotation";
 import {
+  getFileViewedRange,
   isFileDiffCollapsed,
   isLineInFileDiff,
   toggleFileDiffFoldForViewed,
@@ -125,6 +138,7 @@ const COMMIT_PAGE_SIZE = 10;
 const PULL_REQUEST_FILE_TREE_STORAGE_KEY = "supaterm.pullRequestFileTreeOpen";
 
 interface DiffSlice {
+  readonly source: PullRequestDiffResult;
   readonly cursor: string | null;
   readonly patch: string;
   readonly truncated: boolean;
@@ -147,13 +161,15 @@ const NO_SLICES: ReadonlyArray<DiffSlice> = [];
 
 // Each slice is parsed once per cache key and the parse lives as long as the slice does, so a
 // slice arriving costs one parse rather than one per slice already on screen.
-const sliceParses = new WeakMap<DiffSlice, Map<string, RenderablePatch | null>>();
+// Query results outlive the panel's slices, so their parses survive closing and reopening
+// without retaining anything beyond the query cache's lifetime.
+const sliceParses = new WeakMap<PullRequestDiffResult, Map<string, RenderablePatch | null>>();
 
 function parseSlice(slice: DiffSlice, cacheKey: string, ignoreWhitespace: boolean) {
-  let parses = sliceParses.get(slice);
+  let parses = sliceParses.get(slice.source);
   if (parses === undefined) {
     parses = new Map();
-    sliceParses.set(slice, parses);
+    sliceParses.set(slice.source, parses);
   }
   if (parses.has(cacheKey)) return parses.get(cacheKey) ?? null;
   const parsed = getRenderablePatch(slice.patch, cacheKey, {
@@ -168,7 +184,7 @@ interface FileViewedToggleState {
   readonly enabled: boolean;
   readonly isViewed: (path: string) => boolean;
   readonly isStale: (path: string) => boolean;
-  readonly setFileViewed: (fileKey: string, path: string, viewed: boolean) => void;
+  readonly setFileViewed: (fileKey: string, viewed: boolean, extendRange: boolean) => void;
 }
 
 // Header portals are memoized on the render props; the viewed toggle reads its state through
@@ -199,7 +215,13 @@ function FileViewedToggle({
         <Checkbox
           aria-label={stale ? "Changed" : "Viewed"}
           checked={viewed}
-          onCheckedChange={(next) => viewedFiles.setFileViewed(fileKey, path, next === true)}
+          onCheckedChange={(next, details) =>
+            viewedFiles.setFileViewed(
+              fileKey,
+              next === true,
+              "shiftKey" in details.event && details.event.shiftKey === true,
+            )
+          }
         />
         {stale ? (
           <Tooltip>
@@ -231,6 +253,7 @@ interface DraftAnchor {
   readonly path: string;
   readonly oldPath: string | null;
   readonly position: PullRequestReviewPosition;
+  readonly startPosition?: PullRequestReviewPosition;
   readonly range: SelectedLineRange;
 }
 
@@ -271,6 +294,8 @@ function PullRequestCodeTab({
   revealRequest?: { readonly path: string; readonly nonce: number } | null;
 }) {
   const resolvedTheme = useRenderedAppearance();
+  // Initialize the shared tokenizer and workers while the diff request is still pending.
+  useDiffWorkerPool();
   const settings = useClientSettings((settings) => ({
     diffFilesCollapsed: settings.diffFilesCollapsed,
     diffIgnoreWhitespace: settings.diffIgnoreWhitespace,
@@ -278,6 +303,7 @@ function PullRequestCodeTab({
     wordWrap: settings.wordWrap,
   }));
   const [toggledFiles, setToggledFiles] = useState<ReadonlySet<string>>(() => new Set());
+  const [lastViewedFileKey, setLastViewedFileKey] = useState<string | null>(null);
   const [visibleCommitCount, setVisibleCommitCount] = useState(COMMIT_PAGE_SIZE);
   const [foldOverride, setFoldOverride] = useState<DiffFoldOverride>(null);
   const effectiveFoldOverride =
@@ -290,6 +316,7 @@ function PullRequestCodeTab({
     false,
     Schema.Boolean,
   );
+  const [hideTestFiles, setHideTestFiles] = useHideTestFiles();
   const [selectedLines, setSelectedLines] = useState<{
     id: string;
     range: SelectedLineRange;
@@ -304,9 +331,6 @@ function PullRequestCodeTab({
     readonly cursor: string | null;
     readonly slices: ReadonlyArray<DiffSlice>;
   }>({ key: "", cursor: null, slices: NO_SLICES });
-  const [viewer, setViewer] = useState<CodeViewHandle<ReviewAnnotationGroup, undefined> | null>(
-    null,
-  );
 
   const referenceKey = pullRequestReviewKey(reference);
   const commit =
@@ -319,6 +343,7 @@ function PullRequestCodeTab({
   const [stateScopeKey, setStateScopeKey] = useState(scopeKey);
   if (stateScopeKey !== scopeKey) {
     setStateScopeKey(scopeKey);
+    setLastViewedFileKey(null);
     setDraft(null);
     setSelectedLines(null);
     setToggledFiles(new Set());
@@ -358,6 +383,7 @@ function PullRequestCodeTab({
     setSliceState((previous) => {
       const slices = previous.key === scopeKey ? previous.slices : NO_SLICES;
       const next = {
+        source: data,
         cursor,
         patch: data.patch,
         truncated: data.truncated,
@@ -452,8 +478,7 @@ function PullRequestCodeTab({
 
   // The sentinel is held as state rather than a ref because the viewer mounts its own footer:
   // an effect reading a ref could run before that node exists and would never arm the observer.
-  const [sentinel, setSentinel] = useState<HTMLDivElement | null>(null);
-  const requestTreeReveal = useCodeViewFileReveal(viewer, scopeKey);
+
   const answeredReveal = useRef<number | null>(null);
 
   const loadDiffFiles = createPullRequestDiffFileContentsLoader(getDiffFileContents, {
@@ -469,6 +494,7 @@ function PullRequestCodeTab({
     resolve: hostReview.resolve && detail.viewerPermissions.resolve,
   };
   const canCommentOnLines = review.inlineComment && commit === null;
+  const rangeComments = hostReview.rangeComment === true;
   // Agent context is local, so it does not require host comment permission.
   const canSelectLines =
     commit === null && (review.inlineComment || onAddToAgentSelection !== undefined);
@@ -482,9 +508,22 @@ function PullRequestCodeTab({
       ignoreWhitespace,
     ),
   );
-  const files = parsedSlices.flatMap((parsed) =>
-    parsed?.kind === "files" ? orderDiffFiles(parsed.files) : [],
+  const loadedFiles = orderDiffFilesLikeTree(
+    parsedSlices.flatMap((parsed) =>
+      parsed?.kind === "files" ? orderDiffFiles(parsed.files) : [],
+    ),
   );
+  const testFileCount = loadedFiles.filter((file) =>
+    isTestChangedFile(resolveFileDiffPath(file)),
+  ).length;
+  // A requested file stays visible so a jump to a hidden test still lands.
+  const files = hideTestFiles
+    ? loadedFiles.filter((file) => {
+        const path = resolveFileDiffPath(file);
+        return path === revealRequest?.path || !isTestChangedFile(path);
+      })
+    : loadedFiles;
+  const hiddenTestFileCount = loadedFiles.length - files.length;
   const filePaths = files.map((file) => resolveFileDiffPath(file));
   const omittedFileStats = new Map(
     loadedSlices.flatMap((slice) =>
@@ -673,6 +712,16 @@ function PullRequestCodeTab({
     if (nextCursor === null) return;
     setSliceState((previous) => ({ ...previous, cursor: nextCursor }));
   };
+  const sentinelRef = (node: HTMLDivElement | null) => {
+    if (node === null || !canLoadNextSlice) return;
+    return observeIntersection(
+      node,
+      (entry) => {
+        if (entry.isIntersecting) loadNextSlice();
+      },
+      { rootMargin: "240px" },
+    );
+  };
 
   const toggleFile = (fileKey: string) =>
     setToggledFiles((current) => {
@@ -682,10 +731,20 @@ function PullRequestCodeTab({
       return next;
     });
 
-  const setFileViewed = (fileKey: string, path: string, viewed: boolean) => {
-    setViewed(path, viewed);
+  const setFileViewed = (fileKey: string, viewed: boolean, extendRange: boolean) => {
+    const range = getFileViewedRange(
+      annotatedFiles,
+      fileKey,
+      extendRange ? lastViewedFileKey : null,
+    );
+    setLastViewedFileKey(fileKey);
+    for (const file of range) setViewed(file.path, viewed);
     setToggledFiles((current) =>
-      toggleFileDiffFoldForViewed(fileKey, viewed, effectiveFoldOverride, current),
+      range.reduce(
+        (next, file) =>
+          toggleFileDiffFoldForViewed(file.fileKey, viewed, effectiveFoldOverride, next),
+        current,
+      ),
     );
   };
   const fileViewedToggle = {
@@ -698,8 +757,13 @@ function PullRequestCodeTab({
   const revealFile = (path: string) => {
     const item = items.find((candidate) => resolveFileDiffPath(candidate.fileDiff) === path);
     if (item === undefined) return;
-    if (item.collapsed === true) toggleFile(item.id);
-    requestTreeReveal(item.id);
+    // Unfold only: a second reveal before the unfold renders must not fold the file again.
+    if (item.collapsed === true) {
+      setToggledFiles((current) =>
+        toggleFileDiffFoldForViewed(item.id, false, effectiveFoldOverride, current),
+      );
+    }
+    codeViewReveal.request(item.id);
   };
 
   const toggleAllFiles = () => {
@@ -722,23 +786,22 @@ function PullRequestCodeTab({
     if (item.type !== "diff") return;
     const file = files.find((candidate) => buildFileDiffRenderKey(candidate) === item.id);
     if (!file) return;
-    // A range collapses to its last line: only GitHub carries a multi-line comment, and one
-    // that silently lost its first line on the other hosts would be worse than one line.
+    // On a host without ranged comments a range collapses to its last line: one that silently
+    // lost its first line there would be worse than one line.
     const path = resolveFileDiffPath(file);
     const previousPath = resolveFileDiffPreviousPath(file);
     const sourceFile = parsedSlices
       .flatMap((slice) => (slice?.kind === "files" ? slice.sourceFiles : []))
       .find((candidate) => resolveFileDiffPath(candidate) === path);
-    const side = range.endSide ?? range.side;
-    const position =
-      (sourceFile && resolveDiffReviewPosition(sourceFile, range.end, side)) ??
-      resolveDiffReviewPosition(file, range.end, side);
-    if (position === null) return;
+    const anchor =
+      (sourceFile && resolveDiffReviewAnchor(sourceFile, range, rangeComments)) ??
+      resolveDiffReviewAnchor(file, range, rangeComments);
+    if (anchor === null) return;
     setDraft({
       fileKey: item.id,
       path,
       oldPath: previousPath === path ? null : previousPath,
-      position,
+      ...anchor,
       range,
     });
   };
@@ -774,7 +837,7 @@ function PullRequestCodeTab({
   const renderCodeViewFooter = () =>
     nextCursor === null ? null : (
       <div
-        ref={setSentinel}
+        ref={sentinelRef}
         className="flex items-center justify-center gap-2 py-2 text-xs text-muted-foreground"
       >
         {diffQuery.error !== null ? (
@@ -845,6 +908,7 @@ function PullRequestCodeTab({
     enableLineSelection: canSelectLines && draft === null,
     onGutterUtilityClick: beginComment,
     onLineSelectionEnd: beginComment,
+    onPostRender: codeViewReveal.flush,
   };
 
   const runThreadCommand = async (
@@ -973,6 +1037,7 @@ function PullRequestCodeTab({
               id: nextPendingReviewCommentId(),
               path: draft.path,
               ...(draft.oldPath === null ? {} : { oldPath: draft.oldPath }),
+              ...(draft.startPosition === undefined ? {} : { startPosition: draft.startPosition }),
               position: draft.position,
               body,
             });
@@ -1052,6 +1117,11 @@ function PullRequestCodeTab({
             {files.length} {files.length === 1 ? "file" : "files"}
             {nextCursor === null ? "" : "+"}
           </span>
+          {hiddenTestFileCount > 0 ? (
+            <Button type="button" size="xs" variant="link" onClick={() => setHideTestFiles(false)}>
+              {hiddenTestFileCount} test {hiddenTestFileCount === 1 ? "file" : "files"} hidden
+            </Button>
+          ) : null}
           {filesViewed.enabled && files.length > 0 ? (
             <span className="flex min-w-0 items-center gap-1 tabular-nums">
               <span className="shrink-0">
@@ -1265,6 +1335,26 @@ function PullRequestCodeTab({
             </TooltipPopup>
           </Tooltip>
         ) : null}
+        {testFileCount > 0 ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Toggle
+                  aria-label="Hide test files"
+                  variant="ghost"
+                  size="sm"
+                  pressed={hideTestFiles}
+                  onPressedChange={(pressed) => setHideTestFiles(Boolean(pressed))}
+                />
+              }
+            >
+              <FlaskIcon className="size-3.5" />
+            </TooltipTrigger>
+            <TooltipPopup side="top">
+              {hideTestFiles ? "Show test files" : "Hide test files"}
+            </TooltipPopup>
+          </Tooltip>
+        ) : null}
         {fileKeys.length > 0 ? (
           <Tooltip>
             <TooltipTrigger
@@ -1290,17 +1380,6 @@ function PullRequestCodeTab({
   );
   // The effects sit after every derivation: a hook between the diff's derivations and their
   // later readers (the viewer options, the reveal handler) would leave them uncached.
-  useEffect(() => {
-    if (sentinel === null || !canLoadNextSlice) return;
-    const observer = new IntersectionObserver(
-      (observed) => {
-        if (observed.some((entry) => entry.isIntersecting)) loadNextSlice();
-      },
-      { rootMargin: "240px" },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [canLoadNextSlice, loadNextSlice, sentinel]);
   const answerReveal = useEffectEvent(() => {
     if (revealRequest === null || answeredReveal.current === revealRequest.nonce) return;
     if (!items.some((item) => resolveFileDiffPath(item.fileDiff) === revealRequest.path)) {
@@ -1324,8 +1403,9 @@ function PullRequestCodeTab({
     </div>
   );
 
+  const term = sourceControlClients.get(detail.provider).changeRequest.singular;
   if (diffQuery.isPending && loadedSlices.length === 0) {
-    return withToolbar(<DiffPanelLoadingState label="Loading pull request diff..." />);
+    return withToolbar(<DiffPanelLoadingState label={`Loading ${term} diff...`} />);
   }
 
   if (diffQuery.error && loadedSlices.length === 0) {
@@ -1346,9 +1426,7 @@ function PullRequestCodeTab({
   if (items.length === 0 && nextCursor === null) {
     return withToolbar(
       <p className="px-4 py-5 text-sm text-muted-foreground">
-        {commit === null
-          ? "This pull request has no file changes."
-          : "This commit has no file changes."}
+        {commit === null ? `This ${term} has no file changes.` : "This commit has no file changes."}
       </p>,
     );
   }
@@ -1452,7 +1530,7 @@ function PullRequestCodeTab({
             <StyledDiffCodeView<ReviewAnnotationGroup>
               className="@container h-full overflow-auto [scrollbar-gutter:stable]"
               containerRef={scrollerRef}
-              viewerRef={setViewer}
+              viewerRef={codeViewReveal.attach}
               items={items}
               selectedLines={selectedLines}
               onSelectedLinesChange={setSelectedLines}
@@ -1474,7 +1552,7 @@ function PullRequestCodeTab({
         {fileTreeOpen ? (
           <aside className="flex w-[min(20rem,40%)] min-w-48 shrink-0 border-l border-border/60">
             <DiffFileTree
-              ariaLabel={`Pull request #${detail.number} files`}
+              ariaLabel={`${capitalizeTerm(term)} #${detail.number} files`}
               entries={fileTreeEntries}
               onSelectFile={revealFile}
               footer={

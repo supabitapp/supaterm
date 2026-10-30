@@ -1,3 +1,5 @@
+import { PlusIcon } from "@supaterm/icons";
+import { Button } from "../ui/button";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "~/lib/utils";
@@ -13,12 +15,14 @@ import { SIDEBAR_SORTABLE_DRAG_DISABLED } from "./SidebarListMarkers";
 export function SidebarGroupHeader({
   item,
   project,
+  onNewThread,
   onToggle,
   prepare,
 }: {
   item: Extract<SidebarListItem, { kind: "group" }>;
   project: ProjectFaviconProject | null;
   onToggle: (key: string) => void;
+  onNewThread?: (() => void) | undefined;
   prepare: () => void;
 }) {
   const { setNodeRef, transform, transition, isDragging, listeners } = useSortable({
@@ -43,19 +47,39 @@ export function SidebarGroupHeader({
       }}
       {...listeners}
     >
-      <CollapsibleSectionHeader
-        onClick={() => {
-          prepare();
-          onToggle(item.key);
-        }}
-        expanded={!item.collapsed}
-        weight="normal"
-        tone={isDragging ? "emphasized" : "muted"}
-        icon={project ? <ProjectFavicon project={project} className="size-3.5 shrink-0" /> : null}
-        data-testid={`sidebar-group-toggle-${item.key}`}
-      >
-        {item.collapsed ? `${item.label} (${item.count})` : item.label}
-      </CollapsibleSectionHeader>
+      <div className="flex items-center">
+        <div className="min-w-0 flex-1">
+          <CollapsibleSectionHeader
+            role="treeitem"
+            tabIndex={-1}
+            data-sidebar-row={item.key}
+            onClick={() => {
+              prepare();
+              onToggle(item.key);
+            }}
+            expanded={!item.collapsed}
+            weight="normal"
+            tone={isDragging ? "emphasized" : "muted"}
+            icon={
+              project ? <ProjectFavicon project={project} className="size-3.5 shrink-0" /> : null
+            }
+            data-testid={`sidebar-group-toggle-${item.key}`}
+          >
+            {item.collapsed ? `${item.label} (${item.count})` : item.label}
+          </CollapsibleSectionHeader>
+        </div>
+        {onNewThread ? (
+          <Button
+            size="icon-xs"
+            variant="ghost-muted"
+            data-sidebar-action-for={item.key}
+            aria-label={`New thread in ${item.label}`}
+            onClick={onNewThread}
+          >
+            <PlusIcon />
+          </Button>
+        ) : null}
+      </div>
     </li>
   );
 }

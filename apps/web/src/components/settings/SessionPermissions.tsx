@@ -1,5 +1,8 @@
 import { type EnvironmentId, sessionGrantsScope } from "@supaterm/contracts";
-import { AUTH_SCOPE_OPTIONS } from "@supaterm/shared/authScopeOptions";
+import {
+  AUTH_SCOPE_OPTIONS,
+  sessionPermissionsUnavailableMessage,
+} from "@supaterm/shared/authScopeOptions";
 import { useEnvironmentSessionState } from "~/state/session";
 
 export function SessionPermissions({
@@ -32,7 +35,11 @@ export function SessionPermissions({
     </div>
   ) : (
     <p className="py-3 text-xs text-muted-foreground">
-      Permissions not checked. Connect to this environment to view this session’s permissions.
+      {sessionPermissionsUnavailableMessage({
+        connected,
+        failed: session.hasError,
+        rejected: !session.hasError && !session.isPending && session.data?.authenticated === false,
+      })}
     </p>
   );
 }

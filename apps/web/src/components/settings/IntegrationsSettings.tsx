@@ -2,8 +2,7 @@ import { DeviceHostUpdates } from "../device/DeviceHostUpdates";
 import { DeviceToolVersions } from "../device/DeviceToolVersions";
 import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
 import { ScopedSwitch } from "./ScopedSwitch";
-import { DeviceHostsSettings } from "./DeviceHostsSettings";
-import { EasDeviceHostsSettings } from "./EasDeviceHostsSettings";
+import { DeviceSourcesSettings } from "./DeviceSourcesSettings";
 import {
   AuthSettingsWriteScope,
   BrowserImportFailureReason,
@@ -1065,8 +1064,10 @@ function DeviceIntegrationControls({
           environmentId={environmentId}
         />
       ) : null}
-      <DeviceHostsSettings environmentId={environmentId} />
-      {state.supportsEasHosts ? <EasDeviceHostsSettings environmentId={environmentId} /> : null}
+      <DeviceSourcesSettings
+        supportsEas={state.supportsEasHosts === true}
+        supportsSimlock={state.supportsSimlockHosts === true}
+      />
     </>
   );
 }
@@ -1596,7 +1597,11 @@ function BrowserProfilesSetting({ disabled }: { readonly disabled: boolean }) {
   );
 }
 
-export function IntegrationsSettingsPanel() {
+export function IntegrationsSettingsPanel({
+  area = "all",
+}: {
+  area?: "all" | "browser" | "devices";
+}) {
   const previewDefaultsDisabled = !isElectron;
   const previewDefaults = (
     <>
@@ -1613,20 +1618,31 @@ export function IntegrationsSettingsPanel() {
 
   return (
     <SettingsPageContainer>
-      <OrchestrationSkillsSettings />
-      <SettingsSection id="browser" title="Browser">
-        <AgentBrowserAccessRow />
-        {previewDefaultsDisabled ? (
-          <SettingsUnavailableGroup message="Only available in the desktop app.">
-            {previewDefaults}
-          </SettingsUnavailableGroup>
-        ) : (
-          previewDefaults
-        )}
-        <BrowserSearchEngineSetting />
-        <PullRequestLinksOpenInAppSetting />
-      </SettingsSection>
-      <DeviceIntegrationSettings />
+      {area !== "devices" ? (
+        <>
+          <OrchestrationSkillsSettings />
+          <SettingsSection id="browser" title="Browser">
+            <AgentBrowserAccessRow />
+            {previewDefaultsDisabled ? (
+              <SettingsUnavailableGroup message="Only available in the desktop app.">
+                {previewDefaults}
+              </SettingsUnavailableGroup>
+            ) : (
+              previewDefaults
+            )}
+            <BrowserSearchEngineSetting />
+            <PullRequestLinksOpenInAppSetting />
+          </SettingsSection>
+        </>
+      ) : null}
+      {area !== "browser" ? <DeviceIntegrationSettings /> : null}
     </SettingsPageContainer>
   );
+}
+
+export function BrowserSettingsPanel() {
+  return <IntegrationsSettingsPanel area="browser" />;
+}
+export function DevicesSettingsPanel() {
+  return <IntegrationsSettingsPanel area="devices" />;
 }

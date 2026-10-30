@@ -10,7 +10,6 @@ import {
 import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
 import { ChevronRightIcon } from "@supaterm/icons";
-import { useEffect, useState } from "react";
 
 import { APP_VERSION } from "~/branding";
 import { environmentCatalog } from "~/connection/catalog";
@@ -62,13 +61,11 @@ const HOP_NOTE = { ok: "", failed: "Failed", unchecked: "Not checked" } as const
 
 /** Ticks once per second, and only while a retry is scheduled, so the list around it does not re-render. */
 function RetryCountdown({ retryAt }: { readonly retryAt: number }) {
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    if (retryAt <= Date.now()) return;
-    const timer = setInterval(() => setNow(Date.now()), 1_000);
-    return () => clearInterval(timer);
-  }, [retryAt]);
-  const seconds = Math.ceil((retryAt - now) / 1_000);
+  return useDeadlinePassed(retryAt) ? "retrying" : <RetryCountdownTicker retryAt={retryAt} />;
+}
+
+function RetryCountdownTicker({ retryAt }: { readonly retryAt: number }) {
+  const seconds = Math.ceil((retryAt - useNowSecond()) / 1_000);
   return <>{seconds > 0 ? `retrying in ${seconds}s` : "retrying"}</>;
 }
 

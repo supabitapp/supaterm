@@ -334,6 +334,7 @@ export function ProviderModelsSection({
             type="button"
             size="xs"
             variant="ghost-muted"
+            // The ghost padding would inset the label from the column edge the toggles align to.
             className="ml-auto"
             onClick={() => setIsAdding(true)}
           >

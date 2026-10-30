@@ -991,6 +991,7 @@ export function EnvironmentProviderSettings({
           ) : null
         }
         headerAction={
+          // The ghost button's padding would inset its label; the New design aligns the text to the card edge.
           <div className="flex min-w-0 items-center gap-2">
             <ProviderUpdatesAction />
             <Tooltip>
@@ -1060,9 +1061,10 @@ export function EnvironmentProviderSettings({
             </ScrollArea>
           </div>
 
-          <div className="min-w-0 @min-[48rem]/providers:min-h-0">
+          <div data-provider-detail className="min-w-0 @min-[48rem]/providers:min-h-0">
             {selectedRow ? (
               <ScrollArea scrollFade chainVerticalScroll className="@min-[48rem]/providers:h-full">
+                {/* Flat sections run dividers edge to edge and inset text like the list beside them. */}
                 <div className="space-y-6 p-4">{renderProviderInstance(selectedRow, "editor")}</div>
               </ScrollArea>
             ) : (

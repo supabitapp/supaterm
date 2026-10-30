@@ -1,3 +1,5 @@
+import { workspaceAreaProps } from "../../lib/workspaceFocus";
+import { useSettingsSectionNavigation } from "./useSettingsSectionNavigation";
 import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent } from "react";
 import {
   ArchiveIcon,
@@ -35,6 +37,7 @@ import {
   searchSettings,
   isSettingsSectionAvailable,
   SETTINGS_SECTION_LABELS,
+  SETTINGS_NAV_GROUPS,
   type SettingsPath,
   type SettingsSearchItem,
 } from "./settingsSearch";
@@ -68,6 +71,17 @@ const SETTINGS_SECTION_ICONS: Readonly<
   "/settings/source-control": GitBranchIcon,
   "/settings/storage": HardDriveIcon,
   "/settings/connections": LinkHorizontalIcon,
+  "/settings/chat": SlidersHorizontalIcon,
+  "/settings/diffs": SlidersHorizontalIcon,
+  "/settings/threads": SlidersHorizontalIcon,
+  "/settings/browser": SlidersHorizontalIcon,
+  "/settings/devices": HardDriveIcon,
+  "/settings/worktrees": SlidersHorizontalIcon,
+  "/settings/access": SlidersHorizontalIcon,
+  "/settings/secrets": SlidersHorizontalIcon,
+  "/settings/maintenance": HardDriveIcon,
+  "/settings/labs": SlidersHorizontalIcon,
+  "/settings/about": SlidersHorizontalIcon,
   "/settings/archived": ArchiveIcon,
 };
 
@@ -89,6 +103,7 @@ function SettingsSectionIcon({ to }: { to: SettingsPath }) {
 }
 
 export function SettingsSidebarNav({ pathname }: { pathname: string }) {
+  const sectionNavigation = useSettingsSectionNavigation(pathname);
   const navigate = useNavigate();
   const currentHash = useLocation({ select: (location) => location.hash });
   const currentSearch = useLocation({ select: (location) => location.search });
@@ -218,7 +233,10 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
 
   return (
     <>
-      <SidebarContent className="overflow-x-hidden">
+      <SidebarContent
+        {...workspaceAreaProps("settings-nav", 0, "Settings sections")}
+        className="overflow-x-hidden"
+      >
         <SidebarGroup>
           <div className="flex flex-col gap-2">
             <SidebarBackToApp />
@@ -306,29 +324,51 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                 ))}
               </SidebarMenu>
             ) : (
-              <SidebarMenu>
-                {SETTINGS_NAV_ITEMS.map((item) => {
-                  const Icon = item.icon;
-                  const isGeneralDetailPage =
-                    item.to === "/settings/general" &&
-                    pathname === "/settings/open-source-licenses";
-                  const isActive =
-                    isGeneralDetailPage ||
-                    pathname === item.to ||
-                    pathname.startsWith(`${item.to}/`);
-                  return (
-                    <SidebarMenuItem key={item.to}>
-                      <SidebarMenuButton
-                        isActive={isActive}
-                        onClick={() => handleSectionClick(item.to)}
-                      >
-                        <Icon />
-                        <span className="truncate">{item.label}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
+              <div
+                {...sectionNavigation.containerProps}
+                role="tree"
+                aria-label="Settings sections"
+                className="space-y-4"
+              >
+                {SETTINGS_NAV_GROUPS.map((group) => (
+                  <SidebarMenu
+                    key={group.heading ?? group.paths[0]}
+                    aria-label={group.heading ?? undefined}
+                  >
+                    {group.heading ? (
+                      <li className="px-2 text-xs text-sidebar-muted-foreground">
+                        {group.heading}
+                      </li>
+                    ) : null}
+                    {SETTINGS_NAV_ITEMS.flatMap((item) => {
+                      if (!group.paths.includes(item.to)) return [];
+                      const Icon = item.icon;
+                      const isGeneralDetailPage =
+                        item.to === "/settings/general" &&
+                        pathname === "/settings/open-source-licenses";
+                      const isActive =
+                        isGeneralDetailPage ||
+                        pathname === item.to ||
+                        pathname.startsWith(`${item.to}/`);
+                      return (
+                        <SidebarMenuItem key={item.to}>
+                          <SidebarMenuButton
+                            role="treeitem"
+                            aria-current={isActive ? "page" : undefined}
+                            data-settings-section={item.to}
+                            tabIndex={sectionNavigation.tabIndexFor(item.to)}
+                            isActive={isActive}
+                            onClick={() => handleSectionClick(item.to)}
+                          >
+                            <Icon />
+                            <span className="truncate">{item.label}</span>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
+                  </SidebarMenu>
+                ))}
+              </div>
             )}
           </div>
         </SidebarGroup>
