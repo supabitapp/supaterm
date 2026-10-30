@@ -26,6 +26,7 @@ import {
   isLearned,
   mergeLearnedRoutes,
   pairingFallbackRoutes,
+  pendingRouteOrder,
   routesAfterRemoving,
   routeHttpBaseUrl,
   sendsTokenInClear,
@@ -214,6 +215,14 @@ describe("connection routes", () => {
       environmentId,
       routes: [{ httpBaseUrl: "https://minim5.tail.ts.net/" }],
     });
+  });
+
+  it("shows a dragged order only until the saved routes catch up or change", () => {
+    const dragged = ["tailnet", "lan"];
+    expect(pendingRouteOrder(dragged, ["lan", "tailnet"])).toBe(dragged);
+    expect(pendingRouteOrder(dragged, ["tailnet", "lan"])).toBeNull();
+    expect(pendingRouteOrder(dragged, ["lan", "public"])).toBeNull();
+    expect(pendingRouteOrder(dragged, ["lan", "tailnet", "public"])).toBeNull();
   });
 });
 
