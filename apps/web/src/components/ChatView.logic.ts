@@ -1236,12 +1236,6 @@ export function chatActionErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "An error occurred.";
 }
 
-export function releaseChatTimelineAnchor<T extends { readonly messageId: MessageId | null }>(
-  current: T,
-): T {
-  return current.messageId === null ? current : { ...current, messageId: null };
-}
-
 // The factories below build functions ChatView calls during render, or hands
 // to ChatComposer, which can call them after an await. They live outside the
 // component so each closure keeps only its inputs, not a whole render scope
