@@ -286,6 +286,7 @@ const layerScratchThreadPromotionProvided = ScratchThreadPromotion.layer.pipe(
   Layer.provide(
     Layer.mergeAll(
       layerProjectService,
+      layerOrchestratorProvided,
       layerManagedProjectFoldersProvided,
       layerThreadManagementProvided,
       layerScheduledTaskProvided,

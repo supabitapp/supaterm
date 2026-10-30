@@ -1,3 +1,4 @@
+import type { ProjectId } from "@supaterm/contracts";
 import type {
   GuestShareId,
   OrchestrationV2SearchThreadInput,
@@ -342,6 +343,11 @@ export interface OrchestratorV2Shape {
    * Runs thread-scoped follow-up work in command admission order. The effect
    * must not dispatch another command for this thread while holding the lock.
    */
+  readonly adoptThreadCohort: (input: {
+    readonly commandId: CommandId;
+    readonly projectId: ProjectId;
+    readonly threadIds: ReadonlyArray<ThreadId>;
+  }) => Effect.Effect<void, OrchestratorV2Error>;
   readonly withThreadCommandLock: <A, E, R>(
     threadId: ThreadId,
     effect: Effect.Effect<A, E, R>,
@@ -13502,6 +13508,62 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       ),
   );
 
+  const adoptThreadCohort = Effect.fn("Orchestrator.adoptThreadCohort")(function* (input: {
+    readonly commandId: CommandId;
+    readonly projectId: ProjectId;
+    readonly threadIds: ReadonlyArray<ThreadId>;
+  }) {
+    const threadIds = [...new Set(input.threadIds)].sort();
+    const first = threadIds[0];
+    if (first === undefined) return;
+    const command = {
+      type: "thread.project.adopt-folder" as const,
+      commandId: input.commandId,
+      threadId: first,
+      projectId: input.projectId,
+    };
+    const commit = Effect.gen(function* () {
+      const existing = yield* commandReceipts
+        .getByCommandId(input.commandId)
+        .pipe(mapDispatchError(command));
+      if (Option.isSome(existing)) {
+        if (existing.value.threadId !== first || existing.value.commandType !== command.type) {
+          return yield* new OrchestratorCommandIdConflictError({
+            commandId: input.commandId,
+            commandType: command.type,
+            receiptThreadId: existing.value.threadId,
+            commandThreadId: first,
+          });
+        }
+        if (existing.value.status === "accepted") return;
+        return yield* new OrchestratorCommandPreviouslyRejectedError({
+          commandId: input.commandId,
+          commandType: command.type,
+          detail: existing.value.error ?? "Previously rejected.",
+        });
+      }
+      const events = yield* Ref.make<Array<OrchestrationV2DomainEvent>>([]);
+      for (const threadId of threadIds) {
+        yield* dispatchThreadProjectAdoptFolder({ ...command, threadId }, events);
+      }
+      yield* eventSink
+        .commitCommand({
+          commandId: input.commandId,
+          threadId: first,
+          commandType: command.type,
+          acceptedAt: yield* DateTime.now,
+          events: yield* Ref.get(events),
+          effects: [],
+        })
+        .pipe(mapDispatchError(command));
+    });
+    const locked = threadIds.reduceRight(
+      (effect, threadId) => threadDispatch.withLock(threadId, effect),
+      commit,
+    );
+    yield* locked;
+  });
+
   const shellProjectionError = (cause: unknown) =>
     new OrchestratorProjectionError({ threadId: ThreadId.make("thread:shell"), cause });
 
@@ -13519,6 +13581,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       return effectOutbox.awaitSettled(`effect:restart-continuation:${run.id}`).pipe(Effect.ignore);
     }),
     dispatch: dispatchWithReceipt,
+    adoptThreadCohort,
     withThreadCommandLock: Effect.fn("OrchestratorV2.withThreadCommandLock")(
       function (threadId, effect) {
         return threadDispatch.withLock(threadId, effect);

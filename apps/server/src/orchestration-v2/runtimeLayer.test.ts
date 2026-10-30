@@ -1,3 +1,4 @@
+import * as FileSystem from "effect/FileSystem";
 import * as ScratchThreadPromotion from "../project/ScratchThreadPromotion.ts";
 import type { OrchestrationV2RuntimeRequest } from "@supaterm/contracts";
 import { SourceControlProviderKind } from "@supaterm/contracts";
@@ -32,6 +33,7 @@ import {
   ProviderTurnId,
   RunId,
   ScheduledTaskId,
+  ScheduledTaskError,
   ThreadId,
 } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
@@ -178,9 +180,13 @@ const watchedPullRequestDetail = (input: {
   readonly projectId: ProjectId;
   readonly number: number;
   readonly at: string;
+  readonly checksAlwaysReport?: boolean;
 }): PullRequestDetail => ({
   provider: SourceControlProviderKind.make("github"),
   capabilities: {
+    ...(input.checksAlwaysReport === undefined
+      ? {}
+      : { checksAlwaysReport: input.checksAlwaysReport }),
     diff: true,
     comment: true,
     actions: [],
@@ -2627,6 +2633,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           taskId: "workflow-run-watch:github.com/supabitapp/supaterm#42",
           description: "Watching Release run",
           kind: "monitor",
+          awaited: true,
         },
       ]);
 
@@ -3304,6 +3311,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
                 projectId,
                 number: 14,
                 at: "2026-10-02T12:00:00.000Z",
+                checksAlwaysReport: true,
               }),
               headSha,
               checks,
@@ -3407,6 +3415,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
                 projectId,
                 number: 14,
                 at: "2026-10-02T12:00:00.000Z",
+                checksAlwaysReport: true,
               }),
               headSha,
               checks,
@@ -5959,8 +5968,9 @@ const layerScratchPromotionTest = ScratchThreadPromotion.layer.pipe(
       namedProjectsRoot: "/projects",
     }),
   ),
-  Layer.provide(NodeServices.layer),
   Layer.provideMerge(layerProjectDeletionTest),
+  Layer.provideMerge(layerServerConfig),
+  Layer.provideMerge(NodeServices.layer),
 );
 
 it.layer(layerScratchPromotionTest)("turning a No project thread into a project", (it) => {
@@ -5999,6 +6009,193 @@ it.layer(layerScratchPromotionTest)("turning a No project thread into a project"
     Orchestrator.OrchestratorV2.pipe(
       Effect.flatMap((orchestrator) => orchestrator.getThreadShell(threadId)),
     );
+
+  const isolatedPromotionLayer = Effect.fn(function* (input: {
+    readonly stateDir: string;
+    readonly projects?: ProjectService.ProjectService["Service"];
+    readonly tasks?: ScheduledTaskService.ScheduledTaskService["Service"];
+  }) {
+    const config = yield* ServerConfig.ServerConfig;
+    return Layer.effect(
+      ScratchThreadPromotion.ScratchThreadPromotion,
+      ScratchThreadPromotion.make,
+    ).pipe(
+      Layer.provide(
+        Layer.mergeAll(
+          Layer.succeed(ServerConfig.ServerConfig, { ...config, stateDir: input.stateDir }),
+          Layer.succeed(
+            ProjectService.ProjectService,
+            input.projects ?? (yield* ProjectService.ProjectService),
+          ),
+          Layer.succeed(
+            ScheduledTaskService.ScheduledTaskService,
+            input.tasks ?? (yield* ScheduledTaskService.ScheduledTaskService),
+          ),
+          Layer.succeed(
+            ThreadManagementService.ThreadManagementService,
+            yield* ThreadManagementService.ThreadManagementService,
+          ),
+          Layer.succeed(Orchestrator.OrchestratorV2, yield* Orchestrator.OrchestratorV2),
+          Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
+            scratchRoot: Effect.succeedSome(SCRATCH_ROOT),
+            isScratchProject: (projectId) => Effect.succeed(projectId === SCRATCH_PROJECT_ID),
+            namedProjectsRoot: "/projects",
+          }),
+          NodeServices.layer,
+        ),
+      ),
+    );
+  });
+
+  const bindPromotionTask = (threadId: ThreadId, id: string) =>
+    ScheduledTaskService.ScheduledTaskService.use((tasks) =>
+      tasks.upsert({
+        id: ScheduledTaskId.make(id),
+        title: "Bound",
+        prompt: "Check in",
+        enabled: true,
+        schedule: { type: "interval", everyMs: 60_000 },
+        projectId: SCRATCH_PROJECT_ID,
+        threadId,
+        workspaceStrategy: { type: "root" },
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        createdBy: "user",
+        creationSource: "web",
+      }),
+    );
+
+  it.effect(
+    "keeps a cohort intact when a turn starts after promotion's precheck, then recovers automatically",
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem;
+          const stateDir = yield* fs.makeTempDirectoryScoped({ prefix: "promotion-race-" });
+          const projects = yield* ProjectService.ProjectService;
+          const tasks = yield* ScheduledTaskService.ScheduledTaskService;
+          const orchestrator = yield* Orchestrator.OrchestratorV2;
+          const { folder, createThread } = yield* setup("race");
+          const first = yield* createThread("first", folder);
+          const second = yield* createThread("second", folder);
+          const { task } = yield* bindPromotionTask(second, "promotion-race-task");
+          const entered = yield* Deferred.make<void>();
+          const release = yield* Deferred.make<void>();
+          const recovered = yield* Deferred.make<void>();
+          let pause = true;
+          const layer = yield* isolatedPromotionLayer({
+            stateDir,
+            projects: {
+              ...projects,
+              bootstrap: (input) => {
+                if (!pause) return projects.bootstrap(input);
+                pause = false;
+                return Deferred.succeed(entered, undefined).pipe(
+                  Effect.andThen(Deferred.await(release)),
+                  Effect.andThen(projects.bootstrap(input)),
+                );
+              },
+            },
+            tasks: {
+              ...tasks,
+              moveThreadTasks: (input) =>
+                tasks
+                  .moveThreadTasks(input)
+                  .pipe(Effect.andThen(Deferred.succeed(recovered, undefined)), Effect.asVoid),
+            },
+          });
+          yield* Effect.gen(function* () {
+            const promotion = yield* ScratchThreadPromotion.ScratchThreadPromotion;
+            const moving = yield* promotion.promote({ threadId: first }).pipe(Effect.forkScoped);
+            yield* Deferred.await(entered);
+            yield* orchestrator.dispatch({
+              type: "message.dispatch",
+              commandId: CommandId.make("promotion-race-start"),
+              threadId: second,
+              messageId: MessageId.make("promotion-race-start"),
+              text: "Work",
+              attachments: [],
+              dispatchMode: { type: "defer_start" },
+              createdBy: "user",
+              creationSource: "web",
+            });
+            yield* Deferred.succeed(release, undefined);
+            assert.equal((yield* Fiber.await(moving))._tag, "Failure");
+            assert.equal((yield* shellOf(first))?.projectId, SCRATCH_PROJECT_ID);
+            assert.equal((yield* shellOf(second))?.projectId, SCRATCH_PROJECT_ID);
+            assert.equal(
+              (yield* tasks.list()).tasks.find((candidate) => candidate.id === task.id)?.projectId,
+              SCRATCH_PROJECT_ID,
+            );
+            yield* orchestrator.dispatch({
+              type: "thread.stop",
+              commandId: CommandId.make("promotion-race-stop"),
+              threadId: second,
+            });
+            yield* Deferred.await(recovered);
+            const project = Option.getOrThrow(yield* projects.getByWorkspaceRoot(folder));
+            assert.equal((yield* shellOf(first))?.projectId, project.id);
+            assert.equal((yield* shellOf(second))?.projectId, project.id);
+            assert.equal(
+              (yield* tasks.list()).tasks.find((candidate) => candidate.id === task.id)?.projectId,
+              project.id,
+            );
+          }).pipe(Effect.provide(layer));
+        }),
+      ),
+  );
+
+  it.effect("automatically completes a persisted promotion after the service restarts", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const stateDir = yield* fs.makeTempDirectoryScoped({ prefix: "promotion-restart-" });
+        const projects = yield* ProjectService.ProjectService;
+        const tasks = yield* ScheduledTaskService.ScheduledTaskService;
+        const { folder, createThread } = yield* setup("restart");
+        const first = yield* createThread("first", folder);
+        const second = yield* createThread("second", folder);
+        const { task } = yield* bindPromotionTask(second, "promotion-restart-task");
+        const failingLayer = yield* isolatedPromotionLayer({
+          stateDir,
+          tasks: {
+            ...tasks,
+            moveThreadTasks: () =>
+              Effect.fail(
+                new ScheduledTaskError({ message: "Simulated interruption after adoption" }),
+              ),
+          },
+        });
+        const failed = yield* Effect.scoped(
+          ScratchThreadPromotion.ScratchThreadPromotion.use((promotion) =>
+            promotion.promote({ threadId: first }),
+          ).pipe(Effect.provide(failingLayer), Effect.exit),
+        );
+        assert.equal(failed._tag, "Failure");
+        assert.equal(
+          (yield* tasks.list()).tasks.find((candidate) => candidate.id === task.id)?.projectId,
+          SCRATCH_PROJECT_ID,
+        );
+        const recoveringLayer = yield* isolatedPromotionLayer({ stateDir });
+        yield* Effect.scoped(
+          ScratchThreadPromotion.ScratchThreadPromotion.use(() =>
+            Effect.gen(function* () {
+              const project = Option.getOrThrow(yield* projects.getByWorkspaceRoot(folder));
+              assert.equal((yield* shellOf(first))?.projectId, project.id);
+              assert.equal((yield* shellOf(second))?.projectId, project.id);
+              assert.equal(
+                (yield* tasks.list()).tasks.find((candidate) => candidate.id === task.id)
+                  ?.projectId,
+                project.id,
+              );
+              assert.deepEqual(yield* fs.readDirectory(`${stateDir}/scratch-promotions`), []);
+            }),
+          ).pipe(Effect.provide(recoveringLayer)),
+        );
+      }),
+    ),
+  );
 
   it.effect("moves every thread in the folder and its bound tasks into one project", () =>
     Effect.gen(function* () {
