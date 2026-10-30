@@ -35,6 +35,11 @@ function visible(query: string) {
 }
 
 describe("filterSettingsSections", () => {
+  it("finds the orchestration skill controls on the Threads page", () => {
+    const sections = [{ rows: [{ id: "SettingsThreads", label: "Threads" }] }];
+    expect(filterSettingsSections(sections, "orchestration skills")).toEqual(sections);
+    expect(filterSettingsSections(sections, "advisor")).toEqual(sections);
+  });
   it.each([
     {
       query: "",

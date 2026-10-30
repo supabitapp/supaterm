@@ -41,6 +41,7 @@ import {
 } from "./settings-scoped-server";
 import { PullRequestGlyph } from "../pull-requests/pullRequestGlyphs";
 import { AutoMarkDoneSettingsRows } from "./ThreadSettingsSections";
+import { OrchestrationSkillsSection } from "./components/OrchestrationSkillsSection";
 import { supportsSharedSettingsSync } from "@supaterm/client-runtime/state/shared-settings";
 
 type SettingsPage = "threads" | "source-control" | "worktrees" | "maintenance";
@@ -366,6 +367,13 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                       />
                     ))}
                   </SettingsSection>
+                  <OrchestrationSkillsSection
+                    key={selectedTargets
+                      .map((target) => target.environmentId)
+                      .sort()
+                      .join(",")}
+                    environments={selectedTargets}
+                  />
                   <SettingsSection title="Preview browser">
                     <SettingsSwitchRow
                       icon="globe"
