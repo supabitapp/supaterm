@@ -31,14 +31,19 @@ import { PeerLinks } from "../peer/PeerLinks.ts";
 import { RemoteDelegation } from "../peer/RemoteDelegation.ts";
 import { PreviewManager } from "../preview/Manager.ts";
 import { PreviewBrowser } from "../preview/PreviewBrowser.ts";
+import { PortDiscovery } from "../preview/PortScanner.ts";
 import { ManagedProjectFolders } from "../project/ManagedProjectFolders.ts";
 import { ProjectService } from "../project/ProjectService.ts";
 import { ProjectSetupScriptRunner } from "../project/ProjectSetupScriptRunner.ts";
+import { RepositoryIdentityResolver } from "../project/RepositoryIdentityResolver.ts";
+import { ScratchThreadPromotion } from "../project/ScratchThreadPromotion.ts";
 import { PullRequestReviewGuideService } from "../pullRequest/PullRequestReviewGuideService.ts";
+import { PullRequestService } from "../pullRequest/PullRequestService.ts";
 import { ScheduledTaskService } from "../scheduledTasks/ScheduledTaskService.ts";
 import { SecretRequests } from "../secrets/SecretRequests.ts";
 import { ServerSettingsService } from "../serverSettings.ts";
 import { SourceControlRepositoryService } from "../sourceControl/SourceControlRepositoryService.ts";
+import { Transcription } from "../transcription/Transcription.ts";
 import { GitVcsDriver } from "../vcs/GitVcsDriver.ts";
 import { VcsStatusBroadcaster } from "../vcs/VcsStatusBroadcaster.ts";
 import { buildCodexAdditionalContext } from "./CodexDeveloperInstructions.ts";
@@ -65,6 +70,7 @@ const toolHandlerServices = Layer.mergeAll(
   Layer.mock(PeerForwarding)({}),
   Layer.mock(PeerLinkRequests)({}),
   Layer.mock(PeerLinks)({}),
+  Layer.mock(PortDiscovery)({}),
   Layer.mock(PreviewAutomationBroker)({}),
   Layer.mock(PreviewBrowser)({}),
   Layer.mock(PreviewManager)({}),
@@ -73,8 +79,11 @@ const toolHandlerServices = Layer.mergeAll(
   Layer.mock(ProviderAdapterRegistryV2)({}),
   Layer.mock(ProviderRegistry)({}),
   Layer.mock(PullRequestReviewGuideService)({}),
+  Layer.mock(PullRequestService)({}),
   Layer.mock(RemoteDelegation)({}),
+  Layer.mock(RepositoryIdentityResolver)({}),
   Layer.mock(ScheduledTaskService)({}),
+  Layer.mock(ScratchThreadPromotion)({}),
   Layer.mock(SecretRequests)({}),
   ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-agent-context-budget-" }),
   Layer.mock(ServerEnvironment)({}),
@@ -84,6 +93,7 @@ const toolHandlerServices = Layer.mergeAll(
   Layer.mock(ThreadLaunchService)({}),
   Layer.mock(ThreadManagementService)({}),
   Layer.mock(ThreadSearch)({}),
+  Layer.mock(Transcription)({}),
   Layer.mock(VcsStatusBroadcaster)({}),
 ).pipe(Layer.provideMerge(NodeServices.layer));
 
@@ -149,7 +159,7 @@ it.effect("agent context matches the committed budget", () =>
     Effect.provide(
       McpHttpServer.layerTools.pipe(
         Layer.provideMerge(McpServer.McpServer.layer),
-        Layer.provide(toolHandlerServices),
+        Layer.provideMerge(toolHandlerServices),
       ),
     ),
   ),
