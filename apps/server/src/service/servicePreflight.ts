@@ -1,4 +1,6 @@
 import packageJson from "../../package.json" with { type: "json" };
+import { recordedMigrations } from "../persistence/databaseMigrationHead.ts";
+import { migrationManifest } from "../persistence/Migrations.ts";
 import { SERVICE_LAUNCHER_PROTOCOL } from "./serviceProtocol.ts";
 
 export type ServicePreflightResult =
@@ -16,6 +18,7 @@ export type ServicePreflightResult =
 export function runServicePreflight(input: {
   readonly launcherProtocol: number;
   readonly version?: string;
+  readonly databasePath?: string;
 }): ServicePreflightResult {
   const version = input.version ?? packageJson.version;
   if (input.launcherProtocol !== SERVICE_LAUNCHER_PROTOCOL) {
@@ -29,6 +32,27 @@ export function runServicePreflight(input: {
         "Updating the desktop app does not update this CLI. `supaterm update` installs a CLI version; `supaterm service restart` starts that installed version.",
       ].join(" "),
     };
+  }
+
+  if (input.databasePath !== undefined) {
+    const recorded = recordedMigrations(input.databasePath);
+    const known = new Map<number, string>(migrationManifest);
+    const head = Math.max(0, ...(recorded ?? []).map(({ id }) => id));
+    if (
+      recorded === null ||
+      new Set(recorded.map(({ id }) => id)).size !== recorded.length ||
+      recorded.some(({ id, name }) => known.get(id) !== name) ||
+      migrationManifest.some(
+        ([id, name]) =>
+          id <= head && !recorded.some((entry) => entry.id === id && entry.name === name),
+      )
+    ) {
+      return {
+        status: "blocked",
+        version,
+        reason: `The database migration history is not compatible with supaterm@${version}. Keep the current release until the target supports this history.`,
+      };
+    }
   }
 
   return { status: "ready", version, launcherProtocol: SERVICE_LAUNCHER_PROTOCOL };

@@ -1180,6 +1180,17 @@ it.layer(NodeServices.layer)("server settings", (it) => {
             bitbucket: { email: "me@example.test", accessToken: "bitbucket-secret" },
             gitcafe: { token: "gitcafe-secret" },
           },
+          simlockDeviceHosts: [
+            {
+              kind: "simlock",
+              id: "eas",
+              label: "Simlock pool",
+              gatewayUrl: "https://pool.example.test",
+              agentToken: "simlock-secret",
+              maxLeases: 2,
+              maxLeaseMinutes: 60,
+            },
+          ],
           easDeviceHosts: [
             {
               kind: "eas",
@@ -1199,6 +1210,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
           "bitbucket-secret",
           "gitcafe-secret",
           "expo-secret",
+          "simlock-secret",
         ];
         const client = ServerSettingsModule.redactServerSettingsForClient(saved);
         const disk = yield* fs.readFileString(config.settingsPath);
@@ -1213,6 +1225,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
           providerInstances: client.providerInstances,
           sourceControlHosts: client.sourceControlHosts,
           easDeviceHosts: client.easDeviceHosts,
+          simlockDeviceHosts: client.simlockDeviceHosts,
         });
         for (const value of values) assert.include(JSON.stringify(echoed), value);
         const renamed = yield* service.updateProviderInstance({
