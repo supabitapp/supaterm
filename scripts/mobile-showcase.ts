@@ -687,10 +687,9 @@ interface ShowcaseEnvironment {
 async function startShowcaseEnvironments(
   rootDir: string,
   track: (server: NodeChildProcess.ChildProcess) => void,
-  environments: ReadonlyArray<(typeof SHOWCASE_ENVIRONMENTS)[number]> = SHOWCASE_ENVIRONMENTS,
 ): Promise<ShowcaseEnvironment[]> {
   const started: ShowcaseEnvironment[] = [];
-  for (const environment of environments) {
+  for (const environment of SHOWCASE_ENVIRONMENTS) {
     const projectId = environment.projectIds[0];
     const project = SHOWCASE_PROJECTS.find((candidate) => candidate.id === projectId);
     if (!project) throw new Error(`Showcase environment '${environment.id}' has no project.`);
