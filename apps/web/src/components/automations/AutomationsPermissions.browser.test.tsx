@@ -129,9 +129,10 @@ vi.mock(import("../EnvironmentMachineIcon"), () => ({
 vi.mock(import("../WorktreeBaseBranchPicker"), () => ({
   WorktreeBaseBranchPicker: () => <></>,
 }));
-vi.mock(import("../chat/ProviderModelPicker"), () => ({
-  ProviderModelPicker: () => <></>,
-}));
+vi.mock(import("../chat/ProviderModelPicker"), async () => {
+  const { memo } = await import("react");
+  return { ProviderModelPicker: memo(() => <></>) };
+});
 vi.mock(import("../settings/ScopeSentence"), () => ({
   ScopeSentence: () => <></>,
 }));
