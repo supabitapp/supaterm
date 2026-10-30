@@ -193,6 +193,8 @@ export function ThreadDetailsPrRow({
   });
 
   const { actionPending, pendingAction, perform } = usePullRequestActionRunner({
+    terminology: sourceControlClients.get(detail?.provider ?? project?.repositoryIdentity?.provider)
+      .changeRequest,
     environmentId,
     reference,
     onSuccess: () => {

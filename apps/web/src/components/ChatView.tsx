@@ -1,3 +1,6 @@
+import { ComposerContextPermissions } from "./ComposerContextPermissions";
+import { useStore } from "zustand";
+import { createChatCanvasStore, resolveChatCanvasModel } from "./chat/canvasStore";
 import { ThreadActivityAnnouncer } from "./chat/ThreadActivityAnnouncer";
 import { announcedRun, isDetailBehindShell } from "./chat/threadActivityAnnouncement";
 import {
@@ -182,10 +185,7 @@ import { useIsPaneInputOwner, usePaneInputOwner, usePaneScope } from "../chatPan
 import { useChatPaneStore } from "../chatPanes/store";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { FileMetadataThreadProvider } from "../hooks/FileMetadataThreadProvider";
-import {
-  RIGHT_PANEL_INLINE_LAYOUT_MEDIA_QUERY,
-  type ThreadPanelPresentation,
-} from "../rightPanelLayout";
+import { RIGHT_PANEL_INLINE_LAYOUT_MEDIA_QUERY } from "../rightPanelLayout";
 import { PopoverCreateHandle } from "./ui/popover";
 import {
   selectActiveRightPanel,
@@ -1104,8 +1104,16 @@ export default function ChatView(props: ChatViewProps) {
   const canMaximizeRightPanel = rightPanelOpen && !shouldUsePlanSidebarSheet;
   const rightPanelMaximized = canMaximizeRightPanel && rightPanelState.maximized === true;
   const inlineRightPanelOwnsTitleBar = rightPanelOpen && !shouldUsePlanSidebarSheet;
-  const [threadPanelPresentation, setThreadPanelPresentation] =
-    useState<ThreadPanelPresentation>("inline");
+  const [canvasStore] = useState(createChatCanvasStore);
+  const detailsCardInlineOpen = useRightPanelStore((state) =>
+    selectThreadPanelOpen(state.threadPanelVisibilityByThreadKey, activeThreadRef, "inline"),
+  );
+  const threadPanelPresentation = useStore(
+    canvasStore,
+    (state) =>
+      resolveChatCanvasModel({ ...state, threadRef: activeThreadRef, detailsCardInlineOpen })
+        .detailsCardMode,
+  );
   const [threadPanelPopoverHandle] = useState(PopoverCreateHandle);
   const [backgroundWorkChecksHandle] = useState(PopoverCreateHandle);
   const threadPanelOpen = useRightPanelStore((state) =>
@@ -3216,6 +3224,15 @@ export default function ChatView(props: ChatViewProps) {
       contextStripVisible={showComposerContextStrip}
       contextStripPlacement={composerContextStripPlacement}
       usageMeter={composerUsageMeterSlot === "context-strip" ? composerUsageMeter : null}
+      permissions={
+        showDraftProjectPicker ? (
+          <ComposerContextPermissions
+            runtimeMode={runtimeMode}
+            shortcutLabel={shortcutLabelForCommand(keybindings, "composer.mode")}
+            onOpen={() => composerRef.current?.openControl("composer.mode")}
+          />
+        ) : null
+      }
       projectPicker={
         showDraftProjectPicker ? (
           <DraftProjectPicker
@@ -3344,6 +3361,9 @@ export default function ChatView(props: ChatViewProps) {
 
             <div className="relative flex min-h-0 min-w-0 flex-1">
               <ThreadFindCanvas
+                store={canvasStore}
+                threadRef={activeThreadRef}
+                detailsCardInlineOpen={detailsCardInlineOpen}
                 findOptions={{
                   skills: timelineSkills,
                   progressive: serverConfig?.threadFindProgressive === true,
@@ -3745,7 +3765,9 @@ export default function ChatView(props: ChatViewProps) {
                                   }
                                   runtimeMode={runtimeMode}
                                   defaultRuntimeMode={defaultRuntimeMode}
-                                  permissionsShownInStrip={false}
+                                  permissionsShownInStrip={
+                                    showDraftProjectPicker && mountComposerContextStrip
+                                  }
                                   lockedProvider={lockedProvider}
                                   providerStatuses={providerStatuses as ServerProvider[]}
                                   providerCatalogKnown={serverConfig !== null}
@@ -3858,7 +3880,6 @@ export default function ChatView(props: ChatViewProps) {
                   <ThreadDetailsPanel
                     anchor={threadPanelPopoverAnchorRef}
                     handle={threadPanelPopoverHandle}
-                    onPresentationChange={setThreadPanelPresentation}
                     forceNewWorktree={multipleModelSelections !== null}
                     environmentId={activeThread.environmentId}
                     threadId={activeThread.id}

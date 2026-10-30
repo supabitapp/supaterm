@@ -1,3 +1,5 @@
+import { useEnvironmentScope } from "~/state/session";
+import { AuthOrchestrationOperateScope } from "@supaterm/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import {
   isAtomCommandInterrupted,
@@ -199,9 +201,7 @@ export function GuestShareIndicator({ threadRef }: { readonly threadRef: ScopedT
     label: "stop guest share",
   });
   const [closing, setClosing] = useState(false);
-  const canClose = useAtomValue(
-    threadEnvironment.closeGuestShare.permissionAtom(threadRef.environmentId),
-  );
+  const canClose = useEnvironmentScope(threadRef.environmentId, AuthOrchestrationOperateScope);
   if (share === null) return null;
   return (
     <div className="flex shrink-0 items-center gap-1 text-muted-foreground text-xs">
@@ -244,9 +244,7 @@ export function GuestPendingMessages({
   readonly onFileOpen: (attachment: ChatFileAttachment) => void;
 }) {
   const share = useThreadGuestShare(threadRef);
-  const canOperate = useAtomValue(
-    threadEnvironment.resolveGuestMessage.permissionAtom(threadRef.environmentId),
-  );
+  const canOperate = useEnvironmentScope(threadRef.environmentId, AuthOrchestrationOperateScope);
   const resolveGuestMessage = useOrchestrationCommand(threadEnvironment.resolveGuestMessage, {
     label: "resolve guest message",
   });

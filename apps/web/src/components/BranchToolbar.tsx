@@ -79,6 +79,7 @@ interface BranchToolbarProps {
   projectPicker?: ReactNode;
   contextStripPlacement?: "top" | "bottom";
   usageMeter?: ReactNode;
+  permissions?: ReactNode;
 }
 
 const COMPOSER_CONTEXT_MOTION_DURATION_MS = 180;
@@ -283,6 +284,7 @@ export const BranchToolbar = memo(function BranchToolbar({
   projectPicker,
   contextStripPlacement = "bottom",
   usageMeter,
+  permissions,
 }: BranchToolbarProps) {
   const branchSelectorRef = useRef<BranchToolbarBranchSelectorHandle>(null);
   const threadRef = scopeThreadRef(environmentId, threadId);
@@ -360,12 +362,13 @@ export const BranchToolbar = memo(function BranchToolbar({
   const labelsOverflow = useLabelsOverflow(stripElement);
 
   if (!activeProject) {
-    return layout === "composer" && projectPicker ? (
+    return layout === "composer" && (projectPicker || permissions) ? (
       <ComposerSurface.ContextStrip
         placement={contextStripPlacement}
         className={CONTEXT_STRIP_CLASS}
       >
         {projectPicker}
+        {permissions}
       </ComposerSurface.ContextStrip>
     ) : null;
   }
@@ -475,6 +478,7 @@ export const BranchToolbar = memo(function BranchToolbar({
         />
       ) : null}
       {usageMeter}
+      {permissions}
     </ComposerSurface.ContextStrip>
   );
 });

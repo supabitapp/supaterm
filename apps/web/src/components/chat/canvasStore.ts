@@ -1,7 +1,11 @@
 import type { ScopedThreadRef } from "@supaterm/contracts";
 import { createStore } from "zustand";
 import type { ThreadPanelPresentation } from "../../rightPanelLayout";
-import type { DetailsCardMeasurement } from "./ChatCanvasContext";
+export interface DetailsCardMeasurement {
+  readonly threadRef: ScopedThreadRef;
+  readonly width: number;
+  readonly fullContentHeight: number;
+}
 import { resolveChatCanvasLayout, type ChatCanvasPreview } from "./chatCanvasLayout";
 import { resolveThreadDetailsCardLayout } from "./threadDetailsCardLayout";
 
@@ -24,6 +28,9 @@ export interface ChatCanvasMeasurements {
 }
 
 interface ChatCanvasStoreState {
+  readonly preview: ChatCanvasPreview | null;
+  readonly reportPreview: (preview: ChatCanvasPreview) => void;
+  readonly clearPreview: (key: string) => void;
   readonly measurements: ChatCanvasMeasurements;
   readonly detailsCardMeasurement: DetailsCardMeasurement | null;
   readonly setMeasurements: (next: ChatCanvasMeasurements) => void;
@@ -61,6 +68,20 @@ const sameMeasurements = (a: ChatCanvasMeasurements, b: ChatCanvasMeasurements) 
  */
 export const createChatCanvasStore = () =>
   createStore<ChatCanvasStoreState>()((set) => ({
+    preview: null,
+    reportPreview: (preview) =>
+      set((state) =>
+        state.preview?.key === preview.key &&
+        state.preview.width === preview.width &&
+        state.preview.lastInteraction === preview.lastInteraction &&
+        state.preview.position?.x === preview.position?.x &&
+        state.preview.position?.y === preview.position?.y &&
+        state.preview.source.width === preview.source.width &&
+        state.preview.source.height === preview.source.height
+          ? state
+          : { preview },
+      ),
+    clearPreview: (key) => set((state) => (state.preview?.key === key ? { preview: null } : state)),
     measurements: INITIAL_MEASUREMENTS,
     detailsCardMeasurement: null,
     setMeasurements: (next) =>
@@ -85,7 +106,6 @@ export function resolveChatCanvasModel({
   threadRef,
   preview,
   detailsCardInlineOpen,
-  centerBesideDetails,
 }: {
   measurements: ChatCanvasMeasurements;
   detailsCardMeasurement: DetailsCardMeasurement | null;
@@ -93,7 +113,6 @@ export function resolveChatCanvasModel({
   threadRef: ScopedThreadRef | null;
   preview: ChatCanvasPreview | null;
   detailsCardInlineOpen: boolean;
-  centerBesideDetails: boolean;
 }) {
   const container = { width: measurements.width, height: measurements.height };
   const { findBar } = measurements;
@@ -138,7 +157,6 @@ export function resolveChatCanvasModel({
     composerHeight: measurements.composerHeight,
     detailsCard,
     findBar,
-    centerBesideDetails,
   });
   const detailsCardPlacement = resolveThreadDetailsCardLayout({
     container,

@@ -1,4 +1,4 @@
-import type { OrchestrationV2TurnItem } from "@supaterm/contracts";
+import type { ThreadStructure } from "@supaterm/client-runtime/state/models";
 import * as DateTime from "effect/DateTime";
 import type {
   OrchestrationV2PendingBackgroundTask,
@@ -102,7 +102,7 @@ export function backgroundWorkBannerItem(input: {
   readonly tasks: ReadonlyArray<OrchestrationV2PendingBackgroundTask>;
   /** The workflow run the work watches; it colors the dot and opens its checks. */
   readonly watchedRun: WatchedRunProps;
-  readonly turnItems: ReadonlyArray<OrchestrationV2TurnItem>;
+  readonly turnItems: ThreadStructure["turnItems"];
   readonly stopDisabled: boolean;
   readonly stopping: boolean;
   readonly onStop: () => Promise<void>;
@@ -110,11 +110,12 @@ export function backgroundWorkBannerItem(input: {
 }): ComposerBannerStackItem | null {
   const { onOpenThread, watchedRun } = input;
   const newest = input.turnItems
-    .filter(
-      (item) =>
-        item.type === "subagent" &&
-        item.progress &&
-        input.tasks.some((task) => task.taskId === (item.nativeItemRef?.nativeId || item.id)),
+    .flatMap((item) =>
+      item.type === "subagent" &&
+      item.progress &&
+      input.tasks.some((task) => task.taskId === (item.nativeItemRef?.nativeId || item.id))
+        ? [item]
+        : [],
     )
     .toSorted(
       (a, b) => DateTime.toEpochMillis(b.updatedAt) - DateTime.toEpochMillis(a.updatedAt),

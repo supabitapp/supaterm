@@ -93,7 +93,7 @@ export function startThreadNotifications(
             ? "Usage limit reached"
             : status === "failed"
               ? "Thread failed"
-              : thread.guestShare?.messages.some((message) => message.status === "pending")
+              : (thread.pendingGuestMessageCount ?? 0) > 0
                 ? "Guest request"
                 : "Input needed";
     if (hasNotificationSound(mode)) {
@@ -156,7 +156,7 @@ export function startThreadNotifications(
       notification.addEventListener("click", () => {
         notification.close();
         window.focus();
-        void window.desktopBridge?.revealWindow().catch(() => undefined);
+        void window.desktopBridge?.revealWindow?.().catch(() => undefined);
         void router.navigate({
           to: "/$environmentId/$threadId",
           params: { environmentId, threadId: thread.id },

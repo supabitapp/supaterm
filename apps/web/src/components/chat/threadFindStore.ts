@@ -148,14 +148,18 @@ export function setThreadFindQuery(
   scope = currentThreadFindScope(),
 ): void {
   const start = readThreadFindPosition(threadKey, query.trim(), scope);
-  getThreadFindStore(scope).setState((previous) => ({
-    query,
-    offset: 0,
-    start,
-    localSelection: null,
-    navigationId: previous.navigationId + 1,
-    requestId: previous.navigationId + 1,
-  }));
+  getThreadFindStore(scope).setState((previous) =>
+    previous.threadKey !== threadKey
+      ? previous
+      : {
+          query,
+          offset: 0,
+          start,
+          localSelection: null,
+          navigationId: previous.navigationId + 1,
+          requestId: previous.navigationId + 1,
+        },
+  );
 }
 
 export function closeThreadFind(scope = currentThreadFindScope()): void {
@@ -175,12 +179,6 @@ export function retainThreadFindForRoute(route: {
   const { threadKey } = getThreadFindStore(scope).getState();
   const shownKey = route.threadRef ? scopedThreadKey(route.threadRef) : null;
   if (threadKey !== null && threadKey !== shownKey) closeThreadFind(scope);
-}
-
-/** Whether find is open in `thread`, as long as find is available there. */
-export function useThreadFindOpen(thread: ScopedThreadRef | null, enabled: boolean): boolean {
-  const openThreadKey = getThreadFindStore()((state) => state.threadKey);
-  return enabled && thread !== null && openThreadKey === scopedThreadKey(thread);
 }
 
 /**

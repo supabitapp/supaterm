@@ -1,11 +1,10 @@
-import { RegistryContext } from "@effect/atom-react";
 import { EnvironmentId } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
 import { Atom, AtomRegistry } from "effect/reactivity";
 import { expect, it, vi } from "vite-plus/test";
 
-import { render, stubGlobal, type Screen } from "../../test/render";
+import { stubGlobal } from "../../test/render";
 
 const state = vi.hoisted(() => ({
   mode: "notifications",
@@ -15,37 +14,34 @@ const state = vi.hoisted(() => ({
   navigate: vi.fn(),
   sound: vi.fn(),
   badge: vi.fn(),
-  environmentIds: ["one", "two"],
+  listeners: new Set<() => void>(),
 }));
-vi.mock(import("@tanstack/react-router"), async (original) => ({
-  ...(await original()),
-  useNavigate: (() => state.navigate) as never,
-  useParams: (() => ({})) as never,
+vi.mock(import("./ui/toast"), () => ({ toastManager: { add: state.toast, close: vi.fn() } }));
+vi.mock(import("../state/shell"), () => ({
+  environmentShell: { stateValueAtom: (id: string) => shellAtom(id) },
 }));
-vi.mock(import("./ui/toast"), async (original) => {
-  const actual = await original();
-  return { ...actual, toastManager: { ...actual.toastManager, add: state.toast as never } };
+vi.mock(import("../state/presentation"), async () => {
+  const { Atom } = await import("effect/reactivity");
+  return { environmentSummaries: { environmentIdsAtom: Atom.make(["one", "two"]) } } as never;
 });
-vi.mock(import("../state/shell"), async (original) => {
-  const actual = await original();
+vi.mock(import("../state/threads"), async () => {
+  const { Atom } = await import("effect/reactivity");
   return {
-    ...actual,
-    environmentShell: {
-      ...actual.environmentShell,
-      stateValueAtom: ((id: string) => shellAtom(id)) as never,
+    environmentThreadShells: {
+      pendingSubagentRequestsAtom: Atom.family(() => Atom.make(new Map())),
+      delegatedUnderParentAtom: Atom.make(new Map()),
     },
-  };
+  } as never;
 });
-vi.mock(import("../state/environments"), async (original) => ({
-  ...(await original()),
-  useEnvironmentIds: (() => state.environmentIds) as never,
-}));
-vi.mock(import("../hooks/useSettings"), async (original) => ({
-  ...(await original()),
-  useClientSettings: ((
-    select: (settings: { notificationMode: string; inAppNotificationsEnabled: boolean }) => unknown,
-  ) => select({ notificationMode: state.mode, inAppNotificationsEnabled: state.inApp })) as never,
-  getClientSettings: (() => ({ notificationMode: state.mode })) as never,
+vi.mock(import("../hooks/useSettings"), () => ({
+  getClientSettings: () => ({
+    notificationMode: state.mode,
+    inAppNotificationsEnabled: state.inApp,
+  }),
+  subscribeClientSettings: (callback: () => void) => {
+    state.listeners.add(callback);
+    return () => state.listeners.delete(callback);
+  },
 }));
 vi.mock(import("../threadNotifications"), async (original) => ({
   ...(await original()),
@@ -54,7 +50,7 @@ vi.mock(import("../threadNotifications"), async (original) => ({
   setNotificationBadge: state.badge,
 }));
 
-import { ThreadNotificationCoordinator } from "./ThreadNotificationCoordinator";
+import { startThreadNotifications } from "./ThreadNotificationCoordinator";
 
 let registry: AtomRegistry.AtomRegistry;
 const shellAtom = Atom.family((_id: string) => Atom.make<unknown>(null));
@@ -164,7 +160,7 @@ function setup() {
   stack.defer(() => testRegistry.dispose());
   state.mode = "notifications";
   state.inApp = false;
-  state.environmentIds = ["one", "two"];
+  state.listeners.clear();
   state.shells.set("one", shell());
   state.shells.set("two", shell());
   focused = false;
@@ -179,18 +175,22 @@ function setup() {
       .spyOn(document, "visibilityState", "get")
       .mockImplementation(() => visibility as DocumentVisibilityState),
   );
-  const ui = () => (
-    <RegistryContext.Provider value={testRegistry}>
-      <ThreadNotificationCoordinator />
-    </RegistryContext.Provider>
-  );
-  let screen: Screen | undefined;
+  let stop: (() => void) | undefined;
+  const unmount = () => {
+    stop?.();
+    stop = undefined;
+  };
+  stack.defer(unmount);
   return {
-    async render() {
-      if (screen) await screen.rerender(ui());
-      else screen = stack.use(await render(ui()));
+    render() {
+      if (!stop)
+        stop = startThreadNotifications(testRegistry, {
+          state: { matches: [] },
+          navigate: state.navigate,
+        } as never);
+      else for (const listener of state.listeners) listener();
     },
-    unmount: () => screen!.unmount(),
+    unmount,
     [Symbol.asyncDispose]: () => stack.disposeAsync(),
   };
 }

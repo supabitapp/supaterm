@@ -16,7 +16,7 @@ import {
 
 import { ThreadDetailsSection } from "./ThreadDetailsSection";
 import { cn } from "../../lib/utils";
-import { useNowMinuteMs } from "../../hooks/useNowMinute";
+import { useNowMinute } from "../../hooks/useNowMinute";
 import { lastRunLabel, nextRunLabel, scheduleLabel } from "../automations/automations.logic";
 import { useEnvironmentQuery } from "../../state/query";
 import { serverEnvironment } from "../../state/server";
@@ -89,7 +89,8 @@ export function ThreadAutomationsPanel(props: {
   });
   const navigate = useNavigate();
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
-  const now = useNowMinuteMs();
+  const minute = useNowMinute();
+  const now = Date.parse(`${minute}:00Z`);
 
   const boundTasks = (tasksQuery.data?.tasks ?? []).filter(
     (task) => task.threadId === props.threadId,

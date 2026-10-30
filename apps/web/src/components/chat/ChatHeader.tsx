@@ -231,7 +231,9 @@ export const ChatHeader = memo(function ChatHeader({
     const actions = threadActions(thread);
     void settlePromise(() =>
       api.contextMenu.show(
-        onFind ? [{ id: "find", label: "Find in thread" }, ...actions.items] : actions.items,
+        onFind
+          ? [{ id: "find" as const, label: "Find in thread" }, ...actions.items]
+          : actions.items,
         position,
       ),
     ).then((result) => {
