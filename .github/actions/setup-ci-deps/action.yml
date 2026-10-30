@@ -26,7 +26,6 @@ runs:
         echo "path=$(mise exec -- vp pm cache dir)" >> "$GITHUB_OUTPUT"
         metadata="${pnpm_config_cache_dir:-$RUNNER_TEMP/pnpm-metadata}"
         echo "metadata=$metadata" >> "$GITHUB_OUTPUT"
-        echo "pnpm_config_cache_dir=$metadata" >> "$GITHUB_ENV"
         if [[ -z "$INSTALL_ARGS" ]]; then
           echo "namespace=full" >> "$GITHUB_OUTPUT"
         else
@@ -57,6 +56,7 @@ runs:
       shell: bash
       env:
         INSTALL_ARGS: ${{ inputs.install-args }}
+        pnpm_config_cache_dir: ${{ steps.pnpm_store.outputs.metadata }}
       run: |
         args=()
         if [[ -n "$INSTALL_ARGS" ]]; then

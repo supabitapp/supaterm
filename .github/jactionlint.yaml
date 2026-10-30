@@ -4,6 +4,9 @@ rules:
       "actions/*": ref-pin
 
 ignores:
+  - rule: cache-poisoning
+    file: .github/actions/setup-ci-deps/action.yml
+    reason: Cache steps require inputs.cache to be true; every release caller explicitly disables them with cache=false.
   - rule: dangerous-triggers
     file: .github/workflows/mobile-fingerprint-label.yml
     reason: Runs only trusted workflow code and reads a size-limited artifact as validated platform names before labeling the current matching PR head.
