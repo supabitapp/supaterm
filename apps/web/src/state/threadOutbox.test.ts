@@ -874,6 +874,25 @@ describe("web thread outbox voice messages", () => {
     expect(webThreadOutbox.getSnapshot()).toEqual([]);
   });
 
+  it("applies the composer's thread settings before the environment sends it", async () => {
+    const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");
+    await enqueueThreadOutboxTurn({ ...voiceTarget(), branch: "main" });
+    harness.existingThread = true;
+    harness.online = true;
+    harness.voice.mockResolvedValue({
+      text: "fix the build",
+      submission: { status: "sent", sequence: 3 },
+    });
+    await webThreadOutbox.drain();
+
+    expect(harness.run.mock.calls.map((call) => call[1].label)).toEqual([
+      "branch",
+      "runtime",
+      "interaction",
+    ]);
+    expect(harness.voice).toHaveBeenCalledOnce();
+  });
+
   it("fails without speech, and keeps a refused transcript as text to edit or retry", async () => {
     const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");
     await enqueueThreadOutboxTurn(voiceTarget());

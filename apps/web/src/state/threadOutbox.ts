@@ -142,6 +142,46 @@ function voiceDelivery(dispatchMode: OutboxTurn["input"]["dispatchMode"]) {
     : "auto";
 }
 
+// The composer's branch and modes for this turn, which the thread itself must carry.
+async function applyThreadSettings(payload: OutboxTurn) {
+  const { environmentId } = payload;
+  const thread = appAtomRegistry
+    .get(directThreadEnvironment.snapshotAtom(environmentId))
+    ?.threads.find((candidate) => candidate.id === payload.input.threadId);
+  if (!thread || payload.input.bootstrap?.createThread) return;
+  const target = { environmentId };
+  if (payload.branch !== undefined && payload.branch !== thread.branch) {
+    await command(directThreadEnvironment.updateMetadata, {
+      ...target,
+      input: {
+        threadId: thread.id,
+        commandId: CommandId.make(`${payload.input.commandId}:branch`),
+        branch: payload.branch,
+      },
+    });
+  }
+  if (thread.runtimeMode !== payload.input.runtimeMode) {
+    await command(directThreadEnvironment.setRuntimeMode, {
+      ...target,
+      input: {
+        threadId: thread.id,
+        commandId: CommandId.make(`${payload.input.commandId}:runtime`),
+        runtimeMode: payload.input.runtimeMode,
+      },
+    });
+  }
+  if (thread.interactionMode !== payload.input.interactionMode) {
+    await command(directThreadEnvironment.setInteractionMode, {
+      ...target,
+      input: {
+        threadId: thread.id,
+        commandId: CommandId.make(`${payload.input.commandId}:interaction`),
+        interactionMode: payload.input.interactionMode,
+      },
+    });
+  }
+}
+
 async function deliverVoiceTurn(
   payload: OutboxTurn,
   voice: typeof OutboxVoice.Type,
@@ -212,7 +252,10 @@ export const webThreadOutbox = createBrowserThreadOutbox<OutboxTurn>({
     const { environmentId } = payload;
     const config = appAtomRegistry.get(environmentServerConfigsAtom).get(environmentId);
     if (!config) throw new Error("Environment is not connected.");
-    if (payload.voice) return deliverVoiceTurn(payload, payload.voice, savePayload);
+    if (payload.voice) {
+      await applyThreadSettings(payload);
+      return deliverVoiceTurn(payload, payload.voice, savePayload);
+    }
     if (payload.pendingWorktree) {
       const refs = await command(fetchVcsRefs, {
         environmentId,
@@ -296,42 +339,8 @@ export const webThreadOutbox = createBrowserThreadOutbox<OutboxTurn>({
             })),
             attachments.map((attachment, index) => ({ id: attachment.id ?? local[index]!.id })),
           );
-    const thread = appAtomRegistry
-      .get(directThreadEnvironment.snapshotAtom(environmentId))
-      ?.threads.find((candidate) => candidate.id === payload.input.threadId);
+    await applyThreadSettings(payload);
     const target = { environmentId };
-    if (thread && !payload.input.bootstrap?.createThread) {
-      if (payload.branch !== undefined && payload.branch !== thread.branch) {
-        await command(directThreadEnvironment.updateMetadata, {
-          ...target,
-          input: {
-            threadId: thread.id,
-            commandId: CommandId.make(`${payload.input.commandId}:branch`),
-            branch: payload.branch,
-          },
-        });
-      }
-      if (thread.runtimeMode !== payload.input.runtimeMode) {
-        await command(directThreadEnvironment.setRuntimeMode, {
-          ...target,
-          input: {
-            threadId: thread.id,
-            commandId: CommandId.make(`${payload.input.commandId}:runtime`),
-            runtimeMode: payload.input.runtimeMode,
-          },
-        });
-      }
-      if (thread.interactionMode !== payload.input.interactionMode) {
-        await command(directThreadEnvironment.setInteractionMode, {
-          ...target,
-          input: {
-            threadId: thread.id,
-            commandId: CommandId.make(`${payload.input.commandId}:interaction`),
-            interactionMode: payload.input.interactionMode,
-          },
-        });
-      }
-    }
     if (!appAtomRegistry.get(environmentServerConfigsAtom).has(environmentId))
       throw new Error("Environment is not connected.");
     const { context: _, ...message } = payload.input.message;
