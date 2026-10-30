@@ -55,7 +55,7 @@ export function ProjectActionsList({
         control={
           <>
             {shortcutLabel ? <Kbd>{shortcutLabel}</Kbd> : null}
-            <span className="flex shrink-0 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
+            <span className="flex shrink-0 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100">
               <Button
                 size="icon-xs"
                 variant="ghost-muted"
