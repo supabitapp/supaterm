@@ -28,6 +28,7 @@ export function useOpenFavoriteEditorShortcut({
   const remote = useRemoteOpenState(environmentId);
   const isPaneInputOwner = usePaneInputOwner();
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Registers the mounted pane's editor shortcut and removes its window listener on disposal.
   useEffect(() => {
     if (!enabled || remote.mode !== "local-exec") return;
     const handler = (event: globalThis.KeyboardEvent) => {

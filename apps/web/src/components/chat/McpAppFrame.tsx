@@ -18,7 +18,7 @@ import {
   type McpAppReference,
 } from "@supaterm/shared/mcpApp";
 import { ShrinkIcon } from "@supaterm/icons";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 
 import { useAssetUrlRefresh, useAssetUrlState } from "~/assets/assetUrls";
@@ -31,6 +31,7 @@ import { cn } from "~/lib/utils";
 import { useTurnItemDetail } from "~/state/queries";
 import { mcpAppEnvironment } from "~/state/mcpApps";
 import { useAtomCommand } from "~/state/use-atom-command";
+import { useEnvironmentQuery } from "~/state/query";
 import { observeResize } from "~/lib/observeResize";
 
 const MIN_URL_LIFE_MS = 5 * 60_000;
@@ -76,6 +77,7 @@ export function McpAppFrame(props: {
   const [closed, setClosed] = useState(false);
 
   const [documentGeneration, setDocumentGeneration] = useState(0);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Measures the mounted iframe container and observes its width until that container is replaced.
   useLayoutEffect(() => {
     const box = boxRef.current;
     if (!box) return;
@@ -102,6 +104,7 @@ export function McpAppFrame(props: {
   const minting = useRef(false);
   const cachedUrl = asset._tag === "Success" ? asset.url : null;
   const cachedExpiresAt = asset._tag === "Success" ? asset.expiresAt : 0;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Pins one viable asset URL for the iframe document so later cache refreshes cannot navigate the running app.
   useEffect(() => {
     if (src !== null || cachedUrl === null || minting.current) return;
     if (cachedExpiresAt - Date.now() > MIN_URL_LIFE_MS) {
@@ -141,7 +144,13 @@ export function McpAppFrame(props: {
     reportFailure: false,
   });
 
-  const [toolDefinition, setToolDefinition] = useState<unknown>(undefined);
+  const toolInfoResult = useEnvironmentQuery(
+    mcpAppEnvironment.toolInfoQuery({
+      environmentId: props.environmentId,
+      input: { threadId: props.threadId, itemId: props.itemId, name: app.tool },
+    }),
+  );
+  const toolDefinition = toolInfoResult.data?.tool;
 
   const live = {
     theme,
@@ -155,12 +164,10 @@ export function McpAppFrame(props: {
     toolDefinition,
   };
   const hostRef = useRef<McpAppHost | null>(null);
-  const latest = useRef(live);
-  useEffect(() => {
-    latest.current = live;
-  });
+  const readLive = useEffectEvent(() => live);
 
   const lastPageInputAt = useRef(Number.NEGATIVE_INFINITY);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Tracks window input while the app is mounted to validate iframe fullscreen requests.
   useEffect(() => {
     const note = () => {
       lastPageInputAt.current = performance.now();
@@ -173,6 +180,7 @@ export function McpAppFrame(props: {
     };
   }, []);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Keeps the container's native popover and fullscreen ownership in step with display mode.
   useEffect(() => {
     const box = boxRef.current;
     if (box === null || !fullscreenSupported) return;
@@ -181,8 +189,8 @@ export function McpAppFrame(props: {
     if (displayMode !== "fullscreen" && shown) box.hidePopover();
 
     if (displayMode === "fullscreen") {
-      latest.current.props.onFullscreenChange?.(true);
-      return () => latest.current.props.onFullscreenChange?.(false);
+      readLive().props.onFullscreenChange?.(true);
+      return () => readLive().props.onFullscreenChange?.(false);
     }
   }, [displayMode]);
 
@@ -192,6 +200,7 @@ export function McpAppFrame(props: {
     if (props.awaitingUser === true) setDisplayMode("inline");
   }
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Owns focus, Escape and resize listeners while the iframe is fullscreen.
   useEffect(() => {
     if (displayMode !== "fullscreen") return;
     const leave = () => setDisplayMode("inline");
@@ -212,23 +221,6 @@ export function McpAppFrame(props: {
     };
   }, [displayMode]);
 
-  useEffect(() => {
-    let cancelled = false;
-    void latest.current
-      .toolInfo({
-        environmentId: props.environmentId,
-        input: { threadId: props.threadId, itemId: props.itemId, name: app.tool },
-      })
-      .then((info) => {
-        if (!cancelled && info._tag === "Success" && info.value.tool !== undefined) {
-          setToolDefinition(info.value.tool);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [props.environmentId, props.threadId, props.itemId, app.tool]);
-
   const loads = useRef({ generation: 0, count: 0 });
   const onFrameLoad = () => {
     if (loads.current.generation !== documentGeneration) {
@@ -241,10 +233,11 @@ export function McpAppFrame(props: {
     }
   };
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Creates the iframe RPC host and message listener for each document, then tears both down on disposal.
   useEffect(() => {
     if (src === null) return;
     const hostContext = (): McpAppHostContext => {
-      const current = latest.current;
+      const current = readLive();
       return {
         theme: current.theme.appearance,
         styles: { variables: mcpAppStyleVariables(current.theme.variables) },
@@ -284,8 +277,8 @@ export function McpAppFrame(props: {
     const target = () => frameRef.current?.contentWindow ?? null;
 
     const requests = makeMcpAppRequests({
-      target: () => latest.current.props,
-      commands: () => latest.current,
+      target: () => readLive().props,
+      commands: readLive,
       confirmTool: async ({ name, title, arguments: args }) =>
         (await ask(
           `Allow ${app.server} to run ${title ?? name}?\n${JSON.stringify(args, null, 2)}`,
@@ -310,7 +303,7 @@ export function McpAppFrame(props: {
         window.open(url, "_blank", "noopener,noreferrer");
       },
       sendMessage: async (text) => {
-        const send = latest.current.props.onSendMessage;
+        const send = readLive().props.onSendMessage;
         if (send === undefined) throw new McpAppHostRefusal("Messages are not available here.");
         const approved = await ask(`Send this message from ${app.server}?\n${text}`);
         if (approved !== true) throw new McpAppHostRefusal("Declined by the user.");
@@ -323,17 +316,17 @@ export function McpAppFrame(props: {
           (document.activeElement !== frameRef.current ||
             !navigator.userActivation?.isActive ||
             performance.now() - lastPageInputAt.current < PAGE_ACTIVATION_MS ||
-            latest.current.props.awaitingUser === true ||
+            readLive().props.awaitingUser === true ||
             isConfirmDialogActive() ||
             (otherFullscreen !== null && otherFullscreen !== boxRef.current))
         ) {
-          return latest.current.displayMode;
+          return readLive().displayMode;
         }
         setDisplayMode(mode);
         return mode;
       },
       onRequestTeardown: () => {
-        if (latest.current.displayMode === "fullscreen") {
+        if (readLive().displayMode === "fullscreen") {
           setDisplayMode("inline");
           return;
         }
@@ -341,7 +334,7 @@ export function McpAppFrame(props: {
         void host.teardown().then(() => setClosed(true));
       },
       onSizeChanged: (size) => {
-        if (latest.current.displayMode === "fullscreen") return;
+        if (readLive().displayMode === "fullscreen") return;
         if (size.height !== undefined) setHeight(clampMcpAppHeight(size.height));
       },
     });

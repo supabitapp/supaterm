@@ -122,6 +122,7 @@ export function useChatShortcuts(input: ChatShortcutsInput) {
     if (!run) return false;
     return run({ repeat: false, terminalFocusOwner: getTerminalFocusOwner() }) !== false;
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Owns this pane's window key listeners and app-command registration until unmount.
   useEffect(() => {
     const onKeyDownCapture = (event: KeyboardEvent) => handleShortcut(event);
     const onKeyDown = (event: KeyboardEvent) => dismissFind(event);

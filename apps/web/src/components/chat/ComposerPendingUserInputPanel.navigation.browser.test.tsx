@@ -121,11 +121,22 @@ function PendingRequestsProbe({
 it("retains answers, selections and question position after leaving chat, including while the projection reloads", async () => {
   using _timers = fakeTimers();
   const environmentId = EnvironmentId.make("remount-environment");
-  const projection = questionProjection(threadRef.threadId);
+  const baseProjection = questionProjection(threadRef.threadId);
+  const projection = {
+    ...baseProjection,
+    turnItems: baseProjection.turnItems.map((item) => ({
+      ...item,
+      questions: item.questions.map((question) => ({
+        ...question,
+        ...(question.id === "question-2" ? { initialAnswer: "Drafted response" } : {}),
+      })),
+    })),
+  };
   const probe = (loading = false) => (
     <PendingRequestsProbe environmentId={environmentId} projection={projection} loading={loading} />
   );
   await using screen = await render(probe());
+  expect(requests.activePendingDraftAnswers["question-2"]?.customAnswer).toBe("Drafted response");
   await act(() =>
     requests.onChangeActivePendingUserInputCustomAnswer("question-0", "Keep my text"),
   );
@@ -137,6 +148,7 @@ it("retains answers, selections and question position after leaving chat, includ
     activePendingDraftAnswers: {
       "question-0": { customAnswer: "Keep my text" },
       "question-1": { selectedOptionValues: ["Incremental"] },
+      "question-2": { customAnswer: "Drafted response" },
     },
   };
   expect(requests).toMatchObject(expected);
@@ -150,6 +162,11 @@ it("retains answers, selections and question position after leaving chat, includ
   expect(requests.activePendingUserInput).toBeNull();
   await screen.rerender(probe());
   expect(requests).toMatchObject(expected);
+
+  await act(() => requests.onChangeActivePendingUserInputCustomAnswer("question-2", ""));
+  await screen.rerender(null);
+  await screen.rerender(probe());
+  expect(requests.activePendingDraftAnswers["question-2"]?.customAnswer).toBe("");
 });
 
 it("isolates drafts by environment, thread and request and discards only resolved requests", async () => {

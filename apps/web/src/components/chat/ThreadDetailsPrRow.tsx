@@ -1,24 +1,6 @@
 import { PullRequestChangeBreakdownRows } from "../pullRequest/PullRequestChangeBreakdownStat";
 import { ThreadDetailsControl } from "./ThreadDetailsControl";
 import { PullRequestGlyph } from "../pullRequest/pullRequestIcons";
-/**
- * The thread details panel's pull request row: what the thread's pull request is, and the one
- * thing worth doing to it right now.
- *
- * The row itself opens the pull request in the right panel, exactly as it always has. Around
- * that, the host's richer answer collapses into a single trailing slot, ranked by what unblocks
- * the merge next: "Resolve" on conflicts, "Ready" on a draft, "Fix" under failing checks, and
- * "Merge" only once the branch is clean and its checks pass. While checks run the slot offers
- * "Auto-merge" instead — a merge offered mid-run would race the very runs that gate it. "Fix" and
- * "Resolve" only fill this thread's composer with a subagent hand-off, since this thread already
- * holds the pull request's context; their new-thread variants and the rest of the pull request's
- * actions sit in the trailing overflow menu. Everything else the host knows
- * (title, state, checks tally, diff size) lives in the row's tooltip, so a hover answers what
- * previously took opening the panel.
- *
- * Until the detail arrives — or where pull requests are not supported at all — the row renders
- * from the linked snapshot or branch summary, or just the link when status is unavailable.
- */
 import { selectEnvironmentQueryData } from "@supaterm/client-runtime/state/runtime";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
@@ -290,7 +272,7 @@ export function ThreadDetailsPrRow({
     toastManager.add({
       type: "success",
       title: "Added to the composer",
-      description: "The task is in the composer — read it over, then send.",
+      description: "The task is in the composer. Read it over, then send.",
     });
   };
 

@@ -17,14 +17,7 @@ import {
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
 import { create } from "zustand";
-import {
-  useLayoutEffect,
-  useEffect,
-  useRef,
-  useState,
-  type RefObject,
-  type SetStateAction,
-} from "react";
+import { useEffect, useRef, useState, type RefObject, type SetStateAction } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { DraftId, useComposerDraftStore } from "../../composerDraftStore";
 import { useStableCallback } from "../../hooks/useStableCallback";
@@ -89,7 +82,10 @@ function makePendingCustomAnswerSetter(input: {
     input.setPendingUserInputAnswersByRequestId((existing) => ({
       ...existing,
       [activePendingRequestKey]: {
-        ...existing[activePendingRequestKey],
+        ...seedUserInputDraftAnswers(
+          activePendingUserInput.questions,
+          existing[activePendingRequestKey] ?? EMPTY_PENDING_USER_INPUT_ANSWERS,
+        ),
         [questionId]: setPendingUserInputCustomAnswer(
           existing[activePendingRequestKey]?.[questionId],
           value,
@@ -167,20 +163,16 @@ export function usePendingThreadRequests(input: {
     activeThreadId,
     activePendingUserInput?.requestId,
   );
-  const activePendingAnswerDrafts = usePendingUserInputAnswers(
+  const storedPendingAnswerDrafts = usePendingUserInputAnswers(
     (state) => state[activePendingRequestKey] ?? EMPTY_PENDING_USER_INPUT_ANSWERS,
   );
+  const activePendingAnswerDrafts: Record<string, PendingUserInputDraftAnswer> =
+    activePendingUserInput
+      ? seedUserInputDraftAnswers(activePendingUserInput.questions, storedPendingAnswerDrafts)
+      : storedPendingAnswerDrafts;
   const activePendingQuestionIndex = usePendingUserInputQuestionIndex(
     (state) => state[activePendingRequestKey] ?? 0,
   );
-  useLayoutEffect(() => {
-    if (!activePendingUserInput) return;
-    usePendingUserInputAnswers.setState((existing) => {
-      const drafts = existing[activePendingRequestKey] ?? EMPTY_PENDING_USER_INPUT_ANSWERS;
-      const seeded = seedUserInputDraftAnswers(activePendingUserInput.questions, drafts);
-      return seeded === drafts ? existing : { ...existing, [activePendingRequestKey]: seeded };
-    });
-  }, [activePendingRequestKey, activePendingUserInput]);
   const pendingQuestionDraftKeys = activeThreadId
     ? pendingUserInputs.flatMap((request) =>
         request.questions.map((question) =>
@@ -217,6 +209,7 @@ export function usePendingThreadRequests(input: {
       Object.fromEntries(pendingQuestionDraftKeys.map((key) => [key, state.counts[key] ?? 0])),
     ),
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Releases resolved question attachment resources and their persistent draft registry entries after the thread projection arrives.
   useEffect(() => {
     if (!activeThread || projectedThreadId !== activeThread.id) return;
     const questionThread = activeThread;
@@ -463,6 +456,10 @@ export function usePendingThreadRequests(input: {
       }
     }
     setPendingUserInputAnswersByRequestId((existing) => {
+      const drafts = seedUserInputDraftAnswers(
+        activePendingUserInput.questions,
+        existing[activePendingRequestKey] ?? EMPTY_PENDING_USER_INPUT_ANSWERS,
+      );
       const question =
         (activePendingProgress?.activeQuestion?.id === questionId
           ? activePendingProgress.activeQuestion
@@ -474,10 +471,10 @@ export function usePendingThreadRequests(input: {
       return {
         ...existing,
         [activePendingRequestKey]: {
-          ...existing[activePendingRequestKey],
+          ...drafts,
           [questionId]: togglePendingUserInputOptionSelection(
             question,
-            existing[activePendingRequestKey]?.[questionId],
+            drafts[questionId],
             optionValue,
           ),
         },

@@ -115,11 +115,6 @@ export function useWorktreeSetup(input: {
     turnStarted: activityRun?.startedAt != null,
     followUpSent,
   });
-  // Sends wait for the agent handoff, not for the setup script: an async
-  // script keeps the snapshot running while the agent already works, and a
-  // follow-up must not be held behind a slow install. Before the first
-  // snapshot arrives the starting session stands in for it. A send that
-  // queues behind the setup run or the pending task is never held here.
   const blocksSend =
     !sendQueuesBehindSetup &&
     (worktreeSetup !== null

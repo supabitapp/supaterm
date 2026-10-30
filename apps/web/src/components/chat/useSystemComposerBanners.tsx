@@ -88,6 +88,7 @@ export function useSystemComposerBanners(input: SystemComposerBannersInput) {
     activeReconnectingEnvironmentId,
     reconnectWarningGraceElapsedEnvironmentId,
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Owns the reconnect-warning grace timer for the currently reconnecting environment.
   useEffect(() => {
     if (activeReconnectingEnvironmentId === null) return;
     const cancelReconnectWarning = scheduleEnvironmentReconnectWarning(() =>

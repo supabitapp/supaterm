@@ -283,9 +283,10 @@ export function useComposerAttachmentIntake(input: {
     if (questionAttachmentTarget)
       changeQuestionAttachmentPreparation(questionAttachmentTarget, -stillPreparingIds.size);
     if (questionDiscarded) return false;
-    const nextImages: ComposerImageAttachment[] = compressed
-      .filter(({ id }) => stillPreparingIds.has(id))
-      .map(({ id, file }) => ({
+    const nextImages: ComposerImageAttachment[] = [];
+    for (const { id, file } of compressed) {
+      if (!stillPreparingIds.has(id)) continue;
+      nextImages.push({
         type: "image",
         id,
         name: file.name || "image",
@@ -293,7 +294,8 @@ export function useComposerAttachmentIntake(input: {
         sizeBytes: file.size,
         previewUrl: URL.createObjectURL(file),
         file,
-      }));
+      });
+    }
     const storedImageIds = new Set(
       nextImages.length === 1 && nextImages[0]
         ? addComposerImage(nextImages[0])
@@ -309,10 +311,10 @@ export function useComposerAttachmentIntake(input: {
       insertedAny =
         insertAttachmentReferences(storedImages.map(imageContextReference)) || insertedAny;
     }
-    const compressionError = [...compressionErrors]
-      .filter(([id]) => stillPreparingIds.has(id))
-      .map(([, message]) => message)
-      .at(-1);
+    let compressionError: string | undefined;
+    for (const [id, message] of compressionErrors) {
+      if (stillPreparingIds.has(id)) compressionError = message;
+    }
     if (compressionError !== undefined) {
       setThreadError(threadId, compressionError);
     }

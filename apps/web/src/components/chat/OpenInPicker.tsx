@@ -284,6 +284,7 @@ export const OpenInPicker = memo(function OpenInPicker({
   );
 
   const isPaneInputOwner = usePaneInputOwner();
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Registers the enabled editor shortcut on the window while preserving pane input ownership.
   useEffect(() => {
     if (!enableShortcut || !canOpenEditor) return;
     const handler = (e: globalThis.KeyboardEvent) => {

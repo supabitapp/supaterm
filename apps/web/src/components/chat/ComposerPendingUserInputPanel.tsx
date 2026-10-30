@@ -158,6 +158,7 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
   const selectOptionFromShortcut = useEffectEvent(handleOptionSelection);
   const isPaneInputOwner = usePaneInputOwner();
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Registers number-key answers only while this pane's question is visible and answerable.
   useEffect(() => {
     if (!activeQuestion || responseDisabled || isCollapsed) return;
     const handler = (event: globalThis.KeyboardEvent) => {

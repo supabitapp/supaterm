@@ -392,6 +392,7 @@ export function useComposerRestingTransition(
     };
   }, [isCollapsed, transitionToCurrentGeometry]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Observes composer, body and overlay geometry while mounted to keep transition measurements current.
   useLayoutEffect(() => {
     const element = elementRef.current;
     if (!element) return;

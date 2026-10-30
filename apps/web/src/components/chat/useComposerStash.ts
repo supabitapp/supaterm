@@ -197,6 +197,7 @@ export function useComposerStash(input: {
   const takeStashEntry = usePromptStashStore((state) => state.takeEntry);
   const finalizeStashEntryImages = usePromptStashStore((state) => state.finalizeEntryImages);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Cancels the stash badge's pending pulse timeout when the composer unmounts.
   useEffect(() => {
     return () => {
       if (stashPulseTimeoutRef.current !== null) {
@@ -218,6 +219,7 @@ export function useComposerStash(input: {
   };
 
   const composerMountedRef = useRef(true);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Bounds asynchronous stash restoration to this mounted composer so it cannot edit a disposed pane.
   useEffect(() => {
     composerMountedRef.current = true;
     return () => {
@@ -679,11 +681,6 @@ export function useComposerStash(input: {
         ...(file.source ? { source: file.source } : {}),
       });
     }
-    // A repeat ⌘S on the *same* still-unencoded snapshot would stash it
-    // twice. Guard on the snapshot itself rather than a bare boolean: once
-    // the composer has been cleared the user can type something genuinely
-    // new (or switch threads) while encoding continues, and that deserves its
-    // own entry.
     const attachmentKey = images
       .map((image) => `image:${image.id}`)
       .concat(files.map((file) => `file:${file.id}`))
@@ -695,11 +692,6 @@ export function useComposerStash(input: {
     const stashTarget = composerDraftTarget;
     const entryId = randomUUID();
     const persistStash = async () => {
-      // Persist the text-only entry *first*, then clear. Ordering matters in
-      // both directions: writing before clearing means a crash or closed tab
-      // mid-encode still leaves the prompt recoverable, while clearing before
-      // the async image work means edits typed during encoding are not wiped.
-      // Images are appended to the stored entry as they finish encoding.
       const { evicted, written, durable } = stashEntryToQueue({
         id: entryId,
         createdAt: new Date().toISOString(),
@@ -846,6 +838,7 @@ export function useComposerStash(input: {
     setIsStashMenuOpen(false);
   }
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Owns the stash shortcut's capture listener while this pane is mounted.
   useEffect(() => {
     const handler = (event: globalThis.KeyboardEvent) => {
       if (!isPaneInputOwner()) return;

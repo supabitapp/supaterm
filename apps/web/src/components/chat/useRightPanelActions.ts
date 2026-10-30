@@ -282,6 +282,7 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     );
   };
   const copyRightPanelFilePathStable = useStableCallback(copyRightPanelFilePath);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Subscribes the mounted pane to preview actions and releases that registration on unmount.
   useEffect(
     () =>
       subscribePreviewAction((action) => {

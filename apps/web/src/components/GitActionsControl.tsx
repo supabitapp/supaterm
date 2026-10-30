@@ -334,6 +334,7 @@ function GitActionElapsedTime({
 }) {
   const [nowMs, setNowMs] = useState(() => Date.now());
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Owns the elapsed-time interval while a Git action is running.
   useEffect(() => {
     if (startedAtMs === null) {
       return;
@@ -983,6 +984,7 @@ export default function GitActionsControl({
   const sourceControlScope = { environmentId: activeEnvironmentId, cwd: gitCwd };
   const vcsActionState = useAtomValue(vcsActionManager.stateAtom(sourceControlScope));
   const visibleInlineSuccess = inlineSuccess?.scopeKey === successScopeKey ? inlineSuccess : null;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Owns the timeout that dismisses the current Git success notice.
   useEffect(() => {
     if (!inlineSuccess) return;
     const timeoutId = window.setTimeout(() => {
@@ -1138,6 +1140,7 @@ export default function GitActionsControl({
       })
     : null;
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Refreshes Git status from window focus and visibility listeners, disposing their debounce timer with the workspace.
   useEffect(() => {
     if (gitCwd === null) {
       return;

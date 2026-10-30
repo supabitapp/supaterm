@@ -262,6 +262,7 @@ function ModelPickerList({
   const [contentSize, setContentSize] = useState(
     () => itemKeys.length * MODEL_LIST_ESTIMATED_ITEM_SIZE,
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Subscribes to the virtual list's measured total height while the list is mounted.
   useLayoutEffect(() => listRef.current?.getState().listen("totalSize", setContentSize), [listRef]);
   const updateScrollFades = () => {
     const scrollElement = listRef.current?.getScrollableNode();
@@ -335,6 +336,7 @@ function ModelPickerList({
 function WindowKeyDownListener({ onKeyDown }: { onKeyDown: (event: KeyboardEvent) => void }) {
   const handleKeyDown = useEffectEvent(onKeyDown);
   const isPaneInputOwner = usePaneInputOwner();
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Owns the model picker's capture-phase key listener and restricts it to the input-owning pane.
   useEffect(() => {
     const listener = (event: KeyboardEvent) => {
       if (isPaneInputOwner()) handleKeyDown(event);

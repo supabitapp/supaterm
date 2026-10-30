@@ -92,6 +92,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
     }
   };
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Locks background document scrolling while the model menu is open and restores styles and listeners on close.
   useEffect(() => {
     if (!isMenuOpen) {
       return;
