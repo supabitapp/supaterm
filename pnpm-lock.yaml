@@ -1276,6 +1276,30 @@ importers:
       '@supaterm/mermaid':
         specifier: workspace:*
         version: link:../mermaid
+      '@supaterm/provider-acp-registry':
+        specifier: workspace:*
+        version: link:../provider-acp-registry
+      '@supaterm/provider-core':
+        specifier: workspace:*
+        version: link:../provider-core
+      '@supaterm/provider-cursor':
+        specifier: workspace:*
+        version: link:../provider-cursor
+      '@supaterm/provider-fx':
+        specifier: workspace:*
+        version: link:../provider-fx
+      '@supaterm/provider-grok':
+        specifier: workspace:*
+        version: link:../provider-grok
+      '@supaterm/provider-muse':
+        specifier: workspace:*
+        version: link:../provider-muse
+      '@supaterm/provider-opencode':
+        specifier: workspace:*
+        version: link:../provider-opencode
+      '@supaterm/provider-pi':
+        specifier: workspace:*
+        version: link:../provider-pi
       '@supaterm/shared':
         specifier: workspace:*
         version: link:../shared
@@ -1288,6 +1312,9 @@ importers:
       '@supaterm/source-control-core':
         specifier: workspace:*
         version: link:../source-control-core
+      '@supaterm/source-control-definitions':
+        specifier: workspace:*
+        version: link:../source-control-definitions
       '@supaterm/source-control-forgejo':
         specifier: workspace:*
         version: link:../source-control-forgejo
@@ -1306,6 +1333,9 @@ importers:
       effect:
         specifier: 4.0.5
         version: 4.0.5
+      jszip:
+        specifier: 3.10.1
+        version: 3.10.1
       three:
         specifier: 0.180.0
         version: 0.180.0
@@ -2074,6 +2104,9 @@ importers:
         specifier: 4.0.5
         version: 4.0.5
     devDependencies:
+      '@effect/platform-node':
+        specifier: 4.0.5
+        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
         specifier: 4.0.5
         version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
