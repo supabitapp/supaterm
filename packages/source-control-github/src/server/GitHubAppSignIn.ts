@@ -3,6 +3,7 @@ import {
   SourceControlSignInError,
   type SourceControlSignInFailure,
   type SourceControlSignInPrompt,
+  type SourceControlAppSignIn,
 } from "@supaterm/contracts";
 import * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
 import { readSourceControlHostSettings } from "@supaterm/source-control-core/shared/definition";
@@ -70,7 +71,7 @@ export class GitHubAppSessionError extends Schema.TaggedError<GitHubAppSessionEr
   { host: Schema.String, cause: Schema.Defect() },
 ) {
   override get message(): string {
-    return `Could not refresh the ${GitHubClient.APP_SIGN_IN.appName} sign-in for ${this.host}. Check the server's connection to GitHub, or sign in again in Settings → Source Control.`;
+    return `Could not refresh the GitHub app sign-in for ${this.host}. Check the server's connection to GitHub, or sign in again in Settings → Source Control.`;
   }
 }
 
@@ -78,7 +79,7 @@ export class GitHubAppSignIn extends Context.Service<
   GitHubAppSignIn,
   {
     readonly enabled: boolean;
-    readonly metadata: typeof GitHubClient.APP_SIGN_IN | null;
+    readonly metadata: SourceControlAppSignIn | null;
 
     readonly token: (host: string) => Effect.Effect<Option.Option<string>, GitHubAppSessionError>;
 
@@ -117,7 +118,12 @@ export const make = Effect.gen(function* () {
     installUrl.search === "" &&
     installUrl.hash === "" &&
     /^\/apps\/[^/]+\/installations\/new\/?$/.test(installUrl.pathname)
-      ? { ...GitHubClient.APP_SIGN_IN, appName, installUrl: installUrl.href }
+      ? {
+          appName,
+          hosts: GitHubClient.APP_SIGN_IN_HOSTS,
+          installUrl: installUrl.href,
+          revokeUrl: GitHubClient.APP_AUTHORIZATIONS_URL,
+        }
       : null;
   const enabled = metadata !== null;
   const scope = yield* Effect.scope;
@@ -126,7 +132,7 @@ export const make = Effect.gen(function* () {
   const pending = yield* Ref.make<ReadonlyMap<string, PendingSignIn>>(new Map());
 
   const isAppHost = (host: string) =>
-    enabled && GitHubClient.APP_SIGN_IN.hosts.includes(host.trim().toLowerCase());
+    enabled && GitHubClient.APP_SIGN_IN_HOSTS.includes(host.trim().toLowerCase());
 
   const readSignIns = sourceControlHost.settings.get.pipe(
     Effect.map(
@@ -376,14 +382,14 @@ export const make = Effect.gen(function* () {
         return yield* signInError(
           host,
           "unsupported",
-          `This server is not set up to sign in with ${GitHubClient.APP_SIGN_IN.appName}.`,
+          "This server is not configured for GitHub app sign-in.",
         );
       }
       if (!isAppHost(host)) {
         return yield* signInError(
           host,
           "unsupported",
-          `${metadata?.appName ?? GitHubClient.APP_SIGN_IN.appName} only signs in to ${GitHubClient.APP_SIGN_IN.hosts.join(", ")}. Use a token or the GitHub CLI for ${host}.`,
+          `${metadata?.appName ?? "GitHub app"} only signs in to ${GitHubClient.APP_SIGN_IN_HOSTS.join(", ")}. Use a token or the GitHub CLI for ${host}.`,
         );
       }
       const code = yield* postForm(

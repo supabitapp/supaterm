@@ -1,8 +1,4 @@
-import {
-  makeProviderSettingsSchema,
-  SourceControlProviderKind,
-  type SourceControlAppSignIn,
-} from "@supaterm/contracts";
+import { makeProviderSettingsSchema, SourceControlProviderKind } from "@supaterm/contracts";
 import {
   changeRequestUrlBelow,
   defineSourceControl,
@@ -41,12 +37,8 @@ function isRepositoryPath(repository: string): boolean {
   );
 }
 
-export const APP_SIGN_IN: SourceControlAppSignIn = {
-  appName: "GitHub App",
-  hosts: ["github.com"],
-  installUrl: "",
-  revokeUrl: "https://github.com/settings/apps/authorizations",
-};
+export const APP_SIGN_IN_HOSTS: ReadonlyArray<string> = ["github.com"];
+export const APP_AUTHORIZATIONS_URL = "https://github.com/settings/apps/authorizations";
 
 export const settings = makeProviderSettingsSchema(hostCredentialSettingsFields);
 export type GitHubSettings = typeof settings.Type;
@@ -63,7 +55,6 @@ export const definition = defineSourceControl({
     tokenEnvVar: "GH_TOKEN",
     tokenAccess: "read and write access to pull requests and contents",
     newTokenUrl: (host) => `https://${host}/settings/personal-access-tokens/new`,
-    appSignIn: APP_SIGN_IN,
   },
   changeRequest: {
     shortLabel: "PR",

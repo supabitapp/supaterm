@@ -182,6 +182,12 @@ describe("GitHubAppSignIn", () => {
     });
     return Effect.gen(function* () {
       const signIn = yield* GitHubAppSignIn.GitHubAppSignIn;
+      expect(signIn.metadata).toEqual({
+        appName: "Fixture app",
+        hosts: ["github.com"],
+        installUrl: "https://github.com/apps/fixture-app/installations/new",
+        revokeUrl: "https://github.com/settings/apps/authorizations",
+      });
       expect(yield* signIn.start("github.com")).toEqual({
         userCode: "ABCD-1234",
         verificationUri: "https://github.com/login/device",
