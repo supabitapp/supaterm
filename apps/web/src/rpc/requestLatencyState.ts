@@ -30,12 +30,13 @@ interface PendingRpcAckRequest {
 }
 
 const pendingRpcAckRequests = new Map<string, PendingRpcAckRequest>();
-// Background requests nobody waits on. A busy host delays them first, and warning
-// about a request the user never made does not say what is wrong.
+// Background requests nobody waits on, and transcription, which runs as long as the
+// recording needs. A generic warning about either does not say what is wrong.
 const untrackedRpcAckMethods = new Set<string>([
   WS_METHODS.serverGetUsageSummary,
   WS_METHODS.serverReportClientActivity,
   ORCHESTRATION_V2_WS_METHODS.suggestNextPrompt,
+  WS_METHODS.transcriptionTranscribe,
 ]);
 const longRunningRpcAckMethods = new Set<string>([
   WS_METHODS.serverUpdateProvider,
