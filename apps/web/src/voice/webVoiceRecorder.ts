@@ -15,13 +15,18 @@ export const VOICE_LEVEL_HISTORY = 16;
 
 const DEV_FAKE_MICROPHONE_STORAGE_KEY = "supaterm:dev-fake-microphone";
 
-function usesFakeMicrophone(): boolean {
-  if (!import.meta.env.DEV) return false;
+/** Dev only: "1" plays a tone, a `data:` audio URL plays that recording, so tests can speak. */
+function fakeMicrophoneSource(): string | null {
+  if (!import.meta.env.DEV) return null;
   try {
-    return window.localStorage.getItem(DEV_FAKE_MICROPHONE_STORAGE_KEY) === "1";
+    return window.localStorage.getItem(DEV_FAKE_MICROPHONE_STORAGE_KEY);
   } catch {
-    return false;
+    return null;
   }
+}
+
+function usesFakeMicrophone(): boolean {
+  return fakeMicrophoneSource() !== null;
 }
 
 export function canRecordVoice(): boolean {
@@ -55,7 +60,11 @@ export type VoiceLevelListener = (levels: ReadonlyArray<number>) => void;
 export class WebVoiceRecorder implements VoiceRecorder {
   uri: string | null = null;
   private stream: MediaStream | null = null;
-  private fakeSource: { readonly context: AudioContext; readonly stop: () => void } | null = null;
+  private fakeSource: {
+    readonly context: AudioContext;
+    readonly start: () => void;
+    readonly stop: () => void;
+  } | null = null;
   private mediaRecorder: MediaRecorder | null = null;
   private chunks: Blob[] = [];
   private startedAt = 0;
@@ -79,8 +88,9 @@ export class WebVoiceRecorder implements VoiceRecorder {
   async requestPermission(): Promise<{ granted: boolean; canAskAgain: boolean }> {
     if (this.stream) return { granted: true, canAskAgain: true };
     const generation = this.permissionGeneration;
-    if (usesFakeMicrophone()) {
-      this.stream = this.createFakeStream();
+    const fakeSource = fakeMicrophoneSource();
+    if (fakeSource !== null) {
+      this.stream = await this.createFakeStream(fakeSource);
       return { granted: true, canAskAgain: true };
     }
     try {
@@ -147,6 +157,7 @@ export class WebVoiceRecorder implements VoiceRecorder {
     const recorder = this.mediaRecorder;
     if (!recorder || recorder.state !== "inactive") return;
     recorder.start(1_000);
+    this.fakeSource?.start();
     this.startedAt = performance.now();
     this.startLevelMeter();
     this.limitTimer = setTimeout(() => {
@@ -236,19 +247,33 @@ export class WebVoiceRecorder implements VoiceRecorder {
     this.levelContext = null;
   }
 
-  private createFakeStream(): MediaStream {
+  private async createFakeStream(source: string): Promise<MediaStream> {
     const context = new AudioContext();
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.frequency.value = 220;
-    gain.gain.value = 0.05;
     const destination = context.createMediaStreamDestination();
-    oscillator.connect(gain).connect(destination);
-    oscillator.start();
+    let node: AudioScheduledSourceNode;
+    if (source.startsWith("data:")) {
+      const player = context.createBufferSource();
+      player.buffer = await context.decodeAudioData(await (await fetch(source)).arrayBuffer());
+      player.connect(destination);
+      node = player;
+    } else {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.frequency.value = 220;
+      gain.gain.value = 0.05;
+      oscillator.connect(gain).connect(destination);
+      node = oscillator;
+    }
+    let started = false;
     this.fakeSource = {
       context,
+      start: () => {
+        if (started) return;
+        started = true;
+        node.start();
+      },
       stop: () => {
-        oscillator.stop();
+        if (started) node.stop();
         void context.close().catch(() => undefined);
       },
     };

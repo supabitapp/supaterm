@@ -135,7 +135,7 @@ export function composerVoiceBannerItem(voice: ComposerVoiceInput): ComposerBann
         priority: "urgent",
         icon: <span aria-hidden className="size-2 rounded-full bg-destructive" />,
         title: (
-          <span className="flex min-w-0 items-center gap-2.5">
+          <span className="flex min-w-0 items-center gap-2.5 pe-1.5">
             <VoiceElapsed recorder={voice.recorder} />
             <VoiceLevelMeter recorder={voice.recorder} />
           </span>

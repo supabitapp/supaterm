@@ -1,6 +1,5 @@
 import { ProviderInstanceId, type ServerProvider } from "@supaterm/contracts";
 import { DEFAULT_UNIFIED_SETTINGS } from "@supaterm/contracts/settings";
-import { CheckIcon } from "@supaterm/icons";
 
 import {
   systemVoiceLanguage,
@@ -71,13 +70,10 @@ export function VoiceTranscriptionSettingRow(props: {
             </SelectTrigger>
             <SelectPopup align="end" alignItemWithTrigger={false}>
               {providers.map((provider) => (
-                <SelectItem key={provider.instanceId} value={provider.instanceId}>
-                  <span className="flex w-full items-center justify-between gap-4">
+                <SelectItem hideIndicator key={provider.instanceId} value={provider.instanceId}>
+                  <span className="flex w-full items-center justify-between gap-6">
                     {providerName(provider)}
-                    <span className="flex items-center gap-2 text-muted-foreground">
-                      {transcriptionStatus(provider)}
-                      {provider.instanceId === selectedId ? <CheckIcon aria-hidden="true" /> : null}
-                    </span>
+                    <span className="text-muted-foreground">{transcriptionStatus(provider)}</span>
                   </span>
                 </SelectItem>
               ))}
@@ -130,11 +126,8 @@ export function VoiceLanguageSettingRow() {
           </SelectTrigger>
           <SelectPopup align="end" alignItemWithTrigger={false}>
             {options.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                <span className="flex items-center justify-between gap-4">
-                  {option.label}
-                  {option.value === value ? <CheckIcon aria-hidden="true" /> : null}
-                </span>
+              <SelectItem hideIndicator key={option.value} value={option.value}>
+                {option.label}
               </SelectItem>
             ))}
           </SelectPopup>
