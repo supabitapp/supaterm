@@ -934,6 +934,16 @@ export const layerQueryRunner: Layer.Layer<
             Effect.tap((queryRuntime) =>
               restore(
                 Effect.gen(function* () {
+                  // The CLI can start in default despite --permission-mode (for example when
+                  // CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is set), so confirm bypass before any prompt.
+                  if (
+                    options.permissionMode === "bypassPermissions" &&
+                    options.allowDangerouslySkipPermissions === true
+                  ) {
+                    yield* Effect.tryPromise(() =>
+                      queryRuntime.setPermissionMode("bypassPermissions"),
+                    ).pipe(Effect.timeout("10 seconds"), Effect.ignore);
+                  }
                   if (mcpServers !== undefined) {
                     // Error texts and the CLI's mcp_status response can echo the headers, so
                     // only server names are logged.
