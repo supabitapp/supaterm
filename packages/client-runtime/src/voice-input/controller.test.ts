@@ -105,6 +105,14 @@ describe("resolveTranscriptCommit", () => {
       kind: "stale",
     });
   });
+
+  it("reports an empty or whitespace-only transcript without committing anything", () => {
+    const captured = draft();
+    expect(resolveTranscriptCommit(captured, captured, "", "en-US")).toEqual({ kind: "empty" });
+    expect(resolveTranscriptCommit(captured, captured, " \n\t ", "en-US")).toEqual({
+      kind: "empty",
+    });
+  });
 });
 
 describe("VoiceInputController", () => {
@@ -116,13 +124,12 @@ describe("VoiceInputController", () => {
     const saving = deferred<void>();
     const harness = createHarness({
       getTranscriber: () => ({ prepare: async () => preparedTranscription(transcribe) }),
-      sendRecording: async (uri) => {
-        handedOver.push(uri);
-        await saving.promise;
-      },
     });
     await harness.controller.start();
-    const sending = harness.controller.send();
+    const sending = harness.controller.send(async (uri) => {
+      handedOver.push(uri);
+      await saving.promise;
+    });
     await vi.waitFor(() => expect(handedOver).toEqual(["file:///voice.m4a"]));
 
     expect(harness.controller.currentState.phase).toBe("sending");
@@ -137,14 +144,29 @@ describe("VoiceInputController", () => {
     expect(harness.commits).toEqual([]);
   });
 
-  it("reports a recording it could not save, and stops at the time limit for review instead", async () => {
-    const failing = createHarness({
-      sendRecording: async () => {
-        throw new Error("quota");
-      },
+  it("delivers to the destination bound when Send was pressed, after the draft moves on", async () => {
+    const stopping = deferred<undefined>();
+    const harness = createHarness();
+    harness.recorder.stop.mockImplementation(() => stopping.promise);
+    await harness.controller.start();
+    const delivered: string[] = [];
+    const sending = harness.controller.send(async () => {
+      delivered.push("thread A");
     });
+    harness.controller.ownerChanged();
+    stopping.resolve(undefined);
+    await sending;
+
+    expect(delivered).toEqual(["thread A"]);
+    expect(harness.controller.currentState.phase).toBe("idle");
+  });
+
+  it("reports a recording it could not save, and stops at the time limit for review instead", async () => {
+    const failing = createHarness();
     await failing.controller.start();
-    await failing.controller.send();
+    await failing.controller.send(async () => {
+      throw new Error("quota");
+    });
     expect(failing.controller.currentState).toEqual({
       phase: "error",
       error: "Could not save this recording.",
@@ -152,8 +174,7 @@ describe("VoiceInputController", () => {
     });
 
     resetVoiceInputGlobalsForTests();
-    const sendRecording = vi.fn(async () => undefined);
-    const limited = createHarness({ sendRecording });
+    const limited = createHarness();
     await limited.controller.start();
     await limited.controller.handleRecorderStatus({
       isFinished: true,
@@ -161,7 +182,6 @@ describe("VoiceInputController", () => {
       error: null,
       url: "file:///voice.m4a",
     });
-    expect(sendRecording).not.toHaveBeenCalled();
     expect(limited.commits).toHaveLength(1);
   });
 

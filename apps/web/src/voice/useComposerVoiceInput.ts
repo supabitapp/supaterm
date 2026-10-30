@@ -7,7 +7,7 @@ import {
   type VoiceInputState,
 } from "@supaterm/client-runtime/voice-input";
 import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useStableCallback } from "../hooks/useStableCallback";
 import { threadOutboxDeliverableAtom } from "../state/threadOutbox";
@@ -21,9 +21,6 @@ import {
 } from "./webVoiceRecorder";
 
 const IDLE_STATE: VoiceInputState = { phase: "idle", error: null, errorAction: null };
-
-// Read fresh after an await, where a narrowed `currentState.phase` would be stale.
-const readPhase = (controller: VoiceInputController) => controller.currentState.phase;
 
 export interface ComposerVoiceInputOptions {
   readonly ownerKey: string;
@@ -39,7 +36,8 @@ export interface ComposerVoiceInputOptions {
   ) => void;
   /** The recording would be the whole message, so the environment can send it by itself. */
   readonly canSendVoice: boolean;
-  readonly sendVoice: (recording: VoiceRecording) => Promise<void>;
+  /** Called when Send is pressed; the returned function sends the finished recording. */
+  readonly prepareVoiceSend: () => (recording: VoiceRecording) => Promise<void>;
   readonly submit: () => void;
 }
 
@@ -133,12 +131,11 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
     deleteRecording: releaseVoiceRecording,
     readDraft,
     commitDraft: (text, selection) => read().commitPrompt(text, selection),
-    sendRecording: async (uri) => {
-      const recording = readVoiceRecording(uri);
-      if (!recording) throw new Error("The recording is no longer available.");
-      await read().sendVoice(recording);
+    onStateChange: (state) => {
+      // The microphone opens while permission is asked, before the controller owns it.
+      if (state.phase === "idle" || state.phase === "error") recorder.release();
+      onStateChange(state);
     },
-    onStateChange,
   });
   return {
     controller,
@@ -169,6 +166,16 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
     [controller, recorder],
   );
 
+  // Send with a draft submits once React has committed the transcript into it.
+  const submitAfterReview = useRef<string | null>(null);
+  useEffect(() => {
+    const ownerKey = submitAfterReview.current;
+    if (ownerKey === null || voiceInputBlocksSubmission(state)) return;
+    submitAfterReview.current = null;
+    const current = runtime.read();
+    if (state.phase === "idle" && current.ownerKey === ownerKey) current.submit();
+  }, [runtime, state]);
+
   const capturing = state.phase === "preparing" || state.phase === "recording";
   useEffect(() => {
     if (!capturing) return;
@@ -188,17 +195,24 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
   const stop = useStableCallback(() => {
     if (availability.canReview) void controller.stop();
   });
-  const cancel = useStableCallback(() => controller.cancel());
+  const cancel = useStableCallback(() => {
+    submitAfterReview.current = null;
+    controller.cancel();
+  });
   const send = useStableCallback(async () => {
     if (controller.currentState.phase !== "recording") return;
     if (availability.canSend) {
-      await controller.send();
+      const sendVoice = runtime.read().prepareVoiceSend();
+      await controller.send(async (uri) => {
+        const recording = readVoiceRecording(uri);
+        if (!recording) throw new Error("The recording is no longer available.");
+        await sendVoice(recording);
+      });
       return;
     }
     if (!availability.canReview) return;
+    submitAfterReview.current = runtime.read().ownerKey;
     await controller.stop();
-    // The composer re-rendered with the transcript; its latest submit sends the whole draft.
-    if (readPhase(controller) === "idle") runtime.read().submit();
   });
   const toggle = useStableCallback(() => {
     switch (controller.currentState.phase) {

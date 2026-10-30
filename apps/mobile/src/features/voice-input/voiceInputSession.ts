@@ -3,6 +3,7 @@ import {
   voiceInputBlocksSubmission,
   type VoiceDraftSnapshot,
   type VoiceInputControllerDependencies,
+  type VoiceRecordingDelivery,
   type VoiceTranscriber,
 } from "@supaterm/client-runtime/voice-input";
 
@@ -58,12 +59,11 @@ export class VoiceInputSession {
   private target: VoiceInputTarget | null = null;
   private unsubscribe: (() => void) | null = null;
   private onCommit: ((text: string) => void) | undefined;
-  private sendRecording: ((uri: string) => Promise<void>) | undefined;
 
   constructor(
     dependencies: Omit<
       VoiceInputControllerDependencies,
-      "readDraft" | "commitDraft" | "getTranscriber" | "sendRecording"
+      "readDraft" | "commitDraft" | "getTranscriber"
     >,
   ) {
     this.controller = new VoiceInputController({
@@ -71,17 +71,12 @@ export class VoiceInputSession {
       onStateChange: (state) => {
         if (!voiceInputBlocksSubmission(state)) {
           this.onCommit = undefined;
-          this.sendRecording = undefined;
           this.unsubscribe?.();
           this.unsubscribe = null;
         }
         dependencies.onStateChange(state);
       },
       getTranscriber: () => this.target?.engine?.transcriber ?? null,
-      sendRecording: (uri) =>
-        this.sendRecording
-          ? this.sendRecording(uri)
-          : Promise.reject(new Error("This recording can't be sent as a message.")),
       readDraft: () => this.target?.readDraft() ?? null,
       commitDraft: (text, selection) => {
         this.target?.commitDraft(text, selection);
@@ -116,11 +111,9 @@ export class VoiceInputSession {
     return this.controller.stop();
   }
 
-  /** Hands the finished recording to `sendRecording` as the user's message, untranscribed. */
-  send(sendRecording: (uri: string) => Promise<void>): Promise<void> {
-    if (this.controller.currentState.phase !== "recording") return Promise.resolve();
-    this.sendRecording = sendRecording;
-    return this.controller.send();
+  /** Hands the finished recording to `deliver` as the user's message, untranscribed. */
+  send(deliver: VoiceRecordingDelivery): Promise<void> {
+    return this.controller.send(deliver);
   }
 
   start(target: VoiceInputTarget): Promise<void> {

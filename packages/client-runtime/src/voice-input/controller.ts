@@ -74,13 +74,14 @@ export type VoiceInputControllerDependencies = {
     selection: { readonly start: number; readonly end: number },
   ) => void;
   readonly onStateChange: (state: VoiceInputState) => void;
-  /**
-   * Takes over a finished recording instead of transcribing it here, as a voice message
-   * the server transcribes and sends. It must keep its own copy: the recording is deleted
-   * once this settles.
-   */
-  readonly sendRecording?: (uri: string) => Promise<void>;
 };
+
+/**
+ * Takes over a finished recording instead of transcribing it here, as a voice message the
+ * server transcribes and sends. It must keep its own copy: the recording is deleted once
+ * this settles. Bound when Send is pressed, so the message keeps that destination.
+ */
+export type VoiceRecordingDelivery = (uri: string) => Promise<void>;
 
 type TranscriptCommitResult =
   | {
@@ -328,14 +329,12 @@ export class VoiceInputController {
 
   stop(): Promise<void> {
     if (this.state.phase !== "recording") return Promise.resolve();
-    return this.finishRecording(false, null, "transcribe");
+    return this.finishRecording(false, null);
   }
 
-  send(): Promise<void> {
-    if (this.state.phase !== "recording" || !this.dependencies.sendRecording) {
-      return Promise.resolve();
-    }
-    return this.finishRecording(false, null, "send");
+  send(deliver: VoiceRecordingDelivery): Promise<void> {
+    if (this.state.phase !== "recording") return Promise.resolve();
+    return this.finishRecording(false, null, deliver);
   }
 
   cancel(): void {
@@ -395,7 +394,7 @@ export class VoiceInputController {
       if (!status.url) {
         return this.interruptRecording();
       }
-      return this.finishRecording(true, status.url, "transcribe");
+      return this.finishRecording(true, status.url);
     }
   }
 
@@ -418,13 +417,13 @@ export class VoiceInputController {
   private async finishRecording(
     alreadyStopped: boolean,
     completedUri: string | null,
-    mode: "transcribe" | "send",
+    deliver?: VoiceRecordingDelivery,
   ): Promise<void> {
     if (this.finishing || this.state.phase !== "recording") return;
     this.finishing = true;
     const operationToken = this.operationToken;
     this.setState({
-      phase: mode === "send" ? "sending" : "transcribing",
+      phase: deliver ? "sending" : "transcribing",
       error: null,
       errorAction: null,
     });
@@ -435,9 +434,9 @@ export class VoiceInputController {
       this.recordingUri = completedUri ?? this.dependencies.recorder.uri ?? this.recordingUri;
       this.rememberRecordingUri(this.recordingUri);
       if (!this.isCurrent(operationToken)) return;
-      if (mode === "send" && this.recordingUri && this.dependencies.sendRecording) {
+      if (deliver && this.recordingUri) {
         try {
-          await this.dependencies.sendRecording(this.recordingUri);
+          await deliver(this.recordingUri);
         } catch {
           if (this.isCurrent(operationToken))
             this.setError("Could not save this recording.", "retry");

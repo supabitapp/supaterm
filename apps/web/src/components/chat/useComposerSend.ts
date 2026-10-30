@@ -823,30 +823,32 @@ export function useComposerSend(input: ComposerSendInput) {
     sendInFlightRef.current = false;
   };
 
-  /** The environment transcribes it and sends the text as this thread's next message. */
-  const onSendVoice = async (
-    recording: VoiceRecording,
-    dispatchMode: ComposerDispatchMode,
-    language: string,
-  ) => {
+  /**
+   * Snapshots this thread's next turn when Send is pressed, so the recording keeps that
+   * destination; the environment transcribes it and sends the text.
+   */
+  const prepareVoiceSend = (dispatchMode: ComposerDispatchMode, language: string) => {
     const sendCtx = composerRef.current?.getSendContext();
     if (!activeThread || !isServerThread || isLocalDraftThread || !sendCtx) {
       throw new Error("Voice messages need a thread that has started.");
     }
-    await enqueueThreadOutboxTurn({
-      environmentId,
-      input: {
-        threadId: activeThread.id,
-        message: { messageId: newMessageId(), role: "user", text: "", attachments: [] },
-        modelSelection: sendCtx.selectedModelSelection,
-        runtimeMode,
-        interactionMode: sendCtx.interactionMode,
-        dispatchMode: dispatchMode === "steer" ? "auto" : dispatchMode,
-        createdAt: new Date().toISOString(),
-      },
-      voice: { audio: recording.audio, durationMs: recording.durationMs, language },
-    });
+    const input = {
+      threadId: activeThread.id,
+      message: { messageId: newMessageId(), role: "user" as const, text: "", attachments: [] },
+      modelSelection: sendCtx.selectedModelSelection,
+      runtimeMode,
+      interactionMode: sendCtx.interactionMode,
+      dispatchMode: dispatchMode === "steer" ? ("auto" as const) : dispatchMode,
+      createdAt: new Date().toISOString(),
+    };
+    return async (recording: VoiceRecording) => {
+      await enqueueThreadOutboxTurn({
+        environmentId,
+        input,
+        voice: { audio: recording.audio, durationMs: recording.durationMs, language },
+      });
+    };
   };
 
-  return { onSend, onSendVoice };
+  return { onSend, prepareVoiceSend };
 }

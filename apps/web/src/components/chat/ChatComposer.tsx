@@ -504,11 +504,10 @@ export interface ChatComposerProps {
     dispatchMode?: ComposerDispatchMode,
     submissionIntent?: ComposerSubmissionIntent,
   ) => Promise<void>;
-  onSendVoice: (
-    recording: VoiceRecording,
+  onPrepareVoiceSend: (
     dispatchMode: ComposerDispatchMode,
     language: string,
-  ) => Promise<void>;
+  ) => (recording: VoiceRecording) => Promise<void>;
   onResume: () => void;
   onInterrupt: () => void;
   onRespondToApproval: (
@@ -627,7 +626,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     onPageScrollRelease,
     onCompactContext,
     onSend,
-    onSendVoice,
+    onPrepareVoiceSend,
     onResume,
     onInterrupt,
     onRespondToApproval,
@@ -1920,7 +1919,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       prompt.trim().length === 0 &&
       composerImages.length === 0 &&
       composerFiles.length === 0,
-    sendVoice: (recording) => onSendVoice(recording, voiceDispatchMode(), voiceLanguage.tag),
+    prepareVoiceSend: () => onPrepareVoiceSend(voiceDispatchMode(), voiceLanguage.tag),
     submit: () => void submitComposerStable(),
   });
 
