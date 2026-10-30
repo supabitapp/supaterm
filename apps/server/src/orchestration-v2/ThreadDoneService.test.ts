@@ -1286,6 +1286,77 @@ describe("ThreadDoneServiceV2 terminals", () => {
     payload: thread,
   });
 
+  it.effect("keeps other completion events moving while a done shell waits for input", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const first = appThread("blocked-done-shell", "done", "/repo/first");
+        const second = appThread("ready-done-shell", "done", "/repo/second");
+        const waiting = yield* Deferred.make<void>();
+        const release = yield* Deferred.make<void>();
+        const written = yield* Queue.unbounded<ThreadId>();
+        const fixture = yield* makeHarness({
+          snapshot: makeSnapshot([]),
+          currentThreads: [first, second],
+          existingWorktreePaths: ["/repo/first", "/repo/second"],
+          onCommandWrite: (input) => Queue.offer(written, input.threadId).pipe(Effect.asVoid),
+          onScriptRun: (input) =>
+            input.threadId === first.id
+              ? Deferred.succeed(waiting, undefined).pipe(Effect.andThen(Deferred.await(release)))
+              : Effect.void,
+        });
+        yield* Effect.gen(function* () {
+          const service = yield* ThreadDoneService.ThreadDoneServiceV2;
+          yield* startHarness(service, fixture.activation, fixture.snapshotReads);
+          yield* fixture.publishEvent(doneEvent(first));
+          yield* Deferred.await(waiting);
+          assert.equal((yield* Queue.take(fixture.closedIdle)).threadId, first.id);
+          yield* fixture.publishEvent(doneEvent(second));
+          assert.equal((yield* Queue.take(fixture.closedIdle)).threadId, second.id);
+          assert.equal(yield* Queue.take(written), second.id);
+          yield* Deferred.succeed(release, undefined);
+          assert.equal(yield* Queue.take(written), first.id);
+          yield* service.drain;
+        }).pipe(Effect.provide(fixture.layer));
+      }),
+    ),
+  );
+
+  it.effect("cancels a waiting done shell when its thread reopens", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const thread = appThread("cancel-done-shell", "done", "/repo/cancel");
+        const waiting = yield* Deferred.make<void>();
+        const cancelled = yield* Deferred.make<void>();
+        const written = yield* Queue.unbounded<ThreadId>();
+        const fixture = yield* makeHarness({
+          snapshot: makeSnapshot([]),
+          currentThreads: [thread],
+          existingWorktreePaths: ["/repo/cancel"],
+          onCommandWrite: (input) => Queue.offer(written, input.threadId).pipe(Effect.asVoid),
+          onScriptRun: () =>
+            Deferred.succeed(waiting, undefined).pipe(
+              Effect.andThen(Effect.never),
+              Effect.ensuring(Deferred.succeed(cancelled, undefined)),
+            ),
+        });
+        yield* Effect.gen(function* () {
+          const service = yield* ThreadDoneService.ThreadDoneServiceV2;
+          yield* startHarness(service, fixture.activation, fixture.snapshotReads);
+          yield* fixture.publishEvent(doneEvent(thread));
+          yield* Deferred.await(waiting);
+          yield* fixture.publishEvent({
+            ...doneEvent(thread),
+            type: "thread.reopened",
+            payload: { ...thread, doneOverride: null, doneAt: null },
+          });
+          yield* Deferred.await(cancelled);
+          yield* service.drain;
+          assert.equal(yield* Queue.size(written), 0);
+        }).pipe(Effect.provide(fixture.layer));
+      }),
+    ),
+  );
+
   it.effect("closes the thread's idle terminals when it marks done", () =>
     Effect.scoped(
       Effect.gen(function* () {

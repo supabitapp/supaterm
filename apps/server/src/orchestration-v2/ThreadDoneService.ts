@@ -18,6 +18,7 @@ import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as FiberSet from "effect/FiberSet";
+import * as FiberMap from "effect/FiberMap";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
@@ -643,10 +644,26 @@ export const make = Effect.gen(function* () {
       ),
   );
 
+  const cleanups = yield* FiberMap.make<ThreadId, void, never>();
+  const cleanupSlots = yield* Semaphore.make(8);
+
   const processEvent = (event: OrchestrationV2DomainEvent) => {
     switch (event.type) {
       case "thread.marked-done":
-        return cleanUpDoneThread(event.threadId);
+        return FiberMap.run(
+          cleanups,
+          event.threadId,
+          cleanupSlots.withPermits(1)(cleanUpDoneThread(event.threadId)),
+          { onlyIfMissing: true },
+        ).pipe(Effect.asVoid);
+      case "thread.reopened":
+      case "thread.archived":
+      case "thread.deleted":
+        return FiberMap.remove(cleanups, event.threadId);
+      case "thread.metadata-updated":
+        return event.payload.doneOverride === "done"
+          ? Effect.void
+          : FiberMap.remove(cleanups, event.threadId);
       case "thread.pull-request-link-updated":
       case "thread.pull-request-synced":
       case "thread.workflow-run-watch-synced":
@@ -727,7 +744,10 @@ export const make = Effect.gen(function* () {
 
   return {
     start,
-    drain: Effect.andThen(fullSweeps.drain, FiberSet.awaitEmpty(threadSweeps)),
+    drain: Effect.all(
+      [fullSweeps.drain, FiberSet.awaitEmpty(threadSweeps), FiberMap.awaitEmpty(cleanups)],
+      { discard: true },
+    ),
   } satisfies ThreadDoneServiceV2["Service"];
 });
 
