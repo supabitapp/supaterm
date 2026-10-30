@@ -184,7 +184,7 @@ export function ThreadOutboxControl({
                       >
                         Cancel
                       </Button>
-                    ) : (
+                    ) : entry.payload.voice ? null : (
                       <Button
                         size="icon-xs"
                         variant="ghost-muted"
