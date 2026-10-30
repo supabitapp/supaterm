@@ -42,6 +42,15 @@ describe("RPC authorization scopes", () => {
     );
   });
 
+  it("keeps transcription uploads, which spend a provider account and can send a prompt, behind operate scope", () => {
+    expect(requiredScopeForRpcMethod(WS_METHODS.transcriptionPrepareUpload)).toBe(
+      AuthOrchestrationOperateScope,
+    );
+    expect(requiredScopeForRpcMethod(WS_METHODS.transcriptionCancelUpload)).toBe(
+      AuthOrchestrationOperateScope,
+    );
+  });
+
   it("separates passive terminal observation from operations that can change a shell", () => {
     for (const method of [
       WS_METHODS.terminalObserve,

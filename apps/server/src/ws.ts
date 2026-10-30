@@ -238,6 +238,7 @@ import * as TriageService from "./triage/TriageService.ts";
 import * as PullRequestService from "./pullRequest/PullRequestService.ts";
 import * as PullRequestReviewGuideService from "./pullRequest/PullRequestReviewGuideService.ts";
 import * as Transcription from "./transcription/Transcription.ts";
+import * as TranscriptionUploads from "./transcription/TranscriptionUploads.ts";
 import { listLinkedPullRequestThreads } from "./pullRequest/linkedThreads.ts";
 import { pullRequestSyncKey } from "./pullRequest/pullRequestSyncKey.ts";
 import * as SqlClient from "effect/sql/SqlClient";
@@ -1198,6 +1199,7 @@ export const layerWsRpc = (
       const pullRequests = yield* PullRequestService.PullRequestService;
       const reviewGuides = yield* PullRequestReviewGuideService.PullRequestReviewGuideService;
       const transcription = yield* Transcription.Transcription;
+      const transcriptionUploads = yield* TranscriptionUploads.TranscriptionUploads;
       const pullRequestSync = yield* PullRequestSyncReactor.PullRequestSyncReactor;
       const deviceService = yield* DeviceService.DeviceService;
       const deviceHostContext =
@@ -2654,6 +2656,11 @@ export const layerWsRpc = (
             Effect.andThen(transcription.transcribe(input)),
           ),
         [WS_METHODS.transcriptionCancel]: (input) => transcription.cancel(input),
+        [WS_METHODS.transcriptionPrepareUpload]: (input) =>
+          Effect.annotateCurrentSpan({ instanceId: input.providerInstanceId }).pipe(
+            Effect.andThen(transcriptionUploads.prepare(input)),
+          ),
+        [WS_METHODS.transcriptionCancelUpload]: (input) => transcriptionUploads.cancel(input),
         [WS_METHODS.agentSessionsScan]: () => agentSessionScanner.scan,
         [WS_METHODS.agentSessionsImport]: (input) =>
           agentSessionImporter.importRecentAgentThreads(input),
@@ -3071,6 +3078,7 @@ export const layer = Layer.unwrap(
     const pullRequests = yield* PullRequestService.PullRequestService;
     const reviewGuides = yield* PullRequestReviewGuideService.PullRequestReviewGuideService;
     const transcription = yield* Transcription.Transcription;
+    const transcriptionUploads = yield* TranscriptionUploads.TranscriptionUploads;
     const sql = yield* SqlClient.SqlClient;
     return HttpRouter.add(
       "GET",
@@ -3158,6 +3166,9 @@ export const layer = Layer.unwrap(
                 ),
               ),
               Layer.provide(Layer.succeed(Transcription.Transcription, transcription)),
+              Layer.provide(
+                Layer.succeed(TranscriptionUploads.TranscriptionUploads, transcriptionUploads),
+              ),
               Layer.provide(SourceControlDiscovery.layer),
             ),
           ),

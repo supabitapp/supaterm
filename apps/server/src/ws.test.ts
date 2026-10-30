@@ -65,6 +65,7 @@ import * as ProviderRegistry from "./provider/ProviderRegistry.ts";
 import * as ProviderSessionManager from "./orchestration-v2/ProviderSessionManager.ts";
 import * as PullRequestReviewGuideService from "./pullRequest/PullRequestReviewGuideService.ts";
 import * as Transcription from "./transcription/Transcription.ts";
+import * as TranscriptionUploads from "./transcription/TranscriptionUploads.ts";
 import * as PullRequestService from "./pullRequest/PullRequestService.ts";
 import * as PullRequestSyncReactor from "./orchestration-v2/PullRequestSyncReactor.ts";
 import * as RemoteOpenTargets from "./environment/RemoteOpenTargets.ts";
@@ -441,6 +442,7 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(ReviewService.ReviewService)({}),
   Layer.mock(ScheduledTasks.ScheduledTaskService)({}),
   Layer.mock(Transcription.Transcription)({}),
+  Layer.mock(TranscriptionUploads.TranscriptionUploads)({}),
 
   Layer.mock(OrchestrationSkills.OrchestrationSkills)({}),
   Layer.mock(RelayAccess.RelayAccess)({

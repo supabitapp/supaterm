@@ -332,7 +332,11 @@ import {
 } from "./providerUsageLimits.ts";
 import {
   TranscriptionCancelInput,
+  TranscriptionCancelUploadInput,
+  TranscriptionCancelUploadResult,
   TranscriptionError,
+  TranscriptionPrepareUploadInput,
+  TranscriptionPrepareUploadResult,
   TranscriptionTranscribeInput,
   TranscriptionTranscribeResult,
 } from "./transcription.ts";
@@ -404,6 +408,8 @@ export const WS_METHODS = {
   attachmentsDelete: "attachments.delete",
   transcriptionTranscribe: "transcription.transcribe",
   transcriptionCancel: "transcription.cancel",
+  transcriptionPrepareUpload: "transcription.prepareUpload",
+  transcriptionCancelUpload: "transcription.cancelUpload",
 
   mcpAppsCallTool: "mcpApps.callTool",
   mcpAppsToolInfo: "mcpApps.toolInfo",
@@ -1347,6 +1353,18 @@ const WsTranscriptionCancelRpc = Rpc.make(WS_METHODS.transcriptionCancel, {
   error: EnvironmentAuthorizationError,
 });
 
+const WsTranscriptionPrepareUploadRpc = Rpc.make(WS_METHODS.transcriptionPrepareUpload, {
+  payload: TranscriptionPrepareUploadInput,
+  success: TranscriptionPrepareUploadResult,
+  error: Schema.Union([AttachmentUploadSigningKeyError, EnvironmentAuthorizationError]),
+});
+
+const WsTranscriptionCancelUploadRpc = Rpc.make(WS_METHODS.transcriptionCancelUpload, {
+  payload: TranscriptionCancelUploadInput,
+  success: TranscriptionCancelUploadResult,
+  error: EnvironmentAuthorizationError,
+});
+
 const WsMcpAppsCallToolRpc = Rpc.make(WS_METHODS.mcpAppsCallTool, {
   payload: McpAppCallToolInput,
   success: McpAppCallToolResult,
@@ -2016,6 +2034,8 @@ export const WsRpcGroup = RpcGroup.make(
   WsAttachmentsDeleteRpc,
   WsTranscriptionTranscribeRpc,
   WsTranscriptionCancelRpc,
+  WsTranscriptionPrepareUploadRpc,
+  WsTranscriptionCancelUploadRpc,
   WsMcpAppsCallToolRpc,
   WsMcpAppsToolInfoRpc,
   WsMcpAppsReadResourceRpc,
