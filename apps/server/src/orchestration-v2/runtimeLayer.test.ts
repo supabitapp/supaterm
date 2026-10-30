@@ -1,4 +1,5 @@
 import { SourceControlProviderKind } from "@supaterm/contracts";
+import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "@supaterm/shared/composerContextReferences";
 import { limitRecoveryCommand } from "./UsageLimitRecoveryWorker.ts";
 import * as McpProviderSessions from "@supaterm/provider-core/server/McpProviderSessions";
 import * as SourceControlProviderRegistry from "../sourceControl/SourceControlProviderRegistry.ts";
@@ -6569,6 +6570,20 @@ it.layer(layerSharedApplicationDataPlaneTest)("pinned messages", (it) => {
           completedAt: "2026-07-24T01:03:00.000Z",
           updatedAt: "2026-07-24T01:03:00.000Z",
         },
+        {
+          ...itemBase,
+          id: "item:pin:attachments",
+          ordinal: 4,
+          type: "user_message",
+          createdBy: "user",
+          creationSource: "web",
+          messageId: "message:pin:attachments",
+          inputIntent: "turn_start",
+          text: `Ultrathink:\n${ATTACHMENT_ONLY_BOOTSTRAP_PROMPT}`,
+          startedAt: "2026-07-24T01:04:00.000Z",
+          completedAt: "2026-07-24T01:04:00.000Z",
+          updatedAt: "2026-07-24T01:04:00.000Z",
+        },
       ];
       const otherThreadId = ThreadId.make("runtime-layer-pinned-messages-other-thread");
       const otherThreadItem = {
@@ -6602,6 +6617,7 @@ it.layer(layerSharedApplicationDataPlaneTest)("pinned messages", (it) => {
       yield* pin("item:pin:assistant");
       yield* pin("item:pin:user");
       yield* pin("item:pin:user");
+      yield* pin("item:pin:attachments");
 
       const pinned = (yield* orchestrator.getThreadProjection(threadId)).thread;
       assert.deepEqual(pinned.pinnedMessages, [
@@ -6621,6 +6637,14 @@ it.layer(layerSharedApplicationDataPlaneTest)("pinned messages", (it) => {
           preview: "Root cause: the cache key drops the host.",
           sentAt: "2026-07-24T01:01:00.000Z",
         },
+        {
+          itemId: TurnItemId.make("item:pin:attachments"),
+          messageId: MessageId.make("message:pin:attachments"),
+          sourceThreadId: threadId,
+          role: "user",
+          preview: "",
+          sentAt: "2026-07-24T01:04:00.000Z",
+        },
       ]);
       assert.deepEqual(pinned.updatedAt, createdUpdatedAt);
 
@@ -6638,7 +6662,7 @@ it.layer(layerSharedApplicationDataPlaneTest)("pinned messages", (it) => {
       const unpinned = (yield* orchestrator.getThreadProjection(threadId)).thread;
       assert.deepEqual(
         unpinned.pinnedMessages?.map((pinnedMessage) => pinnedMessage.itemId),
-        [TurnItemId.make("item:pin:assistant")],
+        [TurnItemId.make("item:pin:assistant"), TurnItemId.make("item:pin:attachments")],
       );
     }),
   );

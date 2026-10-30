@@ -1,5 +1,8 @@
 import type { OrchestrationV2TurnItem, ThreadId, ThreadPinnedMessage } from "@supaterm/contracts";
-import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";
+import {
+  isAttachmentOnlyBootstrapPrompt,
+  replaceComposerContextReferences,
+} from "@supaterm/shared/composerContextReferences";
 import * as DateTime from "effect/DateTime";
 
 const PREVIEW_LENGTH = 160;
@@ -17,6 +20,8 @@ export function isPinnableMessageItem(item: OrchestrationV2TurnItem): item is Pi
 }
 
 function pinnedMessagePreview(text: string): string {
+  // Clients hide the stand-in prompt of an attachment-only message, so the pin does too.
+  if (isAttachmentOnlyBootstrapPrompt(text)) return "";
   const plain = replaceComposerContextReferences(text, (reference) => reference.label);
   for (const line of plain.split("\n")) {
     const preview = line

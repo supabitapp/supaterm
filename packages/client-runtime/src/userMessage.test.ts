@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "@supaterm/shared/composerContextReferences";
+
 import { resolveUserMessagePresentation } from "./userMessage.ts";
 
 describe("resolveUserMessagePresentation", () => {
@@ -21,6 +23,19 @@ describe("resolveUserMessagePresentation", () => {
       attribution: "agent",
       scheduledTaskId: undefined,
     });
+  });
+
+  it("hides the prompt that stands in for an attachment-only message", () => {
+    for (const text of [
+      ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
+      `Ultrathink:\n${ATTACHMENT_ONLY_BOOTSTRAP_PROMPT}`,
+    ]) {
+      expect(resolveUserMessagePresentation({ role: "user", text })).toEqual({
+        text: "",
+        attribution: null,
+        scheduledTaskId: undefined,
+      });
+    }
   });
 
   it("attributes server-sent messages to Supaterm, not another agent", () => {

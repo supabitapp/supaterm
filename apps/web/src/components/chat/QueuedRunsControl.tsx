@@ -1,7 +1,10 @@
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { deriveThreadQueueWorkflowState } from "@supaterm/client-runtime/state/thread-workflows";
 import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
-import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";
+import {
+  isAttachmentOnlyBootstrapPrompt,
+  replaceComposerContextReferences,
+} from "@supaterm/shared/composerContextReferences";
 import type {
   ChatAttachment as ContractChatAttachment,
   EnvironmentId,
@@ -238,13 +241,15 @@ export function QueuedRunsControl({
             <ComposerBanner.Scroll className="max-h-32">
               <ComposerBanner.Children render={<ol />} id={queueListId}>
                 {items.map((item) => {
-                  const previewText = assistantCitationsToPlainText(
-                    replaceComposerContextReferences(item.text, (reference) =>
-                      reference.kind === "image" && item.thumbnails.length > 0
-                        ? ""
-                        : reference.label,
-                    ),
-                  ).trim();
+                  const previewText = isAttachmentOnlyBootstrapPrompt(item.text)
+                    ? ""
+                    : assistantCitationsToPlainText(
+                        replaceComposerContextReferences(item.text, (reference) =>
+                          reference.kind === "image" && item.thumbnails.length > 0
+                            ? ""
+                            : reference.label,
+                        ),
+                      ).trim();
                   const isEditing = item.runId !== null && item.runId === props.editingRunId;
                   return (
                     <ComposerBanner.Row
