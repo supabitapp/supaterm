@@ -139,14 +139,12 @@ export function affectedPackages(
     while (grew) {
       grew = false;
       for (const pkg of packages) {
-        if (!affected.has(pkg.name) && pkg.deps.some((dep) => affected.has(dep))) {
+        const deps = [...pkg.deps, ...(TEST_ONLY_DEPS[pkg.name] ?? [])];
+        if (!affected.has(pkg.name) && deps.some((dep) => affected.has(dep))) {
           affected.add(pkg.name);
           grew = true;
         }
       }
-    }
-    for (const [name, deps] of Object.entries(TEST_ONLY_DEPS)) {
-      if (deps.some((dep) => affected.has(dep))) affected.add(name);
     }
   }
 
