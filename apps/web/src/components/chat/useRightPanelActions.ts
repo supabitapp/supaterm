@@ -17,9 +17,11 @@ import { useDiffPanelStore } from "../../diffPanelStore";
 import { type ThreadPanelPresentation } from "../../rightPanelLayout";
 import {
   selectActiveRightPanel,
+  selectThreadPanelOpen,
   type RightPanelSurface,
   useRightPanelStore,
 } from "../../rightPanelStore";
+import { requestWorkspaceContentFocus, requestWorkspaceFocus } from "../../lib/workspaceFocus";
 import { setActivePreviewTab } from "../../previewStateStore";
 import { BrowserSettingsReadError } from "../../browser/openFileInPreview";
 import { addBrowserSurface } from "../preview/addBrowserSurface";
@@ -230,7 +232,27 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
   const toggleRightPanelStable = useStableCallback(toggleRightPanel);
   const toggleThreadPanel = () => {
     if (!activeThreadRef || routeKind === "draft") return;
-    useRightPanelStore.getState().toggleThreadPanel(activeThreadRef, threadPanelPresentation);
+    const store = useRightPanelStore.getState();
+    if (threadPanelPresentation === "inline" && isPaneInputOwner()) {
+      const open = selectThreadPanelOpen(
+        store.threadPanelVisibilityByThreadKey,
+        activeThreadRef,
+        "inline",
+      );
+      if (!open) {
+        requestWorkspaceFocus({ area: "details" });
+      } else {
+        const details = document.activeElement?.closest('[data-workspace-area="details"]');
+        if (
+          details &&
+          (paneId === null ||
+            details.closest<HTMLElement>("[data-chat-pane]")?.dataset.chatPane === paneId)
+        ) {
+          requestWorkspaceContentFocus();
+        }
+      }
+    }
+    store.toggleThreadPanel(activeThreadRef, threadPanelPresentation);
   };
   const toggleThreadPanelStable = useStableCallback(toggleThreadPanel);
 
