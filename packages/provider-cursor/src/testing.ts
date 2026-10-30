@@ -4,4 +4,5 @@ export {
   CursorProviderCapabilitiesV2,
   cursorSdkModelSelection,
   makeCursorAgentOptions,
+  makeCursorAdapterV2,
 } from "./server/adapter.ts";

@@ -420,14 +420,14 @@ function layerOpenCodeReplayRuntime(transcript: OpenCodeSdkReplayTranscript) {
 }
 
 function layerOpenCodeProviderAdapterRegistryReplay(transcript: OpenCodeSdkReplayTranscript) {
-  return ProviderAdapterRegistry.layerFromAdaptersEffect(
+  return Layer.unwrap(
     OpenCodeAdapterV2Driver.create({
       instanceId: OPENCODE_DEFAULT_INSTANCE_ID,
       environment: [],
       displayName: undefined,
       enabled: true,
       config: { ...OpenCodeAdapterV2Driver.defaultConfig(), serverUrl: "replay://opencode" },
-    }).pipe(Effect.map((adapter) => [adapter])),
+    }).pipe(Effect.map((adapter) => ProviderAdapterRegistry.layerFromAdapters([adapter]))),
   ).pipe(
     Layer.provide(
       Layer.mergeAll(

@@ -363,7 +363,7 @@ export function layer<E, R>(input: {
   readonly launchArgs: string;
   readonly environment?: ProviderInstanceEnvironment;
 }) {
-  return ProviderAdapterRegistry.layerFromAdaptersEffect(
+  return Layer.unwrap(
     PiAdapterV2Driver.create({
       instanceId: ProviderInstanceId.make(PI_PROVIDER),
       environment: input.environment ?? [],
@@ -374,7 +374,7 @@ export function layer<E, R>(input: {
         binaryPath: input.binaryPath,
         launchArgs: input.launchArgs,
       },
-    }).pipe(Effect.map((adapter) => [adapter])),
+    }).pipe(Effect.map((adapter) => ProviderAdapterRegistry.layerFromAdapters([adapter]))),
   ).pipe(
     Layer.provide(input.spawner),
     Layer.provide(
