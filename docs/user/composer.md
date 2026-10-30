@@ -218,7 +218,7 @@ and use **Attach again** or remove the missing file before sending.
 ## Voice input
 
 Press the microphone in the composer, or `mod+shift+space` on web and desktop, to record a
-prompt of up to five minutes. While you record:
+prompt of up to five minutes. On web and desktop, while you record:
 
 - **Stop and review** transcribes the recording into the draft where your cursor was, so
   you can edit it before sending.
@@ -230,11 +230,12 @@ prompt of up to five minutes. While you record:
 - **Discard**, or `Escape`, throws the recording away and keeps your draft.
 
 The environment transcribes with the provider chosen under **Settings → General → Voice
-transcription**, Claude by default, and that login is charged for it. Claude needs a
-Claude subscription login and Codex a ChatGPT login. If the chosen login can't transcribe,
-the microphone says why; Supaterm never switches to another account. Choose the language
-you speak under **Settings → General → Voice language**; it follows your system language by
-default.
+transcription** (**Settings → Voice transcription** on mobile), Claude by default, and that
+login is charged for it. Claude needs a Claude subscription login and Codex a ChatGPT login.
+If the chosen login can't transcribe, the microphone says why; Supaterm never switches to
+another account. Choose the language you speak under **Settings → General → Voice
+language** (**Settings → Voice input → Voice language** on mobile); it follows your system
+language by default.
 
 Recording in a browser needs HTTPS or `localhost`. A remote browser on a plain `http://`
 address can't use the microphone. The first time you record, allow microphone access; on
@@ -244,25 +245,36 @@ If no speech is heard, the message isn't sent. If the thread refuses a transcrib
 the transcript stays in the queue as text so you can edit or retry it. Recordings stay on
 your device until they are sent or discarded.
 
-### On iPhone
+### On iPhone and Android
 
-**Settings → Voice input → Transcribe on** chooses where your recordings are transcribed.
-**Environment** uses the provider above. **This iPhone** uses Apple's on-device recognition on
-supported iPhones with iOS 26 or later, which works offline once its speech model has
-downloaded; only the message text leaves your phone.
+Use the composer's microphone to record. Stop to transcribe and review the text, or tap
+the up arrow to send. Text is inserted where your selection was when recording started.
+In scheduled-task prompts, voice input only updates the draft; save the schedule
+separately.
 
-Text is inserted where your selection was when recording started. In scheduled-task
-prompts, voice input only updates the draft; save the schedule separately. Canceling or an
-audio interruption discards the recording and preserves your existing draft. Leaving the
-screen keeps voice input available in the floating control, but cancels a pending send.
-While recording, the screen stays awake; it can sleep normally once recording stops.
+With an empty draft in a thread that has already started, the up arrow sends the
+recording itself as your message. It waits in the thread like a queued message, even
+offline, and the environment transcribes and sends it once connected. If no speech is
+found or the environment refuses it, the message stays in the thread with the reason so
+you can retry or discard it. A transcript the thread couldn't accept stays as text to
+edit or retry. With text in the draft, the up arrow transcribes, adds the text, and
+sends.
 
-Voice input records from the first connected microphone in **Settings → Microphone**.
-The list mixes kinds (built-in, other wired, other Bluetooth, CarPlay) with wired and
-Bluetooth devices you have dictated with, listed by name. Drag to rank them together:
-for example, put **Other Bluetooth** above your AirPods so a new headset is preferred
-while the AirPods microphone stays low. By default, CarPlay comes after the built-in
-microphone.
+On iPhones with iOS 26 or later, **Settings → Voice input → Transcribe on → This iPhone**
+uses Apple's on-device recognition instead of the environment. It works offline once its
+speech model has downloaded, and only the message text leaves your phone.
+
+Canceling or an audio interruption discards the recording and preserves your existing
+draft. Leaving the screen keeps voice input available in the floating control, but
+cancels a pending send. While recording, the screen stays awake; it can sleep normally
+once recording stops.
+
+On iPhone, voice input records from the first connected microphone in **Settings →
+Voice input**. The list mixes kinds (built-in, other wired, other Bluetooth, CarPlay)
+with wired and Bluetooth devices you have dictated with, listed by name. Drag to rank
+them together: for example, put **Other Bluetooth** above your AirPods so a new headset
+is preferred while the AirPods microphone stays low. By default, CarPlay comes after the
+built-in microphone.
 
 ## Queued messages
 

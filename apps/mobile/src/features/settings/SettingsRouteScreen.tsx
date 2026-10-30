@@ -104,11 +104,9 @@ function SettingsIndexSections() {
       <SettingsSection title="Interface">
         <SettingsRow icon="paintbrush" label="Appearance" target="SettingsAppearance" />
         {Platform.OS === "ios" ? (
-          <>
-            <SettingsRow icon="keyboard" label="Keyboard" target="SettingsKeyboard" />
-            <SettingsRow icon="mic" label="Microphone" target="SettingsMicrophone" />
-          </>
+          <SettingsRow icon="keyboard" label="Keyboard" target="SettingsKeyboard" />
         ) : null}
+        <SettingsRow icon="mic" label="Voice input" target="SettingsMicrophone" />
       </SettingsSection>
 
       <SettingsSection title="Automations">
@@ -151,6 +149,12 @@ function SettingsIndexSections() {
           icon="text.alignleft"
           label="Agent behavior"
           target="SettingsEnvironmentAgentBehavior"
+          disabled={noServerTargets}
+        />
+        <SettingsRow
+          icon="mic"
+          label="Voice transcription"
+          target="SettingsEnvironmentVoiceTranscription"
           disabled={noServerTargets}
         />
         <SettingsRow

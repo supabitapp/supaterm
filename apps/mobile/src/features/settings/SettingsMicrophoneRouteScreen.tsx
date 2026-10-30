@@ -3,13 +3,25 @@ import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScroll
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
 import { getRecordingPermissionsAsync, requestRecordingPermissionsAsync } from "expo-audio";
+import { useNavigation } from "@react-navigation/native";
 import { useCallback, useEffect, useState } from "react";
-import { AppState, Linking, Pressable, View } from "react-native";
+import { AppState, Linking, Platform, Pressable, View } from "react-native";
 import Reanimated, { ReduceMotion, useAnimatedStyle, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { AndroidScreenHeader } from "../../components/ui/AndroidScreenHeader";
 import { type AppSymbolName, SymbolView } from "../../components/ui/AppSymbol";
 import { AppText as Text } from "../../components/ui/AppText";
+import { NativeStackScreenOptions } from "../../native/StackHeader";
+import { getLocalVoiceTranscriber } from "../../native/voiceTranscription";
+import {
+  normalizeVoiceLanguage,
+  systemVoiceLanguage,
+  VOICE_LANGUAGES,
+  voiceLanguageName,
+} from "../../lib/voiceLanguage";
+import { ON_DEVICE_VOICE_LABEL } from "../voice-input/composerVoiceEngine";
+import { SettingsChoiceRow } from "./components/SettingsChoiceRow";
 import { cn } from "../../lib/cn";
 import {
   isMicrophoneDevice,
@@ -88,10 +100,15 @@ const KINDS: Record<
 };
 
 export function SettingsMicrophoneRouteScreen() {
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const preferencesResult = useAtomValue(mobilePreferencesAtom);
   const savePreferences = useAtomSet(updateMobilePreferencesAtom);
   const ready = AsyncResult.isSuccess(preferencesResult) && !preferencesResult.waiting;
+  const preferences = AsyncResult.isSuccess(preferencesResult) ? preferencesResult.value : null;
+  const [transcribesOnDevice] = useState(() => getLocalVoiceTranscriber() !== null);
+  const [systemLanguage] = useState(systemVoiceLanguage);
+  const chosenLanguage = normalizeVoiceLanguage(preferences?.voiceLanguage)?.split("-")[0] ?? null;
   const entries = microphoneOrder(
     AsyncResult.isSuccess(preferencesResult) ? preferencesResult.value.microphones : undefined,
   );
@@ -138,6 +155,12 @@ export function SettingsMicrophoneRouteScreen() {
 
   return (
     <View collapsable={false} className="flex-1 bg-sheet">
+      {Platform.OS === "android" ? (
+        <>
+          <NativeStackScreenOptions options={{ headerShown: false }} />
+          <AndroidScreenHeader title="Voice input" onBack={() => navigation.goBack()} />
+        </>
+      ) : null}
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
@@ -145,6 +168,31 @@ export function SettingsMicrophoneRouteScreen() {
         contentContainerClassName="gap-3 px-5 pt-4"
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
       >
+        {transcribesOnDevice ? (
+          <>
+            <SettingsSection title="Transcribe on">
+              <SettingsChoiceRow
+                label="Environment"
+                description="The thread's environment transcribes with its voice transcription provider."
+                selected={preferences?.voiceTranscriptionEngine !== "device"}
+                disabled={!ready}
+                onPress={() => savePreferences({ voiceTranscriptionEngine: "environment" })}
+              />
+              <SettingsChoiceRow
+                label={ON_DEVICE_VOICE_LABEL}
+                description="Works offline. Transcribes in the system language."
+                selected={preferences?.voiceTranscriptionEngine === "device"}
+                separated
+                disabled={!ready}
+                onPress={() => savePreferences({ voiceTranscriptionEngine: "device" })}
+              />
+            </SettingsSection>
+            <Text className="px-2 text-sm text-foreground-muted">
+              Sending a recording from an empty draft makes it the message, which needs the
+              environment to transcribe it.
+            </Text>
+          </>
+        ) : null}
         {permission === "ask" || permission === "denied" ? (
           <>
             <SettingsSection title="Microphone access">
@@ -163,56 +211,84 @@ export function SettingsMicrophoneRouteScreen() {
             </Text>
           </>
         ) : null}
-        <SettingsSection
-          title="Preferred order"
-          trailing={
-            hasDevices ? (
-              <Button
-                label={editing ? "Done" : "Edit"}
-                tone="text"
-                onPress={() => setEditing((value) => !value)}
-              />
-            ) : undefined
-          }
-        >
-          {entries.map((entry, index) => {
-            const key = microphoneEntryKey(entry);
-            const shift =
-              dragFrom === -1 || index === dragFrom
-                ? 0
-                : dragFrom < dragTo && index > dragFrom && index <= dragTo
-                  ? -rowHeight
-                  : dragFrom > dragTo && index < dragFrom && index >= dragTo
-                    ? rowHeight
-                    : 0;
-            return (
-              <MicrophoneRow
-                key={`${key}:${drops}`}
-                entry={entry}
-                position={index + 1}
-                count={entries.length}
-                reorderable={ready}
-                editing={editing && hasDevices}
-                offset={index === dragFrom ? (drag?.translation ?? 0) : shift}
-                lifted={index === dragFrom}
-                onHeight={setRowHeight}
-                onDragStart={() => setDrag({ key, translation: 0 })}
-                onDragMove={(translation) => setDrag({ key, translation })}
-                onDragEnd={(translation, cancelled) => {
-                  setDrag(null);
-                  setDrops((count) => count + 1);
-                  if (!cancelled) move(key, dropSteps(index, translation));
-                }}
-                onStep={(direction) => move(key, direction === "up" ? -1 : 1)}
-                onForget={isMicrophoneDevice(entry) ? () => forget(key) : undefined}
-              />
-            );
-          })}
+        {Platform.OS === "ios" ? (
+          <>
+            <SettingsSection
+              title="Preferred order"
+              trailing={
+                hasDevices ? (
+                  <Button
+                    label={editing ? "Done" : "Edit"}
+                    tone="text"
+                    onPress={() => setEditing((value) => !value)}
+                  />
+                ) : undefined
+              }
+            >
+              {entries.map((entry, index) => {
+                const key = microphoneEntryKey(entry);
+                const shift =
+                  dragFrom === -1 || index === dragFrom
+                    ? 0
+                    : dragFrom < dragTo && index > dragFrom && index <= dragTo
+                      ? -rowHeight
+                      : dragFrom > dragTo && index < dragFrom && index >= dragTo
+                        ? rowHeight
+                        : 0;
+                return (
+                  <MicrophoneRow
+                    key={`${key}:${drops}`}
+                    entry={entry}
+                    position={index + 1}
+                    count={entries.length}
+                    reorderable={ready}
+                    editing={editing && hasDevices}
+                    offset={index === dragFrom ? (drag?.translation ?? 0) : shift}
+                    lifted={index === dragFrom}
+                    onHeight={setRowHeight}
+                    onDragStart={() => setDrag({ key, translation: 0 })}
+                    onDragMove={(translation) => setDrag({ key, translation })}
+                    onDragEnd={(translation, cancelled) => {
+                      setDrag(null);
+                      setDrops((count) => count + 1);
+                      if (!cancelled) move(key, dropSteps(index, translation));
+                    }}
+                    onStep={(direction) => move(key, direction === "up" ? -1 : 1)}
+                    onForget={isMicrophoneDevice(entry) ? () => forget(key) : undefined}
+                  />
+                );
+              })}
+            </SettingsSection>
+            <Text className="px-2 text-sm text-foreground-muted">
+              Voice input records from the first connected microphone in this list. Wired and
+              Bluetooth devices are added by name after you use voice input with them connected;
+              until then, the Other row ranks them.
+            </Text>
+          </>
+        ) : null}
+        <SettingsSection title="Voice language">
+          <SettingsChoiceRow
+            label="System"
+            description={voiceLanguageName(systemLanguage)}
+            selected={chosenLanguage === null}
+            disabled={!ready}
+            onPress={() => savePreferences({ voiceLanguage: null })}
+          />
+          {VOICE_LANGUAGES.map((language) => (
+            <SettingsChoiceRow
+              key={language.code}
+              label={language.name}
+              selected={chosenLanguage === language.code}
+              separated
+              disabled={!ready}
+              onPress={() => savePreferences({ voiceLanguage: language.code })}
+            />
+          ))}
         </SettingsSection>
         <Text className="px-2 text-sm text-foreground-muted">
-          Voice input records from the first connected microphone in this list. Wired and Bluetooth
-          devices are added by name after you use voice input with them connected; until then, the
-          Other row ranks them.
+          {transcribesOnDevice
+            ? `Environments transcribe in this language. ${ON_DEVICE_VOICE_LABEL} uses the system language.`
+            : "Environments transcribe in this language."}
         </Text>
       </ScrollView>
     </View>

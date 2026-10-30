@@ -106,6 +106,7 @@ import { ScheduledTaskEditorProvider } from "./features/settings/scheduled-task-
 import { SettingsKeyboardRouteScreen } from "./features/settings/SettingsKeyboardRouteScreen";
 import { SettingsLegalRouteScreen } from "./features/settings/SettingsLegalRouteScreen";
 import { SettingsMicrophoneRouteScreen } from "./features/settings/SettingsMicrophoneRouteScreen";
+import { SettingsVoiceTranscriptionRouteScreen } from "./features/settings/SettingsVoiceTranscriptionRouteScreen";
 import {
   SettingsOpenSourceLicenseRouteScreen,
   SettingsOpenSourceLicensesRouteScreen,
@@ -250,6 +251,11 @@ const SettingsContentStack = createV5SheetStackNavigator({
       linking: "provider-accounts",
       options: { title: "Provider accounts" },
     }),
+    SettingsEnvironmentVoiceTranscription: createNativeStackScreen({
+      screen: SettingsVoiceTranscriptionRouteScreen,
+      linking: "voice-transcription",
+      options: { title: "Voice transcription" },
+    }),
     SettingsEnvironmentMaintenance: createNativeStackScreen({
       screen: SettingsEnvironmentMaintenanceRouteScreen,
       linking: "maintenance",
@@ -316,7 +322,7 @@ const SettingsContentStack = createV5SheetStackNavigator({
       screen: SettingsMicrophoneRouteScreen,
       linking: "microphone",
       options: {
-        title: "Microphone",
+        title: "Voice input",
       },
     }),
     SettingsFollowUp: createNativeStackScreen({
