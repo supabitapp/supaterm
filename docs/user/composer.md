@@ -177,7 +177,7 @@ turn's prompt cache, so it costs almost nothing. Other providers use the text ge
 **Settings > General**, so each suggestion is a small request to that provider. Either way, nothing
 is suggested at the start of a thread, in plan mode, after an error, or when the next step is not
 obvious. Only replies from the last few hours get one, so opening an older thread costs nothing.
-They are off by default. Turn them on with **Next prompt suggestions** in **Settings > General**, or
+They are on by default. Turn them off with **Next prompt suggestions** in **Settings > General**, or
 **Settings > Agent behavior** on mobile.
 
 ## Edit an earlier prompt
