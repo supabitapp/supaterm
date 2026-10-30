@@ -672,7 +672,7 @@ export const TraitsPicker = memo(function TraitsPicker({
     reportedModelSelection,
   });
 
-  const triggerLabel = [trigger.label, ...trigger.otherLabels].filter(Boolean).join(" · ");
+  const triggerLabel = trigger.label;
   const isCodexStyle = provider === "codex";
   const effortLevel = primarySelectDescriptor
     ? resolveEffortGlyph(primarySelectDescriptor, getDescriptorStringValue(primarySelectDescriptor))
