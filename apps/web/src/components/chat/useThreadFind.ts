@@ -52,11 +52,13 @@ export function useThreadFind({
   enabled,
   progressive = false,
   skills = EMPTY_SKILLS,
+  onOpen,
 }: {
   thread: ScopedThreadRef | null;
   enabled: boolean;
   progressive?: boolean;
   skills?: readonly InlineSkill[];
+  onOpen?: (() => void) | undefined;
 }) {
   // Read here rather than passed in: a streamed delta re-renders only the find
   // provider, which refreshes open results from it.
@@ -73,6 +75,20 @@ export function useThreadFind({
   const store = getThreadFindStore(scope);
   const state = store();
   const setState = store.setState;
+  const notifyOpen = useEffectEvent(() => onOpen?.());
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Listen for explicit open actions from every entrypoint while this pane owns the find controls.
+  useLayoutEffect(
+    () =>
+      store.subscribe((current, previous) => {
+        if (
+          enabled &&
+          current.threadKey === threadKey &&
+          current.focusRequestId !== previous.focusRequestId
+        )
+          notifyOpen();
+      }),
+    [enabled, store, threadKey],
+  );
   if (state.threadKey !== null && (!enabled || state.threadKey !== threadKey))
     setState(CLOSED_FIND);
   const isOpen = enabled && threadKey !== null && state.threadKey === threadKey;

@@ -317,10 +317,6 @@ interface MessagesTimelineProps {
 export function MessagesTimeline(props: MessagesTimelineProps) {
   const find = useContext(ThreadFindTimelineContext);
   const findOpen = find?.findOpen ?? props.findOpen;
-  const { onManualNavigation = NOOP_MESSAGE_JUMP_FAILED } = props;
-  useEffect(() => {
-    if (findOpen) onManualNavigation();
-  }, [findOpen, onManualNavigation]);
   return (
     <ConversationTimeline
       {...props}

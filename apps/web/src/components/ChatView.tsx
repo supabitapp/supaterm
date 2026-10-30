@@ -3502,6 +3502,7 @@ export default function ChatView(props: ChatViewProps) {
                 threadRef={activeThreadRef}
                 detailsCardInlineOpen={detailsCardInlineOpen}
                 findOptions={{
+                  onOpen: cancelTimelineLiveFollowForUserNavigationStable,
                   skills: timelineSkills,
                   progressive: serverConfig?.threadFindProgressive === true,
                   thread: activeThreadRef,

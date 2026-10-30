@@ -58,15 +58,18 @@ function Probe({
   environmentId,
   enabled = true,
   progressive = false,
+  onOpen,
 }: {
   environmentId: EnvironmentId;
   enabled?: boolean;
   progressive?: boolean;
+  onOpen?: () => void;
 }) {
   const state = useThreadFind({
     thread: { environmentId, threadId },
     enabled,
     progressive,
+    onOpen,
   });
   useLayoutEffect(() => {
     find = state;
@@ -685,4 +688,18 @@ describe("V2 find state", () => {
     await screen.rerender(<Probe environmentId={a} />);
     expect(find.isOpen).toBe(false);
   });
+});
+
+it("cancels follow on each open action, including global entrypoints, without reacting to query updates", async () => {
+  setup();
+  const onOpen = vi.fn();
+  await using screen = await render(<Probe environmentId={a} onOpen={onOpen} />);
+  await act(() => requestThreadFindOpen());
+  expect(onOpen).toHaveBeenCalledTimes(1);
+  await act(() => find.barProps.onQueryChange("needle"));
+  threadDetail.content = { visibleTurnItems: [], runs: [] };
+  await screen.rerender(<Probe environmentId={a} onOpen={onOpen} />);
+  expect(onOpen).toHaveBeenCalledTimes(1);
+  await act(() => find.open());
+  expect(onOpen).toHaveBeenCalledTimes(2);
 });
