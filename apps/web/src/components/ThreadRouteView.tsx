@@ -22,14 +22,6 @@ import {
   type ThreadRouteTarget,
 } from "../threadRoutes";
 
-/**
- * Plain server threads are unkeyed, so navigating between them reuses one instance as ChatView
- * expects. Each chat pane renders one, from the `_chat` layout rather than the two leaf routes,
- * since an element only survives a route swap when the same parent renders it.
- *
- * The focused pane follows the URL. A pane in the background changes its own thread instead,
- * so a draft promoting or a thread disappearing behind the user never moves the URL.
- */
 export function ThreadRouteView({ target, paneId }: { target: ThreadRouteTarget; paneId: string }) {
   const navigate = useNavigate();
   const background = use(BackgroundThreadContext);
@@ -114,6 +106,7 @@ export function ThreadRouteView({ target, paneId }: { target: ThreadRouteTarget;
     });
   }, [background, draftRedirect, draftSession, navigate, paneId, target.kind]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- redirects the pane and router when its draft target disappears
   useEffect(() => {
     if (background || target.kind !== "draft" || draftSession || draftRedirect) {
       return;
@@ -122,6 +115,7 @@ export function ThreadRouteView({ target, paneId }: { target: ThreadRouteTarget;
     void navigate({ to: "/", replace: true });
   }, [background, draftRedirect, draftSession, navigate, paneId, target.kind]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- removes an authoritatively missing thread from its mounted pane and browser route
   useEffect(() => {
     if (background || target.kind !== "server" || !bootstrapComplete) {
       return;

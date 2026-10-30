@@ -397,6 +397,7 @@ function MiniPlayerShell({
   const { width: sourceWidth, height: sourceHeight } = sourceSize;
   const reportPreview = canvas?.reportPreview;
   const clearPreview = canvas?.clearPreview;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers the visible preview geometry with this pane's canvas layout registry
   useLayoutEffect(() => {
     if (!visible) {
       clearPreview?.(sourceKey);
@@ -420,6 +421,7 @@ function MiniPlayerShell({
     visible,
     clearPreview,
   ]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- releases this preview's canvas registry entry when its source or owning canvas changes
   useLayoutEffect(() => () => clearPreview?.(sourceKey), [clearPreview, sourceKey]);
 
   const radius = frame ? cornerRadius(frame) : PREVIEW_MINI_PLAYER_CORNER_RADIUS;

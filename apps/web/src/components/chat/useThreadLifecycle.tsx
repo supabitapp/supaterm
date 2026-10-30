@@ -166,6 +166,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     activeThreadShell !== null &&
     supportsSnooze &&
     effectiveSnoozed(activeThreadShell, { now: snoozeClock });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- owns the wake timer for the current snoozed thread and cancels it when the deadline changes
   useEffect(() => {
     if (!activeThreadSnoozed) return;
     const wakeAtMs = Date.parse(activeThreadShell?.snoozedUntil ?? "");
@@ -369,13 +370,6 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     scheduleComposerFocus();
   };
   const handleSwitchCheckoutToThreadStable = useStableCallback(handleSwitchCheckoutToThread);
-  // The stack renders items[0] front-most and tucks the rest behind hover, so
-  // ordering is priority: system banners, then the branch-mismatch notice,
-  // and the informational parked-thread banner last — it must never cover another.
-  // Background work (subagent fleets, workflow runs, watch loops, dev servers) can outlive
-  // the turn; once it settles, the composer stop button is gone, so this
-  // banner is the only visible stop affordance. The interrupt path also
-  // accepts a completed run while its provider still has background work.
   const activeBackgroundTasks = !isWorking && activeThread ? pendingBackgroundTasks : [];
   const [stoppingBackgroundWorkKey, setStoppingBackgroundWorkKey] = useState<string | null>(null);
   const isStoppingBackgroundWork =
@@ -512,13 +506,6 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
         onOpenThread: onOpenRelatedThreadStable,
       })
     : null;
-  // Done, snoozed, and woke are thread state, not composer actions: each
-  // gets one quiet line after the last message instead of a banner. A woken
-  // thread announces itself here, not just in the sidebar pill. Dismissing
-  // marks the wake as seen (same acknowledgment as the pill); sending a
-  // message clears it as a side effect of the send path.
-  // Memoized: it is the timeline's list footer, and a new element re-renders that footer.
-  // nowMinute keeps the relative time fresh.
   const activeDoneAt = activeThreadShell?.doneAt;
   const activeSnoozedUntil = activeThreadShell?.snoozedUntil;
   const threadStatusLine = (() => {

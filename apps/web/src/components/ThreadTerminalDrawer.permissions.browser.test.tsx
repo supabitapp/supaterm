@@ -205,3 +205,52 @@ it.each(["horizontal", "vertical"] as const)(
     ]);
   },
 );
+
+it("persists a dragged height once and reconciles changed preferences before disposal", async () => {
+  setup();
+  using _capture = vi
+    .spyOn(HTMLElement.prototype, "setPointerCapture")
+    .mockImplementation(() => {});
+  const onHeightChange = vi.fn();
+  const drawer = (height: number) => (
+    <ThreadTerminalDrawer
+      threadRef={threadRef}
+      threadId={threadRef.threadId}
+      cwd="/repo"
+      height={height}
+      terminalIds={[]}
+      activeTerminalId=""
+      terminalGroups={[]}
+      activeTerminalGroupId=""
+      onSplitTerminal={state.otherCommand}
+      onSplitTerminalVertical={state.otherCommand}
+      onNewTerminal={state.otherCommand}
+      onActiveTerminalChange={state.otherCommand}
+      onCloseTerminal={state.otherCommand}
+      onSplitLayoutChange={state.otherCommand}
+      onHeightChange={onHeightChange}
+      onAddTerminalContext={state.otherCommand}
+      keybindings={[]}
+    />
+  );
+  await using screen = await render(drawer(280));
+  const handle = screen.container.querySelector<HTMLElement>(".cursor-row-resize")!;
+  const drag = (from: number, to: number) => {
+    const init = { bubbles: true, button: 0, pointerId: 1 };
+    handle.dispatchEvent(new PointerEvent("pointerdown", { ...init, clientY: from }));
+    handle.dispatchEvent(new PointerEvent("pointermove", { ...init, clientY: to }));
+    handle.dispatchEvent(new PointerEvent("pointerup", init));
+  };
+  await act(() => drag(400, 400));
+  expect(onHeightChange).not.toHaveBeenCalled();
+  await act(() => drag(400, 360));
+  expect(onHeightChange).toHaveBeenCalledExactlyOnceWith(320);
+  await screen.rerender(drawer(320));
+  expect(onHeightChange).toHaveBeenCalledOnce();
+  await screen.rerender(drawer(300));
+  await screen.rerender(drawer(320));
+  await screen.rerender(drawer(280));
+  expect(onHeightChange).toHaveBeenCalledOnce();
+  await screen.unmount();
+  expect(onHeightChange.mock.calls).toEqual([[320], [320]]);
+});

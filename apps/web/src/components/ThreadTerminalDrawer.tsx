@@ -622,6 +622,7 @@ function TerminalSessionViewport({
       openTerminalLinkInPreview({ url, threadRef, openPreview, fallbackToBrowser, forceBrowser }),
   );
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- applies terminal write permission to its live input and delivers pending pane focus
   useLayoutEffect(() => {
     const terminal = terminalRef.current;
     if (!terminal) return;
@@ -642,6 +643,7 @@ function TerminalSessionViewport({
     terminalRef.current?.refreshLinkActivation();
   }, [canOpenHostEditor]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- applies visibility to the live terminal surface and restores focus for its owning pane
   useLayoutEffect(() => {
     visibleRef.current = visible;
     terminalRef.current?.setVisible(visible);
@@ -657,6 +659,7 @@ function TerminalSessionViewport({
     void terminalRef.current?.setFont(terminalFontOptions(terminalFontFamily, terminalFontSize));
   }, [terminalFontFamily, terminalFontSize]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- creates the terminal surface and owns its session, theme, and input subscriptions until disposal
   useEffect(() => {
     const mount = containerRef.current;
     if (!mount) return;
@@ -1138,6 +1141,7 @@ function TerminalSessionViewport({
   // The surface measures its mount, so each drawer resize or window resize refits it.
   // A hidden surface skips fitting, and showing it again fits through setVisible.
   const layoutRevision = visible ? `${drawerHeight}:${resizeEpoch}` : null;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- refits the live terminal after drawer resizing and cancels the pending frame on cleanup
   useEffect(() => {
     const terminal = terminalRef.current;
     if (!terminal || layoutRevision === null) return;
@@ -1432,7 +1436,21 @@ export default function ThreadTerminalDrawer({
   const [resizeEpoch, setResizeEpoch] = useState(0);
   const paneId = usePaneScope()?.paneId ?? null;
   const drawerHeightRef = useRef(drawerHeight);
-  const lastSyncedHeightRef = useRef({ threadId, height: controlledDrawerHeight });
+  const [lastSyncedHeight, setLastSyncedHeight] = useState({
+    threadId,
+    controlledHeight: controlledDrawerHeight,
+    height: controlledDrawerHeight,
+  });
+  if (
+    lastSyncedHeight.threadId !== threadId ||
+    lastSyncedHeight.controlledHeight !== controlledDrawerHeight
+  ) {
+    setLastSyncedHeight({
+      threadId,
+      controlledHeight: controlledDrawerHeight,
+      height: controlledDrawerHeight,
+    });
+  }
   const resizeStateRef = useRef<{
     pointerId: number;
     startY: number;
@@ -1604,6 +1622,7 @@ export default function ThreadTerminalDrawer({
     });
   };
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- preserves the live drag height on the drawer DOM while React applies a new layout cap
   useLayoutEffect(() => {
     const resizeState = resizeStateRef.current;
     if (resizeState) {
@@ -1614,15 +1633,10 @@ export default function ThreadTerminalDrawer({
   }, [drawerHeight]);
 
   const syncHeight = (nextHeight: number) => {
-    const lastSynced = lastSyncedHeightRef.current;
-    if (lastSynced.threadId === threadId && lastSynced.height === nextHeight) return;
-    lastSyncedHeightRef.current = { threadId, height: nextHeight };
+    if (lastSyncedHeight.threadId === threadId && lastSyncedHeight.height === nextHeight) return;
+    setLastSyncedHeight({ threadId, controlledHeight: controlledDrawerHeight, height: nextHeight });
     onHeightChange(nextHeight);
   };
-
-  useEffect(() => {
-    lastSyncedHeightRef.current = { threadId, height: controlledDrawerHeight };
-  }, [controlledDrawerHeight, threadId]);
 
   const handleResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
@@ -1725,6 +1739,7 @@ export default function ThreadTerminalDrawer({
   }, [isPanel, visible]);
 
   const syncPreferredHeight = useEffectEvent(() => syncHeight(preferredDrawerHeight));
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- persists this mounted drawer's preferred height when its terminal surface is disposed
   useEffect(() => () => syncPreferredHeight(), []);
 
   if (normalizedTerminalIds.length === 0) {

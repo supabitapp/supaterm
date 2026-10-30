@@ -258,13 +258,11 @@ import {
 } from "../sidebarPendingFileDropStore";
 import {
   composerDraftHasUserContent,
-  type ComposerFileAttachment,
   type ComposerImageAttachment,
   type DraftThreadEnvMode,
   useComposerDraftStore,
   DraftId,
 } from "../composerDraftStore";
-import { type TerminalContextDraft } from "../lib/terminalContext";
 import { collectInlineContextIds } from "../lib/composerContextReferences";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { useKnownTerminalSessions, useThreadRunningTerminalIds } from "../state/terminalSessions";
@@ -2249,6 +2247,7 @@ export default function ChatView(props: ChatViewProps) {
     };
   }, [activeThread?.id, focusComposerStable, terminalUiState.terminalOpen]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- restores this pane's composer DOM focus when the desktop window regains focus
   useEffect(() => {
     if (!activeThread?.id || terminalUiState.terminalOpen || isMobileViewport) return;
     let frame: number | null = null;
@@ -2345,14 +2344,6 @@ export default function ChatView(props: ChatViewProps) {
       composerTimelineInsetRef.current = nextInset;
       setComposerTimelineInset(nextInset);
     }
-    // The terminal drawer and the empty placeholder lay out against the
-    // expanded composer. The timeline inset already holds it through the
-    // desktop resting row; remembering it while the mobile strip is collapsed
-    // keeps both still when focus moves between the composer and the
-    // terminal, instead of re-clamping the drawer against each intermediate
-    // composer height. A collapsed strip can still grow (approvals, tasks), so
-    // the reservation follows it up. A hero composer's overlay fills the pane,
-    // so only its stack counts there.
     const stack = composerOverlayElement?.querySelector<HTMLElement>(
       '[data-chat-composer-stack="true"]',
     );
@@ -2396,6 +2387,7 @@ export default function ChatView(props: ChatViewProps) {
     readonly threadKey: string | null;
     readonly overlay: HTMLDivElement;
   } | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- measures the composer DOM for its new thread owner before laying out the timeline
   useLayoutEffect(() => {
     if (!composerOverlayElement) return;
     const owner = composerTimelineInsetOwnerRef.current;
@@ -2410,6 +2402,7 @@ export default function ChatView(props: ChatViewProps) {
     publishComposerOverlayHeightStable(composerOverlayElement.getBoundingClientRect().height);
   }, [activeThreadKey, composerOverlayElement, publishComposerOverlayHeightStable]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- observes composer DOM resizing and measures it after size animations settle
   useLayoutEffect(() => {
     if (!composerOverlayElement) return;
 
@@ -2446,6 +2439,7 @@ export default function ChatView(props: ChatViewProps) {
     };
   }, [composerOverlayElement, isDraftHeroState, publishComposerOverlayHeightStable]);
   const measuredScrollToEndVisibleRef = useRef(showScrollToBottom);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- measures composer DOM clearance when the scroll-to-end button appears or disappears
   useLayoutEffect(() => {
     if (!composerOverlayElement || measuredScrollToEndVisibleRef.current === showScrollToBottom) {
       return;
@@ -2453,6 +2447,7 @@ export default function ChatView(props: ChatViewProps) {
     measuredScrollToEndVisibleRef.current = showScrollToBottom;
     publishComposerOverlayHeightStable(composerOverlayElement.getBoundingClientRect().height);
   }, [composerOverlayElement, publishComposerOverlayHeightStable, showScrollToBottom]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- remeasures composer DOM reservations when the composer mounts or is replaced by a subagent bar
   useLayoutEffect(() => {
     if (composerMountedRef.current === composerMounted) return;
     composerMountedRef.current = composerMounted;
@@ -2808,6 +2803,7 @@ export default function ChatView(props: ChatViewProps) {
     }
   }
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- owns pending terminal DOM focus for this thread and pane until the thread leaves
   useEffect(() => {
     if (activeThreadRef)
       return focusTerminalOnThreadEnter(activeThreadRef, paneScope?.paneId ?? null);
@@ -2969,6 +2965,7 @@ export default function ChatView(props: ChatViewProps) {
     },
   });
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes native right-panel menu actions to the pane that owns input until unmount
   useEffect(() => {
     return window.desktopBridge?.onMenuAction((action) => {
       if (!isPaneInputOwner()) return;

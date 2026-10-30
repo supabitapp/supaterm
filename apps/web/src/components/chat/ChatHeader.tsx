@@ -129,6 +129,7 @@ export const ChatHeader = memo(function ChatHeader({
       ? renaming.title
       : null;
   const isRenamingTitle = renamingTitle !== null;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- measures breadcrumb DOM overflow and observes size and font changes while mounted
   useEffect(() => {
     const list = breadcrumbContainerRef.current?.querySelector("ol");
     if (!list || !parentThreadLink) return;
@@ -183,6 +184,7 @@ export const ChatHeader = memo(function ChatHeader({
     });
   });
   const isPaneInputOwner = usePaneInputOwner();
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes this pane's header to external rename commands until the thread changes
   useEffect(
     () =>
       subscribeThreadRename((threadRef) => {
@@ -255,6 +257,7 @@ export const ChatHeader = memo(function ChatHeader({
     clearTimeout(titleMenuTimerRef.current.timeoutId);
     titleMenuTimerRef.current = null;
   };
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the native title menu timer when its owning thread leaves the header
   useEffect(
     () => () => {
       const pending = titleMenuTimerRef.current;
