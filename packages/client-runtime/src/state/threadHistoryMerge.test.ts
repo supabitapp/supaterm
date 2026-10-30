@@ -1,4 +1,7 @@
-import type { OrchestrationV2ProjectedTurnItem } from "@supaterm/contracts";
+import type {
+  OrchestrationV2ProjectedTurnItem,
+  OrchestrationV2ThreadProjection,
+} from "@supaterm/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as DateTime from "effect/DateTime";
 
@@ -38,6 +41,42 @@ function row(index: number): OrchestrationV2ProjectedTurnItem {
   };
 }
 
+function hideByRollback(
+  projection: OrchestrationV2ThreadProjection,
+  itemId: string,
+): OrchestrationV2ThreadProjection {
+  const runId = "run-rolled-back" as never;
+  return {
+    ...projection,
+    runs: [
+      ...projection.runs,
+      {
+        id: runId,
+        threadId: v2ThreadId,
+        ordinal: 1,
+        providerInstanceId: "codex" as never,
+        modelSelection: { instanceId: "codex" as never, model: "gpt-5" },
+        providerThreadId: null,
+        userMessageId: "message-rolled-back" as never,
+        rootNodeId: "node-rolled-back" as never,
+        activeAttemptId: null,
+        status: "rolled_back",
+        requestedAt: NOW,
+        startedAt: NOW,
+        completedAt: NOW,
+        checkpointId: null,
+        contextHandoffId: null,
+      },
+    ],
+    turnItems: projection.turnItems.map((item) =>
+      String(item.id) === itemId ? { ...item, runId } : item,
+    ),
+    visibleTurnItems: projection.visibleTurnItems.filter(
+      (entry) => String(entry.sourceItemId) !== itemId,
+    ),
+  };
+}
+
 describe("threadHistoryMerge", () => {
   it("fills activity around partial messages in canonical order and preserves live edits", () => {
     const initial = { ...v2Projection, turnItems: [row(4).item], visibleTurnItems: [row(4)] };
@@ -64,12 +103,7 @@ describe("threadHistoryMerge", () => {
     expect(complete.visibleTurnItems[1]?.item).toBe(updated.item);
     expect(complete.visibleTurnItems.map((entry) => entry.position)).toEqual([0, 1, 2, 3, 4]);
     expect(new Set(complete.turnItems.map((item) => item.id)).size).toBe(5);
-    const hidden = {
-      ...partial,
-      visibleTurnItems: partial.visibleTurnItems.filter(
-        (entry) => entry.sourceItemId !== preview[0]!.sourceItemId,
-      ),
-    };
+    const hidden = hideByRollback(partial, String(preview[0]!.sourceItemId));
     const hiddenComplete = mergeOlderHistoryIntoProjection(hidden, [
       row(0),
       row(1),
@@ -158,17 +192,35 @@ describe("threadHistoryMerge", () => {
       output: "newer live output",
       updatedAt: DateTime.makeUnsafe("2026-06-20T00:00:01.000Z"),
     };
-    const projection = {
-      ...v2Projection,
-      turnItems: [currentItem],
-      visibleTurnItems: [],
-    };
+    const projection = hideByRollback(
+      { ...v2Projection, turnItems: [currentItem], visibleTurnItems: [stalePageRow] },
+      String(currentItem.id),
+    );
 
     const merged = mergeOlderHistoryIntoProjection(projection, [stalePageRow]);
 
     expect(merged).toBe(projection);
-    expect(merged.turnItems).toEqual([currentItem]);
     expect(merged.visibleTurnItems).toEqual([]);
+  });
+
+  it("shows background work retained at cold open once its history page arrives", () => {
+    const retained = row(1);
+    const finished = { ...retained.item, output: "server stopped" };
+    const recent = row(5);
+    const projection = {
+      ...v2Projection,
+      turnItems: [finished, recent.item],
+      visibleTurnItems: [{ ...recent, position: 0 }],
+    };
+
+    const merged = mergeOlderHistoryIntoProjection(projection, [row(0), retained]);
+
+    expect(merged.visibleTurnItems.map((entry) => String(entry.sourceItemId))).toEqual([
+      "item-0",
+      "item-1",
+      "item-5",
+    ]);
+    expect(merged.visibleTurnItems[1]?.item).toBe(finished);
   });
 
   it("retains merged older rows when a live turn-item update arrives", () => {
