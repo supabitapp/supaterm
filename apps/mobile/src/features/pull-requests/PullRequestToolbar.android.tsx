@@ -1,5 +1,5 @@
-import { useNavigation, useNavigationState } from "@react-navigation/native";
-import { useCallback, useEffect, useRef } from "react";
+import { useNavigation } from "@react-navigation/native";
+import { useEffect, useRef } from "react";
 import { BackHandler, Keyboard, View, type TextInputInstance } from "react-native";
 import { SearchField } from "../../components/ui/SearchField";
 import { useToolbarLayout } from "../../components/ui/useToolbarLayout";
@@ -8,25 +8,25 @@ import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
 import { useWorkspaceListNavigation } from "../workspace/useAndroidWorkspaceNavigation";
 import { WorkspaceFilterButton } from "../workspace/WorkspaceFilterButton";
 import { WorkspaceListToolbarRow } from "../workspace/WorkspaceListToolbarRow";
-import { usePullRequestFilterMenu } from "./PullRequestFilterMenuContext";
+import type { PullRequestFilterMenu } from "./PullRequestListFilters";
+import { openSettings } from "../settings/settings-navigation";
 
 export function PullRequestToolbar(props: {
   readonly sidebar?: boolean;
+  readonly filters: PullRequestFilterMenu | null;
   readonly onRequestVisibility?: () => void;
 }) {
   const navigation = useNavigation();
+  const { filters } = props;
   const workspace = useWorkspaceTabs()!;
-  const filterMenu = usePullRequestFilterMenu();
   const { paddingTop, paddingBottom } = useToolbarLayout();
   const { dispatch, getScrollOffset, recordScrollOffset, isTabActive } = workspace;
-  const homeFocused = useNavigationState((state) => state.routes[state.index]?.name === "Home");
-  const listFocused = homeFocused && workspace.state.selectedTab === "pullRequests";
   const { onRequestVisibility } = props;
   const showThreads = useWorkspaceListNavigation("threads");
   const tab = workspace.state.tabs.pullRequests;
   const input = useRef<TextInputInstance>(null);
   const searching = tab.searchMode !== "resting";
-  const openSearch = useCallback(() => {
+  const openSearch = () => {
     onRequestVisibility?.();
     dispatch({
       type: "scroll",
@@ -36,17 +36,17 @@ export function PullRequestToolbar(props: {
     dispatch({ type: "search", tab: "pullRequests" });
     input.current?.focus();
     return true;
-  }, [dispatch, getScrollOffset, onRequestVisibility]);
+  };
   useHardwareKeyboardCommand("focusSearch", openSearch);
-  const closeSearch = useCallback(() => {
+  const closeSearch = () => {
     Keyboard.dismiss();
     recordScrollOffset("pullRequests", tab.searchEntryOffset);
     dispatch({ type: "cancel", tab: "pullRequests" });
-  }, [dispatch, recordScrollOffset, tab.searchEntryOffset]);
+  };
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to BackHandler while searching to close the PR search on Android back
   useEffect(() => {
-    if (!searching || !listFocused) return;
+    if (!searching) return;
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
-      // Frozen Home screens can keep effects alive after a detail route opens.
       const state = navigation.getState();
       if (!state || state.routes[state.index]?.name !== "Home" || !isTabActive("pullRequests"))
         return false;
@@ -55,7 +55,7 @@ export function PullRequestToolbar(props: {
       return true;
     });
     return () => subscription.remove();
-  }, [searching, closeSearch, listFocused, navigation, isTabActive]);
+  }, [searching, closeSearch, navigation, isTabActive]);
   return (
     <View className="bg-header px-2" style={{ paddingTop, paddingBottom }}>
       <WorkspaceListToolbarRow
@@ -72,12 +72,7 @@ export function PullRequestToolbar(props: {
         }
         onCloseSearch={closeSearch}
         titleAccessibilityLabel="Supaterm, Pull requests"
-        onOpenEnvironments={() =>
-          navigation.navigate("SettingsSheet", {
-            screen: "SettingsContent",
-            params: { screen: "SettingsEnvironments" },
-          })
-        }
+        onOpenEnvironments={() => openSettings(navigation, "SettingsEnvironments")}
         actions={[
           ...(props.sidebar
             ? [
@@ -96,14 +91,20 @@ export function PullRequestToolbar(props: {
           {
             accessibilityLabel: "Open settings",
             icon: "gearshape",
-            onPress: () =>
-              navigation.navigate("SettingsSheet", {
-                screen: "SettingsContent",
-                params: { screen: "Settings" },
-              }),
+            onPress: () => openSettings(navigation, "Settings"),
           },
         ]}
-        filter={filterMenu ? <WorkspaceFilterButton {...filterMenu} /> : null}
+        filter={
+          filters ? (
+            <WorkspaceFilterButton
+              title="Filter pull requests"
+              accessibilityLabel="Filter pull requests"
+              actions={filters.actions}
+              customized={filters.customized}
+              onPressAction={({ nativeEvent }) => filters.onSelect(nativeEvent.event)}
+            />
+          ) : null
+        }
       />
     </View>
   );
