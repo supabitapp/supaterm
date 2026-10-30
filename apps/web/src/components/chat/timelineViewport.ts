@@ -6,23 +6,6 @@ import {
 import { resolveTimelineIsAtEnd } from "./MessagesTimeline.logic";
 import { createUpwardScrollDetector, isTimelineScrollTarget } from "./timelineScrollTarget";
 
-export type TimelineListOpening =
-  | { readonly mounted: false }
-  | { readonly mounted: true; readonly identity: string | null };
-
-export function nextListOpening(
-  current: TimelineListOpening,
-  listMounted: boolean,
-  identity: string,
-): TimelineListOpening {
-  if (!listMounted) return current.mounted ? { mounted: false } : current;
-  if (!current.mounted) return { mounted: true, identity };
-  if (current.identity !== null && current.identity !== identity) {
-    return { mounted: true, identity: null };
-  }
-  return current;
-}
-
 export type TimelineScrollDirection = "up" | "down";
 
 export type TimelineNavigation =
@@ -165,37 +148,5 @@ export function navigationReleasesFollow(
       return true;
     case "command":
       return navigation.releasesFollow;
-  }
-}
-
-export type TimelineFollow =
-  | { readonly mode: "following" }
-  | { readonly mode: "released"; readonly atEnd: boolean };
-
-export type TimelineFollowEvent =
-  | { readonly type: "navigated" }
-  | { readonly type: "followEnd" }
-  | { readonly type: "reachedEnd" }
-  | { readonly type: "leftEnd" };
-
-export const FOLLOWING: TimelineFollow = { mode: "following" };
-
-export function initialTimelineFollow(followEnd: boolean): TimelineFollow {
-  return followEnd ? FOLLOWING : { mode: "released", atEnd: false };
-}
-
-export function transitionTimelineFollow(
-  state: TimelineFollow,
-  event: TimelineFollowEvent,
-): TimelineFollow {
-  switch (event.type) {
-    case "navigated":
-      return state.mode === "released" ? state : { mode: "released", atEnd: true };
-    case "followEnd":
-      return FOLLOWING;
-    case "reachedEnd":
-      return state.mode === "released" && !state.atEnd ? FOLLOWING : state;
-    case "leftEnd":
-      return state.mode === "released" && state.atEnd ? { mode: "released", atEnd: false } : state;
   }
 }
