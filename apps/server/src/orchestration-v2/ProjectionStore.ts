@@ -3039,6 +3039,16 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
                     )
                     AND request.type = 'run_interrupt_request'
                   UNION
+                  -- Background work can outlive its turn and the window.
+                  -- Matches the recovery index predicate.
+                  SELECT active.rowid AS item_rowid, active.ordinal, active.turn_item_id
+                  FROM orchestration_v2_projection_turn_items AS active
+                  WHERE active.thread_id = ${threadId}
+                    AND active.type IN ('command_execution', 'dynamic_tool', 'subagent')
+                    AND active.status IN ('pending', 'running', 'waiting')
+                    AND ${window.anchorItemId ?? null} IS NULL
+                    AND ${window.requiredRunId ?? null} IS NULL
+                  UNION
                   SELECT latest.item_rowid, latest.ordinal, latest.turn_item_id
                   FROM (
                     SELECT rowid AS item_rowid, ordinal, turn_item_id

@@ -31,6 +31,7 @@ import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import * as Tracer from "effect/Tracer";
 import * as SqlClient from "effect/sql/SqlClient";
+import { derivePendingBackgroundWork } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import { CodexProviderCapabilitiesV2 } from "./Adapters/CodexAdapterV2.ts";
@@ -2136,6 +2137,140 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       );
       assert.isTrue(
         agentWindow.projection.visibleTurnItems.some((row) => row.sourceItemId === agentPromptId),
+      );
+    }),
+  );
+
+  it.effect("keeps background work running from before a long turn's window", () =>
+    Effect.gen(function* () {
+      const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
+      const sql = yield* SqlClient.SqlClient;
+      const now = yield* DateTime.now;
+      const nowIso = DateTime.formatIso(now);
+      const threadId = ThreadId.make("thread:background-long-turn");
+      const runId = RunId.make("run:background-long-turn");
+      const backgroundId = "turn-item:background-long-turn:2";
+      yield* projectionStore.apply({
+        id: EventId.make("event:background-long-turn:thread"),
+        type: "thread.created",
+        threadId,
+        occurredAt: now,
+        payload: {
+          createdBy: "user",
+          creationSource: "web",
+          id: threadId,
+          projectId: ProjectId.make("project:background-long-turn"),
+          title: "Background work in a long turn",
+          providerInstanceId,
+          modelSelection,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          branch: null,
+          worktreePath: null,
+          activeProviderThreadId: null,
+          lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
+          forkedFrom: null,
+          createdAt: now,
+          updatedAt: now,
+          archivedAt: null,
+          doneOverride: null,
+          doneAt: null,
+          lastVisitedAt: null,
+          deletedAt: null,
+        },
+      });
+      const run = {
+        id: runId,
+        threadId,
+        ordinal: 1,
+        providerInstanceId,
+        modelSelection,
+        providerThreadId: null,
+        userMessageId: "message:background-long-turn",
+        rootNodeId: "node:background-long-turn",
+        activeAttemptId: null,
+        status: "completed" as const,
+        requestedAt: nowIso,
+        startedAt: nowIso,
+        completedAt: nowIso,
+        checkpointId: null,
+        contextHandoffId: null,
+      };
+      yield* sql`
+        INSERT INTO orchestration_v2_projection_runs (
+          run_id, thread_id, ordinal, provider, provider_thread_id, status,
+          requested_at, completed_at, payload_json
+        ) VALUES (
+          ${runId}, ${threadId}, 1, 'codex', NULL, 'completed', ${nowIso}, ${nowIso},
+          ${encodeUnknownJsonString(run)}
+        )
+      `;
+      for (let ordinal = 1; ordinal <= 700; ordinal += 1) {
+        const id = `turn-item:background-long-turn:${ordinal}`;
+        const status = id === backgroundId ? "running" : "completed";
+        const type = ordinal === 1 ? "user_message" : "command_execution";
+        yield* sql`
+          INSERT INTO orchestration_v2_projection_turn_items (
+            turn_item_id, thread_id, run_id, node_id, provider_thread_id, provider_turn_id,
+            parent_item_id, ordinal, type, status, updated_at, payload_json
+          ) VALUES (
+            ${id}, ${threadId}, ${runId}, NULL, NULL, NULL, NULL, ${ordinal},
+            ${type}, ${status}, ${nowIso},
+            ${encodeUnknownJsonString({
+              id,
+              threadId,
+              runId,
+              nodeId: null,
+              providerThreadId: null,
+              providerTurnId: null,
+              nativeItemRef: null,
+              parentItemId: null,
+              ordinal,
+              status,
+              startedAt: nowIso,
+              updatedAt: nowIso,
+              ...(type === "user_message"
+                ? {
+                    type,
+                    createdBy: "user",
+                    creationSource: "web",
+                    messageId: run.userMessageId,
+                    inputIntent: "turn_start",
+                    text: "Start the dev server, then keep working",
+                    attachments: [],
+                    completedAt: nowIso,
+                  }
+                : {
+                    type,
+                    title: `command ${ordinal}`,
+                    input: `echo ${ordinal}`,
+                    ...(status === "running"
+                      ? { completedAt: null }
+                      : { output: "ok", exitCode: 0, completedAt: nowIso }),
+                  }),
+            })}
+          )
+        `;
+      }
+
+      const snapshot = yield* projectionStore.getThreadSnapshotWindow(threadId, {
+        rowLimit: THREAD_HISTORY_PAGE_POLICY.maxItems + 2,
+        userTurnLimit: THREAD_HISTORY_PAGE_POLICY.maxUserTurns,
+      });
+      const bounded = buildBoundedThreadProjection(snapshot);
+
+      assert.isTrue(bounded.hasMoreHistory);
+      assert.isFalse(
+        bounded.projection.visibleTurnItems.some((row) => row.sourceItemId === backgroundId),
+      );
+      assert.deepStrictEqual(
+        derivePendingBackgroundWork({
+          latestRun: bounded.projection.runs.at(-1),
+          providerThreads: bounded.projection.providerThreads,
+          turnItems: bounded.projection.turnItems,
+          runs: bounded.projection.runs,
+        }).map((task) => task.taskId),
+        [backgroundId],
       );
     }),
   );
