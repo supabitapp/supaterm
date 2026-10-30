@@ -21,7 +21,6 @@ import * as ConnectionStorage from "./storage";
 
 const emptyCatalog = EMPTY_CONNECTION_CATALOG_DOCUMENT;
 const decodeCatalog = Schema.decodeUnknownSync(Schema.fromJsonString(ConnectionCatalogDocument));
-const encodeCatalog = Schema.encodeSync(Schema.fromJsonString(ConnectionCatalogDocument));
 const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
 
 afterEach(() => {
@@ -270,8 +269,8 @@ describe("browser GitHub routing permissions", () => {
       };
       const firstBrowser = Object.assign(new EventTarget(), { localStorage });
       const secondBrowser = Object.assign(new EventTarget(), { localStorage });
-      const first = ConnectionStorage.makeBrowserGitHubRoutingPermissions(firstBrowser);
-      const second = ConnectionStorage.makeBrowserGitHubRoutingPermissions(secondBrowser);
+      const first = ConnectionStorage.makeBrowserPullRequestRoutingPermissions(firstBrowser);
+      const second = ConnectionStorage.makeBrowserPullRequestRoutingPermissions(secondBrowser);
       const entry = {
         target: new PrimaryConnectionTarget({
           environmentId: EnvironmentId.make("first"),
@@ -295,7 +294,7 @@ describe("browser GitHub routing permissions", () => {
       const oldPermissions = Option.getOrThrow(yield* Stream.runHead(first.changes));
       const staleCatalog = yield* ConnectionStorage.makeCatalogStore({
         read: Effect.succeed(
-          encodeCatalog({ ...emptyCatalog, githubRoutingPermissions: oldPermissions }),
+          JSON.stringify({ ...emptyCatalog, githubRoutingPermissions: oldPermissions }),
         ),
         write: () => Effect.void,
       });
@@ -319,7 +318,7 @@ describe("browser GitHub routing permissions", () => {
       expect(yield* second.get(entry)).toBe("off");
       expect(yield* first.get(other)).toBe("read");
       expect(
-        yield* ConnectionStorage.makeBrowserGitHubRoutingPermissions(firstBrowser).get(entry),
+        yield* ConnectionStorage.makeBrowserPullRequestRoutingPermissions(firstBrowser).get(entry),
       ).toBe("off");
 
       yield* first.set(entry, "read-write");
