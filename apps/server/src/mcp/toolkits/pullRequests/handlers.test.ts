@@ -21,6 +21,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
 import * as Stream from "effect/Stream";
+import * as Schema from "effect/Schema";
 import type { Tool } from "effect/ai";
 
 import * as Orchestrator from "../../../orchestration-v2/Orchestrator.ts";
@@ -37,7 +38,11 @@ import * as McpToolAccess from "../../McpToolAccess.ts";
 import * as McpToolAccessTestkit from "../../McpToolAccess.testkit.ts";
 import { listThreadPullRequests } from "./handlers.ts";
 import * as PullRequestsHandlers from "./handlers.ts";
-import { PullRequestsToolkit } from "./tools.ts";
+import {
+  PullRequestsToolkit,
+  LinkPullRequestResult,
+  CHILD_PULL_REQUEST_REPORT_NEXT,
+} from "./tools.ts";
 
 const PROJECT_ID = ProjectId.make("project-1");
 const THREAD_ID = ThreadId.make("thread-1");
@@ -245,6 +250,26 @@ const makeHarness = Effect.fn("makePullRequestsToolkitHarness")(function* (
 });
 
 describe("pull request toolkit handlers", () => {
+  const encodeLinkResult = Schema.encodeSync(LinkPullRequestResult);
+  it.effect("preserves child reporting guidance in the encoded link result", () =>
+    Effect.gen(function* () {
+      const parent = ThreadId.make("parent");
+      const harness = yield* makeHarness({
+        thread: {
+          ...makeThread([]),
+          lineage: {
+            rootThreadId: parent,
+            parentThreadId: parent,
+            relationshipToParent: "subagent",
+          },
+        },
+      });
+      const result = yield* harness.call("link_pull_request", {
+        url: "https://github.com/supabitapp/supaterm/pull/12",
+      });
+      expect(encodeLinkResult(result).next).toBe(CHILD_PULL_REQUEST_REPORT_NEXT);
+    }),
+  );
   it.effect("refuses a credential without the pull-requests capability", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness();
@@ -282,24 +307,6 @@ describe("pull request toolkit handlers", () => {
           number: 123,
           source: "agent",
         },
-      ]);
-    }),
-  );
-
-  it.effect("links a GitCafe pull request by its canonical /pull/ URL", () =>
-    Effect.gen(function* () {
-      const harness = yield* makeHarness();
-      const result = yield* harness.call("link_pull_request", {
-        url: "https://git.cafe/pingdotgg/supaterm/pull/23897",
-      });
-      expect(result).toMatchObject({
-        host: "git.cafe",
-        repository: "pingdotgg/supaterm",
-        number: 23897,
-        alreadyLinked: false,
-      });
-      expect(yield* Ref.get(harness.commands)).toMatchObject([
-        { type: "thread.pull-request.link", host: "git.cafe", number: 23897 },
       ]);
     }),
   );

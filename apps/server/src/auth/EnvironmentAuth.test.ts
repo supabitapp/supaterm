@@ -647,4 +647,61 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
       expect(verified.sessionId).toBe(bearer.sessionId);
     }).pipe(Effect.provide(layerEnvironmentAuth({ mode: "web", host: "192.168.1.50" }))),
   );
+  it.effect(
+    "keeps RPC and media tickets on their intended routes while accepting legacy tickets",
+    () =>
+      Effect.gen(function* () {
+        const auth = yield* EnvironmentAuth.EnvironmentAuth;
+        const sessions = yield* SessionStore.SessionStore;
+        const owner = yield* auth.issueSession();
+        const request = (ticket: string) =>
+          ({
+            url: `/ws?wsTicket=${encodeURIComponent(ticket)}`,
+            cookies: {},
+            headers: { host: "localhost:13773" },
+          }) as never;
+        for (const use of ["rpc", "media"] as const) {
+          const issued = yield* auth.issueWebSocketTicket(owner, { use });
+          expect(
+            (yield* auth.authenticateWebSocketUpgrade(request(issued.ticket), use)).sessionId,
+          ).toBe(owner.sessionId);
+          expect(
+            yield* Effect.flip(
+              auth.authenticateWebSocketUpgrade(
+                request(issued.ticket),
+                use === "rpc" ? "media" : "rpc",
+              ),
+            ),
+          ).toMatchObject({ _tag: "ServerAuthInvalidCredentialError" });
+        }
+        const legacy = yield* sessions.issueWebSocketToken(owner.sessionId);
+        expect(
+          (yield* auth.authenticateWebSocketUpgrade(request(legacy.token), "rpc")).sessionId,
+        ).toBe(owner.sessionId);
+        expect(
+          (yield* auth.authenticateWebSocketUpgrade(request(legacy.token), "media")).sessionId,
+        ).toBe(owner.sessionId);
+      }).pipe(Effect.provide(layerEnvironmentAuth())),
+  );
+
+  it.effect("refuses MCP client credentials even when wrapped in a socket ticket", () =>
+    Effect.gen(function* () {
+      const auth = yield* EnvironmentAuth.EnvironmentAuth;
+      const sessions = yield* SessionStore.SessionStore;
+      const client = yield* auth.issueMcpClientSession({
+        label: "External client",
+        access: "full-access",
+        client: { deviceType: "bot" },
+      });
+      const ticket = yield* sessions.issueWebSocketToken(client.sessionId, { audience: "rpc" });
+      const request = {
+        url: `/ws?wsTicket=${encodeURIComponent(ticket.token)}`,
+        cookies: {},
+        headers: { host: "localhost:13773" },
+      } as never;
+      expect(yield* Effect.flip(auth.authenticateWebSocketUpgrade(request))).toMatchObject({
+        _tag: "ServerAuthInvalidCredentialError",
+      });
+    }).pipe(Effect.provide(layerEnvironmentAuth())),
+  );
 });

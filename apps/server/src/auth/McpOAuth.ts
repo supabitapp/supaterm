@@ -563,7 +563,7 @@ export const layerMcpClientAuthenticator = Layer.effect(
     const environment = yield* ServerEnvironment.ServerEnvironment;
     const environmentId = yield* environment.getEnvironmentId;
     return McpHttpServer.McpClientAuthenticator.of({
-      authenticate: (request) =>
+      authenticate: Effect.fn("McpHttpServer.McpClientAuthenticator.authenticate")((request) =>
         environmentAuth.authenticateMcpClient(request).pipe(
           Effect.flatMap((client) =>
             Clock.currentTimeMillis.pipe(
@@ -594,6 +594,7 @@ export const layerMcpClientAuthenticator = Layer.effect(
             ).pipe(Effect.as(undefined)),
           ),
         ),
+      ),
     });
   }),
 );

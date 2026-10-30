@@ -1,3 +1,7 @@
+import * as PeerLinks from "../../peer/PeerLinks.ts";
+import * as PeerLinkRequests from "../../peer/PeerLinkRequests.ts";
+import * as PeerForwarding from "../../peer/PeerForwarding.ts";
+import * as RemoteDelegation from "../../peer/RemoteDelegation.ts";
 import * as DocumentText from "../../provider/DocumentText.ts";
 import * as SecretRequests from "../../secrets/SecretRequests.ts";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
@@ -57,6 +61,10 @@ import * as EnvironmentHandlers from "./environment/handlers.ts";
 import * as AttachmentHandlers from "./attachment/handlers.ts";
 
 const layerOrchestratorToolkit = McpHttpServer.layerOrchestratorToolkit.pipe(
+  Layer.provide(Layer.mock(PeerLinks.PeerLinks)({})),
+  Layer.provide(Layer.mock(PeerLinkRequests.PeerLinkRequests)({})),
+  Layer.provide(Layer.mock(PeerForwarding.PeerForwarding)({})),
+  Layer.provide(Layer.mock(RemoteDelegation.RemoteDelegation)({})),
   Layer.provide(Layer.mock(SecretRequests.SecretRequests)({})),
   Layer.provide(Layer.mock(ThreadLaunchService.ThreadLaunchService)({})),
   Layer.provide(Layer.mock(GitVcsDriver.GitVcsDriver)({})),
@@ -889,18 +897,17 @@ it.effect("only the caller that prepared a pending upload can discard it", () =>
     expect(discarded.isError).toBe(false);
   }).pipe(
     Effect.provide(
-      McpHttpServer.layerAttachmentToolkit
-        .pipe(Layer.provide(Layer.mock(DocumentText.DocumentText)({})))
-        .pipe(
-          Layer.provideMerge(McpServer.McpServer.layer),
-          Layer.provide(McpPendingUploads.layer),
-          Layer.provide(McpToolAccessTestkit.liveThreadsLayer),
-          Layer.provide(ServerSecretStore.layer),
-          Layer.provide(
-            ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-mcp-attachment-" }),
-          ),
-          Layer.provide(NodeServices.layer),
+      McpHttpServer.layerAttachmentToolkit.pipe(
+        Layer.provide(Layer.mock(DocumentText.DocumentText)({})),
+        Layer.provideMerge(McpServer.McpServer.layer),
+        Layer.provide(McpPendingUploads.layer),
+        Layer.provide(McpToolAccessTestkit.liveThreadsLayer),
+        Layer.provide(ServerSecretStore.layer),
+        Layer.provide(
+          ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-mcp-attachment-" }),
         ),
+        Layer.provide(NodeServices.layer),
+      ),
     ),
   ),
 );

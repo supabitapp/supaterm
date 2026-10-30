@@ -1,4 +1,5 @@
 import {
+  DpopFailureReason,
   AuthAccessTokenType,
   AuthAccessWriteScope,
   AuthOrchestrationOperateScope,
@@ -278,16 +279,7 @@ export class ServerAuthInvalidCredentialError extends Schema.TaggedError<ServerA
   "ServerAuthInvalidCredentialError",
   {
     diagnostic: Schema.optional(Schema.String),
-    dpopFailureReason: Schema.optional(
-      Schema.Literals([
-        "time_window",
-        "key_mismatch",
-        "request_mismatch",
-        "token_mismatch",
-        "invalid_proof",
-        "replay",
-      ]),
-    ),
+    dpopFailureReason: Schema.optional(DpopFailureReason),
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
@@ -417,9 +409,6 @@ export class EnvironmentAuth extends Context.Service<
     readonly revokeSession: (
       sessionId: AuthSessionId,
     ) => Effect.Effect<boolean, ServerAuthInternalError>;
-    readonly revokeOtherSessionsExcept: (
-      sessionId: AuthSessionId,
-    ) => Effect.Effect<number, ServerAuthInternalError>;
     readonly listClientSessions: (
       currentSessionId: AuthSessionId,
     ) => Effect.Effect<ReadonlyArray<AuthClientSession>, ServerAuthInternalError>;
@@ -567,14 +556,6 @@ function firstHeaderValue(value: string | undefined): string | undefined {
   return first && first.length > 0 ? first : undefined;
 }
 
-/**
- * Browsers send `Origin` on WebSocket upgrades, cross-origin requests, and
- * non-GET requests, so an absent header means a same-origin read or a
- * non-browser client. Otherwise the request must be same-origin by the
- * browser's own `Sec-Fetch-Site` (which survives the dev proxy rewriting
- * `Host`), come from this server's own host (directly or behind a proxy that
- * reports `X-Forwarded-Host`), or come from one of the trusted app origins.
- */
 function isBrowserOriginAllowed(
   request: HttpServerRequest.HttpServerRequest,
   trustedOrigins: ReadonlySet<string>,
@@ -596,7 +577,7 @@ function isBrowserOriginAllowed(
   );
 }
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const crypto = yield* Crypto.Crypto;
   const secretStore = yield* ServerSecretStore.ServerSecretStore;
@@ -975,9 +956,7 @@ export const make = Effect.gen(function* () {
       Effect.withSpan("EnvironmentAuth.revokeSession"),
     );
 
-  const revokeOtherSessionsExcept: EnvironmentAuth["Service"]["revokeOtherSessionsExcept"] = (
-    sessionId,
-  ) =>
+  const revokeOtherSessionsExcept = (sessionId: AuthSessionId) =>
     sessions.revokeAllExcept(sessionId).pipe(
       Effect.mapError((cause) => new ServerAuthOtherSessionsRevocationError({ cause })),
       Effect.withSpan("EnvironmentAuth.revokeOtherSessionsExcept"),
@@ -1217,7 +1196,6 @@ export const make = Effect.gen(function* () {
     issueSession,
     listSessions,
     revokeSession,
-    revokeOtherSessionsExcept,
     listClientSessions,
     revokeClientSession,
     revokeOtherClientSessions,

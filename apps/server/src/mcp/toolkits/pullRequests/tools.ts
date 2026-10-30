@@ -300,6 +300,7 @@ export const CHILD_PULL_REQUEST_REPORT_NEXT =
 
 export const LinkPullRequestResult = Schema.Struct({
   ...PullRequestIdentity,
+  next: Schema.optional(Schema.Literal(CHILD_PULL_REQUEST_REPORT_NEXT)),
   alreadyLinked: Schema.Boolean.annotate({
     description: "True when the pull request was linked to this thread before the call.",
   }),

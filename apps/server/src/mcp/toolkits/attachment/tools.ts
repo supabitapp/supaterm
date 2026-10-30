@@ -49,7 +49,7 @@ const AttachmentSendTool = Tool.make("supaterm_thread_send_attachments", {
   ...shared,
   dependencies: [...shared.dependencies, DocumentText.DocumentText],
   description:
-    "Send uploaded attachments to this thread or any other thread in this environment. Each call is a new message, without a retry key. Acceptance does not mean the provider can consume the attachment or has finished the turn. The target cannot have broader permission modes than the caller; failures retain claimed files when dispatch outcome is uncertain.",
+    "Send uploaded attachments as a new message to a thread. No retry key. Target modes cannot exceed yours. Success means acceptance, not provider consumption or a finished turn. Claimed files stay retained when the dispatch outcome is uncertain.",
   parameters: Schema.Struct({
     threadId: Schema.optional(ThreadId),
     message: Schema.optional(Schema.String.check(Schema.isMaxLength(120000))),

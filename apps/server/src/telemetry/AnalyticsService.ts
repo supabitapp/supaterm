@@ -49,8 +49,6 @@ const RETRY_MAX_DELAY_MS = 300_000;
 
 const REJECTED_BATCH_STATUSES = new Set([400, 401, 413]);
 
-declare const __SUPATERM_TELEMETRY_CHANNEL__: "stable" | "nightly" | "preview" | "dev" | undefined;
-
 /** `random` is in [0, 1). */
 function retryDelayMs(failures: number, random: number): number {
   const ceiling = Math.min(RETRY_MAX_DELAY_MS, RETRY_BASE_DELAY_MS * 2 ** (failures - 1));
@@ -123,7 +121,6 @@ function serverOsFromNodePlatform(platform: string): ClientOs {
 }
 
 /** @public */
-/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const telemetryConfig = yield* TelemetryEnvConfig;
   const httpClient = yield* HttpClient.HttpClient;
@@ -144,8 +141,6 @@ export const make = Effect.gen(function* () {
   // The background flush and the shutdown flush must not send the same batch at once.
   const flushLock = yield* Semaphore.make(1);
   const clientType = serverConfig.mode === "desktop" ? "desktop-app" : "cli-web-client";
-  const telemetryChannel =
-    typeof __SUPATERM_TELEMETRY_CHANNEL__ === "undefined" ? "dev" : __SUPATERM_TELEMETRY_CHANNEL__;
   const hostPlatform = yield* HostProcess.Platform;
   const hostArchitecture = yield* HostProcess.Architecture;
 
@@ -200,7 +195,7 @@ export const make = Effect.gen(function* () {
           wsl: Option.getOrUndefined(telemetryConfig.wslDistroName),
           arch: hostArchitecture,
           supatermVersion: packageJson.version,
-          telemetryChannel,
+          telemetryChannel: ServerConfig.telemetryChannel,
           clientType,
           serverOs: serverOsFromNodePlatform(hostPlatform),
           serverArch: hostArchitecture,

@@ -11,15 +11,6 @@ import * as Result from "effect/Result";
 
 const SESSION_COOKIE_NAME = "supaterm_session";
 
-/**
- * Cookies are scoped by host but *not* by port, so any two servers that can be
- * live on one hostname at once need separate names — otherwise the second
- * clobbers the first's session and both sides see "Invalid session token
- * signature" until someone clears cookies by hand.
- *
- * Remote web servers use their persisted environment identity and omit the
- * port, so the name survives state-directory moves and public port changes.
- */
 export function resolveSessionCookieName(input: {
   readonly mode: "web" | "desktop";
   readonly port: number;

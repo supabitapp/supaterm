@@ -35,7 +35,10 @@ export class EventLoopMonitor extends Context.Reference<{
    */
   readonly latestNoticeableStall: Effect.Effect<ServerEventLoopStall | undefined>;
 }>("supaterm/observability/EventLoopMonitor", {
-  defaultValue: () => ({ latestNoticeableStall: Effect.succeed(undefined) }),
+  defaultValue: () => ({
+    // @effect-diagnostics-next-line effectSucceedWithVoid:off - The sampled notice is optional data, not void.
+    latestNoticeableStall: Effect.succeed(undefined),
+  }),
 }) {}
 
 /** Delay in ns, active time in ms, CPU in µs. */

@@ -103,21 +103,26 @@ const resolveTarget = Effect.fn("PullRequestsToolkit.resolveTarget")(function* (
     return yield* new PullRequestHostRequiredError({});
   }
   const repository = input.repository.toLowerCase();
-  // Without a URL, a public forge host says what shape its change request URLs take;
-  // any other host is taken to run the project's own forge.
-  const recognizedKind = sourceControlDefinitions.recognizeRemote(`https://${host}`)?.kind;
+  const remoteUrl =
+    host === projectHost.host ? project?.repositoryIdentity?.locator.remoteUrl : undefined;
+  const recognized = sourceControlDefinitions.recognizeRemote(`https://${host}/${repository}`);
+  const pathKind = sourceControlDefinitions.parseChangeRequestUrl(
+    `https://${host}/${repository}/pullrequest/${input.number}`,
+  )?.definition.kind;
   const kind =
     sourceControlDefinitions.findByPublicHost(host)?.kind ??
-    (recognizedKind === "gitcafe" ? recognizedKind : projectHost.kind);
+    (recognized && sourceControlDefinitions.find(recognized.kind) ? recognized.kind : undefined) ??
+    pathKind ??
+    (host === projectHost.host ? projectHost.kind : null);
+  const target = {
+    host,
+    repository,
+    number: input.number,
+    ...(remoteUrl === undefined ? {} : { remoteUrl }),
+  };
   const url =
-    kind === null
-      ? null
-      : sourceControlDefinitions.get(kind).changeRequestUrl({
-          host,
-          repository,
-          number: input.number,
-          remoteUrl: project?.repositoryIdentity?.locator.remoteUrl,
-        });
+    sourceControlDefinitions.get(kind).changeRequestUrl(target) ??
+    sourceControlDefinitions.get(null).changeRequestUrl(target);
   if (url === null) {
     return yield* new PullRequestUrlUnavailableError({});
   }
@@ -456,7 +461,7 @@ const make = Effect.gen(function* () {
         const thread = yield* requireThread(PullRequestLinkFailedError, input.threadId);
         const next =
           thread.lineage.relationshipToParent === "subagent"
-            ? { next: CHILD_PULL_REQUEST_REPORT_NEXT }
+            ? ({ next: CHILD_PULL_REQUEST_REPORT_NEXT } as const)
             : {};
         const project = yield* projectOf(thread, PullRequestLinkFailedError);
         const target = yield* resolveTarget(input, project);
