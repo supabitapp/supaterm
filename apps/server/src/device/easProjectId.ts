@@ -122,15 +122,8 @@ const decodeAppJson = Schema.decodeUnknownOption(
   ),
 );
 
-/**
- * The project ids a directory's app config names. Read, never run: a dynamic
- * config is the project's own code, which an agent may have written. Its text
- * is taken as it is, comments included, so an old id left in a comment makes
- * the answer ambiguous rather than wrong. app.config.json or app.json count
- * too: a dynamic config may only replace theirs on some builds. Null when
- * the project is unknown: the config sets or changes it some other way than
- * a literal, or a config cannot be read.
- */
+// Read config as text without executing project code. Nonliteral or unreadable
+// configs stay unknown; ids left in comments intentionally remain ambiguous.
 const projectIdsOf = Effect.fn("easProjectId.projectIdsOf")(function* (dir: string) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;

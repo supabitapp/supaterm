@@ -119,12 +119,8 @@ const decodeLedger = Schema.decodeUnknownEffect(Ledger);
 const encodeLedger = Schema.encodeSync(Ledger);
 // How often listing looks for recorded sessions this host no longer tracks.
 const REAP_INTERVAL_MS = 60_000;
-// Expo's longest session runs 115 minutes from when it is ready, plus five
-// minutes of cleanup. A recorded session Expo does not list (not showing
-// yet, or past the first page) stops counting against the limit after this
-// long, and its record is forgotten once a listing confirms it is not
-// running. Being ready can wait on Expo's queue, which has no bound, so the
-// record outlives the slot: only after a day is it forgotten unconfirmed.
+// Missing sessions stop counting against the limit before their records expire.
+// Expo's startup queue is unbounded, so keep unconfirmed records for a day.
 const RECORD_LIFETIME_MS = 180 * 60_000;
 const RECORD_MAX_AGE_MS = 24 * 60 * 60_000;
 // Expo lists a session it made within seconds; a create with an unknown

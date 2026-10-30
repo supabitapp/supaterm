@@ -1316,13 +1316,8 @@ function shouldExcludeTerminalEnvKey(key: string): boolean {
 }
 
 const APPIMAGE_RUNTIME_ENV_KEYS = ["APPIMAGE", "APPDIR", "ARGV0", "OWD"] as const;
-// Colon-separated search-path variables the AppImage runtime points at its
-// temporary mount (e.g. /tmp/.mount_Supaterm-XXXX/usr/bin, the bundled glib schemas,
-// and an $APPDIR/usr/share XDG data entry). Only the mount segments are
-// dropped; the user's real entries are preserved. When nothing but mount
-// segments remain the variable is removed entirely so consumers fall back to
-// their platform default (e.g. gsettings finds the host schemas instead of
-// reporting "No schemas installed"). See issues #1699 and #5059.
+// Strip only AppImage mount entries, preserving user paths. If none remain,
+// remove the variable so tools fall back to their host defaults.
 const APPIMAGE_PATH_LIKE_ENV_KEYS = [
   "PATH",
   "LD_LIBRARY_PATH",

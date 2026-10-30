@@ -1,16 +1,5 @@
-/**
- * Same-origin proxy in front of expo-device-hub.
- *
- * The hub binds loopback and is never reachable directly: serve-sim exposes a
- * shell-exec route and serve-emu's action routes are unauthenticated, so the
- * only way to a device stream is through this route, which requires an
- * environment session with read scope (operate scope for input and tuning). Reusing the Supaterm
- * origin is also what makes remote connections work unchanged — Tailscale and
- * LAN connections already carry `/api/*` and WebSocket upgrades for the app itself.
- *
- * Only the routes the Device panel needs are forwarded. Anything under the
- * hub's dashboard, exec, or WebRTC surface is rejected here.
- */
+// The loopback hub exposes unauthenticated controls, so forward only allowlisted
+// routes after environment auth: read for streams, operate for input and tuning.
 import { AuthOrchestrationReadScope, AuthOrchestrationOperateScope } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
