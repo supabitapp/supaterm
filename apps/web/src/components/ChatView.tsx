@@ -2965,6 +2965,10 @@ export default function ChatView(props: ChatViewProps) {
         if (!composerRef.current) return false;
         if (!repeat) composerRef.current.submit();
       },
+      "composer.voice": ({ repeat }) => {
+        if (!composerRef.current) return false;
+        if (!repeat) composerRef.current.toggleVoiceInput();
+      },
       "composer.toggleFastMode": ({ repeat }) => {
         if (repeat) return;
         const level = composerRef.current?.toggleFastMode() ?? null;
@@ -3020,7 +3024,7 @@ export default function ChatView(props: ChatViewProps) {
     scrollToEnd,
     setThreadError,
   });
-  const { onSend } = useComposerSend({
+  const { onSend, onSendVoice } = useComposerSend({
     environmentId,
     routeThreadKey,
     currentRouteThreadKeyRef,
@@ -3085,6 +3089,7 @@ export default function ChatView(props: ChatViewProps) {
   };
   const onWorktreeSetupWorkLocallyStable = useStableCallback(onWorktreeSetupWorkLocally);
   const onComposerSendStable = useStableCallback(onSend);
+  const onComposerSendVoiceStable = useStableCallback(onSendVoice);
   const sendPreviewAnnotation = (
     annotation: PreviewAnnotationPayload,
     image: ComposerImageAttachment | null,
@@ -3871,6 +3876,7 @@ export default function ChatView(props: ChatViewProps) {
                                   onPageScrollRelease={onComposerPageScrollReleaseStable}
                                   onCompactContext={onComposerCompactContextStable}
                                   onSend={onComposerSendStable}
+                                  onSendVoice={onComposerSendVoiceStable}
                                   onResume={onComposerResumeStable}
                                   onInterrupt={onInterruptStable}
                                   onRespondToApproval={onRespondToApprovalStable}

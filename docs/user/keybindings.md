@@ -30,6 +30,9 @@ To step a new thread to the next machine instead of opening the menu, bind
 The workspace menu includes the current checkout, a new worktree, and the previous
 worktree when available. Use `mod+shift+l` to reuse the previous worktree directly.
 
+`mod+shift+space` starts [voice input](./composer.md#voice-input) in the focused composer.
+Press it again to stop and review the transcript, or `Escape` to discard the recording.
+
 To change effort one step without opening the picker, bind
 **Composer: Increase Effort** and **Composer: Decrease Effort** in Keybindings.
 Both are unbound by default. Increase wraps from the highest level to the

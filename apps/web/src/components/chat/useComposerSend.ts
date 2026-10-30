@@ -30,7 +30,8 @@ import {
 import { captureOutboxAttachments } from "../../state/threadOutboxEditing";
 import { declinePendingApprovals } from "@supaterm/client-runtime/state/thread-requests";
 import { deriveThreadTitleSeed } from "@supaterm/client-runtime/operations";
-import { enqueueThreadOutboxTurns } from "../../state/threadOutbox";
+import { enqueueThreadOutboxTurn, enqueueThreadOutboxTurns } from "../../state/threadOutbox";
+import type { VoiceRecording } from "../../voice/webVoiceRecorder";
 import { ensureInlineContextReferences } from "../../lib/composerContextReferences";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { isUsageLimitsCommand } from "@supaterm/shared/usageLimits";
@@ -822,5 +823,30 @@ export function useComposerSend(input: ComposerSendInput) {
     sendInFlightRef.current = false;
   };
 
-  return { onSend };
+  /** The environment transcribes it and sends the text as this thread's next message. */
+  const onSendVoice = async (
+    recording: VoiceRecording,
+    dispatchMode: ComposerDispatchMode,
+    language: string,
+  ) => {
+    const sendCtx = composerRef.current?.getSendContext();
+    if (!activeThread || !isServerThread || isLocalDraftThread || !sendCtx) {
+      throw new Error("Voice messages need a thread that has started.");
+    }
+    await enqueueThreadOutboxTurn({
+      environmentId,
+      input: {
+        threadId: activeThread.id,
+        message: { messageId: newMessageId(), role: "user", text: "", attachments: [] },
+        modelSelection: sendCtx.selectedModelSelection,
+        runtimeMode,
+        interactionMode: sendCtx.interactionMode,
+        dispatchMode: dispatchMode === "steer" ? "auto" : dispatchMode,
+        createdAt: new Date().toISOString(),
+      },
+      voice: { audio: recording.audio, durationMs: recording.durationMs, language },
+    });
+  };
+
+  return { onSend, onSendVoice };
 }

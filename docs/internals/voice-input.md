@@ -1,19 +1,30 @@
 # Voice input
 
-Transcription edits a composer draft. Audio is temporary client input. When the
-user chooses to transcribe and send, the mobile composer waits for a successful
-draft insertion before invoking normal message submission with its current guards.
-Navigation cancels that send intent without discarding the transcript. Clients
-transcribe locally on supported iOS devices. The app clients don't use
-environment-backed transcription yet; `supaterm transcribe` and agents reach it
-through the `supaterm_transcription_*` MCP tools.
+Transcription edits a composer draft, or becomes a queued message. Audio is temporary
+client input. Clients record a 16 kHz mono 16-bit WAV, because the server never
+transcodes; the browser records in its own codec and converts when recording stops.
+
+Stopping for review uploads the recording without `submit` and inserts the returned text
+through the [shared controller](../../packages/client-runtime/src/voice-input/controller.ts).
+Sending a recording that would be the whole message hands it to the thread outbox instead
+(`controller.send()`), so it survives going offline or a reload and keeps its place among
+typed messages. On delivery the outbox prepares the upload with `submit`, and the server
+transcribes and dispatches it as the user's `message.dispatch`. The command id doubles as
+the upload id, so a repeated delivery joins the server's work instead of paying for another
+transcription. The outbox prepares only when it delivers, because an upload URL lives ten
+minutes and dies with the server process. Retrying a failed voice message re-enqueues it
+under a new command id: a transcription failure dispatched nothing, and the server keeps the
+failed outcome for the old id. When the draft holds anything else, the client transcribes
+first and sends through the normal send path, because a submitted upload carries only text.
 
 The server's [`Transcription`](../../apps/server/src/transcription/Transcription.ts)
 service transcribes an uploaded recording with the login of the provider instance the
-request names. It never falls back to another account. Clients upload a 16 kHz mono 16-bit
-WAV through the pending-attachment upload, because the server never transcodes. The upload
-id is the idempotency key, and the work belongs to the service, so a dropped connection
-stops only the wait. Resubmitting after a reconnect joins the running work or returns the
+request names, or the environment's `transcriptionProviderInstanceId` setting. It never
+falls back to another account. App clients upload through
+[`TranscriptionUploads`](../../apps/server/src/transcription/TranscriptionUploads.ts); agents
+and `supaterm transcribe` use the pending-attachment upload. The upload id is the
+idempotency key, and the work belongs to the service, so a dropped connection stops only the
+wait. Resubmitting after a reconnect joins the running work or returns the
 recorded outcome. Only a deliberate user action, such as trying again or switching source,
 should send `retry: true`, because a retry spends the account again.
 

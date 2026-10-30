@@ -140,6 +140,10 @@ import {
   type ComposerBannerStackContent,
   type ComposerBannerStackItem,
 } from "./ComposerBannerStack";
+import { ComposerVoiceButton, composerVoiceBannerItem } from "./ComposerVoiceInput";
+import { useComposerVoiceInput } from "../../voice/useComposerVoiceInput";
+import { resolveVoiceLanguage } from "../../voice/voiceLanguage";
+import type { VoiceRecording } from "../../voice/webVoiceRecorder";
 import {
   attachmentsToReleaseOnUploadCapabilityLoss,
   composerOtherFilesForPresentation,
@@ -328,6 +332,8 @@ export interface ChatComposerHandle {
   toggleFastMode: () => SpeedToggleLevel | null;
   /** Sends the draft as the send button would; does nothing when sending isn't possible. */
   submit: () => void;
+  /** Starts voice input, or stops it for review when it is recording. */
+  toggleVoiceInput: () => void;
   toggleModelPicker: () => void;
   openControl: (command: KeybindingCommand) => void;
   isModelPickerOpen: () => boolean;
@@ -498,6 +504,11 @@ export interface ChatComposerProps {
     dispatchMode?: ComposerDispatchMode,
     submissionIntent?: ComposerSubmissionIntent,
   ) => Promise<void>;
+  onSendVoice: (
+    recording: VoiceRecording,
+    dispatchMode: ComposerDispatchMode,
+    language: string,
+  ) => Promise<void>;
   onResume: () => void;
   onInterrupt: () => void;
   onRespondToApproval: (
@@ -556,7 +567,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     activeThread,
     activeThreadShell,
     promptHistoryMessages,
-    isServerThread: _isServerThread,
+    isServerThread,
     isLocalDraftThread: _isLocalDraftThread,
     forceExpandedOnMobile,
     projectSelectionRequired,
@@ -616,6 +627,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     onPageScrollRelease,
     onCompactContext,
     onSend,
+    onSendVoice,
     onResume,
     onInterrupt,
     onRespondToApproval,
@@ -1874,6 +1886,44 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   };
   const applyPromptReplacementStable = useStableCallback(applyPromptReplacement);
 
+  const voiceLanguage = resolveVoiceLanguage(settings.voiceLanguage);
+  const voiceDispatchMode = () =>
+    resolveComposerDispatchMode({
+      running: phase === "running",
+      alternateModifier: false,
+      activeTurnDefault: followUpBehavior,
+      canSteer: !isCompacting,
+    });
+  const voice = useComposerVoiceInput({
+    ownerKey: composerDraftTargetKey,
+    environmentId,
+    threadId: isServerThread && activeThread ? activeThread.id : null,
+    language: voiceLanguage.tag,
+    languageLabel: voiceLanguage.label,
+    readPrompt: () => promptRef.current,
+    readSelection: () =>
+      composerEditorRef.current?.readSelectionRange() ?? {
+        start: promptRef.current.length,
+        end: promptRef.current.length,
+      },
+    commitPrompt: (text, selection) =>
+      applyPromptReplacementStable(0, promptRef.current.length, text, {
+        expandedCursorAfterReplace: selection.start,
+      }),
+    canSendVoice:
+      isServerThread &&
+      activeThread !== undefined &&
+      multipleModelSelections === null &&
+      !isEditingQueuedMessage &&
+      activePendingProgress === null &&
+      pendingUserInputs.length === 0 &&
+      prompt.trim().length === 0 &&
+      composerImages.length === 0 &&
+      composerFiles.length === 0,
+    sendVoice: (recording) => onSendVoice(recording, voiceDispatchMode(), voiceLanguage.tag),
+    submit: () => void submitComposerStable(),
+  });
+
   const readComposerSnapshot = (): {
     value: string;
     cursor: number;
@@ -2097,6 +2147,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     submissionIntent?: ComposerSubmissionIntent,
   ): Promise<void> | null => {
     if (
+      voice.busy ||
       !canQueueSelectedProvider ||
       isSendDisabled ||
       !(activePendingProgress
@@ -2678,9 +2729,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         content: activityStackContent,
       }
     : null;
-  const bannerStackItems = activityStackItem
-    ? [activityStackItem, ...props.bannerItems]
-    : props.bannerItems;
+  const voiceBannerItem = composerVoiceBannerItem(voice);
+  const bannerStackItems = [
+    ...(activityStackItem ? [activityStackItem] : []),
+    ...(voiceBannerItem ? [voiceBannerItem] : []),
+    ...props.bannerItems,
+  ];
 
   const insertComposerText = (
     text: string,
@@ -3221,6 +3275,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         return change.level;
       },
       submit: () => submitComposerStable(),
+      toggleVoiceInput: voice.toggle,
       toggleModelPicker: () => {
         if (isComposerModelPickerOpen) {
           setIsComposerModelPickerOpen(false);
@@ -4024,6 +4079,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   className="flex shrink-0 flex-nowrap items-center justify-end gap-2"
                 >
                   {composerAttachButton}
+                  {showComposerAttachAction ? (
+                    <ComposerVoiceButton
+                      voice={voice}
+                      disabled={!canOperateThread || isConnecting}
+                      shortcutLabel={shortcutLabelForCommand(keybindings, "composer.voice")}
+                    />
+                  ) : null}
                   <ComposerFooterPrimaryActions
                     compact={isComposerResting || isComposerPrimaryActionsCompact}
                     canOperateThread={canOperateThread}
