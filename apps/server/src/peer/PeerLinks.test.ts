@@ -177,6 +177,11 @@ it.effect(
 
         yield* b.settings.updateSettings({ linkedEnvironmentsEnabled: true });
         yield* link;
+        yield* a.settings.updateSettings({ linkedEnvironmentsEnabled: false });
+        const before = yield* Ref.get(b.bearers);
+        expect((yield* probe(a).pipe(Effect.flip)).code).toBe("capability_denied");
+        expect(yield* Ref.get(b.bearers)).toEqual(before);
+        yield* a.settings.updateSettings({ linkedEnvironmentsEnabled: true });
         yield* b.settings.updateSettings({ linkedEnvironmentsEnabled: false });
         const waiting = yield* probe(a).pipe(Effect.flip);
         expect(waiting.code).toBe("orchestration_error");
