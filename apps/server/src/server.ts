@@ -1,3 +1,17 @@
+import * as DocumentText from "./provider/DocumentText.ts";
+import * as CodexManagedTokenBroker from "./provider/CodexManagedTokenBroker.ts";
+import * as PreviewAgentActivity from "./preview/PreviewAgentActivity.ts";
+import * as SourceControlSignIn from "./sourceControl/SourceControlSignIn.ts";
+import * as GuestShareService from "./guest/GuestShareService.ts";
+import * as GuestHttp from "./guest/http.ts";
+import * as SecretRequests from "./secrets/SecretRequests.ts";
+import * as PeerLinks from "./peer/PeerLinks.ts";
+import * as PeerMcpClient from "./peer/PeerMcpClient.ts";
+import * as PeerForwarding from "./peer/PeerForwarding.ts";
+import * as PeerLinkRequests from "./peer/PeerLinkRequests.ts";
+import * as RemoteDelegation from "./peer/RemoteDelegation.ts";
+import * as RemoteLaunchJournal from "./peer/RemoteLaunchJournal.ts";
+import * as RelayCompanion from "./relay/RelayCompanion.ts";
 import * as OrchestrationSkills from "./provider/OrchestrationSkills.ts";
 import * as ProviderEventLoggers from "@supaterm/provider-core/server/ProviderEventLoggers";
 import * as DatabaseStorage from "./persistence/DatabaseStorage.ts";
@@ -157,7 +171,8 @@ import * as ProjectionMaintenance from "./orchestration-v2/ProjectionMaintenance
 import * as ShellSyncGeneration from "./orchestration-v2/ShellSyncGeneration.ts";
 import * as ProjectionStoreV2 from "./orchestration-v2/ProjectionStore.ts";
 import { makePersistedServerRuntimeState } from "./serverRuntimeState.ts";
-import { loopbackUrlHostForAddress } from "./startupAccess.ts";
+import { TunnelSocket } from "@supaterm/shared/relay/tunnelNode";
+import { acceptsPrivateNetworkConnection, loopbackUrlHostForAddress } from "./startupAccess.ts";
 import * as OrchestrationHttp from "./orchestration-v2/http.ts";
 import * as ProjectHttp from "./project/http.ts";
 import * as NetService from "@supaterm/shared/Net";
@@ -260,6 +275,12 @@ const layerHttpServer = Layer.unwrap(
   Effect.gen(function* () {
     const config = yield* ServerConfig.ServerConfig;
     const server = guardHttpResponseWriteErrors(NodeHttp.createServer());
+    if (config.privateNetworkOnly) {
+      server.on("connection", (socket) => {
+        if (!(socket instanceof TunnelSocket) && !acceptsPrivateNetworkConnection(socket))
+          socket.destroy();
+      });
+    }
     return NodeHttpServer.layer(() => rejectRequestsUntilServing(server), {
       host: config.host ?? "127.0.0.1",
       port: config.port,
@@ -273,7 +294,7 @@ const layerHttpServer = Layer.unwrap(
   }),
 );
 
-const layerPlatformServices = NodeServices.layer;
+const layerPlatformServices = DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer));
 
 const layerPersistence = Layer.empty.pipe(Layer.provideMerge(SqlitePersistence.layerConfig));
 
@@ -363,6 +384,9 @@ const layerVcs = Layer.empty.pipe(
   Layer.provideMerge(layerGitWorkflow),
   Layer.provideMerge(layerReview),
   Layer.provideMerge(layerSourceControlRepositoryService),
+  Layer.provideMerge(
+    SourceControlSignIn.layer.pipe(Layer.provide(layerSourceControlProviderRegistry)),
+  ),
   Layer.provideMerge(layerProjectCloneTracker),
   Layer.provideMerge(
     VcsStatusBroadcaster.layer.pipe(
@@ -609,12 +633,29 @@ const layerRuntimeCoreDependencies = layerRuntimeCoreDependenciesBase.pipe(
   Layer.provideMerge(ProjectEnrichmentService.layer),
   Layer.provideMerge(Layer.mergeAll(NativeAppIconResolver.layer, layerProjectFaviconResolver)),
   Layer.provideMerge(layerRepositoryIdentityResolver),
+  Layer.provideMerge(CodexManagedTokenBroker.layer),
   Layer.provideMerge(layerServerEnvironment),
   Layer.provideMerge(layerAuth),
   Layer.provideMerge(ServerSecretStore.layer),
 );
 
-const layerRuntimeDependencies = layerRuntimeCoreDependencies.pipe(
+const layerPeerServices = Layer.effectDiscard(
+  RemoteDelegation.RemoteDelegation.pipe(Effect.flatMap((service) => service.start())),
+).pipe(
+  Layer.provideMerge(RemoteDelegation.layer),
+  Layer.provideMerge(Layer.mergeAll(PeerForwarding.layer, PeerLinkRequests.layer)),
+  Layer.provideMerge(PeerMcpClient.layer),
+  Layer.provideMerge(PeerLinks.layer),
+  Layer.provideMerge(RemoteLaunchJournal.layer),
+  Layer.provideMerge(RelayCompanion.layer()),
+);
+
+const layerRuntimeDependencies = Layer.mergeAll(
+  GuestShareService.layer,
+  SecretRequests.layer,
+  layerPeerServices,
+).pipe(
+  Layer.provideMerge(layerRuntimeCoreDependencies),
   Layer.provideMerge(layerUsage),
   Layer.provideMerge(layerBackground),
   Layer.provideMerge(layerResourceDiagnostics),
@@ -648,6 +689,7 @@ const layerMakeRoutes = Layer.mergeAll(
       Layer.provide(ServerHttp.layerServerEnvironmentHttpApi),
       Layer.provide(AuthHttp.layerAuthenticatedAuth),
     ),
+    GuestHttp.layer,
     ServerHttp.layerOtlpTracesProxyRoute,
     ServerHttp.layerAssetRoute,
     ServerHttp.layerAttachmentUploadRoute,
@@ -669,7 +711,11 @@ const layerMakeRoutes = Layer.mergeAll(
   // Both transports consume the same service instance, so caches single-flight across clients
   // and mutations observed on WebSocket invalidate patches subsequently read over HTTP.
   Layer.provide(layerPullRequestService),
-  Layer.provide(ServerBrowser.layer.pipe(Layer.provide(DesktopBrowserChannel.layer))),
+  Layer.provide(
+    ServerBrowser.layer.pipe(
+      Layer.provide(Layer.merge(DesktopBrowserChannel.layer, PreviewAgentActivity.layer)),
+    ),
+  ),
   Layer.provide(PreviewBrowser.layer),
   Layer.provide(PreviewAutomationBroker.layer),
   Layer.provide(ServerSelfUpdate.layer.pipe(Layer.provide(layerDesktopAppUpdate))),

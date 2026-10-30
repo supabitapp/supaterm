@@ -213,6 +213,10 @@ export const make = Effect.gen(function* () {
     serverVersion: packageJson.version,
     orchestrationProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION,
     capabilities: {
+      connectionProbe: true,
+      peerLinks: true,
+      mcpModeLimitHeader: true,
+      linkFence: true,
       fileAttachments: { maxUploadBytes: PROVIDER_SEND_TURN_MAX_FILE_BYTES },
       threadStop: true,
       queuedRunStart: true,

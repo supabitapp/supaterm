@@ -80,7 +80,11 @@ export const make = Effect.gen(function* () {
     return targets;
   });
 
-  return RemoteOpenTargets.of({ resolveTargets: () => resolveTargets });
+  return RemoteOpenTargets.of({
+    resolveTargets: Effect.fn("RemoteOpenTargets.resolveTargets")(function () {
+      return resolveTargets;
+    }),
+  });
 });
 
 export const layer = Layer.effect(RemoteOpenTargets, make);
