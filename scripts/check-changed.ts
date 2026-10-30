@@ -110,6 +110,13 @@ if (cached?.key === key) {
 
 const present = files.filter((file) => NodeFS.existsSync(NodePath.join(root, file)));
 const code = present.filter((file) => CODE.test(file));
+const lintAll = files.some(
+  (file) =>
+    file === "vite.config.ts" ||
+    file === "package.json" ||
+    file === "pnpm-lock.yaml" ||
+    file.startsWith("oxlint-plugin-supaterm/"),
+);
 const { affected, everything } = affectedPackages(files, readWorkspace(root));
 
 const TEST = /\.test\.[cm]?[jt]sx?$/;
@@ -242,7 +249,10 @@ const steps = [
     name: "format",
     args: ["fmt", "--check", "--no-error-on-unmatched-pattern", ...present],
   },
-  code.length > 0 && { name: "lint", args: ["lint", ...code] },
+  (lintAll || code.length > 0) && {
+    name: lintAll ? "lint (all files: tooling changed)" : "lint",
+    args: ["lint", "--report-unused-disable-directives", ...(lintAll ? [] : code)],
+  },
   runKnip && { name: "knip", args: ["run", "knip:check"] },
   ...graphql.map((dir) => ({
     name: `graphql (${dir})`,
