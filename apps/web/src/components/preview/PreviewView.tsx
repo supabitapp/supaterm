@@ -17,6 +17,7 @@ import {
 } from "@supaterm/contracts";
 import {
   normalizePreviewUrl,
+  isPreviewUrlNormalizationError,
   resolveAddressBarInput,
   previewPdfAssetUrl,
   resolveSearchUrlTemplate,
@@ -267,7 +268,17 @@ export function PreviewView({
       if (await navigateToResolvedUrl(resolved)) {
         recordVisitForThread(threadRef, resolved);
       }
-    } catch {}
+    } catch (error) {
+      toastManager.add({
+        type: "error",
+        title: "Could not open this address",
+        description: isPreviewUrlNormalizationError(error)
+          ? "Enter an http or https URL."
+          : error instanceof Error
+            ? error.message
+            : "An error occurred.",
+      });
+    }
   };
 
   const handleOpenServerUrl = async (next: string) => {
@@ -280,12 +291,19 @@ export function PreviewView({
         recordVisitForThread(threadRef, next);
       }
     } catch (error) {
-      if (error instanceof RelayHostBrowserUnavailableError)
-        toastManager.add({
-          type: "error",
-          title: "Unable to open preview",
-          description: error.message,
-        });
+      toastManager.add(
+        error instanceof RelayHostBrowserUnavailableError
+          ? { type: "error", title: "Unable to open preview", description: error.message }
+          : {
+              type: "error",
+              title: "Could not open this address",
+              description: isPreviewUrlNormalizationError(error)
+                ? "Enter an http or https URL."
+                : error instanceof Error
+                  ? error.message
+                  : "An error occurred.",
+            },
+      );
     }
   };
 
