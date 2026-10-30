@@ -133,8 +133,7 @@ vi.mock("expo-file-system", () => ({
   Paths: { document: { uri: "file:///documents" } },
 }));
 
-vi.mock("../lib/composerImages", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../lib/composerImages")>()),
+vi.mock("../lib/composerImages", () => ({
   removePersistedComposerAttachmentFile: composerAttachmentCleanupMocks.remove,
 }));
 
@@ -142,6 +141,15 @@ vi.mock("../lib/uuid", () => ({ uuidv4: () => "uuid", randomHex: () => "0000" })
 vi.mock("./assets", () => ({ assetEnvironment: {} }));
 vi.mock("./attachments", () => ({ attachmentEnvironment: {} }));
 vi.mock("./session", () => ({ environmentSession: {} }));
+vi.mock("./threads", async () => {
+  const { Atom } = await import("effect/reactivity");
+  const Option = await import("effect/Option");
+  return {
+    environmentThreadDetails: {
+      stateAtom: Atom.family(() => Atom.make({ data: Option.none(), sequence: 0 })),
+    },
+  };
+});
 vi.mock("@supaterm/client-runtime/state/runtime", () => ({
   createEnvironmentRpcCommand: () => Symbol("rpc-command"),
   executeAtomQuery: () => {
