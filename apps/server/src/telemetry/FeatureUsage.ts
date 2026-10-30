@@ -16,8 +16,12 @@ const use = (feature: string, variant?: string): FeatureUsage =>
 const COMMAND_FEATURES: {
   readonly [Type in OrchestrationV2Command["type"]]?: (
     command: Extract<OrchestrationV2Command, { readonly type: Type }>,
-  ) => FeatureUsage;
+  ) => FeatureUsage | undefined;
 } = {
+  "message.dispatch": (command) =>
+    command.guestMessageId === undefined ? undefined : { feature: "guest_message.send" },
+  "thread.guest-share.close": () => ({ feature: "guest_share.close" }),
+  "thread.guest-message.dismiss": () => ({ feature: "guest_message.dismiss" }),
   "checkpoint.rollback": (command) => ({
     feature: "checkpoint.rollback",
     variant: command.restoreFiles === false ? "conversation_only" : "with_files",
@@ -42,6 +46,7 @@ const COMMAND_FEATURES: {
 };
 
 const METHOD_FEATURES: Readonly<Record<string, (payload: Payload) => FeatureUsage>> = {
+  [WS_METHODS.guestShareCreate]: () => ({ feature: "guest_share.create" }),
   [WS_METHODS.terminalOpen]: () => ({ feature: "terminal.open" }),
   [WS_METHODS.previewOpen]: () => ({ feature: "preview.open" }),
   [WS_METHODS.deviceOpen]: () => ({ feature: "device.open" }),
@@ -63,7 +68,7 @@ const METHOD_FEATURES: Readonly<Record<string, (payload: Payload) => FeatureUsag
 
 export function commandFeatureUsage(command: OrchestrationV2Command): FeatureUsage | undefined {
   const mapping = COMMAND_FEATURES[command.type] as
-    | ((command: OrchestrationV2Command) => FeatureUsage)
+    | ((command: OrchestrationV2Command) => FeatureUsage | undefined)
     | undefined;
   return mapping?.(command);
 }

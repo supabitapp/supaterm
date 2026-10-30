@@ -148,8 +148,7 @@ const recordMetrics =
     }
   });
 
-// Durations come from the monotonic clock, so wall-clock corrections cannot skew them, and
-// metrics are recorded in an exit finalizer, so interrupted work is counted as "interrupt".
+// Monotonic timing ignores clock corrections; exit finalizers count interruptions.
 const withMetricsImpl = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
   options: WithMetricsOptions,
@@ -174,3 +173,7 @@ export const withCommandMetrics = <A, E, R>(
     timer: orchestrationCommandDuration,
     attributes: { commandType: command.type },
   });
+
+export const secretRequestsTotal = Metric.counter("supaterm_secret_requests_total", {
+  description: "Private secret requests by outcome.",
+});

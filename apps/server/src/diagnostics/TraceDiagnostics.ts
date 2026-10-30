@@ -376,9 +376,6 @@ export function makeTraceDiagnosticsAggregator(
   return { addLine, finish };
 }
 
-/**
- * Succeeds with false when the file does not exist.
- */
 export function streamTraceFileLines(
   fileSystem: FileSystem.FileSystem,
   path: string,
@@ -404,7 +401,7 @@ export function streamTraceFileLines(
   );
 }
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
 
