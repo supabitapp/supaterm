@@ -246,7 +246,7 @@ const OlderSettledTitleRow = Schema.Struct({
   latestUserMessageAt: Schema.NullOr(IsoDateTime),
 });
 
-export const make = Effect.gen(function* () {
+const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
 
   const searchRows = SqlSchema.findAll({

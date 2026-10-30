@@ -18,7 +18,7 @@ export const indexedMessageCondition = (sql: SqlClient.SqlClient, row = "message
   )
 `);
 
-export const indexedMessageText = (sql: SqlClient.SqlClient, payload: string) =>
+const indexedMessageText = (sql: SqlClient.SqlClient, payload: string) =>
   sql.literal(`replace(replace(json_extract(${payload}, '$.text'), '’', ''''), '‘', '''')`);
 
 export const rebuildMessageSearch = Effect.fn("MessageSearchIndex.rebuild")(function* (

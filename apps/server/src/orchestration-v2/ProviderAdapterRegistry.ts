@@ -332,15 +332,3 @@ export const makeRegistryFromConfigMap = Effect.fn(
   const entries = yield* buildAdaptersFromConfigMap({ ...input, parentScope });
   return makeRegistry(Array.from(entries.values()).map((entry) => entry.adapter));
 });
-
-export function layerFromDrivers<R>(input: {
-  readonly drivers: ReadonlyArray<AnyProviderAdapterDriver<R>>;
-  readonly configMap: ProviderInstanceConfigMap;
-}): Layer.Layer<ProviderAdapterRegistryV2, ProviderAdapterRegistryBuildError, R> {
-  return Layer.effect(
-    ProviderAdapterRegistryV2,
-    makeRegistryFromConfigMap(input).pipe(
-      Effect.map((registry) => ProviderAdapterRegistryV2.of(registry)),
-    ),
-  ) as Layer.Layer<ProviderAdapterRegistryV2, ProviderAdapterRegistryBuildError, R>;
-}
