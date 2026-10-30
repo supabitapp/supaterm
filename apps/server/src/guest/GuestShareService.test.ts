@@ -1,3 +1,18 @@
+// @effect-diagnostics nodeBuiltinImport:off - connects the real Node HTTP adapter to encrypted in-memory tunnel sessions without a listener.
+import * as NodeHttp from "node:http";
+import * as NodeCrypto from "node:crypto";
+import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
+import * as HttpRouter from "effect/http/HttpRouter";
+import {
+  acceptClientHandshake,
+  createClientHandshake,
+  relayPublicKey,
+  relayHttpBaseUrl,
+} from "@supaterm/shared/relay/protocol";
+import { createTunnelSession } from "@supaterm/shared/relay/tunnel";
+import { TunnelSocket } from "@supaterm/shared/relay/tunnelNode";
+import { createGuestTransport } from "../../../web/src/components/guest/guestTransport.ts";
+import * as GuestHttp from "./http.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import {
@@ -1209,4 +1224,82 @@ it.effect("keeps a connected guest's images while other shares come and go", () 
     yield* Stream.runDrain(Stream.take(yield* guestShares.stream(next.token), 2));
     assert.equal((yield* guestShares.media(next.token, shot)).mimeType, "image/png");
   }).pipe(Effect.scoped, Effect.provide(layerTest)),
+);
+
+it.effect("joins and submits through the encrypted guest HTTP transport", () =>
+  Effect.gen(function* () {
+    const { guestShares, credential } = yield* shareThread;
+    const http = yield* HttpRouter.toHttpEffect(GuestHttp.layer);
+    const handler = yield* NodeHttpServer.makeHandler(http, { scope: yield* Effect.scope });
+    const server = NodeHttp.createServer(handler);
+    const secret = NodeCrypto.randomBytes(32);
+    const handshake = createClientHandshake(relayPublicKey(secret), NodeCrypto.randomBytes);
+    const accepted = acceptClientHandshake(handshake.hello, secret, NodeCrypto.randomBytes);
+    const host = createTunnelSession({
+      initiator: false,
+      cipher: accepted.cipher,
+      send: (bytes) => queueMicrotask(() => client.receive(bytes)),
+      onStream: (stream) => server.emit("connection", new TunnelSocket(stream)),
+    });
+    const client = createTunnelSession({
+      initiator: true,
+      cipher: handshake.finish(accepted.welcome),
+      send: (bytes) => queueMicrotask(() => host.receive(bytes)),
+    });
+    const transport = createGuestTransport(
+      { address: relayHttpBaseUrl(relayPublicKey(secret)), relayUrl: "wss://relay.example" },
+      null,
+      () => ({
+        open: async () => client.open(),
+        session: async () => client,
+        close: () => {
+          client.close();
+          host.close();
+        },
+      }),
+    );
+    yield* Effect.addFinalizer(() =>
+      Effect.sync(() => {
+        transport.close();
+        server.close();
+      }),
+    );
+    const joined = yield* Effect.promise(async () => {
+      assert.equal((await transport.request("/api/guest/session?share=fixture")).status, 403);
+      const response = await transport.request("/api/guest/redeem", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ credential, name: "Local verification guest" }),
+      });
+      assert.equal(response.status, 200);
+      return (await response.json()) as { token: string; shareId: string };
+    });
+    transport.setToken(joined.token);
+    yield* guestShares.check(joined.token);
+    yield* Effect.promise(async () => {
+      assert.equal(
+        (await transport.request(`/api/guest/session?share=${joined.shareId}`)).status,
+        204,
+      );
+      const response = await transport.request(`/api/guest/messages?share=${joined.shareId}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ shareId: joined.shareId, text: "Please review this." }),
+      });
+      assert.equal(response.status, 204);
+    });
+    const [opening] = yield* (yield* guestShares.stream(joined.token)).pipe(
+      Stream.take(1),
+      Stream.runCollect,
+    );
+    if (opening?.type !== "view") return assert.fail("Expected the shared thread view.");
+    assert.equal(opening.view.guestName, "Local verification guest");
+    assert.deepInclude(opening.view.messages[0], {
+      text: "Please review this.",
+      status: "pending",
+    });
+  }).pipe(
+    Effect.scoped,
+    Effect.provide(Layer.mergeAll(layerTest, NodeHttpServer.layerHttpServices)),
+  ),
 );

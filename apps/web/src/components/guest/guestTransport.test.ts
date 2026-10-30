@@ -1,3 +1,6 @@
+// @effect-diagnostics nodeBuiltinImport:off - exercises the production tunnel against Node HTTP parsing without opening a listener.
+import * as NodeHttp from "node:http";
+import { TunnelSocket } from "@supaterm/shared/relay/tunnelNode";
 import { describe, expect, it } from "vite-plus/test";
 import {
   acceptClientHandshake,
@@ -12,7 +15,7 @@ const encode = new TextEncoder();
 const decode = new TextDecoder();
 const random = (size: number) => crypto.getRandomValues(new Uint8Array(size));
 
-function fixture(response: string | Uint8Array) {
+function fixture(response: string | Uint8Array | NodeHttp.Server) {
   const secret = random(32);
   const handshake = createClientHandshake(relayPublicKey(secret), random);
   const accepted = acceptClientHandshake(handshake.hello, secret, random);
@@ -26,13 +29,25 @@ function fixture(response: string | Uint8Array) {
       queueMicrotask(() => client.receive(bytes));
     },
     onStream(stream) {
-      const chunks: string[] = [];
+      if (response instanceof NodeHttp.Server) {
+        response.emit("connection", new TunnelSocket(stream));
+        return;
+      }
+      const chunks: Uint8Array[] = [];
+      let received = 0;
+      let expected: number | undefined;
       stream.onData = (bytes) => {
-        chunks.push(decode.decode(bytes));
+        chunks.push(bytes);
+        received += bytes.length;
         stream.consumed(bytes.length);
-      };
-      stream.onEnd = () => {
-        requests.push(chunks.join(""));
+        if (expected === undefined) {
+          const head = decode.decode(bytes);
+          const headerEnd = head.indexOf("\r\n\r\n");
+          if (headerEnd >= 0)
+            expected = headerEnd + 4 + Number(/content-length: (\d+)/.exec(head)?.[1]);
+        }
+        if (received !== expected) return;
+        requests.push(Buffer.concat(chunks).toString("utf8"));
         stream.write(typeof response === "string" ? encode.encode(response) : response);
         stream.end();
       };
@@ -157,4 +172,44 @@ describe("encrypted guest HTTP", () => {
       }
     }
   });
+});
+
+it("redeems a guest through the production tunnel and Node HTTP body reader", async () => {
+  const submissions: unknown[] = [];
+  const failures: unknown[] = [];
+  const server = NodeHttp.createServer((request, response) => {
+    void (async () => {
+      if (request.method === "GET") {
+        response.writeHead(403);
+        response.end();
+        return;
+      }
+      const chunks: Uint8Array[] = [];
+      for await (const chunk of request) chunks.push(chunk);
+      submissions.push(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ joined: true }));
+    })().catch((error: unknown) => {
+      failures.push(error);
+      response.destroy();
+    });
+  });
+  const { transport } = fixture(server);
+  try {
+    expect((await transport.request("/api/guest/session?share=test")).status).toBe(403);
+    const response = await transport.request("/api/guest/redeem", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ credential: "fixture-invite", name: "Local verification guest" }),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ joined: true });
+    expect(submissions).toEqual([
+      { credential: "fixture-invite", name: "Local verification guest" },
+    ]);
+    expect(failures).toEqual([]);
+  } finally {
+    transport.close();
+    server.close();
+  }
 });

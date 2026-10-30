@@ -274,7 +274,6 @@ function readResponse(
         if (ended) break;
         await write(body.subarray(offset, offset + 64 * 1024));
       }
-      if (!ended) stream.end();
     };
     void send().catch((error) =>
       fail(error instanceof Error ? error : new Error("Guest request failed.")),
