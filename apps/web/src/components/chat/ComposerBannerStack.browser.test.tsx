@@ -140,6 +140,15 @@ describe("notice exits", () => {
     expect(banners()).toEqual([["b", "entering"]]);
   });
 
+  it("leaves with the content a notice last showed", async () => {
+    await using _fixture = await setup();
+
+    await mountStack([{ ...a, title: "Opening" }]);
+    await update([{ ...a, title: "Transcribing" }]);
+    await update([]);
+    expect(banners()).toEqual([["Transcribing", "exiting"]]);
+  });
+
   it("swaps the activity row without motion", async () => {
     await using _fixture = await setup();
 
@@ -164,7 +173,7 @@ describe("notice exits", () => {
 
     await act(async () => dismiss().click());
     expect(onDismiss).toHaveBeenCalledOnce();
-    expect(dismiss().disabled).toBe(true);
+    expect(dismiss().closest("[inert]")).not.toBeNull();
 
     await act(async () => finishExits());
     expect(container.childElementCount).toBe(0);

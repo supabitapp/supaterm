@@ -435,7 +435,9 @@ function ComposerBannerStackAlert({
   const presence = {
     "data-enter": entering ? "" : undefined,
     "data-ending-style": exiting ? "" : undefined,
+    inert: exiting || undefined,
   };
+  // Items change content under a stable id; an exit keeps what was last shown, not the item the stack first stored.
   if ("content" in item) {
     return (
       <ComposerBanner.Root
@@ -444,7 +446,9 @@ function ComposerBannerStackAlert({
         variant={item.variant}
         {...presence}
       >
-        {item.content}
+        <ComposerBanner.LastOpenContent open={!exiting}>
+          {item.content}
+        </ComposerBanner.LastOpenContent>
       </ComposerBanner.Root>
     );
   }
@@ -456,43 +460,44 @@ function ComposerBannerStackAlert({
       density="comfortable"
       {...presence}
     >
-      <ComposerBanner.Row layout={item.priority === "activity" ? "inline" : "wrap-actions"}>
-        <ComposerBanner.Icon
-          className="h-(--composer-banner-icon-column) self-start"
-          aria-hidden={item.iconInteractive ? undefined : true}
-        >
-          {item.icon}
-        </ComposerBanner.Icon>
-        <ComposerBanner.Content className="whitespace-nowrap">
-          <NoticeText
-            detailsLabel="Show title details"
-            className="min-w-0 truncate font-medium leading-7 sm:leading-6"
+      <ComposerBanner.LastOpenContent open={!exiting}>
+        <ComposerBanner.Row layout={item.priority === "activity" ? "inline" : "wrap-actions"}>
+          <ComposerBanner.Icon
+            className="h-(--composer-banner-icon-column) self-start"
+            aria-hidden={item.iconInteractive ? undefined : true}
           >
-            {item.title}
-          </NoticeText>
-          {item.description ? (
+            {item.icon}
+          </ComposerBanner.Icon>
+          <ComposerBanner.Content className="whitespace-nowrap">
             <NoticeText
-              detailsLabel="Show notice details"
-              className="w-0 min-w-0 grow truncate text-muted-foreground @max-[400px]:sr-only"
+              detailsLabel="Show title details"
+              className="min-w-0 truncate font-medium leading-7 sm:leading-6"
             >
-              {item.description}
+              {item.title}
             </NoticeText>
-          ) : null}
-        </ComposerBanner.Content>
-        {item.actions || item.onDismiss ? (
-          <ComposerBanner.Actions>
-            {item.actions}
-            {item.onDismiss ? (
-              <ComposerBanner.Dismiss
-                aria-label={item.dismissLabel ?? "Dismiss warning"}
-                disabled={exiting}
-                onClick={onDismissRequest}
-              />
+            {item.description ? (
+              <NoticeText
+                detailsLabel="Show notice details"
+                className="w-0 min-w-0 grow truncate text-muted-foreground @max-[400px]:sr-only"
+              >
+                {item.description}
+              </NoticeText>
             ) : null}
-          </ComposerBanner.Actions>
-        ) : null}
-      </ComposerBanner.Row>
-      {item.children ? <ComposerBanner.Children>{item.children}</ComposerBanner.Children> : null}
+          </ComposerBanner.Content>
+          {item.actions || item.onDismiss ? (
+            <ComposerBanner.Actions>
+              {item.actions}
+              {item.onDismiss ? (
+                <ComposerBanner.Dismiss
+                  aria-label={item.dismissLabel ?? "Dismiss warning"}
+                  onClick={onDismissRequest}
+                />
+              ) : null}
+            </ComposerBanner.Actions>
+          ) : null}
+        </ComposerBanner.Row>
+        {item.children ? <ComposerBanner.Children>{item.children}</ComposerBanner.Children> : null}
+      </ComposerBanner.LastOpenContent>
     </ComposerBanner.Root>
   );
 }
