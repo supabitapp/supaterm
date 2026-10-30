@@ -2,7 +2,10 @@ import { toHtml } from "hast-util-to-html";
 import { disposeHighlighter, getSharedHighlighter, type DiffsHighlighter } from "@pierre/diffs";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
+import { resolveDiffThemeName } from "./diffRendering";
 import { createIncrementalHighlightedDocument } from "./incrementalHighlighting";
+
+const themes = [resolveDiffThemeName("dark"), resolveDiffThemeName("light")];
 
 const samples = {
   typescript: "/* multi\nline comment */\nconst x = `template\n${1 + 2}`;\nconst re = /abc/;\n",
@@ -30,7 +33,7 @@ describe.each(["highlights", "shiki-wasm"] as const)(
     beforeAll(async () => {
       highlighter = await getSharedHighlighter({
         langs: Object.keys(samples) as Array<keyof typeof samples>,
-        themes: ["pierre-dark", "pierre-light"],
+        themes,
         preferredHighlighter: engine,
       });
     });
@@ -38,7 +41,7 @@ describe.each(["highlights", "shiki-wasm"] as const)(
     it.each(Object.entries(samples))(
       "matches full HTML at every streaming prefix in %s",
       (language, code) => {
-        for (const theme of ["pierre-dark", "pierre-light"] as const) {
+        for (const theme of themes) {
           const highlight = createIncrementalHighlightedDocument(highlighter, language, theme);
           for (let end = 0; end <= code.length; end++) {
             const text = code.slice(0, end);
