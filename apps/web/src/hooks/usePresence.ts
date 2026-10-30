@@ -2,14 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { animationsSettled } from "~/lib/motion";
 
-/**
- * Keeps the last non-null `value` rendered while its element plays an exit
- * transition. Spread `props` on that element: it carries `data-ending-style`
- * while exiting, matching Base UI popups, and `data-enter` when the value
- * arrived after mount, so `data-enter:starting:` styles never replay on first
- * paint. Unmount waits for the element's own animations, so `transition: none`
- * unmounts immediately.
- */
+/** Retains exiting content until its DOM animations finish; enter styles skip the first paint. */
 export function usePresence<T>(value: T | null | undefined) {
   const live = value ?? null;
   const [retained, setRetained] = useState(live);
@@ -18,6 +11,7 @@ export function usePresence<T>(value: T | null | undefined) {
   const exiting = live === null && retained !== null;
   const elementRef = useRef<HTMLElement | null>(null);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Waits for the exiting DOM element's animations before releasing its content.
   useEffect(() => {
     if (!exiting) return;
     let cancelled = false;

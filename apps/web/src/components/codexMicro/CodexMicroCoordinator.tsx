@@ -92,6 +92,7 @@ function ActiveCodexMicroCoordinator({ bridge }: { readonly bridge: DesktopCodex
     connectedEnvironmentIds,
   });
   const sentViewsKeyRef = useRef<string | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Synchronizes the keyboard lighting and its mounted slot registry with the visible thread bindings.
   useEffect(() => {
     const key = JSON.stringify(views);
     if (key === sentViewsKeyRef.current) return;
@@ -99,9 +100,9 @@ function ActiveCodexMicroCoordinator({ bridge }: { readonly bridge: DesktopCodex
     publishCodexMicroSlots(views);
     void bridge.setLighting(buildCodexMicroLightingModel(views)).catch(() => undefined);
   }, [bridge, views]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Releases the mounted keyboard slot registry so a remount republishes its bindings.
   useEffect(
     () => () => {
-      // A remount (StrictMode, or an Activity boundary) must publish again after this clears.
       sentViewsKeyRef.current = null;
       publishCodexMicroSlots([]);
     },
@@ -154,6 +155,7 @@ function ActiveCodexMicroCoordinator({ bridge }: { readonly bridge: DesktopCodex
     }
   });
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Subscribes to hardware input through the desktop bridge while the coordinator is mounted.
   useEffect(() => bridge.onInput(handleInput), [bridge, handleInput]);
 
   return null;

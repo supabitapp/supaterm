@@ -44,6 +44,7 @@ export function InlineConfirmLabel({
     readonly confirm: number;
   } | null>(null);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Measures both DOM labels and observes their resizing to animate the confirmation width.
   useLayoutEffect(() => {
     const idleLabel = idleRef.current;
     const confirmLabel = confirmRef.current;
