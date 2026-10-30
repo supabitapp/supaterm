@@ -216,13 +216,13 @@ const awaitRequest = (socket: TestWebSocket, index = 0) =>
 const completeInitialConfig = Effect.fn("TestRpcSessionFactory.completeInitialConfig")(function* (
   socket: TestWebSocket,
   config: unknown = ENCODED_SERVER_CONFIG,
-  payload: unknown = {},
+  payload: Parameters<RpcSession.RpcSession["subscribeServerConfig"]>[0] = {},
 ) {
   const request = yield* awaitRequest(socket);
   expect(request).toMatchObject({
     _tag: "Request",
     tag: WS_METHODS.subscribeServerConfig,
-    payload,
+    payload: { ...payload, workspaceSnapshotsOnDemand: true },
   });
   socket.serverMessage(
     encodeJson({
@@ -248,6 +248,17 @@ const publishConfigEvents = Effect.fn("TestRpcSessionFactory.publishConfigEvents
 });
 
 describe("RpcSessionFactory", () => {
+  it.effect("requests provider workspace snapshots on demand", () =>
+    Effect.gen(function* () {
+      const { factory, sockets } = yield* makeFactory();
+      yield* factory.connect(PREPARED);
+      const socket = yield* awaitSocket(sockets);
+      socket.open();
+      const request = yield* awaitRequest(socket);
+      expect(request.payload).toMatchObject({ workspaceSnapshotsOnDemand: true });
+    }),
+  );
+
   it.effect(
     "projects live relay changes and replays withdrawal on the shared config subscription",
     () =>
@@ -357,7 +368,6 @@ describe("RpcSessionFactory", () => {
         message: "Test environment disconnected.",
       });
       expect(configStreamError).toMatchObject({ _tag: "RpcClientError" });
-      yield* Effect.yieldNow;
       expect(sockets).toHaveLength(1);
     }),
   );
@@ -392,12 +402,18 @@ describe("RpcSessionFactory", () => {
         yield* completeInitialConfig(socket);
         yield* Fiber.join(readyFiber);
 
-        const collectTwo = session
-          .subscribeServerConfig({})
-          .pipe(Stream.take(2), Stream.runCollect);
-        const firstSubscriber = yield* Effect.forkChild(collectTwo);
-        const secondSubscriber = yield* Effect.forkChild(collectTwo);
-        yield* Effect.yieldNow;
+        const firstSubscribed = yield* Deferred.make<void>();
+        const secondSubscribed = yield* Deferred.make<void>();
+        const collectTwo = (subscribed: Deferred.Deferred<void>) =>
+          session.subscribeServerConfig({}).pipe(
+            Stream.tap(() => Deferred.succeed(subscribed, undefined)),
+            Stream.take(2),
+            Stream.runCollect,
+          );
+        const firstSubscriber = yield* Effect.forkChild(collectTwo(firstSubscribed));
+        const secondSubscriber = yield* Effect.forkChild(collectTwo(secondSubscribed));
+        yield* Deferred.await(firstSubscribed);
+        yield* Deferred.await(secondSubscribed);
 
         const shortcut = {
           key: "k",
