@@ -545,27 +545,6 @@ importers:
       '@supaterm/mobile-terminal-native':
         specifier: file:./modules/supaterm-terminal
         version: file:apps/mobile/modules/supaterm-terminal
-      '@supaterm/provider-acp-registry':
-        specifier: workspace:*
-        version: link:../../packages/provider-acp-registry
-      '@supaterm/provider-core':
-        specifier: workspace:*
-        version: link:../../packages/provider-core
-      '@supaterm/provider-cursor':
-        specifier: workspace:*
-        version: link:../../packages/provider-cursor
-      '@supaterm/provider-grok':
-        specifier: workspace:*
-        version: link:../../packages/provider-grok
-      '@supaterm/provider-muse':
-        specifier: workspace:*
-        version: link:../../packages/provider-muse
-      '@supaterm/provider-opencode':
-        specifier: workspace:*
-        version: link:../../packages/provider-opencode
-      '@supaterm/provider-pi':
-        specifier: workspace:*
-        version: link:../../packages/provider-pi
       '@supaterm/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -1349,30 +1328,12 @@ importers:
       '@supaterm/shared':
         specifier: workspace:*
         version: link:../shared
-      '@supaterm/source-control-azure-devops':
-        specifier: workspace:*
-        version: link:../source-control-azure-devops
-      '@supaterm/source-control-bitbucket':
-        specifier: workspace:*
-        version: link:../source-control-bitbucket
       '@supaterm/source-control-core':
         specifier: workspace:*
         version: link:../source-control-core
       '@supaterm/source-control-definitions':
         specifier: workspace:*
         version: link:../source-control-definitions
-      '@supaterm/source-control-forgejo':
-        specifier: workspace:*
-        version: link:../source-control-forgejo
-      '@supaterm/source-control-gitcafe':
-        specifier: workspace:*
-        version: link:../source-control-gitcafe
-      '@supaterm/source-control-github':
-        specifier: workspace:*
-        version: link:../source-control-github
-      '@supaterm/source-control-gitlab':
-        specifier: workspace:*
-        version: link:../source-control-gitlab
       '@types/three':
         specifier: 0.180.0
         version: 0.180.0
