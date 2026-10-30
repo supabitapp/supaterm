@@ -33,7 +33,7 @@ export interface ThreadFindState {
   readonly localSelection: ThreadFindLocalSelection | null;
 }
 
-export const CLOSED_THREAD_FIND: ThreadFindState = {
+const CLOSED_THREAD_FIND: ThreadFindState = {
   threadKey: null,
   query: "",
   offset: 0,
@@ -47,7 +47,7 @@ export const CLOSED_THREAD_FIND: ThreadFindState = {
 const makeStore = () => create<ThreadFindState>(() => CLOSED_THREAD_FIND);
 export const useThreadFindStore = makeStore();
 const scopedStores = new Map<string, ReturnType<typeof makeStore>>();
-export function currentThreadFindScope(): string {
+function currentThreadFindScope(): string {
   return useChatPaneStore.getState().layout?.focusedPaneId ?? "root";
 }
 export function getThreadFindStore(scope = currentThreadFindScope()) {

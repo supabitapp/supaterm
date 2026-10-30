@@ -181,7 +181,7 @@ export function synchronizeTerminalOutput(
   return update.cursor;
 }
 
-export function synchronizeTerminalSession(
+function synchronizeTerminalSession(
   terminal: Pick<GhosttyTerminalSurface, "resetAndWrite" | "write" | "clearSelection">,
   previous: Pick<TerminalSessionState, "output" | "version" | "error">,
   session: Pick<TerminalSessionState, "output" | "version" | "error">,

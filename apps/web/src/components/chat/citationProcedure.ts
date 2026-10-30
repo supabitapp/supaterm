@@ -55,7 +55,7 @@ const UNAVAILABLE = {
  * detail is settled (loaded and no history page in flight), or with null when
  * the signal aborts.
  */
-export async function loadCitedHistory(input: {
+async function loadCitedHistory(input: {
   readonly signal: AbortSignal;
   readonly readThread: () => Promise<CitedThreadSnapshot | null>;
   readonly loadThrough: () => Promise<HistoryPageResult>;
@@ -113,7 +113,7 @@ type ThreadDetail<K extends keyof typeof environmentThreadDetails> = Atom.Type<
  * settling. A thread that failed to load before any projection arrived counts
  * as settled, so the citation fails instead of waiting on the stream's retries.
  */
-export function citedThreadSnapshot(input: {
+function citedThreadSnapshot(input: {
   readonly thread: ThreadDetail<"quietThreadAtom">;
   readonly history: ThreadDetail<"historyAtom">;
   readonly status: ThreadDetail<"statusAtom">;

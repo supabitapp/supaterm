@@ -2,7 +2,6 @@ import type { MessageId, ThreadId } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { AsyncResult, Atom } from "effect/reactivity";
-import type { SetStateAction } from "react";
 import type { ChatMessage } from "../../types";
 import { collectUserMessageBlobPreviewUrls } from "../ChatView.logic";
 
@@ -43,20 +42,6 @@ export function reconcileOptimisticUserMessages(
     if (previewUrls.length > 0) handoff[message.id] = previewUrls;
   }
   return { ...state, messages, handoff };
-}
-
-/** Applies a send-path update. An update for a thread the view has since left is dropped. */
-export function applyOptimisticUserMessagesAction(
-  state: OptimisticUserMessages,
-  threadId: ThreadId,
-  action: SetStateAction<ChatMessage[]>,
-): OptimisticUserMessages {
-  if (state.threadId !== threadId) return state;
-  const next = typeof action === "function" ? action(state.messages) : action;
-  const unchanged =
-    next.length === state.messages.length &&
-    next.every((message, index) => message === state.messages[index]);
-  return unchanged ? state : { ...state, messages: next };
 }
 
 export function dropOptimisticHandoff(
