@@ -1,7 +1,7 @@
 import { PlayIcon, WrapTextIcon } from "@supaterm/icons";
 import { Check, Copy } from "@supaterm/icons/nodes";
 import { toHtml } from "hast-util-to-html";
-import React, { use, useEffect, useState, type ReactNode } from "react";
+import React, { use, useState, type ReactNode } from "react";
 
 import { useIncrementalHighlightedDocument } from "../../hooks/useIncrementalHighlightedDocument";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
@@ -372,16 +372,14 @@ function UncachedShikiCodeBlock({
     }
   })();
 
-  useEffect(() => {
-    if (!isStreaming) {
-      const highlightedHtml = typeof highlighted === "string" ? highlighted : toHtml(highlighted);
-      highlightedCodeCache.set(
-        cacheKey,
-        highlightedHtml,
-        estimateHighlightedSize(highlightedHtml, code),
-      );
-    }
-  }, [cacheKey, code, highlighted, isStreaming]);
+  if (!isStreaming) {
+    const highlightedHtml = typeof highlighted === "string" ? highlighted : toHtml(highlighted);
+    highlightedCodeCache.set(
+      cacheKey,
+      highlightedHtml,
+      estimateHighlightedSize(highlightedHtml, code),
+    );
+  }
 
   return typeof highlighted === "string" ? (
     <div className="chat-markdown-shiki" dangerouslySetInnerHTML={{ __html: highlighted }} />
