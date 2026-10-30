@@ -12,11 +12,12 @@ import type { ThreadQueueRowControls } from "./threadQueueControlPresentation";
 const THUMBNAIL_LIMIT = 3;
 const TOUCH_SLOP = 10;
 
-export type QueueMessageAction = "steer" | "edit" | "up" | "down" | "remove";
+export type QueueMessageAction = "steer" | "edit" | "remove";
 
 export function ThreadQueueMessage(props: {
   readonly environmentId: EnvironmentId;
   readonly title: string;
+  readonly guestName?: string;
   readonly attachments: ReadonlyArray<ChatAttachment>;
   readonly controls: ThreadQueueRowControls;
   readonly canPromoteToSteer: boolean;
@@ -29,7 +30,7 @@ export function ThreadQueueMessage(props: {
       ? [
           {
             id: "steer",
-            title: props.canSendNow ? "Send now" : "Steer now",
+            title: "Send now",
             attributes: { disabled: !props.controls.canSend },
             image: Platform.OS === "ios" ? "arrow.turn.left.up" : "arrow_upward",
           },
@@ -41,8 +42,6 @@ export function ThreadQueueMessage(props: {
       attributes: { disabled: !props.controls.canEdit },
       image: Platform.OS === "ios" ? "pencil" : "edit",
     },
-    { id: "up", title: "Move up", attributes: { disabled: !props.controls.canMoveUp } },
-    { id: "down", title: "Move down", attributes: { disabled: !props.controls.canMoveDown } },
     {
       id: "remove",
       title: "Remove",
@@ -97,6 +96,11 @@ export function ThreadQueueMessage(props: {
       >
         {props.controls.isEditing ? (
           <Text className="text-xs text-foreground-muted">Editing in composer</Text>
+        ) : null}
+        {props.guestName ? (
+          <Text className="font-supaterm-medium text-xs text-adaptive-fuchsia-600-300">
+            {props.guestName}
+          </Text>
         ) : null}
         <Text className="text-base text-foreground" numberOfLines={3}>
           {props.title}
