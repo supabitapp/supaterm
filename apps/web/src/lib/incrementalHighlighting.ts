@@ -79,6 +79,7 @@ export function createIncrementalHighlightedDocument(
     stream ??= highlighter.createStreamTokenizer({ lang: language, theme });
     const result = stream.enqueue(input.slice(source.length));
     if (result instanceof Promise) {
+      void result.catch(() => undefined);
       dispose();
       return highlightCodeDocument(highlighter, code, language, theme);
     }

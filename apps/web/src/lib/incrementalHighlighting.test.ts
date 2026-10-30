@@ -51,6 +51,28 @@ describe.each(["highlights", "shiki-wasm"] as const)(
       },
     );
 
+    it("handles a rejected async tokenizer while returning the full highlight", async () => {
+      const tokenizer = highlighter.createStreamTokenizer({
+        lang: "typescript",
+        theme: "pierre-dark",
+      });
+      vi.spyOn(tokenizer, "enqueue").mockImplementation(() =>
+        Promise.reject(new Error("tokenizer failed")),
+      );
+      vi.spyOn(highlighter, "createStreamTokenizer").mockReturnValue(tokenizer);
+      const highlight = createIncrementalHighlightedDocument(
+        highlighter,
+        "typescript",
+        "pierre-dark",
+      );
+      const code = "const value = 1;";
+      expect(toHtml(highlight(code))).toBe(
+        highlighter.codeToHtml(code, { lang: "typescript", theme: "pierre-dark" }),
+      );
+      await Promise.resolve();
+      highlight.dispose();
+    });
+
     it("keeps completed lines while a newline-terminated last line grows", () => {
       const completed = "/* open\ncomment */\n";
       const current = "const current = `a\nb`;";
