@@ -1415,18 +1415,23 @@ export function createThreadOutboxDelivery(): {
             return true;
           }
         }
-        return deliveryAction === "remove"
-          ? creation !== undefined
-            ? // After restart, always recover delivered creations; lost in-memory state cannot distinguish edits from duplicate payloads.
-              recoverEditedCreationAfterDelivery(nextQueuedMessage)
-            : removeQueuedMessage("[thread-outbox] failed to remove message for a missing thread")
-          : creation !== undefined
-            ? creationProjectCwd !== null
-              ? sendQueuedCreation(nextQueuedMessage, creation, creationProjectCwd)
-              : removeQueuedMessage("[thread-outbox] dropped pending task for a missing project")
-            : thread !== undefined
-              ? sendQueuedMessage(nextQueuedMessage, thread)
-              : Promise.resolve(false);
+        if (deliveryAction === "remove") {
+          if (creation !== undefined) return recoverEditedCreationAfterDelivery(nextQueuedMessage);
+          return removeQueuedMessage(
+            "[thread-outbox] failed to remove message for a missing thread",
+          );
+        }
+        if (creation !== undefined) {
+          if (creationProjectCwd === null) {
+            return removeQueuedMessage(
+              "[thread-outbox] dropped pending task for a missing project",
+            );
+          }
+          return sendQueuedCreation(nextQueuedMessage, creation, creationProjectCwd);
+        }
+        return thread !== undefined
+          ? sendQueuedMessage(nextQueuedMessage, thread)
+          : Promise.resolve(false);
       });
       settle(messageId, delivery);
       return;
