@@ -247,6 +247,7 @@ export function useThreadFind({
       refreshLiveResultsRef.current();
     }, 300);
   }, [content, isOpen, state.query]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the pending refresh timer when the thread, open state or query changes
   useEffect(() => {
     if (!isOpen || threadKey === null || !state.query.trim()) return;
     return () => {

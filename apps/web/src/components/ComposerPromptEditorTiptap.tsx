@@ -1477,6 +1477,7 @@ function ComposerPromptEditorTiptapInner(
     [],
   );
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pushes the disabled prop into the imperative Tiptap editor via setEditable
   useEffect(() => {
     editor?.setEditable(!disabled);
   }, [disabled, editor]);
@@ -1487,6 +1488,7 @@ function ComposerPromptEditorTiptapInner(
   // geometry in layout effects that run first, and it clamps the prompt
   // through `className`, so the attributes are pushed to the view here for
   // those measurements to see the layout they are about to reserve for.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pushes DOM attributes into the ProseMirror view before layout measurements read them
   useLayoutEffect(() => {
     if (!editor?.isInitialized) return;
     editor.view.setProps({ attributes: editorAttributes });
@@ -1549,6 +1551,7 @@ function ComposerPromptEditorTiptapInner(
 
   // The one place the controlled value reaches the editor. Imperative handlers compare against
   // the committed value, so it is recorded here even before the editor exists.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- writes the controlled value and cursor into the Tiptap document before paint
   useLayoutEffect(() => {
     latestValueRef.current = value;
     if (!editor) return;
@@ -1633,6 +1636,7 @@ function ComposerPromptEditorTiptapInner(
   ]);
 
   // Reconcile loaded or switched provider skills without rebuilding citation node views.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- replaces skill chip nodes in the Tiptap document when the provider skill list loads or changes
   useEffect(() => {
     if (!editor || literalText) return;
     const replacements = skillChipReplacements(editor.state.doc, (name) =>
@@ -1641,6 +1645,7 @@ function ComposerPromptEditorTiptapInner(
     if (replacements.length > 0) replaceSkillChips(editor, replacements);
   }, [editor, literalText, skills]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- restores ProseMirror focus and caret scroll when the keyed editor remounts, capturing focus on teardown
   useLayoutEffect(() => {
     if (!editor) return;
     if (restoreFocusRef.current) {

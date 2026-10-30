@@ -3,6 +3,12 @@ import { latestExecutedRun } from "@supaterm/shared/orchestrationV2ThreadError";
 
 export type ThreadActivityStatus = "working" | "approval" | "input" | "idle";
 
+export const THREAD_STATUS_TEXT = {
+  working: "Working",
+  approval: THREAD_STATUS_TEXT.approval,
+  input: THREAD_STATUS_TEXT.input,
+} as const;
+
 export interface ThreadActivitySnapshot {
   readonly status: ThreadActivityStatus;
   /** The pending approval or question, when there is one. */
@@ -37,7 +43,7 @@ const STARTING_RUN_STATUSES: ReadonlySet<OrchestrationV2RunStatus | null> = new 
   "starting",
 ]);
 
-function runOutcomeText(status: OrchestrationV2RunStatus | null): string | null {
+export function runOutcomeText(status: OrchestrationV2RunStatus | null): string | null {
   switch (status) {
     case "completed":
       return "Done";
@@ -129,13 +135,13 @@ export function nextThreadAnnouncement(
       next.status === "approval"
         ? previous.snapshot.status === "approval" && previous.snapshot.requestId === next.requestId
           ? null
-          : "Needs approval"
+          : THREAD_STATUS_TEXT.approval
         : next.status === "input"
           ? previous.snapshot.status === "input" && previous.snapshot.requestId === next.requestId
             ? null
-            : "Needs your input"
+            : THREAD_STATUS_TEXT.input
           : turnStarted
-            ? "Working"
+            ? THREAD_STATUS_TEXT.working
             : null;
     return { memory: { ...memory, turnRunId: nextTurnRunId }, announcement };
   }

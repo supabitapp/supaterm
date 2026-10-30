@@ -84,6 +84,7 @@ export function useThreadFindNavigation({
     key: null,
     pages: new Set(),
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- requests earlier history pages until the active match's entry is loaded
   useEffect(() => {
     if (requestedPagesRef.current.key !== matchKey)
       requestedPagesRef.current = { key: matchKey, pages: new Set() };

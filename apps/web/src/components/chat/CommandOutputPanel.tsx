@@ -73,6 +73,7 @@ export function CommandOutputPanel(props: {
   const { resolvedTheme } = useTheme();
 
   // This panel only re-renders when its output changes, so keep the end in view after each.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pins the output scroller's scrollTop to the bottom after each commit while the user follows
   useLayoutEffect(() => {
     const element = scrollRef.current;
     if (element && followRef.current) element.scrollTop = element.scrollHeight;

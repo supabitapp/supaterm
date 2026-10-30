@@ -635,6 +635,7 @@ function TerminalSessionViewport({
 
   // Links re-read the grant on activation; only the hovered link's styling needs a nudge.
   const linkActivationScopeRef = useRef(canOpenHostEditor);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- refreshes link activation styling on the imperative terminal surface when the editor grant changes
   useEffect(() => {
     if (linkActivationScopeRef.current === canOpenHostEditor) return;
     linkActivationScopeRef.current = canOpenHostEditor;
@@ -648,6 +649,7 @@ function TerminalSessionViewport({
     if (visible) consumePendingTerminalFocus(threadRef, terminalId, paneId);
   }, [terminalId, threadRef, visible, paneId]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- applies font family and size changes to the live Ghostty terminal surface
   useEffect(() => {
     const current = terminalFontRef.current;
     if (current.family === terminalFontFamily && current.size === terminalFontSize) return;
@@ -1699,6 +1701,7 @@ export default function ThreadTerminalDrawer({
       setResizeEpoch((value) => value + 1);
     },
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- measures the drawer before visible paint and observes window and chat column resizes while visible
   useLayoutEffect(() => {
     if (!visible) {
       return;

@@ -486,6 +486,7 @@ function useChatMarkdownState({
   }
   // A layout cleanup runs in the commit that changes scope, so a request resolving
   // before paint cannot reach a parent onImageExpand either.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- layout cleanup invalidates media requests still loading for the old scope before paint
   useLayoutEffect(
     () => () => {
       mediaRequestId.current += 1;

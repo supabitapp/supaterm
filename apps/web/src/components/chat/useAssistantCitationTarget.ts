@@ -108,12 +108,14 @@ export function useAssistantCitationTarget({
     return { target, activate, retire, attachDismissal };
   }
   const activatedRef = useRef<CitationNavigation | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- retires the replaced citation scroll and activates the new one, releasing the timeline follow
   useEffect(() => {
     if (activatedRef.current === current) return;
     activatedRef.current?.retire();
     activatedRef.current = current;
     current?.activate();
   }, [current]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes document and viewport listeners that dismiss the pending citation scroll
   useEffect(() => current?.attachDismissal(viewport), [current, viewport]);
 
   const settled = current !== null && settlement?.target === current.target ? settlement : null;
