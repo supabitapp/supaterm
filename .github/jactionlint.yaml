@@ -4,6 +4,9 @@ rules:
       "actions/*": ref-pin
 
 ignores:
+  - rule: dangerous-triggers
+    file: .github/workflows/mobile-fingerprint-label.yml
+    reason: Runs only trusted workflow code and reads a size-limited artifact as validated platform names before labeling the current matching PR head.
   - rule: [dangerous-triggers, concurrency-limits]
     file: .github/workflows/{web,desktop-macos}-preview-publish.yml
     reason: Trusted half of a PR preview. It runs only main's code, publishes only for vouched authors, and serializes per PR in job-level groups.
