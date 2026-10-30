@@ -18,7 +18,8 @@ and stop verification. Do not install or switch to another automation system.
 ## Use an isolated backend
 
 Reuse this task's healthy backend. Otherwise run `vp run dev` from the
-repository root, retain its terminal session, and read the actual backend port
+repository root with `--home-dir "$PWD/.supaterm"` when outside a linked worktree.
+Retain its terminal session and read the actual backend port
 from the dev-runner output. Use the worktree's ignored `.supaterm` state. Never run
 against `~/.supaterm/userdata`. The Browser panel is not required for this workflow.
 
@@ -31,11 +32,19 @@ when inspecting or seeding SQLite. Stop the test server before fixture writes.
 From the checkout being tested on the selected device host, run:
 
 ```bash
-node scripts/mobile-native-client.ts ensure <ios|android> <device-id>
+vp run mobile:install <ios|android> [device-id]
 ```
 
-This reuses a matching native client or builds and installs one. Authorized
-mobile verification includes that build step unless the user prohibits it.
+This installs the client matching the checkout's native fingerprint from cache
+or builds it when missing. Omit the device ID only when exactly one target is
+available. Its JSON result names the build log and any next step. Authorized
+mobile verification includes that step unless the user prohibits it.
+
+For an existing AgentDevice session, run
+`vp run mobile:install <ios|android> --session <session>` from that session's
+directory. This installs a cached build without building. Supply `--abi arm64-v8a`
+for an ARM Android target; `--metro <url>` also opens the app against Metro.
+Keep using the launcher and target arguments returned by `device_open`.
 
 Start `vp run dev:client` from `apps/mobile`, or reuse a healthy Metro belonging
 to this checkout. Open its printed development-client URL with AgentDevice
