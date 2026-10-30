@@ -112,13 +112,11 @@ vi.mock(import("../ui/toast"), async (original) => {
   return { ...actual, toastManager: { ...actual.toastManager, add: state.toast } };
 });
 // These sections have separate data sources and their own tests.
-vi.mock(import("./ProjectDefaultsSettings"), async (original) => ({
-  ...(await original()),
-  ProjectDefaultsSettings: (() => null) as never,
+vi.mock(import("./ProjectDefaultsSettings"), () => ({
+  ProjectDefaultsSettings: () => <></>,
 }));
-vi.mock(import("./ProjectActionsSettings"), async (original) => ({
-  ...(await original()),
-  ProjectActionsSettings: (() => null) as never,
+vi.mock(import("./ProjectActionsSettings"), () => ({
+  ProjectActionsSettings: () => <></>,
 }));
 
 vi.mock(import("../files/projectFilesQueryState"), async (original) => ({

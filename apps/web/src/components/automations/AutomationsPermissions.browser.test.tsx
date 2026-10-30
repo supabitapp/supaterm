@@ -123,21 +123,17 @@ vi.mock(import("@effect/atom-react"), async (original) => {
   };
 });
 // Pickers and icons that read live provider and git state are out of scope here.
-vi.mock(import("../EnvironmentMachineIcon"), async (original) => ({
-  ...(await original()),
-  EnvironmentMachineIcon: (() => null) as never,
+vi.mock(import("../EnvironmentMachineIcon"), () => ({
+  EnvironmentMachineIcon: () => <></>,
 }));
-vi.mock(import("../WorktreeBaseBranchPicker"), async (original) => ({
-  ...(await original()),
-  WorktreeBaseBranchPicker: (() => null) as never,
+vi.mock(import("../WorktreeBaseBranchPicker"), () => ({
+  WorktreeBaseBranchPicker: () => <></>,
 }));
-vi.mock(import("../chat/ProviderModelPicker"), async (original) => ({
-  ...(await original()),
-  ProviderModelPicker: (() => null) as never,
+vi.mock(import("../chat/ProviderModelPicker"), () => ({
+  ProviderModelPicker: () => <></>,
 }));
-vi.mock(import("../settings/ScopeSentence"), async (original) => ({
-  ...(await original()),
-  ScopeSentence: (() => null) as never,
+vi.mock(import("../settings/ScopeSentence"), () => ({
+  ScopeSentence: () => <></>,
 }));
 vi.mock(import("../ui/sidebar"), async (original) => ({
   ...(await original()),
