@@ -4,7 +4,8 @@ import {
   type OrchestrationSkillsStatus,
   type ServerSettingsPatch,
 } from "@supaterm/contracts";
-import { AsyncResult } from "effect/reactivity";
+import { RegistryContext } from "@effect/atom-react";
+import { AsyncResult, AtomRegistry } from "effect/reactivity";
 import type { ReactNode } from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -46,15 +47,6 @@ vi.mock("react-native", () => ({
       {children}
     </button>
   ),
-}));
-vi.mock("@effect/atom-react", () => ({
-  useAtomValue: () => AsyncResult.success({}),
-  useAtomSet: () => () => {},
-}));
-vi.mock("../../state/preferences", () => ({
-  mobilePreferencesAtom: {},
-  showSkillsInSlashMenuAtom: {},
-  updateMobilePreferencesAtom: {},
 }));
 vi.mock("./components/AutoMarkDoneDaysField", () => ({ AutoMarkDoneDaysField: () => null }));
 vi.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ bottom: 0 }) }));
@@ -210,6 +202,11 @@ function environment(environmentId: string, label: string) {
 
 let root: Root;
 let container: HTMLDivElement;
+let registry: AtomRegistry.AtomRegistry;
+
+function render(screen: ReactNode) {
+  root.render(<RegistryContext.Provider value={registry}>{screen}</RegistryContext.Provider>);
+}
 
 function skillsStatus(installed: boolean): OrchestrationSkillsStatus {
   return {
@@ -242,6 +239,7 @@ beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   container = document.createElement("div");
   root = createRoot(container);
+  registry = AtomRegistry.make();
   mocks.targets = [environment("local", "Local")];
   mocks.projectSelected = false;
   mocks.alert.mockReset();
@@ -268,13 +266,14 @@ beforeEach(() => {
 
 afterEach(() => {
   act(() => root.unmount());
+  registry.dispose();
 });
 
 describe("SettingsServerControlsRouteScreen", () => {
   it("sends a draft saved during a pending write once that write settles", async () => {
     const pending = Promise.withResolvers<AsyncResult.Success<void>>();
     mocks.updateSettings.mockReturnValueOnce(pending.promise);
-    act(() => root.render(<SettingsWorktreesRouteScreen />));
+    act(() => render(<SettingsWorktreesRouteScreen />));
 
     act(() => mocks.branchNaming.onChange({ branchNamingMode: "custom" }));
 
@@ -294,7 +293,7 @@ describe("SettingsServerControlsRouteScreen", () => {
 
   it("installs and removes orchestration skills only in permitted selected environments", async () => {
     mocks.targets = [environment("local", "Local"), environment("remote", "Remote")];
-    await act(async () => root.render(<SettingsThreadsRouteScreen />));
+    await act(async () => render(<SettingsThreadsRouteScreen />));
     expect(button("Install").disabled).toBe(false);
     await act(async () => button("Install").click());
     expect(mocks.skillsInstall).toHaveBeenCalledExactlyOnceWith({
@@ -312,7 +311,7 @@ describe("SettingsServerControlsRouteScreen", () => {
   });
 
   it("loads the newly selected environment before offering skill actions", async () => {
-    await act(async () => root.render(<SettingsThreadsRouteScreen />));
+    await act(async () => render(<SettingsThreadsRouteScreen />));
     expect(button("Install").disabled).toBe(false);
     await act(async () => {
       mocks.targets = [environment("remote", "Remote")];
