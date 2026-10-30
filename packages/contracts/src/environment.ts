@@ -88,6 +88,8 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
       foreground runs). */
   serverSelfUpdate: ForwardCompatibleOptional(ServerSelfUpdateCapability),
   threadStop: Schema.optionalKey(Schema.Boolean),
+  /** Serves `orchestration.forceStopThread`; hide Force stop where it is absent. */
+  threadForceStop: Schema.optionalKey(Schema.Boolean),
   /** Absent on older servers and on Windows hosts, which cannot stop a discovered server. */
   localServerStop: Schema.optionalKey(Schema.Boolean),
   /** The server accepts queued-run.start, which sends one held message now. */

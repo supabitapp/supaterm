@@ -65,6 +65,8 @@ export const CLIENT_GUARDED_RPC_SCOPES = {
   [WS_METHODS.mcpAppsUpdateModelContext]: AuthOrchestrationOperateScope,
   [WS_METHODS.previewReportProfiles]: AuthPreviewOperateScope,
   [ORCHESTRATION_V2_WS_METHODS.stopWorkflow]: AuthOrchestrationOperateScope,
+  // Force stop kills agent processes, as Stop on a terminal does.
+  [ORCHESTRATION_V2_WS_METHODS.forceStopThread]: AuthOrchestrationOperateScope,
   // Suggesting runs a model on this environment's providers, which reading the thread does not.
   [ORCHESTRATION_V2_WS_METHODS.suggestNextPrompt]: AuthOrchestrationOperateScope,
 } as const;

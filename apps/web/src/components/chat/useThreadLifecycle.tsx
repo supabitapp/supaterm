@@ -61,9 +61,18 @@ import {
   backgroundWorkBannerItem,
   childInputBannerItem,
   goalBannerItem,
+  runStopBannerItem,
 } from "./ThreadActivityBanners";
+import { useForceStopThread } from "./useForceStopThread";
+import { useAtomValue } from "@effect/atom-react";
+import type { RunStopPresentation } from "@supaterm/client-runtime/state/thread-execution";
+import { Atom } from "effect/reactivity";
+import { environmentThreadDetails } from "../../state/threads";
 
 const RELATED_THREAD_SHELL_WAIT_MS = 1_000;
+const NO_RUN_STOP_ATOM = Atom.make<RunStopPresentation | null>(null).pipe(
+  Atom.withLabel("web-thread-run-stop:empty"),
+);
 
 type PendingThreadRequests = ReturnType<typeof usePendingThreadRequests>;
 
@@ -466,6 +475,22 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
           onSendCommand: sendStandaloneCommandStable,
         })
       : null;
+  const forceStop = useForceStopThread(environmentId);
+  const anyRunStop = useAtomValue(
+    activeThreadRef ? environmentThreadDetails.runStopAtom(activeThreadRef) : NO_RUN_STOP_ATOM,
+  );
+  // A background Stop matters only while that work is still pending.
+  const runStop = anyRunStop?.background && activeBackgroundTasks.length === 0 ? null : anyRunStop;
+  const runStopBanner =
+    activeThread && runStop !== null
+      ? runStopBannerItem({
+          threadId: activeThread.id,
+          stop: runStop,
+          canForceStop: forceStop.canForceStop,
+          forceStopping: forceStop.stoppingThreadId === activeThread.id,
+          onForceStop: () => void forceStop.forceStopThread(activeThread.id, runStop.runId),
+        })
+      : null;
   // One watched run colors the dot; with more, no one run speaks for the banner.
   const backgroundWorkWatches = serverProjection?.thread.workflowRunWatches ?? [];
   const backgroundWorkBanner = activeThread
@@ -563,8 +588,9 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   return {
     shortcuts,
     activeBranchMismatchKey,
-    backgroundWorkBanner,
-    childInputBanner,
+    // A Stop that went unanswered needs the user; one in progress is the thread's work.
+    backgroundWorkBanner: runStop?.state === "stopping" ? runStopBanner : backgroundWorkBanner,
+    childInputBanner: runStop?.state === "unresponsive" ? runStopBanner : childInputBanner,
     goalBanner,
     handleSwitchCheckoutToThreadStable,
     isRestoringThreadBranch,

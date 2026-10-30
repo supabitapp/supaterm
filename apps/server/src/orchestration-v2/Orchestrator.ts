@@ -568,6 +568,7 @@ function commandThreadId(command: OrchestrationV2ServerCommand): ThreadId {
     case "checkpoint.rollback":
     case "checkpoint.rollback.fail":
     case "thread.background-work.settle":
+    case "thread.interrupt.unresponsive":
     case "thread.stop":
     case "provider.switch":
       return command.threadId;
@@ -9731,7 +9732,10 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           run,
           rootNode,
           providerThread,
-          reason: yield* runInterruptReason(input.command, input.events, run.id),
+          reason:
+            (input.command.type === "thread.background-work.settle"
+              ? input.command.reason
+              : undefined) ?? (yield* runInterruptReason(input.command, input.events, run.id)),
           completedAt: input.now,
         }),
       });
@@ -9990,6 +9994,55 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       });
     }
   });
+
+  const dispatchInterruptUnresponsive = Effect.fn("Orchestrator.dispatchInterruptUnresponsive")(
+    function* (
+      command: Extract<
+        OrchestrationV2InternalCommand,
+        { readonly type: "thread.interrupt.unresponsive" }
+      >,
+      events: Ref.Ref<Array<OrchestrationV2DomainEvent>>,
+    ) {
+      const { providerTurn } = yield* projectionStore
+        .getProviderControlContext(command.threadId, {
+          providerThreadId: command.providerThreadId,
+          providerTurnId: command.providerTurnId,
+        })
+        .pipe(mapDispatchError(command));
+      const { runs } = yield* projectionStore
+        .getThreadRecords(command.threadId, ["runs"])
+        .pipe(mapDispatchError(command));
+      const run = runs.find(
+        (candidate) =>
+          providerTurn !== undefined && candidate.activeAttemptId === providerTurn.runAttemptId,
+      );
+      // A settled run still counts: Stop may have targeted its background work.
+      if (run === undefined) return;
+      const { turnItems } = yield* projectionStore
+        .getThreadRecords(command.threadId, ["turnItems"], {
+          turnItemTypes: ["run_interrupt_request", "run_interrupt_result"],
+          turnItemRunIds: [run.id],
+        })
+        .pipe(mapDispatchError(command));
+      // A provider that stopped late already wrote the result; it needs no Force stop.
+      if (turnItems.some((item) => item.type === "run_interrupt_result")) return;
+      const request = turnItems.find((item) => item.type === "run_interrupt_request");
+      if (request?.type !== "run_interrupt_request" || request.unresponsiveAt !== undefined) return;
+      const now = yield* DateTime.now;
+      yield* emit(
+        events,
+        command,
+      )({
+        type: "turn-item.updated",
+        threadId: command.threadId,
+        runId: run.id,
+        ...(request.nodeId === null ? {} : { nodeId: request.nodeId }),
+        providerInstanceId: run.providerInstanceId,
+        occurredAt: now,
+        payload: { ...request, unresponsiveAt: now, updatedAt: now },
+      });
+    },
+  );
 
   const dispatchBackgroundWorkSettle = Effect.fn("Orchestrator.dispatchBackgroundWorkSettle")(
     function* (
@@ -12387,6 +12440,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       case "thread.background-work.settle":
         yield* dispatchBackgroundWorkSettle(command, events, effects);
         break;
+      case "thread.interrupt.unresponsive":
+        yield* dispatchInterruptUnresponsive(command, events);
+        break;
       case "thread.fork":
         yield* dispatchThreadFork(command, events);
         break;
@@ -12504,6 +12560,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           planned.events.length > 0 ||
           command.type === "thread.background-work.settle" ||
           command.type === "thread.user-input.auto-dismiss" ||
+          command.type === "thread.interrupt.unresponsive" ||
           command.type === "thread.stop" ||
           command.type === "subagent.stop",
         (_planned) =>

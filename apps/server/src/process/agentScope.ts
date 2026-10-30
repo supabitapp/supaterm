@@ -211,7 +211,11 @@ export const make = Effect.gen(function* () {
     }),
   );
 
-  const scopeByOwner = new Map<string, { unit: string; oomKilled: boolean }>();
+  // `shared` scopes serve other threads too: tracked only for OOM diagnosis on old systemd.
+  const scopeByOwner = new Map<
+    string,
+    { unit: string; oomKilled: boolean; shared: boolean; owner: string | undefined }
+  >();
 
   const readScope = Effect.fn("agentScope.readScope")(function* (systemctl: string, unit: string) {
     const shown = yield* run(systemctl, [
@@ -273,10 +277,12 @@ export const make = Effect.gen(function* () {
     systemctl: string,
     threadId: string,
     unit: string | undefined,
+    shared = false,
+    owner?: string,
   ) {
     const previous = scopeByOwner.get(threadId);
     scopeByOwner.delete(threadId);
-    if (unit !== undefined) scopeByOwner.set(threadId, { unit, oomKilled: false });
+    if (unit !== undefined) scopeByOwner.set(threadId, { unit, oomKilled: false, shared, owner });
     if (previous !== undefined) yield* forget(systemctl, previous.unit);
     if (scopeByOwner.size > MAX_TRACKED_SCOPES) yield* evictOldest(systemctl);
   });
@@ -314,6 +320,45 @@ export const make = Effect.gen(function* () {
     },
   );
 
+  const killUnit = Effect.fn("AgentScope.killUnit")(function* (systemctl: string, unit: string) {
+    const shown = yield* run(systemctl, [
+      "--user",
+      "show",
+      unit,
+      "--property=ActiveState,ControlGroup",
+    ]);
+    if (shown._tag === "None" || shown.value.code !== 0) return false;
+    const values = parseKeyValues(shown.value.stdout);
+    if (values.get("ActiveState") !== "active") return false;
+    const controlGroup = values.get("ControlGroup") ?? "";
+    // cgroup.kill (Linux 5.14+) kills the whole tree at once; systemd's kill is the fallback.
+    const killedByCgroup =
+      controlGroup.length > 0 &&
+      (yield* fileSystem
+        .writeFileString(path.join("/sys/fs/cgroup", controlGroup, "cgroup.kill"), "1")
+        .pipe(
+          Effect.as(true),
+          Effect.orElseSucceed(() => false),
+        ));
+    if (killedByCgroup) return true;
+    const killed = yield* run(systemctl, ["--user", "kill", "--signal=SIGKILL", unit]);
+    return killed._tag === "Some" && killed.value.code === 0;
+  });
+
+  // A thread's sessions may each have their own scope; shared scopes serve other threads too.
+  const kill: AgentScopeShape["kill"] = Effect.fn("AgentScope.kill")(function* (threadId) {
+    const owned = [...scopeByOwner.values()].filter(
+      (tracked) => tracked.owner === threadId && !tracked.shared,
+    );
+    if (owned.length === 0) return false;
+    const scope = yield* systemd;
+    if (scope === undefined) return false;
+    const killed = yield* Effect.forEach(owned, (tracked) =>
+      killUnit(scope.systemctl, tracked.unit),
+    );
+    return killed.some(Boolean);
+  });
+
   const clear: AgentScopeShape["clear"] = Effect.fn("agentScope.clear")(
     function* (threadId, sessionId) {
       const key = scopeKey(threadId, sessionId);
@@ -347,6 +392,8 @@ export const make = Effect.gen(function* () {
           scope.systemctl,
           scopeKey(threadId ?? "", sessionId),
           owned ? unit : undefined,
+          shared === true,
+          threadId,
         );
       const systemdScope: AgentSystemdScope = {
         systemdRun: scope.systemdRun,
@@ -364,6 +411,7 @@ export const make = Effect.gen(function* () {
       return agentScopeCommand({ command: resolved, args, scope: systemdScope });
     }),
     oomKilled,
+    kill,
     clear,
   } satisfies AgentScopeShape;
 });

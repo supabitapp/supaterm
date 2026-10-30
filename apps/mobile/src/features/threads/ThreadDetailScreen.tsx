@@ -48,6 +48,7 @@ import type {
   ScopedThreadRef,
   ServerConfig as SupatermServerConfig,
   UsageLimitsReport,
+  RunId,
 } from "@supaterm/contracts";
 import {
   appendCodexArtifactTemplateUsePrompt,
@@ -144,7 +145,9 @@ import {
 import { appAtomRegistry } from "../../state/atom-registry";
 import { threadStreamHaptics } from "./threadStreamHaptics";
 import { useAtomCommand } from "../../state/use-atom-command";
+import { orchestrationEnvironment } from "../../state/orchestration";
 import { useDelayedStatus } from "../../lib/useDelayedStatus";
+import type { RunStopPresentation } from "@supaterm/client-runtime/state/thread-execution";
 import {
   threadFeedRunIsUnsettled,
   type PendingApproval,
@@ -382,6 +385,10 @@ const threadVisitTracker = createThreadVisitTracker({
   visit: threadEnvironment.visit,
 });
 
+const NO_RUN_STOP_ATOM = Atom.make<RunStopPresentation | null>(null).pipe(
+  Atom.withLabel("mobile-thread-run-stop:empty"),
+);
+
 // Anchors, follow state and pending scrolls belong to one thread, so the body
 // remounts when the thread changes.
 export function ThreadDetailScreen(props: ThreadDetailScreenProps) {
@@ -567,6 +574,50 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
   const reopenThread = useAtomCommand(threadEnvironment.reopen, { reportFailure: false });
   const updateMetadata = useAtomCommand(threadEnvironment.updateMetadata, { reportFailure: false });
   const visitThread = useAtomCommand(threadEnvironment.visit, { reportFailure: false });
+  const anyRunStop = useAtomValue(
+    selectedThreadDetailRef === null
+      ? NO_RUN_STOP_ATOM
+      : environmentThreadDetails.runStopAtom(selectedThreadDetailRef),
+  );
+  // A background Stop matters only while that work is still pending.
+  const runStop =
+    anyRunStop?.background && props.selectedThread.pendingBackgroundTasks.length === 0
+      ? null
+      : anyRunStop;
+  const forceStopThread = useAtomCommand(orchestrationEnvironment.forceStopThread, {
+    reportFailure: false,
+  });
+  const canForceStop =
+    useAtomValue(orchestrationEnvironment.forceStopThread.permissionAtom(props.environmentId)) &&
+    props.serverConfig?.environment.capabilities.threadForceStop === true;
+  const [forceStoppingKey, setForceStoppingKey] = useState<string | null>(null);
+  // The run that ignored Stop, so a confirmation left open cannot hit a newer run.
+  const forceStop = async (runId: RunId | undefined) => {
+    const threadKey = selectedThreadKey;
+    setForceStoppingKey(threadKey);
+    const result = await forceStopThread({
+      environmentId: props.environmentId,
+      input:
+        runId === undefined
+          ? { threadId: props.selectedThread.id }
+          : { threadId: props.selectedThread.id, runId },
+    });
+    setForceStoppingKey((current) => (current === threadKey ? null : current));
+    if (result._tag === "Failure") {
+      if (!isAtomCommandInterrupted(result)) Dialog.alert("Could not force stop the agent");
+      return;
+    }
+    const others = result.value.sharedWithThreadIds.length;
+    if (result.value.outcome === "releasing") {
+      Dialog.alert("Turn stopped; the agent is still shutting down");
+    }
+    if (result.value.outcome === "shared") {
+      Dialog.alert(
+        "Turn stopped; the agent process kept running",
+        `It is shared with ${others === 0 ? "other" : others} working ${others === 1 ? "thread" : "threads"}. Stop those to free it.`,
+      );
+    }
+  };
   const [statusRequest, setStatusRequest] = useState<{ threadKey: string } | null>(null);
   const statusPending = statusRequest?.threadKey === selectedThreadKey;
   const [lifecycleNow, setLifecycleNow] = useState(() => new Date().toISOString());
@@ -663,6 +714,32 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
     });
     if (connectionStatus !== null && showConnectionStatus && !props.draftMode) {
       return connectionStatus;
+    }
+    // Before the request check: an agent stuck on an approval may also ignore Stop.
+    if (runStop !== null && contentPresentationKind === "ready") {
+      const unresponsive = runStop.state === "unresponsive";
+      return {
+        kind: "stop",
+        unresponsive,
+        label: unresponsive ? "Not responding to Stop" : "Stopping…",
+        action:
+          unresponsive && canForceStop
+            ? {
+                label: forceStoppingKey === selectedThreadKey ? "Force stopping..." : "Force stop",
+                accessibilityLabel: "Force stop the agent",
+                disabled: forceStoppingKey === selectedThreadKey,
+                onPress: () =>
+                  Dialog.confirm({
+                    title: "Force stop the agent?",
+                    message:
+                      "It has not answered Stop. Force stop ends the turn and kills the agent's processes, unless other working threads share them.",
+                    confirmText: "Force stop",
+                    destructive: true,
+                    onConfirm: () => void forceStop(runStop.runId),
+                  }),
+              }
+            : null,
+      };
     }
     if (props.activePendingApproval !== null || props.activePendingUserInput !== null) {
       return null;

@@ -218,6 +218,7 @@ export const make = Effect.gen(function* () {
     capabilities: {
       fileAttachments: { maxUploadBytes: PROVIDER_SEND_TURN_MAX_FILE_BYTES },
       threadStop: true,
+      threadForceStop: true,
       ...(hostPlatform === "win32" ? {} : { localServerStop: true }),
       queuedRunStart: true,
       ignoredFileListing: true,

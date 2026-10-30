@@ -249,6 +249,11 @@ Steer. Click it or press your send shortcut to use that action. Hold `Cmd` on ma
 Windows and Linux to switch the button to the opposite action, then click, or use the opposite-action
 shortcut described above.
 
+A stopped turn shows **Stopping** until the agent finishes. An agent that does not answer, for
+example because the machine is out of memory, shows **Agent not responding to Stop** instead, with
+**Force stop** on web, desktop, and mobile. Force stop ends the turn and kills the agent's
+processes; a process that other working threads share keeps running for them.
+
 Queued messages appear above the composer. Rows show a thumbnail of any attached image alongside
 the text. **Send now** sends a message right away, into the running turn if there is one. You can
 also edit or remove it. On web and desktop, removing takes two presses of the row's **X** because
