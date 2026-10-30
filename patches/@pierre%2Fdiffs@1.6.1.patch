@@ -695,17 +695,18 @@ index 0000000..29370ad
 +
 +//# sourceMappingURL=CodeViewSearch.js.map
 diff --git a/dist/components/FileDiff.js b/dist/components/FileDiff.js
-index 12f4f89..f785b5a 100644
+index 12f4f89..e33a5ed 100644
 --- a/dist/components/FileDiff.js
 +++ b/dist/components/FileDiff.js
-@@ -1,5 +1,6 @@
+@@ -1,6 +1,7 @@
 -import { CUSTOM_HEADER_SLOT_ID, DEFAULT_THEMES, EMPTY_LINE_ANNOTATIONS, EMPTY_RENDER_RANGE, HEADER_FILENAME_SUFFIX_SLOT_ID, HEADER_METADATA_SLOT_ID, HEADER_PREFIX_SLOT_ID } from "../constants.js";
 +import { CUSTOM_HEADER_SLOT_ID, DEFAULT_THEMES, EMPTY_LINE_ANNOTATIONS, HEADER_FILENAME_SUFFIX_SLOT_ID, HEADER_METADATA_SLOT_ID, HEADER_PREFIX_SLOT_ID } from "../constants.js";
  import { HighlighterDisposedError } from "../highlighter/highlighterType.js";
-+import { getHighlighterThemeStyles } from "../utils/getHighlighterThemeStyles.js";
  import { getThemes } from "../utils/getThemes.js";
++import { getHighlighterThemeStyles } from "../utils/getHighlighterThemeStyles.js";
  import { getHighlighterIfLoaded, getSharedHighlighter } from "../highlighter/shared_highlighter.js";
  import { dequeueRender, queueRender } from "../managers/UniversalRenderingManager.js";
+ import { areThemesEqual } from "../utils/areThemesEqual.js";
 @@ -724,7 +725,7 @@ var FileDiff = class {
  		if (expandUnchanged) this.loadFilesIfNecessary();
  		this.hunksRenderer.setOptions(this.getHunksRendererOptions(this.options));
@@ -715,23 +716,26 @@ index 12f4f89..f785b5a 100644
  		const { disableErrorHandling = false, disableFileHeader = false } = this.options;
  		if (disableFileHeader) {
  			if (this.headerElement != null) {
-@@ -740,11 +741,19 @@ var FileDiff = class {
+@@ -740,11 +741,22 @@ var FileDiff = class {
  			this.removeRenderedCode();
  			this.clearAuxiliaryNodes();
  			try {
 -				const hunksResult = this.hunksRenderer.renderDiff(workingDiff, EMPTY_RENDER_RANGE);
 -				if (hunksResult != null) this.applyThemeState(fileContainer, hunksResult.themeStyles, themeType, hunksResult.baseThemeType);
 -				if (hunksResult?.headerElement != null) this.applyHeaderToDOM(hunksResult.headerElement, fileContainer, hunksResult.fileDiff);
++				// An empty render range still highlights the full diff. Headers only need the theme.
 +				const theme = this.getTheme();
 +				const highlighter = getHighlighterIfLoaded({ theme, lang: "text" });
 +				if (highlighter != null) this.applyThemeState(fileContainer, getHighlighterThemeStyles({ theme, highlighter }), themeType, typeof theme === "string" ? highlighter.getTheme(theme).type : void 0);
 +				else getSharedHighlighter({
 +					themes: getThemes(theme),
 +					langs: ["text"],
-+					preferredHighlighter: this.workerManager?.getPreferredHighlighter() ?? this.options.preferredHighlighter
++					preferredHighlighter: resolvePreferredHighlighter(this.workerManager, this.options)
 +				}).then(() => {
 +					if (this.enabled && this.fileContainer === fileContainer && this.options.collapsed && areThemesEqual(theme, this.getTheme())) this.rerender();
-+				}).catch((error) => console.error(error));
++				}).catch((error) => {
++					if (!(error instanceof HighlighterDisposedError)) console.error(error);
++				});
 +				if (!disableFileHeader) this.applyHeaderToDOM(this.hunksRenderer.renderHeader(workingDiff), fileContainer, workingDiff);
  				this.renderSeparators([]);
 -				this.adoptRenderData(hunksResult?.fileDiff ?? workingDiff);
