@@ -75,6 +75,7 @@ import { vcsEnvironment } from "~/state/vcs";
 import { RelativeTime } from "~/components/RelativeTime";
 import { useUiStateStore } from "~/uiStateStore";
 
+import { SourceControlAppAccessNotice } from "../SourceControlAppAccessNotice";
 import { Button } from "../ui/button";
 import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
@@ -1564,6 +1565,13 @@ export function PullRequestDetailPanel({
         ) : null}
       </div>
 
+      <SourceControlAppAccessNotice
+        environmentId={environmentId}
+        provider={detail?.provider ?? repositoryIdentity?.provider}
+        host={reference.host}
+        repository={reference.repository}
+        className="border-b border-border/60"
+      />
       <div
         className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
         onScrollCapture={(event) => {
