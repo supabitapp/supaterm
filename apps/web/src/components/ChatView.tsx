@@ -308,7 +308,7 @@ import type { MessagesTimelineHistoryControls } from "./chat/MessagesTimeline";
 import type { PinnableProjectedItem } from "./chat/PinnedMessages";
 import type { MessageJump, MessageJumpFailure } from "@supaterm/client-runtime/message-jump";
 import { useThreadMessageNavigation } from "./chat/useThreadMessageNavigation";
-import { openThreadFindOnQuery } from "./chat/threadFindStore";
+import { getThreadFindStore, openThreadFindOnQuery } from "./chat/threadFindStore";
 import { ThreadTimeline } from "./chat/ThreadTimeline";
 import { ProviderSubagentBar } from "./chat/ProviderSubagentBar";
 import { getTriggerDisplayModelName } from "./chat/providerIconUtils";
@@ -2857,7 +2857,9 @@ export default function ChatView(props: ChatViewProps) {
     ? resolveProviderSkillsForCwd(activeProviderStatus, gitCwd)
     : EMPTY_PROVIDER_SKILLS;
   const threadFindControlsRef = useRef<ThreadFindControls | null>(null);
-  const [isThreadFindActive, setIsThreadFindActive] = useState(false);
+  const isThreadFindActive = getThreadFindStore(paneScope?.paneId ?? "root")(
+    (state) => state.threadKey === activeThreadKey,
+  );
   const openThreadFind = () => threadFindControlsRef.current?.open();
   const openThreadFindStable = useStableCallback(openThreadFind);
   const closeThreadFind = () => threadFindControlsRef.current?.close();
@@ -3508,7 +3510,6 @@ export default function ChatView(props: ChatViewProps) {
                     !paintOnlyDisplayedTimeline,
                 }}
                 controlsRef={threadFindControlsRef}
-                onOpenChange={setIsThreadFindActive}
                 detailsCardTopInset={isThreadFindActive ? THREAD_FIND_BAR_RESERVED_HEIGHT : 0}
                 composerOverlayElement={isDraftHeroState ? null : composerOverlayElement}
                 data-chat-workspace-drop-target="true"

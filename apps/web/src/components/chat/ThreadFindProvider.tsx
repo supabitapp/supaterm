@@ -2,7 +2,6 @@ import {
   createContext,
   use,
   useImperativeHandle,
-  useLayoutEffect,
   type ReactNode,
   type ComponentProps,
   type Ref,
@@ -19,15 +18,13 @@ const ThreadFindBarContext = createContext<Find["barProps"] | null>(null);
 export function ThreadFindCanvas({
   findOptions,
   controlsRef,
-  onOpenChange,
   ...canvasProps
 }: ComponentProps<typeof ChatCanvas> & {
   findOptions: Parameters<typeof useThreadFind>[0];
   controlsRef: Ref<ThreadFindControls>;
-  onOpenChange: (open: boolean) => void;
 }) {
   return (
-    <ThreadFindProvider {...findOptions} controlsRef={controlsRef} onOpenChange={onOpenChange}>
+    <ThreadFindProvider {...findOptions} controlsRef={controlsRef}>
       <ChatCanvas {...canvasProps} />
     </ThreadFindProvider>
   );
@@ -35,12 +32,10 @@ export function ThreadFindCanvas({
 
 function ThreadFindProvider({
   controlsRef,
-  onOpenChange,
   children,
   ...options
 }: Parameters<typeof useThreadFind>[0] & {
   controlsRef: Ref<ThreadFindControls>;
-  onOpenChange: (open: boolean) => void;
   children: ReactNode;
 }) {
   const find = useThreadFind(options);
@@ -48,7 +43,6 @@ function ThreadFindProvider({
     find.open,
     find.close,
   ]);
-  useLayoutEffect(() => onOpenChange(find.isOpen), [find.isOpen, onOpenChange]);
   return (
     <ThreadFindBarContext value={find.barProps}>
       <ThreadFindTimelineContext value={find.timelineProps}>{children}</ThreadFindTimelineContext>
