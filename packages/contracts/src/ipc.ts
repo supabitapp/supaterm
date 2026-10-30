@@ -1028,7 +1028,11 @@ export const DesktopPreviewRecordingSaveInputSchema = Schema.Struct({
   data: Schema.Uint8Array,
 });
 
-export const SystemSettingsPaneSchema = Schema.Literals(["full-disk-access", "input-monitoring"]);
+export const SystemSettingsPaneSchema = Schema.Literals([
+  "full-disk-access",
+  "input-monitoring",
+  "microphone",
+]);
 export type SystemSettingsPane = typeof SystemSettingsPaneSchema.Type;
 
 export interface DesktopRelayViaChange {
