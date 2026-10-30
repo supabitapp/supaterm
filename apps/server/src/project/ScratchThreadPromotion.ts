@@ -133,12 +133,12 @@ export const make = Effect.gen(function* () {
       intent = { ...intent, projectId };
       yield* persist(intent);
     }
-    yield* orchestrator.adoptThreadCohort({
+    const threadIds = yield* orchestrator.adoptThreadCohort({
       commandId: CommandId.make(`scratch-promotion:${intent.id}`),
       projectId,
       threadIds: intent.threadIds,
     });
-    yield* scheduledTasks.moveThreadTasks({ threadIds: intent.threadIds, projectId });
+    yield* scheduledTasks.moveThreadTasks({ threadIds, projectId });
     yield* fs.remove(filename(intent.id), { force: true });
     yield* syncDirectory;
     return { projectId };
@@ -163,7 +163,10 @@ export const make = Effect.gen(function* () {
   const recovery = yield* makeDrainableWorker(() => recover);
   yield* orchestrator.streamDomainEvents.pipe(
     Stream.filter(
-      (event) => event.type === "run.updated" || event.type === "runtime-request.updated",
+      (event) =>
+        event.type === "run.updated" ||
+        event.type === "runtime-request.updated" ||
+        event.type === "thread.deleted",
     ),
     Stream.runForEach(() => recovery.enqueue(undefined)),
     Effect.forkScoped({ startImmediately: true }),

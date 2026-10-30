@@ -347,7 +347,7 @@ export interface OrchestratorV2Shape {
     readonly commandId: CommandId;
     readonly projectId: ProjectId;
     readonly threadIds: ReadonlyArray<ThreadId>;
-  }) => Effect.Effect<void, OrchestratorV2Error>;
+  }) => Effect.Effect<ReadonlyArray<ThreadId>, OrchestratorV2Error>;
   readonly withThreadCommandLock: <A, E, R>(
     threadId: ThreadId,
     effect: Effect.Effect<A, E, R>,
@@ -13520,7 +13520,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
   }) {
     const threadIds = [...new Set(input.threadIds)].sort();
     const first = threadIds[0];
-    if (first === undefined) return;
+    if (first === undefined) return [];
     const command = {
       type: "thread.project.adopt-folder" as const,
       commandId: input.commandId,
@@ -13528,6 +13528,17 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       projectId: input.projectId,
     };
     const commit = Effect.gen(function* () {
+      const records = yield* Effect.forEach(threadIds, (threadId) =>
+        projectionStore
+          .getThreadRecords(threadId, [])
+          .pipe(
+            Effect.catchTags({ ProjectionStoreThreadNotFoundError: () => Effect.succeed(null) }),
+            mapDispatchError(command),
+          ),
+      );
+      const liveThreads = records.flatMap((record) =>
+        record === null || record.thread.deletedAt !== null ? [] : [record.thread],
+      );
       const existing = yield* commandReceipts
         .getByCommandId(input.commandId)
         .pipe(mapDispatchError(command));
@@ -13540,7 +13551,11 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             commandThreadId: first,
           });
         }
-        if (existing.value.status === "accepted") return;
+        if (existing.value.status === "accepted") {
+          return liveThreads
+            .filter((thread) => thread.projectId === input.projectId)
+            .map((thread) => thread.id);
+        }
         return yield* new OrchestratorCommandPreviouslyRejectedError({
           commandId: input.commandId,
           commandType: command.type,
@@ -13548,8 +13563,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         });
       }
       const events = yield* Ref.make<Array<OrchestrationV2DomainEvent>>([]);
-      for (const threadId of threadIds) {
-        yield* dispatchThreadProjectAdoptFolder({ ...command, threadId }, events);
+      if (liveThreads.length === 0) return [];
+      for (const thread of liveThreads) {
+        yield* dispatchThreadProjectAdoptFolder({ ...command, threadId: thread.id }, events);
       }
       yield* eventSink
         .commitCommand({
@@ -13561,12 +13577,13 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           effects: [],
         })
         .pipe(mapDispatchError(command));
+      return liveThreads.map((thread) => thread.id);
     });
     const locked = threadIds.reduceRight(
       (effect, threadId) => threadDispatch.withLock(threadId, effect),
       commit,
     );
-    yield* locked;
+    return yield* locked;
   });
 
   const shellProjectionError = (cause: unknown) =>

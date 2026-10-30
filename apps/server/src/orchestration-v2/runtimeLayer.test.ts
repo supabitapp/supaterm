@@ -6146,55 +6146,167 @@ it.layer(layerScratchPromotionTest)("turning a No project thread into a project"
       ),
   );
 
-  it.effect("automatically completes a persisted promotion after the service restarts", () =>
+  it.effect.each(["first", "second"] as const)(
+    "reconciles a deleted %s cohort member while promoting the surviving thread",
+    (deletedMember) =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem;
+          const stateDir = yield* fs.makeTempDirectoryScoped({ prefix: "promotion-deleted-" });
+          const projects = yield* ProjectService.ProjectService;
+          const tasks = yield* ScheduledTaskService.ScheduledTaskService;
+          const orchestrator = yield* Orchestrator.OrchestratorV2;
+          const { folder, createThread } = yield* setup(`deleted-${deletedMember}`);
+          const first = yield* createThread("first", folder);
+          const second = yield* createThread("second", folder);
+          const deleted = deletedMember === "first" ? first : second;
+          const surviving = deletedMember === "first" ? second : first;
+          const { task } = yield* bindPromotionTask(
+            surviving,
+            `promotion-deleted-${deletedMember}`,
+          );
+          let deleteOnce = true;
+          const layer = yield* isolatedPromotionLayer({
+            stateDir,
+            projects: {
+              ...projects,
+              bootstrap: (input) =>
+                Effect.gen(function* () {
+                  if (deleteOnce) {
+                    deleteOnce = false;
+                    yield* orchestrator
+                      .dispatch({
+                        type: "thread.delete",
+                        commandId: CommandId.make(`promotion-delete-${deletedMember}`),
+                        threadId: deleted,
+                      })
+                      .pipe(Effect.orDie);
+                  }
+                  return yield* projects.bootstrap(input);
+                }),
+            },
+          });
+          yield* Effect.gen(function* () {
+            const promotion = yield* ScratchThreadPromotion.ScratchThreadPromotion;
+            yield* promotion.promote({ threadId: first }).pipe(Effect.exit);
+            const { projectId } = yield* promotion.promote({ threadId: surviving });
+            assert.equal((yield* shellOf(surviving))?.projectId, projectId);
+            assert.isNull(yield* shellOf(deleted));
+            assert.equal(
+              (yield* tasks.list()).tasks.find((candidate) => candidate.id === task.id)?.projectId,
+              projectId,
+            );
+            assert.deepEqual(yield* fs.readDirectory(`${stateDir}/scratch-promotions`), []);
+            assert.deepEqual(yield* promotion.promote({ threadId: surviving }), { projectId });
+          }).pipe(Effect.provide(layer));
+        }),
+      ),
+  );
+
+  it.effect("retires a promotion intent when its entire cohort is deleted", () =>
     Effect.scoped(
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
-        const stateDir = yield* fs.makeTempDirectoryScoped({ prefix: "promotion-restart-" });
+        const stateDir = yield* fs.makeTempDirectoryScoped({ prefix: "promotion-retired-" });
         const projects = yield* ProjectService.ProjectService;
-        const tasks = yield* ScheduledTaskService.ScheduledTaskService;
-        const { folder, createThread } = yield* setup("restart");
-        const first = yield* createThread("first", folder);
-        const second = yield* createThread("second", folder);
-        const { task } = yield* bindPromotionTask(second, "promotion-restart-task");
-        const failingLayer = yield* isolatedPromotionLayer({
+        const orchestrator = yield* Orchestrator.OrchestratorV2;
+        const { folder, createThread } = yield* setup("retired");
+        const threadId = yield* createThread("only", folder);
+        let deleteOnce = true;
+        const layer = yield* isolatedPromotionLayer({
           stateDir,
-          tasks: {
-            ...tasks,
-            moveThreadTasks: () =>
-              Effect.fail(
-                new ScheduledTaskError({ message: "Simulated interruption after adoption" }),
-              ),
+          projects: {
+            ...projects,
+            bootstrap: (input) =>
+              Effect.gen(function* () {
+                if (deleteOnce) {
+                  deleteOnce = false;
+                  yield* orchestrator
+                    .dispatch({
+                      type: "thread.delete",
+                      commandId: CommandId.make("promotion-delete-only"),
+                      threadId,
+                    })
+                    .pipe(Effect.orDie);
+                }
+                return yield* projects.bootstrap(input);
+              }),
           },
         });
-        const failed = yield* Effect.scoped(
-          ScratchThreadPromotion.ScratchThreadPromotion.use((promotion) =>
-            promotion.promote({ threadId: first }),
-          ).pipe(Effect.provide(failingLayer), Effect.exit),
-        );
-        assert.equal(failed._tag, "Failure");
-        assert.equal(
-          (yield* tasks.list()).tasks.find((candidate) => candidate.id === task.id)?.projectId,
-          SCRATCH_PROJECT_ID,
-        );
-        const recoveringLayer = yield* isolatedPromotionLayer({ stateDir });
-        yield* Effect.scoped(
-          ScratchThreadPromotion.ScratchThreadPromotion.use(() =>
-            Effect.gen(function* () {
-              const project = Option.getOrThrow(yield* projects.getByWorkspaceRoot(folder));
-              assert.equal((yield* shellOf(first))?.projectId, project.id);
-              assert.equal((yield* shellOf(second))?.projectId, project.id);
-              assert.equal(
-                (yield* tasks.list()).tasks.find((candidate) => candidate.id === task.id)
-                  ?.projectId,
-                project.id,
-              );
-              assert.deepEqual(yield* fs.readDirectory(`${stateDir}/scratch-promotions`), []);
-            }),
-          ).pipe(Effect.provide(recoveringLayer)),
-        );
+        yield* Effect.gen(function* () {
+          const promotion = yield* ScratchThreadPromotion.ScratchThreadPromotion;
+          yield* promotion.promote({ threadId });
+          yield* promotion.drain;
+          assert.isNull(yield* shellOf(threadId));
+          assert.deepEqual(yield* fs.readDirectory(`${stateDir}/scratch-promotions`), []);
+        }).pipe(Effect.provide(layer));
       }),
     ),
+  );
+
+  it.effect.each([false, true])(
+    "automatically completes a persisted promotion after restart with first member deleted: %s",
+    (deleteFirst) =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem;
+          const stateDir = yield* fs.makeTempDirectoryScoped({ prefix: "promotion-restart-" });
+          const projects = yield* ProjectService.ProjectService;
+          const tasks = yield* ScheduledTaskService.ScheduledTaskService;
+          const orchestrator = yield* Orchestrator.OrchestratorV2;
+          const { folder, createThread } = yield* setup(`restart-${deleteFirst}`);
+          const first = yield* createThread("first", folder);
+          const second = yield* createThread("second", folder);
+          const { task } = yield* bindPromotionTask(
+            second,
+            `promotion-restart-task-${deleteFirst}`,
+          );
+          const failingLayer = yield* isolatedPromotionLayer({
+            stateDir,
+            tasks: {
+              ...tasks,
+              moveThreadTasks: () =>
+                Effect.fail(
+                  new ScheduledTaskError({ message: "Simulated interruption after adoption" }),
+                ),
+            },
+          });
+          const failed = yield* Effect.scoped(
+            ScratchThreadPromotion.ScratchThreadPromotion.use((promotion) =>
+              promotion.promote({ threadId: first }),
+            ).pipe(Effect.provide(failingLayer), Effect.exit),
+          );
+          assert.equal(failed._tag, "Failure");
+          assert.equal(
+            (yield* tasks.list()).tasks.find((candidate) => candidate.id === task.id)?.projectId,
+            SCRATCH_PROJECT_ID,
+          );
+          if (deleteFirst) {
+            yield* orchestrator.dispatch({
+              type: "thread.delete",
+              commandId: CommandId.make("promotion-restart-delete-first"),
+              threadId: first,
+            });
+          }
+          const recoveringLayer = yield* isolatedPromotionLayer({ stateDir });
+          yield* Effect.scoped(
+            ScratchThreadPromotion.ScratchThreadPromotion.use(() =>
+              Effect.gen(function* () {
+                const project = Option.getOrThrow(yield* projects.getByWorkspaceRoot(folder));
+                if (deleteFirst) assert.isNull(yield* shellOf(first));
+                else assert.equal((yield* shellOf(first))?.projectId, project.id);
+                assert.equal((yield* shellOf(second))?.projectId, project.id);
+                assert.equal(
+                  (yield* tasks.list()).tasks.find((candidate) => candidate.id === task.id)
+                    ?.projectId,
+                  project.id,
+                );
+                assert.deepEqual(yield* fs.readDirectory(`${stateDir}/scratch-promotions`), []);
+              }),
+            ).pipe(Effect.provide(recoveringLayer)),
+          );
+        }),
+      ),
   );
 
   it.effect("moves every thread in the folder and its bound tasks into one project", () =>
