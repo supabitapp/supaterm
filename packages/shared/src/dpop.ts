@@ -11,7 +11,7 @@ import { stableStringify } from "./stableStringify.ts";
 
 const DPOP_TYP = "dpop+jwt";
 const DPOP_ALG = "ES256";
-export const DPOP_MAX_CLOCK_SKEW_SECONDS = 300;
+const DPOP_MAX_CLOCK_SKEW_SECONDS = 300;
 
 export const DpopPublicJwk = DpopPublicJwkSchema;
 export type DpopPublicJwk = DpopPublicJwkType;

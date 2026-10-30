@@ -1,5 +1,4 @@
 import type {
-  OrchestrationV2AppThread,
   ThreadLinkedPullRequest,
   ThreadPullRequestKey,
   ThreadPullRequestLink,
@@ -30,32 +29,6 @@ export function normalizeThreadPullRequestKey(
     host: canonical.slice(0, separator),
     repository: canonical.slice(separator + 1),
     number: key.number,
-  };
-}
-
-export function legacyThreadPullRequestKey(
-  linked: Pick<ThreadLinkedPullRequest, "repository" | "number" | "url">,
-  fallbackHost?: string,
-): ThreadPullRequestKey {
-  const parsed = parseChangeRequestUrl(linked.url);
-  if (parsed !== null && parsed.number === linked.number) {
-    const canonical = canonicalRepositoryKey(`${parsed.host}/${parsed.repository}`);
-    if (parsed.authority !== undefined || canonical.startsWith("dev.azure.com/")) {
-      return normalizeThreadPullRequestKey(parsed);
-    }
-  }
-  let host = fallbackHost;
-  if (host === undefined) {
-    try {
-      host = new URL(linked.url).hostname;
-    } catch {
-      host = "unknown";
-    }
-  }
-  return {
-    host: host.trim().toLowerCase() || "unknown",
-    repository: linked.repository.trim().toLowerCase(),
-    number: linked.number,
   };
 }
 
@@ -334,24 +307,6 @@ export function threadPullRequestSearchTerms(thread: {
     ...pullRequest.references,
     ...(pullRequest.title ? [pullRequest.title] : []),
   ]);
-}
-
-export function threadPullRequestsOf(thread: {
-  readonly pullRequests?: ReadonlyArray<ThreadPullRequestLink> | undefined;
-}): ReadonlyArray<ThreadPullRequestLink> {
-  return thread.pullRequests ?? [];
-}
-
-export function applyThreadPullRequestLinkUpdate(
-  thread: OrchestrationV2AppThread,
-  updated: ThreadPullRequestLink,
-): OrchestrationV2AppThread {
-  return {
-    ...thread,
-    pullRequests: threadPullRequestsOf(thread).map((link) =>
-      threadPullRequestKeysEqual(link, updated) ? updated : link,
-    ),
-  };
 }
 
 export interface PullRequestListLine {

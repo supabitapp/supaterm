@@ -15,10 +15,6 @@ export function formatClaudeResumeCompactionQuestion(input: {
 const CLAUDE_RESUME_COMPACTION_QUESTION_PATTERN =
   /^This session is (\d+h \d+m|\d+m) old and uses \d{1,3}(?:,\d{3})* tokens\. Compact it before continuing\?$/u;
 
-export function isClaudeResumeCompactionQuestion(question: string): boolean {
-  return CLAUDE_RESUME_COMPACTION_QUESTION_PATTERN.test(question);
-}
-
 export function claudeResumeCompactionAge(questionAnswer: {
   readonly questionTextById?: Readonly<Record<string, string>> | undefined;
   readonly answers: Readonly<Record<string, unknown>>;

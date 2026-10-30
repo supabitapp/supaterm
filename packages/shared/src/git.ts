@@ -3,7 +3,6 @@ import {
   type BranchNamingOptions,
   type RepositoryIdentity,
   type VcsRef,
-  type SourceControlProviderInfo,
   type VcsStatusLocalResult,
   type VcsStatusRemoteResult,
   type VcsStatusResult,
@@ -12,7 +11,6 @@ import {
 import * as Arr from "effect/Array";
 import * as Result from "effect/Result";
 import { fileBasename } from "./path.ts";
-import { detectSourceControlProviderFromRemoteUrl } from "./sourceControl.ts";
 
 export const WORKTREE_BRANCH_PREFIX = "supaterm";
 
@@ -357,20 +355,6 @@ export function parseOriginUrlFromGitConfig(configText: string): string | null {
   return originUrl ?? firstRemoteUrl;
 }
 
-export function parseGitHubRepositoryNameWithOwnerFromRemoteUrl(url: string | null): string | null {
-  const trimmed = url?.trim() ?? "";
-  if (trimmed.length === 0) {
-    return null;
-  }
-
-  const match =
-    /^(?:git@github\.com:|ssh:\/\/(?:git@)?github\.com\/|https:\/\/github\.com\/|git:\/\/github\.com\/)([^/\s]+\/[^/\s]+?)(?:\.git)?\/?$/i.exec(
-      trimmed,
-    );
-  const repositoryNameWithOwner = match?.[1]?.trim() ?? "";
-  return repositoryNameWithOwner.length > 0 ? repositoryNameWithOwner : null;
-}
-
 function deriveLocalBranchNameCandidatesFromRemoteRef(
   branchName: string,
   remoteName?: string,
@@ -420,12 +404,6 @@ export function dedupeRemoteBranchesWithLocalMatches(
     );
     return !localBranchCandidates.some((candidate) => localBranchNames.has(candidate));
   });
-}
-
-export function detectSourceControlProviderFromGitRemoteUrl(
-  remoteUrl: string,
-): SourceControlProviderInfo | null {
-  return detectSourceControlProviderFromRemoteUrl(remoteUrl);
 }
 
 const EMPTY_GIT_STATUS_REMOTE: VcsStatusRemoteResult = {
