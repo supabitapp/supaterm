@@ -311,6 +311,7 @@ export function useThreadActions() {
       );
     }
 
+    const requestingRouteHref = router.state.location.href;
     const currentRouteThreadRef = getCurrentRouteThreadRef();
     const shouldNavigateToDraft =
       currentRouteThreadRef?.threadId === threadRef.threadId &&
@@ -339,7 +340,7 @@ export function useThreadActions() {
 
     // The focused pane takes a new draft as before; a pane in the background just closes.
     closePaneShowingThread(threadRef, { remember: true, onlyInBackground: true });
-    if (shouldNavigateToDraft) {
+    if (shouldNavigateToDraft && router.state.location.href === requestingRouteHref) {
       const navigationResult = await settlePromise(() =>
         handleNewThread(scopeProjectRef(thread.environmentId, thread.projectId)),
       );
