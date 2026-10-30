@@ -11,6 +11,7 @@ const {
   exitMock,
   getAppPathMock,
   getSystemLocaleMock,
+  getUserDefaultMock,
   getVersionMock,
   onMock,
   quitMock,
@@ -36,6 +37,7 @@ const {
   exitMock: vi.fn(),
   getAppPathMock: vi.fn(() => "/app"),
   getSystemLocaleMock: vi.fn(() => "en-GB"),
+  getUserDefaultMock: vi.fn((_key: string) => false),
   getVersionMock: vi.fn(() => "1.2.3"),
   onMock: vi.fn(),
   quitMock: vi.fn(),
@@ -53,6 +55,7 @@ const {
 }));
 
 vi.mock("electron", () => ({
+  systemPreferences: { getUserDefault: getUserDefaultMock },
   nativeImage: { createFromNamedImage: createFromNamedImageMock },
   autoUpdater: {
     on: autoUpdaterOnMock,
@@ -96,6 +99,8 @@ describe("ElectronApp", () => {
     autoUpdaterRemoveListenerMock.mockClear();
     createFromNamedImageMock.mockClear();
     exitMock.mockClear();
+    getSystemLocaleMock.mockReset();
+    getUserDefaultMock.mockReset();
     onMock.mockClear();
     quitMock.mockClear();
     relaunchMock.mockClear();
@@ -174,4 +179,66 @@ describe("ElectronApp", () => {
       Effect.provideService(HostProcess.Platform, "darwin"),
     ),
   );
+
+  it("keeps the macOS region override and hour cycle in the locale tag", () => {
+    assert.strictEqual(ElectronApp.toSystemLocaleTag("en_GB"), "en-GB");
+    assert.strictEqual(ElectronApp.toSystemLocaleTag("en-US@rg=nlzzzz", "h12"), "en-NL-u-hc-h12");
+    assert.strictEqual(ElectronApp.toSystemLocaleTag("en_US@rg=nlzzzz"), "en-NL");
+    assert.strictEqual(ElectronApp.toSystemLocaleTag("en-GB", "h23"), "en-GB-u-hc-h23");
+  });
+
+  it("drops ICU keywords Intl cannot read instead of losing the whole locale", () => {
+    assert.strictEqual(ElectronApp.toSystemLocaleTag("de_DE@calendar=buddhist"), "de-DE");
+  });
+
+  it.effect("follows LC_TIME on Linux when it differs from the language", () =>
+    Effect.gen(function* () {
+      const electronApp = yield* ElectronApp.ElectronApp;
+      const systemLocale = yield* electronApp.systemLocale.pipe(
+        Effect.provideService(HostProcess.Platform, "linux"),
+        Effect.provideService(HostProcess.Environment, {
+          LANG: "en_US.UTF-8",
+          LC_TIME: "de_DE.UTF-8",
+        }),
+      );
+
+      assert.strictEqual(systemLocale, "de-DE");
+    }).pipe(Effect.provide(ElectronApp.layer)),
+  );
+
+  it.effect("falls back to Chromium's locale on Linux when the time locale is C", () =>
+    Effect.gen(function* () {
+      getSystemLocaleMock.mockImplementationOnce(() => "fr-FR");
+      const electronApp = yield* ElectronApp.ElectronApp;
+      const systemLocale = yield* electronApp.systemLocale.pipe(
+        Effect.provideService(HostProcess.Platform, "linux"),
+        Effect.provideService(HostProcess.Environment, { LANG: "C.UTF-8" }),
+      );
+
+      assert.strictEqual(systemLocale, "fr-FR");
+    }).pipe(Effect.provide(ElectronApp.layer)),
+  );
 });
+
+it.effect("reads both macOS hour preferences without overriding explicit formats", () =>
+  Effect.gen(function* () {
+    for (const [preference, expected] of [
+      ["AppleICUForce12HourTime", "en-NL-u-hc-h12"],
+      ["AppleICUForce24HourTime", "en-NL-u-hc-h23"],
+      ["", "en-NL"],
+    ]) {
+      getSystemLocaleMock.mockReturnValue("en_US@rg=nlzzzz");
+      getUserDefaultMock.mockImplementation((key) => key === preference);
+      const locale = yield* ElectronApp.make.systemLocale.pipe(
+        Effect.provideService(HostProcess.Platform, "darwin"),
+      );
+      assert.strictEqual(locale, expected);
+      for (const hour12 of [true, false]) {
+        assert.strictEqual(
+          new Intl.DateTimeFormat(locale, { hour: "numeric", hour12 }).resolvedOptions().hour12,
+          hour12,
+        );
+      }
+    }
+  }),
+);

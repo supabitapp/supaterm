@@ -110,6 +110,21 @@ const readEnvironmentMachineSymbol = Effect.fn("desktop.readEnvironmentMachineSy
     }).pipe(Effect.orElseSucceed(() => null)),
 );
 
+export function toSystemLocaleTag(identifier: string, hourCycle?: "h12" | "h23"): string {
+  const [base = "", keywords = ""] = identifier.split("@");
+  const languageTag = base.replace(/_/g, "-");
+  // Intl ignores rg extensions, so the macOS region override must replace the region subtag.
+  const region = /(?:^|;)rg=([a-z]{2}|\d{3})zzzz(?:;|$)/i.exec(keywords)?.[1]?.toUpperCase();
+  try {
+    return new Intl.Locale(languageTag, {
+      ...(region ? { region } : {}),
+      ...(hourCycle ? { hourCycle } : {}),
+    }).toString();
+  } catch {
+    return languageTag;
+  }
+}
+
 /** @public */
 export const make = ElectronApp.of({
   metadata: Effect.gen(function* () {
@@ -139,10 +154,23 @@ export const make = ElectronApp.of({
     };
   }),
   name: Effect.sync(() => Electron.app.name),
-  // macOS derives this from NSLocale, which uses POSIX-style identifiers
-  // (`en_GB`). `Intl` rejects those outright rather than normalizing them, so
-  // the tag is normalized here rather than in the renderer that consumes it.
-  systemLocale: Effect.sync(() => Electron.app.getSystemLocale().replace(/_/g, "-")),
+  systemLocale: Effect.gen(function* () {
+    const platform = yield* HostProcess.Platform;
+    let identifier = Electron.app.getSystemLocale();
+    let hourCycle: "h12" | "h23" | undefined;
+    if (platform === "linux") {
+      const env = yield* HostProcess.Environment;
+      const timeLocale = (env.LC_ALL || env.LC_TIME || env.LANG)?.split(".")[0];
+      if (timeLocale && timeLocale !== "C" && timeLocale !== "POSIX") identifier = timeLocale;
+    } else if (platform === "darwin") {
+      if (Electron.systemPreferences.getUserDefault("AppleICUForce24HourTime", "boolean")) {
+        hourCycle = "h23";
+      } else if (Electron.systemPreferences.getUserDefault("AppleICUForce12HourTime", "boolean")) {
+        hourCycle = "h12";
+      }
+    }
+    return toSystemLocaleTag(identifier, hourCycle);
+  }),
   environmentMachineIcons: Effect.gen(function* () {
     if ((yield* HostProcess.Platform) !== "darwin") return {};
     const mini = yield* readEnvironmentMachineSymbol("macmini");
