@@ -68,7 +68,9 @@ class SupatermWorkspaceNavigationModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("SupatermWorkspaceNavigation")
     View(SupatermWorkspaceNavigationView::class) {
-      Prop("tabs") { view: SupatermWorkspaceNavigationView, value: List<String> -> view.tabs = value }
+      Prop("tabs") { view: SupatermWorkspaceNavigationView, value: List<String> ->
+        view.tabs = value
+      }
       Prop("selectedTab") { view: SupatermWorkspaceNavigationView, value: String ->
         view.selectedTab = value
       }
@@ -79,7 +81,9 @@ class SupatermWorkspaceNavigationModule : Module() {
       }
       Prop("rail") { view: SupatermWorkspaceNavigationView, value: Boolean -> view.rail = value }
       Prop("dark") { view: SupatermWorkspaceNavigationView, value: Boolean -> view.dark = value }
-      Prop("textScale") { view: SupatermWorkspaceNavigationView, value: Float -> view.textScale = value }
+      Prop("textScale") { view: SupatermWorkspaceNavigationView, value: Float ->
+        view.textScale = value
+      }
       Prop("newEnabled") { view: SupatermWorkspaceNavigationView, value: Boolean ->
         view.newEnabled = value
       }

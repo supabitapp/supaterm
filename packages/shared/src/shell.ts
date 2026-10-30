@@ -691,13 +691,8 @@ function isFileSync(filePath: string): boolean {
   }
 }
 
-/**
- * The launcher costs a second process on every git command, and each launch
- * leaks a kernel token reference that slows process creation machine-wide until
- * reboot. The real binary sets HOME itself, but adds its own folders to PATH
- * for hooks, ssh and credential helpers only when MSYSTEM is unset, so the
- * launcher stays when MSYSTEM is set.
- */
+// The launcher adds a process and leaks kernel token references on every call.
+// With MSYSTEM set it is still needed to add hook, SSH, and credential-helper paths.
 export function preferGitForWindowsBinary(
   executable: string,
   env: NodeJS.ProcessEnv,
@@ -782,13 +777,8 @@ export const XcodeGitLocation = Context.Reference<XcodeGitLocator>(
 
 const MACOS_GIT_SHIM = "/usr/bin/git";
 
-/**
- * /usr/bin/git is an xcrun shim that finds the active developer directory on
- * every run: about 8 ms per spawn, against under 3 ms for the git behind it.
- * Only the shim is replaced, so a git the user put first on PATH (Homebrew,
- * Nix) still wins, and git's own children keep the same PATH. Any lookup
- * failure keeps plain `git`.
- */
+// Bypass /usr/bin/git's repeated xcrun lookup without changing PATH precedence
+// or child environments. A user-selected git still wins; lookup failures keep plain git.
 const resolveMacosGit = Effect.fnUntraced(function* (
   env: NodeJS.ProcessEnv,
   resolveExecutable: SpawnExecutableResolver,
