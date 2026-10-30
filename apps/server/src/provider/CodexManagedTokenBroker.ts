@@ -89,7 +89,7 @@ const acquireListener = Effect.gen(function* () {
     (owned) =>
       Effect.promise(async () => {
         if (!("directory" in owned)) return;
-        
+
         const current = await NodeFSP.lstat(owned.directory).catch(() => undefined);
         if (
           current &&
@@ -113,7 +113,7 @@ const acquireListener = Effect.gen(function* () {
   const sockets = new Set<NodeNet.Socket>();
   let closing = false;
   let admitted = 0;
-  
+
   const decode = Schema.decodeUnknownEffect(
     Schema.fromJsonString(
       Schema.Struct({
@@ -137,7 +137,6 @@ const acquireListener = Effect.gen(function* () {
     let transferred = false;
     runConnection(
       Effect.gen(function* () {
-        
         const request = yield* Protocol.readFrame(
           socket,
           Protocol.REQUEST_BYTES,
@@ -153,7 +152,7 @@ const acquireListener = Effect.gen(function* () {
                 instanceId: request.instanceId,
                 expectedProfileKey: request.profileKey,
               });
-              
+
               const credentials = yield* auth.access.pipe(
                 Effect.timeout(Protocol.COMMAND_TIMEOUT_MS),
               );
@@ -184,7 +183,7 @@ const acquireListener = Effect.gen(function* () {
     );
   });
   server.on("error", () => {});
-  
+
   yield* Effect.addFinalizer(() =>
     Effect.gen(function* () {
       closing = true;

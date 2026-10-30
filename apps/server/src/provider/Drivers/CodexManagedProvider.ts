@@ -134,8 +134,7 @@ export const makeManagedCodexProvider = Effect.fn("makeManagedCodexProvider")(fu
             managedAuth,
           );
           const credentials = yield* runtime.auth.access;
-          
-          
+
           if (
             (yield* runtime.auth.profileKey(credentials)) !== effective.revision ||
             (yield* runtime.auth.profileKey(saved.value)) !== effective.revision
@@ -235,12 +234,12 @@ export const makeManagedCodexProvider = Effect.fn("makeManagedCodexProvider")(fu
   );
   yield* runtime.auth.controller.subscribe("managed-codex-snapshot").pipe(
     Stream.filter((state) => ["idle", "succeeded", "failed", "cancelled"].includes(state.phase)),
-    
+
     Stream.runForEach(() => snapshot.refresh.pipe(Effect.ignoreCause({ log: true }))),
     Effect.forkScoped,
   );
   const resolveRuntime = runtime.auth.controller.withAccess!(runtime.resolve);
-  
+
   // already wraps openSession in withAccess, so resolve without re-entering it.
   const orchestrationAdapter = yield* createCodexAdapterV2(input, {
     onUsageLimits: (update) => snapshot.applyUsageLimits(update),
@@ -304,7 +303,6 @@ export const makeManagedCodexProvider = Effect.fn("makeManagedCodexProvider")(fu
       enabled
         ? resolveRuntime.pipe(
             Effect.matchEffect({
-              
               onFailure: (cause) =>
                 snapshot.getSnapshot.pipe(
                   Effect.filterOrFail(
@@ -327,7 +325,7 @@ export const makeManagedCodexProvider = Effect.fn("makeManagedCodexProvider")(fu
             }),
             Effect.scoped,
             Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
-            
+
             Effect.mapError(
               (cause) =>
                 new ProviderDriverError({

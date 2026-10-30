@@ -148,7 +148,7 @@ const makeTildeProviderFixtures = Effect.fn(
   };
 });
 
-describe("ProviderInstanceRegistry — multi-instance codex slice", () => {
+describe("ProviderInstanceRegistry: multi-instance codex slice", () => {
   const layerBaseDeps = ServerConfig.layerTest(process.cwd(), {
     prefix: "provider-instance-registry-test",
   }).pipe(

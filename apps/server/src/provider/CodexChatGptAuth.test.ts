@@ -1529,7 +1529,6 @@ it.effect("a running session renews its bound profile but refuses a replacement 
       assert.deepEqual(renewed[0], renewed[1]);
       assert.equal(yield* h.auth.profileKey(renewed[0]), profileKey);
 
-      
       yield* h.reconnectProfile("oaiapp_test");
       yield* h.phase("succeeded");
       const replacement = Option.getOrThrow(yield* h.auth.read);
@@ -1596,7 +1595,11 @@ const makeRenewalBroker = Effect.gen(function* () {
   );
   return yield* Effect.gen(function* () {
     const store = yield* ProviderCredentialStore.make("codex-chatgpt", instanceId);
-    yield* store.set(new TextEncoder().encode(JSON.stringify({ activeClientId: credentials.clientId, sessions: [credentials] })));
+    yield* store.set(
+      new TextEncoder().encode(
+        JSON.stringify({ activeClientId: credentials.clientId, sessions: [credentials] }),
+      ),
+    );
     const auth = yield* makeCodexChatGptAuth({ instanceId });
     const profileKey = yield* auth.profileKey(credentials);
     const scope = yield* Scope.make();
@@ -1658,8 +1661,6 @@ const provideBroker = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
       ),
     ),
   );
-
-
 
 it.effect("server-owned renewal persists rotated credentials after the helper disconnects", () =>
   provideBroker(

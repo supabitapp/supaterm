@@ -295,7 +295,7 @@ export const makeCodexChatGptAuth = Effect.fn("makeCodexChatGptAuth")(function* 
       for (const session of saved.sessions) {
         if (!session.scopes.includes(REQUIRED_SCOPE) || connections.has(session.clientId)) continue;
         connections.add(session.clientId);
-        
+
         const email = session.email?.trim().toLowerCase();
         if (email) accounts.add(email);
         else unidentifiedConnectedConnectionCount++;
@@ -625,7 +625,7 @@ export const makeCodexChatGptAuth = Effect.fn("makeCodexChatGptAuth")(function* 
       const expectedSubject =
         savedRegistration?.subject ??
         (previous?.clientId === registeredClientId ? previous?.subject : undefined);
-      
+
       if (registeredClientId && expectedSubject && identity.subject !== expectedSubject)
         return yield* failure(
           "verify",
@@ -712,8 +712,7 @@ export const makeCodexChatGptAuth = Effect.fn("makeCodexChatGptAuth")(function* 
       ),
     );
   });
-  
-  
+
   const profileKey = (record: CodexChatGptCredentials) =>
     crypto
       .digest(

@@ -22,7 +22,7 @@ const decodeSettings = Schema.decodeSync(CodexSettings);
 const managedCodexLaunchArgs = (command: string, args: ReadonlyArray<string>) =>
   [
     'model_provider="openai_token_sharing"',
-    
+
     `model_providers.openai_token_sharing={name="OpenAI Token Sharing",base_url="https://api.openai.com/v1",model_catalog_url="https://api.openai.com/v1/models",wire_api="responses",requires_openai_auth=false,supports_websockets=false,auth={command=${JSON.stringify(command)},args=${JSON.stringify(args)},timeout_ms=${COMMAND_TIMEOUT_MS},refresh_interval_ms=0}}`,
     "features.api_key_model_discovery=true",
     "features.multi_agent=false",
@@ -59,7 +59,6 @@ export const makeCodexManagedRuntime = Effect.fn("makeCodexManagedRuntime")(func
   );
   const homePath = homeLayout.effectiveHomePath ?? homeLayout.sharedHomePath;
   const resolve = Effect.gen(function* () {
-    
     const endpoint = yield* broker.endpoint.pipe(
       Effect.mapError(
         (cause) =>

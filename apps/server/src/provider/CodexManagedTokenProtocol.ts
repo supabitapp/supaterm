@@ -11,7 +11,6 @@ export const Request = Schema.Struct({
 });
 export const Response = Schema.Struct({ token: Schema.NonEmptyString });
 
-
 export const REQUEST_BYTES = 1024;
 export const RESPONSE_BYTES = 64 * 1024;
 

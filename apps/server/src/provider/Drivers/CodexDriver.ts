@@ -74,7 +74,6 @@ function codexStandaloneHome(commandPath: string): string | null {
   return commandPath.slice(0, home.length + (isRoot ? 1 : 0));
 }
 
-
 function makeCodexMaintenanceResolver(sharedHomePath: string) {
   return makePackageManagedProviderMaintenanceResolver({
     provider: DRIVER_KIND,
@@ -307,9 +306,6 @@ export const CodexDriver: ProviderDriver<
             ),
           );
 
-    
-    
-    
     const accountKey = homeLayout.effectiveHomePath ?? homeLayout.sharedHomePath;
     const consumeResetCredit: NonNullable<ProviderInstance["consumeResetCredit"]> = () =>
       resetCreditCoordinator

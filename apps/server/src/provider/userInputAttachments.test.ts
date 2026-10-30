@@ -168,6 +168,7 @@ describe("question answer paths", () => {
     [
       "text symbols",
       String.raw`{\rtf1\ansi Pages 1\endash 5\emdash\lquote left\rquote\ldblquote right\rdblquote\bullet\b End\b0\unknown{\*\secret\bullet hidden}}`,
+      // oxlint-disable-next-line supaterm/no-em-dash-copy -- RTF emdash decoding must produce U+2014.
       "Pages 1–5—‘left’“right”•End",
     ],
     [
