@@ -8,6 +8,7 @@ import Migration0003 from "./Migrations/003_ThreadMessageSearch.ts";
 import Migration0004 from "./Migrations/004_PeerLinks.ts";
 import Migration0005 from "./Migrations/005_PeerLinkFence.ts";
 import Migration0006 from "./Migrations/006_WaitingLinkRequestIndex.ts";
+import Migration0007 from "./Migrations/007_PeerRelayLinks.ts";
 
 /**
  * Add a schema change as a new entry with the next id. Never edit, renumber, or
@@ -21,6 +22,7 @@ const migrationEntries = [
   [4, "PeerLinks", Migration0004],
   [5, "PeerLinkFence", Migration0005],
   [6, "WaitingLinkRequestIndex", Migration0006],
+  [7, "PeerRelayLinks", Migration0007],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
