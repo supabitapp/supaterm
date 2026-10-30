@@ -3,6 +3,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import {
   CommandId,
+  SecretRequestAnswerInput,
   ThreadId,
   TurnItemId,
   type OrchestrationV2ServerCommand,
@@ -15,8 +16,11 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as PlatformError from "effect/PlatformError";
+import * as Schema from "effect/Schema";
 import * as TestClock from "effect/testing/TestClock";
 import * as Tracer from "effect/Tracer";
+
+import { secretRequestAnswerInput } from "../../../../packages/client-runtime/src/secretRequest.ts";
 
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as ServerConfig from "../config.ts";
@@ -27,6 +31,8 @@ const threadId = ThreadId.make("thread-private");
 const turnItemId = TurnItemId.make("private-request-1");
 const secret = "disposable-private-token'$(id)";
 const save = { threadId, turnItemId, answer: { type: "save" as const, secret } };
+const decodeAnswer = Schema.decodeSync(SecretRequestAnswerInput);
+const encodeAnswer = Schema.encodeSync(SecretRequestAnswerInput);
 const decline = { threadId, turnItemId, answer: { type: "decline" as const } };
 
 const withService = <A, E>(
@@ -474,6 +480,26 @@ it.effect("queued runs and requests from a different root cannot accept secrets"
       state.rootNodeId = "another-root";
       assert.equal((yield* service.answer(save).pipe(Effect.flip)).reason, "agent_stopped");
       assert.deepEqual(yield* requestFiles(fs, directory), []);
+    }),
+  ),
+);
+
+it.effect("contract and client submission preserve exact secret bytes in the delivered file", () =>
+  withService(({ service, fs }) =>
+    Effect.gen(function* () {
+      const entered = "  a b λ  ";
+      const decoded = decodeAnswer({ ...save, answer: { type: "save", secret: entered } });
+      const submission = secretRequestAnswerInput(
+        { threadId: decoded.threadId, id: decoded.turnItemId },
+        decoded.answer,
+      );
+      if (submission === null) return assert.fail("A nonblank secret must be accepted.");
+      yield* service.answer(decodeAnswer(encodeAnswer(submission)));
+      const file = yield* service.saveToFile({ threadId, turnItemId });
+      assert.deepEqual(
+        Array.from(yield* fs.readFile(file)),
+        Array.from(new TextEncoder().encode(entered)),
+      );
     }),
   ),
 );

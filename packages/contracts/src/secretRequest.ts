@@ -1,12 +1,15 @@
 import * as Schema from "effect/Schema";
 
-import { ThreadId, TrimmedNonEmptyString, TurnItemId } from "./baseSchemas.ts";
+import { ThreadId, TurnItemId } from "./baseSchemas.ts";
 
 export const SecretRequestAnswerInput = Schema.Struct({
   threadId: ThreadId,
   turnItemId: TurnItemId,
   answer: Schema.Union([
-    Schema.Struct({ type: Schema.Literal("save"), secret: TrimmedNonEmptyString }),
+    Schema.Struct({
+      type: Schema.Literal("save"),
+      secret: Schema.String.check(Schema.isPattern(/\S/)),
+    }),
     Schema.Struct({ type: Schema.Literal("decline") }),
   ]),
 });

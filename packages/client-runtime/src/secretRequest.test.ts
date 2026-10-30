@@ -11,6 +11,7 @@ import {
 } from "./secretRequest.ts";
 
 const decodeAnswer = Schema.decodeSync(SecretRequestAnswerInput);
+const encodeAnswer = Schema.encodeSync(SecretRequestAnswerInput);
 
 const item = { threadId: ThreadId.make("thread-1"), id: TurnItemId.make("request-1") };
 
@@ -38,13 +39,11 @@ describe("private request display", () => {
 });
 
 describe("private answers", () => {
-  it("trims a value, refuses blank input, and preserves the target thread", () => {
-    expect(
-      secretRequestAnswerInput(item, { type: "save", secret: "  disposable-token  " }),
-    ).toEqual({
+  it("preserves surrounding whitespace, refuses blank input, and keeps the target thread", () => {
+    expect(secretRequestAnswerInput(item, { type: "save", secret: "  a b λ  " })).toEqual({
       threadId: item.threadId,
       turnItemId: item.id,
-      answer: { type: "save", secret: "disposable-token" },
+      answer: { type: "save", secret: "  a b λ  " },
     });
     expect(secretRequestAnswerInput(item, { type: "save", secret: " \n " })).toBeNull();
     expect(secretRequestAnswerInput(item, { type: "decline" })).toEqual({
@@ -54,14 +53,26 @@ describe("private answers", () => {
     });
   });
 
+  it("preserves opaque secret bytes when encoding and decoding the contract", () => {
+    const input = {
+      threadId: item.threadId,
+      turnItemId: item.id,
+      answer: { type: "save" as const, secret: "  a b λ  " },
+    };
+    expect(encodeAnswer(input)).toEqual(input);
+    expect(decodeAnswer(input)).toEqual(input);
+  });
+
   it("rejects a blank value at the contract boundary", () => {
-    expect(() =>
-      decodeAnswer({
+    for (const secret of ["", "  ", "\t\r\n"]) {
+      const input = {
         threadId: item.threadId,
         turnItemId: item.id,
-        answer: { type: "save", secret: "  " },
-      }),
-    ).toThrow();
+        answer: { type: "save" as const, secret },
+      };
+      expect(() => decodeAnswer(input)).toThrow();
+      expect(() => encodeAnswer(input)).toThrow();
+    }
   });
 });
 
