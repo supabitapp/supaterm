@@ -151,12 +151,57 @@ export const VcsDiscoveryItem = Schema.Struct({
 });
 export type VcsDiscoveryItem = typeof VcsDiscoveryItem.Type;
 
+const SourceControlAppHost = TrimmedNonEmptyString.check(
+  Schema.makeFilter(
+    (host) => {
+      try {
+        const url = new URL(`https://${host}`);
+        return (
+          url.host === host.toLowerCase() &&
+          url.pathname === "/" &&
+          !url.username &&
+          !url.password &&
+          !url.search &&
+          !url.hash
+        );
+      } catch {
+        return false;
+      }
+    },
+    { expected: "a host name with an optional port" },
+  ),
+);
+
+const SourceControlAppUrl = TrimmedNonEmptyString.check(
+  Schema.isMaxLength(2048),
+  Schema.makeFilter(
+    (value) => {
+      try {
+        const url = new URL(value);
+        return url.protocol === "https:" && !url.username && !url.password;
+      } catch {
+        return false;
+      }
+    },
+    { expected: "an HTTPS URL without credentials" },
+  ),
+);
+
+export const SourceControlAppSignIn = Schema.Struct({
+  appName: TrimmedNonEmptyString,
+  hosts: Schema.Array(SourceControlAppHost).check(Schema.isMinLength(1)),
+  installUrl: SourceControlAppUrl,
+  revokeUrl: SourceControlAppUrl,
+});
+export type SourceControlAppSignIn = typeof SourceControlAppSignIn.Type;
+
 export const SourceControlProviderDiscoveryItem = Schema.Struct({
   kind: SourceControlProviderKind,
   ...SourceControlDiscoverySharedFields,
   auth: SourceControlProviderAuth,
 
   appSignIn: Schema.optionalKey(Schema.Boolean),
+  appSignInMetadata: Schema.optionalKey(SourceControlAppSignIn),
 });
 export type SourceControlProviderDiscoveryItem = typeof SourceControlProviderDiscoveryItem.Type;
 

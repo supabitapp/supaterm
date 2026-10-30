@@ -1,13 +1,16 @@
+import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
 import { AuthMcpClientAccess } from "./auth.ts";
 import { EnvironmentId, ThreadId, TrimmedNonEmptyString, TurnItemId } from "./baseSchemas.ts";
+import { RelayConnectionInfo } from "./relay.ts";
 
 export const PeerLink = Schema.Struct({
   environmentId: EnvironmentId,
   label: Schema.String,
 
   urls: Schema.Array(TrimmedNonEmptyString),
+  relay: Schema.optionalKey(RelayConnectionInfo),
   access: AuthMcpClientAccess,
   linkedAt: Schema.DateTimeUtc,
   expiresAt: Schema.DateTimeUtc,
@@ -26,7 +29,8 @@ export const PeerLinkSummary = Schema.Struct({
 export type PeerLinkSummary = typeof PeerLinkSummary.Type;
 
 export const PeerLinkCreateInput = Schema.Struct({
-  url: TrimmedNonEmptyString,
+  url: Schema.optional(TrimmedNonEmptyString),
+  relay: Schema.optionalKey(RelayConnectionInfo),
 
   alternateUrls: Schema.optionalKey(Schema.Array(TrimmedNonEmptyString)),
 
@@ -36,7 +40,12 @@ export const PeerLinkCreateInput = Schema.Struct({
   expectedEnvironmentId: Schema.optionalKey(EnvironmentId),
 
   expectedLabel: Schema.optionalKey(TrimmedNonEmptyString),
-});
+}).check(
+  Schema.makeFilter(
+    (input) =>
+      input.url !== undefined || input.relay !== undefined || "A URL or relay is required.",
+  ),
+);
 export type PeerLinkCreateInput = typeof PeerLinkCreateInput.Type;
 
 export const PeerLinkRemoveInput = Schema.Struct({ environmentId: EnvironmentId });
@@ -72,10 +81,18 @@ export const PeerLinkRequestAnswerInput = Schema.Struct({
 
       label: Schema.optionalKey(TrimmedNonEmptyString),
 
-      urls: Schema.NonEmptyArray(TrimmedNonEmptyString),
+      urls: Schema.Array(TrimmedNonEmptyString).pipe(
+        Schema.withDecodingDefault(Effect.succeed([])),
+      ),
+      relay: Schema.optionalKey(RelayConnectionInfo),
       access: AuthMcpClientAccess,
       pairingCode: TrimmedNonEmptyString,
-    }),
+    }).check(
+      Schema.makeFilter(
+        (answer) =>
+          answer.urls.length > 0 || answer.relay !== undefined || "A URL or relay is required.",
+      ),
+    ),
 
     Schema.Struct({ type: Schema.Literal("use-existing"), environmentId: EnvironmentId }),
     Schema.Struct({ type: Schema.Literal("decline") }),
