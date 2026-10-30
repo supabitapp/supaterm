@@ -23,6 +23,7 @@ import {
 } from "@supaterm/client-runtime/text-paste";
 import { useRef } from "react";
 import {
+  type ComposerThreadDraftState,
   type ComposerFileAttachment,
   type ComposerImageAttachment,
   type DraftId,
@@ -57,6 +58,10 @@ import type { PendingUserInput } from "../../session-logic";
  * referenced image before its tile plays its exit.
  */
 export function useComposerAttachmentIntake(input: {
+  readonly readAttachments: () => Pick<
+    ComposerThreadDraftState,
+    "images" | "files" | "terminalContexts"
+  >;
   readonly activeThreadId: ChatComposerProps["activeThreadId"];
   readonly activePendingProgress: ChatComposerProps["activePendingProgress"];
   readonly activePendingIsResponding: boolean;
@@ -69,8 +74,6 @@ export function useComposerAttachmentIntake(input: {
   readonly attachmentTargetKey: string;
   readonly fileStagingLimit: number | null;
   readonly promptRef: ChatComposerProps["promptRef"];
-  readonly composerImagesRef: ChatComposerProps["composerImagesRef"];
-  readonly composerFilesRef: ChatComposerProps["composerFilesRef"];
   readonly composerEditorRef: RefObject<ComposerPromptEditorHandle | null>;
   readonly isRevertingCheckpointRef: RefObject<boolean>;
   readonly setThreadError: ChatComposerProps["setThreadError"];
@@ -86,6 +89,7 @@ export function useComposerAttachmentIntake(input: {
   ) => boolean;
 }) {
   const {
+    readAttachments,
     activeThreadId,
     activePendingProgress,
     activePendingIsResponding,
@@ -98,8 +102,6 @@ export function useComposerAttachmentIntake(input: {
     attachmentTargetKey,
     fileStagingLimit,
     promptRef,
-    composerImagesRef,
-    composerFilesRef,
     composerEditorRef,
     isRevertingCheckpointRef,
     setThreadError,
@@ -156,7 +158,7 @@ export function useComposerAttachmentIntake(input: {
     // A pick that matches a needs-reattach marker replaces it in the draft, so
     // it must not consume a slot; a draft full of markers would otherwise hit
     // the capacity error before the replacement path could run.
-    const reattachMarkers = composerFilesRef.current.filter(composerFileNeedsReattach);
+    const reattachMarkers = readAttachments().files.filter(composerFileNeedsReattach);
     const replacedReattachMarkerIds = new Set<string>();
     const acceptedImages: File[] = [];
     const acceptedFiles: ComposerFileAttachment[] = [];
@@ -323,7 +325,7 @@ export function useComposerAttachmentIntake(input: {
         changeQuestionAttachmentPreparation(questionAttachmentTarget, -1);
       return;
     }
-    const image = composerImagesRef.current.find((candidate) => candidate.id === imageId);
+    const image = readAttachments().images.find((candidate) => candidate.id === imageId);
     const remove = () => exitImage(imageId, () => removeComposerImageFromDraft(imageId));
     const referenced = collectInlineContextIds(promptRef.current).includes(
       image ? imageContextReference(image).contextId : "",
@@ -397,7 +399,7 @@ export function useComposerAttachmentIntake(input: {
       pastedTextFileNamesRef.current = { targetKey: attachmentTargetKey, names: new Set() };
     }
     const reservedNames = pastedTextFileNamesRef.current.names;
-    for (const file of composerFilesRef.current) reservedNames.add(file.name);
+    for (const file of readAttachments().files) reservedNames.add(file.name);
     const foldedFileName = nextPastedTextFileName([...reservedNames]);
     reservedNames.add(foldedFileName);
     const foldedFile = new File([plainText], foldedFileName, {

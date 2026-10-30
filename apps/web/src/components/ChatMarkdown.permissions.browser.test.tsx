@@ -15,6 +15,7 @@ import { act, render } from "../../test/render";
 import { useRightPanelStore } from "../rightPanelStore";
 
 const state = vi.hoisted(() => ({
+  assets: [] as { environmentId: string | null; resource: unknown }[],
   allowed: true,
   listeners: new Set<() => void>(),
   openEditor: vi.fn(),
@@ -28,6 +29,17 @@ const state = vi.hoisted(() => ({
   linked: false,
 }));
 
+vi.mock(
+  import("../assets/assetUrls"),
+  () =>
+    ({
+      useAssetUrlState: (environmentId: string | null, resource: unknown) => {
+        state.assets.push({ environmentId, resource });
+        return { _tag: "Loading" };
+      },
+      useAssetUrlRefresh: () => async () => null,
+    }) as never,
+);
 vi.mock(import("../state/use-atom-query-runner"), async (original) => ({
   ...(await original()),
   useAtomQueryRunner: (() => state.search) as never,
@@ -298,3 +310,25 @@ it.each(["link-to-thread", "unlink-from-thread"])(
     );
   },
 );
+
+it("loads private host media through the selected environment's asset service", async () => {
+  using _setup = setup();
+  state.assets = [];
+  await using screen = await render(
+    <ChatMarkdown
+      sourceControlMedia
+      cwd="/work"
+      threadRef={threadRef}
+      text="![Private upload](https://github.com/user-attachments/assets/5566)"
+    />,
+  );
+  expect(state.assets).toContainEqual({
+    environmentId: threadRef.environmentId,
+    resource: {
+      _tag: "github-media",
+      cwd: "/work",
+      url: "https://github.com/user-attachments/assets/5566",
+    },
+  });
+  expect(screen.container.querySelector('img[src^="https://github.com"]')).toBeNull();
+});

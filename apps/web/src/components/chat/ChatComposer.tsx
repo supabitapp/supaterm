@@ -457,9 +457,6 @@ export interface ChatComposerProps {
   defaultRuntimeMode: RuntimeMode;
 
   promptRef: React.RefObject<string>;
-  composerImagesRef: React.RefObject<ComposerImageAttachment[]>;
-  composerFilesRef: React.RefObject<ComposerFileAttachment[]>;
-  composerTerminalContextsRef: React.RefObject<TerminalContextDraft[]>;
   composerRef: React.RefObject<ChatComposerHandle | null>;
   onPageScrollKeyDown: (key: "PageUp" | "PageDown") => void;
   onPageScrollKeyUp: (key: string) => void;
@@ -585,9 +582,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     onComposerOverlayHeightChange,
     promptRef,
     composerRef,
-    composerImagesRef,
-    composerFilesRef,
-    composerTerminalContextsRef,
     onPageScrollKeyDown,
     onPageScrollKeyUp,
     onPageScrollRelease,
@@ -719,6 +713,16 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     inlineFileIdSet,
   );
   const composerTerminalContexts = composerDraft.terminalContexts;
+  const readAttachments = () => {
+    const store = useComposerDraftStore.getState();
+    const attached = store.getComposerDraft(attachmentDraftTarget);
+    const draft = store.getComposerDraft(composerDraftTarget);
+    return {
+      images: attached?.images ?? [],
+      files: attached?.files ?? [],
+      terminalContexts: draft?.terminalContexts ?? [],
+    };
+  };
   const composerPreviewAnnotations = composerDraft.previewAnnotations;
   const composerReviewComments = composerDraft.reviewComments;
   const composerThreadContexts = attachmentDraft.threadContexts;
@@ -1044,9 +1048,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const composerSurfaceRef = useRef<HTMLDivElement>(null);
   const providerInputRejectedRef = useRef(false);
   const composerSelectLockRef = useRef(false);
-  const composerMenuOpenRef = useRef(false);
-  const composerMenuItemsRef = useRef<ComposerCommandItem[]>([]);
-  const activeComposerMenuItemRef = useRef<ComposerCommandItem | null>(null);
   const composerBlurFrameRef = useRef<number | null>(null);
   const mobileComposerExpandFrameRef = useRef<number | null>(null);
   const mobileComposerExpandReleaseFrameRef = useRef<number | null>(null);
@@ -1155,12 +1156,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const activeComposerMenuItem =
     composerMenuItems.find((item) => item.id === activeComposerMenuItemId) ?? null;
 
-  useLayoutEffect(() => {
-    composerMenuOpenRef.current = composerMenuOpen;
-    composerMenuItemsRef.current = composerMenuItems;
-    activeComposerMenuItemRef.current = activeComposerMenuItem;
-  });
-
   // A send declines the approvals shown here to redirect the agent, so it steers the waiting
   // turn instead of queueing behind it. Approvals the typing guard holds stay unseen and pending.
   const isComposerApprovalState = activePendingApproval !== null;
@@ -1267,7 +1262,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     if (questionAttachmentTarget && activePendingIsResponding) return;
     // Release by the draft attachment, not the bare queue key: a hydrated
     // file's upload lives server-side under its persisted attachment id.
-    const file = composerFilesRef.current.find((candidate) => candidate.id === fileId);
+    const file = readAttachments().files.find((candidate) => candidate.id === fileId);
     if (file) {
       releaseDraftAttachment(file);
     } else {
@@ -1343,6 +1338,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     importContextFragment,
     importContextFragmentStable,
   } = useComposerContextImport({
+    readAttachments,
     environmentId,
     linkedEnvironments,
     activeThread,
@@ -1355,7 +1351,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     pendingUserInputs,
     composerContextRecords,
     composerImages,
-    composerFilesRef,
     pendingThreadImportsRef,
     addComposerFilesToDraft,
   });
@@ -1393,18 +1388,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   if (providerInputChanged) {
     setProviderInputSubmissionError(null);
   }
-
-  useEffect(() => {
-    composerImagesRef.current = composerImages;
-  }, [composerImages, composerImagesRef]);
-
-  useEffect(() => {
-    composerFilesRef.current = composerFiles;
-  }, [composerFiles, composerFilesRef]);
-
-  useEffect(() => {
-    composerTerminalContextsRef.current = composerTerminalContexts;
-  }, [composerTerminalContexts, composerTerminalContextsRef]);
 
   const activeComposerMenuItemKey = activeComposerMenuItem?.id ?? null;
   const composerMenuHighlightInputsChanged = useInputsChanged([
@@ -1912,7 +1895,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     if (item.type === "pull-request") {
       if (
         trigger.kind !== "pull-request" ||
-        !composerMenuItemsRef.current.some((candidate) => candidate.id === item.id)
+        !composerMenuItems.some((candidate) => candidate.id === item.id)
       ) {
         return;
       }
@@ -2170,6 +2153,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       : null;
 
   const { onComposerCommandKey, acceptPromptSuggestion } = composerCommandKeyHandler({
+    readAttachments,
     keybindings,
     sendShortcut: settings.sendShortcut,
     routeKind,
@@ -2184,16 +2168,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     promptHistoryPositionRef,
     composerDraftTarget,
     promptRef,
-    composerImagesRef,
-    composerFilesRef,
-    composerTerminalContextsRef,
     composerPreviewAnnotations,
     composerReviewComments,
     promptSuggestion,
     composerEditorRef,
-    composerMenuOpenRef,
-    composerMenuItemsRef,
-    activeComposerMenuItemRef,
+    composerMenuOpen,
+    composerMenuItems,
+    activeComposerMenuItem,
     setComposerDraftPrompt,
     setComposerCursor,
     setComposerTrigger,
@@ -2220,14 +2201,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     sendAllStashEntriesStable,
     toggleStashMenuStable,
   } = useComposerStash({
+    readAttachments,
     environmentId,
     composerDraftTarget,
     attachmentDraftTarget,
     composerDraft,
     promptRef,
-    composerImagesRef,
-    composerFilesRef,
-    composerTerminalContextsRef,
     keybindings,
     terminalOpen,
     isPaneInputOwner,
@@ -2492,6 +2471,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
 
   const { addComposerAttachments, removeComposerImage, foldPastedText } =
     useComposerAttachmentIntake({
+      readAttachments,
       activeThreadId,
       activePendingProgress,
       activePendingIsResponding,
@@ -2504,8 +2484,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       attachmentTargetKey,
       fileStagingLimit,
       promptRef,
-      composerImagesRef,
-      composerFilesRef,
       composerEditorRef,
       isRevertingCheckpointRef,
       setThreadError,
@@ -3030,9 +3008,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           .map((approval) => approval.requestId)
           .filter((requestId) => !heldRequestIds.has(requestId)),
         prompt: promptRef.current,
-        images: composerImagesRef.current,
-        files: composerFilesRef.current,
-        terminalContexts: composerTerminalContextsRef.current,
+        images: readAttachments().images,
+        files: readAttachments().files,
+        terminalContexts: readAttachments().terminalContexts,
         previewAnnotations: composerPreviewAnnotations,
         reviewComments: composerReviewComments,
         threadContexts: composerThreadContexts,
@@ -3085,9 +3063,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       insertComposerTextStable,
       insertComposerTextAtEndStable,
       promptRef,
-      composerImagesRef,
-      composerFilesRef,
-      composerTerminalContextsRef,
       composerPreviewAnnotations,
       composerReviewComments,
       focusComposer,

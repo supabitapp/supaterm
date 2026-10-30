@@ -721,9 +721,6 @@ export default function ChatView(props: ChatViewProps) {
   });
   const setComposerDraftPrompt = useComposerDraftStore((store) => store.setPrompt);
   const setDraftThreadContext = useComposerDraftStore((store) => store.setDraftThreadContext);
-  const composerImagesRef = useRef<ComposerImageAttachment[]>([]);
-  const composerFilesRef = useRef<ComposerFileAttachment[]>([]);
-  const composerTerminalContextsRef = useRef<TerminalContextDraft[]>([]);
   const branchToolbarRef = useRef<BranchToolbarHandle>(null);
   const citeAssistantText = (
     citation: AssistantCitation,
@@ -3819,9 +3816,6 @@ export default function ChatView(props: ChatViewProps) {
                                   }
                                   onComposerOverlayHeightChange={publishComposerOverlayHeightStable}
                                   promptRef={promptRef}
-                                  composerImagesRef={composerImagesRef}
-                                  composerFilesRef={composerFilesRef}
-                                  composerTerminalContextsRef={composerTerminalContextsRef}
                                   onPageScrollKeyDown={onComposerPageScrollKeyDownStable}
                                   onPageScrollKeyUp={onComposerPageScrollKeyUpStable}
                                   onPageScrollRelease={onComposerPageScrollReleaseStable}

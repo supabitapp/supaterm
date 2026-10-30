@@ -76,13 +76,14 @@ import { useInputsChanged, useInputsChangedWhileActive } from "./useInputsChange
  */
 export function useComposerStash(input: {
   readonly environmentId: EnvironmentId;
+  readonly readAttachments: () => Pick<
+    ComposerThreadDraftState,
+    "images" | "files" | "terminalContexts"
+  >;
   readonly composerDraftTarget: ChatComposerProps["composerDraftTarget"];
   readonly attachmentDraftTarget: ScopedThreadRef | DraftId;
   readonly composerDraft: ComposerThreadDraftState;
   readonly promptRef: ChatComposerProps["promptRef"];
-  readonly composerImagesRef: ChatComposerProps["composerImagesRef"];
-  readonly composerFilesRef: ChatComposerProps["composerFilesRef"];
-  readonly composerTerminalContextsRef: ChatComposerProps["composerTerminalContextsRef"];
   readonly keybindings: ChatComposerProps["keybindings"];
   readonly terminalOpen: boolean;
   readonly isPaneInputOwner: () => boolean;
@@ -123,14 +124,12 @@ export function useComposerStash(input: {
   ) => Promise<void> | null;
 }) {
   const {
+    readAttachments,
     environmentId,
     composerDraftTarget,
     attachmentDraftTarget,
     composerDraft,
     promptRef,
-    composerImagesRef,
-    composerFilesRef,
-    composerTerminalContextsRef,
     keybindings,
     terminalOpen,
     isPaneInputOwner,
@@ -305,7 +304,7 @@ export function useComposerStash(input: {
     let restoredFileCount = 0;
     const stashedFiles = entry.files ?? [];
     if (stashedFiles.length > 0) {
-      const composerFilesNow = composerFilesRef.current;
+      const composerFilesNow = readAttachments().files;
       const existingFileIds = new Set(composerFilesNow.map((file) => file.id));
       const retainedUploadIds = new Set(
         composerFilesNow.flatMap((file) =>
@@ -371,7 +370,7 @@ export function useComposerStash(input: {
         appendedFiles.push(restored);
       }
       const capacity = remainingComposerAttachmentSlots(
-        composerImagesRef.current.length + composerFilesNow.length,
+        readAttachments().images.length + composerFilesNow.length,
         pendingThreadImportsRef.current.get(composerTargetKey(composerDraftTarget)) ?? 0,
       );
       const filesToAppend = appendedFiles.slice(0, capacity);
@@ -415,18 +414,18 @@ export function useComposerStash(input: {
 
     let unrestoredImageNames: string[] = [];
     if (entry.attachments.length > 0) {
-      const existingIds = new Set(composerImagesRef.current.map((image) => image.id));
+      const existingIds = new Set(readAttachments().images.map((image) => image.id));
       // The draft store also dedupes by mimeType+sizeBytes+name, so filter
       // on the same key here. Counting a duplicate against capacity would
       // burn a slot the store then refuses to fill, pushing a genuinely
       // unique image into the overflow list for nothing.
       const existingDedupKeys = new Set(
-        composerImagesRef.current.map(
+        readAttachments().images.map(
           (image) => `${image.mimeType}\0${image.sizeBytes}\0${image.name}`,
         ),
       );
       const capacity = remainingComposerAttachmentSlots(
-        composerImagesRef.current.length + composerFilesRef.current.length + restoredFileCount,
+        readAttachments().images.length + readAttachments().files.length + restoredFileCount,
         pendingThreadImportsRef.current.get(composerTargetKey(composerDraftTarget)) ?? 0,
       );
       const pending = entry.attachments.filter(
@@ -625,11 +624,11 @@ export function useComposerStash(input: {
       return;
     }
     const prompt = promptRef.current.trim();
-    const images = [...composerImagesRef.current];
-    const files = [...composerFilesRef.current];
+    const images = [...readAttachments().images];
+    const files = [...readAttachments().files];
     const stashedRecords: ComposerContextRecord[] = [
       ...composerThreadContexts,
-      ...composerTerminalContextsRef.current.map(terminalContextRecord),
+      ...readAttachments().terminalContexts.map(terminalContextRecord),
       ...composerReviewComments.map(reviewCommentContextRecord),
       ...composerPreviewAnnotations.map((annotation) =>
         previewAnnotationContextRecord(annotation, {

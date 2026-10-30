@@ -1,3 +1,4 @@
+import type { ComposerThreadDraftState } from "../../composerDraftStore";
 import type { PreviewAnnotationPayload } from "@supaterm/contracts";
 import type { ComposerTrigger } from "@supaterm/shared/composerTrigger";
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
@@ -45,19 +46,20 @@ export function composerCommandKeyHandler(input: {
     targetKey: string;
     position: ComposerPromptHistoryPosition;
   } | null>;
+  readonly readAttachments: () => Pick<
+    ComposerThreadDraftState,
+    "images" | "files" | "terminalContexts"
+  >;
   readonly composerDraftTarget: ChatComposerProps["composerDraftTarget"];
   readonly promptRef: ChatComposerProps["promptRef"];
-  readonly composerImagesRef: ChatComposerProps["composerImagesRef"];
-  readonly composerFilesRef: ChatComposerProps["composerFilesRef"];
-  readonly composerTerminalContextsRef: ChatComposerProps["composerTerminalContextsRef"];
   readonly composerPreviewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
   readonly composerReviewComments: ReadonlyArray<ReviewCommentContext>;
   /** The predicted next prompt, offered only while it shows in the empty composer. */
   readonly promptSuggestion: { readonly text: string; readonly dismiss: () => void } | null;
   readonly composerEditorRef: RefObject<ComposerPromptEditorHandle | null>;
-  readonly composerMenuOpenRef: RefObject<boolean>;
-  readonly composerMenuItemsRef: RefObject<ComposerCommandItem[]>;
-  readonly activeComposerMenuItemRef: RefObject<ComposerCommandItem | null>;
+  readonly composerMenuOpen: boolean;
+  readonly composerMenuItems: ComposerCommandItem[];
+  readonly activeComposerMenuItem: ComposerCommandItem | null;
   readonly setComposerDraftPrompt: (
     target: ChatComposerProps["composerDraftTarget"],
     prompt: string,
@@ -85,6 +87,7 @@ export function composerCommandKeyHandler(input: {
   readonly onCancelQueuedMessageEdit: ChatComposerProps["onCancelQueuedMessageEdit"];
 }) {
   const {
+    readAttachments,
     keybindings,
     sendShortcut,
     routeKind,
@@ -99,16 +102,13 @@ export function composerCommandKeyHandler(input: {
     promptHistoryPositionRef,
     composerDraftTarget,
     promptRef,
-    composerImagesRef,
-    composerFilesRef,
-    composerTerminalContextsRef,
     composerPreviewAnnotations,
     composerReviewComments,
     promptSuggestion,
     composerEditorRef,
-    composerMenuOpenRef,
-    composerMenuItemsRef,
-    activeComposerMenuItemRef,
+    composerMenuOpen,
+    composerMenuItems,
+    activeComposerMenuItem,
     setComposerDraftPrompt,
     setComposerCursor,
     setComposerTrigger,
@@ -147,9 +147,9 @@ export function composerCommandKeyHandler(input: {
     }
     if (pendingUserInputs.length > 0) return false;
     if (
-      composerImagesRef.current.length > 0 ||
-      composerFilesRef.current.length > 0 ||
-      composerTerminalContextsRef.current.length > 0 ||
+      readAttachments().images.length > 0 ||
+      readAttachments().files.length > 0 ||
+      readAttachments().terminalContexts.length > 0 ||
       composerPreviewAnnotations.length > 0 ||
       composerReviewComments.length > 0
     ) {
@@ -203,7 +203,7 @@ export function composerCommandKeyHandler(input: {
     const { trigger } = resolveActiveComposerTrigger();
     const menuIsActive =
       !isLiteralPendingAnswer &&
-      (composerMenuOpenRef.current || (trigger !== null && trigger.kind !== "slash-skill"));
+      (composerMenuOpen || (trigger !== null && trigger.kind !== "slash-skill"));
     if (
       promptSuggestion !== null &&
       !menuIsActive &&
@@ -228,7 +228,6 @@ export function composerCommandKeyHandler(input: {
       if (event.isComposing || event.keyCode === 229) return false;
       if (menuIsActive) {
         dismissComposerTrigger(trigger);
-        composerMenuOpenRef.current = false;
         return true;
       }
       if (!isEditingQueuedMessage) return false;
@@ -236,9 +235,8 @@ export function composerCommandKeyHandler(input: {
       return true;
     }
     if (menuIsActive && (submissionIntent === null || submissionIntent === "foreground")) {
-      const currentItems = composerMenuItemsRef.current;
-      const selectedItem =
-        activeComposerMenuItemRef.current ?? (key === "Tab" ? currentItems[0] : null);
+      const currentItems = composerMenuItems;
+      const selectedItem = activeComposerMenuItem ?? (key === "Tab" ? currentItems[0] : null);
       if (key === "ArrowDown" && currentItems.length > 0) {
         nudgeComposerMenuHighlight("ArrowDown");
         return true;

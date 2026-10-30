@@ -38,6 +38,7 @@ import {
   createMessageAttachmentPreviewProjector,
   providerErrorPresentation,
   type TimelineEntry,
+  timelineEntryIsPersistentResourceCard,
   workEntryIndicatesToolFailure,
   workEntryDisplayIndicatesToolFailure,
   workEntryIndicatesToolSuccess,
@@ -1363,6 +1364,45 @@ describe("native provider presentation in the v2 timeline", () => {
     sourceItemId: item.id,
     item,
   });
+
+  it.each(["secret_request", "link_request"] as const)(
+    "keeps %s reachable as a persistent request card",
+    (type) => {
+      const item: OrchestrationV2TurnItem =
+        type === "secret_request"
+          ? {
+              ...base,
+              type,
+              label: "API token",
+              reason: "Connect the service",
+              delivery: "file",
+              secretStatus: "pending",
+            }
+          : { ...base, type, reason: "Connect the worker", linkStatus: "pending" };
+      const entries = deriveTimelineEntriesFromVisibleTurnItems({
+        visibleTurnItems: [visible(item)],
+        optimisticMessages: [],
+      });
+      expect(entries[0]).toMatchObject({ kind: "event", projectedItem: { item: { type } } });
+      expect(timelineEntryIsPersistentResourceCard(entries[0]!)).toBe(true);
+      const rows = deriveMessagesTimelineRows({
+        timelineEntries: entries,
+        latestRun: {
+          runId: base.runId,
+          status: "completed",
+          startedAt: DateTime.formatIso(timestamp),
+          completedAt: DateTime.formatIso(timestamp),
+        },
+        isWorking: false,
+        activeTurnStartedAt: null,
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      });
+      expect(rows.some((row) => row.kind === "event" && row.projectedItem.item.type === type)).toBe(
+        true,
+      );
+    },
+  );
 
   it("keeps async answers in the question row, including incrementally appended replies", () => {
     const requestId = RuntimeRequestId.make("question");

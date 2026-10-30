@@ -1,3 +1,4 @@
+import type { ComposerThreadDraftState } from "../../composerDraftStore";
 import { countPreparingComposerImages } from "./preparingComposerImages";
 import type { RefObject } from "react";
 import type { ChatComposerProps } from "./ChatComposer";
@@ -62,6 +63,10 @@ export function useComposerContextImport(input: {
   readonly linkedEnvironments: ReadonlyMap<EnvironmentId, string>;
   readonly activeThread: ChatComposerProps["activeThread"];
   readonly activeThreadId: ChatComposerProps["activeThreadId"];
+  readonly readAttachments: () => Pick<
+    ComposerThreadDraftState,
+    "images" | "files" | "terminalContexts"
+  >;
   readonly composerDraftTarget: ChatComposerProps["composerDraftTarget"];
   readonly attachmentDraftTarget: ChatComposerProps["composerDraftTarget"];
   readonly attachmentTargetKey: string;
@@ -70,11 +75,11 @@ export function useComposerContextImport(input: {
   readonly pendingUserInputs: ReadonlyArray<PendingUserInput>;
   readonly composerContextRecords: ComposerDraftContextRecords;
   readonly composerImages: ReadonlyArray<ComposerImageAttachment>;
-  readonly composerFilesRef: ChatComposerProps["composerFilesRef"];
   readonly pendingThreadImportsRef: RefObject<Map<string, number>>;
   readonly addComposerFilesToDraft: (files: ComposerFileAttachment[]) => string[];
 }) {
   const {
+    readAttachments,
     environmentId,
     linkedEnvironments,
     activeThread,
@@ -87,7 +92,6 @@ export function useComposerContextImport(input: {
     pendingUserInputs,
     composerContextRecords,
     composerImages,
-    composerFilesRef,
     pendingThreadImportsRef,
     addComposerFilesToDraft,
   } = input;
@@ -177,7 +181,7 @@ export function useComposerContextImport(input: {
     if (attachmentTargetKeyRef.current !== importTargetKey) return;
     const replacesFileMarker =
       record.kind === "file" &&
-      composerFilesRef.current.some(
+      readAttachments().files.some(
         (candidate) =>
           composerFileNeedsReattach(candidate) &&
           composerFileMatchesReattachMarker(candidate, {

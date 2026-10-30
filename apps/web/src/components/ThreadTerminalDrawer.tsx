@@ -626,10 +626,12 @@ function TerminalSessionViewport({
     const terminal = terminalRef.current;
     if (!terminal) return;
     terminal.input.readOnly = !canOperateTerminal;
+    if (canOperateTerminal && visibleRef.current)
+      consumePendingTerminalFocus(threadRef, terminalId, paneId);
     if (writableSessionGeneration(readTerminalSession(), canOperateTerminal) !== null) {
       terminal.resendSize();
     }
-  }, [canOperateTerminal]);
+  }, [canOperateTerminal, threadRef, terminalId, paneId]);
 
   // Links re-read the grant on activation; only the hovered link's styling needs a nudge.
   const linkActivationScopeRef = useRef(canOpenHostEditor);
