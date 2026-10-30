@@ -38,6 +38,33 @@ const history = Effect.gen(function* () {
 });
 
 describe("runMigrations", () => {
+  it.effect("indexes live item recovery by ordinal and run", () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* runMigrations();
+      const ordinal = yield* sql<{ readonly detail: string }>`
+        EXPLAIN QUERY PLAN SELECT turn_item_id FROM orchestration_v2_projection_turn_items
+        WHERE thread_id = 'thread' AND status IN ('pending', 'running', 'waiting')
+        ORDER BY ordinal, turn_item_id
+      `;
+      assert.isTrue(
+        ordinal.some((row) =>
+          row.detail.includes("orchestration_v2_projection_turn_items_active_ordinal_idx"),
+        ),
+      );
+      const run = yield* sql<{ readonly detail: string }>`
+        EXPLAIN QUERY PLAN SELECT DISTINCT run_id FROM orchestration_v2_projection_turn_items
+        WHERE thread_id = 'thread' AND status IN ('pending', 'running', 'waiting')
+      `;
+      assert.isTrue(
+        run.some((row) =>
+          row.detail.includes("orchestration_v2_projection_turn_items_active_run_idx"),
+        ),
+      );
+      assert.deepStrictEqual(yield* runMigrations(), []);
+    }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
+  );
+
   it.effect("creates a fresh database from the whole manifest once", () =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
@@ -140,8 +167,8 @@ describe("runMigrations", () => {
       const sql = yield* SqlClient.SqlClient;
       yield* runMigrations();
       const newer = [
-        [2, "ThreadFailureLookupIndex"],
-        [3, "FromANewerBuild"],
+        [migrationManifest.length + 1, "ThreadFailureLookupIndex"],
+        [migrationManifest.length + 2, "FromANewerBuild"],
       ] as const;
       for (const [id, name] of newer) {
         yield* sql`INSERT INTO effect_sql_migrations (migration_id, name) VALUES (${id}, ${name})`;
