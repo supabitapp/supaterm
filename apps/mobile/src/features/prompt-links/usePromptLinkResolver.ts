@@ -1,5 +1,5 @@
 import * as Dialog from "../../components/ui/Dialog";
-import { StackActions, useNavigation } from "@react-navigation/native";
+import { CommonActions, StackActions, useNavigation } from "@react-navigation/native";
 import { availableScratchWorkspaceRoot } from "@supaterm/client-runtime/operations/projects";
 import {
   findPromptLinkProject,
@@ -37,7 +37,7 @@ import { useWorkspaceState } from "../../state/workspace";
 import { useNewTaskFlow } from "../threads/new-task-flow-provider";
 import { applyLinkedPromptToThreadDraft, showPromptLinkNotice } from "./prompt-link-actions";
 import {
-  clearedPromptLinkParams,
+  withoutPromptLinkParams,
   promptLinkNotice,
   promptLinkRepositoryName,
   latestThreadEnvironmentIds,
@@ -288,6 +288,7 @@ export function usePromptLinkResolver(params: Readonly<Record<string, unknown>> 
   });
 
   const handledSearchRef = useRef<string | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- consumes legacy route prompt parameters through the navigator after the shell is ready
   useEffect(() => {
     if (search === null) {
       handledSearchRef.current = null;
@@ -295,7 +296,7 @@ export function usePromptLinkResolver(params: Readonly<Record<string, unknown>> 
     }
     if (waitingForShells || handledSearchRef.current === search) return;
     handledSearchRef.current = search;
-    navigation.setParams(clearedPromptLinkParams());
+    navigation.dispatch(CommonActions.replaceParams(withoutPromptLinkParams(params)));
     resolveLink(search);
-  }, [navigation, search, waitingForShells]);
+  }, [navigation, params, search, waitingForShells]);
 }
