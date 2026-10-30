@@ -153,6 +153,7 @@ export interface ThreadComposerProps {
   /** The predicted next prompt, shown as the placeholder; the trailing action fills it in. */
   readonly suggestedPrompt?: string | null;
   readonly contentMaxWidth?: number;
+  readonly draftControls?: ReactNode;
   readonly bottomInset?: number;
   readonly connectionState: RemoteClientConnectionState;
   readonly environmentLabel: string | null;
@@ -822,6 +823,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
         className="relative w-full self-center"
         style={{ maxWidth: props.contentMaxWidth }}
       >
+        {props.draftControls}
         {commandMenuTrigger ? (
           <ComposerPopoverAnchor>
             <ComposerCommandPopover
@@ -1072,7 +1074,11 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                 scrollEnabled={isExpanded}
                 singleLineCentered={!isExpanded}
                 contentInsetVertical={
-                  isExpanded || Platform.OS === "android" ? 0 : collapsedEditorInset(bodyText)
+                  isExpanded
+                    ? 0
+                    : Platform.OS === "android"
+                      ? COLLAPSED_EDITOR_DEFAULT_INSET
+                      : collapsedEditorInset(bodyText)
                 }
                 style={
                   isExpanded
@@ -1086,7 +1092,10 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                         height: Math.max(
                           INLINE_EDITOR_HEIGHT,
                           Math.ceil(bodyText.lineHeight) +
-                            (Platform.OS === "android" ? 0 : 2 * collapsedEditorInset(bodyText)),
+                            2 *
+                              (Platform.OS === "android"
+                                ? COLLAPSED_EDITOR_DEFAULT_INSET
+                                : collapsedEditorInset(bodyText)),
                         ),
                       }
                 }

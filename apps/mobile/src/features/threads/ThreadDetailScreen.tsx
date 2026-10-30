@@ -51,6 +51,7 @@ import {
 } from "@supaterm/shared/codexArtifactTemplates";
 import {
   declinePendingApprovals,
+  sendApprovalFeedback,
   type ApprovalResponder,
   type ThreadUserInputQuestion,
 } from "@supaterm/client-runtime/state/thread-requests";
@@ -125,7 +126,6 @@ import { ThreadBrowserFloat } from "../browser/ThreadBrowserFloat";
 import { useThreadServerBrowserTabs } from "../../state/preview";
 import type { QueuedThreadMessage } from "../../state/thread-outbox-model";
 import { scopedThreadKey } from "../../lib/scopedEntities";
-import { parentThreadIsBelow } from "../../lib/android-workspace-navigation";
 import {
   clearThreadComposerError,
   threadComposerErrorsAtom,
@@ -176,6 +176,7 @@ import type { MessageJump, MessageJumpHandlers } from "@supaterm/client-runtime/
 import { ComposerQueuedEditBanner } from "./ComposerQueuedEdit";
 import type { ThreadContentPresentation } from "./threadContentPresentation";
 import { resolveThreadFeedSubmissionAnchor } from "./thread-feed-live-follow";
+import { useOpenLinkedThread } from "./useOpenLinkedThread";
 import { useGlobalVoiceInput } from "../voice-input/VoiceInputProvider";
 
 export interface ThreadDetailScreenProps {
@@ -258,7 +259,10 @@ export interface ThreadDetailScreenProps {
   readonly onResumeQueue: (() => Promise<void>) | null;
   readonly onSendMessage: (
     followUp?: ActiveTurnComposerAction,
-    beforeDispatch?: () => Promise<boolean>,
+    beforeDispatch?: (
+      text: string,
+      hasAttachmentsOrContext: boolean,
+    ) => Promise<boolean | "responded">,
   ) => Promise<MessageId | null>;
   readonly onReconnectEnvironment: () => void;
   readonly canSwitchThreadProvider: boolean;
@@ -495,6 +499,7 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
   const usesNativeWorkspaceColumns = useNativeWorkspaceColumnsSupported();
   const navigation = useNavigation();
   const { selectThreadRoute } = useAdaptiveWorkspaceLayout();
+  const openLinkedThread = useOpenLinkedThread();
   const { session: voiceInputSession } = useGlobalVoiceInput();
   const { reportedModelSelection, queuedCount, turnSubagents } =
     useSelectedThreadComposerMetadata();
@@ -1283,18 +1288,40 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
     const approvalsToDecline = props.activePendingApprovals;
     const declineBeforeDispatch =
       approvalsToDecline.length > 0 && props.activePendingUserInput === null
-        ? async () =>
-            props.respondingApprovalId === null &&
-            (await declinePendingApprovals(approvalsToDecline, props.onRespondToApproval)) &&
-            selectedThreadKeyRef.current === targetThreadKey &&
-            // A draft edited or pasted into during the decline isn't what the user sent.
-            stillSendable?.() !== false &&
-            // An approval that arrived during the decline would block the redirect; the draft
-            // stays so the next send declines it too.
-            !activePendingApprovalsRef.current.some(
-              (approval) =>
-                !approvalsToDecline.some((declined) => declined.requestId === approval.requestId),
+        ? async (text: string, hasAttachmentsOrContext: boolean) => {
+            if (
+              selectedThreadKeyRef.current !== targetThreadKey ||
+              stillSendable?.() === false ||
+              props.respondingApprovalId !== null
             )
+              return false;
+            const feedbackTarget = approvalsToDecline[0];
+            if (feedbackTarget?.supportsFeedback) {
+              if (hasAttachmentsOrContext) {
+                Dialog.alert(
+                  "Approval feedback",
+                  "Send approval feedback without attachments or added context.",
+                );
+                return false;
+              }
+              return (await sendApprovalFeedback(feedbackTarget, text, props.onRespondToApproval))
+                ? ("responded" as const)
+                : false;
+            }
+            return (
+              props.respondingApprovalId === null &&
+              (await declinePendingApprovals(approvalsToDecline, props.onRespondToApproval)) &&
+              selectedThreadKeyRef.current === targetThreadKey &&
+              // A draft edited or pasted into during the decline isn't what the user sent.
+              stillSendable?.() !== false &&
+              // An approval that arrived during the decline would block the redirect; the draft
+              // stays so the next send declines it too.
+              !activePendingApprovalsRef.current.some(
+                (approval) =>
+                  !approvalsToDecline.some((declined) => declined.requestId === approval.requestId),
+              )
+            );
+          }
         : undefined;
     const messageId = await onSendMessage(followUp, declineBeforeDispatch);
     if (messageId === null || selectedThreadKeyRef.current !== targetThreadKey) {
@@ -1718,23 +1745,16 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
                         onOpenParent={
                           props.selectedThread.lineage.parentThreadId === null
                             ? null
-                            : () => {
-                                const parent = {
+                            : () =>
+                                openLinkedThread({
                                   environmentId: String(props.environmentId),
                                   threadId: String(props.selectedThread.lineage.parentThreadId),
-                                };
-                                navigation.dispatch((state) =>
-                                  parentThreadIsBelow(state, parent)
-                                    ? StackActions.pop()
-                                    : StackActions.push("Thread", parent),
-                                );
-                              }
+                                })
                         }
                       />
                     </View>
                   ) : (
                     <>
-                      {props.draftMode?.controls}
                       <ThreadComposer
                         isDraft={Boolean(props.draftMode)}
                         canOperateThread={props.canOperateThread}
@@ -1742,11 +1762,14 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
                         editorRef={composerEditorRef}
                         placeholder={
                           props.activePendingApproval
-                            ? "Send a message to decline and redirect the agent"
-                            : (suggestedPrompt ?? "Ask the repo agent, or run a command…")
+                            ? props.activePendingApproval.supportsFeedback
+                              ? "Send feedback to decline this request"
+                              : "Send a message to decline and redirect the agent"
+                            : (suggestedPrompt ?? "Ask anything")
                         }
                         suggestedPrompt={suggestedPrompt}
                         contentMaxWidth={contentMaxWidth}
+                        draftControls={props.draftMode?.controls}
                         connectionState={props.connectionStateLabel}
                         environmentLabel={props.environmentLabel}
                         selectedThread={props.selectedThread}
