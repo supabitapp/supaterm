@@ -10,10 +10,13 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
+import { desktopUpdateChannelOf } from "@supaterm/shared/cliRelease";
+import { compareSemverVersions } from "@supaterm/shared/semver";
 import type * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 
 import * as DesktopObservability from "../app/DesktopObservability.ts";
+import * as DesktopBackendPool from "../backend/DesktopBackendPool.ts";
 import * as DesktopTelemetryPublisher from "../telemetry/DesktopTelemetryPublisher.ts";
 import * as DesktopUpdates from "./DesktopUpdates.ts";
 import {
@@ -44,9 +47,13 @@ type CommitClaim =
 export const listen: Effect.Effect<
   void,
   never,
-  DesktopUpdates.DesktopUpdates | DesktopTelemetryPublisher.DesktopTelemetryPublisher | Scope.Scope
+  | DesktopUpdates.DesktopUpdates
+  | DesktopTelemetryPublisher.DesktopTelemetryPublisher
+  | DesktopBackendPool.DesktopBackendPool
+  | Scope.Scope
 > = Effect.gen(function* () {
   const updates = yield* DesktopUpdates.DesktopUpdates;
+  const backends = yield* DesktopBackendPool.DesktopBackendPool;
   const publisher = yield* DesktopTelemetryPublisher.DesktopTelemetryPublisher;
   const activeRequestIdRef = yield* Ref.make(Option.none<string>());
   const requestControlRef = yield* Ref.make<{
@@ -171,15 +178,58 @@ export const listen: Effect.Effect<
           return;
         }
         yield* Ref.set(activeRequestIdRef, Option.some(request.requestId));
-        yield* logInfo("remote update requested", { requestId: request.requestId });
+        yield* logInfo("remote update requested", {
+          requestId: request.requestId,
+          channel: request.channel,
+        });
+
+        if (request.channel !== undefined) {
+          const current = yield* updates.getState;
+          if (
+            desktopUpdateChannelOf(current.currentVersion) !== request.channel &&
+            (yield* backends.list).length > 1
+          ) {
+            yield* publishReport(
+              current,
+              {
+                outcome: "failed",
+                reason:
+                  "This desktop app also runs WSL backends, whose databases a remote switch cannot check. Switch it on that machine.",
+              },
+              request.requestId,
+            );
+            return;
+          }
+          const switched = yield* Effect.raceFirst(
+            updates.setChannel(request.channel, { minimumVersion: request.targetVersion }).pipe(
+              Effect.as(true),
+              Effect.catch((error) =>
+                updates.getState.pipe(
+                  Effect.flatMap((state) =>
+                    publishReport(
+                      state,
+                      { outcome: "failed", reason: error.message },
+                      request.requestId,
+                    ),
+                  ),
+                  Effect.as(false),
+                ),
+              ),
+            ),
+            Deferred.await(cancellation).pipe(Effect.as(false)),
+          );
+          if (!switched) return;
+
+          const state = yield* updates.getState;
+          if (request.targetVersion === state.currentVersion) {
+            yield* publishReport(state, { outcome: "up-to-date" }, request.requestId);
+            return;
+          }
+        }
         const { latest, changes } = yield* updates.subscribe;
         const disabledReason = Option.getOrNull(yield* updates.disabledReason);
         let attempts: RemoteDesktopUpdateAttempts = { checks: 0, downloads: 0 };
-        // A state event can land while the action that produced it still holds
-        // the reservation (e.g. "available" before the check releases), so a
-        // forked action can be refused with no later state event to retry on.
-        // Rejected actions re-enqueue their state here after a short pause so
-        // the step runs again once the reservation is free.
+
         const retries = yield* Queue.unbounded<DesktopUpdateState>();
         const retryLater = (state: DesktopUpdateState) =>
           Effect.sleep(ACTION_RETRY_DELAY).pipe(
@@ -188,6 +238,10 @@ export const listen: Effect.Effect<
             Effect.forkScoped,
           );
 
+        const crossing = (state: DesktopUpdateState) =>
+          request.channel !== undefined &&
+          request.targetVersion !== undefined &&
+          desktopUpdateChannelOf(state.currentVersion) !== request.channel;
         const step = Effect.fn("DesktopRemoteUpdates.step")(function* (
           state: DesktopUpdateState,
         ): Effect.fn.Return<boolean, never, Scope.Scope> {
@@ -197,7 +251,7 @@ export const listen: Effect.Effect<
               return false;
             case "check":
               attempts = { ...attempts, checks: attempts.checks + 1 };
-              yield* updates.check("remote-update").pipe(
+              yield* updates.check("remote-update", { allowDowngrade: crossing(state) }).pipe(
                 Effect.flatMap((result) => {
                   if (result.checked) return Effect.void;
                   attempts = { ...attempts, checks: attempts.checks - 1 };
@@ -218,9 +272,6 @@ export const listen: Effect.Effect<
               );
               return false;
             case "install": {
-              // The download event fires before its action releases the
-              // updater reservation. Wait until the prepared install can
-              // be committed by the client in a separate RPC.
               if (yield* updates.isActionActive) {
                 yield* retryLater(state);
                 return false;
@@ -250,21 +301,32 @@ export const listen: Effect.Effect<
               yield* logInfo("remote update prepared", { requestId: request.requestId });
               return true;
             }
-            case "done":
+            case "done": {
+              const done =
+                request.targetVersion !== undefined &&
+                next.outcome === "up-to-date" &&
+                (crossing(state) ||
+                  compareSemverVersions(state.currentVersion, request.targetVersion) < 0)
+                  ? {
+                      outcome: "failed" as const,
+                      reason: `The desktop app found no build of ${request.targetVersion}.`,
+                    }
+                  : next;
               yield* publishReport(
                 state,
                 {
-                  outcome: next.outcome,
-                  ...(next.reason === undefined ? {} : { reason: next.reason }),
+                  outcome: done.outcome,
+                  ...(done.reason === undefined ? {} : { reason: done.reason }),
                 },
                 request.requestId,
               );
               yield* logInfo("remote update finished", {
                 requestId: request.requestId,
-                outcome: next.outcome,
-                reason: next.reason ?? null,
+                outcome: done.outcome,
+                reason: done.reason ?? null,
               });
               return true;
+            }
           }
         });
 
@@ -416,11 +478,6 @@ export const listen: Effect.Effect<
         result.state.downloadedVersion === claim.prepared.downloadedVersion &&
         (yield* updates.isInstallActive)
       ) {
-        // Another install (local, or an earlier remote request) already owns
-        // the shutdown and will relaunch the app on the same downloaded
-        // version. This commit joins it: no failure marker, and the client
-        // proves the handoff the same way, by transport loss then the
-        // target version on reconnect.
         yield* logInfo("remote update commit joining an in-progress install", {
           requestId: commit.requestId,
         });
@@ -433,9 +490,6 @@ export const listen: Effect.Effect<
         }
         return;
       }
-      // A successful install tears down this backend. Do not send a success
-      // marker from the old process: transport loss followed by the target
-      // version is the only proof that the handoff succeeded.
     }).pipe(
       Effect.ensuring(clearActiveRequest(commit.requestId)),
       Effect.catchCause((cause) =>
