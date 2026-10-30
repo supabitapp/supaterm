@@ -137,7 +137,7 @@ To generate a fresh title from the conversation, open a thread's menu and choose
 **Regenerate title**. The action is unavailable while title generation is in progress
 or when the connected environment needs a server update.
 
-Set **Thread title instructions** in **Settings → Threads → Text generation**, under Advanced,
+On web and desktop, set **Thread title instructions** in **Settings → Threads → Text generation**
 to control new and regenerated titles. Select a project to give it its own instructions.
 
 Agents connected through Supaterm can use the same server-owned metadata workflow to
@@ -155,9 +155,9 @@ sending a message, a run being requested or completing, or reopening a thread; s
 does not reorder it.
 Pinned, Snoozed, and Done remain shared shelves in every mode. Select a group's header to collapse
 it; the thread you have open stays visible. On web and desktop, drag a project's header to reorder
-projects; this sets **Settings → Threads → Project order** to **Manual**, which the project pickers
+projects; this sets **Settings → General → Project order** to **Manual**, which the project pickers
 also follow. The grouping, collapsed groups, and project order are saved on this device.
-You can also change it in Settings → Threads.
+Change grouping in **Settings → General** on every client.
 
 ### Working threads
 
@@ -263,8 +263,9 @@ Queued messages stay saved while the limit blocks the thread. They run after
 the continuation finishes. If the queue was held by a restart, resume it then.
 
 When the provider reports a reset time, choose **Resume at reset** to schedule a
-continuation. You can cancel it from the thread. Enable **Resume after
-usage limits** in **Settings → Threads**, to schedule limit stops by default.
+continuation. You can cancel it from the thread. In **Settings → Threads**, enable
+**Auto-resume limited threads** on web and desktop, or **Resume after usage limits** on mobile,
+to schedule limit stops by default.
 The environment must be running when the reset arrives; it resumes overdue
 continuations after a restart. Stopping the thread, sending a new message,
 archiving, or marking it as Done prevents a pending continuation from starting.
@@ -272,8 +273,8 @@ archiving, or marking it as Done prevents a pending continuation from starting.
 Choose **Snooze until reset** to hide the thread until its allowance returns.
 Snooze and auto-resume are independent: snooze alone wakes the thread without
 sending a message; enabling both wakes and continues it. **Wake now** cancels
-the snooze. Enable **Snooze until limits reset** in thread behavior settings to
-snooze limit stops by default. Providers without a reset time offer manual
+the snooze. In **Settings → Threads**, enable **Snooze limited threads** on web and desktop,
+or **Snooze until limits reset** on mobile, to snooze limit stops by default. Providers without a reset time offer manual
 retry and the normal snooze choices.
 
 On web and desktop, use **Agents** to follow work delegated to subagents. On mobile, open a
@@ -281,9 +282,8 @@ subagent from its conversation card or **Agents**. On iOS layouts with an inspec
 beside the parent; maximize it for a full-screen view and close that view to return.
 Stop on a thread also stops the subagents it delegated to.
 
-Subagent threads started by the agent can't take messages; message the parent
-thread instead. When such a subagent needs an approval or an answer, the parent
-thread asks for it.
+If a subagent thread is read-only, send follow-up directions through its parent. Pending
+questions and approvals remain available in the conversation while the subagent waits.
 
 Expand a tool call in the conversation to see its full command and output.
 Summaries shorten shell wrappers and can still describe the latest call after it
@@ -318,7 +318,7 @@ that server's job and requires terminal access; it is unavailable on Windows.
 
 ## Snooze until later
 
-Change menu choices in **Settings → Threads → Snooze options**. Choose durations or times on a
+On web and desktop, change menu choices in **Settings → Threads → Snooze options**. Choose durations or times on a
 day; weekdays mean the next occurrence after today. Choices use the destination environment's
 settings and also apply on mobile. Use **Custom** for a one-time wake time.
 
@@ -334,6 +334,6 @@ an approval or answer from you, when a run fails, or when you send it a message.
 
 ## Project folders
 
-On web and desktop, enable project folders in the thread list options to group active work.
+On web and desktop, enable **Project folders** in **Settings → Labs** to group active work.
 Pinned, Snoozed, and Done keep their own shelves. Projects without active threads are hidden
 unless selected by the project filter. The choice is saved on this device.

@@ -56,7 +56,8 @@ bumps require a new store binary under the existing OTA fingerprint policy.
 - Launches the packaged Linux x64 and macOS arm64 app against an isolated historical fixture,
   opens a thread, and fails publication when the backend or renderer cannot start. Keep the
   fixture historical so the smoke run exercises migration.
-- Uploads all produced files to a draft, then publishes the GitHub Release.
+- Publishes the GitHub Release with the produced files. Prereleases upload to a draft before
+  the separate publication step; stable releases publish through the upload action.
   - Stable tags with a suffix after `X.Y.Z` (for example `1.2.3-alpha.1`) are published as GitHub prereleases.
   - Only plain stable `X.Y.Z` releases are marked as the repository's latest release.
   - Nightly runs are always GitHub prereleases and never marked latest.
@@ -224,12 +225,12 @@ themselves download that version's CLI archive from the GitHub Release; servers 
 handed a `supaterm@<version>` command to run. Every released client version must therefore have its
 release archives, and then its npm launcher, available before users can receive that client.
 
-The workflow enforces this ordering:
+Preserve this ordering when changing the release workflow:
 
-1. `release` uploads the CLI archives and `SHA256SUMS` to a draft and publishes only after every
-   asset is attached and `check_cli_publish` succeeds. A new feed entry therefore has its archives.
-   Rerunning an already-public release can temporarily replace assets; service updates may fail
-   until the upload finishes.
+1. `release` must publish the CLI archives and `SHA256SUMS` before clients can discover the
+   version, after `check_cli_publish` succeeds. Prereleases enforce this with a draft upload
+   followed by publication. Rerunning an already-public release can temporarily replace assets;
+   service updates may fail until the upload finishes.
 2. `publish_cli` publishes the `supaterm@<version>` launcher, which downloads from that release, on
    every channel.
 3. `deploy_web` depends on both before moving the hosted channel to the new client.

@@ -121,9 +121,8 @@ Each provider instance names an agent from the official ACP Registry. Settings
 searches the registry through the connected server, then prepares a compatible
 distribution before persisting the provider instance. Binary distributions use
 a managed, versioned cache; declared checksums are verified when present.
-Version-pinned `npx` packages install globally through `npm`; `uvx` packages use
-`uv tool install`. ACP launches the resulting global command directly, so the
-same command is available for terminal authentication. A local executable may
+Version-pinned `npx` and `uvx` packages install into Supaterm-owned tool directories. ACP
+launches the managed executable directly, and new server terminals can use it for authentication. A local executable may
 override the installed command without changing the registry-declared arguments
 or environment.
 

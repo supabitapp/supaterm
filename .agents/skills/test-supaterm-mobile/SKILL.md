@@ -41,18 +41,19 @@ available. Its JSON result names the build log and any next step. Authorized
 mobile verification includes that step unless the user prohibits it.
 
 For an existing AgentDevice session, run
-`vp run mobile:install <ios|android> --session <session>` from that session's
-directory. This fetches a matching cached build or builds on a cache miss. Supply `--abi arm64-v8a`
+`vp run mobile:install <ios|android> --session <session> --agent-device <launcher> --config <config>`
+from that session's directory. Use the launcher and config returned by `device_open`.
+This fetches a matching cached build or builds on a cache miss. Supply `--abi arm64-v8a`
 for an ARM Android target; `--metro <url>` also opens the app against Metro.
-Keep using the launcher and target arguments returned by `device_open`.
+Keep using the returned target arguments when driving the device.
 
 Start `vp run dev:client` from `apps/mobile`, or reuse a healthy Metro belonging
 to this checkout. Open its printed development-client URL with AgentDevice
 `open com.supaterm.mobile.dev <url>` and all returned target arguments.
 The device must be able to reach both Metro and the isolated backend.
-Append `&disableAutoLaunch=1&disableFab=1` to the development-client URL query
-when developer chrome would obscure screenshots or taps; the SDK 58 dev client
-applies these preferences before the app loads.
+Append `&__expo_disable_auto_launch=1&__expo_disable_fab=1` to the development-client URL
+when developer chrome would obscure screenshots or taps. The install command adds these
+parameters when opening a session with `--metro`.
 
 ## Pair and verify
 

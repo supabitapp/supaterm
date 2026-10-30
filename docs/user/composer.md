@@ -174,11 +174,10 @@ composer. A suggestion is never sent for you: it only fills the draft, and typin
 
 Suggestions work with every provider. Claude threads use Claude's own prediction, which reuses the
 turn's prompt cache, so it costs almost nothing. Other providers use the text generation model in
-**Settings > Threads**, so each suggestion is a small request to that provider. Either way, nothing
+**Settings > Threads → Text generation**, so each suggestion is a small request to that provider. Either way, nothing
 is suggested at the start of a thread, in plan mode, after an error, or when the next step is not
 obvious. Only replies from the last few hours get one, so opening an older thread costs nothing.
-They are off by default. Turn them on with **Next prompt suggestions** in **Settings > Threads**, or
-**Settings > Threads** on mobile.
+They are off by default. Turn them on with **Next prompt suggestions** in **Settings > Chat**.
 
 ## Edit an earlier prompt
 
@@ -284,8 +283,8 @@ menu**, which also stops `/` from suggesting skills later in a message. It is in
 mobile. Only skills enabled for the provider are listed.
 
 To install Supaterm's optional `supaterm-advisor` and `supaterm-commitee` skills,
-choose **Install** in **Settings → Providers → Orchestration skills**
-on web and desktop, or **Settings → Providers** on mobile. Nothing installs
+choose **Install** in **Settings → Integrations → Orchestration skills**
+on web and desktop. Nothing installs
 automatically. Installation applies to all projects on the selected connected
 environments and links the providers' native skill folders to Supaterm's bundled skills.
 With **All environments** selected, offline environments are skipped; reconnect

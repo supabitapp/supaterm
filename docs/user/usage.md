@@ -120,7 +120,7 @@ anything. The command is offered only for providers that appear under **Usage �
 On wider windows, the composer shows how much of the current model's session, weekly, and monthly
 limits is left, taking the busiest window of each length. After a thread starts, the meter stays
 below the composer only when **Usage limits** is enabled in Settings → Appearance. It reads the same
-snapshot. To keep quota windows visible, enable **Usage** in **Settings → Appearance → Thread
+snapshot. To keep quota windows visible, enable **Provider limits** in **Settings → Appearance → Thread
 details**, or use the card's context menu. Context and estimated cost keep their existing defaults.
 
 OpenCode Go reports its session, weekly, and monthly allowance when OpenCode runs locally in

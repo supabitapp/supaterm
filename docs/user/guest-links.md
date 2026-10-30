@@ -2,7 +2,8 @@
 
 Share one thread with someone who needs to follow the work without access to your environment.
 Guest links are off by default. Enable **Guest links** in **Settings → Labs** on the host,
-then choose **Share with guest** from the thread menu and send the resulting link.
+then choose **Share with guest** from the thread menu. Confirm a web address the guest can
+reach, create the link, and send it.
 The host must stay reachable through the restricted encrypted guest connection.
 
 A guest can follow messages, reasoning, command output, and shared images. File diffs and
