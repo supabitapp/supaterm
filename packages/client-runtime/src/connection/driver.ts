@@ -160,19 +160,20 @@ const selectAndConnect = Effect.fnUntraced(function* <R>(
     Effect.forkScoped(Fiber.join(check).pipe(Effect.timeoutOption(ROUTE_CHECK_TIMEOUT_MS))),
   );
   const preferenceWindow = yield* Effect.forkScoped(
-    Effect.raceFirst(
-      Effect.sleep(ROUTE_CHECK_HEAD_START_MS),
-      (checks.length === 0
-        ? Effect.never
-        : Effect.raceAll(
-            checks.map((check) =>
-              Fiber.join(check).pipe(
-                Effect.flatMap((result) => (result === "answered" ? Effect.void : Effect.never)),
-              ),
+    (checks.length === 0
+      ? Effect.never
+      : Effect.raceAll(
+          checks.map((check) =>
+            Fiber.join(check).pipe(
+              Effect.flatMap((result) => (result === "answered" ? Effect.void : Effect.never)),
             ),
-          )
-      ).pipe(Effect.andThen(Effect.sleep(ROUTE_PREFERENCE_WAIT_MS))),
-    ).pipe(Effect.as(Option.none<RouteCheck>())),
+          ),
+        )
+    ).pipe(
+      Effect.andThen(Effect.sleep(ROUTE_PREFERENCE_WAIT_MS)),
+      Effect.timeoutOrElse({ duration: ROUTE_CHECK_HEAD_START_MS, orElse: () => Effect.void }),
+      Effect.as(Option.none<RouteCheck>()),
+    ),
   );
   let failure: ConnectionAttemptError | undefined;
   // Each route gets its own scope so a half-open session closes before the next try.
