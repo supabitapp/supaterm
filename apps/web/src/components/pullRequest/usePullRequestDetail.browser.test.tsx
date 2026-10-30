@@ -1,3 +1,4 @@
+import type * as AtomTypes from "effect/reactivity/Atom";
 import type { PullRequestAnswerHandlers } from "@supaterm/client-runtime/state/pull-requests";
 import * as Effect from "effect/Effect";
 import {
@@ -11,49 +12,56 @@ import { expect, vi } from "vite-plus/test";
 import { render } from "../../../test/render";
 
 const query = vi.hoisted(() => ({
-  detail: null as PullRequestDetail | null,
-  timestamp: 0,
-  detailAtom: null as unknown,
   handlers: {} as PullRequestAnswerHandlers,
 }));
 vi.mock(import("@supaterm/client-runtime/state/pull-requests"), async (original) => {
   const actual = await original();
+  const { AsyncResult, Atom } = await import("effect/reactivity");
   return {
     ...actual,
     createPullRequestEnvironmentAtoms: ((runtime, handlers) => {
       query.handlers = handlers ?? {};
-      return actual.createPullRequestEnvironmentAtoms(runtime, handlers);
-    }) as typeof actual.createPullRequestEnvironmentAtoms,
+      const environment = actual.createPullRequestEnvironmentAtoms(runtime, handlers);
+      const detail = Atom.make<AtomTypes.Type<ReturnType<typeof environment.detail>>>(
+        AsyncResult.initial(),
+      );
+      const activity = Atom.make<AtomTypes.Type<ReturnType<typeof environment.activity>>>(
+        AsyncResult.initial(),
+      );
+      const checks = Atom.make<AtomTypes.Type<ReturnType<typeof environment.checks>>>(
+        AsyncResult.initial(),
+      );
+      return {
+        ...environment,
+        detail: () => detail,
+        activity: () => activity,
+        checks: () => checks,
+      };
+    }) satisfies typeof actual.createPullRequestEnvironmentAtoms,
   };
 });
-vi.mock(import("~/state/query"), async (original) => ({
+vi.mock(import("~/state/session"), async (original) => ({
   ...(await original()),
-  useEnvironmentQuery: (key: unknown) => ({
-    data: key === query.detailAtom ? query.detail : null,
-    dataUpdatedAt: key === query.detailAtom ? query.timestamp : 0,
-    error: null,
-    failure: null,
-    isPending: false,
-    isSuccess: true,
-    refresh: () => {},
-  }),
-}));
-vi.mock(import("~/state/session"), () => ({
   useEnvironmentScope: () => true,
 }));
-vi.mock(import("~/connection/runtime"), async () => {
+vi.mock(import("~/state/threads"), async (original) => {
+  const actual = await original();
   const { Atom } = await import("effect/reactivity");
-  const Layer = await import("effect/Layer");
-  return { connectionAtomRuntime: Atom.runtime(Layer.empty) };
-});
-vi.mock(import("~/state/threads"), async () => {
-  const { Atom } = await import("effect/reactivity");
-  return { environmentThreadShells: { threadShellsAtom: Atom.make([]) } };
+  return {
+    ...actual,
+    environmentThreadShells: {
+      ...actual.environmentThreadShells,
+      threadShellsAtom: Atom.make<
+        AtomTypes.Type<typeof actual.environmentThreadShells.threadShellsAtom>
+      >([]),
+    },
+  };
 });
 vi.mock(import("~/hooks/usePullRequestChecksRefresh"), () => ({
   usePullRequestChecksRefresh: () => {},
 }));
 
+import { AsyncResult } from "effect/reactivity";
 import { appAtomRegistry, AppAtomRegistryProvider } from "~/rpc/atomRegistry";
 import { pullRequestEnvironment, useSharedPullRequestSummary } from "~/state/pullRequests";
 import { usePullRequestDetail } from "./usePullRequestDetail";
@@ -120,9 +128,7 @@ it.effect(
   "keeps disk detail out of the observation cache and rejects an older answer arriving later",
   () =>
     Effect.gen(function* () {
-      query.detail = null;
-      query.timestamp = 0;
-      query.detailAtom = pullRequestEnvironment.detail({
+      const detailAtom = pullRequestEnvironment.detail({
         environmentId,
         input: { ...reference, allowStale: false },
       });
@@ -137,10 +143,7 @@ it.effect(
           <Subject />
         </AppAtomRegistryProvider>
       );
-      const screen = yield* Effect.acquireRelease(
-        Effect.promise(() => render(content())),
-        (screen) => Effect.promise(() => screen[Symbol.asyncDispose]()),
-      );
+      const screen = yield* Effect.acquireDisposable(Effect.promise(() => render(content())));
       yield* Effect.promise(
         async () =>
           await expect
@@ -154,11 +157,11 @@ it.effect(
             .toHaveTextContent("No observation"),
       );
 
-      query.detail = detail("Fresh title", 200);
-      query.timestamp = 1000;
+      const fresh = detail("Fresh title", 200);
+      appAtomRegistry.set(detailAtom, AsyncResult.success(fresh, { timestamp: 1000 }));
       yield* query.handlers.detail!(
         { environmentId, input: { ...reference, allowStale: false } },
-        query.detail,
+        fresh,
         appAtomRegistry,
       );
       yield* Effect.promise(() => screen.rerender(content()));
@@ -169,11 +172,11 @@ it.effect(
             .toHaveTextContent("Fresh title"),
       );
 
-      query.detail = detail("Older late answer", 100);
-      query.timestamp = 2000;
+      const older = detail("Older late answer", 100);
+      appAtomRegistry.set(detailAtom, AsyncResult.success(older, { timestamp: 2000 }));
       yield* query.handlers.detail!(
         { environmentId, input: { ...reference, allowStale: false } },
-        query.detail,
+        older,
         appAtomRegistry,
       );
       yield* Effect.promise(() => screen.rerender(content()));

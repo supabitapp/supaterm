@@ -329,8 +329,8 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
             ) : (
               <div
                 {...sectionNavigation.containerProps}
-                role="tree"
                 {...workspaceAreaProps("settings-nav", 0, "Settings")}
+                role="tree"
                 className="space-y-4"
               >
                 {SETTINGS_NAV_GROUPS.map((group) => (
