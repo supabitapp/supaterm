@@ -228,6 +228,7 @@ export class VoiceInputController {
   private readonly ownedRecordingUris = new Set<string>();
   private recordingConfigured = false;
   private finishing = false;
+  private askingPermission = false;
 
   constructor(dependencies: VoiceInputControllerDependencies) {
     this.dependencies = dependencies;
@@ -272,7 +273,10 @@ export class VoiceInputController {
         return;
       }
 
-      const permission = await this.dependencies.requestPermission();
+      this.askingPermission = true;
+      const permission = await this.dependencies
+        .requestPermission()
+        .finally(() => (this.askingPermission = false));
       if (!this.isCurrent(operationToken)) return;
       if (!permission.granted) {
         this.setError(
@@ -369,6 +373,8 @@ export class VoiceInputController {
   }
 
   appMovedToBackground(): Promise<void> | void {
+    // Android backgrounds the app while its own microphone permission dialog is open.
+    if (this.askingPermission) return;
     if (this.state.phase === "preparing") {
       this.invalidateOperation();
       this.setError("Voice input stopped when the app moved to the background.", "retry");

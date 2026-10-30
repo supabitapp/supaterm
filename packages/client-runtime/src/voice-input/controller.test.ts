@@ -599,4 +599,16 @@ describe("VoiceInputController", () => {
     expect(harness.recorder.record).not.toHaveBeenCalled();
     expect(harness.controller.currentState.error).toContain("background");
   });
+
+  it("keeps preparing while the system asks for microphone access", async () => {
+    const permission = deferred<{ granted: boolean; canAskAgain: boolean }>();
+    const harness = createHarness({ requestPermission: () => permission.promise });
+    const starting = harness.controller.start();
+    harness.controller.appMovedToBackground();
+    permission.resolve({ granted: true, canAskAgain: true });
+    await starting;
+
+    expect(harness.recorder.record).toHaveBeenCalled();
+    expect(harness.controller.currentState.phase).toBe("recording");
+  });
 });
