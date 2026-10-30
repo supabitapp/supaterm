@@ -120,11 +120,9 @@ it("keeps a subagent child awake when its parent thread is snoozed", () => {
   });
 });
 
-it.effect.each([
-  ["sql", ProjectionStore.layer.pipe(Layer.provideMerge(SqlitePersistence.layerMemory))],
-] as const)(
-  "%s: a pinned parent's subagent child is born unpinned and is marked done once idle",
-  ([, testLayer]) =>
+it.effect.each(["provider", "mcp"] as const)(
+  "a %s child does not inherit parent mark-done protections and is marked done once idle",
+  (creationSource) =>
     Effect.gen(function* () {
       const store = yield* ProjectionStore.ProjectionStoreV2;
       const parentThread = {
@@ -141,6 +139,7 @@ it.effect.each([
             sentAt: DateTime.formatIso(parentCreatedAt),
           },
         ],
+        autoMarkDoneDisabledAt: parentCreatedAt,
       };
       const childThread = makeSubagentChildThread({
         parentThread,
@@ -152,7 +151,7 @@ it.effect.each([
         title: "Child",
         now: childCreatedAt,
         createdBy: "agent",
-        creationSource: "provider",
+        creationSource,
       });
 
       assert.equal(parentThread.pinnedAt, parentCreatedAt);
@@ -160,6 +159,7 @@ it.effect.each([
       assert.isNull(childThread.pinnedAt);
       assert.isNull(childThread.pinOrderKey);
       assert.deepEqual(childThread.pinnedMessages, []);
+      assert.isNull(childThread.autoMarkDoneDisabledAt);
 
       for (const thread of [parentThread, childThread]) {
         yield* store.apply({
@@ -173,6 +173,7 @@ it.effect.each([
       const savedParent = yield* store.getThread(parentThreadId);
       assert.deepEqual(savedParent.pinnedAt, parentCreatedAt);
       assert.equal(savedParent.pinOrderKey, "a0");
+      assert.deepEqual(savedParent.autoMarkDoneDisabledAt, parentCreatedAt);
       const candidates = yield* store.getAutoMarkDoneCandidates();
       assert.deepEqual(
         candidates.map((candidate) => candidate.id),
@@ -186,7 +187,9 @@ it.effect.each([
         autoMarkDoneOnMerge: false,
       });
       assert.equal(doneAt && DateTime.formatIso(doneAt), DateTime.formatIso(childCreatedAt));
-    }).pipe(Effect.provide(testLayer)),
+    }).pipe(
+      Effect.provide(ProjectionStore.layer.pipe(Layer.provideMerge(SqlitePersistence.layerMemory))),
+    ),
 );
 
 function taskFixture() {
