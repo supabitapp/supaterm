@@ -2,7 +2,7 @@ import { compileResolvedKeybindingsConfig } from "@supaterm/shared/keybindings";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
 
-import { render } from "../../test/render";
+import { act, render } from "../../test/render";
 
 const state = vi.hoisted(() => ({ navigate: vi.fn() }));
 
@@ -47,13 +47,15 @@ describe("usage toggle shortcut on Usage", () => {
   it("goes back", async () => {
     vi.clearAllMocks();
     using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
-    await using screen = await render(null, { router: "/usage" });
+    await using screen = await render(null, { router: "/" });
+    await act(() => screen.router!.navigate({ to: "/usage" }));
     using _commands = { [Symbol.dispose]: registerNavigationHistoryCommands(screen.router!) };
 
-    using back = vi.spyOn(window.history, "back").mockImplementation(() => undefined);
+    using back = vi.spyOn(screen.router!.history, "back");
     await userEvent.keyboard("{Control>}u{/Control}");
 
     expect(back).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(screen.router!.state.location.pathname).toBe("/"));
   });
 
   // Both listeners sit on window, so the palette must not claim the key whatever their order.
