@@ -4111,23 +4111,11 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       fallbackErrorDetail: `git fetch ${input.remoteName} failed`,
     };
 
-    const runFetch = (fetchArgs: readonly string[]) => {
-      const run = executeGitWithStableDiagnostics(
-        "GitVcsDriver.fetchRemote",
-        input.cwd,
-        fetchArgs,
-        {
-          ...options,
-          allowNonZeroExit: true,
-        },
-      );
-      return run.pipe(
-        Effect.filterOrElse(
-          (result) => !(result.exitCode !== 0 && isRefLockFailure(result.stderr)),
-          (_result) => run,
-        ),
-      );
-    };
+    const runFetch = (fetchArgs: readonly string[]) =>
+      executeGitWithStableDiagnostics("GitVcsDriver.fetchRemote", input.cwd, fetchArgs, {
+        ...options,
+        allowNonZeroExit: true,
+      });
     const fetchAll = runFetch(args).pipe(
       Effect.flatMap((result) =>
         result.exitCode === 0
