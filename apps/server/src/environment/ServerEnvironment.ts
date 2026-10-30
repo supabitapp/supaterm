@@ -224,6 +224,7 @@ export const make = Effect.gen(function* () {
       ignoredFileListing: true,
       triage: true,
       threadProjectFromScratch: true,
+      npmReleaseLookup: true,
       ...(serverSelfUpdate === null ? {} : { serverSelfUpdate }),
       ...(serverInstallation === null ? {} : { serverInstallation }),
       ...(serverSelfUpdate === "boot-service" || desktopAppUpdate
