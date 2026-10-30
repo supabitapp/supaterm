@@ -2,6 +2,7 @@ import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
 import { EnvironmentId, ProjectId } from "@supaterm/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 
+vi.mock("../../state/preferences", () => ({}));
 vi.mock("../../state/atom-registry", () => ({}));
 vi.mock("../../state/projects", () => ({}));
 vi.mock("../../state/use-composer-drafts", () => ({}));
@@ -34,18 +35,26 @@ describe("resolveStartNewTaskDestination", () => {
   it.each([
     ["the remembered project is no longer listed", stickyProject],
     ["nothing is remembered", null],
-  ])("falls back to the first project when %s", (_case, sticky) => {
+  ])("opens the picker when %s", (_case, sticky) => {
     expect(
       resolveStartNewTaskDestination({
         stickyProject: sticky,
         projects: [first],
         requestId: "request-1",
       }),
-    ).toEqual({
-      draft: { requestId: "request-1", environmentId: "environment-1", projectId: "first" },
-    });
+    ).toEqual({ draft: { requestId: "request-1" } });
   });
 
+  it("opens the picker when remembering the project is disabled", () => {
+    expect(
+      resolveStartNewTaskDestination({
+        stickyProject,
+        projects: [remembered],
+        requestId: "request-1",
+        useLastProject: false,
+      }),
+    ).toEqual({ draft: { requestId: "request-1" } });
+  });
   it("opens a projectless draft when there are no projects", () => {
     expect(
       resolveStartNewTaskDestination({ stickyProject, projects: [], requestId: "request-1" }),

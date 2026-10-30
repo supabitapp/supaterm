@@ -95,6 +95,7 @@ export function HtmlRenderWebView(props: {
     () => ({ uri: props.uri + htmlRenderThemeFragment(initialTheme) }),
     [props.uri, initialTheme],
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- posts theme changes into the already loaded WebView
   useEffect(() => {
     if (shownTheme.current === null || shownTheme.current === theme) return;
     shownTheme.current = theme;
@@ -131,7 +132,7 @@ export function HtmlRenderWebView(props: {
         accessibilityLabel={props.title}
         style={{ flex: 1, backgroundColor: "transparent" }}
         allowsInlineMediaPlayback
-        automaticallyAdjustContentInsets={!props.nested}
+        contentInsetAdjustmentBehavior={props.nested ? "never" : "automatic"}
         bounces={!props.nested}
         showsVerticalScrollIndicator={!props.nested}
         showsHorizontalScrollIndicator={!props.nested}

@@ -1,3 +1,4 @@
+import { contextChipPresentation } from "./composerChipPresentation";
 import { describe, expect, it } from "vite-plus/test";
 
 describe("contextChipPresentation image detection", () => {
@@ -5,14 +6,14 @@ describe("contextChipPresentation image detection", () => {
     const { contextChipPresentation } = await import("./composerChipPresentation");
     expect(
       contextChipPresentation("file", { kind: "file", name: "IMG_4997.PNG", mimeType: "" }),
-    ).toEqual({ accent: "#d55665", icon: "image" });
+    ).toEqual({ accent: "#0090cd", icon: "image" });
     expect(
       contextChipPresentation("file", {
         kind: "file",
         name: "shot",
         mimeType: "image/jpeg",
       }),
-    ).toEqual({ accent: "#d55665", icon: "image" });
+    ).toEqual({ accent: "#0090cd", icon: "image" });
   });
 
   it("leaves genuine documents and videos alone", async () => {
@@ -58,5 +59,11 @@ describe("contextChipIcon", () => {
     ).toEqual({ kind: "file", name: expect.any(String) });
     expect(contextRecordFileName({ name: "notes.txt" })).toBe("notes.txt");
     expect(contextRecordFileName(undefined)).toBe("");
+  });
+});
+
+describe("contextChipPresentation", () => {
+  it("draws a mentioned machine as a machine, not the generic file chip", () => {
+    expect(contextChipPresentation("environment")).toEqual({ accent: "#3f9a4f", icon: "server" });
   });
 });

@@ -1,6 +1,6 @@
 import type { ChatAttachment, EnvironmentId } from "@supaterm/contracts";
 import { Image } from "expo-image";
-import { useRef } from "react";
+import { useRef, type ReactNode } from "react";
 import { type AccessibilityActionEvent, Platform, Pressable, View } from "react-native";
 
 import { AppText as Text } from "../../components/ui/AppText";
@@ -18,6 +18,7 @@ export function ThreadQueueMessage(props: {
   readonly environmentId: EnvironmentId;
   readonly title: string;
   readonly guestName?: string;
+  readonly sender?: ReactNode;
   readonly attachments: ReadonlyArray<ChatAttachment>;
   readonly controls: ThreadQueueRowControls;
   readonly canPromoteToSteer: boolean;
@@ -97,6 +98,7 @@ export function ThreadQueueMessage(props: {
         {props.controls.isEditing ? (
           <Text className="text-xs text-foreground-muted">Editing in composer</Text>
         ) : null}
+        {props.sender}
         {props.guestName ? (
           <Text className="font-supaterm-medium text-xs text-adaptive-fuchsia-600-300">
             {props.guestName}

@@ -1,5 +1,5 @@
 import type { VoiceInputPhase, VoiceInputState } from "@supaterm/client-runtime/voice-input";
-import { memo, useCallback, useLayoutEffect, useState, type ReactNode } from "react";
+import { memo, useCallback, useState, type ReactNode } from "react";
 import {
   Linking,
   Platform,
@@ -13,8 +13,8 @@ import Animated, {
   LinearTransition,
   ReduceMotion,
   useAnimatedStyle,
+  useDerivedValue,
   useReducedMotion,
-  useSharedValue,
   withTiming,
   type EntryExitAnimationFunction,
   type SharedValue,
@@ -136,10 +136,8 @@ export function ComposerDictationDraftContent(props: {
   readonly compact: boolean;
   readonly hidden: boolean;
 }) {
-  const rotation = useSharedValue(props.hidden ? 1 : 0);
-  useLayoutEffect(() => {
-    rotation.set(withTiming(props.hidden ? 1 : 0, TOOLBAR_FLIP_TIMING));
-  }, [props.hidden, rotation]);
+  const hidden = props.hidden;
+  const rotation = useDerivedValue(() => withTiming(hidden ? 1 : 0, TOOLBAR_FLIP_TIMING));
   const compact = props.compact;
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: compact ? 1 - rotation.value : 1,
@@ -200,7 +198,7 @@ export function ComposerDictationToolbar(props: {
 }
 
 const WaveformBar = memo(function WaveformBar(props: {
-  readonly audioLevels: SharedValue<number[]>;
+  readonly audioLevels: SharedValue<ReadonlyArray<number>>;
   readonly sampleIndex: number;
   readonly height?: number;
 }) {
@@ -233,7 +231,7 @@ const COMPACT_WAVEFORM_BAR_COUNT = 8;
 const COMPACT_WAVEFORM_BAR_HEIGHT = 14;
 
 export const CompactVoiceWaveform = memo(function CompactVoiceWaveform(props: {
-  readonly audioLevels: SharedValue<number[]>;
+  readonly audioLevels: SharedValue<ReadonlyArray<number>>;
 }) {
   return (
     <View
@@ -255,7 +253,7 @@ export const CompactVoiceWaveform = memo(function CompactVoiceWaveform(props: {
 });
 
 const VoiceWaveform = memo(function VoiceWaveform(props: {
-  readonly audioLevels: SharedValue<number[]>;
+  readonly audioLevels: SharedValue<ReadonlyArray<number>>;
 }) {
   const [barCount, setBarCount] = useState(0);
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
@@ -357,16 +355,16 @@ function SessionCapsuleButton(props: {
 }
 
 export function ComposerDictationStatus(props: {
-  readonly audioLevels: SharedValue<number[]>;
+  readonly audioLevels: SharedValue<ReadonlyArray<number>>;
   readonly elapsedSeconds: number;
   readonly phase: VoiceInputPhase;
   readonly presentation: VoiceComposerPresentation;
   readonly onDismissError: () => void;
 }) {
-  const recordingVisibility = useSharedValue(props.phase === "recording" ? 1 : 0);
-  useLayoutEffect(() => {
-    recordingVisibility.set(withTiming(props.phase === "recording" ? 1 : 0, DICTATION_TIMING));
-  }, [props.phase, recordingVisibility]);
+  const recording = props.phase === "recording";
+  const recordingVisibility = useDerivedValue(() =>
+    withTiming(recording ? 1 : 0, { duration: 120 }),
+  );
   const waveformStyle = useAnimatedStyle(() => ({
     opacity: recordingVisibility.get(),
   }));

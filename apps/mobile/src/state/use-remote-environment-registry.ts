@@ -4,6 +4,7 @@ import type { EnvironmentId } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
 import { AsyncResult, Atom } from "effect/reactivity";
 import { useCallback } from "react";
+import { runAtomCommand } from "@supaterm/client-runtime/state/runtime";
 
 import { useConnectionController } from "../features/connection/useConnectionController";
 import { environmentPresentations } from "./presentation";
@@ -15,6 +16,7 @@ import { environmentSession } from "./session";
 import { environmentCatalog } from "../connection/catalog";
 import { createRemoteEnvironmentProjectionAtoms } from "./remote-environment-projections";
 import { serverEnvironment } from "./server";
+import { connectPairingUrl as connectPairingUrlCommand } from "../connection/onboarding";
 
 const connectionPairingUrlAtom = Atom.make("").pipe(
   Atom.keepAlive,
@@ -28,6 +30,41 @@ const pendingConnectionErrorAtom = Atom.make<string | null>(null).pipe(
 
 export function setPendingConnectionError(message: string | null): void {
   appAtomRegistry.set(pendingConnectionErrorAtom, message);
+}
+
+export interface PairingOutcome {
+  readonly ok: boolean;
+  /** Shown beside the pairing form; null when the failure got its own dialog. */
+  readonly error: string | null;
+}
+
+/** Pairs with the environment behind a pairing link and saves it. */
+export async function pairEnvironment(
+  pairingUrl: string,
+  expectedEnvironmentId?: EnvironmentId,
+): Promise<PairingOutcome> {
+  const result = await runAtomCommand(
+    appAtomRegistry,
+    connectPairingUrlCommand,
+    { pairingUrl, ...(expectedEnvironmentId === undefined ? {} : { expectedEnvironmentId }) },
+    { reportFailure: false },
+  );
+  if (AsyncResult.isSuccess(result)) {
+    appAtomRegistry.set(connectionPairingUrlAtom, "");
+    return { ok: true, error: null };
+  }
+  const error = Cause.squash(result.cause);
+  const message = error instanceof Error ? error.message : "Failed to pair with the environment.";
+  if (
+    error !== null &&
+    typeof error === "object" &&
+    "reason" in error &&
+    error.reason === "unsupported"
+  ) {
+    Dialog.alert("Client not supported", message);
+    return { ok: false, error: null };
+  }
+  return { ok: false, error: message };
 }
 
 const remoteEnvironmentProjections = createRemoteEnvironmentProjectionAtoms({
@@ -108,7 +145,6 @@ export function useRemoteConnectionStatus() {
 export function useRemoteConnections() {
   const controller = useConnectionController();
   const connectionPairingUrl = useAtomValue(connectionPairingUrlAtom);
-  const pendingConnectionError = useAtomValue(pendingConnectionErrorAtom);
   const { connectedEnvironments, connectionError, connectionState } = useRemoteConnectionStatus();
 
   const onChangeConnectionPairingUrl = useCallback((pairingUrl: string) => {
@@ -116,30 +152,9 @@ export function useRemoteConnections() {
   }, []);
 
   const onConnectPress = useCallback(
-    async (pairingUrl?: string, expectedEnvironmentId?: EnvironmentId) => {
-      const nextPairingUrl = pairingUrl ?? connectionPairingUrl;
-      setPendingConnectionError(null);
-      const result = await controller.connectPairingUrl(nextPairingUrl, expectedEnvironmentId);
-      if (AsyncResult.isFailure(result)) {
-        const error = Cause.squash(result.cause);
-        const message =
-          error instanceof Error ? error.message : "Failed to pair with the environment.";
-        if (
-          error !== null &&
-          typeof error === "object" &&
-          "reason" in error &&
-          error.reason === "unsupported"
-        ) {
-          Dialog.alert("Client not supported", message);
-        } else {
-          setPendingConnectionError(message);
-        }
-      } else {
-        appAtomRegistry.set(connectionPairingUrlAtom, "");
-      }
-      return result;
-    },
-    [connectionPairingUrl, controller],
+    (pairingUrl?: string, expectedEnvironmentId?: EnvironmentId) =>
+      pairEnvironment(pairingUrl ?? connectionPairingUrl, expectedEnvironmentId),
+    [connectionPairingUrl],
   );
 
   const onReconnectEnvironment = useCallback(
@@ -189,7 +204,6 @@ export function useRemoteConnections() {
     connectionPairingUrl,
     connectionState,
     connectionError,
-    pairingConnectionError: pendingConnectionError,
     connectedEnvironments,
     connectedEnvironmentCount: connectedEnvironments.length,
     onChangeConnectionPairingUrl,

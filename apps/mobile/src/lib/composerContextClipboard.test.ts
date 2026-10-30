@@ -173,7 +173,7 @@ describe("mobile context clipboard imports", () => {
     const controller = new AbortController();
     mocks.dispose.mockImplementationOnce(() => controller.abort());
     const imageOnly = {
-      text: "![Checkout](t3-context://v1/image/image-source)",
+      text: "![Checkout](supaterm-context://v1/image/image-source)",
       fragment: encodeComposerContextFragment({
         version: 1,
         source: { environmentId: EnvironmentId.make("source") },
@@ -292,6 +292,22 @@ describe("mobile context clipboard imports", () => {
         .map((reference) => reference.label),
     ).toEqual([foreignThread.label, image.label]);
     expect(result!.text).toMatch(/^Compare these findings: .* before changing anything\.$/);
+  });
+
+  it("keeps a thread from a machine the destination links to", async () => {
+    const result = await importComposerContextClipboard(
+      mixedClipboard,
+      0,
+      new AbortController().signal,
+      0,
+      EnvironmentId.make("destination"),
+      new Map([[foreignThread.environmentId, "Source"]]),
+    );
+    expect(result!.skippedThreads).toEqual([]);
+    expect(result!.context.records.filter((record) => record.kind === "thread")).toEqual([
+      { ...foreignThread, contextId: expect.any(String) },
+      { ...localThread, contextId: expect.any(String) },
+    ]);
   });
 
   it("preserves both machines' thread references when pasting without a destination", async () => {

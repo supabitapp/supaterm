@@ -1,3 +1,4 @@
+import { useThreadListNow } from "./use-thread-list-now";
 import { SheetHeader } from "../../components/ui/SheetHeader";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { useAtomValue } from "@effect/atom-react";
@@ -130,6 +131,7 @@ function useDragHandlePan(latest: RefObject<DragHandleProps>, disabled: boolean)
 
 function DragHandle(props: DragHandleProps) {
   const latest = useRef(props);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Keeps the native drag gesture reading the latest row handlers.
   useLayoutEffect(() => {
     latest.current = props;
   });
@@ -182,7 +184,7 @@ export function ThreadArrangementSheet(props: { onClose: () => void }) {
   const pendingOrder = useAtomValue(pendingThreadOrderAtom);
   const dropBusy = useAtomValue(threadDropBusyAtom);
   const { moveThread } = useThreadListActions();
-  const [now, setNow] = useState(() => new Date().toISOString());
+  const now = useThreadListNow(threads);
   const [expanded, setExpanded] = useState({ snoozed: false, done: false });
   const [doneVisibleCount, setDoneVisibleCount] = useState(THREAD_LIST_V2_DONE_INITIAL_COUNT);
   const olderSettledShelf = useOlderSettledShelf({
@@ -190,20 +192,6 @@ export function ThreadArrangementSheet(props: { onClose: () => void }) {
     expanded: expanded.done,
     visibleCount: doneVisibleCount,
   });
-  useEffect(() => {
-    const wakeAt = Math.min(
-      ...threads.flatMap((thread) => {
-        const at = Date.parse(thread.snoozedUntil ?? "");
-        return at > Date.parse(now) ? [at] : [];
-      }),
-    );
-    if (!Number.isFinite(wakeAt)) return;
-    const timer = setTimeout(
-      () => setNow(new Date().toISOString()),
-      Math.min(Math.max(0, wakeAt - Date.now()) + 1, 2_147_483_647),
-    );
-    return () => clearTimeout(timer);
-  }, [threads, now]);
   const sections = useMemo(() => {
     const shared = {
       threads,
@@ -267,6 +255,7 @@ export function ThreadArrangementSheet(props: { onClose: () => void }) {
   const [preview, setPreview] = useState<Drag | null>(null);
   const [translateY] = useState(() => new Animated.Value(0));
   const latest = useRef({ rows, pinnedPlanner, moveThread });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Keeps the native drag loop aligned with the current rows and planner.
   useLayoutEffect(() => {
     latest.current = { rows, pinnedPlanner, moveThread };
   });
@@ -283,12 +272,14 @@ export function ThreadArrangementSheet(props: { onClose: () => void }) {
     setStoppedOrderVersion(orderVersion);
     setPreview(null);
   }
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Cancels a native drag loop when canonical order changes.
   useEffect(() => {
     if (drag.current?.orderVersion === orderVersion) return;
     if (frame.current !== null) cancelAnimationFrame(frame.current);
     frame.current = null;
     drag.current = null;
   }, [orderVersion]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the pending drag animation frame on unmount
   useEffect(
     () => () => {
       if (frame.current !== null) cancelAnimationFrame(frame.current);

@@ -3,7 +3,10 @@ import { ThreadUndoNotice } from "../home/ThreadUndoNotice";
 import { useThreadListV2Layout } from "./use-thread-list-v2-layout";
 import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
 import { resolveScratchProjectScopeKey } from "@supaterm/client-runtime/state/project-grouping";
-import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
+import {
+  useAppearancePreferences,
+  useAndroidFloatingTabs,
+} from "../settings/appearance/AppearancePreferencesProvider";
 import type {
   EnvironmentProject,
   EnvironmentThreadShell,
@@ -23,6 +26,8 @@ import type {
 import { Platform, StyleSheet, TextInput, View } from "react-native";
 import { GestureDetector, useNativeGesture } from "react-native-gesture-handler";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
+import { useEnabledNavigationTabs } from "../workspace/navigation-tabs";
+import { FLOATING_TABS, floatingTabsMetrics } from "../workspace/floating-workspace-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { SearchBarCommands } from "react-native-screens";
 
@@ -165,7 +170,10 @@ function ThreadNavigationSidebarPane(
   const drawerColor = materialTheme["--color-drawer"];
 
   const insets = useSafeAreaInsets();
-  const { fabClearance } = useAndroidControlSizing();
+  const { fabClearance, scale, fabSize } = useAndroidControlSizing();
+  const enabledTabs = useEnabledNavigationTabs();
+  const floatingTabsEnabled = useAndroidFloatingTabs();
+  const floatingTabs = floatingTabsMetrics(enabledTabs.length + 1, scale, fabSize, props.width);
   const projects = useProjects();
   const threads = useNavigationThreadShells();
   const { environments: workspaceEnvironments, state: catalogState } = useWorkspaceState();
@@ -217,16 +225,12 @@ function ThreadNavigationSidebarPane(
           )
         ? [options.selectedEnvironmentId]
         : [];
-  const projectScopeKey = options.selectedProjectKey;
-  const resolvedProjectKey = resolveScratchProjectScopeKey(projectScopeKey, projects, {
+  // A legacy per-environment scratch key resolves here on every render; the stored
+  // value is only rewritten when the user picks a filter.
+  const resolvedProjectKey = resolveScratchProjectScopeKey(options.selectedProjectKey, projects, {
     sidebarProjectGroupingMode: options.projectGroupingMode,
     sidebarProjectGroupingOverrides: {},
   });
-  useEffect(() => {
-    if (resolvedProjectKey !== projectScopeKey) {
-      setSelectedProjectKey(resolvedProjectKey);
-    }
-  }, [projectScopeKey, resolvedProjectKey, setSelectedProjectKey]);
   const projectScopes = useMemo(
     () =>
       buildHomeProjectScopes({
@@ -316,8 +320,12 @@ function ThreadNavigationSidebarPane(
     setListClock({ nowMinute, snoozeWakeTick, now: new Date().toISOString() });
   }
   const listEnvironments = useAtomValue(threadListEnvironmentsAtom);
-  const { providersByEnvironmentId, machineByEnvironmentId, loadedEnvironmentIds } =
-    listEnvironments;
+  const {
+    providersByEnvironmentId,
+    machineByEnvironmentId,
+    loadedEnvironmentIds,
+    snoozePresetsByEnvironmentId,
+  } = listEnvironments;
   const resolveProviderInstance = useThreadRowProviderInstanceResolver(providersByEnvironmentId);
   const pendingOrder = usePendingThreadOrder(nowMinute, snoozeWakeTick);
   const { threadListV2Layout, olderSettledShelf, contentOnlyThreadKeys } = useThreadListV2Layout({
@@ -331,7 +339,7 @@ function ThreadNavigationSidebarPane(
     environmentId: options.selectedEnvironmentId,
     projectRefs: selectedProjectScope === null ? null : selectedProjectScope.projectRefs,
     searchQuery: props.searchQuery,
-    matchedThreadKeys,
+    matchedThreadKeys: new Set(threadSearchMatchByKey.keys()),
     pendingOrder,
     queuedThreadKeys,
     doneLimit: doneVisibleCount,
@@ -345,6 +353,7 @@ function ThreadNavigationSidebarPane(
     selectedThreadKey: props.selectedThreadKey ?? null,
   });
   const nextSnoozeWakeAt = threadListV2Layout.nextSnoozeWakeAt;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Refreshes the sidebar at its next snooze expiration.
   useEffect(() => {
     if (nextSnoozeWakeAt === null) return;
     const wakeAtMs = Date.parse(nextSnoozeWakeAt);
@@ -465,11 +474,7 @@ function ThreadNavigationSidebarPane(
     onScroll: handleListScroll,
     onScrollBeginDrag: handleScrollBeginDrag,
   });
-  // The sticky header's project shells and search maps feed row props, so
-  // they have to bust the recycler's memoization — otherwise a row keeps the
-  // blank favicon and fallback title it was first rendered with. The minute
-  // clock deliberately stays out: its per-row text lives on the items, so a
-  // tick only re-renders rows whose displayed text actually moved.
+
   const listExtraData = {
     activeNewTask,
     selectedThreadKey: props.selectedThreadKey ?? "",
@@ -551,6 +556,7 @@ function ThreadNavigationSidebarPane(
         const scopeKey = scopedProjectKey(thread.environmentId, thread.projectId);
         return (
           <ThreadListV2Row
+            snoozePresets={snoozePresetsByEnvironmentId.get(thread.environmentId)}
             onNewThreadOnBranch={props.onNewThreadOnBranch}
             thread={thread}
             variant={item.item.variant}
@@ -862,7 +868,7 @@ function ThreadNavigationSidebarPane(
         ) : (
           <SwipeableScrollGateProvider enabled={swipeEnabled}>
             <GestureDetector gesture={sidebarScrollGesture}>
-              {/* oxlint-disable-next-line t3code/require-registered-list-scroll -- Only the non-native workspace layout (Android and the fallback) renders this sidebar, which has no native header to register with. */}
+              {}
               <AnimatedLegendList
                 renderScrollComponent={Platform.OS === "ios" ? NativeScrollView : undefined}
                 itemLayoutAnimation={listMotion.layout}
@@ -885,7 +891,11 @@ function ThreadNavigationSidebarPane(
                   {
                     paddingBottom:
                       Platform.OS === "android"
-                        ? Math.max(insets.bottom, 16) + fabClearance - insets.bottom
+                        ? floatingTabsEnabled
+                          ? FLOATING_TABS.bottom +
+                            FLOATING_TABS.edge +
+                            Math.max(floatingTabs.height, floatingTabs.fabOffset + fabSize)
+                          : Math.max(insets.bottom, 16) + fabClearance - insets.bottom
                         : 16 + insets.bottom,
                     paddingTop: Platform.OS === "android" ? 6 : topListInset,
                   },

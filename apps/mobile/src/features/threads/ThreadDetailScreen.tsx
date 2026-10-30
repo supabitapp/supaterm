@@ -1,3 +1,4 @@
+import { useSelectWorkspaceDetail } from "../workspace/useSelectWorkspaceDetail";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { parseThreadKey, threadKey } from "@supaterm/client-runtime/state/entities";
 import { createThreadVisitTracker } from "@supaterm/client-runtime/state/thread-visits";
@@ -105,8 +106,8 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
 import { useWorkspaceContentWidth } from "../layout/workspace-content-width";
+import { useAdaptiveWorkspaceLayout } from "../layout/adaptive-workspace-context";
 import { useNativeWorkspaceColumnsSupported } from "../../native/NativeWorkspaceColumns";
 import {
   useDeviceType,
@@ -321,6 +322,7 @@ function useThreadOutcomeHaptics(state: {
   const { threadKey, live, run, pendingRequestId, composerError } = state;
   const previousRef = useRef({ threadKey, hydrated: live, run, pendingRequestId, composerError });
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Delivers native outcome haptics for live thread transitions.
   useEffect(() => {
     const previous = previousRef.current;
     const sameThread = previous.threadKey === threadKey;
@@ -401,6 +403,7 @@ export function ThreadDetailScreen(props: ThreadDetailScreenProps) {
 
 function ThreadDetailBody(props: ThreadDetailScreenProps) {
   const usesNativeWorkspaceColumns = useNativeWorkspaceColumnsSupported();
+  const { layout } = useAdaptiveWorkspaceLayout();
   const deviceType = useDeviceType();
   const workspace = useWorkspaceTabs();
   const sidebarSearchActive =
@@ -411,7 +414,7 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
   const [composerOwnsKeyboard, setComposerOwnsKeyboard] = useState(false);
   if (sidebarSearchActive && composerOwnsKeyboard) setComposerOwnsKeyboard(false);
   const navigation = useNavigation();
-  const { selectThreadRoute } = useAdaptiveWorkspaceLayout();
+  const selectDetail = useSelectWorkspaceDetail();
   const openLinkedThread = useOpenLinkedThread();
   const openInspector = useOpenThreadInspector();
   const { session: voiceInputSession } = useGlobalVoiceInput();
@@ -451,15 +454,10 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
   const insets = useSafeAreaInsets();
   const isKeyboardVisible = useKeyboardState((state) => state.isVisible);
   const liveKeyboardHeight = useKeyboardState((state) => state.height);
-  // Android can swallow the IME hide callbacks when the app is backgrounded mid keyboard-hide
-  // (the reported repro: send — which blurs and starts the hide — then Home within a second). The
-  // keyboard library's height AND visibility then stay frozen open, so gating the sticky
-  // translation on visibility alone still strands the composer after resume. An input that kept
-  // focus through the switch is exempt: Android restores its keyboard unchanged, so no keyboard
-  // or focus event would ever lift the quarantine. Hiding the keyboard with Back keeps focus, so
-  // Back then Home mid-hide takes the exemption and can still strand the composer.
+
   const [keyboardStateSuspect, setKeyboardStateSuspect] = useState(false);
   const ownedInputFocusedRef = useRef(false);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to AppState on Android to mark keyboard state suspect when the app resumes
   useEffect(() => {
     if (Platform.OS !== "android") {
       return;
@@ -521,6 +519,7 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
     latestRun: props.selectedThread.latestRun,
   });
   const editingRunId = props.queuedRunEdit?.runId ?? null;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- focuses the composer editor on the next animation frame when a queued run edit starts
   useEffect(() => {
     if (editingRunId === null) return;
     const frame = requestAnimationFrame(() => composerEditorRef.current?.focus());
@@ -544,6 +543,7 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
       setComposerHeight(height);
     }, COMPOSER_HEIGHT_SETTLE_MS);
   }, []);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Cancels the pending native composer-height timer on unmount.
   useEffect(
     () => () => {
       if (composerHeightSettle.current !== null) clearTimeout(composerHeightSettle.current);
@@ -567,7 +567,7 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
   const alignedBottomInset =
     bottomBarInset ??
     (Platform.OS === "ios" && Platform.isPad
-      ? Math.max(bottomSafeArea, 12) - (hasSidebarTabBar ? 5 : 0)
+      ? Math.max(bottomSafeArea, 12) - (layout.usesSplitView ? 5 : 0)
       : undefined);
   // The Duo's floating sidebar pill ends three points below the composer's usual gutter.
   const composerBottomInset = Math.max(
@@ -615,6 +615,7 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
   );
   const snoozed = effectiveSnoozed(props.selectedThread, { now: lifecycleNow });
   const snoozedUntil = props.selectedThread.snoozedUntil ?? null;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Refreshes the snooze gate at its expiration.
   useEffect(() => {
     if (!snoozed || snoozedUntil === null) return;
     const timer = setTimeout(
@@ -888,13 +889,7 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
       ? deviceType !== "duo-unfolded" || (composerOwnsKeyboard && !sidebarSearchActive)
       : !keyboardStateSuspect;
   const estimatedOverlayHeight = composerOverlapHeight;
-  // The overlay's measured height includes the home-indicator inset (the
-  // composer pads it), but contentInsetAdjustmentBehavior="automatic" makes
-  // UIKit add the safe-area bottom to the content inset AGAIN — leaving a
-  // dead strip between the resting content and the composer. Report the
-  // overlay height minus the safe area; UIKit adds it back, and ThreadFeed
-  // hands LegendList the same delta via contentInsetEndStaticAdjustment so
-  // its end-scroll math matches the real resting position.
+
   const nativeInsetOvercount =
     props.usesAutomaticContentInsets === true && Platform.OS === "ios" ? insets.bottom : 0;
   const { contentInsetEndAdjustment, onComposerLayout } = useKeyboardChatComposerInset(
@@ -1059,6 +1054,7 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
     endFollowEnabledRef.current = enabled;
     setEndFollowEnabled(enabled);
   };
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Aborts thread-scoped native work and pending jumps when the screen leaves.
   useEffect(() => {
     if (threadScope.current.signal.aborted) threadScope.current = new AbortController();
     const scope = threadScope.current;
@@ -1245,11 +1241,14 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
   const handleEditPendingMessage = async (message: QueuedThreadMessage) => {
     const scope = threadScope.current.signal;
     if (message.creation) {
-      selectThreadRoute({
-        draft: {
-          environmentId: String(message.environmentId),
-          projectId: String(message.creation.projectId),
-          pendingTaskId: String(message.messageId),
+      selectDetail({
+        name: "Thread",
+        params: {
+          draft: {
+            environmentId: String(message.environmentId),
+            projectId: String(message.creation.projectId),
+            pendingTaskId: String(message.messageId),
+          },
         },
       });
       return;
@@ -1372,6 +1371,11 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
             <ThreadFeed
               environmentId={props.environmentId}
               threadId={props.selectedThread.id}
+              detailRef={
+                props.draftMode
+                  ? null
+                  : { environmentId: props.environmentId, threadId: props.selectedThread.id }
+              }
               workspaceRoot={props.threadCwd}
               feed={props.selectedThreadFeed}
               pendingHandoff={props.pendingHandoff}
@@ -1501,6 +1505,39 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
                   }}
                 />
                 <View className="w-full self-center" style={{ maxWidth: contentMaxWidth }}>
+                  <FloatingWorkingControl
+                    colorScheme={isDarkMode ? "dark" : "light"}
+                    status={floatingStatus}
+                    lift={floatingControlLift}
+                    devicePreview={
+                      devicePreviews.length > 0
+                        ? { count: devicePreviews.length, onPress: openDevicePreview }
+                        : null
+                    }
+                    browserPreview={
+                      browserTabs.tabs.length > 0
+                        ? { count: browserTabs.tabs.length, onPress: () => openBrowserPreview() }
+                        : null
+                    }
+                    showScrollToEnd={showScrollToEndButton}
+                    onScrollToEnd={handleScrollToEnd}
+                    agents={agentsSegment}
+                    onOpenAgents={() => {
+                      Keyboard.dismiss();
+                      navigation.navigate("ThreadAgents", {
+                        environmentId: props.environmentId,
+                        threadId: props.selectedThread.id,
+                      });
+                    }}
+                    queuedCount={queuedCount}
+                    onOpenQueue={() => {
+                      Keyboard.dismiss();
+                      navigation.navigate("ThreadQueue", {
+                        environmentId: props.environmentId,
+                        threadId: props.selectedThread.id,
+                      });
+                    }}
+                  />
                   {props.queuedRunEdit !== null ? (
                     <Animated.View
                       className="shrink-0"
@@ -1596,6 +1633,7 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
                       ) : null}
                       {props.activePendingUserInput ? (
                         <PendingUserInputCard
+                          environmentId={props.environmentId}
                           canOperateThread={props.canOperateThread}
                           pendingUserInput={props.activePendingUserInput}
                           maxHeight={pendingUserInputMaxHeight}

@@ -1,3 +1,4 @@
+import type { OlderSettledScope } from "@supaterm/client-runtime/state/threads";
 import { useAtomValue } from "@effect/atom-react";
 import { useMemo, useSyncExternalStore } from "react";
 import { environmentServerConfigsAtom } from "../../state/server";
@@ -21,7 +22,7 @@ export function useThreadListV2Layout(input: ThreadListV2LayoutInput) {
     [input.threads, version],
   );
   const environmentIds = input.environmentId === null ? [...configs.keys()] : [input.environmentId];
-  const scopes = environmentIds.flatMap((environmentId) => {
+  const scopes = environmentIds.flatMap((environmentId): OlderSettledScope[] => {
     if (input.projectRefs == null) return [{ environmentId, projectIds: null }];
     const projectIds = input.projectRefs.flatMap((ref) =>
       ref.environmentId === environmentId ? [ref.projectId] : [],

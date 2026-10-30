@@ -112,7 +112,7 @@ export function ComposerContextSheet(props: {
       : undefined;
   if (record && !("payload" in record) && (record.kind === "image" || record.kind === "file")) {
     const mimeType = videoMimeType(record) ?? record.mimeType;
-    const previewKind = filePreviewKind(record);
+    const previewKind = filePreviewKind(record, { richDocuments: false });
     const resource = {
       _tag: "attachment" as const,
       attachmentId: record.attachmentId,
@@ -322,6 +322,9 @@ export function ComposerContextSheet(props: {
                   />
                 ) : null}
               </View>
+            ) : null}
+            {record.kind === "environment" ? (
+              <ContextField label="Machine" value={record.label} />
             ) : null}
             {record.kind === "skill" ? (
               <View className="gap-3">

@@ -1,3 +1,10 @@
+import { scopeThreadRef } from "@supaterm/client-runtime/environment";
+import { resolveUserMessagePresentation } from "@supaterm/client-runtime/user-message";
+import { useQuietThreadShell } from "../../state/entities";
+import { useEnvironmentQuery } from "../../state/query";
+import { serverEnvironment } from "../../state/server";
+import { makeQueuedRunsAtom } from "@supaterm/client-runtime/queued-run-edit";
+import { Atom } from "effect/reactivity";
 import { queuedRunEditBlockedReason } from "@supaterm/client-runtime/queued-run-edit";
 import { type StaticScreenProps, useNavigation } from "@react-navigation/native";
 import { useAtomValue } from "@effect/atom-react";
@@ -40,6 +47,62 @@ export function useThreadQueueWorkflow(target: QueueTarget) {
   return useAtomValue(environmentThreadDetails.queueWorkflowAtom(target));
 }
 
+type QueuedRunMessage = NonNullable<
+  NonNullable<ReturnType<typeof useThreadQueueWorkflow>>["queuedRuns"][number]["message"]
+>;
+
+/** Who sent a queued message, as its sent form shows it in the thread. */
+function QueuedRunSender(props: {
+  readonly environmentId: EnvironmentId;
+  readonly message: QueuedRunMessage;
+}) {
+  const { attribution, scheduledTaskId } = resolveUserMessagePresentation(props.message);
+  const senderThreadId = attribution === "agent" ? props.message.senderThreadId : undefined;
+  const senderShell = useQuietThreadShell(
+    senderThreadId ? scopeThreadRef(props.environmentId, senderThreadId) : null,
+  );
+  const tasks = useEnvironmentQuery(
+    scheduledTaskId
+      ? serverEnvironment.scheduledTasksLive({ environmentId: props.environmentId, input: {} })
+      : null,
+  );
+  const sender =
+    attribution === "automation"
+      ? {
+          icon: "calendar.badge.clock" as const,
+          label:
+            tasks.data?.tasks.find((task) => task.id === scheduledTaskId)?.title ?? "Automation",
+        }
+      : attribution === "agent"
+        ? {
+            icon: "bubble.left.and.bubble.right" as const,
+            label: senderShell?.title.trim() || "Agent",
+          }
+        : attribution === "supaterm"
+          ? { icon: null, label: "Sent by Supaterm" }
+          : null;
+  if (sender === null) return null;
+  return (
+    <View className="flex-row items-center gap-1">
+      {sender.icon ? (
+        <SymbolView
+          name={sender.icon}
+          size={11}
+          weight="medium"
+          tintColorClassName="accent-foreground-muted"
+          type="monochrome"
+        />
+      ) : null}
+      <Text
+        numberOfLines={1}
+        className="min-w-0 shrink font-supaterm-medium text-2xs text-foreground-muted"
+      >
+        {sender.label}
+      </Text>
+    </View>
+  );
+}
+
 export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
   const target = route.params;
   const canOperate = useEnvironmentScope(target.environmentId, AuthOrchestrationOperateScope);
@@ -68,6 +131,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
   const showResume = workflow?.isHeld === true && queuedRuns.length > 0;
   const sheetHeight = contentHeight + (showResume ? footerHeight : 0);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Sizes the native sheet detent from the measured queue content.
   useLayoutEffect(() => {
     if (Platform.OS !== "ios" || contentHeight === 0) return;
     navigation.setOptions({
@@ -78,6 +142,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
   }, [contentHeight, insets.top, navigation, sheetHeight, windowHeight]);
 
   const hadQueuedRuns = useRef(queuedRuns.length > 0);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pops the navigator once the server-side queue empties after it had runs
   useEffect(() => {
     if (queuedRuns.length > 0) {
       hadQueuedRuns.current = true;
@@ -102,13 +167,24 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
       }
       const entry = queuedRuns[index]!;
       void Haptics.selectionAsync();
-      beginQueuedRunEdit(threadKey, {
-        runId,
-        messageId: entry.messageId,
-        originalText: entry.text,
-        existingAttachments: entry.attachments,
-        ...(entry.context ? { context: entry.context } : {}),
-      });
+      beginQueuedRunEdit(
+        threadKey,
+        {
+          runId,
+          messageId: entry.messageId,
+          originalText: entry.text,
+          existingAttachments: entry.attachments,
+          ...(entry.context ? { context: entry.context } : {}),
+        },
+        makeQueuedRunsAtom({
+          threadId: target.threadId,
+          snapshot: threadEnvironment.snapshotAtom(target.environmentId),
+          detailStatus: environmentThreadDetails.statusAtom(target),
+          runs: Atom.make(
+            (get) => get(environmentThreadDetails.quietThreadAtom(target))?.projection.runs ?? null,
+          ),
+        }),
+      );
       navigation.goBack();
       return;
     }
@@ -187,7 +263,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
           </Text>
         </View>
       ) : null}
-      {queuedRuns.map(({ run, text, attachments, context }) => {
+      {queuedRuns.map(({ run, text, attachments, context, message }) => {
         const controls = resolveThreadQueueRowControls({
           canOperate,
           busy: busyRunId !== null,
@@ -216,6 +292,11 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
                   <ThreadQueueMessage
                     environmentId={target.environmentId}
                     title={title}
+                    sender={
+                      message ? (
+                        <QueuedRunSender environmentId={target.environmentId} message={message} />
+                      ) : undefined
+                    }
                     guestName={context?.guest?.name}
                     attachments={attachments}
                     controls={controls}
@@ -286,6 +367,7 @@ function QueueRowSwipeable(props: {
 }) {
   const swipeableRef = useRef<SwipeableMethods | null>(null);
   const [isOpen, setIsOpen] = useState(false);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Closes a native swipe row after its actions become unavailable.
   useEffect(() => {
     if (!props.enabled) swipeableRef.current?.close();
   }, [props.enabled]);

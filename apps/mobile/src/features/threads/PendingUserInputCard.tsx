@@ -1,7 +1,7 @@
 import { Button } from "../../components/ui/Button";
 import { QuestionAttachments } from "./QuestionAttachments";
 import * as Haptics from "expo-haptics";
-import type { RuntimeRequestId } from "@supaterm/contracts";
+import type { EnvironmentId, RuntimeRequestId } from "@supaterm/contracts";
 import type { ThreadUserInputQuestion } from "@supaterm/client-runtime/state/thread-requests";
 import {
   useCallback,
@@ -51,8 +51,9 @@ import { SYSTEM_FONT_FAMILY } from "../../lib/fonts";
 import { SelectableMarkdownText } from "../../native/SelectableMarkdownText";
 import { useOpenPullRequest } from "../../native/useOpenPullRequest";
 import { useMarkdownPreviewStyles } from "../files/FileMarkdownPreview";
+import { useLiveThreadLinkLabels } from "../../state/entities";
+import { isPendingUserInputOptionSelected } from "@supaterm/client-runtime/state/pending-user-input";
 import {
-  isPendingUserInputOptionSelected,
   isPendingUserInputQuestionAnswered,
   resumePendingUserInputQuestionIndex,
   type PendingUserInput,
@@ -60,6 +61,7 @@ import {
 } from "../../lib/threadActivity";
 
 export interface PendingUserInputCardProps {
+  readonly environmentId: EnvironmentId;
   readonly canOperateThread: boolean;
   readonly pendingUserInput: PendingUserInput;
   readonly maxHeight: DerivedValue<number>;
@@ -164,8 +166,9 @@ function QuestionPage(props: {
   );
 }
 
-function QuestionText(props: { readonly markdown: string }) {
+function QuestionText(props: { readonly markdown: string; readonly environmentId: EnvironmentId }) {
   const styles = useMarkdownPreviewStyles();
+  const markdown = useLiveThreadLinkLabels(props.markdown, props.environmentId);
   const openLink = useOpenPullRequest();
   const textStyle = useMemo(
     () => ({ ...styles.nativeTextStyle, fontFamily: SYSTEM_FONT_FAMILY, fontWeight: "500" }),
@@ -173,7 +176,7 @@ function QuestionText(props: { readonly markdown: string }) {
   );
   return (
     <SelectableMarkdownText
-      markdown={props.markdown}
+      markdown={markdown}
       textStyle={textStyle}
       onLinkPress={(href) => void openLink(href)}
     />
@@ -212,6 +215,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
       advanceTimerRef.current = null;
     }
   }, []);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Cancels the native question-advance timer when its card leaves.
   useEffect(() => cancelAutoAdvance, [cancelAutoAdvance]);
   const pushDirection = useSharedValue(1);
   const describeQuestion = (index: number) => {
@@ -244,6 +248,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
   // the latest render's advance instead of the one that scheduled it, and skips
   // a request that replaced the one tapped.
   const advanceRef = useRef(advance);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Keeps the native question timer reading the current advance callback.
   useLayoutEffect(() => {
     advanceRef.current = advance;
   });
@@ -441,7 +446,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
           ) : null}
           {question ? (
             <>
-              <QuestionText markdown={question.question} />
+              <QuestionText environmentId={props.environmentId} markdown={question.question} />
               {question.multiSelect ? (
                 <Text className="font-sans text-xs text-foreground-muted">
                   Select one or more options.

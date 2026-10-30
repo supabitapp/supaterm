@@ -1,5 +1,6 @@
 import type { EnvironmentId, RunId, ThreadId } from "@supaterm/contracts";
 import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
+import { isAttachmentOnlyBootstrapPrompt } from "@supaterm/shared/composerContextReferences";
 
 export const REMOVE_QUEUED_MESSAGE_ACCESSIBILITY_LABEL = "Remove queued message";
 
@@ -36,7 +37,9 @@ export function resolveThreadQueueRowControls(input: {
       (isEditing || (input.isGuestMessage !== true && input.editBlocked !== true)),
     canSend: mutationEnabled && (input.canPromoteToSteer || input.canSendNow) && !isEditing,
     dismissAccessibilityLabel: REMOVE_QUEUED_MESSAGE_ACCESSIBILITY_LABEL,
-    displayText: assistantCitationsToPlainText(input.text),
+    displayText: isAttachmentOnlyBootstrapPrompt(input.text)
+      ? ""
+      : assistantCitationsToPlainText(input.text),
     isEditing,
   };
 }

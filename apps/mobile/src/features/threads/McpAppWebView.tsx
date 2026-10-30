@@ -166,6 +166,7 @@ export function ThreadMcpApp(props: {
     setDocumentKey((value) => value + 1);
     setPresentedFullscreen(false);
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Listens for navigation returning from the native fullscreen app.
   useEffect(() => {
     if (!presentedFullscreen) return;
     return navigation.addListener("focus", returnedFromFullscreen);
@@ -209,6 +210,7 @@ export function ThreadMcpApp(props: {
   };
   const latest = useRef(live);
   const [host, setHost] = useState<McpAppHost | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- resends host context to the MCP app host after commits that change theme, insets, tool or size
   useEffect(() => {
     const previous = latest.current;
     latest.current = live;
@@ -223,12 +225,13 @@ export function ThreadMcpApp(props: {
       host?.updateHostContext();
     }
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Delivers late tool results from the registry to the mounted app host.
   useEffect(() => {
     if (host === null) return;
     return appAtomRegistry.subscribe(
       detailAtom,
       (result) => {
-        if (!AsyncResult.isSuccess(result) || result.value.item.type !== "dynamic_tool") return;
+        if (!AsyncResult.isSuccess(result) || result.value.item?.type !== "dynamic_tool") return;
         const item = result.value.item;
         const output = item.output as { readonly result?: unknown } | undefined;
         host.setToolCall({

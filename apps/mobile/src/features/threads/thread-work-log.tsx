@@ -217,6 +217,7 @@ export function ShimmeringWorkContent(props: {
     (props.showIcon ? SHIMMER_ICON_AND_GAP_WIDTH : 0) + Math.ceil(textWidth),
   );
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Runs the native loading indicator only while foreground motion is permitted.
   useEffect(() => {
     progress.setValue(0);
     if (contentWidth <= 0 || !motionEnabled) return;
@@ -346,6 +347,8 @@ function workRowSymbolName(icon: ThreadFeedActivity["icon"]): WorkContentIcon {
       return { ios: "globe", android: "public" };
     case "search":
       return "magnifyingglass";
+    case "stop":
+      return "stop.fill";
     case "hammer":
       return { ios: "hammer", android: "construction" };
     case "lock":
@@ -606,11 +609,8 @@ function ThreadWorkGroupList(props: {
     finishPendingAppend();
     rememberPosition();
   });
-  // The native ScrollView reports its content size a frame or more after
-  // LegendList has laid the rows out, so a detail toggle rendered the group
-  // at its old height while the rows below already moved. Read the size
-  // LegendList computes on the JS thread instead; it settles in the same
-  // commit as the row measurement that changed it.
+
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Subscribes to native list geometry for the expanded work card.
   useLayoutEffect(() => {
     const list = listRef.current;
     if (!list) return;
@@ -634,7 +634,8 @@ function ThreadWorkGroupList(props: {
 
   return (
     <View style={{ height, overflow: "hidden" }}>
-      {/* oxlint-disable-next-line t3code/require-registered-list-scroll -- Nested in a fixed-height card inside the thread feed, which owns the header's scroll view. */}
+      {}
+      {/* oxlint-disable-next-line supaterm/require-registered-list-scroll -- This fixed-height list is nested inside the registered thread feed scroll view. */}
       <AnimatedLegendList
         ref={listRef}
         data={props.activities}

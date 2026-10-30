@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { AuthFilesystemReadScope, EnvironmentId } from "@supaterm/contracts";
 import { act } from "react";
 import { createRoot } from "react-dom/client";

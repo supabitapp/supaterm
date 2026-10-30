@@ -7,6 +7,8 @@ import {
   type RuntimeSubagent,
 } from "@supaterm/client-runtime/state/subagentRuntime";
 import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
+import type { EnvironmentThread } from "@supaterm/client-runtime/state/shell";
+import { Atom } from "effect/reactivity";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 
@@ -20,6 +22,7 @@ import { useOpenLinkedThread } from "./useOpenLinkedThread";
 
 // A script longer than this many lines shows its head until opened.
 const FOLDED_SCRIPT_LINES = 10;
+const EMPTY_THREAD_ATOM = Atom.make<EnvironmentThread | null>(null);
 
 /** The workflow opening for a thread, or null; the parent's detail loads only for a workflow. */
 export function useWorkflowOpening(environmentId: EnvironmentId, threadId: ThreadId) {
@@ -37,7 +40,9 @@ export function useWorkflowOpening(environmentId: EnvironmentId, threadId: Threa
     parentId === null ? null : (thread?.projection ?? null),
   );
   const parentSubagents = useAtomValue(
-    environmentThreadDetails.threadAtom(scopeThreadRef(environmentId, parentId ?? threadId)),
+    parentId === null
+      ? EMPTY_THREAD_ATOM
+      : environmentThreadDetails.threadAtom(scopeThreadRef(environmentId, parentId)),
     (parent) => (parentId === null ? null : (parent?.projection.subagents ?? null)),
   );
   return projection === null

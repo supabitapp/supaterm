@@ -1,3 +1,7 @@
+import { isCompactionCommandMessage } from "@supaterm/contracts";
+import { threadFeedCompactionLabels } from "../../lib/threadActivity";
+import type { ScopedThreadRef } from "@supaterm/contracts";
+import { LinkRequestCard } from "./LinkRequestCard";
 import { Button } from "../../components/ui/Button";
 import * as Dialog from "../../components/ui/Dialog";
 import type { DraftComposerAttachment } from "../../lib/composerImages";
@@ -58,7 +62,7 @@ import {
 } from "@supaterm/client-runtime/message-jump";
 import { renderAssistantCitationsAsText } from "@supaterm/shared/assistantCitations";
 import { encodeComposerContextFragment } from "@supaterm/shared/composerContextClipboard";
-import { parseThreadLinkHref, resolveThreadLinkRef } from "@supaterm/shared/threadLinks";
+import { parseThreadLinkHref } from "@supaterm/shared/threadLinks";
 import { PROMPT_LINK_MAX_PROMPT_LENGTH } from "@supaterm/shared/promptLinks";
 import {
   parseComposerContextHref,
@@ -106,6 +110,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useEffectEvent,
   useImperativeHandle,
   useMemo,
   useLayoutEffect,
@@ -215,6 +220,7 @@ import {
   threadFeedRunIsUnsettled,
   isContextCompactionActivityGroup,
   isContextHandoffActivityGroup,
+  isLinkRequestActivityGroup,
   isSecretRequestActivityGroup,
   type ThreadFeedEntry,
   type ThreadFeedLatestRun,
@@ -263,6 +269,7 @@ import {
   WORKSPACE_BASENAME_LOOKUP_LIMIT,
 } from "@supaterm/client-runtime/workspace-basename-lookup";
 import {
+  resolveThreadLink,
   useLiveThreadLinkLabels,
   useQuietThreadShell,
   useThreadChipIcons,
@@ -364,6 +371,8 @@ export interface ThreadFeedProps {
   readonly onEditPendingMessage: ((message: QueuedThreadMessage) => void) | null;
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
+  /** Null while the thread's creation is queued: reading detail then caches a not-found as deleted. */
+  readonly detailRef: ScopedThreadRef | null;
   readonly threadTitle: string;
   readonly workspaceRoot?: string | null;
   readonly feed: ReadonlyArray<ThreadFeedEntry>;
@@ -677,6 +686,7 @@ function MessageAttachmentFile(props: {
     setOpening(false);
   }
   const abortedOpenTargetRef = useRef(openTarget);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Aborts a thread-opening request when its navigation target changes.
   useEffect(() => {
     if (abortedOpenTargetRef.current === openTarget) return;
     abortedOpenTargetRef.current = openTarget;
@@ -1326,6 +1336,7 @@ function renderFeedEntry(
     readonly workGroupScrollPositions: Map<string, ThreadWorkGroupScrollPosition>;
     readonly terminalAssistantMessageIds: ReadonlySet<string>;
     readonly unsettledTurnId: RunId | null;
+    readonly compactionLabelsByEntryId: ReadonlyMap<string, { title: string; compacting: string }>;
     readonly failedRunIds: ReadonlySet<RunId>;
     readonly onCopyWorkRow: (rowId: string, value: string) => void;
     readonly onToggleWorkGroup: (groupId: string, anchorKey?: string) => void;
@@ -1379,30 +1390,15 @@ function renderFeedEntry(
   if (entry.type === "run-fold") {
     return (
       <View className="mb-1 flex-row items-center border-b border-border-subtle px-2">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded: entry.expanded }}
-          onPress={() => props.onToggleTurnFold(entry.runId)}
-          hitSlop={4}
-          className="min-h-11 min-w-0 flex-1 flex-row items-center gap-2"
-          style={{
-            minHeight: Math.max(TURN_FOLD_HEIGHT - 3.5, props.workRowSizing.estimatedRowHeight),
-          }}
-        >
-          <Text
-            key={props.workRowSizing.textSizeKey}
-            numberOfLines={1}
-            className="shrink font-supaterm-medium text-sm tabular-nums text-foreground-muted"
-          >
-            {entry.label}
-          </Text>
-          <ThreadDisclosureChevron
-            expanded={entry.expanded}
-            collapsedDirection="right"
-            size={15}
-            tintColor={iconSubtleColor}
-          />
-        </Pressable>
+        <RunFoldButton
+          key={entry.id}
+          entry={entry}
+          environmentId={props.environmentId}
+          threadId={props.threadId}
+          onToggle={props.onToggleTurnFold}
+          rowSizing={props.workRowSizing}
+          iconColor={iconSubtleColor}
+        />
         {entry.checkpointSummary ? (
           <TurnDiffStat
             checkpoint={entry.checkpointSummary}
@@ -1494,24 +1490,53 @@ function renderFeedEntry(
     );
   }
 
+  if (entry.type === "activity-group" && isLinkRequestActivityGroup(entry)) {
+    return (
+      <LinkRequestCard
+        environmentId={props.environmentId}
+        projectedItem={entry.activities[0]!.projectedItem}
+        iconColor={iconSubtleColor}
+      />
+    );
+  }
+
   if (entry.type === "activity-group" && isContextCompactionActivityGroup(entry)) {
-    const label = entry.activities[0]!.summary;
+    const activity = entry.activities[0]!;
+    const item = activity.projectedItem.item;
     const active =
       props.unsettledTurnId !== null &&
       entry.runId === props.unsettledTurnId &&
-      entry.activities[0]!.projectedItem.item.status === "running";
+      item.status === "running";
+    const labels = props.compactionLabelsByEntryId.get(entry.id);
+    const failure =
+      item.type === "compaction" && item.status === "failed" ? item.summary?.trim() : undefined;
+    const label = active ? "Compacting…" : (labels?.title ?? activity.summary);
     return (
       <ThreadContextDivider
-        label={label}
-        icon="arrow.down.right.and.arrow.up.left"
+        label={failure ? `${label} · ${failure}` : label}
+        icon={
+          item.status === "failed" ? "exclamationmark.circle" : "arrow.down.right.and.arrow.up.left"
+        }
         iconColor={iconSubtleColor}
         active={active}
+        failed={item.status === "failed"}
       />
     );
   }
 
   if (entry.type === "message") {
     const { message } = entry;
+    if (isCompactionCommandMessage(message)) {
+      const active = props.unsettledTurnId !== null && message.runId === props.unsettledTurnId;
+      return (
+        <ThreadContextDivider
+          label={active ? "Compacting…" : "Context compaction"}
+          icon="arrow.down.right.and.arrow.up.left"
+          iconColor={iconSubtleColor}
+          active={active}
+        />
+      );
+    }
     const isUser = message.role === "user";
     const presentation = resolveUserMessagePresentation(message);
     const renderedText = renderAssistantCitationsAsText(presentation.text);
@@ -1521,11 +1546,7 @@ function renderFeedEntry(
     const hasCopyText = presentation.text.trim().length > 0;
     const attachments = message.attachments ?? [];
     const hasReviewCommentContext = presentation.text.includes("<review_comment");
-    // A bubble that sizes itself from its content cannot lay out a block whose
-    // intrinsic width overflows `maxWidth`: Android positions the bubble's
-    // children during the unclamped pass and never moves them once the width
-    // is clamped, so the paragraphs around the block end up drawn on top of
-    // each other. Pinning the width removes that pass.
+
     const hasWideBlock = hasWideMarkdownBlock(renderedText, WIDE_MARKDOWN_BLOCK_OPTIONS);
     const assistantTurnStillInProgress =
       message.role === "assistant" &&
@@ -1588,6 +1609,16 @@ function renderFeedEntry(
       const visibleAttachments = attachments.filter(
         (attachment) => isImageAttachment(attachment) || !inlineAttachmentIds.has(attachment.id),
       );
+      // Images sent without words show as images, not as a bubble around them.
+      const mediaOnly =
+        foldRowId === null &&
+        presentation.attribution !== "guest" &&
+        presentation.text.trim() === "" &&
+        visibleAttachments.length + (entry.pendingMessage?.attachments.length ?? 0) > 0 &&
+        visibleAttachments.every(isImageAttachment) &&
+        (entry.pendingMessage?.attachments ?? []).every(
+          (attachment) => attachment.type === "image",
+        );
       return (
         <Animated.View
           className="mb-5 items-end"
@@ -1604,13 +1635,13 @@ function renderFeedEntry(
           <View
             className="min-w-0 rounded-[20px]"
             style={{
-              backgroundColor: userBubbleColor,
+              backgroundColor: mediaOnly ? undefined : userBubbleColor,
               maxWidth: props.duoColumns ? "85%" : props.userBubbleMaxWidth,
               ...(!bubbleBodyVisible
                 ? null
                 : hasReviewCommentContext
                   ? { width: props.reviewCommentBubbleWidth }
-                  : hasWideBlock || foldExpanded
+                  : hasWideBlock || foldExpanded || (mediaOnly && visibleAttachments.length > 0)
                     ? { width: props.duoColumns ? "85%" : props.userBubbleMaxWidth }
                     : null),
             }}
@@ -1632,7 +1663,13 @@ function renderFeedEntry(
               />
             ) : null}
             {bubbleBodyVisible ? (
-              <View className={cn("gap-2 px-3.5 pb-2.5", foldRowId === null && "pt-2.5")}>
+              <View
+                className={cn(
+                  "gap-2",
+                  !mediaOnly && "px-3.5 pb-2.5",
+                  !mediaOnly && foldRowId === null && "pt-2.5",
+                )}
+              >
                 {entry.pendingMessage?.attachments.map((attachment) =>
                   attachment.type === "image" && attachment.uploadedAttachmentId ? (
                     <MessageAttachmentImage
@@ -1641,7 +1678,11 @@ function renderFeedEntry(
                       attachmentId={attachment.uploadedAttachmentId}
                       name={attachment.name}
                       mimeType={attachment.mimeType}
-                      className="h-[140px] w-[180px] rounded-[14px]"
+                      className={
+                        mediaOnly
+                          ? "h-[140px] w-[180px] rounded-[20px]"
+                          : "h-[140px] w-[180px] rounded-[14px]"
+                      }
                       onPressPreview={props.onPressPreview}
                     />
                   ) : attachment.type === "image" ? (
@@ -1660,7 +1701,7 @@ function renderFeedEntry(
                     >
                       <Image
                         source={{ uri: attachment.previewUri }}
-                        style={{ width: 180, height: 140, borderRadius: 14 }}
+                        style={{ width: 180, height: 140, borderRadius: mediaOnly ? 20 : 14 }}
                       />
                     </Pressable>
                   ) : (
@@ -1681,7 +1722,10 @@ function renderFeedEntry(
                           className={
                             inlineAttachmentIds.size
                               ? "h-24 w-24 rounded-[14px] bg-user-bubble-foreground/15"
-                              : "aspect-[1.3] w-full rounded-[14px] bg-user-bubble-foreground/15"
+                              : mediaOnly
+                                ? // Matches the bubble's corners; native borders sit inside, so the edge adds no size.
+                                  "aspect-[1.3] w-full rounded-[20px] border border-border bg-user-bubble-foreground/15"
+                                : "aspect-[1.3] w-full rounded-[14px] bg-user-bubble-foreground/15"
                           }
                           onPressPreview={props.onPressPreview}
                         />
@@ -1699,7 +1743,7 @@ function renderFeedEntry(
                     })}
                   </View>
                 ) : null}
-                {message.text.trim().length > 0 ? (
+                {presentation.text.trim().length > 0 ? (
                   <MarkdownImageAvailableWidthContext
                     value={props.userBubbleMaxWidth - USER_BUBBLE_HORIZONTAL_PADDING * 2}
                   >
@@ -2244,12 +2288,7 @@ export const ThreadFeed = memo(function ThreadFeed({
   const transitionEndFollow = (event: ThreadFeedLiveFollowEvent) => {
     setEndFollow(resolveThreadFeedLiveFollow(endFollowEnabledRef.current, event));
   };
-  // A width change re-wraps every row at once, and LegendList re-measures them over the next
-  // commits. Its end threshold and MVCP only see the new geometry, so the reader's place is
-  // taken before any row lands: the end while following, otherwise the row under the header.
-  // On iOS, LegendList keeps that place in the same commit as every re-measure. Android's
-  // list moves only while its MVCP is on, which following turns off, so it restores after.
-  // undefined: no reflow. null: a reflow with nothing to restore.
+
   const reflowAnchorRef = useRef<ThreadFeedReflowAnchor | null | undefined>(undefined);
   const reflowAnchorsSizeChanges = Platform.OS === "ios";
   const [reflowFollowsEnd, setReflowFollowsEnd] = useState(false);
@@ -2285,7 +2324,7 @@ export const ThreadFeed = memo(function ThreadFeed({
     props.threadId,
     props.contentPresentation.kind,
   ]);
-  // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A scope change (thread or presentation) aborts the pending link lookup opened from the old scope.
+  // oxlint-disable-next-line react/exhaustive-effect-dependencies, supaterm/no-unreasoned-state-sync -- A scope change (thread or presentation) aborts the pending link lookup opened from the old scope.
   useLayoutEffect(() => () => markdownLinkRequest.current?.abort(), [markdownLinkScope]);
   const [preview, setPreview] = useState<{
     readonly scope: string;
@@ -2340,12 +2379,7 @@ export const ThreadFeed = memo(function ThreadFeed({
     usesNativeAutomaticInsets,
     bottomContentInset,
   });
-  // With automatic insets the header inset lives in UIKit's adjustedContentInset,
-  // which LegendList's JS anchoring math cannot see — it measures the anchored
-  // end space from the scroll view's frame top. Fold the header height back into
-  // the anchor offset or a just-sent message anchors underneath the header and
-  // the oversized end space keeps maintainScrollAtEnd snapping away from earlier
-  // messages.
+
   const navigationHeaderHeight = useContext(HeaderHeightContext);
   const anchorTopInset = usesNativeAutomaticInsets
     ? (navigationHeaderHeight ?? insets.top + IOS_NAV_BAR_HEIGHT)
@@ -2364,13 +2398,16 @@ export const ThreadFeed = memo(function ThreadFeed({
     });
   };
   const resolveLinkedThread = (href: string) => {
-    const linkedThreadId = parseThreadLinkHref(href);
-    if (!linkedThreadId) return null;
-    const source = scopeThreadRef(props.environmentId, linkedThreadId);
-    return (
-      resolveThreadLinkRef(source, appAtomRegistry.get(environmentThreadShells.threadRefsAtom)) ??
-      source
+    const link = parseThreadLinkHref(href);
+    if (!link) return null;
+    const resolved = resolveThreadLink(
+      (atom) => appAtomRegistry.get(atom),
+      link,
+      props.environmentId,
     );
+    if (resolved !== null || link.environmentId !== null) return resolved;
+    // A v1 link names no environment, so it falls back to this message's.
+    return scopeThreadRef(props.environmentId, link.threadId);
   };
   const onMarkdownLinkPress = (href: string, imageEmbed = false) => {
     markdownLinkRequest.current?.abort();
@@ -2382,12 +2419,14 @@ export const ThreadFeed = memo(function ThreadFeed({
       if (instructionsPath) openSkillInstructions(instructionsPath);
       return;
     }
-    const target = resolveLinkedThread(href);
-    if (target) {
-      openLinkedThread({
-        environmentId: String(target.environmentId),
-        threadId: String(target.threadId),
-      });
+    if (parseThreadLinkHref(href)) {
+      const target = resolveLinkedThread(href);
+      if (target) {
+        openLinkedThread({
+          environmentId: String(target.environmentId),
+          threadId: String(target.threadId),
+        });
+      }
       return;
     }
     const media = resolveMarkdownMediaPreview(href, {
@@ -2718,6 +2757,7 @@ export const ThreadFeed = memo(function ThreadFeed({
   );
   const reviewCommentColors = useReviewCommentColors();
   const unsettledTurnId = threadFeedRunIsUnsettled(props.latestRun) ? props.latestRun.runId : null;
+  const compactionLabelsByEntryId = threadFeedCompactionLabels(props.feed);
   // LegendList does not invalidate visible rows when only the renderItem closure changes.
   // Include turn completion so unchanged message rows reveal their footer and spacing
   // even when the final message update arrives before the turn settles.
@@ -2830,6 +2870,7 @@ export const ThreadFeed = memo(function ThreadFeed({
     if (props.freeze || feedLoading || state?.data !== presentedFeed) return;
     prefetchHistory(feedThreadKey, props.historyControls, state);
   };
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Defers the history prefetch measurement until the native list has committed.
   useEffect(() => {
     const frame = requestAnimationFrame(handleHistoryPrefetch);
     return () => cancelAnimationFrame(frame);
@@ -2837,12 +2878,7 @@ export const ThreadFeed = memo(function ThreadFeed({
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     handleHistoryPrefetch();
     reportHeaderMaterialVisibility(event.nativeEvent.contentOffset.y + anchorTopInset > 6);
-    // LegendList recomputes its inset-aware end distance before invoking
-    // this handler, so getState() is current. Only the actual end re-arms
-    // follow: its broader maintain-scroll threshold is large enough for a
-    // streaming chunk to pull a user back before their upward drag escapes.
-    // A live user-scroll session still wins even if the first scroll event
-    // remains inside LegendList's at-end tolerance.
+
     const listState = listRef.current?.getState();
     if (listState) {
       transitionEndFollow({
@@ -2853,6 +2889,7 @@ export const ThreadFeed = memo(function ThreadFeed({
     }
   };
   const reduceMotion = useReducedMotionPreference();
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Animates the native feed opacity as its loading state changes.
   useLayoutEffect(() => {
     const opacity = feedLoading ? 0 : 1;
     feedOpacity.set(
@@ -2972,6 +3009,7 @@ export const ThreadFeed = memo(function ThreadFeed({
   }
 
   // Timers and frames the feed schedules die with it.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the feed's scroll, reflow and copy timers and disclosure animation frames on unmount
   useEffect(
     () => () => {
       if (userScrollSettleTimerRef.current !== null) clearTimeout(userScrollSettleTimerRef.current);
@@ -3036,6 +3074,7 @@ export const ThreadFeed = memo(function ThreadFeed({
   // Every measured item-size change restarts it, so end maintenance cannot
   // wake between the data mutation and LegendList's final layout correction.
   const committedDisclosureRef = useRef({ expandedTurnIds, expandedWorkGroups, expandedWorkRows });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Restores the native list anchor after a disclosure changes row geometry.
   useLayoutEffect(() => {
     const committed = committedDisclosureRef.current;
     if (
@@ -3126,6 +3165,7 @@ export const ThreadFeed = memo(function ThreadFeed({
 
   const [advanceMessageJump] = useState(createMessageJumpRunner);
   const { messageJump = null, onMessageJumpFailed, onMessageJumpComplete } = props;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Drives the pending message jump against the committed native list and loaded history.
   useEffect(() => {
     if (!messageJump) return;
     const isTarget = (entry: ThreadFeedRow) =>
@@ -3233,6 +3273,7 @@ export const ThreadFeed = memo(function ThreadFeed({
   const { textSizeKey } = workRowSizing;
   const hasHtmlRenders = presentedFeed.some((entry) => entry.type === "html-render");
   const previousRowGeometry = useRef({ textSizeKey, contentWidth });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears LegendList size caches and starts a reflow after the commit that brings new row geometry
   useLayoutEffect(() => {
     const previous = previousRowGeometry.current;
     if (previous.textSizeKey === textSizeKey && previous.contentWidth === contentWidth) return;
@@ -3273,6 +3314,7 @@ export const ThreadFeed = memo(function ThreadFeed({
             workGroupScrollPositions,
             terminalAssistantMessageIds,
             unsettledTurnId,
+            compactionLabelsByEntryId,
             failedRunIds,
             onCopyWorkRow,
             onToggleWorkGroup,
@@ -3332,18 +3374,14 @@ export const ThreadFeed = memo(function ThreadFeed({
           accessibilityElementsHidden={feedLoading}
           importantForAccessibility={feedLoading ? "no-hide-descendants" : "auto"}
         >
+          {/* oxlint-disable-next-line supaterm/require-registered-list-scroll -- The conditional ScrollViewComponent spread below uses a NativeScrollViewMarker; the keyboard list omits that prop from its types. */}
           <KeyboardAwareLegendList
             ref={attachList}
             onLoad={() => {
               loadedListKeyRef.current = listMountKey;
               onListLoaded();
             }}
-            // The empty↔filled key remounts the list when messages first
-            // arrive. LegendList's maintainScrollAtEnd calls scrollToEnd(),
-            // which is blind to UIKit's adjustedContentInset — inserting into
-            // an already-attached list under a transparent header can pin
-            // short content at offset 0 (one header-height too high). A fresh
-            // mount positions during attach, where UIKit applies the inset.
+
             key={listMountKey}
             style={{ flex: 1 }}
             // RN 0.81+ drops touches inside the contentInset area
@@ -3364,13 +3402,6 @@ export const ThreadFeed = memo(function ThreadFeed({
             automaticallyAdjustsScrollIndicatorInsets={usesNativeAutomaticInsets}
             {...(usesNativeAutomaticInsets
               ? {
-                  // Like the Home ScrollView, we rely purely on
-                  // `contentInsetAdjustmentBehavior: "automatic"` so UIKit derives the
-                  // top inset from the transparent header. A manual contentInset
-                  // (which LegendList consumes into its own layout math) collapses the
-                  // scroll view's adjustedContentInset top to 0, leaving the iOS 26/27
-                  // scroll-edge effect no region to render into — which is why the
-                  // header blur was missing on threads.
                   scrollIndicatorInsets: { top: 0, left: 0, right: 0, bottom: 0 },
                 }
               : { scrollIndicatorInsets: { top: topContentInset, bottom: 0 } })}
@@ -3382,11 +3413,7 @@ export const ThreadFeed = memo(function ThreadFeed({
             contentInsetStartAdjustment={usesNativeAutomaticInsets ? anchorTopInset : 0}
             contentInsetEndAdjustment={props.contentInsetEndAdjustment}
             keyboardOffset={props.keyboardOffset}
-            // UIKit's automatic behavior adds the safe-area bottom on top of the
-            // raw contentInset the keyboard integration writes. The detail screen
-            // under-reports the composer inset by this amount (see
-            // ThreadDetailScreen); this tells LegendList's scroll math about the
-            // extra so programmatic end scrolls land at the true resting offset.
+
             contentInsetEndStaticAdjustment={usesNativeAutomaticInsets ? insets.bottom : 0}
             // Android's initial end scroll can run before the keyboard integration
             // reports the composer height. Seed that estimate for LegendList's
@@ -3435,19 +3462,11 @@ export const ThreadFeed = memo(function ThreadFeed({
             keyboardShouldPersistTaps="always"
             keyboardDismissMode="none"
             keyboardLiftBehavior="whenAtEnd"
-            // Seed the list's scroll math with the real viewport before its own
-            // onLayout: the empty→filled remount can then tell at mount that
-            // short content underflows the viewport and skip programmatic
-            // positioning entirely (any offset write during screen attach races
-            // UIKit's adjustedContentInset application and lands high or low).
+
             {...(viewportHeight > 0 && viewportWidth > 0
               ? { estimatedListSize: { height: viewportHeight, width: viewportWidth } }
               : {})}
-            // RN's native scrollTo command clamps targets to a floor of
-            // -contentInset.top using the RAW inset — under automatic insets the
-            // header inset only exists in adjustedContentInset, so scrolls to
-            // negative offsets (content top below the transparent header) get
-            // clamped to 0.
+
             scrollToOverflowEnabled
             estimatedItemSize={180}
             alignItemsAtEnd
@@ -3585,4 +3604,90 @@ function MessageImageGalleryScope(props: {
         ]
       : [];
   return <FilePreviewGallery value={images}>{props.children}</FilePreviewGallery>;
+}
+
+function RunFoldButton({
+  entry,
+  environmentId,
+  threadId,
+  onToggle,
+  rowSizing,
+  iconColor,
+}: {
+  entry: Extract<ThreadFeedEntry, { type: "run-fold" }>;
+  environmentId: EnvironmentId;
+  threadId: ThreadId;
+  onToggle: (runId: RunId) => void;
+  rowSizing: ReturnType<typeof deriveThreadWorkLogSizing>;
+  iconColor: ColorValue;
+}) {
+  const loadWork = useAtomCommand(threadEnvironment.loadEarlierHistory, { reportFailure: false });
+  const anchorsKey = entry.deferredWorkItemIds?.join("\n") ?? "";
+  const [failed, setFailed] = useState(false);
+  const load = () => {
+    if (!anchorsKey) return;
+    void Promise.all(
+      anchorsKey
+        .split("\n")
+        .map((workAnchorId) => loadWork({ environmentId, input: { threadId, workAnchorId } })),
+    ).then((results) =>
+      setFailed(
+        results.some((result) => result._tag === "Failure" || result.value._tag === "error"),
+      ),
+    );
+  };
+  const loadOnExpand = useEffectEvent(load);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Restored expanded folds load their deferred server history on mount.
+  useEffect(() => {
+    if (entry.expanded && anchorsKey && environmentId && threadId) loadOnExpand();
+  }, [entry.expanded, anchorsKey, environmentId, threadId]);
+  const error = anchorsKey && failed ? "Couldn't load work. Tap to retry." : null;
+  const loading = entry.expanded && anchorsKey !== "" && !failed;
+  const toggle = () => {
+    setFailed(false);
+    if (error && entry.expanded) load();
+    else onToggle(entry.runId);
+  };
+
+  return (
+    <View className="min-w-0 flex-1">
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: entry.expanded, busy: loading }}
+        onPress={toggle}
+        hitSlop={4}
+        className="min-h-11 min-w-0 flex-1 flex-row items-center gap-2"
+        style={{ minHeight: Math.max(TURN_FOLD_HEIGHT - 3.5, rowSizing.estimatedRowHeight) }}
+      >
+        <Text
+          key={rowSizing.textSizeKey}
+          numberOfLines={1}
+          className="shrink font-supaterm-medium text-sm tabular-nums text-foreground-muted"
+        >
+          {entry.label}
+          {error ? ` · ${error}` : ""}
+        </Text>
+        <ThreadDisclosureChevron
+          expanded={entry.expanded}
+          collapsedDirection="right"
+          size={15}
+          tintColor={iconColor}
+        />
+      </Pressable>
+      {loading ? (
+        <View
+          accessible={false}
+          importantForAccessibility="no-hide-descendants"
+          className="gap-2 px-1 pb-2"
+        >
+          {(["40%", "60%", "33%"] as const).map((width) => (
+            <View key={width} className="flex-row items-center gap-2">
+              <View className="size-3 rounded bg-subtle-strong" />
+              <View className="h-2.5 rounded-full bg-subtle-strong" style={{ width }} />
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
 }

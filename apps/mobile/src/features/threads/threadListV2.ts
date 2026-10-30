@@ -8,6 +8,7 @@ import {
   canSnooze,
   effectiveSnoozed,
   hasQueuedTurnStart,
+  pickSnoozePreset,
   QUEUED_TURN_START_GRACE_MS,
   resolveSnoozePresets,
   snoozeWakeLabel,
@@ -38,6 +39,7 @@ import {
   sortDoneThreads,
 } from "@supaterm/client-runtime/state/thread-sort";
 import type { EnvironmentId, ProjectId } from "@supaterm/contracts";
+import type { SnoozePresetSetting } from "@supaterm/contracts/settings";
 
 import type { ThreadListProvider } from "../../state/thread-list-environments";
 
@@ -73,17 +75,6 @@ export function resolveThreadListV2ProviderDrivers(
   return currentDriver === undefined ? [] : drivers;
 }
 
-/**
- * Thread List v2 model, ported from the web sidebar v2
- * (apps/web/src/components/Sidebar.logic.ts + SidebarV2.tsx).
- *
- * Six visual states. Color distinguishes approval, input, active work, and
- * failures. Ready is the unlabeled resting state; waiting (runtime status "idle") is the agent
- * parked on open background tasks, blue like active work rather than a false Done.
- * The orchestrator v2 presentation bridge parks runtime at idle when the
- * post-settlement background roster holds the run's completion (subagents,
- * monitors); commands left running, such as a dev server, read as ready.
- */
 export type ThreadListV2Status =
   | "approval"
   | "input"
@@ -95,28 +86,42 @@ export type ThreadListV2Status =
   | "ready";
 export type ThreadListV2SwipeAction = "archive" | "mark-done" | "reopen" | "snooze" | "unsnooze";
 
+/**
+ * Presets for a row's snooze menu, read at the list's minute instead of the
+ * clock: the compiler keys a row's memo on its inputs, so a clock read inside
+ * it would keep the times from the row's first render.
+ */
+export function resolveThreadListV2SnoozePresets(input: {
+  readonly secondary: "snooze" | null;
+  readonly now: string;
+  readonly presets: ReadonlyArray<SnoozePresetSetting> | undefined;
+}): ReadonlyArray<SnoozePreset> {
+  return input.secondary === "snooze"
+    ? resolveSnoozePresets(new Date(input.now), presetOptions(input.presets))
+    : [];
+}
+
+function presetOptions(presets: ReadonlyArray<SnoozePresetSetting> | undefined) {
+  return presets ? { presets } : {};
+}
+
 export function resolveThreadListV2SnoozeMenuSelection(input: {
   readonly event: string;
   readonly displayedPresets: ReadonlyArray<SnoozePreset>;
   readonly now: Date;
+  readonly presets: ReadonlyArray<SnoozePresetSetting> | undefined;
 }):
   | { readonly _tag: "selected"; readonly preset: SnoozePreset }
   | { readonly _tag: "expired" }
   | { readonly _tag: "not-snooze" } {
   if (!input.event.startsWith("snooze:")) return { _tag: "not-snooze" };
-
-  const currentPreset = resolveSnoozePresets(input.now).find(
-    (candidate) => input.event === `snooze:${candidate.id}`,
-  );
-  if (currentPreset) return { _tag: "selected", preset: currentPreset };
-
-  const displayedPreset = input.displayedPresets.find(
-    (candidate) => input.event === `snooze:${candidate.id}`,
-  );
-  if (displayedPreset && Date.parse(displayedPreset.snoozedUntil) > input.now.getTime()) {
-    return { _tag: "selected", preset: displayedPreset };
-  }
-  return { _tag: "expired" };
+  const preset = pickSnoozePreset({
+    shown: input.displayedPresets,
+    id: input.event.slice("snooze:".length),
+    now: input.now,
+    ...presetOptions(input.presets),
+  });
+  return preset ? { _tag: "selected", preset } : { _tag: "expired" };
 }
 
 export function resolveThreadListV2SwipeActions(input: {
@@ -318,6 +323,7 @@ export interface ThreadListV2Layout {
   readonly nextSnoozeWakeAt: string | null;
   /** Threads listed only because their messages match the search. */
   readonly contentOnlyThreadKeys: ReadonlySet<string>;
+  readonly searching: boolean;
 }
 
 export interface ThreadListV2ThreadListItem {
@@ -524,6 +530,7 @@ export function buildThreadListV2ListItems(input: {
   readonly loadedEnvironmentIds?: ReadonlySet<EnvironmentId>;
   readonly queuedThreadKeys?: ReadonlySet<string>;
   readonly shelfPreferencesLoading?: boolean;
+  readonly searching?: boolean;
 }): ThreadListV2ListItem[] {
   const queuedThreadKeys = input.queuedThreadKeys?.size ? input.queuedThreadKeys : undefined;
   const threadItems = input.items.map((item): ThreadListV2ThreadListItem => {
@@ -566,6 +573,7 @@ export function buildThreadListV2ListItems(input: {
       showTrailingDivider: false,
     });
   }
+  if (input.searching) return [...draftItems, ...pendingItems, ...threadItems];
   const workingCount = input.workingCount ?? 0;
   const workingShelfHeaderIndex = input.workingShelfHeaderIndex ?? null;
   const snoozedCount = input.snoozedCount ?? 0;
@@ -842,6 +850,7 @@ export function buildThreadListV2Items(input: {
         wokeAt: slim.has(thread) ? null : resolveThreadListV2WokeAt(thread, { now }),
         isLast: index === results.length - 1,
       })),
+      searching: true,
       hiddenDoneCount: 0,
       listedSettledThreads: [],
       pinnedCount: 0,
@@ -990,6 +999,7 @@ export function buildThreadListV2Items(input: {
   }
   return {
     items,
+    searching: false,
     pinnedCount: pinned.length,
     activeCount: inboxCount,
     hiddenDoneCount: Math.max(0, settledTotal - pagedDone.length),
@@ -1014,4 +1024,17 @@ export function buildThreadListV2Items(input: {
     nextSnoozeWakeAt,
     contentOnlyThreadKeys,
   };
+}
+
+export function nextSnoozeWakeAfter(
+  threads: ReadonlyArray<{ readonly snoozedUntil?: string | null }>,
+  nowMs: number,
+): number | null {
+  let next: number | null = null;
+  for (const thread of threads) {
+    if (thread.snoozedUntil == null) continue;
+    const wakeAtMs = Date.parse(thread.snoozedUntil);
+    if (wakeAtMs > nowMs && (next === null || wakeAtMs < next)) next = wakeAtMs;
+  }
+  return next;
 }

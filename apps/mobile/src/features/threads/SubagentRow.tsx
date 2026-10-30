@@ -1,4 +1,5 @@
 import { scopeProjectRef, scopeThreadRef } from "@supaterm/client-runtime/environment";
+import { resolveProviderInstanceDisplayName } from "@supaterm/client-runtime/state/provider-instance-display";
 import { resolveSubagentMetadata } from "@supaterm/client-runtime/state/subagent-display";
 import type { EnvironmentId, OrchestrationV2Subagent } from "@supaterm/contracts";
 import type { ReactNode } from "react";
@@ -11,11 +12,7 @@ import { cn } from "../../lib/cn";
 import { useEnvironmentServerConfig, useProject, useThreadShell } from "../../state/entities";
 import { subagentCardDetail } from "./subagent-card-presentation";
 import { SUBAGENT_TONE_TEXT_CLASS, SubagentStatusDot } from "./SubagentStatusDot";
-import { describeProviderInstance } from "./thread-provider-instance";
-import {
-  resolveSubagentRowPresentation,
-  type SubagentRowPresentation,
-} from "./threadAgentsPresentation";
+import { resolveSubagentRowPresentation } from "./threadAgentsPresentation";
 
 type SubagentRowSubagent = Pick<
   OrchestrationV2Subagent,
@@ -29,14 +26,17 @@ type SubagentRowSubagent = Pick<
   | "status"
   | "progress"
   | "result"
+  | "remoteChild"
 >;
 
 export function SubagentRow(props: {
   readonly environmentId: EnvironmentId;
   readonly subagent: SubagentRowSubagent;
   readonly elapsed: ReactNode;
+  /** The task runs in a linked environment this app is connected to. */
+  readonly canOpenRemote?: boolean;
 }) {
-  const presentation = resolveSubagentRowPresentation(props.subagent);
+  const presentation = resolveSubagentRowPresentation(props.subagent, props.canOpenRemote);
   const detail = subagentCardDetail(presentation.detail);
   return (
     <View className="flex-row gap-3">
@@ -45,22 +45,40 @@ export function SubagentRow(props: {
       </View>
       <View className="min-w-0 flex-1 gap-1">
         <View className="min-h-5 flex-row items-center gap-2">
-          <Text
-            numberOfLines={1}
-            className="min-w-0 flex-1 font-supaterm-medium text-sm text-foreground"
-          >
-            {presentation.title}
-          </Text>
+          <View className="min-w-0 flex-1 flex-row items-baseline gap-1.5">
+            <Text
+              numberOfLines={1}
+              className="min-w-0 shrink font-supaterm-medium text-sm text-foreground"
+            >
+              {presentation.title}
+            </Text>
+            <Text
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+              className="shrink-0 text-xs text-foreground-muted"
+            >
+              ·
+            </Text>
+            <Text
+              className={cn(
+                "shrink-0 text-xs font-supaterm-medium",
+                SUBAGENT_TONE_TEXT_CLASS[presentation.tone],
+              )}
+            >
+              {presentation.statusLabel}
+            </Text>
+            {presentation.runsOn !== null ? (
+              <Text numberOfLines={1} className="shrink text-xs text-foreground-muted">
+                on {presentation.runsOn}
+              </Text>
+            ) : null}
+          </View>
           {props.elapsed}
           {presentation.canOpenThread ? (
             <SymbolView name="chevron.right" size={12} tintColorClassName="accent-icon-subtle" />
           ) : null}
         </View>
-        <SubagentMetadata
-          environmentId={props.environmentId}
-          subagent={props.subagent}
-          presentation={presentation}
-        />
+        <SubagentMetadata environmentId={props.environmentId} subagent={props.subagent} />
         {detail ? (
           <Text
             numberOfLines={3}
@@ -80,11 +98,11 @@ export function SubagentRow(props: {
 function SubagentMetadata(props: {
   readonly environmentId: EnvironmentId;
   readonly subagent: SubagentRowSubagent;
-  readonly presentation: Pick<SubagentRowPresentation, "statusLabel" | "tone">;
 }) {
-  const { environmentId, subagent, presentation } = props;
-  const providers = useEnvironmentServerConfig(environmentId)?.providers ?? [];
-  const provider = providers.find(
+  const { environmentId, subagent } = props;
+  // A task in a linked environment runs a provider instance of that environment.
+  const config = useEnvironmentServerConfig(subagent.remoteChild?.environmentId ?? environmentId);
+  const provider = config?.providers.find(
     (candidate) => candidate.instanceId === subagent.providerInstanceId,
   );
   const parent = useThreadShell(scopeThreadRef(environmentId, subagent.threadId))?.source;
@@ -103,41 +121,19 @@ function SubagentMetadata(props: {
     parentProject,
     childProject,
   });
-  const instance = provider ? describeProviderInstance(provider, providers) : null;
   return (
     <View className="min-w-0 flex-row items-center gap-1.5">
-      <Text
-        className={cn(
-          "shrink-0 font-supaterm-medium text-xs",
-          SUBAGENT_TONE_TEXT_CLASS[presentation.tone],
-        )}
-      >
-        {presentation.statusLabel}
-      </Text>
-      <Text
-        accessibilityElementsHidden
-        importantForAccessibility="no"
-        className="text-xs text-foreground-muted"
-      >
-        ·
-      </Text>
       <ProviderIcon
         provider={provider?.driver ?? subagent.driver}
         iconUrl={provider?.iconUrl}
         size={12}
       />
-      <Text
-        // The provider icon is unlabeled, so spoken output always names the instance.
-        accessibilityLabel={instance ? `${modelLabel}, ${instance.displayName}` : modelLabel}
-        className="min-w-0 shrink text-xs text-foreground-muted"
-        numberOfLines={1}
-      >
-        {instance?.showBadge ? `${modelLabel} · ${instance.displayName}` : modelLabel}
+      <Text className="min-w-0 shrink text-xs text-foreground-muted" numberOfLines={1}>
+        {provider ? `${resolveProviderInstanceDisplayName(provider)} · ` : ""}
+        {modelLabel}
       </Text>
       {workspace.map(({ label, value }) => (
-        // The row reads this label in place of the icon. collapsable keeps the
-        // view (and label) from being flattened away without making it a
-        // separate accessibility stop.
+        // Preserve the label against flattening without making it a separate accessibility stop.
         <View
           key={label}
           collapsable={false}
