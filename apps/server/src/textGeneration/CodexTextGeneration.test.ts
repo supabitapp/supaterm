@@ -553,7 +553,6 @@ it.effect.each([false, true])("text generation preflight: exhausted=%s", (exhaus
         orchestrationAdapter: {} as ProviderInstance["orchestrationAdapter"],
         textGeneration: TextGeneration.TextGeneration.of({
           generateCommitMessage: () => Effect.die("unused"),
-          generateNextPrompt: () => Effect.die("unused"),
           generatePrContent: () => Effect.die("unused"),
           generateBranchName: () => Effect.die("unused"),
           generateReviewGuide: () => Effect.die("unused"),

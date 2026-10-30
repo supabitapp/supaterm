@@ -21,13 +21,11 @@ import { investigationUnsupported } from "@supaterm/provider-core/server/textGen
 import {
   buildBranchNamePrompt,
   buildCommitMessagePrompt,
-  buildNextPromptPrompt,
   buildPrContentPrompt,
   buildThreadTitlePrompt,
 } from "@supaterm/provider-core/server/textGenerationPrompts";
 import {
   sanitizeCommitSubject,
-  sanitizeNextPrompt,
   sanitizePrTitle,
   sanitizeThreadTitle,
   toJsonSchemaObject,
@@ -342,16 +340,6 @@ export const makeMuseTextGeneration = Effect.fn("makeMuseTextGeneration")(functi
     });
     return { title: sanitizeThreadTitle(generated.title) };
   });
-  const generateNextPrompt: ProviderTextGeneration["generateNextPrompt"] = Effect.fn(
-    "MuseTextGeneration.generateNextPrompt",
-  )(function* (input) {
-    const generated = yield* runMuseJson({
-      operation: "generateNextPrompt",
-      ...buildNextPromptPrompt(input),
-      modelSelection: input.modelSelection,
-    });
-    return { suggestion: sanitizeNextPrompt(generated.suggestion) };
-  });
   const generateReviewGuide: ProviderTextGeneration["generateReviewGuide"] = () =>
     Effect.fail(investigationUnsupported("generateReviewGuide", "Muse Code"));
   return {
@@ -360,7 +348,6 @@ export const makeMuseTextGeneration = Effect.fn("makeMuseTextGeneration")(functi
     generatePrContent,
     generateBranchName,
     generateThreadTitle,
-    generateNextPrompt,
     generateReviewGuide,
   } satisfies ProviderTextGeneration;
 });
