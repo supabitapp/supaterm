@@ -156,40 +156,48 @@ describe("openBoundedZip", () => {
     await expect(reader.read("a.txt")).rejects.toThrow("closed");
   });
 
-  it("aborts an active inflate and leaves unrelated entries readable", async () => {
-    type Streamable = JSZip.JSZipObject & {
-      internalStream(type: "uint8array"): JSZip.JSZipStreamHelper<Uint8Array<ArrayBuffer>>;
-    };
-    const prototype = Object.getPrototypeOf(new JSZip().file("x", "x").file("x")) as Streamable;
-    const internalStream = prototype.internalStream;
-    const controller = new AbortController();
-    const stream = vi.spyOn(prototype, "internalStream").mockImplementation(function (
-      this: Streamable,
-      type,
-    ) {
-      const result = internalStream.call(this, type);
-      if (this.name === "large.txt")
-        result.on("data", () => controller.abort(new Error("left entry")));
-      return result;
-    });
-    const reader = await openBoundedZip(
-      await archive([
-        ["large.txt", "x".repeat(65_536)],
-        ["small.txt", "ok"],
-      ]),
-      100_000,
-      { ratioFloor: 100_000 },
-    );
-    try {
-      await expect(reader.read("large.txt", { signal: controller.signal })).rejects.toThrow(
-        "left entry",
+  it.each(["read", "archive", "close"] as const)(
+    "cancels an active inflate through %s",
+    async (scope) => {
+      type Streamable = JSZip.JSZipObject & {
+        internalStream(type: "uint8array"): JSZip.JSZipStreamHelper<Uint8Array<ArrayBuffer>>;
+      };
+      const prototype = Object.getPrototypeOf(new JSZip().file("x", "x").file("x")) as Streamable;
+      const internalStream = prototype.internalStream;
+      const controller = new AbortController();
+      const stream = vi.spyOn(prototype, "internalStream").mockImplementation(function (
+        this: Streamable,
+        type,
+      ) {
+        const result = internalStream.call(this, type);
+        if (this.name === "large.txt")
+          result.on("data", () => {
+            if (scope === "close") reader.close();
+            else controller.abort(new Error("left entry"));
+          });
+        return result;
+      });
+      const reader = await openBoundedZip(
+        await archive([
+          ["large.txt", "x".repeat(65_536)],
+          ["small.txt", "ok"],
+        ]),
+        100_000,
+        { ratioFloor: 100_000, ...(scope === "archive" ? { signal: controller.signal } : {}) },
       );
-      expect(new TextDecoder().decode((await reader.read("small.txt")).bytes)).toBe("ok");
-    } finally {
-      reader.close();
-      stream.mockRestore();
-    }
-  });
+      try {
+        await expect(
+          reader.read("large.txt", scope === "read" ? { signal: controller.signal } : {}),
+        ).rejects.toThrow(scope === "close" ? "closed" : "left entry");
+        if (scope === "read")
+          expect(new TextDecoder().decode((await reader.read("small.txt")).bytes)).toBe("ok");
+        else await expect(reader.read("small.txt")).rejects.toThrow();
+      } finally {
+        reader.close();
+        stream.mockRestore();
+      }
+    },
+  );
 
   it("uses the archive signal to cancel all pending reads", async () => {
     const controller = new AbortController();
@@ -198,10 +206,10 @@ describe("openBoundedZip", () => {
     });
     const one = reader.read("a.txt");
     const two = reader.read("a.txt");
-    controller.abort();
-    await expect(one).rejects.toThrow();
-    await expect(two).rejects.toThrow();
-    await expect(reader.read("a.txt")).rejects.toThrow("closed");
+    controller.abort(new Error("archive navigation"));
+    await expect(one).rejects.toThrow("archive navigation");
+    await expect(two).rejects.toThrow("archive navigation");
+    await expect(reader.read("a.txt")).rejects.toThrow("archive navigation");
   });
 
   it.each(["/absolute.txt", "../outside.txt", "folder/../../outside.txt", "C:\\absolute.txt"])(
@@ -248,6 +256,29 @@ describe("openBoundedZip", () => {
     } finally {
       reader.close();
     }
+  });
+
+  it("validates local names and Unicode path extras before opening", async () => {
+    const bytes = await archive([["a.txt", "hello"]]);
+    new Uint8Array(bytes, 30, 5).set(new TextEncoder().encode("../xx"));
+    await expect(openBoundedZip(bytes)).rejects.toThrow("path");
+    const encoded = (name: string) => new TextEncoder().encode(name.replace(/[^a-z.]/g, "x"));
+    const unicode = await new JSZip()
+      .file("資料.txt", "hello")
+      .generateAsync({ type: "arraybuffer", encodeFileName: encoded });
+    const reader = await openBoundedZip(unicode);
+    try {
+      expect(new TextDecoder().decode((await reader.read("資料.txt")).bytes)).toBe("hello");
+    } finally {
+      reader.close();
+    }
+    const unsafe = await new JSZip()
+      .file("../資料.txt", "hidden", { createFolders: false })
+      .generateAsync({
+        type: "arraybuffer",
+        encodeFileName: () => new TextEncoder().encode("safe.txt"),
+      });
+    await expect(openBoundedZip(unsafe)).rejects.toThrow("path");
   });
 
   it("enforces the entry-count boundary even when the declared count is understated", async () => {

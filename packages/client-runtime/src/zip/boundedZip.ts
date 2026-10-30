@@ -71,14 +71,16 @@ export async function openBoundedZip(
   let total = 0;
   let markup = 0;
 
-  const close = () => {
-    if (!lifetime.signal.aborted) lifetime.abort(new Error("This archive is closed."));
-    limits.signal?.removeEventListener("abort", close);
+  const dispose = (reason: unknown) => {
+    if (!lifetime.signal.aborted) lifetime.abort(reason);
+    limits.signal?.removeEventListener("abort", abortArchive);
     source = undefined;
     loaded = undefined;
     verified.clear();
   };
-  limits.signal?.addEventListener("abort", close, { once: true });
+  const close = () => dispose(new Error("This archive is closed."));
+  const abortArchive = () => dispose(cancelled(limits.signal!));
+  limits.signal?.addEventListener("abort", abortArchive, { once: true });
 
   const load = () => {
     checkAborted(lifetime.signal);
@@ -205,7 +207,7 @@ export async function openBoundedZip(
     });
   };
 
-  if (limits.signal?.aborted) close();
+  if (limits.signal?.aborted) abortArchive();
   checkAborted(lifetime.signal);
   return { entries, read, close };
 }
