@@ -30,6 +30,7 @@ NodeFS.copyFileSync(FIXTURE_DB, NodePath.join(supatermHome, "userdata/statev2.sq
 
 let step = "launching the app";
 let app: ElectronApplication | undefined;
+const { ELECTRON_RUN_AS_NODE: _electronRunAsNode, ...environment } = process.env;
 try {
   app = await _electron.launch({
     executablePath: executable,
@@ -37,7 +38,11 @@ try {
     args: ["--no-sandbox"],
 
     env: {
-      ...process.env,
+      ...environment,
+      HOME: home,
+      USERPROFILE: home,
+      APPDATA: NodePath.join(home, "AppData/Roaming"),
+      LOCALAPPDATA: NodePath.join(home, "AppData/Local"),
       XDG_CONFIG_HOME: NodePath.join(home, ".config"),
       XDG_DATA_HOME: NodePath.join(home, ".local/share"),
       SUPATERM_HOME: supatermHome,
