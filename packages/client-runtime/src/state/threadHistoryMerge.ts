@@ -73,9 +73,10 @@ export function mergeOlderHistoryIntoProjection(
     ) {
       const currentItem = turnItemById.get(String(row.sourceItemId));
 
+      // Snapshots keep some rows outside their window, such as interrupt requests
+      // and running background work. A stored row stays out only if it is hidden.
       if (currentItem !== undefined) {
         if (
-          currentItem.type !== "run_interrupt_request" ||
           !isOrchestrationV2TurnItemVisible({
             item: currentItem,
             runs: projection.runs,

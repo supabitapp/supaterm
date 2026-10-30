@@ -2709,7 +2709,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   const [prefetchHistory] = useState(createThreadHistoryPrefetcher);
   const handleHistoryPrefetch = () => {
     const state = listRef.current?.getState();
-    if (props.freeze || feedLoading || state?.data !== presentedFeed) return;
+    if (props.freeze.value || feedLoading || state?.data !== presentedFeed) return;
     prefetchHistory(feedThreadKey, props.historyControls, state);
   };
   useEffect(() => {
