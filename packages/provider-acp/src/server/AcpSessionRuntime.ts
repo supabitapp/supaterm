@@ -244,12 +244,6 @@ export function parseCgroup2Mounts(
   return mounts;
 }
 
-export function parseCgroup2Mount(
-  contents: string,
-): { readonly mountPoint: string; readonly root: string } | undefined {
-  return parseCgroup2Mounts(contents)[0];
-}
-
 export function wrapCommandForLinuxCgroup(
   lease: AcpLinuxCgroupLease,
   command: string,

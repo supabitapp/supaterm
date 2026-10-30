@@ -2,7 +2,6 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
-import * as Layer from "effect/Layer";
 import * as Scope from "effect/Scope";
 import * as Semaphore from "effect/Semaphore";
 
@@ -177,11 +176,3 @@ export const make = Effect.fn("OpenCodeServerOwner.make")(function* (input: {
     }),
   });
 });
-
-export const layer = (input: {
-  readonly binaryPath: string;
-  readonly directory: string;
-  readonly serverPassword?: string;
-  readonly environment?: NodeJS.ProcessEnv;
-  readonly verify?: (url: string) => Effect.Effect<string, OpenCodeRuntime.OpenCodeRuntimeError>;
-}) => Layer.effect(OpenCodeServerOwner, make(input));

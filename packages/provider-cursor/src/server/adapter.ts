@@ -30,7 +30,6 @@ import {
   type ServerProviderModel,
   type ThreadId,
 } from "@supaterm/contracts";
-import { CursorSettings } from "../settings.ts";
 import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -53,7 +52,6 @@ import {
   hasCursorSkillMention,
   rewriteCursorSkillMentions,
 } from "./skills.ts";
-import { mergeProviderInstanceEnvironment } from "@supaterm/provider-core/server/instanceEnvironment";
 import { supatermOrchestrationPrompt } from "@supaterm/provider-core/server/orchestrationInstructions";
 import { buildRuntimeInstructions } from "@supaterm/provider-core/server/runtimeInstructions";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
@@ -65,11 +63,6 @@ import {
 } from "@supaterm/provider-core/server/attachmentPrompt";
 import * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
 import {
-  ProviderAdapterDriverCreateError,
-  type ProviderAdapterDriver,
-  type ProviderAdapterDriverCreateInput,
-} from "@supaterm/provider-core/server/adapterDriver";
-import {
   makeSubagentChildThread,
   makeSubagentConversationArtifacts,
   subagentThreadTitle,
@@ -78,9 +71,8 @@ import * as CursorAgentSdk from "./CursorAgentSdk.ts";
 import { ConfigurationError } from "./sdk.ts";
 export { cursorSdkModelSelection } from "./sdkModel.ts";
 
-export const CURSOR_DRIVER_KIND = CursorAgentSdk.CURSOR_PROVIDER;
+const CURSOR_DRIVER_KIND = CursorAgentSdk.CURSOR_PROVIDER;
 export const CURSOR_DEFAULT_INSTANCE_ID = defaultInstanceIdForDriver(CURSOR_DRIVER_KIND);
-const DEFAULT_CURSOR_SETTINGS = Schema.decodeSync(CursorSettings)({});
 
 export const CursorProviderCapabilitiesV2 = {
   sessions: {
@@ -2823,33 +2815,3 @@ export type CursorAdapterV2DriverEnv =
   | IdAllocator.IdAllocatorV2
   | McpProviderSessions.McpProviderSessions
   | ProviderHost.ProviderHost;
-
-export const CursorAdapterV2Driver: ProviderAdapterDriver<
-  CursorSettings,
-  CursorAdapterV2DriverEnv
-> = {
-  driverKind: CURSOR_DRIVER_KIND,
-  configSchema: CursorSettings,
-  defaultConfig: (): CursorSettings => DEFAULT_CURSOR_SETTINGS,
-  create: Effect.fn("CursorAdapterV2Driver.create")(
-    function* (input: ProviderAdapterDriverCreateInput<CursorSettings>) {
-      const hostEnvironment = yield* HostProcess.Environment;
-      return yield* makeCursorAdapterV2({
-        instanceId: input.instanceId,
-        environment: yield* mergeProviderInstanceEnvironment(input.environment, hostEnvironment),
-      });
-    },
-    (effect, input) =>
-      effect.pipe(
-        Effect.mapError(
-          (cause) =>
-            new ProviderAdapterDriverCreateError({
-              driver: CURSOR_DRIVER_KIND,
-              instanceId: input.instanceId,
-              detail: "Failed to create Cursor Agent SDK adapter.",
-              cause,
-            }),
-        ),
-      ),
-  ),
-};
