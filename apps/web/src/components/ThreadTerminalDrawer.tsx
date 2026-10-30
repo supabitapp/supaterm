@@ -1208,7 +1208,7 @@ interface ThreadTerminalDrawerProps {
   newShortcutLabel?: string | undefined;
   closeShortcutLabel?: string | undefined;
   onActiveTerminalChange: (terminalId: string) => void;
-  onCloseTerminal: (terminalId: string) => void;
+  onCloseTerminal: (terminalId: string, threadRef?: ScopedThreadRef) => void;
   onHeightChange: (height: number) => void;
   onSplitLayoutChange: (groupId: string, layout: TerminalSplitLayout) => void;
   onAddTerminalContext: (selection: TerminalContextSelection) => void;
@@ -1592,7 +1592,7 @@ export default function ThreadTerminalDrawer({
       },
     ]).then((confirmed) => {
       if (confirmed && readEnvironmentScope(threadRef.environmentId, AuthTerminalOperateScope))
-        onCloseTerminal(terminalId);
+        onCloseTerminal(terminalId, threadRef);
     });
   };
 
@@ -1776,7 +1776,7 @@ export default function ThreadTerminalDrawer({
           ? { worktreePath: launchLocation.worktreePath }
           : {})}
         {...(launchLocation.runtimeEnv ? { runtimeEnv: launchLocation.runtimeEnv } : {})}
-        onSessionExited={() => onCloseTerminal(terminalId)}
+        onSessionExited={() => onCloseTerminal(terminalId, threadRef)}
         onAddTerminalContext={onAddTerminalContext}
         visible={visible}
         resizeEpoch={resizeEpoch}
