@@ -66,6 +66,7 @@ export function ScheduledTaskPromptField(props: {
             <ComposerDictationStatus
               audioLevels={voice.audioLevels}
               elapsedSeconds={voice.elapsedSeconds}
+              engineLabel={voice.engineLabel}
               phase={voice.state.phase}
               presentation={presentation}
               onDismissError={voice.cancel}

@@ -30,7 +30,6 @@ import {
   rememberMicrophones,
 } from "../../lib/microphonePriority";
 import { createPcmVoiceRecorder } from "../../native/pcmVoiceRecorder";
-import { getLocalVoiceTranscriber } from "../../native/voiceTranscription";
 import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
 import { getNativeShowcaseScene } from "../showcase/nativeShowcaseScene";
 import {
@@ -114,10 +113,11 @@ function useVoiceInputRuntime() {
   const registry = use(RegistryContext);
   useAtomMount(mobilePreferencesAtom);
   useAtomMount(updateMobilePreferencesAtom);
-  const [{ state, ownerKey, label }, setState] = useState({
+  const [{ state, ownerKey, label, engineLabel }, setState] = useState({
     state: INITIAL_STATE,
     ownerKey: null as string | null,
     label: null as string | null,
+    engineLabel: null as string | null,
   });
   const [focusedOwners, setFocusedOwners] = useState<ReadonlySet<string>>(new Set());
   const setOwnerFocused = useCallback((key: string, focused: boolean) => {
@@ -168,7 +168,6 @@ function useVoiceInputRuntime() {
     let phase = INITIAL_STATE.phase;
     const session = new VoiceInputSession({
       recorder,
-      getTranscriber: getLocalVoiceTranscriber,
       requestPermission: async () => {
         const permission = await requestRecordingPermissionsAsync();
         return { granted: permission.granted, canAskAgain: permission.canAskAgain };
@@ -178,11 +177,16 @@ function useVoiceInputRuntime() {
       deleteRecording: (uri) => new File(uri).delete(),
       onStateChange: (nextState) => {
         // The audio session is released before transcription, so iOS plays this.
-        if (phase === "transcribing" && nextState.phase === "idle") {
+        if ((phase === "transcribing" || phase === "sending") && nextState.phase === "idle") {
           void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }
         phase = nextState.phase;
-        setState({ state: nextState, ownerKey: session.ownerKey, label: session.label });
+        setState({
+          state: nextState,
+          ownerKey: session.ownerKey,
+          label: session.label,
+          engineLabel: session.engine?.label ?? null,
+        });
       },
     });
     return { session, recorder };
@@ -264,13 +268,14 @@ function useVoiceInputRuntime() {
   const cancel = useCallback(() => controller.cancel(), [controller]);
 
   return {
-    isAvailable: getLocalVoiceTranscriber() !== null || getNativeShowcaseScene() !== null,
+    isAvailable: createNativeVoiceRecorder !== null || getNativeShowcaseScene() !== null,
     state,
     audioLevels,
     elapsedSeconds,
     isBusy: voiceInputBlocksSubmission(state),
     ownerKey,
     label,
+    engineLabel,
     focusedOwners,
     setOwnerFocused,
     session,

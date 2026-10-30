@@ -3,11 +3,18 @@ import {
   voiceInputBlocksSubmission,
   type VoiceDraftSnapshot,
   type VoiceInputControllerDependencies,
+  type VoiceTranscriber,
 } from "@supaterm/client-runtime/voice-input";
+
+import type { VoiceEngine } from "../../lib/voiceEngine";
+
+export type VoiceInputEngine = VoiceEngine & { readonly transcriber: VoiceTranscriber };
 
 export type VoiceInputTarget = {
   readonly ownerKey: string;
   readonly label?: string;
+  /** Chosen when recording starts, so a settings change never moves a recording elsewhere. */
+  readonly engine?: VoiceInputEngine;
   readonly readDraft: () => VoiceDraftSnapshot | null;
   readonly commitDraft: VoiceInputControllerDependencies["commitDraft"];
   readonly subscribe: () => () => void;
@@ -47,18 +54,30 @@ export class VoiceInputSession {
   private target: VoiceInputTarget | null = null;
   private unsubscribe: (() => void) | null = null;
   private onCommit: ((text: string) => void) | undefined;
+  private sendRecording: ((uri: string) => Promise<void>) | undefined;
 
-  constructor(dependencies: Omit<VoiceInputControllerDependencies, "readDraft" | "commitDraft">) {
+  constructor(
+    dependencies: Omit<
+      VoiceInputControllerDependencies,
+      "readDraft" | "commitDraft" | "getTranscriber" | "sendRecording"
+    >,
+  ) {
     this.controller = new VoiceInputController({
       ...dependencies,
       onStateChange: (state) => {
         if (!voiceInputBlocksSubmission(state)) {
           this.onCommit = undefined;
+          this.sendRecording = undefined;
           this.unsubscribe?.();
           this.unsubscribe = null;
         }
         dependencies.onStateChange(state);
       },
+      getTranscriber: () => this.target?.engine?.transcriber ?? null,
+      sendRecording: (uri) =>
+        this.sendRecording
+          ? this.sendRecording(uri)
+          : Promise.reject(new Error("This recording can't be sent as a message.")),
       readDraft: () => this.target?.readDraft() ?? null,
       commitDraft: (text, selection) => {
         this.target?.commitDraft(text, selection);
@@ -75,6 +94,10 @@ export class VoiceInputSession {
     return this.target?.label ?? null;
   }
 
+  get engine(): VoiceInputEngine | null {
+    return this.target?.engine ?? null;
+  }
+
   cancel(ownerKey: string | null): void {
     if (ownerKey !== null && this.ownerKey === ownerKey) this.controller.cancel();
   }
@@ -87,6 +110,13 @@ export class VoiceInputSession {
     if (this.controller.currentState.phase !== "recording") return Promise.resolve();
     this.onCommit = onCommit;
     return this.controller.stop();
+  }
+
+  /** Hands the finished recording to `sendRecording` as the user's message, untranscribed. */
+  send(sendRecording: (uri: string) => Promise<void>): Promise<void> {
+    if (this.controller.currentState.phase !== "recording") return Promise.resolve();
+    this.sendRecording = sendRecording;
+    return this.controller.send();
   }
 
   start(target: VoiceInputTarget): Promise<void> {

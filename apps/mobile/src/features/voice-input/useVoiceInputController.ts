@@ -7,7 +7,15 @@ import {
   type VoiceInputState,
 } from "@supaterm/client-runtime/voice-input";
 
+import type { EnvironmentId } from "@supaterm/contracts";
+
 import type { ComposerEditorSelection } from "../../components/ComposerEditor";
+import type { VoiceTranscriptionEngine } from "../../lib/voiceEngine";
+import {
+  presentUnavailableVoiceEngine,
+  resolveComposerVoiceEngine,
+  type VoiceTranscriptionContext,
+} from "./composerVoiceEngine";
 import { useGlobalVoiceInput } from "./VoiceInputProvider";
 import { createVoiceInputTarget } from "./voiceInputSession";
 
@@ -23,6 +31,17 @@ export function useVoiceInputController(input: {
   readonly onChangeDraftMessage: (value: string) => void;
   readonly onChangeSelection: (selection: ComposerEditorSelection) => void;
   readonly onSubmit?: () => void;
+  /** Whose environment transcribes, unless this device was chosen to. */
+  readonly environmentId: EnvironmentId | null;
+  readonly context?: VoiceTranscriptionContext;
+  /**
+   * Where sending a recording from an empty draft makes it the message itself, which the
+   * environment transcribes and sends even when this device is offline.
+   */
+  readonly voiceMessage?: {
+    readonly accepts: () => boolean;
+    readonly send: (recordingUri: string) => Promise<void>;
+  };
 }) {
   const global = useGlobalVoiceInput();
   const { setOwnerFocused, session } = global;
@@ -52,7 +71,22 @@ export function useVoiceInputController(input: {
     }, [input.ownerKey, setOwnerFocused]),
   );
 
-  const start = useCallback(() => {
+  const begin = useCallback(async () => {
+    const resolve = (preference?: VoiceTranscriptionEngine) => {
+      const current = latestInput.current;
+      return resolveComposerVoiceEngine({
+        environmentId: current.environmentId,
+        ...(current.context ? { context: current.context } : {}),
+        ...(preference ? { preference } : {}),
+      });
+    };
+    if (!latestInput.current.ownerKey || latestInput.current.disabled) return;
+    let resolution = resolve();
+    if (resolution.status === "unavailable") {
+      if (!(await presentUnavailableVoiceEngine(resolution))) return;
+      resolution = resolve("device");
+      if (resolution.status === "unavailable") return;
+    }
     const captured = latestInput.current;
     if (!captured.ownerKey || captured.disabled) return;
     submission.current = null;
@@ -73,8 +107,10 @@ export function useVoiceInputController(input: {
         captured.subscribeToDraftChanges,
       ),
       label: captured.label,
+      engine: resolution.engine,
     });
   }, [session]);
+  const start = useCallback(() => void begin(), [begin]);
   const state = global.ownerKey === input.ownerKey ? global.state : IDLE_STATE;
   const isBusy = voiceInputBlocksSubmission(state);
   useEffect(() => {
@@ -97,12 +133,17 @@ export function useVoiceInputController(input: {
     const current = latestInput.current;
     if (
       !current.ownerKey ||
-      !current.onSubmit ||
       current.disabled ||
       session.ownerKey !== current.ownerKey ||
       session.controller.currentState.phase !== "recording"
     )
       return;
+    if (session.engine?.kind === "environment" && current.voiceMessage?.accepts()) {
+      submission.current = null;
+      void session.send(current.voiceMessage.send);
+      return;
+    }
+    if (!current.onSubmit) return;
     const pending = { ownerKey: current.ownerKey, text: "" };
     submission.current = pending;
     void session.stop((text) => {
@@ -114,6 +155,7 @@ export function useVoiceInputController(input: {
     state,
     audioLevels: global.audioLevels,
     elapsedSeconds: global.elapsedSeconds,
+    engineLabel: global.ownerKey === input.ownerKey ? global.engineLabel : null,
     isBusy,
     freezesEditor: isBusy,
     blocksSubmission: isBusy,
