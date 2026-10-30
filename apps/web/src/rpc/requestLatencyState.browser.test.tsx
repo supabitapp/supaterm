@@ -30,7 +30,9 @@ describe("slow request warnings", () => {
     try {
       for (const [requestId, method] of pending) trackRpcRequestSent(requestId, method, requestId);
       await act(() => vi.advanceTimersByTime(15_000));
-      await expect.element(screen.getByRole("status")).toHaveTextContent(/^dispatch$/);
+      await vi.waitFor(() => {
+        expect(screen.container.querySelector("output")?.textContent).toBe("dispatch");
+      });
     } finally {
       await act(() => {
         for (const [requestId] of pending) acknowledgeRpcRequest(requestId);
