@@ -3,7 +3,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { withOccurrenceKeys } from "@supaterm/shared/occurrenceKeys";
 import { AsyncResult } from "effect/reactivity";
 import type { ComponentType } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   FlatList,
   Platform,
@@ -23,7 +23,7 @@ import {
 } from "../diffs/nativeReviewDiffSurface";
 import { createNativeReviewDiffTheme } from "../review/nativeReviewDiffAdapter";
 import { REVIEW_MONO_FONT_FAMILY, renderVisibleWhitespace } from "../review/reviewDiffRendering";
-import type { ReviewHighlightedToken } from "../review/shikiReviewHighlighter";
+import type { HighlightedToken } from "../../lib/highlights";
 import { cn } from "../../lib/cn";
 import type { ResolvedMobileCodeSurface } from "../../lib/appearancePreferences";
 import { useAppearanceCodeSurface } from "../settings/appearance/useAppearanceCodeSurface";
@@ -38,6 +38,7 @@ import { SourceText } from "@supaterm/mobile-source-text";
 
 import { boundedSelectableSourceTokens, prepareSourceFileDocument } from "./source-file-document";
 import { sourceHighlightAtom } from "./sourceHighlightingState";
+import { createSourceLineScroll } from "./source-file-scroll";
 
 interface SourceFileSurfaceProps {
   readonly contents: string;
@@ -57,7 +58,7 @@ const HighlightedSourceLine = function HighlightedSourceLine(props: {
   readonly codeSurface: ResolvedMobileCodeSurface;
   readonly index: number;
   readonly line: string;
-  readonly tokens: ReadonlyArray<ReviewHighlightedToken> | null;
+  readonly tokens: ReadonlyArray<HighlightedToken> | null;
   readonly highlighted: boolean;
   readonly wordBreak: boolean;
 }) {
@@ -248,25 +249,21 @@ function JavaScriptSourceFileSurface(props: SourceFileSurfaceProps) {
   const { normalizedContents, lines, status, targetIndex, tokens } = useSourceFileModel(props);
   const selectableTokens = props.selectable ? boundedSelectableSourceTokens(tokens) : null;
   const listRef = useRef<FlatList<string>>(null);
+  const [lineScroll] = useState(createSourceLineScroll);
   const { isPullRefreshing, handlePullToRefresh } = useSourceFileRefresh(props.onRefresh);
   const refreshControl = props.onRefresh ? (
     <RefreshControl refreshing={isPullRefreshing} onRefresh={() => void handlePullToRefresh()} />
   ) : undefined;
 
-  const scrollTarget = targetIndex === null ? null : { path: props.path, index: targetIndex };
-  useEffect(() => {
-    if (scrollTarget === null) {
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- scrolls the FlatList to the target line and cancels a pending jump when the file changes
+  useLayoutEffect(() => {
+    if (targetIndex === null) {
       return;
     }
-    const frame = requestAnimationFrame(() => {
-      listRef.current?.scrollToIndex({
-        index: scrollTarget.index,
-        animated: false,
-        viewPosition: 0.3,
-      });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [scrollTarget]);
+    lineScroll.scrollToLine(listRef.current, targetIndex);
+    return lineScroll.cancel;
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Opening another file at the same line index scrolls the new file to it.
+  }, [lineScroll, props.path, targetIndex]);
 
   const renderLine = ({ item, index }: { item: string; index: number }) => (
     <HighlightedSourceLine
@@ -279,11 +276,6 @@ function JavaScriptSourceFileSurface(props: SourceFileSurfaceProps) {
     />
   );
 
-  // On iOS `uiTextView` renders a real `UITextView`, which selects across every line,
-  // wraps, and lays out long documents through TextKit; on Android the primitive is an RN
-  // `Text`, which selects across its nested children. Either way "select all" takes the
-  // file rather than a line, which a `FlatList` row can never do because each row is its
-  // own selection scope.
   const selectableBlock = props.selectable ? (
     <SourceText
       selectable
@@ -367,6 +359,8 @@ function JavaScriptSourceFileSurface(props: SourceFileSurfaceProps) {
         paddingTop: 8,
       }}
       renderItem={renderLine}
+      onScrollToIndexFailed={lineScroll.onScrollToIndexFailed}
+      onScrollBeginDrag={lineScroll.cancel}
     />
   );
 

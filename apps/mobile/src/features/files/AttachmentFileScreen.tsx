@@ -3,19 +3,19 @@ import * as Dialog from "../../components/ui/Dialog";
 import { NativeStackScreenOptions } from "../../native/StackHeader";
 import { useNavigation, type StaticScreenProps } from "@react-navigation/native";
 import type { MenuAction } from "@react-native-menu/menu";
-import { EnvironmentId } from "@supaterm/contracts";
-import { formatAttachmentSize } from "@supaterm/client-runtime/state/attachments";
-import { withOccurrenceKeys } from "@supaterm/shared/occurrenceKeys";
+import { EnvironmentId, ThreadId } from "@supaterm/contracts";
+import {
+  clampFileAttachmentUploadBytes,
+  formatAttachmentSize,
+} from "@supaterm/client-runtime/state/attachments";
 import { useRef, useState } from "react";
-import { Platform, ScrollView, View } from "react-native";
+import { Platform, View } from "react-native";
+
 import {
   AndroidHeaderIconButton,
   AndroidScreenHeader,
 } from "../../components/ui/AndroidScreenHeader";
-import { AppText as Text } from "../../components/ui/AppText";
-import { AudioFilePreview } from "./AudioFilePreview";
 import { Menu } from "../../components/ui/Menu";
-import { EmptyState } from "../../components/ui/EmptyState";
 import { FilePreviewModal, type FilePreviewSource } from "../../components/FilePreviewModal";
 import { useAttachmentDocument } from "../../lib/attachmentDocument";
 import { nativeViewerErrorMessage } from "../../lib/attachmentDownload";
@@ -23,12 +23,13 @@ import { isFileBackedComposerAttachment } from "../../lib/composerImages";
 import { copyTextWithHaptic } from "../../lib/copyTextWithHaptic";
 import { useUniwindTheme } from "../../lib/useUniwindTheme";
 import { removeComposerDraftAttachment, useComposerDraft } from "../../state/use-composer-drafts";
-import { FilePreviewLoading, FilePreviewNotice } from "../../components/FilePreviewFeedback";
-import { FileMarkdownPreview } from "./FileMarkdownPreview";
+import { useEnvironmentServerConfig } from "../../state/entities";
+import { useRefreshAssetUrl } from "../../state/assets";
+import { scopedThreadKey } from "../../lib/scopedEntities";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
-import { SourceFileSurface } from "./SourceFileSurface";
-import { WorkspaceFileWebPreview } from "./WorkspaceFileWebPreview";
-import { HtmlRenderWebView } from "../threads/HtmlRenderWebView";
+import { isZipFile, ZipArchiveView } from "./ZipArchiveView";
+import { AttachmentDocumentBody, nativeViewerKind } from "./AttachmentDocumentBody";
+
 export type AttachmentFileRouteParams = {
   readonly environmentId?: string;
   readonly threadId?: string;
@@ -40,128 +41,7 @@ export type AttachmentFileRouteParams = {
   readonly htmlRender?: "1";
 };
 type AttachmentFileScreenProps = StaticScreenProps<AttachmentFileRouteParams>;
-function nativeViewerKind(kind: ReturnType<typeof useAttachmentDocument>["kind"]) {
-  if (kind === "image") return "image" as const;
-  if (kind === "pdf") return "pdf" as const;
-  if (kind === "video" || kind === "unsupported") return "document" as const;
-  return null;
-}
-function AttachmentDocumentBody(props: {
-  readonly document: ReturnType<typeof useAttachmentDocument>;
-  readonly name: string;
-  readonly environmentId: EnvironmentId | null;
-  readonly htmlRender: boolean;
-  readonly nativeViewer: "pending" | "open" | "unavailable" | null;
-  readonly nativeError: string | null;
-  readonly onOpenNative: () => void;
-}) {
-  const { document } = props;
-  if (document.error) {
-    return (
-      <View className="flex-1 items-center justify-center bg-sheet px-6">
-        <EmptyState
-          title="File unavailable"
-          detail={document.error}
-          actionLabel="Try again"
-          onAction={document.retry}
-        />
-      </View>
-    );
-  }
-  if (props.nativeViewer !== null && props.nativeViewer !== "unavailable") {
-    return <FilePreviewLoading message="Opening in file viewer..." />;
-  }
-  if (!document.uri || (document.needsText && !document.content)) {
-    return <FilePreviewLoading message="Loading file..." />;
-  }
-  if (document.needsText && document.content) {
-    const { content, table } = document;
-    return (
-      <View className="flex-1 bg-sheet">
-        {content.truncated ? (
-          <FilePreviewNotice title="Partial file">
-            Preview limited to the first 1 MB. Save or share the file to read it in full.
-          </FilePreviewNotice>
-        ) : null}
-        {table && document.activeMode === "table" ? (
-          <ScrollView className="flex-1">
-            {table.truncated ? (
-              <FilePreviewNotice>
-                Table limited to the first 100 rows and 30 columns. Source shows the rest.
-              </FilePreviewNotice>
-            ) : null}
-            <ScrollView horizontal>
-              <View>
-                {withOccurrenceKeys(table.rows, (row) => row.join("\t")).map(
-                  ({ item: row, key: rowKey }, rowIndex) => (
-                    <View
-                      key={rowKey}
-                      className={rowIndex === 0 ? "flex-row bg-subtle" : "flex-row"}
-                    >
-                      {withOccurrenceKeys(row, (cell) => cell).map(
-                        ({ item: cell, key: cellKey }) => (
-                          <View
-                            key={cellKey}
-                            className="w-48 border-r border-b border-border px-3 py-2"
-                          >
-                            <Text
-                              selectable
-                              className={
-                                rowIndex === 0
-                                  ? "text-sm font-supaterm-semibold text-foreground"
-                                  : "text-sm text-foreground"
-                              }
-                            >
-                              {cell}
-                            </Text>
-                          </View>
-                        ),
-                      )}
-                    </View>
-                  ),
-                )}
-              </View>
-            </ScrollView>
-          </ScrollView>
-        ) : document.activeMode === "markdown" && props.environmentId ? (
-          <FileMarkdownPreview
-            cwd=""
-            relativePath=""
-            environmentId={props.environmentId}
-            threadId={null}
-            markdown={content.text}
-            captured
-          />
-        ) : (
-          <SourceFileSurface contents={content.text} path={props.name} selectable />
-        )}
-      </View>
-    );
-  }
-  if (document.kind === "audio") {
-    return <AudioFilePreview key={document.revision} uri={document.uri} onRetry={document.retry} />;
-  }
-  if (document.kind === "html") {
-    return props.htmlRender ? (
-      <HtmlRenderWebView key={document.uri} uri={document.uri} title={props.name} nested={false} />
-    ) : (
-      <WorkspaceFileWebPreview uri={document.uri} />
-    );
-  }
-  return (
-    <View className="flex-1 items-center justify-center bg-sheet px-6">
-      <EmptyState
-        title="No preview for this file"
-        detail={
-          props.nativeError ??
-          "No app on this device can show this format. Save or share it to open it elsewhere."
-        }
-        actionLabel="Try again"
-        onAction={props.onOpenNative}
-      />
-    </View>
-  );
-}
+
 export function AttachmentFileScreen(props: AttachmentFileScreenProps) {
   const navigation = useNavigation();
   const { appearance, setCodeWordBreak } = useAppearancePreferences();
@@ -201,12 +81,12 @@ export function AttachmentFileScreen(props: AttachmentFileScreenProps) {
     if (navigation.canGoBack()) navigation.goBack();
   };
   const { uri, resource } = document;
+
   if (nativeViewer === "pending" && uri) {
     setNativeViewer("open");
     setNativeOpen(true);
   }
-  // The viewer mints its own fresh URL from the resource, so a link that expired while this
-  // screen sat in the background is never handed to Quick Look or ACTION_VIEW.
+
   const nativeSource = ((): FilePreviewSource | null => {
     const kind = nativeKind ?? "document";
     const base = {
@@ -244,7 +124,6 @@ export function AttachmentFileScreen(props: AttachmentFileScreenProps) {
     const message = pendingNativeError.current;
     pendingNativeError.current = null;
     if (nativeViewer === null) {
-      // A file this screen renders itself: an explicit viewer failure is worth a word.
       if (message) Dialog.alert("Could not open document", message);
       return;
     }
@@ -352,6 +231,37 @@ export function AttachmentFileScreen(props: AttachmentFileScreenProps) {
     menuActions.find(({ id }) => id === event.nativeEvent.event)?.onPress();
   };
   const subtitle = `${draftKey ? "Draft attachment" : "Attachment"}${sizeBytes > 0 ? ` · ${formatAttachmentSize(sizeBytes)}` : ""}`;
+  const refresh = useRefreshAssetUrl(environmentId, resource);
+  const capabilities = useEnvironmentServerConfig(environmentId)?.environment.capabilities;
+
+  if (document.kind === "archive" && isZipFile(params) && !document.error) {
+    const threadDraftKey =
+      environmentId && params.threadId
+        ? scopedThreadKey(environmentId, ThreadId.make(params.threadId))
+        : null;
+    return (
+      <ZipArchiveView
+        name={params.name}
+        subtitle={subtitle}
+        tintColor={iconColor}
+        sizeBytes={sizeBytes}
+        uri={uri}
+        isLocal={localAttachment !== null}
+        refresh={refresh}
+        environmentId={environmentId}
+
+        draftKey={threadDraftKey ?? draftKey}
+        maxAttachmentBytes={
+          capabilities?.fileAttachments
+            ? clampFileAttachmentUploadBytes(capabilities.fileAttachments.maxUploadBytes)
+            : undefined
+        }
+        onSave={() => void share()}
+        onRemove={draftKey ? removeFromDraft : null}
+      />
+    );
+  }
+
   return (
     <View className="flex-1 bg-sheet">
       <NativeStackScreenOptions
