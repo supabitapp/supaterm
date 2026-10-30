@@ -17,13 +17,15 @@
 - [Visual replies](./user/html-renders.md)
 - [Import browser sessions](./user/browser-import.md)
 - [Devices](./user/devices.md)
+- [Guest links](./user/guest-links.md)
+- [Frequently asked questions](./user/faq.md)
 - [Usage and limits](./user/usage.md)
 - [Product usage data](./user/telemetry.md)
 - [Remote access](./user/remote-access.md)
 - [Outside agents (MCP)](./user/outside-agents.md)
 - [Running in the background](./user/background-service.md)
 - [Updating Supaterm](./user/updating.md)
-- Provider guides: [Codex](./user/providers-codex.md) · [Claude](./user/providers-claude.md) · [OpenCode](./user/providers-opencode.md) · [Antigravity](./user/providers-antigravity.md) · [Pi](./user/providers-pi.md) · [Muse Code](./user/providers-muse.md)
+- Provider guides: [Codex](./user/providers-codex.md) · [Claude](./user/providers-claude.md) · [OpenCode](./user/providers-opencode.md) · [Antigravity](./user/providers-antigravity.md) · [Pi](./user/providers-pi.md) · [Muse Code](./user/providers-muse.md) · [fx](./user/providers-fx.md)
 
 ---
 

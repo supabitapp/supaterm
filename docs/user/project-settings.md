@@ -37,10 +37,10 @@ machine's setting. Every other provider setting stays per machine.
 
 On mobile, open **Settings** and use the filter in its header to choose connected environments
 and a project. The filter stays available in server-setting pages. With **All projects** selected,
-the **Server settings** categories and automatic completion controls in **Thread behavior** edit the
-selected environments' defaults. Choosing a project edits its overrides on the selected
+the server-setting pages, including Threads, Source control, and Worktrees, edit the selected
+environments' defaults. Choosing a project edits its overrides on the selected
 environments. Use **Use defaults** in a page to remove that page's project overrides.
-Open **Settings → Projects & threads → Overview** to rename the project across its selected
+Open **Settings → Projects** to rename the project across its selected
 connected checkouts and see where those checkouts live.
 Settings that are environment-wide stay read-only while a project is selected. When selected
 targets disagree, a control shows **Mixed** until you choose one value. Appearance, keyboard,
@@ -78,7 +78,7 @@ Leaving an edited form asks before discarding unsaved changes.
 
 ## Defaults and inheritance
 
-General contains the model and workspace for new threads. Integrations controls agent browser
+Threads contains the model and workspace for new threads. Browser controls agent browser
 access. Source Control contains automatic pull, the default pull request merge method and text
 generation. The same rows edit environment defaults or project overrides depending on the
 project crumb.
@@ -94,7 +94,7 @@ built-in default. Leave a setting on **Inherit** to let the next tier decide.
 Browser access changes apply when an agent session next starts.
 
 New worktrees initialize git submodules recursively. If that step is slow because the repository
-declares many nested submodules, set **Submodules** in **Settings → General** (with the project
+declares many nested submodules, set **Submodules** in **Settings → Threads** (with the project
 selected to override it there) to **Top level only** to stop at the ones the repository declares
 itself, or **Skip** to leave them for a setup script. It resolves in the same order as the
 workspace default: a `"worktreeSubmodules"` value in the `supaterm.json` of the branch being checked out
@@ -103,13 +103,13 @@ applies when the project and environment are both on **Inherit**.
 ## Worktree location
 
 New worktrees go in the `worktrees` folder of the Supaterm home directory. To put them somewhere else,
-such as another drive, set **Settings → Storage → Worktree location** to an absolute path like
+such as another drive, set **Settings → Worktrees → Worktree location** to an absolute path like
 `D:\worktrees` or `~/worktrees`. The setting is per machine. Existing worktrees stay where they
 are, and cleanup covers both the default folder and the custom one.
 
 ## Storage cleanup
 
-Open **Settings → Storage** to configure automatic cleanup on one machine or all connected
+Open **Settings → Worktrees → Cleanup** to configure automatic cleanup on one machine or all connected
 environments. Cleanup rules for merged, unchanged, and deleted-thread worktrees are on by default;
 inactive-worktree and done-worktree cleanup remain disabled until you choose an age. Policies run on the server at
 startup, when changed, and hourly. Offline machines keep their existing policies.

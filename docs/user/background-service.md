@@ -122,7 +122,7 @@ Downloads, it may need Full Disk Access for the `supaterm` executable listed in
 Supaterm removes superseded internal history on its own while it runs; your
 conversations are kept. Databases created before this shrank automatically
 still hold the freed space on disk until a one-time offline repair returns it
-and turns on automatic shrinking. Settings > Storage (web and desktop) or
+and turns on automatic shrinking. Settings > Maintenance (web and desktop) or
 Settings > Maintenance (mobile) suggests the repair when at least 1 GiB can be
 reclaimed.
 
@@ -140,3 +140,10 @@ database through a temporary copy, so it needs free space of about the
 database's size twice over: once in the system temporary directory (`TMPDIR`
 or `/tmp` on Linux and macOS) and once next to the database for its
 write-ahead log.
+
+## Access from the local network
+
+A managed service accepts private-network connections by default, including LAN and VPN
+addresses, and rejects public-network peers. An explicit host setting overrides the listener
+choice. Pair each client before use; see [remote access](./remote-access.md) for encrypted
+relay and Tailscale connections.
