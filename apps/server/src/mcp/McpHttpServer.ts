@@ -24,6 +24,7 @@ import {
 
 import packageJson from "../../package.json" with { type: "json" };
 import * as ServerConfig from "../config.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as DeviceService from "../device/DeviceService.ts";
 import * as HtmlRender from "../htmlRender/HtmlRender.ts";
 import * as ThreadCommandExecutor from "../orchestration-v2/ThreadCommandExecutor.ts";
@@ -187,9 +188,23 @@ const withModeLimit = (
     : { ...invocation, client: { ...invocation.client, narrowedTo: limit.value } };
 };
 
+// The Linked environments beta is off here: links wait until it is on again.
+const linkedEnvironmentsOff = HttpServerResponse.jsonUnsafe(
+  {
+    error: "linked_environments_off",
+    message: "Linked environments is off on this machine. Turn it on in its Settings → Labs.",
+  },
+  { status: 403, headers: { "cache-control": "no-store" } },
+);
+
 const makeMcpAuthMiddleware = Effect.gen(function* () {
   const registry = yield* McpSessionRegistry.McpSessionRegistry;
   const clients = yield* Effect.serviceOption(McpClientAuthenticator);
+  const serverSettings = yield* ServerSettings.ServerSettingsService;
+  const linksEnabled = serverSettings.getSettings.pipe(
+    Effect.map((settings) => settings.linkedEnvironmentsEnabled),
+    Effect.orElseSucceed(() => false),
+  );
   return Effect.fn("McpHttpServer.authenticateRequest")(function* (httpEffect) {
     const request = yield* HttpServerRequest.HttpServerRequest;
     const authorization = request.headers.authorization;
@@ -214,8 +229,13 @@ const makeMcpAuthMiddleware = Effect.gen(function* () {
     }
     const limited = withModeLimit(invocation, request);
     if (limited === undefined) return invalidModeLimit;
+    const linkedEnvironments = yield* linksEnabled;
+    if (limited.client?.linked === true && !linkedEnvironments) return linkedEnvironmentsOff;
     return yield* httpEffect.pipe(
-      Effect.provideService(McpInvocationContext.McpInvocationContext, limited),
+      Effect.provideService(McpInvocationContext.McpInvocationContext, {
+        ...limited,
+        linkedEnvironments,
+      }),
       Effect.map(normalizeMcpHttpResponse),
     );
   }) satisfies McpAuthMiddleware;
@@ -447,7 +467,9 @@ const decodeAsAdvertised = <Tools extends Record<string, Tool.Any>>(
 
 const isPreviewAutomationError = Schema.is(PreviewAutomationError);
 
-const previewSnapshotFailure = <E>(cause: Cause.Cause<E>) => {
+const previewSnapshotFailure = Effect.fn("previewSnapshotFailure")(function <E>(
+  cause: Cause.Cause<E>,
+) {
   if (Cause.hasInterrupts(cause) || cause.reasons.some(Cause.isDieReason)) {
     return Effect.failCause(cause).pipe(Effect.orDie);
   }
@@ -481,7 +503,7 @@ const previewSnapshotFailure = <E>(cause: Cause.Cause<E>) => {
     errorTag,
     failureCount: failures.length,
   }).pipe(Effect.as(result));
-};
+});
 
 const registerPreviewSnapshot = Effect.fn("McpHttpServer.registerPreviewSnapshot")(function* () {
   const server = yield* McpServer.McpServer;
@@ -797,20 +819,26 @@ const HANDOFF_TOOLS: ReadonlySet<string> = new Set([
   "supaterm_thread_launch",
   "supaterm_thread_send",
   "supaterm_thread_send_attachments",
-  "supaterm_thread_fork",
-  "supaterm_thread_merge_back",
-  "supaterm_queue_edit",
-  "supaterm_queue_promote_to_steer",
-  "supaterm_pending_request_respond",
   "schedule_task",
   "run_scheduled_task_now",
 ]);
 
-const INPUT_TARGET_TOOLS: ReadonlySet<string> = new Set([
-  "supaterm_queue_edit",
-  "supaterm_queue_promote_to_steer",
-  "supaterm_pending_request_respond",
-]);
+const INPUT_TARGET_ACTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
+  supaterm_queue: new Set(["edit", "promote_to_steer"]),
+  supaterm_pending_request: new Set(["respond"]),
+};
+const RESULT_TARGET_ACTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
+  supaterm_thread_transfer: new Set(["fork", "merge_back"]),
+};
+const hasAction = (
+  actions: Readonly<Record<string, ReadonlySet<string>>>,
+  tool: string,
+  args: unknown,
+) =>
+  actions[tool]?.has(String((args as { readonly action?: unknown } | null | undefined)?.action)) ===
+  true;
+const isInputTargetHandoff = (tool: string, args: unknown) =>
+  hasAction(INPUT_TARGET_ACTIONS, tool, args);
 
 const resultThreadKeys = ["childThreadId", "targetThreadId", "boundThreadId", "threadId"] as const;
 
@@ -827,7 +855,7 @@ const handoffTargetIds = (
   args: unknown,
   result: McpSchema.CallToolResult | undefined,
 ): ReadonlyArray<string> => {
-  if (!INPUT_TARGET_TOOLS.has(tool)) return resultThreadIds(result?.structuredContent);
+  if (!isInputTargetHandoff(tool, args)) return resultThreadIds(result?.structuredContent);
   if (result === undefined || toolOutcome(result).outcome !== "ok") return [];
   const threadId = (args as { readonly threadId?: unknown } | null | undefined)?.threadId;
   return typeof threadId === "string" ? [threadId] : [];
@@ -890,7 +918,10 @@ const withToolAnalytics =
         result: McpSchema.CallToolResult | undefined,
         durationMs: number,
       ) {
-        const handoff = HANDOFF_TOOLS.has(tool);
+        const handoff =
+          HANDOFF_TOOLS.has(tool) ||
+          isInputTargetHandoff(tool, args) ||
+          hasAction(RESULT_TARGET_ACTIONS, tool, args);
         const outcome = toolOutcome(result);
         if (!handoff && outcome.outcome === "ok") return;
 
@@ -934,8 +965,8 @@ const withToolAnalytics =
     );
     const recordingServer = McpServer.McpServer.of({
       ...server,
-      addTool: (options) =>
-        server.addTool({
+      addTool: Effect.fn("McpServer.addTool")(function (options) {
+        return server.addTool({
           ...options,
           handle:
             /* Request instrumentation already owns the span; keep this helper in that context. */
@@ -957,7 +988,8 @@ const withToolAnalytics =
                 }),
               );
             }),
-        }),
+        });
+      }),
     });
     return yield* registration.pipe(Effect.provideService(McpServer.McpServer, recordingServer));
   });
@@ -1104,7 +1136,7 @@ export const layerMcpTransport = McpServer.layerHttp({
   allowSessionTermination: true,
 }).pipe(Layer.provide(layerMcpAuthMiddleware));
 
-export const layer = Layer.mergeAll(
+export const layerTools = Layer.mergeAll(
   layerPreviewToolkit,
   layerOrchestratorToolkit,
   layerThreadToolkit,
@@ -1121,5 +1153,6 @@ export const layer = Layer.mergeAll(
   // One instance, so an upload prepared through the attachment tools is the
   // same caller's upload the transcription tools check.
   Layer.provide(McpPendingUploads.layer),
-  Layer.provideMerge(layerMcpTransport),
 );
+
+export const layer = layerTools.pipe(Layer.provideMerge(layerMcpTransport));

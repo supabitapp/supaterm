@@ -1,3 +1,4 @@
+import * as ServerSettings from "../serverSettings.ts";
 import * as Orchestrator from "../orchestration-v2/Orchestrator.ts";
 import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 import { expect, it } from "@effect/vitest";
@@ -363,7 +364,7 @@ it.effect("refuses preview tools to a client outside a thread before they run", 
       client: { sessionId: "session-1", label: "Claude Code", access: "read-only" as const },
     };
     const click = yield* server
-      .callTool({ name: "preview_click", arguments: { locator: "text=Send" } })
+      .callTool({ name: "preview_act", arguments: { action: "click", locator: "text=Send" } })
       .pipe(
         Effect.provideService(McpInvocationContext.McpInvocationContext, readOnly),
         Effect.provideService(McpSchema.McpServerClient, client),
@@ -373,6 +374,29 @@ it.effect("refuses preview tools to a client outside a thread before they run", 
       { type: "text", text: expect.stringContaining("needs an agent running inside Supaterm") },
     ]);
   }).pipe(Effect.provide(layerTest)),
+);
+
+it.effect("checks each preview_act action against that action's own input", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const inputs = yield* serveSnapshots("mcp-act-client", {});
+
+      const missingKey = yield* callTool("preview_act", { action: "press" });
+      expect(missingKey.isError).toBe(true);
+      expect(inputs).toEqual([]);
+
+      const click = yield* callTool("preview_act", {
+        action: "click",
+        locator: "text=Send",
+        key: "Enter",
+      });
+      expect(click.isError).toBe(false);
+      expect(inputs[0]).toEqual({ locator: "text=Send" });
+
+      yield* callTool("preview_act", { action: "type", selector: "#name", text: "Ada" });
+      expect(inputs.at(-2)).toEqual({ selector: "#name", text: "Ada" });
+    }),
+  ).pipe(Effect.provide(layerTest)),
 );
 
 it.effect("decodes null optional arguments the way it decodes omitted ones", () => {
@@ -651,18 +675,20 @@ it.effect("terminates HTTP MCP sessions with DELETE", () =>
         capabilities: new Set(["orchestration"]),
         issuedAt: 1,
       };
-      const layerServer = McpHttpServer.layerMcpTransport.pipe(
-        Layer.provide(
-          Layer.mock(McpSessionRegistry.McpSessionRegistry)({
-            resolve: (presented) =>
-              Effect.succeed(
-                presented === token
-                  ? (scope as McpInvocationContext.McpThreadInvocationScope)
-                  : undefined,
-              ),
-          }),
-        ),
-      );
+      const layerServer = McpHttpServer.layerMcpTransport
+        .pipe(Layer.provide(ServerSettings.layerTest()))
+        .pipe(
+          Layer.provide(
+            Layer.mock(McpSessionRegistry.McpSessionRegistry)({
+              resolve: (presented) =>
+                Effect.succeed(
+                  presented === token
+                    ? (scope as McpInvocationContext.McpThreadInvocationScope)
+                    : undefined,
+                ),
+            }),
+          ),
+        );
       yield* HttpRouter.serve(layerServer, {
         disableListenLog: true,
         disableLogger: true,
@@ -756,7 +782,9 @@ it.effect("admits provider and OAuth client credentials and points only clients 
           ),
         }),
       ).pipe(
-        Layer.provideMerge(McpHttpServer.layerMcpTransport),
+        Layer.provideMerge(
+          McpHttpServer.layerMcpTransport.pipe(Layer.provide(ServerSettings.layerTest())),
+        ),
         Layer.provide(
           Layer.mock(McpSessionRegistry.McpSessionRegistry)({
             resolve: (token) =>
@@ -855,7 +883,9 @@ it.effect("lists pull request watch tools only to threads that are not delegated
         ["childToken", scopeFor("childToken", true)],
       ]);
       const serverLayer = McpHttpServer.layerPullRequestsToolkit.pipe(
-        Layer.provideMerge(McpHttpServer.layerMcpTransport),
+        Layer.provideMerge(
+          McpHttpServer.layerMcpTransport.pipe(Layer.provide(ServerSettings.layerTest())),
+        ),
         Layer.provide(
           Layer.mock(McpSessionRegistry.McpSessionRegistry)({
             resolve: (token) => Effect.succeed(scopes.get(token)),
@@ -963,10 +993,13 @@ it.effect(
               (input) => input,
               (_, modes) =>
                 Effect.succeed({ modes: `${modes.runtimeMode}/${modes.interactionMode}` }),
+              "stamped",
             ),
           }),
         ).pipe(
-          Layer.provideMerge(McpHttpServer.layerMcpTransport),
+          Layer.provideMerge(
+            McpHttpServer.layerMcpTransport.pipe(Layer.provide(ServerSettings.layerTest())),
+          ),
           Layer.provide(McpToolAccessTestkit.liveThreadsLayer),
           Layer.provide(
             Layer.mock(McpSessionRegistry.McpSessionRegistry)({

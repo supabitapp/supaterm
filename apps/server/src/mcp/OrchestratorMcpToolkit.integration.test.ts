@@ -1,3 +1,4 @@
+import * as SecretRequests from "../secrets/SecretRequests.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { describe, expect, it } from "@effect/vitest";
 import {
@@ -46,6 +47,7 @@ import * as McpHttpServer from "./McpHttpServer.ts";
 import * as McpInvocationContext from "./McpInvocationContext.ts";
 
 const layerOrchestratorToolkit = McpHttpServer.layerOrchestratorToolkit.pipe(
+  Layer.provide(Layer.mock(SecretRequests.SecretRequests)({})),
   Layer.provide(Layer.mock(ThreadLaunchService.ThreadLaunchService)({})),
   Layer.provide(Layer.mock(GitVcsDriver.GitVcsDriver)({})),
 );
@@ -84,7 +86,16 @@ const readDelegatedTaskStatusTranscript = Effect.fn("readDelegatedTaskStatusTran
   const text = yield* fs.readFileString(
     decodeURIComponent(delegatedTaskStatusTranscriptFile.pathname),
   );
-  return yield* decodeProviderReplayNdjson(text.replaceAll(queuedFollowupResult, followupResult));
+  const transcript = yield* decodeProviderReplayNdjson(
+    text.replaceAll(queuedFollowupResult, followupResult),
+  );
+  // The recording ends when the recorder closes the app-server while the parent
+  // turn is still open. This test keeps acting as that parent afterwards, and
+  // replaying the exit would kill the shared process and fail the parent run.
+  return {
+    ...transcript,
+    entries: transcript.entries.filter((entry) => entry.type !== "runtime_exit"),
+  };
 }, Effect.provide(NodeServices.layer));
 
 function makeProviderSnapshot(input: {
@@ -140,6 +151,7 @@ const layerUnusedScheduledTaskStub = Layer.succeed(
     setEnabled: () => Effect.die("ScheduledTaskService.setEnabled is unused in this test"),
     delete: () => Effect.die("ScheduledTaskService.delete is unused in this test"),
     deleteForThread: () => Effect.die("unused in this test"),
+    moveThreadTasks: () => Effect.die("unused in this test"),
     runNow: () => Effect.die("ScheduledTaskService.runNow is unused in this test"),
   }),
 );
@@ -321,6 +333,7 @@ describe("orchestrator MCP toolkit", () => {
           });
           expect(delegated.resultContextTransferId).not.toBeNull();
 
+          if (delegated.childThreadId === null) return yield* Effect.die("Expected a local child");
           const delegatedChild = yield* orchestrator.getThreadProjection(delegated.childThreadId);
           expect(delegatedChild.thread.lineage.relationshipToParent).toBe("subagent");
           expect(isProviderNativeSubagentThread(delegatedChild.thread)).toBe(false);

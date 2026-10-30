@@ -1,3 +1,5 @@
+import * as DocumentText from "../../provider/DocumentText.ts";
+import * as SecretRequests from "../../secrets/SecretRequests.ts";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
@@ -55,12 +57,11 @@ import * as EnvironmentHandlers from "./environment/handlers.ts";
 import * as AttachmentHandlers from "./attachment/handlers.ts";
 
 const layerOrchestratorToolkit = McpHttpServer.layerOrchestratorToolkit.pipe(
+  Layer.provide(Layer.mock(SecretRequests.SecretRequests)({})),
   Layer.provide(Layer.mock(ThreadLaunchService.ThreadLaunchService)({})),
   Layer.provide(Layer.mock(GitVcsDriver.GitVcsDriver)({})),
 );
 
-// Effect returns a declared tool failure as `isError` with its encoded payload
-// as JSON text, never as `structuredContent`.
 const declaredFailure = (result: McpSchema.CallToolResult) => {
   const text = result.content[0];
   return result.isError === true && text?.type === "text" ? JSON.parse(text.text) : undefined;
@@ -137,8 +138,8 @@ it.effect("an answered question reports already answered instead of not found", 
     const respond = (id: string) =>
       server
         .callTool({
-          name: "supaterm_pending_request_respond",
-          arguments: { requestId: id, answers: { size: "large" } },
+          name: "supaterm_pending_request",
+          arguments: { action: "respond", requestId: id, answers: { size: "large" } },
         })
         .pipe(
           Effect.provideService(McpInvocationContext.McpInvocationContext, scope),
@@ -480,8 +481,8 @@ it.effect("a client caller targets any thread within its ceiling and cannot act 
     });
 
     const forked = yield* call(
-      "supaterm_thread_fork",
-      { sourcePoint: { type: "latest_stable" } },
+      "supaterm_thread_transfer",
+      { action: "fork", sourcePoint: { type: "latest_stable" } },
       clientScope("auto"),
     );
     expect(declaredFailure(forked)).toMatchObject({ code: "target_required" });
@@ -526,7 +527,7 @@ it.effect("a read-only client reads threads and is refused every write before it
           Effect.provideService(McpSchema.McpServerClient, client),
         );
 
-    const configuration = yield* call("supaterm_thread_configuration", {
+    const configuration = yield* call("supaterm_thread_configure", {
       threadId: "other-project-thread",
     });
     expect(configuration.isError).toBe(false);
@@ -624,18 +625,20 @@ it.effect("a caller cannot rewrite a scheduled task that runs above its own mode
           Effect.provideService(McpInvocationContext.McpInvocationContext, clientScope("auto")),
           Effect.provideService(McpSchema.McpServerClient, client),
         );
-    const update = yield* call("update_scheduled_task", {
+    const update = yield* call("schedule_task", {
       scheduledTaskId: "task-full-access",
       prompt: "Run something else",
     });
     expect(declaredFailure(update)).toMatchObject({ code: "runtime_mode_escalation_denied" });
     const remove = yield* call("delete_scheduled_task", { scheduledTaskId: "task-full-access" });
     expect(declaredFailure(remove)).toMatchObject({ code: "runtime_mode_escalation_denied" });
-    const allowed = yield* call("update_scheduled_task", {
+    const allowed = yield* call("schedule_task", {
       scheduledTaskId: "task-auto",
       enabled: false,
     });
     expect(allowed.isError).toBe(false);
+    const incomplete = yield* call("schedule_task", { prompt: "Run nightly" });
+    expect(declaredFailure(incomplete)).toMatchObject({ code: "invalid_request" });
   }).pipe(
     Effect.provide(
       layerOrchestratorToolkit.pipe(
@@ -886,16 +889,18 @@ it.effect("only the caller that prepared a pending upload can discard it", () =>
     expect(discarded.isError).toBe(false);
   }).pipe(
     Effect.provide(
-      McpHttpServer.layerAttachmentToolkit.pipe(
-        Layer.provideMerge(McpServer.McpServer.layer),
-        Layer.provide(McpPendingUploads.layer),
-        Layer.provide(McpToolAccessTestkit.liveThreadsLayer),
-        Layer.provide(ServerSecretStore.layer),
-        Layer.provide(
-          ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-mcp-attachment-" }),
+      McpHttpServer.layerAttachmentToolkit
+        .pipe(Layer.provide(Layer.mock(DocumentText.DocumentText)({})))
+        .pipe(
+          Layer.provideMerge(McpServer.McpServer.layer),
+          Layer.provide(McpPendingUploads.layer),
+          Layer.provide(McpToolAccessTestkit.liveThreadsLayer),
+          Layer.provide(ServerSecretStore.layer),
+          Layer.provide(
+            ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-mcp-attachment-" }),
+          ),
+          Layer.provide(NodeServices.layer),
         ),
-        Layer.provide(NodeServices.layer),
-      ),
     ),
   ),
 );

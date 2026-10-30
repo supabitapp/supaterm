@@ -2,6 +2,7 @@ import {
   EnvironmentId,
   ProjectId,
   ProviderInstanceId,
+  SourceControlProviderKind,
   ThreadId,
   type OrchestrationV2ServerCommand as OrchestrationCommand,
   PullRequestOperationError,
@@ -69,7 +70,7 @@ function makeProject(
       remoteName: "origin",
       remoteUrl: "git@github.com:supabitapp/supaterm.git",
     },
-    provider: "github",
+    provider: SourceControlProviderKind.make("github"),
     displayName: "supabitapp/supaterm",
     owner: "supabitapp",
     name: "supaterm",
@@ -285,6 +286,24 @@ describe("pull request toolkit handlers", () => {
     }),
   );
 
+  it.effect("links a GitCafe pull request by its canonical /pull/ URL", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness();
+      const result = yield* harness.call("link_pull_request", {
+        url: "https://git.cafe/pingdotgg/supaterm/pull/23897",
+      });
+      expect(result).toMatchObject({
+        host: "git.cafe",
+        repository: "pingdotgg/supaterm",
+        number: 23897,
+        alreadyLinked: false,
+      });
+      expect(yield* Ref.get(harness.commands)).toMatchObject([
+        { type: "thread.pull-request.link", host: "git.cafe", number: 23897 },
+      ]);
+    }),
+  );
+
   it.effect("watching an unlinked pull request links it first", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness();
@@ -489,7 +508,7 @@ describe("pull request toolkit handlers", () => {
             remoteName: "origin",
             remoteUrl: "git@gitlab.com:group/sub/project.git",
           },
-          provider: "gitlab",
+          provider: SourceControlProviderKind.make("gitlab"),
           displayName: "group/sub/project",
         }),
       });
@@ -512,7 +531,7 @@ describe("pull request toolkit handlers", () => {
             remoteName: "origin",
             remoteUrl: "http://forge.example:3000/git/owner/repo.git",
           },
-          provider: "forgejo",
+          provider: SourceControlProviderKind.make("forgejo"),
           displayName: "git/owner/repo",
         }),
       });
@@ -546,7 +565,7 @@ describe("pull request toolkit handlers", () => {
             remoteName: "origin",
             remoteUrl: "http://dummy:secret@scm.example.test:8080/tfs/Collection/Project/_git/Repo",
           },
-          provider: "unknown",
+          provider: SourceControlProviderKind.make("unknown"),
           displayName: "tfs/collection/project/_git/repo",
         }),
       });
@@ -727,7 +746,7 @@ describe("pull request guide tools", () => {
               remoteName: "origin",
               remoteUrl: "git@github.com:acme/web.git",
             },
-            provider: "github",
+            provider: SourceControlProviderKind.make("github"),
             displayName: "acme/web",
             owner: "acme",
             name: "web",
@@ -799,7 +818,7 @@ describe("pull request guide tools", () => {
             remoteName: "origin",
             remoteUrl: "https://dev.azure.com/org/project/_git/web",
           },
-          provider: "azure-devops",
+          provider: SourceControlProviderKind.make("azure-devops"),
           displayName: "org/project/_git/web",
           owner: "org",
           name: "web",

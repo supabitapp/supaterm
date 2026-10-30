@@ -2,9 +2,6 @@ import {
   AuthAccessTokenType,
   AuthAccessWriteScope,
   AuthOrchestrationOperateScope,
-  AuthOrchestrationReadScope,
-  AuthSettingsWriteScope,
-  AuthSourceControlWriteScope,
   AuthStandardClientScopes,
   type AuthAccessTokenResult,
   type AuthBrowserSessionResult,
@@ -21,9 +18,13 @@ import {
   type ServerAuthDescriptor,
   type ServerAuthSessionMethod,
   type AuthWebSocketTicketResult,
+  type AuthWebSocketTicketUse,
+  mcpClientScopes,
 } from "@supaterm/contracts";
 import { encodeOAuthScope } from "@supaterm/shared/oauthScope";
 import { buildPairingUrl } from "@supaterm/shared/remote";
+import * as Crypto from "effect/Crypto";
+import { verifyRequestDpopProof } from "./dpop.ts";
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
@@ -74,27 +75,16 @@ export interface IssuedBearerSession {
 const MCP_CLIENT_SUBJECT = "mcp-client";
 const MCP_CLIENT_SESSION_TTL = Duration.days(30);
 
-export const mcpClientScopes = (
-  access: AuthMcpClientAccess,
-): ReadonlyArray<AuthEnvironmentScope> =>
-  access === "read-only"
-    ? [AuthOrchestrationReadScope]
-    : access === "full-access"
-      ? [
-          AuthOrchestrationReadScope,
-          AuthOrchestrationOperateScope,
-          AuthSettingsWriteScope,
-          AuthSourceControlWriteScope,
-        ]
-      : [AuthOrchestrationReadScope, AuthOrchestrationOperateScope];
-
 export interface McpClientSession {
   readonly sessionId: AuthSessionId;
   readonly label: string;
   readonly access: AuthMcpClientAccess;
+
+  readonly peerLink?: boolean;
 }
 
 export interface AuthenticatedSession {
+  readonly proofKeyThumbprint?: string;
   readonly sessionId: AuthSessionId;
   readonly subject: string;
   readonly method: ServerAuthSessionMethod;
@@ -238,7 +228,27 @@ export class ServerAuthWebSocketTokenIssueError extends Schema.TaggedError<Serve
   }
 }
 
+export class ServerAuthDpopReplayKeyCalculationError extends Schema.TaggedError<ServerAuthDpopReplayKeyCalculationError>()(
+  "ServerAuthDpopReplayKeyCalculationError",
+  { ...serverAuthInternalErrorContext },
+) {
+  override get message(): string {
+    return "Failed to calculate a proof replay key.";
+  }
+}
+
+export class ServerAuthDpopReplayStateRecordError extends Schema.TaggedError<ServerAuthDpopReplayStateRecordError>()(
+  "ServerAuthDpopReplayStateRecordError",
+  { ...serverAuthInternalErrorContext },
+) {
+  override get message(): string {
+    return "Failed to record proof replay state.";
+  }
+}
+
 export const ServerAuthInternalError = Schema.Union([
+  ServerAuthDpopReplayKeyCalculationError,
+  ServerAuthDpopReplayStateRecordError,
   ServerAuthBootstrapCredentialValidationError,
   ServerAuthSessionCredentialValidationError,
   ServerAuthAuthenticatedSessionIssueError,
@@ -268,6 +278,16 @@ export class ServerAuthInvalidCredentialError extends Schema.TaggedError<ServerA
   "ServerAuthInvalidCredentialError",
   {
     diagnostic: Schema.optional(Schema.String),
+    dpopFailureReason: Schema.optional(
+      Schema.Literals([
+        "time_window",
+        "key_mismatch",
+        "request_mismatch",
+        "token_mismatch",
+        "invalid_proof",
+        "replay",
+      ]),
+    ),
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
@@ -322,7 +342,7 @@ export class ServerAuthMcpApprovalCodeError extends Schema.TaggedError<ServerAut
 ) {
   override get message(): string {
     return this.reason === "insufficient_scope"
-      ? "That pairing code cannot grant this access, and it is now used up. Create one with the standard scopes, or choose Read only with a new code."
+      ? "That pairing code cannot grant this access. It has not been used, so choose an access level it grants, or create a code with the standard scopes."
       : this.reason === "not_a_pairing_code"
         ? "That is not a one-time pairing code."
         : "That pairing code is unknown, expired, or already used.";
@@ -415,9 +435,11 @@ export class EnvironmentAuth extends Context.Service<
     ) => Effect.Effect<AuthenticatedSession, ServerAuthCredentialError | ServerAuthInternalError>;
     readonly authenticateWebSocketUpgrade: (
       request: HttpServerRequest.HttpServerRequest,
+      use?: AuthWebSocketTicketUse,
     ) => Effect.Effect<AuthenticatedSession, ServerAuthCredentialError | ServerAuthInternalError>;
     readonly issueWebSocketTicket: (
-      session: Pick<AuthenticatedSession, "sessionId">,
+      session: Pick<AuthenticatedSession, "sessionId" | "proofKeyThumbprint">,
+      input?: { readonly use?: AuthWebSocketTicketUse },
     ) => Effect.Effect<AuthWebSocketTicketResult, ServerAuthInternalError>;
     readonly issueStartupPairingUrl: (
       baseUrl: string,
@@ -429,6 +451,7 @@ export class EnvironmentAuth extends Context.Service<
     readonly issueMcpClientSession: (input: {
       readonly label: string;
       readonly access: AuthMcpClientAccess;
+      readonly peerLink?: boolean;
       readonly client: AuthClientMetadata;
     }) => Effect.Effect<
       {
@@ -575,6 +598,8 @@ function isBrowserOriginAllowed(
 
 /** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
+  const crypto = yield* Crypto.Crypto;
+  const secretStore = yield* ServerSecretStore.ServerSecretStore;
   const policy = yield* EnvironmentAuthPolicy.EnvironmentAuthPolicy;
   const bootstrapCredentials = yield* PairingGrantStore.PairingGrantStore;
   const sessions = yield* SessionStore.SessionStore;
@@ -742,7 +767,10 @@ export const make = Effect.gen(function* () {
   };
   const resolveBootstrapGrant = (
     credential: string,
-    input?: { readonly requestedScopes?: ReadonlyArray<AuthEnvironmentScope> },
+    input?: {
+      readonly requestedScopes?: ReadonlyArray<AuthEnvironmentScope>;
+      readonly requiredScopes?: ReadonlyArray<AuthEnvironmentScope>;
+    },
   ): Effect.Effect<
     ResolvedBootstrapGrant,
     ServerAuthInvalidCredentialError | ServerAuthInternalError | ServerAuthScopeNotGrantedError
@@ -760,6 +788,12 @@ export const make = Effect.gen(function* () {
     }
     return sessions.verify(credential).pipe(
       mapSessionVerificationErrors,
+      Effect.filterOrFail(
+        (session) =>
+          input?.requiredScopes === undefined ||
+          input.requiredScopes.every((scope) => session.scopes.includes(scope)),
+        () => new ServerAuthScopeNotGrantedError({}),
+      ),
       Effect.map(
         (session) =>
           ({
@@ -1022,18 +1056,28 @@ export const make = Effect.gen(function* () {
     });
   });
 
-  const issueWebSocketTicket: EnvironmentAuth["Service"]["issueWebSocketTicket"] = (session) =>
-    sessions.issueWebSocketToken(session.sessionId).pipe(
-      Effect.mapError((cause) => new ServerAuthWebSocketTokenIssueError({ cause })),
-      Effect.map(
-        (issued) =>
-          ({
-            ticket: issued.token,
-            expiresAt: DateTime.toUtc(issued.expiresAt),
-          }) satisfies AuthWebSocketTicketResult,
-      ),
-      Effect.withSpan("EnvironmentAuth.issueWebSocketTicket"),
-    );
+  const issueWebSocketTicket: EnvironmentAuth["Service"]["issueWebSocketTicket"] = (
+    session,
+    input,
+  ) =>
+    sessions
+      .issueWebSocketToken(session.sessionId, {
+        ...(input?.use === undefined ? {} : { audience: input.use }),
+        ...(input?.use === "rpc" && session.proofKeyThumbprint
+          ? { proofKeyThumbprint: session.proofKeyThumbprint }
+          : {}),
+      })
+      .pipe(
+        Effect.mapError((cause) => new ServerAuthWebSocketTokenIssueError({ cause })),
+        Effect.map(
+          (issued) =>
+            ({
+              ticket: issued.token,
+              expiresAt: DateTime.toUtc(issued.expiresAt),
+            }) satisfies AuthWebSocketTicketResult,
+        ),
+        Effect.withSpan("EnvironmentAuth.issueWebSocketTicket"),
+      );
 
   const authenticateHttpRequest: EnvironmentAuth["Service"]["authenticateHttpRequest"] = (
     request,
@@ -1041,22 +1085,36 @@ export const make = Effect.gen(function* () {
     authenticateRequest(request).pipe(Effect.withSpan("EnvironmentAuth.authenticateHttpRequest"));
 
   const authenticateWebSocketUpgrade: EnvironmentAuth["Service"]["authenticateWebSocketUpgrade"] =
-    Effect.fn("EnvironmentAuth.authenticateWebSocketUpgrade")(function* (request) {
+    Effect.fn("EnvironmentAuth.authenticateWebSocketUpgrade")(function* (request, use = "rpc") {
       const requestUrl = HttpServerRequest.toURL(request);
       if (Option.isSome(requestUrl)) {
         const websocketTicket = requestUrl.value.searchParams.get(WEBSOCKET_TICKET_QUERY_PARAM);
         if (websocketTicket && websocketTicket.trim().length > 0) {
-          return yield* sessions.verifyWebSocketToken(websocketTicket).pipe(
-            mapSessionVerificationErrors,
-            Effect.flatMap(rejectMcpClientAudience),
-            Effect.map((session) => ({
-              sessionId: session.sessionId,
-              subject: session.subject,
-              method: session.method,
-              scopes: session.scopes,
-              ...(session.expiresAt ? { expiresAt: session.expiresAt } : {}),
-            })),
-          );
+          const session = yield* sessions
+            .verifyWebSocketToken(websocketTicket)
+            .pipe(mapSessionVerificationErrors, Effect.flatMap(rejectMcpClientAudience));
+          if (session.audience !== undefined && session.audience !== use)
+            return yield* new ServerAuthInvalidCredentialError({
+              diagnostic: "WebSocket ticket is for another route.",
+            });
+          if (session.proofKeyThumbprint) {
+            yield* verifyRequestDpopProof({
+              request,
+              proof: request.headers.dpop ?? requestUrl.value.searchParams.get("dpop") ?? undefined,
+              expectedThumbprint: session.proofKeyThumbprint,
+              expectedAccessToken: websocketTicket,
+            }).pipe(
+              Effect.provideService(ServerSecretStore.ServerSecretStore, secretStore),
+              Effect.provideService(Crypto.Crypto, crypto),
+            );
+          }
+          return {
+            sessionId: session.sessionId,
+            subject: session.subject,
+            method: session.method,
+            scopes: session.scopes,
+            ...(session.expiresAt ? { expiresAt: session.expiresAt } : {}),
+          };
         }
       }
 
@@ -1076,6 +1134,7 @@ export const make = Effect.gen(function* () {
               access: session.scopes.includes(AuthOrchestrationOperateScope)
                 ? (session.runtimeModeCeiling ?? "approval-required")
                 : "read-only",
+              peerLink: session.peerLink === true,
             } satisfies McpClientSession)
           : Effect.fail(
               new ServerAuthInvalidCredentialError({
@@ -1095,6 +1154,7 @@ export const make = Effect.gen(function* () {
         scopes: mcpClientScopes(input.access),
         ttl: MCP_CLIENT_SESSION_TTL,
         ...(input.access === "read-only" ? {} : { runtimeModeCeiling: input.access }),
+        peerLink: input.peerLink === true,
         client: { ...input.client, label: input.label, deviceType: "bot" },
       })
       .pipe(
@@ -1127,7 +1187,7 @@ export const make = Effect.gen(function* () {
     code,
     access,
   ) =>
-    resolveBootstrapGrant(code.trim()).pipe(
+    resolveBootstrapGrant(code.trim(), { requiredScopes: mcpClientScopes(access) }).pipe(
       Effect.catchTags({
         ServerAuthInvalidCredentialError: () =>
           Effect.fail(new ServerAuthMcpApprovalCodeError({ reason: "unknown_or_used" })),
@@ -1137,16 +1197,15 @@ export const make = Effect.gen(function* () {
       Effect.flatMap((grant) =>
         grant.method !== "one-time-token" && grant.method !== "reusable-dev-token"
           ? Effect.fail(new ServerAuthMcpApprovalCodeError({ reason: "not_a_pairing_code" }))
-          : mcpClientScopes(access).every((scope) => grant.scopes.includes(scope))
-            ? Effect.void
-            : Effect.fail(new ServerAuthMcpApprovalCodeError({ reason: "insufficient_scope" })),
+          : Effect.void,
       ),
       Effect.withSpan("EnvironmentAuth.consumeMcpApprovalCode"),
     );
 
   return EnvironmentAuth.of({
-    getDescriptor: () =>
-      Effect.succeed(descriptor).pipe(Effect.withSpan("EnvironmentAuth.getDescriptor")),
+    getDescriptor: Effect.fn("EnvironmentAuth.getDescriptor")(function () {
+      return Effect.succeed(descriptor);
+    }),
     getSessionState,
     createBrowserSession,
     exchangeBootstrapCredentialForAccessToken,

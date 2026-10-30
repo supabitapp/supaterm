@@ -1,3 +1,4 @@
+import * as SecretRequests from "../secrets/SecretRequests.ts";
 import {
   EnvironmentId,
   NodeId,
@@ -29,6 +30,7 @@ import * as OrchestratorMcpService from "./OrchestratorMcpService.ts";
 import { liveThreadShell } from "./McpToolAccess.testkit.ts";
 
 const layerOrchestratorService = OrchestratorMcpService.layer.pipe(
+  Layer.provide(Layer.mock(SecretRequests.SecretRequests)({})),
   Layer.provide(Layer.mock(ThreadLaunchService.ThreadLaunchService)({})),
   Layer.provide(Layer.mock(GitVcsDriver.GitVcsDriver)({})),
 );
@@ -464,7 +466,6 @@ it("readThread and sendToThread reach threads in other projects", async () => {
       .pipe(Effect.flip);
     expect(staleDelete.code).toBe("parent_not_active");
 
-    // A background item keeps only its owning instance live, even after a switch.
     const backgroundTasks = [
       {
         taskId: "background-subagent",
@@ -504,7 +505,6 @@ it("readThread and sendToThread reach threads in other projects", async () => {
       .pipe(Effect.flip);
     expect(mismatched.code).toBe("parent_not_active");
 
-    // A fresh active run wins over the earlier inactive projection and empty roster.
     parentShell = liveThreadShell(parentThreadId);
     const restarted = yield* service.sendToThread(makeScope(), {
       threadId: foreignThreadId,

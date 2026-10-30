@@ -12,6 +12,7 @@ import {
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
+import { formatThreadLink } from "@supaterm/shared/threadLinks";
 
 const ALL_MCP_CAPABILITIES = [
   "preview",
@@ -33,7 +34,9 @@ export interface McpClientCaller {
   readonly sessionId: string;
   readonly label: string;
   readonly access: AuthMcpClientAccess;
+  readonly linked?: boolean | undefined;
   readonly narrowedTo?: ClientModes | undefined;
+  readonly webOrigin?: string | undefined;
 }
 
 export const MODE_LIMIT_HEADER = "supaterm-mode-limit";
@@ -83,7 +86,16 @@ export interface McpInvocationScope {
   readonly requestNamespace: string;
   readonly thread: McpThreadCaller | undefined;
   readonly client: McpClientCaller | undefined;
+  readonly linkedEnvironments?: boolean;
 }
+
+export const threadLinkFor = (
+  scope: Pick<McpInvocationScope, "environmentId" | "client">,
+  threadId: ThreadId,
+): string =>
+  scope.client?.webOrigin === undefined
+    ? formatThreadLink({ environmentId: scope.environmentId, threadId })
+    : `${scope.client.webOrigin}/${encodeURIComponent(scope.environmentId)}/${encodeURIComponent(threadId)}`;
 
 export class McpInvocationContext extends Context.Service<
   McpInvocationContext,
@@ -94,6 +106,12 @@ export const hiddenFromSubagents = (): boolean => {
   const fiber = Fiber.getCurrent();
   const scope = fiber && Context.getOrUndefined(fiber.context, McpInvocationContext);
   return scope?.thread?.subagent !== true;
+};
+
+export const hiddenWhileLinksOff = (): boolean => {
+  const fiber = Fiber.getCurrent();
+  const scope = fiber && Context.getOrUndefined(fiber.context, McpInvocationContext);
+  return scope?.linkedEnvironments !== false;
 };
 
 export type McpCapabilityError<C extends McpCapability> = C extends "preview"

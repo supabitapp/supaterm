@@ -1,3 +1,5 @@
+import * as DelegatedTaskModes from "./delegatedTaskModes.ts";
+import * as SecretRequests from "../secrets/SecretRequests.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
 import {
@@ -6,6 +8,7 @@ import {
   MessageId,
   NodeId,
   type OrchestratorMcpCapabilitiesResult,
+  OrchestratorMcpFailure,
   OrchestratorMcpTarget,
   type OrchestrationV2ThreadShell,
   type ScheduledTask,
@@ -20,6 +23,11 @@ import {
   type ServerProvider,
 } from "@supaterm/contracts";
 import { checkpointWorkspace } from "@supaterm/provider-testing/replayWorkspace";
+import * as Deferred from "effect/Deferred";
+import * as Fiber from "effect/Fiber";
+import * as Queue from "effect/Queue";
+import * as Stream from "effect/Stream";
+import * as TestClock from "effect/testing/TestClock";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -56,6 +64,7 @@ import type * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAd
 const decodeTarget = Schema.decodeUnknownEffect(OrchestratorMcpTarget);
 
 const layerOrchestratorService = OrchestratorMcpService.layer.pipe(
+  Layer.provide(Layer.mock(SecretRequests.SecretRequests)({})),
   Layer.provide(Layer.mock(ThreadLaunchService.ThreadLaunchService)({})),
   Layer.provide(Layer.mock(GitVcsDriver.GitVcsDriver)({})),
 );
@@ -401,7 +410,7 @@ describe("OrchestratorMcpService", () => {
               },
             ],
           }) as unknown as OrchestrationV2ThreadProjection;
-        // A finished run whose binding to the follow-up was lost (#19002).
+        // A finished run whose binding to the follow-up was lost.
         const childProjection = {
           thread: { id: childThreadId },
           runs:
@@ -2462,7 +2471,7 @@ describe("OrchestratorMcpService provider resolution", () => {
 
     it.effect("refuses an explicit mode the target provider does not offer", () =>
       Effect.gen(function* () {
-        const error = yield* OrchestratorMcpService.resolveRuntimeMode(
+        const error = yield* DelegatedTaskModes.resolveRuntimeMode(
           "full-access",
           "auto-accept-edits",
           muse,
@@ -2475,11 +2484,11 @@ describe("OrchestratorMcpService provider resolution", () => {
     it.effect("steps an inherited mode down to the broadest one the provider offers", () =>
       Effect.gen(function* () {
         assert.equal(
-          yield* OrchestratorMcpService.resolveRuntimeMode("full-access", "inherit", muse),
+          yield* DelegatedTaskModes.resolveRuntimeMode("full-access", "inherit", muse),
           "full-access",
         );
         assert.equal(
-          yield* OrchestratorMcpService.resolveRuntimeMode("auto", undefined, muse),
+          yield* DelegatedTaskModes.resolveRuntimeMode("auto", undefined, muse),
           "approval-required",
         );
       }),
@@ -2559,5 +2568,250 @@ describe("OrchestratorMcpService thread lookup", () => {
       assert.equal(read.message, `Thread ${bareId} is no longer available.`);
       assert.equal(send.message, `Thread ${bareId} was not found.`);
     }),
+  );
+});
+
+describe("OrchestratorMcpService private secret files", () => {
+  const withSecretRequest = <A, E>(
+    test: (fixture: {
+      request: Effect.Effect<
+        import("@supaterm/contracts").OrchestratorMcpRequestSecretResult,
+        OrchestratorMcpFailure
+      >;
+      state: {
+        status: "pending" | "saved" | "declined" | "cancelled";
+        running: boolean;
+        raceAnswer: boolean;
+        root: boolean;
+        providerMatches: boolean;
+        external: boolean;
+      };
+      subscribed: Deferred.Deferred<void>;
+      wake: Effect.Effect<void>;
+      commands: Array<OrchestrationV2ServerCommand>;
+      files: Array<string>;
+    }) => Effect.Effect<A, E>,
+  ) =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const threadId = ThreadId.make("secret-thread");
+        const runId = RunId.make("secret-run");
+        const nodeId = NodeId.make("secret-root");
+        const state = {
+          status: "pending" as "pending" | "saved" | "declined" | "cancelled",
+          running: true,
+          raceAnswer: false,
+          root: true,
+          providerMatches: true,
+          external: false,
+        };
+        const commands: Array<OrchestrationV2ServerCommand> = [];
+        const files: Array<string> = [];
+        const subscribed = yield* Deferred.make<void>();
+        const events = yield* Queue.unbounded<void>();
+        const scope: McpInvocationScope = {
+          environmentId: EnvironmentId.make("secret-environment"),
+          requestNamespace: "secret-provider-session",
+          thread: {
+            threadId,
+            providerSessionId: "secret-provider-session",
+            providerInstanceId: ProviderInstanceId.make("codex"),
+          },
+          client: undefined,
+          capabilities: new Set(["orchestration"]),
+          issuedAt: 1,
+        };
+        const snapshot = () =>
+          ({
+            thread: { id: threadId, archivedAt: null, deletedAt: null },
+            runs: [
+              {
+                id: runId,
+                rootNodeId: state.root ? nodeId : null,
+                providerInstanceId: state.providerMatches
+                  ? scope.thread!.providerInstanceId
+                  : ProviderInstanceId.make("other"),
+                status: state.running ? "running" : "completed",
+                ordinal: 1,
+              },
+            ],
+            turnItems: commands
+              .flatMap((command) =>
+                command.type === "secret_request.record"
+                  ? [
+                      {
+                        ...command,
+                        id: command.turnItemId,
+                        type: "secret_request",
+                        secretStatus: state.status,
+                      },
+                    ]
+                  : [],
+              )
+              .slice(-1),
+          }) as unknown as OrchestrationV2ThreadProjection;
+        const layer = OrchestratorMcpService.layer.pipe(
+          Layer.provide(
+            Layer.mergeAll(
+              NodeServices.layer,
+              ServerSettings.layerTest(),
+              Layer.mock(ThreadLaunchService.ThreadLaunchService)({}),
+              Layer.mock(GitVcsDriver.GitVcsDriver)({}),
+              Layer.mock(ProviderRegistry.ProviderRegistry)({}),
+              Layer.mock(ProviderAdapterRegistry.ProviderAdapterRegistryV2)({}),
+              Layer.mock(ScheduledTaskService.ScheduledTaskService)({}),
+              Layer.mock(ProjectService.ProjectService)({}),
+              Layer.mock(SecretRequests.SecretRequests)({
+                saveToFile: ({ turnItemId }) =>
+                  Effect.sync(() => {
+                    files.push(turnItemId);
+                    return "/private/secret-file";
+                  }),
+              }),
+              Layer.mock(ThreadManagementService.ThreadManagementService)({
+                getThreadRecords: () =>
+                  Effect.sync(() => {
+                    const result = snapshot();
+                    if (commands.length > 0 && state.raceAnswer) {
+                      state.raceAnswer = false;
+                      state.status = "saved";
+                      Queue.offerUnsafe(events, undefined);
+                    }
+                    return result;
+                  }),
+                getThreadEventSequence: () => Effect.succeed(41),
+                streamStoredEventsFrom: (filter) =>
+                  Stream.fromEffect(
+                    Effect.gen(function* () {
+                      assert.equal(filter?.afterSequence, 41);
+                      yield* Deferred.succeed(subscribed, undefined);
+                    }),
+                  ).pipe(
+                    Stream.flatMap(() => Stream.fromQueue(events)),
+                    Stream.map(() => ({}) as never),
+                  ),
+                dispatch: (command) =>
+                  Effect.sync(() => {
+                    commands.push(command);
+                    if (command.type === "secret_request.record" && state.status === "pending")
+                      state.status = command.secretStatus;
+                    return { sequence: 41 } as never;
+                  }),
+              }),
+            ),
+          ),
+        );
+        return yield* Effect.gen(function* () {
+          const service = yield* OrchestratorMcpService.OrchestratorMcpService;
+          const request = Effect.suspend(() =>
+            service.requestSecret(
+              state.external
+                ? {
+                    ...scope,
+                    thread: undefined,
+                    client: { sessionId: "outside", label: "Outside", access: "full-access" },
+                  }
+                : scope,
+              {
+                label: "CLI token",
+                reason: "Authenticate the requested command",
+                delivery: "file",
+                clientRequestId: "secret-1",
+                timeoutMs: 1000,
+              },
+            ),
+          );
+          return yield* test({
+            request,
+            state,
+            subscribed,
+            wake: Queue.offer(events, undefined).pipe(Effect.asVoid),
+            commands,
+            files,
+          });
+        }).pipe(Effect.provide(layer));
+      }),
+    );
+
+  it.effect("replays an answer that arrives between the first read and subscription", () =>
+    withSecretRequest(({ request, state, files }) =>
+      Effect.gen(function* () {
+        state.raceAnswer = true;
+        assert.deepEqual(yield* request, { status: "saved", file: "/private/secret-file" });
+        assert.equal(files.length, 1);
+      }),
+    ),
+  );
+
+  it.effect("closes a pending card when the requesting run ends", () =>
+    withSecretRequest(({ request, state, subscribed, wake, commands, files }) =>
+      Effect.gen(function* () {
+        const fiber = yield* request.pipe(Effect.forkChild);
+        yield* Deferred.await(subscribed);
+        state.running = false;
+        yield* wake;
+        assert.deepEqual(yield* Fiber.join(fiber), { status: "cancelled" });
+        assert.equal(commands.at(-1)?.type, "secret_request.record");
+        assert.equal(files.length, 0);
+      }),
+    ),
+  );
+
+  it.effect.each(["external", "settled", "rootless", "provider mismatch"] as const)(
+    "rejects %s callers before creating a card",
+    (mode) =>
+      withSecretRequest(({ request, state, commands, files }) =>
+        Effect.gen(function* () {
+          state.external = mode === "external";
+          state.running = mode !== "settled";
+          state.root = mode !== "rootless";
+          state.providerMatches = mode !== "provider mismatch";
+          const error = yield* Effect.flip(request);
+          assert.equal(
+            error.code,
+            mode === "external" ? "thread_credential_required" : "parent_not_active",
+          );
+          assert.equal(commands.length, 0);
+          assert.equal(files.length, 0);
+        }),
+      ),
+  );
+
+  it.effect("reports a declined answer without writing a file", () =>
+    withSecretRequest(({ request, state, subscribed, wake, files }) =>
+      Effect.gen(function* () {
+        const fiber = yield* request.pipe(Effect.forkChild);
+        yield* Deferred.await(subscribed);
+        state.status = "declined";
+        yield* wake;
+        assert.deepEqual(yield* Fiber.join(fiber), { status: "declined" });
+        assert.equal(files.length, 0);
+      }),
+    ),
+  );
+
+  it.effect("times out without leaving an answerable card or returning a value", () =>
+    withSecretRequest(({ request, state, subscribed, files }) =>
+      Effect.gen(function* () {
+        const fiber = yield* request.pipe(Effect.forkChild);
+        yield* Deferred.await(subscribed);
+        yield* TestClock.adjust("1 second");
+        assert.deepEqual(yield* Fiber.join(fiber), { status: "timed_out" });
+        assert.equal(state.status, "cancelled");
+        assert.equal(files.length, 0);
+      }),
+    ),
+  );
+
+  it.effect("closes the card on interruption", () =>
+    withSecretRequest(({ request, state, subscribed, files }) =>
+      Effect.gen(function* () {
+        const fiber = yield* request.pipe(Effect.forkChild);
+        yield* Deferred.await(subscribed);
+        yield* Fiber.interrupt(fiber);
+        assert.equal(state.status, "cancelled");
+        assert.equal(files.length, 0);
+      }),
+    ),
   );
 });

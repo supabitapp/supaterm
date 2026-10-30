@@ -19,6 +19,7 @@ import * as Schema from "effect/Schema";
 
 import * as ServerConfig from "../config.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as Sqlite from "../persistence/Sqlite.ts";
 import * as EnvironmentAuth from "./EnvironmentAuth.ts";
 import * as McpOAuth from "./McpOAuth.ts";
@@ -49,6 +50,7 @@ const makeLayerRoutes = (capture: (auth: EnvironmentAuth.EnvironmentAuth["Servic
     ),
   ).pipe(
     Layer.provideMerge(layerEnvironmentAuth),
+    Layer.provide(ServerSettings.layerTest()),
     Layer.provide(layerConfig),
     Layer.provideMerge(
       HttpPlatform.layer.pipe(

@@ -2,20 +2,27 @@ import {
   OrchestratorMcpCapabilitiesInput,
   OrchestratorMcpCapabilitiesResult,
   OrchestrationV2StopWorkflowInput,
+  OrchestratorMcpEnvironmentLinkInput,
+  OrchestratorMcpEnvironmentLinkResult,
+  OrchestratorMcpEnvironmentLinksResult,
+  OrchestratorMcpEnvironmentUnlinkInput,
+  OrchestratorMcpEnvironmentUnlinkResult,
   OrchestratorMcpCreateThreadsInput,
   OrchestratorMcpCreateThreadsResult,
   OrchestratorMcpDelegateTaskInput,
   OrchestratorMcpDelegateTaskResult,
   OrchestratorMcpDeleteScheduledTaskInput,
   OrchestratorMcpDeleteScheduledTaskResult,
+  OrchestratorMcpEnvironmentTarget,
+  OrchestratorMcpRequestSecretInput,
+  OrchestratorMcpRequestSecretResult,
   OrchestratorMcpFailure,
   OrchestratorMcpListScheduledTasksInput,
   OrchestratorMcpListScheduledTasksResult,
-  OrchestratorMcpScheduleTaskInput,
+  OrchestratorMcpSaveScheduledTaskInput,
   OrchestratorMcpScheduleTaskResult,
   OrchestratorMcpTaskCancelInput,
   OrchestratorMcpTaskCancelResult,
-  OrchestratorMcpUpdateScheduledTaskInput,
   OrchestratorMcpTaskStatusInput,
   OrchestratorMcpThreadInterruptInput,
   OrchestratorMcpThreadInterruptResult,
@@ -29,11 +36,16 @@ import {
   OrchestratorMcpThreadWaitResult,
   ThreadMetadataMcpUpdateInput,
   ThreadMetadataMcpUpdateResult,
+  TrimmedNonEmptyString,
 } from "@supaterm/contracts";
-import { Tool, Toolkit } from "effect/ai";
+import { McpSchema, Tool, Toolkit } from "effect/ai";
 import * as Schema from "effect/Schema";
+import * as Struct from "effect/Struct";
 
 import * as ThreadManagementService from "../../../orchestration-v2/ThreadManagementService.ts";
+import * as PeerForwarding from "../../../peer/PeerForwarding.ts";
+import * as PeerLinkRequests from "../../../peer/PeerLinkRequests.ts";
+import * as PeerLinks from "../../../peer/PeerLinks.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as OrchestratorMcpService from "../../OrchestratorMcpService.ts";
 import * as ThreadMetadataMcpService from "../../ThreadMetadataMcpService.ts";
@@ -42,6 +54,14 @@ const dependencies = [
   McpInvocationContext.McpInvocationContext,
   ThreadManagementService.ThreadManagementService,
   OrchestratorMcpService.OrchestratorMcpService,
+];
+
+const linkDependencies = [...dependencies, PeerForwarding.PeerForwarding];
+
+const linkingDependencies = [
+  ...dependencies,
+  PeerLinkRequests.PeerLinkRequests,
+  PeerLinks.PeerLinks,
 ];
 const threadMetadataDependencies = [
   McpInvocationContext.McpInvocationContext,
@@ -65,7 +85,7 @@ const OrchestratorCapabilitiesTool = Tool.make("orchestrator_capabilities", {
 
 const DelegateTaskTool = Tool.make("delegate_task", {
   description:
-    "Needs an agent running inside a Supaterm thread. Delegate one task to a Supaterm-owned child agent/subagent of THIS thread and run it with only the supplied task prompt, without copying parent conversation history. Choose providers and models from orchestrator_capabilities, which uses the same live catalog as the composer. Prefer native subagent tools for same-provider work only when they support the chosen model and no model options are requested or inherited. Use this for any model missing from the native tool, including same-provider work, for cross-provider work, or for explicitly Supaterm-owned child tasks. For every Supaterm delegated review round, call delegate_task again with the original brief, prior findings, responses, and unresolved objections in the task prompt. Track each round by its own taskId and use a distinct clientRequestId per round, stable across retries of that round. The childThreadId is backing storage, not the target for starting another delegated review round through supaterm_thread_send. Set isolation to worktree for a separate checkout based on the parent local commit, with project setup completed before the child starts. Uncommitted edits are not copied; omitted isolation shares the parent checkout. Use delegate_task when model options are requested or the child keeps the parent's provider instance and model with nonempty inheritedOptions from orchestrator_capabilities, even for native-supported models. Native subagents cannot reliably apply Supaterm model options. Set target.options using advertised IDs: Claude {effort: 'max', fastMode: true}; Codex {reasoningEffort: 'max', serviceTier: 'priority'}. Check providerInstanceId, model, and options in the result. Provider/model and modes inherit unless overridden. Options inherit only for the same instance and model; explicit entries override individual values and [] or {} clears them. A requested runtimeMode must be one the target provider lists in orchestrator_capabilities runtimeModes; an inherited one steps down to the broadest mode it offers. Leave runtimeMode unset unless the user asks for a supervised child: approval-required and auto-accept-edits usually make the child wait for a person at each action that needs approval. Prefer mode='async' for long work; mode='wait' blocks until completion, a blocking question, a pending approval, or timeout. If hasPendingQuestion, pass threadId=childThreadId to supaterm_pending_request_list, supaterm_pending_request_read (with requestId) and supaterm_pending_request_respond, or ask the user; the task's completion still wakes this thread. If pendingApproval is set, read the fresh full request in childThreadId before responding: the record can outlive its provider callback. It grants no approval authority; decisions remain with the child's existing approval holder, and pending request tools answer questions only. The child keeps running and its completion still wakes this thread. timeoutMs on mode=wait is only the parent's wait budget and does not cancel the child. waitTimedOut on that wait call means the timeout fired; keep that taskId and read status on later task_status. An async child's completion wakes this thread through a notification, steered into active turns where supported or queued otherwise, so end the turn instead of polling or spawning watchers; use task_status only when the result is needed mid-turn.",
+    "Needs an agent running inside a Supaterm thread. Delegate one task to a Supaterm-owned child agent/subagent of THIS thread and run it with only the supplied task prompt, without copying parent conversation history. Choose providers and models from orchestrator_capabilities, which uses the same live catalog as the composer. Prefer native subagent tools for same-provider work only when they support the chosen model and no model options are requested or inherited. Use this for any model missing from the native tool, including same-provider work, for cross-provider work, or for explicitly Supaterm-owned child tasks. For every Supaterm delegated review round, call delegate_task again with the original brief, prior findings, responses, and unresolved objections in the task prompt. Track each round by its own taskId and use a distinct clientRequestId per round, stable across retries of that round. The childThreadId is backing storage, not the target for starting another delegated review round through supaterm_thread_send. Set isolation to worktree for a separate checkout based on the parent local commit, with project setup completed before the child starts. Uncommitted edits are not copied; omitted isolation shares the parent checkout. Use delegate_task when model options are requested or the child keeps the parent's provider instance and model with nonempty inheritedOptions from orchestrator_capabilities, even for native-supported models. Native subagents cannot reliably apply Supaterm model options. Set target.options using advertised IDs: Claude {effort: 'max', fastMode: true}; Codex {reasoningEffort: 'max', serviceTier: 'priority'}. Check providerInstanceId, model, and options in the result. Provider/model and modes inherit unless overridden. Options inherit only for the same instance and model; explicit entries override individual values and [] or {} clears them. A requested runtimeMode must be one the target provider lists in orchestrator_capabilities runtimeModes; an inherited one steps down to the broadest mode it offers. Leave runtimeMode unset unless the user asks for a supervised child: approval-required and auto-accept-edits usually make the child wait for a person at each action that needs approval. Prefer mode='async' for long work; mode='wait' blocks until completion, a blocking question, a pending approval, or timeout. If hasPendingQuestion, pass threadId=childThreadId to supaterm_pending_request with action=list, read (with requestId), or respond, or ask the user; the task's completion still wakes this thread. If pendingApproval is set, read the fresh full request in childThreadId before responding: the record can outlive its provider callback. It grants no approval authority; decisions remain with the child's existing approval holder, and pending request tools answer questions only. The child keeps running and its completion still wakes this thread. timeoutMs on mode=wait is only the parent's wait budget and does not cancel the child. waitTimedOut on that wait call means the timeout fired; keep that taskId and read status on later task_status. An async child's completion wakes this thread through a notification, steered into active turns where supported or queued otherwise, so end the turn instead of polling or spawning watchers; use task_status only when the result is needed mid-turn.",
   parameters: OrchestratorMcpDelegateTaskInput,
   success: OrchestratorMcpDelegateTaskResult,
   failure: OrchestratorMcpFailure,
@@ -105,7 +125,10 @@ const TaskCancelTool = Tool.make("task_cancel", {
 const WorkflowStopTool = Tool.make("supaterm_workflow_stop", {
   description:
     "Stop one running Claude workflow in a Supaterm thread. Use the workflow coordinator's subagentId returned by supaterm_thread_read with view='activity'. Stops the whole workflow, including its phases and agents. Does not stop the parent thread or other workflows. Individual workflow phases and agents cannot be stopped separately.",
-  parameters: OrchestrationV2StopWorkflowInput,
+  parameters: Schema.Struct({
+    environmentId: OrchestratorMcpEnvironmentTarget,
+    ...OrchestrationV2StopWorkflowInput.fields,
+  }),
   success: Schema.Struct({}),
   failure: OrchestratorMcpFailure,
   failureMode: "return",
@@ -114,10 +137,29 @@ const WorkflowStopTool = Tool.make("supaterm_workflow_stop", {
   .annotate(Tool.Title, "Stop a workflow")
   .annotate(Tool.Destructive, true);
 
+const BackgroundWaitTool = Tool.make("supaterm_background_wait", {
+  description:
+    "Keep this thread in the user's Working list and out of their inbox while you wait for background work. Start a background command or Monitor first. Call this before you end your turn if you will act on its result when it wakes you. In taskIds, give the ID shown when the task started. The thread stays in Working until the task ends. The user is not told the work is done. Do not mark work you leave running, such as a dev server or watcher. Unmarked commands and monitors never keep the thread in Working. Pass waiting=false to remove the mark. This does not stop the task. IDs that are not running return in unmatched and change nothing. Only Claude threads support this tool. Other providers return an error.",
+  parameters: Schema.Struct({
+    taskIds: Schema.Array(TrimmedNonEmptyString).check(
+      Schema.isMinLength(1),
+      Schema.isMaxLength(20),
+    ),
+    waiting: Schema.optional(Schema.Boolean),
+  }),
+  success: Schema.Struct({
+    matched: Schema.Array(Schema.String),
+    unmatched: Schema.Array(Schema.String),
+  }),
+  failure: OrchestratorMcpFailure,
+  failureMode: "return",
+  dependencies,
+}).annotate(Tool.Title, "Wait on background work");
+
 const ScheduleTaskTool = Tool.make("schedule_task", {
   description:
-    "Create persistent recurring work in the app scheduler, which runs even when no turn is active. Pass schedule as a STRUCTURED OBJECT, never JSON text: {type:'interval', everyMs:3600000} means hourly; {type:'fixed_time', timeOfDay:'09:00', weekdays:[1,2,3,4,5]} means weekday mornings. Omit projectId for this thread's project. In this thread's project, runs post into THIS thread by default (bindToCurrentThread=true); use false only when the user wants a fresh top-level thread per run. Elsewhere each run launches a fresh thread. Provider, model, and runtime settings inherit from this thread, or from the project default when there is no calling thread. Report the returned schedule and nextRunAt after success.",
-  parameters: OrchestratorMcpScheduleTaskInput,
+    "Create persistent recurring work with prompt and schedule, or update an existing task with scheduledTaskId (only provided fields change), in the app scheduler, which runs even when no turn is active. Pass schedule as a STRUCTURED OBJECT, never JSON text: {type:'interval', everyMs:3600000} means hourly; {type:'fixed_time', timeOfDay:'09:00', weekdays:[1,2,3,4,5]} means weekday mornings. Omit projectId for this thread's project. In this thread's project, runs post into THIS thread by default (bindToCurrentThread=true); use false only when the user wants a fresh top-level thread per run. Elsewhere each run launches a fresh thread. Provider, model, and runtime settings inherit from this thread, or from the project default when there is no calling thread. Report the returned schedule and nextRunAt after success.",
+  parameters: OrchestratorMcpSaveScheduledTaskInput,
   success: OrchestratorMcpScheduleTaskResult,
   failure: OrchestratorMcpFailure,
   failureMode: "return",
@@ -130,7 +172,7 @@ const ScheduleTaskTool = Tool.make("schedule_task", {
 const ListScheduledTasksTool = Tool.make("list_scheduled_tasks", {
   parameters: OrchestratorMcpListScheduledTasksInput,
   description:
-    "List recurring scheduled tasks in a project (omit projectId for the calling thread's project, or every project when there is no calling thread), including their id, schedule, prompt, enabled state, bound thread, next run time, and last run status. Use the returned scheduledTaskId with update_scheduled_task or delete_scheduled_task.",
+    "List recurring scheduled tasks in a project (omit projectId for the calling thread's project, or every project when there is no calling thread), including their id, schedule, prompt, enabled state, bound thread, next run time, and last run status. Use the returned scheduledTaskId with schedule_task or delete_scheduled_task.",
   success: OrchestratorMcpListScheduledTasksResult,
   failure: OrchestratorMcpFailure,
   failureMode: "return",
@@ -141,21 +183,9 @@ const ListScheduledTasksTool = Tool.make("list_scheduled_tasks", {
   .annotate(Tool.Destructive, false)
   .annotate(Tool.Idempotent, true);
 
-const UpdateScheduledTaskTool = Tool.make("update_scheduled_task", {
-  description:
-    "Update an existing scheduled task by scheduledTaskId (from list_scheduled_tasks). Only the provided fields change; omit a field to leave it as-is. Use enabled=false to pause a task without deleting it. Set bindToCurrentThread to move the task between posting into this thread and launching a fresh thread per run.",
-  parameters: OrchestratorMcpUpdateScheduledTaskInput,
-  success: OrchestratorMcpScheduleTaskResult,
-  failure: OrchestratorMcpFailure,
-  failureMode: "return",
-  dependencies,
-})
-  .annotate(Tool.Title, "Update a scheduled task")
-  .annotate(Tool.Destructive, true);
-
 const DeleteScheduledTaskTool = Tool.make("delete_scheduled_task", {
   description:
-    "Permanently delete a scheduled task by scheduledTaskId (from list_scheduled_tasks). The task stops running immediately. To keep it but stop runs, use update_scheduled_task with enabled=false instead.",
+    "Permanently delete a scheduled task by scheduledTaskId (from list_scheduled_tasks). The task stops running immediately. To keep it but stop runs, use schedule_task with enabled=false instead.",
   parameters: OrchestratorMcpDeleteScheduledTaskInput,
   success: OrchestratorMcpDeleteScheduledTaskResult,
   failure: OrchestratorMcpFailure,
@@ -209,8 +239,12 @@ const ThreadReadTool = Tool.make("supaterm_thread_read", {
 
 const ThreadUpdateTool = Tool.make("supaterm_thread_update", {
   description:
-    "Update metadata for a thread. Omit threadId to update this thread. Use action='rename' with title, action='regenerate_title' with no extra field, action='link_pull_request' with pullRequest, or action='unlink_pull_request'. Workspace and branch changes are intentionally not supported. clientRequestId makes retries idempotent.",
-  parameters: ThreadMetadataMcpUpdateInput,
+    "Update metadata for a thread. Omit threadId to update this thread. Use action='rename' with title, or action='regenerate_title' with no extra field. Link pull requests with link_pull_request and unlink_pull_request. Workspace and branch changes are intentionally not supported. clientRequestId makes retries idempotent.",
+  // Keeps the input's action/field check, which rebuilding the struct would drop.
+  parameters: ThreadMetadataMcpUpdateInput.mapFields(
+    Struct.assign({ environmentId: OrchestratorMcpEnvironmentTarget }),
+    { unsafePreserveChecks: true },
+  ),
   success: ThreadMetadataMcpUpdateResult,
   failure: OrchestratorMcpFailure,
   failureMode: "return",
@@ -259,15 +293,70 @@ const ThreadInterruptTool = Tool.make("supaterm_thread_interrupt", {
   .annotate(Tool.Title, "Interrupt a Supaterm thread")
   .annotate(Tool.Destructive, true);
 
+const RequestSecretTool = Tool.make("request_secret", {
+  description:
+    "Ask the user for a secret through a private card in this thread. Set delivery:'file'. Waits for save, decline or cancellation. When saved, returns a permission-protected plaintext file path, never the value. Files expire after 24 hours; the provider shell and this OS account can read them. Do not print or copy the value into chat or tool results. Never ask for secrets in chat or invent one.",
+  parameters: OrchestratorMcpRequestSecretInput,
+  success: OrchestratorMcpRequestSecretResult,
+  failure: OrchestratorMcpFailure,
+  failureMode: "return",
+  dependencies,
+})
+  .annotate(Tool.Title, "Request a private secret file")
+  .annotate(Tool.Destructive, false);
+
+const EnvironmentLinksTool = Tool.make("supaterm_environment_links", {
+  description:
+    "List linked environments (the user's other machines) and whether each answers now. Pass one's `environmentId` to a tool to act there; `delegate_task` takes `target.environmentId`. Expired: link it again with `supaterm_environment_link`.",
+  success: OrchestratorMcpEnvironmentLinksResult,
+  failure: OrchestratorMcpFailure,
+  failureMode: "return",
+  dependencies: linkDependencies,
+})
+  .annotate(Tool.Title, "List linked environments")
+  .annotate(Tool.Readonly, true)
+  .annotate(Tool.Destructive, false)
+  .annotate(Tool.Idempotent, true)
+  .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenWhileLinksOff);
+
+const EnvironmentLinkTool = Tool.make("supaterm_environment_link", {
+  description:
+    "Ask the user to link another machine, in a card. For a machine the user names that is not linked. Pass `hint` from their words, `environmentId` when one names it (already linked: returns `linked`), `url` only when the user gave an address. Returns `pending`; the outcome arrives as a message in this thread. Do not wait, poll, or call it again to check. Never ask for a pairing code in chat.",
+  parameters: OrchestratorMcpEnvironmentLinkInput,
+  success: OrchestratorMcpEnvironmentLinkResult,
+  failure: OrchestratorMcpFailure,
+  failureMode: "return",
+  dependencies: linkingDependencies,
+})
+  .annotate(Tool.Title, "Link another environment")
+  .annotate(Tool.Destructive, false)
+  .annotate(Tool.OpenWorld, true)
+  .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenWhileLinksOff);
+
+const EnvironmentUnlinkTool = Tool.make("supaterm_environment_unlink", {
+  description:
+    "Forget a linked environment. That machine's Connections list its session until revoked there.",
+  parameters: OrchestratorMcpEnvironmentUnlinkInput,
+  success: OrchestratorMcpEnvironmentUnlinkResult,
+  failure: OrchestratorMcpFailure,
+  failureMode: "return",
+  dependencies: linkingDependencies,
+})
+  .annotate(Tool.Title, "Forget a linked environment")
+  .annotate(Tool.Destructive, true)
+  .annotate(Tool.Idempotent, true)
+  .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenWhileLinksOff);
+
 export const OrchestratorToolkit = Toolkit.make(
+  RequestSecretTool,
   OrchestratorCapabilitiesTool,
   DelegateTaskTool,
   TaskStatusTool,
   TaskCancelTool,
   WorkflowStopTool,
+  BackgroundWaitTool,
   ScheduleTaskTool,
   ListScheduledTasksTool,
-  UpdateScheduledTaskTool,
   DeleteScheduledTaskTool,
   CreateThreadsTool,
   ThreadListTool,
@@ -276,4 +365,7 @@ export const OrchestratorToolkit = Toolkit.make(
   ThreadSendTool,
   ThreadWaitTool,
   ThreadInterruptTool,
+  EnvironmentLinksTool,
+  EnvironmentLinkTool,
+  EnvironmentUnlinkTool,
 );
