@@ -351,6 +351,11 @@ export const GROK_MODEL_SELECTION = {
   model: "grok-build",
 } satisfies ModelSelection;
 
+export const FX_MODEL_SELECTION = {
+  instanceId: ProviderInstanceId.make("fx"),
+  model: "default",
+} satisfies ModelSelection;
+
 export const OPENCODE_MODEL_SELECTION = {
   instanceId: ProviderInstanceId.make("opencode"),
   model: "openai/gpt-5.4-mini",

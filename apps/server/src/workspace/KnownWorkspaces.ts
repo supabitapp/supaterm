@@ -1,12 +1,3 @@
-/**
- * KnownWorkspaces - the folders a client-named cwd may act in: a Supaterm-managed
- * worktree folder, a registered project, or a thread's worktree. Clients send
- * the thread's worktree, else the project root. A client also sets a thread's
- * worktree path, so one counts only under a managed folder or when git lists
- * it as a worktree of the thread's project.
- *
- * @module KnownWorkspaces
- */
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as Context from "effect/Context";
@@ -53,7 +44,7 @@ export class KnownWorkspaces extends Context.Service<
   }
 >()("supaterm/workspace/KnownWorkspaces") {}
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const config = yield* ServerConfig.ServerConfig;
   const fileSystem = yield* FileSystem.FileSystem;

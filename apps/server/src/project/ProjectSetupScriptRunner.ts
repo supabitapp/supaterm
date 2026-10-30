@@ -132,7 +132,7 @@ export class ProjectSetupScriptRunner extends Context.Service<
   }
 >()("supaterm/project/ProjectSetupScriptRunner") {}
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 /**
  * Each run gets its own random token so script output cannot spoof completion, and the sentinel
  * pattern is built per run from it.
@@ -150,16 +150,12 @@ function completionSentinelPattern(token: string): RegExp {
 }
 
 function stripTerminalControl(text: string): string {
-  return (
-    text
-      .replace(
-        // eslint-disable-next-line no-control-regex -- Terminal output contains ANSI control bytes.
-        /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[()][A-Za-z0-9]|\x1b[=>]/g,
-        "",
-      )
-      // eslint-disable-next-line no-control-regex -- Remove terminal control bytes from captured lines.
-      .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
-  );
+  return text
+    .replace(
+      /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[()][A-Za-z0-9]|\x1b[=>]/g,
+      "",
+    )
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "");
 }
 
 const BRACKETED_PASTE_ON = "\x1b[?2004h";
@@ -202,7 +198,7 @@ function wrapCommandForCompletion(
   }
 }
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const projects = yield* ProjectService.ProjectService;
   const threads = yield* ProjectionStore.ProjectionStoreV2;

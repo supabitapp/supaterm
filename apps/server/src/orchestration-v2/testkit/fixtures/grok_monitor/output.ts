@@ -1,7 +1,9 @@
 import { assert } from "@effect/vitest";
 import type { ProviderReplayTranscript } from "@supaterm/contracts";
+import { derivePendingBackgroundWork } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 
 import type { OrchestratorV2ScenarioResult } from "../../OrchestratorScenario.ts";
+import { cancelledTurnItemWork } from "../../../RestartBackgroundNote.ts";
 import {
   assertBaseProjection,
   assertSemanticProjectionIntegrity,
@@ -49,6 +51,18 @@ export function assertGrokMonitorOutput(
     assert.isBelow(tickUpdate, firstCompleted, `the monitor completed before ${tick}`);
     assert.equal(monitorUpdates[tickUpdate]?.status, "running", `${tick} must show running`);
   }
+
+  const runningMonitor = monitorUpdates.find((update) => update.status === "running");
+  assert.isDefined(runningMonitor);
+  assert.deepEqual(
+    derivePendingBackgroundWork({
+      latestRun: rootRun,
+      providerThreads: [],
+      turnItems: [runningMonitor],
+    }).map((task) => task.kind),
+    ["monitor"],
+  );
+  assert.equal(cancelledTurnItemWork(runningMonitor)?.kind, "monitor");
 
   const monitorCompletedAt = result.domainEvents.findIndex(
     (event) =>

@@ -18,6 +18,7 @@ import {
 import { CLAUDE_BACKGROUND_WAKE_BEFORE_QUEUED_PROMPT_LAUNCH_PROMPT } from "./input.ts";
 
 const STOP_WAKE_REPLY =
+  // eslint-disable-next-line supaterm/no-em-dash-copy -- Keep recorded fixture text exact.
   "Agent B's kill is confirmed by the notification. No further action needed — the task is complete.";
 
 function frameField(frame: unknown, key: string): unknown {
