@@ -278,6 +278,7 @@ export function MarkdownCodeBlock({
       {canRun && confirmingCommand === command ? (
         <RunShellCommandDialog
           command={command}
+          lineCount={lineCount}
           onClose={() => setConfirmingCommand(null)}
           onRun={onRunShellCommand}
         >

@@ -5,6 +5,7 @@ import { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import {
   encodeTerminalScriptPaste,
   registerTerminalScriptPasteSurface,
+  SCRIPT_PASTE_CLOSED_MESSAGE,
   SCRIPT_PASTE_READY_TIMEOUT_MS,
   SCRIPT_PASTE_UNSUPPORTED_MESSAGE,
 } from "../scriptPaste";
@@ -282,6 +283,19 @@ describe("GhosttyTerminalSurface visibility", () => {
     pasteCleanups.add(registerTerminalScriptPasteSurface(pasteTarget, surface));
     surface.write("\x1b[?2004h");
     await expect(data).resolves.toBe(`\x1b[200~${script}\x1b[201~\r`);
+  });
+
+  it("does not paste into a terminal reopened after the waiting one closed", async () => {
+    const harness = createHarness();
+    const closing = await harness.create();
+    const unregister = registerTerminalScriptPasteSurface(pasteTarget, closing);
+    const data = encodeTerminalScriptPaste(pasteTarget, "vp i\nvp run dev");
+    const rejected = expect(data).rejects.toThrow(SCRIPT_PASTE_CLOSED_MESSAGE);
+    unregister();
+    const reopened = await harness.create();
+    pasteCleanups.add(registerTerminalScriptPasteSurface(pasteTarget, reopened));
+    reopened.write("\x1b[?2004h");
+    await rejected;
   });
 
   it("refuses a script when the shell never enables bracketed paste", async () => {

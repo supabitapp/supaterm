@@ -197,8 +197,8 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
       worktreePath?: string | null;
       preferNewTerminal?: boolean;
       rememberAsLastInvoked?: boolean;
-      shellHistory?: "preserve" | "suppress";
-      pasteScript?: boolean;
+      /** Chat code blocks enter the shell as the user would; project scripts stay out of history. */
+      shellInput?: "typed" | "pasted";
     },
   ) => {
     if (!hasTerminalWriteAccess() || !activeThreadId || !activeProject || !activeThread) return;
@@ -260,10 +260,10 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
     }
 
     let data =
-      options?.shellHistory === "preserve"
+      options?.shellInput === "typed"
         ? `${script.command}\r`
         : projectScriptTerminalInput(script.command);
-    if (options?.pasteScript) {
+    if (options?.shellInput === "pasted") {
       try {
         data = await encodeTerminalScriptPaste(
           { ...activeThreadRef, terminalId: targetTerminalId },
@@ -277,7 +277,7 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
         return;
       }
     }
-    const writeResult = await terminalActions.writeToTerminal(targetTerminalId, data);
+    const writeResult = await launched.write(data);
     if (!writeResult) return;
     if (writeResult._tag === "Failure") {
       if (!isAtomCommandInterrupted(writeResult)) {
@@ -333,8 +333,7 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
       },
       {
         rememberAsLastInvoked: false,
-        shellHistory: "preserve",
-        pasteScript: command.includes("\n"),
+        shellInput: command.includes("\n") ? "pasted" : "typed",
       },
     );
   };

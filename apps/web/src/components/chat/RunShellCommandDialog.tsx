@@ -13,18 +13,19 @@ import { Button } from "../ui/button";
 
 export function RunShellCommandDialog({
   command,
+  lineCount,
   onClose,
   onRun,
   children,
 }: {
   command: string;
+  lineCount: number;
   onClose: () => void;
   onRun: (command: string) => void;
   children: ReactNode;
 }) {
   const runButtonRef = useRef<HTMLButtonElement>(null);
   const ranRef = useRef(false);
-  const lineCount = command.split("\n").length;
 
   return (
     <AlertDialog open onOpenChange={(open) => !open && onClose()}>
