@@ -1610,6 +1610,7 @@ describe("ThreadDoneServiceV2 single-thread sweeps", () => {
           latestUserMessageAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
         });
         const fixture = yield* makeHarness({
+          settings: { ...DEFAULT_SERVER_SETTINGS, sidebarAutoMarkDoneOnMerge: true },
           snapshot: makeSnapshot([waiting, slow]),
           branchPullRequest: () =>
             Ref.updateAndGet(branchLookupCount, (count) => count + 1).pipe(
@@ -1686,6 +1687,7 @@ describe("ThreadDoneServiceV2 single-thread sweeps", () => {
           pendingBackgroundTasks: [{ taskId: "child", kind: "subagent", description: "Review" }],
         });
         const fixture = yield* makeHarness({
+          settings: { ...DEFAULT_SERVER_SETTINGS, sidebarAutoMarkDoneOnMerge: true },
           snapshot: makeSnapshot([slow, merged]),
           branchPullRequest: () =>
             Ref.updateAndGet(branchLookupCount, (count) => count + 1).pipe(
@@ -1746,6 +1748,7 @@ describe("ThreadDoneServiceV2 single-thread sweeps", () => {
           latestUserMessageAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
         });
         const fixture = yield* makeHarness({
+          settings: { ...DEFAULT_SERVER_SETTINGS, sidebarAutoMarkDoneOnMerge: true },
           snapshot: makeSnapshot([thread]),
           branchPullRequest: (_input, lookupOptions) =>
             Effect.succeed(makeBranchPullRequest(lookupOptions?.refresh ? "merged" : "open")),
