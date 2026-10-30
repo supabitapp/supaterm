@@ -233,7 +233,11 @@ The environment transcribes with the provider chosen under **Settings → Genera
 transcription** (**Settings → Voice transcription** on mobile), Claude by default, and that
 login is charged for it. Claude needs a Claude subscription login and Codex a ChatGPT login.
 If the chosen login can't transcribe, the microphone says why; Supaterm never switches to
-another account. Choose the language you speak under **Settings → General → Voice
+another account. A Claude instance that runs on an API key, a gateway's
+`ANTHROPIC_BASE_URL` and token, or Amazon Bedrock can't transcribe; choose Codex, or add a
+Claude instance with its own
+[config directory](./providers-claude.md#separate-accounts-or-configurations) signed in to
+your subscription. Choose the language you speak under **Settings → General → Voice
 language** (**Settings → Voice input → Voice language** on mobile); it follows your system
 language by default.
 

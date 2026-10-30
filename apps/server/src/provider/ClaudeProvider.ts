@@ -189,23 +189,30 @@ function claudeAuthStatus(
     : "unauthenticated";
 }
 
-// What the CLI reports for a claude.ai subscription login, signed in or passed in through its
-// token variable. A token handed over a file descriptor can't be read from outside the CLI.
+// The CLI names a signed-in claude.ai login by its subscription and leaves the token source out;
+// it reports a source only for a token passed in through its variable. A token handed over a
+// file descriptor can't be read from outside the CLI.
 const CLAUDE_SUBSCRIPTION_TOKEN_SOURCES: ReadonlySet<string> = new Set([
   "claude.ai",
   "CLAUDE_CODE_OAUTH_TOKEN",
 ]);
 
 function claudeTranscriptionStatus(
-  capabilities: Pick<ClaudeCapabilitiesProbe, "tokenSource" | "apiProvider">,
+  capabilities: Pick<
+    ClaudeCapabilitiesProbe,
+    "subscriptionType" | "tokenSource" | "apiKeySource" | "apiProvider"
+  >,
   customApiEndpoint: boolean,
 ): ServerProviderTranscription {
   const firstParty =
     capabilities.apiProvider === undefined || capabilities.apiProvider === "firstParty";
-  return firstParty &&
-    !customApiEndpoint &&
-    capabilities.tokenSource !== undefined &&
-    CLAUDE_SUBSCRIPTION_TOKEN_SOURCES.has(capabilities.tokenSource)
+  const subscriptionLogin =
+    capabilities.subscriptionType !== undefined ||
+    (capabilities.tokenSource !== undefined &&
+      CLAUDE_SUBSCRIPTION_TOKEN_SOURCES.has(capabilities.tokenSource));
+  // Turns follow an API key over a stored login, so that login would be another account.
+  const apiKey = capabilities.apiKeySource !== undefined && capabilities.apiKeySource !== "none";
+  return firstParty && !customApiEndpoint && subscriptionLogin && !apiKey
     ? { status: "ready" }
     : { status: "unavailable", reason: "unsupportedLogin" };
 }

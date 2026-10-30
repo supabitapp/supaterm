@@ -112,7 +112,8 @@ export type TranscriptionCancelUploadResult = typeof TranscriptionCancelUploadRe
 
 const TRANSCRIPTION_ERROR_MESSAGES = {
   sourceUnavailable: "This provider can't transcribe audio.",
-  unsupportedLogin: "This provider's login can't be used for transcription.",
+  unsupportedLogin:
+    "Transcription needs this provider's subscription login, not an API key or gateway.",
   signedOut: "Sign in to this provider again to transcribe.",
   credentialsLocked:
     "The login keychain is locked on the machine running Supaterm. Unlock it and try again.",
