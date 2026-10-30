@@ -538,9 +538,6 @@ describe("DesktopWindow", () => {
     }),
   );
 
-  // Chromium hands the main window's zoom level down to embedded preview
-  // guests, so every app zoom has to put the preview browser back at its own
-  // zoom or zooming the UI drags the previewed page with it.
   it.effect("zooms main with a focused popup and reapplies preview zoom", () =>
     Effect.gen(function* () {
       const fakeWindow = makeFakeBrowserWindow();
@@ -752,7 +749,7 @@ describe("DesktopWindow", () => {
           const fiber = yield* creation.pipe(Effect.forkChild({ startImmediately: true }));
           yield* Deferred.await(previewStarted);
           yield* Ref.set(state.quitting, true);
-          // Cover both an already-destroyed window and one shutdown has yet to destroy.
+
           fake.isDestroyed.mockReturnValue(entry !== "backend ready");
           yield* Deferred.succeed(releasePreview, undefined);
 

@@ -35,8 +35,7 @@ import { makeQuitShortcutHandler } from "./QuitHold.ts";
 import { copyContextMenuImage } from "./ContextMenuImage.ts";
 
 const TITLEBAR_HEIGHT = 40;
-// Matches --workspace-topbar-height in apps/web/src/index.css. Native macOS
-// buttons are 14 points tall and do not scale with the renderer's zoom.
+
 const MACOS_WORKSPACE_TOPBAR_HEIGHT = 52;
 const MACOS_WINDOW_BUTTON_RADIUS = 7;
 
@@ -51,7 +50,7 @@ function syncMacosWindowButtons(window: Electron.BrowserWindow): void {
   });
 }
 
-const TITLEBAR_COLOR = "#01000000"; // #00000000 does not work correctly on Linux
+const TITLEBAR_COLOR = "#01000000";
 const TITLEBAR_LIGHT_SYMBOL_COLOR = "#1f2937";
 const TITLEBAR_DARK_SYMBOL_COLOR = "#f8fafc";
 const MAIN_WINDOW_BOUNDS_PERSIST_DEBOUNCE_MS = 500;
@@ -106,9 +105,7 @@ export class DesktopWindow extends Context.Service<
     readonly dispatchSnapShotEvent: (
       event: DesktopSnapShotEvent,
     ) => Effect.Effect<void, DesktopWindowError>;
-    // The Electron `zoomIn`/`zoomOut` menu roles act on whichever webContents
-    // has keyboard focus, so with an embedded preview WebContentsView (or
-    // DevTools) focused they zoom the guest page instead of the app UI.
+
     readonly zoomMain: (direction: MainWindowZoomDirection) => Effect.Effect<void>;
 
     readonly runMainContentsCommand: (command: MainWindowContentsCommand) => Effect.Effect<void>;
@@ -220,8 +217,7 @@ function concealPendingQuitWindow(
   if (window.isFullScreen()) {
     window.setFullScreen(false);
   }
-  // Electron implements window opacity on macOS and Windows. Linux keeps the
-  // release-gated quit behavior but cannot make the pending window disappear.
+
   window.setOpacity(0);
 }
 
@@ -312,11 +308,6 @@ export const make = Effect.gen(function* () {
     }
   });
 
-  // currentMainOrFirst / focusedMainOrFirst fall back to "any first window",
-  // which during WSL-only boot is the connecting splash. The splash is never
-  // registered via setMain, so it must be treated as "no real main window" --
-  // otherwise ensureMain/activate/dispatchMenuAction latch onto it and never
-  // open (or retry) the real main.
   const withoutSplash = (window: Option.Option<Electron.BrowserWindow>) =>
     Ref.get(splashWindowRef).pipe(
       Effect.map((splash) =>
@@ -338,9 +329,7 @@ export const make = Effect.gen(function* () {
       direction === "reset" ? 0 : webContents.getZoomLevel() + (direction === "in" ? 0.5 : -0.5),
     );
     if (environment.platform === "darwin") syncMacosWindowButtons(window);
-    // Chromium pushes the new level down to embedded guests, which would zoom
-    // the previewed page along with the app UI. The preview browser keeps its
-    // own zoom, so put each guest back where the preview left it.
+
     yield* previewManager.reapplyZoom();
   });
 
@@ -391,10 +380,7 @@ export const make = Effect.gen(function* () {
       ...getWindowTitleBarOptions(shouldUseDarkColors, environment.platform),
       webPreferences: {
         preload: environment.preloadPath,
-        // Chromium throttles hidden renderers: timers coalesce and rAF stops,
-        // which stalls first paint. Boot unthrottled; the first-reveal trigger
-        // re-enables throttling so a hidden or minimized window goes back to
-        // being cheap after it has been shown once.
+
         backgroundThrottling: false,
         contextIsolation: true,
         nodeIntegration: false,
@@ -529,8 +515,7 @@ export const make = Effect.gen(function* () {
       contents.on("context-menu", (event, params) => {
         event.preventDefault();
         if (contents.isDestroyed() || ownerWindow.isDestroyed()) return;
-        // Native editing roles act on the focused contents, which may still be
-        // the host renderer when the user right-clicks inside a browser guest.
+
         contents.focus();
 
         const menuTemplate: Electron.MenuItemConstructorOptions[] = [];
@@ -623,9 +608,6 @@ export const make = Effect.gen(function* () {
       }
     });
 
-    // Electron's windowMenu close role owns CmdOrCtrl+W. Holding the
-    // close-terminal shortcut can outlive the terminal that handled its first
-    // press, so reject repeats before they reach the native window accelerator.
     const quitShortcutHandler = makeQuitShortcutHandler({
       platform: environment.platform,
       getMode: () =>
@@ -643,8 +625,7 @@ export const make = Effect.gen(function* () {
           window.webContents.send(QUIT_SHORTCUT_CHANNEL, hint);
         }
       },
-      // Keep the transparent window focused until the physical shortcut is
-      // released so its remaining repeats cannot reach the next app.
+
       concealWindow: () => concealPendingQuitWindow(window),
       quit: () => {
         void runPromise(electronApp.quit);
@@ -652,6 +633,7 @@ export const make = Effect.gen(function* () {
     });
     window.webContents.on("before-input-event", (event, input) => {
       quitShortcutHandler(event, input);
+
       if (input.type !== "keyDown" || !input.isAutoRepeat) return;
       const modifier = environment.platform === "darwin" ? input.meta : input.control;
       if (modifier && !input.alt && !input.shift && input.key.toLowerCase() === "w") {
@@ -779,8 +761,6 @@ export const make = Effect.gen(function* () {
         details.reason === "oom" ||
         details.reason === "killed" ||
         details.reason === "abnormal-exit";
-      // Recovery attempts are bounded so a renderer that dies immediately on
-      // boot cannot reload-loop forever.
 
       runFork(
         Effect.gen(function* () {
@@ -948,8 +928,7 @@ export const make = Effect.gen(function* () {
     const send = Effect.sync(() => {
       if (!targetWindow.isDestroyed()) targetWindow.webContents.send(channel, payload);
     });
-    // The renderer must learn about the event even when another process refuses to
-    // yield the foreground, so send first and treat the reveal as best effort.
+
     const dispatch = reveal
       ? send.pipe(Effect.andThen(electronWindow.reveal(targetWindow).pipe(Effect.ignoreCause)))
       : send;

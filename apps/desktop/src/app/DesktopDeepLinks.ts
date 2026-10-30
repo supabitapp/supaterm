@@ -1,6 +1,7 @@
 // @effect-diagnostics nodeBuiltinImport:off - OS file-open events carry paths that Node converts to file URLs.
 import * as NodeURL from "node:url";
 import { promptLinkAppPath } from "@supaterm/shared/promptLinks";
+import { readPairingAppLink } from "@supaterm/shared/remote";
 import * as DesktopWebLinks from "./DesktopWebLinks.ts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -106,7 +107,8 @@ export const make = Effect.gen(function* () {
         return true;
       };
       const openAppLink = (value: string | undefined) => {
-        if (!value || promptLinkAppPath(value) === null) return false;
+        if (!value || (promptLinkAppPath(value) === null && readPairingAppLink(value) === null))
+          return false;
         void runPromise(webLinks.receive(value));
         return true;
       };

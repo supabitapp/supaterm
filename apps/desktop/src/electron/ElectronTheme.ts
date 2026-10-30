@@ -23,9 +23,9 @@ export class ElectronTheme extends Context.Service<
   ElectronTheme,
   {
     readonly shouldUseDarkColors: Effect.Effect<boolean>;
-    /** The macOS Icon & widget style; empty for Default. */
+
     readonly iconAppearance: Effect.Effect<string>;
-    /** Whether macOS itself is in dark mode, whatever theme this app picked. */
+
     readonly systemDarkMode: Effect.Effect<boolean>;
     readonly prefersReducedMotion: Effect.Effect<boolean>;
     readonly setSource: (theme: DesktopTheme) => Effect.Effect<void, ElectronThemeSetSourceError>;
@@ -45,15 +45,16 @@ export const make = ElectronTheme.of({
   prefersReducedMotion: Effect.sync(
     () => Electron.systemPreferences.getAnimationSettings().prefersReducedMotion,
   ),
-  setSource: (theme) =>
-    Effect.try({
+  setSource: Effect.fn("ElectronTheme.setSource")(function (theme) {
+    return Effect.try({
       try: () => {
         Electron.nativeTheme.themeSource = theme;
       },
       catch: (cause) => new ElectronThemeSetSourceError({ source: theme, cause }),
-    }),
-  onUpdated: (listener) =>
-    Effect.acquireRelease(
+    });
+  }),
+  onUpdated: Effect.fn("ElectronTheme.onUpdated")(function (listener) {
+    return Effect.acquireRelease(
       Effect.suspend(() => {
         Electron.nativeTheme.on("updated", listener);
         return Effect.void;
@@ -63,7 +64,8 @@ export const make = ElectronTheme.of({
           Electron.nativeTheme.removeListener("updated", listener);
           return Effect.void;
         }),
-    ),
+    );
+  }),
 });
 
 export const layer = Layer.succeed(ElectronTheme, make);

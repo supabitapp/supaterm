@@ -440,9 +440,7 @@ export const make = Effect.gen(function* () {
   const httpClient = yield* HttpClient.HttpClient;
   const desktopSettings = yield* DesktopAppSettings.DesktopAppSettings;
   const stateRef = yield* Ref.make(initialRuntimeState());
-  // Each change reads the runtime state, persists settings, then writes the
-  // state back. Run them one at a time so a change never writes over another
-  // with values it read before that change persisted.
+
   const changePermit = yield* Semaphore.make(1);
 
   const tailscaleStatusCache = yield* Cache.make({
@@ -562,9 +560,6 @@ export const make = Effect.gen(function* () {
       customHttpsEndpointUrls: config.desktopHttpsEndpointUrls,
     });
 
-    // Don't spawn the Tailscale CLI when the user hasn't opted into any
-    // network exposure. The spawn itself triggers a macOS "Other apps"
-    // TCC prompt on Mac App Store Tailscale builds.
     if (state.mode !== "network-accessible" && !state.tailscaleServeEnabled) {
       return coreEndpoints;
     }

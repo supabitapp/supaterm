@@ -1,82 +1,4 @@
-// Pool registry for multiple backend processes. This file is the entry
-// point for the concurrent-Windows+WSL-backend feature; see the design
-// notes below before extending it.
-//
-// Current state:
-//   - `DesktopBackendManager.ts` exposes a per-instance factory
-//     (`makeBackendInstance(spec)`); the pool calls it once for the
-//     Windows primary at startup, and `DesktopWslBackend.reconcile`
-//     calls it through `pool.register` to bring up the WSL instance
-//     when the user enables it.
-//   - The primary spec wires `configResolve` to
-//     `DesktopBackendConfiguration.resolvePrimary` and the
-//     `onReady`/`onShutdown` callbacks to the window service. WSL
-//     instances wire `configResolve: configuration.resolveWsl(...)`
-//     and skip onReady/onShutdown — the window only follows the primary.
-//   - The pool exposes `register(spec)` and `unregister(id)`. Each
-//     registered instance gets its own child scope, so unregister can
-//     stop it cleanly without tearing down the pool. The primary's id
-//     refuses unregister.
-//   - Settings: `wslBackendEnabled: boolean` + `wslDistro: string | null`.
-//     IPC surface is `setWslBackendEnabled(boolean)` +
-//     `setWslDistro(string | null)`; both persist and then call the
-//     orchestrator's reconcile. No swap, no rollback, primary stays up.
-//   - `getLocalEnvironmentBootstraps()` (plural) returns one entry per
-//     pool instance currently registered with bootstrap info. The
-//     primary keeps the "primary" id; WSL instances are "wsl:default"
-//     or "wsl:<distro>".
-//   - `pickFolder` accepts an optional `targetEnvironmentId`. Omitting
-//     it gives the Windows picker — what every existing caller gets,
-//     and what non-WSL users see. WSL targets route to the wsl helpers.
-//   - Web settings UX: a plain toggle for "WSL backend" plus a distro
-//     picker that shows up when the toggle is on. Default-off, so
-//     users who never opted in see the same surface as before.
-//
-// Renderer-side wiring (apps/web/src/environments/local/):
-//   - reconcileLocalSecondaryEnvironments() runs at app boot and after
-//     WSL settings changes. It reads getLocalEnvironmentBootstraps(),
-//     skips the primary (which the existing primary/ runtime owns),
-//     and for every other entry POSTs the shared bootstrap token to
-//     /api/auth/bootstrap/bearer on that backend's URL, fetches the
-//     descriptor, builds a SavedEnvironmentRecord marked desktopLocal,
-//     writes the bearer to the secret store, and opens a connection
-//     through the same saved-env path remote envs use.
-//   - The desktopLocal marker filters records out of saved-env
-//     persistence, so toggling WSL off or switching distros doesn't
-//     pollute the user's settings file. The sidebar, CommandPalette,
-//     env switcher, and project-id routing all read the saved-env
-//     registry, so the WSL backend shows up there without any
-//     per-surface changes.
-//
-// Browser validation (2026-05-17, dev:desktop with wslBackendEnabled=true,
-// wslDistro="Ubuntu"):
-//   - Two backends listening on distinct loopback ports
-//     (server.log: 13773 primary, 13774 wsl).
-//   - Per-instance log files: server-child.log + server-child-wsl_Ubuntu.log.
-//   - Distinct environment ids reported by each backend's
-//     /.well-known/supaterm/environment (Windows vs Linux platform).
-//   - Renderer completes the bearer-token bootstrap against the WSL
-//     backend (POST /api/auth/bootstrap/bearer 200), obtains a
-//     ws-token (POST /api/auth/ws-token 200), and holds an
-//     ESTABLISHED WebSocket connection to both ports (netstat).
-//
-// Migration history (commits):
-//   1. Reshape `DesktopBackendManager` into an instance factory and route
-//      consumers through the pool. Pool held a single instance. (a8fc7845)
-//   2. Drop `DesktopState.backendReady`. The window owns its own
-//      readiness latch via onReady / onShutdown callbacks. (425c7d0b)
-//   3. Per-instance log routing via DesktopBackendOutputLogFactory. (563820ed)
-//   4. Add register/unregister to the pool. (a0eaf560)
-//   5. Wire WSL through the pool: settings rename, BackendConfiguration
-//      split, DesktopWslBackend orchestrator, new IPC, web compat.
 //      (b1622191 + 31ce3add + 627c80cb)
-//   6. Widen getLocalEnvironmentBootstrap to *Bootstraps (plural). (bad66041)
-//   7. pickFolder takes optional targetEnvironmentId. (5d80468d)
-//   8. Settings UX: toggle + distro picker, no swap dialog. (eb5a03ea)
-//   9. Register WSL backend as desktop-local saved env via
-//      reconcileLocalSecondaryEnvironments. (1c7e7873 + c17897bd)
-//   10. CommandPalette enables file-manager picker for desktop-local
-//       envs, routes pickFolder by env id. (38e8477a)
 
 import * as Context from "effect/Context";
 import * as Deferred from "effect/Deferred";
@@ -86,6 +8,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
+import * as SubscriptionRef from "effect/SubscriptionRef";
 import * as SynchronizedRef from "effect/SynchronizedRef";
 
 import * as FileSystem from "effect/FileSystem";
@@ -95,6 +18,7 @@ import { ChildProcessSpawner } from "effect/process";
 import * as DesktopBackendConfiguration from "./DesktopBackendConfiguration.ts";
 import * as DesktopBackendManager from "./DesktopBackendManager.ts";
 import * as DesktopObservability from "../app/DesktopObservability.ts";
+import * as DesktopState from "../app/DesktopState.ts";
 import * as DesktopAppSettings from "../settings/DesktopAppSettings.ts";
 import * as DesktopTelemetryPublisher from "../telemetry/DesktopTelemetryPublisher.ts";
 import * as DesktopBrowserHost from "../preview/DesktopBrowserHost.ts";
@@ -186,16 +110,11 @@ export const layer = Layer.effect(
     const electronDialog = yield* ElectronDialog.ElectronDialog;
     const electronApp = yield* ElectronApp.ElectronApp;
     const appSettings = yield* DesktopAppSettings.DesktopAppSettings;
-    // Without this, instance scopes are orphaned: they only close via explicit unregister() calls,
-    // so on app shutdown the WSL backend child process gets hard-killed by the OS instead of
-    // receiving the graceful SIGTERM + grace period the instance's stop finalizer would otherwise
-    // run.
+    const { primaryBackendStartup } = yield* DesktopState.DesktopState;
+
     const layerScope = yield* Scope.Scope;
     const factoryContext = yield* Effect.context<BackendInstanceFactoryRequirements>();
 
-    // Fatal configuration failures persist the Windows fallback. Bounded
-    // transport failures use an in-memory fallback for this launch so the app
-    // opens without overwriting the user's WSL preference.
     const handlePrimaryPreflightFailure = Effect.fn("desktop.backendPool.primaryPreflightFailed")(
       function* (failure: DesktopBackendManager.PreflightFailure) {
         const { reason, fatal } = failure;
@@ -219,9 +138,7 @@ export const layer = Layer.effect(
           "WSL backend couldn't start",
           `${reason}\n\nFalling back to the Windows backend so Supaterm can open. Re-enable the WSL backend from Settings > Connections once the WSL distro is fixed.`,
         );
-        // Clearing wslBackendEnabled alone would leave a stale wslOnly:true that silently re-traps
-        // the user in wsl-only mode the next time they enable WSL. If the persisted write fails,
-        // keep this process recoverable by applying the fallback to in-memory settings.
+
         yield* appSettings.applyWslWindowsFallback.pipe(
           Effect.catch((error) =>
             logBackendPoolWarning(
@@ -238,22 +155,21 @@ export const layer = Layer.effect(
 
     const primary = yield* DesktopBackendManager.makeBackendInstance({
       id: DesktopBackendManager.PRIMARY_INSTANCE_ID,
-      // Keep this lazy. The pool layer is initialized before startup loads
-      // persisted desktop settings, so resolving the primary label here would
-      // permanently capture DEFAULT_DESKTOP_SETTINGS and mislabel WSL-only
-      // primaries as Windows.
+
       label: configuration.resolvePrimaryLabel,
       configResolve: configuration.resolvePrimary,
-      // Window creation errors propagating out of handleBackendReady must not block the readiness
-      // callback (that would prevent restartAttempt from being reset), so we absorb them here.
+
       onReady: (httpBaseUrl) =>
         desktopWindow.handleBackendReady(httpBaseUrl).pipe(
+          Effect.andThen(SubscriptionRef.set(primaryBackendStartup, { _tag: "Ready" })),
           Effect.catch((error) =>
             logBackendPoolWarning("failed to open main window after backend readiness", {
               error: error.message,
             }),
           ),
         ),
+      onStartupFailure: (failure) =>
+        SubscriptionRef.set(primaryBackendStartup, { _tag: "Failing", ...failure }),
       onShutdown: () => desktopWindow.handleBackendNotReady,
       onPreflightFailed: handlePrimaryPreflightFailure,
       onStateDirOwned: () =>
@@ -380,13 +296,14 @@ export const layer = Layer.effect(
     });
 
     return DesktopBackendPool.of({
-      get: (id) =>
-        SynchronizedRef.get(instancesRef).pipe(
+      get: Effect.fn("DesktopBackendPool.get")(function (id) {
+        return SynchronizedRef.get(instancesRef).pipe(
           Effect.map((instances) => {
             const entry = instances.get(id);
             return entry?._tag === "Active" ? Option.some(entry.instance) : Option.none();
           }),
-        ),
+        );
+      }),
       list: SynchronizedRef.get(instancesRef).pipe(
         Effect.map((instances) =>
           Array.from(instances.values()).flatMap((entry) =>
@@ -415,11 +332,17 @@ export const layerTest = (
       );
       const primary = instances[0]!;
       return DesktopBackendPool.of({
-        get: (id) => Effect.succeed(Option.fromNullishOr(byId.get(id))),
+        get: Effect.fn("DesktopBackendPool.get")(function (id) {
+          return Effect.succeed(Option.fromNullishOr(byId.get(id)));
+        }),
         list: Effect.succeed(Array.from(byId.values())),
         primary: Effect.succeed(primary),
-        register: () => Effect.die("DesktopBackendPool.layerTest does not support register"),
-        unregister: () => Effect.die("DesktopBackendPool.layerTest does not support unregister"),
+        register: Effect.fn("DesktopBackendPool.register")(function () {
+          return Effect.die("DesktopBackendPool.layerTest does not support register");
+        }),
+        unregister: Effect.fn("DesktopBackendPool.unregister")(function () {
+          return Effect.die("DesktopBackendPool.layerTest does not support unregister");
+        }),
       });
     }),
   );
