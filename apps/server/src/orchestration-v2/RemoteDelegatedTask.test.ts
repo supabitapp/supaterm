@@ -17,6 +17,7 @@ import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Ref from "effect/Ref";
+import * as Stream from "effect/Stream";
 
 import { CodexProviderCapabilitiesV2 } from "./Adapters/CodexAdapterV2.ts";
 import * as EventSink from "./EventSink.ts";
@@ -200,7 +201,7 @@ it.layer(layerTest)("a delegated task in a linked environment", (it) => {
         parentNodeId: parent.rootNodeId,
         task: "Run the suite there.",
         driver: ProviderDriverKind.make("remote"),
-        modelSelection,
+        modelSelection: { ...modelSelection, options: [{ id: "reasoningEffort", value: "max" }] },
         remoteChild,
         completionWake: "always" as const,
       };
@@ -212,6 +213,18 @@ it.layer(layerTest)("a delegated task in a linked environment", (it) => {
       assert.equal(task?.childThreadId, null);
       assert.deepEqual(task?.remoteChild, remoteChild);
       assert.equal(task?.status, "running");
+      assert.deepEqual(task?.modelSelection, request.modelSelection);
+      const sink = yield* EventSink.EventSinkV2;
+      const stored = yield* sink
+        .readByCommandId({ commandId: request.commandId })
+        .pipe(Stream.runCollect);
+      const event = Array.from(stored).find(
+        (stored) => stored.event.type === "subagent.updated",
+      )?.event;
+      assert.deepEqual(
+        event?.type === "subagent.updated" ? event.payload.modelSelection : undefined,
+        request.modelSelection,
+      );
       const item = projection.turnItems.find((candidate) => candidate.type === "subagent");
       assert.deepEqual(item?.type === "subagent" ? item.remoteChild : undefined, remoteChild);
       assert.equal(yield* orchestrator.getThreadShell(remoteChild.threadId), null);
