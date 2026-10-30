@@ -96,6 +96,19 @@ export class PlatformEnvironmentRemovalError extends Schema.TaggedError<Platform
   }
 }
 
+export const assertKnownAddress = Effect.fn("EnvironmentRegistry.assertKnownAddress")(function* (
+  entries: ReadonlyMap<EnvironmentId, ConnectionCatalogEntry>,
+  route: ConnectionRoute,
+) {
+  const saved = entries.get(route.target.environmentId);
+  if (saved === undefined || saved.defaultLabel !== undefined) return;
+  if (findRouteToSameAddress(connectionRoutes(saved), route) !== undefined) return;
+  return yield* new ConnectionBlockedError({
+    reason: "configuration",
+    detail: `That address claims to be ${saved.target.label}, which is already saved. Add it as a route from that environment's settings instead.`,
+  });
+});
+
 export class EnvironmentRegistry extends Context.Service<
   EnvironmentRegistry,
   {
@@ -110,7 +123,8 @@ export class EnvironmentRegistry extends Context.Service<
      */
     readonly register: (
       registration: ConnectionRegistration,
-    ) => Effect.Effect<boolean, Persistence.ConnectionPersistenceError>;
+      options?: { readonly knownAddressOnly?: boolean },
+    ) => Effect.Effect<boolean, Persistence.ConnectionPersistenceError | ConnectionBlockedError>;
     readonly registerPlatform: (registration: PrimaryConnectionRegistration) => Effect.Effect<void>;
     readonly reconcilePlatform: (
       registrations: ReadonlyArray<PlatformConnectionRegistration>,
@@ -202,7 +216,6 @@ interface EnvironmentServiceScope {
   readonly scope: Scope.Closeable;
 }
 
-/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const registryScope = yield* Scope.Scope;
   const storage = yield* Persistence.ConnectionTargetStore;
@@ -568,6 +581,7 @@ export const make = Effect.gen(function* () {
 
   const register = Effect.fn("EnvironmentRegistry.register")(function* (
     registration: ConnectionRegistration,
+    options?: { readonly knownAddressOnly?: boolean },
   ) {
     const registered = connectionRegistrationCatalogEntry(registration);
     const environmentId = registered.target.environmentId;
@@ -575,6 +589,9 @@ export const make = Effect.gen(function* () {
       environmentId,
       Effect.gen(function* () {
         if ((yield* Ref.get(platformEnvironmentIds)).has(environmentId)) return false;
+        if (options?.knownAddressOnly === true) {
+          yield* assertKnownAddress(yield* SubscriptionRef.get(entries), registered);
+        }
         const previous = (yield* SubscriptionRef.get(entries)).get(environmentId);
         let entry = registered;
         if (previous !== undefined) {

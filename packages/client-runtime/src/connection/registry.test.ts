@@ -473,6 +473,52 @@ function awaitConnectionState(
 }
 
 describe("EnvironmentRegistry", () => {
+  it.effect("rechecks restricted registrations against the current saved routes", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness([]);
+      yield* Effect.gen(function* () {
+        const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
+        yield* registry.register(
+          new BearerConnectionRegistration({
+            target: BEARER_TARGET,
+            profile: BEARER_PROFILE,
+            credential: BEARER_CREDENTIAL,
+          }),
+        );
+        const before = yield* SubscriptionRef.get(registry.entries);
+        const registration = new BearerConnectionRegistration({
+          target: new BearerConnectionTarget({ ...BEARER_TARGET, connectionId: "new-route" }),
+          profile: new BearerConnectionProfile({
+            ...BEARER_PROFILE,
+            connectionId: "new-route",
+            httpBaseUrl: "https://new.example.test",
+            wsBaseUrl: "wss://new.example.test",
+          }),
+          credential: BEARER_CREDENTIAL,
+        });
+        const error = yield* registry
+          .register(registration, { knownAddressOnly: true })
+          .pipe(Effect.flip);
+        expect(error).toMatchObject({ _tag: "ConnectionBlockedError", reason: "configuration" });
+        expect(yield* SubscriptionRef.get(registry.entries)).toEqual(before);
+        yield* registry.register(
+          new BearerConnectionRegistration({
+            target: BEARER_TARGET,
+            profile: BEARER_PROFILE,
+            credential: BEARER_CREDENTIAL,
+          }),
+          { knownAddressOnly: true },
+        );
+        yield* registry.register(registration);
+        expect(
+          connectionRoutes(
+            (yield* SubscriptionRef.get(registry.entries)).get(BEARER_TARGET.environmentId)!,
+          ),
+        ).toHaveLength(2);
+      }).pipe(Effect.provide(harness.layer), Effect.scoped);
+    }),
+  );
+
   it.effect.each([
     { name: "direct", targets: [BEARER_TARGET], profiles: [BEARER_PROFILE], enabled: true },
     { name: "SSH", targets: [SSH_CONNECTION], profiles: [SSH_PROFILE], enabled: true },
