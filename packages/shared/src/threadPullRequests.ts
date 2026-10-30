@@ -84,8 +84,7 @@ export function threadPullRequestKeyOf(key: ThreadPullRequestKeySource): string 
   return `${normalized.host}/${normalized.repository}#${normalized.number}`;
 }
 
-/** Tombstoned stack members stay in the array only so the
- * sync reactor does not re-add them. */
+/** Tombstones prevent sync from re-adding hidden members. */
 export function visibleThreadPullRequests(
   links: ReadonlyArray<ThreadPullRequestLink>,
 ): ReadonlyArray<ThreadPullRequestLink> {

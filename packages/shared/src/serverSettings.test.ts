@@ -16,7 +16,7 @@ import * as Schema from "effect/Schema";
 import { describe, expect, it } from "vite-plus/test";
 import { resolveServerBackgroundActivitySettings } from "./backgroundActivitySettings.ts";
 import { createModelSelection } from "./model.ts";
-import { resolveProjectScripts, projectScriptsInheritDefaults } from "./projectScripts.ts";
+import { resolveProjectScripts } from "./projectScripts.ts";
 import {
   applyServerSettingsPatch,
   fallbackTextGenerationModelSelection,
@@ -181,18 +181,15 @@ describe("serverSettings helpers", () => {
       defaultProjectScripts: [action],
     });
     expect(resolveProjectScripts(unfolded, existing)).toEqual(existing.scripts);
-    expect(projectScriptsInheritDefaults(unfolded, existing)).toBe(false);
     const defaults = applyServerSettingsPatch(FOLDED_SERVER_SETTINGS, {
       defaultProjectScripts: [action],
     });
     expect(resolveProjectScripts(defaults, project)).toEqual([action]);
-    expect(projectScriptsInheritDefaults(defaults, project)).toBe(true);
     expect(resolveProjectScripts(defaults, existing)).toEqual([action]);
     const disabled = applyServerSettingsPatch(defaults, {
       projectSettingsOverrides: { [project.id]: { defaultProjectScripts: [] } },
     });
     expect(resolveProjectScripts(disabled, project)).toEqual([]);
-    expect(projectScriptsInheritDefaults(disabled, project)).toBe(false);
     const changedDefault = applyServerSettingsPatch(disabled, {
       defaultProjectScripts: [{ ...action, command: "npm run build" }],
     });
@@ -201,7 +198,6 @@ describe("serverSettings helpers", () => {
       projectSettingsOverrides: { [project.id]: null },
     });
     expect(resolveProjectScripts(reset, existing)).toEqual(changedDefault.defaultProjectScripts);
-    expect(projectScriptsInheritDefaults(reset, existing)).toBe(true);
     expect(
       resolveProjectScripts(
         applyServerSettingsPatch(reset, { defaultProjectScripts: [] }),
