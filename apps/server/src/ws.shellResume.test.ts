@@ -12,6 +12,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as PubSub from "effect/PubSub";
 import * as Stream from "effect/Stream";
+import * as SqlClient from "effect/sql/SqlClient";
 
 import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as ThreadManagement from "./orchestration-v2/ThreadManagementService.ts";
@@ -53,6 +54,9 @@ const collectShellResume = Effect.fnUntraced(function* (input: {
   readonly projects?: ReadonlyMap<string, OrchestrationProjectShell>;
   readonly snapshotThreads?: ReadonlyArray<OrchestrationV2ThreadShell>;
   readonly take?: number;
+  readonly subagentThreadIds?: ReadonlyArray<ThreadId>;
+  readonly afterSynchronized?: Effect.Effect<void>;
+  readonly onThreadRead?: (threadId: ThreadId) => void;
 }) {
   const updates = yield* PubSub.unbounded<never>();
   const items = yield* subscribeOrchestrationV2Shell({
@@ -61,6 +65,9 @@ const collectShellResume = Effect.fnUntraced(function* (input: {
   }).pipe(
     Effect.flatMap((stream) =>
       stream.pipe(
+        Stream.tap((item) =>
+          item.kind === "synchronized" ? (input.afterSynchronized ?? Effect.void) : Effect.void,
+        ),
         input.take === undefined
           ? Stream.takeUntil((item) => item.kind === "synchronized")
           : Stream.take(input.take),
@@ -70,9 +77,13 @@ const collectShellResume = Effect.fnUntraced(function* (input: {
     Effect.provide(
       Layer.mergeAll(
         Layer.mock(ThreadManagement.ThreadManagementService)({
-          listActiveSubagentThreadIds: () => Effect.succeed([]),
+          listActiveSubagentThreadIds: () => Effect.succeed(input.subagentThreadIds ?? []),
           listActiveShellIndex: () => Effect.succeed([]),
-          getThreadShell: (threadId) => Effect.succeed(input.shells?.get(threadId) ?? null),
+          getThreadShell: (threadId) =>
+            Effect.sync(() => {
+              input.onThreadRead?.(threadId);
+              return input.shells?.get(threadId) ?? null;
+            }),
           readShellSnapshot: () =>
             Effect.succeed(
               Effect.succeed({
@@ -122,6 +133,59 @@ const describeResumeItem = (item: OrchestrationV2ShellStreamItem) => {
       return item.kind;
   }
 };
+
+it.live("resumed shells filter a child transcript flood before projecting parent updates", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const events = yield* OrchestrationEventStore.OrchestrationEventStore;
+    const child = ThreadId.make("thread:flood-child");
+    const parent = ThreadId.make("thread:flood-parent");
+    const cursor = yield* insertResumeEvent("thread", parent);
+    const reads: ThreadId[] = [];
+    const publish = Effect.gen(function* () {
+      for (let index = 0; index < 1100; index++) {
+        yield* insertOrchestrationEventRow({
+          aggregateKind: "thread",
+          streamId: child,
+          eventType: "message.updated",
+          payload: JSON.stringify({
+            id: `flood-message-${index}`,
+            threadId: child,
+            runId: null,
+            nodeId: null,
+            createdBy: "user",
+            creationSource: "web",
+            role: "user",
+            text: `${index}`,
+            attachments: [],
+            streaming: false,
+            createdAt: "2026-01-05T00:00:00.000Z",
+            updatedAt: "2026-01-05T00:00:00.000Z",
+          }),
+        });
+      }
+      yield* insertResumeEvent("thread", parent);
+      const stored = yield* events
+        .readApplicationEvents({ afterSequence: cursor })
+        .pipe(Stream.runCollect);
+      assert.equal(stored.length, 1101);
+      yield* events.publishCommitted(stored);
+    }).pipe(Effect.provideService(SqlClient.SqlClient, sql), Effect.orDie);
+    const items = yield* collectShellResume({
+      afterSequence: cursor,
+      subagentThreadIds: [child],
+      shells: new Map([[parent, resumeShellFixture(parent)]]),
+      take: 2,
+      afterSynchronized: publish,
+      onThreadRead: (id) => reads.push(id),
+    });
+    assert.deepEqual(
+      items.map((item) => item.kind),
+      ["synchronized", "thread.updated"],
+    );
+    assert.deepEqual(reads, [parent]);
+  }).pipe(Effect.provide(Layer.fresh(ReplayTestLayer))),
+);
 
 it.live("shell resume past a thousand events sends each changed thread once", () =>
   Effect.gen(function* () {

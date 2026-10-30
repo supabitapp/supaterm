@@ -174,6 +174,7 @@ it.effect.each([
                 }),
         }),
         Layer.mock(ThreadManagement.ThreadManagementService)({
+          listActiveShellIndex: () => Effect.succeed([]),
           getShellSnapshot: () =>
             Effect.succeed({
               threads: [],
