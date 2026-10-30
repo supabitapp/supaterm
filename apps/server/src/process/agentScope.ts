@@ -84,7 +84,7 @@ function parseCgroupCounter(text: string, key: string): number | undefined {
 
 // A stop sends SIGTERM, then SIGKILL after this long. systemd's 90 s default
 // would outlast the wait for a previous server's agents below.
-const STOP_TIMEOUT_OPTION = "--property=TimeoutStopSec=10s";
+const SCOPE_OPTIONS = ["--property=TimeoutStopSec=10s", "--property=Delegate=yes"];
 const STOPPING_POLL_INTERVAL = "100 millis";
 const STOPPING_POLL_ATTEMPTS = 20;
 const CLEAR_FAILED_INTERVAL = "1 second";
@@ -168,8 +168,8 @@ export const make = Effect.gen(function* () {
           "true",
         ]).pipe(Effect.map((result) => result._tag === "Some" && result.value.code === 0));
 
-      const supportsOomPolicy = yield* probe([STOP_TIMEOUT_OPTION, "--property=OOMPolicy=stop"]);
-      if (!supportsOomPolicy && !(yield* probe([STOP_TIMEOUT_OPTION]))) {
+      const supportsOomPolicy = yield* probe([...SCOPE_OPTIONS, "--property=OOMPolicy=stop"]);
+      if (!supportsOomPolicy && !(yield* probe(SCOPE_OPTIONS))) {
         yield* Effect.logInfo("Agent scopes are off: no systemd user manager");
         return undefined;
       }
@@ -344,7 +344,7 @@ export const make = Effect.gen(function* () {
         slice: survivesRestart === true ? AGENT_SLICE : ownedSlice,
         unit,
         options: [
-          STOP_TIMEOUT_OPTION,
+          ...SCOPE_OPTIONS,
           ...(scope.supportsOomPolicy
             ? [`--property=OOMPolicy=${continuing ? "continue" : "stop"}`]
             : []),
