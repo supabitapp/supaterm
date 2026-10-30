@@ -1033,27 +1033,9 @@ importers:
       '@supaterm/mermaid':
         specifier: workspace:*
         version: link:../../packages/mermaid
-      '@supaterm/provider-acp-registry':
-        specifier: workspace:*
-        version: link:../../packages/provider-acp-registry
       '@supaterm/provider-core':
         specifier: workspace:*
         version: link:../../packages/provider-core
-      '@supaterm/provider-cursor':
-        specifier: workspace:*
-        version: link:../../packages/provider-cursor
-      '@supaterm/provider-grok':
-        specifier: workspace:*
-        version: link:../../packages/provider-grok
-      '@supaterm/provider-muse':
-        specifier: workspace:*
-        version: link:../../packages/provider-muse
-      '@supaterm/provider-opencode':
-        specifier: workspace:*
-        version: link:../../packages/provider-opencode
-      '@supaterm/provider-pi':
-        specifier: workspace:*
-        version: link:../../packages/provider-pi
       '@supaterm/shared':
         specifier: workspace:*
         version: link:../../packages/shared
