@@ -643,7 +643,10 @@ describe("ClaudeAdapterV2 native protocol logging", () => {
     };
     assert.equal(systemPrompt.type, "preset");
     assert.equal(systemPrompt.preset, "claude_code");
-    assert.include(systemPrompt.append ?? "", "Use `delegate_task`");
+    assert.include(
+      systemPrompt.append ?? "",
+      "Otherwise use `delegate_task` with the selected provider instance and model.",
+    );
     assert.include(systemPrompt.append ?? "", "call `supaterm_background_wait`");
     assert.notInclude(systemPrompt.append ?? "", "## Supaterm devices");
     const logged = ClaudeAdapterV2.loggedClaudeQueryOptions(options);
@@ -660,7 +663,7 @@ describe("ClaudeAdapterV2 native protocol logging", () => {
       sdkSettings: { env: { ANTHROPIC_API_KEY: "secret-settings-key" } },
     });
     const logged = ClaudeAdapterV2.loggedClaudeQueryOptions(options);
-    assert.deepEqual(logged.settingKeys, ["env", "showThinkingSummaries"]);
+    assert.deepEqual(logged.settingKeys, ["env", "fastMode", "showThinkingSummaries"]);
     assert.notInclude(JSON.stringify(logged), "secret-settings-key");
   });
 });
@@ -687,7 +690,10 @@ describe("ClaudeAdapterV2 device instructions", () => {
   it("gives a session with device access the device block and the ToolSearch line to load it", () => {
     const text = append({ mcp: true, deviceToolsAvailable: true });
     assert.include(text, SUPATERM_DEVICE_TOOL_INSTRUCTIONS_WITH_TOOL_SEARCH);
-    assert.include(text, "Use `delegate_task`");
+    assert.include(
+      text,
+      "Otherwise use `delegate_task` with the selected provider instance and model.",
+    );
   });
 
   it("leaves the device block out without device access or without Supaterm tools", () => {
