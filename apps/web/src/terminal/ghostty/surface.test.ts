@@ -20,6 +20,7 @@ import {
   resolveTerminalMouseData,
   terminalLinkAtPositionWithRange,
   terminalContentOriginY,
+  terminalSelectionAutoscrollRows,
   terminalWheelDeltaRows,
   GhosttyTerminalSurface,
   type GhosttyTerminalSurfaceOptions,
@@ -274,6 +275,24 @@ describe("GhosttyTerminalSurface visibility", () => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it("draws the shared grid without reporting it as the viewer's own size", async () => {
+    const onResize = vi.fn();
+    const harness = createHarness();
+    const surface = await harness.create({ onResize });
+    const measured = { cols: surface.cols, rows: surface.rows };
+    surface.setSharedGrid({ cols: measured.cols - 2, rows: measured.rows - 1 });
+    expect({ cols: surface.cols, rows: surface.rows }).toEqual({
+      cols: measured.cols - 2,
+      rows: measured.rows - 1,
+    });
+    await vi.advanceTimersByTimeAsync(150);
+    expect(onResize).toHaveBeenLastCalledWith(measured.cols, measured.rows);
+    surface.setSharedGrid({ cols: measured.cols + 10, rows: measured.rows + 10 });
+    expect({ cols: surface.cols, rows: surface.rows }).toEqual(measured);
+    surface.setSharedGrid(null);
+    expect({ cols: surface.cols, rows: surface.rows }).toEqual(measured);
   });
 
   it("pastes a script once a fresh terminal's shell enables bracketed paste", async () => {
@@ -558,6 +577,42 @@ const cell = (text: string): GhosttyCell => ({
 });
 
 describe("terminalLinkAtPositionWithRange", () => {
+  it.each([
+    { text: "https://example.com/日本", cols: 80, end: { x: 23, y: 0 } },
+    { text: "src/日本/main.ts:3:1", cols: 80, end: { x: 19, y: 0 } },
+    { text: "https://example.com/🙂", cols: 80, end: { x: 21, y: 0 } },
+    { text: "https://example.com/日本", cols: 23, end: { x: 1, y: 1 } },
+  ])("keeps every cell of $text clickable at $cols columns", async ({ text, cols, end }) => {
+    const core = await GhosttyTerminalCore.create(
+      cols,
+      3,
+      8,
+      16,
+      {
+        foreground: { r: 255, g: 255, b: 255 },
+        background: { r: 0, g: 0, b: 0 },
+        cursor: { r: 255, g: 255, b: 255 },
+      },
+      () => {},
+    );
+    try {
+      core.write(text + " next");
+      const rows = core.snapshot().rowData;
+      for (let y = 0; y <= end.y; y += 1) {
+        const lastColumn = y === end.y ? end.x : cols - 2;
+        for (let x = 0; x <= lastColumn; x += 1) {
+          expect(terminalLinkAtPositionWithRange(rows, y, x)).toEqual({
+            text,
+            range: { start: { x: 0, y: 0 }, end },
+          });
+        }
+      }
+      expect(terminalLinkAtPositionWithRange(rows, end.y, end.x + 1)).toBeNull();
+    } finally {
+      core.dispose();
+    }
+  });
+
   it("activates a wrapped quoted Windows path from its spaces and position suffix", () => {
     const row = (text: string, isWrapContinuation: boolean): GhosttyRow => ({
       cells: Array.from(text, (character) => cell(character)),
@@ -793,6 +848,20 @@ describe("terminalWheelDeltaRows", () => {
     }
     expect(scrolled).toBe(1);
     expect(remainder).toBeCloseTo(4 / 16);
+  });
+});
+
+describe("terminalSelectionAutoscrollRows", () => {
+  it("scrolls more rows per tick the farther the pointer is past an edge", () => {
+    const top = 100;
+    const bottom = 500;
+    expect(terminalSelectionAutoscrollRows(300, top, bottom)).toBe(0);
+    expect(terminalSelectionAutoscrollRows(99, top, bottom)).toBe(-1);
+    expect(terminalSelectionAutoscrollRows(75, top, bottom)).toBe(-8);
+    expect(terminalSelectionAutoscrollRows(501, top, bottom)).toBe(1);
+    expect(terminalSelectionAutoscrollRows(525, top, bottom)).toBe(8);
+    expect(terminalSelectionAutoscrollRows(550, top, bottom)).toBe(15);
+    expect(terminalSelectionAutoscrollRows(2_000, top, bottom)).toBe(15);
   });
 });
 

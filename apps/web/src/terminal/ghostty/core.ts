@@ -1084,7 +1084,7 @@ export class GhosttyTerminalCore {
         }
       }
       let wide = 0;
-      if (text.length === 0 && cells.at(-1)?.text.length) {
+      if (text.length === 0 && (cells.at(-1)?.text.length || cells.length === cols - 1)) {
         this.assertSuccess(
           "ghostty_render_state_row_cells_get(raw)",
           this.runtime.call(
