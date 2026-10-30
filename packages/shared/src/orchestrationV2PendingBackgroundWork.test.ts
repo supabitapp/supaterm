@@ -3,7 +3,29 @@ import { ProviderInstanceId, ProviderThreadId } from "@supaterm/contracts";
 import {
   backgroundWorkHoldsCompletion,
   derivePendingBackgroundWork,
+  turnItemUpdateCanEndBackgroundWork,
 } from "./orchestrationV2PendingBackgroundWork.ts";
+
+describe("turnItemUpdateCanEndBackgroundWork", () => {
+  it.each(["command_execution", "dynamic_tool", "subagent"] as const)(
+    "checks completion after %s stops executing",
+    (type) => {
+      for (const status of ["idle", "completed", "failed", "cancelled", "interrupted"] as const) {
+        expect(turnItemUpdateCanEndBackgroundWork({ type, status })).toBe(true);
+      }
+      for (const status of ["pending", "running", "waiting"] as const) {
+        expect(turnItemUpdateCanEndBackgroundWork({ type, status })).toBe(false);
+      }
+    },
+  );
+
+  it.each(["file_change", "file_search", "web_search", "compaction", "proposed_plan"] as const)(
+    "does not trigger background completion for %s",
+    (type) => {
+      expect(turnItemUpdateCanEndBackgroundWork({ type, status: "completed" })).toBe(false);
+    },
+  );
+});
 
 describe("backgroundWorkHoldsCompletion", () => {
   it.each([
