@@ -1,4 +1,5 @@
 import * as NodeEvents from "node:events";
+import * as NodeVM from "node:vm";
 // @effect-diagnostics-next-line nodeBuiltinImport:off - Playwright download mocks perform real file operations outside the Effect runtime.
 import * as NodeFSP from "node:fs/promises";
 
@@ -6,6 +7,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { it } from "@effect/vitest";
 import {
+  type BrowserRecordingFrameRate,
   EnvironmentId,
   PreviewTabId,
   ProviderInstanceId,
@@ -30,6 +32,7 @@ import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as Broker from "../mcp/PreviewAutomationBroker.ts";
 import * as DesktopChannel from "./DesktopBrowserChannel.ts";
 import * as Manager from "./Manager.ts";
+import * as PreviewAgentActivity from "./PreviewAgentActivity.ts";
 import * as ServerBrowser from "./ServerBrowser.ts";
 import * as PreviewBrowser from "./PreviewBrowser.ts";
 
@@ -49,7 +52,7 @@ vi.mock("./ServerBrowserContexts.ts", () => ({
       return context as unknown as BrowserContext;
     }
     async scratchPage() {
-      return makeContext().page as unknown as Page;
+      return makeEncoderPage() as unknown as Page;
     }
     async connectDesktopPage(endpoint: string) {
       const context = makeContext();
@@ -93,6 +96,7 @@ function makeSession(frame?: ReturnType<typeof makeFrame>) {
         // A snapshot sizes its screenshot from the PNG header; viewers get JPEG frames as-is.
         return { data: (input as { format: string }).format === "png" ? PNG_HEADER : "ZnJhbWU=" };
       }
+      if (method === "Runtime.callFunctionOn") return { result: { value: PNG_HEADER } };
       if (method === "Page.getFrameTree") return { frameTree: { frame: { id: "main" } } };
       // Snapshots read password fields from their own isolated world in each frame.
       if (method === "Page.createIsolatedWorld") {
@@ -213,7 +217,49 @@ function makeContext(onClose?: (context: BrowserContext) => void) {
   return context;
 }
 
+function makeEncoderPage() {
+  const canvas = {
+    width: 0,
+    height: 0,
+    getContext: () => ({ drawImage() {}, fillRect() {} }),
+    captureStream: (frameRate?: number) => ({ frameRate, getTracks: () => [] }),
+  };
+  class FakeMediaRecorder {
+    static isTypeSupported = (type: string) => type === "video/webm";
+    onstart: (() => void) | null = null;
+    constructor(stream: { frameRate?: number }, options: { videoBitsPerSecond: number }) {
+      encoderStreams.push({
+        frameRate: stream.frameRate,
+        bitsPerSecond: options.videoBitsPerSecond,
+      });
+    }
+    start() {
+      this.onstart?.();
+    }
+  }
+  const sandbox: Record<string, unknown> = {
+    document: { createElement: () => canvas },
+    Path2D: function Path2D() {},
+    MediaRecorder: FakeMediaRecorder,
+    createImageBitmap: async () => ({ width: 1280, height: 800, close() {} }),
+    atob,
+    Blob,
+    performance,
+  };
+  sandbox.window = sandbox;
+  const context = NodeVM.createContext(sandbox);
+  return {
+    ...makeContext().page,
+    evaluate: vi.fn(async (script: string | ((arg: unknown) => unknown), arg?: unknown) =>
+      typeof script === "string"
+        ? NodeVM.runInContext(script, context)
+        : NodeVM.runInContext(`(${script.toString()})`, context)(arg),
+    ),
+  };
+}
+
 const contexts: ReturnType<typeof makeContext>[] = [];
+const encoderStreams: Array<{ frameRate: number | undefined; bitsPerSecond: number }> = [];
 
 const contextRequests: Array<{ profileId: string; isolated: boolean }> = [];
 let contextGate: PromiseWithResolvers<void> | null = null;
@@ -234,6 +280,7 @@ const desktopRenders = (tabId: string) => {
   return desktopTabs.has(tabId);
 };
 const releasedDesktopTabs: Array<string> = [];
+const desktopTurns = new NodeEvents.EventEmitter();
 const desktopConnections: Array<{ endpoint: string; context: ReturnType<typeof makeContext> }> = [];
 const testThread = {
   threadId: ThreadId.make("browser-test-thread"),
@@ -294,7 +341,9 @@ const dependencies = Layer.mergeAll(
         Effect.sync(() => releasedDesktopTabs.push(key.tabId)),
       ),
     pointer: () => Effect.void,
+    turn: (threadId, active) => Effect.sync(() => desktopTurns.emit("turn", threadId, active)),
   }),
+  PreviewAgentActivity.layer,
 ).pipe(
   Layer.provideMerge(ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-server-browser-" })),
   Layer.provideMerge(NodeServices.layer),
@@ -323,6 +372,7 @@ const viewerInput = (tabId: string, canOperate: boolean) => ({
 
 beforeEach(() => {
   contexts.length = 0;
+  encoderStreams.length = 0;
   contextRequests.length = 0;
   contextGate = null;
   contextFailure = null;
@@ -335,6 +385,58 @@ beforeEach(() => {
   releasedDesktopTabs.length = 0;
   desktopConnections.length = 0;
 });
+
+it.live("tells the desktop once per thread when its agent turns start and end", () =>
+  Effect.gen(function* () {
+    yield* ServerBrowser.ServerBrowser;
+    const activity = yield* PreviewAgentActivity.PreviewAgentActivity;
+    const threadId = scope.thread.threadId;
+    const turns = yield* Queue.unbounded<readonly [string, boolean]>();
+    const record = (id: string, active: boolean) => Queue.offerUnsafe(turns, [id, active]);
+    desktopTurns.on("turn", record);
+    yield* Effect.addFinalizer(() => Effect.sync(() => desktopTurns.off("turn", record)));
+    const endFirst = yield* activity.begin(threadId);
+    const endSecond = yield* activity.begin(threadId);
+    expect(yield* Queue.take(turns)).toEqual([threadId, true]);
+    yield* endFirst;
+    yield* endFirst;
+    expect(yield* activity.active(threadId)).toBe(true);
+    yield* endSecond;
+    expect(yield* Queue.take(turns)).toEqual([threadId, false]);
+    expect(yield* Queue.size(turns)).toBe(0);
+  }).pipe(Effect.scoped, Effect.provide(layer)),
+);
+
+it.live("preview_open reports its navigation timeout instead of the request budget", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { broker } = yield* ready;
+      initialNavigation = async () => {
+        throw Object.assign(new Error("page.goto: Timeout 15000ms exceeded."), {
+          name: "TimeoutError",
+        });
+      };
+
+      const error = yield* broker
+        .invoke<PreviewAutomationStatus>({
+          scope,
+          operation: "open",
+          input: {
+            url: "http://localhost:1337/",
+            reuseExistingTab: false,
+            show: false,
+          },
+        })
+        .pipe(Effect.flip);
+
+      expect(error).toMatchObject({
+        _tag: "PreviewAutomationTimeoutError",
+        timeoutMs: 15_000,
+      });
+      expect(error.message).toBe("Preview automation open timed out after 15000ms.");
+    }),
+  ).pipe(Effect.provide(layer)),
+);
 
 it.live.each(["desktop" as const, undefined])(
   "explicit desktop targets ($0 runtime) fail without creating a server tab",
@@ -412,6 +514,35 @@ it.live.each([
       yield* Fiber.join(correction);
     }),
   ).pipe(Effect.provide(layer)),
+);
+
+it.live.each([
+  { reports: [], frameRate: 30, bitsPerSecond: 2.5e6 },
+  { reports: [30], frameRate: 30, bitsPerSecond: 2.5e6 },
+  { reports: [60], frameRate: 60, bitsPerSecond: 1280 * 800 * 60 * 0.05 },
+  { reports: [60, undefined], frameRate: 60, bitsPerSecond: 1280 * 800 * 60 * 0.05 },
+  { reports: [60, 30], frameRate: 30, bitsPerSecond: 2.5e6 },
+] satisfies ReadonlyArray<{
+  reports: ReadonlyArray<BrowserRecordingFrameRate | undefined>;
+  frameRate: number;
+  bitsPerSecond: number;
+}>)(
+  "agent recordings encode at the last reported frame rate ($reports)",
+  ({ reports, frameRate, bitsPerSecond }) =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const { browser, broker, tabId } = yield* ready;
+        for (const recordingFrameRate of reports) {
+          yield* browser.reportProfiles({
+            profiles: [],
+            defaultProfileId: "default",
+            ...(recordingFrameRate === undefined ? {} : { recordingFrameRate }),
+          });
+        }
+        yield* broker.invoke({ scope, tabId, operation: "recordingStart", input: {} });
+        expect(encoderStreams).toEqual([{ frameRate, bitsPerSecond }]);
+      }),
+    ).pipe(Effect.provide(layer)),
 );
 
 it.live("enforces provider ownership and explicit targets when a session has multiple tabs", () =>

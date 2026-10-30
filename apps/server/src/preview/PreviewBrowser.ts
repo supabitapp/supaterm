@@ -126,11 +126,6 @@ export class PreviewBrowserUnsupportedError extends Schema.TaggedError<PreviewBr
 export class PreviewBrowser extends Context.Service<
   PreviewBrowser,
   {
-    /**
-     * Path to the installed headless shell. The first call starts the
-     * install; callers wait for it up to a bound and then get its progress
-     * instead, while the install keeps running.
-     */
     readonly executable: Effect.Effect<
       string,
       PreviewBrowserInstallError | PreviewBrowserInstallingError | PreviewBrowserUnsupportedError

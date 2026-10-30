@@ -31,10 +31,6 @@ profile supaterm-chrome-headless-shell /**/tools/chrome-headless-shell/*/*/chrom
 }
 `;
 
-/**
- * Ubuntu 24.04 and Debian 13 renamed some with a `t64` suffix; setup installs
- * whichever name the host's apt offers.
- */
 export const DEBIAN_PACKAGES: ReadonlyArray<ReadonlyArray<string>> = [
   ["libnss3"],
   ["libglib2.0-0t64", "libglib2.0-0"],

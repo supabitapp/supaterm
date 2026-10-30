@@ -1,3 +1,4 @@
+import type { ThemeAppearance } from "@supaterm/shared/themePalettes";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
@@ -45,14 +46,6 @@ const MAX_CONSOLE_TEXT_CHARS = 500;
 const VIEWPORT_HEIGHT = 800;
 const MAX_CAPTURE_HEIGHT = 4_000;
 const CAPTURE_TIMEOUT = "20 seconds";
-// Chrome refuses local files to every web page, frame, worker, and popup, so a
-// page cannot read files the agent's provider withholds; local images reach it
-// already inlined as data URIs. `.localhost` keeps it a secure context that may
-// still load plain-http resources, and the request never leaves the browser.
-// All of the browser's traffic goes through `publicProxy`, which only reaches
-// public addresses, so a page cannot reach this machine's local network. The
-// main frame also stays on the page and the browser opens no popups, so a
-// capture always shows the page itself.
 const PAGE_ORIGIN = "http://supaterm-page.localhost";
 const PAGE_URL = `${PAGE_ORIGIN}/page.html`;
 const PAGE_NAME = "page.html";
@@ -60,9 +53,6 @@ const MEASURE_CONCURRENCY = 3;
 
 const textEncoder = new TextEncoder();
 
-/**
- * Node's encoder, since pages run to 25 MiB.
- */
 const pageBody = (html: string) =>
   Buffer.from(Buffer.from(html, "utf8").toString("base64"), "latin1");
 
@@ -151,11 +141,8 @@ const consoleMessageFromEvent = (method: string, params: unknown): ConsoleMessag
   return undefined;
 };
 
-// Resolves after web fonts load and two frames paint, so late layout lands in the capture.
 const SETTLE_EXPRESSION =
   "document.fonts.ready.then(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)))))";
-// The root's scroll height never drops below the viewport, so a short page
-// reports its own box height instead.
 const MEASURE_EXPRESSION =
   "(() => { const root = document.documentElement; return root.scrollHeight > root.clientHeight ? root.scrollHeight : root.getBoundingClientRect().height; })()";
 
@@ -173,10 +160,6 @@ interface PageEvents {
   omittedConsoleMessages: number;
 }
 
-/**
- * Starts the headless shell for the life of the scope, speaking CDP over
- * `--remote-debugging-pipe` (fd 3 in, fd 4 out, NUL-delimited JSON).
- */
 const launchBrowser = Effect.fnUntraced(function* (input: {
   readonly executable: string;
   readonly noSandbox: boolean;
@@ -265,9 +248,6 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
       ),
     ).pipe(Effect.asVoid);
 
-  // Serves the page. Its body is shared bytes between two small JSON halves,
-  // queued together, so loading a page of up to 25 MiB at several widths never
-  // copies it on this side.
   const fulfillPage = (sessionId: string, requestId: string, body: Uint8Array) =>
     Queue.offerAll(outgoing, [
       textEncoder.encode(
@@ -277,13 +257,13 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
       textEncoder.encode('"}}\0'),
     ]).pipe(Effect.asVoid);
 
-  const receive = (raw: string) => {
+  const receive = Effect.fnUntraced(function* (raw: string) {
     const message = Option.getOrUndefined(decodeCdpMessage(raw));
     if (message?.id !== undefined) {
       const waiter = pending.get(message.id);
       pending.delete(message.id);
-      if (!waiter) return Effect.void;
-      return message.error
+      if (!waiter) return yield* Effect.void;
+      return yield* message.error
         ? Deferred.fail(
             waiter.reply,
             new HtmlRenderBrowserError({
@@ -295,17 +275,17 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
     }
     const sessionId = message?.sessionId;
     const page = sessionId === undefined ? undefined : pages.get(sessionId);
-    if (sessionId === undefined || !page || !message?.method) return Effect.void;
+    if (sessionId === undefined || !page || !message?.method) return yield* Effect.void;
     if (message.method === "Page.loadEventFired") {
-      return page.loaded ? Deferred.succeed(page.loaded, undefined) : Effect.void;
+      return yield* page.loaded ? Deferred.succeed(page.loaded, undefined) : Effect.void;
     }
     if (message.method === "Fetch.requestPaused") {
       const paused = Option.getOrUndefined(decodeRequestPaused(message.params));
-      if (!paused) return Effect.void;
+      if (!paused) return yield* Effect.void;
       const body = page.body;
       const url = paused.request.url.split("#", 1)[0]!;
       if (url === PAGE_URL && body !== undefined) {
-        return fulfillPage(sessionId, paused.requestId, body);
+        return yield* fulfillPage(sessionId, paused.requestId, body);
       }
       // A frame inside the page may show another site; Local Network Access
       // still covers it. The main frame and Supaterm's own origin serve nothing else.
@@ -313,7 +293,7 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
         paused.resourceType === "Document" &&
         paused.frameId !== page.mainFrameId &&
         !url.startsWith(`${PAGE_ORIGIN}/`);
-      return otherSiteFrame
+      return yield* otherSiteFrame
         ? post("Fetch.continueRequest", { requestId: paused.requestId }, sessionId)
         : post(
             "Fetch.failRequest",
@@ -322,10 +302,10 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
           );
     }
     const consoleMessage = consoleMessageFromEvent(message.method, message.params);
-    if (!consoleMessage) return Effect.void;
+    if (!consoleMessage) return yield* Effect.void;
     if (page.consoleMessages.length >= MAX_CONSOLE_MESSAGES) {
       page.omittedConsoleMessages += 1;
-      return Effect.void;
+      return yield* Effect.void;
     }
     const text = consoleMessage.text.replaceAll(PAGE_URL, PAGE_NAME);
     page.consoleMessages.push({
@@ -333,8 +313,8 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
       text:
         text.length > MAX_CONSOLE_TEXT_CHARS ? `${text.slice(0, MAX_CONSOLE_TEXT_CHARS)}…` : text,
     });
-    return Effect.void;
-  };
+    return yield* Effect.void;
+  });
 
   // The pipe closes when the browser exits. A startup abort, such as a missing
   // sandbox, says why on stderr, which may still be draining, so give it a moment.
@@ -366,7 +346,6 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
     );
   });
 
-  // Decoded text chunks may split a message anywhere, and a screenshot reply spans many.
   let partial: Array<string> = [];
   yield* child.getOutputFd(4).pipe(
     Stream.decodeText(),
@@ -412,7 +391,7 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
     );
   });
 
-  const openPage = Effect.fnUntraced(function* (width: number) {
+  const openPage = Effect.fnUntraced(function* (width: number, appearance: ThemeAppearance) {
     const { targetId } = yield* send(
       "Target.createTarget",
       { url: "about:blank" },
@@ -435,6 +414,12 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
     yield* send("Page.enable", {}, Ignored, sessionId);
     yield* send("Runtime.enable", {}, Ignored, sessionId);
     yield* send("Log.enable", {}, Ignored, sessionId);
+    yield* send(
+      "Emulation.setEmulatedMedia",
+      { features: [{ name: "prefers-color-scheme", value: appearance }] },
+      Ignored,
+      sessionId,
+    );
     // Previews have no use for WebRTC, whose ICE servers can make the browser
     // resolve names outside the proxy. Runs before page scripts in every frame.
     yield* send(
@@ -446,8 +431,6 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
       Ignored,
       sessionId,
     );
-    // Pauses Supaterm's own origin, to serve the page, and every document, to keep
-    // the main frame on it.
     yield* send(
       "Fetch.enable",
       {
@@ -549,6 +532,7 @@ export const captureHtmlScreenshot = Effect.fn("headlessChrome.captureHtmlScreen
     readonly html: string;
     readonly width: number;
     readonly urlFragment: string;
+    readonly appearance: ThemeAppearance;
   }) {
     const path = yield* Path.Path;
     const directory = yield* scratchDirectory;
@@ -557,7 +541,7 @@ export const captureHtmlScreenshot = Effect.fn("headlessChrome.captureHtmlScreen
       noSandbox: input.noSandbox,
       profileDirectory: path.join(directory, "profile"),
     });
-    const page = yield* browser.openPage(input.width);
+    const page = yield* browser.openPage(input.width, input.appearance);
     const contentHeight = yield* page.load(pageBody(input.html), input.urlFragment);
     const capturedHeight = Math.max(1, Math.min(contentHeight, MAX_CAPTURE_HEIGHT));
     const png = yield* page.screenshot(capturedHeight);
@@ -597,7 +581,7 @@ export const measureHtmlHeights = Effect.fn("headlessChrome.measureHtmlHeights")
   return yield* Effect.forEach(
     input.widths,
     (width) =>
-      browser.openPage(width).pipe(
+      browser.openPage(width, "dark").pipe(
         Effect.flatMap((page) =>
           page.load(body, input.urlFragment).pipe(Effect.ensuring(page.close)),
         ),
