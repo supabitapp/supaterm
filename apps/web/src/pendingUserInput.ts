@@ -1,3 +1,4 @@
+import * as sharedUserInput from "@supaterm/client-runtime/state/pending-user-input";
 import type { ThreadContextRecord, UserInputQuestion } from "@supaterm/contracts";
 import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";
 import { formatThreadLink } from "@supaterm/shared/threadLinks";
@@ -12,7 +13,7 @@ export function projectPendingUserInputAnswer(
   const recordsById = new Map(threadContexts.map((record) => [record.contextId, record]));
   return replaceComposerContextReferences(answer, (reference) => {
     const record = reference.kind === "thread" ? recordsById.get(reference.contextId) : undefined;
-    return record ? formatThreadLink(record.threadId, reference.label) : reference.source;
+    return record ? formatThreadLink(record, reference.label) : reference.source;
   });
 }
 
@@ -46,15 +47,6 @@ export interface PendingUserInputProgress {
   canAdvance: boolean;
 }
 
-function normalizeDraftAnswer(value: string | undefined): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
 function normalizeSelectedOptionValues(value: string[] | undefined): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -68,32 +60,8 @@ export function resolvePendingUserInputAnswer(
   question: UserInputQuestion,
   draft: PendingUserInputDraftAnswer | undefined,
 ): string | string[] | null {
-  if (draft?.attachmentsBlocked) return null;
-  const customAnswer =
-    question.allowCustomAnswer === false
-      ? null
-      : question.initialAnswer !== undefined
-        ? (draft?.customAnswer ?? null)
-        : normalizeDraftAnswer(draft?.customAnswer);
-  if (customAnswer !== null && customAnswer.length > 0) {
-    return customAnswer;
-  }
-
-  const selectedOptionValues = normalizeSelectedOptionValues(draft?.selectedOptionValues).filter(
-    (value) => question.options.some((option) => (option.value ?? option.label) === value),
-  );
-  if (question.multiSelect) {
-    return selectedOptionValues.length > 0
-      ? selectedOptionValues
-      : (customAnswer ??
-          (question.allowCustomAnswer !== false && (draft?.attachmentCount ?? 0) > 0 ? "" : null));
-  }
-
-  return (
-    selectedOptionValues[0] ??
-    customAnswer ??
-    (question.allowCustomAnswer !== false && (draft?.attachmentCount ?? 0) > 0 ? "" : null)
-  );
+  const answer = sharedUserInput.resolvePendingUserInputAnswer(question, draft);
+  return typeof answer === "string" || answer === null ? answer : [...answer];
 }
 
 export function setPendingUserInputCustomAnswer(
@@ -161,23 +129,11 @@ export function togglePendingUserInputOptionSelection(
   draft: PendingUserInputDraftAnswer | undefined,
   optionValue: string,
 ): PendingUserInputDraftAnswer {
-  if (question.multiSelect) {
-    const selectedOptionValues = normalizeSelectedOptionValues(draft?.selectedOptionValues);
-    const nextSelectedOptionValues = selectedOptionValues.includes(optionValue)
-      ? selectedOptionValues.filter((value) => value !== optionValue)
-      : [...selectedOptionValues, optionValue];
-
-    return {
-      customAnswer: "",
-      ...(nextSelectedOptionValues.length > 0
-        ? { selectedOptionValues: nextSelectedOptionValues }
-        : {}),
-    };
-  }
-
+  const next = sharedUserInput.togglePendingUserInputOptionSelection(question, draft, optionValue);
+  const { selectedOptionValues, ...rest } = next;
   return {
-    customAnswer: "",
-    selectedOptionValues: [optionValue],
+    ...rest,
+    ...(selectedOptionValues ? { selectedOptionValues: [...selectedOptionValues] } : {}),
   };
 }
 

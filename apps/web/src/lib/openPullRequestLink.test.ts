@@ -1,3 +1,4 @@
+import { SourceControlProviderKind } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
@@ -18,7 +19,7 @@ function repositoryIdentity(
 ): RepositoryIdentity {
   return {
     canonicalKey,
-    provider,
+    provider: SourceControlProviderKind.make(provider),
     locator: { source: "git-remote", remoteName: "origin", remoteUrl },
   };
 }

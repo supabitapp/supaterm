@@ -4,7 +4,9 @@ import { useNavigate } from "@tanstack/react-router";
 import { type MouseEvent } from "react";
 
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
-import { parseChangeRequestUrl, type ChangeRequestLink } from "@supaterm/shared/changeRequestUrl";
+import type { ChangeRequestLink } from "@supaterm/client-runtime/source-control-clients";
+const parseChangeRequestUrl = (url: string): ChangeRequestLink | null =>
+  sourceControlClients.parseChangeRequestUrl(url)?.link ?? null;
 import { sourceControlRepositorySelector } from "@supaterm/shared/sourceControl";
 
 import { useOpenLink } from "../browser/useOpenLink";
@@ -19,14 +21,15 @@ import { readProjects, useProjects } from "../state/entities";
 import { environmentServerConfigsAtom, serverEnvironment } from "../state/server";
 import { usePrimaryEnvironmentId } from "../state/environments";
 
+export { parseChangeRequestUrl, type ChangeRequestLink };
 export {
-  parseChangeRequestUrl,
-  type ChangeRequestLink,
   gitHubPullRequestBrowserUrl,
-  pullRequestCandidateUrlFromReferenceAutolink,
-  matchesLinkedPullRequestUrl,
   changeRequestRepositoryUrl,
 } from "@supaterm/shared/changeRequestUrl";
+export const pullRequestCandidateUrlFromReferenceAutolink = (url: string) =>
+  sourceControlClients.changeRequestUrlFromReferenceAutolink(url);
+export const matchesLinkedPullRequestUrl = (linked: { readonly url: string }, url: string) =>
+  sourceControlClients.isSameChangeRequest(linked.url, url);
 
 export function findProjectForChangeRequest(
   projects: ReadonlyArray<EnvironmentProject>,

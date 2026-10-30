@@ -1,3 +1,8 @@
+import { useEffect } from "react";
+import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
+import { appAtomRegistry } from "../rpc/atomRegistry";
+import { threadFamilies } from "./threadCommands";
+export { threadFamilies, olderSettledThreads } from "./threadCommands";
 import { enabledEnvironmentIds } from "@supaterm/client-runtime/state/connections";
 import {
   createEnvironmentThreadDetailAtoms,
@@ -37,3 +42,14 @@ export const runningThreadKeepAliveAtom = createRunningThreadKeepAliveAtom({
   threadsAtom: environmentThreadShells.environmentThreadsAtom,
   stateAtom: environmentThreads.stateAtom,
 });
+
+export function useThreadFamily(
+  environmentId: EnvironmentId | null,
+  rootThreadId: ThreadId | null,
+): void {
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- retains the visible pane's remote thread family until the pane leaves
+  useEffect(() => {
+    if (environmentId === null || rootThreadId === null) return;
+    return threadFamilies.mount(appAtomRegistry, environmentId, rootThreadId);
+  }, [environmentId, rootThreadId]);
+}

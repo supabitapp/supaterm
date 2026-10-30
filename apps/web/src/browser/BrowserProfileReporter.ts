@@ -2,7 +2,9 @@ import type { EnvironmentServerConfig } from "@supaterm/client-runtime/connectio
 import { runAtomCommand } from "@supaterm/client-runtime/state/runtime";
 import { AuthPreviewOperateScope, type EnvironmentId } from "@supaterm/contracts";
 import type { ClientSettings } from "@supaterm/contracts/settings";
-import { Atom } from "effect/reactivity";
+import * as Option from "effect/Option";
+import { sessionGrantsScope } from "@supaterm/contracts";
+import { AsyncResult, Atom } from "effect/reactivity";
 
 import {
   getClientSettings,
@@ -13,7 +15,7 @@ import {
 import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { environmentPresentations } from "~/state/presentation";
 import { previewEnvironment } from "~/state/preview";
-import { environmentSession, sessionHasScope } from "~/state/session";
+import { environmentSession } from "~/state/session";
 
 export interface ProfileReport {
   readonly profiles: ClientSettings["browserProfiles"];
@@ -21,16 +23,33 @@ export interface ProfileReport {
   readonly recordingFrameRate: ClientSettings["browserRecordingFrameRate"];
 }
 
-const reportTargetsAtom = Atom.make((get) => {
+export function selectBrowserProfileReportTargets(
+  configs: ReadonlyMap<EnvironmentId, EnvironmentServerConfig>,
+  readSession: (
+    environmentId: EnvironmentId,
+  ) => Atom.Type<ReturnType<typeof environmentSession.sessionStateAtom>>,
+) {
   const targets = new Map<EnvironmentId, EnvironmentServerConfig>();
-  for (const [environmentId, config] of get(environmentPresentations.serverConfigsAtom)) {
-    if (!config.environment.capabilities.serverBrowser) continue;
-    const session = get(environmentSession.sessionStateAtom(environmentId));
-    if (!sessionHasScope(session, AuthPreviewOperateScope)) continue;
+  for (const [environmentId, config] of configs) {
+    const session = readSession(environmentId);
+    if (
+      session._tag === "Failure" ||
+      !Option.exists(AsyncResult.value(session), (value) =>
+        sessionGrantsScope(value, AuthPreviewOperateScope),
+      )
+    )
+      continue;
     targets.set(environmentId, config);
   }
   return targets;
-}).pipe(Atom.withLabel("browser-profile-report-targets"));
+}
+
+const reportTargetsAtom = Atom.make((get) =>
+  selectBrowserProfileReportTargets(
+    get(environmentPresentations.serverConfigsAtom),
+    (environmentId) => get(environmentSession.sessionStateAtom(environmentId)),
+  ),
+).pipe(Atom.withLabel("browser-profile-report-targets"));
 
 export function startBrowserProfileReporting(): () => void {
   const reported: ReportedProfiles = new Map();

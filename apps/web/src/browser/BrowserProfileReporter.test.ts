@@ -1,11 +1,19 @@
 import type { EnvironmentServerConfig } from "@supaterm/client-runtime/connection";
-import { EnvironmentId } from "@supaterm/contracts";
+import {
+  AuthPreviewOperateScope,
+  AuthSessionState,
+  ServerConfig,
+  EnvironmentId,
+} from "@supaterm/contracts";
+import * as Schema from "effect/Schema";
+import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
   type ProfileReport,
   type ReportedProfiles,
   takeDueProfileReports,
+  selectBrowserProfileReportTargets,
 } from "./BrowserProfileReporter";
 
 const first = EnvironmentId.make("environment-1");
@@ -61,4 +69,57 @@ describe("takeDueProfileReports", () => {
     expect(takeDueProfileReports(reported, new Map(), settings)).toEqual([]);
     expect(takeDueProfileReports(reported, new Map([[first, configA]]), settings)).toEqual([first]);
   });
+});
+
+it("reports to current servers with preview access and stops when that access is absent", () => {
+  const auth = {
+    policy: "loopback-browser",
+    bootstrapMethods: ["one-time-token"],
+    sessionMethods: ["browser-session-cookie"],
+    sessionCookieName: "supaterm_session",
+  };
+  const current = Schema.decodeUnknownSync(ServerConfig)({
+    environment: {
+      environmentId: first,
+      label: "Current server",
+      platform: { os: "linux", arch: "x64" },
+      serverVersion: "26.10.6",
+      orchestrationProtocolVersion: 2,
+      capabilities: {},
+    },
+    auth,
+    cwd: "/workspace",
+    keybindingsConfigPath: "/workspace/keybindings.json",
+    keybindings: [],
+    issues: [],
+    providers: [],
+    availableEditors: [],
+    observability: {
+      logsDirectoryPath: "/logs",
+      localTracingEnabled: false,
+      otlpTracesEnabled: false,
+      otlpMetricsEnabled: false,
+    },
+    settings: {},
+  });
+  const configs = new Map([
+    [first, current],
+    [second, current],
+  ]);
+  const allowed = AsyncResult.success(
+    Schema.decodeUnknownSync(AuthSessionState)({
+      authenticated: true,
+      auth,
+      scopes: [AuthPreviewOperateScope],
+    }),
+  );
+  const denied = AsyncResult.success(
+    Schema.decodeUnknownSync(AuthSessionState)({ authenticated: true, auth, scopes: [] }),
+  );
+  expect(
+    selectBrowserProfileReportTargets(configs, (id) => (id === first ? allowed : denied)),
+  ).toEqual(new Map([[first, current]]));
+  expect(selectBrowserProfileReportTargets(configs, () => AsyncResult.initial())).toEqual(
+    new Map(),
+  );
 });

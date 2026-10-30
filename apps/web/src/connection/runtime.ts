@@ -9,6 +9,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { Atom } from "effect/reactivity";
 
+import { isGuestPage } from "../guestPage";
 import * as Runtime from "../lib/runtime";
 import * as BackgroundActivityReporter from "../lib/backgroundActivityReporter";
 import * as ConnectionPlatform from "./platform";
@@ -47,7 +48,7 @@ const layerConnection = BackgroundActivityReporter.layer.pipe(
 
 const layerForPage = Layer.unwrap(
   Effect.suspend((): Effect.Effect<typeof layerConnection> =>
-    typeof window !== "undefined" && window.location?.pathname === "/guest"
+    typeof window !== "undefined" && isGuestPage()
       ? Effect.die(new Error("The guest page has no environment connection."))
       : Effect.succeed(layerConnection),
   ),

@@ -136,6 +136,12 @@ vi.mock("@supaterm/client-runtime/environment", () => ({
   scopeProjectRef: (environmentId: string, projectId: string) => ({ environmentId, projectId }),
   scopeThreadRef: (environmentId: string, threadId: string) => ({ environmentId, threadId }),
 }));
+vi.mock("../providerInstances", () => ({
+  resolveProjectDefaultProviderModelSelection: () => null,
+}));
+vi.mock("@supaterm/shared/usageLimits", () => ({
+  resolveNewThreadModelSelection: () => ({ selection: null, fallback: false }),
+}));
 vi.mock("@supaterm/contracts", () => ({
   DEFAULT_RUNTIME_MODE: "default",
   DEFAULT_SERVER_SETTINGS: {},

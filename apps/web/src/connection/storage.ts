@@ -575,12 +575,10 @@ export function makeBrowserPullRequestRoutingPermissions(
     set: Effect.fn("PullRequestRoutingPermissions.set")(function* (entry, permission) {
       const connectionKey = pullRequestRoutingConnectionKey(entry);
       if (connectionKey === null)
-        return yield* Effect.fail(
-          new ConnectionBlockedError({
-            reason: "configuration",
-            detail: "This environment does not have a saved connection endpoint.",
-          }),
-        );
+        return yield* new ConnectionBlockedError({
+          reason: "configuration",
+          detail: "This environment does not have a saved connection endpoint.",
+        });
       return yield* write(
         entry.target.environmentId,
         permission === "off"

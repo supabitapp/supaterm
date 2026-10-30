@@ -3,7 +3,7 @@ import type { SourceControlProviderInfo } from "@supaterm/contracts";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import type {
   ChangeRequestTerminology,
-  SourceControlClientDefinition,
+  SourceControlDefinition,
 } from "@supaterm/client-runtime/source-control-clients";
 import {
   AzureDevOpsIcon,
@@ -28,19 +28,19 @@ const SOURCE_CONTROL_ICONS: Partial<Record<string, SourceControlIcon>> = {
   gitcafe: GitCafeIcon,
 };
 
-export function sourceControlIcon(definition: SourceControlClientDefinition): SourceControlIcon {
-  return SOURCE_CONTROL_ICONS[definition.icon] ?? PullRequestGlyph.pullRequest;
+export function sourceControlIcon(definition: SourceControlDefinition): SourceControlIcon {
+  return SOURCE_CONTROL_ICONS[definition.kind] ?? PullRequestGlyph.pullRequest;
 }
 
 export interface SourceControlPresentation {
-  readonly definition: SourceControlClientDefinition;
+  readonly definition: SourceControlDefinition;
   readonly providerName: string;
   readonly terminology: ChangeRequestTerminology;
   readonly Icon: SourceControlIcon;
 }
 
 function presentDefinition(
-  definition: SourceControlClientDefinition,
+  definition: SourceControlDefinition,
   providerName: string,
 ): SourceControlPresentation {
   return {

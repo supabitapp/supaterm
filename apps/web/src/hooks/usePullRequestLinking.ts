@@ -7,7 +7,7 @@ import {
   normalizeThreadPullRequestKey,
   threadPullRequestKeysEqual,
   visibleThreadPullRequests,
-} from "@supaterm/shared/threadPullRequests";
+} from "@supaterm/client-runtime/thread-pull-requests";
 import { parseChangeRequestUrl } from "~/lib/openPullRequestLink";
 import { useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
