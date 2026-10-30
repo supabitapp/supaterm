@@ -85,6 +85,8 @@ import {
   THREAD_LIST_V2_DONE_PAGE_COUNT,
   type ThreadListV2ListItem,
 } from "./threadListV2";
+import { useSelectWorkspaceDetail } from "../workspace/useSelectWorkspaceDetail";
+import { NativeScrollView } from "../../native/NativeScrollViewMarker";
 
 /** The sidebar list: flat v2 rows with queued tasks spliced in, plus a
     done "Show more" pager row. */
@@ -188,7 +190,10 @@ function ThreadNavigationSidebarPane(
   const pendingTasks = usePendingNewTasks();
   const activeNewTask = useActiveNewTask();
   const queuedThreadKeys = useQueuedThreadKeys();
-  const { confirmDeletePendingTask } = usePendingTaskListActions();
+  const selectDetail = useSelectWorkspaceDetail();
+  const { confirmDeletePendingTask } = usePendingTaskListActions((params) =>
+    selectDetail({ name: "Thread", params }),
+  );
   const environments = Object.values(savedConnectionsById)
     .map((connection) => ({
       environmentId: connection.environmentId,
@@ -212,11 +217,6 @@ function ThreadNavigationSidebarPane(
           )
         ? [options.selectedEnvironmentId]
         : [];
-  const threadSearch = useThreadSearch(searchEnvironmentIds, props.searchQuery);
-  // This map reaches LegendList's extraData, which re-renders every row whenever it changes
-  // identity; the hook keeps it stable.
-  const threadSearchMatchByKey = useThreadListSearchMatches(threads, threadSearch);
-  const matchedThreadKeys = new Set(threadSearchMatchByKey.keys());
   const projectScopeKey = options.selectedProjectKey;
   const resolvedProjectKey = resolveScratchProjectScopeKey(projectScopeKey, projects, {
     sidebarProjectGroupingMode: options.projectGroupingMode,
@@ -257,15 +257,17 @@ function ThreadNavigationSidebarPane(
   );
   const selectedProjectScope =
     projectScopes.find((scope) => scope.key === resolvedProjectKey) ?? null;
-  const selectedProjectKey = selectedProjectScope?.key ?? null;
-  const selectedProjectRefs =
+  const threadSearch = useThreadSearch(
+    searchEnvironmentIds,
+    props.searchQuery,
     selectedProjectScope === null
-      ? null
-      : new Set(
-          selectedProjectScope.projectRefs.map((projectRef) =>
-            scopedProjectKey(projectRef.environmentId, projectRef.projectId),
-          ),
-        );
+      ? {}
+      : { projectIds: selectedProjectScope.projectRefs.map((ref) => ref.projectId) },
+  );
+  // This map reaches LegendList's extraData, which re-renders every row whenever it changes
+  // identity; the hook keeps it stable.
+  const threadSearchMatchByKey = useThreadListSearchMatches(threads, threadSearch);
+  const selectedProjectKey = selectedProjectScope?.key ?? null;
   const projectByKey = useMemo(() => {
     const map = new Map<string, EnvironmentProject>();
     for (const project of projects) {
@@ -318,7 +320,7 @@ function ThreadNavigationSidebarPane(
     listEnvironments;
   const resolveProviderInstance = useThreadRowProviderInstanceResolver(providersByEnvironmentId);
   const pendingOrder = usePendingThreadOrder(nowMinute, snoozeWakeTick);
-  const { threadListV2Layout } = useThreadListV2Layout({
+  const { threadListV2Layout, olderSettledShelf, contentOnlyThreadKeys } = useThreadListV2Layout({
     grouping: options.threadGrouping,
     groupingProjects: projectScopes.map((scope) => ({
       key: scope.key,
@@ -354,6 +356,14 @@ function ThreadNavigationSidebarPane(
     // unchanged: after a clamped fire (wake beyond the 32-bit setTimeout
     // range) the boundary string is identical and the chain would die.
   }, [nextSnoozeWakeAt, snoozeWakeTick]);
+  const selectedProjectRefs =
+    selectedProjectScope === null
+      ? null
+      : new Set(
+          selectedProjectScope.projectRefs.map((ref) =>
+            scopedProjectKey(ref.environmentId, ref.projectId),
+          ),
+        );
   const listItems = ((): readonly SidebarListItem[] => {
     const v2SearchQuery = props.searchQuery.trim().toLocaleLowerCase();
     const v2PendingTasks = pendingTasks.filter(
@@ -424,7 +434,7 @@ function ThreadNavigationSidebarPane(
   // tap or by shortcut.
   const handleSelectThread = (thread: EnvironmentThreadShell) => {
     const key = threadSearchMatchKey({ environmentId: thread.environmentId, threadId: thread.id });
-    const messageId = threadListV2Layout.contentOnlyThreadKeys.has(key)
+    const messageId = contentOnlyThreadKeys.has(key)
       ? threadSearchMatchByKey.get(key)?.messageId
       : undefined;
     if (messageId) {
@@ -564,7 +574,7 @@ function ThreadNavigationSidebarPane(
             environmentMachine={machineByEnvironmentId.get(thread.environmentId)}
             searchMatch={
               // Only rows listed for their messages show one and open at it.
-              threadListV2Layout.contentOnlyThreadKeys.has(
+              contentOnlyThreadKeys.has(
                 threadSearchMatchKey({ environmentId: thread.environmentId, threadId: thread.id }),
               )
                 ? threadSearchMatchByKey.get(
@@ -678,7 +688,15 @@ function ThreadNavigationSidebarPane(
           <ThreadListV2ShowMoreRow
             pane="sidebar"
             hiddenCount={item.hiddenCount}
-            onPress={showMoreDone}
+            {...(olderSettledShelf.loading
+              ? { state: "loading" as const }
+              : olderSettledShelf.failed
+                ? { state: "failed" as const }
+                : {})}
+            onPress={() => {
+              olderSettledShelf.retry();
+              showMoreDone();
+            }}
           />
         );
     }
@@ -770,6 +788,7 @@ function ThreadNavigationSidebarPane(
           <SwipeableScrollGateProvider enabled={swipeEnabled}>
             <GestureDetector gesture={sidebarScrollGesture}>
               <AnimatedLegendList
+                renderScrollComponent={Platform.OS === "ios" ? NativeScrollView : undefined}
                 itemLayoutAnimation={listMotion.layout}
                 initialScrollOffset={
                   initialScrollOffset > 0
@@ -843,7 +862,9 @@ function ThreadNavigationSidebarPane(
         ) : (
           <SwipeableScrollGateProvider enabled={swipeEnabled}>
             <GestureDetector gesture={sidebarScrollGesture}>
+              {/* oxlint-disable-next-line t3code/require-registered-list-scroll -- Only the non-native workspace layout (Android and the fallback) renders this sidebar, which has no native header to register with. */}
               <AnimatedLegendList
+                renderScrollComponent={Platform.OS === "ios" ? NativeScrollView : undefined}
                 itemLayoutAnimation={listMotion.layout}
                 initialScrollOffset={
                   initialScrollOffset > 0

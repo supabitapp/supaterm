@@ -1,4 +1,7 @@
-import { claimThreadOpen } from "@supaterm/client-runtime/state/thread-search";
+import { scopeThreadRef } from "@supaterm/client-runtime/environment";
+import { parseThreadKey, threadKey } from "@supaterm/client-runtime/state/entities";
+import { createThreadVisitTracker } from "@supaterm/client-runtime/state/thread-visits";
+import { useOpenThreadInspector } from "./thread-inspector-navigation";
 import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
 import { useSidebarWorkspaceTabs } from "../workspace/useSidebarWorkspaceTabs";
 import {
@@ -6,15 +9,15 @@ import {
   settlePromise,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
-import { AsyncResult } from "effect/reactivity";
+import { AsyncResult, Atom } from "effect/reactivity";
 import * as Dialog from "../../components/ui/Dialog";
 import { pendingThreadCreationLabel } from "@supaterm/client-runtime/pending-thread-creation";
 import { useSelectedThreadComposerMetadata } from "../../state/use-thread-detail";
-import { useAtomValue } from "@effect/atom-react";
-import { useChildThreadInputs, useThreadShell } from "../../state/entities";
+import { useAtomMount, useAtomValue } from "@effect/atom-react";
+import { useChildThreadInputs } from "../../state/entities";
 import { UsageLimitRecoveryCard } from "./UsageLimitRecoveryCard";
 import { ChatGptUsageLimitNotice } from "./ChatGptUsageLimitNotice";
-import { StackActions, useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import {
   effectiveSnoozed,
   isThreadWokeUnseen,
@@ -142,7 +145,7 @@ import {
   clearThreadComposerError,
   threadComposerErrorsAtom,
 } from "../../state/thread-composer-error";
-import { threadEnvironment } from "../../state/threads";
+import { environmentThreadShells, threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { useDelayedStatus } from "../../lib/useDelayedStatus";
 import {
@@ -193,6 +196,7 @@ import {
   pendingThreadMessageJump,
   subscribeThreadMessageJump,
 } from "./threadMessageJump";
+import { ThreadGuestShareBar } from "./ThreadGuestShareBar";
 import { useOpenLinkedThread } from "./useOpenLinkedThread";
 import { useGlobalVoiceInput } from "../voice-input/VoiceInputProvider";
 
@@ -424,123 +428,32 @@ const USER_INPUT_TOGGLE_TIMING = {
   easing: Easing.out(Easing.cubic),
 };
 
-function ThreadVisitWatermark(props: {
-  readonly environmentId: EnvironmentId;
-  readonly selectedThread: EnvironmentThreadShell;
-  readonly showContent: boolean;
-}) {
-  const liveThread = useThreadShell({
-    environmentId: props.environmentId,
-    threadId: props.selectedThread.id,
-  });
-  const thread = liveThread ?? props.selectedThread;
-  const showContent = props.showContent;
-  const selectedThreadKey = scopedThreadKey(props.environmentId, thread.id);
-  const visitThread = useAtomCommand(threadEnvironment.visit, { reportFailure: false });
-  const lastDispatchedVisitRef = useRef<string | null>(null);
-  const lastVisitDispatchRef = useRef({ threadKey: selectedThreadKey, at: 0 });
-  const selectedThreadId = thread.id;
-  const snoozedUntil = thread.snoozedUntil;
-  // Keep the clock in state so React Compiler invalidates the wake calculation.
-  const [wakeNow, setWakeNow] = useState(() => new Date().toISOString());
-  useEffect(() => {
-    if (!showContent || snoozedUntil == null) return;
-    const delay = Date.parse(snoozedUntil) - Date.now();
-    if (!Number.isFinite(delay)) return;
-    const timer = setTimeout(() => setWakeNow(new Date().toISOString()), Math.max(0, delay) + 50);
-    return () => clearTimeout(timer);
-  }, [showContent, snoozedUntil]);
-  const selectedThreadWokeAt = threadWokeAt(thread, {
-    now: wakeNow,
-  });
-  // A scheduled wake can happen without a newer server update.
-  const selectedThreadUpdatedAt =
-    selectedThreadWokeAt !== null && Date.parse(selectedThreadWokeAt) > Date.parse(thread.updatedAt)
-      ? selectedThreadWokeAt
-      : thread.updatedAt;
-  const wakeIsLatestUpdate = selectedThreadUpdatedAt === selectedThreadWokeAt;
-  const selectedThreadLastVisitedAt = thread.lastVisitedAt;
-  const selectedThreadCompletedAt = thread.latestRun?.completedAt;
-  // Opening a thread is one visit that also counts toward search ranking; a
-  // palette pick already sent it with the query. The watermark effect below
-  // skips it.
-  const recordedOpenRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!showContent) return;
-    if (recordedOpenRef.current === selectedThreadKey) return;
-    recordedOpenRef.current = selectedThreadKey;
-    // Recorded here even when the server cannot take opens, so recents follow it.
-    const claimed = claimThreadOpen(props.environmentId, selectedThreadId, Date.now());
-    if (!claimed || selectedThreadLastVisitedAt === undefined) return;
-    lastDispatchedVisitRef.current = `${selectedThreadKey}:${selectedThreadUpdatedAt}`;
-    lastVisitDispatchRef.current = { threadKey: selectedThreadKey, at: Date.now() };
-    void visitThread({
-      environmentId: props.environmentId,
-      input: {
-        threadId: selectedThreadId,
-        visitedAt: selectedThreadUpdatedAt,
-        opened: true,
-      },
-    });
-  }, [
-    props.environmentId,
-    selectedThreadId,
-    selectedThreadKey,
-    selectedThreadLastVisitedAt,
-    selectedThreadUpdatedAt,
-    showContent,
-    visitThread,
-  ]);
-  useEffect(() => {
-    if (!showContent || selectedThreadLastVisitedAt === undefined) return;
-    const threadUpdatedAtMs = Date.parse(selectedThreadUpdatedAt);
-    if (Number.isNaN(threadUpdatedAtMs)) return;
-    const lastVisitedAtMs = selectedThreadLastVisitedAt
-      ? Date.parse(selectedThreadLastVisitedAt)
-      : NaN;
-    if (!Number.isNaN(lastVisitedAtMs) && lastVisitedAtMs >= threadUpdatedAtMs) return;
-    const dispatchKey = `${selectedThreadKey}:${selectedThreadUpdatedAt}`;
-    if (lastDispatchedVisitRef.current === dispatchKey) return;
-    const dispatch = () => {
-      lastDispatchedVisitRef.current = dispatchKey;
-      lastVisitDispatchRef.current = { threadKey: selectedThreadKey, at: Date.now() };
-      void visitThread({
-        environmentId: props.environmentId,
-        input: { threadId: selectedThreadId, visitedAt: selectedThreadUpdatedAt },
-      });
-    };
-    const completedAtMs = selectedThreadCompletedAt ? Date.parse(selectedThreadCompletedAt) : NaN;
-    const hasUnseenCompletion =
-      !Number.isNaN(completedAtMs) &&
-      (Number.isNaN(lastVisitedAtMs) || completedAtMs > lastVisitedAtMs);
-    const previous = lastVisitDispatchRef.current;
-    const elapsed = Date.now() - previous.at;
-    // Like a completion, a wake the user is looking at must not wait out the throttle:
-    // leaving within it would cancel the dispatch and keep Woke in the list.
-    if (
-      previous.threadKey !== selectedThreadKey ||
-      hasUnseenCompletion ||
-      wakeIsLatestUpdate ||
-      elapsed >= 10_000
-    ) {
-      dispatch();
-      return;
+const wakeAwareVisitShell = Atom.family((key: string) => {
+  const ref = parseThreadKey(key);
+  return Atom.make((get) => {
+    const shell = get(environmentThreadShells.threadShellAtom(ref));
+    if (shell === null) return null;
+    const nowMs = Date.now();
+    const wokeAt = threadWokeAt(shell, { now: new Date(nowMs).toISOString() });
+    const wakeAtMs = shell.snoozedUntil == null ? NaN : Date.parse(shell.snoozedUntil);
+    if (wokeAt === null && wakeAtMs > nowMs) {
+      const timer = setTimeout(
+        () => get.refreshSelf(),
+        Math.min(wakeAtMs - nowMs + 50, 2_147_483_647),
+      );
+      get.addFinalizer(() => clearTimeout(timer));
     }
-    const timer = setTimeout(dispatch, 10_000 - elapsed);
-    return () => clearTimeout(timer);
-  }, [
-    props.environmentId,
-    selectedThreadId,
-    selectedThreadKey,
-    selectedThreadLastVisitedAt,
-    selectedThreadCompletedAt,
-    selectedThreadUpdatedAt,
-    showContent,
-    visitThread,
-    wakeIsLatestUpdate,
-  ]);
-  return null;
-}
+    return { ...shell, wokeAt };
+  }).pipe(Atom.withLabel(`mobile-thread-visit-shell:${key}`));
+});
+
+const threadVisitTracker = createThreadVisitTracker({
+  threadShellAtom: (ref) => wakeAwareVisitShell(threadKey(ref)),
+  visit: threadEnvironment.visit,
+});
+
+// Past the composer's 180 ms height animation.
+const COMPOSER_HEIGHT_SETTLE_MS = 220;
 
 export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetailScreenProps) {
   const usesNativeWorkspaceColumns = useNativeWorkspaceColumnsSupported();
@@ -556,6 +469,7 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
   const navigation = useNavigation();
   const { selectThreadRoute } = useAdaptiveWorkspaceLayout();
   const openLinkedThread = useOpenLinkedThread();
+  const openInspector = useOpenThreadInspector();
   const { session: voiceInputSession } = useGlobalVoiceInput();
   const { reportedModelSelection, queuedCount, turnSubagents } =
     useSelectedThreadComposerMetadata();
@@ -565,6 +479,13 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
   const devicePreviews = threadDevicePreviews(deviceState.data, props.selectedThread.id);
   const openDevicePreview = () => {
     Keyboard.dismiss();
+    if (
+      openInspector(
+        { environmentId: props.environmentId, threadId: props.selectedThread.id },
+        { type: "device", environmentId: props.environmentId, threadId: props.selectedThread.id },
+      )
+    )
+      return;
     navigation.navigate("ThreadDevicePreview", {
       environmentId: props.environmentId,
       threadId: props.selectedThread.id,
@@ -666,12 +587,27 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
   const feedTouchStartRef = useRef<{ pageX: number; pageY: number } | null>(null);
   const selectedThreadKeyRef = useRef(selectedThreadKey);
   const lastScrolledSubmittedMessageIdRef = useRef<MessageId | null>(null);
+  const [composerHeight, setComposerHeight] = useState<number | null>(null);
+  const composerHeightSettle = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleComposerHeightChange = useCallback((height: number) => {
+    setComposerHeight((current) => current ?? height);
+    if (composerHeightSettle.current !== null) clearTimeout(composerHeightSettle.current);
+    composerHeightSettle.current = setTimeout(() => {
+      composerHeightSettle.current = null;
+      setComposerHeight(height);
+    }, COMPOSER_HEIGHT_SETTLE_MS);
+  }, []);
+  useEffect(
+    () => () => {
+      if (composerHeightSettle.current !== null) clearTimeout(composerHeightSettle.current);
+    },
+    [],
+  );
   const [composerExpanded, setComposerExpanded] = useState(false);
   const [composerMenuOpen, setComposerMenuOpen] = useState(false);
   const [anchorMessageId, setAnchorMessageId] = useState<MessageId | null>(null);
   const [submittedMessageId, setSubmittedMessageId] = useState<MessageId | null>(null);
   const [endFollowEnabled, setEndFollowEnabled] = useState(true);
-  const [composerHeight, setComposerHeight] = useState<number | null>(null);
   // Keep the bottom padding fixed while the keyboard animates. Changing it at
   // keyboardDidHide makes the composer land low, then jump back above the safe area.
   const bottomBarInset = useDuoBottomBarInset();
@@ -843,12 +779,7 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
         accessibilityLabel: `Open ${childInput.hasPendingApprovals ? "approval" : "question"} from ${childInput.title}`,
         onPress: () => {
           Keyboard.dismiss();
-          navigation.dispatch(
-            StackActions.push("Thread", {
-              environmentId: props.environmentId,
-              threadId: childInput.id,
-            }),
-          );
+          openLinkedThread({ environmentId: props.environmentId, threadId: childInput.id });
         },
       };
     }
@@ -1209,6 +1140,14 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
     userInputInsetProgress.set(1);
   }, [activeUserInputRequestId, userInputCardProgress, userInputInsetProgress]);
   const showContent = props.showContent ?? true;
+  // Showing the thread counts as viewing it, before its live shell arrives too.
+  useAtomMount(
+    threadVisitTracker(
+      showContent && !props.draftMode
+        ? { environmentId: props.environmentId, threadId: props.selectedThread.id }
+        : null,
+    ),
+  );
   const layoutVariant = props.layoutVariant ?? "compact";
   const isSplitLayout = layoutVariant === "split";
   const contentMaxWidth =
@@ -1504,11 +1443,6 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
   return (
     <View className="flex-1" onLayout={handleScreenLayout}>
       {!usesNativeWorkspaceColumns ? <NativeLayoutObserver onChange={setScreenMetrics} /> : null}
-      <ThreadVisitWatermark
-        environmentId={props.environmentId}
-        selectedThread={props.selectedThread}
-        showContent={showContent && !props.draftMode}
-      />
       {props.draftMode ? (
         props.draftMode.content(
           navigationHeaderHeight,
@@ -1702,6 +1636,14 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
                     key={`chatgpt-limit:${props.selectedThread.latestRun?.runId}`}
                     thread={props.selectedThread}
                   />
+                  <ThreadGuestShareBar
+                    threadRef={
+                      props.draftMode || clientCreation
+                        ? null
+                        : scopeThreadRef(props.environmentId, props.selectedThread.id)
+                    }
+                    canOperateThread={props.canOperateThread}
+                  />
                   {props.feedbackSubmissions.map((submission) => (
                     <ComposerFeedback
                       key={submission.id}
@@ -1889,7 +1831,7 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
                         onUpdateModelSelection={props.onUpdateThreadModelSelection}
                         onUpdateRuntimeMode={props.onUpdateThreadRuntimeMode}
                         onExpandedChange={setComposerExpanded}
-                        onHeightChange={setComposerHeight}
+                        onHeightChange={handleComposerHeightChange}
                         onEditorFocusChange={handleOwnedInputFocusChange}
                         onCommandMenuOpenChange={setComposerMenuOpen}
                       />

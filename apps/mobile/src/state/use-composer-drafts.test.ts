@@ -4,6 +4,7 @@ import { createEnvironmentThreadShellAtoms } from "@supaterm/client-runtime/stat
 import {
   applyShellStreamEvent,
   createEnvironmentSnapshotAtom,
+  EMPTY_SHELL_STATE,
   type EnvironmentShellState,
   type EnvironmentShellStatus,
 } from "@supaterm/client-runtime/state/shell";
@@ -282,9 +283,9 @@ function modelReconciliationHarness(
     ],
   };
   const shellStateAtom = Atom.make<EnvironmentShellState>({
+    ...EMPTY_SHELL_STATE,
     snapshot: Option.some(initialSnapshot),
     status: initialStatus,
-    error: Option.none(),
   });
   const shellResultAtom = Atom.map(shellStateAtom, AsyncResult.success);
   const snapshotAtom = createEnvironmentSnapshotAtom(() => shellResultAtom)(environmentId);

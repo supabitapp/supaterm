@@ -87,6 +87,7 @@ export function resolveThreadListV2ProviderDrivers(
 export type ThreadListV2Status =
   | "approval"
   | "input"
+  | "request"
   | "working"
   | "waiting"
   | "failed"
@@ -200,6 +201,7 @@ export function resolveThreadListV2Status(
     | "hasPendingApprovals"
     | "hasPendingUserInput"
     | "pendingSubagentRequest"
+    | "pendingGuestMessageCount"
     | "runtime"
     | "blockedOnThreadWait"
   >,
@@ -209,6 +211,10 @@ export function resolveThreadListV2Status(
   }
   if (thread.hasPendingUserInput || thread.pendingSubagentRequest === "user_input") {
     return "input";
+  }
+  // A guest is waiting on the owner; the agent's own requests come first.
+  if ((thread.pendingGuestMessageCount ?? 0) > 0) {
+    return "request";
   }
   if (thread.runtime?.status === "running" && thread.blockedOnThreadWait === true) {
     return "waiting";
@@ -291,6 +297,7 @@ export interface ThreadListV2Layout {
   readonly items: ThreadListV2Item[];
   /** Done threads beyond the render limit (behind "Show more"). */
   readonly hiddenDoneCount: number;
+  readonly listedSettledThreads: ReadonlyArray<EnvironmentThreadShell>;
   /** Pinned threads in scope, including collapsed rows. */
   readonly pinnedCount: number;
   readonly activeCount: number;
@@ -711,6 +718,7 @@ export function buildThreadListV2Items(input: {
   readonly collapsedGroups?: readonly string[];
   /** Returns this device observed but the server does not stamp, such as an
       approval request mid-turn. */
+  readonly isWorking?: (thread: EnvironmentThreadShell) => boolean;
   readonly inboxReturnAt?: (thread: EnvironmentThreadShell) => number | undefined;
   readonly snoozedShelfExpanded?: boolean;
   /** Expands the done shelf into rows. Expanded is the default. */
@@ -720,6 +728,10 @@ export function buildThreadListV2Items(input: {
       outbox. Such a thread has work the user is waiting on, so it stays in
       the active block even when the server has done it. */
   readonly queuedThreadKeys?: ReadonlySet<string>;
+  /** Whether the shelf may list a settled row yet; older settled rows load in pages. */
+  readonly isListedSettled?: (thread: EnvironmentThreadShell) => boolean;
+  /** Settled threads in scope that are not local (older settled threads not loaded). */
+  readonly unloadedSettledCount?: number;
 }): ThreadListV2Layout {
   const now = input.now;
   const pending =
@@ -796,7 +808,7 @@ export function buildThreadListV2Items(input: {
       done.push(thread);
     } else if (thread.pinnedAt != null) {
       pinned.push(thread);
-    } else if (isThreadWorking(thread)) {
+    } else if ((input.isWorking ?? isThreadWorking)(thread)) {
       working.push(thread);
     } else {
       active.push(thread);
@@ -831,6 +843,7 @@ export function buildThreadListV2Items(input: {
         isLast: index === results.length - 1,
       })),
       hiddenDoneCount: 0,
+      listedSettledThreads: [],
       pinnedCount: 0,
       activeCount: 0,
       inboxGroups: null,
@@ -889,15 +902,17 @@ export function buildThreadListV2Items(input: {
           (thread) => `${thread.environmentId}:${thread.id}` === selectedThreadKey,
         );
   const orderedDone = sortDoneThreadsReusingLast(done);
+  const listedSettled =
+    input.isListedSettled === undefined ? orderedDone : orderedDone.filter(input.isListedSettled);
+  const settledTotal = orderedDone.length + (input.unloadedSettledCount ?? 0);
   const doneLimit = input.doneLimit ?? Number.POSITIVE_INFINITY;
   const limitedDone =
-    orderedDone.length > doneLimit ? orderedDone.slice(0, doneLimit) : orderedDone;
+    listedSettled.length > doneLimit ? listedSettled.slice(0, doneLimit) : listedSettled;
   const selectedDone =
-    selectedThreadKey === null
+    selectedThreadKey === null ||
+    limitedDone.some((thread) => `${thread.environmentId}:${thread.id}` === selectedThreadKey)
       ? undefined
-      : orderedDone
-          .slice(limitedDone.length)
-          .find((thread) => `${thread.environmentId}:${thread.id}` === selectedThreadKey);
+      : orderedDone.find((thread) => `${thread.environmentId}:${thread.id}` === selectedThreadKey);
   const pagedDone = selectedDone === undefined ? limitedDone : [...limitedDone, selectedDone];
   const visibleDone =
     input.doneShelfExpanded !== false
@@ -958,7 +973,7 @@ export function buildThreadListV2Items(input: {
       isLast: false,
     });
   }
-  const doneShelfHeaderIndex = orderedDone.length > 0 ? items.length : null;
+  const doneShelfHeaderIndex = settledTotal > 0 ? items.length : null;
   for (const thread of visibleDone) {
     items.push({
       thread,
@@ -977,7 +992,8 @@ export function buildThreadListV2Items(input: {
     items,
     pinnedCount: pinned.length,
     activeCount: inboxCount,
-    hiddenDoneCount: orderedDone.length - pagedDone.length,
+    hiddenDoneCount: Math.max(0, settledTotal - pagedDone.length),
+    listedSettledThreads: listedSettled,
     workingCount: orderedWorking.length,
     workingShelfHeaderIndex,
     inboxGroups:
@@ -993,7 +1009,7 @@ export function buildThreadListV2Items(input: {
           })),
     snoozedCount: orderedSnoozed.length,
     snoozedShelfHeaderIndex,
-    doneCount: orderedDone.length,
+    doneCount: settledTotal,
     doneShelfHeaderIndex,
     nextSnoozeWakeAt,
     contentOnlyThreadKeys,

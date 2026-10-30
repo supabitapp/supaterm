@@ -238,20 +238,24 @@ export function FloatingWorkingControl(props: {
     >
       {statusContent}
       {action !== null ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={action.accessibilityLabel}
-          accessibilityState={{ disabled: action.disabled }}
-          disabled={action.disabled}
-          onPress={action.onPress}
+        <View
           onLayout={(event) => setActionWidth(settleWidth(event.nativeEvent.layout.width))}
-          className={`h-11 flex-row items-center gap-1.5 px-3 active:opacity-70 ${action.disabled ? "opacity-50" : ""}`}
+          className="h-11 flex-row items-center"
         >
-          <View className="mr-1 h-4 w-px bg-border" />
-          <Text className="font-supaterm-medium text-xs text-foreground" numberOfLines={1}>
-            {action.label}
-          </Text>
-        </Pressable>
+          <View className="h-4 w-px bg-border" />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={action.accessibilityLabel}
+            accessibilityState={{ disabled: action.disabled }}
+            disabled={action.disabled}
+            onPress={action.onPress}
+            className={`h-11 items-center justify-center px-3 active:opacity-70 ${action.disabled ? "opacity-50" : ""}`}
+          >
+            <Text className="font-supaterm-medium text-xs text-foreground" numberOfLines={1}>
+              {action.label}
+            </Text>
+          </Pressable>
+        </View>
       ) : null}
       {hasPreview ? (
         <View
@@ -276,7 +280,7 @@ export function FloatingWorkingControl(props: {
           onLayout={(event) => setAgentsWidth(settleWidth(event.nativeEvent.layout.width))}
           className="h-11 flex-row items-center gap-1.5 px-3 active:opacity-70"
         >
-          {hasStatus || hasPreview ? <View className="mr-1 h-4 w-px bg-border" /> : null}
+          {hasStatus || hasPreview ? <View className="absolute left-0 h-4 w-px bg-border" /> : null}
           <SymbolView name="person.2" size={13} tintColorClassName="accent-foreground-muted" />
           <Text className="font-supaterm-medium text-xs tabular-nums" numberOfLines={1}>
             {agents.label}
@@ -287,14 +291,14 @@ export function FloatingWorkingControl(props: {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Open queue, ${props.queuedCount} messages`}
-          accessibilityHint="Opens queued messages for reordering, steering, or removal"
+          accessibilityHint="Opens queued messages for sending, editing, or removal"
           onPress={props.onOpenQueue}
           onLayout={(event) => setQueueWidth(settleWidth(event.nativeEvent.layout.width))}
           style={{ maxWidth: Math.min(overlayWidth, windowWidth) * 0.45 }}
           className="h-11 flex-row items-center gap-2 px-3 active:opacity-70"
         >
           {hasStatus || hasPreview || hasAgents ? (
-            <View className="mr-1 h-4 w-px bg-border" />
+            <View className="absolute left-0 h-4 w-px bg-border" />
           ) : null}
           <SymbolView name="list.number" size={13} tintColorClassName="accent-foreground-muted" />
           <Text className="shrink font-supaterm-medium text-xs tabular-nums" numberOfLines={1}>

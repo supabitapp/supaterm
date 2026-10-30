@@ -1,5 +1,4 @@
 import { useAtomValue } from "@effect/atom-react";
-import { StackActions, useNavigation } from "@react-navigation/native";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import {
   resolveWorkflowOpening,
@@ -17,6 +16,7 @@ import { useAppearancePreferences } from "../settings/appearance/AppearancePrefe
 import { useMarkdownCodeHighlight } from "./markdownCodeHighlightState";
 import { SubagentRow } from "./SubagentRow";
 import { WorkLogBlock } from "./work-log-layout";
+import { useOpenLinkedThread } from "./useOpenLinkedThread";
 
 // A script longer than this many lines shows its head until opened.
 const FOLDED_SCRIPT_LINES = 10;
@@ -77,7 +77,7 @@ export function ThreadWorkflowOpening(props: {
   readonly threadId: ThreadId;
   readonly opening: WorkflowOpeningValue;
 }) {
-  const navigation = useNavigation();
+  const openLinkedThread = useOpenLinkedThread();
   const { opening } = props;
   const headline = workflowOpeningHeadline(opening);
   const canListMembers = opening.driver !== null && opening.providerInstanceId !== null;
@@ -93,12 +93,7 @@ export function ThreadWorkflowOpening(props: {
         disabled={threadId === null}
         onPress={() => {
           if (threadId !== null)
-            navigation.dispatch(
-              StackActions.push("Thread", {
-                environmentId: String(props.environmentId),
-                threadId,
-              }),
-            );
+            openLinkedThread({ environmentId: String(props.environmentId), threadId });
         }}
         className="rounded-lg px-3 py-3 active:bg-subtle"
       >

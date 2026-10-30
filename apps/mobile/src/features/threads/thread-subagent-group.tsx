@@ -23,6 +23,8 @@ import { WorkLogBlock } from "./work-log-layout";
 import { DisclosureChevron } from "../../components/ui/DisclosureChevron";
 import { MotionPresence } from "../../components/ui/MotionPresence";
 
+import { useOpenThreadInspector } from "./thread-inspector-navigation";
+
 type SubagentItem = Extract<OrchestrationV2TurnItem, { type: "subagent" }>;
 type AgentTiming = Pick<OrchestrationV2Subagent, "status" | "startedAt" | "completedAt">;
 
@@ -72,6 +74,7 @@ export function ThreadSubagentGroup(props: {
 }) {
   const config = useAtomValue(serverEnvironment.configValueAtom(props.environmentId));
   const navigation = useNavigation();
+  const openInspector = useOpenThreadInspector();
   const members = props.activities.flatMap(({ projectedItem }) =>
     projectedItem.item.type === "subagent" ? [projectedItem.item] : [],
   );
@@ -158,13 +161,20 @@ export function ThreadSubagentGroup(props: {
                   onPress={() => {
                     // Push, not navigate: navigate reuses this Thread route, so back
                     // would skip the parent thread.
-                    if (threadId !== null)
-                      navigation.dispatch(
-                        StackActions.push("Thread", {
-                          environmentId: String(props.environmentId),
-                          threadId: String(threadId),
-                        }),
-                      );
+                    if (threadId === null) return;
+                    if (
+                      openInspector(
+                        { environmentId: props.environmentId, threadId: members[0]!.threadId },
+                        { type: "thread", environmentId: props.environmentId, threadId },
+                      )
+                    )
+                      return;
+                    navigation.dispatch(
+                      StackActions.push("Thread", {
+                        environmentId: String(props.environmentId),
+                        threadId: String(threadId),
+                      }),
+                    );
                   }}
                   className="rounded-lg px-3 py-3 active:bg-subtle"
                 >

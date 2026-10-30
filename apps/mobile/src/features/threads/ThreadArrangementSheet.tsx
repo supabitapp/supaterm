@@ -25,6 +25,8 @@ import { SymbolView } from "../../components/ui/AppSymbol";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import { environmentServerConfigsAtom } from "../../state/server";
 import { environmentThreadShells } from "../../state/threads";
+import { sortDoneThreads } from "@supaterm/client-runtime/state/thread-sort";
+import { useOlderSettledShelf, useOlderSettledShelfGrowth } from "../../state/olderSettledShelf";
 import {
   pendingThreadOrderAtom,
   threadDropBusyAtom,
@@ -38,7 +40,12 @@ import {
   threadDragAction,
   type ThreadMoveDestination,
 } from "./threadOrder";
-import { getThreadListV2OrderedSection, threadListInboxReturns } from "./threadListV2";
+import {
+  getThreadListV2OrderedSection,
+  threadListInboxReturns,
+  THREAD_LIST_V2_DONE_INITIAL_COUNT,
+  THREAD_LIST_V2_DONE_PAGE_COUNT,
+} from "./threadListV2";
 
 const ROW_HEIGHT = 56;
 const HEADER_HEIGHT = 48;
@@ -49,6 +56,8 @@ type Row = {
   key: string;
   section: Section;
   thread?: EnvironmentThreadShell;
+  /** The Settled section's "Show more" row. */
+  more?: true;
   offset: number;
   height: number;
 };
@@ -175,6 +184,12 @@ export function ThreadArrangementSheet(props: { onClose: () => void }) {
   const { moveThread } = useThreadListActions();
   const [now, setNow] = useState(() => new Date().toISOString());
   const [expanded, setExpanded] = useState({ snoozed: false, done: false });
+  const [doneVisibleCount, setDoneVisibleCount] = useState(THREAD_LIST_V2_DONE_INITIAL_COUNT);
+  const olderSettledShelf = useOlderSettledShelf({
+    scopes: [...configs.keys()].map((environmentId) => ({ environmentId, projectIds: null })),
+    expanded: expanded.done,
+    visibleCount: doneVisibleCount,
+  });
   useEffect(() => {
     const wakeAt = Math.min(
       ...threads.flatMap((thread) => {
@@ -207,9 +222,13 @@ export function ThreadArrangementSheet(props: { onClose: () => void }) {
       // The inbox is ordered by time; show that order here too.
       active: sortInboxThreadsByReturn(active, threadListInboxReturns.returnedAt),
       snoozed: parked.filter((thread) => effectiveSnoozed(thread, { now })),
-      done: parked.filter((thread) => !effectiveSnoozed(thread, { now })),
+      done: sortDoneThreads(parked.filter((thread) => !effectiveSnoozed(thread, { now }))),
     };
   }, [threads, now, queuedThreadKeys, pendingOrder]);
+  const listedDone = sections.done.filter(olderSettledShelf.isListed);
+  useOlderSettledShelfGrowth(olderSettledShelf, listedDone);
+  const visibleDone = listedDone.slice(0, doneVisibleCount);
+  const doneCount = sections.done.length + olderSettledShelf.unloadedCount(threads);
   // Only Pinned has slots. The inbox is time-ordered, so a drop into Active
   // only changes lifecycle (see canMoveThreadToActive).
   const pinnedPlanner = useMemo(
@@ -230,13 +249,17 @@ export function ThreadArrangementSheet(props: { onClose: () => void }) {
       result.push({ key: section, section, offset, height: HEADER_HEIGHT });
       offset += HEADER_HEIGHT;
       if ((section === "snoozed" || section === "done") && !expanded[section]) continue;
-      for (const thread of sections[section]) {
+      for (const thread of section === "done" ? visibleDone : sections[section]) {
         result.push({ key: keyOf(thread), section, thread, offset, height: ROW_HEIGHT });
+        offset += ROW_HEIGHT;
+      }
+      if (section === "done" && doneCount > visibleDone.length) {
+        result.push({ key: "done-more", section, more: true, offset, height: ROW_HEIGHT });
         offset += ROW_HEIGHT;
       }
     }
     return result;
-  }, [sections, expanded]);
+  }, [sections, expanded, visibleDone, doneCount]);
   const list = useRef<FlatList<Row>>(null);
   const geometry = useRef({ height: 0, offset: 0 });
   const drag = useRef<Drag | null>(null);
@@ -496,6 +519,25 @@ export function ThreadArrangementSheet(props: { onClose: () => void }) {
                               }}
                             />
                           </>
+                        ) : item.more ? (
+                          <Pressable
+                            disabled={olderSettledShelf.loading}
+                            className="flex-1 justify-center self-stretch"
+                            onPress={() => {
+                              olderSettledShelf.retry();
+                              setDoneVisibleCount(
+                                (count) => count + THREAD_LIST_V2_DONE_PAGE_COUNT,
+                              );
+                            }}
+                          >
+                            <Text className="text-sm text-foreground-muted">
+                              {olderSettledShelf.loading
+                                ? "Loading"
+                                : olderSettledShelf.failed
+                                  ? "Could not load older threads. Retry"
+                                  : `Show more (${doneCount - visibleDone.length} Done hidden)`}
+                            </Text>
+                          </Pressable>
                         ) : (
                           <Pressable
                             disabled={item.section === "pinned" || item.section === "active"}
@@ -508,7 +550,7 @@ export function ThreadArrangementSheet(props: { onClose: () => void }) {
                           >
                             <Text className="text-sm font-supaterm-semibold text-foreground-muted">
                               {item.section[0]!.toUpperCase() + item.section.slice(1)} (
-                              {sections[item.section].length})
+                              {item.section === "done" ? doneCount : sections[item.section].length})
                             </Text>
                           </Pressable>
                         )}
