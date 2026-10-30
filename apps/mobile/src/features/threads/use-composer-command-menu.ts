@@ -168,6 +168,7 @@ export function useComposerCommandMenu({
       composerSelectionAtEnd(draftMessage),
   );
   const [selectionSource, setSelectionSource] = useState({ draftMessage, ownerKey });
+  const [now] = useState(() => Date.now());
   const onSelectionChange = (nextSelection: ComposerEditorSelection) => {
     setSelection(nextSelection);
   };
@@ -460,6 +461,7 @@ export function useComposerCommandMenu({
             environmentId,
             excludeThreadId: currentThreadId,
             query: trigger.query,
+            now,
           })
         : [];
       return [

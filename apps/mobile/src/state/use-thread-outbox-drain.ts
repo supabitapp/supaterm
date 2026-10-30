@@ -1,3 +1,4 @@
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import * as Dialog from "../components/ui/Dialog";
 import { useAcknowledgedThreadMessageCleanup } from "./use-acknowledged-thread-message-cleanup";
 import { useAtomValue } from "@effect/atom-react";
@@ -1040,11 +1041,16 @@ export function useThreadOutboxDrain(): void {
         if (failure?.action === "restore")
           return restoreQueuedMessage(persistedMessage, failure.message);
         if (!AsyncResult.isSuccess(checkout)) return false;
-        if (!checkout.value.worktreePath || !checkout.value.isOnPullRequestHead)
+        if (!checkout.value.worktreePath || !checkout.value.isOnPullRequestHead) {
+          const { shortLabel } = (
+            sourceControlClients.findByChangeRequestUrl(creation.pullRequestReference) ??
+            sourceControlClients.get(undefined)
+          ).changeRequest;
           return restoreQueuedMessage(
             persistedMessage,
-            "The PR worktree has local changes and could not update to the PR head. Resolve them before trying again.",
+            `The ${shortLabel} worktree has local changes and could not update to the ${shortLabel} head. Resolve them before trying again.`,
           );
+        }
         workspace = {
           ...creation,
           workspaceMode: "local",

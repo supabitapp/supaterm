@@ -1,3 +1,4 @@
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { Toolbar } from "../../components/ui/Toolbar";
 import * as Dialog from "../../components/ui/Dialog";
 import { useOpenPullRequest } from "../../native/useOpenPullRequest";
@@ -62,7 +63,10 @@ function compactMenuStatus(gitStatus: VcsStatusResult | null): string {
     parts.push(`${gitStatus.behindCount} behind`);
   }
   if (gitStatus.pr?.state === "open") {
-    parts.push(`PR #${gitStatus.pr.number}`);
+    const { shortLabel } = sourceControlClients.get(
+      gitStatus.sourceControlProvider?.kind,
+    ).changeRequest;
+    parts.push(`${shortLabel} #${gitStatus.pr.number}`);
   }
 
   return parts.join(" · ");
@@ -164,13 +168,16 @@ function useThreadGitControlModel(props: ThreadGitMenuProps) {
   })();
 
   const openExistingPr = async () => {
+    const { shortLabel, singular } = sourceControlClients.get(
+      gitStatus?.sourceControlProvider?.kind,
+    ).changeRequest;
     const prUrl = gitStatus?.pr?.state === "open" ? gitStatus.pr.url : null;
     if (!prUrl) {
-      Dialog.alert("No open PR", "This branch does not have an open pull request.");
+      Dialog.alert(`No open ${shortLabel}`, `This branch does not have an open ${singular}.`);
       return;
     }
     if (!(await openPullRequest(prUrl))) {
-      Dialog.alert("Unable to open PR", "The pull request could not be opened.");
+      Dialog.alert(`Unable to open ${shortLabel}`, `The ${singular} could not be opened.`);
     }
   };
 

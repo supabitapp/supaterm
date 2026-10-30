@@ -36,6 +36,7 @@ import {
   deriveThreadFeedPresentation,
   threadFeedActivityIsVisible,
   type ThreadFeedActivity,
+  messageFoldRunId,
   type ThreadFeedCache,
   type ThreadFeedEntry,
   type ThreadFeedLatestRun,
@@ -990,6 +991,32 @@ describe("buildThreadFeed", () => {
           ),
       ),
     ).toBe(false);
+  });
+
+  it("names the fold that hides a progress message, with or without a run", () => {
+    const middle = {
+      ...assistantMessage("2026-06-20T00:00:02.500Z"),
+      id: TurnItemId.make("item-middle"),
+      messageId: MessageId.make("message-middle"),
+      text: "Needle found in the build config.",
+    };
+    const items = [userMessage(), command(), middle, assistantMessage()];
+    for (const runless of [false, true]) {
+      const feed = buildThreadFeed(
+        items.map((item, position) =>
+          projected(runless ? { ...item, runId: null } : item, position),
+        ),
+      );
+      const foldRunId = messageFoldRunId(feed, "message-middle");
+      expect(foldRunId, String(runless)).toBe(runless ? "runless:message-user" : runId);
+      const ids = (expanded: ReadonlySet<RunId>) =>
+        deriveThreadFeedPresentation(feed, null, expanded).map((entry) => entry.id);
+      expect(ids(new Set())).not.toContain("message-middle");
+      expect(ids(new Set([foldRunId!]))).toContain("message-middle");
+    }
+    expect(messageFoldRunId(buildThreadFeed([projected(userMessage(), 0)]), "message-user")).toBe(
+      null,
+    );
   });
 
   it("folds progress messages while keeping the final assistant answer visible", () => {

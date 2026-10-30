@@ -8,10 +8,7 @@ import type {
   EnvironmentProject,
   EnvironmentThreadShell,
 } from "@supaterm/client-runtime/state/shell";
-import {
-  threadSearchMatchKey,
-  type EnvironmentThreadSearchMatch,
-} from "@supaterm/client-runtime/state/thread-search";
+import { threadSearchMatchKey } from "@supaterm/client-runtime/state/thread-search";
 import { AnimatedLegendList } from "@legendapp/list/reanimated";
 import Animated from "react-native-reanimated";
 import { useThreadListMotion } from "./use-thread-list-motion";
@@ -47,6 +44,8 @@ import { useWorkspaceState } from "../../state/workspace";
 import { useSavedRemoteConnections } from "../../state/use-remote-environment-registry";
 import { useHardwareKeyboardCommand } from "../keyboard/hardwareKeyboardCommands";
 import { useThreadJumpShortcuts } from "../keyboard/threadKeyboardShortcuts";
+import { requestThreadMessageJump } from "./threadMessageJump";
+import { useThreadListSearchMatches } from "./useThreadListSearchMatches";
 import { useHomeListOptions } from "../home/home-list-options";
 import { useThreadListFilterMenu } from "../home/useThreadListFilterMenu";
 import { buildHomeListFilterMenu } from "../home/home-list-filter-menu";
@@ -214,18 +213,10 @@ function ThreadNavigationSidebarPane(
         ? [options.selectedEnvironmentId]
         : [];
   const threadSearch = useThreadSearch(searchEnvironmentIds, props.searchQuery);
-  // These maps reach LegendList's extraData, which re-renders every row whenever it changes
-  // identity. The compiler leaves them unmemoized because they stay live across later hook calls.
-  const threadSearchMatchByKey = useMemo(() => {
-    const matches = new Map<string, EnvironmentThreadSearchMatch>();
-    for (const match of threadSearch.matches) {
-      if (match.source === "user" || match.source === "assistant") {
-        matches.set(threadSearchMatchKey(match), match);
-      }
-    }
-    return matches;
-  }, [threadSearch.matches]);
-  const matchedThreadKeys = new Set(threadSearch.matches.map(threadSearchMatchKey));
+  // This map reaches LegendList's extraData, which re-renders every row whenever it changes
+  // identity; the hook keeps it stable.
+  const threadSearchMatchByKey = useThreadListSearchMatches(threads, threadSearch);
+  const matchedThreadKeys = new Set(threadSearchMatchByKey.keys());
   const projectScopeKey = options.selectedProjectKey;
   const resolvedProjectKey = resolveScratchProjectScopeKey(projectScopeKey, projects, {
     sidebarProjectGroupingMode: options.projectGroupingMode,
@@ -429,7 +420,16 @@ function ThreadNavigationSidebarPane(
     }
   };
   const { onSelectThread, onOpenThreadPullRequests } = props;
+  // A row listed for a message match opens the thread at that message, by
+  // tap or by shortcut.
   const handleSelectThread = (thread: EnvironmentThreadShell) => {
+    const key = threadSearchMatchKey({ environmentId: thread.environmentId, threadId: thread.id });
+    const messageId = threadListV2Layout.contentOnlyThreadKeys.has(key)
+      ? threadSearchMatchByKey.get(key)?.messageId
+      : undefined;
+    if (messageId) {
+      requestThreadMessageJump(scopedThreadKey(thread.environmentId, thread.id), messageId);
+    }
     onSelectThread(thread);
     openSwipeableRef.current?.close();
   };
@@ -562,13 +562,20 @@ function ThreadNavigationSidebarPane(
                 : null
             }
             environmentMachine={machineByEnvironmentId.get(thread.environmentId)}
-            searchMatch={threadSearchMatchByKey.get(
-              threadSearchMatchKey({
-                environmentId: thread.environmentId,
-                threadId: thread.id,
-              }),
-            )}
-            searchQuery={props.searchQuery}
+            searchMatch={
+              // Only rows listed for their messages show one and open at it.
+              threadListV2Layout.contentOnlyThreadKeys.has(
+                threadSearchMatchKey({ environmentId: thread.environmentId, threadId: thread.id }),
+              )
+                ? threadSearchMatchByKey.get(
+                    threadSearchMatchKey({
+                      environmentId: thread.environmentId,
+                      threadId: thread.id,
+                    }),
+                  )
+                : undefined
+            }
+            searchQuery={threadSearch.query}
             pane="sidebar"
             selected={
               !activeNewTask &&
