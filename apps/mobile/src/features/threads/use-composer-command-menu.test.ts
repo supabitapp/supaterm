@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 import { ProviderDriverKind } from "@supaterm/contracts";
 
-const refreshProviders = vi.hoisted(() => vi.fn());
 vi.mock("react-native", () => ({ Alert: { alert: vi.fn() } }));
 
 vi.mock("../../state/queries", () => ({
@@ -21,9 +20,6 @@ vi.mock("../../state/preferences", async () => {
   const { Atom } = await import("effect/reactivity");
   return { showSkillsInSlashMenuAtom: Atom.make(false) };
 });
-vi.mock("../../state/use-atom-command", () => ({
-  useAtomCommand: () => refreshProviders,
-}));
 
 import {
   buildComposerSlashCommandItems,

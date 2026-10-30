@@ -1,3 +1,4 @@
+import { abortComposerDraftOperations } from "./composerDraftOperations";
 import { act, useLayoutEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
@@ -74,13 +75,33 @@ describe("useComposerAttachmentActions", () => {
     expect(harness.removed).toEqual([]);
   });
 
-  it("discards a picker result that finishes after the draft changed", async () => {
+  it("keeps a pending picker attached to its original draft after navigation", async () => {
     render("draft-a");
     const pick = latest!.onPickDraftMedia();
     render("draft-b");
     harness.resolvePick!([{ id: "photo", fileUri: "file:///photo.jpg" }]);
     await act(() => pick);
+    expect(harness.appended).toEqual(["draft-a"]);
+    expect(harness.removed).toEqual([]);
+  });
+  it("discards the file after the owning draft is cleared", async () => {
+    render("draft-a");
+    const pick = latest!.onPickDraftMedia();
+    abortComposerDraftOperations("draft-a");
+    harness.resolvePick!([{ id: "photo", fileUri: "file:///photo.jpg" }]);
+    await act(() => pick);
     expect(harness.appended).toEqual([]);
     expect(harness.removed).toEqual(["file:///photo.jpg"]);
+  });
+
+  it("finishes into the original draft after its composer unmounts", async () => {
+    render("draft-a");
+    const pick = latest!.onPickDraftMedia();
+    act(() => root!.unmount());
+    root = null;
+    harness.resolvePick!([{ id: "photo", fileUri: "file:///photo.jpg" }]);
+    await act(() => pick);
+    expect(harness.appended).toEqual(["draft-a"]);
+    expect(harness.removed).toEqual([]);
   });
 });
