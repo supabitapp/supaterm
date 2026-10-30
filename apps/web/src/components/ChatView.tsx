@@ -1,3 +1,5 @@
+import { ThreadActivityAnnouncer } from "./chat/ThreadActivityAnnouncer";
+import { announcedRun, isDetailBehindShell } from "./chat/threadActivityAnnouncement";
 import {
   createOptimisticBlobPreviews,
   emptyOptimisticUserMessages,
@@ -220,7 +222,6 @@ import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "~/workspaceTitlebar";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { projectScriptIdFromCommand } from "~/projectScripts";
 import { newMessageId } from "~/lib/utils";
-import { registerFaviconProjectForThread } from "~/browserFaviconStore";
 import {
   applyProviderInstanceSettings,
   deriveProviderInstanceEntries,
@@ -237,7 +238,7 @@ import { usePanelAnimationSettings, usePanelPresence } from "../panelAnimations"
 import { useNewThreadHandler } from "../hooks/useHandleNewThread";
 import { useOpenPanelPullRequestUrl } from "../hooks/useOpenPanelPullRequestUrl";
 import { isPreviewFocused } from "../lib/previewFocus";
-import { getTerminalFocusOwner } from "../lib/terminalFocus";
+import { focusTerminalOnThreadEnter, getTerminalFocusOwner } from "../lib/terminalFocus";
 import {
   deriveLogicalProjectKeyFromSettings,
   selectProjectGroupingSettings,
@@ -337,7 +338,6 @@ import { QueuedRunsControl, type QueuedRunsControlHandle } from "./chat/QueuedRu
 import { useThreadLinkedPullRequest } from "./pullRequest/useThreadLinkedPullRequest";
 import { useProactivePanels } from "../hooks/useProactivePanels";
 import { useRightPanelSurfaceClose } from "../hooks/useRightPanelSurfaceClose";
-import { useAgentOpenedPreviews } from "./preview/useAgentOpenedPreviews";
 import type { ComposerBannerStackItem } from "./chat/ComposerBannerStack";
 import { ComposerSurface } from "./chat/ComposerSurface";
 import { resolveThreadSyncPhase } from "../threadSync";
@@ -788,7 +788,6 @@ export default function ChatView(props: ChatViewProps) {
   const shouldUsePlanSidebarSheet = viewportUsesPlanSidebarSheet || paneScope?.narrow === true;
   const isMobileViewport = useMediaQuery("max-sm");
   const threadPanelPopoverAnchorRef = useRef<HTMLElement | null>(null);
-  const [terminalFocusRequestId, setTerminalFocusRequestId] = useState(0);
   const [terminalUiLaunchContext, setTerminalUiLaunchContext] =
     useState<TerminalLaunchContext | null>(null);
   const legendListRef = useRef<LegendListRef | null>(null);
@@ -814,7 +813,6 @@ export default function ChatView(props: ChatViewProps) {
   };
   const setMultipleModelSelectionsStable = useStableCallback(setMultipleModelSelections);
   const feedbackUploadsInFlightRef = useRef(new Set<string>());
-  const terminalUiOpenByThreadRef = useRef<Record<string, boolean>>({});
 
   const terminalUiState = useTerminalUiStateStore((state) =>
     selectThreadTerminalUiState(state.terminalUiStateByThreadKey, routeThreadRef),
@@ -1212,10 +1210,6 @@ export default function ChatView(props: ChatViewProps) {
   }, [activeEnvironmentBootstrapComplete, activeProject, activeThreadRef]);
 
   const primaryEnvironmentId = primaryEnvironment?.environmentId ?? null;
-  useEffect(() => {
-    if (!activeThreadRef || !activeProjectRef) return;
-    registerFaviconProjectForThread(activeThreadRef, activeProjectRef);
-  }, [activeProjectRef, activeThreadRef]);
   const activeEnvironment =
     activeThread == null ? null : (environmentById.get(activeThread.environmentId) ?? null);
   const activeEnvironmentConnectionPhase = activeEnvironment?.connection.phase ?? "available";
@@ -1974,7 +1968,6 @@ export default function ChatView(props: ChatViewProps) {
     panelTerminalIds,
     canReuseTerminal,
     gitCwd,
-    setTerminalFocusRequestId,
     setTerminalUiLaunchContext,
     setThreadError,
   });
@@ -2022,16 +2015,8 @@ export default function ChatView(props: ChatViewProps) {
   );
   const visiblePullRequestCount = visiblePullRequests.length;
   const pullRequestsSurfaceAvailable = isServerThread && visiblePullRequestCount > 0;
-  const { state: deviceState, loaded: deviceStateLoaded } = useDeviceState(
-    activeThreadRef?.environmentId ?? null,
-  );
-  useAgentOpenedPreviews({
-    threadRef: activeThreadRef,
-    deviceState,
-    deviceStateLoaded,
-    miniPlayerSource: activePreviewMiniPlayer?.source ?? null,
-    sheetLayout: shouldUsePlanSidebarSheet,
-  });
+  const { state: deviceState } = useDeviceState(activeThreadRef?.environmentId ?? null);
+
   const activeProjectRepository = sourceControlRepositorySelector(
     activeProject?.repositoryIdentity,
   );
@@ -2503,7 +2488,6 @@ export default function ChatView(props: ChatViewProps) {
     gitCwd,
     activeProjectCwd,
     explicitDiffOpenRef,
-    setTerminalFocusRequestId,
     onDiffPanelOpen,
     closeRightPanelSurface: closeRightPanelSurfaceStable,
   });
@@ -2718,26 +2702,9 @@ export default function ChatView(props: ChatViewProps) {
   }
 
   useEffect(() => {
-    if (!activeThreadKey) return;
-    const previous = terminalUiOpenByThreadRef.current[activeThreadKey] ?? false;
-    const current = Boolean(terminalUiState.terminalOpen);
-
-    if (!previous && current) {
-      terminalUiOpenByThreadRef.current[activeThreadKey] = current;
-      setTerminalFocusRequestId((value) => value + 1);
-      return;
-    } else if (previous && !current) {
-      terminalUiOpenByThreadRef.current[activeThreadKey] = current;
-      const frame = window.requestAnimationFrame(() => {
-        focusComposerStable();
-      });
-      return () => {
-        window.cancelAnimationFrame(frame);
-      };
-    }
-
-    terminalUiOpenByThreadRef.current[activeThreadKey] = current;
-  }, [activeThreadKey, focusComposerStable, terminalUiState.terminalOpen]);
+    if (activeThreadRef)
+      return focusTerminalOnThreadEnter(activeThreadRef, paneScope?.paneId ?? null);
+  }, [activeThreadRef, paneScope?.paneId]);
 
   const {
     shortcuts: timelineRewindShortcuts,
@@ -3138,7 +3105,6 @@ export default function ChatView(props: ChatViewProps) {
       onCloseSurface={closeRightPanelSurfaceNow}
       terminal={{
         launchContext: activeTerminalLaunchContext ?? null,
-        focusRequestId: terminalFocusRequestId,
         keybindings,
         onAddTerminalContext: addTerminalContextToDraftStable,
         onSplitTerminal: splitPanelTerminalStable,
@@ -3356,6 +3322,7 @@ export default function ChatView(props: ChatViewProps) {
               <TooltipProvider>
                 <ChatPaneHeaderControls title={activeThread.title} />
                 <ChatHeader
+                  onFind={openThreadFindStable}
                   activeThreadEnvironmentId={activeThread.environmentId}
                   activeThreadId={activeThread.id}
                   isServerThread={isServerThread}
@@ -3425,6 +3392,33 @@ export default function ChatView(props: ChatViewProps) {
                   setThreadErrorBannerDismissTick={setThreadErrorBannerDismissTick}
                 />
                 <div className="relative flex min-h-0 flex-1 flex-col bg-background">
+                  <ThreadActivityAnnouncer
+                    threadKey={
+                      paintOnlyDisplayedTimeline || !ownsPaneInput ? null : activeThreadKey
+                    }
+                    status={
+                      activePendingApproval
+                        ? "approval"
+                        : activePendingUserInput || activeThreadShell?.hasPendingUserInput
+                          ? "input"
+                          : isWorking
+                            ? "working"
+                            : "idle"
+                    }
+                    requestId={
+                      activePendingApproval?.requestId ?? activePendingUserInput?.requestId ?? null
+                    }
+                    runId={
+                      announcedRun(activeActivityRun, serverProjection?.runs ?? [])?.runId ?? null
+                    }
+                    runStatus={
+                      announcedRun(activeActivityRun, serverProjection?.runs ?? [])?.status ?? null
+                    }
+                    detailBehind={isDetailBehindShell(
+                      activeLatestRun,
+                      activeThreadShell?.latestRun ?? null,
+                    )}
+                  />
                   <ThreadTimeline
                     pendingApprovals={pendingApprovals}
                     heldApprovalRequestIds={heldApprovalRequestIds}
@@ -3961,7 +3955,7 @@ export default function ChatView(props: ChatViewProps) {
               activeTerminalOpen={Boolean(terminalUiState.terminalOpen)}
               composerHeight={composerReservedHeight}
               launchContext={activeTerminalLaunchContext ?? null}
-              focusRequestId={terminalFocusRequestId}
+
               splitShortcutLabel={splitTerminalShortcutLabel ?? undefined}
               splitVerticalShortcutLabel={splitTerminalVerticalShortcutLabel ?? undefined}
               newShortcutLabel={newTerminalShortcutLabel ?? undefined}

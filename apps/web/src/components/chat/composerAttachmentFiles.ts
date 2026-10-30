@@ -178,6 +178,7 @@ export function shouldHandleComposerAttachmentPaste(input: {
       return (
         classification === "image" ||
         classification === "unsupported-image" ||
+        file.type.toLowerCase().startsWith("image/") ||
         isSvgAttachment({ name: file.name, mimeType: file.type })
       );
     })

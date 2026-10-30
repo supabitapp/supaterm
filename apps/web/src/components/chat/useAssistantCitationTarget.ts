@@ -91,7 +91,7 @@ export function useAssistantCitationTarget({
       const onWheel = (event: WheelEvent) => {
         if (event.deltaY !== 0) dismiss(true);
       };
-      const onNavigation = (event: PointerEvent) => {
+      const onNavigation = (event: Event) => {
         if (event.target instanceof Node && citationViewport?.contains(event.target)) dismiss(true);
       };
       document.addEventListener("keydown", onKeyDown);

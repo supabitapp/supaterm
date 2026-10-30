@@ -18,7 +18,7 @@ import {
 } from "./composerAttachmentFiles";
 
 describe("composer attachment files", () => {
-  it("attaches SVG as a file and rejects other unsupported images", () => {
+  it("attaches SVG and previewable images as files", () => {
     expect(classifyComposerAttachmentFile({ name: "diagram.svg", type: "image/svg+xml" })).toBe(
       "file",
     );
@@ -26,9 +26,7 @@ describe("composer attachment files", () => {
     expect(
       classifyComposerAttachmentFile({ name: "diagram.svg", type: "application/octet-stream" }),
     ).toBe("file");
-    expect(classifyComposerAttachmentFile({ name: "photo.tiff", type: "image/tiff" })).toBe(
-      "unsupported-image",
-    );
+    expect(classifyComposerAttachmentFile({ name: "photo.tiff", type: "image/tiff" })).toBe("file");
     expect(classifyComposerAttachmentFile({ name: "report.pdf", type: "application/pdf" })).toBe(
       "file",
     );
@@ -96,7 +94,7 @@ describe("composer attachment files", () => {
       "image",
       "image",
       "image",
-      "unsupported-image",
+      "file",
       "unsupported-image",
     ]);
   });

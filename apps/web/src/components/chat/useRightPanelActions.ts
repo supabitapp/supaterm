@@ -1,5 +1,5 @@
+import { usePaneScope } from "../../chatPanes/paneScope";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
-import type { Dispatch } from "react";
 import type { ThreadPreviewState } from "../../previewStateStore";
 import { formatFilePathForClipboard } from "@supaterm/client-runtime/media-actions";
 import { resolvePathLinkTarget } from "@supaterm/shared/fileLinks";
@@ -7,7 +7,7 @@ import { resolveExplicitDiffOpenOnActivate } from "../ChatView.logic";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { type ScopedThreadRef, type RunId } from "@supaterm/contracts";
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
-import { type SetStateAction, useEffect } from "react";
+import { useEffect } from "react";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -23,6 +23,7 @@ import {
 import { setActivePreviewTab } from "../../previewStateStore";
 import { BrowserSettingsReadError } from "../../browser/openFileInPreview";
 import { addBrowserSurface } from "../preview/addBrowserSurface";
+import { focusActivePanelTerminal, focusTerminal } from "../../lib/terminalFocus";
 import { subscribePreviewAction } from "../preview/previewActionBus";
 import { browserMiniPlayerSource, usePreviewMiniPlayerStore } from "../../previewMiniPlayerStore";
 import type { threadPullRequestPanelTarget } from "../pullRequest/pullRequestDetail.logic";
@@ -56,7 +57,6 @@ interface RightPanelActionsInput {
   readonly gitCwd: string | null;
   readonly activeProjectCwd: string | null;
   readonly explicitDiffOpenRef: { current: ScopedThreadRef | null };
-  readonly setTerminalFocusRequestId: Dispatch<SetStateAction<number>>;
   readonly onDiffPanelOpen: (() => void) | undefined;
   readonly closeRightPanelSurface: (surface: RightPanelSurface) => void;
 }
@@ -66,6 +66,7 @@ interface RightPanelActionsInput {
  * requests and device tabs.
  */
 export function useRightPanelActions(input: RightPanelActionsInput) {
+  const paneId = usePaneScope()?.paneId ?? null;
   const {
     routeKind,
     activeThreadRef,
@@ -89,7 +90,6 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     gitCwd,
     activeProjectCwd,
     explicitDiffOpenRef,
-    setTerminalFocusRequestId,
     onDiffPanelOpen,
     closeRightPanelSurface,
   } = input;
@@ -211,7 +211,7 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
       setActivePreviewTab(activeThreadRef, surface.resourceId);
     }
     if (surface.kind === "terminal") {
-      setTerminalFocusRequestId((value) => value + 1);
+      focusTerminal(activeThreadRef, surface.activeTerminalId, paneId);
     }
     if (surface.kind === "diff" && !diffOpen) {
       onDiffPanelOpen?.();
@@ -225,6 +225,7 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
       return;
     }
     useRightPanelStore.getState().toggleVisibility(activeThreadRef);
+    focusActivePanelTerminal(activeThreadRef, paneId);
   };
   const toggleRightPanelStable = useStableCallback(toggleRightPanel);
   const toggleThreadPanel = () => {

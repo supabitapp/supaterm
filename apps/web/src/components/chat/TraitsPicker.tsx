@@ -663,7 +663,7 @@ export const TraitsPicker = memo(function TraitsPicker({
     return speedToggleControl;
   }
 
-  const triggerLabel = buildTraitsTriggerLabel({
+  const trigger = buildTraitsTriggerLabel({
     descriptors,
     speedToggle,
     primarySelectDescriptorId: primarySelectDescriptor?.id ?? null,
@@ -672,6 +672,7 @@ export const TraitsPicker = memo(function TraitsPicker({
     reportedModelSelection,
   });
 
+  const triggerLabel = [trigger.label, ...trigger.otherLabels].filter(Boolean).join(" · ");
   const isCodexStyle = provider === "codex";
   const effortLevel = primarySelectDescriptor
     ? resolveEffortGlyph(primarySelectDescriptor, getDescriptorStringValue(primarySelectDescriptor))

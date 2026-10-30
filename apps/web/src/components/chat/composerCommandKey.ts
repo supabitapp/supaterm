@@ -1,32 +1,33 @@
+import type { PreviewAnnotationPayload } from "@supaterm/contracts";
 import type { ComposerTrigger } from "@supaterm/shared/composerTrigger";
+import { type Dispatch, type RefObject, type SetStateAction } from "react";
+
 import type { ChatComposerProps } from "./ChatComposer";
-import { type ComposerCommandItem } from "./ComposerCommandMenu";
-import {
-  type ComposerDispatchMode,
-  resolveComposerDispatchMode,
-} from "@supaterm/client-runtime/state/composer-dispatch";
-import { type ComposerPromptEditorHandle } from "../ComposerPromptEditor";
-import {
-  type ComposerPromptHistoryPosition,
-  buildComposerPromptHistoryEntries,
-  stepComposerPromptHistory,
-} from "./composerPromptHistory";
 import {
   type ComposerSubmissionIntent,
   collapseExpandedComposerCursor,
   composerSubmissionIntentForKey,
 } from "../../composer-logic";
-import { type PendingUserInput } from "../../session-logic";
-import { type PreviewAnnotationPayload } from "@supaterm/contracts";
-import { type ReviewCommentContext } from "../../reviewCommentContext";
-import { composerTargetKey } from "../../composerDraftStore";
 import { listContinuationForEnter, listIndentForTab } from "../../composer-list-continuation";
-import type { Dispatch, RefObject, SetStateAction } from "react";
+import { composerTargetKey } from "../../composerDraftStore";
+import type { ComposerPromptEditorHandle } from "../ComposerPromptEditor";
+import type { ComposerCommandItem } from "./ComposerCommandMenu";
+import {
+  buildComposerPromptHistoryEntries,
+  stepComposerPromptHistory,
+  type ComposerPromptHistoryPosition,
+} from "./composerPromptHistory";
+import type { PendingUserInput } from "../../session-logic";
+import {
+  resolveComposerDispatchMode,
+  type ComposerDispatchMode,
+} from "@supaterm/client-runtime/state/composer-dispatch";
+import type { ReviewCommentContext } from "../../reviewCommentContext";
 
 /**
  * The composer's key handling inside the editor: send shortcuts, the slash/mention menu,
- * prompt history on ArrowUp/ArrowDown, plan-mode toggle, and list continuation.
- * Returns the editor's key handler; it reads the inputs captured by the render that built it.
+ * Escape cancelling a queued-message edit, ArrowUp editing the latest queued message before
+ * prompt history, and list continuation.
  */
 export function composerCommandKeyHandler(input: {
   readonly keybindings: ChatComposerProps["keybindings"];
@@ -36,8 +37,8 @@ export function composerCommandKeyHandler(input: {
   readonly isCompacting: boolean;
   readonly followUpBehavior: ChatComposerProps["settings"]["followUpBehavior"];
   readonly isSoftwareKeyboardOpen: boolean;
-  readonly planModeUiEnabled: boolean;
   readonly isLiteralPendingAnswer: boolean;
+  readonly isEditingQueuedMessage: boolean;
   readonly pendingUserInputs: ReadonlyArray<PendingUserInput>;
   readonly promptHistoryMessages: ChatComposerProps["promptHistoryMessages"];
   readonly promptHistoryPositionRef: RefObject<{
@@ -51,6 +52,8 @@ export function composerCommandKeyHandler(input: {
   readonly composerTerminalContextsRef: ChatComposerProps["composerTerminalContextsRef"];
   readonly composerPreviewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
   readonly composerReviewComments: ReadonlyArray<ReviewCommentContext>;
+  /** The predicted next prompt, offered only while it shows in the empty composer. */
+  readonly promptSuggestion: { readonly text: string; readonly dismiss: () => void } | null;
   readonly composerEditorRef: RefObject<ComposerPromptEditorHandle | null>;
   readonly composerMenuOpenRef: RefObject<boolean>;
   readonly composerMenuItemsRef: RefObject<ComposerCommandItem[]>;
@@ -63,7 +66,6 @@ export function composerCommandKeyHandler(input: {
   readonly setComposerTrigger: (trigger: ComposerTrigger | null) => void;
   readonly setComposerHighlightedItemId: Dispatch<SetStateAction<string | null>>;
   readonly dismissComposerTrigger: (trigger: ComposerTrigger | null) => void;
-  readonly toggleInteractionMode: () => void;
   readonly nudgeComposerMenuHighlight: (key: "ArrowDown" | "ArrowUp") => void;
   readonly onSelectComposerItem: (item: ComposerCommandItem) => void;
   readonly resolveActiveComposerTrigger: () => { trigger: ComposerTrigger | null };
@@ -78,7 +80,9 @@ export function composerCommandKeyHandler(input: {
     event: undefined,
     dispatchMode: ComposerDispatchMode,
     submissionIntent: ComposerSubmissionIntent,
-  ) => void;
+  ) => unknown;
+  readonly onEditLatestQueuedMessage: ChatComposerProps["onEditLatestQueuedMessage"];
+  readonly onCancelQueuedMessageEdit: ChatComposerProps["onCancelQueuedMessageEdit"];
 }) {
   const {
     keybindings,
@@ -88,8 +92,8 @@ export function composerCommandKeyHandler(input: {
     isCompacting,
     followUpBehavior,
     isSoftwareKeyboardOpen,
-    planModeUiEnabled,
     isLiteralPendingAnswer,
+    isEditingQueuedMessage,
     pendingUserInputs,
     promptHistoryMessages,
     promptHistoryPositionRef,
@@ -100,6 +104,7 @@ export function composerCommandKeyHandler(input: {
     composerTerminalContextsRef,
     composerPreviewAnnotations,
     composerReviewComments,
+    promptSuggestion,
     composerEditorRef,
     composerMenuOpenRef,
     composerMenuItemsRef,
@@ -109,15 +114,17 @@ export function composerCommandKeyHandler(input: {
     setComposerTrigger,
     setComposerHighlightedItemId,
     dismissComposerTrigger,
-    toggleInteractionMode,
     nudgeComposerMenuHighlight,
     onSelectComposerItem,
     resolveActiveComposerTrigger,
     readComposerSnapshot,
     applyPromptReplacement,
     submitComposer,
+    onEditLatestQueuedMessage,
+    onCancelQueuedMessageEdit,
   } = input;
-
+  // Entries are built on the keypress, not per render: the timeline changes
+  // on every streamed delta and ArrowUp is rare.
   // The composer persists across threads. A recall from thread A must not
   // be treated as active in thread B, where the text-match fallback could
   // otherwise turn B's own draft into a browsing position.
@@ -149,7 +156,12 @@ export function composerCommandKeyHandler(input: {
       return false;
     }
     const recalled = promptHistoryPositionRef.current;
-    const position = recalled?.targetKey === promptHistoryTargetKey ? recalled.position : null;
+    // Sending a recalled prompt clears the composer without clearing the ref.
+    const position =
+      recalled?.targetKey === promptHistoryTargetKey &&
+      recalled.position.recalled === promptRef.current
+        ? recalled.position
+        : null;
     if (position === null && promptRef.current.length > 0) {
       return false;
     }
@@ -157,9 +169,12 @@ export function composerCommandKeyHandler(input: {
     if (!editor?.isCaretOnVisualEdge(direction === "backward" ? "start" : "end")) {
       return false;
     }
+    // A queued message is newer than anything sent, so it comes before history.
+    if (direction === "backward" && position === null && onEditLatestQueuedMessage(event.repeat)) {
+      return true;
+    }
     const step = stepComposerPromptHistory({
       direction,
-      // Built on the keypress, not per render: the timeline changes on every streamed delta.
       entries: buildComposerPromptHistoryEntries(promptHistoryMessages),
       position,
       currentPrompt: promptRef.current,
@@ -183,22 +198,47 @@ export function composerCommandKeyHandler(input: {
       prompt: promptRef.current,
     });
     if (key === "Tab" && event.shiftKey && submissionIntent === null) {
-      if (!planModeUiEnabled) return false;
-      toggleInteractionMode();
-      return true;
+      return false;
     }
     const { trigger } = resolveActiveComposerTrigger();
     const menuIsActive =
-      !isLiteralPendingAnswer && (composerMenuOpenRef.current || trigger !== null);
+      !isLiteralPendingAnswer &&
+      (composerMenuOpenRef.current || (trigger !== null && trigger.kind !== "slash-skill"));
+    if (
+      promptSuggestion !== null &&
+      !menuIsActive &&
+      !event.isComposing &&
+      !event.shiftKey &&
+      !event.altKey &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      promptRef.current === ""
+    ) {
+      // Accepting only fills the draft; the user still reads it and sends.
+      if (key === "Tab" || key === "ArrowRight") {
+        replacePromptFromHistory(promptSuggestion.text);
+        return true;
+      }
+      if (key === "Escape") {
+        promptSuggestion.dismiss();
+        return true;
+      }
+    }
     if (key === "Escape") {
-      if (!menuIsActive || event.isComposing || event.keyCode === 229) return false;
-      dismissComposerTrigger(trigger);
-      composerMenuOpenRef.current = false;
+      if (event.isComposing || event.keyCode === 229) return false;
+      if (menuIsActive) {
+        dismissComposerTrigger(trigger);
+        composerMenuOpenRef.current = false;
+        return true;
+      }
+      if (!isEditingQueuedMessage) return false;
+      onCancelQueuedMessageEdit();
       return true;
     }
     if (menuIsActive && (submissionIntent === null || submissionIntent === "foreground")) {
       const currentItems = composerMenuItemsRef.current;
-      const selectedItem = activeComposerMenuItemRef.current ?? currentItems[0];
+      const selectedItem =
+        activeComposerMenuItemRef.current ?? (key === "Tab" ? currentItems[0] : null);
       if (key === "ArrowDown" && currentItems.length > 0) {
         nudgeComposerMenuHighlight("ArrowDown");
         return true;
@@ -254,5 +294,10 @@ export function composerCommandKeyHandler(input: {
     return false;
   };
 
-  return onComposerCommandKey;
+  return {
+    onComposerCommandKey,
+    acceptPromptSuggestion: () => {
+      if (promptSuggestion !== null) replacePromptFromHistory(promptSuggestion.text);
+    },
+  };
 }

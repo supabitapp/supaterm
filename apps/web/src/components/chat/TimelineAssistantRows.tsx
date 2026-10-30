@@ -1,3 +1,4 @@
+import { checkpointFileTotals } from "@supaterm/client-runtime/state/thread-checkpoints";
 import { type TimelineRow, TimelineRowCtx, TimelineRowActivityCtx } from "./timelineRowContext";
 import { MessageAuthorHeading, MESSAGE_HEADING_LEVEL } from "./TimelineRowParts";
 import { resolveAssistantMessageCopyState } from "./MessagesTimeline.logic";
@@ -353,6 +354,7 @@ function AssistantChangedFilesSectionInner({
     <ChangedFilesCard
       runId={turnSummary.runId}
       files={checkpointFiles}
+      totals={checkpointFileTotals(turnSummary)}
       allDirectoriesExpanded={allDirectoriesExpanded}
       resolvedTheme={resolvedTheme}
       onToggleAllDirectories={() =>

@@ -1,3 +1,4 @@
+import { useLinkedEnvironments } from "../../state/peerLinks";
 import { readCanQueueComposerMessage } from "../../state/composerQueue";
 import { useComposerTypingGuard } from "./useComposerTypingGuard";
 import { insertAttachmentReferencesForDraft } from "./composerAttachmentReferences";
@@ -114,7 +115,7 @@ import { useComposerStash } from "./useComposerStash";
 import { useComposerContextImport } from "./useComposerContextImport";
 import { useComposerAttachmentIntake } from "./useComposerAttachmentIntake";
 import { ComposerControlsBar } from "./ComposerControlsBar";
-import { useComposerCommandKey } from "./useComposerCommandKey";
+import { composerCommandKeyHandler } from "./composerCommandKey";
 import { useNextPromptSuggestion } from "./useNextPromptSuggestion";
 import { useInputsChanged, useInputsChangedWhileActive } from "./useInputsChanged";
 import { useComposerMultilinePrompt } from "./useComposerMultilinePrompt";
@@ -609,6 +610,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     onEditLatestQueuedMessage,
     onCancelQueuedMessageEdit,
   } = props;
+  const linkedEnvironments = useLinkedEnvironments(environmentId);
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const composerDraftTargetKey = composerTargetKey(composerDraftTarget);
   const {
@@ -949,8 +951,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const refreshWorkspaceSnapshotOnTyping = useProviderWorkspaceSnapshotRefresh({
     environmentId,
     gitCwd,
-    selectedProviderEntry,
-    selectedProviderStatus,
+    instanceId: selectedProviderEntry?.instanceId,
   });
 
   const selectedPromptEffort = composerProviderState.promptEffort;
@@ -1119,6 +1120,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     isLoading: isComposerMenuLoading,
     emptyState: composerMenuEmptyState,
   } = useComposerMenuItems({
+    linkedEnvironments,
     composerTrigger,
     environmentId,
     gitCwd,
@@ -1338,6 +1340,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     importContextFragmentStable,
   } = useComposerContextImport({
     environmentId,
+    linkedEnvironments,
     activeThread,
     activeThreadId,
     composerDraftTarget,
@@ -2163,7 +2166,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       ? { text: nextPrompt.suggestion, dismiss: nextPrompt.dismiss }
       : null;
 
-  const { onComposerCommandKey, acceptPromptSuggestion } = useComposerCommandKey({
+  const { onComposerCommandKey, acceptPromptSuggestion } = composerCommandKeyHandler({
     keybindings,
     sendShortcut: settings.sendShortcut,
     routeKind,

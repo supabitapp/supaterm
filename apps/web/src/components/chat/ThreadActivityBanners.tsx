@@ -1,3 +1,5 @@
+import type { OrchestrationV2TurnItem } from "@supaterm/contracts";
+import * as DateTime from "effect/DateTime";
 import type {
   OrchestrationV2PendingBackgroundTask,
   OrchestrationV2ProviderGoal,
@@ -100,12 +102,25 @@ export function backgroundWorkBannerItem(input: {
   readonly tasks: ReadonlyArray<OrchestrationV2PendingBackgroundTask>;
   /** The workflow run the work watches; it colors the dot and opens its checks. */
   readonly watchedRun: WatchedRunProps;
+  readonly turnItems: ReadonlyArray<OrchestrationV2TurnItem>;
   readonly stopDisabled: boolean;
   readonly stopping: boolean;
   readonly onStop: () => Promise<void>;
   readonly onOpenThread: (threadId: ThreadId) => void;
 }): ComposerBannerStackItem | null {
   const { onOpenThread, watchedRun } = input;
+  const newest = input.turnItems
+    .filter(
+      (item) =>
+        item.type === "subagent" &&
+        item.progress &&
+        input.tasks.some((task) => task.taskId === (item.nativeItemRef?.nativeId || item.id)),
+    )
+    .toSorted(
+      (a, b) => DateTime.toEpochMillis(b.updatedAt) - DateTime.toEpochMillis(a.updatedAt),
+    )[0];
+  const newestProgress =
+    newest?.type === "subagent" ? newest.progress?.replace(/\s+/gu, " ").trim() : null;
   const presentation = presentPendingBackgroundWork(input.tasks);
   if (presentation === null) return null;
   return {
@@ -121,35 +136,50 @@ export function backgroundWorkBannerItem(input: {
     ),
     iconInteractive: watchedRun.run !== null,
     title: <BackgroundWorkTitle {...watchedRun} title={presentation.title} />,
-    description:
-      presentation.items.length === 1 && presentation.items[0]?.childThreadId === undefined
-        ? undefined
-        : presentation.items.map((item, index) => {
-            const childThreadId = item.childThreadId;
-            const separator = index < presentation.items.length - 1 ? "," : null;
-            return (
-              <Fragment key={item.taskId}>
-                {index > 0 ? " " : null}
-                {childThreadId === undefined ? (
-                  <>
-                    {item.label}
-                    {separator}
-                  </>
-                ) : (
-                  <span className="whitespace-nowrap">
-                    <InlineButton
-                      tone="muted"
-                      aria-label={`${presentation.items.length === 1 ? "Show" : "Open"} subagent ${item.label}`}
-                      onClick={() => onOpenThread(childThreadId)}
-                    >
-                      {presentation.items.length === 1 ? "Show" : item.label}
-                    </InlineButton>
-                    {separator}
-                  </span>
-                )}
-              </Fragment>
-            );
-          }),
+    description: newestProgress ? (
+      <>
+        <span>{newestProgress}</span>
+        {presentation.items.map((item) =>
+          item.childThreadId ? (
+            <InlineButton
+              key={item.taskId}
+              tone="muted"
+              onClick={() => onOpenThread(item.childThreadId!)}
+            >
+              {item.label}
+            </InlineButton>
+          ) : null,
+        )}
+      </>
+    ) : presentation.items.length === 1 &&
+      presentation.items[0]?.childThreadId === undefined ? undefined : (
+      presentation.items.map((item, index) => {
+        const childThreadId = item.childThreadId;
+        const separator = index < presentation.items.length - 1 ? "," : null;
+        return (
+          <Fragment key={item.taskId}>
+            {index > 0 ? " " : null}
+            {childThreadId === undefined ? (
+              <>
+                {item.label}
+                {separator}
+              </>
+            ) : (
+              <span className="whitespace-nowrap">
+                <InlineButton
+                  tone="muted"
+                  aria-label={`${presentation.items.length === 1 ? "Show" : "Open"} subagent ${item.label}`}
+                  onClick={() => onOpenThread(childThreadId)}
+                >
+                  {presentation.items.length === 1 ? "Show" : item.label}
+                </InlineButton>
+                {separator}
+              </span>
+            )}
+          </Fragment>
+        );
+      })
+    ),
     actions: (
       <Button
         size="xs"

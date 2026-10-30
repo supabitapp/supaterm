@@ -26,7 +26,7 @@ export function useThreadFindPositionReader({
   contentInsetEndAdjustment,
 }: {
   readonly threadKey: string;
-  readonly findPositionReaderRef?: RefObject<ThreadFindPositionReader | null>;
+  readonly findPositionReaderRef?: RefObject<ThreadFindPositionReader | null> | undefined;
   readonly timelineViewportElement: HTMLDivElement | null;
   readonly findFoldRunIds: ReadonlyMap<string, RunId> | null;
   readonly timelineEntries: ReadonlyArray<TimelineEntry>;

@@ -499,6 +499,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
         threadId: activeThread.id,
         threadRef: activeThreadRef,
         tasks: activeBackgroundTasks,
+        turnItems: serverProjection?.turnItems ?? [],
         watchedRun: {
           run: backgroundWorkWatches.length === 1 ? backgroundWorkWatches[0]! : null,
           environmentId: activeThread.environmentId,

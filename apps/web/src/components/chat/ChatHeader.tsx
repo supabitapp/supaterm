@@ -1,3 +1,4 @@
+import { readThreadShell } from "../../state/entities";
 import { GuestShareIndicator } from "./GuestShareControls";
 import {
   AuthOrchestrationOperateScope,
@@ -10,6 +11,7 @@ import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
+  settlePromise,
 } from "@supaterm/client-runtime/state/runtime";
 import { ChevronDownIcon } from "@supaterm/icons";
 import {
@@ -58,6 +60,7 @@ interface ChatHeaderProps {
   onJumpToPinnedMessage: (pin: ThreadPinnedMessage) => void;
   onUnpinMessage?: ((pin: ThreadPinnedMessage) => void) | undefined;
   onNewThreadInProject: () => void;
+  onFind?: (() => void) | undefined;
   onOpenProjectSettings?: (() => void) | undefined;
 }
 
@@ -89,6 +92,7 @@ export const ChatHeader = memo(function ChatHeader({
   onJumpToPinnedMessage,
   onUnpinMessage,
   onNewThreadInProject,
+  onFind,
   onOpenProjectSettings,
 }: ChatHeaderProps) {
   const timestampFormat = useClientSettings((settings) => settings.timestampFormat);
@@ -215,10 +219,30 @@ export const ChatHeader = memo(function ChatHeader({
       }
     });
   };
-  const { openMenu, closeMenu } = useThreadActionMenu({
+  const { threadActions, closeMenu } = useThreadActionMenu({
     threadRef: isServerThread ? activeThreadRef : null,
     onStartRename: startRename,
   });
+  const openMenu = (position: { x: number; y: number }) => {
+    if (!isServerThread) return;
+    const thread = readThreadShell(activeThreadRef);
+    const api = readLocalApi();
+    if (!thread || !api) return;
+    const actions = threadActions(thread);
+    void settlePromise(() =>
+      api.contextMenu.show(
+        onFind ? [{ id: "find", label: "Find in thread" }, ...actions.items] : actions.items,
+        position,
+      ),
+    ).then((result) => {
+      if (result._tag === "Failure" || result.value === null) return;
+      if (result.value === "find") {
+        onFind?.();
+        return;
+      }
+      void actions.run(result.value);
+    });
+  };
   const titleButtonRef = useRef<HTMLButtonElement | null>(null);
   const titleMenuTimerRef = useRef<{
     readonly threadRef: typeof activeThreadRef;
