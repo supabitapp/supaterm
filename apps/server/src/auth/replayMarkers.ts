@@ -11,7 +11,7 @@ import * as ServerConfig from "../config.ts";
 import { forkParked } from "../serverActivation.ts";
 export const DPOP_REPLAY_MARKER_PREFIX = "dpop-proof-";
 
-export const REPLAY_MARKER_MAX_AGE = Duration.days(1);
+const REPLAY_MARKER_MAX_AGE = Duration.days(1);
 
 export const pruneExpiredReplayMarkers = Effect.fn("replayMarkers.pruneExpired")(function* () {
   const fileSystem = yield* FileSystem.FileSystem;

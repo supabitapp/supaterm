@@ -9,7 +9,7 @@ import {
 } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 
-export function runtimeModeRank(mode: RuntimeMode): number {
+function runtimeModeRank(mode: RuntimeMode): number {
   switch (mode) {
     case "approval-required":
       return 0;
@@ -22,7 +22,7 @@ export function runtimeModeRank(mode: RuntimeMode): number {
   }
 }
 
-export function interactionModeRank(mode: ProviderInteractionMode): number {
+function interactionModeRank(mode: ProviderInteractionMode): number {
   return mode === "plan" ? 0 : 1;
 }
 

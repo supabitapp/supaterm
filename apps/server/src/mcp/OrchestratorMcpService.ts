@@ -1,7 +1,6 @@
 import { formatThreadLink } from "@supaterm/shared/threadLinks";
 import { isLiveCallerShell, threadNotFound } from "./threadAccess.ts";
 import { resolveRuntimeMode, resolveInteractionMode, taskPrompt } from "./delegatedTaskModes.ts";
-export { taskPrompt } from "./delegatedTaskModes.ts";
 import {
   CommandId,
   type RunId,
