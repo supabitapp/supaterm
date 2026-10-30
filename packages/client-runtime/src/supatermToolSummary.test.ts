@@ -7,6 +7,14 @@ function completed(input: unknown, output?: unknown): SupatermToolSummaryCall {
 }
 
 describe("summarizeSupatermToolCalls", () => {
+  it("summarizes private requests without their values or file paths", () => {
+    expect(
+      summarizeSupatermToolCalls("secret-request", [
+        completed({ value: "private-value" }, { file: "/private/token" }),
+      ]).label,
+    ).toBe("Requested 1 private input");
+  });
+
   it("reads provider result envelopes without treating JSON in the message as result data", () => {
     const result = { messageId: "message-1", threadId: "actual-thread" };
     const json = JSON.stringify(result);

@@ -2,7 +2,7 @@ import { WS_METHODS } from "@supaterm/contracts";
 import type { Atom } from "effect/reactivity";
 
 import type { EnvironmentRegistry } from "../connection/registry.ts";
-import { createEnvironmentRpcCommand } from "./runtime.ts";
+import { createEnvironmentRpcCommand, createEnvironmentRpcQueryAtomFamily } from "./runtime.ts";
 
 export function createMcpAppEnvironmentAtoms<R, E>(
   runtime: Atom.AtomRuntime<EnvironmentRegistry | R, E>,
@@ -14,6 +14,11 @@ export function createMcpAppEnvironmentAtoms<R, E>(
     }),
     toolInfo: createEnvironmentRpcCommand(runtime, {
       label: "environment-command:mcp-apps:tool-info",
+      tag: WS_METHODS.mcpAppsToolInfo,
+    }),
+
+    toolInfoQuery: createEnvironmentRpcQueryAtomFamily(runtime, {
+      label: "environment-data:mcp-apps:tool-info",
       tag: WS_METHODS.mcpAppsToolInfo,
     }),
     readResource: createEnvironmentRpcCommand(runtime, {

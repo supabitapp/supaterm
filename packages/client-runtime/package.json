@@ -491,6 +491,14 @@
       "types": "./src/queuedRunEdit.ts",
       "default": "./src/queuedRunEdit.ts"
     },
+    "./state/thread-visits": {
+      "types": "./src/state/threadVisits.ts",
+      "default": "./src/state/threadVisits.ts"
+    },
+    "./state/vcs-status-revalidation": {
+      "types": "./src/state/vcsStatusRevalidation.ts",
+      "default": "./src/state/vcsStatusRevalidation.ts"
+    },
     "./state/pending-user-input": {
       "types": "./src/state/pendingUserInput.ts",
       "default": "./src/state/pendingUserInput.ts"
@@ -518,6 +526,38 @@
     "./zip/directory": {
       "types": "./src/zip/zipDirectory.ts",
       "default": "./src/zip/zipDirectory.ts"
+    },
+    "./secret-request": {
+      "types": "./src/secretRequest.ts",
+      "default": "./src/secretRequest.ts"
+    },
+    "./link-request": {
+      "types": "./src/linkRequest.ts",
+      "default": "./src/linkRequest.ts"
+    },
+    "./state/peerLinks": {
+      "types": "./src/state/peerLinks.ts",
+      "default": "./src/state/peerLinks.ts"
+    },
+    "./state/peerPairingCode": {
+      "types": "./src/state/peerPairingCode.ts",
+      "default": "./src/state/peerPairingCode.ts"
+    },
+    "./change-request-links": {
+      "types": "./src/changeRequestLinks.ts",
+      "default": "./src/changeRequestLinks.ts"
+    },
+    "./thread-pull-requests": {
+      "types": "./src/threadPullRequests.ts",
+      "default": "./src/threadPullRequests.ts"
+    },
+    "./thread-reference": {
+      "types": "./src/threadReference.ts",
+      "default": "./src/threadReference.ts"
+    },
+    "./provider-clients": {
+      "types": "./src/providerClients.ts",
+      "default": "./src/providerClients.ts"
     }
   },
   "scripts": {
@@ -528,10 +568,19 @@
     "@pierre/diffs": "catalog:",
     "@supaterm/contracts": "workspace:*",
     "@supaterm/mermaid": "workspace:*",
+    "@supaterm/provider-acp-registry": "workspace:*",
+    "@supaterm/provider-core": "workspace:*",
+    "@supaterm/provider-cursor": "workspace:*",
+    "@supaterm/provider-fx": "workspace:*",
+    "@supaterm/provider-grok": "workspace:*",
+    "@supaterm/provider-muse": "workspace:*",
+    "@supaterm/provider-opencode": "workspace:*",
+    "@supaterm/provider-pi": "workspace:*",
     "@supaterm/shared": "workspace:*",
     "@supaterm/source-control-azure-devops": "workspace:*",
     "@supaterm/source-control-bitbucket": "workspace:*",
     "@supaterm/source-control-core": "workspace:*",
+    "@supaterm/source-control-definitions": "workspace:*",
     "@supaterm/source-control-forgejo": "workspace:*",
     "@supaterm/source-control-gitcafe": "workspace:*",
     "@supaterm/source-control-github": "workspace:*",

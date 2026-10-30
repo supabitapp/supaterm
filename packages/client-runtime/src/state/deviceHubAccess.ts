@@ -16,7 +16,10 @@ import type { HttpClient } from "effect/http";
 
 import type { PreparedConnection } from "../connection/model.ts";
 import { environmentEndpointUrl } from "../environment/endpoint.ts";
-import type { RemoteEnvironmentRequestError } from "../rpc/http.ts";
+import {
+  RemoteEnvironmentAuthUndeclaredStatusError,
+  type RemoteEnvironmentRequestError,
+} from "../rpc/http.ts";
 import { executeAuthenticatedEnvironmentHttpRequest } from "./environmentHttpAuth.ts";
 import type { DeviceHubAccess } from "../device/hubAccess.ts";
 
@@ -34,13 +37,25 @@ export const resolveDeviceHubAccess = Effect.fn("clientRuntime.state.resolveDevi
     if (input.prepared.httpAuthorization === null) {
       return { httpBase, wsBase, query: {}, credentials: true };
     }
-    const ticket = yield* executeAuthenticatedEnvironmentHttpRequest({
-      prepared: input.prepared,
-      group: "auth",
-      url: (urls) => urls.webSocketTicket(),
-      timeoutMs: TICKET_TIMEOUT_MS,
-      request: ({ client, headers }) => client.webSocketTicket({ headers }),
-    });
+    const issue = (media: boolean) =>
+      executeAuthenticatedEnvironmentHttpRequest({
+        prepared: input.prepared,
+        group: "auth",
+        url: (urls) =>
+          media ? urls.webSocketTicketFor({ params: { use: "media" } }) : urls.webSocketTicket(),
+        timeoutMs: TICKET_TIMEOUT_MS,
+        request: ({ client, headers }) =>
+          media
+            ? client.webSocketTicketFor({ headers, params: { use: "media" } })
+            : client.webSocketTicket({ headers }),
+      });
+    const ticket = yield* issue(true).pipe(
+      Effect.catchIf(
+        (error) =>
+          error instanceof RemoteEnvironmentAuthUndeclaredStatusError && error.status === 404,
+        () => issue(false),
+      ),
+    );
     return {
       httpBase,
       wsBase,

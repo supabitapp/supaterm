@@ -18,9 +18,9 @@ import {
   SshConnectionTarget,
 } from "../connection/model.ts";
 import {
-  GitHubRoutingPermissions,
-  makeGitHubRoutingPermissions,
-} from "../connection/githubRoutingPermissions.ts";
+  PullRequestRoutingPermissions,
+  makePullRequestRoutingPermissions,
+} from "../connection/pullRequestRoutingPermissions.ts";
 import {
   ConnectionCatalogDocument,
   EMPTY_CONNECTION_CATALOG_DOCUMENT,
@@ -35,6 +35,7 @@ const decodeConnectionCatalogDocument = Schema.decodeUnknownEffect(ConnectionCat
 
 const ENVIRONMENT_ID = EnvironmentId.make("environment-1");
 const decodeCatalogDocument = Schema.decodeUnknownSync(ConnectionCatalogDocument);
+const encodeCatalogDocument = Schema.encodeSync(ConnectionCatalogDocument);
 
 const BEARER_TARGET = new BearerConnectionTarget({
   environmentId: ENVIRONMENT_ID,
@@ -64,6 +65,27 @@ const SSH_PROFILE = new SshConnectionProfile({
 });
 
 describe("ConnectionCatalogDocument", () => {
+  it("migrates legacy routing grants and writes only the generic key", () => {
+    const grants = [
+      { environmentId: ENVIRONMENT_ID, connectionKey: "key", permission: "read" as const },
+    ];
+    const migrated = decodeCatalogDocument({
+      ...EMPTY_CONNECTION_CATALOG_DOCUMENT,
+      githubRoutingPermissions: grants,
+    });
+    expect(migrated.pullRequestRoutingPermissions).toEqual(grants);
+    expect(migrated).not.toHaveProperty("githubRoutingPermissions");
+    const encoded = encodeCatalogDocument(migrated);
+    expect(encoded).not.toHaveProperty("githubRoutingPermissions");
+    expect(
+      decodeCatalogDocument({
+        ...EMPTY_CONNECTION_CATALOG_DOCUMENT,
+        githubRoutingPermissions: grants,
+        pullRequestRoutingPermissions: [],
+      }).pullRequestRoutingPermissions,
+    ).toEqual([]);
+  });
+
   it("persists local labels without saving platform connections or replacing remote labels", () => {
     const initial = registerConnectionInCatalog(
       EMPTY_CONNECTION_CATALOG_DOCUMENT,
@@ -147,19 +169,21 @@ describe("ConnectionCatalogDocument", () => {
       let document = EMPTY_CONNECTION_CATALOG_DOCUMENT;
       const entry = { target: BEARER_TARGET, profile: Option.some(BEARER_PROFILE), enabled: true };
       const storage = {
-        read: Effect.sync(() => document.githubRoutingPermissions ?? []),
-        write: (githubRoutingPermissions: NonNullable<typeof document.githubRoutingPermissions>) =>
+        read: Effect.sync(() => document.pullRequestRoutingPermissions ?? []),
+        write: (
+          pullRequestRoutingPermissions: NonNullable<typeof document.pullRequestRoutingPermissions>,
+        ) =>
           Effect.gen(function* () {
             document = yield* decodeConnectionCatalogDocument({
               ...document,
-              githubRoutingPermissions,
+              pullRequestRoutingPermissions,
             }).pipe(Effect.orDie);
           }),
       };
-      const permissions = yield* makeGitHubRoutingPermissions(storage);
+      const permissions = yield* makePullRequestRoutingPermissions(storage);
       expect(yield* permissions.get(entry)).toBe("off");
       yield* permissions.set(entry, "read");
-      const restarted = yield* makeGitHubRoutingPermissions(storage);
+      const restarted = yield* makePullRequestRoutingPermissions(storage);
       expect(yield* restarted.get(entry)).toBe("read");
 
       const changedEndpoint = {
@@ -194,19 +218,19 @@ describe("ConnectionCatalogDocument", () => {
       expect(yield* restarted.get(entry)).toBe("read-write");
       yield* restarted.forget(ENVIRONMENT_ID);
       expect(yield* restarted.get(entry)).toBe("off");
-      const afterRemoval = yield* makeGitHubRoutingPermissions(storage);
+      const afterRemoval = yield* makePullRequestRoutingPermissions(storage);
       expect(yield* afterRemoval.get(entry)).toBe("off");
 
       yield* permissions.set(entry, "read");
       document = removeConnectionFromCatalog(document, BEARER_TARGET);
-      const afterCatalogRemoval = yield* makeGitHubRoutingPermissions(storage);
+      const afterCatalogRemoval = yield* makePullRequestRoutingPermissions(storage);
       expect(yield* afterCatalogRemoval.get(entry)).toBe("off");
     }),
   );
 
   it.effect("requires explicit trust for primary and SSH connections independently", () =>
     Effect.gen(function* () {
-      const permissions = yield* makeGitHubRoutingPermissions({
+      const permissions = yield* makePullRequestRoutingPermissions({
         read: Effect.succeed([]),
         write: () => Effect.void,
       });
@@ -236,8 +260,8 @@ describe("ConnectionCatalogDocument", () => {
   it.effect("does not enable GitHub routing when permission persistence fails", () =>
     Effect.gen(function* () {
       const entry = { target: BEARER_TARGET, profile: Option.some(BEARER_PROFILE), enabled: true };
-      expect(yield* (yield* GitHubRoutingPermissions).get(entry)).toBe("off");
-      const permissions = yield* makeGitHubRoutingPermissions({
+      expect(yield* (yield* PullRequestRoutingPermissions).get(entry)).toBe("off");
+      const permissions = yield* makePullRequestRoutingPermissions({
         read: Effect.succeed([]),
         write: () =>
           Effect.fail(

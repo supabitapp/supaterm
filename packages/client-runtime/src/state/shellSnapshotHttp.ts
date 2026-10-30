@@ -24,17 +24,29 @@ const DEFAULT_SHELL_SNAPSHOT_TIMEOUT_MS = 20_000;
 
 export const fetchEnvironmentShellSnapshot = Effect.fn(
   "clientRuntime.state.fetchEnvironmentShellSnapshot",
-)(function* (input: { readonly prepared: PreparedConnection; readonly timeoutMs?: number }) {
+)(function* (input: {
+  readonly prepared: PreparedConnection;
+  readonly timeoutMs?: number;
+  readonly omitIdleSubagents?: boolean;
+  readonly omitOlderSettled?: boolean;
+}) {
+  const endpoint = {
+    query: {
+      ...(input.omitIdleSubagents === true ? { omitIdleSubagents: "1" } : {}),
+      ...(input.omitOlderSettled === true ? { omitOlderSettled: "1" } : {}),
+    },
+  };
   return yield* executeAuthenticatedEnvironmentHttpRequest({
     ...input,
     group: "orchestration",
-    url: (urls) => urls.shellSnapshot(),
+    url: (urls) => urls.shellSnapshot(endpoint),
     timeoutMs: input.timeoutMs ?? DEFAULT_SHELL_SNAPSHOT_TIMEOUT_MS,
 
     request: ({ client, headers }) =>
       client
         .shellSnapshot({
           headers: withOrchestrationProtocolHeader(headers),
+          ...endpoint,
           responseMode: "response-only",
         })
         .pipe(Effect.flatMap(decodeShellSnapshotResponse)),
@@ -78,6 +90,7 @@ export class ShellSnapshotLoader extends Context.Service<
   {
     readonly load: (
       prepared: PreparedConnection,
+      options?: { readonly omitIdleSubagents?: boolean; readonly omitOlderSettled?: boolean },
     ) => Effect.Effect<Option.Option<DeferredShellSnapshot>>;
   }
 >()("@supaterm/client-runtime/state/shellSnapshotHttp/ShellSnapshotLoader") {}
@@ -87,8 +100,12 @@ export const layer: Layer.Layer<ShellSnapshotLoader, never, HttpClient.HttpClien
   Effect.gen(function* () {
     const httpClient = yield* HttpClient.HttpClient;
     return ShellSnapshotLoader.of({
-      load: (prepared: PreparedConnection) =>
-        fetchEnvironmentShellSnapshot({ prepared }).pipe(
+      load: Effect.fn("ShellSnapshotLoader.load")(function (prepared, options) {
+        return fetchEnvironmentShellSnapshot({
+          prepared,
+          ...(options?.omitIdleSubagents === true ? { omitIdleSubagents: true } : {}),
+          ...(options?.omitOlderSettled === true ? { omitOlderSettled: true } : {}),
+        }).pipe(
           Effect.map(Option.some<DeferredShellSnapshot>),
           Effect.provideService(HttpClient.HttpClient, httpClient),
           Effect.catchCause((cause) =>
@@ -99,7 +116,8 @@ export const layer: Layer.Layer<ShellSnapshotLoader, never, HttpClient.HttpClien
               Effect.as(Option.none<DeferredShellSnapshot>()),
             ),
           ),
-        ),
+        );
+      }),
     });
   }),
 );

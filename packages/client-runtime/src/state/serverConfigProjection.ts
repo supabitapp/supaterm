@@ -18,14 +18,6 @@ export function withoutEnvironmentThemes(config: ServerConfig): ServerConfig {
   return rest;
 }
 
-/**
- * Returns `next` with every part deep-equal to `previous` replaced by the
- * previous object. A provider status push re-sends every provider even when
- * only one field (often just `checkedAt`) changed, so this keeps unchanged
- * providers, models and skills identical and lets memoized UI skip them.
- * A reconnect snapshot re-sends the whole config the same way.
- * A settings write re-sends the whole settings document for one changed field.
- */
 export function reuseUnchanged<T>(previous: unknown, next: T): T {
   if (Object.is(previous, next)) return next;
   if (
@@ -68,7 +60,7 @@ export function applyServerConfigProjection(
   switch (event.type) {
     case "snapshot": {
       // Wire snapshots never contain published themes. Keep the previous set
-      // until the server sends its authoritative event.
+
       const carriedThemes = Option.isSome(current)
         ? current.value.config.environmentThemes
         : undefined;
