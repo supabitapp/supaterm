@@ -1,3 +1,8 @@
+// @effect-diagnostics nodeBuiltinImport:off - the preflight inspects a separate database without running migrations.
+import * as NodeFS from "node:fs";
+import * as NodePath from "node:path";
+import * as NodeOS from "node:os";
+import * as NodeSqlite from "node:sqlite";
 import { assert, describe, it } from "@effect/vitest";
 import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as Effect from "effect/Effect";
@@ -5,6 +10,11 @@ import * as Exit from "effect/Exit";
 import * as SqlClient from "effect/sql/SqlClient";
 
 import { migrationManifest, runMigrations } from "./Migrations.ts";
+import {
+  BUILD_MIGRATION_HEAD,
+  databaseMigrationHead,
+  recordedMigrations,
+} from "./databaseMigrationHead.ts";
 
 const createLedger = (rows: ReadonlyArray<readonly [number, string]>) =>
   Effect.gen(function* () {
@@ -179,4 +189,37 @@ describe("runMigrations", () => {
       assert.lengthOf(yield* failedErrorIndex, 1);
     }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
   );
+});
+
+it("preflights migration identities without changing the database", () => {
+  const directory = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-migration-head-"));
+  const path = NodePath.join(directory, "state.sqlite");
+  try {
+    assert.deepEqual(recordedMigrations(path), []);
+    assert.equal(databaseMigrationHead(path), BUILD_MIGRATION_HEAD);
+    assert.isFalse(NodeFS.existsSync(path));
+    const db = new NodeSqlite.DatabaseSync(path);
+    try {
+      db.exec(
+        "CREATE TABLE effect_sql_migrations (migration_id INTEGER PRIMARY KEY, name TEXT NOT NULL)",
+      );
+      const insert = db.prepare("INSERT INTO effect_sql_migrations VALUES (?, ?)");
+      for (const [id, name] of migrationManifest) insert.run(id, name);
+      insert.run(BUILD_MIGRATION_HEAD + 1, "FutureAdditiveSchema");
+    } finally {
+      db.close();
+    }
+    assert.equal(databaseMigrationHead(path), BUILD_MIGRATION_HEAD + 1);
+    const conflicting = new NodeSqlite.DatabaseSync(path);
+    try {
+      conflicting.exec(
+        "UPDATE effect_sql_migrations SET name = 'DifferentHistory' WHERE migration_id = 1",
+      );
+    } finally {
+      conflicting.close();
+    }
+    assert.isUndefined(databaseMigrationHead(path));
+  } finally {
+    NodeFS.rmSync(directory, { recursive: true, force: true });
+  }
 });
