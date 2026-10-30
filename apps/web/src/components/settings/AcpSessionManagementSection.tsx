@@ -207,7 +207,7 @@ export function AcpSessionManagementSection(props: {
     reportFailure("Could not delete ACP session", result);
   };
 
-  const loadProviders = async () => {
+  const loadProviders = async (resetProviderId?: string) => {
     if (projectId === null || loadingProviders) return;
     setLoadingProviders(true);
     const result = await listProviders({
@@ -217,11 +217,13 @@ export function AcpSessionManagementSection(props: {
     setLoadingProviders(false);
     if (result._tag === "Success") {
       setProviders(result.value.providers);
-      setProviderDrafts(
+      setProviderDrafts((current) =>
         Object.fromEntries(
           result.value.providers.map((provider) => [
             provider.providerId,
-            {
+            (resetProviderId !== undefined && provider.providerId !== resetProviderId
+              ? current[provider.providerId]
+              : undefined) ?? {
               apiType: provider.current?.apiType ?? provider.supported[0] ?? "",
               baseUrl: provider.current?.baseUrl ?? "",
               headers: "",
@@ -238,7 +240,8 @@ export function AcpSessionManagementSection(props: {
     if (
       !readEnvironmentScope(props.environmentId, AuthProvidersManageScope) ||
       projectId === null ||
-      savingProviderId !== null
+      savingProviderId !== null ||
+      loadingProviders
     )
       return;
     const draft = providerDrafts[provider.providerId];
@@ -268,14 +271,15 @@ export function AcpSessionManagementSection(props: {
     setSavingProviderId(null);
     if (result._tag === "Success") {
       toastManager.add({ type: "success", title: "ACP provider configured" });
-      await loadProviders();
+      await loadProviders(provider.providerId);
       return;
     }
     reportFailure("Could not configure ACP provider", result);
   };
 
   const disableConfiguredProvider = async (provider: AcpRegistryConfigurableProvider) => {
-    if (projectId === null || savingProviderId !== null || provider.required) return;
+    if (projectId === null || savingProviderId !== null || loadingProviders || provider.required)
+      return;
     if (!readEnvironmentScope(props.environmentId, AuthProvidersManageScope)) return;
     setSavingProviderId(provider.providerId);
     const result = await disableProvider({
@@ -285,7 +289,7 @@ export function AcpSessionManagementSection(props: {
     setSavingProviderId(null);
     if (result._tag === "Success") {
       toastManager.add({ type: "success", title: "ACP provider disabled" });
-      await loadProviders();
+      await loadProviders(provider.providerId);
       return;
     }
     reportFailure("Could not disable ACP provider", result);
@@ -463,7 +467,9 @@ export function AcpSessionManagementSection(props: {
               type="button"
               size="xs"
               variant="outline"
-              disabled={!canRead || loadingProviders || projectId === null}
+              disabled={
+                !canRead || loadingProviders || savingProviderId !== null || projectId === null
+              }
               onClick={() => void loadProviders()}
             >
               {loadingProviders ? "Loading" : providers.length === 0 ? "List providers" : "Refresh"}
@@ -529,6 +535,7 @@ export function AcpSessionManagementSection(props: {
                           disabled={
                             props.readOnly ||
                             savingProviderId !== null ||
+                            loadingProviders ||
                             draft.apiType.length === 0 ||
                             draft.baseUrl.length === 0
                           }
@@ -540,7 +547,9 @@ export function AcpSessionManagementSection(props: {
                           <InlineConfirmButton
                             size="xs"
                             variant="ghost-muted"
-                            disabled={props.readOnly || savingProviderId !== null}
+                            disabled={
+                              props.readOnly || savingProviderId !== null || loadingProviders
+                            }
                             label="Disable"
                             confirmLabel="Confirm disable"
                             tooltip={`Disable ${provider.providerId}`}
