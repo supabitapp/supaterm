@@ -196,7 +196,7 @@ and pair a reachable server under Settings → Connections.
 
 - Workflow: `.github/workflows/release.yml`
 - Triggers:
-  - scheduled check of `main` every four hours at 00:08, 04:08, 08:08, 12:08, 16:08, and 20:08 UTC (`8 */4 * * *`)
+  - scheduled check of `main` every night at 08:08 UTC, just after midnight Pacific (`8 8 * * *`)
   - manual `workflow_dispatch` with `channel=nightly`
 - Automatic nightlies require commits ahead of the latest published nightly, including manual nightlies.
 - Manual nightlies bypass the change check. Nightly runs remain serialized. Automatic runs wait for an active nightly to finish, then skip commits already included in the latest nightly.
